@@ -1,0 +1,96 @@
+/* Keyboard navigation indicator and help */
+.keyboard-nav-hint {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
+    color: var(--text-color);
+    cursor: help;
+    transition: all 0.2s ease;
+    margin-left: 8px;
+}
+
+.keyboard-nav-hint:hover {
+    background: var(--lora-accent);
+    color: white;
+    transform: translateY(-2px);
+    box-shadow: 0 3px 5px rgba(0, 0, 0, 0.08);
+}
+
+.keyboard-nav-hint i {
+    font-size: 14px;
+}
+
+/* Tooltip styling */
+.tooltip {
+    position: relative;
+}
+
+.tooltip .tooltiptext {
+    visibility: hidden;
+    width: 240px;
+    background-color: var(--lora-surface);
+    color: var(--text-color);
+    text-align: center;
+    border-radius: var(--border-radius-xs);
+    padding: 8px;
+    position: absolute;
+    z-index: 9999; /* 确保在卡片上方显示 */
+    left: 120%; /* 将tooltip显示在图标右侧 */
+    top: 50%; /* 垂直居中 */
+    transform: translateY(-50%); /* 垂直居中 */
+    opacity: 0;
+    transition: opacity 0.3s;
+    box-shadow: 0 3px 8px rgba(0, 0, 0, 0.15);
+    border: 1px solid var(--lora-border);
+    font-size: 0.85em;
+    line-height: 1.4;
+}
+
+.tooltip .tooltiptext::after {
+    content: "";
+    position: absolute;
+    top: 50%; /* 箭头垂直居中 */
+    right: 100%; /* 箭头在左侧 */
+    margin-top: -5px;
+    border-width: 5px;
+    border-style: solid;
+    border-color: transparent var(--lora-border) transparent transparent; /* 箭头指向左侧 */
+}
+
+.tooltip:hover .tooltiptext {
+    visibility: visible;
+    opacity: 1;
+}
+
+/* Keyboard shortcuts table */
+.keyboard-shortcuts {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 5px;
+}
+
+.keyboard-shortcuts td {
+    padding: 4px;
+    text-align: left;
+}
+
+.keyboard-shortcuts td:first-child {
+    font-weight: bold;
+    width: 40%;
+}
+
+.key {
+    display: inline-block;
+    background: var(--bg-color);
+    border: 1px solid var(--border-color);
+    border-radius: 3px;
+    padding: 1px 5px;
+    font-size: 0.8em;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+}

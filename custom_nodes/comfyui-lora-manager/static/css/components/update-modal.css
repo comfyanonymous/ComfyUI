@@ -1,0 +1,202 @@
+/* Update Modal Styles */
+.update-modal {
+    max-width: 600px;
+}
+
+.update-header {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    margin-bottom: var(--space-3);
+    padding-bottom: var(--space-2);
+    border-bottom: 1px solid var(--lora-border);
+}
+
+.update-icon {
+    font-size: 1.8em;
+    color: var(--lora-accent);
+    animation: bounce 1.5s infinite;
+}
+
+@keyframes bounce {
+    0%, 100% {
+        transform: translateY(0);
+    }
+    50% {
+        transform: translateY(-5px);
+    }
+}
+
+.update-content {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+}
+
+.update-info {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-radius: var(--border-radius-sm);
+    padding: var(--space-3);
+}
+
+.update-info .version-info {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.current-version, .new-version {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.label {
+    font-size: 0.9em;
+    color: var(--text-color);
+    opacity: 0.8;
+}
+
+.version-number {
+    font-family: monospace;
+    font-weight: 600;
+}
+
+.new-version .version-number {
+    color: var(--lora-accent);
+}
+
+/* Add styling for git info display */
+.git-info {
+    font-size: 0.85em;
+    opacity: 0.7;
+    margin-top: 4px;
+    font-family: monospace;
+    color: var(--text-color);
+}
+
+.update-link {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px;
+    background: var(--lora-surface);
+    border: 1px solid var(--lora-border);
+    border-radius: var(--border-radius-sm);
+    text-decoration: none;
+    color: var(--text-color);
+    transition: all 0.2s ease;
+}
+
+.update-link:hover {
+    background: var(--lora-accent);
+    color: white;
+    transform: translateY(-2px);
+}
+
+.changelog-section {
+    background: rgba(0, 0, 0, 0.02); /* 轻微的灰色背景 */
+    border: 1px solid rgba(0, 0, 0, 0.08); /* 更明显的边框 */
+    border-radius: var(--border-radius-sm);
+    padding: var(--space-3);
+}
+
+.changelog-section h3 {
+    margin-top: 0;
+    margin-bottom: var(--space-2);
+    color: var(--lora-accent);
+    font-size: 1.1em;
+}
+
+.changelog-content {
+    max-height: 300px; /* Increased height since we removed instructions */
+    overflow-y: auto;
+}
+
+.changelog-item {
+    margin-bottom: var(--space-2);
+    padding-bottom: var(--space-2);
+    border-bottom: 1px solid var(--lora-border);
+}
+
+.changelog-item:last-child {
+    margin-bottom: 0;
+    padding-bottom: 0;
+    border-bottom: none;
+}
+
+.changelog-item h4 {
+    margin-top: 0;
+    margin-bottom: 8px;
+    font-size: 1em;
+    color: var(--text-color);
+}
+
+.changelog-item ul {
+    margin: 0;
+    padding-left: 20px;
+}
+
+.changelog-item li {
+    margin-bottom: 4px;
+    color: var(--text-color);
+}
+
+@media (max-width: 480px) {
+    .update-info {
+        flex-direction: column;
+        gap: var(--space-2);
+    }
+    
+    .version-info {
+        width: 100%;
+    }
+}
+
+/* Update preferences section */
+.update-preferences {
+    border-top: 1px solid var(--lora-border);
+    margin-top: var(--space-2);
+    padding-top: var(--space-2);
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+}
+
+/* Override toggle switch styles for update preferences */
+.update-preferences .toggle-switch {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    width: auto;
+    height: 24px;
+    cursor: pointer;
+}
+
+.update-preferences .toggle-slider {
+    position: relative;
+    display: inline-block;
+    width: 50px;
+    height: 24px;
+    flex-shrink: 0;
+    margin-right: 10px;
+}
+
+.update-preferences .toggle-label {
+    margin-left: 0;
+    white-space: nowrap;
+    line-height: 24px;
+}
+
+@media (max-width: 480px) {
+    .update-preferences {
+        flex-direction: row;
+        flex-wrap: wrap;
+    }
+    
+    .update-preferences .toggle-label {
+        margin-top: 5px;
+    }
+}

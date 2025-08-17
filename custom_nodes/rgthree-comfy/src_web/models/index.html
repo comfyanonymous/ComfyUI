@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html>
+  <head>
+  <title>rgthree-comfy: Models Manager</title>
+  <link href="./models.css" rel="stylesheet">
+  <!-- <link rel="icon" href="./favicon.webp"> -->
+</head>
+<body>
+  <header>
+    <input type="text" placeholder="Search" id="searchbox" />
+  </header>
+  <ul id="models-list"></ul>
+  <script type="module">
+    import {ModelsInfoPage} from './models_info_page.js';
+    window.page = new ModelsInfoPage();
+  </script>
+</body>
+</html>

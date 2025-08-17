@@ -1,0 +1,129 @@
+
+.rgthree-dialog {
+  outline: 0;
+  border: 0;
+  border-radius: 6px;
+  background: #414141;
+  color: #fff;
+  box-shadow:
+    inset 1px 1px 0px rgba(255, 255, 255, 0.05),
+    inset -1px -1px 0px rgba(0, 0, 0, 0.5),
+    2px 2px 20px rgb(0, 0, 0);
+  max-width: 800px;
+  box-sizing: border-box;
+  font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+  font-size: 1rem;
+  padding: 0;
+  max-height: calc(100% - 32px);
+
+  *, *::before, *::after {
+    box-sizing: inherit;
+  }
+}
+
+.rgthree-dialog-container {
+  // padding: 16px;
+  > * {
+    padding: 8px 16px;
+
+    &:first-child {
+      padding-top: 16px;
+    }
+    &:last-child {
+      padding-bottom: 16px;
+    }
+  }
+}
+
+.rgthree-dialog.-iconed::after {
+  content: "";
+  font-size: 276px;
+  position: absolute;
+  right: 0px;
+  bottom: 0px;
+  opacity: 0.15;
+  display: block;
+  width: 237px;
+  overflow: hidden;
+  height: 186px;
+  line-height: 1;
+  pointer-events: none;
+  z-index: -1;
+}
+.rgthree-dialog.-iconed.-help::after {
+  content: "🛟";
+}
+.rgthree-dialog.-iconed.-settings::after {
+  content: "⚙️";
+}
+
+@media (max-width: 832px) {
+  .rgthree-dialog {
+    max-width: calc(100% - 32px);
+  }
+}
+
+.rgthree-dialog-container-title {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: start;
+}
+.rgthree-dialog-container-title > svg:first-child {
+  width: 36px;
+  height: 36px;
+  margin-right: 16px;
+}
+.rgthree-dialog-container-title h2 {
+  font-size: calc(22rem / 16);
+  margin: 0;
+  font-weight: bold;
+}
+
+.rgthree-dialog-container-title h2 small {
+  font-size: calc(13rem / 16);
+  font-weight: normal;
+  opacity: 0.75;
+}
+
+.rgthree-dialog-container-content {
+  overflow: auto;
+  max-height: calc(100vh - 200px); /* Arbitrary height to copensate for margin, title, and footer.*/
+}
+.rgthree-dialog-container-content p {
+  font-size: calc(13rem / 16);
+  margin-top: 0;
+}
+
+.rgthree-dialog-container-content ul li p {
+  margin-bottom: 4px;
+}
+
+.rgthree-dialog-container-content ul li p + p {
+  margin-top: 0.5em;
+}
+
+.rgthree-dialog-container-content ul li ul {
+  margin-top: 0.5em;
+  margin-bottom: 1em;
+}
+
+.rgthree-dialog-container-content p code {
+  display: inline-block;
+  padding: 2px 4px;
+  margin: 0px 2px;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.rgthree-dialog-container-footer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+body.rgthree-dialog-open > *:not(.rgthree-dialog):not(.rgthree-top-messages-container) {
+  filter: blur(5px);
+}
+

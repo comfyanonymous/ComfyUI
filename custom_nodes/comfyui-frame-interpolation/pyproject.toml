@@ -1,0 +1,13 @@
+[project]
+name = "comfyui-frame-interpolation"
+description = "A custom node suite for Video Frame Interpolation in ComfyUI"
+version = "1.0.7"
+license = { file = "LICENSE" }
+
+[project.urls]
+Repository = "https://github.com/Fannovel16/ComfyUI-Frame-Interpolation"
+
+[tool.comfy]
+PublisherId = "fannovel16"
+DisplayName = "ComfyUI-Frame-Interpolation"
+Icon = ""

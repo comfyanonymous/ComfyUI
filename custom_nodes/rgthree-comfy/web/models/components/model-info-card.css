@@ -1,0 +1,32 @@
+.rgthree-model-info-card {
+  display: block;
+  padding: 8px;
+}
+
+.-is-hidden {
+  display: none;
+}
+
+.rgthree-model-info-card {
+  display: flex;
+  flex-direction: row;
+}
+.rgthree-model-info-card > .rgthree-model-info-card-media-container {
+  width: 100px;
+  height: auto;
+  display: block;
+  margin: 0 8px 0 0;
+  padding: 0;
+  flex: 0 0 auto;
+}
+.rgthree-model-info-card > .rgthree-model-info-card-media-container > img,
+.rgthree-model-info-card > .rgthree-model-info-card-media-container > video {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.rgthree-model-info-card > .rgthree-model-info-card-data-container [bind*="name:"] {
+  font-size: 1.3em;
+  margin-bottom: 4px;
+  font-weight: bold;
+}

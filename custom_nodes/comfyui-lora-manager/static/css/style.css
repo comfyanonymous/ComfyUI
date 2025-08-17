@@ -1,0 +1,58 @@
+/* Import Base Styles */
+@import 'base.css';
+
+/* Import Layout */
+@import 'layout.css';
+
+/* Import Components */
+@import 'components/header.css';
+@import 'components/banner.css';
+@import 'components/card.css';
+@import 'components/modal/_base.css';
+@import 'components/modal/delete-modal.css';
+@import 'components/modal/update-modal.css';
+@import 'components/modal/settings-modal.css';
+@import 'components/modal/help-modal.css';
+@import 'components/modal/relink-civitai-modal.css';
+@import 'components/modal/example-access-modal.css';
+@import 'components/modal/support-modal.css';
+@import 'components/modal/download-modal.css';
+@import 'components/toast.css';
+@import 'components/loading.css';
+@import 'components/menu.css';
+@import 'components/update-modal.css';
+@import 'components/lora-modal/lora-modal.css';
+@import 'components/lora-modal/description.css';
+@import 'components/lora-modal/tag.css';
+@import 'components/lora-modal/preset-tags.css';
+@import 'components/lora-modal/showcase.css';
+@import 'components/lora-modal/triggerwords.css';
+@import 'components/shared/edit-metadata.css';
+@import 'components/search-filter.css';
+@import 'components/bulk.css';
+@import 'components/shared.css';
+@import 'components/filter-indicator.css';
+@import 'components/initialization.css';
+@import 'components/progress-panel.css';
+@import 'components/alphabet-bar.css'; /* Add alphabet bar component */
+@import 'components/duplicates.css'; /* Add duplicates component */
+@import 'components/keyboard-nav.css'; /* Add keyboard navigation component */
+@import 'components/statistics.css'; /* Add statistics component */
+
+.initialization-notice {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 200px;
+    margin: var(--space-3) 0;
+    padding: var(--space-3);
+    background: var(--lora-surface);
+    border: 1px solid var(--lora-border);
+    border-radius: var(--border-radius-base);
+    text-align: center;
+}
+
+/* 使用已有的loading-spinner样式 */
+.initialization-notice .loading-spinner {
+    margin-bottom: var(--space-2);
+}

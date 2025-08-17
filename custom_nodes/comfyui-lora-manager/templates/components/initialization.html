@@ -1,0 +1,92 @@
+<!-- Initialization Component -->
+<div class="initialization-container" id="initializationContainer">
+    <div class="initialization-content">
+        <div class="initialization-header">
+            <h2 id="initTitle">{% block init_title %}Initializing{% endblock %}</h2>
+            <p class="init-subtitle" id="initSubtitle">{% block init_message %}Preparing your workspace...{% endblock %}
+            </p>
+        </div>
+
+        <div class="loading-content">
+            <div class="loading-spinner"></div>
+            <div class="loading-status" id="progressStatus">Initializing...</div>
+            <!-- Use initialization-specific classes for the progress bar -->
+            <div class="init-progress-container">
+                <div class="init-progress-bar" id="initProgressBar"></div>
+            </div>
+            <div class="progress-details">
+                <span id="progressPercentage">0%</span>
+                <span id="remainingTime">Estimating time...</span>
+            </div>
+        </div>
+
+        <div class="tips-container">
+            <div class="tips-header">
+                <i class="fas fa-lightbulb"></i>
+                <h3>Tips & Tricks</h3>
+            </div>
+            <div class="tips-content">
+                <div class="tip-carousel" id="tipCarousel">
+                    <div class="tip-item active">
+                        <div class="tip-image">
+                            <img src="/loras_static/images/tips/civitai-api.png" alt="Civitai API Setup"
+                                onerror="this.src='/loras_static/images/no-preview.png'">
+                        </div>
+                        <div class="tip-text">
+                            <h4>Civitai Integration</h4>
+                            <p>Connect your Civitai account: Visit Profile Avatar → Settings → API Keys → Add API Key,
+                                then paste it in Lora Manager settings.</p>
+                        </div>
+                    </div>
+                    <div class="tip-item">
+                        <div class="tip-image">
+                            <img src="/loras_static/images/tips/civitai-download.png" alt="Civitai Download"
+                                onerror="this.src='/loras_static/images/no-preview.png'">
+                        </div>
+                        <div class="tip-text">
+                            <h4>Easy Download</h4>
+                            <p>Use Civitai URLs to quickly download and install new models.</p>
+                        </div>
+                    </div>
+                    <div class="tip-item">
+                        <div class="tip-image">
+                            <img src="/loras_static/images/tips/recipes.png" alt="Recipes"
+                                onerror="this.src='/loras_static/images/no-preview.png'">
+                        </div>
+                        <div class="tip-text">
+                            <h4>Save Recipes</h4>
+                            <p>Create recipes to save your favorite model combinations for future use.</p>
+                        </div>
+                    </div>
+                    <div class="tip-item">
+                        <div class="tip-image">
+                            <img src="/loras_static/images/tips/filter.png" alt="Filter Models"
+                                onerror="this.src='/loras_static/images/no-preview.png'">
+                        </div>
+                        <div class="tip-text">
+                            <h4>Fast Filtering</h4>
+                            <p>Filter models by tags or base model type using the filter button in the header.</p>
+                        </div>
+                    </div>
+                    <div class="tip-item">
+                        <div class="tip-image">
+                            <img src="/loras_static/images/tips/search.webp" alt="Quick Search"
+                                onerror="this.src='/loras_static/images/no-preview.png'">
+                        </div>
+                        <div class="tip-text">
+                            <h4>Quick Search</h4>
+                            <p>Press Ctrl+F (Cmd+F on Mac) to quickly search within your current view.</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="tip-navigation">
+                    <span class="tip-dot active" data-index="0"></span>
+                    <span class="tip-dot" data-index="1"></span>
+                    <span class="tip-dot" data-index="2"></span>
+                    <span class="tip-dot" data-index="3"></span>
+                    <span class="tip-dot" data-index="4"></span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

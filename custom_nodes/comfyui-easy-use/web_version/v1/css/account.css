@@ -1,0 +1,93 @@
+.easyuse-account{
+
+}
+.easyuse-account-user{
+    font-size: 10px;
+    color:var(--descrip-text);
+    text-align: center;
+}
+.easyuse-account-user-info{
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-bottom:10px;
+    cursor: pointer;
+}
+.easyuse-account-user-info .user{
+    display: flex;
+    align-items: center;
+}
+.easyuse-account-user-info .edit{
+    padding:5px 10px;
+    background: var(--comfy-menu-bg);
+    border-radius:4px;
+}
+.easyuse-account-user-info:hover{
+    filter:brightness(110%);
+}
+.easyuse-account-user-info h5{
+    margin:0;
+    font-size: 10px;
+    text-align: left;
+}
+.easyuse-account-user-info h6{
+    margin:0;
+    font-size: 8px;
+    text-align: left;
+    font-weight: 300;
+}
+.easyuse-account-user-info .remark{
+    margin-top: 4px;
+}
+.easyuse-account-user-info .avatar{
+    width: 36px;
+    height: 36px;
+    background: var(--comfy-input-bg);
+    border-radius: 50%;
+    margin-right: 5px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-size: 16px;
+    overflow: hidden;
+}
+.easyuse-account-user-info .avatar img{
+    width: 100%;
+    height: 100%;
+}
+.easyuse-account-dialog{
+    width: 600px;
+}
+.easyuse-account-dialog-main a, .easyuse-account-dialog-main a:visited{
+    font-weight: 400;
+    color: var(--theme-color-light);
+}
+.easyuse-account-dialog-item{
+    display: flex;
+    justify-content: flex-start;
+    align-items: center;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--border-color);
+}
+.easyuse-account-dialog-item input{
+    padding:5px;
+    margin-right:5px;
+}
+.easyuse-account-dialog-item input.key{
+    flex:1;
+}
+.easyuse-account-dialog-item button{
+    cursor: pointer;
+    margin-left:5px!important;
+    padding:5px!important;
+    font-size: 16px!important;
+}
+.easyuse-account-dialog-item button:hover{
+    filter:brightness(120%);
+}
+.easyuse-account-dialog-item button.choose {
+    background: var(--theme-color);
+}
+.easyuse-account-dialog-item button.delete{
+    background: var(--error-color);
+}

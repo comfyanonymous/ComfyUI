@@ -1,0 +1,148 @@
+/* Model Tags styles */
+.model-tags {
+  display: none;
+}
+
+.model-tag {
+  display: none;
+}
+
+/* Updated Model Tags styles - improved visibility in light theme */
+.model-tags-container {
+  position: relative;
+}
+
+.model-tags-compact {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.model-tag-compact {
+  /* Updated styles to match info-item appearance */
+  background: rgba(0, 0, 0, 0.03);
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  border-radius: var(--border-radius-xs);
+  padding: 2px 8px;
+  font-size: 0.75em;
+  color: var(--text-color);
+  white-space: nowrap;
+}
+
+/* Style for empty tags placeholder */
+.model-tag-empty {
+  background: rgba(0, 0, 0, 0.02);
+  border: 1px dashed rgba(0, 0, 0, 0.1);
+  border-radius: var(--border-radius-xs);
+  padding: 2px 8px;
+  font-size: 0.75em;
+  color: var(--text-color);
+  white-space: nowrap;
+  opacity: 0.7;
+  font-style: italic;
+}
+
+/* Adjust dark theme tag styles */
+[data-theme="dark"] .model-tag-compact {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--lora-border);
+}
+
+/* Dark theme for empty tags */
+[data-theme="dark"] .model-tag-empty {
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px dashed var(--lora-border);
+}
+
+.model-tag-more {
+  background: var(--lora-accent);
+  color: var(--lora-text);
+  border-radius: var(--border-radius-xs);
+  padding: 2px 8px;
+  font-size: 0.75em;
+  cursor: pointer;
+  white-space: nowrap;
+  font-weight: 500;
+}
+
+.model-tags-tooltip {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius-sm);
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.15);
+  padding: 10px 14px;
+  max-width: 400px;
+  z-index: 10;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(-4px);
+  transition: all 0.2s ease;
+  pointer-events: none;
+}
+
+.model-tags-tooltip.visible {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+
+.tooltip-content {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.tooltip-tag {
+  /* Updated styles to match info-item appearance */
+  background: rgba(0, 0, 0, 0.03);
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  border-radius: var(--border-radius-xs);
+  padding: 3px 8px;
+  font-size: 0.75em;
+  color: var(--text-color);
+}
+
+/* Adjust dark theme tooltip tag styles */
+[data-theme="dark"] .tooltip-tag {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--lora-border);
+}
+
+/* Model Tags Edit Mode */
+.model-tags-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.edit-tags-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-color);
+  opacity: 0;
+  cursor: pointer;
+  padding: 2px 5px;
+  border-radius: var(--border-radius-xs);
+  transition: all 0.2s ease;
+  margin-left: var(--space-1);
+}
+
+.edit-tags-btn.visible,
+.model-tags-container:hover .edit-tags-btn {
+  opacity: 0.5;
+}
+
+/* Edit mode active state */
+.model-tags-container.edit-mode {
+  width: 100%;
+  display: block;
+  flex-basis: 100%;
+  grid-column: 1 / -1;
+}

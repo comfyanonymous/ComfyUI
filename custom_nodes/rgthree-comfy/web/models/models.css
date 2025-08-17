@@ -1,0 +1,38 @@
+:root {
+  --rgthree-bg-color: rgba(23, 23, 23, 0.9);
+  --rgthree-on-bg-color: rgba(48, 48, 48, 0.9);
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  font-family: Arial, sans-serif;
+  box-sizing: border-body;
+  background: var(--rgthree-bg-color);
+}
+
+*, *::before, *::after {
+  box-sizing: inherit;
+}
+
+[if-is=false] {
+  display: none;
+}
+
+.models-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.model-item {
+  display: block;
+  margin: 8px;
+}
+
+rgthree-model-info-card {
+  background: var(--rgthree-on-bg-color);
+  margin: 16px;
+  display: block;
+  border-radius: 4px;
+}

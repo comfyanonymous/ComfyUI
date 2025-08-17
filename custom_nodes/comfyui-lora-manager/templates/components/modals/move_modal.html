@@ -1,0 +1,56 @@
+<!-- Move Model Modal -->
+<div id="moveModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2 id="moveModalTitle">Move Model</h2>
+            <span class="close" onclick="modalManager.closeModal('moveModal')">&times;</span>
+        </div>
+        <div class="location-selection">
+            <!-- Path preview -->
+            <div class="path-preview">
+                <label>Target Location Preview:</label>
+                <div class="path-display" id="moveTargetPathDisplay">
+                    <span class="path-text">Select a model root directory</span>
+                </div>
+            </div>
+
+            <div class="input-group">
+                <label for="moveModelRoot" id="moveRootLabel">Select Model Root:</label>
+                <select id="moveModelRoot"></select>
+            </div>
+            
+            <!-- Path input with autocomplete -->
+            <div class="input-group">
+                <label for="moveFolderPath">Target Folder Path:</label>
+                <div class="path-input-container">
+                    <input type="text" id="moveFolderPath" placeholder="Type folder path or select from tree below..." autocomplete="off" />
+                    <button type="button" id="moveCreateFolderBtn" class="create-folder-btn" title="Create new folder">
+                        <i class="fas fa-plus"></i>
+                    </button>
+                </div>
+                <div class="path-suggestions" id="movePathSuggestions" style="display: none;"></div>
+            </div>
+            
+            <!-- Breadcrumb navigation -->
+            <div class="breadcrumb-nav" id="moveBreadcrumbNav">
+                <span class="breadcrumb-item root" data-path="">
+                    <i class="fas fa-home"></i> Root
+                </span>
+            </div>
+            
+            <!-- Hierarchical folder tree -->
+            <div class="input-group">
+                <label>Browse Folders:</label>
+                <div class="folder-tree-container">
+                    <div class="folder-tree" id="moveFolderTree">
+                        <!-- Tree will be loaded dynamically -->
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="modal-actions">
+            <button class="cancel-btn" onclick="modalManager.closeModal('moveModal')">Cancel</button>
+            <button class="primary-btn" onclick="moveManager.moveModel()">Move</button>
+        </div>
+    </div>
+</div>

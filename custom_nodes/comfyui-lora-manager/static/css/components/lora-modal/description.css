@@ -1,0 +1,100 @@
+/* Model Description Styling */
+.model-description-container {
+  background: var(--lora-surface);
+  border-radius: var(--border-radius-sm);
+  overflow: hidden;
+  min-height: 200px;
+  position: relative;
+  /* Remove the max-height and overflow-y to allow content to expand naturally */
+}
+
+.model-description-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-3);
+  color: var(--text-color);
+  opacity: 0.7;
+  font-size: 0.9em;
+}
+
+.model-description-loading .fa-spinner {
+  margin-right: var(--space-1);
+}
+
+.model-description-content {
+  padding: var(--space-2);
+  line-height: 1.5;
+  overflow-wrap: break-word;
+  font-size: 0.95em;
+}
+
+.model-description-content h1,
+.model-description-content h2,
+.model-description-content h3,
+.model-description-content h4,
+.model-description-content h5,
+.model-description-content h6 {
+  margin-top: 1em;
+  margin-bottom: 0.5em;
+  font-weight: 600;
+}
+
+.model-description-content p {
+  margin-bottom: 1em;
+}
+
+.model-description-content img {
+  max-width: 100%;
+  height: auto;
+  border-radius: var(--border-radius-xs);
+  display: block;
+  margin: 1em 0;
+}
+
+.model-description-content pre {
+  background: rgba(0, 0, 0, 0.05);
+  border-radius: var(--border-radius-xs);
+  padding: var(--space-1);
+  white-space: pre-wrap;
+  margin: 1em 0;
+  overflow-x: auto;
+}
+
+.model-description-content code {
+  font-family: monospace;
+  font-size: 0.9em;
+  background: rgba(0, 0, 0, 0.05);
+  padding: 0.1em 0.3em;
+  border-radius: 3px;
+}
+
+.model-description-content pre code {
+  background: transparent;
+  padding: 0;
+}
+
+.model-description-content ul,
+.model-description-content ol {
+  margin-left: 1.5em;
+  margin-bottom: 1em;
+}
+
+.model-description-content li {
+  margin-bottom: 0.5em;
+}
+
+.model-description-content blockquote {
+  border-left: 3px solid var (--lora-accent);
+  padding-left: 1em;
+  margin-left: 0;
+  margin-right: 0;
+  font-style: italic;
+  opacity: 0.8;
+}
+
+/* Adjust dark mode for model description */
+[data-theme="dark"] .model-description-content pre,
+[data-theme="dark"] .model-description-content code {
+  background: rgba(255, 255, 255, 0.05);
+}

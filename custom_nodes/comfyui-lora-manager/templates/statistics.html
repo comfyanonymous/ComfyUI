@@ -1,0 +1,203 @@
+{% extends "base.html" %}
+
+{% block title %}Statistics - LoRA Manager{% endblock %}
+{% block page_id %}statistics{% endblock %}
+
+{% block preload %}
+{% if not is_initializing %}
+<link rel="preload" href="/loras_static/js/statistics.js" as="script" crossorigin="anonymous">
+{% endif %}
+{% endblock %}
+
+{% block head_scripts %}
+<!-- Add Chart.js for statistics page -->
+<script src="/loras_static/vendor/chart.js/chart.umd.js"></script>
+{% endblock %}
+
+{% block init_title %}Initializing Statistics{% endblock %}
+{% block init_message %}Loading model data and usage statistics. This may take a moment...{% endblock %}
+{% block init_check_url %}/api/stats/collection-overview{% endblock %}
+
+{% block content %}
+    {% if not is_initializing %}
+    <!-- Key Metrics Panel -->
+    <div class="metrics-panel">
+        <div class="metrics-grid" id="metricsGrid">
+            <!-- Metrics cards will be populated by JavaScript -->
+        </div>
+    </div>
+
+    <!-- Main Dashboard Content -->
+    <div class="dashboard-content">
+        <!-- Navigation Tabs -->
+        <div class="dashboard-tabs">
+            <button class="tab-button active" data-tab="overview">
+                <i class="fas fa-chart-bar"></i> Overview
+            </button>
+            <button class="tab-button" data-tab="usage">
+                <i class="fas fa-chart-line"></i> Usage Analysis
+            </button>
+            <button class="tab-button" data-tab="collection">
+                <i class="fas fa-layer-group"></i> Collection
+            </button>
+            <button class="tab-button" data-tab="storage">
+                <i class="fas fa-hdd"></i> Storage
+            </button>
+            <button class="tab-button" data-tab="insights">
+                <i class="fas fa-lightbulb"></i> Insights
+            </button>
+        </div>
+
+        <!-- Tab Content Panels -->
+        <div class="tab-content">
+            <!-- Overview Tab -->
+            <div class="tab-panel active" id="overview-panel">
+                <div class="panel-grid">
+                    <!-- Collection Overview Chart -->
+                    <div class="chart-container">
+                        <h3><i class="fas fa-pie-chart"></i> Collection Overview</h3>
+                        <div class="chart-wrapper">
+                            <canvas id="collectionPieChart"></canvas>
+                        </div>
+                    </div>
+
+                    <!-- Base Model Distribution -->
+                    <div class="chart-container">
+                        <h3><i class="fas fa-layer-group"></i> Base Model Distribution</h3>
+                        <div class="chart-wrapper">
+                            <canvas id="baseModelChart"></canvas>
+                        </div>
+                    </div>
+
+                    <!-- Usage Timeline -->
+                    <div class="chart-container full-width">
+                        <h3><i class="fas fa-chart-line"></i> Usage Trends (Last 30 Days)</h3>
+                        <div class="chart-wrapper">
+                            <canvas id="usageTimelineChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Usage Analysis Tab -->
+            <div class="tab-panel" id="usage-panel">
+                <div class="panel-grid">
+                    <!-- Top Used LoRAs -->
+                    <div class="list-container">
+                        <h3><i class="fas fa-star"></i> Most Used LoRAs</h3>
+                        <div class="model-list" id="topLorasList">
+                            <!-- List will be populated by JavaScript -->
+                        </div>
+                    </div>
+
+                    <!-- Top Used Checkpoints -->
+                    <div class="list-container">
+                        <h3><i class="fas fa-check-circle"></i> Most Used Checkpoints</h3>
+                        <div class="model-list" id="topCheckpointsList">
+                            <!-- List will be populated by JavaScript -->
+                        </div>
+                    </div>
+
+                    <!-- Top Used Embeddings -->
+                    <div class="list-container">
+                        <h3><i class="fas fa-code"></i> Most Used Embeddings</h3>
+                        <div class="model-list" id="topEmbeddingsList">
+                            <!-- List will be populated by JavaScript -->
+                        </div>
+                    </div>
+
+                    <!-- Usage Distribution Chart -->
+                    <div class="chart-container full-width">
+                        <h3><i class="fas fa-chart-bar"></i> Usage Distribution</h3>
+                        <div class="chart-wrapper">
+                            <canvas id="usageDistributionChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Collection Tab -->
+            <div class="tab-panel" id="collection-panel">
+                <div class="panel-grid">
+                    <!-- Tag Cloud -->
+                    <div class="chart-container">
+                        <h3><i class="fas fa-tags"></i> Popular Tags</h3>
+                        <div class="tag-cloud" id="tagCloud">
+                            <!-- Tag cloud will be populated by JavaScript -->
+                        </div>
+                    </div>
+
+                    <!-- Base Model Timeline -->
+                    <div class="chart-container">
+                        <h3><i class="fas fa-history"></i> Model Types</h3>
+                        <div class="chart-wrapper">
+                            <canvas id="modelTypesChart"></canvas>
+                        </div>
+                    </div>
+
+                    <!-- Collection Growth -->
+                    <div class="chart-container full-width">
+                        <h3><i class="fas fa-chart-area"></i> Collection Analysis</h3>
+                        <div class="analysis-cards" id="collectionAnalysis">
+                            <!-- Analysis cards will be populated by JavaScript -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Storage Tab -->
+            <div class="tab-panel" id="storage-panel">
+                <div class="panel-grid">
+                    <!-- Storage by Model Type -->
+                    <div class="chart-container">
+                        <h3><i class="fas fa-database"></i> Storage Usage</h3>
+                        <div class="chart-wrapper">
+                            <canvas id="storageChart"></canvas>
+                        </div>
+                    </div>
+
+                    <!-- Largest Models -->
+                    <div class="list-container">
+                        <h3><i class="fas fa-weight-hanging"></i> Largest Models</h3>
+                        <div class="model-list" id="largestModelsList">
+                            <!-- List will be populated by JavaScript -->
+                        </div>
+                    </div>
+
+                    <!-- Storage Efficiency -->
+                    <div class="chart-container full-width">
+                        <h3><i class="fas fa-chart-scatter"></i> Storage vs Usage Efficiency</h3>
+                        <div class="chart-wrapper">
+                            <canvas id="storageEfficiencyChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Insights Tab -->
+            <div class="tab-panel" id="insights-panel">
+                <div class="insights-container">
+                    <h3><i class="fas fa-lightbulb"></i> Smart Insights</h3>
+                    <div class="insights-list" id="insightsList">
+                        <!-- Insights will be populated by JavaScript -->
+                    </div>
+
+                    <!-- Recommendations -->
+                    <div class="recommendations-section">
+                        <h4><i class="fas fa-tasks"></i> Recommendations</h4>
+                        <div class="recommendations-list" id="recommendationsList">
+                            <!-- Recommendations will be populated by JavaScript -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+{% endblock %}
+
+{% block main_script %}
+{% if not is_initializing %}
+<script type="module" src="/loras_static/js/statistics.js"></script>
+{% endif %}
+{% endblock %}

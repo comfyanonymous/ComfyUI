@@ -1,0 +1,1138 @@
+/* 修改 modal 基础样式 */
+.modal {
+    display: none;
+    position: fixed;
+    top: 48px; /* Start below the header */
+    left: 0;
+    width: 100%;
+    height: calc(100% - 48px); /* Adjust height to exclude header */
+    background: rgba(0, 0, 0, 0.2); /* 调整为更淡的半透明黑色 */
+    z-index: var(--z-modal);
+    overflow: auto; /* Change from hidden to auto to allow scrolling */
+}
+
+/* 当模态窗口打开时，禁止body滚动 */
+body.modal-open {
+    position: fixed;
+    width: 100%;
+    padding-right: var(--scrollbar-width, 0px); /* 补偿滚动条消失导致的页面偏移 */
+}
+
+/* 修改 modal-content 样式 */
+.modal-content {
+    position: relative;
+    max-width: 800px;
+    height: auto;
+    max-height: calc(90vh - 48px); /* Adjust to account for header height */
+    margin: 1rem auto; /* Keep reduced top margin */
+    background: var(--lora-surface);
+    border-radius: var(--border-radius-base);
+    padding: var(--space-3);
+    border: 1px solid var(--lora-border);
+    box-shadow: 
+        0 4px 6px -1px rgba(0, 0, 0, 0.1),
+        0 2px 4px -1px rgba(0, 0, 0, 0.06),
+        0 10px 15px -3px rgba(0, 0, 0, 0.05);
+    overflow-y: auto;
+    overflow-x: hidden; /* 防止水平滚动条 */
+}
+
+/* 当 modal 打开时锁定 body */
+body.modal-open {
+    overflow: hidden !important; /* 覆盖 base.css 中的 scroll */
+    padding-right: var(--scrollbar-width, 8px); /* 使用滚动条宽度作为补偿 */
+}
+
+/* Delete Modal specific styles */
+
+.delete-message {
+    color: var(--text-color);
+    margin: var(--space-2) 0;
+}
+
+/* Update delete modal styles */
+.delete-modal {
+    display: none;  /* Set initial display to none */
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.8);
+    z-index: var(--z-overlay);
+}
+
+/* Add new style for when modal is shown */
+.delete-modal.show {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.delete-modal-content {
+    max-width: 500px;
+    width: 90%;
+    text-align: center;
+    margin: 0 auto;
+    position: relative;
+    animation: modalFadeIn 0.2s ease-out;
+}
+
+.delete-model-info,
+.exclude-model-info {
+    /* Update info display styling */
+    background: var(--lora-surface);
+    border: 1px solid var(--lora-border);
+    border-radius: var(--border-radius-sm);
+    padding: var(--space-2);
+    margin: var(--space-2) 0;
+    color: var(--text-color);
+    word-break: break-all;
+    text-align: left;
+    line-height: 1.5;
+}
+
+@keyframes modalFadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(-20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.modal-actions {
+    display: flex;
+    gap: var(--space-2);
+    justify-content: center;
+    margin-top: var(--space-3);
+}
+
+.cancel-btn, .delete-btn, .exclude-btn, .confirm-btn {
+    padding: 8px var(--space-2);
+    border-radius: 6px;
+    border: none;
+    cursor: pointer;
+    font-weight: 500;
+    min-width: 100px;
+}
+
+.cancel-btn {
+    background: var(--lora-surface);
+    border: 1px solid var(--lora-border);
+    color: var(--text-color);
+}
+
+.delete-btn {
+    background: var(--lora-error);
+    color: white;
+}
+
+/* Style for exclude button - different from delete button */
+.exclude-btn, .confirm-btn {
+    background: var(--lora-accent, #4f46e5);
+    color: white;
+}
+
+.cancel-btn:hover {
+    background: var(--lora-border);
+}
+
+.delete-btn:hover {
+    opacity: 0.9;
+}
+
+.exclude-btn:hover, .confirm-btn:hover {
+    opacity: 0.9;
+    background: oklch(from var(--lora-accent, #4f46e5) l c h / 85%);
+}
+
+.modal-content h2 {
+    color: var(--text-color);
+    margin-bottom: var(--space-1);
+    font-size: 1.5em;
+}
+
+.close {
+    position: absolute;
+    top: var(--space-2);
+    right: var(--space-2);
+    background: transparent;
+    border: none;
+    color: var(--text-color);
+    font-size: 1.5em;
+    cursor: pointer;
+    opacity: 0.7;
+    transition: opacity 0.2s;
+}
+
+.close:hover {
+    opacity: 1;
+}
+
+/* Settings styles */
+.settings-toggle {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
+    color: var(--text-color);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.settings-toggle:hover {
+    background: var(--lora-accent);
+    color: white;
+    transform: translateY(-2px);
+}
+
+.settings-modal {
+    max-width: 650px; /* Further increased from 600px for more space */
+}
+
+/* Settings Links */
+.settings-links {
+    margin-top: var(--space-3);
+    padding-top: var(--space-2);
+    border-top: 1px solid var(--lora-border);
+    display: flex;
+    gap: var(--space-2);
+    justify-content: center;
+}
+
+.settings-link {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
+    color: var(--text-color);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    text-decoration: none;
+    position: relative;
+}
+
+.settings-link:hover {
+    background: var(--lora-accent);
+    color: white;
+    transform: translateY(-2px);
+}
+
+.settings-link i {
+    font-size: 1.1em;
+}
+
+/* Tooltip styles */
+.settings-link::after {
+    content: attr(title);
+    position: absolute;
+    bottom: calc(100% + 8px);
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(0, 0, 0, 0.8);
+    color: white;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 0.8em;
+    white-space: nowrap;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.2s, visibility 0.2s;
+    pointer-events: none;
+}
+
+.settings-link:hover::after {
+    opacity: 1;
+    visibility: visible;
+}
+
+/* Responsive adjustment */
+@media (max-width: 480px) {
+    .settings-links {
+        flex-wrap: wrap;
+    }
+}
+
+/* API key input specific styles */
+.api-key-input {
+    width: 100%; /* Take full width of parent */
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+.api-key-input input {
+    width: 100%;
+    padding: 6px 40px 6px 10px; /* Add left padding */
+    height: 32px;
+    border-radius: var(--border-radius-xs);
+    border: 1px solid var(--border-color);
+    background-color: var(--lora-surface);
+    color: var(--text-color);
+}
+
+.api-key-input .toggle-visibility {
+    position: absolute;
+    right: 8px;
+    background: none;
+    border: none;
+    color: var(--text-color);
+    opacity: 0.6;
+    cursor: pointer;
+    padding: 4px 8px;
+}
+
+.api-key-input .toggle-visibility:hover {
+    opacity: 1;
+}
+
+.input-help {
+    font-size: 0.85em;
+    color: var(--text-color);
+    opacity: 0.7;
+    margin-top: 8px; /* Space between control and help */
+    line-height: 1.4;
+    width: 100%; /* Full width */
+}
+
+/* 统一各个 section 的样式 */
+.support-section,
+.changelog-section,
+.update-info,
+.info-item,
+.path-preview {
+    background: rgba(0, 0, 0, 0.03);
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    border-radius: var(--border-radius-sm);
+    padding: var(--space-2);
+}
+
+/* 深色主题统一样式 */
+[data-theme="dark"] .modal-content {
+    background: var(--lora-surface);
+    border: 1px solid var(--lora-border);
+}
+
+[data-theme="dark"] .support-section,
+[data-theme="dark"] .changelog-section,
+[data-theme="dark"] .update-info,
+[data-theme="dark"] .info-item,
+[data-theme="dark"] .path-preview {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid var(--lora-border);
+}
+
+/* Settings Styles */
+.settings-section {
+    margin-top: var(--space-3);
+    border-top: 1px solid var(--lora-border);
+    padding-top: var(--space-2);
+}
+
+.settings-section h3 {
+    font-size: 1.1em;
+    margin-bottom: var(--space-2);
+    color: var(--text-color);
+    opacity: 0.9;
+}
+
+.setting-item {
+    display: flex;
+    flex-direction: column; /* Changed to column for help text placement */
+    margin-bottom: var(--space-3); /* Increased to provide more spacing between items */
+    padding: var(--space-1);
+    border-radius: var(--border-radius-xs);
+}
+
+.setting-item:hover {
+    background: rgba(0, 0, 0, 0.02);
+}
+
+[data-theme="dark"] .setting-item:hover {
+    background: rgba(255, 255, 255, 0.05);
+}
+
+/* Control row with label and input together */
+.setting-row {
+    display: flex;
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+}
+
+.setting-info {
+    margin-bottom: 0;
+    width: 35%; /* Increased from 30% to prevent wrapping */
+    flex-shrink: 0; /* Prevent shrinking */
+}
+
+.setting-info label {
+    display: block;
+    font-weight: 500;
+    margin-bottom: 0;
+    white-space: nowrap; /* Prevent label wrapping */
+}
+
+.setting-control {
+    width: 60%; /* Decreased slightly from 65% */
+    margin-bottom: 0;
+    display: flex;
+    justify-content: flex-end; /* Right-align all controls */
+}
+
+/* Select Control Styles */
+.select-control {
+    width: 100%;
+    display: flex;
+    justify-content: flex-end;
+}
+
+.select-control select {
+    width: 100%;
+    max-width: 100%; /* Increased from 200px */
+    padding: 6px 10px;
+    border-radius: var(--border-radius-xs);
+    border: 1px solid var(--border-color);
+    background-color: var(--lora-surface);
+    color: var(--text-color);
+    font-size: 0.95em;
+    height: 32px;
+}
+
+/* Fix dark theme select dropdown text color */
+[data-theme="dark"] .select-control select {
+    background-color: rgba(30, 30, 30, 0.9);
+    color: var(--text-color);
+}
+
+[data-theme="dark"] .select-control select option {
+    background-color: #2d2d2d;
+    color: var(--text-color);
+}
+
+.select-control select:focus {
+    border-color: var(--lora-accent);
+    outline: none;
+}
+
+/* Toggle Switch */
+.toggle-switch {
+    position: relative;
+    display: inline-block;
+    width: 50px;
+    height: 24px;
+    cursor: pointer;
+    margin-left: auto; /* Push to right side */
+}
+
+.toggle-switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.toggle-slider {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: var(--border-color);
+    transition: .3s;
+    border-radius: 24px;
+}
+
+.toggle-slider:before {
+    position: absolute;
+    content: "";
+    height: 18px;
+    width: 18px;
+    left: 3px;
+    bottom: 3px;
+    background-color: white;
+    transition: .3s;
+    border-radius: 50%;
+}
+
+input:checked + .toggle-slider {
+    background-color: var(--lora-accent);
+}
+
+input:checked + .toggle-slider:before {
+    transform: translateX(26px);
+}
+
+.toggle-label {
+    margin-left: 60px;
+    line-height: 24px;
+}
+
+/* Add small animation for the toggle */
+.toggle-slider:active:before {
+    width: 22px;
+}
+
+/* Blur effect for NSFW content */
+.nsfw-blur {
+    filter: blur(12px);
+    transition: filter 0.3s ease;
+}
+
+.nsfw-blur:hover {
+    filter: blur(8px);
+}
+
+/* Example Images Settings Styles */
+.download-buttons {
+    justify-content: flex-start;
+    gap: var(--space-2);
+}
+
+.primary-btn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px;
+    background-color: var(--lora-accent);
+    color: var(--lora-text);
+    border: none;
+    border-radius: var(--border-radius-sm);
+    cursor: pointer;
+    transition: background-color 0.2s;
+    font-size: 0.95em;
+}
+
+.primary-btn:hover {
+    background-color: oklch(from var(--lora-accent) l c h / 85%);
+    color: var(--lora-text);
+}
+
+/* Secondary button styles */
+.secondary-btn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px;
+    background-color: var(--card-bg);
+    color: var (--text-color);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius-sm);
+    cursor: pointer;
+    transition: all 0.2s;
+    font-size: 0.95em;
+}
+
+.secondary-btn:hover {
+    background-color: var(--border-color);
+    color: var(--text-color);
+}
+
+/* Disabled button styles */
+.primary-btn.disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    background-color: var(--lora-accent);
+    color: var(--lora-text);
+    pointer-events: none;
+}
+
+.secondary-btn.disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    pointer-events: none;
+}
+
+.restart-required-icon {
+    color: var(--lora-warning);
+    margin-left: 5px;
+    font-size: 0.85em;
+    vertical-align: text-bottom;
+}
+
+/* Dark theme specific button adjustments */
+[data-theme="dark"] .primary-btn:hover {
+    background-color: oklch(from var(--lora-accent) l c h / 75%);
+}
+
+[data-theme="dark"] .secondary-btn {
+    background-color: var(--lora-surface);
+}
+
+[data-theme="dark"] .secondary-btn:hover {
+    background-color: oklch(35% 0.02 256 / 0.98);
+}
+
+.primary-btn.disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.path-control {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    width: 100%;
+}
+
+.path-control input[type="text"] {
+    flex: 1;
+    padding: 6px 10px;
+    border-radius: var(--border-radius-xs);
+    border: 1px solid var(--border-color);
+    background-color: var(--lora-surface);
+    color: var (--text-color);
+    font-size: 0.95em;
+    height: 32px;
+}
+
+.primary-btn.disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* Add styles for delete preview image */
+.delete-preview {
+    max-width: 150px;
+    margin: 0 auto var(--space-2);
+    overflow: hidden;
+}
+
+.delete-preview img {
+    width: 100%;
+    height: auto;
+    max-height: 150px;
+    object-fit: contain;
+    border-radius: var(--border-radius-sm);
+}
+
+.delete-info {
+    text-align: center;
+}
+
+.delete-info h3 {
+    margin-bottom: var(--space-1);
+    word-break: break-word;
+}
+
+.delete-info p {
+    margin: var(--space-1) 0;
+    font-size: 0.9em;
+    opacity: 0.8;
+}
+
+.delete-note {
+    font-size: 0.85em;
+    color: var(--text-color);
+    opacity: 0.7;
+    font-style: italic;
+    margin-top: var(--space-1);
+    text-align: center;
+}
+
+/* Add styles for markdown elements in changelog */
+.changelog-item ul {
+    padding-left: 20px;
+    margin-top: 8px;
+}
+
+.changelog-item li {
+    margin-bottom: 6px;
+    line-height: 1.4;
+}
+
+.changelog-item strong {
+    font-weight: 600;
+}
+
+.changelog-item em {
+    font-style: italic;
+}
+
+.changelog-item code {
+    background: rgba(0, 0, 0, 0.05);
+    padding: 2px 4px;
+    border-radius: 3px;
+    font-family: monospace;
+    font-size: 0.9em;
+}
+
+[data-theme="dark"] .changelog-item code {
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.changelog-item a {
+    color: var(--lora-accent);
+    text-decoration: none;
+}
+
+.changelog-item a:hover {
+    text-decoration: underline;
+}
+
+/* Add warning text style for settings */
+.warning-text {
+    color: var(--lora-warning, #e67e22);
+    font-weight: 500;
+}
+
+[data-theme="dark"] .warning-text {
+    color: var(--lora-warning, #f39c12);
+}
+
+/* Add styles for density description list */
+.density-description {
+    margin: 8px 0;
+    padding-left: 20px;
+    font-size: 0.9em;
+}
+
+.density-description li {
+    margin-bottom: 4px;
+}
+
+/* Help Modal styles */
+.help-modal {
+  max-width: 850px;
+}
+
+.help-header {
+  display: flex;
+  align-items: center;
+  margin-bottom: var(--space-2);
+}
+
+.modal-help-icon {
+  font-size: 24px;
+  color: var(--lora-accent);
+  margin-right: var(--space-2);
+  vertical-align: text-bottom;
+}
+
+/* Tab navigation styles */
+.help-tabs {
+  display: flex;
+  border-bottom: 1px solid var(--lora-border);
+  margin-bottom: var(--space-2);
+  gap: 8px;
+}
+
+.tab-btn {
+  padding: 8px 16px;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--text-color);
+  cursor: pointer;
+  font-weight: 500;
+  transition: all 0.2s;
+  opacity: 0.7;
+}
+
+.tab-btn:hover {
+  background-color: rgba(0, 0, 0, 0.05);
+  opacity: 0.9;
+}
+
+.tab-btn.active {
+  color: var(--lora-accent);
+  border-bottom: 2px solid var(--lora-accent);
+  opacity: 1;
+}
+
+/* Add styles for tab with new content indicator */
+.tab-btn.has-new-content {
+  position: relative;
+}
+
+.tab-btn.has-new-content::after {
+  content: "";
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 8px;
+  height: 8px;
+  background-color: var(--lora-accent);
+  border-radius: 50%;
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.7; transform: scale(1.1); }
+  100% { opacity: 1; transform: scale(1); }
+}
+
+/* Tab content styles */
+.help-content {
+  padding: var(--space-1) 0;
+  overflow-y: auto;
+}
+
+.tab-pane {
+  display: none;
+}
+
+.tab-pane.active {
+  display: block;
+}
+
+.help-text {
+  margin: var(--space-2) 0;
+}
+
+.help-text ul {
+  padding-left: 20px;
+  margin-top: 8px;
+}
+
+.help-text li {
+  margin-bottom: 8px;
+}
+
+/* Documentation link styles */
+.docs-section {
+  margin-bottom: var(--space-3);
+}
+
+.docs-section h4 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: var(--space-1);
+}
+
+.docs-links {
+  list-style-type: none;
+  padding-left: var(--space-3);
+}
+
+.docs-links li {
+  margin-bottom: var(--space-1);
+  position: relative;
+}
+
+.docs-links li:before {
+  content: "•";
+  position: absolute;
+  left: -15px;
+  color: var(--lora-accent);
+}
+
+.docs-links a {
+  color: var(--lora-accent);
+  text-decoration: none;
+  transition: color 0.2s;
+}
+
+.docs-links a:hover {
+  text-decoration: underline;
+}
+
+/* New content badge styles */
+.new-content-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.7em;
+  font-weight: 600;
+  background-color: var(--lora-accent);
+  color: var(--lora-text);
+  padding: 2px 6px;
+  border-radius: 10px;
+  margin-left: 8px;
+  vertical-align: middle;
+  animation: fadeIn 0.5s ease-in-out;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.new-content-badge.inline {
+  font-size: 0.65em;
+  padding: 1px 4px;
+  margin-left: 6px;
+  border-radius: 8px;
+}
+
+/* Dark theme adjustments for new content badge */
+[data-theme="dark"] .new-content-badge {
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+}
+
+/* Update video list styles */
+.video-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.video-item {
+  display: flex;
+  flex-direction: column;
+}
+
+.video-info {
+  padding: var(--space-1);
+}
+
+.video-info h4 {
+  margin-bottom: var(--space-1);
+}
+
+.video-info p {
+  font-size: 0.9em;
+  opacity: 0.8;
+}
+
+/* Dark theme adjustments */
+[data-theme="dark"] .tab-btn:hover {
+  background-color: rgba(255, 255, 255, 0.05);
+}
+
+/* Update date badge styles */
+.update-date-badge {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.75em;
+  font-weight: 500;
+  background-color: var(--lora-accent);
+  color: var(--lora-text);
+  padding: 4px 8px;
+  border-radius: 12px;
+  margin-left: 10px;
+  vertical-align: middle;
+  animation: fadeIn 0.5s ease-in-out;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.update-date-badge i {
+  margin-right: 5px;
+  font-size: 0.9em;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(-5px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Dark theme adjustments */
+[data-theme="dark"] .update-date-badge {
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+/* Re-link to Civitai Modal styles */
+.warning-box {
+  background-color: rgba(255, 193, 7, 0.1);
+  border: 1px solid rgba(255, 193, 7, 0.5);
+  border-radius: var(--border-radius-sm);
+  padding: var(--space-2);
+  margin-bottom: var(--space-3);
+}
+
+.warning-box i {
+  color: var(--lora-warning);
+  margin-right: var(--space-1);
+}
+
+.warning-box ul {
+  padding-left: 20px;
+  margin: var(--space-1) 0;
+}
+
+.warning-box li {
+  margin-bottom: 4px;
+}
+
+.input-group {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: var(--space-2);
+}
+
+.input-group label {
+  margin-bottom: var(--space-1);
+  font-weight: 500;
+}
+
+.input-group input {
+  padding: 8px 12px;
+  border-radius: var(--border-radius-xs);
+  border: 1px solid var(--border-color);
+  background-color: var(--lora-surface);
+  color: var(--text-color);
+}
+
+.input-error {
+  color: var(--lora-error);
+  font-size: 0.9em;
+  min-height: 20px;
+  margin-top: 4px;
+}
+
+[data-theme="dark"] .warning-box {
+  background-color: rgba(255, 193, 7, 0.05);
+  border-color: rgba(255, 193, 7, 0.3);
+}
+
+/* Privacy-friendly video embed styles */
+.video-container {
+  position: relative;
+  width: 100%;
+  padding-bottom: 56.25%; /* 16:9 aspect ratio */
+  height: 0;
+  margin-bottom: var(--space-2);
+  border-radius: var(--border-radius-sm);
+  overflow: hidden;
+  background-color: rgba(0, 0, 0, 0.05);
+}
+
+.video-thumbnail {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.video-thumbnail img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: filter 0.2s ease;
+}
+
+.video-play-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  transition: opacity 0.2s ease;
+}
+
+/* External link button styles */
+.external-link-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 20px;
+  border-radius: var(--border-radius-sm);
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  background-color: var(--lora-accent);
+  color: white;
+  text-decoration: none;
+  border: none;
+}
+
+.external-link-btn:hover {
+  background-color: oklch(from var(--lora-accent) l c h / 85%);
+}
+
+.video-thumbnail i {
+  font-size: 1.2em;
+}
+
+/* Smaller video container for the updates tab */
+.video-item .video-container {
+  padding-bottom: 40%; /* Shorter height for the playlist */
+}
+
+/* Dark theme adjustments */
+[data-theme="dark"] .video-container {
+  background-color: rgba(255, 255, 255, 0.03);
+}
+
+/* Example Access Modal */
+.example-access-modal {
+    max-width: 550px;
+    text-align: center;
+}
+
+.example-access-options {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    margin: var(--space-3) 0;
+}
+
+.example-option-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: var(--space-2);
+    border-radius: var(--border-radius-sm);
+    border: 1px solid var(--lora-border);
+    background-color: var(--lora-surface);
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.example-option-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    border-color: var(--lora-accent);
+}
+
+.example-option-btn i {
+    font-size: 2em;
+    margin-bottom: var(--space-1);
+    color: var(--lora-accent);
+}
+
+.option-title {
+    font-weight: 500;
+    margin-bottom: 4px;
+    font-size: 1.1em;
+}
+
+.option-desc {
+    font-size: 0.9em;
+    opacity: 0.8;
+}
+
+.example-option-btn.disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.example-option-btn.disabled i {
+    color: var(--text-color);
+    opacity: 0.5;
+}
+
+.modal-footer-note {
+    font-size: 0.9em;
+    opacity: 0.7;
+    margin-top: var(--space-2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+}
+
+/* Dark theme adjustments */
+[data-theme="dark"] .example-option-btn:hover {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+}

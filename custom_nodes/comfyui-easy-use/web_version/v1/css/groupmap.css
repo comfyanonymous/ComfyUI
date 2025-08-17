@@ -1,0 +1,34 @@
+#easyuse_groups_map{
+  flex-direction: column;
+  align-items: end;
+  display:flex;position: absolute;
+  top: 50px; left: 10px; width: 180px;
+  border-radius:12px;
+  min-height:100px;
+  max-height:400px;
+  color: var(--descrip-text);
+  background-color: var(--comfy-menu-bg);
+  padding: 10px 4px;
+  border: 1px solid var(--border-color);
+  z-index: 399;
+  padding-top: 0;
+}
+#easyuse_groups_map .icon{
+  width: 12px;
+  height:12px;
+}
+#easyuse_groups_map .closeBtn{
+  float: right;
+  color: var(--input-text);
+  border-radius:30px;
+  background-color: var(--comfy-input-bg);
+  border: 1px solid var(--border-color);
+  cursor: pointer;
+  aspect-ratio: 1 / 1;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+#easyuse_groups_map .closeBtn:hover{
+  filter:brightness(120%);
+}

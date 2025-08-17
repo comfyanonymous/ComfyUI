@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>{% block title %}LoRA Manager{% endblock %}</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="/loras_static/css/style.css">
+    {% block page_css %}{% endblock %}
+    <link rel="stylesheet" href="/loras_static/vendor/font-awesome/css/all.min.css"
+        crossorigin="anonymous" referrerpolicy="no-referrer">
+    <link rel="icon" type="image/png" sizes="32x32" href="/loras_static/images/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="/loras_static/images/favicon-16x16.png">
+    <link rel="manifest" href="/loras_static/images/site.webmanifest">
+
+    <!-- 预加载关键资源 -->
+    <link rel="preload" href="/loras_static/css/style.css" as="style">
+    {% block preload %}{% endblock %}
+
+    <!-- 优化字体加载 -->
+    <link rel="preload" href="/loras_static/vendor/font-awesome/webfonts/fa-solid-900.woff2"
+        as="font" type="font/woff2" crossorigin>
+
+    <!-- 添加性能监控 -->
+    <script>
+        performance.mark('page-start');
+        window.addEventListener('load', () => {
+            performance.mark('page-end');
+            performance.measure('page-load', 'page-start', 'page-end');
+        });
+    </script>
+
+    <!-- 添加安全相关的 meta 标签 -->
+    <meta http-equiv="Cross-Origin-Opener-Policy" content="same-origin">
+    <meta http-equiv="Cross-Origin-Embedder-Policy" content="require-corp">
+
+    <!-- 添加资源加载策略 -->
+    <link rel="preconnect" href="https://civitai.com">
+    <!-- <link rel="preconnect" href="https://cdnjs.cloudflare.com"> -->
+
+    <script>
+        // 计算滚动条宽度并设置CSS变量
+        document.addEventListener('DOMContentLoaded', () => {
+            const scrollDiv = document.createElement('div');
+            scrollDiv.style.cssText = 'width:100px;height:100px;overflow:scroll;position:absolute;top:-9999px;';
+            document.body.appendChild(scrollDiv);
+            const scrollbarWidth = scrollDiv.offsetWidth - scrollDiv.clientWidth;
+            document.body.removeChild(scrollDiv);
+            document.documentElement.style.setProperty('--scrollbar-width', scrollbarWidth + 'px');
+        });
+    </script>
+    <script>
+      (function() {
+        // Apply theme immediately based on stored preference
+        const STORAGE_PREFIX = 'lora_manager_';
+        const savedTheme = localStorage.getItem(STORAGE_PREFIX + 'theme') || 'auto';
+        const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+        
+        if (savedTheme === 'dark' || (savedTheme === 'auto' && prefersDark)) {
+          document.documentElement.setAttribute('data-theme', 'dark');
+        } else {
+          document.documentElement.setAttribute('data-theme', 'light');
+        }
+      })();
+    </script>
+    {% block head_scripts %}{% endblock %}
+</head>
+
+<body data-page="{% block page_id %}base{% endblock %}">
+    <!-- Header is always visible, even during initialization -->
+    {% include 'components/header.html' %}
+
+    <div class="page-content">
+        {% include 'components/modals.html' %}
+        {% include 'components/loading.html' %}
+        {% include 'components/context_menu.html' %}
+        {% include 'components/progress_panel.html' %}
+        {% block additional_components %}{% endblock %}
+
+        <!-- Add back-to-top button here -->
+        <button id="backToTopBtn" class="back-to-top" title="Back to top">
+            <i class="fas fa-chevron-up"></i>
+        </button>
+
+        <div class="container">
+            <!-- Banner component -->
+            <div id="banner-container" class="banner-container" style="display: none;">
+                <!-- Banners will be dynamically inserted here -->
+            </div>
+
+            {% if is_initializing %}
+                <!-- Show initialization component when initializing -->
+                {% include 'components/initialization.html' %}
+            {% else %}
+                <!-- Show regular content when not initializing -->
+                {% block content %}{% endblock %}
+            {% endif %}
+        </div>
+
+        {% block overlay %}{% endblock %}
+    </div>
+
+    {% if is_initializing %}
+        <!-- Load initialization JavaScript -->
+        <script type="module" src="/loras_static/js/components/initialization.js"></script>
+    {% else %}
+        {% block main_script %}{% endblock %}
+    {% endif %}
+
+    {% block additional_scripts %}{% endblock %}
+</body>
+
+</html>

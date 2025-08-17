@@ -1,0 +1,399 @@
+<!-- Settings Modal -->
+<div id="settingsModal" class="modal">
+    <div class="modal-content settings-modal">
+        <button class="close" onclick="modalManager.closeModal('settingsModal')">&times;</button>
+        <h2>Settings</h2>
+        <div class="settings-form">
+            <div class="setting-item api-key-item">
+                <div class="setting-row">
+                    <div class="setting-info">
+                        <label for="civitaiApiKey">Civitai API Key:</label>
+                    </div>
+                    <div class="setting-control">
+                        <div class="api-key-input">
+                            <input type="password" 
+                                id="civitaiApiKey" 
+                                placeholder="Enter your Civitai API key"
+                                value="{{ settings.get('civitai_api_key', '') }}"
+                                onblur="settingsManager.saveInputSetting('civitaiApiKey', 'civitai_api_key')"
+                                onkeydown="if(event.key === 'Enter') { this.blur(); }" />
+                            <button class="toggle-visibility">
+                                <i class="fas fa-eye"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                <div class="input-help">
+                    Used for authentication when downloading models from Civitai
+                </div>
+            </div>
+            
+            <div class="settings-section">
+                <h3>Content Filtering</h3>
+                
+                <div class="setting-item">
+                    <div class="setting-row">
+                        <div class="setting-info">
+                            <label for="blurMatureContent">Blur NSFW Content</label>
+                        </div>
+                        <div class="setting-control">
+                            <label class="toggle-switch">
+                                <input type="checkbox" id="blurMatureContent" checked 
+                                       onchange="settingsManager.saveToggleSetting('blurMatureContent', 'blur_mature_content')">
+                                <span class="toggle-slider"></span>
+                            </label>
+                        </div>
+                    </div>
+                    <div class="input-help">
+                        Blur mature (NSFW) content preview images
+                    </div>
+                </div>
+                
+                <div class="setting-item">
+                    <div class="setting-row">
+                        <div class="setting-info">
+                            <label for="showOnlySFW">Show Only SFW Results</label>
+                        </div>
+                        <div class="setting-control">
+                            <label class="toggle-switch">
+                                <input type="checkbox" id="showOnlySFW" value="{{ settings.get('show_only_sfw', False) }}" {% if settings.get('show_only_sfw', False) %}checked{% endif %}
+                                       onchange="settingsManager.saveToggleSetting('showOnlySFW', 'show_only_sfw')">
+                                <span class="toggle-slider"></span>
+                            </label>
+                        </div>
+                    </div>
+                    <div class="input-help">
+                        Filter out all NSFW content when browsing and searching
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Add Video Settings Section -->
+            <div class="settings-section">
+                <h3>Video Settings</h3>
+                
+                <div class="setting-item">
+                    <div class="setting-row">
+                        <div class="setting-info">
+                            <label for="autoplayOnHover">Autoplay Videos on Hover</label>
+                        </div>
+                        <div class="setting-control">
+                            <label class="toggle-switch">
+                                <input type="checkbox" id="autoplayOnHover" 
+                                       onchange="settingsManager.saveToggleSetting('autoplayOnHover', 'autoplay_on_hover')">
+                                <span class="toggle-slider"></span>
+                            </label>
+                        </div>
+                    </div>
+                    <div class="input-help">
+                        Only play video previews when hovering over them
+                    </div>
+                </div>
+            </div>
+
+            <!-- Add Layout Settings Section -->
+            <div class="settings-section">
+                <h3>Layout Settings</h3>
+                
+                <div class="setting-item">
+                    <div class="setting-row">
+                        <div class="setting-info">
+                            <label for="displayDensity">Display Density</label>
+                        </div>
+                        <div class="setting-control select-control">
+                            <select id="displayDensity" onchange="settingsManager.saveSelectSetting('displayDensity', 'display_density')">
+                                <option value="default">Default</option>
+                                <option value="medium">Medium</option>
+                                <option value="compact">Compact</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="input-help">
+                        Choose how many cards to display per row:
+                        <ul class="list-description">
+                            <li><strong>Default:</strong> 5 (1080p), 6 (2K), 8 (4K)</li>
+                            <li><strong>Medium:</strong> 6 (1080p), 7 (2K), 9 (4K)</li>
+                            <li><strong>Compact:</strong> 7 (1080p), 8 (2K), 10 (4K)</li>
+                        </ul>
+                        <span class="warning-text">Warning: Higher densities may cause performance issues on systems with limited resources.</span>
+                    </div>
+                </div>
+                
+                <!-- Add Card Info Display setting -->
+                <div class="setting-item">
+                    <div class="setting-row">
+                        <div class="setting-info">
+                            <label for="cardInfoDisplay">Card Info Display</label>
+                        </div>
+                        <div class="setting-control select-control">
+                            <select id="cardInfoDisplay" onchange="settingsManager.saveSelectSetting('cardInfoDisplay', 'card_info_display')">
+                                <option value="always">Always Visible</option>
+                                <option value="hover">Reveal on Hover</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="input-help">
+                        Choose when to display model information and action buttons:
+                        <ul class="list-description">
+                            <li><strong>Always Visible:</strong> Headers and footers are always visible</li>
+                            <li><strong>Reveal on Hover:</strong> Headers and footers only appear when hovering over a card</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Add Folder Settings Section -->
+            <div class="settings-section">
+                <h3>Folder Settings</h3>
+                
+                <div class="setting-item">
+                    <div class="setting-row">
+                        <div class="setting-info">
+                            <label for="defaultLoraRoot">Default LoRA Root</label>
+                        </div>
+                        <div class="setting-control select-control">
+                            <select id="defaultLoraRoot" onchange="settingsManager.saveSelectSetting('defaultLoraRoot', 'default_lora_root')">
+                                <option value="">No Default</option>
+                                <!-- Options will be loaded dynamically -->
+                            </select>
+                        </div>
+                    </div>
+                    <div class="input-help">
+                        Set the default LoRA root directory for downloads, imports and moves
+                    </div>
+                </div>
+                
+                <div class="setting-item">
+                    <div class="setting-row">
+                        <div class="setting-info">
+                            <label for="defaultCheckpointRoot">Default Checkpoint Root</label>
+                        </div>
+                        <div class="setting-control select-control">
+                            <select id="defaultCheckpointRoot" onchange="settingsManager.saveSelectSetting('defaultCheckpointRoot', 'default_checkpoint_root')">
+                                <option value="">No Default</option>
+                                <!-- Options will be loaded dynamically -->
+                            </select>
+                        </div>
+                    </div>
+                    <div class="input-help">
+                        Set the default checkpoint root directory for downloads, imports and moves
+                    </div>
+                </div>
+
+                <div class="setting-item">
+                    <div class="setting-row">
+                        <div class="setting-info">
+                            <label for="defaultEmbeddingRoot">Default Embedding Root</label>
+                        </div>
+                        <div class="setting-control select-control">
+                            <select id="defaultEmbeddingRoot" onchange="settingsManager.saveSelectSetting('defaultEmbeddingRoot', 'default_embedding_root')">
+                                <option value="">No Default</option>
+                                <!-- Options will be loaded dynamically -->
+                            </select>
+                        </div>
+                    </div>
+                    <div class="input-help">
+                        Set the default embedding root directory for downloads, imports and moves
+                    </div>
+                </div>
+            </div>
+
+            <!-- Default Path Customization Section -->
+            <div class="settings-section">
+                <h3>Download Path Templates</h3>
+                
+                <div class="setting-item">
+                    <div class="input-help">
+                        Configure folder structures for different model types when downloading from Civitai.
+                        <div class="placeholder-info">
+                            <strong>Available placeholders:</strong>
+                            <span class="placeholder-tag">{base_model}</span>
+                            <span class="placeholder-tag">{author}</span>
+                            <span class="placeholder-tag">{first_tag}</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- LoRA Template Configuration -->
+                <div class="setting-item">
+                    <div class="setting-row">
+                        <div class="setting-info">
+                            <label for="loraTemplatePreset">LoRA</label>
+                        </div>
+                        <div class="setting-control select-control">
+                            <select id="loraTemplatePreset" onchange="settingsManager.updateTemplatePreset('lora', this.value)">
+                                <option value="">Flat Structure</option>
+                                <option value="{base_model}">By Base Model</option>
+                                <option value="{author}">By Author</option>
+                                <option value="{first_tag}">By First Tag</option>
+                                <option value="{base_model}/{first_tag}">Base Model + First Tag</option>
+                                <option value="{base_model}/{author}">Base Model + Author</option>
+                                <option value="{author}/{first_tag}">Author + First Tag</option>
+                                <option value="custom">Custom Template</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="template-custom-row" id="loraCustomRow" style="display: none;">
+                        <input type="text" id="loraCustomTemplate" class="template-custom-input" placeholder="Enter custom template (e.g., {base_model}/{author}/{first_tag})" />
+                        <div class="template-validation" id="loraValidation"></div>
+                    </div>
+                    <div class="template-preview" id="loraPreview"></div>
+                </div>
+
+                <!-- Checkpoint Template Configuration -->
+                <div class="setting-item">
+                    <div class="setting-row">
+                        <div class="setting-info">
+                            <label for="checkpointTemplatePreset">Checkpoint</label>
+                        </div>
+                        <div class="setting-control select-control">
+                            <select id="checkpointTemplatePreset" onchange="settingsManager.updateTemplatePreset('checkpoint', this.value)">
+                                <option value="">Flat Structure</option>
+                                <option value="{base_model}">By Base Model</option>
+                                <option value="{author}">By Author</option>
+                                <option value="{first_tag}">By First Tag</option>
+                                <option value="{base_model}/{first_tag}">Base Model + First Tag</option>
+                                <option value="{base_model}/{author}">Base Model + Author</option>
+                                <option value="{author}/{first_tag}">Author + First Tag</option>
+                                <option value="custom">Custom Template</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="template-custom-row" id="checkpointCustomRow" style="display: none;">
+                        <input type="text" id="checkpointCustomTemplate" class="template-custom-input" placeholder="Enter custom template (e.g., {base_model}/{author}/{first_tag})" />
+                        <div class="template-validation" id="checkpointValidation"></div>
+                    </div>
+                    <div class="template-preview" id="checkpointPreview"></div>
+                </div>
+
+                <!-- Embedding Template Configuration -->
+                <div class="setting-item">
+                    <div class="setting-row">
+                        <div class="setting-info">
+                            <label for="embeddingTemplatePreset">Embedding</label>
+                        </div>
+                        <div class="setting-control select-control">
+                            <select id="embeddingTemplatePreset" onchange="settingsManager.updateTemplatePreset('embedding', this.value)">
+                                <option value="">Flat Structure</option>
+                                <option value="{base_model}">By Base Model</option>
+                                <option value="{author}">By Author</option>
+                                <option value="{first_tag}">By First Tag</option>
+                                <option value="{base_model}/{first_tag}">Base Model + First Tag</option>
+                                <option value="{base_model}/{author}">Base Model + Author</option>
+                                <option value="{author}/{first_tag}">Author + First Tag</option>
+                                <option value="custom">Custom Template</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="template-custom-row" id="embeddingCustomRow" style="display: none;">
+                        <input type="text" id="embeddingCustomTemplate" class="template-custom-input" placeholder="Enter custom template (e.g., {base_model}/{author}/{first_tag})" />
+                        <div class="template-validation" id="embeddingValidation"></div>
+                    </div>
+                    <div class="template-preview" id="embeddingPreview"></div>
+                </div>
+            </div>
+
+            <div class="setting-item">
+                <div class="setting-row">
+                    <div class="setting-info">
+                        <label>Base Model Path Mappings</label>
+                    </div>
+                    <div class="setting-control">
+                        <button type="button" class="add-mapping-btn" onclick="settingsManager.addMappingRow()">
+                            <i class="fas fa-plus"></i>
+                            <span>Add Mapping</span>
+                        </button>
+                    </div>
+                </div>
+                <div class="input-help">
+                    Customize folder names for specific base models (e.g., "Flux.1 D" → "flux")
+                </div>
+                <div class="mappings-container">
+                    <div id="baseModelMappingsContainer">
+                        <!-- Mapping rows will be added dynamically -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Add Example Images Settings Section -->
+            <div class="settings-section">
+                <h3>Example Images</h3>
+                
+                <div class="setting-item">
+                    <div class="setting-row">
+                        <div class="setting-info">
+                            <label for="exampleImagesPath">Download Location <i class="fas fa-sync-alt restart-required-icon" title="Requires restart"></i></label>
+                        </div>
+                        <div class="setting-control path-control">
+                            <input type="text" id="exampleImagesPath" placeholder="Enter folder path for example images" />
+                            <button id="exampleImagesDownloadBtn" class="primary-btn">
+                                <i class="fas fa-download"></i> <span id="exampleDownloadBtnText">Download</span>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="input-help">
+                        Enter the folder path where example images from Civitai will be saved
+                    </div>
+                </div>
+                
+                <div class="setting-item">
+                    <div class="setting-row">
+                        <div class="setting-info">
+                            <label for="autoDownloadExampleImages">Auto Download Example Images</label>
+                        </div>
+                        <div class="setting-control">
+                            <label class="toggle-switch">
+                                <input type="checkbox" id="autoDownloadExampleImages" checked 
+                                       onchange="settingsManager.saveToggleSetting('autoDownloadExampleImages', 'auto_download_example_images')">
+                                <span class="toggle-slider"></span>
+                            </label>
+                        </div>
+                    </div>
+                    <div class="input-help">
+                        Automatically download example images for models that don't have them (requires download location to be set)
+                    </div>
+                </div>
+                
+                <div class="setting-item">
+                    <div class="setting-row">
+                        <div class="setting-info">
+                            <label for="optimizeExampleImages">Optimize Downloaded Images</label>
+                        </div>
+                        <div class="setting-control">
+                            <label class="toggle-switch">
+                                <input type="checkbox" id="optimizeExampleImages" checked 
+                                       onchange="settingsManager.saveToggleSetting('optimizeExampleImages', 'optimize_example_images')">
+                                <span class="toggle-slider"></span>
+                            </label>
+                        </div>
+                    </div>
+                    <div class="input-help">
+                        Optimize example images to reduce file size and improve loading speed (metadata will be preserved)
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Misc. Section -->
+            <div class="settings-section">
+                <h3>Misc.</h3>
+                <div class="setting-item">
+                    <div class="setting-row">
+                        <div class="setting-info">
+                            <label for="includeTriggerWords">Include Trigger Words in LoRA Syntax</label>
+                        </div>
+                        <div class="setting-control">
+                            <label class="toggle-switch">
+                                <input type="checkbox" id="includeTriggerWords" 
+                                       onchange="settingsManager.saveToggleSetting('includeTriggerWords', 'include_trigger_words')">
+                                <span class="toggle-slider"></span>
+                            </label>
+                        </div>
+                    </div>
+                    <div class="input-help">
+                        Include trained trigger words when copying LoRA syntax to clipboard
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

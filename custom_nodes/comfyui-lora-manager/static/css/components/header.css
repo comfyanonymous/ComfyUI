@@ -1,0 +1,276 @@
+.app-header {
+  background: var(--card-bg);
+  border-bottom: 1px solid var(--border-color);
+  position: fixed;
+  top: 0;
+  z-index: var(--z-header);
+  height: 48px; /* Reduced height */
+  width: 100%;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+}
+
+.header-container {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 0 15px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 100%;
+}
+
+/* Responsive header container for larger screens */
+@media (min-width: 2000px) {
+  .header-container {
+    max-width: 1800px;
+  }
+}
+@media (min-width: 3000px) {
+  .header-container {
+    max-width: 2400px;
+  }
+}
+
+/* Logo and title styling */
+.header-branding {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.logo-link {
+  display: flex;
+  align-items: center;
+  text-decoration: none;
+  color: var(--text-color);
+  gap: 2px;
+}
+
+.app-logo {
+  width: 24px;
+  height: 24px;
+}
+
+.app-title {
+  font-size: 1rem;
+  font-weight: 600;
+  margin: 0;
+}
+
+/* Navigation styling */
+.main-nav {
+  display: flex;
+  gap: 0.5rem;
+  flex-shrink: 0;
+  margin-right: 1rem;
+}
+
+.nav-item {
+  padding: 0.25rem 0.75rem;
+  border-radius: var(--border-radius-xs);
+  color: var(--text-color);
+  text-decoration: none;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  transition: all 0.2s ease;
+  font-size: 0.9rem;
+}
+
+.nav-item:hover {
+  background-color: var(--lora-surface-hover, oklch(95% 0.02 256));
+}
+
+.nav-item.active {
+  background-color: var(--lora-accent);
+  color: white;
+}
+
+/* Header search */
+.header-search {
+  flex: 1;
+  max-width: 400px;
+  margin: 0 1rem;
+  transition: opacity 0.2s ease;
+}
+
+/* Disabled state for header search */
+.header-search.disabled {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+.header-search.disabled input {
+  background-color: var(--input-disabled-bg, #f5f5f5);
+  color: var(--text-muted);
+  cursor: not-allowed;
+}
+
+.header-search.disabled button {
+  background-color: var(--button-disabled-bg, #e0e0e0);
+  color: var(--text-muted);
+  cursor: not-allowed;
+}
+
+.header-search.disabled .search-icon {
+  color: var(--text-muted);
+}
+
+/* Dark theme specific styles for disabled header search */
+[data-theme="dark"] .header-search.disabled input {
+  background-color: #3a3a3a;
+  color: #888888;
+  border-color: #555555;
+}
+
+[data-theme="dark"] .header-search.disabled button {
+  background-color: #3a3a3a;
+  color: #888888;
+  border-color: #555555;
+}
+
+[data-theme="dark"] .header-search.disabled .search-icon {
+  color: #888888;
+}
+
+[data-theme="dark"] .header-search.disabled .fas {
+  color: #888888;
+}
+
+/* Header controls (formerly corner controls) */
+.header-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.header-controls > div {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  color: var(--text-color);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  position: relative;
+}
+
+.header-controls > div:hover {
+  background: var(--lora-accent);
+  color: white;
+  transform: translateY(-2px);
+}
+
+.theme-toggle {
+  position: relative; /* Ensure relative positioning for the container */
+}
+
+.theme-toggle .light-icon,
+.theme-toggle .dark-icon,
+.theme-toggle .auto-icon {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%); /* Center perfectly */
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+/* Default state shows dark icon */
+.theme-toggle .dark-icon {
+  opacity: 1;
+}
+
+/* Light theme shows light icon */
+.theme-toggle.theme-light .light-icon {
+  opacity: 1;
+}
+
+.theme-toggle.theme-light .dark-icon,
+.theme-toggle.theme-light .auto-icon {
+  opacity: 0;
+}
+
+/* Dark theme shows dark icon */
+.theme-toggle.theme-dark .dark-icon {
+  opacity: 1;
+}
+
+.theme-toggle.theme-dark .light-icon,
+.theme-toggle.theme-dark .auto-icon {
+  opacity: 0;
+}
+
+/* Auto theme shows auto icon */
+.theme-toggle.theme-auto .auto-icon {
+  opacity: 1;
+}
+
+.theme-toggle.theme-auto .light-icon,
+.theme-toggle.theme-auto .dark-icon {
+  opacity: 0;
+}
+
+/* Badge styling */
+.update-badge {
+  position: absolute;
+  top: -3px;
+  right: -3px;
+  width: 8px;
+  height: 8px;
+  background-color: var(--lora-error);
+  border-radius: 50%;
+  border: 2px solid var(--card-bg);
+  transition: all 0.2s ease;
+  pointer-events: none;
+  opacity: 0;
+}
+
+.update-badge.visible {
+  opacity: 1;
+}
+
+/* Mobile adjustments */
+@media (max-width: 768px) {
+  .app-title {
+    display: none; /* Hide text title on mobile */
+  }
+  
+  .header-controls {
+    gap: 4px;
+  }
+  
+  .header-controls > div {
+    width: 28px;
+    height: 28px;
+  }
+  
+  .header-search {
+    max-width: none;
+    margin: 0 0.5rem;
+  }
+  
+  .main-nav {
+    margin-right: 0.5rem;
+  }
+}
+
+/* For very small screens */
+@media (max-width: 600px) {
+  .header-container {
+    padding: 0 8px;
+  }
+  
+  .main-nav {
+    display: none; /* Hide navigation on very small screens */
+  }
+  
+  .header-search {
+    flex: 1;
+  }
+}

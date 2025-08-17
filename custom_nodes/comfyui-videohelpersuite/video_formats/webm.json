@@ -1,0 +1,16 @@
+{
+    "main_pass":
+    [
+        "-n",
+        "-pix_fmt", ["pix_fmt",["yuv420p","yuva420p"]],
+        "-crf", ["crf","INT", {"default": 20, "min": 0, "max": 100, "step": 1}],
+        "-b:v", "0",
+        "-vf", "scale=out_color_matrix=bt709",
+        "-color_range", "tv", "-colorspace", "bt709", "-color_primaries", "bt709", "-color_trc", "bt709"
+    ],
+    "fake_trc": "bt709",
+    "audio_pass": ["-c:a", "libvorbis"],
+    "save_metadata": ["save_metadata", "BOOLEAN", {"default": true}],
+    "trim_to_audio": ["trim_to_audio", "BOOLEAN", {"default": false}],
+    "extension": "webm"
+}

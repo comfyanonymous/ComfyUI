@@ -1,0 +1,17 @@
+{
+    "main_pass": [
+        "-n",
+        "-c:v", "ffv1",
+        "-level", ["level", ["0", "1", "3"], {"default": "3"}],
+        "-coder", ["coder", ["0", "1", "2"], {"default": "1"}],
+        "-context", ["context", ["0", "1"], {"default": "1"}],
+        "-g", ["gop_size", "INT", {"default": 1, "min": 1, "max": 300, "step": 1}],
+        "-slices", ["slices", ["4", "6", "9", "12", "16", "20", "24", "30"], {"default": "16"}],
+        "-slicecrc", ["slicecrc", ["0", "1"], {"default": "1"}],
+        "-pix_fmt", ["pix_fmt", ["bgra", "rgba64le", "yuv420p", "yuv422p", "yuv444p", "yuva420p", "yuva422p", "yuva444p", "yuv420p10le", "yuv422p10le", "yuv444p10le", "yuv420p12le", "yuv422p12le", "yuv444p12le", "yuv420p14le", "yuv422p14le", "yuv444p14le", "yuv420p16le", "yuv422p16le", "yuv444p16le", "gray", "gray10le", "gray12le", "gray16le"], {"default": "bgra"}]
+    ],
+    "audio_pass": ["-c:a", "flac"],
+    "save_metadata": ["save_metadata", "BOOLEAN", {"default": true}],
+    "trim_to_audio": ["trim_to_audio", "BOOLEAN", {"default": false}],
+    "extension": "mkv"
+}

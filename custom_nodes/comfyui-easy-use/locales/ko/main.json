@@ -1,0 +1,30 @@
+{
+  "settingsCategories": {
+    "Hotkeys": "단축키",
+    "Nodes": "노드",
+    "NodesMap": "노드 맵"
+  },
+  "nodeCategories": {
+    "Util": "유틸",
+    "Seed": "시드",
+    "Prompt": "프롬프트",
+    "Loaders": "로더",
+    "Adapter": "어댑터",
+    "Inpaint": "인페인트",
+    "PreSampling": "사전 샘플링",
+    "Sampler": "샘플러",
+    "Fix": "픽스",
+    "Pipe": "파이프",
+    "XY Inputs": "XY 입력",
+    "Image": "이미지",
+    "Segmentation": "분할",
+    "\uD83D\uDEAB Deprecated": "\uD83D\uDEAB 사용 중단",
+    "Type": "유형",
+    "Math": "수학",
+    "Switch": "스위치",
+    "Index Switch": "인덱스 스위치",
+    "While Loop": "while 루프",
+    "For Loop": "for 루프",
+    "LoadImage": "이미지 로드"
+  }
+}

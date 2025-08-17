@@ -1,0 +1,100 @@
+{
+    "id": 1387174,
+    "modelId": 1231067,
+    "name": "v1.0",
+    "createdAt": "2025-02-08T11:15:47.197Z",
+    "updatedAt": "2025-02-08T11:29:04.526Z",
+    "status": "Published",
+    "publishedAt": "2025-02-08T11:29:04.487Z",
+    "trainedWords": [
+        "ppstorybook"
+    ],
+    "trainingStatus": null,
+    "trainingDetails": null,
+    "baseModel": "Flux.1 D",
+    "baseModelType": null,
+    "earlyAccessEndsAt": null,
+    "earlyAccessConfig": null,
+    "description": null,
+    "uploadType": "Created",
+    "usageControl": "Download",
+    "air": "urn:air:flux1:lora:civitai:1231067@1387174",
+    "stats": {
+        "downloadCount": 1436,
+        "ratingCount": 0,
+        "rating": 0,
+        "thumbsUpCount": 316
+    },
+    "model": {
+        "name": "Vivid Impressions Storybook Style",
+        "type": "LORA",
+        "nsfw": false,
+        "poi": false
+    },
+    "files": [
+        {
+            "id": 1289799,
+            "sizeKB": 18829.1484375,
+            "name": "pp-storybook_rank2_bf16.safetensors",
+            "type": "Model",
+            "pickleScanResult": "Success",
+            "pickleScanMessage": "No Pickle imports",
+            "virusScanResult": "Success",
+            "virusScanMessage": null,
+            "scannedAt": "2025-02-08T11:21:04.247Z",
+            "metadata": {
+                "format": "SafeTensor",
+                "size": null,
+                "fp": null
+            },
+            "hashes": {
+                "AutoV1": "F414C813",
+                "AutoV2": "9753338AB6",
+                "SHA256": "9753338AB693CA82BF89ED77A5D1912879E40051463EC6E330FB9866CE798668",
+                "CRC32": "A65AE7B3",
+                "BLAKE3": "A5F8AB95AC2486345E4ACCAE541FF19D97ED53EFB0A7CC9226636975A0437591",
+                "AutoV3": "34A22376739D"
+            },
+            "primary": true,
+            "downloadUrl": "https://civitai.com/api/download/models/1387174"
+        }
+    ],
+    "images": [
+        {
+            "url": "https://image.civitai.com/xG1nkqKTMzGDvpLrqFT7WA/42b875cf-c62b-41fa-a349-383b7f074351/width=832/56547310.jpeg",
+            "nsfwLevel": 1,
+            "width": 832,
+            "height": 1216,
+            "hash": "U5IiO6s-4Vn+0~EO^5xa00VsL#IU_O?E7yWC",
+            "type": "image",
+            "metadata": {
+                "hash": "U5IiO6s-4Vn+0~EO^5xa00VsL#IU_O?E7yWC",
+                "size": 1361590,
+                "width": 832,
+                "height": 1216
+            },
+            "meta": {
+                "Size": "832x1216",
+                "seed": 1116375220995209,
+                "Model": "flux_dev_fp8",
+                "steps": 23,
+                "hashes": {
+                    "model": ""
+                },
+                "prompt": "ppstorybook,A dreamy bunny hopping across a rainbow bridge, with fluffy clouds surrounding it and tiny birds flying alongside, rendered in a magical, soft-focus style with pastel hues and glowing accents.",
+                "Version": "ComfyUI",
+                "sampler": "DPM++ 2M",
+                "cfgScale": 3.5,
+                "clipSkip": 1,
+                "resources": [],
+                "Model hash": ""
+            },
+            "availability": "Public",
+            "hasMeta": true,
+            "hasPositivePrompt": true,
+            "onSite": false,
+            "remixOfId": null
+        }
+    ],
+    "downloadUrl": "https://civitai.com/api/download/models/1387174"
+}

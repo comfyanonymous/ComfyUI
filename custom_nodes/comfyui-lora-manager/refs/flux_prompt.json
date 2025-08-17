@@ -1,0 +1,314 @@
+{
+    "6": {
+        "inputs": {
+            "text": [
+                "46",
+                0
+            ],
+            "clip": [
+                "58",
+                1
+            ]
+        },
+        "class_type": "CLIPTextEncode",
+        "_meta": {
+            "title": "CLIP Text Encode (Positive Prompt)"
+        }
+    },
+    "8": {
+        "inputs": {
+            "samples": [
+                "31",
+                0
+            ],
+            "vae": [
+                "39",
+                0
+            ]
+        },
+        "class_type": "VAEDecode",
+        "_meta": {
+            "title": "VAE Decode"
+        }
+    },
+    "27": {
+        "inputs": {
+            "width": 896,
+            "height": 1152,
+            "batch_size": 1
+        },
+        "class_type": "EmptySD3LatentImage",
+        "_meta": {
+            "title": "EmptySD3LatentImage"
+        }
+    },
+    "31": {
+        "inputs": {
+            "seed": 44,
+            "steps": 25,
+            "cfg": 1,
+            "sampler_name": "dpmpp_2m",
+            "scheduler": "beta",
+            "denoise": 1,
+            "model": [
+                "58",
+                0
+            ],
+            "positive": [
+                "35",
+                0
+            ],
+            "negative": [
+                "33",
+                0
+            ],
+            "latent_image": [
+                "27",
+                0
+            ]
+        },
+        "class_type": "KSampler",
+        "_meta": {
+            "title": "KSampler"
+        }
+    },
+    "33": {
+        "inputs": {
+            "text": "",
+            "clip": [
+                "58",
+                1
+            ]
+        },
+        "class_type": "CLIPTextEncode",
+        "_meta": {
+            "title": "CLIP Text Encode (Negative Prompt)"
+        }
+    },
+    "35": {
+        "inputs": {
+            "guidance": 3.5,
+            "conditioning": [
+                "6",
+                0
+            ]
+        },
+        "class_type": "FluxGuidance",
+        "_meta": {
+            "title": "FluxGuidance"
+        }
+    },
+    "37": {
+        "inputs": {
+            "unet_name": "flux\\flux1-dev-fp8-e4m3fn.safetensors",
+            "weight_dtype": "fp8_e4m3fn_fast"
+        },
+        "class_type": "UNETLoader",
+        "_meta": {
+            "title": "Load Diffusion Model"
+        }
+    },
+    "38": {
+        "inputs": {
+            "clip_name1": "t5xxl_fp8_e4m3fn.safetensors",
+            "clip_name2": "clip_l.safetensors",
+            "type": "flux",
+            "device": "default"
+        },
+        "class_type": "DualCLIPLoader",
+        "_meta": {
+            "title": "DualCLIPLoader"
+        }
+    },
+    "39": {
+        "inputs": {
+            "vae_name": "flux1\\ae.safetensors"
+        },
+        "class_type": "VAELoader",
+        "_meta": {
+            "title": "Load VAE"
+        }
+    },
+    "46": {
+        "inputs": {
+            "string1": [
+                "59",
+                0
+            ],
+            "string2": [
+                "51",
+                0
+            ],
+            "delimiter": ","
+        },
+        "class_type": "JoinStrings",
+        "_meta": {
+            "title": "Join Strings"
+        }
+    },
+    "50": {
+        "inputs": {
+            "images": [
+                "8",
+                0
+            ]
+        },
+        "class_type": "PreviewImage",
+        "_meta": {
+            "title": "Preview Image"
+        }
+    },
+    "51": {
+        "inputs": {
+            "string": "Stylized geek cat artist with glasses and a paintbrush, smiling at the viewer while holding a sign that reads 'Stay tuned!', solid white background",
+            "strip_newlines": true
+        },
+        "class_type": "StringConstantMultiline",
+        "_meta": {
+            "title": "positive"
+        }
+    },
+    "58": {
+        "inputs": {
+            "text": "<lora:pp-enchanted-whimsy:0.9><lora:ral-frctlgmtry_flux:1><lora:pp-storybook_rank2_bf16:0.8>",
+            "loras": [
+                {
+                    "name": "pp-enchanted-whimsy",
+                    "strength": "0.90",
+                    "active": false
+                },
+                {
+                    "name": "ral-frctlgmtry_flux",
+                    "strength": "0.85",
+                    "active": false
+                },
+                {
+                    "name": "pp-storybook_rank2_bf16",
+                    "strength": 0.8,
+                    "active": true
+                },
+                {
+                    "name": "__dummy_item1__",
+                    "strength": 0,
+                    "active": false,
+                    "_isDummy": true
+                },
+                {
+                    "name": "__dummy_item2__",
+                    "strength": 0,
+                    "active": false,
+                    "_isDummy": true
+                }
+            ],
+            "model": [
+                "37",
+                0
+            ],
+            "clip": [
+                "38",
+                0
+            ]
+        },
+        "class_type": "Lora Loader (LoraManager)",
+        "_meta": {
+            "title": "Lora Loader (LoraManager)"
+        }
+    },
+    "59": {
+        "inputs": {
+            "group_mode": "",
+            "toggle_trigger_words": [
+                {
+                    "text": "ppstorybook",
+                    "active": false
+                },
+                {
+                    "text": "__dummy_item__",
+                    "active": false,
+                    "_isDummy": true
+                },
+                {
+                    "text": "__dummy_item__",
+                    "active": false,
+                    "_isDummy": true
+                }
+            ],
+            "orinalMessage": "ppstorybook",
+            "trigger_words": [
+                "58",
+                2
+            ]
+        },
+        "class_type": "TriggerWord Toggle (LoraManager)",
+        "_meta": {
+            "title": "TriggerWord Toggle (LoraManager)"
+        }
+    },
+    "61": {
+        "inputs": {
+            "add_noise": "enable",
+            "noise_seed": 1111423448930884,
+            "steps": 20,
+            "cfg": 8,
+            "sampler_name": "euler",
+            "scheduler": "normal",
+            "start_at_step": 0,
+            "end_at_step": 10000,
+            "return_with_leftover_noise": "disable"
+        },
+        "class_type": "KSamplerAdvanced",
+        "_meta": {
+            "title": "KSampler (Advanced)"
+        }
+    },
+    "62": {
+        "inputs": {
+            "sigmas": [
+                "63",
+                0
+            ]
+        },
+        "class_type": "SamplerCustomAdvanced",
+        "_meta": {
+            "title": "SamplerCustomAdvanced"
+        }
+    },
+    "63": {
+        "inputs": {
+            "scheduler": "normal",
+            "steps": 20,
+            "denoise": 1
+        },
+        "class_type": "BasicScheduler",
+        "_meta": {
+            "title": "BasicScheduler"
+        }
+    },
+    "64": {
+        "inputs": {
+            "seed": 1089899258710474,
+            "steps": 20,
+            "cfg": 8,
+            "sampler_name": "euler",
+            "scheduler": "normal",
+            "denoise": 1
+        },
+        "class_type": "KSampler",
+        "_meta": {
+            "title": "KSampler"
+        }
+    },
+    "65": {
+        "inputs": {
+            "text": ",Stylized geek cat artist with glasses and a paintbrush, smiling at the viewer while holding a sign that reads 'Stay tuned!', solid white background",
+            "anything": [
+                "46",
+                0
+            ]
+        },
+        "class_type": "easy showAnything",
+        "_meta": {
+            "title": "Show Any"
+        }
+    }
+}

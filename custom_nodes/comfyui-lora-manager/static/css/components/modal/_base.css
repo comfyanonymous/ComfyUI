@@ -1,0 +1,274 @@
+/* modal 基础样式 */
+.modal {
+    display: none;
+    position: fixed;
+    top: 48px; /* Start below the header */
+    left: 0;
+    width: 100%;
+    height: calc(100% - 48px); /* Adjust height to exclude header */
+    background: rgba(0, 0, 0, 0.2); /* 调整为更淡的半透明黑色 */
+    z-index: var(--z-modal);
+    overflow: auto; /* Change from hidden to auto to allow scrolling */
+}
+
+/* 当模态窗口打开时，禁止body滚动 */
+body.modal-open {
+    position: fixed;
+    width: 100%;
+    padding-right: var(--scrollbar-width, 0px); /* 补偿滚动条消失导致的页面偏移 */
+}
+
+/* modal-content 样式 */
+.modal-content {
+    position: relative;
+    max-width: 800px;
+    height: auto;
+    max-height: calc(90vh - 48px); /* Adjust to account for header height */
+    margin: 1rem auto; /* Keep reduced top margin */
+    background: var(--lora-surface);
+    border-radius: var(--border-radius-base);
+    padding: var(--space-3);
+    border: 1px solid var(--lora-border);
+    box-shadow: 
+        0 4px 6px -1px rgba(0, 0, 0, 0.1),
+        0 2px 4px -1px rgba(0, 0, 0, 0.06),
+        0 10px 15px -3px rgba(0, 0, 0, 0.05);
+    overflow-y: auto;
+    overflow-x: hidden; /* 防止水平滚动条 */
+}
+
+/* 当 modal 打开时锁定 body */
+body.modal-open {
+    overflow: hidden !important; /* 覆盖 base.css 中的 scroll */
+    padding-right: var(--scrollbar-width, 8px); /* 使用滚动条宽度作为补偿 */
+}
+
+@keyframes modalFadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(-20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.modal-actions {
+    display: flex;
+    gap: var(--space-2);
+    justify-content: center;
+    margin-top: var(--space-3);
+}
+
+.cancel-btn, .delete-btn, .exclude-btn, .confirm-btn {
+    padding: 8px var(--space-2);
+    border-radius: 6px;
+    border: none;
+    cursor: pointer;
+    font-weight: 500;
+    min-width: 100px;
+}
+
+.cancel-btn {
+    background: var(--lora-surface);
+    border: 1px solid var(--lora-border);
+    color: var(--text-color);
+}
+
+.delete-btn {
+    background: var(--lora-error);
+    color: white;
+}
+
+/* Style for exclude button - different from delete button */
+.exclude-btn, .confirm-btn {
+    background: var(--lora-accent, #4f46e5);
+    color: white;
+}
+
+.cancel-btn:hover {
+    background: var(--lora-border);
+}
+
+.delete-btn:hover {
+    opacity: 0.9;
+}
+
+.exclude-btn:hover, .confirm-btn:hover {
+    opacity: 0.9;
+    background: oklch(from var(--lora-accent, #4f46e5) l c h / 85%);
+}
+
+.modal-content h2 {
+    color: var(--text-color);
+    margin-bottom: var(--space-1);
+    font-size: 1.5em;
+}
+
+.close {
+    position: absolute;
+    top: var(--space-2);
+    right: var(--space-2);
+    background: transparent;
+    border: none;
+    color: var(--text-color);
+    font-size: 1.5em;
+    cursor: pointer;
+    opacity: 0.7;
+    transition: opacity 0.2s;
+}
+
+.close:hover {
+    opacity: 1;
+}
+
+/* 统一各个 section 的样式 */
+.support-section,
+.changelog-section,
+.update-info,
+.info-item,
+.path-preview {
+    background: rgba(0, 0, 0, 0.03);
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    border-radius: var(--border-radius-sm);
+    padding: var(--space-2);
+}
+
+/* 深色主题统一样式 */
+[data-theme="dark"] .modal-content {
+    background: var(--lora-surface);
+    border: 1px solid var(--lora-border);
+}
+
+[data-theme="dark"] .support-section,
+[data-theme="dark"] .changelog-section,
+[data-theme="dark"] .update-info,
+[data-theme="dark"] .info-item,
+[data-theme="dark"] .path-preview {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid var(--lora-border);
+}
+
+.primary-btn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px;
+    background-color: var(--lora-accent);
+    color: var(--lora-text);
+    border: none;
+    border-radius: var(--border-radius-sm);
+    cursor: pointer;
+    transition: background-color 0.2s;
+    font-size: 0.95em;
+}
+
+.primary-btn:hover {
+    background-color: oklch(from var(--lora-accent) l c h / 85%);
+    color: var(--lora-text);
+}
+
+/* Secondary button styles */
+.secondary-btn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px;
+    background-color: var(--card-bg);
+    color: var (--text-color);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius-sm);
+    cursor: pointer;
+    transition: all 0.2s;
+    font-size: 0.95em;
+}
+
+.secondary-btn:hover {
+    background-color: var(--border-color);
+    color: var(--text-color);
+}
+
+/* Disabled button styles */
+.primary-btn.disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    background-color: var(--lora-accent);
+    color: var(--lora-text);
+    pointer-events: none;
+}
+
+.secondary-btn.disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    pointer-events: none;
+}
+
+.restart-required-icon {
+    color: var(--lora-warning);
+    margin-left: 5px;
+    font-size: 0.85em;
+    vertical-align: text-bottom;
+}
+
+/* Dark theme specific button adjustments */
+[data-theme="dark"] .primary-btn:hover {
+    background-color: oklch(from var(--lora-accent) l c h / 75%);
+}
+
+[data-theme="dark"] .secondary-btn {
+    background-color: var(--lora-surface);
+}
+
+[data-theme="dark"] .secondary-btn:hover {
+    background-color: oklch(35% 0.02 256 / 0.98);
+}
+
+.primary-btn.disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.primary-btn.disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* Add styles for delete preview image */
+.delete-preview {
+    max-width: 150px;
+    margin: 0 auto var(--space-2);
+    overflow: hidden;
+}
+
+.delete-preview img {
+    width: 100%;
+    height: auto;
+    max-height: 150px;
+    object-fit: contain;
+    border-radius: var(--border-radius-sm);
+}
+
+.delete-info {
+    text-align: center;
+}
+
+.delete-info h3 {
+    margin-bottom: var(--space-1);
+    word-break: break-word;
+}
+
+.delete-info p {
+    margin: var(--space-1) 0;
+    font-size: 0.9em;
+    opacity: 0.8;
+}
+
+.delete-note {
+    font-size: 0.85em;
+    color: var(--text-color);
+    opacity: 0.7;
+    font-style: italic;
+    margin-top: var(--space-1);
+    text-align: center;
+}

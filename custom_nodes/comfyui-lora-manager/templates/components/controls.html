@@ -1,0 +1,139 @@
+<div class="controls">
+    {% if folders|length > 1 %}
+        <div class="folder-tags-container">
+            <div class="folder-tags">
+                {% for folder in folders %}
+                <div class="tag" data-folder="{{ folder }}">{{ folder }}</div>
+                {% endfor %}
+            </div>
+        </div>
+    {% endif %}
+    
+    <div class="actions">
+        <div class="action-buttons">
+            <div title="Sort models by..." class="control-group">
+                <select id="sortSelect">
+                    <optgroup label="Name">
+                        <option value="name:asc">A - Z</option>
+                        <option value="name:desc">Z - A</option>
+                    </optgroup>
+                    <optgroup label="Date Added">
+                        <option value="date:desc">Newest</option>
+                        <option value="date:asc">Oldest</option>
+                    </optgroup>
+                    <optgroup label="File Size">
+                        <option value="size:desc">Largest</option>
+                        <option value="size:asc">Smallest</option>
+                    </optgroup>
+                </select>
+            </div>
+            <div title="Refresh model list" class="control-group dropdown-group">
+                <button data-action="refresh" class="dropdown-main"><i class="fas fa-sync"></i> Refresh</button>
+                <button class="dropdown-toggle" aria-label="Show refresh options">
+                    <i class="fas fa-caret-down"></i>
+                </button>
+                <div class="dropdown-menu">
+                    <div class="dropdown-item" data-action="quick-refresh">
+                        <i class="fas fa-bolt"></i> Quick Refresh (incremental)
+                    </div>
+                    <div class="dropdown-item" data-action="full-rebuild">
+                        <i class="fas fa-tools"></i> Full Rebuild (complete)
+                    </div>
+                </div>
+            </div>
+            
+            <div class="control-group">
+                <button data-action="fetch" title="Fetch from Civitai"><i class="fas fa-download"></i> Fetch</button>
+            </div>
+            <div class="control-group">
+                <button data-action="download" title="Download from URL">
+                    <i class="fas fa-cloud-download-alt"></i> Download
+                </button>
+            </div>
+            <div class="control-group">
+                <button id="bulkOperationsBtn" data-action="bulk" title="Bulk Operations (Press B)">
+                    <i class="fas fa-th-large"></i> <span>Bulk <div class="shortcut-key">B</div></span>
+                </button>
+            </div>
+            <div class="control-group">
+                <button id="findDuplicatesBtn" data-action="find-duplicates" title="Find duplicate models">
+                    <i class="fas fa-clone"></i> Duplicates
+                    <span id="duplicatesBadge" class="badge"></span>
+                </button>
+            </div>
+            <div class="control-group">
+                <button id="favoriteFilterBtn" data-action="toggle-favorites" class="favorite-filter" title="Show favorites only">
+                    <i class="fas fa-star"></i> Favorites
+                </button>
+            </div>
+            <div id="customFilterIndicator" class="control-group hidden">
+                <div class="filter-active">
+                    <i class="fas fa-filter"></i> <span class="customFilterText" title=""></span>
+                    <i class="fas fa-times-circle clear-filter"></i>
+                </div>
+            </div>
+        </div>
+        
+        <div class="controls-right">
+            <div class="toggle-folders-container">
+                <button class="toggle-folders-btn icon-only" title="Toggle folder tags">
+                    <i class="fas fa-tags"></i>
+                </button>
+            </div>
+            
+            <div class="keyboard-nav-hint tooltip">
+                <i class="fas fa-keyboard"></i>
+                <span class="tooltiptext">
+                    Keyboard Navigation:
+                    <table class="keyboard-shortcuts">
+                        <tr>
+                            <td><span class="key">Page Up</span></td>
+                            <td>Scroll up one page</td>
+                        </tr>
+                        <tr>
+                            <td><span class="key">Page Down</span></td>
+                            <td>Scroll down one page</td>
+                        </tr>
+                        <tr>
+                            <td><span class="key">Home</span></td>
+                            <td>Jump to top</td>
+                        </tr>
+                        <tr>
+                            <td><span class="key">End</span></td>
+                            <td>Jump to bottom</td>
+                        </tr>
+                    </table>
+                </span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Add bulk operations panel (initially hidden) -->
+<div id="bulkOperationsPanel" class="bulk-operations-panel hidden">
+    <div class="bulk-operations-header">
+        <span id="selectedCount" class="selectable-count" title="Click to view selected items">
+            0 selected <i class="fas fa-caret-down dropdown-caret"></i>
+        </span>
+        <div class="bulk-operations-actions">
+            <button data-action="send-to-workflow" title="Send all selected LoRAs to workflow">
+                <i class="fas fa-arrow-right"></i> Send to Workflow
+            </button>
+            <button data-action="copy-all" title="Copy all selected LoRAs syntax">
+                <i class="fas fa-copy"></i> Copy All
+            </button>
+            <button data-action="refresh-all" title="Refresh CivitAI metadata for selected models">
+                <i class="fas fa-sync-alt"></i> Refresh All
+            </button>
+            <button data-action="move-all" title="Move selected models to folder">
+                <i class="fas fa-folder-open"></i> Move All
+            </button>
+            <button data-action="delete-all" title="Delete selected models" class="danger-btn">
+                <i class="fas fa-trash"></i> Delete All
+            </button>
+            <button data-action="clear" title="Clear selection">
+                <i class="fas fa-times"></i> Clear
+            </button>
+        </div>
+    </div>
+</div>

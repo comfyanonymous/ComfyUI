@@ -1,0 +1,976 @@
+{
+  "last_node_id": 27,
+  "last_link_id": 46,
+  "nodes": [
+    {
+      "id": 11,
+      "type": "EditBasicPipe",
+      "pos": [
+        1260,
+        590
+      ],
+      "size": {
+        "0": 267,
+        "1": 126
+      },
+      "flags": {},
+      "order": 6,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "basic_pipe",
+          "type": "BASIC_PIPE",
+          "link": 15
+        },
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": null
+        },
+        {
+          "name": "clip",
+          "type": "CLIP",
+          "link": null
+        },
+        {
+          "name": "vae",
+          "type": "VAE",
+          "link": null
+        },
+        {
+          "name": "positive",
+          "type": "CONDITIONING",
+          "link": 17
+        },
+        {
+          "name": "negative",
+          "type": "CONDITIONING",
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "basic_pipe",
+          "type": "BASIC_PIPE",
+          "links": [
+            20
+          ],
+          "shape": 3,
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "EditBasicPipe"
+      }
+    },
+    {
+      "id": 12,
+      "type": "CLIPTextEncode",
+      "pos": [
+        420,
+        670
+      ],
+      "size": {
+        "0": 422.84503173828125,
+        "1": 164.31304931640625
+      },
+      "flags": {},
+      "order": 4,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "clip",
+          "type": "CLIP",
+          "link": 16
+        }
+      ],
+      "outputs": [
+        {
+          "name": "CONDITIONING",
+          "type": "CONDITIONING",
+          "links": [
+            17
+          ],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "CLIPTextEncode"
+      },
+      "widgets_values": [
+        "photorealistic:1.4, best quality:1.4, masterpiece, 1girl is sitting in the cafe terrace, (colorful hair:1.1)"
+      ]
+    },
+    {
+      "id": 6,
+      "type": "CLIPTextEncode",
+      "pos": [
+        415,
+        186
+      ],
+      "size": {
+        "0": 422.84503173828125,
+        "1": 164.31304931640625
+      },
+      "flags": {},
+      "order": 2,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "clip",
+          "type": "CLIP",
+          "link": 3
+        }
+      ],
+      "outputs": [
+        {
+          "name": "CONDITIONING",
+          "type": "CONDITIONING",
+          "links": [
+            13
+          ],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "CLIPTextEncode"
+      },
+      "widgets_values": [
+        "photorealistic:1.4, best quality:1.4, masterpiece, 1girl is sitting in the cafe terrace"
+      ]
+    },
+    {
+      "id": 7,
+      "type": "CLIPTextEncode",
+      "pos": [
+        413,
+        389
+      ],
+      "size": {
+        "0": 425.27801513671875,
+        "1": 180.6060791015625
+      },
+      "flags": {},
+      "order": 3,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "clip",
+          "type": "CLIP",
+          "link": 5
+        }
+      ],
+      "outputs": [
+        {
+          "name": "CONDITIONING",
+          "type": "CONDITIONING",
+          "links": [
+            14
+          ],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "CLIPTextEncode"
+      },
+      "widgets_values": [
+        "text, watermark, low quality:1.4, worst quality:1.4"
+      ]
+    },
+    {
+      "id": 10,
+      "type": "ToBasicPipe",
+      "pos": [
+        952,
+        189
+      ],
+      "size": {
+        "0": 241.79998779296875,
+        "1": 106
+      },
+      "flags": {},
+      "order": 5,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 10
+        },
+        {
+          "name": "clip",
+          "type": "CLIP",
+          "link": 11
+        },
+        {
+          "name": "vae",
+          "type": "VAE",
+          "link": 12
+        },
+        {
+          "name": "positive",
+          "type": "CONDITIONING",
+          "link": 13
+        },
+        {
+          "name": "negative",
+          "type": "CONDITIONING",
+          "link": 14
+        }
+      ],
+      "outputs": [
+        {
+          "name": "basic_pipe",
+          "type": "BASIC_PIPE",
+          "links": [
+            15,
+            19,
+            33
+          ],
+          "shape": 3,
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "ToBasicPipe"
+      }
+    },
+    {
+      "id": 22,
+      "type": "FromBasicPipe",
+      "pos": [
+        880,
+        1040
+      ],
+      "size": {
+        "0": 241.79998779296875,
+        "1": 106
+      },
+      "flags": {},
+      "order": 8,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "basic_pipe",
+          "type": "BASIC_PIPE",
+          "link": 33
+        }
+      ],
+      "outputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "links": [
+            34
+          ],
+          "shape": 3,
+          "slot_index": 0
+        },
+        {
+          "name": "clip",
+          "type": "CLIP",
+          "links": null,
+          "shape": 3
+        },
+        {
+          "name": "vae",
+          "type": "VAE",
+          "links": [
+            40
+          ],
+          "shape": 3,
+          "slot_index": 2
+        },
+        {
+          "name": "positive",
+          "type": "CONDITIONING",
+          "links": [
+            35
+          ],
+          "shape": 3,
+          "slot_index": 3
+        },
+        {
+          "name": "negative",
+          "type": "CONDITIONING",
+          "links": [
+            36
+          ],
+          "shape": 3,
+          "slot_index": 4
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "FromBasicPipe"
+      }
+    },
+    {
+      "id": 24,
+      "type": "VAEDecode",
+      "pos": [
+        1938,
+        935
+      ],
+      "size": {
+        "0": 210,
+        "1": 46
+      },
+      "flags": {},
+      "order": 14,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "samples",
+          "type": "LATENT",
+          "link": 46
+        },
+        {
+          "name": "vae",
+          "type": "VAE",
+          "link": 40
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            41
+          ],
+          "shape": 3,
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "VAEDecode"
+      }
+    },
+    {
+      "id": 4,
+      "type": "CheckpointLoaderSimple",
+      "pos": [
+        -5,
+        212
+      ],
+      "size": {
+        "0": 315,
+        "1": 98
+      },
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "outputs": [
+        {
+          "name": "MODEL",
+          "type": "MODEL",
+          "links": [
+            10
+          ],
+          "slot_index": 0
+        },
+        {
+          "name": "CLIP",
+          "type": "CLIP",
+          "links": [
+            3,
+            5,
+            11,
+            16
+          ],
+          "slot_index": 1
+        },
+        {
+          "name": "VAE",
+          "type": "VAE",
+          "links": [
+            12,
+            31
+          ],
+          "slot_index": 2
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "CheckpointLoaderSimple"
+      },
+      "widgets_values": [
+        "V07_v07.safetensors"
+      ]
+    },
+    {
+      "id": 25,
+      "type": "PreviewImage",
+      "pos": [
+        2175,
+        1079
+      ],
+      "size": {
+        "0": 516,
+        "1": 424
+      },
+      "flags": {},
+      "order": 15,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 41
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "PreviewImage"
+      }
+    },
+    {
+      "id": 13,
+      "type": "KSamplerAdvancedProvider",
+      "pos": [
+        1727,
+        192
+      ],
+      "size": {
+        "0": 355.20001220703125,
+        "1": 154
+      },
+      "flags": {},
+      "order": 7,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "basic_pipe",
+          "type": "BASIC_PIPE",
+          "link": 19
+        }
+      ],
+      "outputs": [
+        {
+          "name": "KSAMPLER_ADVANCED",
+          "type": "KSAMPLER_ADVANCED",
+          "links": [
+            42
+          ],
+          "shape": 3,
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "KSamplerAdvancedProvider"
+      },
+      "widgets_values": [
+        8,
+        "fixed",
+        "normal"
+      ]
+    },
+    {
+      "id": 16,
+      "type": "EmptyLatentImage",
+      "pos": [
+        532,
+        1143
+      ],
+      "size": {
+        "0": 315,
+        "1": 106
+      },
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "outputs": [
+        {
+          "name": "LATENT",
+          "type": "LATENT",
+          "links": [
+            28,
+            45
+          ],
+          "shape": 3,
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "EmptyLatentImage"
+      },
+      "widgets_values": [
+        792,
+        512,
+        1
+      ]
+    },
+    {
+      "id": 19,
+      "type": "KSampler",
+      "pos": [
+        1194.657802060547,
+        1075.971700888672
+      ],
+      "size": [
+        315,
+        473.9999771118164
+      ],
+      "flags": {},
+      "order": 10,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 34
+        },
+        {
+          "name": "positive",
+          "type": "CONDITIONING",
+          "link": 35
+        },
+        {
+          "name": "negative",
+          "type": "CONDITIONING",
+          "link": 36
+        },
+        {
+          "name": "latent_image",
+          "type": "LATENT",
+          "link": 28
+        }
+      ],
+      "outputs": [
+        {
+          "name": "LATENT",
+          "type": "LATENT",
+          "links": [
+            30
+          ],
+          "shape": 3,
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "KSampler"
+      },
+      "widgets_values": [
+        1107040072933062,
+        "fixed",
+        20,
+        8,
+        "euler",
+        "normal",
+        1
+      ]
+    },
+    {
+      "id": 27,
+      "type": "TwoAdvancedSamplersForMask",
+      "pos": [
+        2187,
+        266
+      ],
+      "size": [
+        315,
+        426.00000762939453
+      ],
+      "flags": {},
+      "order": 13,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "samples",
+          "type": "LATENT",
+          "link": 45
+        },
+        {
+          "name": "base_sampler",
+          "type": "KSAMPLER_ADVANCED",
+          "link": 42
+        },
+        {
+          "name": "mask_sampler",
+          "type": "KSAMPLER_ADVANCED",
+          "link": 43
+        },
+        {
+          "name": "mask",
+          "type": "MASK",
+          "link": 44
+        }
+      ],
+      "outputs": [
+        {
+          "name": "LATENT",
+          "type": "LATENT",
+          "links": [
+            46
+          ],
+          "shape": 3,
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "TwoAdvancedSamplersForMask"
+      },
+      "widgets_values": [
+        1107040072933062,
+        "fixed",
+        20,
+        1,
+        10
+      ]
+    },
+    {
+      "id": 23,
+      "type": "PreviewBridge",
+      "pos": [
+        1778,
+        1098
+      ],
+      "size": {
+        "0": 315,
+        "1": 290
+      },
+      "flags": {},
+      "order": 12,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 37
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": null,
+          "shape": 3
+        },
+        {
+          "name": "MASK",
+          "type": "MASK",
+          "links": [
+            44
+          ],
+          "shape": 3,
+          "slot_index": 1
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "PreviewBridge"
+      },
+      "widgets_values": [
+        {
+          "filename": "clipspace-mask-348148.69999999925.png",
+          "subfolder": "clipspace",
+          "type": "input",
+          "image_hash": 492469318636598500,
+          "forward_filename": "ComfyUI_00001_.png",
+          "forward_subfolder": "",
+          "forward_type": "temp"
+        }
+      ]
+    },
+    {
+      "id": 15,
+      "type": "KSamplerAdvancedProvider",
+      "pos": [
+        1719,
+        592
+      ],
+      "size": {
+        "0": 355.20001220703125,
+        "1": 154
+      },
+      "flags": {},
+      "order": 9,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "basic_pipe",
+          "type": "BASIC_PIPE",
+          "link": 20
+        }
+      ],
+      "outputs": [
+        {
+          "name": "KSAMPLER_ADVANCED",
+          "type": "KSAMPLER_ADVANCED",
+          "links": [
+            43
+          ],
+          "shape": 3,
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "KSamplerAdvancedProvider"
+      },
+      "widgets_values": [
+        8,
+        "fixed",
+        "normal"
+      ]
+    },
+    {
+      "id": 20,
+      "type": "VAEDecode",
+      "pos": [
+        1546,
+        972
+      ],
+      "size": {
+        "0": 210,
+        "1": 46
+      },
+      "flags": {},
+      "order": 11,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "samples",
+          "type": "LATENT",
+          "link": 30
+        },
+        {
+          "name": "vae",
+          "type": "VAE",
+          "link": 31
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            37
+          ],
+          "shape": 3,
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "VAEDecode"
+      }
+    }
+  ],
+  "links": [
+    [
+      3,
+      4,
+      1,
+      6,
+      0,
+      "CLIP"
+    ],
+    [
+      5,
+      4,
+      1,
+      7,
+      0,
+      "CLIP"
+    ],
+    [
+      10,
+      4,
+      0,
+      10,
+      0,
+      "MODEL"
+    ],
+    [
+      11,
+      4,
+      1,
+      10,
+      1,
+      "CLIP"
+    ],
+    [
+      12,
+      4,
+      2,
+      10,
+      2,
+      "VAE"
+    ],
+    [
+      13,
+      6,
+      0,
+      10,
+      3,
+      "CONDITIONING"
+    ],
+    [
+      14,
+      7,
+      0,
+      10,
+      4,
+      "CONDITIONING"
+    ],
+    [
+      15,
+      10,
+      0,
+      11,
+      0,
+      "BASIC_PIPE"
+    ],
+    [
+      16,
+      4,
+      1,
+      12,
+      0,
+      "CLIP"
+    ],
+    [
+      17,
+      12,
+      0,
+      11,
+      4,
+      "CONDITIONING"
+    ],
+    [
+      19,
+      10,
+      0,
+      13,
+      0,
+      "BASIC_PIPE"
+    ],
+    [
+      20,
+      11,
+      0,
+      15,
+      0,
+      "BASIC_PIPE"
+    ],
+    [
+      28,
+      16,
+      0,
+      19,
+      3,
+      "LATENT"
+    ],
+    [
+      30,
+      19,
+      0,
+      20,
+      0,
+      "LATENT"
+    ],
+    [
+      31,
+      4,
+      2,
+      20,
+      1,
+      "VAE"
+    ],
+    [
+      33,
+      10,
+      0,
+      22,
+      0,
+      "BASIC_PIPE"
+    ],
+    [
+      34,
+      22,
+      0,
+      19,
+      0,
+      "MODEL"
+    ],
+    [
+      35,
+      22,
+      3,
+      19,
+      1,
+      "CONDITIONING"
+    ],
+    [
+      36,
+      22,
+      4,
+      19,
+      2,
+      "CONDITIONING"
+    ],
+    [
+      37,
+      20,
+      0,
+      23,
+      0,
+      "IMAGE"
+    ],
+    [
+      40,
+      22,
+      2,
+      24,
+      1,
+      "VAE"
+    ],
+    [
+      41,
+      24,
+      0,
+      25,
+      0,
+      "IMAGE"
+    ],
+    [
+      42,
+      13,
+      0,
+      27,
+      1,
+      "KSAMPLER_ADVANCED"
+    ],
+    [
+      43,
+      15,
+      0,
+      27,
+      2,
+      "KSAMPLER_ADVANCED"
+    ],
+    [
+      44,
+      23,
+      1,
+      27,
+      3,
+      "MASK"
+    ],
+    [
+      45,
+      16,
+      0,
+      27,
+      0,
+      "LATENT"
+    ],
+    [
+      46,
+      27,
+      0,
+      24,
+      0,
+      "LATENT"
+    ]
+  ],
+  "groups": [],
+  "config": {},
+  "extra": {},
+  "version": 0.4
+}

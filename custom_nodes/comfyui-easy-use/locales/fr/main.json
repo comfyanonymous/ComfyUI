@@ -1,0 +1,30 @@
+{
+  "settingsCategories": {
+    "Hotkeys": "Raccourcis",
+    "Nodes": "Nœuds",
+    "NodesMap": "Carte des nœuds"
+  },
+  "nodeCategories": {
+    "Util": "Utilitaire",
+    "Seed": "Graine",
+    "Prompt": "Prompt",
+    "Loaders": "Chargeurs",
+    "Adapter": "Adaptateur",
+    "Inpaint": "Retouche",
+    "PreSampling": "Pré-échantillonnage",
+    "Sampler": "Échantillonneur",
+    "Fix": "Correction",
+    "Pipe": "Pipeline",
+    "XY Inputs": "Entrées XY",
+    "Image": "Image",
+    "Segmentation": "Segmentation",
+    "\uD83D\uDEAB Deprecated": "\uD83D\uDEAB Obsolète",
+    "Type": "Type",
+    "Math": "Mathématiques",
+    "Switch": "Interrupteur",
+    "Index Switch": "Interrupteur d'index",
+    "While Loop": "Boucle While",
+    "For Loop": "Boucle For",
+    "LoadImage": "Charger l'image"
+  }
+}

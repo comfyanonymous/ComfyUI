@@ -1,0 +1,186 @@
+<header class="app-header">
+  <div class="header-container">
+    <div class="header-branding">
+      <a href="/loras" class="logo-link">
+        <img src="/loras_static/images/favicon-32x32.png" alt="LoRA Manager" class="app-logo">
+        <span class="app-title">oRA Manager</span>
+      </a>
+    </div>
+    <nav class="main-nav">
+      <a href="/loras" class="nav-item" id="lorasNavItem">
+        <i class="fas fa-layer-group"></i> LoRAs
+      </a>
+      <a href="/loras/recipes" class="nav-item" id="recipesNavItem">
+        <i class="fas fa-book-open"></i> Recipes
+      </a>
+      <a href="/checkpoints" class="nav-item" id="checkpointsNavItem">
+        <i class="fas fa-check-circle"></i> Checkpoints
+      </a>
+      <a href="/embeddings" class="nav-item" id="embeddingsNavItem">
+        <i class="fas fa-code"></i> Embeddings
+      </a>
+      <a href="/statistics" class="nav-item" id="statisticsNavItem">
+        <i class="fas fa-chart-bar"></i> Stats
+      </a>
+    </nav>
+    
+    <!-- Context-aware search container -->
+    <div class="header-search" id="headerSearch">
+      <div class="search-container">
+        <input type="text" id="searchInput" placeholder="Search..." />
+        <i class="fas fa-search search-icon"></i>
+        <button class="search-options-toggle" id="searchOptionsToggle" title="Search Options">
+          <i class="fas fa-sliders-h"></i>
+        </button>
+        <button class="search-filter-toggle" id="filterButton" title="Filter models">
+          <i class="fas fa-filter"></i>
+          <span class="filter-badge" id="activeFiltersCount" style="display: none">0</span>
+        </button>
+      </div>
+    </div>
+    
+    <div class="header-actions">
+      <!-- Integrated corner controls -->
+      <div class="header-controls">
+        <div class="theme-toggle" title="Toggle theme">
+          <i class="fas fa-moon dark-icon"></i>
+          <i class="fas fa-sun light-icon"></i>
+          <i class="fas fa-adjust auto-icon"></i>
+        </div>
+        <div class="settings-toggle" title="Settings">
+          <i class="fas fa-cog"></i>
+        </div>
+        <div class="help-toggle" id="helpToggleBtn" title="Help & Tutorials">
+          <i class="fas fa-question-circle"></i>
+          <span class="update-badge"></span>
+        </div>
+        <div class="update-toggle" id="updateToggleBtn" title="Check Updates">
+          <i class="fas fa-bell"></i>
+          <span class="update-badge"></span>
+        </div>
+        <div class="support-toggle" id="supportToggleBtn" title="Support">
+          <i class="fas fa-heart"></i>
+        </div>
+      </div>
+    </div>
+  </div>
+</header>
+
+<!-- Add search options panel with context-aware options -->
+<div id="searchOptionsPanel" class="search-options-panel hidden">
+  <div class="options-header">
+    <h3>Search Options</h3>
+    <button class="close-options-btn" id="closeSearchOptions">
+      <i class="fas fa-times"></i>
+    </button>
+  </div>
+  <div class="options-section">
+    <h4>Search In:</h4>
+    <div class="search-option-tags">
+      {% if request.path == '/loras/recipes' %}
+      <div class="search-option-tag active" data-option="title">Recipe Title</div>
+      <div class="search-option-tag active" data-option="tags">Tags</div>
+      <div class="search-option-tag active" data-option="loraName">LoRA Filename</div>
+      <div class="search-option-tag active" data-option="loraModel">LoRA Model Name</div>
+      {% elif request.path == '/checkpoints' %}
+      <div class="search-option-tag active" data-option="filename">Filename</div>
+      <div class="search-option-tag active" data-option="modelname">Checkpoint Name</div>
+      <div class="search-option-tag active" data-option="tags">Tags</div>
+      <div class="search-option-tag" data-option="creator">Creator</div>
+      {% elif request.path == '/embeddings' %}
+      <div class="search-option-tag active" data-option="filename">Filename</div>
+      <div class="search-option-tag active" data-option="modelname">Embedding Name</div>
+      <div class="search-option-tag active" data-option="tags">Tags</div>
+      <div class="search-option-tag" data-option="creator">Creator</div>
+      {% else %}
+      <!-- Default options for LoRAs page -->
+      <div class="search-option-tag active" data-option="filename">Filename</div>
+      <div class="search-option-tag active" data-option="modelname">Model Name</div>
+      <div class="search-option-tag active" data-option="tags">Tags</div>
+      <div class="search-option-tag" data-option="creator">Creator</div>
+      {% endif %}
+    </div>
+  </div>
+  {% if request.path != '/loras/recipes' %}
+  <div class="options-section">
+    <div class="search-option-switch">
+      <span>Include Subfolders</span>
+      <label class="switch">
+        <input type="checkbox" id="recursiveSearchToggle">
+        <span class="slider round"></span>
+      </label>
+    </div>
+  </div>
+  {% endif %}
+</div>
+
+<!-- Add filter panel -->
+<div id="filterPanel" class="filter-panel hidden">
+  <div class="filter-header">
+    <h3>Filter Models</h3>
+    <button class="close-filter-btn" onclick="filterManager.closeFilterPanel()">
+      <i class="fas fa-times"></i>
+    </button>
+  </div>
+  <div class="filter-section">
+    <h4>Base Model</h4>
+    <div class="filter-tags" id="baseModelTags">
+      <!-- Tags will be dynamically inserted here -->
+    </div>
+  </div>
+  <div class="filter-section">
+    <h4>Tags (Top 20)</h4>
+    <div class="filter-tags" id="modelTagsFilter">
+      <!-- Top tags will be dynamically inserted here -->
+      <div class="tags-loading">Loading tags...</div>
+    </div>
+  </div>
+  <div class="filter-actions">
+    <button class="clear-filters-btn" onclick="filterManager.clearFilters()">
+      Clear All Filters
+    </button>
+  </div>
+</div>
+
+<!-- Add this script at the end of the header component -->
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    // Get the current path from the URL
+    const currentPath = window.location.pathname;
+    
+    // Update search placeholder based on current path
+    const searchInput = document.getElementById('searchInput');
+    if (searchInput) {
+      if (currentPath === '/loras') {
+        searchInput.placeholder = 'Search LoRAs...';
+      } else if (currentPath === '/loras/recipes') {
+        searchInput.placeholder = 'Search recipes...';
+      } else if (currentPath === '/checkpoints') {
+        searchInput.placeholder = 'Search checkpoints...';
+      } else if (currentPath === '/embeddings') {
+        searchInput.placeholder = 'Search embeddings...';
+      } else {
+        searchInput.placeholder = 'Search...';
+      }
+    }
+    
+    // Update active nav item
+    const lorasNavItem = document.getElementById('lorasNavItem');
+    const recipesNavItem = document.getElementById('recipesNavItem');
+    const checkpointsNavItem = document.getElementById('checkpointsNavItem');
+    const embeddingsNavItem = document.getElementById('embeddingsNavItem');
+    const statisticsNavItem = document.getElementById('statisticsNavItem');
+    
+    if (currentPath === '/loras') {
+      lorasNavItem.classList.add('active');
+    } else if (currentPath === '/loras/recipes') {
+      recipesNavItem.classList.add('active');
+    } else if (currentPath === '/checkpoints') {
+      checkpointsNavItem.classList.add('active');
+    } else if (currentPath === '/embeddings') {
+      embeddingsNavItem.classList.add('active');
+    } else if (currentPath === '/statistics') {
+      statisticsNavItem.classList.add('active');
+    }
+  });
+</script>

@@ -1,0 +1,7 @@
+[flake8]
+ignore = W503, E203, E221, C901, C408, E741, C407, B017, F811, C101, EXE001, EXE002
+max-line-length = 100
+max-complexity = 18
+select = B,C,E,F,W,T4,B9
+per-file-ignores =
+  **/__init__.py:F401,F403,E402

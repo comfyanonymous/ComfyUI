@@ -1,0 +1,108 @@
+
+
+.rgthree-menu {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  position: fixed;
+  z-index: 999999;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.08s ease-in-out;
+
+  color: #dde;
+  background-color: #111;
+  font-size: 12px;
+  box-shadow: 0 0 10px black !important;
+
+  > li {
+    position: relative;
+    padding: 4px 6px;
+    z-index: 9999;
+    white-space: nowrap;
+
+    &[role="button"] {
+      background-color: var(--comfy-menu-bg) !important;
+      color: var(--input-text);
+      cursor: pointer;
+      &:hover {
+        filter: brightness(155%);
+      }
+    }
+  }
+
+  &[state^="measuring"] {
+    display: block;
+    opacity: 0;
+  }
+  &[state="open"] {
+    display: block;
+    opacity: 1;
+    pointer-events: all;
+  }
+}
+
+
+.rgthree-top-menu {
+  box-sizing: border-box;
+  white-space: nowrap;
+  background: var(--content-bg);
+  color: var(--content-fg);
+  display: flex;
+  flex-direction: column;
+  * {
+    box-sizing: inherit;
+  }
+
+  menu {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+
+    > li:not(#fakeid) {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+
+      > button {
+        cursor: pointer;
+        padding: 8px 12px 8px 8px;
+        width: 100%;
+        text-align: start;
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+        justify-content: start;
+
+        &:hover {
+          background-color: var(--comfy-input-bg);
+        }
+
+        svg {
+          height: 16px;
+          width: auto;
+          margin-inline-end: 0.6em;
+
+          &.github-star {
+            fill: rgb(227, 179, 65);
+          }
+        }
+      }
+
+      &.rgthree-message {
+        // ComfyUI's code has strange behavior that that always puts the popupat to if its less than
+        // 30px... we'll force our message to be at least 32px tall so it won't do that unless it's
+        // actually on the bottom.
+        min-height: 32px;
+        > span {
+          padding: 8px 12px;
+          display: block;
+          width: 100%;
+          text-align: center;
+          font-style: italic;
+          font-size: 12px;
+        }
+      }
+    }
+  }
+}

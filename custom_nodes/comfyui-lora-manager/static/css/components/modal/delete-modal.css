@@ -1,0 +1,48 @@
+/* Delete Modal specific styles */
+
+.delete-message {
+    color: var(--text-color);
+    margin: var(--space-2) 0;
+}
+
+/* Update delete modal styles */
+.delete-modal {
+    display: none;  /* Set initial display to none */
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.8);
+    z-index: var(--z-overlay);
+}
+
+/* Add new style for when modal is shown */
+.delete-modal.show {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.delete-modal-content {
+    max-width: 500px;
+    width: 90%;
+    text-align: center;
+    margin: 0 auto;
+    position: relative;
+    animation: modalFadeIn 0.2s ease-out;
+}
+
+.delete-model-info,
+.exclude-model-info {
+    /* Update info display styling */
+    background: var(--lora-surface);
+    border: 1px solid var(--lora-border);
+    border-radius: var(--border-radius-sm);
+    padding: var(--space-2);
+    margin: var(--space-2) 0;
+    color: var(--text-color);
+    word-break: break-all;
+    text-align: left;
+    line-height: 1.5;
+}

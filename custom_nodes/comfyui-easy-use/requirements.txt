@@ -1,0 +1,10 @@
+diffusers
+accelerate
+clip_interrogator>=0.6.0
+lark
+onnxruntime
+opencv-python
+sentencepiece
+spandrel
+matplotlib
+peft

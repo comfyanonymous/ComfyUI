@@ -1,0 +1,42 @@
+$space: 8px;
+
+.rgthree-model-info-card {
+  display: block;
+  padding: $space;
+}
+
+.-is-hidden {
+  display: none;
+}
+
+
+.rgthree-model-info-card {
+  display: flex;
+  flex-direction: row;
+
+  >.rgthree-model-info-card-media-container {
+    width: 100px;
+    height: auto;
+    display: block;
+    margin: 0 $space 0 0;
+    padding: 0;
+    flex: 0 0 auto;
+
+    >img,
+    >video {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+    }
+  }
+
+  >.rgthree-model-info-card-data-container {
+
+    [bind*="name:"] {
+      font-size: 1.3em;
+      margin-bottom: calc($space / 2);
+      font-weight: bold;
+    }
+
+  }
+}

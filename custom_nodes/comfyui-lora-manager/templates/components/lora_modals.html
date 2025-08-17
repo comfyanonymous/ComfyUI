@@ -1,0 +1,102 @@
+<!-- Model details Modal -->
+<div id="loraModal" class="modal"></div>
+
+<!-- Download from URL Modal (for LoRAs) -->
+<div id="downloadModal" class="modal">
+    <div class="modal-content">
+        <button class="close" onclick="modalManager.closeModal('downloadModal')">&times;</button>
+        <h2>Download LoRA from URL</h2>
+        
+        <!-- Step 1: URL Input -->
+        <div class="download-step" id="urlStep">
+            <div class="input-group">
+                <label for="loraUrl">Civitai URL:</label>
+                <input type="text" id="loraUrl" placeholder="https://civitai.com/models/..." />
+                <div class="error-message" id="urlError"></div>
+            </div>
+            <div class="modal-actions">
+                <button class="primary-btn" onclick="downloadManager.validateAndFetchVersions()">Next</button>
+            </div>
+        </div>
+
+        <!-- Step 2: Version Selection -->
+        <div class="download-step" id="versionStep" style="display: none;">
+            <div class="version-list" id="versionList">
+                <!-- Versions will be inserted here dynamically -->
+            </div>
+            <div class="modal-actions">
+                <button class="secondary-btn" onclick="downloadManager.backToUrl()">Back</button>
+                <button class="primary-btn" onclick="downloadManager.proceedToLocation()">Next</button>
+            </div>
+        </div>
+
+        <!-- Step 3: Location Selection -->
+        <div class="download-step" id="locationStep" style="display: none;">
+            <div class="location-selection">
+                <!-- Move path preview to top -->
+                <div class="path-preview">
+                    <label>Download Location Preview:</label>
+                    <div class="path-display" id="targetPathDisplay">
+                        <span class="path-text">Select a LoRA root directory</span>
+                    </div>
+                </div>
+
+                <div class="input-group">
+                    <label>Select LoRA Root:</label>
+                    <select id="loraRoot"></select>
+                </div>
+                <div class="input-group">
+                    <label>Target Folder:</label>
+                    <div class="folder-browser" id="folderBrowser">
+                        <!-- Folders will be loaded dynamically -->
+                    </div>
+                </div>
+                <div class="input-group">
+                    <label for="newFolder">New Folder (optional):</label>
+                    <input type="text" id="newFolder" placeholder="Enter folder name" />
+                </div>
+            </div>
+            <div class="modal-actions">
+                <button class="secondary-btn" onclick="downloadManager.backToVersions()">Back</button>
+                <button class="primary-btn" onclick="downloadManager.startDownload()">Download</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Move Model Modal -->
+<div id="moveModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2 id="moveModalTitle">Move Model</h2>
+            <span class="close" onclick="modalManager.closeModal('moveModal')">&times;</span>
+        </div>
+        <div class="location-selection">
+            <div class="path-preview">
+                <label>Target Location Preview:</label>
+                <div class="path-display" id="moveTargetPathDisplay">
+                    <span class="path-text">Select a LoRA root directory</span>
+                </div>
+            </div>
+
+            <div class="input-group">
+                <label>Select LoRA Root:</label>
+                <select id="moveLoraRoot"></select>
+            </div>
+            <div class="input-group">
+                <label>Target Folder:</label>
+                <div class="folder-browser" id="moveFolderBrowser">
+                    <!-- Folders will be loaded dynamically -->
+                </div>
+            </div>
+            <div class="input-group">
+                <label for="moveNewFolder">New Folder (optional):</label>
+                <input type="text" id="moveNewFolder" placeholder="Enter folder name" />
+            </div>
+        </div>
+        <div class="modal-actions">
+            <button class="cancel-btn" onclick="modalManager.closeModal('moveModal')">Cancel</button>
+            <button class="primary-btn" onclick="moveManager.moveModel()">Move</button>
+        </div>
+    </div>
+</div>

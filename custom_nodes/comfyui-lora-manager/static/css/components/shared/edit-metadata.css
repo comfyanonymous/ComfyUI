@@ -1,0 +1,321 @@
+/* Common Metadata Edit UI Components */
+/* Used by both tag editing and trigger words editing interfaces */
+
+/* Edit Button */
+.metadata-edit-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-color);
+  opacity: 0.5;
+  cursor: pointer;
+  padding: 2px 5px;
+  border-radius: var(--border-radius-xs);
+  transition: all 0.2s ease;
+}
+
+.metadata-edit-btn:hover {
+  opacity: 0.8;
+  background: rgba(0, 0, 0, 0.05);
+}
+
+[data-theme="dark"] .metadata-edit-btn:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+/* Edit mode active state */
+.edit-mode .metadata-edit-btn {
+  opacity: 0.8;
+  color: var(--lora-accent);
+}
+
+/* Edit Container */
+.metadata-edit-container {
+  padding: var(--space-2);
+  background: rgba(0, 0, 0, 0.03);
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  border-radius: var(--border-radius-sm);
+  margin-top: var(--space-2);
+  width: 100%;
+  box-sizing: border-box;
+  position: relative;
+  display: block;
+}
+
+[data-theme="dark"] .metadata-edit-container {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--lora-border);
+}
+
+/* Edit Header */
+.metadata-edit-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--lora-border);
+  width: 100%;
+}
+
+/* Style for the edit button when positioned in the header */
+.metadata-header-btn {
+  display: inline-flex !important;
+  opacity: 0.8 !important;
+  color: var(--lora-accent) !important;
+  margin-left: auto;
+}
+
+/* Edit Content */
+.metadata-edit-content {
+  margin-bottom: var(--space-1);
+  width: 100%;
+  display: block;
+}
+
+/* Items Container */
+.metadata-items {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: flex-start;
+  margin-bottom: var(--space-2);
+  width: 100%;
+}
+
+/* Individual Item */
+.metadata-item {
+  display: inline-flex;
+  align-items: center;
+  background: var(--bg-color);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius-xs);
+  padding: 4px 8px;
+  position: relative;
+}
+
+.metadata-item-content {
+  color: var(--lora-accent) !important;
+  font-size: 0.85em;
+  line-height: 1.4;
+  word-break: break-word;
+}
+
+/* Delete Button */
+.metadata-delete-btn {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  width: 16px;
+  height: 16px;
+  background: var(--lora-error);
+  color: white;
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 9px;
+  transition: transform 0.2s ease;
+}
+
+.metadata-delete-btn:hover {
+  transform: scale(1.1);
+}
+
+/* Edit Controls */
+.metadata-edit-controls {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+  margin-bottom: var(--space-2);
+}
+
+.metadata-edit-controls button {
+  padding: 3px 8px;
+  border-radius: var(--border-radius-xs);
+  border: 1px solid var(--border-color);
+  background: var(--bg-color);
+  color: var(--text-color);
+  font-size: 0.85em;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  transition: all 0.2s ease;
+}
+
+.metadata-edit-controls button:hover {
+  background: oklch(var(--lora-accent-l) var(--lora-accent-c) var(--lora-accent-h) / 0.1);
+  border-color: var(--lora-accent);
+}
+
+.metadata-save-btn,
+.save-tags-btn {
+  background: var(--lora-accent) !important;
+  color: white !important;
+  border-color: var(--lora-accent) !important;
+}
+
+.metadata-save-btn:hover,
+.save-tags-btn:hover {
+  opacity: 0.9;
+}
+
+/* Add Form */
+.metadata-add-form {
+  display: flex;
+  gap: var(--space-1);
+  position: relative;
+  width: 100%;
+}
+
+.metadata-input {
+  flex: 1;
+  padding: 4px 8px;
+  border-radius: var(--border-radius-xs);
+  border: 1px solid var(--border-color);
+  background: var(--bg-color);
+  color: var(--text-color);
+  font-size: 0.9em;
+}
+
+.metadata-input:focus {
+  border-color: var(--lora-accent);
+  outline: none;
+}
+
+/* Suggestions Dropdown */
+.metadata-suggestions-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background: var(--bg-color);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius-sm);
+  margin-top: 4px;
+  z-index: 100;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.metadata-suggestions-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  background: var(--card-bg);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.metadata-suggestions-header span {
+  font-size: 0.9em;
+  font-weight: 500;
+  color: var(--text-color);
+}
+
+.metadata-suggestions-header small {
+  font-size: 0.8em;
+  opacity: 0.7;
+}
+
+.metadata-suggestions-container {
+  max-height: 200px;
+  overflow-y: auto;
+  padding: 10px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-content: flex-start;
+}
+
+.metadata-suggestion-item {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 5px 10px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border-radius: var(--border-radius-xs);
+  background: var(--lora-surface);
+  border: 1px solid var(--lora-border);
+  max-width: 150px;
+}
+
+.metadata-suggestion-item:hover {
+  background: oklch(var(--lora-accent-l) var(--lora-accent-c) var(--lora-accent-h) / 0.1);
+  border-color: var(--lora-accent);
+}
+
+.metadata-suggestion-item.already-added {
+  opacity: 0.7;
+  cursor: default;
+}
+
+.metadata-suggestion-item.already-added:hover {
+  background: var(--lora-surface);
+  border-color: var(--lora-border);
+}
+
+.metadata-suggestion-text {
+  color: var(--lora-accent) !important;
+  font-size: 0.9em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-right: 4px;
+  max-width: 100px;
+}
+
+.metadata-suggestion-meta {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.added-indicator {
+  color: var(--lora-accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75em;
+}
+
+/* No suggestions message */
+.no-suggestions {
+  padding: 16px 12px;
+  text-align: center;
+  color: var(--text-color);
+  opacity: 0.7;
+  font-style: italic;
+  font-size: 0.9em;
+}
+
+/* Loading indicator */
+.metadata-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: var(--space-1) 0;
+  color: var(--text-color);
+  opacity: 0.7;
+  font-size: 0.9em;
+  gap: 8px;
+}
+
+.metadata-loading i {
+  color: var(--lora-accent);
+}
+
+/* Dropdown separator */
+.dropdown-separator {
+  height: 1px;
+  background: var(--lora-border);
+  margin: 5px 10px;
+}

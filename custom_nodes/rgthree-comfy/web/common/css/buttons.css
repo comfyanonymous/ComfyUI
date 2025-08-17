@@ -1,0 +1,90 @@
+:not(#fakeid) .rgthree-button-reset {
+  position: relative;
+  appearance: none;
+  cursor: pointer;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  padding: 0;
+  margin: 0;
+}
+
+:not(#fakeid) .rgthree-button {
+  --padding-top: 7px;
+  --padding-bottom: 9px;
+  --padding-x: 16px;
+  position: relative;
+  cursor: pointer;
+  border: 0;
+  border-radius: 0.25rem;
+  background: rgba(0, 0, 0, 0.5);
+  color: white;
+  font-family: system-ui, sans-serif;
+  font-size: 1rem;
+  line-height: 1;
+  white-space: nowrap;
+  text-decoration: none;
+  margin: 0.25rem;
+  box-shadow: 0px 0px 2px rgb(0, 0, 0);
+  background: #212121;
+  transition: all 0.1s ease-in-out;
+  padding: var(--padding-top) var(--padding-x) var(--padding-bottom);
+  display: inline-flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+}
+:not(#fakeid) .rgthree-button::before, :not(#fakeid) .rgthree-button::after {
+  content: "";
+  display: block;
+  position: absolute;
+  border-radius: 0.25rem;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  box-shadow: inset 1px 1px 0px rgba(255, 255, 255, 0.12), inset -1px -1px 0px rgba(0, 0, 0, 0.75);
+  background: linear-gradient(to bottom, rgba(255, 255, 255, 0.06), rgba(0, 0, 0, 0.15));
+  mix-blend-mode: screen;
+}
+:not(#fakeid) .rgthree-button::after {
+  mix-blend-mode: multiply;
+}
+:not(#fakeid) .rgthree-button:hover {
+  background: #303030;
+}
+:not(#fakeid) .rgthree-button:active {
+  box-shadow: 0px 0px 0px rgba(0, 0, 0, 0);
+  background: #121212;
+  padding: calc(var(--padding-top) + 1px) calc(var(--padding-x) - 1px) calc(var(--padding-bottom) - 1px) calc(var(--padding-x) + 1px);
+}
+:not(#fakeid) .rgthree-button:active::before, :not(#fakeid) .rgthree-button:active::after {
+  box-shadow: 1px 1px 0px rgba(255, 255, 255, 0.15), inset 1px 1px 0px rgba(0, 0, 0, 0.5), inset 1px 3px 5px rgba(0, 0, 0, 0.33);
+}
+:not(#fakeid) .rgthree-button.-blue {
+  background: #346599 !important;
+}
+:not(#fakeid) .rgthree-button.-blue:hover {
+  background: #3b77b8 !important;
+}
+:not(#fakeid) .rgthree-button.-blue:active {
+  background: #1d5086 !important;
+}
+:not(#fakeid) .rgthree-button.-green {
+  background: linear-gradient(to bottom, rgba(255, 255, 255, 0.06), rgba(0, 0, 0, 0.15)), #14580b;
+}
+:not(#fakeid) .rgthree-button.-green:hover {
+  background: linear-gradient(to bottom, rgba(255, 255, 255, 0.06), rgba(0, 0, 0, 0.15)), #1a6d0f;
+}
+:not(#fakeid) .rgthree-button.-green:active {
+  background: linear-gradient(to bottom, rgba(0, 0, 0, 0.15), rgba(255, 255, 255, 0.06)), #0f3f09;
+}
+:not(#fakeid) .rgthree-button[disabled] {
+  box-shadow: none;
+  background: #666 !important;
+  color: #aaa;
+  pointer-events: none;
+}
+:not(#fakeid) .rgthree-button[disabled]::before, :not(#fakeid) .rgthree-button[disabled]::after {
+  display: none;
+}

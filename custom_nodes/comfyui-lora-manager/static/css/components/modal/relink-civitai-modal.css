@@ -1,0 +1,53 @@
+/* Re-link to Civitai Modal styles */
+.warning-box {
+  background-color: rgba(255, 193, 7, 0.1);
+  border: 1px solid rgba(255, 193, 7, 0.5);
+  border-radius: var(--border-radius-sm);
+  padding: var(--space-2);
+  margin-bottom: var(--space-3);
+}
+
+.warning-box i {
+  color: var(--lora-warning);
+  margin-right: var(--space-1);
+}
+
+.warning-box ul {
+  padding-left: 20px;
+  margin: var(--space-1) 0;
+}
+
+.warning-box li {
+  margin-bottom: 4px;
+}
+
+.input-group {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: var(--space-2);
+}
+
+.input-group label {
+  margin-bottom: var(--space-1);
+  font-weight: 500;
+}
+
+.input-group input {
+  padding: 8px 12px;
+  border-radius: var(--border-radius-xs);
+  border: 1px solid var(--border-color);
+  background-color: var(--lora-surface);
+  color: var(--text-color);
+}
+
+.input-error {
+  color: var(--lora-error);
+  font-size: 0.9em;
+  min-height: 20px;
+  margin-top: 4px;
+}
+
+[data-theme="dark"] .warning-box {
+  background-color: rgba(255, 193, 7, 0.05);
+  border-color: rgba(255, 193, 7, 0.3);
+}

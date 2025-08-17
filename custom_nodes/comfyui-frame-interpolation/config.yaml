@@ -1,0 +1,3 @@
+#Plz don't delete this file, just edit it when neccessary.
+ckpts_path: "./ckpts"
+ops_backend: "cupy" #Either "taichi" or "cupy"

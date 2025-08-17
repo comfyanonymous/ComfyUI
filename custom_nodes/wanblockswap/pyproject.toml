@@ -1,0 +1,14 @@
+[project]
+name = "wanblockswap"
+description = "This is a simple Wan block swap node for ComfyUI native nodes, works by swapping upto 40 blocks to the CPU to reduce VRAM."
+version = "1.0.0"
+license = {file = "LICENSE"}
+
+[project.urls]
+Repository = "https://github.com/orssorbit/ComfyUI-wanBlockswap"
+#  Used by Comfy Registry https://comfyregistry.org
+
+[tool.comfy]
+PublisherId = "orssorbit"
+DisplayName = "ComfyUI-wanBlockswap"
+Icon = ""

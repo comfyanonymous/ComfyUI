@@ -1,0 +1,85 @@
+<!-- Delete Confirmation Modal -->
+<div id="deleteModal" class="modal delete-modal">
+    <div class="modal-content delete-modal-content">
+        <h2>Delete Model</h2>
+        <p class="delete-message">Are you sure you want to delete this model and all associated files?</p>
+        <div class="delete-model-info"></div>
+        <div class="modal-actions">
+            <button class="cancel-btn" onclick="closeDeleteModal()">Cancel</button>
+            <button class="delete-btn" onclick="confirmDelete()">Delete</button>
+        </div>
+    </div>
+</div>
+
+<!-- Exclude Confirmation Modal -->
+<div id="excludeModal" class="modal delete-modal">
+    <div class="modal-content delete-modal-content">
+        <h2>Exclude Model</h2>
+        <p class="delete-message">Are you sure you want to exclude this model? Excluded models won't appear in searches or model lists.</p>
+        <div class="exclude-model-info"></div>
+        <div class="modal-actions">
+            <button class="cancel-btn" onclick="closeExcludeModal()">Cancel</button>
+            <button class="exclude-btn" onclick="confirmExclude()">Exclude</button>
+        </div>
+    </div>
+</div>
+
+<!-- Recipes Duplicate Delete Confirmation Modal -->
+<div id="duplicateDeleteModal" class="modal delete-modal">
+    <div class="modal-content delete-modal-content">
+        <h2>Delete Duplicate Recipes</h2>
+        <p class="delete-message">Are you sure you want to delete the selected duplicate recipes?</p>
+        <div class="delete-model-info">
+            <p><span id="duplicateDeleteCount">0</span> recipes will be permanently deleted.</p>
+        </div>
+        <div class="modal-actions">
+            <button class="cancel-btn" onclick="modalManager.closeModal('duplicateDeleteModal')">Cancel</button>
+            <button class="delete-btn" onclick="recipeManager.confirmDeleteDuplicates()">Delete</button>
+        </div>
+    </div>
+</div>
+
+<!-- Models Duplicate Delete Confirmation Modal -->
+<div id="modelDuplicateDeleteModal" class="modal delete-modal">
+    <div class="modal-content delete-modal-content">
+        <h2>Delete Duplicate Models</h2>
+        <p class="delete-message">Are you sure you want to delete the selected duplicate models?</p>
+        <div class="delete-model-info">
+            <p><span id="modelDuplicateDeleteCount">0</span> models will be permanently deleted.</p>
+        </div>
+        <div class="modal-actions">
+            <button class="cancel-btn" onclick="modalManager.closeModal('modelDuplicateDeleteModal')">Cancel</button>
+            <button class="delete-btn" onclick="modelDuplicatesManager.confirmDeleteDuplicates()">Delete</button>
+        </div>
+    </div>
+</div>
+
+<!-- Cache Clear Confirmation Modal -->
+<div id="clearCacheModal" class="modal delete-modal">
+    <div class="modal-content delete-modal-content">
+        <h2>Clear Cache Files</h2>
+        <p class="delete-message">Are you sure you want to clear all cache files?</p>
+        <div class="delete-model-info">
+            <p>This will remove all cached model data. The system will need to rebuild the cache on next startup, which may take some time depending on your model collection size.</p>
+        </div>
+        <div class="modal-actions">
+            <button class="cancel-btn" onclick="modalManager.closeModal('clearCacheModal')">Cancel</button>
+            <button class="delete-btn" onclick="settingsManager.executeClearCache()">Clear Cache</button>
+        </div>
+    </div>
+</div>
+
+<!-- Bulk Delete Confirmation Modal -->
+<div id="bulkDeleteModal" class="modal delete-modal">
+    <div class="modal-content delete-modal-content">
+        <h2>Delete Multiple Models</h2>
+        <p class="delete-message">Are you sure you want to delete all selected models and their associated files?</p>
+        <div class="delete-model-info">
+            <p><span id="bulkDeleteCount">0</span> models will be permanently deleted.</p>
+        </div>
+        <div class="modal-actions">
+            <button class="cancel-btn" onclick="modalManager.closeModal('bulkDeleteModal')">Cancel</button>
+            <button class="delete-btn" onclick="bulkManager.confirmBulkDelete()">Delete All</button>
+        </div>
+    </div>
+</div>

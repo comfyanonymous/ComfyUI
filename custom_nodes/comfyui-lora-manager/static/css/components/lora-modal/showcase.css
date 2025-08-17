@@ -1,0 +1,478 @@
+/* Showcase Section */
+.showcase-section {
+  position: relative;
+  margin-top: var(--space-4);
+}
+
+.carousel {
+  transition: max-height 0.3s ease-in-out;
+  overflow: hidden;
+}
+
+.carousel.collapsed {
+  max-height: 0;
+}
+
+.carousel-container {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.media-wrapper {
+  position: relative;
+  width: 100%;
+  background: var(--lora-surface);
+  margin-bottom: var(--space-2);
+  overflow: hidden; /* Ensure metadata panel is contained */
+}
+
+.media-wrapper:last-child {
+  margin-bottom: 0;
+}
+
+.media-wrapper img,
+.media-wrapper video {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.no-examples {
+  text-align: center;
+  padding: var(--space-3);
+  color: var(--text-color);
+  opacity: 0.7;
+}
+
+/* Adjust the media wrapper for tab system */
+#showcase-tab .carousel-container {
+  margin-top: var(--space-2);
+}
+
+/* Add styles for blurred showcase content */
+.nsfw-media-wrapper {
+  position: relative;
+}
+
+.media-wrapper img.blurred,
+.media-wrapper video.blurred {
+  filter: blur(25px);
+}
+
+.media-wrapper .nsfw-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2;
+  pointer-events: none;
+}
+
+/* Position the toggle button at the top left of showcase media */
+.showcase-toggle-btn {
+  position: absolute;
+  z-index: 3;
+}
+
+/* Add styles for showcase media controls */
+.media-controls {
+  position: absolute;
+  display: flex;
+  gap: 6px;
+  z-index: 4;
+  opacity: 0;
+  transform: translateY(-5px);
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  pointer-events: none;
+}
+
+.media-controls.visible {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+
+.media-control-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--bg-color);
+  border: 1px solid var(--border-color);
+  color: var(--text-color);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.15);
+  padding: 0;
+  position: relative;
+  overflow: hidden;
+}
+
+.media-control-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 3px 7px rgba(0, 0, 0, 0.2);
+}
+
+.media-control-btn.set-preview-btn:hover {
+  background: var(--lora-accent);
+  color: white;
+  border-color: var(--lora-accent);
+}
+
+.media-control-btn.example-delete-btn:hover:not(.disabled) {
+  background: var(--lora-error);
+  color: white;
+  border-color: var(--lora-error);
+}
+
+/* Disabled state for delete button */
+.media-control-btn.example-delete-btn.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Two-step confirmation for delete button */
+.media-control-btn.example-delete-btn .confirm-icon {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--lora-error);
+  color: white;
+  font-size: 1em;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.media-control-btn.example-delete-btn.confirm .fa-trash-alt {
+  opacity: 0;
+}
+
+.media-control-btn.example-delete-btn.confirm .confirm-icon {
+  opacity: 1;
+}
+
+.media-control-btn.example-delete-btn.confirm {
+  background: var(--lora-error);
+  color: white;
+  border-color: var(--lora-error);
+}
+
+@keyframes pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(220, 53, 69, 0.7);
+  }
+  70% {
+    box-shadow: 0 0 0 5px rgba(220, 53, 69, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(220, 53, 69, 0);
+  }
+}
+
+/* Image Metadata Panel Styles */
+.image-metadata-panel {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: var(--bg-color);
+  border-top: 1px solid var(--border-color);
+  padding: var(--space-2);
+  transform: translateY(100%);
+  transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.25s ease;
+  z-index: 5;
+  max-height: 50%; /* Reduced to take less space */
+  overflow-y: auto;
+  box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.1);
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* Show metadata panel only when the 'visible' class is added */
+.media-wrapper .image-metadata-panel.visible {
+  transform: translateY(0);
+  opacity: 0.98;
+  pointer-events: auto;
+}
+
+/* Adjust to dark theme */
+[data-theme="dark"] .image-metadata-panel {
+  background: var(--card-bg);
+  box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.metadata-content {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* Styling for parameters tags */
+.params-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: var(--space-1);
+  padding-bottom: var(--space-1);
+  border-bottom: 1px solid var(--lora-border);
+}
+
+.param-tag {
+  display: inline-flex;
+  align-items: center;
+  background: var(--lora-surface);
+  border: 1px solid var(--lora-border);
+  border-radius: var(--border-radius-xs);
+  padding: 2px 6px;
+  font-size: 0.8em;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.param-tag .param-name {
+  font-weight: 600;
+  color: var(--text-color);
+  margin-right: 4px;
+  opacity: 0.8;
+}
+
+.param-tag .param-value {
+  color: var(--lora-accent);
+}
+
+/* Special styling for prompt row */
+.metadata-row.prompt-row {
+  flex-direction: column;
+  padding-top: 0;
+}
+
+.metadata-row.prompt-row + .metadata-row.prompt-row {
+  margin-top: var(--space-2);
+}
+
+.metadata-label {
+  font-weight: 600;
+  color: var(--text-color);
+  opacity: 0.8;
+  font-size: 0.85em;
+  display: block;
+  margin-bottom: 4px;
+}
+
+.metadata-prompt-wrapper {
+  position: relative;
+  background: var(--lora-surface);
+  border: 1px solid var(--lora-border);
+  border-radius: var(--border-radius-xs);
+  padding: 6px 30px 6px 8px;
+  margin-top: 2px;
+  max-height: 80px; /* Reduced from 120px */
+  overflow-y: auto;
+  word-break: break-word;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.metadata-prompt {
+  color: var(--text-color);
+  font-family: monospace;
+  font-size: 0.85em;
+  white-space: pre-wrap;
+}
+
+.copy-prompt-btn {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  background: transparent;
+  border: none;
+  color: var(--text-color);
+  opacity: 0.6;
+  cursor: pointer;
+  padding: 3px;
+  transition: all 0.2s ease;
+}
+
+.copy-prompt-btn:hover {
+  opacity: 1;
+  color: var(--lora-accent);
+}
+
+/* Scrollbar styling for metadata panel */
+.image-metadata-panel::-webkit-scrollbar {
+  width: 6px;
+}
+
+.image-metadata-panel::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.image-metadata-panel::-webkit-scrollbar-thumb {
+  background-color: var(--border-color);
+  border-radius: 3px;
+}
+
+/* For Firefox */
+.image-metadata-panel {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-color) transparent;
+}
+
+/* No metadata message styling */
+.no-metadata-message {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-2);
+  color: var(--text-color);
+  opacity: 0.7;
+  text-align: center;
+  font-style: italic;
+  gap: 8px;
+}
+
+.no-metadata-message i {
+  font-size: 1.1em;
+  color: var(--lora-accent);
+  opacity: 0.8;
+}
+
+/* Scroll Indicator */
+.scroll-indicator {
+  cursor: pointer;
+  padding: var(--space-2);
+  background: var(--lora-surface);
+  border: 1px solid var(--lora-border);
+  border-radius: var(--border-radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-bottom: var(--space-2);
+  transition: background-color 0.2s, transform 0.2s;
+}
+
+.scroll-indicator:hover {
+  background: oklch(var(--lora-accent-l) var(--lora-accent-c) var(--lora-accent-h) / 0.1);
+  transform: translateY(-1px);
+}
+
+.scroll-indicator span {
+  font-size: 0.9em;
+  color: var(--text-color);
+}
+
+.lazy {
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+
+.lazy[src] {
+  opacity: 1;
+}
+
+/* Example Import Area */
+.example-import-area {
+  margin-top: var(--space-4);
+  padding: var(--space-2);
+}
+
+.example-import-area.empty {
+  margin-top: var(--space-2);
+  padding: var(--space-4) var(--space-2);
+}
+
+.import-container {
+  border: 2px dashed var(--border-color);
+  border-radius: var(--border-radius-sm);
+  padding: var(--space-4);
+  text-align: center;
+  transition: all 0.3s ease;
+  background: var(--lora-surface);
+  cursor: pointer;
+}
+
+.import-container.highlight {
+  border-color: var(--lora-accent);
+  background: oklch(var(--lora-accent-l) var(--lora-accent-c) var(--lora-accent-h) / 0.1);
+  transform: scale(1.01);
+}
+
+.import-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-1);
+  padding-top: var(--space-1);
+}
+
+.import-placeholder i {
+  font-size: 2.5rem;
+  /* color: var(--lora-accent); */
+  opacity: 0.8;
+  margin-bottom: var(--space-1);
+}
+
+.import-placeholder h3 {
+  margin: 0 0 var(--space-1);
+  font-size: 1.2rem;
+  font-weight: 500;
+  color: var(--text-color);
+}
+
+.import-placeholder p {
+  margin: var(--space-1) 0;
+  color: var(--text-color);
+  opacity: 0.8;
+}
+
+.import-placeholder .sub-text {
+  font-size: 0.9em;
+  opacity: 0.6;
+  margin: var(--space-1) 0;
+}
+
+.import-formats {
+  font-size: 0.8em !important;
+  opacity: 0.6 !important;
+  margin-top: var(--space-2) !important;
+}
+
+.select-files-btn {
+  background: var(--lora-accent);
+  color: var(--lora-text);
+  border: none;
+  border-radius: var(--border-radius-xs);
+  padding: var(--space-2) var(--space-3);
+  cursor: pointer;
+  font-size: 0.9em;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: all 0.2s;
+}
+
+.select-files-btn:hover {
+  opacity: 0.9;
+  transform: translateY(-1px);
+}
+
+/* For dark theme */
+[data-theme="dark"] .import-container {
+  background: rgba(255, 255, 255, 0.03);
+}

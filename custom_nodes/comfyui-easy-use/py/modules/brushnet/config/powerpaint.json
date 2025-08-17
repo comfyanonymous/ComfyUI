@@ -1,0 +1,57 @@
+{
+  "_class_name": "BrushNetModel",
+  "_diffusers_version": "0.27.2",
+  "act_fn": "silu",
+  "addition_embed_type": null,
+  "addition_embed_type_num_heads": 64,
+  "addition_time_embed_dim": null,
+  "attention_head_dim": 8,
+  "block_out_channels": [
+    320,
+    640,
+    1280,
+    1280
+  ],
+  "brushnet_conditioning_channel_order": "rgb",
+  "class_embed_type": null,
+  "conditioning_channels": 5,
+  "conditioning_embedding_out_channels": [
+    16,
+    32,
+    96,
+    256
+  ],
+  "cross_attention_dim": 768,
+  "down_block_types": [
+    "CrossAttnDownBlock2D",
+    "CrossAttnDownBlock2D",
+    "CrossAttnDownBlock2D",
+    "DownBlock2D"
+  ],
+  "downsample_padding": 1,
+  "encoder_hid_dim": null,
+  "encoder_hid_dim_type": null,
+  "flip_sin_to_cos": true,
+  "freq_shift": 0,
+  "global_pool_conditions": false,
+  "in_channels": 4,
+  "layers_per_block": 2,
+  "mid_block_scale_factor": 1,
+  "mid_block_type": "UNetMidBlock2DCrossAttn",
+  "norm_eps": 1e-05,
+  "norm_num_groups": 32,
+  "num_attention_heads": null,
+  "num_class_embeds": null,
+  "only_cross_attention": false,
+  "projection_class_embeddings_input_dim": null,
+  "resnet_time_scale_shift": "default",
+  "transformer_layers_per_block": 1,
+  "up_block_types": [
+    "UpBlock2D",
+    "CrossAttnUpBlock2D",
+    "CrossAttnUpBlock2D",
+    "CrossAttnUpBlock2D"
+  ],
+  "upcast_attention": false,
+  "use_linear_projection": false
+}

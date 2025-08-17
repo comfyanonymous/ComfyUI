@@ -1,0 +1,15 @@
+{
+    "loras": "<lora:pp-enchanted-whimsy:0.9> <lora:ral-frctlgmtry_flux:1> <lora:pp-storybook_rank2_bf16:0.8>",
+    "gen_params": {
+        "prompt": "in the style of ppWhimsy, ral-frctlgmtry, ppstorybook,Stylized geek cat artist with glasses and a paintbrush, smiling at the viewer while holding a sign that reads 'Stay tuned!', solid white background",
+        "negative_prompt": "",
+        "steps": "25",
+        "sampler": "dpmpp_2m",
+        "scheduler": "beta",
+        "cfg": "1",
+        "seed": "48",
+        "guidance": 3.5,
+        "size": "896x1152",
+        "clip_skip": "2"
+    }
+}

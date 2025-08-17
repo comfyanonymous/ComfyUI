@@ -1,0 +1,580 @@
+/* Settings styles */
+.settings-toggle {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
+    color: var(--text-color);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.settings-toggle:hover {
+    background: var(--lora-accent);
+    color: white;
+    transform: translateY(-2px);
+}
+
+.settings-modal {
+    max-width: 650px; /* Further increased from 600px for more space */
+}
+
+/* Settings Links */
+.settings-links {
+    margin-top: var(--space-3);
+    padding-top: var(--space-2);
+    border-top: 1px solid var(--lora-border);
+    display: flex;
+    gap: var(--space-2);
+    justify-content: center;
+}
+
+.settings-link {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
+    color: var(--text-color);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    text-decoration: none;
+    position: relative;
+}
+
+.settings-link:hover {
+    background: var(--lora-accent);
+    color: white;
+    transform: translateY(-2px);
+}
+
+.settings-link i {
+    font-size: 1.1em;
+}
+
+/* Tooltip styles */
+.settings-link::after {
+    content: attr(title);
+    position: absolute;
+    bottom: calc(100% + 8px);
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(0, 0, 0, 0.8);
+    color: white;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 0.8em;
+    white-space: nowrap;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.2s, visibility 0.2s;
+    pointer-events: none;
+}
+
+.settings-link:hover::after {
+    opacity: 1;
+    visibility: visible;
+}
+
+/* Responsive adjustment */
+@media (max-width: 480px) {
+    .settings-links {
+        flex-wrap: wrap;
+    }
+}
+
+/* API key input specific styles */
+.api-key-input {
+    width: 100%; /* Take full width of parent */
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+.api-key-input input {
+    width: 100%;
+    padding: 6px 40px 6px 10px; /* Add left padding */
+    height: 32px;
+    border-radius: var(--border-radius-xs);
+    border: 1px solid var(--border-color);
+    background-color: var(--lora-surface);
+    color: var(--text-color);
+}
+
+.api-key-input .toggle-visibility {
+    position: absolute;
+    right: 8px;
+    background: none;
+    border: none;
+    color: var(--text-color);
+    opacity: 0.6;
+    cursor: pointer;
+    padding: 4px 8px;
+}
+
+.api-key-input .toggle-visibility:hover {
+    opacity: 1;
+}
+
+.input-help {
+    font-size: 0.85em;
+    color: var(--text-color);
+    opacity: 0.7;
+    margin-top: 8px; /* Space between control and help */
+    line-height: 1.4;
+    width: 100%; /* Full width */
+}
+
+/* Settings Styles */
+.settings-section {
+    margin-top: var(--space-3);
+    border-top: 1px solid var(--lora-border);
+    padding-top: var(--space-2);
+}
+
+.settings-section h3 {
+    font-size: 1.1em;
+    margin-bottom: var(--space-2);
+    color: var(--text-color);
+    opacity: 0.9;
+}
+
+.setting-item {
+    display: flex;
+    flex-direction: column; /* Changed to column for help text placement */
+    margin-bottom: var(--space-3); /* Increased to provide more spacing between items */
+    padding: var(--space-1);
+    border-radius: var(--border-radius-xs);
+}
+
+.setting-item:hover {
+    background: rgba(0, 0, 0, 0.02);
+}
+
+[data-theme="dark"] .setting-item:hover {
+    background: rgba(255, 255, 255, 0.05);
+}
+
+/* Control row with label and input together */
+.setting-row {
+    display: flex;
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+}
+
+.setting-info {
+    margin-bottom: 0;
+    width: 35%; /* Increased from 30% to prevent wrapping */
+    flex-shrink: 0; /* Prevent shrinking */
+}
+
+.setting-info label {
+    display: block;
+    font-weight: 500;
+    margin-bottom: 0;
+    white-space: nowrap; /* Prevent label wrapping */
+}
+
+.setting-control {
+    width: 60%; /* Decreased slightly from 65% */
+    margin-bottom: 0;
+    display: flex;
+    justify-content: flex-end; /* Right-align all controls */
+}
+
+/* Select Control Styles */
+.select-control {
+    width: 100%;
+    display: flex;
+    justify-content: flex-end;
+}
+
+.select-control select {
+    width: 100%;
+    max-width: 100%; /* Increased from 200px */
+    padding: 6px 10px;
+    border-radius: var(--border-radius-xs);
+    border: 1px solid var(--border-color);
+    background-color: var(--lora-surface);
+    color: var(--text-color);
+    font-size: 0.95em;
+    height: 32px;
+}
+
+/* Fix dark theme select dropdown text color */
+[data-theme="dark"] .select-control select {
+    background-color: rgba(30, 30, 30, 0.9);
+    color: var(--text-color);
+}
+
+[data-theme="dark"] .select-control select option {
+    background-color: #2d2d2d;
+    color: var(--text-color);
+}
+
+.select-control select:focus {
+    border-color: var(--lora-accent);
+    outline: none;
+}
+
+/* Toggle Switch */
+.toggle-switch {
+    position: relative;
+    display: inline-block;
+    width: 50px;
+    height: 24px;
+    cursor: pointer;
+    margin-left: auto; /* Push to right side */
+}
+
+.toggle-switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.toggle-slider {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: var(--border-color);
+    transition: .3s;
+    border-radius: 24px;
+}
+
+.toggle-slider:before {
+    position: absolute;
+    content: "";
+    height: 18px;
+    width: 18px;
+    left: 3px;
+    bottom: 3px;
+    background-color: white;
+    transition: .3s;
+    border-radius: 50%;
+}
+
+input:checked + .toggle-slider {
+    background-color: var(--lora-accent);
+}
+
+input:checked + .toggle-slider:before {
+    transform: translateX(26px);
+}
+
+.toggle-label {
+    margin-left: 60px;
+    line-height: 24px;
+}
+
+/* Add small animation for the toggle */
+.toggle-slider:active:before {
+    width: 22px;
+}
+
+/* Blur effect for NSFW content */
+.nsfw-blur {
+    filter: blur(12px);
+    transition: filter 0.3s ease;
+}
+
+.nsfw-blur:hover {
+    filter: blur(8px);
+}
+
+/* Example Images Settings Styles */
+.download-buttons {
+    justify-content: flex-start;
+    gap: var(--space-2);
+}
+
+.path-control {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    width: 100%;
+}
+
+.path-control input[type="text"] {
+    flex: 1;
+    padding: 6px 10px;
+    border-radius: var(--border-radius-xs);
+    border: 1px solid var(--border-color);
+    background-color: var(--lora-surface);
+    color: var (--text-color);
+    font-size: 0.95em;
+    height: 32px;
+}
+
+/* Add warning text style for settings */
+.warning-text {
+    color: var(--lora-warning, #e67e22);
+    font-weight: 500;
+}
+
+[data-theme="dark"] .warning-text {
+    color: var(--lora-warning, #f39c12);
+}
+
+/* Add styles for list description */
+.list-description {
+    margin: 8px 0;
+    padding-left: 20px;
+    font-size: 0.9em;
+}
+
+.list-description li {
+    margin-bottom: 4px;
+}
+
+/* Path Template Settings Styles */
+.template-preview {
+    background: rgba(0, 0, 0, 0.03);
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    border-radius: var(--border-radius-xs);
+    padding: var(--space-1);
+    margin-top: 8px;
+    font-family: monospace;
+    font-size: 1.1em;
+    color: var(--lora-accent);
+    display: none;
+}
+
+[data-theme="dark"] .template-preview {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid var(--lora-border);
+}
+
+.template-preview:before {
+    content: "Preview: ";
+    opacity: 0.7;
+    color: var(--text-color);
+    font-family: inherit;
+}
+
+/* Base Model Mappings Styles - Updated to match other settings */
+.mappings-container {
+    border: 1px solid var(--lora-border);
+    border-radius: var(--border-radius-sm);
+    padding: var(--space-2);
+    background: rgba(0, 0, 0, 0.02);
+    margin-top: 8px; /* Add consistent spacing */
+}
+
+[data-theme="dark"] .mappings-container {
+    background: rgba(255, 255, 255, 0.02);
+}
+
+.add-mapping-btn {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    background: var(--lora-accent);
+    color: white;
+    border: none;
+    border-radius: var(--border-radius-xs);
+    cursor: pointer;
+    font-size: 0.9em;
+    transition: all 0.2s;
+    height: 32px; /* Match other control heights */
+}
+
+.add-mapping-btn:hover {
+    background: oklch(from var(--lora-accent) l c h / 85%);
+}
+
+.mapping-row {
+    margin-bottom: var(--space-2);
+}
+
+.mapping-row:last-child {
+    margin-bottom: 0;
+}
+
+.mapping-controls {
+    display: grid;
+    grid-template-columns: 1fr 1fr auto;
+    gap: var(--space-1);
+    align-items: center;
+}
+
+.base-model-select,
+.path-value-input {
+    padding: 6px 10px;
+    border-radius: var(--border-radius-xs);
+    border: 1px solid var(--border-color);
+    background-color: var(--lora-surface);
+    color: var(--text-color);
+    font-size: 0.9em;
+    height: 32px;
+}
+
+.path-value-input {
+    height: 18px;
+}
+
+.base-model-select:focus,
+.path-value-input:focus {
+    border-color: var(--lora-accent);
+    outline: none;
+    box-shadow: 0 0 0 2px rgba(var(--lora-accent-rgb, 79, 70, 229), 0.1);
+}
+
+.remove-mapping-btn {
+    width: 32px;
+    height: 32px;
+    border-radius: var(--border-radius-xs);
+    border: 1px solid var(--lora-error);
+    background: transparent;
+    color: var(--lora-error);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+}
+
+.remove-mapping-btn:hover {
+    background: var(--lora-error);
+    color: white;
+}
+
+.mapping-empty-state {
+    text-align: center;
+    padding: var(--space-3);
+    color: var(--text-color);
+    opacity: 0.6;
+    font-style: italic;
+}
+
+/* Responsive adjustments for mapping controls */
+@media (max-width: 768px) {
+    .mapping-controls {
+        grid-template-columns: 1fr;
+        gap: 8px;
+    }
+    
+    .remove-mapping-btn {
+        width: 100%;
+        height: 36px;
+        justify-self: stretch;
+    }
+}
+
+/* Dark theme specific adjustments */
+[data-theme="dark"] .base-model-select,
+[data-theme="dark"] .path-value-input {
+    background-color: rgba(30, 30, 30, 0.9);
+}
+
+[data-theme="dark"] .base-model-select option {
+    background-color: #2d2d2d;
+    color: var(--text-color);
+}
+
+/* Template Configuration Styles */
+.placeholder-info {
+    margin-top: var(--space-1);
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-1);
+}
+
+.placeholder-tag {
+    display: inline-block;
+    background: var(--lora-accent);
+    color: white;
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-family: monospace;
+    font-size: 1em;
+    font-weight: 500;
+}
+
+.template-custom-row {
+    margin-top: 8px;
+    animation: slideDown 0.2s ease-out;
+}
+
+@keyframes slideDown {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.template-custom-input {
+    width: 96%;
+    padding: 6px 10px;
+    border-radius: var(--border-radius-xs);
+    border: 1px solid var(--border-color);
+    background-color: var(--lora-surface);
+    color: var(--text-color);
+    font-size: 0.95em;
+    font-family: monospace;
+    height: 24px;
+    transition: border-color 0.2s;
+}
+
+.template-custom-input:focus {
+    border-color: var(--lora-accent);
+    outline: none;
+    box-shadow: 0 0 0 2px rgba(var(--lora-accent-rgb, 79, 70, 229), 0.1);
+}
+
+.template-custom-input::placeholder {
+    color: var(--text-color);
+    opacity: 0.5;
+    font-family: inherit;
+}
+
+.template-validation {
+    margin-top: 6px;
+    font-size: 0.85em;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 20px;
+}
+
+.template-validation.valid {
+    color: var(--lora-success, #22c55e);
+}
+
+.template-validation.invalid {
+    color: var(--lora-error, #ef4444);
+}
+
+.template-validation i {
+    width: 12px;
+}
+
+/* Dark theme specific adjustments */
+[data-theme="dark"] .template-custom-input {
+    background-color: rgba(30, 30, 30, 0.9);
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .placeholder-info {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+}

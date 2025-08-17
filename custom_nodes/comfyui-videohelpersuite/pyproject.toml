@@ -1,0 +1,15 @@
+[project]
+name = "comfyui-videohelpersuite"
+description = "Nodes related to video workflows"
+version = "1.7.4"
+license = { file = "LICENSE" }
+dependencies = ["opencv-python", "imageio-ffmpeg"]
+
+[project.urls]
+Repository = "https://github.com/Kosinkadink/ComfyUI-VideoHelperSuite"
+
+#  Used by Comfy Registry https://comfyregistry.org
+[tool.comfy]
+PublisherId = "kosinkadink"
+DisplayName = "ComfyUI-VideoHelperSuite"
+Icon = ""

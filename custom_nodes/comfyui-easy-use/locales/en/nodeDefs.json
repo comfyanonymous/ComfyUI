@@ -1,0 +1,6861 @@
+{
+  "easy showLoaderSettingsNames": {
+    "display_name": "Show Loader Settings Names",
+    "inputs": {
+      "pipe": {
+        "name": "pipe"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "ckpt_name"
+      },
+      "1": {
+        "name": "vae_name"
+      },
+      "2": {
+        "name": "lora_name"
+      }
+    }
+  },
+  "easy sliderControl": {
+    "display_name": "Easy Slider Control",
+    "inputs": {
+      "mode": {
+        "name": "mode"
+      },
+      "model_type": {
+        "name": "model_type"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "layer_weights"
+      }
+    }
+  },
+  "easy ckptNames": {
+    "display_name": "Ckpt Names",
+    "inputs": {
+      "ckpt_name": {
+        "name": "ckpt_name"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "ckpt_name"
+      }
+    }
+  },
+  "easy controlnetNames": {
+    "display_name": "ControlNet Names",
+    "inputs": {
+      "controlnet_name": {
+        "name": "controlnet_name"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "controlnet_name"
+      }
+    }
+  },
+  "easy seed": {
+    "display_name": "EasySeed",
+    "inputs": {
+      "seed": {
+        "name": "seed"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "seed"
+      }
+    }
+  },
+  "easy globalSeed": {
+    "display_name": "EasyGlobalSeed",
+    "inputs": {
+      "value": {
+        "name": "value"
+      },
+      "mode": {
+        "name": "mode"
+      },
+      "action": {
+        "name": "action"
+      },
+      "last_seed": {
+        "name": "last_seed"
+      }
+    },
+    "outputs": {}
+  },
+  "easy positive": {
+    "display_name": "Positive",
+    "inputs": {
+      "positive": {
+        "name": "positive"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "positive"
+      }
+    }
+  },
+  "easy negative": {
+    "display_name": "Negative",
+    "inputs": {
+      "negative": {
+        "name": "negative"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "negative"
+      }
+    }
+  },
+  "easy wildcards": {
+    "display_name": "Wildcards",
+    "inputs": {
+      "text": {
+        "name": "text"
+      },
+      "Select to add LoRA": {
+        "name": "Select to add LoRA"
+      },
+      "Select to add Wildcard": {
+        "name": "Select to add Wildcard"
+      },
+      "seed": {
+        "name": "seed"
+      },
+      "multiline_mode": {
+        "name": "multiline_mode"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "text"
+      },
+      "1": {
+        "name": "populated_text"
+      }
+    }
+  },
+  "easy wildcardsMatrix": {
+    "display_name": "Wildcards Matrix",
+    "inputs": {
+      "Select to add LoRA": {
+        "name": "Select to add LoRA"
+      },
+      "Select to add Wildcard": {
+        "name": "Select to add Wildcard"
+      },
+      "offset": {
+        "name": "Offset in All Probilities"
+      },
+      "output_limit": {
+        "name": "Output Limit",
+        "tooltip": "Output n fill wildcards, -1 is output all possibilities (force offset to zero), the default value is 1"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "Replaced Prompt"
+      },
+      "1": {
+        "name": "Total Count of the Probilities"
+      },
+      "2": {
+        "name": "Factors"
+      }
+    }
+  },
+  "easy prompt": {
+    "display_name": "Prompt",
+    "inputs": {
+      "text": {
+        "name": "text"
+      },
+      "prefix": {
+        "name": "prefix"
+      },
+      "subject": {
+        "name": "subject"
+      },
+      "action": {
+        "name": "action"
+      },
+      "clothes": {
+        "name": "clothes"
+      },
+      "environment": {
+        "name": "environment"
+      },
+      "background": {
+        "name": "background"
+      },
+      "nsfw": {
+        "name": "nsfw"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "prompt"
+      }
+    }
+  },
+  "easy promptList": {
+    "display_name": "PromptList",
+    "inputs": {
+      "prompt_1": {
+        "name": "prompt_1"
+      },
+      "prompt_2": {
+        "name": "prompt_2"
+      },
+      "prompt_3": {
+        "name": "prompt_3"
+      },
+      "prompt_4": {
+        "name": "prompt_4"
+      },
+      "prompt_5": {
+        "name": "prompt_5"
+      },
+      "optional_prompt_list": {
+        "name": "optional_prompt_list"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "prompt_list"
+      },
+      "1": {
+        "name": "prompt_strings"
+      }
+    }
+  },
+  "easy promptLine": {
+    "display_name": "PromptLine",
+    "inputs": {
+      "prompt": {
+        "name": "prompt"
+      },
+      "start_index": {
+        "name": "start_index"
+      },
+      "max_rows": {
+        "name": "max_rows"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "STRING"
+      },
+      "1": {
+        "name": "COMBO"
+      }
+    }
+  },
+  "easy promptConcat": {
+    "display_name": "PromptConcat",
+    "inputs": {
+      "prompt1": {
+        "name": "prompt1"
+      },
+      "prompt2": {
+        "name": "prompt2"
+      },
+      "separator": {
+        "name": "separator"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "prompt"
+      }
+    }
+  },
+  "easy promptReplace": {
+    "display_name": "PromptReplace",
+    "inputs": {
+      "prompt": {
+        "name": "prompt"
+      },
+      "find1": {
+        "name": "find1"
+      },
+      "replace1": {
+        "name": "replace1"
+      },
+      "find2": {
+        "name": "find2"
+      },
+      "replace2": {
+        "name": "replace2"
+      },
+      "find3": {
+        "name": "find3"
+      },
+      "replace3": {
+        "name": "replace3"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "prompt"
+      }
+    }
+  },
+  "easy stylesSelector": {
+    "display_name": "Styles Selector",
+    "inputs": {
+      "styles": {
+        "name": "styles"
+      },
+      "positive": {
+        "name": "positive"
+      },
+      "negative": {
+        "name": "negative"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "positive"
+      },
+      "1": {
+        "name": "negative"
+      }
+    }
+  },
+  "easy portraitMaster": {
+    "display_name": "Portrait Master",
+    "inputs": {
+      "shot": {
+        "name": "shot"
+      },
+      "shot_weight": {
+        "name": "shot_weight"
+      },
+      "gender": {
+        "name": "gender"
+      },
+      "age": {
+        "name": "age"
+      },
+      "nationality_1": {
+        "name": "nationality_1"
+      },
+      "nationality_2": {
+        "name": "nationality_2"
+      },
+      "nationality_mix": {
+        "name": "nationality_mix"
+      },
+      "body_type": {
+        "name": "body_type"
+      },
+      "body_type_weight": {
+        "name": "body_type_weight"
+      },
+      "model_pose": {
+        "name": "model_pose"
+      },
+      "eyes_color": {
+        "name": "eyes_color"
+      },
+      "facial_expression": {
+        "name": "facial_expression"
+      },
+      "facial_expression_weight": {
+        "name": "facial_expression_weight"
+      },
+      "face_shape": {
+        "name": "face_shape"
+      },
+      "face_shape_weight": {
+        "name": "face_shape_weight"
+      },
+      "facial_asymmetry": {
+        "name": "facial_asymmetry"
+      },
+      "hair_style": {
+        "name": "hair_style"
+      },
+      "hair_color": {
+        "name": "hair_color"
+      },
+      "disheveled": {
+        "name": "disheveled"
+      },
+      "beard": {
+        "name": "beard"
+      },
+      "skin_details": {
+        "name": "skin_details"
+      },
+      "skin_pores": {
+        "name": "skin_pores"
+      },
+      "dimples": {
+        "name": "dimples"
+      },
+      "freckles": {
+        "name": "freckles"
+      },
+      "moles": {
+        "name": "moles"
+      },
+      "skin_imperfections": {
+        "name": "skin_imperfections"
+      },
+      "skin_acne": {
+        "name": "skin_acne"
+      },
+      "tanned_skin": {
+        "name": "tanned_skin"
+      },
+      "eyes_details": {
+        "name": "eyes_details"
+      },
+      "iris_details": {
+        "name": "iris_details"
+      },
+      "circular_iris": {
+        "name": "circular_iris"
+      },
+      "circular_pupil": {
+        "name": "circular_pupil"
+      },
+      "light_type": {
+        "name": "light_type"
+      },
+      "light_direction": {
+        "name": "light_direction"
+      },
+      "light_weight": {
+        "name": "light_weight"
+      },
+      "photorealism_improvement": {
+        "name": "photorealism_improvement"
+      },
+      "prompt_start": {
+        "name": "prompt_start"
+      },
+      "prompt_additional": {
+        "name": "prompt_additional"
+      },
+      "prompt_end": {
+        "name": "prompt_end"
+      },
+      "negative_prompt": {
+        "name": "negative_prompt"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "positive"
+      },
+      "1": {
+        "name": "negative"
+      }
+    }
+  },
+  "easy fullLoader": {
+    "display_name": "EasyLoader (Full)",
+    "inputs": {
+      "ckpt_name": {
+        "name": "ckpt_name"
+      },
+      "config_name": {
+        "name": "config_name"
+      },
+      "vae_name": {
+        "name": "vae_name"
+      },
+      "clip_skip": {
+        "name": "clip_skip"
+      },
+      "lora_name": {
+        "name": "lora_name"
+      },
+      "lora_model_strength": {
+        "name": "lora_model_strength"
+      },
+      "lora_clip_strength": {
+        "name": "lora_clip_strength"
+      },
+      "resolution": {
+        "name": "resolution"
+      },
+      "empty_latent_width": {
+        "name": "empty_latent_width"
+      },
+      "empty_latent_height": {
+        "name": "empty_latent_height"
+      },
+      "positive": {
+        "name": "positive"
+      },
+      "positive_token_normalization": {
+        "name": "positive_token_normalization"
+      },
+      "positive_weight_interpretation": {
+        "name": "positive_weight_interpretation"
+      },
+      "negative": {
+        "name": "negative"
+      },
+      "negative_token_normalization": {
+        "name": "negative_token_normalization"
+      },
+      "negative_weight_interpretation": {
+        "name": "negative_weight_interpretation"
+      },
+      "batch_size": {
+        "name": "batch_size"
+      },
+      "model_override": {
+        "name": "model_override"
+      },
+      "clip_override": {
+        "name": "clip_override"
+      },
+      "vae_override": {
+        "name": "vae_override"
+      },
+      "optional_lora_stack": {
+        "name": "optional_lora_stack"
+      },
+      "optional_controlnet_stack": {
+        "name": "optional_controlnet_stack"
+      },
+      "a1111_prompt_style": {
+        "name": "a1111_prompt_style"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "pipe"
+      },
+      "1": {
+        "name": "model"
+      },
+      "2": {
+        "name": "vae"
+      },
+      "3": {
+        "name": "clip"
+      },
+      "4": {
+        "name": "positive"
+      },
+      "5": {
+        "name": "negative"
+      },
+      "6": {
+        "name": "latent"
+      }
+    }
+  },
+  "easy a1111Loader": {
+    "display_name": "EasyLoader (A1111)",
+    "inputs": {
+      "ckpt_name": {
+        "name": "ckpt_name"
+      },
+      "vae_name": {
+        "name": "vae_name"
+      },
+      "clip_skip": {
+        "name": "clip_skip"
+      },
+      "lora_name": {
+        "name": "lora_name"
+      },
+      "lora_model_strength": {
+        "name": "lora_model_strength"
+      },
+      "lora_clip_strength": {
+        "name": "lora_clip_strength"
+      },
+      "resolution": {
+        "name": "resolution"
+      },
+      "empty_latent_width": {
+        "name": "empty_latent_width"
+      },
+      "empty_latent_height": {
+        "name": "empty_latent_height"
+      },
+      "positive": {
+        "name": "positive"
+      },
+      "negative": {
+        "name": "negative"
+      },
+      "batch_size": {
+        "name": "batch_size"
+      },
+      "optional_lora_stack": {
+        "name": "optional_lora_stack"
+      },
+      "optional_controlnet_stack": {
+        "name": "optional_controlnet_stack"
+      },
+      "a1111_prompt_style": {
+        "name": "a1111_prompt_style"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "pipe"
+      },
+      "1": {
+        "name": "model"
+      },
+      "2": {
+        "name": "vae"
+      }
+    }
+  },
+  "easy comfyLoader": {
+    "display_name": "EasyLoader (Comfy)",
+    "inputs": {
+      "ckpt_name": {
+        "name": "ckpt_name"
+      },
+      "vae_name": {
+        "name": "vae_name"
+      },
+      "clip_skip": {
+        "name": "clip_skip"
+      },
+      "lora_name": {
+        "name": "lora_name"
+      },
+      "lora_model_strength": {
+        "name": "lora_model_strength"
+      },
+      "lora_clip_strength": {
+        "name": "lora_clip_strength"
+      },
+      "resolution": {
+        "name": "resolution"
+      },
+      "empty_latent_width": {
+        "name": "empty_latent_width"
+      },
+      "empty_latent_height": {
+        "name": "empty_latent_height"
+      },
+      "positive": {
+        "name": "positive"
+      },
+      "negative": {
+        "name": "negative"
+      },
+      "batch_size": {
+        "name": "batch_size"
+      },
+      "optional_lora_stack": {
+        "name": "optional_lora_stack"
+      },
+      "optional_controlnet_stack": {
+        "name": "optional_controlnet_stack"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "pipe"
+      },
+      "1": {
+        "name": "model"
+      },
+      "2": {
+        "name": "vae"
+      }
+    }
+  },
+  "easy svdLoader": {
+    "display_name": "EasyLoader (SVD)",
+    "inputs": {
+      "ckpt_name": {
+        "name": "ckpt_name"
+      },
+      "vae_name": {
+        "name": "vae_name"
+      },
+      "clip_name": {
+        "name": "clip_name"
+      },
+      "init_image": {
+        "name": "init_image"
+      },
+      "resolution": {
+        "name": "resolution"
+      },
+      "empty_latent_width": {
+        "name": "empty_latent_width"
+      },
+      "empty_latent_height": {
+        "name": "empty_latent_height"
+      },
+      "video_frames": {
+        "name": "video_frames"
+      },
+      "motion_bucket_id": {
+        "name": "motion_bucket_id"
+      },
+      "fps": {
+        "name": "fps"
+      },
+      "augmentation_level": {
+        "name": "augmentation_level"
+      },
+      "optional_positive": {
+        "name": "optional_positive"
+      },
+      "optional_negative": {
+        "name": "optional_negative"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "pipe"
+      },
+      "1": {
+        "name": "model"
+      },
+      "2": {
+        "name": "vae"
+      }
+    }
+  },
+  "easy sv3dLoader": {
+    "display_name": "EasyLoader (SV3D)",
+    "inputs": {
+      "ckpt_name": {
+        "name": "ckpt_name"
+      },
+      "vae_name": {
+        "name": "vae_name"
+      },
+      "init_image": {
+        "name": "init_image"
+      },
+      "empty_latent_width": {
+        "name": "empty_latent_width"
+      },
+      "empty_latent_height": {
+        "name": "empty_latent_height"
+      },
+      "batch_size": {
+        "name": "batch_size"
+      },
+      "interp_easing": {
+        "name": "interp_easing"
+      },
+      "easing_mode": {
+        "name": "easing_mode"
+      },
+      "scheduler": {
+        "name": "scheduler"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "pipe"
+      },
+      "1": {
+        "name": "model"
+      },
+      "2": {
+        "name": "interp_log"
+      }
+    }
+  },
+  "easy zero123Loader": {
+    "display_name": "EasyLoader (Zero123)",
+    "inputs": {
+      "ckpt_name": {
+        "name": "ckpt_name"
+      },
+      "vae_name": {
+        "name": "vae_name"
+      },
+      "init_image": {
+        "name": "init_image"
+      },
+      "empty_latent_width": {
+        "name": "empty_latent_width"
+      },
+      "empty_latent_height": {
+        "name": "empty_latent_height"
+      },
+      "batch_size": {
+        "name": "batch_size"
+      },
+      "elevation": {
+        "name": "elevation"
+      },
+      "azimuth": {
+        "name": "azimuth"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "pipe"
+      },
+      "1": {
+        "name": "model"
+      },
+      "2": {
+        "name": "vae"
+      }
+    }
+  },
+  "easy cascadeLoader": {
+    "display_name": "EasyCascadeLoader",
+    "inputs": {
+      "stage_c": {
+        "name": "stage_c"
+      },
+      "stage_b": {
+        "name": "stage_b"
+      },
+      "stage_a": {
+        "name": "stage_a"
+      },
+      "clip_name": {
+        "name": "clip_name"
+      },
+      "lora_name": {
+        "name": "lora_name"
+      },
+      "lora_model_strength": {
+        "name": "lora_model_strength"
+      },
+      "lora_clip_strength": {
+        "name": "lora_clip_strength"
+      },
+      "resolution": {
+        "name": "resolution"
+      },
+      "empty_latent_width": {
+        "name": "empty_latent_width"
+      },
+      "empty_latent_height": {
+        "name": "empty_latent_height"
+      },
+      "compression": {
+        "name": "compression"
+      },
+      "positive": {
+        "name": "positive"
+      },
+      "negative": {
+        "name": "negative"
+      },
+      "batch_size": {
+        "name": "batch_size"
+      },
+      "optional_lora_stack": {
+        "name": "optional_lora_stack"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "pipe"
+      },
+      "1": {
+        "name": "model_c"
+      },
+      "2": {
+        "name": "latent_c"
+      },
+      "3": {
+        "name": "vae"
+      }
+    }
+  },
+  "easy kolorsLoader": {
+    "display_name": "EasyLoader (Kolors)",
+    "inputs": {
+      "unet_name": {
+        "name": "unet_name"
+      },
+      "vae_name": {
+        "name": "vae_name"
+      },
+      "chatglm3_name": {
+        "name": "chatglm3_name"
+      },
+      "lora_name": {
+        "name": "lora_name"
+      },
+      "lora_model_strength": {
+        "name": "lora_model_strength"
+      },
+      "lora_clip_strength": {
+        "name": "lora_clip_strength"
+      },
+      "resolution": {
+        "name": "resolution"
+      },
+      "empty_latent_width": {
+        "name": "empty_latent_width"
+      },
+      "empty_latent_height": {
+        "name": "empty_latent_height"
+      },
+      "positive": {
+        "name": "positive"
+      },
+      "negative": {
+        "name": "negative"
+      },
+      "batch_size": {
+        "name": "batch_size"
+      },
+      "model_override": {
+        "name": "model_override"
+      },
+      "vae_override": {
+        "name": "vae_override"
+      },
+      "optional_lora_stack": {
+        "name": "optional_lora_stack"
+      },
+      "auto_clean_gpu": {
+        "name": "auto_clean_gpu"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "pipe"
+      },
+      "1": {
+        "name": "model"
+      },
+      "2": {
+        "name": "vae"
+      }
+    }
+  },
+  "easy fluxLoader": {
+    "display_name": "EasyLoader (Flux)",
+    "inputs": {
+      "ckpt_name": {
+        "name": "ckpt_name"
+      },
+      "vae_name": {
+        "name": "vae_name"
+      },
+      "lora_name": {
+        "name": "lora_name"
+      },
+      "lora_model_strength": {
+        "name": "lora_model_strength"
+      },
+      "lora_clip_strength": {
+        "name": "lora_clip_strength"
+      },
+      "resolution": {
+        "name": "resolution"
+      },
+      "empty_latent_width": {
+        "name": "empty_latent_width"
+      },
+      "empty_latent_height": {
+        "name": "empty_latent_height"
+      },
+      "positive": {
+        "name": "positive"
+      },
+      "batch_size": {
+        "name": "batch_size"
+      },
+      "model_override": {
+        "name": "model_override"
+      },
+      "clip_override": {
+        "name": "clip_override"
+      },
+      "vae_override": {
+        "name": "vae_override"
+      },
+      "optional_lora_stack": {
+        "name": "optional_lora_stack"
+      },
+      "optional_controlnet_stack": {
+        "name": "optional_controlnet_stack"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "pipe"
+      },
+      "1": {
+        "name": "model"
+      },
+      "2": {
+        "name": "vae"
+      }
+    }
+  },
+  "easy hunyuanDiTLoader": {
+    "display_name": "EasyLoader (HunyuanDiT)",
+    "inputs": {
+      "ckpt_name": {
+        "name": "ckpt_name"
+      },
+      "vae_name": {
+        "name": "vae_name"
+      },
+      "lora_name": {
+        "name": "lora_name"
+      },
+      "lora_model_strength": {
+        "name": "lora_model_strength"
+      },
+      "lora_clip_strength": {
+        "name": "lora_clip_strength"
+      },
+      "resolution": {
+        "name": "resolution"
+      },
+      "empty_latent_width": {
+        "name": "empty_latent_width"
+      },
+      "empty_latent_height": {
+        "name": "empty_latent_height"
+      },
+      "positive": {
+        "name": "positive"
+      },
+      "negative": {
+        "name": "negative"
+      },
+      "batch_size": {
+        "name": "batch_size"
+      },
+      "optional_lora_stack": {
+        "name": "optional_lora_stack"
+      },
+      "optional_controlnet_stack": {
+        "name": "optional_controlnet_stack"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "pipe"
+      },
+      "1": {
+        "name": "model"
+      },
+      "2": {
+        "name": "vae"
+      }
+    }
+  },
+  "easy pixArtLoader": {
+    "display_name": "EasyLoader (PixArt)",
+    "inputs": {
+      "ckpt_name": {
+        "name": "ckpt_name"
+      },
+      "model_name": {
+        "name": "model_name"
+      },
+      "vae_name": {
+        "name": "vae_name"
+      },
+      "t5_type": {
+        "name": "t5_type"
+      },
+      "clip_name": {
+        "name": "clip_name"
+      },
+      "padding": {
+        "name": "padding"
+      },
+      "t5_name": {
+        "name": "t5_name"
+      },
+      "device": {
+        "name": "device"
+      },
+      "dtype": {
+        "name": "dtype"
+      },
+      "lora_name": {
+        "name": "lora_name"
+      },
+      "lora_model_strength": {
+        "name": "lora_model_strength"
+      },
+      "ratio": {
+        "name": "ratio"
+      },
+      "empty_latent_width": {
+        "name": "empty_latent_width"
+      },
+      "empty_latent_height": {
+        "name": "empty_latent_height"
+      },
+      "positive": {
+        "name": "positive"
+      },
+      "negative": {
+        "name": "negative"
+      },
+      "batch_size": {
+        "name": "batch_size"
+      },
+      "optional_lora_stack": {
+        "name": "optional_lora_stack"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "pipe"
+      },
+      "1": {
+        "name": "model"
+      },
+      "2": {
+        "name": "vae"
+      }
+    }
+  },
+  "easy mochiLoader": {
+    "display_name": "EasyLoader (Mochi)",
+    "inputs": {
+      "ckpt_name": {
+        "name": "ckpt_name"
+      },
+      "vae_name": {
+        "name": "vae_name"
+      },
+      "positive": {
+        "name": "positive"
+      },
+      "negative": {
+        "name": "negative"
+      },
+      "resolution": {
+        "name": "resolution"
+      },
+      "empty_latent_width": {
+        "name": "empty_latent_width"
+      },
+      "empty_latent_height": {
+        "name": "empty_latent_height"
+      },
+      "length": {
+        "name": "length"
+      },
+      "batch_size": {
+        "name": "batch_size"
+      },
+      "model_override": {
+        "name": "model_override"
+      },
+      "clip_override": {
+        "name": "clip_override"
+      },
+      "vae_override": {
+        "name": "vae_override"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "pipe"
+      },
+      "1": {
+        "name": "model"
+      },
+      "2": {
+        "name": "vae"
+      }
+    }
+  },
+  "easy loraStack": {
+    "display_name": "EasyLoraStack",
+    "inputs": {
+      "toggle": {
+        "name": "toggle"
+      },
+      "mode": {
+        "name": "mode"
+      },
+      "num_loras": {
+        "name": "num_loras"
+      },
+      "optional_lora_stack": {
+        "name": "optional_lora_stack"
+      },
+      "lora_1_name": {
+        "name": "lora_1_name"
+      },
+      "lora_1_strength": {
+        "name": "lora_1_strength"
+      },
+      "lora_1_model_strength": {
+        "name": "lora_1_model_strength"
+      },
+      "lora_1_clip_strength": {
+        "name": "lora_1_clip_strength"
+      },
+      "lora_2_name": {
+        "name": "lora_2_name"
+      },
+      "lora_2_strength": {
+        "name": "lora_2_strength"
+      },
+      "lora_2_model_strength": {
+        "name": "lora_2_model_strength"
+      },
+      "lora_2_clip_strength": {
+        "name": "lora_2_clip_strength"
+      },
+      "lora_3_name": {
+        "name": "lora_3_name"
+      },
+      "lora_3_strength": {
+        "name": "lora_3_strength"
+      },
+      "lora_3_model_strength": {
+        "name": "lora_3_model_strength"
+      },
+      "lora_3_clip_strength": {
+        "name": "lora_3_clip_strength"
+      },
+      "lora_4_name": {
+        "name": "lora_4_name"
+      },
+      "lora_4_strength": {
+        "name": "lora_4_strength"
+      },
+      "lora_4_model_strength": {
+        "name": "lora_4_model_strength"
+      },
+      "lora_4_clip_strength": {
+        "name": "lora_4_clip_strength"
+      },
+      "lora_5_name": {
+        "name": "lora_5_name"
+      },
+      "lora_5_strength": {
+        "name": "lora_5_strength"
+      },
+      "lora_5_model_strength": {
+        "name": "lora_5_model_strength"
+      },
+      "lora_5_clip_strength": {
+        "name": "lora_5_clip_strength"
+      },
+      "lora_6_name": {
+        "name": "lora_6_name"
+      },
+      "lora_6_strength": {
+        "name": "lora_6_strength"
+      },
+      "lora_6_model_strength": {
+        "name": "lora_6_model_strength"
+      },
+      "lora_6_clip_strength": {
+        "name": "lora_6_clip_strength"
+      },
+      "lora_7_name": {
+        "name": "lora_7_name"
+      },
+      "lora_7_strength": {
+        "name": "lora_7_strength"
+      },
+      "lora_7_model_strength": {
+        "name": "lora_7_model_strength"
+      },
+      "lora_7_clip_strength": {
+        "name": "lora_7_clip_strength"
+      },
+      "lora_8_name": {
+        "name": "lora_8_name"
+      },
+      "lora_8_strength": {
+        "name": "lora_8_strength"
+      },
+      "lora_8_model_strength": {
+        "name": "lora_8_model_strength"
+      },
+      "lora_8_clip_strength": {
+        "name": "lora_8_clip_strength"
+      },
+      "lora_9_name": {
+        "name": "lora_9_name"
+      },
+      "lora_9_strength": {
+        "name": "lora_9_strength"
+      },
+      "lora_9_model_strength": {
+        "name": "lora_9_model_strength"
+      },
+      "lora_9_clip_strength": {
+        "name": "lora_9_clip_strength"
+      },
+      "lora_10_name": {
+        "name": "lora_10_name"
+      },
+      "lora_10_strength": {
+        "name": "lora_10_strength"
+      },
+      "lora_10_model_strength": {
+        "name": "lora_10_model_strength"
+      },
+      "lora_10_clip_strength": {
+        "name": "lora_10_clip_strength"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "lora_stack"
+      }
+    }
+  },
+  "easy controlnetStack": {
+    "display_name": "EasyControlnetStack",
+    "inputs": {
+      "toggle": {
+        "name": "toggle"
+      },
+      "mode": {
+        "name": "mode"
+      },
+      "num_controlnet": {
+        "name": "num_controlnet"
+      },
+      "optional_controlnet_stack": {
+        "name": "optional_controlnet_stack"
+      },
+      "controlnet_1": {
+        "name": "controlnet_1"
+      },
+      "controlnet_1_strength": {
+        "name": "controlnet_1_strength"
+      },
+      "start_percent_1": {
+        "name": "start_percent_1"
+      },
+      "end_percent_1": {
+        "name": "end_percent_1"
+      },
+      "scale_soft_weight_1": {
+        "name": "scale_soft_weight_1"
+      },
+      "image_1": {
+        "name": "image_1"
+      },
+      "controlnet_2": {
+        "name": "controlnet_2"
+      },
+      "controlnet_2_strength": {
+        "name": "controlnet_2_strength"
+      },
+      "start_percent_2": {
+        "name": "start_percent_2"
+      },
+      "end_percent_2": {
+        "name": "end_percent_2"
+      },
+      "scale_soft_weight_2": {
+        "name": "scale_soft_weight_2"
+      },
+      "image_2": {
+        "name": "image_2"
+      },
+      "controlnet_3": {
+        "name": "controlnet_3"
+      },
+      "controlnet_3_strength": {
+        "name": "controlnet_3_strength"
+      },
+      "start_percent_3": {
+        "name": "start_percent_3"
+      },
+      "end_percent_3": {
+        "name": "end_percent_3"
+      },
+      "scale_soft_weight_3": {
+        "name": "scale_soft_weight_3"
+      },
+      "image_3": {
+        "name": "image_3"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "controlnet_stack"
+      }
+    }
+  },
+  "easy controlnetLoader": {
+    "display_name": "EasyControlnet",
+    "inputs": {
+      "pipe": {
+        "name": "pipe"
+      },
+      "image": {
+        "name": "image"
+      },
+      "control_net_name": {
+        "name": "control_net_name"
+      },
+      "control_net": {
+        "name": "control_net"
+      },
+      "strength": {
+        "name": "strength"
+      },
+      "scale_soft_weights": {
+        "name": "scale_soft_weights"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "pipe"
+      },
+      "1": {
+        "name": "positive"
+      },
+      "2": {
+        "name": "negative"
+      }
+    }
+  },
+  "easy controlnetLoaderADV": {
+    "display_name": "EasyControlnet (Advanced)",
+    "inputs": {
+      "pipe": {
+        "name": "pipe"
+      },
+      "image": {
+        "name": "image"
+      },
+      "control_net_name": {
+        "name": "control_net_name"
+      },
+      "control_net": {
+        "name": "control_net"
+      },
+      "strength": {
+        "name": "strength"
+      },
+      "start_percent": {
+        "name": "start_percent"
+      },
+      "end_percent": {
+        "name": "end_percent"
+      },
+      "scale_soft_weights": {
+        "name": "scale_soft_weights"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "pipe"
+      },
+      "1": {
+        "name": "positive"
+      },
+      "2": {
+        "name": "negative"
+      }
+    }
+  },
+  "easy controlnetLoader++": {
+    "display_name": "EasyControlnet++",
+    "inputs": {
+      "pipe": {
+        "name": "pipe"
+      },
+      "image": {
+        "name": "image"
+      },
+      "control_net_name": {
+        "name": "control_net_name"
+      },
+      "control_net": {
+        "name": "control_net"
+      },
+      "strength": {
+        "name": "strength"
+      },
+      "start_percent": {
+        "name": "start_percent"
+      },
+      "end_percent": {
+        "name": "end_percent"
+      },
+      "scale_soft_weights": {
+        "name": "scale_soft_weights"
+      },
+      "union_type": {
+        "name": "union_type"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "pipe"
+      },
+      "1": {
+        "name": "positive"
+      },
+      "2": {
+        "name": "negative"
+      }
+    }
+  },
+  "easy LLLiteLoader": {
+    "display_name": "EasyLLLite",
+    "inputs": {
+      "model": {
+        "name": "model"
+      },
+      "model_name": {
+        "name": "model_name"
+      },
+      "cond_image": {
+        "name": "cond_image"
+      },
+      "strength": {
+        "name": "strength"
+      },
+      "steps": {
+        "name": "steps"
+      },
+      "start_percent": {
+        "name": "start_percent"
+      },
+      "end_percent": {
+        "name": "end_percent"
+      }
+    },
+    "outputs": {}
+  },
+  "easy loraStackApply": {
+    "display_name": "Easy Apply LoraStack",
+    "inputs": {
+      "lora_stack": {
+        "name": "lora_stack"
+      },
+      "model": {
+        "name": "model"
+      },
+      "optional_clip": {
+        "name": "optional_clip"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "model"
+      },
+      "1": {
+        "name": "clip"
+      }
+    }
+  },
+  "easy controlnetStackApply": {
+    "display_name": "Easy Apply CnetStack",
+    "inputs": {
+      "controlnet_stack": {
+        "name": "controlnet_stack"
+      },
+      "pipe": {
+        "name": "pipe"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "pipe"
+      }
+    }
+  },
+  "easy ipadapterApply": {
+    "display_name": "Easy Apply IPAdapter",
+    "inputs": {
+      "model": {
+        "name": "model"
+      },
+      "image": {
+        "name": "image"
+      },
+      "preset": {
+        "name": "preset"
+      },
+      "lora_strength": {
+        "name": "lora_strength"
+      },
+      "provider": {
+        "name": "provider"
+      },
+      "weight": {
+        "name": "weight"
+      },
+      "weight_faceidv2": {
+        "name": "weight_faceidv2"
+      },
+      "start_at": {
+        "name": "start_at"
+      },
+      "end_at": {
+        "name": "end_at"
+      },
+      "cache_mode": {
+        "name": "cache_mode"
+      },
+      "use_tiled": {
+        "name": "use_tiled"
+      },
+      "attn_mask": {
+        "name": "attn_mask"
+      },
+      "optional_ipadapter": {
+        "name": "optional_ipadapter"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "model"
+      },
+      "1": {
+        "name": "images"
+      },
+      "2": {
+        "name": "masks"
+      },
+      "3": {
+        "name": "ipadapter"
+      }
+    }
+  },
+  "easy ipadapterApplyADV": {
+    "display_name": "Easy Apply IPAdapter (Advanced)",
+    "inputs": {
+      "model": {
+        "name": "model"
+      },
+      "image": {
+        "name": "image"
+      },
+      "preset": {
+        "name": "preset"
+      },
+      "lora_strength": {
+        "name": "lora_strength"
+      },
+      "provider": {
+        "name": "provider"
+      },
+      "weight": {
+        "name": "weight"
+      },
+      "weight_faceidv2": {
+        "name": "weight_faceidv2"
+      },
+      "weight_type": {
+        "name": "weight_type"
+      },
+      "combine_embeds": {
+        "name": "combine_embeds"
+      },
+      "start_at": {
+        "name": "start_at"
+      },
+      "end_at": {
+        "name": "end_at"
+      },
+      "embeds_scaling": {
+        "name": "embeds_scaling"
+      },
+      "cache_mode": {
+        "name": "cache_mode"
+      },
+      "use_tiled": {
+        "name": "use_tiled"
+      },
+      "use_batch": {
+        "name": "use_batch"
+      },
+      "sharpening": {
+        "name": "sharpening"
+      },
+      "image_negative": {
+        "name": "image_negative"
+      },
+      "attn_mask": {
+        "name": "attn_mask"
+      },
+      "clip_vision": {
+        "name": "clip_vision"
+      },
+      "optional_ipadapter": {
+        "name": "optional_ipadapter"
+      },
+      "layer_weights": {
+        "name": "layer_weights"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "model"
+      },
+      "1": {
+        "name": "images"
+      },
+      "2": {
+        "name": "masks"
+      },
+      "3": {
+        "name": "ipadapter"
+      }
+    }
+  },
+  "easy ipadapterApplyFaceIDKolors": {
+    "display_name": "Easy Apply IPAdapter (FaceID Kolors)",
+    "inputs": {
+      "model": {
+        "name": "model"
+      },
+      "image": {
+        "name": "image"
+      },
+      "preset": {
+        "name": "preset"
+      },
+      "lora_strength": {
+        "name": "lora_strength"
+      },
+      "provider": {
+        "name": "provider"
+      },
+      "weight": {
+        "name": "weight"
+      },
+      "weight_faceidv2": {
+        "name": "weight_faceidv2"
+      },
+      "weight_kolors": {
+        "name": "weight_kolors"
+      },
+      "weight_type": {
+        "name": "weight_type"
+      },
+      "combine_embeds": {
+        "name": "combine_embeds"
+      },
+      "start_at": {
+        "name": "start_at"
+      },
+      "end_at": {
+        "name": "end_at"
+      },
+      "embeds_scaling": {
+        "name": "embeds_scaling"
+      },
+      "cache_mode": {
+        "name": "cache_mode"
+      },
+      "use_tiled": {
+        "name": "use_tiled"
+      },
+      "use_batch": {
+        "name": "use_batch"
+      },
+      "sharpening": {
+        "name": "sharpening"
+      },
+      "image_negative": {
+        "name": "image_negative"
+      },
+      "attn_mask": {
+        "name": "attn_mask"
+      },
+      "clip_vision": {
+        "name": "clip_vision"
+      },
+      "optional_ipadapter": {
+        "name": "optional_ipadapter"
+      }
+    },
+    "outputs": {}
+  },
+  "easy ipadapterApplyEncoder": {
+    "display_name": "Easy Apply IPAdapter (Encoder)",
+    "inputs": {
+      "model": {
+        "name": "model"
+      },
+      "clip_vision": {
+        "name": "clip_vision"
+      },
+      "image1": {
+        "name": "image1"
+      },
+      "preset": {
+        "name": "preset"
+      },
+      "num_embeds": {
+        "name": "num_embeds"
+      },
+      "image2": {
+        "name": "image2"
+      },
+      "image3": {
+        "name": "image3"
+      },
+      "image4": {
+        "name": "image4"
+      },
+      "mask1": {
+        "name": "mask1"
+      },
+      "weight1": {
+        "name": "weight1"
+      },
+      "mask2": {
+        "name": "mask2"
+      },
+      "weight2": {
+        "name": "weight2"
+      },
+      "mask3": {
+        "name": "mask3"
+      },
+      "weight3": {
+        "name": "weight3"
+      },
+      "mask4": {
+        "name": "mask4"
+      },
+      "weight4": {
+        "name": "weight4"
+      },
+      "combine_method": {
+        "name": "combine_method"
+      },
+      "optional_ipadapter": {
+        "name": "optional_ipadapter"
+      },
+      "pos_embeds": {
+        "name": "pos_embeds"
+      },
+      "neg_embeds": {
+        "name": "neg_embeds"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "model"
+      },
+      "1": {
+        "name": "clip_vision"
+      },
+      "2": {
+        "name": "ipadapter"
+      },
+      "3": {
+        "name": "pos_embed"
+      },
+      "4": {
+        "name": "neg_embed"
+      }
+    }
+  },
+  "easy ipadapterApplyEmbeds": {
+    "display_name": "Easy Apply IPAdapter (Embeds)",
+    "inputs": {
+      "model": {
+        "name": "model"
+      },
+      "clip_vision": {
+        "name": "clip_vision"
+      },
+      "ipadapter": {
+        "name": "ipadapter"
+      },
+      "pos_embed": {
+        "name": "pos_embed"
+      },
+      "weight": {
+        "name": "weight"
+      },
+      "weight_type": {
+        "name": "weight_type"
+      },
+      "start_at": {
+        "name": "start_at"
+      },
+      "end_at": {
+        "name": "end_at"
+      },
+      "embeds_scaling": {
+        "name": "embeds_scaling"
+      },
+      "neg_embed": {
+        "name": "neg_embed"
+      },
+      "attn_mask": {
+        "name": "attn_mask"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "model"
+      },
+      "1": {
+        "name": "ipadapter"
+      }
+    }
+  },
+  "easy ipadapterApplyRegional": {
+    "display_name": "Easy Apply IPAdapter (Regional)",
+    "inputs": {
+      "pipe": {
+        "name": "pipe"
+      },
+      "image": {
+        "name": "image"
+      },
+      "positive": {
+        "name": "positive"
+      },
+      "negative": {
+        "name": "negative"
+      },
+      "image_weight": {
+        "name": "image_weight"
+      },
+      "prompt_weight": {
+        "name": "prompt_weight"
+      },
+      "weight_type": {
+        "name": "weight_type"
+      },
+      "start_at": {
+        "name": "start_at"
+      },
+      "end_at": {
+        "name": "end_at"
+      },
+      "mask": {
+        "name": "mask"
+      },
+      "optional_ipadapter_params": {
+        "name": "optional_ipadapter_params"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "pipe"
+      },
+      "1": {
+        "name": "ipadapter_params"
+      },
+      "2": {
+        "name": "positive"
+      },
+      "3": {
+        "name": "negative"
+      }
+    }
+  },
+  "easy ipadapterApplyFromParams": {
+    "display_name": "Easy Apply IPAdapter (From Params)",
+    "inputs": {
+      "model": {
+        "name": "model"
+      },
+      "preset": {
+        "name": "preset"
+      },
+      "ipadapter_params": {
+        "name": "ipadapter_params"
+      },
+      "combine_embeds": {
+        "name": "combine_embeds"
+      },
+      "embeds_scaling": {
+        "name": "embeds_scaling"
+      },
+      "cache_mode": {
+        "name": "cache_mode"
+      },
+      "optional_ipadapter": {
+        "name": "optional_ipadapter"
+      },
+      "image_negative": {
+        "name": "image_negative"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "model"
+      },
+      "1": {
+        "name": "ipadapter"
+      }
+    }
+  },
+  "easy ipadapterStyleComposition": {
+    "display_name": "Easy Apply IPAdapter (StyleComposition)",
+    "inputs": {
+      "model": {
+        "name": "model"
+      },
+      "image_style": {
+        "name": "image_style"
+      },
+      "preset": {
+        "name": "preset"
+      },
+      "weight_style": {
+        "name": "weight_style"
+      },
+      "weight_composition": {
+        "name": "weight_composition"
+      },
+      "expand_style": {
+        "name": "expand_style"
+      },
+      "combine_embeds": {
+        "name": "combine_embeds"
+      },
+      "start_at": {
+        "name": "start_at"
+      },
+      "end_at": {
+        "name": "end_at"
+      },
+      "embeds_scaling": {
+        "name": "embeds_scaling"
+      },
+      "cache_mode": {
+        "name": "cache_mode"
+      },
+      "image_composition": {
+        "name": "image_composition"
+      },
+      "image_negative": {
+        "name": "image_negative"
+      },
+      "attn_mask": {
+        "name": "attn_mask"
+      },
+      "clip_vision": {
+        "name": "clip_vision"
+      },
+      "optional_ipadapter": {
+        "name": "optional_ipadapter"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "model"
+      },
+      "1": {
+        "name": "ipadapter"
+      }
+    }
+  },
+  "easy instantIDApply": {
+    "display_name": "Easy Apply InstantID",
+    "inputs": {
+      "pipe": {
+        "name": "pipe"
+      },
+      "image": {
+        "name": "image"
+      },
+      "instantid_file": {
+        "name": "instantid_file"
+      },
+      "insightface": {
+        "name": "insightface"
+      },
+      "control_net_name": {
+        "name": "control_net_name"
+      },
+      "cn_strength": {
+        "name": "cn_strength"
+      },
+      "cn_soft_weights": {
+        "name": "cn_soft_weights"
+      },
+      "weight": {
+        "name": "weight"
+      },
+      "start_at": {
+        "name": "start_at"
+      },
+      "end_at": {
+        "name": "end_at"
+      },
+      "noise": {
+        "name": "noise"
+      },
+      "image_kps": {
+        "name": "image_kps"
+      },
+      "mask": {
+        "name": "mask"
+      },
+      "control_net": {
+        "name": "control_net"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "pipe"
+      },
+      "1": {
+        "name": "model"
+      },
+      "2": {
+        "name": "positive"
+      },
+      "3": {
+        "name": "negative"
+      }
+    }
+  },
+  "easy instantIDApplyADV": {
+    "display_name": "Easy Apply InstantID (Advanced)",
+    "inputs": {
+      "pipe": {
+        "name": "pipe"
+      },
+      "image": {
+        "name": "image"
+      },
+      "instantid_file": {
+        "name": "instantid_file"
+      },
+      "insightface": {
+        "name": "insightface"
+      },
+      "control_net_name": {
+        "name": "control_net_name"
+      },
+      "cn_strength": {
+        "name": "cn_strength"
+      },
+      "cn_soft_weights": {
+        "name": "cn_soft_weights"
+      },
+      "weight": {
+        "name": "weight"
+      },
+      "start_at": {
+        "name": "start_at"
+      },
+      "end_at": {
+        "name": "end_at"
+      },
+      "noise": {
+        "name": "noise"
+      },
+      "image_kps": {
+        "name": "image_kps"
+      },
+      "mask": {
+        "name": "mask"
+      },
+      "control_net": {
+        "name": "control_net"
+      },
+      "positive": {
+        "name": "positive"
+      },
+      "negative": {
+        "name": "negative"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "pipe"
+      },
+      "1": {
+        "name": "model"
+      },
+      "2": {
+        "name": "positive"
+      },
+      "3": {
+        "name": "negative"
+      }
+    }
+  },
+  "easy pulIDApply": {
+    "display_name": "Easy Apply PuLID",
+    "inputs": {
+      "model": {
+        "name": "model"
+      },
+      "pulid_file": {
+        "name": "pulid_file"
+      },
+      "insightface": {
+        "name": "insightface"
+      },
+      "image": {
+        "name": "image"
+      },
+      "method": {
+        "name": "method"
+      },
+      "weight": {
+        "name": "weight"
+      },
+      "start_at": {
+        "name": "start_at"
+      },
+      "end_at": {
+        "name": "end_at"
+      },
+      "attn_mask": {
+        "name": "attn_mask"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "model"
+      }
+    }
+  },
+  "easy pulIDApplyADV": {
+    "display_name": "Easy Apply PuLID (Advanced)",
+    "inputs": {
+      "model": {
+        "name": "model"
+      },
+      "pulid_file": {
+        "name": "pulid_file"
+      },
+      "insightface": {
+        "name": "insightface"
+      },
+      "image": {
+        "name": "image"
+      },
+      "weight": {
+        "name": "weight"
+      },
+      "projection": {
+        "name": "projection"
+      },
+      "fidelity": {
+        "name": "fidelity"
+      },
+      "noise": {
+        "name": "noise"
+      },
+      "start_at": {
+        "name": "start_at"
+      },
+      "end_at": {
+        "name": "end_at"
+      },
+      "attn_mask": {
+        "name": "attn_mask"
+      }
+    },
+    "outputs": {}
+  },
+  "easy styleAlignedBatchAlign": {
+    "display_name": "Easy Apply StyleAlign",
+    "inputs": {
+      "model": {
+        "name": "model"
+      },
+      "share_norm": {
+        "name": "share_norm"
+      },
+      "share_attn": {
+        "name": "share_attn"
+      },
+      "scale": {
+        "name": "scale"
+      }
+    },
+    "outputs": {}
+  },
+  "easy icLightApply": {
+    "display_name": "Easy Apply ICLight",
+    "inputs": {
+      "mode": {
+        "name": "mode"
+      },
+      "model": {
+        "name": "model"
+      },
+      "image": {
+        "name": "image"
+      },
+      "vae": {
+        "name": "vae"
+      },
+      "lighting": {
+        "name": "lighting"
+      },
+      "source": {
+        "name": "source"
+      },
+      "remove_bg": {
+        "name": "remove_bg"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "model"
+      },
+      "1": {
+        "name": "lighting_image"
+      }
+    }
+  },
+  "easy applyFooocusInpaint": {
+    "display_name": "Easy Apply Fooocus Inpaint",
+    "inputs": {
+      "model": {
+        "name": "model"
+      },
+      "latent": {
+        "name": "latent"
+      },
+      "head": {
+        "name": "head"
+      },
+      "patch": {
+        "name": "patch"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "model"
+      }
+    }
+  },
+  "easy applyBrushNet": {
+    "display_name": "Easy Apply BrushNet",
+    "inputs": {
+      "pipe": {
+        "name": "pipe"
+      },
+      "image": {
+        "name": "image"
+      },
+      "mask": {
+        "name": "mask"
+      },
+      "brushnet": {
+        "name": "brushnet"
+      },
+      "dtype": {
+        "name": "dtype"
+      },
+      "scale": {
+        "name": "scale"
+      },
+      "start_at": {
+        "name": "start_at"
+      },
+      "end_at": {
+        "name": "end_at"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "pipe"
+      }
+    }
+  },
+  "easy applyPowerPaint": {
+    "display_name": "Easy Apply PowerPaint",
+    "inputs": {
+      "pipe": {
+        "name": "pipe"
+      },
+      "image": {
+        "name": "image"
+      },
+      "mask": {
+        "name": "mask"
+      },
+      "powerpaint_model": {
+        "name": "powerpaint_model"
+      },
+      "powerpaint_clip": {
+        "name": "powerpaint_clip"
+      },
+      "dtype": {
+        "name": "dtype"
+      },
+      "fitting": {
+        "name": "fitting"
+      },
+      "function": {
+        "name": "function"
+      },
+      "scale": {
+        "name": "scale"
+      },
+      "start_at": {
+        "name": "start_at"
+      },
+      "end_at": {
+        "name": "end_at"
+      },
+      "save_memory": {
+        "name": "save_memory"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "pipe"
+      }
+    }
+  },
+  "easy applyInpaint": {
+    "display_name": "Easy Apply Inpaint",
+    "inputs": {
+      "pipe": {
+        "name": "pipe"
+      },
+      "image": {
+        "name": "image"
+      },
+      "mask": {
+        "name": "mask"
+      },
+      "inpaint_mode": {
+        "name": "inpaint_mode"
+      },
+      "encode": {
+        "name": "encode"
+      },
+      "grow_mask_by": {
+        "name": "grow_mask_by"
+      },
+      "dtype": {
+        "name": "dtype"
+      },
+      "fitting": {
+        "name": "fitting"
+      },
+      "function": {
+        "name": "function"
+      },
+      "scale": {
+        "name": "scale"
+      },
+      "start_at": {
+        "name": "start_at"
+      },
+      "end_at": {
+        "name": "end_at"
+      },
+      "noise_mask": {
+        "name": "noise_mask"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "pipe"
+      }
+    }
+  },
+  "easy preSampling": {
+    "display_name": "PreSampling",
+    "inputs": {
+      "pipe": {
+        "name": "pipe"
+      },
+      "steps": {
+        "name": "steps"
+      },
+      "cfg": {
+        "name": "cfg"
+      },
+      "sampler_name": {
+        "name": "sampler_name"
+      },
+      "scheduler": {
+        "name": "scheduler"
+      },
+      "denoise": {
+        "name": "denoise"
+      },
+      "seed": {
+        "name": "seed"
+      },
+      "image_to_latent": {
+        "name": "image_to_latent"
+      },
+      "latent": {
+        "name": "latent"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "pipe"
+      }
+    }
+  },
+  "easy preSamplingAdvanced": {
+    "display_name": "PreSampling (Advanced)",
+    "inputs": {
+      "pipe": {
+        "name": "pipe"
+      },
+      "steps": {
+        "name": "steps"
+      },
+      "cfg": {
+        "name": "cfg"
+      },
+      "sampler_name": {
+        "name": "sampler_name"
+      },
+      "scheduler": {
+        "name": "scheduler"
+      },
+      "start_at_step": {
+        "name": "start_at_step"
+      },
+      "end_at_step": {
+        "name": "end_at_step"
+      },
+      "add_noise": {
+        "name": "add_noise"
+      },
+      "seed": {
+        "name": "seed"
+      },
+      "return_with_leftover_noise": {
+        "name": "return_with_leftover_noise"
+      },
+      "image_to_latent": {
+        "name": "image_to_latent"
+      },
+      "latent": {
+        "name": "latent"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "pipe"
+      }
+    }
+  },
+  "easy preSamplingNoiseIn": {
+    "display_name": "PreSampling (NoiseIn)",
+    "inputs": {
+      "pipe": {
+        "name": "pipe"
+      },
+      "factor": {
+        "name": "factor"
+      },
+      "steps": {
+        "name": "steps"
+      },
+      "cfg": {
+        "name": "cfg"
+      },
+      "sampler_name": {
+        "name": "sampler_name"
+      },
+      "scheduler": {
+        "name": "scheduler"
+      },
+      "denoise": {
+        "name": "denoise"
+      },
+      "seed": {
+        "name": "seed"
+      },
+      "optional_noise_seed": {
+        "name": "optional_noise_seed"
+      },
+      "optional_latent": {
+        "name": "optional_latent"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "pipe"
+      }
+    }
+  },
+  "easy preSamplingCustom": {
+    "display_name": "PreSampling (Custom)",
+    "inputs": {
+      "pipe": {
+        "name": "pipe"
+      },
+      "guider": {
+        "name": "guider"
+      },
+      "cfg": {
+        "name": "cfg"
+      },
+      "cfg_negative": {
+        "name": "cfg_negative"
+      },
+      "sampler_name": {
+        "name": "sampler_name"
+      },
+      "scheduler": {
+        "name": "scheduler"
+      },
+      "coeff": {
+        "name": "coeff"
+      },
+      "steps": {
+        "name": "steps"
+      },
+      "sigma_max": {
+        "name": "sigma_max"
+      },
+      "sigma_min": {
+        "name": "sigma_min"
+      },
+      "rho": {
+        "name": "rho"
+      },
+      "beta_d": {
+        "name": "beta_d"
+      },
+      "beta_min": {
+        "name": "beta_min"
+      },
+      "eps_s": {
+        "name": "eps_s"
+      },
+      "flip_sigmas": {
+        "name": "flip_sigmas"
+      },
+      "denoise": {
+        "name": "denoise"
+      },
+      "add_noise": {
+        "name": "add_noise"
+      },
+      "seed": {
+        "name": "seed"
+      },
+      "image_to_latent": {
+        "name": "image_to_latent"
+      },
+      "latent": {
+        "name": "latent"
+      },
+      "optional_sampler": {
+        "name": "optional_sampler"
+      },
+      "optional_sigmas": {
+        "name": "optional_sigmas"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "pipe"
+      }
+    }
+  },
+  "easy preSamplingSdTurbo": {
+    "display_name": "PreSampling (SDTurbo)",
+    "inputs": {
+      "pipe": {
+        "name": "pipe"
+      },
+      "steps": {
+        "name": "steps"
+      },
+      "cfg": {
+        "name": "cfg"
+      },
+      "sampler_name": {
+        "name": "sampler_name"
+      },
+      "eta": {
+        "name": "eta"
+      },
+      "s_noise": {
+        "name": "s_noise"
+      },
+      "upscale_ratio": {
+        "name": "upscale_ratio"
+      },
+      "start_step": {
+        "name": "start_step"
+      },
+      "end_step": {
+        "name": "end_step"
+      },
+      "upscale_n_step": {
+        "name": "upscale_n_step"
+      },
+      "unsharp_kernel_size": {
+        "name": "unsharp_kernel_size"
+      },
+      "unsharp_sigma": {
+        "name": "unsharp_sigma"
+      },
+      "unsharp_strength": {
+        "name": "unsharp_strength"
+      },
+      "seed": {
+        "name": "seed"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "pipe"
+      }
+    }
+  },
+  "easy preSamplingDynamicCFG": {
+    "display_name": "PreSampling (DynamicCFG)",
+    "inputs": {
+      "pipe": {
+        "name": "pipe"
+      },
+      "steps": {
+        "name": "steps"
+      },
+      "cfg": {
+        "name": "cfg"
+      },
+      "cfg_mode": {
+        "name": "cfg_mode"
+      },
+      "cfg_scale_min": {
+        "name": "cfg_scale_min"
+      },
+      "sampler_name": {
+        "name": "sampler_name"
+      },
+      "scheduler": {
+        "name": "scheduler"
+      },
+      "denoise": {
+        "name": "denoise"
+      },
+      "seed": {
+        "name": "seed"
+      },
+      "image_to_latent": {
+        "name": "image_to_latent"
+      },
+      "latent": {
+        "name": "latent"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "pipe"
+      }
+    }
+  },
+  "easy preSamplingCascade": {
+    "display_name": "PreSampling (Cascade)",
+    "inputs": {
+      "pipe": {
+        "name": "pipe"
+      },
+      "encode_vae_name": {
+        "name": "encode_vae_name"
+      },
+      "decode_vae_name": {
+        "name": "decode_vae_name"
+      },
+      "steps": {
+        "name": "steps"
+      },
+      "cfg": {
+        "name": "cfg"
+      },
+      "sampler_name": {
+        "name": "sampler_name"
+      },
+      "scheduler": {
+        "name": "scheduler"
+      },
+      "denoise": {
+        "name": "denoise"
+      },
+      "seed": {
+        "name": "seed"
+      },
+      "image_to_latent_c": {
+        "name": "image_to_latent_c"
+      },
+      "latent_c": {
+        "name": "latent_c"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "pipe"
+      }
+    }
+  },
+  "easy preSamplingLayerDiffusion": {
+    "display_name": "PreSampling (LayerDiffuse)",
+    "inputs": {
+      "pipe": {
+        "name": "pipe"
+      },
+      "method": {
+        "name": "method"
+      },
+      "weight": {
+        "name": "weight"
+      },
+      "steps": {
+        "name": "steps"
+      },
+      "cfg": {
+        "name": "cfg"
+      },
+      "sampler_name": {
+        "name": "sampler_name"
+      },
+      "scheduler": {
+        "name": "scheduler"
+      },
+      "denoise": {
+        "name": "denoise"
+      },
+      "seed": {
+        "name": "seed"
+      },
+      "image": {
+        "name": "image"
+      },
+      "blended_image": {
+        "name": "blended_image"
+      },
+      "mask": {
+        "name": "mask"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "pipe"
+      }
+    }
+  },
+  "easy preSamplingLayerDiffusionADDTL": {
+    "display_name": "PreSampling (LayerDiffuse ADDTL)",
+    "inputs": {
+      "pipe": {
+        "name": "pipe"
+      },
+      "foreground_prompt": {
+        "name": "foreground_prompt"
+      },
+      "background_prompt": {
+        "name": "background_prompt"
+      },
+      "blended_prompt": {
+        "name": "blended_prompt"
+      },
+      "optional_fg_cond": {
+        "name": "optional_fg_cond"
+      },
+      "optional_bg_cond": {
+        "name": "optional_bg_cond"
+      },
+      "optional_blended_cond": {
+        "name": "optional_blended_cond"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "pipe"
+      }
+    }
+  },
+  "dynamicThresholdingFull": {
+    "display_name": "DynamicThresholdingFull",
+    "inputs": {
+      "model": {
+        "name": "model"
+      },
+      "mimic_scale": {
+        "name": "mimic_scale"
+      },
+      "threshold_percentile": {
+        "name": "threshold_percentile"
+      },
+      "mimic_mode": {
+        "name": "mimic_mode"
+      },
+      "mimic_scale_min": {
+        "name": "mimic_scale_min"
+      },
+      "cfg_mode": {
+        "name": "cfg_mode"
+      },
+      "cfg_scale_min": {
+        "name": "cfg_scale_min"
+      },
+      "sched_val": {
+        "name": "sched_val"
+      },
+      "separate_feature_channels": {
+        "name": "separate_feature_channels"
+      },
+      "scaling_startpoint": {
+        "name": "scaling_startpoint"
+      },
+      "variability_measure": {
+        "name": "variability_measure"
+      },
+      "interpolate_phi": {
+        "name": "interpolate_phi"
+      }
+    },
+    "outputs": {}
+  },
+  "easy fullkSampler": {
+    "display_name": "EasyKSampler (Full)",
+    "inputs": {
+      "pipe": {
+        "name": "pipe"
+      },
+      "steps": {
+        "name": "steps"
+      },
+      "cfg": {
+        "name": "cfg"
+      },
+      "sampler_name": {
+        "name": "sampler_name"
+      },
+      "scheduler": {
+        "name": "scheduler"
+      },
+      "denoise": {
+        "name": "denoise"
+      },
+      "image_output": {
+        "name": "image_output"
+      },
+      "link_id": {
+        "name": "link_id"
+      },
+      "save_prefix": {
+        "name": "save_prefix"
+      },
+      "seed": {
+        "name": "seed"
+      },
+      "model": {
+        "name": "model"
+      },
+      "positive": {
+        "name": "positive"
+      },
+      "negative": {
+        "name": "negative"
+      },
+      "latent": {
+        "name": "latent"
+      },
+      "vae": {
+        "name": "vae"
+      },
+      "clip": {
+        "name": "clip"
+      },
+      "xyPlot": {
+        "name": "xyPlot"
+      },
+      "image": {
+        "name": "image"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "pipe"
+      },
+      "1": {
+        "name": "image"
+      },
+      "2": {
+        "name": "model"
+      },
+      "3": {
+        "name": "positive"
+      },
+      "4": {
+        "name": "negative"
+      },
+      "5": {
+        "name": "latent"
+      },
+      "6": {
+        "name": "vae"
+      },
+      "7": {
+        "name": "clip"
+      },
+      "8": {
+        "name": "seed"
+      }
+    }
+  },
+  "easy kSampler": {
+    "display_name": "EasyKSampler",
+    "inputs": {
+      "pipe": {
+        "name": "pipe"
+      },
+      "image_output": {
+        "name": "image_output"
+      },
+      "link_id": {
+        "name": "link_id"
+      },
+      "save_prefix": {
+        "name": "save_prefix"
+      },
+      "model": {
+        "name": "model"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "pipe"
+      },
+      "1": {
+        "name": "image"
+      }
+    }
+  },
+  "easy kSamplerCustom": {
+    "display_name": "EasyKSampler (Custom)",
+    "inputs": {
+      "pipe": {
+        "name": "pipe"
+      },
+      "image_output": {
+        "name": "image_output"
+      },
+      "link_id": {
+        "name": "link_id"
+      },
+      "save_prefix": {
+        "name": "save_prefix"
+      },
+      "model": {
+        "name": "model"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "pipe"
+      },
+      "1": {
+        "name": "output"
+      },
+      "2": {
+        "name": "denoised_output"
+      },
+      "3": {
+        "name": "image"
+      }
+    }
+  },
+  "easy kSamplerTiled": {
+    "display_name": "EasyKSampler (Tiled Decode)",
+    "inputs": {
+      "pipe": {
+        "name": "pipe"
+      },
+      "tile_size": {
+        "name": "tile_size"
+      },
+      "image_output": {
+        "name": "image_output"
+      },
+      "link_id": {
+        "name": "link_id"
+      },
+      "save_prefix": {
+        "name": "save_prefix"
+      },
+      "model": {
+        "name": "model"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "pipe"
+      },
+      "1": {
+        "name": "image"
+      }
+    }
+  },
+  "easy kSamplerLayerDiffusion": {
+    "display_name": "EasyKSampler (LayerDiffuse)",
+    "inputs": {
+      "pipe": {
+        "name": "pipe"
+      },
+      "image_output": {
+        "name": "image_output"
+      },
+      "link_id": {
+        "name": "link_id"
+      },
+      "save_prefix": {
+        "name": "save_prefix"
+      },
+      "model": {
+        "name": "model"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "pipe"
+      },
+      "1": {
+        "name": "final_image"
+      },
+      "2": {
+        "name": "original_image"
+      },
+      "3": {
+        "name": "alpha"
+      }
+    }
+  },
+  "easy kSamplerInpainting": {
+    "display_name": "EasyKSampler (Inpainting)",
+    "inputs": {
+      "pipe": {
+        "name": "pipe"
+      },
+      "grow_mask_by": {
+        "name": "grow_mask_by"
+      },
+      "image_output": {
+        "name": "image_output"
+      },
+      "link_id": {
+        "name": "link_id"
+      },
+      "save_prefix": {
+        "name": "save_prefix"
+      },
+      "additional": {
+        "name": "additional"
+      },
+      "model": {
+        "name": "model"
+      },
+      "mask": {
+        "name": "mask"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "pipe"
+      },
+      "1": {
+        "name": "image"
+      },
+      "2": {
+        "name": "vae"
+      }
+    }
+  },
+  "easy kSamplerDownscaleUnet": {
+    "display_name": "EasyKsampler (Downscale Unet)",
+    "inputs": {
+      "pipe": {
+        "name": "pipe"
+      },
+      "downscale_mode": {
+        "name": "downscale_mode"
+      },
+      "block_number": {
+        "name": "block_number"
+      },
+      "downscale_factor": {
+        "name": "downscale_factor"
+      },
+      "start_percent": {
+        "name": "start_percent"
+      },
+      "end_percent": {
+        "name": "end_percent"
+      },
+      "downscale_after_skip": {
+        "name": "downscale_after_skip"
+      },
+      "downscale_method": {
+        "name": "downscale_method"
+      },
+      "upscale_method": {
+        "name": "upscale_method"
+      },
+      "image_output": {
+        "name": "image_output"
+      },
+      "link_id": {
+        "name": "link_id"
+      },
+      "save_prefix": {
+        "name": "save_prefix"
+      },
+      "model": {
+        "name": "model"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "pipe"
+      },
+      "1": {
+        "name": "image"
+      }
+    }
+  },
+  "easy kSamplerSDTurbo": {
+    "display_name": "EasyKSampler (SDTurbo)",
+    "inputs": {
+      "pipe": {
+        "name": "pipe"
+      },
+      "image_output": {
+        "name": "image_output"
+      },
+      "link_id": {
+        "name": "link_id"
+      },
+      "save_prefix": {
+        "name": "save_prefix"
+      },
+      "model": {
+        "name": "model"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "pipe"
+      },
+      "1": {
+        "name": "image"
+      }
+    }
+  },
+  "easy fullCascadeKSampler": {
+    "display_name": "EasyCascadeKsampler (Full)",
+    "inputs": {
+      "pipe": {
+        "name": "pipe"
+      },
+      "encode_vae_name": {
+        "name": "encode_vae_name"
+      },
+      "decode_vae_name": {
+        "name": "decode_vae_name"
+      },
+      "steps": {
+        "name": "steps"
+      },
+      "cfg": {
+        "name": "cfg"
+      },
+      "sampler_name": {
+        "name": "sampler_name"
+      },
+      "scheduler": {
+        "name": "scheduler"
+      },
+      "denoise": {
+        "name": "denoise"
+      },
+      "image_output": {
+        "name": "image_output"
+      },
+      "link_id": {
+        "name": "link_id"
+      },
+      "save_prefix": {
+        "name": "save_prefix"
+      },
+      "seed": {
+        "name": "seed"
+      },
+      "image_to_latent_c": {
+        "name": "image_to_latent_c"
+      },
+      "latent_c": {
+        "name": "latent_c"
+      },
+      "model_c": {
+        "name": "model_c"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "pipe"
+      },
+      "1": {
+        "name": "model_b"
+      },
+      "2": {
+        "name": "latent_b"
+      }
+    }
+  },
+  "easy cascadeKSampler": {
+    "display_name": "EasyCascadeKsampler",
+    "inputs": {
+      "pipe": {
+        "name": "pipe"
+      },
+      "image_output": {
+        "name": "image_output"
+      },
+      "link_id": {
+        "name": "link_id"
+      },
+      "save_prefix": {
+        "name": "save_prefix"
+      },
+      "model_c": {
+        "name": "model_c"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "pipe"
+      },
+      "1": {
+        "name": "image"
+      }
+    }
+  },
+  "easy unSampler": {
+    "display_name": "EasyUnSampler",
+    "inputs": {
+      "steps": {
+        "name": "steps"
+      },
+      "end_at_step": {
+        "name": "end_at_step"
+      },
+      "cfg": {
+        "name": "cfg"
+      },
+      "sampler_name": {
+        "name": "sampler_name"
+      },
+      "scheduler": {
+        "name": "scheduler"
+      },
+      "normalize": {
+        "name": "normalize"
+      },
+      "pipe": {
+        "name": "pipe"
+      },
+      "optional_model": {
+        "name": "optional_model"
+      },
+      "optional_positive": {
+        "name": "optional_positive"
+      },
+      "optional_negative": {
+        "name": "optional_negative"
+      },
+      "optional_latent": {
+        "name": "optional_latent"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "pipe"
+      },
+      "1": {
+        "name": "latent"
+      }
+    }
+  },
+  "easy hiresFix": {
+    "display_name": "HiresFix",
+    "inputs": {
+      "model_name": {
+        "name": "model_name"
+      },
+      "rescale_after_model": {
+        "name": "rescale_after_model"
+      },
+      "rescale_method": {
+        "name": "rescale_method"
+      },
+      "rescale": {
+        "name": "rescale"
+      },
+      "percent": {
+        "name": "percent"
+      },
+      "width": {
+        "name": "width"
+      },
+      "height": {
+        "name": "height"
+      },
+      "longer_side": {
+        "name": "longer_side"
+      },
+      "crop": {
+        "name": "crop"
+      },
+      "image_output": {
+        "name": "image_output"
+      },
+      "link_id": {
+        "name": "link_id"
+      },
+      "save_prefix": {
+        "name": "save_prefix"
+      },
+      "pipe": {
+        "name": "pipe"
+      },
+      "image": {
+        "name": "image"
+      },
+      "vae": {
+        "name": "vae"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "pipe"
+      },
+      "1": {
+        "name": "image"
+      },
+      "2": {
+        "name": "latent"
+      }
+    }
+  },
+  "easy preDetailerFix": {
+    "display_name": "PreDetailerFix",
+    "inputs": {
+      "pipe": {
+        "name": "pipe"
+      },
+      "guide_size": {
+        "name": "guide_size"
+      },
+      "guide_size_for": {
+        "name": "guide_size_for"
+      },
+      "max_size": {
+        "name": "max_size"
+      },
+      "seed": {
+        "name": "seed"
+      },
+      "steps": {
+        "name": "steps"
+      },
+      "cfg": {
+        "name": "cfg"
+      },
+      "sampler_name": {
+        "name": "sampler_name"
+      },
+      "scheduler": {
+        "name": "scheduler"
+      },
+      "denoise": {
+        "name": "denoise"
+      },
+      "feather": {
+        "name": "feather"
+      },
+      "noise_mask": {
+        "name": "noise_mask"
+      },
+      "force_inpaint": {
+        "name": "force_inpaint"
+      },
+      "drop_size": {
+        "name": "drop_size"
+      },
+      "wildcard": {
+        "name": "wildcard"
+      },
+      "cycle": {
+        "name": "cycle"
+      },
+      "bbox_segm_pipe": {
+        "name": "bbox_segm_pipe"
+      },
+      "sam_pipe": {
+        "name": "sam_pipe"
+      },
+      "optional_image": {
+        "name": "optional_image"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "pipe"
+      }
+    }
+  },
+  "easy preMaskDetailerFix": {
+    "display_name": "preMaskDetailerFix",
+    "inputs": {
+      "pipe": {
+        "name": "pipe"
+      },
+      "mask": {
+        "name": "mask"
+      },
+      "guide_size": {
+        "name": "guide_size"
+      },
+      "guide_size_for": {
+        "name": "guide_size_for"
+      },
+      "max_size": {
+        "name": "max_size"
+      },
+      "mask_mode": {
+        "name": "mask_mode"
+      },
+      "seed": {
+        "name": "seed"
+      },
+      "steps": {
+        "name": "steps"
+      },
+      "cfg": {
+        "name": "cfg"
+      },
+      "sampler_name": {
+        "name": "sampler_name"
+      },
+      "scheduler": {
+        "name": "scheduler"
+      },
+      "denoise": {
+        "name": "denoise"
+      },
+      "feather": {
+        "name": "feather"
+      },
+      "crop_factor": {
+        "name": "crop_factor"
+      },
+      "drop_size": {
+        "name": "drop_size"
+      },
+      "refiner_ratio": {
+        "name": "refiner_ratio"
+      },
+      "batch_size": {
+        "name": "batch_size"
+      },
+      "cycle": {
+        "name": "cycle"
+      },
+      "optional_image": {
+        "name": "optional_image"
+      },
+      "inpaint_model": {
+        "name": "inpaint_model"
+      },
+      "noise_mask_feather": {
+        "name": "noise_mask_feather"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "pipe"
+      }
+    }
+  },
+  "easy ultralyticsDetectorPipe": {
+    "display_name": "UltralyticsDetector (Pipe)",
+    "inputs": {
+      "model_name": {
+        "name": "model_name"
+      },
+      "bbox_threshold": {
+        "name": "bbox_threshold"
+      },
+      "bbox_dilation": {
+        "name": "bbox_dilation"
+      },
+      "bbox_crop_factor": {
+        "name": "bbox_crop_factor"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "bbox_segm_pipe"
+      }
+    }
+  },
+  "easy samLoaderPipe": {
+    "display_name": "SAMLoader (Pipe)",
+    "inputs": {
+      "model_name": {
+        "name": "model_name"
+      },
+      "device_mode": {
+        "name": "device_mode"
+      },
+      "sam_detection_hint": {
+        "name": "sam_detection_hint"
+      },
+      "sam_dilation": {
+        "name": "sam_dilation"
+      },
+      "sam_threshold": {
+        "name": "sam_threshold"
+      },
+      "sam_bbox_expansion": {
+        "name": "sam_bbox_expansion"
+      },
+      "sam_mask_hint_threshold": {
+        "name": "sam_mask_hint_threshold"
+      },
+      "sam_mask_hint_use_negative": {
+        "name": "sam_mask_hint_use_negative"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "sam_pipe"
+      }
+    }
+  },
+  "easy detailerFix": {
+    "display_name": "DetailerFix",
+    "inputs": {
+      "pipe": {
+        "name": "pipe"
+      },
+      "image_output": {
+        "name": "image_output"
+      },
+      "link_id": {
+        "name": "link_id"
+      },
+      "save_prefix": {
+        "name": "save_prefix"
+      },
+      "model": {
+        "name": "model"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "pipe"
+      },
+      "1": {
+        "name": "image"
+      },
+      "2": {
+        "name": "cropped_refined"
+      },
+      "3": {
+        "name": "cropped_enhanced_alpha"
+      }
+    }
+  },
+  "easy pipeIn": {
+    "display_name": "Pipe In",
+    "inputs": {
+      "pipe": {
+        "name": "pipe"
+      },
+      "model": {
+        "name": "model"
+      },
+      "pos": {
+        "name": "pos"
+      },
+      "neg": {
+        "name": "neg"
+      },
+      "latent": {
+        "name": "latent"
+      },
+      "vae": {
+        "name": "vae"
+      },
+      "clip": {
+        "name": "clip"
+      },
+      "image": {
+        "name": "image"
+      },
+      "xyPlot": {
+        "name": "xyPlot"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "pipe"
+      }
+    }
+  },
+  "easy pipeOut": {
+    "display_name": "Pipe Out",
+    "inputs": {
+      "pipe": {
+        "name": "pipe"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "pipe"
+      },
+      "1": {
+        "name": "model"
+      },
+      "2": {
+        "name": "pos"
+      },
+      "3": {
+        "name": "neg"
+      },
+      "4": {
+        "name": "latent"
+      },
+      "5": {
+        "name": "vae"
+      },
+      "6": {
+        "name": "clip"
+      },
+      "7": {
+        "name": "image"
+      },
+      "8": {
+        "name": "seed"
+      }
+    }
+  },
+  "easy pipeEdit": {
+    "display_name": "Pipe Edit",
+    "inputs": {
+      "clip_skip": {
+        "name": "clip_skip"
+      },
+      "optional_positive": {
+        "name": "optional_positive"
+      },
+      "positive_token_normalization": {
+        "name": "positive_token_normalization"
+      },
+      "positive_weight_interpretation": {
+        "name": "positive_weight_interpretation"
+      },
+      "optional_negative": {
+        "name": "optional_negative"
+      },
+      "negative_token_normalization": {
+        "name": "negative_token_normalization"
+      },
+      "negative_weight_interpretation": {
+        "name": "negative_weight_interpretation"
+      },
+      "a1111_prompt_style": {
+        "name": "a1111_prompt_style"
+      },
+      "conditioning_mode": {
+        "name": "conditioning_mode"
+      },
+      "average_strength": {
+        "name": "average_strength"
+      },
+      "old_cond_start": {
+        "name": "old_cond_start"
+      },
+      "old_cond_end": {
+        "name": "old_cond_end"
+      },
+      "new_cond_start": {
+        "name": "new_cond_start"
+      },
+      "new_cond_end": {
+        "name": "new_cond_end"
+      },
+      "pipe": {
+        "name": "pipe"
+      },
+      "model": {
+        "name": "model"
+      },
+      "pos": {
+        "name": "pos"
+      },
+      "neg": {
+        "name": "neg"
+      },
+      "latent": {
+        "name": "latent"
+      },
+      "vae": {
+        "name": "vae"
+      },
+      "clip": {
+        "name": "clip"
+      },
+      "image": {
+        "name": "image"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "pipe"
+      },
+      "1": {
+        "name": "model"
+      },
+      "2": {
+        "name": "pos"
+      },
+      "3": {
+        "name": "neg"
+      },
+      "4": {
+        "name": "latent"
+      },
+      "5": {
+        "name": "vae"
+      },
+      "6": {
+        "name": "clip"
+      },
+      "7": {
+        "name": "image"
+      }
+    }
+  },
+  "easy pipeEditPrompt": {
+    "display_name": "Pipe Edit Prompt",
+    "inputs": {
+      "pipe": {
+        "name": "pipe"
+      },
+      "positive": {
+        "name": "positive"
+      },
+      "negative": {
+        "name": "negative"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "pipe"
+      }
+    }
+  },
+  "easy pipeToBasicPipe": {
+    "display_name": "Pipe -> BasicPipe",
+    "inputs": {
+      "pipe": {
+        "name": "pipe"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "basic_pipe"
+      }
+    }
+  },
+  "easy pipeBatchIndex": {
+    "display_name": "Pipe Batch Index",
+    "inputs": {
+      "pipe": {
+        "name": "pipe"
+      },
+      "batch_index": {
+        "name": "batch_index"
+      },
+      "length": {
+        "name": "length"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "pipe"
+      }
+    }
+  },
+  "easy XYPlot": {
+    "display_name": "XY Plot",
+    "inputs": {
+      "grid_spacing": {
+        "name": "grid_spacing"
+      },
+      "output_individuals": {
+        "name": "output_individuals"
+      },
+      "flip_xy": {
+        "name": "flip_xy"
+      },
+      "x_axis": {
+        "name": "x_axis"
+      },
+      "x_values": {
+        "name": "x_values"
+      },
+      "y_axis": {
+        "name": "y_axis"
+      },
+      "y_values": {
+        "name": "y_values"
+      },
+      "pipe": {
+        "name": "pipe"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "pipe"
+      }
+    }
+  },
+  "easy XYPlotAdvanced": {
+    "display_name": "XY Plot Advanced",
+    "inputs": {
+      "pipe": {
+        "name": "pipe"
+      },
+      "grid_spacing": {
+        "name": "grid_spacing"
+      },
+      "output_individuals": {
+        "name": "output_individuals"
+      },
+      "flip_xy": {
+        "name": "flip_xy"
+      },
+      "X": {
+        "name": "X"
+      },
+      "Y": {
+        "name": "Y"
+      },
+      "font": {
+        "name": "font"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "pipe"
+      }
+    }
+  },
+  "easy XYInputs: Seeds++ Batch": {
+    "display_name": "XY Inputs: Seeds++ Batch //EasyUse",
+    "inputs": {
+      "batch_count": {
+        "name": "batch_count"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "X or Y"
+      }
+    }
+  },
+  "easy XYInputs: Steps": {
+    "display_name": "XY Inputs: Steps //EasyUse",
+    "inputs": {
+      "target_parameter": {
+        "name": "target_parameter"
+      },
+      "batch_count": {
+        "name": "batch_count"
+      },
+      "first_step": {
+        "name": "first_step"
+      },
+      "last_step": {
+        "name": "last_step"
+      },
+      "first_start_step": {
+        "name": "first_start_step"
+      },
+      "last_start_step": {
+        "name": "last_start_step"
+      },
+      "first_end_step": {
+        "name": "first_end_step"
+      },
+      "last_end_step": {
+        "name": "last_end_step"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "X or Y"
+      }
+    }
+  },
+  "easy XYInputs: CFG Scale": {
+    "display_name": "XY Inputs: CFG Scale //EasyUse",
+    "inputs": {
+      "batch_count": {
+        "name": "batch_count"
+      },
+      "first_cfg": {
+        "name": "first_cfg"
+      },
+      "last_cfg": {
+        "name": "last_cfg"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "X or Y"
+      }
+    }
+  },
+  "easy XYInputs: FluxGuidance": {
+    "display_name": "XY Inputs: Flux Guidance //EasyUse",
+    "inputs": {
+      "batch_count": {
+        "name": "batch_count"
+      },
+      "first_guidance": {
+        "name": "first_guidance"
+      },
+      "last_guidance": {
+        "name": "last_guidance"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "X or Y"
+      }
+    }
+  },
+  "easy XYInputs: Sampler/Scheduler": {
+    "display_name": "XY Inputs: Sampler/Scheduler //EasyUse",
+    "inputs": {
+      "target_parameter": {
+        "name": "target_parameter"
+      },
+      "input_count": {
+        "name": "input_count"
+      },
+      "sampler_1": {
+        "name": "sampler_1"
+      },
+      "scheduler_1": {
+        "name": "scheduler_1"
+      },
+      "sampler_2": {
+        "name": "sampler_2"
+      },
+      "scheduler_2": {
+        "name": "scheduler_2"
+      },
+      "sampler_3": {
+        "name": "sampler_3"
+      },
+      "scheduler_3": {
+        "name": "scheduler_3"
+      },
+      "sampler_4": {
+        "name": "sampler_4"
+      },
+      "scheduler_4": {
+        "name": "scheduler_4"
+      },
+      "sampler_5": {
+        "name": "sampler_5"
+      },
+      "scheduler_5": {
+        "name": "scheduler_5"
+      },
+      "sampler_6": {
+        "name": "sampler_6"
+      },
+      "scheduler_6": {
+        "name": "scheduler_6"
+      },
+      "sampler_7": {
+        "name": "sampler_7"
+      },
+      "scheduler_7": {
+        "name": "scheduler_7"
+      },
+      "sampler_8": {
+        "name": "sampler_8"
+      },
+      "scheduler_8": {
+        "name": "scheduler_8"
+      },
+      "sampler_9": {
+        "name": "sampler_9"
+      },
+      "scheduler_9": {
+        "name": "scheduler_9"
+      },
+      "sampler_10": {
+        "name": "sampler_10"
+      },
+      "scheduler_10": {
+        "name": "scheduler_10"
+      },
+      "sampler_11": {
+        "name": "sampler_11"
+      },
+      "scheduler_11": {
+        "name": "scheduler_11"
+      },
+      "sampler_12": {
+        "name": "sampler_12"
+      },
+      "scheduler_12": {
+        "name": "scheduler_12"
+      },
+      "sampler_13": {
+        "name": "sampler_13"
+      },
+      "scheduler_13": {
+        "name": "scheduler_13"
+      },
+      "sampler_14": {
+        "name": "sampler_14"
+      },
+      "scheduler_14": {
+        "name": "scheduler_14"
+      },
+      "sampler_15": {
+        "name": "sampler_15"
+      },
+      "scheduler_15": {
+        "name": "scheduler_15"
+      },
+      "sampler_16": {
+        "name": "sampler_16"
+      },
+      "scheduler_16": {
+        "name": "scheduler_16"
+      },
+      "sampler_17": {
+        "name": "sampler_17"
+      },
+      "scheduler_17": {
+        "name": "scheduler_17"
+      },
+      "sampler_18": {
+        "name": "sampler_18"
+      },
+      "scheduler_18": {
+        "name": "scheduler_18"
+      },
+      "sampler_19": {
+        "name": "sampler_19"
+      },
+      "scheduler_19": {
+        "name": "scheduler_19"
+      },
+      "sampler_20": {
+        "name": "sampler_20"
+      },
+      "scheduler_20": {
+        "name": "scheduler_20"
+      },
+      "sampler_21": {
+        "name": "sampler_21"
+      },
+      "scheduler_21": {
+        "name": "scheduler_21"
+      },
+      "sampler_22": {
+        "name": "sampler_22"
+      },
+      "scheduler_22": {
+        "name": "scheduler_22"
+      },
+      "sampler_23": {
+        "name": "sampler_23"
+      },
+      "scheduler_23": {
+        "name": "scheduler_23"
+      },
+      "sampler_24": {
+        "name": "sampler_24"
+      },
+      "scheduler_24": {
+        "name": "scheduler_24"
+      },
+      "sampler_25": {
+        "name": "sampler_25"
+      },
+      "scheduler_25": {
+        "name": "scheduler_25"
+      },
+      "sampler_26": {
+        "name": "sampler_26"
+      },
+      "scheduler_26": {
+        "name": "scheduler_26"
+      },
+      "sampler_27": {
+        "name": "sampler_27"
+      },
+      "scheduler_27": {
+        "name": "scheduler_27"
+      },
+      "sampler_28": {
+        "name": "sampler_28"
+      },
+      "scheduler_28": {
+        "name": "scheduler_28"
+      },
+      "sampler_29": {
+        "name": "sampler_29"
+      },
+      "scheduler_29": {
+        "name": "scheduler_29"
+      },
+      "sampler_30": {
+        "name": "sampler_30"
+      },
+      "scheduler_30": {
+        "name": "scheduler_30"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "X or Y"
+      }
+    }
+  },
+  "easy XYInputs: Denoise": {
+    "display_name": "XY Inputs: Denoise //EasyUse",
+    "inputs": {
+      "batch_count": {
+        "name": "batch_count"
+      },
+      "first_denoise": {
+        "name": "first_denoise"
+      },
+      "last_denoise": {
+        "name": "last_denoise"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "X or Y"
+      }
+    }
+  },
+  "easy XYInputs: Checkpoint": {
+    "display_name": "XY Inputs: Checkpoint //EasyUse",
+    "inputs": {
+      "input_mode": {
+        "name": "input_mode"
+      },
+      "ckpt_count": {
+        "name": "ckpt_count"
+      },
+      "ckpt_name_1": {
+        "name": "ckpt_name_1"
+      },
+      "clip_skip_1": {
+        "name": "clip_skip_1"
+      },
+      "vae_name_1": {
+        "name": "vae_name_1"
+      },
+      "ckpt_name_2": {
+        "name": "ckpt_name_2"
+      },
+      "clip_skip_2": {
+        "name": "clip_skip_2"
+      },
+      "vae_name_2": {
+        "name": "vae_name_2"
+      },
+      "ckpt_name_3": {
+        "name": "ckpt_name_3"
+      },
+      "clip_skip_3": {
+        "name": "clip_skip_3"
+      },
+      "vae_name_3": {
+        "name": "vae_name_3"
+      },
+      "ckpt_name_4": {
+        "name": "ckpt_name_4"
+      },
+      "clip_skip_4": {
+        "name": "clip_skip_4"
+      },
+      "vae_name_4": {
+        "name": "vae_name_4"
+      },
+      "ckpt_name_5": {
+        "name": "ckpt_name_5"
+      },
+      "clip_skip_5": {
+        "name": "clip_skip_5"
+      },
+      "vae_name_5": {
+        "name": "vae_name_5"
+      },
+      "ckpt_name_6": {
+        "name": "ckpt_name_6"
+      },
+      "clip_skip_6": {
+        "name": "clip_skip_6"
+      },
+      "vae_name_6": {
+        "name": "vae_name_6"
+      },
+      "ckpt_name_7": {
+        "name": "ckpt_name_7"
+      },
+      "clip_skip_7": {
+        "name": "clip_skip_7"
+      },
+      "vae_name_7": {
+        "name": "vae_name_7"
+      },
+      "ckpt_name_8": {
+        "name": "ckpt_name_8"
+      },
+      "clip_skip_8": {
+        "name": "clip_skip_8"
+      },
+      "vae_name_8": {
+        "name": "vae_name_8"
+      },
+      "ckpt_name_9": {
+        "name": "ckpt_name_9"
+      },
+      "clip_skip_9": {
+        "name": "clip_skip_9"
+      },
+      "vae_name_9": {
+        "name": "vae_name_9"
+      },
+      "ckpt_name_10": {
+        "name": "ckpt_name_10"
+      },
+      "clip_skip_10": {
+        "name": "clip_skip_10"
+      },
+      "vae_name_10": {
+        "name": "vae_name_10"
+      },
+      "optional_lora_stack": {
+        "name": "optional_lora_stack"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "X or Y"
+      }
+    }
+  },
+  "easy XYInputs: Lora": {
+    "display_name": "XY Inputs: Lora //EasyUse",
+    "inputs": {
+      "input_mode": {
+        "name": "input_mode"
+      },
+      "lora_count": {
+        "name": "lora_count"
+      },
+      "model_strength": {
+        "name": "model_strength"
+      },
+      "clip_strength": {
+        "name": "clip_strength"
+      },
+      "lora_name_1": {
+        "name": "lora_name_1"
+      },
+      "model_str_1": {
+        "name": "model_str_1"
+      },
+      "clip_str_1": {
+        "name": "clip_str_1"
+      },
+      "lora_name_2": {
+        "name": "lora_name_2"
+      },
+      "model_str_2": {
+        "name": "model_str_2"
+      },
+      "clip_str_2": {
+        "name": "clip_str_2"
+      },
+      "lora_name_3": {
+        "name": "lora_name_3"
+      },
+      "model_str_3": {
+        "name": "model_str_3"
+      },
+      "clip_str_3": {
+        "name": "clip_str_3"
+      },
+      "lora_name_4": {
+        "name": "lora_name_4"
+      },
+      "model_str_4": {
+        "name": "model_str_4"
+      },
+      "clip_str_4": {
+        "name": "clip_str_4"
+      },
+      "lora_name_5": {
+        "name": "lora_name_5"
+      },
+      "model_str_5": {
+        "name": "model_str_5"
+      },
+      "clip_str_5": {
+        "name": "clip_str_5"
+      },
+      "lora_name_6": {
+        "name": "lora_name_6"
+      },
+      "model_str_6": {
+        "name": "model_str_6"
+      },
+      "clip_str_6": {
+        "name": "clip_str_6"
+      },
+      "lora_name_7": {
+        "name": "lora_name_7"
+      },
+      "model_str_7": {
+        "name": "model_str_7"
+      },
+      "clip_str_7": {
+        "name": "clip_str_7"
+      },
+      "lora_name_8": {
+        "name": "lora_name_8"
+      },
+      "model_str_8": {
+        "name": "model_str_8"
+      },
+      "clip_str_8": {
+        "name": "clip_str_8"
+      },
+      "lora_name_9": {
+        "name": "lora_name_9"
+      },
+      "model_str_9": {
+        "name": "model_str_9"
+      },
+      "clip_str_9": {
+        "name": "clip_str_9"
+      },
+      "lora_name_10": {
+        "name": "lora_name_10"
+      },
+      "model_str_10": {
+        "name": "model_str_10"
+      },
+      "clip_str_10": {
+        "name": "clip_str_10"
+      },
+      "optional_lora_stack": {
+        "name": "optional_lora_stack"
+      },
+      "display_trigger_word": {
+        "name": "display_trigger_word"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "X or Y"
+      }
+    }
+  },
+  "easy XYInputs: ModelMergeBlocks": {
+    "display_name": "XY Inputs: ModelMergeBlocks //EasyUse",
+    "inputs": {
+      "ckpt_name_1": {
+        "name": "ckpt_name_1"
+      },
+      "ckpt_name_2": {
+        "name": "ckpt_name_2"
+      },
+      "vae_use": {
+        "name": "vae_use"
+      },
+      "preset": {
+        "name": "preset"
+      },
+      "values": {
+        "name": "values"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "X or Y"
+      }
+    }
+  },
+  "easy XYInputs: PromptSR": {
+    "display_name": "XY Inputs: PromptSR //EasyUse",
+    "inputs": {
+      "target_prompt": {
+        "name": "target_prompt"
+      },
+      "search_txt": {
+        "name": "search_txt"
+      },
+      "replace_all_text": {
+        "name": "replace_all_text"
+      },
+      "replace_count": {
+        "name": "replace_count"
+      },
+      "replace_1": {
+        "name": "replace_1"
+      },
+      "replace_2": {
+        "name": "replace_2"
+      },
+      "replace_3": {
+        "name": "replace_3"
+      },
+      "replace_4": {
+        "name": "replace_4"
+      },
+      "replace_5": {
+        "name": "replace_5"
+      },
+      "replace_6": {
+        "name": "replace_6"
+      },
+      "replace_7": {
+        "name": "replace_7"
+      },
+      "replace_8": {
+        "name": "replace_8"
+      },
+      "replace_9": {
+        "name": "replace_9"
+      },
+      "replace_10": {
+        "name": "replace_10"
+      },
+      "replace_11": {
+        "name": "replace_11"
+      },
+      "replace_12": {
+        "name": "replace_12"
+      },
+      "replace_13": {
+        "name": "replace_13"
+      },
+      "replace_14": {
+        "name": "replace_14"
+      },
+      "replace_15": {
+        "name": "replace_15"
+      },
+      "replace_16": {
+        "name": "replace_16"
+      },
+      "replace_17": {
+        "name": "replace_17"
+      },
+      "replace_18": {
+        "name": "replace_18"
+      },
+      "replace_19": {
+        "name": "replace_19"
+      },
+      "replace_20": {
+        "name": "replace_20"
+      },
+      "replace_21": {
+        "name": "replace_21"
+      },
+      "replace_22": {
+        "name": "replace_22"
+      },
+      "replace_23": {
+        "name": "replace_23"
+      },
+      "replace_24": {
+        "name": "replace_24"
+      },
+      "replace_25": {
+        "name": "replace_25"
+      },
+      "replace_26": {
+        "name": "replace_26"
+      },
+      "replace_27": {
+        "name": "replace_27"
+      },
+      "replace_28": {
+        "name": "replace_28"
+      },
+      "replace_29": {
+        "name": "replace_29"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "X or Y"
+      }
+    }
+  },
+  "easy XYInputs: ControlNet": {
+    "display_name": "XY Inputs: Controlnet //EasyUse",
+    "inputs": {
+      "control_net_name": {
+        "name": "control_net_name"
+      },
+      "image": {
+        "name": "image"
+      },
+      "target_parameter": {
+        "name": "target_parameter"
+      },
+      "batch_count": {
+        "name": "batch_count"
+      },
+      "first_strength": {
+        "name": "first_strength"
+      },
+      "last_strength": {
+        "name": "last_strength"
+      },
+      "first_start_percent": {
+        "name": "first_start_percent"
+      },
+      "last_start_percent": {
+        "name": "last_start_percent"
+      },
+      "first_end_percent": {
+        "name": "first_end_percent"
+      },
+      "last_end_percent": {
+        "name": "last_end_percent"
+      },
+      "strength": {
+        "name": "strength"
+      },
+      "start_percent": {
+        "name": "start_percent"
+      },
+      "end_percent": {
+        "name": "end_percent"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "X or Y"
+      }
+    }
+  },
+  "easy XYInputs: PositiveCond": {
+    "display_name": "XY Inputs: PosCond //EasyUse",
+    "inputs": {
+      "positive_1": {
+        "name": "positive_1"
+      },
+      "positive_2": {
+        "name": "positive_2"
+      },
+      "positive_3": {
+        "name": "positive_3"
+      },
+      "positive_4": {
+        "name": "positive_4"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "X or Y"
+      }
+    }
+  },
+  "easy XYInputs: PositiveCondList": {
+    "display_name": "XY Inputs: PosCondList //EasyUse",
+    "inputs": {
+      "positive": {
+        "name": "positive"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "X or Y"
+      }
+    }
+  },
+  "easy XYInputs: NegativeCond": {
+    "display_name": "XY Inputs: NegCond //EasyUse",
+    "inputs": {
+      "negative_1": {
+        "name": "negative_1"
+      },
+      "negative_2": {
+        "name": "negative_2"
+      },
+      "negative_3": {
+        "name": "negative_3"
+      },
+      "negative_4": {
+        "name": "negative_4"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "X or Y"
+      }
+    }
+  },
+  "easy XYInputs: NegativeCondList": {
+    "display_name": "XY Inputs: NegCondList //EasyUse",
+    "inputs": {
+      "negative": {
+        "name": "negative"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "X or Y"
+      }
+    }
+  },
+  "easy imageInsetCrop": {
+    "display_name": "ImageInsetCrop",
+    "inputs": {
+      "image": {
+        "name": "image"
+      },
+      "measurement": {
+        "name": "measurement"
+      },
+      "left": {
+        "name": "left"
+      },
+      "right": {
+        "name": "right"
+      },
+      "top": {
+        "name": "top"
+      },
+      "bottom": {
+        "name": "bottom"
+      }
+    },
+    "outputs": {}
+  },
+  "easy imageCount": {
+    "display_name": "ImageCount",
+    "inputs": {
+      "images": {
+        "name": "images"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "count"
+      }
+    }
+  },
+  "easy imagesCountInDirectory": {
+    "display_name": "imagesCountInDirectory",
+    "inputs": {
+      "directory": {
+        "name": "directory"
+      },
+      "start_index": {
+        "name": "start_index"
+      },
+      "limit": {
+        "name": "limit"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "count"
+      }
+    }
+  },
+  "easy imageSize": {
+    "display_name": "ImageSize",
+    "inputs": {
+      "image": {
+        "name": "image"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "width_int"
+      },
+      "1": {
+        "name": "height_int"
+      }
+    }
+  },
+  "easy imageSizeBySide": {
+    "display_name": "ImageSize (Side)",
+    "inputs": {
+      "image": {
+        "name": "image"
+      },
+      "side": {
+        "name": "side"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "resolution"
+      }
+    }
+  },
+  "easy imageSizeByLongerSide": {
+    "display_name": "ImageSize (LongerSide)",
+    "inputs": {
+      "image": {
+        "name": "image"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "resolution"
+      }
+    }
+  },
+  "easy imagePixelPerfect": {
+    "display_name": "ImagePixelPerfect",
+    "inputs": {
+      "image": {
+        "name": "image"
+      },
+      "resize_mode": {
+        "name": "resize_mode"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "resolution"
+      }
+    }
+  },
+  "easy imageScaleDown": {
+    "display_name": "Image Scale Down",
+    "inputs": {
+      "images": {
+        "name": "images"
+      },
+      "width": {
+        "name": "width"
+      },
+      "height": {
+        "name": "height"
+      },
+      "crop": {
+        "name": "crop"
+      }
+    },
+    "outputs": {}
+  },
+  "easy imageScaleDownBy": {
+    "display_name": "Image Scale Down By",
+    "inputs": {
+      "images": {
+        "name": "images"
+      },
+      "scale_by": {
+        "name": "scale_by"
+      }
+    },
+    "outputs": {}
+  },
+  "easy imageScaleDownToSize": {
+    "display_name": "Image Scale Down To Size",
+    "inputs": {
+      "images": {
+        "name": "images"
+      },
+      "size": {
+        "name": "size"
+      },
+      "mode": {
+        "name": "mode"
+      }
+    },
+    "outputs": {}
+  },
+  "easy imageScaleToNormPixels": {
+    "display_name": "ImageScaleToNormPixels",
+    "inputs": {
+      "image": {
+        "name": "image"
+      },
+      "upscale_method": {
+        "name": "upscale_method"
+      },
+      "scale_by": {
+        "name": "scale_by"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "image"
+      }
+    }
+  },
+  "easy imageRatio": {
+    "display_name": "ImageRatio",
+    "inputs": {
+      "image": {
+        "name": "image"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "width_ratio_int"
+      },
+      "1": {
+        "name": "height_ratio_int"
+      },
+      "2": {
+        "name": "width_ratio_float"
+      },
+      "3": {
+        "name": "height_ratio_float"
+      }
+    }
+  },
+  "easy imageConcat": {
+    "display_name": "imageConcat",
+    "inputs": {
+      "image1": {
+        "name": "image1"
+      },
+      "image2": {
+        "name": "image2"
+      },
+      "direction": {
+        "name": "direction"
+      },
+      "match_image_size": {
+        "name": "match_image_size"
+      }
+    },
+    "outputs": {}
+  },
+  "easy imageListToImageBatch": {
+    "display_name": "Image List To Image Batch",
+    "inputs": {
+      "images": {
+        "name": "images"
+      }
+    },
+    "outputs": {}
+  },
+  "easy imageBatchToImageList": {
+    "display_name": "Image Batch To Image List",
+    "inputs": {
+      "image": {
+        "name": "image"
+      }
+    },
+    "outputs": {}
+  },
+  "easy imageSplitList": {
+    "display_name": "imageSplitList",
+    "inputs": {
+      "images": {
+        "name": "images"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "images"
+      },
+      "1": {
+        "name": "images"
+      },
+      "2": {
+        "name": "images"
+      }
+    }
+  },
+  "easy imageSplitGrid": {
+    "display_name": "imageSplitGrid",
+    "inputs": {
+      "images": {
+        "name": "images"
+      },
+      "row": {
+        "name": "row"
+      },
+      "column": {
+        "name": "column"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "images"
+      }
+    }
+  },
+  "easy imagesSplitImage": {
+    "display_name": "imagesSplitImage",
+    "inputs": {
+      "images": {
+        "name": "images"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "image1"
+      },
+      "1": {
+        "name": "image2"
+      },
+      "2": {
+        "name": "image3"
+      },
+      "3": {
+        "name": "image4"
+      },
+      "4": {
+        "name": "image5"
+      }
+    }
+  },
+  "easy imageSplitTiles": {
+    "display_name": "imageSplitTiles",
+    "inputs": {
+      "image": {
+        "name": "image"
+      },
+      "overlap_ratio": {
+        "name": "overlap_ratio"
+      },
+      "overlap_offset": {
+        "name": "overlap_offset"
+      },
+      "tiles_rows": {
+        "name": "tiles_rows"
+      },
+      "tiles_cols": {
+        "name": "tiles_cols"
+      },
+      "norm": {
+        "name": "norm"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "tiles"
+      },
+      "1": {
+        "name": "masks"
+      },
+      "2": {
+        "name": "overlap"
+      },
+      "3": {
+        "name": "total"
+      }
+    }
+  },
+  "easy imageTilesFromBatch": {
+    "display_name": "imageTilesFromBatch",
+    "inputs": {
+      "tiles": {
+        "name": "tiles"
+      },
+      "masks": {
+        "name": "masks"
+      },
+      "overlap": {
+        "name": "overlap"
+      },
+      "index": {
+        "name": "index"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "image"
+      },
+      "1": {
+        "name": "mask"
+      },
+      "2": {
+        "name": "x"
+      },
+      "3": {
+        "name": "y"
+      }
+    }
+  },
+  "easy imageCropFromMask": {
+    "display_name": "imageCropFromMask",
+    "inputs": {
+      "image": {
+        "name": "image"
+      },
+      "mask": {
+        "name": "mask"
+      },
+      "image_crop_multi": {
+        "name": "image_crop_multi"
+      },
+      "mask_crop_multi": {
+        "name": "mask_crop_multi"
+      },
+      "bbox_smooth_alpha": {
+        "name": "bbox_smooth_alpha"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "crop_image"
+      },
+      "1": {
+        "name": "crop_mask"
+      },
+      "2": {
+        "name": "bbox"
+      }
+    }
+  },
+  "easy imageUncropFromBBOX": {
+    "display_name": "imageUncropFromBBOX",
+    "inputs": {
+      "original_image": {
+        "name": "original_image"
+      },
+      "crop_image": {
+        "name": "crop_image"
+      },
+      "bbox": {
+        "name": "bbox"
+      },
+      "border_blending": {
+        "name": "border_blending"
+      },
+      "use_square_mask": {
+        "name": "use_square_mask"
+      },
+      "optional_mask": {
+        "name": "optional_mask"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "image"
+      }
+    }
+  },
+  "easy imageSave": {
+    "display_name": "Save Image (Simple)",
+    "inputs": {
+      "images": {
+        "name": "images"
+      },
+      "filename_prefix": {
+        "name": "filename_prefix"
+      },
+      "only_preview": {
+        "name": "only_preview"
+      }
+    },
+    "outputs": {}
+  },
+  "easy imageRemBg": {
+    "display_name": "Image Remove Bg",
+    "inputs": {
+      "images": {
+        "name": "images"
+      },
+      "rem_mode": {
+        "name": "rem_mode"
+      },
+      "image_output": {
+        "name": "image_output"
+      },
+      "save_prefix": {
+        "name": "save_prefix"
+      },
+      "torchscript_jit": {
+        "name": "torchscript_jit"
+      },
+      "add_background": {
+        "name": "add_background"
+      },
+      "refine_foreground": {
+        "name": "refine_foreground"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "image"
+      },
+      "1": {
+        "name": "mask"
+      }
+    }
+  },
+  "easy imageChooser": {
+    "display_name": "Image Chooser",
+    "inputs": {
+      "mode": {
+        "name": "mode"
+      },
+      "images": {
+        "name": "images"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "image"
+      }
+    }
+  },
+  "easy imageColorMatch": {
+    "display_name": "Image Color Match",
+    "inputs": {
+      "image_ref": {
+        "name": "image_ref"
+      },
+      "image_target": {
+        "name": "image_target"
+      },
+      "method": {
+        "name": "method"
+      },
+      "image_output": {
+        "name": "image_output"
+      },
+      "save_prefix": {
+        "name": "save_prefix"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "image"
+      }
+    }
+  },
+  "easy imageDetailTransfer": {
+    "display_name": "Image Detail Transfer",
+    "inputs": {
+      "target": {
+        "name": "target"
+      },
+      "source": {
+        "name": "source"
+      },
+      "mode": {
+        "name": "mode"
+      },
+      "blur_sigma": {
+        "name": "blur_sigma"
+      },
+      "blend_factor": {
+        "name": "blend_factor"
+      },
+      "image_output": {
+        "name": "image_output"
+      },
+      "save_prefix": {
+        "name": "save_prefix"
+      },
+      "mask": {
+        "name": "mask"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "image"
+      }
+    }
+  },
+  "easy imageInterrogator": {
+    "display_name": "Image To Prompt",
+    "inputs": {
+      "image": {
+        "name": "image"
+      },
+      "mode": {
+        "name": "mode"
+      },
+      "use_lowvram": {
+        "name": "use_lowvram"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "prompt"
+      }
+    }
+  },
+  "easy loadImagesForLoop": {
+    "display_name": "Load Images For Loop",
+    "inputs": {
+      "directory": {
+        "name": "directory"
+      },
+      "start_index": {
+        "name": "start_index"
+      },
+      "limit": {
+        "name": "limit"
+      },
+      "initial_value1": {
+        "name": "initial_value1"
+      },
+      "initial_value2": {
+        "name": "initial_value2"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "flow"
+      },
+      "1": {
+        "name": "index"
+      },
+      "2": {
+        "name": "image"
+      },
+      "3": {
+        "name": "mask"
+      },
+      "4": {
+        "name": "name"
+      },
+      "5": {
+        "name": "value1"
+      },
+      "6": {
+        "name": "value2"
+      }
+    }
+  },
+  "easy loadImageBase64": {
+    "display_name": "Load Image (Base64)",
+    "inputs": {
+      "base64_data": {
+        "name": "base64_data"
+      },
+      "image_output": {
+        "name": "image_output"
+      },
+      "save_prefix": {
+        "name": "save_prefix"
+      }
+    },
+    "outputs": {}
+  },
+  "easy imageToBase64": {
+    "display_name": "Image To Base64",
+    "inputs": {
+      "image": {
+        "name": "image"
+      }
+    },
+    "outputs": {}
+  },
+  "easy joinImageBatch": {
+    "display_name": "JoinImageBatch",
+    "inputs": {
+      "images": {
+        "name": "images"
+      },
+      "mode": {
+        "name": "mode"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "image"
+      }
+    }
+  },
+  "easy humanSegmentation": {
+    "display_name": "Human Segmentation",
+    "inputs": {
+      "image": {
+        "name": "image"
+      },
+      "method": {
+        "name": "method"
+      },
+      "confidence": {
+        "name": "confidence"
+      },
+      "crop_multi": {
+        "name": "crop_multi"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "image"
+      },
+      "1": {
+        "name": "mask"
+      },
+      "2": {
+        "name": "bbox"
+      }
+    }
+  },
+  "easy removeLocalImage": {
+    "display_name": "Remove Local Image",
+    "inputs": {
+      "any": {
+        "name": "any"
+      },
+      "file_name": {
+        "name": "file_name"
+      }
+    },
+    "outputs": {}
+  },
+  "easy makeImageForICLora": {
+    "display_name": "Make Image For ICLora",
+    "inputs": {
+      "image_1": {
+        "name": "image_1"
+      },
+      "direction": {
+        "name": "direction"
+      },
+      "pixels": {
+        "name": "pixels"
+      },
+      "image_2": {
+        "name": "image_2"
+      },
+      "mask_1": {
+        "name": "mask_1"
+      },
+      "mask_2": {
+        "name": "mask_2"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "image"
+      },
+      "1": {
+        "name": "mask"
+      },
+      "2": {
+        "name": "context_mask"
+      },
+      "3": {
+        "name": "width"
+      },
+      "4": {
+        "name": "height"
+      },
+      "5": {
+        "name": "x"
+      },
+      "6": {
+        "name": "y"
+      }
+    }
+  },
+  "easy string": {
+    "display_name": "String",
+    "inputs": {
+      "value": {
+        "name": "value"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "string"
+      }
+    }
+  },
+  "easy int": {
+    "display_name": "Int",
+    "inputs": {
+      "value": {
+        "name": "value"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "int"
+      }
+    }
+  },
+  "easy rangeInt": {
+    "display_name": "Range(Int)",
+    "inputs": {
+      "range_mode": {
+        "name": "range_mode"
+      },
+      "start": {
+        "name": "start"
+      },
+      "stop": {
+        "name": "stop"
+      },
+      "step": {
+        "name": "step"
+      },
+      "num_steps": {
+        "name": "num_steps"
+      },
+      "end_mode": {
+        "name": "end_mode"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "range"
+      },
+      "1": {
+        "name": "range_sizes"
+      }
+    }
+  },
+  "easy float": {
+    "display_name": "Float",
+    "inputs": {
+      "value": {
+        "name": "value"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "float"
+      }
+    }
+  },
+  "easy rangeFloat": {
+    "display_name": "Range(Float)",
+    "inputs": {
+      "range_mode": {
+        "name": "range_mode"
+      },
+      "start": {
+        "name": "start"
+      },
+      "stop": {
+        "name": "stop"
+      },
+      "step": {
+        "name": "step"
+      },
+      "num_steps": {
+        "name": "num_steps"
+      },
+      "end_mode": {
+        "name": "end_mode"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "range"
+      },
+      "1": {
+        "name": "range_sizes"
+      }
+    }
+  },
+  "easy boolean": {
+    "display_name": "Boolean",
+    "inputs": {
+      "value": {
+        "name": "value"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "boolean"
+      }
+    }
+  },
+  "easy mathString": {
+    "display_name": "Math String",
+    "inputs": {
+      "a": {
+        "name": "a"
+      },
+      "b": {
+        "name": "b"
+      },
+      "operation": {
+        "name": "operation"
+      },
+      "case_sensitive": {
+        "name": "case_sensitive"
+      }
+    },
+    "outputs": {}
+  },
+  "easy mathInt": {
+    "display_name": "Math Int",
+    "inputs": {
+      "a": {
+        "name": "a"
+      },
+      "b": {
+        "name": "b"
+      },
+      "operation": {
+        "name": "operation"
+      }
+    },
+    "outputs": {}
+  },
+  "easy mathFloat": {
+    "display_name": "Math Float",
+    "inputs": {
+      "a": {
+        "name": "a"
+      },
+      "b": {
+        "name": "b"
+      },
+      "operation": {
+        "name": "operation"
+      }
+    },
+    "outputs": {}
+  },
+  "easy compare": {
+    "display_name": "Compare",
+    "inputs": {
+      "a": {
+        "name": "a"
+      },
+      "b": {
+        "name": "b"
+      },
+      "comparison": {
+        "name": "comparison"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "boolean"
+      }
+    }
+  },
+  "easy imageSwitch": {
+    "display_name": "Image Switch",
+    "inputs": {
+      "image_a": {
+        "name": "image_a"
+      },
+      "image_b": {
+        "name": "image_b"
+      },
+      "boolean": {
+        "name": "boolean"
+      }
+    },
+    "outputs": {}
+  },
+  "easy textSwitch": {
+    "display_name": "Text Switch",
+    "inputs": {
+      "input": {
+        "name": "input"
+      },
+      "text1": {
+        "name": "text1"
+      },
+      "text2": {
+        "name": "text2"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "STRING"
+      }
+    }
+  },
+  "easy imageIndexSwitch": {
+    "display_name": "Image Index Switch",
+    "inputs": {
+      "index": {
+        "name": "index"
+      },
+      "image0": {
+        "name": "image0"
+      },
+      "image1": {
+        "name": "image1"
+      },
+      "image2": {
+        "name": "image2"
+      },
+      "image3": {
+        "name": "image3"
+      },
+      "image4": {
+        "name": "image4"
+      },
+      "image5": {
+        "name": "image5"
+      },
+      "image6": {
+        "name": "image6"
+      },
+      "image7": {
+        "name": "image7"
+      },
+      "image8": {
+        "name": "image8"
+      },
+      "image9": {
+        "name": "image9"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "image"
+      }
+    }
+  },
+  "easy textIndexSwitch": {
+    "display_name": "Text Index Switch",
+    "inputs": {
+      "index": {
+        "name": "index"
+      },
+      "text0": {
+        "name": "text0"
+      },
+      "text1": {
+        "name": "text1"
+      },
+      "text2": {
+        "name": "text2"
+      },
+      "text3": {
+        "name": "text3"
+      },
+      "text4": {
+        "name": "text4"
+      },
+      "text5": {
+        "name": "text5"
+      },
+      "text6": {
+        "name": "text6"
+      },
+      "text7": {
+        "name": "text7"
+      },
+      "text8": {
+        "name": "text8"
+      },
+      "text9": {
+        "name": "text9"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "text"
+      }
+    }
+  },
+  "easy conditioningIndexSwitch": {
+    "display_name": "Conditioning Index Switch",
+    "inputs": {
+      "index": {
+        "name": "index"
+      },
+      "cond0": {
+        "name": "cond0"
+      },
+      "cond1": {
+        "name": "cond1"
+      },
+      "cond2": {
+        "name": "cond2"
+      },
+      "cond3": {
+        "name": "cond3"
+      },
+      "cond4": {
+        "name": "cond4"
+      },
+      "cond5": {
+        "name": "cond5"
+      },
+      "cond6": {
+        "name": "cond6"
+      },
+      "cond7": {
+        "name": "cond7"
+      },
+      "cond8": {
+        "name": "cond8"
+      },
+      "cond9": {
+        "name": "cond9"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "conditioning"
+      }
+    }
+  },
+  "easy anythingIndexSwitch": {
+    "display_name": "Any Index Switch",
+    "inputs": {
+      "index": {
+        "name": "index"
+      },
+      "value0": {
+        "name": "value0"
+      },
+      "value1": {
+        "name": "value1"
+      },
+      "value2": {
+        "name": "value2"
+      },
+      "value3": {
+        "name": "value3"
+      },
+      "value4": {
+        "name": "value4"
+      },
+      "value5": {
+        "name": "value5"
+      },
+      "value6": {
+        "name": "value6"
+      },
+      "value7": {
+        "name": "value7"
+      },
+      "value8": {
+        "name": "value8"
+      },
+      "value9": {
+        "name": "value9"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "value"
+      }
+    }
+  },
+  "easy ab": {
+    "display_name": "A or B",
+    "inputs": {
+      "A or B": {
+        "name": "A or B"
+      },
+      "in": {
+        "name": "in"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "A"
+      },
+      "1": {
+        "name": "B"
+      }
+    }
+  },
+  "easy anythingInversedSwitch": {
+    "display_name": "Any Inversed Switch",
+    "inputs": {
+      "index": {
+        "name": "index"
+      },
+      "in": {
+        "name": "in"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "out0"
+      }
+    }
+  },
+  "easy whileLoopStart": {
+    "display_name": "While Loop Start",
+    "inputs": {
+      "condition": {
+        "name": "condition"
+      },
+      "initial_value0": {
+        "name": "initial_value0"
+      },
+      "initial_value1": {
+        "name": "initial_value1"
+      },
+      "initial_value2": {
+        "name": "initial_value2"
+      },
+      "initial_value3": {
+        "name": "initial_value3"
+      },
+      "initial_value4": {
+        "name": "initial_value4"
+      },
+      "initial_value5": {
+        "name": "initial_value5"
+      },
+      "initial_value6": {
+        "name": "initial_value6"
+      },
+      "initial_value7": {
+        "name": "initial_value7"
+      },
+      "initial_value8": {
+        "name": "initial_value8"
+      },
+      "initial_value9": {
+        "name": "initial_value9"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "flow"
+      },
+      "1": {
+        "name": "value0"
+      },
+      "2": {
+        "name": "value1"
+      },
+      "3": {
+        "name": "value2"
+      },
+      "4": {
+        "name": "value3"
+      },
+      "5": {
+        "name": "value4"
+      },
+      "6": {
+        "name": "value5"
+      },
+      "7": {
+        "name": "value6"
+      },
+      "8": {
+        "name": "value7"
+      },
+      "9": {
+        "name": "value8"
+      },
+      "10": {
+        "name": "value9"
+      }
+    }
+  },
+  "easy whileLoopEnd": {
+    "display_name": "While Loop End",
+    "inputs": {
+      "flow": {
+        "name": "flow"
+      },
+      "condition": {
+        "name": "condition"
+      },
+      "initial_value0": {
+        "name": "initial_value0"
+      },
+      "initial_value1": {
+        "name": "initial_value1"
+      },
+      "initial_value2": {
+        "name": "initial_value2"
+      },
+      "initial_value3": {
+        "name": "initial_value3"
+      },
+      "initial_value4": {
+        "name": "initial_value4"
+      },
+      "initial_value5": {
+        "name": "initial_value5"
+      },
+      "initial_value6": {
+        "name": "initial_value6"
+      },
+      "initial_value7": {
+        "name": "initial_value7"
+      },
+      "initial_value8": {
+        "name": "initial_value8"
+      },
+      "initial_value9": {
+        "name": "initial_value9"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "value0"
+      },
+      "1": {
+        "name": "value1"
+      },
+      "2": {
+        "name": "value2"
+      },
+      "3": {
+        "name": "value3"
+      },
+      "4": {
+        "name": "value4"
+      },
+      "5": {
+        "name": "value5"
+      },
+      "6": {
+        "name": "value6"
+      },
+      "7": {
+        "name": "value7"
+      },
+      "8": {
+        "name": "value8"
+      },
+      "9": {
+        "name": "value9"
+      }
+    }
+  },
+  "easy forLoopStart": {
+    "display_name": "For Loop Start",
+    "inputs": {
+      "total": {
+        "name": "total"
+      },
+      "initial_value1": {
+        "name": "initial_value1"
+      },
+      "initial_value2": {
+        "name": "initial_value2"
+      },
+      "initial_value3": {
+        "name": "initial_value3"
+      },
+      "initial_value4": {
+        "name": "initial_value4"
+      },
+      "initial_value5": {
+        "name": "initial_value5"
+      },
+      "initial_value6": {
+        "name": "initial_value6"
+      },
+      "initial_value7": {
+        "name": "initial_value7"
+      },
+      "initial_value8": {
+        "name": "initial_value8"
+      },
+      "initial_value9": {
+        "name": "initial_value9"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "flow"
+      },
+      "1": {
+        "name": "index"
+      },
+      "2": {
+        "name": "value1"
+      },
+      "3": {
+        "name": "value2"
+      },
+      "4": {
+        "name": "value3"
+      },
+      "5": {
+        "name": "value4"
+      },
+      "6": {
+        "name": "value5"
+      },
+      "7": {
+        "name": "value6"
+      },
+      "8": {
+        "name": "value7"
+      },
+      "9": {
+        "name": "value8"
+      },
+      "10": {
+        "name": "value9"
+      }
+    }
+  },
+  "easy forLoopEnd": {
+    "display_name": "For Loop End",
+    "inputs": {
+      "flow": {
+        "name": "flow"
+      },
+      "initial_value1": {
+        "name": "initial_value1"
+      },
+      "initial_value2": {
+        "name": "initial_value2"
+      },
+      "initial_value3": {
+        "name": "initial_value3"
+      },
+      "initial_value4": {
+        "name": "initial_value4"
+      },
+      "initial_value5": {
+        "name": "initial_value5"
+      },
+      "initial_value6": {
+        "name": "initial_value6"
+      },
+      "initial_value7": {
+        "name": "initial_value7"
+      },
+      "initial_value8": {
+        "name": "initial_value8"
+      },
+      "initial_value9": {
+        "name": "initial_value9"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "value1"
+      },
+      "1": {
+        "name": "value2"
+      },
+      "2": {
+        "name": "value3"
+      },
+      "3": {
+        "name": "value4"
+      },
+      "4": {
+        "name": "value5"
+      },
+      "5": {
+        "name": "value6"
+      },
+      "6": {
+        "name": "value7"
+      },
+      "7": {
+        "name": "value8"
+      },
+      "8": {
+        "name": "value9"
+      }
+    }
+  },
+  "easy blocker": {
+    "display_name": "Blocker",
+    "inputs": {
+      "continue": {
+        "name": "continue"
+      },
+      "in": {
+        "name": "in"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "out"
+      }
+    }
+  },
+  "easy ifElse": {
+    "display_name": "If else",
+    "inputs": {
+      "boolean": {
+        "name": "boolean"
+      },
+      "on_true": {
+        "name": "on_true"
+      },
+      "on_false": {
+        "name": "on_false"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "*"
+      }
+    }
+  },
+  "easy isMaskEmpty": {
+    "display_name": "Is Mask Empty",
+    "inputs": {
+      "mask": {
+        "name": "mask"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "boolean"
+      }
+    }
+  },
+  "easy isNone": {
+    "display_name": "Is None",
+    "inputs": {
+      "any": {
+        "name": "any"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "boolean"
+      }
+    }
+  },
+  "easy isSDXL": {
+    "display_name": "Is SDXL",
+    "inputs": {
+      "optional_pipe": {
+        "name": "optional_pipe"
+      },
+      "optional_clip": {
+        "name": "optional_clip"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "boolean"
+      }
+    }
+  },
+  "easy isFileExist": {
+    "display_name": "Is File Exist",
+    "inputs": {
+      "file_path": {
+        "name": "file_path"
+      },
+      "file_name": {
+        "name": "file_name"
+      },
+      "file_extension": {
+        "name": "file_extension"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "boolean"
+      }
+    }
+  },
+  "easy outputToList": {
+    "display_name": "Output to List",
+    "inputs": {
+      "tuple": {
+        "name": "tuple"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "list"
+      }
+    }
+  },
+  "easy pixels": {
+    "display_name": "Pixels W/H Norm",
+    "inputs": {
+      "resolution": {
+        "name": "resolution"
+      },
+      "width": {
+        "name": "width"
+      },
+      "height": {
+        "name": "height"
+      },
+      "scale": {
+        "name": "scale"
+      },
+      "flip_w/h": {
+        "name": "flip_w/h"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "width_norm"
+      },
+      "1": {
+        "name": "height_norm"
+      },
+      "2": {
+        "name": "width"
+      },
+      "3": {
+        "name": "height"
+      },
+      "4": {
+        "name": "scale_factor"
+      }
+    }
+  },
+  "easy xyAny": {
+    "display_name": "XY Any",
+    "inputs": {
+      "X": {
+        "name": "X"
+      },
+      "Y": {
+        "name": "Y"
+      },
+      "direction": {
+        "name": "direction"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "X"
+      },
+      "1": {
+        "name": "Y"
+      }
+    }
+  },
+  "easy lengthAnything": {
+    "display_name": "Length Any",
+    "inputs": {
+      "any": {
+        "name": "any"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "length"
+      }
+    }
+  },
+  "easy indexAnything": {
+    "display_name": "Index Any",
+    "inputs": {
+      "any": {
+        "name": "any"
+      },
+      "index": {
+        "name": "index"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "out"
+      }
+    }
+  },
+  "easy batchAnything": {
+    "display_name": "Batch Any",
+    "inputs": {
+      "any_1": {
+        "name": "any_1"
+      },
+      "any_2": {
+        "name": "any_2"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "batch"
+      }
+    }
+  },
+  "easy convertAnything": {
+    "display_name": "Convert Any",
+    "inputs": {
+      "*": {
+        "name": "*"
+      },
+      "output_type": {
+        "name": "output_type"
+      }
+    },
+    "outputs": {}
+  },
+  "easy showAnything": {
+    "display_name": "Show Any",
+    "inputs": {
+      "anything": {
+        "name": "anything"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "output"
+      }
+    }
+  },
+  "easy showTensorShape": {
+    "display_name": "Show Tensor Shape",
+    "inputs": {
+      "tensor": {
+        "name": "tensor"
+      }
+    },
+    "outputs": {}
+  },
+  "easy clearCacheKey": {
+    "display_name": "Clear Cache Key",
+    "inputs": {
+      "anything": {
+        "name": "anything"
+      },
+      "cache_key": {
+        "name": "cache_key"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "output"
+      }
+    }
+  },
+  "easy clearCacheAll": {
+    "display_name": "Clear Cache All",
+    "inputs": {
+      "anything": {
+        "name": "anything"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "output"
+      }
+    }
+  },
+  "easy cleanGpuUsed": {
+    "display_name": "Clean VRAM Used",
+    "inputs": {
+      "anything": {
+        "name": "anything"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "output"
+      }
+    }
+  },
+  "easy saveText": {
+    "display_name": "Save Text",
+    "inputs": {
+      "text": {
+        "name": "text"
+      },
+      "output_file_path": {
+        "name": "output_file_path"
+      },
+      "file_name": {
+        "name": "file_name"
+      },
+      "file_extension": {
+        "name": "file_extension"
+      },
+      "overwrite": {
+        "name": "overwrite"
+      },
+      "image": {
+        "name": "image"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "text"
+      },
+      "1": {
+        "name": "image"
+      }
+    }
+  },
+  "easy sleep": {
+    "display_name": "Sleep",
+    "inputs": {
+      "any": {
+        "name": "any"
+      },
+      "delay": {
+        "name": "delay"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "out"
+      }
+    }
+  },
+  "easy fluxPromptGenAPI": {
+    "display_name": "Prompt Gen (FluxAI)",
+    "inputs": {
+      "describe": {
+        "name": "describe"
+      },
+      "cookie_override": {
+        "name": "cookie_override"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "prompt"
+      }
+    }
+  },
+  "easy joyCaption2API": {
+    "display_name": "JoyCaption2 (BizyAIR)",
+    "inputs": {
+      "image": {
+        "name": "image"
+      },
+      "do_sample": {
+        "name": "do_sample"
+      },
+      "temperature": {
+        "name": "temperature"
+      },
+      "max_tokens": {
+        "name": "max_tokens"
+      },
+      "caption_type": {
+        "name": "caption_type"
+      },
+      "caption_length": {
+        "name": "caption_length"
+      },
+      "extra_options": {
+        "name": "extra_options"
+      },
+      "name_input": {
+        "name": "name_input"
+      },
+      "custom_prompt": {
+        "name": "custom_prompt"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "caption"
+      }
+    }
+  },
+  "easy if": {
+    "display_name": "If (🚫Deprecated)",
+    "inputs": {
+      "any": {
+        "name": "any"
+      },
+      "if": {
+        "name": "if"
+      },
+      "else": {
+        "name": "else"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "?"
+      }
+    }
+  },
+  "easy poseEditor": {
+    "display_name": "PoseEditor (🚫Deprecated)",
+    "inputs": {
+      "image": {
+        "name": "image"
+      }
+    },
+    "outputs": {}
+  },
+  "easy imageToMask": {
+    "display_name": "ImageToMask (🚫Deprecated)",
+    "inputs": {
+      "image": {
+        "name": "image"
+      },
+      "channel": {
+        "name": "channel"
+      }
+    },
+    "outputs": {}
+  },
+  "easy showSpentTime": {
+    "display_name": "Show Spent Time (🚫Deprecated)",
+    "inputs": {
+      "pipe": {
+        "name": "pipe"
+      }
+    },
+    "outputs": {}
+  },
+  "easy latentNoisy": {
+    "display_name": "LatentNoisy (🚫Deprecated)",
+    "inputs": {
+      "sampler_name": {
+        "name": "sampler_name"
+      },
+      "scheduler": {
+        "name": "scheduler"
+      },
+      "steps": {
+        "name": "steps"
+      },
+      "start_at_step": {
+        "name": "start_at_step"
+      },
+      "end_at_step": {
+        "name": "end_at_step"
+      },
+      "source": {
+        "name": "source"
+      },
+      "seed": {
+        "name": "seed"
+      },
+      "pipe": {
+        "name": "pipe"
+      },
+      "optional_model": {
+        "name": "optional_model"
+      },
+      "optional_latent": {
+        "name": "optional_latent"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "pipe"
+      },
+      "1": {
+        "name": "latent"
+      },
+      "2": {
+        "name": "sigma"
+      }
+    }
+  },
+  "easy latentCompositeMaskedWithCond": {
+    "display_name": "LatentCompositeMaskedWithCond (🚫Deprecated)",
+    "inputs": {
+      "pipe": {
+        "name": "pipe"
+      },
+      "text_combine": {
+        "name": "text_combine"
+      },
+      "source_latent": {
+        "name": "source_latent"
+      },
+      "source_mask": {
+        "name": "source_mask"
+      },
+      "destination_mask": {
+        "name": "destination_mask"
+      },
+      "text_combine_mode": {
+        "name": "text_combine_mode"
+      },
+      "replace_text": {
+        "name": "replace_text"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "pipe"
+      },
+      "1": {
+        "name": "latent"
+      },
+      "2": {
+        "name": "conditioning"
+      }
+    }
+  },
+  "easy injectNoiseToLatent": {
+    "display_name": "InjectNoiseToLatent (🚫Deprecated)",
+    "inputs": {
+      "strength": {
+        "name": "strength"
+      },
+      "normalize": {
+        "name": "normalize"
+      },
+      "average": {
+        "name": "average"
+      },
+      "pipe_to_noise": {
+        "name": "pipe_to_noise"
+      },
+      "image_to_latent": {
+        "name": "image_to_latent"
+      },
+      "latent": {
+        "name": "latent"
+      },
+      "noise": {
+        "name": "noise"
+      },
+      "mask": {
+        "name": "mask"
+      },
+      "mix_randn_amount": {
+        "name": "mix_randn_amount"
+      },
+      "seed": {
+        "name": "seed"
+      }
+    },
+    "outputs": {}
+  },
+  "easy stableDiffusion3API": {
+    "display_name": "StableDiffusion3API (🚫Deprecated)",
+    "inputs": {
+      "positive": {
+        "name": "positive"
+      },
+      "negative": {
+        "name": "negative"
+      },
+      "model": {
+        "name": "model"
+      },
+      "aspect_ratio": {
+        "name": "aspect_ratio"
+      },
+      "seed": {
+        "name": "seed"
+      },
+      "denoise": {
+        "name": "denoise"
+      },
+      "optional_image": {
+        "name": "optional_image"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "image"
+      }
+    }
+  },
+  "easy saveImageLazy": {
+    "display_name": "SaveImageLazy (🚫Deprecated)",
+    "inputs": {
+      "images": {
+        "name": "images"
+      },
+      "filename_prefix": {
+        "name": "filename_prefix"
+      },
+      "save_metadata": {
+        "name": "save_metadata"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "images"
+      }
+    }
+  },
+  "easy saveTextLazy": {
+    "display_name": "SaveTextLazy (🚫Deprecated)",
+    "inputs": {
+      "text": {
+        "name": "text"
+      },
+      "output_file_path": {
+        "name": "output_file_path"
+      },
+      "file_name": {
+        "name": "file_name"
+      },
+      "file_extension": {
+        "name": "file_extension"
+      },
+      "overwrite": {
+        "name": "overwrite"
+      },
+      "image": {
+        "name": "image"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "text"
+      },
+      "1": {
+        "name": "image"
+      }
+    }
+  },
+  "easy showAnythingLazy": {
+    "display_name": "ShowAnythingLazy (🚫Deprecated)",
+    "inputs": {
+      "anything": {
+        "name": "anything"
+      }
+    },
+    "outputs": {
+      "0": {
+        "name": "output"
+      }
+    }
+  }
+}

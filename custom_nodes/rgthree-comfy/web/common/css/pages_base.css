@@ -1,0 +1,66 @@
+html {
+  font-size: 100%;
+  overflow-y: scroll;
+  -webkit-text-size-adjust: 100%;
+  -ms-text-size-adjust: 100%;
+  box-sizing: border-box;
+}
+
+*, *:before, *:after {
+  box-sizing: inherit;
+}
+
+:root {
+  --header-height: 56px;
+  --progress-height: 12px;
+}
+
+button {
+  all: unset;
+}
+
+.-bevel {
+  position: relative;
+}
+
+.-bevel::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  border: 1px solid red;
+  border-color: rgba(255, 255, 255, 0.15) rgba(255, 255, 255, 0.15) rgba(0, 0, 0, 0.5) rgba(0, 0, 0, 0.5);
+  z-index: 5;
+  pointer-events: none;
+}
+
+body {
+  background: #202020;
+  font-family: Arial, sans-serif;
+  font-size: 1rem;
+  font-weight: 400;
+  margin: 0;
+  padding-top: calc(var(--header-height) + var(--progress-height));
+  color: #ffffff;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: start;
+}
+
+.app-header {
+  height: var(--header-height);
+  padding: 0;
+  position: fixed;
+  z-index: 99;
+  top: 0;
+  left: 0;
+  width: 100%;
+  background: #353535;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: start;
+}

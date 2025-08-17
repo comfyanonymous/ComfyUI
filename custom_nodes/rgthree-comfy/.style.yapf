@@ -1,0 +1,11 @@
+# https://github.com/google/yapf
+[style]
+based_on_style = google
+INDENT_WIDTH = 2
+CONTINUATION_INDENT_WIDTH = 2
+COLUMN_LIMIT = 100
+DISABLE_ENDING_COMMA_HEURISTIC = true
+DEDENT_CLOSING_BRACKETS = true
+FORCE_MULTILINE_DICT = false
+coalesce_brackets=True
+ALLOW_SPLIT_BEFORE_DICT_VALUE  = false

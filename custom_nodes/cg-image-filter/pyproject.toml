@@ -1,0 +1,13 @@
+[project]
+name = "cg-image-filter"
+description = "A set of custom nodes that pause a workflow while you select images, add masks, or edit text."
+version = "1.6.1"
+license = { file = "LICENSE" }
+
+[project.urls]
+Repository = "https://github.com/chrisgoringe/cg-image-filter"
+
+[tool.comfy]
+PublisherId = "chrisgoringe"
+DisplayName = "cg-image-filter"
+Icon = ""

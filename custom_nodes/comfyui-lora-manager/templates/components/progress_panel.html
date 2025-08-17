@@ -1,0 +1,53 @@
+<!-- Example Images Download Progress Panel -->
+<div id="exampleImagesProgress" class="progress-panel">
+    <div class="progress-panel-header">
+        <div class="progress-panel-title">
+            <i class="fas fa-images"></i> Example Images Download
+        </div>
+        <div class="progress-panel-actions">
+            <button id="pauseExampleDownloadBtn" class="icon-button">
+                <i class="fas fa-pause"></i>
+                <svg class="mini-progress-container" width="24" height="24" viewBox="0 0 24 24">
+                    <circle class="mini-progress-background" cx="12" cy="12" r="10"></circle>
+                    <circle class="mini-progress-circle" cx="12" cy="12" r="10" stroke-dasharray="62.8" stroke-dashoffset="62.8"></circle>
+                </svg>
+                <span class="progress-percent"></span>
+            </button>
+            <button id="collapseProgressBtn" class="icon-button">
+                <i class="fas fa-chevron-down"></i>
+            </button>
+        </div>
+    </div>
+    <div class="progress-panel-content">
+        <div class="download-progress-info">
+            <div class="progress-status">
+                <span id="downloadStatusText">Initializing...</span>
+                <span id="downloadProgressCounts">0/0</span>
+            </div>
+            <div class="progress-container">
+                <div id="downloadProgressBar" class="progress-bar" style="width: 0%;"></div>
+            </div>
+        </div>
+        
+        <div class="current-model-info">
+            <div class="current-label">Currently downloading:</div>
+            <div id="currentModelName" class="current-model-name">-</div>
+        </div>
+        
+        <div class="download-stats">
+            <div class="stat-item">
+                <span class="stat-label">Elapsed:</span>
+                <span id="elapsedTime" class="stat-value">00:00:00</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-label">Remaining:</span>
+                <span id="remainingTime" class="stat-value">--:--:--</span>
+            </div>
+        </div>
+        
+        <div id="downloadErrorContainer" class="download-errors hidden">
+            <div class="error-header">Recent Errors:</div>
+            <div id="downloadErrors" class="error-list"></div>
+        </div>
+    </div>
+</div>

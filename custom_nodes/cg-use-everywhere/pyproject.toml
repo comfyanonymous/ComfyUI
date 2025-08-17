@@ -1,0 +1,13 @@
+[project]
+name = "cg-use-everywhere"
+description = "A set of nodes that allow data to be 'broadcast' to some or all unconnected inputs. Greatly reduces link spaghetti."
+version = "7.0.1"
+license = { file = "LICENSE" }
+
+[project.urls]
+Repository = "https://github.com/chrisgoringe/cg-use-everywhere"
+
+[tool.comfy]
+PublisherId = "chrisgoringe"
+DisplayName = "cg-use-everywhere"
+Icon = ""

@@ -1,0 +1,9 @@
+{
+    "main_pass":
+    [
+        "-n",
+        "-pix_fmt", "rgba64"
+    ],
+    "input_color_depth": "16bit",
+    "extension": "%03d.png"
+}

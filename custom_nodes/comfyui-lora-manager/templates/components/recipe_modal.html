@@ -1,0 +1,74 @@
+<div id="recipeModal" class="modal">
+    <div class="modal-content">
+        <button class="close" onclick="modalManager.closeModal('recipeModal')">&times;</button>
+        
+        <header class="recipe-modal-header">
+            <h2 id="recipeModalTitle">Recipe Details</h2>
+            <!-- Recipe Tags Container -->
+            <div class="recipe-tags-container">
+                <div class="recipe-tags-compact" id="recipeTagsCompact"></div>
+                <div class="recipe-tags-tooltip" id="recipeTagsTooltip">
+                    <div class="tooltip-content" id="recipeTagsTooltipContent"></div>
+                </div>
+            </div>
+        </header>
+        
+        <div class="modal-body">
+            <!-- Top Section: Preview and Generation Parameters -->
+            <div class="recipe-top-section">
+                <div class="recipe-preview-container" id="recipePreviewContainer">
+                    <img id="recipeModalImage" src="" alt="Recipe Preview" class="recipe-preview-media">
+                    <!-- Source URL elements are now added dynamically in RecipeModal.js -->
+                </div>
+                
+                <div class="info-section recipe-gen-params">
+                    <h3>Generation Parameters</h3>
+                    
+                    <div class="gen-params-container">
+                        <!-- Prompt -->
+                        <div class="param-group info-item">
+                            <div class="param-header">
+                                <label>Prompt</label>
+                                <button class="copy-btn" id="copyPromptBtn" title="Copy Prompt">
+                                    <i class="fas fa-copy"></i>
+                                </button>
+                            </div>
+                            <div class="param-content" id="recipePrompt"></div>
+                        </div>
+                        
+                        <!-- Negative Prompt -->
+                        <div class="param-group info-item">
+                            <div class="param-header">
+                                <label>Negative Prompt</label>
+                                <button class="copy-btn" id="copyNegativePromptBtn" title="Copy Negative Prompt">
+                                    <i class="fas fa-copy"></i>
+                                </button>
+                            </div>
+                            <div class="param-content" id="recipeNegativePrompt"></div>
+                        </div>
+                        
+                        <!-- Other Parameters -->
+                        <div class="other-params" id="recipeOtherParams"></div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Bottom Section: Resources -->
+            <div class="info-section recipe-bottom-section">
+                <div class="recipe-section-header">
+                    <h3>Resources</h3>
+                    <div class="recipe-section-actions">
+                        <span id="recipeLorasCount"><i class="fas fa-layer-group"></i> 0 LoRAs</span>
+                        <button class="action-btn view-loras-btn" id="viewRecipeLorasBtn" title="View all LoRAs in this recipe">
+                            <i class="fas fa-external-link-alt"></i>
+                        </button>
+                        <button class="copy-btn" id="copyRecipeSyntaxBtn" title="Copy Recipe Syntax">
+                            <i class="fas fa-copy"></i>
+                        </button>
+                    </div>
+                </div>
+                <div class="recipe-loras-list" id="recipeLorasList"></div>
+            </div>
+        </div>
+    </div>
+</div>

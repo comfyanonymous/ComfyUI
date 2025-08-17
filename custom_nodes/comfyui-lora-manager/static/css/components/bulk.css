@@ -1,0 +1,295 @@
+/* Bulk Operations Styles */
+.bulk-operations-panel {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateY(100px) translateX(-50%);
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius-base);
+    padding: 12px 16px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    z-index: var(--z-overlay);
+    display: flex;
+    flex-direction: column;
+    min-width: 300px;
+    transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    opacity: 0;
+}
+
+.bulk-operations-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+    gap: 20px; /* Increase space between count and buttons */
+}
+
+#selectedCount {
+    font-weight: 500;
+    background: var(--bg-color);
+    padding: 6px 12px;
+    border-radius: var(--border-radius-xs);
+    border: 1px solid var(--border-color);
+    min-width: 80px;
+    text-align: center;
+}
+
+.bulk-operations-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.bulk-operations-actions button {
+    padding: 6px 12px;
+    border-radius: var(--border-radius-xs);
+    background: var(--bg-color);
+    border: 1px solid var(--border-color);
+    color: var(--text-color);
+    cursor: pointer;
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    transition: all 0.2s ease;
+}
+
+.bulk-operations-actions button:hover {
+    background: var(--lora-accent);
+    color: white;
+    border-color: var(--lora-accent);
+}
+
+/* Danger button style - updated to use proper theme variables */
+.bulk-operations-actions button.danger-btn {
+    background: oklch(70% 0.2 29); /* Light red background that works in both themes */
+    color: oklch(98% 0.01 0); /* Almost white text for good contrast */
+    border-color: var(--lora-error);
+}
+
+.bulk-operations-actions button.danger-btn:hover {
+    background: var(--lora-error);
+    color: oklch(100% 0 0); /* Pure white text on hover for maximum contrast */
+}
+
+/* Style for selected cards */
+.model-card.selected {
+    box-shadow: 0 0 0 2px var(--lora-accent);
+    position: relative;
+}
+
+.model-card.selected::after {
+    content: "✓";
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    width: 24px;
+    height: 24px;
+    background: var(--lora-accent);
+    color: white;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    z-index: 1;
+}
+
+/* Update bulk operations button to match others when active */
+#bulkOperationsBtn.active {
+    background: var(--lora-accent);
+    color: white;
+    border-color: var(--lora-accent);
+}
+
+@media (max-width: 768px) {
+    .bulk-operations-panel {
+        width: calc(100% - 40px);
+        left: 20px;
+        transform: none;
+        border-radius: var(--border-radius-sm);
+    }
+    
+    .bulk-operations-actions {
+        flex-wrap: wrap;
+    }
+}
+
+.bulk-operations-panel.visible {
+    transform: translateY(0) translateX(-50%);
+    opacity: 1;
+}
+
+/* Thumbnail Strip Styles */
+.selected-thumbnails-strip {
+    position: fixed;
+    bottom: 80px; /* Position above the bulk operations panel */
+    left: 50%;
+    transform: translateX(-50%) translateY(20px);
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius-base);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+    z-index: calc(var(--z-overlay) - 1); /* Just below the bulk panel z-index */
+    padding: 16px;
+    max-width: 80%;
+    width: auto;
+    transition: all 0.3s ease;
+    opacity: 0;
+    overflow: hidden;
+}
+
+.selected-thumbnails-strip.visible {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+}
+
+.thumbnails-container {
+    display: flex;
+    gap: 12px;
+    overflow-x: auto;
+    padding-bottom: 8px; /* Space for scrollbar */
+    max-width: 100%;
+    align-items: flex-start;
+}
+
+.selected-thumbnail {
+    position: relative;
+    width: 80px;
+    min-width: 80px; /* Prevent shrinking */
+    border-radius: var(--border-radius-xs);
+    border: 1px solid var(--border-color);
+    overflow: hidden;
+    cursor: pointer;
+    background: var(--bg-color);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.selected-thumbnail:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+.selected-thumbnail img,
+.selected-thumbnail video {
+    width: 100%;
+    aspect-ratio: 1 / 1;
+    object-fit: cover;
+    display: block;
+}
+
+.thumbnail-name {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: rgba(0, 0, 0, 0.6);
+    color: white;
+    font-size: 10px;
+    padding: 3px 5px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    overflow: hidden;
+}
+
+.thumbnail-remove {
+    position: absolute;
+    top: 3px;
+    right: 3px;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: rgba(0, 0, 0, 0.5);
+    color: white;
+    border: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 10px;
+    opacity: 0.7;
+    transition: opacity 0.2s ease, background-color 0.2s ease;
+}
+
+.thumbnail-remove:hover {
+    opacity: 1;
+    background: var(--lora-error);
+}
+
+.strip-close-btn {
+    position: absolute;
+    top: 5px;
+    right: 5px;
+    width: 20px;
+    height: 20px;
+    background: none;
+    border: none;
+    color: var(--text-color);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0.7;
+    transition: opacity 0.2s ease;
+}
+
+.strip-close-btn:hover {
+    opacity: 1;
+}
+
+/* Style the selectedCount to indicate it's clickable */
+.selectable-count {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+}
+
+.selectable-count:hover {
+    background: var(--lora-border);
+}
+
+.dropdown-caret {
+    font-size: 12px;
+    visibility: hidden; /* Will be shown via JS when items are selected */
+}
+
+/* Scrollbar styling for the thumbnails container */
+.thumbnails-container::-webkit-scrollbar {
+    height: 6px;
+}
+
+.thumbnails-container::-webkit-scrollbar-track {
+    background: var(--bg-color);
+    border-radius: 3px;
+}
+
+.thumbnails-container::-webkit-scrollbar-thumb {
+    background: var(--border-color);
+    border-radius: 3px;
+}
+
+.thumbnails-container::-webkit-scrollbar-thumb:hover {
+    background: var(--lora-accent);
+}
+
+/* Mobile optimizations */
+@media (max-width: 768px) {
+    .selected-thumbnails-strip {
+        width: calc(100% - 40px);
+        max-width: none;
+        left: 20px;
+        transform: translateY(20px);
+        border-radius: var(--border-radius-sm);
+    }
+    
+    .selected-thumbnails-strip.visible {
+        transform: translateY(0);
+    }
+    
+    .selected-thumbnail {
+        width: 70px;
+        min-width: 70px;
+    }
+}

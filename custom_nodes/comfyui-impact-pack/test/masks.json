@@ -1,0 +1,622 @@
+{
+  "last_node_id": 38,
+  "last_link_id": 52,
+  "nodes": [
+    {
+      "id": 21,
+      "type": "SEGSToImageList",
+      "pos": [
+        2160,
+        970
+      ],
+      "size": {
+        "0": 304.79998779296875,
+        "1": 46
+      },
+      "flags": {},
+      "order": 10,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "segs",
+          "type": "SEGS",
+          "link": 41
+        },
+        {
+          "name": "fallback_image_opt",
+          "type": "IMAGE",
+          "link": 26,
+          "slot_index": 1
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            27
+          ],
+          "shape": 6,
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "SEGSToImageList"
+      }
+    },
+    {
+      "id": 5,
+      "type": "MaskToSEGS",
+      "pos": [
+        1520,
+        980
+      ],
+      "size": {
+        "0": 210,
+        "1": 130
+      },
+      "flags": {},
+      "order": 4,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "mask",
+          "type": "MASK",
+          "link": 5
+        }
+      ],
+      "outputs": [
+        {
+          "name": "SEGS",
+          "type": "SEGS",
+          "links": [
+            35,
+            46
+          ],
+          "shape": 3,
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "MaskToSEGS"
+      },
+      "widgets_values": [
+        "False",
+        3,
+        "disabled",
+        10
+      ]
+    },
+    {
+      "id": 36,
+      "type": "MasksToMaskList",
+      "pos": [
+        2270,
+        680
+      ],
+      "size": {
+        "0": 158.000244140625,
+        "1": 26
+      },
+      "flags": {},
+      "order": 8,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "masks",
+          "type": "MASKS",
+          "link": 51
+        }
+      ],
+      "outputs": [
+        {
+          "name": "MASK",
+          "type": "MASK",
+          "links": [
+            52
+          ],
+          "shape": 6,
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "MasksToMaskList"
+      },
+      "color": "#223",
+      "bgcolor": "#335"
+    },
+    {
+      "id": 35,
+      "type": "MaskToImage",
+      "pos": [
+        2480,
+        680
+      ],
+      "size": {
+        "0": 176.39999389648438,
+        "1": 38.59991455078125
+      },
+      "flags": {},
+      "order": 11,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "mask",
+          "type": "MASK",
+          "link": 52
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            50
+          ],
+          "shape": 3,
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "MaskToImage"
+      }
+    },
+    {
+      "id": 28,
+      "type": "Segs & Mask ForEach",
+      "pos": [
+        1800,
+        980
+      ],
+      "size": {
+        "0": 243.60000610351562,
+        "1": 46
+      },
+      "flags": {},
+      "order": 7,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "segs",
+          "type": "SEGS",
+          "link": 35,
+          "slot_index": 0
+        },
+        {
+          "name": "masks",
+          "type": "MASKS",
+          "link": 43
+        }
+      ],
+      "outputs": [
+        {
+          "name": "SEGS",
+          "type": "SEGS",
+          "links": [
+            41
+          ],
+          "shape": 3,
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "Segs & Mask ForEach"
+      }
+    },
+    {
+      "id": 22,
+      "type": "PreviewImage",
+      "pos": [
+        2510,
+        970
+      ],
+      "size": {
+        "0": 210,
+        "1": 246
+      },
+      "flags": {},
+      "order": 12,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 27
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "PreviewImage"
+      }
+    },
+    {
+      "id": 4,
+      "type": "LoadImage",
+      "pos": [
+        1150,
+        460
+      ],
+      "size": {
+        "0": 315,
+        "1": 314
+      },
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            26,
+            47
+          ],
+          "shape": 3,
+          "slot_index": 0
+        },
+        {
+          "name": "MASK",
+          "type": "MASK",
+          "links": [
+            5
+          ],
+          "shape": 3,
+          "slot_index": 1
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "LoadImage"
+      },
+      "widgets_values": [
+        "clipspace/clipspace-mask-416378.30000000075.png [input]",
+        "image"
+      ]
+    },
+    {
+      "id": 33,
+      "type": "SAMDetectorSegmented",
+      "pos": [
+        1740,
+        310
+      ],
+      "size": {
+        "0": 315,
+        "1": 218
+      },
+      "flags": {},
+      "order": 5,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "sam_model",
+          "type": "SAM_MODEL",
+          "link": 45
+        },
+        {
+          "name": "segs",
+          "type": "SEGS",
+          "link": 46
+        },
+        {
+          "name": "image",
+          "type": "IMAGE",
+          "link": 47
+        }
+      ],
+      "outputs": [
+        {
+          "name": "combined_mask",
+          "type": "MASK",
+          "links": [
+            44
+          ],
+          "shape": 3,
+          "slot_index": 0
+        },
+        {
+          "name": "batch_masks",
+          "type": "MASKS",
+          "links": [
+            43,
+            51
+          ],
+          "shape": 3,
+          "slot_index": 1
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "SAMDetectorSegmented"
+      },
+      "widgets_values": [
+        "center-1",
+        0,
+        0.7,
+        0,
+        0.7,
+        "False"
+      ]
+    },
+    {
+      "id": 2,
+      "type": "SAMLoader",
+      "pos": [
+        1160,
+        310
+      ],
+      "size": {
+        "0": 315,
+        "1": 82
+      },
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "outputs": [
+        {
+          "name": "SAM_MODEL",
+          "type": "SAM_MODEL",
+          "links": [
+            45
+          ],
+          "shape": 3,
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "SAMLoader"
+      },
+      "widgets_values": [
+        "sam_vit_b_01ec64.pth",
+        "AUTO"
+      ]
+    },
+    {
+      "id": 6,
+      "type": "MaskToImage",
+      "pos": [
+        2300,
+        310
+      ],
+      "size": {
+        "0": 176.39999389648438,
+        "1": 26
+      },
+      "flags": {},
+      "order": 6,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "mask",
+          "type": "MASK",
+          "link": 44
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            8
+          ],
+          "shape": 3,
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "MaskToImage"
+      }
+    },
+    {
+      "id": 7,
+      "type": "PreviewImage",
+      "pos": [
+        2720,
+        310
+      ],
+      "size": {
+        "0": 210,
+        "1": 246
+      },
+      "flags": {},
+      "order": 9,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 8
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "PreviewImage"
+      }
+    },
+    {
+      "id": 9,
+      "type": "PreviewImage",
+      "pos": [
+        2720,
+        680
+      ],
+      "size": {
+        "0": 210,
+        "1": 246
+      },
+      "flags": {},
+      "order": 13,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 50
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "PreviewImage"
+      }
+    },
+    {
+      "id": 38,
+      "type": "Note",
+      "pos": [
+        2032,
+        698
+      ],
+      "size": [
+        210,
+        81.49969482421875
+      ],
+      "flags": {},
+      "order": 2,
+      "mode": 0,
+      "properties": {
+        "text": ""
+      },
+      "widgets_values": [
+        "MasksToMaskList node introduced\n"
+      ],
+      "color": "#432",
+      "bgcolor": "#653"
+    },
+    {
+      "id": 37,
+      "type": "Note",
+      "pos": [
+        2071,
+        384
+      ],
+      "size": [
+        281.500244140625,
+        65.09967041015625
+      ],
+      "flags": {},
+      "order": 3,
+      "mode": 0,
+      "properties": {
+        "text": ""
+      },
+      "widgets_values": [
+        "type of batch_masks => MASKS instead of MASK\n"
+      ],
+      "color": "#432",
+      "bgcolor": "#653"
+    }
+  ],
+  "links": [
+    [
+      5,
+      4,
+      1,
+      5,
+      0,
+      "MASK"
+    ],
+    [
+      8,
+      6,
+      0,
+      7,
+      0,
+      "IMAGE"
+    ],
+    [
+      26,
+      4,
+      0,
+      21,
+      1,
+      "IMAGE"
+    ],
+    [
+      27,
+      21,
+      0,
+      22,
+      0,
+      "IMAGE"
+    ],
+    [
+      35,
+      5,
+      0,
+      28,
+      0,
+      "SEGS"
+    ],
+    [
+      41,
+      28,
+      0,
+      21,
+      0,
+      "SEGS"
+    ],
+    [
+      43,
+      33,
+      1,
+      28,
+      1,
+      "MASKS"
+    ],
+    [
+      44,
+      33,
+      0,
+      6,
+      0,
+      "MASK"
+    ],
+    [
+      45,
+      2,
+      0,
+      33,
+      0,
+      "SAM_MODEL"
+    ],
+    [
+      46,
+      5,
+      0,
+      33,
+      1,
+      "SEGS"
+    ],
+    [
+      47,
+      4,
+      0,
+      33,
+      2,
+      "IMAGE"
+    ],
+    [
+      50,
+      35,
+      0,
+      9,
+      0,
+      "IMAGE"
+    ],
+    [
+      51,
+      33,
+      1,
+      36,
+      0,
+      "MASKS"
+    ],
+    [
+      52,
+      36,
+      0,
+      35,
+      0,
+      "MASK"
+    ]
+  ],
+  "groups": [],
+  "config": {},
+  "extra": {},
+  "version": 0.4
+}

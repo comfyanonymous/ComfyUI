@@ -1,0 +1,401 @@
+{
+    "6": {
+        "inputs": {
+            "text": [
+                "301",
+                0
+            ],
+            "clip": [
+                "299",
+                1
+            ]
+        },
+        "class_type": "CLIPTextEncode",
+        "_meta": {
+            "title": "CLIP Text Encode (Prompt)"
+        }
+    },
+    "8": {
+        "inputs": {
+            "samples": [
+                "13",
+                1
+            ],
+            "vae": [
+                "10",
+                0
+            ]
+        },
+        "class_type": "VAEDecode",
+        "_meta": {
+            "title": "VAE Decode"
+        }
+    },
+    "10": {
+        "inputs": {
+            "vae_name": "flux1\\ae.safetensors"
+        },
+        "class_type": "VAELoader",
+        "_meta": {
+            "title": "Load VAE"
+        }
+    },
+    "11": {
+        "inputs": {
+            "clip_name1": "t5xxl_fp8_e4m3fn.safetensors",
+            "clip_name2": "ViT-L-14-TEXT-detail-improved-hiT-GmP-TE-only-HF.safetensors",
+            "type": "flux",
+            "device": "default"
+        },
+        "class_type": "DualCLIPLoader",
+        "_meta": {
+            "title": "DualCLIPLoader"
+        }
+    },
+    "13": {
+        "inputs": {
+            "noise": [
+                "147",
+                0
+            ],
+            "guider": [
+                "22",
+                0
+            ],
+            "sampler": [
+                "16",
+                0
+            ],
+            "sigmas": [
+                "17",
+                0
+            ],
+            "latent_image": [
+                "48",
+                0
+            ]
+        },
+        "class_type": "SamplerCustomAdvanced",
+        "_meta": {
+            "title": "SamplerCustomAdvanced"
+        }
+    },
+    "16": {
+        "inputs": {
+            "sampler_name": "dpmpp_2m"
+        },
+        "class_type": "KSamplerSelect",
+        "_meta": {
+            "title": "KSamplerSelect"
+        }
+    },
+    "17": {
+        "inputs": {
+            "scheduler": "beta",
+            "steps": [
+                "246",
+                0
+            ],
+            "denoise": 1,
+            "model": [
+                "28",
+                0
+            ]
+        },
+        "class_type": "BasicScheduler",
+        "_meta": {
+            "title": "BasicScheduler"
+        }
+    },
+    "22": {
+        "inputs": {
+            "model": [
+                "28",
+                0
+            ],
+            "conditioning": [
+                "29",
+                0
+            ]
+        },
+        "class_type": "BasicGuider",
+        "_meta": {
+            "title": "BasicGuider"
+        }
+    },
+    "28": {
+        "inputs": {
+            "max_shift": 1.1500000000000001,
+            "base_shift": 0.5,
+            "width": [
+                "48",
+                1
+            ],
+            "height": [
+                "48",
+                2
+            ],
+            "model": [
+                "299",
+                0
+            ]
+        },
+        "class_type": "ModelSamplingFlux",
+        "_meta": {
+            "title": "ModelSamplingFlux"
+        }
+    },
+    "29": {
+        "inputs": {
+            "guidance": 3.5,
+            "conditioning": [
+                "6",
+                0
+            ]
+        },
+        "class_type": "FluxGuidance",
+        "_meta": {
+            "title": "FluxGuidance"
+        }
+    },
+    "48": {
+        "inputs": {
+            "resolution": "832x1216 (0.68)",
+            "batch_size": 1,
+            "width_override": 0,
+            "height_override": 0
+        },
+        "class_type": "SDXLEmptyLatentSizePicker+",
+        "_meta": {
+            "title": "🔧 SDXL Empty Latent Size Picker"
+        }
+    },
+    "65": {
+        "inputs": {
+            "unet_name": "flux\\flux1-dev-fp8-e4m3fn.safetensors",
+            "weight_dtype": "fp8_e4m3fn_fast"
+        },
+        "class_type": "UNETLoader",
+        "_meta": {
+            "title": "Load Diffusion Model"
+        }
+    },
+    "147": {
+        "inputs": {
+            "noise_seed": 651532572596956
+        },
+        "class_type": "RandomNoise",
+        "_meta": {
+            "title": "RandomNoise"
+        }
+    },
+    "148": {
+        "inputs": {
+            "wildcard_text": "__some-prompts__",
+            "populated_text": "A surreal digital artwork showcases a forward-thinking inventor captivated by his intricate mechanical creation through a large magnifying glass. Viewed from an unconventional perspective, the scene reveals an eccentric assembly of gears, springs, and brass instruments within his workshop. Soft, ethereal light radiates from the invention, casting enigmatic shadows on the walls as time appears to bend around its metallic form, invoking a sense of curiosity, wonder, and exhilaration in discovery.",
+            "mode": "fixed",
+            "seed": 553084268162351,
+            "Select to add Wildcard": "Select the Wildcard to add to the text"
+        },
+        "class_type": "ImpactWildcardProcessor",
+        "_meta": {
+            "title": "ImpactWildcardProcessor"
+        }
+    },
+    "151": {
+        "inputs": {
+            "text": "A hyper-realistic close-up portrait of a young woman with shoulder-length black hair styled in edgy, futuristic layers, adorned with glowing tips. She wears mecha eyewear with a neon green visor that transitions into iridescent shades of teal and gold. The frame is sleek, with angular edges and fine mechanical detailing. Her expression is fierce and confident, with flawless skin highlighted by the neon reflections. She wears a high-tech bodysuit with integrated LED lines and metallic panels. The background depicts a hazy rendition of The Great Wave off Kanagawa by Hokusai, its powerful waves blending seamlessly with the neon tones, amplifying her intense, defiant aura."
+        },
+        "class_type": "Text Multiline",
+        "_meta": {
+            "title": "Text Multiline"
+        }
+    },
+    "191": {
+        "inputs": {
+            "text": "A cinematic, oil painting masterpiece captures the essence of impressionistic surrealism, inspired by Claude Monet. A mysterious woman in a flowing crimson dress stands at the edge of a tranquil lake, where lily pads shimmer under an ethereal, golden twilight. The water’s surface reflects a dreamlike sky, its swirling hues of violet and sapphire melting together like liquid light. The thick, expressive brushstrokes lend depth to the scene, evoking a sense of nostalgia and quiet longing, as if the world itself is caught between reality and a fleeting dream.  \nA mesmerizing oil painting masterpiece inspired by Salvador Dalí, blending surrealism with post-impressionist texture. A lone violinist plays atop a melting clock tower, his form distorted by the passage of time. The sky is a cascade of swirling, liquid oranges and deep blues, where floating staircases spiral endlessly into the horizon. The impasto technique gives depth and movement to the surreal elements, making time itself feel fluid, as if the world is dissolving into a dream.  \nA stunning impressionistic oil painting evokes the spirit of Edvard Munch, capturing a solitary figure standing on a rain-soaked street, illuminated by the glow of flickering gas lamps. The swirling, chaotic strokes of deep blues and fiery reds reflect the turbulence of emotion, while the blurred reflections in the wet cobblestone suggest a merging of past and present. The faceless figure, draped in a dark overcoat, seems lost in thought, embodying the ephemeral nature of memory and time.  \nA breathtaking oil painting masterpiece, inspired by Gustav Klimt, presents a celestial ballroom where faceless dancers swirl in an eternal waltz beneath a gilded, star-speckled sky. Their golden garments shimmer with intricate patterns, blending into the opulent mosaic floor that seems to stretch into infinity. The dreamlike composition, rich in warm amber and deep sapphire hues, captures an otherworldly elegance, as if the dancers are suspended in a moment that transcends time.  \nA visionary oil painting inspired by Marc Chagall depicts a dreamlike cityscape where gravity ceases to exist. A couple floats above a crimson-tinted town, their forms dissolving into the swirling strokes of a vast, cerulean sky. The buildings below twist and bend in rhythmic motion, their windows glowing like tiny stars. The thick, textured brushwork conveys a sense of weightlessness and wonder, as if love itself has defied the laws of the universe.  \nAn impressionistic oil painting in the style of J.M.W. Turner, depicting a ghostly ship sailing through a sea of swirling golden mist. The waves crash and dissolve into abstract, fiery strokes of orange and deep indigo, blurring the line between ocean and sky. The ship appears almost ethereal, as if drifting between worlds, lost in the ever-changing tides of memory and myth. The dynamic brushstrokes capture the relentless power of nature and the fleeting essence of time.  \nA captivating oil painting masterpiece, infused with surrealist impressionism, portrays a grand library where books float midair, their pages unraveling into ribbons of light. The towering shelves twist into the heavens, vanishing into an infinite, starry void. A lone scholar, illuminated by the glow of a suspended lantern, reaches for a book that seems to pulse with life. The scene pulses with mystery, where the impasto textures bring depth to the interplay between knowledge and dreams.  \nA luminous impressionistic oil painting captures the melancholic beauty of an abandoned carnival, its faded carousel horses frozen mid-gallop beneath a sky of swirling lavender and gold. The wind carries fragments of forgotten laughter through the empty fairground, where scattered ticket stubs and crumbling banners whisper tales of joy long past. The thick, textured brushstrokes blend nostalgia with an eerie dreamlike quality, as if the carnival exists only in the echoes of memory.  \nA surreal oil painting in the spirit of René Magritte, featuring a towering lighthouse that emits not light, but cascading waterfalls from its peak. The swirling sky, painted in deep midnight blues, is punctuated by glowing, crescent moons that defy gravity. A lone figure stands at the water’s edge, gazing up in quiet contemplation, as if caught between wonder and the unknown. The painting’s rich textures and luminous colors create an enigmatic, dreamlike landscape.  \nA striking impressionistic oil painting, reminiscent of Van Gogh, portrays a lone traveler on a winding cobblestone path, their silhouette bathed in the golden glow of lantern-lit cherry blossoms. The petals swirl through the night air like glowing embers, blending with the deep, rhythmic strokes of a star-filled indigo sky. The scene captures a feeling of wistful solitude, as if the traveler is walking not only through the city, but through the fleeting nature of time itself."
+        },
+        "class_type": "Text Multiline",
+        "_meta": {
+            "title": "Text Multiline"
+        }
+    },
+    "203": {
+        "inputs": {
+            "string1": [
+                "289",
+                0
+            ],
+            "string2": [
+                "293",
+                0
+            ],
+            "delimiter": ", "
+        },
+        "class_type": "JoinStrings",
+        "_meta": {
+            "title": "Join Strings"
+        }
+    },
+    "208": {
+        "inputs": {
+            "file_path": "",
+            "dictionary_name": "[filename]",
+            "label": "TextBatch",
+            "mode": "automatic",
+            "index": 0,
+            "multiline_text": [
+                "191",
+                0
+            ]
+        },
+        "class_type": "Text Load Line From File",
+        "_meta": {
+            "title": "Text Load Line From File"
+        }
+    },
+    "226": {
+        "inputs": {
+            "images": [
+                "8",
+                0
+            ]
+        },
+        "class_type": "PreviewImage",
+        "_meta": {
+            "title": "Preview Image"
+        }
+    },
+    "246": {
+        "inputs": {
+            "value": 25
+        },
+        "class_type": "INTConstant",
+        "_meta": {
+            "title": "Steps"
+        }
+    },
+    "289": {
+        "inputs": {
+            "group_mode": true,
+            "toggle_trigger_words": [
+                {
+                    "text": "bo-exposure",
+                    "active": true
+                },
+                {
+                    "text": "__dummy_item__",
+                    "active": false,
+                    "_isDummy": true
+                },
+                {
+                    "text": "__dummy_item__",
+                    "active": false,
+                    "_isDummy": true
+                }
+            ],
+            "orinalMessage": "bo-exposure",
+            "trigger_words": [
+                "299",
+                2
+            ]
+        },
+        "class_type": "TriggerWord Toggle (LoraManager)",
+        "_meta": {
+            "title": "TriggerWord Toggle (LoraManager)"
+        }
+    },
+    "293": {
+        "inputs": {
+            "input": 1,
+            "text1": [
+                "208",
+                0
+            ],
+            "text2": [
+                "151",
+                0
+            ]
+        },
+        "class_type": "easy textSwitch",
+        "_meta": {
+            "title": "Text Switch"
+        }
+    },
+    "297": {
+        "inputs": {
+            "text": ""
+        },
+        "class_type": "Lora Stacker (LoraManager)",
+        "_meta": {
+            "title": "Lora Stacker (LoraManager)"
+        }
+    },
+    "298": {
+        "inputs": {
+            "anything": [
+                "297",
+                0
+            ]
+        },
+        "class_type": "easy showAnything",
+        "_meta": {
+            "title": "Show Any"
+        }
+    },
+    "299": {
+        "inputs": {
+            "text": "<lora:boFLUX Double Exposure Magic v2:0.8> <lora:FluxDFaeTasticDetails:0.65>",
+            "loras": [
+                {
+                    "name": "boFLUX Double Exposure Magic v2",
+                    "strength": 0.8,
+                    "active": true
+                },
+                {
+                    "name": "FluxDFaeTasticDetails",
+                    "strength": 0.65,
+                    "active": true
+                },
+                {
+                    "name": "__dummy_item1__",
+                    "strength": 0,
+                    "active": false,
+                    "_isDummy": true
+                },
+                {
+                    "name": "__dummy_item2__",
+                    "strength": 0,
+                    "active": false,
+                    "_isDummy": true
+                }
+            ],
+            "model": [
+                "65",
+                0
+            ],
+            "clip": [
+                "11",
+                0
+            ],
+            "lora_stack": [
+                "297",
+                0
+            ]
+        },
+        "class_type": "Lora Loader (LoraManager)",
+        "_meta": {
+            "title": "Lora Loader (LoraManager)"
+        }
+    },
+    "301": {
+        "inputs": {
+            "string": "A hyper-realistic close-up portrait of a young woman with shoulder-length black hair styled in edgy, futuristic layers, adorned with glowing tips. She wears mecha eyewear with a neon green visor that transitions into iridescent shades of teal and gold. The frame is sleek, with angular edges and fine mechanical detailing. Her expression is fierce and confident, with flawless skin highlighted by the neon reflections. She wears a high-tech bodysuit with integrated LED lines and metallic panels. The background depicts a hazy rendition of The Great Wave off Kanagawa by Hokusai, its powerful waves blending seamlessly with the neon tones, amplifying her intense, defiant aura.",
+            "strip_newlines": true
+        },
+        "class_type": "StringConstantMultiline",
+        "_meta": {
+            "title": "String Constant Multiline"
+        }
+    }
+}

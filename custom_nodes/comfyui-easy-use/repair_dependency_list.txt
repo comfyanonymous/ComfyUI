@@ -1,0 +1,6 @@
+numpy>=1.19.0
+diffusers>=0.32.2
+huggingface_hub>=0.25.0
+transformers>=4.48.0
+peft>=0.14.0
+protobuf>=4.25.3

@@ -1,0 +1,67 @@
+{
+  "EasyUse_Hotkeys_AddGroup": {
+    "name": "Enable Shift+g to add the selected nodes to a group",
+    "tooltip": "From v1.2.39, you can use Ctrl+g instead"
+  },
+  "EasyUse_Hotkeys_cleanVRAMUsed": {
+    "name": "Enable Shift+r to unload model and node cache"
+  },
+  "EasyUse_Hotkeys_toggleNodesMap": {
+    "name": "Enable Shift+m to toggle nodes map"
+  },
+  "EasyUse_Hotkeys_AlignSelectedNodes": {
+    "name": "Enable Shift+Up/Down/Left/Right and Shift+Ctrl+Alt+Left/Right to align selected nodes",
+    "tooltip": "Shift+Up/Down/Left/Right can align selected nodes, Shift+Ctrl+Alt+Left/Right can distribute nodes horizontally/vertically"
+  },
+  "EasyUse_Hotkeys_NormalizeSelectedNodes": {
+    "name": "Enable Shift+Ctrl+Left/Right to normalize selected nodes",
+    "tooltip": "Enable Shift+Ctrl+Left to normalize width and Shift+Ctrl+Right to normalize height"
+  },
+  "EasyUse_Hotkeys_NodesTemplate": {
+    "name": "Enable Alt+1~9 to paste node templates into the workflow"
+  },
+  "EasyUse_Hotkeys_JumpNearestNodes": {
+    "name": "Enable Up/Down/Left/Right to jump to the nearest node"
+  },
+  "EasyUse_ContextMenu_SubDirectories": {
+    "name": "Enable automatic nesting of subdirectories in the context menu"
+  },
+  "EasyUse_ContextMenu_ModelsThumbnails": {
+    "name": "Enable model preview thumbnails"
+  },
+  "EasyUse_ContextMenu_NodesSort": {
+    "name": "Enable A~Z sorting of new nodes in the context menu"
+  },
+  "EasyUse_ContextMenu_QuickOptions": {
+    "name": "Use three quick buttons in the context menu",
+    "options": {
+      "At the forefront": "At the forefront",
+      "At the end": "At the end",
+      "Disable": "Disable"
+    }
+  },
+  "EasyUse_Nodes_Runtime": {
+    "name": "Enable node runtime display"
+  },
+  "EasyUse_Nodes_ChainGetSet": {
+    "name": "Enable chaining of get and set points with the parent node"
+  },
+  "EasyUse_NodesMap_Sorting": {
+    "name": "Manage nodes group sorting mode",
+    "tooltip": "Automatically sort by default. If set to manual, groups can be drag and dropped and the order will be saved.",
+    "options": {
+      "Auto sorting": "Auto sorting",
+      "Manual drag&drop sorting": "Manual drag&drop sorting"
+    }
+  },
+  "EasyUse_NodesMap_DisplayNodeID": {
+    "name": "Enable node ID display"
+  },
+  "EasyUse_NodesMap_DisplayGroupOnly": {
+    "name": "Show groups only"
+  },
+  "EasyUse_NodesMap_Enable": {
+    "name": "Enable Group Map",
+    "tooltip": "You need to refresh the page to update successfully"
+  }
+}

@@ -1,0 +1,882 @@
+/* Import Modal Styles */
+.import-step {
+    margin: var(--space-2) 0;
+    transition: none !important; /* Disable any transitions that might affect display */
+}
+
+/* Import Mode Toggle */
+.import-mode-toggle {
+    display: flex;
+    margin-bottom: var(--space-3);
+    border-radius: var(--border-radius-sm);
+    overflow: hidden;
+    border: 1px solid var(--border-color);
+}
+
+.toggle-btn {
+    flex: 1;
+    padding: 10px 16px;
+    background: var(--bg-color);
+    color: var(--text-color);
+    border: none;
+    cursor: pointer;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    transition: background-color 0.2s, color 0.2s;
+}
+
+.toggle-btn:first-child {
+    border-right: 1px solid var(--border-color);
+}
+
+.toggle-btn.active {
+    background: var(--lora-accent);
+    color: var(--lora-text);
+}
+
+.toggle-btn:hover:not(.active) {
+    background: var(--lora-surface);
+}
+
+.import-section {
+    margin-bottom: var(--space-3);
+}
+
+/* File Input Styles */
+.file-input-wrapper {
+    position: relative;
+    margin-bottom: var(--space-1);
+}
+
+.file-input-wrapper input[type="file"] {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    opacity: 0;
+    cursor: pointer;
+    z-index: 2;
+}
+
+.file-input-button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 10px 16px;
+    background: var(--lora-accent);
+    color: var(--lora-text);
+    border-radius: var(--border-radius-xs);
+    font-weight: 500;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.file-input-button:hover {
+    background: oklch(from var(--lora-accent) l c h / 0.9);
+}
+
+.file-input-wrapper:hover .file-input-button {
+    background: oklch(from var(--lora-accent) l c h / 0.9);
+}
+
+/* Recipe Details Layout */
+.recipe-details-layout {
+    display: grid;
+    grid-template-columns: 200px 1fr;
+    gap: var(--space-3);
+    margin-bottom: var(--space-3);
+}
+
+.recipe-image-container {
+    width: 100%;
+    height: 200px;
+    border-radius: var(--border-radius-sm);
+    overflow: hidden;
+    background: var(--lora-surface);
+    border: 1px solid var(--border-color);
+}
+
+.recipe-image {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.recipe-image img {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+}
+
+.recipe-form-container {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+
+/* Tags Input Styles */
+.tag-input-container {
+    display: flex;
+    gap: 8px;
+    margin-bottom: var(--space-1);
+}
+
+.tag-input-container input {
+    flex: 1;
+    padding: 8px;
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius-xs);
+    background: var(--bg-color);
+    color: var(--text-color);
+}
+
+.tags-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: var(--space-1);
+    min-height: 32px;
+}
+
+.recipe-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    background: var(--lora-surface);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius-xs);
+    font-size: 0.9em;
+}
+
+.recipe-tag i {
+    cursor: pointer;
+    opacity: 0.7;
+    transition: opacity 0.2s;
+}
+
+.recipe-tag i:hover {
+    opacity: 1;
+    color: var(--lora-error);
+}
+
+.empty-tags {
+    color: var(--text-color);
+    opacity: 0.6;
+    font-size: 0.9em;
+    font-style: italic;
+}
+
+/* LoRAs List Styles */
+.loras-list {
+    max-height: 300px;
+    overflow-y: auto;
+    margin: var(--space-2) 0;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 1px;
+}
+
+.lora-item {
+    display: flex;
+    gap: var(--space-2);
+    padding: var(--space-2);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius-sm);
+    background: var(--bg-color);
+    margin: 1px;
+}
+
+.lora-item.exists-locally {
+    background: oklch(var(--lora-accent) / 0.05);
+    border-left: 4px solid var(--lora-accent);
+}
+
+.lora-item.missing-locally {
+    border-left: 4px solid var(--lora-error);
+}
+
+.lora-item.is-deleted {
+    background: oklch(var(--lora-warning) / 0.05);
+    border-left: 4px solid var(--lora-warning);
+}
+
+.lora-item.is-early-access {
+    background: rgba(0, 184, 122, 0.05);
+    border-left: 4px solid #00B87A;
+}
+
+.lora-item.missing-locally {
+    border-left: 4px solid var(--lora-error);
+}
+
+.lora-thumbnail {
+    width: 80px;
+    height: 80px;
+    flex-shrink: 0;
+    border-radius: var(--border-radius-xs);
+    overflow: hidden;
+    background: var(--bg-color);
+}
+
+.lora-thumbnail img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.lora-content {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    flex: 1;
+    min-width: 0;
+}
+
+.lora-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: var(--space-2);
+}
+
+.lora-content h3 {
+    margin: 0;
+    font-size: 1.1em;
+    color: var(--text-color);
+    flex: 1;
+}
+
+.lora-info {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+    font-size: 0.9em;
+}
+
+.lora-info .base-model {
+    background: oklch(var(--lora-accent) / 0.1);
+    color: var(--lora-accent);
+    padding: 2px 8px;
+    border-radius: var(--border-radius-xs);
+}
+
+.lora-version {
+    font-size: 0.9em;
+    color: var(--text-color);
+    opacity: 0.7;
+}
+
+.weight-badge {
+    background: var(--lora-surface);
+    padding: 2px 8px;
+    border-radius: var(--border-radius-xs);
+    font-size: 0.85em;
+}
+
+/* Missing LoRAs List */
+.missing-loras-list {
+    max-height: 200px;
+    overflow-y: auto;
+    margin: var(--space-2) 0;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: var(--space-1);
+    border: 1px solid var(--border-color);
+    border-radius: var (--border-radius-sm);
+    background: var(--lora-surface);
+}
+
+.missing-lora-item {
+    display: flex;
+    gap: var(--space-2);
+    padding: var(--space-1);
+    border-bottom: 1px solid var(--border-color);
+}
+
+.missing-lora-item:last-child {
+    border-bottom: none;
+}
+
+.missing-lora-item.is-early-access {
+    background: rgba(0, 184, 122, 0.05);
+    border-left: 3px solid #00B87A;
+    padding-left: 10px;
+}
+
+.missing-badge {
+    display: inline-flex;
+    align-items: center;
+    background: var(--lora-error);
+    color: white;
+    padding: 4px 8px;
+    border-radius: var(--border-radius-xs);
+    font-size: 0.8em;
+    font-weight: 500;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+.missing-badge i {
+    margin-right: 4px;
+    font-size: 0.9em;
+}
+
+.lora-count-info {
+    font-size: 0.85em;
+    opacity: 0.8;
+    font-weight: normal;
+    margin-left: 8px;
+}
+
+/* Location Selection Styles */
+.location-selection {
+    margin: var(--space-2) 0;
+    padding: var(--space-2);
+    background: var(--lora-surface);
+    border-radius: var(--border-radius-sm);
+}
+
+/* Reuse folder browser and path preview styles from download-modal.css */
+.folder-browser {
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius-xs);
+    padding: var(--space-1);
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+.folder-item {
+    padding: 8px;
+    cursor: pointer;
+    border-radius: var(--border-radius-xs);
+    transition: background-color 0.2s;
+}
+
+.folder-item:hover {
+    background: var(--lora-surface);
+}
+
+.folder-item.selected {
+    background: oklch(var(--lora-accent) / 0.1);
+    border: 1px solid var(--lora-accent);
+}
+
+.path-preview {
+    margin-bottom: var(--space-3);
+    padding: var(--space-2);
+    background: var(--bg-color);
+    border-radius: var(--border-radius-sm);
+    border: 1px dashed var(--border-color);
+}
+
+.path-preview label {
+    display: block;
+    margin-bottom: 8px;
+    color: var(--text-color);
+    font-size: 0.9em;
+    opacity: 0.8;
+}
+
+.path-display {
+    padding: var(--space-1);
+    color: var(--text-color);
+    font-family: monospace;
+    font-size: 0.9em;
+    line-height: 1.4;
+    white-space: pre-wrap;
+    word-break: break-all;
+    opacity: 0.85;
+    background: var(--lora-surface);
+    border-radius: var(--border-radius-xs);
+}
+
+/* Input Group Styles */
+.input-group {
+    margin-bottom: var(--space-2);
+}
+
+.input-with-button {
+    display: flex;
+    gap: 8px;
+}
+
+.input-with-button input {
+    flex: 1;
+    min-width: 0;
+}
+
+.input-with-button button {
+    flex-shrink: 0;
+    white-space: nowrap;
+    padding: 8px 16px;
+    background: var(--lora-accent);
+    color: var(--lora-text);
+    border: none;
+    border-radius: var(--border-radius-xs);
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.input-with-button button:hover {
+    background: oklch(from var(--lora-accent) l c h / 0.9);
+}
+
+.input-group label {
+    display: block;
+    margin-bottom: 8px;
+    color: var(--text-color);
+}
+
+.input-group input,
+.input-group select {
+    width: 100%;
+    padding: 8px;
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius-xs);
+    background: var(--bg-color);
+    color: var(--text-color);
+}
+
+/* Dark theme adjustments */
+[data-theme="dark"] .lora-item {
+    background: var(--lora-surface);
+}
+
+[data-theme="dark"] .recipe-tag {
+    background: var(--card-bg);
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .recipe-details-layout {
+        grid-template-columns: 1fr;
+    }
+    
+    .recipe-image-container {
+        height: 150px;
+    }
+}
+
+/* Size badge for LoRA items */
+.size-badge {
+    background: var(--lora-surface);
+    padding: 2px 8px;
+    border-radius: var(--border-radius-xs);
+    font-size: 0.85em;
+    color: var(--text-color);
+    opacity: 0.8;
+}
+
+/* Improved Missing LoRAs summary section */
+.missing-loras-summary {
+    margin-bottom: var(--space-3);
+    padding: var(--space-2);
+    background: var(--bg-color);
+    border-radius: var(--border-radius-sm);
+    border: 1px solid var(--border-color);
+}
+
+.summary-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0;
+}
+
+.summary-header h3 {
+    margin: 0;
+    font-size: 1.1em;
+    color: var(--text-color);
+    display: flex;
+    align-items: center;
+    gap: var(--space-1);
+}
+
+.lora-count-badge {
+    font-size: 0.9em;
+    font-weight: normal;
+    opacity: 0.7;
+}
+
+.total-size-badge {
+    font-size: 0.85em;
+    font-weight: normal;
+    background: var(--lora-surface);
+    padding: 2px 8px;
+    border-radius: var(--border-radius-xs);
+    margin-left: var(--space-1);
+}
+
+.toggle-list-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--text-color);
+    padding: 4px 8px;
+    border-radius: var(--border-radius-xs);
+}
+
+.toggle-list-btn:hover {
+    background: var(--lora-surface);
+}
+
+.missing-loras-list {
+    max-height: 200px;
+    overflow-y: auto;
+    transition: max-height 0.3s ease, margin-top 0.3s ease, padding-top 0.3s ease;
+    margin-top: 0;
+    padding-top: 0;
+}
+
+.missing-loras-list.collapsed {
+    max-height: 0;
+    overflow: hidden;
+    padding-top: 0;
+}
+
+.missing-loras-list:not(.collapsed) {
+    margin-top: var(--space-1);
+    padding-top: var(--space-1);
+    border-top: 1px solid var(--border-color);
+}
+
+.missing-lora-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.missing-lora-item:last-child {
+    border-bottom: none;
+}
+
+.missing-lora-info {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.missing-lora-name {
+    font-weight: 500;
+}
+
+.lora-base-model {
+    font-size: 0.85em;
+    color: var(--lora-accent);
+    background: oklch(var(--lora-accent) / 0.1);
+    padding: 2px 6px;
+    border-radius: var(--border-radius-xs);
+    display: inline-block;
+}
+
+.missing-lora-size {
+    font-size: 0.9em;
+    color: var(--text-color);
+    opacity: 0.8;
+}
+
+/* Recipe name input select-all behavior */
+#recipeName:focus {
+    outline: 2px solid var(--lora-accent);
+}
+
+/* Prevent layout shift with scrollbar */
+.modal-content {
+    overflow-y: scroll; /* Always show scrollbar */
+    scrollbar-gutter: stable; /* Reserve space for scrollbar */
+}
+
+/* For browsers that don't support scrollbar-gutter */
+@supports not (scrollbar-gutter: stable) {
+    .modal-content {
+        padding-right: calc(var(--space-2) + var(--scrollbar-width)); /* Add extra padding for scrollbar */
+    }
+}
+
+/* Deleted LoRA styles - Fix layout issues */
+.lora-item.is-deleted {
+    background: oklch(var(--lora-warning) / 0.05);
+    border-left: 4px solid var(--lora-warning);
+}
+
+.deleted-badge {
+    display: inline-flex;
+    align-items: center;
+    background: var(--lora-warning);
+    color: white;
+    padding: 4px 8px;
+    border-radius: var(--border-radius-xs);
+    font-size: 0.8em;
+    font-weight: 500;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+.deleted-badge i {
+    margin-right: 4px;
+    font-size: 0.9em;
+}
+
+.exclude-lora-checkbox {
+    display: none;
+}
+
+/* Deleted LoRAs warning - redesigned to not interfere with modal buttons */
+.deleted-loras-warning {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 12px 16px;
+    background: oklch(var(--lora-warning) / 0.1);
+    border: 1px solid var(--lora-warning);
+    border-radius: var(--border-radius-sm);
+    color: var(--text-color);
+    margin-bottom: var(--space-2);
+}
+
+.warning-icon {
+    color: var(--lora-warning);
+    font-size: 1.2em;
+    padding-top: 2px;
+}
+
+.warning-content {
+    flex: 1;
+}
+
+.warning-title {
+    font-weight: 600;
+    margin-bottom: 4px;
+}
+
+.warning-text {
+    font-size: 0.9em;
+    line-height: 1.4;
+}
+
+/* Remove the old warning-message styles that were causing layout issues */
+.warning-message {
+    display: none; /* Hide the old style */
+}
+
+/* Update deleted badge to be more prominent */
+.deleted-badge {
+    display: inline-flex;
+    align-items: center;
+    background: var(--lora-warning);
+    color: white;
+    padding: 4px 8px;
+    border-radius: var(--border-radius-xs);
+    font-size: 0.8em;
+    font-weight: 500;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+.deleted-badge i {
+    margin-right: 4px;
+    font-size: 0.9em;
+}
+
+/* Error message styling */
+.error-message {
+    color: var(--lora-error);
+    font-size: 0.9em;
+    margin-top: 8px;
+    min-height: 20px; /* Ensure there's always space for the error message */
+    font-weight: 500;
+}
+
+.early-access-warning {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 12px 16px;
+    background: rgba(0, 184, 122, 0.1);
+    border: 1px solid #00B87A;
+    border-radius: var(--border-radius-sm);
+    color: var(--text-color);
+    margin-bottom: var(--space-2);
+}
+
+/* Add special styling for early access badge in the missing loras list */
+.missing-lora-item .early-access-badge {
+    padding: 2px 6px;
+    font-size: 0.75em;
+    margin-top: 4px;
+    display: inline-flex;
+}
+
+/* Specific styling for the early access warning container in import modal */
+.early-access-warning .warning-icon {
+    color: #00B87A;
+    font-size: 1.2em;
+}
+
+.early-access-warning .warning-title {
+    font-weight: 600;
+    margin-bottom: 4px;
+}
+
+.early-access-warning .warning-text {
+    font-size: 0.9em;
+    line-height: 1.4;
+}
+
+/* Duplicate Recipes Styles */
+.duplicate-recipes-container {
+    margin-bottom: var(--space-3);
+    border-radius: var(--border-radius-sm);
+    overflow: hidden;
+    animation: fadeIn 0.3s ease-in-out;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(-10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.duplicate-warning {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 12px 16px;
+    background: oklch(var(--lora-warning) / 0.1);
+    border: 1px solid var(--lora-warning);
+    border-radius: var(--border-radius-sm) var(--border-radius-sm) 0 0;
+    color: var(--text-color);
+}
+
+.duplicate-warning .warning-icon {
+    color: var(--lora-warning);
+    font-size: 1.2em;
+    padding-top: 2px;
+}
+
+.duplicate-warning .warning-content {
+    flex: 1;
+}
+
+.duplicate-warning .warning-title {
+    font-weight: 600;
+    margin-bottom: 4px;
+}
+
+.duplicate-warning .warning-text {
+    font-size: 0.9em;
+    line-height: 1.4;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.toggle-duplicates-btn {
+    background: none;
+    border: none;
+    color: var(--lora-warning);
+    cursor: pointer;
+    font-size: 0.9em;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 8px;
+    border-radius: var(--border-radius-xs);
+}
+
+.toggle-duplicates-btn:hover {
+    background: oklch(var(--lora-warning) / 0.1);
+}
+
+.duplicate-recipes-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 12px;
+    padding: 16px;
+    border: 1px solid var(--border-color);
+    border-top: none;
+    border-radius: 0 0 var(--border-radius-sm) var(--border-radius-sm);
+    background: var(--bg-color);
+    max-height: 300px;
+    overflow-y: auto;
+    transition: max-height 0.3s ease, padding 0.3s ease;
+}
+
+.duplicate-recipes-list.collapsed {
+    max-height: 0;
+    padding: 0 16px;
+    overflow: hidden;
+}
+
+.duplicate-recipe-card {
+    position: relative;
+    border-radius: var(--border-radius-sm);
+    overflow: hidden;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    transition: transform 0.2s ease;
+}
+
+.duplicate-recipe-card:hover {
+    transform: translateY(-2px);
+}
+
+.duplicate-recipe-preview {
+    width: 100%;
+    position: relative;
+    aspect-ratio: 2/3;
+    background: var(--bg-color);
+}
+
+.duplicate-recipe-preview img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.duplicate-recipe-title {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    padding: 8px;
+    background: rgba(0, 0, 0, 0.7);
+    color: white;
+    font-size: 0.85em;
+    line-height: 1.3;
+    max-height: 50%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+}
+
+.duplicate-recipe-details {
+    padding: 8px;
+    background: var(--bg-color);
+    font-size: 0.75em;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    color: var(--text-color);
+    opacity: 0.8;
+}
+
+.duplicate-recipe-date, 
+.duplicate-recipe-lora-count {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}

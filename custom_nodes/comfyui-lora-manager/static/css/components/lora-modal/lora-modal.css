@@ -1,0 +1,486 @@
+/* Lora Modal Header */
+.modal-header {
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+    align-items: flex-start;
+    margin-bottom: var(--space-3);
+    padding-bottom: var(--space-2);
+    border-bottom: 1px solid var(--lora-border);
+}
+
+/* Info Grid */
+.info-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: var(--space-2);
+    margin-bottom: var(--space-3);
+}
+
+.info-item {
+    padding: var(--space-2);
+    background: rgba(0, 0, 0, 0.03);
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    border-radius: var(--border-radius-sm);
+}
+
+/* 调整深色主题下的样式 */
+[data-theme="dark"] .info-item {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid var(--lora-border);
+}
+
+.info-item.full-width {
+    grid-column: 1 / -1;
+}
+
+.info-item label {
+    display: block;
+    font-size: 0.85em;
+    color: var(--text-color);
+    opacity: 0.8;
+    margin-bottom: 4px;
+}
+
+.info-item span {
+    color: var(--text-color);
+    word-break: break-word;
+}
+
+.info-item.usage-tips,
+.info-item.notes {
+    grid-column: 1 / -1 !important; /* Make notes section full width */
+}
+
+/* Add specific styles for notes content */
+.info-item.notes .editable-field [contenteditable] {
+    min-height: 60px; /* Increase height for multiple lines */
+    max-height: 150px; /* Limit maximum height */
+    overflow-y: auto; /* Add scrolling for long content */
+    white-space: pre-wrap; /* Preserve line breaks */
+    line-height: 1.5; /* Improve readability */
+    padding: 8px 12px; /* Slightly increase padding */
+}
+
+.file-path {
+    font-family: monospace;
+    font-size: 0.9em;
+}
+
+.description-text {
+    line-height: 1.5;
+    max-height: 100px;
+    overflow-y: auto;
+}
+
+/* Editable Fields */
+.editable-field {
+    position: relative;
+    display: flex;
+    gap: 8px;
+    align-items: flex-start;
+}
+
+.editable-field [contenteditable] {
+    flex: 1;
+    min-height: 24px;
+    padding: 4px 8px;
+    background: var(--bg-color);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius-xs);
+    font-size: 0.9em;
+    line-height: 1.4;
+    color: var(--text-color);
+    transition: border-color 0.2s;
+    word-break: break-word;
+}
+
+.editable-field [contenteditable]:focus {
+    outline: none;
+    border-color: var(--lora-accent);
+    background: var(--bg-color);
+}
+
+.editable-field [contenteditable]:empty::before {
+    content: attr(data-placeholder);
+    color: var(--text-color);
+    opacity: 0.5;
+}
+
+.notes-hint {
+    font-size: 0.8em;
+    color: var(--text-color);
+    opacity: 0.7;
+    margin-left: 5px;
+    cursor: help;
+    position: relative; /* Add positioning context */
+}
+
+@media (max-width: 640px) {
+    .info-item.usage-tips,
+    .info-item.notes {
+        grid-column: 1 / -1;
+    }
+}
+
+/* 修改 back-to-top 按钮样式，使其固定在 modal 内部 */
+.modal-content .back-to-top {
+    position: sticky; /* 改用 sticky 定位 */
+    float: right; /* 使用 float 确保按钮在右侧 */
+    bottom: 20px; /* 距离底部的距离 */
+    margin-right: 20px; /* 右侧间距 */
+    margin-top: -56px; /* 负边距确保不占用额外空间 */
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
+    color: var(--text-color);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    opacity: 0;
+    visibility: hidden;
+    transform: translateY(10px);
+    transition: all 0.3s ease;
+    z-index: 10;
+}
+
+.modal-content .back-to-top.visible {
+    opacity: 1;
+    visibility: visible;
+    transform: translateY(0);
+}
+
+.modal-content .back-to-top:hover {
+    background: var(--lora-accent);
+    color: white;
+    transform: translateY(-2px);
+}
+
+/* File name copy styles */
+.file-name-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px;
+    border-radius: var(--border-radius-xs);
+    transition: background-color 0.2s;
+    position: relative;
+}
+
+.file-name-content {
+    padding: 2px 4px;
+    border-radius: var(--border-radius-xs);
+    border: 1px solid transparent;
+    flex: 1;
+}
+
+.file-name-wrapper.editing .file-name-content {
+    border: 1px solid var(--lora-accent);
+    background: var(--bg-color);
+    outline: none;
+}
+
+/* 合并编辑按钮样式 */
+.edit-model-name-btn,
+.edit-file-name-btn,
+.edit-base-model-btn,
+.edit-model-description-btn {
+    background: transparent;
+    border: none;
+    color: var(--text-color);
+    opacity: 0;
+    cursor: pointer;
+    padding: 2px 5px;
+    border-radius: var(--border-radius-xs);
+    transition: all 0.2s ease;
+    margin-left: var(--space-1);
+}
+
+.edit-model-name-btn.visible,
+.edit-file-name-btn.visible,
+.edit-base-model-btn.visible,
+.edit-model-description-btn.visible,
+.model-name-header:hover .edit-model-name-btn,
+.file-name-wrapper:hover .edit-file-name-btn,
+.base-model-display:hover .edit-base-model-btn,
+.model-name-header:hover .edit-model-description-btn {
+    opacity: 0.5;
+}
+
+.edit-model-name-btn:hover,
+.edit-file-name-btn:hover,
+.edit-base-model-btn:hover,
+.edit-model-description-btn:hover {
+    opacity: 0.8 !important;
+    background: rgba(0, 0, 0, 0.05);
+}
+
+[data-theme="dark"] .edit-model-name-btn:hover,
+[data-theme="dark"] .edit-file-name-btn:hover,
+[data-theme="dark"] .edit-base-model-btn:hover {
+    background: rgba(255, 255, 255, 0.05);
+}
+
+/* Base Model and Size combined styles */
+.info-item.base-size {
+    display: flex;
+    gap: var(--space-3);
+}
+
+.base-wrapper {
+    flex: 2;  /* 分配更多空间给base model */
+}
+
+/* Base model display and editing styles */
+.base-model-display {
+    display: flex;
+    align-items: center;
+    position: relative;
+}
+
+.base-model-content {
+    padding: 2px 4px;
+    border-radius: var(--border-radius-xs);
+    border: 1px solid transparent;
+    color: var(--text-color);
+    flex: 1;
+}
+
+.base-model-selector {
+    width: 100%;
+    padding: 3px 5px;
+    background: var(--bg-color);
+    border: 1px solid var(--lora-accent);
+    border-radius: var(--border-radius-xs);
+    color: var(--text-color);
+    font-size: 0.9em;
+    outline: none;
+    margin-right: var(--space-1);
+}
+
+.size-wrapper {
+    flex: 1;
+    border-left: 1px solid var(--lora-border);
+    padding-left: var(--space-3);
+}
+
+.base-wrapper label,
+.size-wrapper label {
+    display: block;
+    margin-bottom: 4px;
+}
+
+.size-wrapper span {
+    font-family: monospace;
+    font-size: 0.9em;
+    opacity: 0.9;
+}
+
+/* New Model Name Header Styles */
+.model-name-header {
+    display: flex;
+    align-items: center;
+    width: calc(100% - 40px); /* Avoid overlap with close button */
+    position: relative;
+}
+
+.model-name-content {
+    margin: 0;
+    padding: var(--space-1);
+    border-radius: var(--border-radius-xs);
+    font-size: 1.5em !important;
+    font-weight: 600;
+    line-height: 1.2;
+    color: var(--text-color);
+    border: 1px solid transparent;
+    outline: none;
+    flex: 1;
+}
+
+.model-name-content:focus {
+    border: 1px solid var(--lora-accent);
+    background: var(--bg-color);
+}
+
+/* Tab System Styling */
+.showcase-tabs {
+    display: flex;
+    border-bottom: 1px solid var(--lora-border);
+    margin-bottom: var(--space-2);
+    position: relative;
+    z-index: 2;
+}
+
+.tab-btn {
+    padding: var(--space-1) var(--space-2);
+    background: transparent;
+    border: none;
+    border-bottom: 2px solid transparent;
+    color: var(--text-color);
+    cursor: pointer;
+    font-size: 0.95em;
+    transition: all 0.2s;
+    opacity: 0.7;
+    position: relative;
+}
+
+.tab-btn:hover {
+    opacity: 1;
+    background: oklch(var(--lora-accent-l) var(--lora-accent-c) var(--lora-accent-h) / 0.05);
+}
+
+.tab-btn.active {
+    border-bottom: 2px solid var(--lora-accent);
+    opacity: 1;
+    font-weight: 600;
+}
+
+.tab-content {
+    position: relative;
+    min-height: 100px;
+}
+
+.tab-pane {
+    display: none;
+}
+
+.tab-pane.active {
+    display: block;
+}
+
+.view-all-btn {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    padding: 6px 12px;
+    background-color: var(--lora-accent);
+    color: var(--lora-text);
+    border: none;
+    border-radius: var(--border-radius-sm);
+    cursor: pointer;
+    transition: background-color 0.2s;
+    font-size: 13px;
+}
+
+.view-all-btn:hover {
+    opacity: 0.9;
+}
+
+/* Loading, error and empty states */
+.recipes-loading,
+.recipes-error,
+.recipes-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 40px;
+    text-align: center;
+    min-height: 200px;
+}
+
+.recipes-loading i,
+.recipes-error i,
+.recipes-empty i {
+    font-size: 32px;
+    margin-bottom: 15px;
+    color: var(--lora-accent);
+}
+
+.recipes-error i {
+    color: var(--lora-error);
+}
+
+/* Creator Information Styles */
+.creator-info {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 2px 10px;
+    background: rgba(0, 0, 0, 0.03);
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    border-radius: var(--border-radius-sm);
+    max-width: fit-content;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+[data-theme="dark"] .creator-info,
+[data-theme="dark"] .civitai-view {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid var(--lora-border);
+}
+
+.creator-avatar {
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    overflow: hidden;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--lora-surface);
+    border: 1px solid var(--lora-border);
+}
+
+.creator-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.creator-placeholder {
+    background: var(--lora-accent);
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.creator-username {
+    font-size: 0.9em;
+    font-weight: 500;
+    color: var(--text-color);
+}
+
+/* Add hover effect for creator info */
+.creator-info:hover,
+.civitai-view:hover {
+    background: oklch(var(--lora-accent-l) var(--lora-accent-c) var(--lora-accent-h) / 0.1);
+    border-color: var(--lora-accent);
+    transform: translateY(-1px);
+}
+
+.creator-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: var(--space-1);
+    flex-wrap: wrap;
+}
+
+.civitai-view {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    background: rgba(0, 0, 0, 0.03);
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    border-radius: var(--border-radius-sm);
+    color: var(--text-color);
+    cursor: pointer;
+    font-weight: 500;
+    font-size: 0.9em;
+    transition: all 0.2s;
+}
+
+.civitai-view i {
+    font-size: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}

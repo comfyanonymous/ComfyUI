@@ -1,0 +1,15 @@
+[project]
+name = "comfyui-impact-pack"
+description = "This node pack offers various detector nodes and detailer nodes that allow you to configure a workflow that automatically enhances facial details. And provide iterative upscaler."
+version = "8.22"
+license = { file = "LICENSE.txt" }
+dependencies = ["segment-anything", "scikit-image", "piexif", "transformers", "opencv-python-headless", "GitPython", "scipy>=1.11.4"]
+
+[project.urls]
+Repository = "https://github.com/ltdrdata/ComfyUI-Impact-Pack"
+#  Used by Comfy Registry https://comfyregistry.org
+
+[tool.comfy]
+PublisherId = "drltdata"
+DisplayName = "ComfyUI Impact Pack"
+Icon = ""

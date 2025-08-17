@@ -1,0 +1,508 @@
+.page-content {
+    height: calc(100vh - 48px); /* Full height minus header */
+    margin-top: 48px; /* Push down below header */
+    width: 100%;
+    position: relative;
+    overflow-x: hidden; /* Prevent horizontal scrolling */
+    overflow-y: scroll; /* Enable vertical scrolling */
+}
+
+.container {
+    max-width: 1400px;
+    margin: 20px auto;
+    padding: 0 15px;
+    position: relative;
+    z-index: var(--z-base);
+}
+
+/* Responsive container for larger screens */
+@media (min-width: 2000px) {
+    .container {
+        max-width: 1800px;
+    }
+}
+
+@media (min-width: 3000px) {
+    .container {
+        max-width: 2400px;
+    }
+}
+
+.controls {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: var(--space-2);
+}
+
+.controls-right {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-left: auto; /* Push to the right */
+}
+
+.actions {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-2);
+    flex-wrap: nowrap;
+    width: 100%;
+}
+
+.action-buttons {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    flex-wrap: nowrap;
+}
+
+/* Action button styling */
+.control-group {
+    position: relative;
+}
+
+.control-group button {
+    min-width: 100px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    border-radius: var(--border-radius-xs);
+    padding: 4px 10px;
+    border: 1px solid var(--border-color);
+    background: var(--card-bg);
+    color: var(--text-color);
+    font-size: 0.85em;
+    transition: all 0.2s ease;
+    cursor: pointer;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+.control-group button:hover {
+    border-color: var(--lora-accent);
+    background: var(--bg-color);
+    transform: translateY(-1px);
+    box-shadow: 0 3px 5px rgba(0, 0, 0, 0.08);
+}
+
+.control-group button:active {
+    transform: translateY(0);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+.control-group button i {
+    opacity: 0.8;
+    transition: opacity 0.2s ease;
+}
+
+.control-group button:hover i {
+    opacity: 1;
+}
+
+/* Controls */
+.control-group button.favorite-filter {
+    position: relative;
+    overflow: hidden;
+}
+
+.control-group button.favorite-filter.active {
+    background: var(--lora-accent);
+    color: white;
+}
+
+.control-group button.favorite-filter i {
+    margin-right: 4px;
+    color: #ffc107;
+}
+
+/* Active state for buttons that can be toggled */
+.control-group button.active {
+    background: var(--lora-accent);
+    color: white;
+    border-color: var(--lora-accent);
+}
+
+/* Keyboard shortcut indicator styling */
+.shortcut-key {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin-left: 6px;
+    min-width: 16px;
+    height: 16px;
+    padding: 0 3px;
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 1;
+    border-radius: var(--border-radius-xs);
+    background-color: var(--shortcut-bg);
+    border: 1px solid var(--shortcut-border);
+    color: var(--shortcut-text);
+    vertical-align: middle;
+    opacity: 0.8;
+    transition: all 0.2s ease;
+}
+
+.control-group button:hover .shortcut-key {
+    opacity: 1;
+    background-color: oklch(var(--lora-accent-l) var(--lora-accent-c) var(--lora-accent-h) / 0.2);
+}
+
+[data-theme="dark"] .shortcut-key {
+    --shortcut-bg: oklch(var(--lora-accent-l) var(--lora-accent-c) var(--lora-accent-h) / 0.15);
+    --shortcut-border: oklch(var(--lora-accent-l) var(--lora-accent-c) var(--lora-accent-h) / 0.3);
+}
+
+/* Ensure correct vertical alignment for text+shortcut */
+.control-group button span {
+    display: inline-flex;
+    align-items: center;
+}
+
+/* Select dropdown styling */
+.control-group select {
+    min-width: 100px;
+    padding: 4px 26px 4px 10px;
+    border-radius: var(--border-radius-xs);
+    border: 1px solid var(--border-color);
+    background-color: var(--card-bg);
+    color: var(--text-color);
+    font-size: 0.85em;
+    appearance: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+    background-repeat: no-repeat;
+    background-position: right 6px center;
+    background-size: 14px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+/* Style for optgroups */
+.control-group select optgroup {
+    font-weight: 600;
+    font-style: normal;
+    color: var(--text-color);
+    background-color: var(--card-bg);
+}
+
+.control-group select option {
+    padding: 4px 8px;
+    background-color: var(--card-bg);
+    color: var(--text-color);
+}
+
+/* Dark theme optgroup styling */
+[data-theme="dark"] .control-group select optgroup {
+    background-color: var(--card-bg);
+    color: var(--text-color);
+}
+
+[data-theme="dark"] .control-group select option {
+    background-color: var(--card-bg);
+    color: var(--text-color);
+}
+
+.control-group select:hover {
+    border-color: var(--lora-accent);
+    background-color: var(--bg-color);
+    transform: translateY(-1px);
+    box-shadow: 0 3px 5px rgba(0, 0, 0, 0.08);
+}
+
+.control-group select:focus {
+    outline: none;
+    border-color: var(--lora-accent);
+    box-shadow: 0 0 0 2px oklch(var(--lora-accent) / 0.15);
+}
+
+/* Ensure hidden class works properly */
+.hidden {
+    display: none !important;
+}
+
+.folder-tags-container {
+    position: relative;
+    width: 100%;
+    margin-bottom: 8px; /* Add margin to ensure space for the button */
+}
+
+.folder-tags {
+    display: flex;
+    gap: 4px;
+    padding: 2px 0;
+    flex-wrap: wrap;
+    transition: max-height 0.3s ease, opacity 0.2s ease;
+    max-height: 150px; /* Limit height to prevent overflow */
+    opacity: 1;
+    overflow-y: auto; /* Enable vertical scrolling */
+    margin-bottom: 5px; /* Add margin below the tags */
+}
+
+.folder-tags.collapsed {
+    max-height: 0;
+    opacity: 0;
+    margin: 0;
+    padding-bottom: 0;
+    overflow: hidden;
+}
+
+.toggle-folders-container {
+    margin-left: auto;
+}
+
+/* Toggle Folders Button */
+.toggle-folders-btn {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
+    color: var(--text-color);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+.toggle-folders-btn:hover {
+    background: var(--lora-accent);
+    color: white;
+    transform: translateY(-2px);
+    box-shadow: 0 3px 6px rgba(0, 0, 0, 0.1);
+}
+
+.toggle-folders-btn i {
+    transition: transform 0.3s ease;
+}
+
+/* Icon-only button style */
+.icon-only {
+    min-width: unset !important;
+    width: 32px !important;
+    padding: 0 !important;
+    height: 32px !important;
+}
+
+/* Rotate icon when folders are collapsed */
+.folder-tags.collapsed ~ .actions .toggle-folders-btn i {
+    transform: rotate(180deg);
+}
+
+/* Add custom scrollbar for better visibility */
+.folder-tags::-webkit-scrollbar {
+    width: 6px;
+}
+
+.folder-tags::-webkit-scrollbar-track {
+    background: var(--card-bg);
+    border-radius: 3px;
+}
+
+.folder-tags::-webkit-scrollbar-thumb {
+    background: var(--border-color);
+    border-radius: 3px;
+}
+
+.folder-tags::-webkit-scrollbar-thumb:hover {
+    background: var(--lora-accent);
+}
+
+.tag {
+    cursor: pointer;
+    padding: 2px 8px;
+    margin: 2px;
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius-xs);
+    display: inline-block;
+    line-height: 1.2;
+    font-size: 14px;
+    background-color: var(--card-bg);
+    transition: all 0.2s ease;
+}
+
+.tag:hover {
+    border-color: var(--lora-accent);
+    background-color: oklch(var(--lora-accent) / 0.1);
+    transform: translateY(-1px);
+}
+
+.tag.active {
+    background-color: var(--lora-accent);
+    color: white;
+    border-color: var(--lora-accent);
+}
+
+/* Back to Top Button */
+.back-to-top {
+    position: fixed;
+    bottom: 85px;
+    right: 30px;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
+    color: var(--text-color);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    opacity: 0;
+    visibility: hidden;
+    transform: translateY(10px);
+    transition: all 0.3s ease;
+    z-index: var(--z-overlay);
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+}
+
+.back-to-top.visible {
+    opacity: 1;
+    visibility: visible;
+    transform: translateY(0);
+}
+
+.back-to-top:hover {
+    background: var(--lora-accent);
+    color: white;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+}
+
+/* Prevent text selection in control and header areas */
+.tag,
+.control-group button,
+.control-group select,
+.toggle-folders-btn,
+.bulk-operations-panel,
+.app-header,
+.header-branding,
+.app-title,
+.main-nav,
+.nav-item,
+.header-actions button,
+.header-controls,
+.toggle-folders-container button {
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+}
+
+/* Dropdown Button Styling */
+.dropdown-group {
+    position: relative;
+    display: flex;
+}
+
+.dropdown-main {
+    border-top-right-radius: 0;
+    border-bottom-right-radius: 0;
+    border-right: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.dropdown-toggle {
+    width: 24px !important;
+    min-width: unset !important;
+    border-top-left-radius: 0;
+    border-bottom-left-radius: 0;
+    padding: 0 !important;
+}
+
+.dropdown-menu {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    z-index: 1000;
+    display: none;
+    min-width: 230px;
+    padding: 5px 0;
+    margin: 2px 0 0;
+    font-size: 0.85em;
+    background-color: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius-xs);
+    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.175);
+}
+
+.dropdown-group.active .dropdown-menu {
+    display: block;
+}
+
+.dropdown-item {
+    display: block;
+    padding: 6px 15px;
+    clear: both;
+    font-weight: 400;
+    color: var(--text-color);
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+}
+
+.dropdown-item:hover {
+    background-color: oklch(var(--lora-accent) / 0.1);
+}
+
+.dropdown-item i {
+    margin-right: 8px;
+    width: 16px;
+    text-align: center;
+}
+
+@media (max-width: 768px) {
+    .actions {
+        flex-wrap: wrap;
+        gap: var(--space-1);
+    }
+    
+    .action-buttons {
+        flex-wrap: wrap;
+        gap: var(--space-1);
+        width: 100%;
+    }
+    
+    .controls-right {
+        width: 100%;
+        justify-content: flex-end;
+        margin-top: 8px;
+    }
+    
+    .toggle-folders-container {
+        margin-left: 0;
+    }
+    
+    .folder-tags-container {
+        order: -1;
+    }
+    
+    .toggle-folders-btn:hover {
+        transform: none; /* Disable hover effects on mobile */
+    }
+
+    .control-group button:hover {
+        transform: none; /* Disable hover effects on mobile */
+    }
+
+    .control-group select:hover {
+        transform: none; /* Disable hover effects on mobile */
+    }
+
+    .tag:hover {
+        transform: none; /* Disable hover effects on mobile */
+    }
+
+    .back-to-top {
+        bottom: 60px; /* Give some extra space from bottom on mobile */
+    }
+
+    .dropdown-menu {
+        left: auto;
+        right: 0; /* Align to right on mobile */
+    }
+}

@@ -1,0 +1,15 @@
+[project]
+name = "comfyui-easy-use"
+description = "To enhance the usability of ComfyUI, optimizations and integrations have been implemented for several commonly used nodes."
+version = "1.3.2"
+license = { file = "LICENSE" }
+dependencies = ["diffusers", "accelerate", "clip_interrogator>=0.6.0", "sentencepiece", "lark", "onnxruntime", "spandrel", "opencv-python", "matplotlib", "peft"]
+
+[project.urls]
+Repository = "https://github.com/yolain/ComfyUI-Easy-Use"
+#  Used by Comfy Registry https://comfyregistry.org
+
+[tool.comfy]
+PublisherId = "yolain"
+DisplayName = "ComfyUI-Easy-Use"
+Icon = ""

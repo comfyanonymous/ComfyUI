@@ -1,0 +1,10 @@
+:root {
+   /*--theme-color:#3f3eed;*/
+   /*--theme-color-light: #008ecb;*/
+   --theme-color:#236692;
+   --theme-color-light: #3485bb;
+   --success-color: #52c41a;
+   --error-color: #ff4d4f;
+   --warning-color: #faad14;
+   --font-family: Inter, -apple-system, BlinkMacSystemFont, Helvetica Neue, sans-serif;
+}

@@ -1,0 +1,3 @@
+[submodule "subpack"]
+	path = subpack
+	url = https://github.com/ltdrdata/ComfyUI-Impact-Subpack

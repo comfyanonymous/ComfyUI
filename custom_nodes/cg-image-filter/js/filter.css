@@ -1,0 +1,81 @@
+.cg_popup {
+    position: absolute;
+    width:100%;
+    height:100%;
+    background-color: rgba(0, 0, 0, 0.95);
+    z-index: 100000;
+    --text_area_height: 0px;
+}
+
+.cg_popup .grid {
+    position: absolute;
+    width:70%;
+    left:15%;
+    height:calc(100% - 60px - var(--text_area_height));
+    top:55px;
+    display: grid;
+    justify-items: center;
+    align-items: center;
+}
+
+.cg_popup .overlaygrid {
+    opacity: 0.5;
+    pointer-events: none;
+}
+
+.cg_popup .title {
+    position: absolute;
+    width:100%;
+    text-align: center;
+    top: 10px;
+    font-size: 250%;
+}
+
+.cg_popup .tip {
+    display: block;
+    padding-top: 10px;
+    line-height: 20px;
+}
+
+.cg_popup .buttons {
+    position: absolute;
+    width:14%;
+    left:86%;
+    height:90%;
+    top:5%;
+    font-size: small;
+}
+
+.cg_popup .control_text:after {
+    content:"\a";
+    white-space: pre;
+}
+
+.cg_popup .grid img {
+    margin: 2px;
+    border: 1px solid white;
+    padding: 4px;
+    max-width: 100%;
+    max-height: 100%;
+}
+
+.cg_popup .grid img.selected {
+    border: 3px solid green;
+    padding: 2px;
+}
+
+.cg_popup .grid img.hover {
+    box-shadow: 0 0 4px 4px red;
+}
+
+.cg_popup.hidden {
+    display:none !important;
+}
+
+.cg_popup .hidden {
+    display: none !important;
+}
+
+.cgfloat .hidden {
+    display: none !important;
+}

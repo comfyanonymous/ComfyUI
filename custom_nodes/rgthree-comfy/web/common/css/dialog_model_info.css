@@ -1,0 +1,336 @@
+.rgthree-info-dialog {
+  width: 90vw;
+  max-width: 960px;
+}
+.rgthree-info-dialog .rgthree-info-area {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+}
+.rgthree-info-dialog .rgthree-info-area > li {
+  display: inline-flex;
+  margin: 0;
+  vertical-align: top;
+}
+.rgthree-info-dialog .rgthree-info-area > li + li {
+  margin-left: 6px;
+}
+.rgthree-info-dialog .rgthree-info-area > li:not(.-link) + li.-link {
+  margin-left: auto;
+}
+.rgthree-info-dialog .rgthree-info-area > li.rgthree-info-tag > * {
+  min-height: 24px;
+  border-radius: 4px;
+  line-height: 1;
+  color: rgba(255, 255, 255, 0.85);
+  background: rgb(69, 92, 85);
+  font-size: 14px;
+  font-weight: bold;
+  text-decoration: none;
+  display: flex;
+  height: 1.6em;
+  padding-left: 0.5em;
+  padding-right: 0.5em;
+  padding-bottom: 0.1em;
+  align-content: center;
+  justify-content: center;
+  align-items: center;
+  box-shadow: inset 0px 0px 0 1px rgba(0, 0, 0, 0.5);
+}
+.rgthree-info-dialog .rgthree-info-area > li.rgthree-info-tag > * > svg {
+  width: 16px;
+  height: 16px;
+}
+.rgthree-info-dialog .rgthree-info-area > li.rgthree-info-tag > * > svg:last-child {
+  margin-left: 0.5em;
+}
+.rgthree-info-dialog .rgthree-info-area > li.rgthree-info-tag > *[href] {
+  box-shadow: inset 0px 1px 0px rgba(255, 255, 255, 0.25), inset 0px -1px 0px rgba(0, 0, 0, 0.66);
+}
+.rgthree-info-dialog .rgthree-info-area > li.rgthree-info-tag > *:empty {
+  display: none;
+}
+.rgthree-info-dialog .rgthree-info-area > li.-type > * {
+  background: rgb(73, 54, 94);
+  color: rgb(228, 209, 248);
+}
+.rgthree-info-dialog .rgthree-info-area > li.rgthree-info-menu {
+  margin-left: auto;
+}
+:not(#fakeid) .rgthree-info-dialog .rgthree-info-area > li.rgthree-info-menu .rgthree-button {
+  margin: 0;
+  min-height: 24px;
+  padding: 0 12px;
+}
+.rgthree-info-dialog .rgthree-info-area > li.rgthree-info-menu svg {
+  width: 16px;
+  height: 16px;
+}
+.rgthree-info-dialog .rgthree-info-table {
+  border-collapse: collapse;
+  margin: 16px 0px;
+  width: 100%;
+  font-size: 12px;
+}
+.rgthree-info-dialog .rgthree-info-table tr.editable button {
+  display: flex;
+  width: 28px;
+  height: 28px;
+  align-items: center;
+  justify-content: center;
+}
+.rgthree-info-dialog .rgthree-info-table tr.editable button svg + svg {
+  display: none;
+}
+.rgthree-info-dialog .rgthree-info-table tr.editable.-rgthree-editing button svg {
+  display: none;
+}
+.rgthree-info-dialog .rgthree-info-table tr.editable.-rgthree-editing button svg + svg {
+  display: inline-block;
+}
+.rgthree-info-dialog .rgthree-info-table td {
+  position: relative;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  padding: 0;
+  vertical-align: top;
+}
+.rgthree-info-dialog .rgthree-info-table td:first-child {
+  background: rgba(255, 255, 255, 0.075);
+  width: 10px;
+}
+.rgthree-info-dialog .rgthree-info-table td:first-child > *:first-child {
+  white-space: nowrap;
+  padding-right: 32px;
+}
+.rgthree-info-dialog .rgthree-info-table td:first-child small {
+  display: block;
+  margin-top: 2px;
+  opacity: 0.75;
+}
+.rgthree-info-dialog .rgthree-info-table td:first-child small > [data-action] {
+  text-decoration: underline;
+  cursor: pointer;
+}
+.rgthree-info-dialog .rgthree-info-table td:first-child small > [data-action]:hover {
+  text-decoration: none;
+}
+.rgthree-info-dialog .rgthree-info-table td a, .rgthree-info-dialog .rgthree-info-table td a:hover, .rgthree-info-dialog .rgthree-info-table td a:visited {
+  color: inherit;
+}
+.rgthree-info-dialog .rgthree-info-table td svg {
+  width: 1.3333em;
+  height: 1.3333em;
+  vertical-align: -0.285em;
+}
+.rgthree-info-dialog .rgthree-info-table td svg.logo-civitai {
+  margin-right: 0.3333em;
+}
+.rgthree-info-dialog .rgthree-info-table td > *:first-child {
+  display: block;
+  padding: 6px 10px;
+}
+.rgthree-info-dialog .rgthree-info-table td > input, .rgthree-info-dialog .rgthree-info-table td > textarea {
+  padding: 5px 10px;
+  border: 0;
+  box-shadow: inset 1px 1px 5px 0px rgba(0, 0, 0, 0.5);
+  font: inherit;
+  appearance: none;
+  background: #fff;
+  color: #121212;
+  resize: vertical;
+}
+.rgthree-info-dialog .rgthree-info-table td > input:only-child, .rgthree-info-dialog .rgthree-info-table td > textarea:only-child {
+  width: 100%;
+}
+:not(#fakeid) .rgthree-info-dialog .rgthree-info-table td .rgthree-button[data-action=fetch-civitai] {
+  font-size: inherit;
+  padding: 6px 16px;
+  margin: 2px;
+}
+.rgthree-info-dialog .rgthree-info-table tr[data-field-name=userNote] td > span:first-child {
+  white-space: pre;
+}
+.rgthree-info-dialog .rgthree-info-table tr.rgthree-info-table-break-row td {
+  border: 0;
+  background: transparent;
+  padding: 12px 4px 4px;
+  font-size: 1.2em;
+}
+.rgthree-info-dialog .rgthree-info-table tr.rgthree-info-table-break-row td > small {
+  font-style: italic;
+  opacity: 0.66;
+}
+.rgthree-info-dialog .rgthree-info-table tr.rgthree-info-table-break-row td:empty {
+  padding: 4px;
+}
+.rgthree-info-dialog .rgthree-info-table td .-help {
+  border: 1px solid currentColor;
+  position: absolute;
+  right: 5px;
+  top: 6px;
+  line-height: 1;
+  font-size: 11px;
+  width: 12px;
+  height: 12px;
+  border-radius: 8px;
+  display: flex;
+  align-content: center;
+  justify-content: center;
+  cursor: help;
+}
+.rgthree-info-dialog .rgthree-info-table td .-help::before {
+  content: "?";
+}
+.rgthree-info-dialog .rgthree-info-table td > ul.rgthree-info-trained-words-list {
+  list-style: none;
+  padding: 2px 8px;
+  margin: 0;
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  max-height: 15vh;
+  overflow: auto;
+}
+.rgthree-info-dialog .rgthree-info-table td > ul.rgthree-info-trained-words-list > li {
+  display: inline-flex;
+  margin: 2px;
+  vertical-align: top;
+  border-radius: 4px;
+  line-height: 1;
+  color: rgba(255, 255, 255, 0.85);
+  background: rgb(73, 91, 106);
+  font-size: 1.2em;
+  font-weight: 600;
+  text-decoration: none;
+  display: flex;
+  height: 1.6em;
+  align-content: center;
+  justify-content: center;
+  align-items: center;
+  box-shadow: inset 0px 0px 0 1px rgba(0, 0, 0, 0.5);
+  cursor: pointer;
+  white-space: nowrap;
+  max-width: 183px;
+}
+.rgthree-info-dialog .rgthree-info-table td > ul.rgthree-info-trained-words-list > li:hover {
+  background: rgb(68, 109, 142);
+}
+.rgthree-info-dialog .rgthree-info-table td > ul.rgthree-info-trained-words-list > li > svg {
+  width: auto;
+  height: 1.2em;
+}
+.rgthree-info-dialog .rgthree-info-table td > ul.rgthree-info-trained-words-list > li > span {
+  padding-left: 0.5em;
+  padding-right: 0.5em;
+  padding-bottom: 0.1em;
+  text-overflow: ellipsis;
+  overflow: hidden;
+}
+.rgthree-info-dialog .rgthree-info-table td > ul.rgthree-info-trained-words-list > li > small {
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 0.5em;
+  background: rgba(0, 0, 0, 0.2);
+}
+.rgthree-info-dialog .rgthree-info-table td > ul.rgthree-info-trained-words-list > li.-rgthree-is-selected {
+  background: rgb(42, 126, 193);
+}
+.rgthree-info-dialog .rgthree-info-images {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  scroll-snap-type: x mandatory;
+  display: flex;
+  flex-direction: row;
+  overflow: auto;
+}
+.rgthree-info-dialog .rgthree-info-images > li {
+  scroll-snap-align: start;
+  max-width: 90%;
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 0;
+  margin: 6px;
+  font-size: 0;
+  position: relative;
+}
+.rgthree-info-dialog .rgthree-info-images > li figure {
+  margin: 0;
+  position: static;
+}
+.rgthree-info-dialog .rgthree-info-images > li figure video, .rgthree-info-dialog .rgthree-info-images > li figure img {
+  max-height: 45vh;
+}
+.rgthree-info-dialog .rgthree-info-images > li figure figcaption {
+  position: absolute;
+  left: 0;
+  width: 100%;
+  bottom: 0;
+  padding: 12px;
+  font-size: 12px;
+  background: rgba(0, 0, 0, 0.85);
+  opacity: 0;
+  transform: translateY(50px);
+  transition: all 0.25s ease-in-out;
+}
+.rgthree-info-dialog .rgthree-info-images > li figure figcaption > span {
+  display: inline-block;
+  padding: 2px 4px;
+  margin: 2px;
+  border-radius: 2px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  word-break: break-word;
+}
+.rgthree-info-dialog .rgthree-info-images > li figure figcaption > span label {
+  display: inline;
+  padding: 0;
+  margin: 0;
+  opacity: 0.5;
+  pointer-events: none;
+  user-select: none;
+}
+.rgthree-info-dialog .rgthree-info-images > li figure figcaption > span a {
+  color: inherit;
+  text-decoration: underline;
+}
+.rgthree-info-dialog .rgthree-info-images > li figure figcaption > span a:hover {
+  text-decoration: none;
+}
+.rgthree-info-dialog .rgthree-info-images > li figure figcaption > span a svg {
+  height: 10px;
+  margin-left: 4px;
+  fill: currentColor;
+}
+.rgthree-info-dialog .rgthree-info-images > li figure figcaption:empty {
+  text-align: center;
+}
+.rgthree-info-dialog .rgthree-info-images > li figure figcaption:empty::before {
+  content: "No data.";
+}
+.rgthree-info-dialog .rgthree-info-images > li:hover figure figcaption {
+  opacity: 1;
+  transform: translateY(0px);
+}
+.rgthree-info-dialog .rgthree-info-images > li .rgthree-info-table {
+  width: calc(100% - 16px);
+}
+.rgthree-info-dialog .rgthree-info-civitai-link {
+  margin: 8px;
+  color: #eee;
+}
+.rgthree-info-dialog .rgthree-info-civitai-link a, .rgthree-info-dialog .rgthree-info-civitai-link a:hover, .rgthree-info-dialog .rgthree-info-civitai-link a:visited {
+  color: inherit;
+  text-decoration: none;
+}
+.rgthree-info-dialog .rgthree-info-civitai-link > svg {
+  width: 16px;
+  height: 16px;
+  margin-right: 8px;
+}

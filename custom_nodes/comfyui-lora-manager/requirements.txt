@@ -1,0 +1,10 @@
+aiohttp
+jinja2
+safetensors
+piexif
+Pillow
+olefile
+toml
+numpy
+natsort
+GitPython

@@ -1,0 +1,130 @@
+
+.pysssss-workflow-popup{
+    min-width:220px!important;
+    /*right:0px!important;*/
+    /*left:auto!important;*/
+}
+body{
+   font-family: var(--font-family)!important;
+   -webkit-font-smoothing: antialiased;
+   -moz-osx-font-smoothing: grayscale;
+}
+textarea{
+    font-family: var(--font-family)!important;
+}
+
+.comfy-multiline-input{
+    background-color: transparent;
+    border:1px solid var(--border-color);
+    border-radius:8px;
+    padding: 8px;
+    font-size: 12px;
+}
+.comfy-modal {
+    border:1px solid var(--border-color);
+    box-shadow:none;
+    backdrop-filter: blur(8px) brightness(120%);
+}
+.comfy-menu{
+    border-radius:16px;
+    box-shadow:0 0 1px var(--descrip-text);
+    backdrop-filter: blur(8px) brightness(120%);
+}
+.comfy-menu button,.comfy-modal button {
+    font-size: 14px;
+    padding:4px 0;
+    margin-bottom:4px;
+}
+.comfy-menu button.comfy-settings-btn{
+    font-size: 12px;
+}
+.comfy-menu-btns {
+    margin-bottom: 4px;
+}
+.comfy-menu-btns button,.comfy-list-actions button{
+    font-size: 10px;
+}
+.comfy-menu > button,
+.comfy-menu-btns button,
+.comfy-menu .comfy-list button,
+.comfy-modal button {
+    border-width:1px;
+}
+.comfy-modal-content{
+    width: 100%;
+}
+
+
+dialog{
+    border:1px solid var(--border-color);
+    background:transparent;
+    backdrop-filter: blur(8px) brightness(120%);
+    box-shadow:none;
+}
+.cm-title{
+    background-color:transparent!important;
+}
+.cm-notice-board{
+    border-radius:10px!important;
+    border:1px solid var(--border-color)!important;
+}
+.cm-menu-container{
+    margin-bottom:50px!important;
+}
+hr{
+   border:1px solid var(--border-color);
+}
+#comfy-dev-save-api-button{
+    justify-content: center;
+}
+#shareButton{
+    background:linear-gradient(to left,var(--theme-color),var(--theme-color-light))!important;
+    color:white!important;
+}
+#queue-button{
+    position:relative;
+    overflow:hidden;
+    min-height:30px;
+    z-index:1;
+}
+
+#queue-button:after{
+    clear: both;
+    content:attr(data-attr);
+    background:green;
+    color:#FFF;
+    width:var(--process-bar-width);
+    height:100%;
+    position:absolute;
+    top:0;
+    left:0;
+    z-index:0;
+    text-align:center;
+    display:flex;
+    justify-content:center;
+    align-items:center;
+}
+
+.litegraph .litemenu-entry.has_submenu {
+    border-right: 2px solid var(--theme-color);
+}
+::-webkit-scrollbar {
+    width: 0em;
+}
+::-webkit-scrollbar-track {
+    background-color: transparent;
+}
+::-webkit-scrollbar-thumb {
+    background-color: transparent;
+    border-radius: 2px;
+}
+::-webkit-scrollbar-thumb:hover {
+    background-color: transparent;
+}
+
+[data-theme="dark"] .workspace_manager .chakra-card{
+    background-color:var(--comfy-menu-bg)!important;
+}
+.workspace_manager .chakra-card{
+    width: 400px;
+}

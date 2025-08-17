@@ -1,0 +1,27 @@
+<!-- Example Images Access Modal -->
+<div id="exampleAccessModal" class="modal">
+    <div class="modal-content example-access-modal">
+        <button class="close" onclick="modalManager.closeModal('exampleAccessModal')">&times;</button>
+        <h2>Local Example Images</h2>
+        <p>No local example images found for this model. View options:</p>
+
+        <div class="example-access-options">
+            <button id="downloadExamplesBtn" class="example-option-btn">
+                <i class="fas fa-cloud-download-alt"></i>
+                <span class="option-title">Download from Civitai</span>
+                <span class="option-desc">Save remote examples locally for offline use and faster loading</span>
+            </button>
+
+            <button id="importExamplesBtn" class="example-option-btn">
+                <i class="fas fa-file-import"></i>
+                <span class="option-title">Import Your Own</span>
+                <span class="option-desc">Add your own custom examples for this model</span>
+            </button>
+        </div>
+
+        <div class="modal-footer-note">
+            <i class="fas fa-info-circle"></i>
+            <span>Remote examples are still viewable in the model details even without local copies</span>
+        </div>
+    </div>
+</div>

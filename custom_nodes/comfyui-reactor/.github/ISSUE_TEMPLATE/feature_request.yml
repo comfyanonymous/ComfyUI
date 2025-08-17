@@ -1,0 +1,16 @@
+name: Feature request
+description: Suggest an idea for this project
+title: "[Feature]: "
+labels: ["enhancement", "new"]
+
+body:
+  - type: textarea
+    id: description
+    attributes:
+      label: Feature description
+      description: Describe the feature in a clear and simple way
+      value: 
+  - type: markdown
+    attributes:
+      value: |
+        The best way to propose an idea is to start a new discussion via the [Discussions](https://github.com/Gourieff/ComfyUI-ReActor/discussions) section (choose the "Idea" category)

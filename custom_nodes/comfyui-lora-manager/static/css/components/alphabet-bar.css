@@ -1,0 +1,165 @@
+/* Alphabet Bar Component */
+.alphabet-bar-container {
+    position: fixed;
+    left: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 100;
+    display: flex;
+    transition: transform 0.3s ease;
+}
+
+.alphabet-bar-container.collapsed {
+    transform: translateY(-50%) translateX(-90%);
+}
+
+/* New visual indicator for when a letter is active and bar is collapsed */
+.alphabet-bar-container.collapsed .toggle-alphabet-bar.has-active-letter {
+    border-color: var(--lora-accent);
+    background: oklch(var(--lora-accent) / 0.15);
+}
+
+.alphabet-bar-container.collapsed .toggle-alphabet-bar.has-active-letter::after {
+    content: '';
+    position: absolute;
+    top: 7px;
+    right: 7px;
+    width: 8px;
+    height: 8px;
+    background-color: var(--lora-accent);
+    border-radius: 50%;
+    animation: pulse-active 2s infinite;
+}
+
+@keyframes pulse-active {
+    0% { transform: scale(0.8); opacity: 0.7; }
+    50% { transform: scale(1.1); opacity: 1; }
+    100% { transform: scale(0.8); opacity: 0.7; }
+}
+
+.alphabet-bar {
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 0 var(--border-radius-xs) var(--border-radius-xs) 0;
+    padding: 8px 4px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    align-items: center;
+    box-shadow: 2px 0 8px rgba(0, 0, 0, 0.1);
+    max-height: 80vh;
+    overflow-y: auto;
+    scrollbar-width: thin;
+}
+
+.alphabet-bar::-webkit-scrollbar {
+    width: 4px;
+}
+
+.alphabet-bar::-webkit-scrollbar-thumb {
+    background: var(--border-color);
+    border-radius: 4px;
+}
+
+.toggle-alphabet-bar {
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-left: none;
+    border-radius: 0 var(--border-radius-xs) var(--border-radius-xs) 0;
+    padding: 8px 4px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-color);
+    width: 20px;
+    height: 40px;
+    align-self: center;
+    box-shadow: 2px 0 8px rgba(0, 0, 0, 0.1);
+}
+
+.toggle-alphabet-bar:hover {
+    background: var(--bg-hover);
+}
+
+.toggle-alphabet-bar i {
+    transition: transform 0.3s ease;
+}
+
+.alphabet-bar-container.collapsed .toggle-alphabet-bar i {
+    transform: rotate(180deg);
+}
+
+.letter-chip {
+    padding: 4px 2px;
+    border-radius: var(--border-radius-xs);
+    background: var(--bg-color);
+    color: var(--text-color);
+    cursor: pointer;
+    min-width: 24px;
+    text-align: center;
+    font-size: 0.85em;
+    transition: all 0.2s ease;
+    border: 1px solid var(--border-color);
+}
+
+.letter-chip:hover {
+    background: var(--lora-accent);
+    color: white;
+    transform: scale(1.1);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.letter-chip.active {
+    background: var(--lora-accent);
+    color: white;
+    border-color: var(--lora-accent);
+}
+
+.letter-chip.disabled {
+    opacity: 0.5;
+    pointer-events: none;
+    cursor: default;
+}
+
+/* Hide the count by default, only show in tooltip */
+.letter-chip .count {
+    display: none;
+}
+
+.alphabet-bar-title {
+    font-size: 0.75em;
+    color: var(--text-color);
+    opacity: 0.7;
+    margin-bottom: 6px;
+    writing-mode: vertical-lr;
+    transform: rotate(180deg);
+    white-space: nowrap;
+}
+
+@media (max-width: 768px) {
+    .alphabet-bar-container {
+        transform: translateY(-50%) translateX(-90%);
+    }
+    
+    .alphabet-bar-container.active {
+        transform: translateY(-50%) translateX(0);
+    }
+    
+    .letter-chip {
+        padding: 3px 1px;
+        min-width: 20px;
+        font-size: 0.75em;
+    }
+}
+
+/* Keyframe animations for the active letter */
+@keyframes pulse {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.1); }
+    100% { transform: scale(1); }
+}
+
+.letter-chip.active {
+    animation: pulse 1s ease-in-out 1;
+}

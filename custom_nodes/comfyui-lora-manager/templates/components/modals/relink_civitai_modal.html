@@ -1,0 +1,33 @@
+<!-- Re-link to Civitai Modal -->
+<div id="relinkCivitaiModal" class="modal">
+    <div class="modal-content">
+        <button class="close" onclick="modalManager.closeModal('relinkCivitaiModal')">&times;</button>
+        <h2>Re-link to Civitai</h2>
+        <div class="warning-box">
+            <i class="fas fa-exclamation-triangle"></i>
+            <p><strong>Warning:</strong> This is a potentially destructive operation. Re-linking will:</p>
+            <ul>
+                <li>Override existing metadata</li>
+                <li>Potentially modify the model hash</li>
+                <li>May have other unintended consequences</li>
+            </ul>
+            <p>Only proceed if you're sure this is what you want.</p>
+        </div>
+        <div class="input-group">
+            <label for="civitaiModelUrl">Civitai Model URL:</label>
+            <input type="text" id="civitaiModelUrl" placeholder="https://civitai.com/models/649516/model-name?modelVersionId=726676" />
+            <div class="input-error" id="civitaiModelUrlError"></div>
+            <div class="input-help">
+                Paste any Civitai model URL. Supported formats:<br>
+                • https://civitai.com/models/649516<br>
+                • https://civitai.com/models/649516?modelVersionId=726676<br>
+                • https://civitai.com/models/649516/model-name?modelVersionId=726676<br>
+                <em>Note: If no modelVersionId is provided, the latest version will be used.</em>
+            </div>
+        </div>
+        <div class="modal-actions">
+            <button class="cancel-btn" onclick="modalManager.closeModal('relinkCivitaiModal')">Cancel</button>
+            <button class="confirm-btn" id="confirmRelinkBtn">Confirm Re-link</button>
+        </div>
+    </div>
+</div>

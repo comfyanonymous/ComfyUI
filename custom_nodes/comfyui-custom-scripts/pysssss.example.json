@@ -1,0 +1,7 @@
+{
+	"name": "CustomScripts",
+	"logging": false,
+	"workflows": {
+		"directory": "C:\\ComfyUI-Workflows"
+	}
+}

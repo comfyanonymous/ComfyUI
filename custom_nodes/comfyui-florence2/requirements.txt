@@ -1,0 +1,6 @@
+transformers>=4.39.0,!=4.50.*
+matplotlib
+timm
+pillow>=10.2.0
+peft
+accelerate>=0.26.0

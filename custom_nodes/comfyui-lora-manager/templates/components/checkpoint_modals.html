@@ -1,0 +1,73 @@
+<!-- Checkpoint Modals -->
+
+<!-- Checkpoint details Modal -->
+<div id="checkpointModal" class="modal"></div>
+
+<!-- Download Checkpoint from URL Modal -->
+<div id="checkpointDownloadModal" class="modal">
+    <div class="modal-content">
+        <button class="close" onclick="modalManager.closeModal('checkpointDownloadModal')">&times;</button>
+        <h2>Download Checkpoint from URL</h2>
+        
+        <!-- Step 1: URL Input -->
+        <div class="download-step" id="cpUrlStep">
+            <div class="input-group">
+                <label for="checkpointUrl">Civitai URL:</label>
+                <input type="text" id="checkpointUrl" placeholder="https://civitai.com/models/..." />
+                <div class="error-message" id="cpUrlError"></div>
+            </div>
+            <div class="modal-actions">
+                <button class="primary-btn" onclick="checkpointDownloadManager.validateAndFetchVersions()">Next</button>
+            </div>
+        </div>
+
+        <!-- Step 2: Version Selection -->
+        <div class="download-step" id="cpVersionStep" style="display: none;">
+            <div class="version-list" id="cpVersionList">
+                <!-- Versions will be inserted here dynamically -->
+            </div>
+            <div class="modal-actions">
+                <button class="secondary-btn" onclick="checkpointDownloadManager.backToUrl()">Back</button>
+                <button class="primary-btn" onclick="checkpointDownloadManager.proceedToLocation()">Next</button>
+            </div>
+        </div>
+
+        <!-- Step 3: Location Selection -->
+        <div class="download-step" id="cpLocationStep" style="display: none;">
+            <div class="location-selection">
+                <!-- Move path preview to top -->
+                <div class="path-preview">
+                    <label>Download Location Preview:</label>
+                    <div class="path-display" id="cpTargetPathDisplay">
+                        <span class="path-text">Select a Checkpoint root directory</span>
+                    </div>
+                </div>
+
+                <div class="input-group">
+                    <label>Select Checkpoint Root:</label>
+                    <select id="checkpointRoot"></select>
+                </div>
+                <div class="input-group">
+                    <label>Target Folder:</label>
+                    <div class="folder-browser" id="cpFolderBrowser">
+                        {% for folder in folders %}
+                            {% if folder %}
+                            <div class="folder-item" data-folder="{{ folder }}">
+                                {{ folder }}
+                            </div>
+                            {% endif %}
+                        {% endfor %}
+                    </div>
+                </div>
+                <div class="input-group">
+                    <label for="cpNewFolder">New Folder (optional):</label>
+                    <input type="text" id="cpNewFolder" placeholder="Enter folder name" />
+                </div>
+            </div>
+            <div class="modal-actions">
+                <button class="secondary-btn" onclick="checkpointDownloadManager.backToVersions()">Back</button>
+                <button class="primary-btn" onclick="checkpointDownloadManager.startDownload()">Download</button>
+            </div>
+        </div>
+    </div>
+</div>

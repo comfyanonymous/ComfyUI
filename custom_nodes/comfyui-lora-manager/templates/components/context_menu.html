@@ -1,0 +1,63 @@
+<div id="loraContextMenu" class="context-menu">
+    <!-- <div class="context-menu-item" data-action="detail">
+        <i class="fas fa-info-circle"></i> Show Details
+    </div> -->
+    <!-- <div class="context-menu-item" data-action="civitai">
+        <i class="fas fa-external-link-alt"></i> View on Civitai
+    </div> -->
+    <div class="context-menu-item" data-action="refresh-metadata">
+        <i class="fas fa-sync"></i> Refresh Civitai Data
+    </div>
+    <div class="context-menu-item" data-action="relink-civitai">
+        <i class="fas fa-link"></i> Re-link to Civitai
+    </div>
+    <div class="context-menu-item" data-action="copyname">
+        <i class="fas fa-copy"></i> Copy LoRA Syntax
+    </div>
+    <div class="context-menu-item" data-action="sendappend">
+        <i class="fas fa-paper-plane"></i> Send to Workflow (Append)
+    </div>
+    <div class="context-menu-item" data-action="sendreplace">
+        <i class="fas fa-exchange-alt"></i> Send to Workflow (Replace)
+    </div>
+    <div class="context-menu-item" data-action="preview">
+        <i class="fas fa-folder-open"></i> Open Examples Folder
+    </div>
+    <div class="context-menu-item" data-action="replace-preview">
+        <i class="fas fa-image"></i> Replace Preview
+    </div>
+    <div class="context-menu-item" data-action="set-nsfw">
+        <i class="fas fa-exclamation-triangle"></i> Set Content Rating
+    </div>
+    <div class="context-menu-separator"></div>
+    <div class="context-menu-item" data-action="move">
+        <i class="fas fa-folder-open"></i> Move to Folder
+    </div>
+    <div class="context-menu-item" data-action="exclude">
+        <i class="fas fa-eye-slash"></i> Exclude Model
+    </div>
+    <div class="context-menu-item delete-item" data-action="delete">
+        <i class="fas fa-trash"></i> Delete Model
+    </div>
+</div>
+
+<div id="nsfwLevelSelector" class="nsfw-level-selector">
+    <div class="nsfw-level-header">
+        <h3>Set Content Rating</h3>
+        <button class="close-nsfw-selector"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="nsfw-level-content">
+        <div class="current-level">Current: <span id="currentNSFWLevel">Unknown</span></div>
+        <div class="nsfw-level-options">
+            <button class="nsfw-level-btn" data-level="1">PG</button>
+            <button class="nsfw-level-btn" data-level="2">PG13</button>
+            <button class="nsfw-level-btn" data-level="4">R</button>
+            <button class="nsfw-level-btn" data-level="8">X</button>
+            <button class="nsfw-level-btn" data-level="16">XXX</button>
+        </div>
+    </div>
+</div>
+
+<div id="nodeSelector" class="node-selector">
+    <!-- Dynamic node list will be populated here -->
+</div>

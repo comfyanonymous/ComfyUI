@@ -1,0 +1,15 @@
+{
+    "main_pass":
+    [
+        "-n", "-c:v", "av1_nvenc",
+        "-pix_fmt", ["pix_fmt", ["yuv420p", "p010le"]],
+        "-vf", "scale=out_color_matrix=bt709",
+        "-color_range", "tv", "-colorspace", "bt709", "-color_primaries", "bt709", "-color_trc", "bt709"
+    ],
+    "fake_trc": "bt709",
+    "audio_pass": ["-c:a", "aac"],
+    "bitrate": ["bitrate","INT", {"default": 10, "min": 1, "max": 999, "step": 1 }],
+    "megabit": ["megabit","BOOLEAN", {"default": true}],
+    "save_metadata": ["save_metadata", "BOOLEAN", {"default": true}],
+    "extension": "mp4"
+}

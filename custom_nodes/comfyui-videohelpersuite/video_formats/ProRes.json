@@ -1,0 +1,22 @@
+{
+    "main_pass":
+    [
+        "-n", "-c:v", "prores_ks",
+        "-profile:v", [["$profile"]],
+        ["profile", {
+            "lt": [[]], "1": [[]], "standard": [[]], "2": [[]], "hq": [[]], "3": [[]],
+            "4": ["has_alpha", {"True": [["-pix_fmt", "yuva444p10le"]],
+                "False": [["-pix_fmt", "yuv444p10le"]]}],
+            "4444": ["has_alpha", {"True": [["-pix_fmt", "yuva444p10le"]],
+                "False": [["-pix_fmt", "yuv444p10le"]]}],
+            "4444xq": ["has_alpha", {"True": [["-pix_fmt", "yuva444p10le"]],
+                "False": [["-pix_fmt", "yuv444p10le"]]}]
+        }],
+        "-vf", "scale=out_color_matrix=bt709",
+        "-colorspace", "bt709", "-color_primaries", "bt709", "-color_trc", "bt709"
+    ],
+    "fake_trc": "bt709",
+    "audio_pass": ["-c:a", "pcm_s16le"],
+    "extension": "mov",
+    "extra_widgets": [["profile", ["lt", "standard", "hq", "4444", "4444xq"], {"default": "hq"}]]
+}

@@ -1,0 +1,5 @@
+{
+	"input": "$input/**/*.txt",
+	"output": "$output/**/*.txt",
+	"temp": "$temp/**/*.txt"
+}

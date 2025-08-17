@@ -1,0 +1,140 @@
+<!doctype html>
+<html>
+  <head>
+    <title>rgthree's comfy: Workflow Link Fixer</title>
+    <style>
+      html, body {
+      }
+      html {
+        font-size: 100%;
+        overflow-y: scroll;
+        -webkit-text-size-adjust: 100%;
+        -ms-text-size-adjust: 100%;
+        box-sizing: border-box
+      }
+
+      *, *:before, *:after {
+        box-sizing: inherit
+      }
+
+      body {
+        background: #222;
+        font-family: Arial, sans-serif;
+        font-size: calc(16 * 0.0625rem);
+        font-weight: 400;
+        margin: 0;
+        color: #ffffff;
+        padding-bottom: 64px;
+        display: flex;
+      }
+
+      .box, figure, picture {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+      }
+
+      .box {
+        margin: 32px auto;
+        max-width: 720px;
+        padding: 16px 16px 32px;
+        background: rgba(125,125,125,0.33);
+        box-shadow: 0px 8px 10px rgba(0,0,0,0.85);
+        border-radius: 8px;
+      }
+      h1 {
+        margin-top: 0;
+      }
+      .box > * {
+        text-align: center;
+      }
+      .box > p {
+        margin: 0 0 .6em;
+        text-align: left;
+        line-height: 1.25;
+      }
+      .box > small {
+        margin: 0 0 .6em;
+        text-align: left;
+        line-height: 1.25;
+        opacity: 0.75;
+      }
+
+      picture > img {
+        display: block;
+        height: 256px;
+        min-width: 256px;
+        border: 10px dashed rgba(125,125,125,0.66);
+        border-radius: 32px;
+        object-fit: contain;
+        pointer-events: none;
+
+      }
+      figcaption {
+        opacity: 0.66;
+        padding: 4px;
+        font-size: calc(11 * 0.0625rem);
+      }
+
+      .-has-file picture > img {
+        border-color: transparent;
+        border-radius: 32px;
+      }
+
+      .output {
+        margin: 8px 8px 32px;
+        border-radius: 4px;
+        border: 1px solid rgba(125,125,125,0.66);
+        padding: 4px 8px;
+        min-width: 80%;
+      }
+
+      .output:empty {
+        display: none;
+      }
+
+      .btn-fix {
+        display: none;
+        cursor: pointer;
+        font-size: calc(24 * 0.0625rem);
+      }
+      .-has-fixable-results .btn-fix {
+        display: inline-block;
+      }
+
+    </style>
+  </head>
+  <body>
+
+    <div class="box">
+      <h1>rgthree's Workflow Link Fixer</h1>
+      <p>
+        Drag and drop a comfy-generated image or workflow json into this window to check its
+        serialized links and attempt to fix.
+      </p>
+      <small>
+        Sometimes as you have complex workflows the internal data can become corrupt, and the
+        ComfyUI doesn't always understand or display correctly. Maybe links disappear, or reconnect
+        to another node when changing something. Load it here to detect and, if possible, attempt
+        to fix it (sometimes, however, fixing it just isn't feasible, so fingers crossed).
+      </small>
+
+      <figure>
+        <picture>
+          <img class="output-image" />
+        </picture>
+        <figcaption></figcaption>
+      </figure>
+
+      <div class="output"></div>
+
+      <button class="btn-fix">Fix & Save new workflow</button>
+
+    </div>
+
+    <script type="module">
+      import {LinkPage} from './link_page.js';
+      new LinkPage();
+    </script>
+  </body>
+</html>

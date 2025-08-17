@@ -1,0 +1,17 @@
+{
+    "main_pass":
+    [
+        "-n", "-c:v", "libx265",
+        "-vtag", "hvc1",
+        "-pix_fmt", ["pix_fmt", ["yuv420p10le", "yuv420p"]],
+        "-crf", ["crf","INT", {"default": 22, "min": 0, "max": 100, "step": 1}],
+        "-preset", "medium",
+        "-x265-params", "log-level=quiet",
+        "-vf", "scale=out_color_matrix=bt709",
+        "-color_range", "tv", "-colorspace", "bt709", "-color_primaries", "bt709", "-color_trc", "bt709"
+    ],
+    "fake_trc": "bt709",
+    "audio_pass": ["-c:a", "aac"],
+    "save_metadata": ["save_metadata", "BOOLEAN", {"default": true}],
+    "extension": "mp4"
+}

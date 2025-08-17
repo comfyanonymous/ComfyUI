@@ -1,0 +1,12 @@
+{
+  "devDependencies": {
+    "prettier": "^3.3.3",
+    "typescript": "^5.5.4",
+    "sass": "^1.77.8",
+    "@comfyorg/comfyui-frontend-types": "^1.26.4",
+    "web-tree-sitter": "0.25.6"
+  },
+  "scripts": {
+    "build": "./__build__.py || python .\\__build__.py"
+  }
+}

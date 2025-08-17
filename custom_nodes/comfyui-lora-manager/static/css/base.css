@@ -1,0 +1,111 @@
+html, body {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    overflow: hidden; /* Disable default scrolling */
+}
+
+/* 针对Firefox */
+* {
+    scrollbar-width: thin;
+    scrollbar-color: var(--border-color) transparent;
+}
+
+/* 针对Webkit browsers (Chrome, Safari等) */
+::-webkit-scrollbar {
+    width: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: transparent;
+    margin-top: 0;
+}
+
+::-webkit-scrollbar-thumb {
+    background-color: var(--border-color);
+    border-radius: 4px;
+}
+
+:root {
+    --bg-color: #ffffff;
+    --text-color: #333333;
+    --text-muted: #6c757d;
+    --card-bg: #ffffff;
+    --border-color: #e0e0e0;
+
+    /* Color Components */
+    --lora-accent-l: 68%;
+    --lora-accent-c: 0.28;
+    --lora-accent-h: 256;
+    --lora-warning-l: 75%;
+    --lora-warning-c: 0.25;
+    --lora-warning-h: 80;
+    --lora-success-l: 70%;
+    --lora-success-c: 0.2;
+    --lora-success-h: 140;
+
+    /* Composed Colors */
+    --lora-accent: oklch(var(--lora-accent-l) var(--lora-accent-c) var(--lora-accent-h));
+    --lora-surface: oklch(100% 0 0 / 0.98);
+    --lora-border: oklch(90% 0.02 256 / 0.15);
+    --lora-text: oklch(95% 0.02 256);
+    --lora-error: oklch(75% 0.32 29);
+    --lora-warning: oklch(var(--lora-warning-l) var(--lora-warning-c) var(--lora-warning-h));
+    --lora-success: oklch(var(--lora-success-l) var(--lora-success-c) var(--lora-success-h));
+    
+    /* Spacing Scale */
+    --space-1: calc(8px * 1);
+    --space-2: calc(8px * 2);
+    --space-3: calc(8px * 3);
+    
+    /* Z-index Scale */
+    --z-base: 10;
+    --z-header: 100;
+    --z-modal: 1000;
+    --z-overlay: 2000;
+
+    /* Border Radius */
+    --border-radius-base: 12px;
+    --border-radius-sm: 8px;
+    --border-radius-xs: 4px;
+
+    --scrollbar-width: 8px; /* 添加滚动条宽度变量 */
+    
+    /* Shortcut styles */
+    --shortcut-bg: oklch(var(--lora-accent-l) var(--lora-accent-c) var(--lora-accent-h) / 0.12);
+    --shortcut-border: oklch(var(--lora-accent-l) var(--lora-accent-c) var(--lora-accent-h) / 0.25);
+    --shortcut-text: var(--text-color);
+}
+
+html[data-theme="dark"] {
+    background-color: #1a1a1a !important;
+    color-scheme: dark;
+}
+
+html[data-theme="light"] {
+    background-color: #ffffff !important;
+    color-scheme: light;
+}
+
+[data-theme="dark"] {
+    --bg-color: #1a1a1a;
+    --text-color: #e0e0e0;
+    --text-muted: #a0a0a0;
+    --card-bg: #2d2d2d;
+    --border-color: #404040;
+
+    --lora-accent: oklch(68% 0.28 256);
+    --lora-surface: oklch(25% 0.02 256 / 0.98);
+    --lora-border: oklch(90% 0.02 256 / 0.15);
+    --lora-text: oklch(98% 0.02 256);
+    --lora-warning: oklch(75% 0.25 80); /* Modified to be used with oklch() */
+}
+
+body {
+    font-family: 'Segoe UI', sans-serif;
+    background: var(--bg-color);
+    color: var(--text-color);
+    display: flex;
+    flex-direction: column;
+    padding-top: 0; /* Remove the padding-top */
+}

@@ -1,0 +1,61 @@
+@layer ue {
+    #ue_tooltip {
+        z-index : 9000;
+        border: thin solid gray;
+        color:black;
+        position: absolute;
+        padding: 4px;
+    }
+    #ue_tooltip table {
+        border-collapse: collapse;
+
+    }
+    #ue_tooltip tr:nth-child(odd) {
+        background-color: rgba(234, 255, 234, 0.67);
+    }
+    #ue_tooltip tr:nth-child(even) {
+        background-color: rgba(255, 234, 234, 0.67);
+    }
+    #ue_tooltip th {
+        text-align: right;
+    }
+
+    .ue_editor {
+        z-index : 9000;
+        border: thin solid gray;
+        color:white;
+        position: absolute;
+        padding: 0px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        background-color: rgb(45 24 24 / 80%);
+    }
+
+    .ue_editor_header {
+    width: 100%;
+    text-align: center;
+    background-color: rgb(45 24 24 / 80%);
+    background-size: 100% 14px;
+    background-image: repeating-linear-gradient(0deg, #636363, black 1px, rgb(45 24 24 / 80%) 1px, rgb(45 24 24 / 80%) 2px);
+    padding-top: 4px;
+
+    }
+
+    .ue_editor_body {
+        padding: 0px 4px;
+    }
+    .ue_editor_body th {
+        text-align: right;
+    }
+    .ue_editor_body th::after {
+        content: ':';
+    }
+
+    .ue_editor_footer {
+        margin: 8px;
+        border: thin solid white;
+        padding: 2px 30px;
+        background-color: rgba(0, 0, 0, 0.75);
+    }
+}

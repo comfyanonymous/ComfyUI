@@ -1,0 +1,72 @@
+/* Example Access Modal */
+.example-access-modal {
+    max-width: 550px;
+    text-align: center;
+}
+
+.example-access-options {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    margin: var(--space-3) 0;
+}
+
+.example-option-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: var(--space-2);
+    border-radius: var(--border-radius-sm);
+    border: 1px solid var(--lora-border);
+    background-color: var(--lora-surface);
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.example-option-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    border-color: var(--lora-accent);
+}
+
+.example-option-btn i {
+    font-size: 2em;
+    margin-bottom: var(--space-1);
+    color: var(--lora-accent);
+}
+
+.option-title {
+    font-weight: 500;
+    margin-bottom: 4px;
+    font-size: 1.1em;
+}
+
+.option-desc {
+    font-size: 0.9em;
+    opacity: 0.8;
+}
+
+.example-option-btn.disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.example-option-btn.disabled i {
+    color: var(--text-color);
+    opacity: 0.5;
+}
+
+.modal-footer-note {
+    font-size: 0.9em;
+    opacity: 0.7;
+    margin-top: var(--space-2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+}
+
+/* Dark theme adjustments */
+[data-theme="dark"] .example-option-btn:hover {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+}

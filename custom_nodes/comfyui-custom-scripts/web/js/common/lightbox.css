@@ -1,0 +1,102 @@
+.pysssss-lightbox {
+	width: 100vw;
+	height: 100vh;
+	position: fixed;
+	top: 0;
+	left: 0;
+	z-index: 1001;
+	background: rgba(0, 0, 0, 0.6);
+	display: flex;
+	align-items: center;
+	transition: opacity 0.2s;
+}
+
+.pysssss-lightbox-prev,
+.pysssss-lightbox-next {
+	height: 60px;
+	display: flex;
+	align-items: center;
+}
+
+.pysssss-lightbox-prev:after,
+.pysssss-lightbox-next:after {
+	border-style: solid;
+	border-width: 0.25em 0.25em 0 0;
+	display: inline-block;
+	height: 0.45em;
+	left: 0.15em;
+	position: relative;
+	top: 0.15em;
+	transform: rotate(-135deg) scale(0.75);
+	vertical-align: top;
+	width: 0.45em;
+	padding: 10px;
+	font-size: 20px;
+	margin: 0 10px 0 20px;
+	transition: color 0.2s;
+	flex-shrink: 0;
+	content: "";
+}
+
+.pysssss-lightbox-next:after {
+	transform: rotate(45deg) scale(0.75);
+	margin: 0 20px 0 0px;
+}
+
+.pysssss-lightbox-main {
+	display: grid;
+	flex: auto;
+	place-content: center;
+	text-align: center;
+}
+
+.pysssss-lightbox-link {
+	display: flex;
+	justify-content: center;
+	align-items: center;
+	position: relative;
+}
+
+.pysssss-lightbox .lds-ring {
+	position: absolute;
+	left: 50%;
+	top: 50%;
+	transform: translate(-50%, -50%);
+}
+
+.pysssss-lightbox-img {
+	max-height: 90vh;
+	max-width: calc(100vw - 130px);
+	height: auto;
+	object-fit: contain;
+	border: 3px solid white;
+	border-radius: 4px;
+	transition: opacity 0.2s;
+	user-select: none;
+}
+
+.pysssss-lightbox-img:hover {
+	border-color: dodgerblue;
+}
+
+.pysssss-lightbox-close {
+	font-size: 80px;
+	line-height: 1ch;
+	height: 1ch;
+	width: 1ch;
+	position: absolute;
+	right: 10px;
+	top: 10px;
+	padding: 5px;
+}
+
+.pysssss-lightbox-close:after {
+	content: "\00d7";
+}
+
+.pysssss-lightbox-close:hover,
+.pysssss-lightbox-prev:hover,
+.pysssss-lightbox-next:hover {
+	color: dodgerblue;
+	cursor: pointer;
+}

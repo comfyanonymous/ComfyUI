@@ -1,0 +1,134 @@
+{
+  "last_node_id": 3,
+  "last_link_id": 1,
+  "nodes": [
+    {
+      "id": 1,
+      "type": "VHS_LoadVideo",
+      "pos": [
+        54,
+        89
+      ],
+      "size": [
+        235.1999969482422,
+        384.56999829610186
+      ],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            1
+          ],
+          "shape": 3,
+          "slot_index": 0
+        },
+        {
+          "name": "frame_count",
+          "type": "INT",
+          "links": null,
+          "shape": 3
+        },
+        {
+          "name": "audio",
+          "type": "VHS_AUDIO",
+          "links": null,
+          "shape": 3
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "VHS_LoadVideo"
+      },
+      "widgets_values": {
+        "video": "leader.webm",
+        "force_rate": 8,
+        "force_size": "Custom Width",
+        "custom_width": 304,
+        "custom_height": 312,
+        "frame_load_cap": 16,
+        "skip_first_frames": 1,
+        "select_every_nth": 1,
+        "choose video to upload": "image",
+        "videopreview": {
+          "hidden": false,
+          "paused": false,
+          "params": {
+            "frame_load_cap": 0,
+            "skip_first_frames": 0,
+            "force_rate": 0,
+            "filename": "leader.webm",
+            "type": "input",
+            "format": "video/mp4",
+            "force_size": "410.4x?",
+            "select_every_nth": 1
+          }
+        }
+      }
+    },
+    {
+      "id": 3,
+      "type": "VHS_VideoCombine",
+      "pos": [
+        629,
+        222
+      ],
+      "size": {
+        "0": 315,
+        "1": 250
+      },
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 1
+        }
+      ],
+      "outputs": [],
+      "properties": {
+        "Node name for S&R": "VHS_VideoCombine"
+      },
+      "widgets_values": {
+        "frame_rate": 8,
+        "loop_count": 0,
+        "filename_prefix": "AnimateDiff",
+        "format": "video/webm",
+        "pingpong": false,
+        "save_image": false,
+        "crf": 20,
+        "save_metadata": false,
+        "audio_file": "",
+        "videopreview": {
+          "hidden": false,
+          "paused": false
+        }
+      }
+    }
+  ],
+  "links": [
+    [
+      1,
+      1,
+      0,
+      3,
+      0,
+      "IMAGE"
+    ]
+  ],
+  "groups": [],
+  "config": {},
+  "extra": {},
+  "version": 0.4,
+  "tests": {
+      "3": [{"type": "video", "key": "width", "value": 304},
+          {"type": "video", "key": "height", "value": 232},
+          {"type": "compare", "filename": "custom_nodes/ComfyUI-VideoHelperSuite/tests/outputs/simple.webm", "tolerance": 0.02}
+      ],
+      "length": 1
+  }
+}

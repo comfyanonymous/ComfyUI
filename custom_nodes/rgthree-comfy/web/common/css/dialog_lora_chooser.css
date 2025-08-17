@@ -1,0 +1,143 @@
+.rgthree-lora-chooser-dialog {
+  max-width: 100%;
+}
+.rgthree-lora-chooser-dialog .rgthree-dialog-container-title {
+  display: flex;
+  flex-direction: column;
+}
+.rgthree-lora-chooser-dialog .rgthree-dialog-container-title h2 {
+  display: flex;
+  width: 100%;
+}
+.rgthree-lora-chooser-dialog .rgthree-lora-chooser-search {
+  margin-left: auto;
+  border-radius: 50px;
+  width: 50%;
+  max-width: 170px;
+  padding: 2px 8px;
+}
+.rgthree-lora-chooser-dialog .rgthree-lora-chooser-header {
+  display: flex;
+  flex-direction: row;
+}
+.rgthree-lora-chooser-dialog .rgthree-lora-filters-container svg {
+  width: 16px;
+  height: 16px;
+}
+.rgthree-lora-chooser-dialog .rgthree-dialog-container-content {
+  width: 80vw;
+  height: 80vh;
+}
+.rgthree-lora-chooser-dialog .rgthree-button-reset {
+  width: 32px;
+  height: 32px;
+}
+.rgthree-lora-chooser-dialog .rgthree-button-reset > svg {
+  width: 100%;
+  height: 100%;
+}
+.rgthree-lora-chooser-dialog ul.rgthree-lora-chooser-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  position: relative;
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: start;
+  justify-content: space-around;
+}
+.rgthree-lora-chooser-dialog ul.rgthree-lora-chooser-list > li {
+  position: relative;
+  flex: 0 0 auto;
+  width: 170px;
+  max-width: 100%;
+  margin: 8px 8px 16px;
+}
+.rgthree-lora-chooser-dialog ul.rgthree-lora-chooser-list > li label {
+  position: absolute;
+  display: block;
+  inset: 0;
+  z-index: 3;
+  cursor: pointer;
+}
+.rgthree-lora-chooser-dialog ul.rgthree-lora-chooser-list > li input[type=checkbox] {
+  position: absolute;
+  right: 8px;
+  top: 8px;
+  margin: 0;
+  z-index: 2;
+  appearance: none;
+  background-color: #fff;
+  width: 48px;
+  height: 48px;
+  border-radius: 4px;
+  border: 1px solid rgb(120, 120, 120);
+  opacity: 0;
+  transition: opacity 0.15s ease-in-out;
+}
+.rgthree-lora-chooser-dialog ul.rgthree-lora-chooser-list > li input[type=checkbox]:checked {
+  opacity: 1;
+  background: #0060df;
+}
+.rgthree-lora-chooser-dialog ul.rgthree-lora-chooser-list > li input[type=checkbox]:checked::before {
+  content: "";
+  display: block;
+  width: 100%;
+  height: 100%;
+  box-shadow: inset 100px 100px #fff;
+  clip-path: polygon(40.13% 68.39%, 23.05% 51.31%, 17.83% 48.26%, 12.61% 49.57%, 9.57% 53.04%, 8% 60%, 34.13% 85.87%, 39.82% 89.57%, 45.88% 86.73%, 90.66% 32.39%, 88.92% 26.1%, 83.03% 22.17%, 76.94% 22.62%);
+}
+.rgthree-lora-chooser-dialog ul.rgthree-lora-chooser-list > li figure {
+  position: relative;
+  display: block;
+  margin: 0 0 8px;
+  padding: 0;
+  border: 1px solid rgba(120, 120, 120, 0.8);
+  background: rgba(120, 120, 120, 0.5);
+  width: 100%;
+  padding-top: 120%;
+  transition: box-shadow 0.15s ease-in-out;
+  opacity: 0.75;
+}
+.rgthree-lora-chooser-dialog ul.rgthree-lora-chooser-list > li figure::after {
+  content: "";
+  display: block;
+  position: absolute;
+  inset: 0;
+}
+.rgthree-lora-chooser-dialog ul.rgthree-lora-chooser-list > li figure:empty::before {
+  content: "No image.";
+  color: rgba(200, 200, 200, 0.8);
+  position: absolute;
+  display: block;
+  inset: 0;
+  font-size: 1.2em;
+  text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.rgthree-lora-chooser-dialog ul.rgthree-lora-chooser-list > li figure > img, .rgthree-lora-chooser-dialog ul.rgthree-lora-chooser-list > li figure > video {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  top: 0;
+  left: 0;
+  object-fit: cover;
+}
+.rgthree-lora-chooser-dialog ul.rgthree-lora-chooser-list > li div {
+  word-wrap: break-word;
+  font-size: 0.8rem;
+  opacity: 0.75;
+}
+.rgthree-lora-chooser-dialog ul.rgthree-lora-chooser-list > li:hover figure::after {
+  box-shadow: 0px 2px 6px rgba(0, 0, 0, 0.75);
+}
+.rgthree-lora-chooser-dialog ul.rgthree-lora-chooser-list > li :checked ~ figure::after {
+  box-shadow: 0 0 5px #fff, 0px 0px 15px rgba(49, 131, 255, 0.88), inset 0 0 3px #fff, inset 0px 0px 5px rgba(49, 131, 255, 0.88);
+}
+.rgthree-lora-chooser-dialog ul.rgthree-lora-chooser-list > li:hover *, .rgthree-lora-chooser-dialog ul.rgthree-lora-chooser-list > li:hover input[type=checkbox],
+.rgthree-lora-chooser-dialog ul.rgthree-lora-chooser-list > li :checked ~ * {
+  opacity: 1;
+}

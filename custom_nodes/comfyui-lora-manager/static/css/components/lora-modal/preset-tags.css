@@ -1,0 +1,68 @@
+/* Update Preset Controls styles */
+.preset-controls {
+  display: flex;
+  gap: var(--space-2);
+  margin-bottom: var(--space-2);
+}
+
+.preset-controls select,
+.preset-controls input {
+  padding: var(--space-1);
+  background: var(--bg-color);
+  border: 1px solid var(--lora-border);
+  border-radius: var(--border-radius-xs);
+  color: var(--text-color);
+}
+
+.preset-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+
+.preset-tag {
+  display: flex;
+  align-items: center;
+  background: var(--lora-surface);
+  border: 1px solid var(--lora-border);
+  border-radius: var(--border-radius-xs);
+  padding: calc(var(--space-1) * 0.5) var(--space-1);
+  gap: var(--space-1);
+  transition: all 0.2s ease;
+}
+
+.preset-tag span {
+  color: var(--lora-accent);
+  font-size: 0.9em;
+}
+
+.preset-tag i {
+  color: var(--text-color);
+  opacity: 0.5;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.preset-tag:hover {
+  background: oklch(var(--lora-accent-l) var(--lora-accent-c) var(--lora-accent-h) / 0.1);
+  border-color: var(--lora-accent);
+}
+
+.preset-tag i:hover {
+  color: var(--lora-error);
+  opacity: 1;
+}
+
+.add-preset-btn {
+  padding: calc(var(--space-1) * 0.5) var(--space-2);
+  background: var(--lora-accent);
+  color: var(--lora-text);
+  border: none;
+  border-radius: var(--border-radius-xs);
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.add-preset-btn:hover {
+  opacity: 0.9;
+}

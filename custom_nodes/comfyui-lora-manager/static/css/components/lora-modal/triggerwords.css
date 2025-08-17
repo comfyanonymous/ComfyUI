@@ -1,0 +1,112 @@
+/* Update Trigger Words styles */
+.info-item.trigger-words {
+  padding: var(--space-2);
+  background: rgba(0, 0, 0, 0.03);
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  border-radius: var(--border-radius-sm);
+}
+
+/* 调整 trigger words 样式 */
+[data-theme="dark"] .info-item.trigger-words {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--lora-border);
+}
+
+/* New header style for trigger words */
+.trigger-words-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.trigger-words-content {
+  margin-bottom: var(--space-1);
+}
+
+.trigger-words-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: flex-start;
+}
+
+/* No trigger words message */
+.no-trigger-words {
+  color: var(--text-color);
+  opacity: 0.7;
+  font-style: italic;
+  font-size: 0.9em;
+}
+
+/* Trigger word tags in display mode */
+.trigger-word-tag {
+  display: inline-flex;
+  align-items: center;
+  background: var(--bg-color);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius-xs);
+  padding: 4px 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  gap: 6px;
+  position: relative;
+}
+
+.trigger-word-content {
+  color: var(--lora-accent) !important;
+  font-size: 0.85em;
+  line-height: 1.4;
+  word-break: break-word;
+}
+
+.trigger-word-tag:hover {
+  background: oklch(var(--lora-accent-l) var(--lora-accent-c) var(--lora-accent-h) / 0.1);
+  border-color: var(--lora-accent);
+}
+
+.trigger-word-copy {
+  display: flex;
+  align-items: center;
+  color: var(--text-color);
+  opacity: 0.5;
+  flex-shrink: 0;
+  transition: opacity 0.2s;
+}
+
+.trained-word-freq {
+  color: var(--text-color);
+  font-size: 0.75em;
+  background: rgba(0, 0, 0, 0.05);
+  border-radius: 10px;
+  min-width: 20px;
+  padding: 1px 5px;
+  text-align: center;
+  line-height: 1.2;
+}
+
+[data-theme="dark"] .trained-word-freq {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+/* Class tokens styling */
+.class-tokens-container {
+  padding: 10px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.class-token-item {
+  background: oklch(var(--lora-accent-l) var(--lora-accent-c) var(--lora-accent-h) / 0.1) !important;
+  border: 1px solid var(--lora-accent) !important;
+}
+
+.token-badge {
+  background: var(--lora-accent);
+  color: white;
+  font-size: 0.7em;
+  padding: 2px 5px;
+  border-radius: 8px;
+  white-space: nowrap;
+}

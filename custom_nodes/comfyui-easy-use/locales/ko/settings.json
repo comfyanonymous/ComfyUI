@@ -1,0 +1,67 @@
+{
+  "EasyUse_Hotkeys_AddGroup": {
+    "name": "Shift+g 를 사용하여 선택된 노드를 그룹에 추가합니다",
+    "tooltip": "v1.2.39부터는 Ctrl+g 를 사용할 수 있습니다"
+  },
+  "EasyUse_Hotkeys_cleanVRAMUsed": {
+    "name": "Shift+r 를 사용하여 모델 및 노드 캐시를 언로드합니다"
+  },
+  "EasyUse_Hotkeys_toggleNodesMap": {
+    "name": "Shift+m 를 사용하여 노드 맵을 전환합니다"
+  },
+  "EasyUse_Hotkeys_AlignSelectedNodes": {
+    "name": "Shift+Up/Down/Left/Right 와 Shift+Ctrl+Alt+Left/Right 를 사용하여 선택된 노드를 정렬합니다",
+    "tooltip": "Shift+Up/Down/Left/Right 는 선택된 노드를 정렬하며, Shift+Ctrl+Alt+Left/Right 는 노드를 수평/수직으로 분배합니다"
+  },
+  "EasyUse_Hotkeys_NormalizeSelectedNodes": {
+    "name": "Shift+Ctrl+Left/Right 를 사용하여 선택된 노드를 정규화합니다",
+    "tooltip": "Shift+Ctrl+Left 는 너비를, Shift+Ctrl+Right 는 높이를 정규화합니다"
+  },
+  "EasyUse_Hotkeys_NodesTemplate": {
+    "name": "Alt+1~9 를 사용하여 워크플로우에 노드 템플릿을 붙여넣습니다"
+  },
+  "EasyUse_Hotkeys_JumpNearestNodes": {
+    "name": "Up/Down/Left/Right 를 사용하여 가장 가까운 노드로 이동합니다"
+  },
+  "EasyUse_ContextMenu_SubDirectories": {
+    "name": "컨텍스트 메뉴에서 자동으로 하위 디렉토리를 중첩합니다"
+  },
+  "EasyUse_ContextMenu_ModelsThumbnails": {
+    "name": "모델 미리보기 썸네일을 활성화합니다"
+  },
+  "EasyUse_ContextMenu_NodesSort": {
+    "name": "컨텍스트 메뉴에서 새로운 노드를 A~Z 순으로 정렬합니다"
+  },
+  "EasyUse_ContextMenu_QuickOptions": {
+    "name": "컨텍스트 메뉴에 3개의 빠른 옵션 버튼을 사용합니다",
+    "options": {
+      "At the forefront": "앞쪽에",
+      "At the end": "뒤쪽에",
+      "Disable": "비활성화"
+    }
+  },
+  "EasyUse_Nodes_Runtime": {
+    "name": "노드 실행 시간 표시를 활성화합니다"
+  },
+  "EasyUse_Nodes_ChainGetSet": {
+    "name": "부모 노드와 연결된 get/ set 포인트 체이닝을 활성화합니다"
+  },
+  "EasyUse_NodesMap_Sorting": {
+    "name": "노드 그룹 정렬 모드를 관리합니다",
+    "tooltip": "기본값은 자동 정렬입니다. 수동으로 설정하면 그룹을 드래그 앤 드롭할 수 있으며 순서가 저장됩니다.",
+    "options": {
+      "Auto sorting": "자동 정렬",
+      "Manual drag&drop sorting": "수동 드래그 앤 드롭 정렬"
+    }
+  },
+  "EasyUse_NodesMap_DisplayNodeID": {
+    "name": "노드 ID 표시를 활성화합니다"
+  },
+  "EasyUse_NodesMap_DisplayGroupOnly": {
+    "name": "그룹만 표시합니다"
+  },
+  "EasyUse_NodesMap_Enable": {
+    "name": "그룹 맵을 활성화합니다",
+    "tooltip": "업데이트를 위해 페이지를 새로고침해야 합니다"
+  }
+}

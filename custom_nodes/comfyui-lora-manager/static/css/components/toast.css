@@ -1,0 +1,182 @@
+/* Update toast animation for trigger word copy */
+.toast.toast-copy {
+    background: var(--lora-accent);
+    color: white;
+    border: none;
+    padding: 8px 16px;
+    font-size: 0.9em;
+    transform: translateX(-50%) translateY(20px);
+}
+
+.toast.toast-copy.show {
+    transform: translateX(-50%) translateY(0);
+}
+
+/* Toast Notifications */
+.toast {
+    position: fixed;
+    top: 20px;          /* 改为从顶部显示 */
+    right: 20px;        /* 改为右对齐 */
+    left: auto;         /* 移除左对齐 */
+    transform: translateX(120%); /* 初始位置在屏幕右侧外 */
+    min-width: 300px;   /* 设置最小宽度 */
+    max-width: 400px;   /* 设置最大宽度 */
+    background: var(--lora-surface);
+    color: var(--text-color);
+    padding: 12px 16px;
+    border-radius: var(--border-radius-sm);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+    z-index: calc(var(--z-overlay) + 10); /* 让toast显示在最上层 */
+    opacity: 0;
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), 
+                opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.toast.show {
+    transform: translateX(0); /* 显示时滑入到正确位置 */
+    opacity: 1;
+}
+
+/* 添加图标容器 */
+.toast::before {
+    content: '';
+    width: 20px;
+    height: 20px;
+    flex-shrink: 0;
+    background-position: center;
+    background-repeat: no-repeat;
+    background-size: contain;
+}
+
+/* 不同类型的toast样式 */
+.toast-success {
+    border-left: 4px solid oklch(65% 0.2 142);
+}
+
+.toast-success::before {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%234caf50'%3E%3Cpath d='M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z'/%3E%3C/svg%3E");
+}
+
+.toast-error {
+    border-left: 4px solid oklch(65% 0.2 29);
+}
+
+.toast-error::before {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23f44336'%3E%3Cpath d='M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41z'/%3E%3C/svg%3E");
+}
+
+.toast-info {
+    border-left: 4px solid oklch(65% 0.2 256);
+}
+
+.toast-info::before {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%232196f3'%3E%3Cpath d='M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z'/%3E%3C/svg%3E");
+}
+
+/* 多个toast堆叠显示 */
+.toast + .toast {
+    margin-top: 10px;
+}
+
+/* 响应式调整 */
+@media (max-width: 768px) {
+    .toast {
+        width: calc(100% - 40px); /* 左右各留20px间距 */
+        max-width: none;
+        right: 20px;
+    }
+}
+
+/* Ensure toasts are visible in both themes */
+[data-theme="dark"] .toast {
+    background: var(--lora-surface);
+    color: var(--lora-text);
+}
+
+.tooltip {
+    position: relative;
+    cursor: help;
+}
+
+.tooltip::after {
+    content: attr(data-tooltip);
+    position: absolute;
+    bottom: 120%;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(0, 0, 0, 0.8);
+    color: white;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 0.8em;
+    white-space: nowrap;
+    opacity: 0;
+    transition: opacity 0.2s;
+    pointer-events: none;
+}
+
+.tooltip:hover::after {
+    opacity: 1;
+}
+
+/* Toast Container for stacked notifications */
+.toast-container {
+    position: fixed;
+    top: 0;
+    right: 0;
+    z-index: calc(var(--z-overlay) + 10);
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 20px;
+    pointer-events: none; /* Allow clicking through the container */
+    width: 400px;
+    max-width: 100%;
+}
+
+/* Ensure each toast has pointer events */
+.toast-container .toast {
+    pointer-events: auto;
+    position: relative; /* Override fixed positioning */
+    top: 0 !important; /* Let the container handle positioning */
+    right: 0 !important;
+    margin-bottom: 10px;
+}
+
+/* Add missing warning toast style */
+.toast-warning {
+    border-left: 4px solid var(--lora-warning);
+}
+
+.toast-warning::before {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23ff9800'%3E%3Cpath d='M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z'/%3E%3C/svg%3E");
+}
+
+/* Improve toast animation */
+.toast {
+    transform: translateX(120%);
+    opacity: 0;
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), 
+                opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.toast.show {
+    transform: translateX(0);
+    opacity: 1;
+}
+
+/* Responsive adjustments */
+@media (max-width: 480px) {
+    .toast-container {
+        width: 100%;
+        padding: 10px;
+    }
+    
+    .toast {
+        width: 100%;
+        max-width: none;
+    }
+}

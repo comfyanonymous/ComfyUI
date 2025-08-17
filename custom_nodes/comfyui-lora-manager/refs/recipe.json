@@ -1,0 +1,82 @@
+{
+    "id": "0448c06d-de1b-46ab-975c-c5aa60d90dbc",
+    "file_path": "D:/Workspace/ComfyUI/models/loras/recipes/0448c06d-de1b-46ab-975c-c5aa60d90dbc.jpg",
+    "title": "a mysterious, steampunk-inspired character standing in a dramatic pose",
+    "modified": 1741837612.3931093,
+    "created_date": 1741492786.5581934,
+    "base_model": "Flux.1 D",
+    "loras": [
+        {
+            "file_name": "ChronoDivinitiesFlux_r1",
+            "hash": "ddbc5abd00db46ad464f5e3ca85f8f7121bc14b594d6785f441d9b002fffe66a",
+            "strength": 0.8,
+            "modelVersionId": 1438879,
+            "modelName": "Chrono Divinities - By HailoKnight",
+            "modelVersionName": "Flux"
+        },
+        {
+            "file_name": "flux.1_lora_flyway_ink-dynamic",
+            "hash": "4b4f3b469a0d5d3a04a46886abfa33daa37a905db070ccfbd10b345c6fb00eff",
+            "strength": 0.2,
+            "modelVersionId": 914935,
+            "modelName": "Ink-style",
+            "modelVersionName": "ink-dynamic"
+        },
+        {
+            "file_name": "ck-painterly-fantasy-000017",
+            "hash": "48c67064e2936aec342580a2a729d91d75eb818e45ecf993b9650cc66c94c420",
+            "strength": 0.2,
+            "modelVersionId": 1189379,
+            "modelName": "Painterly Fantasy by ChronoKnight - [FLUX & IL]",
+            "modelVersionName": "FLUX"
+        },
+        {
+            "file_name": "RetroAnimeFluxV1",
+            "hash": "8f43c31b6c3238ac44195c970d511d759c5893bddd00f59f42b8fe51e8e76fa0",
+            "strength": 0.8,
+            "modelVersionId": 806265,
+            "modelName": "Retro Anime Flux - Style",
+            "modelVersionName": "v1.0"
+        },
+        {
+            "file_name": "Mezzotint_Artstyle_for_Flux_-_by_Ethanar",
+            "hash": "e6961502769123bf23a66c5c5298d76264fd6b9610f018319a0ccb091bfc308e",
+            "strength": 0.2,
+            "modelVersionId": 757030,
+            "modelName": "Mezzotint Artstyle for Flux - by Ethanar",
+            "modelVersionName": "V1"
+        },
+        {
+            "file_name": "FluxMythG0thicL1nes",
+            "hash": "ecb03595de62bd6183a0dd2b38bea35669fd4d509f4bbae5aa0572cfb7ef4279",
+            "strength": 0.4,
+            "modelVersionId": 1202162,
+            "modelName": "Velvet's Mythic Fantasy Styles | Flux + Pony + illustrious",
+            "modelVersionName": "Flux Gothic Lines"
+        },
+        {
+            "file_name": "Elden_Ring_-_Yoshitaka_Amano",
+            "hash": "c660c4c55320be7206cb6a917c59d8da3953cc07169fe10bda833a54ec0024f9",
+            "strength": 0.75,
+            "modelVersionId": 746484,
+            "modelName": "Elden Ring - Yoshitaka Amano",
+            "modelVersionName": "V1"
+        }
+    ],
+    "gen_params": {
+        "prompt": "a mysterious, steampunk-inspired character standing in a dramatic pose. The character is dressed in a long, intricately detailed dark coat with ornate patterns, a wide-brimmed hat, and leather boots. The face is partially obscured by the hat's shadow, adding to the enigmatic aura. The background showcases a large, antique clock with Roman numerals, surrounded by dynamic lightning and ethereal white birds, enhancing the fantastical atmosphere. The color palette is dominated by dark tones with striking contrasts of white and blue lightning, creating a sense of tension and energy. The overall composition is vertical, with the character centrally positioned, exuding a sense of power and mystery. hkchrono",
+        "negative_prompt": "",
+        "checkpoint": {
+            "type": "checkpoint",
+            "modelVersionId": 691639,
+            "modelName": "FLUX",
+            "modelVersionName": "Dev"
+        },
+        "steps": "30",
+        "sampler": "Undefined",
+        "cfg_scale": "3.5",
+        "seed": "1472903449",
+        "size": "832x1216",
+        "clip_skip": "2"
+    }
+}

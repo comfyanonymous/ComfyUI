@@ -1,0 +1,124 @@
+/* Update Modal specific styles */
+.update-actions {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    align-items: stretch;
+    flex-wrap: nowrap;
+}
+
+.update-link {
+    color: var(--lora-accent);
+    text-decoration: none;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.95em;
+}
+
+.update-link:hover {
+    text-decoration: underline;
+}
+
+/* Update progress styles */
+.update-progress {
+    background: rgba(0, 0, 0, 0.03);
+    border: 1px solid var(--lora-border);
+    border-radius: var(--border-radius-sm);
+    padding: var(--space-2);
+    margin: var(--space-2) 0;
+}
+
+[data-theme="dark"] .update-progress {
+    background: rgba(255, 255, 255, 0.03);
+}
+
+.progress-info {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+}
+
+.progress-text {
+    font-size: 0.9em;
+    color: var(--text-color);
+    opacity: 0.8;
+}
+
+.update-progress-bar {
+    width: 100%;
+    height: 8px;
+    background-color: rgba(0, 0, 0, 0.1);
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+[data-theme="dark"] .update-progress-bar {
+    background-color: rgba(255, 255, 255, 0.1);
+}
+
+.progress-fill {
+    height: 100%;
+    background-color: var(--lora-accent);
+    width: 0%;
+    transition: width 0.3s ease;
+    border-radius: 4px;
+}
+
+/* Update button states */
+#updateBtn {
+    min-width: 120px;
+}
+
+#updateBtn.updating {
+    background-color: var(--lora-warning);
+    cursor: not-allowed;
+}
+
+#updateBtn.success {
+    background-color: var(--lora-success);
+}
+
+#updateBtn.error {
+    background-color: var(--lora-error);
+}
+
+/* Add styles for markdown elements in changelog */
+.changelog-item ul {
+    padding-left: 20px;
+    margin-top: 8px;
+}
+
+.changelog-item li {
+    margin-bottom: 6px;
+    line-height: 1.4;
+}
+
+.changelog-item strong {
+    font-weight: 600;
+}
+
+.changelog-item em {
+    font-style: italic;
+}
+
+.changelog-item code {
+    background: rgba(0, 0, 0, 0.05);
+    padding: 2px 4px;
+    border-radius: 3px;
+    font-family: monospace;
+    font-size: 0.9em;
+}
+
+[data-theme="dark"] .changelog-item code {
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.changelog-item a {
+    color: var(--lora-accent);
+    text-decoration: none;
+}
+
+.changelog-item a:hover {
+    text-decoration: underline;
+}

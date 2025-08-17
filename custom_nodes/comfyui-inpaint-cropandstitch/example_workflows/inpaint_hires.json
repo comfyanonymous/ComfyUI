@@ -1,0 +1,1335 @@
+{
+  "id": "0be5fbd9-64b9-4c54-978f-aeb69d60adb0",
+  "revision": 0,
+  "last_node_id": 37,
+  "last_link_id": 77,
+  "nodes": [
+    {
+      "id": 12,
+      "type": "CLIPTextEncode",
+      "pos": [
+        1050,
+        910
+      ],
+      "size": [
+        302.3999938964844,
+        120
+      ],
+      "flags": {},
+      "order": 6,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "clip",
+          "type": "CLIP",
+          "link": 24
+        }
+      ],
+      "outputs": [
+        {
+          "name": "CONDITIONING",
+          "shape": 3,
+          "type": "CONDITIONING",
+          "slot_index": 0,
+          "links": [
+            38,
+            62
+          ]
+        }
+      ],
+      "title": "CLIP Text Encode (Prompt) - Negative",
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.3.26",
+        "Node name for S&R": "CLIPTextEncode"
+      },
+      "widgets_values": [
+        "ugly, text, watermark"
+      ],
+      "color": "#322",
+      "bgcolor": "#533"
+    },
+    {
+      "id": 32,
+      "type": "VAEDecode",
+      "pos": [
+        2668.62060546875,
+        365.8939208984375
+      ],
+      "size": [
+        210,
+        46
+      ],
+      "flags": {},
+      "order": 18,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "samples",
+          "type": "LATENT",
+          "link": 67
+        },
+        {
+          "name": "vae",
+          "type": "VAE",
+          "link": 66
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "shape": 3,
+          "type": "IMAGE",
+          "slot_index": 0,
+          "links": [
+            68
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.3.26",
+        "Node name for S&R": "VAEDecode"
+      },
+      "widgets_values": []
+    },
+    {
+      "id": 26,
+      "type": "InpaintStitchImproved",
+      "pos": [
+        2798.74755859375,
+        105.86776733398438
+      ],
+      "size": [
+        235.1999969482422,
+        46
+      ],
+      "flags": {},
+      "order": 19,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "stitcher",
+          "type": "STITCHER",
+          "link": 52
+        },
+        {
+          "name": "inpainted_image",
+          "type": "IMAGE",
+          "link": 68
+        }
+      ],
+      "outputs": [
+        {
+          "name": "image",
+          "type": "IMAGE",
+          "slot_index": 0,
+          "links": [
+            54
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfyui-inpaint-cropandstitch",
+        "ver": "de6c2f6462e5997519a07305ade0b987143da12b",
+        "Node name for S&R": "InpaintStitchImproved"
+      },
+      "widgets_values": []
+    },
+    {
+      "id": 30,
+      "type": "InpaintModelConditioning",
+      "pos": [
+        2248.286865234375,
+        362.8361511230469
+      ],
+      "size": [
+        216.59999084472656,
+        138
+      ],
+      "flags": {},
+      "order": 16,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "positive",
+          "type": "CONDITIONING",
+          "link": 61
+        },
+        {
+          "name": "negative",
+          "type": "CONDITIONING",
+          "link": 62
+        },
+        {
+          "name": "vae",
+          "type": "VAE",
+          "link": 60
+        },
+        {
+          "name": "pixels",
+          "type": "IMAGE",
+          "link": 59
+        },
+        {
+          "name": "mask",
+          "type": "MASK",
+          "link": 72
+        }
+      ],
+      "outputs": [
+        {
+          "name": "positive",
+          "shape": 3,
+          "type": "CONDITIONING",
+          "slot_index": 0,
+          "links": [
+            63
+          ]
+        },
+        {
+          "name": "negative",
+          "shape": 3,
+          "type": "CONDITIONING",
+          "slot_index": 1,
+          "links": [
+            64
+          ]
+        },
+        {
+          "name": "latent",
+          "shape": 3,
+          "type": "LATENT",
+          "slot_index": 2,
+          "links": [
+            65
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.3.26",
+        "Node name for S&R": "InpaintModelConditioning"
+      },
+      "widgets_values": [
+        true
+      ]
+    },
+    {
+      "id": 15,
+      "type": "VAEDecode",
+      "pos": [
+        1611.3004150390625,
+        350.0999450683594
+      ],
+      "size": [
+        210,
+        46
+      ],
+      "flags": {},
+      "order": 12,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "samples",
+          "type": "LATENT",
+          "link": 33
+        },
+        {
+          "name": "vae",
+          "type": "VAE",
+          "link": 32
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "shape": 3,
+          "type": "IMAGE",
+          "slot_index": 0,
+          "links": [
+            58,
+            74
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.3.26",
+        "Node name for S&R": "VAEDecode"
+      },
+      "widgets_values": []
+    },
+    {
+      "id": 19,
+      "type": "InpaintModelConditioning",
+      "pos": [
+        1233.3997802734375,
+        331.20001220703125
+      ],
+      "size": [
+        216.59999084472656,
+        138
+      ],
+      "flags": {},
+      "order": 8,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "positive",
+          "type": "CONDITIONING",
+          "link": 37
+        },
+        {
+          "name": "negative",
+          "type": "CONDITIONING",
+          "link": 38
+        },
+        {
+          "name": "vae",
+          "type": "VAE",
+          "link": 44
+        },
+        {
+          "name": "pixels",
+          "type": "IMAGE",
+          "link": 50
+        },
+        {
+          "name": "mask",
+          "type": "MASK",
+          "link": 51
+        }
+      ],
+      "outputs": [
+        {
+          "name": "positive",
+          "shape": 3,
+          "type": "CONDITIONING",
+          "slot_index": 0,
+          "links": [
+            39
+          ]
+        },
+        {
+          "name": "negative",
+          "shape": 3,
+          "type": "CONDITIONING",
+          "slot_index": 1,
+          "links": [
+            40
+          ]
+        },
+        {
+          "name": "latent",
+          "shape": 3,
+          "type": "LATENT",
+          "slot_index": 2,
+          "links": [
+            41
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.3.26",
+        "Node name for S&R": "InpaintModelConditioning"
+      },
+      "widgets_values": [
+        true
+      ]
+    },
+    {
+      "id": 25,
+      "type": "InpaintCropImproved",
+      "pos": [
+        620,
+        110
+      ],
+      "size": [
+        390,
+        482
+      ],
+      "flags": {},
+      "order": 7,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "image",
+          "type": "IMAGE",
+          "link": 48
+        },
+        {
+          "name": "mask",
+          "shape": 7,
+          "type": "MASK",
+          "link": 75
+        },
+        {
+          "name": "optional_context_mask",
+          "shape": 7,
+          "type": "MASK",
+          "link": 76
+        }
+      ],
+      "outputs": [
+        {
+          "name": "stitcher",
+          "type": "STITCHER",
+          "slot_index": 0,
+          "links": [
+            52
+          ]
+        },
+        {
+          "name": "cropped_image",
+          "type": "IMAGE",
+          "slot_index": 1,
+          "links": [
+            50
+          ]
+        },
+        {
+          "name": "cropped_mask",
+          "type": "MASK",
+          "slot_index": 2,
+          "links": [
+            51,
+            69
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfyui-inpaint-cropandstitch",
+        "ver": "de6c2f6462e5997519a07305ade0b987143da12b",
+        "Node name for S&R": "InpaintCropImproved"
+      },
+      "widgets_values": [
+        "bilinear",
+        "bicubic",
+        true,
+        "ensure minimum resolution",
+        2048,
+        2048,
+        16384,
+        16384,
+        true,
+        0,
+        false,
+        32,
+        0.1,
+        false,
+        1,
+        1,
+        1,
+        1,
+        2.0000000000000004,
+        true,
+        512,
+        512,
+        "32"
+      ]
+    },
+    {
+      "id": 34,
+      "type": "ImageScaleBy",
+      "pos": [
+        1885.878662109375,
+        234.75906372070312
+      ],
+      "size": [
+        315,
+        82
+      ],
+      "flags": {},
+      "order": 11,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "image",
+          "type": "IMAGE",
+          "link": 70
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            71
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.3.27",
+        "Node name for S&R": "ImageScaleBy"
+      },
+      "widgets_values": [
+        "nearest-exact",
+        4.000000000000001
+      ]
+    },
+    {
+      "id": 33,
+      "type": "MaskToImage",
+      "pos": [
+        1904.9693603515625,
+        164.7589874267578
+      ],
+      "size": [
+        264.5999755859375,
+        26
+      ],
+      "flags": {},
+      "order": 9,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "mask",
+          "type": "MASK",
+          "link": 69
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            70
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.3.27",
+        "Node name for S&R": "MaskToImage"
+      },
+      "widgets_values": []
+    },
+    {
+      "id": 28,
+      "type": "UpscaleModelLoader",
+      "pos": [
+        1881.914306640625,
+        574.6688842773438
+      ],
+      "size": [
+        315,
+        58
+      ],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "UPSCALE_MODEL",
+          "type": "UPSCALE_MODEL",
+          "links": [
+            57
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.3.27",
+        "Node name for S&R": "UpscaleModelLoader"
+      },
+      "widgets_values": [
+        "4xUltrasharp_4xUltrasharpV10.pt"
+      ],
+      "color": "#223",
+      "bgcolor": "#335"
+    },
+    {
+      "id": 29,
+      "type": "ImageUpscaleWithModel",
+      "pos": [
+        1874.0797119140625,
+        708.3599243164062
+      ],
+      "size": [
+        340.20001220703125,
+        46
+      ],
+      "flags": {},
+      "order": 14,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "upscale_model",
+          "type": "UPSCALE_MODEL",
+          "link": 57
+        },
+        {
+          "name": "image",
+          "type": "IMAGE",
+          "link": 58
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            59
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.3.27",
+        "Node name for S&R": "ImageUpscaleWithModel"
+      },
+      "widgets_values": []
+    },
+    {
+      "id": 10,
+      "type": "CheckpointLoaderSimple",
+      "pos": [
+        590,
+        680
+      ],
+      "size": [
+        370,
+        100
+      ],
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "MODEL",
+          "shape": 3,
+          "type": "MODEL",
+          "slot_index": 0,
+          "links": [
+            28,
+            73
+          ]
+        },
+        {
+          "name": "CLIP",
+          "shape": 3,
+          "type": "CLIP",
+          "slot_index": 1,
+          "links": [
+            21,
+            24
+          ]
+        },
+        {
+          "name": "VAE",
+          "shape": 3,
+          "type": "VAE",
+          "slot_index": 2,
+          "links": [
+            32,
+            44,
+            60,
+            66
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.3.26",
+        "Node name for S&R": "CheckpointLoaderSimple"
+      },
+      "widgets_values": [
+        "sd1.5-inpainting/lazymixRealAmateur_v40Inpainting.safetensors"
+      ]
+    },
+    {
+      "id": 3,
+      "type": "LoadImage",
+      "pos": [
+        90,
+        110
+      ],
+      "size": [
+        400,
+        500
+      ],
+      "flags": {},
+      "order": 2,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "shape": 3,
+          "type": "IMAGE",
+          "slot_index": 0,
+          "links": [
+            48
+          ]
+        },
+        {
+          "name": "MASK",
+          "shape": 3,
+          "type": "MASK",
+          "slot_index": 1,
+          "links": [
+            75
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.3.26",
+        "Node name for S&R": "LoadImage"
+      },
+      "widgets_values": [
+        "clipspace/clipspace-mask-29086.800000000047.png [input]",
+        "image",
+        ""
+      ]
+    },
+    {
+      "id": 27,
+      "type": "LoadImage",
+      "pos": [
+        92.26223754882812,
+        662.6889038085938
+      ],
+      "size": [
+        400,
+        500
+      ],
+      "flags": {},
+      "order": 3,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "shape": 3,
+          "type": "IMAGE",
+          "slot_index": 0,
+          "links": []
+        },
+        {
+          "name": "MASK",
+          "shape": 3,
+          "type": "MASK",
+          "slot_index": 1,
+          "links": [
+            76
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.3.26",
+        "Node name for S&R": "LoadImage"
+      },
+      "widgets_values": [
+        "clipspace/clipspace-mask-51569.89999999991.png [input]",
+        "image",
+        ""
+      ]
+    },
+    {
+      "id": 11,
+      "type": "CLIPTextEncode",
+      "pos": [
+        1050,
+        700
+      ],
+      "size": [
+        310,
+        140
+      ],
+      "flags": {},
+      "order": 5,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "clip",
+          "type": "CLIP",
+          "link": 21
+        }
+      ],
+      "outputs": [
+        {
+          "name": "CONDITIONING",
+          "shape": 3,
+          "type": "CONDITIONING",
+          "slot_index": 0,
+          "links": [
+            37,
+            61
+          ]
+        }
+      ],
+      "title": "CLIP Text Encode (Prompt) - Positive",
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.3.26",
+        "Node name for S&R": "CLIPTextEncode"
+      },
+      "widgets_values": [
+        "a black hole"
+      ],
+      "color": "#232",
+      "bgcolor": "#353"
+    },
+    {
+      "id": 14,
+      "type": "KSampler",
+      "pos": [
+        1420,
+        670
+      ],
+      "size": [
+        320,
+        470
+      ],
+      "flags": {},
+      "order": 10,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 28
+        },
+        {
+          "name": "positive",
+          "type": "CONDITIONING",
+          "link": 39
+        },
+        {
+          "name": "negative",
+          "type": "CONDITIONING",
+          "link": 40
+        },
+        {
+          "name": "latent_image",
+          "type": "LATENT",
+          "link": 41
+        }
+      ],
+      "outputs": [
+        {
+          "name": "LATENT",
+          "shape": 3,
+          "type": "LATENT",
+          "slot_index": 0,
+          "links": [
+            33
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.3.26",
+        "Node name for S&R": "KSampler"
+      },
+      "widgets_values": [
+        691360915987716,
+        "fixed",
+        20,
+        8,
+        "dpmpp_3m_sde",
+        "karras",
+        1
+      ]
+    },
+    {
+      "id": 31,
+      "type": "KSampler",
+      "pos": [
+        2454.12109375,
+        672.7935791015625
+      ],
+      "size": [
+        320,
+        470
+      ],
+      "flags": {},
+      "order": 17,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 73
+        },
+        {
+          "name": "positive",
+          "type": "CONDITIONING",
+          "link": 63
+        },
+        {
+          "name": "negative",
+          "type": "CONDITIONING",
+          "link": 64
+        },
+        {
+          "name": "latent_image",
+          "type": "LATENT",
+          "link": 65
+        }
+      ],
+      "outputs": [
+        {
+          "name": "LATENT",
+          "shape": 3,
+          "type": "LATENT",
+          "slot_index": 0,
+          "links": [
+            67
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.3.26",
+        "Node name for S&R": "KSampler"
+      },
+      "widgets_values": [
+        547680698436999,
+        "fixed",
+        20,
+        8,
+        "dpmpp_3m_sde",
+        "karras",
+        0.4000000000000001
+      ]
+    },
+    {
+      "id": 36,
+      "type": "PreviewImage",
+      "pos": [
+        1882.1004638671875,
+        861.1027221679688
+      ],
+      "size": [
+        378.29998779296875,
+        536.4000244140625
+      ],
+      "flags": {},
+      "order": 15,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 74
+        }
+      ],
+      "outputs": [],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.3.27",
+        "Node name for S&R": "PreviewImage"
+      },
+      "widgets_values": [
+        ""
+      ]
+    },
+    {
+      "id": 7,
+      "type": "PreviewImage",
+      "pos": [
+        3014.99560546875,
+        386.45294189453125
+      ],
+      "size": [
+        500,
+        770
+      ],
+      "flags": {},
+      "order": 20,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 54
+        }
+      ],
+      "outputs": [],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.3.26",
+        "Node name for S&R": "PreviewImage"
+      },
+      "widgets_values": [
+        ""
+      ]
+    },
+    {
+      "id": 22,
+      "type": "Note",
+      "pos": [
+        545.6982421875,
+        854.726318359375
+      ],
+      "size": [
+        435.1099853515625,
+        490.7263488769531
+      ],
+      "flags": {},
+      "order": 4,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [],
+      "title": "Instructions",
+      "properties": {
+        "text": ""
+      },
+      "widgets_values": [
+        "This workflow:\n- Resizes the input image to a minimum of 2048x2048 and crops the area\n- Inpaints only on the masked area with a specific resolution (e.g. 512 x 512), which means any SD1.5 model can be used to define the inpainting.\n- Then upscales the inpainted part by x4 using an upscale model.\n- Then resamples at that new resolution to do a hiRes fix.\n\n\nThe easiest way to run it is:\n\n1. Load the desired image in the top \"Load Image\" node and mask the area you want to replace.\n\n2. Load the same image in the bottom \"Load Image\" node. Optionally, mask the context area that is relevant for sampling (corners is OK, square is OK). You may as well just remove that bottom \"Load Image\" node.\n\n3. Select a checkpoint for inpainting in the \"Load Checkpoint\" node.\n\n4. Write the positive and negative prompts in the green and red node. These prompts do not have to match the whole image, but only the masked area.\n\n5. Adjust denoise in the first sampler (e.g. 1 to fully replace the content, ~0.8 to keep part of it, 0.1 to match around.\n\n6. Select an upscale model in the blue node.\n\n7. Run!\n\nThe default parameters for Inpaint Crop and Inpaint Stitch work well for most inpainting tasks.\n\nFor SDXL or Flux, increase output_target_width and output_target_height to 1024.\n\nYou may also tweak the number of steps, seeds, etc."
+      ],
+      "color": "#432",
+      "bgcolor": "#653"
+    },
+    {
+      "id": 35,
+      "type": "ImageToMask",
+      "pos": [
+        1887.69677734375,
+        367.4862365722656
+      ],
+      "size": [
+        315,
+        58
+      ],
+      "flags": {},
+      "order": 13,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "image",
+          "type": "IMAGE",
+          "link": 71
+        }
+      ],
+      "outputs": [
+        {
+          "name": "MASK",
+          "type": "MASK",
+          "links": [
+            72
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.3.27",
+        "Node name for S&R": "ImageToMask"
+      },
+      "widgets_values": [
+        "red"
+      ]
+    }
+  ],
+  "links": [
+    [
+      21,
+      10,
+      1,
+      11,
+      0,
+      "CLIP"
+    ],
+    [
+      24,
+      10,
+      1,
+      12,
+      0,
+      "CLIP"
+    ],
+    [
+      28,
+      10,
+      0,
+      14,
+      0,
+      "MODEL"
+    ],
+    [
+      32,
+      10,
+      2,
+      15,
+      1,
+      "VAE"
+    ],
+    [
+      33,
+      14,
+      0,
+      15,
+      0,
+      "LATENT"
+    ],
+    [
+      37,
+      11,
+      0,
+      19,
+      0,
+      "CONDITIONING"
+    ],
+    [
+      38,
+      12,
+      0,
+      19,
+      1,
+      "CONDITIONING"
+    ],
+    [
+      39,
+      19,
+      0,
+      14,
+      1,
+      "CONDITIONING"
+    ],
+    [
+      40,
+      19,
+      1,
+      14,
+      2,
+      "CONDITIONING"
+    ],
+    [
+      41,
+      19,
+      2,
+      14,
+      3,
+      "LATENT"
+    ],
+    [
+      44,
+      10,
+      2,
+      19,
+      2,
+      "VAE"
+    ],
+    [
+      48,
+      3,
+      0,
+      25,
+      0,
+      "IMAGE"
+    ],
+    [
+      50,
+      25,
+      1,
+      19,
+      3,
+      "IMAGE"
+    ],
+    [
+      51,
+      25,
+      2,
+      19,
+      4,
+      "MASK"
+    ],
+    [
+      52,
+      25,
+      0,
+      26,
+      0,
+      "STITCHER"
+    ],
+    [
+      54,
+      26,
+      0,
+      7,
+      0,
+      "IMAGE"
+    ],
+    [
+      57,
+      28,
+      0,
+      29,
+      0,
+      "UPSCALE_MODEL"
+    ],
+    [
+      58,
+      15,
+      0,
+      29,
+      1,
+      "IMAGE"
+    ],
+    [
+      59,
+      29,
+      0,
+      30,
+      3,
+      "IMAGE"
+    ],
+    [
+      60,
+      10,
+      2,
+      30,
+      2,
+      "VAE"
+    ],
+    [
+      61,
+      11,
+      0,
+      30,
+      0,
+      "CONDITIONING"
+    ],
+    [
+      62,
+      12,
+      0,
+      30,
+      1,
+      "CONDITIONING"
+    ],
+    [
+      63,
+      30,
+      0,
+      31,
+      1,
+      "CONDITIONING"
+    ],
+    [
+      64,
+      30,
+      1,
+      31,
+      2,
+      "CONDITIONING"
+    ],
+    [
+      65,
+      30,
+      2,
+      31,
+      3,
+      "LATENT"
+    ],
+    [
+      66,
+      10,
+      2,
+      32,
+      1,
+      "VAE"
+    ],
+    [
+      67,
+      31,
+      0,
+      32,
+      0,
+      "LATENT"
+    ],
+    [
+      68,
+      32,
+      0,
+      26,
+      1,
+      "IMAGE"
+    ],
+    [
+      69,
+      25,
+      2,
+      33,
+      0,
+      "MASK"
+    ],
+    [
+      70,
+      33,
+      0,
+      34,
+      0,
+      "IMAGE"
+    ],
+    [
+      71,
+      34,
+      0,
+      35,
+      0,
+      "IMAGE"
+    ],
+    [
+      72,
+      35,
+      0,
+      30,
+      4,
+      "MASK"
+    ],
+    [
+      73,
+      10,
+      0,
+      31,
+      0,
+      "MODEL"
+    ],
+    [
+      74,
+      15,
+      0,
+      36,
+      0,
+      "IMAGE"
+    ],
+    [
+      75,
+      3,
+      1,
+      25,
+      1,
+      "MASK"
+    ],
+    [
+      76,
+      27,
+      1,
+      25,
+      2,
+      "MASK"
+    ]
+  ],
+  "groups": [],
+  "config": {},
+  "extra": {
+    "ds": {
+      "scale": 0.6934334949441344,
+      "offset": [
+        181.98543829364752,
+        356.1328928532488
+      ]
+    },
+    "ue_links": []
+  },
+  "version": 0.4
+}

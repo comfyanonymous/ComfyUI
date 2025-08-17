@@ -1,0 +1,3 @@
+[lint]
+ignore = ["E402","E701"]
+exclude = ["install.py", "*.ipynb"]

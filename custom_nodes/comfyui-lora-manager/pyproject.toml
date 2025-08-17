@@ -1,0 +1,25 @@
+[project]
+name = "comfyui-lora-manager"
+description = "Revolutionize your workflow with the ultimate LoRA companion for ComfyUI!"
+version = "0.8.27"
+license = {file = "LICENSE"}
+dependencies = [
+    "aiohttp",
+    "jinja2", 
+    "safetensors",
+    "piexif",
+    "Pillow",
+    "olefile", # for getting rid of warning message
+    "toml",
+    "natsort",
+    "GitPython"
+]
+
+[project.urls]
+Repository = "https://github.com/willmiao/ComfyUI-Lora-Manager"
+#  Used by Comfy Registry https://comfyregistry.org
+
+[tool.comfy]
+PublisherId = "willmiao"
+DisplayName = "ComfyUI-Lora-Manager"
+Icon = "https://github.com/willmiao/ComfyUI-Lora-Manager/blob/main/static/images/android-chrome-512x512.png?raw=true"

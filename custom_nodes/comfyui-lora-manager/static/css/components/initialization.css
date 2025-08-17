@@ -1,0 +1,359 @@
+/* Initialization Component Styles */
+
+.initialization-container {
+  width: 100%;
+  height: 100%;
+  padding: var(--space-3);
+  background: var(--lora-surface);
+  animation: fadeIn 0.3s ease-in-out;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.initialization-content {
+  max-width: 800px;
+  width: 100%;
+}
+
+/* Override loading.css width for initialization component */
+.initialization-container .loading-content {
+  width: 100%;
+  max-width: 100%;
+  background: transparent;
+  backdrop-filter: none;
+  border: none;
+  padding: 0;
+}
+
+.initialization-header {
+  text-align: center;
+  margin-bottom: var(--space-3);
+}
+
+.initialization-header h2 {
+  font-size: 1.8rem;
+  margin-bottom: var(--space-1);
+  color: var(--text-color);
+}
+
+.init-subtitle {
+  color: var(--text-color);
+  opacity: 0.8;
+  font-size: 1rem;
+}
+
+/* Progress Bar Styles specific to initialization */
+.initialization-progress {
+  margin-bottom: var(--space-3);
+}
+
+/* Renamed container class */
+.init-progress-container {
+  width: 100%; /* Use full width within its container */
+  height: 8px; /* Match height from previous .progress-bar-container */
+  background-color: var(--lora-border); /* Consistent background */
+  border-radius: 4px;
+  overflow: hidden;
+  margin: 0 auto var(--space-1); /* Center horizontally, add bottom margin */
+}
+
+/* Renamed progress bar class */
+.init-progress-bar {
+  height: 100%;
+  /* Use a gradient consistent with the theme accent */
+  background: linear-gradient(90deg, var(--lora-accent) 0%, color-mix(in oklch, var(--lora-accent) 80%, transparent) 100%);
+  border-radius: 4px; /* Match container radius */
+  transition: width 0.3s ease;
+  width: 0%; /* Start at 0% */
+}
+
+/* Remove the old .progress-bar rule specific to initialization to avoid conflicts */
+/* .progress-bar { ... } */
+
+/* Progress Details */
+.progress-details {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.9rem;
+  color: var(--text-color);
+  margin-top: var(--space-1);
+  padding: 0 2px;
+}
+
+#remainingTime {
+  font-style: italic;
+  color: var(--text-color);
+  opacity: 0.8;
+}
+
+/* Stages Styles */
+.initialization-stages {
+  margin-bottom: var(--space-3);
+}
+
+.stage-item {
+  display: flex;
+  align-items: flex-start;
+  padding: var(--space-2);
+  border-radius: var(--border-radius-xs);
+  margin-bottom: var(--space-1);
+  transition: background-color 0.2s ease;
+  border: 1px solid transparent;
+}
+
+.stage-item.active {
+  background-color: rgba(var(--lora-accent), 0.1);
+  border-color: var(--lora-accent);
+}
+
+.stage-item.completed {
+  background-color: rgba(0, 150, 0, 0.05);
+  border-color: rgba(0, 150, 0, 0.2);
+}
+
+.stage-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  background: var(--lora-border);
+  border-radius: 50%;
+  margin-right: var(--space-2);
+}
+
+.stage-item.active .stage-icon {
+  background: var(--lora-accent);
+  color: white;
+}
+
+.stage-item.completed .stage-icon {
+  background: rgb(0, 150, 0);
+  color: white;
+}
+
+.stage-content {
+  flex: 1;
+}
+
+.stage-content h4 {
+  margin: 0 0 5px 0;
+  font-size: 1rem;
+  color: var(--text-color);
+}
+
+.stage-details {
+  font-size: 0.85rem;
+  color: var(--text-color);
+  opacity: 0.8;
+}
+
+.stage-status {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+}
+
+.stage-status.pending {
+  color: var(--text-color);
+  opacity: 0.5;
+}
+
+.stage-status.in-progress {
+  color: var(--lora-accent);
+}
+
+.stage-status.completed {
+  color: rgb(0, 150, 0);
+}
+
+/* Tips Container */
+.tips-container {
+  margin-top: var(--space-3);
+  background: rgba(var(--lora-accent), 0.05);
+  border-radius: var(--border-radius-base);
+  padding: var(--space-2);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.tips-header {
+  display: flex;
+  align-items: center;
+  margin-bottom: var(--space-2);
+  padding-bottom: var(--space-1);
+  border-bottom: 1px solid var(--lora-border);
+}
+
+.tips-header i {
+  margin-right: 10px;
+  color: var(--lora-accent);
+  font-size: 1.2rem;
+}
+
+.tips-header h3 {
+  font-size: 1.2rem;
+  margin: 0;
+  color: var(--text-color);
+}
+
+/* Tip Carousel with Images */
+.tips-content {
+  position: relative;
+}
+
+.tip-carousel {
+  position: relative;
+  height: 160px;
+  overflow: hidden;
+}
+
+.tip-item {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  opacity: 0;
+  transition: opacity 0.5s ease;
+  padding: 0;
+  border-radius: var(--border-radius-sm);
+  overflow: hidden;
+}
+
+.tip-item.active {
+  opacity: 1;
+}
+
+.tip-image {
+  width: 40%;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--lora-border);
+}
+
+.tip-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.tip-text {
+  width: 60%;
+  padding: var(--space-2);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.tip-text h4 {
+  margin: 0 0 var(--space-1) 0;
+  font-size: 1.1rem;
+  color: var(--text-color);
+}
+
+.tip-text p {
+  margin: 0;
+  line-height: 1.5;
+  font-size: 0.9rem;
+  color: var(--text-color);
+}
+
+.tip-navigation {
+  display: flex;
+  justify-content: center;
+  margin-top: var(--space-2);
+}
+
+.tip-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background-color: var(--lora-border);
+  margin: 0 5px;
+  cursor: pointer;
+  transition: background-color 0.2s ease, transform 0.2s ease;
+}
+
+.tip-dot:hover {
+  transform: scale(1.2);
+}
+
+.tip-dot.active {
+  background-color: var(--lora-accent);
+}
+
+/* Animation */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Different stage status animations */
+@keyframes pulse {
+  0% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.2);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+.stage-item.active .stage-icon i {
+  animation: pulse 1s infinite;
+}
+
+/* Responsive Adjustments */
+@media (max-width: 768px) {
+  .initialization-container {
+    padding: var(--space-2);
+  }
+  
+  .stage-item {
+    padding: var(--space-1);
+  }
+  
+  .stage-icon {
+    width: 32px;
+    height: 32px;
+    min-width: 32px;
+  }
+
+  .tip-item {
+    flex-direction: column;
+    height: 220px;
+  }
+  
+  .tip-image, .tip-text {
+    width: 100%;
+  }
+  
+  .tip-image {
+    height: 120px;
+  }
+  
+  .tip-carousel {
+    height: 220px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .initialization-container,
+  .tip-item,
+  .tip-dot {
+    transition: none;
+    animation: none;
+  }
+}

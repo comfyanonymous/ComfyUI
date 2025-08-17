@@ -1,0 +1,5 @@
+# main
+gguf>=0.13.0
+# optional - tokenizer
+sentencepiece
+protobuf

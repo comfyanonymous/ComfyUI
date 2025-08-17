@@ -1,0 +1,18 @@
+{
+  "civitai_api_key": "your_civitai_api_key_here",
+  "show_only_sfw": false,
+  "folder_paths": {
+    "loras": [
+      "C:/path/to/your/loras_folder",
+      "C:/path/to/another/loras_folder"
+    ],
+    "checkpoints": [
+      "C:/path/to/your/checkpoints_folder",
+      "C:/path/to/another/checkpoints_folder"
+    ],
+    "embeddings": [
+      "C:/path/to/your/embeddings_folder",
+      "C:/path/to/another/embeddings_folder"
+    ]
+  }
+}

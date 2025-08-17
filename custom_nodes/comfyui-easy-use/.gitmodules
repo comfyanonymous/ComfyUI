@@ -1,0 +1,4 @@
+[submodule "ComfyUI-Easy-Use-Frontend"]
+	path = ComfyUI-Easy-Use-Frontend
+	url = https://github.com/yolain/ComfyUI-Easy-Use-Frontend.git
+    branch = main

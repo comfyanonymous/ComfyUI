@@ -1,0 +1,110 @@
+.easyuse-toast-container{
+    position: fixed;
+    z-index: 99999;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: start;
+    padding:10px 0;
+}
+.easyuse-toast-container > div {
+  position: relative;
+  height: fit-content;
+  padding: 4px;
+  margin-top: -100px; /* re-set by JS */
+  opacity: 0;
+  transition: all 0.33s ease-in-out;
+  z-index: 3;
+}
+
+.easyuse-toast-container > div:last-child {
+  z-index: 2;
+}
+
+.easyuse-toast-container > div:not(.-show) {
+  z-index: 1;
+}
+
+.easyuse-toast-container > div.-show {
+  opacity: 1;
+  margin-top: 0px !important;
+}
+
+.easyuse-toast-container > div.-show {
+  opacity: 1;
+  transform: translateY(0%);
+}
+
+.easyuse-toast-container > div > div {
+  position: relative;
+  background: var(--comfy-menu-bg);
+  color: var(--input-text);
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  height: fit-content;
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.88);
+  padding: 9px 12px;
+  border-radius: 8px;
+  font-family: Arial, sans-serif;
+  font-size: 14px;
+  pointer-events: all;
+}
+
+.easyuse-toast-container > div > div > span {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+}
+
+.easyuse-toast-container > div > div > span svg {
+  width: 16px;
+  height: auto;
+  margin-right: 8px;
+}
+
+.easyuse-toast-container > div > div > span svg[data-icon=info-circle]{
+  fill: var(--theme-color-light);
+}
+.easyuse-toast-container > div > div > span svg[data-icon=check-circle]{
+  fill: var(--success-color);
+}
+.easyuse-toast-container > div > div > span svg[data-icon=close-circle]{
+  fill: var(--error-color);
+}
+.easyuse-toast-container > div > div > span svg[data-icon=exclamation-circle]{
+  fill: var(--warning-color);
+}
+/*rotate animation*/
+@keyframes rotate {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+.easyuse-toast-container > div > div > span svg[data-icon=loading]{
+  fill: var(--theme-color);
+  animation: rotate 1s linear infinite;
+}
+
+.easyuse-toast-container a {
+  cursor: pointer;
+  text-decoration: underline;
+  color: var(--theme-color-light);
+  margin-left: 4px;
+  display: inline-block;
+  line-height: 1;
+}
+
+.easyuse-toast-container a:hover {
+  color: var(--theme-color-light);
+  text-decoration: none;
+}

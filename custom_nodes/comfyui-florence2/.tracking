@@ -1,0 +1,11 @@
+.gitattributes
+.github/workflows/publish.yaml
+.gitignore
+LICENSE
+README.md
+__init__.py
+configuration_florence2.py
+modeling_florence2.py
+nodes.py
+pyproject.toml
+requirements.txt

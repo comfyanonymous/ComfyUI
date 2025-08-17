@@ -1,0 +1,75 @@
+{
+  "EasyUse_Hotkeys_AddGroup": {
+    "name": "启用 Shift+g 键将选中的节点添加一个组",
+    "tooltip": "从v1.2.39开始，可以使用Ctrl+g代替"
+  },
+  "EasyUse_Hotkeys_cleanVRAMUsed": {
+    "name": "启用 Shift+r 键卸载模型和节点缓存"
+  },
+  "EasyUse_Hotkeys_toggleNodesMap": {
+    "name": "启用 Shift+m 键显隐管理节点组"
+  },
+  "EasyUse_Hotkeys_AlignSelectedNodes": {
+    "name": "启用 Shift+上/下/左/右 和 Shift+Ctrl+Alt+左/右 键对齐选中的节点",
+    "tooltip": "Shift+上/下/左/右 可以对齐选中的节点, Shift+Ctrl+Alt+左/右 可以水平/垂直分布节点"
+  },
+  "EasyUse_Hotkeys_NormalizeSelectedNodes": {
+    "name": "启用 Shift+Ctrl+左/右 键规范化选中的节点",
+    "tooltip": "启用 Shift+Ctrl+左 键规范化宽度和 Shift+Ctrl+右 键规范化高度"
+  },
+  "EasyUse_Hotkeys_NodesTemplate": {
+    "name": "启用 Alt+1~9 从节点模板粘贴到工作流中"
+  },
+  "EasyUse_Hotkeys_JumpNearestNodes": {
+    "name": "启用 上/下/左/右 键跳转到最近的前后节点"
+  },
+  "EasyUse_ContextMenu_SubDirectories": {
+    "name": "启用上下文菜单自动嵌套子目录"
+  },
+  "EasyUse_ContextMenu_ModelsThumbnails": {
+    "name": "启动模型预览图显示"
+  },
+  "EasyUse_ContextMenu_NodesSort": {
+    "name": "启用右键菜单中新建节点A~Z排序"
+  },
+  "EasyUse_ContextMenu_QuickOptions": {
+    "name": "在右键菜单中使用三个快捷按钮",
+    "options": {
+      "At the forefront": "在最前面",
+      "At the end": "在最后面",
+      "Disable": "禁用"
+    }
+  },
+  "EasyUse_Nodes_Runtime": {
+    "name": "启动节点运行时间显示"
+  },
+  "EasyUse_Nodes_ChainGetSet": {
+    "name": "启用将获取点和设置点与父节点链在一起"
+  },
+  "EasyUse_NodesMap_Sorting": {
+    "name": "管理节点组排序模式",
+    "tooltip": "默认自动排序，如果设置为手动，组可以拖放并保存排序结果。",
+    "options": {
+        "Auto sorting": "自动排序",
+        "Manual drag&drop sorting": "手动拖拽排序"
+    }
+  },
+  "EasyUse_NodesMap_DisplayNodeID": {
+    "name": "启用节点ID显示"
+  },
+  "EasyUse_NodesMap_DisplayGroupOnly": {
+    "name": "仅显示组"
+  },
+  "EasyUse_NodesMap_Enable": {
+    "name": "启用管理节点组",
+    "tooltip": "您需要刷新页面以成功更新"
+  },
+  "EasyUse_StylesSelector_DisplayType": {
+    "name": "样式选择器显示类型",
+    "tooltip": "样式选择器显示类型，如果设置为“网格”，则显示为网格，如果设置为“列表”，则显示为列表",
+    "options": {
+      "Gird": "网格",
+      "List": "列表"
+    }
+  }
+}

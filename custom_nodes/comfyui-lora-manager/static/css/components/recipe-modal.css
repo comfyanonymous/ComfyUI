@@ -1,0 +1,991 @@
+.recipe-modal-header {
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+    align-items: flex-start;
+    border-bottom: 1px solid var(--lora-border);
+    padding-bottom: 10px;
+    margin-bottom: 10px;
+}
+
+.recipe-modal-header h2 {
+    font-size: 1.4em; /* Reduced from default h2 size */
+    line-height: 1.3;
+    margin: 0;
+    max-height: 2.6em; /* Limit to 2 lines */
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    width: calc(100% - 20px);
+}
+
+/* Editable content styles */
+.editable-content {
+    position: relative;
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.editable-content.hide {
+    display: none;
+}
+
+.editable-content .content-text {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.edit-icon {
+    background: none;
+    border: none;
+    color: var(--text-color);
+    opacity: 0;
+    cursor: pointer;
+    padding: 4px 8px;
+    margin-left: 8px;
+    border-radius: var(--border-radius-xs);
+    transition: all 0.2s;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.editable-content:hover .edit-icon {
+    opacity: 0.6;
+}
+
+.edit-icon:hover {
+    opacity: 1 !important;
+    background: var(--lora-surface);
+}
+
+/* Content editor styles */
+.content-editor {
+    display: none;
+    width: 100%;
+    padding: 4px 0;
+}
+
+.content-editor.active {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.content-editor input {
+    flex: 1;
+    background: var(--bg-color);
+    border: 1px solid var(--lora-border);
+    border-radius: var(--border-radius-xs);
+    padding: 6px 8px;
+    font-size: 1em;
+    color: var(--text-color);
+    min-width: 0;
+}
+
+.content-editor.tags-editor input {
+    font-size: 0.9em;
+}
+
+/* 删除不再需要的按钮样式 */
+.editor-actions {
+    display: none;
+}
+
+/* Special styling for tags content */
+.tags-content {
+    display: flex;
+    align-items: center;
+    flex-wrap: nowrap;
+    gap: 8px;
+}
+
+.tags-display {
+    display: flex;
+    flex-wrap: nowrap;
+    gap: 6px;
+    align-items: center;
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+}
+
+.no-tags {
+    font-size: 0.85em;
+    color: var(--text-color);
+    opacity: 0.6;
+    font-style: italic;
+}
+
+/* Recipe Tags styles */
+.recipe-tags-container {
+    position: relative;
+    margin-top: 6px;
+    margin-bottom: 10px;
+}
+
+.recipe-tags-compact {
+    display: flex;
+    flex-wrap: nowrap;
+    gap: 6px;
+    align-items: center;
+}
+
+.recipe-tag-compact {
+    background: rgba(0, 0, 0, 0.03);
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    border-radius: var(--border-radius-xs);
+    padding: 2px 8px;
+    font-size: 0.75em;
+    color: var(--text-color);
+    white-space: nowrap;
+}
+
+[data-theme="dark"] .recipe-tag-compact {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid var(--lora-border);
+}
+
+.recipe-tag-more {
+    background: var(--lora-accent);
+    color: var(--lora-text);
+    border-radius: var(--border-radius-xs);
+    padding: 2px 8px;
+    font-size: 0.75em;
+    cursor: pointer;
+    white-space: nowrap;
+    font-weight: 500;
+}
+
+.recipe-tags-tooltip {
+    position: absolute;
+    top: calc(100% + 8px);
+    left: 0;
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius-sm);
+    box-shadow: 0 3px 8px rgba(0, 0, 0, 0.15);
+    padding: 10px 14px;
+    max-width: 400px;
+    z-index: 10;
+    opacity: 0;
+    visibility: hidden;
+    transform: translateY(-4px);
+    transition: all 0.2s ease;
+    pointer-events: none;
+}
+
+.recipe-tags-tooltip.visible {
+    opacity: 1;
+    visibility: visible;
+    transform: translateY(0);
+    pointer-events: auto;
+}
+
+.tooltip-content {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+.tooltip-tag {
+    background: rgba(0, 0, 0, 0.03);
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    border-radius: var(--border-radius-xs);
+    padding: 3px 8px;
+    font-size: 0.75em;
+    color: var(--text-color);
+}
+
+[data-theme="dark"] .tooltip-tag {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid var(--lora-border);
+}
+
+/* Top Section: Preview and Gen Params */
+.recipe-top-section {
+    display: grid;
+    grid-template-columns: 280px 1fr;
+    gap: var(--space-2);
+    flex-shrink: 0;
+    margin-bottom: var(--space-2);
+}
+
+/* Recipe Preview */
+.recipe-preview-container {
+    width: 100%;
+    height: 360px;
+    border-radius: var(--border-radius-sm);
+    overflow: hidden;
+    background: var(--lora-surface);
+    border: 1px solid var(--border-color);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+}
+
+.recipe-preview-container img,
+.recipe-preview-container video {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+}
+
+.recipe-preview-media {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+}
+
+/* Source URL container */
+.source-url-container {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: rgba(0, 0, 0, 0.5);
+    padding: 8px 12px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    transition: transform 0.3s ease;
+    transform: translateY(100%);
+}
+
+.recipe-preview-container:hover .source-url-container {
+    transform: translateY(0);
+}
+
+.source-url-container.active {
+    transform: translateY(0);
+}
+
+.source-url-content {
+    display: flex;
+    align-items: center;
+    color: #fff;
+    flex: 1;
+    overflow: hidden;
+    font-size: 0.85em;
+}
+
+.source-url-icon {
+    margin-right: 8px;
+    flex-shrink: 0;
+}
+
+.source-url-text {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    cursor: pointer;
+    flex: 1;
+}
+
+.source-url-edit-btn {
+    background: none;
+    border: none;
+    color: #fff;
+    cursor: pointer;
+    padding: 4px;
+    margin-left: 8px;
+    border-radius: var(--border-radius-xs);
+    opacity: 0.7;
+    transition: opacity 0.2s ease;
+    flex-shrink: 0;
+}
+
+.source-url-edit-btn:hover {
+    opacity: 1;
+    background: rgba(255, 255, 255, 0.1);
+}
+
+/* Source URL editor */
+.source-url-editor {
+    display: none;
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: var(--bg-color);
+    border-top: 1px solid var(--border-color);
+    padding: 12px;
+    flex-direction: column;
+    gap: 10px;
+    z-index: 5;
+}
+
+.source-url-editor.active {
+    display: flex;
+}
+
+.source-url-input {
+    width: 100%;
+    padding: 8px 10px;
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius-xs);
+    background: var(--bg-color);
+    color: var(--text-color);
+    font-size: 0.9em;
+}
+
+.source-url-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+}
+
+.source-url-cancel-btn, 
+.source-url-save-btn {
+    padding: 6px 12px;
+    border-radius: var(--border-radius-xs);
+    font-size: 0.85em;
+    cursor: pointer;
+    border: none;
+    transition: all 0.2s;
+}
+
+.source-url-cancel-btn {
+    background: var(--bg-color);
+    color: var(--text-color);
+    border: 1px solid var(--border-color);
+}
+
+.source-url-save-btn {
+    background: var(--lora-accent);
+    color: white;
+}
+
+.source-url-cancel-btn:hover {
+    background: var(--lora-surface);
+}
+
+.source-url-save-btn:hover {
+    background: color-mix(in oklch, var(--lora-accent), black 10%);
+}
+
+/* Generation Parameters */
+.recipe-gen-params {
+    height: 360px;
+    display: flex;
+    flex-direction: column;
+}
+
+.recipe-gen-params h3 {
+    margin-top: 0;
+    margin-bottom: var(--space-2);
+    font-size: 1.2em;
+    color: var(--text-color);
+    padding-bottom: var(--space-1);
+    border-bottom: 1px solid var(--border-color);
+    flex-shrink: 0;
+}
+
+.gen-params-container {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    overflow-y: auto;
+    flex: 1;
+}
+
+.param-group {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.param-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.param-header label {
+    font-weight: 500;
+    color: var(--text-color);
+}
+
+.copy-btn {
+    background: none;
+    border: none;
+    color: var(--text-color);
+    opacity: 0.6;
+    cursor: pointer;
+    padding: 4px 8px;
+    border-radius: var(--border-radius-xs);
+    transition: all 0.2s;
+}
+
+.copy-btn:hover {
+    opacity: 1;
+    background: var(--lora-surface);
+}
+
+.param-content {
+    background: var(--lora-surface);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius-xs);
+    padding: var(--space-2);
+    color: var(--text-color);
+    font-size: 0.9em;
+    line-height: 1.5;
+    max-height: 150px;
+    overflow-y: auto;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+/* Other Parameters */
+.other-params {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: var(--space-1);
+}
+
+.param-tag {
+    background: var(--lora-surface);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius-xs);
+    padding: 4px 8px;
+    font-size: 0.85em;
+    color: var(--text-color);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.param-tag .param-name {
+    font-weight: 500;
+    opacity: 0.8;
+}
+
+/* Bottom Section: Resources */
+.recipe-bottom-section {
+    max-height: 320px;
+    display: flex;
+    flex-direction: column;
+    border-top: 1px solid var(--border-color);
+    padding-top: var(--space-2);
+}
+
+.recipe-section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--space-2);
+    padding-bottom: var(--space-1);
+    border-bottom: 1px solid var(--border-color);
+    flex-shrink: 0;
+}
+
+.recipe-section-header h3 {
+    margin: 0;
+    font-size: 1.2em;
+    color: var(--text-color);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.recipe-status {
+    display: inline-flex;
+    align-items: center;
+    font-size: 0.85em;
+    padding: 4px 8px;
+    border-radius: var(--border-radius-xs);
+    margin-left: var(--space-1);
+}
+
+.recipe-status.ready {
+    background: oklch(var(--lora-accent) / 0.1);
+    color: var(--lora-accent);
+}
+
+.recipe-status.missing {
+    background: oklch(var(--lora-error) / 0.1);
+    color: var(--lora-error);
+}
+
+.recipe-status i {
+    margin-right: 4px;
+}
+
+.recipe-section-actions {
+    display: flex;
+    align-items: center;
+    gap: var(--space-1);
+}
+
+/* View LoRAs button */
+.view-loras-btn {
+    background: none;
+    border: none;
+    color: var(--text-color);
+    opacity: 0.7;
+    cursor: pointer;
+    padding: 4px 8px;
+    border-radius: var(--border-radius-xs);
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.view-loras-btn:hover {
+    opacity: 1;
+    background: var(--lora-surface);
+    color: var(--lora-accent);
+}
+
+#recipeLorasCount {
+    font-size: 0.9em;
+    color: var(--text-color);
+    opacity: 0.8;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+#recipeLorasCount i {
+    font-size: 1em;
+}
+
+/* LoRAs List */
+.recipe-loras-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    overflow-y: auto;
+    flex: 1;
+    padding-top: 4px; /* Add padding to prevent first item from being cut off when hovered */
+}
+
+.recipe-lora-item {
+    display: flex;
+    gap: var(--space-2);
+    padding: 10px var(--space-2);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius-sm);
+    background: var(--bg-color);
+    /* Add will-change to create a new stacking context and force hardware acceleration */
+    will-change: transform;
+    /* Create a new containing block for absolutely positioned descendants */
+    transform: translateZ(0);
+    cursor: pointer; /* Make it clear the item is clickable */
+    transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.recipe-lora-item:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    border-color: var(--lora-accent);
+}
+
+.recipe-lora-item.exists-locally {
+    background: oklch(var(--lora-accent) / 0.05);
+    border-left: 4px solid var(--lora-accent);
+}
+
+.recipe-lora-item.missing-locally {
+    border-left: 4px solid var(--lora-error);
+}
+
+.recipe-lora-item.is-deleted {
+    background: rgba(127, 127, 127, 0.05);
+    border-left: 4px solid #777;
+    opacity: 0.8;
+}
+
+.recipe-lora-thumbnail {
+    width: 46px;
+    height: 46px;
+    flex-shrink: 0;
+    border-radius: var(--border-radius-xs);
+    overflow: hidden;
+    background: var(--bg-color);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.recipe-lora-thumbnail img,
+.recipe-lora-thumbnail video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.thumbnail-video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.recipe-lora-content {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    flex: 1;
+    min-width: 0;
+}
+
+.recipe-lora-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: var(--space-2);
+    position: relative;
+    min-height: 28px;
+    /* Ensure badges don't move during scroll in Chrome */
+    transform: translateZ(0);
+}
+
+.recipe-lora-content h4 {
+    margin: 0;
+    font-size: 1em;
+    color: var(--text-color);
+    flex: 1;
+    max-width: calc(100% - 120px); /* Make room for the badge */
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: -webkit-box;
+    -webkit-line-clamp: 2; /* Limit to 2 lines */
+    -webkit-box-orient: vertical;
+    line-height: 1.3;
+}
+
+.recipe-lora-info {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+    font-size: 0.85em;
+    margin-top: 4px;
+    padding-right: 4px;
+}
+
+.recipe-lora-info .base-model {
+    background: oklch(var(--lora-accent) / 0.1);
+    color: var(--lora-accent);
+    padding: 2px 8px;
+    border-radius: var(--border-radius-xs);
+}
+
+.recipe-lora-version {
+    font-size: 0.85em;
+    color: var(--text-color);
+    opacity: 0.7;
+}
+
+.recipe-lora-weight {
+    background: var(--lora-surface);
+    padding: 2px 8px;
+    border-radius: var(--border-radius-xs);
+    font-size: 0.85em;
+    color: var(--lora-accent);
+}
+
+.local-badge, 
+.missing-badge {
+    position: absolute;
+    right: 0;
+    top: 0;
+    /* Force hardware acceleration for Chrome */
+    transform: translateZ(0);
+    backface-visibility: hidden;
+}
+
+/* Specific styles for recipe modal badges - update z-index */
+.recipe-lora-header .local-badge,
+.recipe-lora-header .missing-badge {
+    z-index: 2; /* Ensure the badge is above other elements */
+    backface-visibility: hidden;
+}
+
+/* Ensure local-path tooltip is properly positioned and won't move during scroll */
+.recipe-lora-header .local-badge .local-path {
+    z-index: 3;
+    top: calc(100% + 4px); /* Position tooltip below the badge */
+    right: -4px; /* Align with the badge */
+    max-width: 250px;
+    /* Force hardware acceleration for Chrome */
+    transform: translateZ(0);
+}
+
+.missing-badge {
+    display: inline-flex;
+    align-items: center;
+    background: var(--lora-error);
+    color: white;
+    padding: 3px 6px;
+    border-radius: var(--border-radius-xs);
+    font-size: 0.75em;
+    font-weight: 500;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+.missing-badge i {
+    margin-right: 4px;
+    font-size: 0.9em;
+}
+
+/* Deleted badge with reconnect functionality */
+.deleted-badge {
+    display: inline-flex;
+    align-items: center;
+    background: #777;
+    color: white;
+    padding: 3px 6px;
+    border-radius: var(--border-radius-xs);
+    font-size: 0.75em;
+    font-weight: 500;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+.deleted-badge i {
+    margin-right: 4px;
+    font-size: 0.9em;
+}
+
+/* Add reconnect functionality styles */
+.deleted-badge.reconnectable {
+    position: relative;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+}
+
+.deleted-badge.reconnectable:hover {
+    background-color: var(--lora-accent);
+}
+
+.deleted-badge .reconnect-tooltip {
+    position: absolute;
+    display: none;
+    background-color: var(--card-bg);
+    color: var(--text-color);
+    padding: 8px 12px;
+    border-radius: var(--border-radius-xs);
+    border: 1px solid var(--border-color);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    z-index: var(--z-overlay);
+    width: max-content;
+    max-width: 200px;
+    font-size: 0.85rem;
+    font-weight: normal;
+    top: calc(100% + 5px);
+    left: 0;
+    margin-left: -100px;
+}
+
+.deleted-badge.reconnectable:hover .reconnect-tooltip {
+    display: block;
+}
+
+/* LoRA reconnect container */
+.lora-reconnect-container {
+    display: none;
+    flex-direction: column;
+    background: var(--lora-surface);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius-xs);
+    padding: 12px;
+    margin-top: 10px;
+    gap: 10px;
+}
+
+.lora-reconnect-container.active {
+    display: flex;
+}
+
+.reconnect-instructions {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.reconnect-instructions p {
+    margin: 0;
+    font-size: 0.95em;
+    font-weight: 500;
+    color: var(--text-color);
+}
+
+.reconnect-instructions small {
+    color: var(--text-color);
+    opacity: 0.7;
+    font-size: 0.85em;
+}
+
+.reconnect-instructions code {
+    background: rgba(0, 0, 0, 0.1);
+    padding: 2px 4px;
+    border-radius: 3px;
+    font-family: monospace;
+    font-size: 0.9em;
+}
+
+[data-theme="dark"] .reconnect-instructions code {
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.reconnect-form {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.reconnect-input {
+    width: calc(100% - 20px);
+    padding: 8px 10px;
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius-xs);
+    background: var(--bg-color);
+    color: var(--text-color);
+    font-size: 0.9em;
+}
+
+.reconnect-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+}
+
+.reconnect-cancel-btn, 
+.reconnect-confirm-btn {
+    padding: 6px 12px;
+    border-radius: var(--border-radius-xs);
+    font-size: 0.85em;
+    cursor: pointer;
+    border: none;
+    transition: all 0.2s;
+}
+
+.reconnect-cancel-btn {
+    background: var(--bg-color);
+    color: var(--text-color);
+    border: 1px solid var(--border-color);
+}
+
+.reconnect-confirm-btn {
+    background: var(--lora-accent);
+    color: white;
+}
+
+.reconnect-cancel-btn:hover {
+    background: var(--lora-surface);
+}
+
+.reconnect-confirm-btn:hover {
+    background: color-mix(in oklch, var(--lora-accent), black 10%);
+}
+
+/* Recipe status partial state */
+.recipe-status.partial {
+    background: rgba(127, 127, 127, 0.1);
+    color: #777;
+}
+
+/* 标题输入框特定的样式 */
+.title-input {
+    font-size: 1.2em !important; /* 调整为更合适的大小 */
+    line-height: 1.2;
+    font-weight: 500;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .recipe-top-section {
+        grid-template-columns: 1fr;
+    }
+    
+    .recipe-preview-container {
+        height: 200px;
+    }
+    
+    .recipe-gen-params {
+        height: auto;
+        max-height: 300px;
+    }
+}
+
+.badge-container {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    flex-shrink: 0;
+    min-width: 110px;
+    z-index: 2;
+}
+
+/* Update the local-badge and missing-badge to be positioned within the badge-container */
+.badge-container .local-badge, 
+.badge-container .missing-badge,
+.badge-container .deleted-badge {
+    position: static; /* Override absolute positioning */
+    transform: none; /* Remove the transform */
+}
+
+/* Ensure the tooltip is still properly positioned */
+.badge-container .local-badge .local-path {
+    position: fixed; /* Keep as fixed for Chrome */
+    z-index: 100;
+}
+
+/* Add styles for missing LoRAs download feature */
+.recipe-status.missing {
+    position: relative;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+}
+
+.recipe-status.missing:hover {
+    background-color: rgba(var(--lora-warning-rgb, 255, 165, 0), 0.2);
+}
+
+.recipe-status.missing .missing-tooltip {
+    position: absolute;
+    display: none;
+    background-color: var(--card-bg);
+    color: var(--text-color);
+    padding: 8px 12px;
+    border-radius: var(--border-radius-xs);
+    border: 1px solid var(--border-color);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    z-index: var(--z-overlay);
+    width: max-content;
+    max-width: 200px;
+    font-size: 0.85rem;
+    font-weight: normal;
+    margin-left: -100px;
+    margin-top: -65px;
+}
+
+.recipe-status.missing:hover .missing-tooltip {
+    display: block;
+}
+
+.recipe-status.clickable {
+    cursor: pointer;
+    padding: 4px 8px;
+    border-radius: var(--border-radius-xs);
+}
+
+.recipe-status.clickable:hover {
+    background-color: rgba(var(--lora-warning-rgb, 255, 165, 0), 0.2);
+}

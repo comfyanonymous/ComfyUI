@@ -1,0 +1,11 @@
+__pycache__
+*.ini
+wildcards/**
+.vscode/
+.idea/
+subpack
+impact_subpack
+*.txt
+*.yaml
+!requirements.txt
+!LICENSE.txt

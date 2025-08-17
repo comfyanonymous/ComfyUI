@@ -1,0 +1,307 @@
+/* Help Modal styles */
+.help-modal {
+  max-width: 850px;
+}
+
+.help-header {
+  display: flex;
+  align-items: center;
+  margin-bottom: var(--space-2);
+}
+
+.modal-help-icon {
+  font-size: 24px;
+  color: var(--lora-accent);
+  margin-right: var(--space-2);
+  vertical-align: text-bottom;
+}
+
+/* Tab navigation styles */
+.help-tabs {
+  display: flex;
+  border-bottom: 1px solid var(--lora-border);
+  margin-bottom: var(--space-2);
+  gap: 8px;
+}
+
+.tab-btn {
+  padding: 8px 16px;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--text-color);
+  cursor: pointer;
+  font-weight: 500;
+  transition: all 0.2s;
+  opacity: 0.7;
+}
+
+.tab-btn:hover {
+  background-color: rgba(0, 0, 0, 0.05);
+  opacity: 0.9;
+}
+
+.tab-btn.active {
+  color: var(--lora-accent);
+  border-bottom: 2px solid var(--lora-accent);
+  opacity: 1;
+}
+
+/* Add styles for tab with new content indicator */
+.tab-btn.has-new-content {
+  position: relative;
+}
+
+.tab-btn.has-new-content::after {
+  content: "";
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 8px;
+  height: 8px;
+  background-color: var(--lora-accent);
+  border-radius: 50%;
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.7; transform: scale(1.1); }
+  100% { opacity: 1; transform: scale(1); }
+}
+
+/* Tab content styles */
+.help-content {
+  padding: var(--space-1) 0;
+  overflow-y: auto;
+}
+
+.tab-pane {
+  display: none;
+}
+
+.tab-pane.active {
+  display: block;
+}
+
+.help-text {
+  margin: var(--space-2) 0;
+}
+
+.help-text ul {
+  padding-left: 20px;
+  margin-top: 8px;
+}
+
+.help-text li {
+  margin-bottom: 8px;
+}
+
+/* Documentation link styles */
+.docs-section {
+  margin-bottom: var(--space-3);
+}
+
+.docs-section h4 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: var(--space-1);
+}
+
+.docs-links {
+  list-style-type: none;
+  padding-left: var(--space-3);
+}
+
+.docs-links li {
+  margin-bottom: var(--space-1);
+  position: relative;
+}
+
+.docs-links li:before {
+  content: "•";
+  position: absolute;
+  left: -15px;
+  color: var(--lora-accent);
+}
+
+.docs-links a {
+  color: var(--lora-accent);
+  text-decoration: none;
+  transition: color 0.2s;
+}
+
+.docs-links a:hover {
+  text-decoration: underline;
+}
+
+/* New content badge styles */
+.new-content-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.7em;
+  font-weight: 600;
+  background-color: var(--lora-accent);
+  color: var(--lora-text);
+  padding: 2px 6px;
+  border-radius: 10px;
+  margin-left: 8px;
+  vertical-align: middle;
+  animation: fadeIn 0.5s ease-in-out;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.new-content-badge.inline {
+  font-size: 0.65em;
+  padding: 1px 4px;
+  margin-left: 6px;
+  border-radius: 8px;
+}
+
+/* Dark theme adjustments for new content badge */
+[data-theme="dark"] .new-content-badge {
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+}
+
+/* Update video list styles */
+.video-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.video-item {
+  display: flex;
+  flex-direction: column;
+}
+
+.video-info {
+  padding: var(--space-1);
+}
+
+.video-info h4 {
+  margin-bottom: var(--space-1);
+}
+
+.video-info p {
+  font-size: 0.9em;
+  opacity: 0.8;
+}
+
+/* Dark theme adjustments */
+[data-theme="dark"] .tab-btn:hover {
+  background-color: rgba(255, 255, 255, 0.05);
+}
+
+/* Update date badge styles */
+.update-date-badge {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.75em;
+  font-weight: 500;
+  background-color: var(--lora-accent);
+  color: var(--lora-text);
+  padding: 4px 8px;
+  border-radius: 12px;
+  margin-left: 10px;
+  vertical-align: middle;
+  animation: fadeIn 0.5s ease-in-out;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.update-date-badge i {
+  margin-right: 5px;
+  font-size: 0.9em;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(-5px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Dark theme adjustments */
+[data-theme="dark"] .update-date-badge {
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+/* Privacy-friendly video embed styles */
+.video-container {
+  position: relative;
+  width: 100%;
+  padding-bottom: 56.25%; /* 16:9 aspect ratio */
+  height: 0;
+  margin-bottom: var(--space-2);
+  border-radius: var(--border-radius-sm);
+  overflow: hidden;
+  background-color: rgba(0, 0, 0, 0.05);
+}
+
+.video-thumbnail {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.video-thumbnail img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: filter 0.2s ease;
+}
+
+.video-play-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  transition: opacity 0.2s ease;
+}
+
+/* External link button styles */
+.external-link-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 20px;
+  border-radius: var(--border-radius-sm);
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  background-color: var(--lora-accent);
+  color: white;
+  text-decoration: none;
+  border: none;
+}
+
+.external-link-btn:hover {
+  background-color: oklch(from var(--lora-accent) l c h / 85%);
+}
+
+.video-thumbnail i {
+  font-size: 1.2em;
+}
+
+/* Smaller video container for the updates tab */
+.video-item .video-container {
+  padding-bottom: 40%; /* Shorter height for the playlist */
+}
+
+/* Dark theme adjustments */
+[data-theme="dark"] .video-container {
+  background-color: rgba(255, 255, 255, 0.03);
+}

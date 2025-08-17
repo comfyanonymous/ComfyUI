@@ -1,0 +1,20 @@
+.easyuse-model{
+    position:relative;
+}
+.easyuse-model:hover img{
+    display: block;
+    opacity: 1;
+}
+.easyuse-model img{
+    position: absolute;
+    z-index:1;
+    right:-155px;
+    top:0;
+    width:150px;
+    height:auto;
+    display: none;
+    filter:brightness(70%);
+    -webkit-filter: brightness(70%);
+    opacity: 0;
+    transition:all 0.5s ease-in-out;
+}

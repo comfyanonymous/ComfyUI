@@ -1,0 +1,14 @@
+[project]
+name = "comfyui_ultimatesdupscale"
+description = "ComfyUI nodes for the Ultimate Stable Diffusion Upscale script by Coyote-A."
+version = "1.3.3"
+license = { file = "LICENSE" }
+
+[project.urls]
+Repository = "https://github.com/ssitu/ComfyUI_UltimateSDUpscale"
+#  Used by Comfy Registry https://comfyregistry.org
+
+[tool.comfy]
+PublisherId = "ssit"
+DisplayName = "ComfyUI_UltimateSDUpscale"
+Icon = ""

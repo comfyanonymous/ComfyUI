@@ -1,0 +1,18 @@
+
+<template>
+  <div class="rgthree-model-info-card">
+    <figure class="rgthree-model-info-card-media-container">
+      <video if="images.0 && images.0.type == 'video'" bind="images.0.url:src" loop autoplay></video>
+      <img if="images.0 && images.0.type != 'video'" bind="images.0.url:src"  loading="lazy" />
+    </figure>
+    <div class="rgthree-model-info-card-data-container">
+      <div bind="name:text"></div>
+      <div bind="file:text"></div>
+      <div bind="getModified(modified):text"></div>
+      <div bind="sha256:text"></div>
+      <div bind="hasInfoFile"></div>
+      <a if="getCivitaiLink(links)" bind="getCivitaiLink(links):href">Civitai</a>
+    </div>
+  </div>
+</template>
+

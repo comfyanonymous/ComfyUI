@@ -1,0 +1,67 @@
+{
+  "EasyUse_Hotkeys_AddGroup": {
+    "name": "Shift+gを使用して選択したノードをグループに追加する",
+    "tooltip": "v1.2.39以降、Ctrl+gが使用できます"
+  },
+  "EasyUse_Hotkeys_cleanVRAMUsed": {
+    "name": "Shift+rを使用してモデルおよびノードキャッシュをアンロードする"
+  },
+  "EasyUse_Hotkeys_toggleNodesMap": {
+    "name": "Shift+mを使用してノードマップを表示/非表示にします"
+  },
+  "EasyUse_Hotkeys_AlignSelectedNodes": {
+    "name": "Shift+上/下/左/右およびShift+Ctrl+Alt+左/右を使用して選択したノードを整列する",
+    "tooltip": "Shift+上/下/左/右で選択したノードを整列し、Shift+Ctrl+Alt+左/右で水平方向/垂直方向に分布させる"
+  },
+  "EasyUse_Hotkeys_NormalizeSelectedNodes": {
+    "name": "Shift+Ctrl+左/右を使用して選択したノードのサイズを正規化する",
+    "tooltip": "Shift+Ctrl+左で幅を、Shift+Ctrl+右で高さを正規化する"
+  },
+  "EasyUse_Hotkeys_NodesTemplate": {
+    "name": "Alt+1~9を使用してワークフローにノードテンプレートを貼り付ける"
+  },
+  "EasyUse_Hotkeys_JumpNearestNodes": {
+    "name": "上/下/左/右を使用して最も近いノードにジャンプする"
+  },
+  "EasyUse_ContextMenu_SubDirectories": {
+    "name": "コンテキストメニューでサブディレクトリを自動でネストする"
+  },
+  "EasyUse_ContextMenu_ModelsThumbnails": {
+    "name": "モデルプレビューサムネイルを有効にする"
+  },
+  "EasyUse_ContextMenu_NodesSort": {
+    "name": "コンテキストメニューで新規ノードをA~Z順に並べ替える"
+  },
+  "EasyUse_ContextMenu_QuickOptions": {
+    "name": "コンテキストメニューで3つのクイックボタンを使用する",
+    "options": {
+      "At the forefront": "最前面に",
+      "At the end": "最後に",
+      "Disable": "無効"
+    }
+  },
+  "EasyUse_Nodes_Runtime": {
+    "name": "ノードの実行時間表示を有効にする"
+  },
+  "EasyUse_Nodes_ChainGetSet": {
+    "name": "親ノードと取得/設定ポイントを連結することを有効にする"
+  },
+  "EasyUse_NodesMap_Sorting": {
+    "name": "ノードグループの並べ替えモードを管理する",
+    "tooltip": "デフォルトで自動的に並べ替えます。マニュアルに設定した場合、グループをドラッグアンドドロップで並べ替え、順序が保存されます。",
+    "options": {
+      "Auto sorting": "自動並べ替え",
+      "Manual drag&drop sorting": "手動ドラッグアンドドロップによる並べ替え"
+    }
+  },
+  "EasyUse_NodesMap_DisplayNodeID": {
+    "name": "ノードIDの表示を有効にする"
+  },
+  "EasyUse_NodesMap_DisplayGroupOnly": {
+    "name": "グループのみ表示する"
+  },
+  "EasyUse_NodesMap_Enable": {
+    "name": "グループマップを有効にする",
+    "tooltip": "ページを更新する必要があります"
+  }
+}

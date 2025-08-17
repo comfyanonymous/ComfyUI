@@ -1,0 +1,35 @@
+.easyuse-chooser-dialog{
+    max-width: 600px;
+}
+.easyuse-chooser-dialog-title{
+    font-size: 18px;
+    font-weight: 700;
+    text-align: center;
+    color:var(--input-text);
+    margin:0;
+}
+.easyuse-chooser-dialog-images{
+    margin-top:10px;
+    display: flex;
+    flex-wrap: wrap;
+    width: 100%;
+    box-sizing: border-box;
+}
+.easyuse-chooser-dialog-images img{
+    width: 50%;
+    height: auto;
+    cursor: pointer;
+    box-sizing: border-box;
+    filter:brightness(80%);
+}
+.easyuse-chooser-dialog-images img:hover{
+    filter:brightness(100%);
+}
+.easyuse-chooser-dialog-images img.selected{
+    border: 4px solid var(--success-color);
+}
+
+.easyuse-chooser-hidden{
+    display: none;
+    height:0;
+}

@@ -1,0 +1,147 @@
+<div id="importModal" class="modal">
+    <div class="modal-content">
+        <button class="close" onclick="modalManager.closeModal('importModal')">&times;</button>
+        <h2>Import Recipe</h2>
+        
+        <!-- Step 1: Upload Image or Input URL -->
+        <div class="import-step" id="uploadStep">
+            <div class="import-mode-toggle">
+                <button class="toggle-btn active" data-mode="url" onclick="importManager.toggleImportMode('url')">
+                    <i class="fas fa-link"></i> URL / Local Path
+                </button>
+                <button class="toggle-btn" data-mode="upload" onclick="importManager.toggleImportMode('upload')">
+                    <i class="fas fa-upload"></i> Upload Image
+                </button>
+            </div>
+            
+            <!-- Input URL/Path Section -->
+            <div class="import-section" id="urlSection">
+                <p>Input a Civitai image URL or local file path to import as a recipe.</p>
+                <div class="input-group">
+                    <label for="imageUrlInput">Image URL or File Path:</label>
+                    <div class="input-with-button">
+                        <input type="text" id="imageUrlInput" placeholder="https://civitai.com/images/... or C:/path/to/image.png">
+                        <button class="primary-btn" onclick="importManager.handleUrlInput()">
+                            <i class="fas fa-download"></i> Fetch Image
+                        </button>
+                    </div>
+                    <div class="error-message" id="importUrlError"></div>
+                </div>
+            </div>
+            
+            <!-- Upload Image Section -->
+            <div class="import-section" id="uploadSection">
+                <p>Upload an image with LoRA metadata to import as a recipe.</p>
+                <div class="input-group">
+                    <label for="recipeImageUpload">Select Image:</label>
+                    <div class="file-input-wrapper">
+                        <input type="file" id="recipeImageUpload" accept="image/*" onchange="importManager.handleImageUpload(event)">
+                        <div class="file-input-button">
+                            <i class="fas fa-upload"></i> Select Image
+                        </div>
+                    </div>
+                    <div class="error-message" id="uploadError"></div>
+                </div>
+            </div>
+            
+            <div class="modal-actions">
+                <button class="secondary-btn" onclick="modalManager.closeModal('importModal')">Cancel</button>
+            </div>
+        </div>
+        
+        <!-- Step 2: Recipe Details -->
+        <div class="import-step" id="detailsStep" style="display: none;">
+            <div class="recipe-details-layout">
+                <div class="recipe-image-container">
+                    <div id="recipeImagePreview" class="recipe-image"></div>
+                </div>
+                
+                <div class="recipe-form-container">
+                    <div class="input-group">
+                        <label for="recipeName">Recipe Name</label>
+                        <input type="text" id="recipeName" placeholder="Enter recipe name" 
+                               onchange="importManager.handleRecipeNameChange(event)">
+                    </div>
+                    
+                    <div class="input-group">
+                        <label>Tags (optional)</label>
+                        <div class="tag-input-container">
+                            <input type="text" id="tagInput" placeholder="Add a tag">
+                            <button class="secondary-btn" onclick="importManager.addTag()">
+                                <i class="fas fa-plus"></i> Add
+                            </button>
+                        </div>
+                        <div id="tagsContainer" class="tags-container">
+                            <div class="empty-tags">No tags added</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="input-group">
+                <label>LoRAs in this Recipe <span id="loraCountInfo" class="lora-count-info">(0/0 in library)</span></label>
+                <div id="lorasList" class="loras-list">
+                    <!-- LoRAs will be populated here -->
+                </div>
+            </div>
+
+            <!-- Container for duplicate recipes warning -->
+            <div id="duplicateRecipesContainer" class="duplicate-recipes-container" style="display: none;">
+                <!-- Duplicate recipes will be populated here -->
+            </div>
+            
+            <div class="modal-actions">
+                <button class="secondary-btn" onclick="importManager.backToUpload()">Back</button>
+                <button class="primary-btn" onclick="importManager.proceedFromDetails()">Next</button>
+            </div>
+        </div>
+        
+        <!-- Step 3: Download Location (if needed) -->
+        <div class="import-step" id="locationStep" style="display: none;">
+            <div class="location-selection">
+                <!-- Improved missing LoRAs summary section -->
+                <div class="missing-loras-summary">
+                    <div class="summary-header">
+                        <h3>Missing LoRAs <span class="lora-count-badge">(0)</span> <span id="totalDownloadSize" class="total-size-badge">Calculating...</span></h3>
+                        <button id="toggleMissingLorasList" class="toggle-list-btn">
+                            <i class="fas fa-chevron-down"></i>
+                        </button>
+                    </div>
+                    <div id="missingLorasList" class="missing-loras-list collapsed">
+                        <!-- Missing LoRAs will be populated here -->
+                    </div>
+                </div>
+
+                <!-- Move path preview to top -->
+                <div class="path-preview">
+                    <label>Download Location Preview:</label>
+                    <div class="path-display" id="importTargetPathDisplay">
+                        <span class="path-text">Select a LoRA root directory</span>
+                    </div>
+                </div>
+
+                <div class="input-group">
+                    <label>Select LoRA Root:</label>
+                    <select id="importLoraRoot"></select>
+                </div>
+                
+                <div class="input-group">
+                    <label>Target Folder:</label>
+                    <div class="folder-browser" id="importFolderBrowser">
+                        <!-- Folders will be populated here -->
+                    </div>
+                </div>
+                
+                <div class="input-group">
+                    <label for="importNewFolder">New Folder (optional):</label>
+                    <input type="text" id="importNewFolder" placeholder="Enter folder name">
+                </div>
+            </div>
+            
+            <div class="modal-actions">
+                <button class="secondary-btn" onclick="importManager.backToDetails()">Back</button>
+                <button class="primary-btn" onclick="importManager.saveRecipe()">Download & Save Recipe</button>
+            </div>
+        </div>
+    </div>
+</div>

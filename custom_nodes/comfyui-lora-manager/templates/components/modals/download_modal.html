@@ -1,0 +1,96 @@
+<!-- Unified Download Modal for all model types -->
+<div id="downloadModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <button class="close" id="closeDownloadModal">&times;</button>
+            <h2 id="downloadModalTitle">Download Model from URL</h2>
+        </div>
+        
+        <!-- Step 1: URL Input -->
+        <div class="download-step" id="urlStep">
+            <div class="input-group">
+                <label for="modelUrl" id="modelUrlLabel">Civitai URL:</label>
+                <input type="text" id="modelUrl" placeholder="https://civitai.com/models/..." />
+                <div class="error-message" id="urlError"></div>
+            </div>
+            <div class="modal-actions">
+                <button class="primary-btn" id="nextFromUrl">Next</button>
+            </div>
+        </div>
+
+        <!-- Step 2: Version Selection -->
+        <div class="download-step" id="versionStep" style="display: none;">
+            <div class="version-list" id="versionList">
+                <!-- Versions will be inserted here dynamically -->
+            </div>
+            <div class="modal-actions">
+                <button class="secondary-btn" id="backToUrlBtn">Back</button>
+                <button class="primary-btn" id="nextFromVersion">Next</button>
+            </div>
+        </div>
+
+        <!-- Step 3: Location Selection -->
+        <div class="download-step" id="locationStep" style="display: none;">
+            <div class="location-selection">
+                <!-- Path preview with inline toggle -->
+                <div class="path-preview">
+                    <div class="path-preview-header">
+                        <label>Download Location Preview:</label>
+                        <div class="inline-toggle-container" title="When enabled, files are automatically organized using configured path templates">
+                            <span class="inline-toggle-label">Use Default Path</span>
+                            <div class="toggle-switch">
+                                <input type="checkbox" id="useDefaultPath">
+                                <label for="useDefaultPath" class="toggle-slider"></label>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="path-display" id="targetPathDisplay">
+                        <span class="path-text">Select a root directory</span>
+                    </div>
+                </div>
+
+                <!-- Model Root Selection (always visible) -->
+                <div class="input-group">
+                    <label for="modelRoot" id="modelRootLabel">Select Model Root:</label>
+                    <select id="modelRoot"></select>
+                </div>
+
+                <!-- Manual Path Selection (hidden when using default path) -->
+                <div class="manual-path-selection" id="manualPathSelection">
+                    <!-- Path input with autocomplete -->
+                    <div class="input-group">
+                        <label for="folderPath">Target Folder Path:</label>
+                        <div class="path-input-container">
+                            <input type="text" id="folderPath" placeholder="Type folder path or select from tree below..." autocomplete="off" />
+                            <button type="button" id="createFolderBtn" class="create-folder-btn" title="Create new folder">
+                                <i class="fas fa-plus"></i>
+                            </button>
+                        </div>
+                        <div class="path-suggestions" id="pathSuggestions" style="display: none;"></div>
+                    </div>
+                    
+                    <!-- Breadcrumb navigation -->
+                    <div class="breadcrumb-nav" id="breadcrumbNav">
+                        <span class="breadcrumb-item root" data-path="">
+                            <i class="fas fa-home"></i> Root
+                        </span>
+                    </div>
+                    
+                    <!-- Hierarchical folder tree -->
+                    <div class="input-group">
+                        <label>Browse Folders:</label>
+                        <div class="folder-tree-container">
+                            <div class="folder-tree" id="folderTree">
+                                <!-- Tree will be loaded dynamically -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-actions">
+                <button class="secondary-btn" id="backToVersionsBtn">Back</button>
+                <button class="primary-btn" id="startDownloadBtn">Download</button>
+            </div>
+        </div>
+    </div>
+</div>

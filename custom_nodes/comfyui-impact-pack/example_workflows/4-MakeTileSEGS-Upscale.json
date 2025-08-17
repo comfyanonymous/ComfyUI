@@ -1,0 +1,1627 @@
+{
+  "last_node_id": 67,
+  "last_link_id": 115,
+  "nodes": [
+    {
+      "id": 31,
+      "type": "Reroute",
+      "pos": [
+        1170,
+        730
+      ],
+      "size": [
+        75,
+        26
+      ],
+      "flags": {},
+      "order": 15,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "",
+          "type": "*",
+          "link": 61
+        }
+      ],
+      "outputs": [
+        {
+          "name": "",
+          "type": "IMAGE",
+          "links": [
+            59,
+            60
+          ],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "showOutputText": false,
+        "horizontal": false
+      }
+    },
+    {
+      "id": 32,
+      "type": "SAMLoader",
+      "pos": [
+        -160,
+        840
+      ],
+      "size": [
+        315,
+        82
+      ],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "SAM_MODEL",
+          "type": "SAM_MODEL",
+          "shape": 3,
+          "links": [
+            62
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "SAMLoader"
+      },
+      "widgets_values": [
+        "sam_vit_b_01ec64.pth",
+        "AUTO"
+      ]
+    },
+    {
+      "id": 24,
+      "type": "UltralyticsDetectorProvider",
+      "pos": [
+        -160,
+        700
+      ],
+      "size": [
+        315,
+        78
+      ],
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "BBOX_DETECTOR",
+          "type": "BBOX_DETECTOR",
+          "shape": 3,
+          "links": [
+            35
+          ]
+        },
+        {
+          "name": "SEGM_DETECTOR",
+          "type": "SEGM_DETECTOR",
+          "shape": 3,
+          "links": [],
+          "slot_index": 1
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "UltralyticsDetectorProvider"
+      },
+      "widgets_values": [
+        "segm/person_yolov8m-seg.pt"
+      ]
+    },
+    {
+      "id": 9,
+      "type": "ImageScaleBy",
+      "pos": [
+        280,
+        290
+      ],
+      "size": [
+        315,
+        82
+      ],
+      "flags": {},
+      "order": 12,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "image",
+          "type": "IMAGE",
+          "link": 8,
+          "slot_index": 0
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "shape": 3,
+          "links": [
+            10,
+            28
+          ],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "ImageScaleBy"
+      },
+      "widgets_values": [
+        "lanczos",
+        2
+      ]
+    },
+    {
+      "id": 52,
+      "type": "Reroute",
+      "pos": [
+        1816.5716552734375,
+        473.7144470214844
+      ],
+      "size": [
+        75,
+        26
+      ],
+      "flags": {},
+      "order": 21,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "",
+          "type": "*",
+          "link": 106
+        }
+      ],
+      "outputs": [
+        {
+          "name": "",
+          "type": "SEGS",
+          "links": [
+            98
+          ],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "showOutputText": false,
+        "horizontal": false
+      }
+    },
+    {
+      "id": 53,
+      "type": "Reroute",
+      "pos": [
+        1180,
+        1540
+      ],
+      "size": [
+        75,
+        26
+      ],
+      "flags": {},
+      "order": 19,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "",
+          "type": "*",
+          "link": 110
+        }
+      ],
+      "outputs": [
+        {
+          "name": "",
+          "type": "SEGS",
+          "links": [
+            100
+          ],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "showOutputText": false,
+        "horizontal": false
+      }
+    },
+    {
+      "id": 19,
+      "type": "workflow>MAKE_BASIC_PIPE",
+      "pos": [
+        1440,
+        850
+      ],
+      "size": [
+        420,
+        170
+      ],
+      "flags": {},
+      "order": 2,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "basic_pipe",
+          "type": "BASIC_PIPE",
+          "shape": 3,
+          "links": [
+            76
+          ],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "workflow/MAKE_BASIC_PIPE"
+      },
+      "widgets_values": [
+        "SDXL/MOHAWK_v20BackedVAE.safetensors",
+        "photograph of a girl, metalic robotic body, sun rising, snow field, hdr, cropped,",
+        "deformed, blurry, leather, fabric\n"
+      ]
+    },
+    {
+      "id": 16,
+      "type": "PreviewImage",
+      "pos": [
+        2990,
+        730
+      ],
+      "size": [
+        610.069580078125,
+        774.6857299804688
+      ],
+      "flags": {},
+      "order": 25,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 96
+        }
+      ],
+      "outputs": [],
+      "properties": {
+        "Node name for S&R": "PreviewImage"
+      },
+      "widgets_values": []
+    },
+    {
+      "id": 54,
+      "type": "Reroute",
+      "pos": [
+        2390,
+        1540
+      ],
+      "size": [
+        75,
+        26
+      ],
+      "flags": {},
+      "order": 22,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "",
+          "type": "*",
+          "link": 100
+        }
+      ],
+      "outputs": [
+        {
+          "name": "",
+          "type": "SEGS",
+          "links": [
+            101
+          ],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "showOutputText": false,
+        "horizontal": false
+      }
+    },
+    {
+      "id": 51,
+      "type": "DetailerForEachDebugPipe",
+      "pos": [
+        2510,
+        730
+      ],
+      "size": [
+        410,
+        996
+      ],
+      "flags": {},
+      "order": 24,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "image",
+          "type": "IMAGE",
+          "link": 95,
+          "slot_index": 0
+        },
+        {
+          "name": "segs",
+          "type": "SEGS",
+          "link": 101
+        },
+        {
+          "name": "basic_pipe",
+          "type": "BASIC_PIPE",
+          "link": 94
+        },
+        {
+          "name": "detailer_hook",
+          "type": "DETAILER_HOOK",
+          "shape": 7,
+          "link": null
+        },
+        {
+          "name": "refiner_basic_pipe_opt",
+          "type": "BASIC_PIPE",
+          "shape": 7,
+          "link": null
+        },
+        {
+          "name": "scheduler_func_opt",
+          "type": "SCHEDULER_FUNC",
+          "shape": 7,
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "image",
+          "type": "IMAGE",
+          "shape": 3,
+          "links": [
+            96
+          ],
+          "slot_index": 0
+        },
+        {
+          "name": "segs",
+          "type": "SEGS",
+          "shape": 3,
+          "links": null
+        },
+        {
+          "name": "basic_pipe",
+          "type": "BASIC_PIPE",
+          "shape": 3,
+          "links": null
+        },
+        {
+          "name": "cropped",
+          "type": "IMAGE",
+          "shape": 6,
+          "links": null
+        },
+        {
+          "name": "cropped_refined",
+          "type": "IMAGE",
+          "shape": 6,
+          "links": [],
+          "slot_index": 4
+        },
+        {
+          "name": "cropped_refined_alpha",
+          "type": "IMAGE",
+          "shape": 6,
+          "links": [],
+          "slot_index": 5
+        },
+        {
+          "name": "cnet_images",
+          "type": "IMAGE",
+          "shape": 6,
+          "links": [],
+          "slot_index": 6
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "DetailerForEachDebugPipe"
+      },
+      "widgets_values": [
+        64,
+        true,
+        1024,
+        522790177337692,
+        "fixed",
+        20,
+        8,
+        "dpmpp_3m_sde_gpu",
+        "karras",
+        0.4,
+        10,
+        true,
+        true,
+        "[CONCAT] red double bun, metalic arm, zoey",
+        0.2,
+        1,
+        false,
+        50,
+        false,
+        false
+      ]
+    },
+    {
+      "id": 20,
+      "type": "Reroute",
+      "pos": [
+        660,
+        730
+      ],
+      "size": [
+        75,
+        26
+      ],
+      "flags": {},
+      "order": 14,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "",
+          "type": "*",
+          "link": 28
+        }
+      ],
+      "outputs": [
+        {
+          "name": "",
+          "type": "IMAGE",
+          "links": [
+            61,
+            107,
+            111
+          ],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "showOutputText": false,
+        "horizontal": false
+      }
+    },
+    {
+      "id": 28,
+      "type": "SEGSPreview",
+      "pos": [
+        1279,
+        1610
+      ],
+      "size": [
+        315,
+        314
+      ],
+      "flags": {},
+      "order": 18,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "segs",
+          "type": "SEGS",
+          "link": 109,
+          "slot_index": 0
+        },
+        {
+          "name": "fallback_image_opt",
+          "type": "IMAGE",
+          "shape": 7,
+          "link": 59,
+          "slot_index": 1
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "shape": 6,
+          "links": [],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "SEGSPreview"
+      },
+      "widgets_values": [
+        true,
+        0.1
+      ]
+    },
+    {
+      "id": 56,
+      "type": "ImpactMakeTileSEGS",
+      "pos": [
+        780,
+        470
+      ],
+      "size": [
+        315,
+        218
+      ],
+      "flags": {},
+      "order": 17,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 111
+        },
+        {
+          "name": "filter_in_segs_opt",
+          "type": "SEGS",
+          "shape": 7,
+          "link": null
+        },
+        {
+          "name": "filter_out_segs_opt",
+          "type": "SEGS",
+          "shape": 7,
+          "link": 114
+        }
+      ],
+      "outputs": [
+        {
+          "name": "SEGS",
+          "type": "SEGS",
+          "shape": 3,
+          "links": [
+            105,
+            106
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "ImpactMakeTileSEGS"
+      },
+      "widgets_values": [
+        768,
+        1.5,
+        200,
+        30,
+        0.7000000000000001,
+        "Reuse fast"
+      ],
+      "color": "#322",
+      "bgcolor": "#533"
+    },
+    {
+      "id": 6,
+      "type": "SEGSPreview",
+      "pos": [
+        1292,
+        268
+      ],
+      "size": [
+        430.35296630859375,
+        388.4536437988281
+      ],
+      "flags": {},
+      "order": 20,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "segs",
+          "type": "SEGS",
+          "link": 105,
+          "slot_index": 0
+        },
+        {
+          "name": "fallback_image_opt",
+          "type": "IMAGE",
+          "shape": 7,
+          "link": 10,
+          "slot_index": 1
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "shape": 6,
+          "links": [],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "SEGSPreview"
+      },
+      "widgets_values": [
+        true,
+        0.1
+      ]
+    },
+    {
+      "id": 60,
+      "type": "Note",
+      "pos": [
+        -1033,
+        292
+      ],
+      "size": [
+        638.3837890625,
+        178.84756469726562
+      ],
+      "flags": {},
+      "order": 3,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [],
+      "title": "1.Intro",
+      "properties": {
+        "text": ""
+      },
+      "widgets_values": [
+        "This video demonstrates how to apply the newly added \"Make Tile SEGS\" in the Impact Pack to upscale using the upscale method.\n\n\"Make Tile SEGS\" node splits the image into tiles and creates SEGS.\n\nBy using this, you can mimic the tile-based upscale function and, if the detected SEGS is too large, you can also split it for detailing."
+      ],
+      "color": "#222",
+      "bgcolor": "#000"
+    },
+    {
+      "id": 2,
+      "type": "LoadImage",
+      "pos": [
+        -160,
+        290
+      ],
+      "size": [
+        315,
+        314
+      ],
+      "flags": {},
+      "order": 4,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "shape": 3,
+          "links": [
+            8,
+            34
+          ],
+          "slot_index": 0
+        },
+        {
+          "name": "MASK",
+          "type": "MASK",
+          "shape": 3,
+          "links": null
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "LoadImage"
+      },
+      "widgets_values": [
+        "20240107_013.webp",
+        "image"
+      ]
+    },
+    {
+      "id": 62,
+      "type": "Note",
+      "pos": [
+        190,
+        60
+      ],
+      "size": [
+        396.33758544921875,
+        127.46672821044922
+      ],
+      "flags": {},
+      "order": 5,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [],
+      "title": "2. Simple Upscale",
+      "properties": {
+        "text": ""
+      },
+      "widgets_values": [
+        "First, let's upscale the original 1024x1536 image to double its size.\n\nSimply upscale by 2x using the \"Upscale Image Scale By\". \nThe result will, of course, be blurry.\n"
+      ],
+      "color": "#222",
+      "bgcolor": "#000"
+    },
+    {
+      "id": 61,
+      "type": "Note",
+      "pos": [
+        780,
+        35
+      ],
+      "size": [
+        677.756591796875,
+        157.3253173828125
+      ],
+      "flags": {},
+      "order": 6,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [],
+      "title": "3. Make Tile SEGS",
+      "properties": {
+        "text": ""
+      },
+      "widgets_values": [
+        "Let's process this image into SEGS using \"Make Tile SEGS\".\n\nYou can see that SEGS is structured so that every part of the image can be included in the mask area.\n\nUnlike the traditional tile upscaler, this method uses Detailer, so you can improve tile heterogeneity using the 'crop_factor'.\n\nAlso, setting 'mask_irregularity' to 0.7 will make the mask border irregular, improving the heterogeneity of the junctions."
+      ],
+      "color": "#222",
+      "bgcolor": "#000"
+    },
+    {
+      "id": 63,
+      "type": "Note",
+      "pos": [
+        -108,
+        1056
+      ],
+      "size": [
+        709.2979736328125,
+        143.4364013671875
+      ],
+      "flags": {},
+      "order": 7,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [],
+      "title": "4.Human SEGS",
+      "properties": {
+        "text": ""
+      },
+      "widgets_values": [
+        "Next, let's separate the background and the person to alleviate the noticeable artifacts, especially in the case of humans.\n\nApply the person ultralytics model to the \"Simple Detector\" to create SEGS containing the entire person.\n\nConnect the SEGS to the 'filter_out_segs_opt' in one \"Make Tile SEGS\" node, \nand in the other \"Make Tile SEGS\" node, connect it to the 'filter_in_segs_opt'."
+      ],
+      "color": "#222",
+      "bgcolor": "#000"
+    },
+    {
+      "id": 65,
+      "type": "Note",
+      "pos": [
+        776,
+        803
+      ],
+      "size": [
+        620.825927734375,
+        163.94039916992188
+      ],
+      "flags": {},
+      "order": 8,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [],
+      "title": "5. filter_out_segs_opt",
+      "properties": {
+        "text": ""
+      },
+      "widgets_values": [
+        "The node connected to 'filter_out_segs_opt' creates SEGS excluding the mask of the input SEGS, allowing you to detail the background tiles.\n\n'min_overlap' determines how much the masks of each SEGS should overlap, and 'filter_segs_dilation' dilates the mask of the input SEGS.\n\nIncreasing 'filter_segs_dilation' in 'filter_out_segs_opt' generates masks further away from the person."
+      ],
+      "color": "#222",
+      "bgcolor": "#000"
+    },
+    {
+      "id": 66,
+      "type": "Note",
+      "pos": [
+        814,
+        2007
+      ],
+      "size": [
+        620.825927734375,
+        163.94039916992188
+      ],
+      "flags": {},
+      "order": 9,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [],
+      "title": "6. filter_in_segs_opt",
+      "properties": {
+        "text": ""
+      },
+      "widgets_values": [
+        "On the other hand, the node connected to 'filter_in_segs_opt' creates SEGS with masks overlapping the input SEGS, allowing you to detail the person.\n\nSince detailing the person requires more attention than the background, increase 'bbox_size' to avoid creating small pieces, and increase 'min_overlap' to reduce junction artifacts and allow overlapping detailing.\n"
+      ],
+      "color": "#222",
+      "bgcolor": "#000"
+    },
+    {
+      "id": 67,
+      "type": "Note",
+      "pos": [
+        1955,
+        1805
+      ],
+      "size": [
+        620.825927734375,
+        163.94039916992188
+      ],
+      "flags": {},
+      "order": 10,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [],
+      "title": "7. Detailing",
+      "properties": {
+        "text": ""
+      },
+      "widgets_values": [
+        "Now, using the SEGS created in this way, let's improve the upscaled image using two Detailer nodes.\n\nAlthough you can handle this with \"SEGS Concat\", separating into two Detailer nodes allows for separate options for background and person detailing.\n\nThis way, when modifying the detailing options for a person, you can prevent the recalculation of background detailing.\n"
+      ],
+      "color": "#222",
+      "bgcolor": "#000"
+    },
+    {
+      "id": 64,
+      "type": "Note",
+      "pos": [
+        2994,
+        500
+      ],
+      "size": [
+        620.825927734375,
+        163.94039916992188
+      ],
+      "flags": {},
+      "order": 11,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [],
+      "title": "8. Result",
+      "properties": {
+        "text": ""
+      },
+      "widgets_values": [
+        "It seems that the image has upscaled well without significant artifacts in the 2048x3072 size."
+      ],
+      "color": "#222",
+      "bgcolor": "#000"
+    },
+    {
+      "id": 10,
+      "type": "DetailerForEachDebugPipe",
+      "pos": [
+        1960,
+        730
+      ],
+      "size": [
+        410,
+        996
+      ],
+      "flags": {},
+      "order": 23,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "image",
+          "type": "IMAGE",
+          "link": 60,
+          "slot_index": 0
+        },
+        {
+          "name": "segs",
+          "type": "SEGS",
+          "link": 98
+        },
+        {
+          "name": "basic_pipe",
+          "type": "BASIC_PIPE",
+          "link": 76
+        },
+        {
+          "name": "detailer_hook",
+          "type": "DETAILER_HOOK",
+          "shape": 7,
+          "link": null
+        },
+        {
+          "name": "refiner_basic_pipe_opt",
+          "type": "BASIC_PIPE",
+          "shape": 7,
+          "link": null
+        },
+        {
+          "name": "scheduler_func_opt",
+          "type": "SCHEDULER_FUNC",
+          "shape": 7,
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "image",
+          "type": "IMAGE",
+          "shape": 3,
+          "links": [
+            95
+          ],
+          "slot_index": 0
+        },
+        {
+          "name": "segs",
+          "type": "SEGS",
+          "shape": 3,
+          "links": null
+        },
+        {
+          "name": "basic_pipe",
+          "type": "BASIC_PIPE",
+          "shape": 3,
+          "links": [
+            94
+          ],
+          "slot_index": 2
+        },
+        {
+          "name": "cropped",
+          "type": "IMAGE",
+          "shape": 6,
+          "links": null
+        },
+        {
+          "name": "cropped_refined",
+          "type": "IMAGE",
+          "shape": 6,
+          "links": [],
+          "slot_index": 4
+        },
+        {
+          "name": "cropped_refined_alpha",
+          "type": "IMAGE",
+          "shape": 6,
+          "links": [],
+          "slot_index": 5
+        },
+        {
+          "name": "cnet_images",
+          "type": "IMAGE",
+          "shape": 6,
+          "links": [],
+          "slot_index": 6
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "DetailerForEachDebugPipe"
+      },
+      "widgets_values": [
+        64,
+        true,
+        1024,
+        522790177337686,
+        "fixed",
+        20,
+        8,
+        "dpmpp_2m_sde_gpu",
+        "karras",
+        0.46,
+        10,
+        true,
+        true,
+        "",
+        0.2,
+        1,
+        false,
+        10,
+        false,
+        false
+      ]
+    },
+    {
+      "id": 57,
+      "type": "ImpactMakeTileSEGS",
+      "pos": [
+        820,
+        1610
+      ],
+      "size": [
+        315,
+        218
+      ],
+      "flags": {},
+      "order": 16,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 107
+        },
+        {
+          "name": "filter_in_segs_opt",
+          "type": "SEGS",
+          "shape": 7,
+          "link": 115
+        },
+        {
+          "name": "filter_out_segs_opt",
+          "type": "SEGS",
+          "shape": 7,
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "SEGS",
+          "type": "SEGS",
+          "shape": 3,
+          "links": [
+            109,
+            110
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "ImpactMakeTileSEGS"
+      },
+      "widgets_values": [
+        1200,
+        1.4000000000000001,
+        200,
+        100,
+        0.7000000000000001,
+        "Reuse fast"
+      ],
+      "color": "#322",
+      "bgcolor": "#533"
+    },
+    {
+      "id": 22,
+      "type": "ImpactSimpleDetectorSEGS",
+      "pos": [
+        282,
+        699
+      ],
+      "size": [
+        315,
+        310
+      ],
+      "flags": {},
+      "order": 13,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "bbox_detector",
+          "type": "BBOX_DETECTOR",
+          "link": 35,
+          "slot_index": 0
+        },
+        {
+          "name": "image",
+          "type": "IMAGE",
+          "link": 34,
+          "slot_index": 1
+        },
+        {
+          "name": "sam_model_opt",
+          "type": "SAM_MODEL",
+          "shape": 7,
+          "link": 62,
+          "slot_index": 2
+        },
+        {
+          "name": "segm_detector_opt",
+          "type": "SEGM_DETECTOR",
+          "shape": 7,
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "SEGS",
+          "type": "SEGS",
+          "shape": 3,
+          "links": [
+            114,
+            115
+          ],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "ImpactSimpleDetectorSEGS"
+      },
+      "widgets_values": [
+        0.5,
+        0,
+        3,
+        10,
+        0.5,
+        0,
+        0,
+        0.7000000000000001,
+        0
+      ]
+    }
+  ],
+  "links": [
+    [
+      8,
+      2,
+      0,
+      9,
+      0,
+      "IMAGE"
+    ],
+    [
+      10,
+      9,
+      0,
+      6,
+      1,
+      "IMAGE"
+    ],
+    [
+      28,
+      9,
+      0,
+      20,
+      0,
+      "*"
+    ],
+    [
+      34,
+      2,
+      0,
+      22,
+      1,
+      "IMAGE"
+    ],
+    [
+      35,
+      24,
+      0,
+      22,
+      0,
+      "BBOX_DETECTOR"
+    ],
+    [
+      59,
+      31,
+      0,
+      28,
+      1,
+      "IMAGE"
+    ],
+    [
+      60,
+      31,
+      0,
+      10,
+      0,
+      "IMAGE"
+    ],
+    [
+      61,
+      20,
+      0,
+      31,
+      0,
+      "*"
+    ],
+    [
+      62,
+      32,
+      0,
+      22,
+      2,
+      "SAM_MODEL"
+    ],
+    [
+      76,
+      19,
+      0,
+      10,
+      2,
+      "BASIC_PIPE"
+    ],
+    [
+      94,
+      10,
+      2,
+      51,
+      2,
+      "BASIC_PIPE"
+    ],
+    [
+      95,
+      10,
+      0,
+      51,
+      0,
+      "IMAGE"
+    ],
+    [
+      96,
+      51,
+      0,
+      16,
+      0,
+      "IMAGE"
+    ],
+    [
+      98,
+      52,
+      0,
+      10,
+      1,
+      "SEGS"
+    ],
+    [
+      100,
+      53,
+      0,
+      54,
+      0,
+      "*"
+    ],
+    [
+      101,
+      54,
+      0,
+      51,
+      1,
+      "SEGS"
+    ],
+    [
+      105,
+      56,
+      0,
+      6,
+      0,
+      "SEGS"
+    ],
+    [
+      106,
+      56,
+      0,
+      52,
+      0,
+      "*"
+    ],
+    [
+      107,
+      20,
+      0,
+      57,
+      0,
+      "IMAGE"
+    ],
+    [
+      109,
+      57,
+      0,
+      28,
+      0,
+      "SEGS"
+    ],
+    [
+      110,
+      57,
+      0,
+      53,
+      0,
+      "*"
+    ],
+    [
+      111,
+      20,
+      0,
+      56,
+      0,
+      "IMAGE"
+    ],
+    [
+      114,
+      22,
+      0,
+      56,
+      2,
+      "SEGS"
+    ],
+    [
+      115,
+      22,
+      0,
+      57,
+      1,
+      "SEGS"
+    ]
+  ],
+  "groups": [],
+  "config": {},
+  "extra": {
+    "groupNodes": {
+      "MAKE_BASIC_PIPE": {
+        "nodes": [
+          {
+            "type": "CheckpointLoaderSimple",
+            "pos": [
+              -80,
+              1100
+            ],
+            "size": {
+              "0": 315,
+              "1": 98
+            },
+            "flags": {},
+            "order": 0,
+            "mode": 0,
+            "outputs": [
+              {
+                "name": "MODEL",
+                "type": "MODEL",
+                "links": [],
+                "shape": 3,
+                "slot_index": 0,
+                "localized_name": "MODEL"
+              },
+              {
+                "name": "CLIP",
+                "type": "CLIP",
+                "links": [],
+                "shape": 3,
+                "slot_index": 1,
+                "localized_name": "CLIP"
+              },
+              {
+                "name": "VAE",
+                "type": "VAE",
+                "links": [],
+                "shape": 3,
+                "slot_index": 2,
+                "localized_name": "VAE"
+              }
+            ],
+            "properties": {
+              "Node name for S&R": "CheckpointLoaderSimple"
+            },
+            "widgets_values": [
+              "SD1.5/majicmixRealistic_v7.safetensors"
+            ],
+            "index": 0,
+            "inputs": []
+          },
+          {
+            "type": "CLIPTextEncode",
+            "pos": [
+              455,
+              1026
+            ],
+            "size": {
+              "0": 210,
+              "1": 104.50106048583984
+            },
+            "flags": {},
+            "order": 2,
+            "mode": 0,
+            "inputs": [
+              {
+                "name": "clip",
+                "type": "CLIP",
+                "link": null,
+                "localized_name": "clip"
+              }
+            ],
+            "outputs": [
+              {
+                "name": "CONDITIONING",
+                "type": "CONDITIONING",
+                "links": [],
+                "shape": 3,
+                "slot_index": 0,
+                "localized_name": "CONDITIONING"
+              }
+            ],
+            "properties": {
+              "Node name for S&R": "CLIPTextEncode"
+            },
+            "widgets_values": [
+              "photograph, 4k, hdr, cropped, 1girl sit, blur hair, pink bag"
+            ],
+            "index": 1
+          },
+          {
+            "type": "CLIPTextEncode",
+            "pos": [
+              456,
+              1239
+            ],
+            "size": {
+              "0": 210,
+              "1": 104.50106048583984
+            },
+            "flags": {},
+            "order": 3,
+            "mode": 0,
+            "inputs": [
+              {
+                "name": "clip",
+                "type": "CLIP",
+                "link": null,
+                "slot_index": 0,
+                "localized_name": "clip"
+              }
+            ],
+            "outputs": [
+              {
+                "name": "CONDITIONING",
+                "type": "CONDITIONING",
+                "links": [],
+                "shape": 3,
+                "localized_name": "CONDITIONING"
+              }
+            ],
+            "properties": {
+              "Node name for S&R": "CLIPTextEncode"
+            },
+            "widgets_values": [
+              "deformed, blurry\n"
+            ],
+            "index": 2
+          },
+          {
+            "type": "ToBasicPipe",
+            "pos": [
+              800,
+              1100
+            ],
+            "size": {
+              "0": 241.79998779296875,
+              "1": 106
+            },
+            "flags": {},
+            "order": 5,
+            "mode": 0,
+            "inputs": [
+              {
+                "name": "model",
+                "type": "MODEL",
+                "link": null,
+                "localized_name": "model"
+              },
+              {
+                "name": "clip",
+                "type": "CLIP",
+                "link": null,
+                "slot_index": 1,
+                "localized_name": "clip"
+              },
+              {
+                "name": "vae",
+                "type": "VAE",
+                "link": null,
+                "localized_name": "vae"
+              },
+              {
+                "name": "positive",
+                "type": "CONDITIONING",
+                "link": null,
+                "localized_name": "positive"
+              },
+              {
+                "name": "negative",
+                "type": "CONDITIONING",
+                "link": null,
+                "slot_index": 4,
+                "localized_name": "negative"
+              }
+            ],
+            "outputs": [
+              {
+                "name": "basic_pipe",
+                "type": "BASIC_PIPE",
+                "links": [],
+                "shape": 3,
+                "slot_index": 0,
+                "localized_name": "basic_pipe"
+              }
+            ],
+            "properties": {
+              "Node name for S&R": "ToBasicPipe"
+            },
+            "index": 3
+          }
+        ],
+        "links": [
+          [
+            0,
+            1,
+            1,
+            0,
+            11,
+            "CLIP"
+          ],
+          [
+            0,
+            1,
+            2,
+            0,
+            11,
+            "CLIP"
+          ],
+          [
+            0,
+            0,
+            3,
+            0,
+            11,
+            "MODEL"
+          ],
+          [
+            0,
+            1,
+            3,
+            1,
+            11,
+            "CLIP"
+          ],
+          [
+            0,
+            2,
+            3,
+            2,
+            11,
+            "VAE"
+          ],
+          [
+            1,
+            0,
+            3,
+            3,
+            13,
+            "CONDITIONING"
+          ],
+          [
+            2,
+            0,
+            3,
+            4,
+            14,
+            "CONDITIONING"
+          ]
+        ],
+        "external": [
+          [
+            3,
+            0,
+            "BASIC_PIPE"
+          ]
+        ]
+      }
+    },
+    "controller_panel": {
+      "controllers": {},
+      "hidden": true,
+      "highlight": true,
+      "version": 2,
+      "default_order": []
+    },
+    "ds": {
+      "scale": 1.4641000000000006,
+      "offset": {
+        "0": -481.44390869140625,
+        "1": -92.16561126708984
+      }
+    },
+    "node_versions": {
+      "comfyui-impact-pack": "1ae7cae2df8cca06027edfa3a24512671239d6c4",
+      "comfyui-impact-subpack": "74db20c95eca152a6d686c914edc0ef4e4762cb8",
+      "comfy-core": "0.3.14"
+    },
+    "ue_links": [],
+    "VHS_latentpreview": false,
+    "VHS_latentpreviewrate": 0,
+    "VHS_MetadataImage": true,
+    "VHS_KeepIntermediate": true
+  },
+  "version": 0.4
+}

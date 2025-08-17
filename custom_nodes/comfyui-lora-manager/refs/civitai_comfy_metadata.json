@@ -1,0 +1,153 @@
+{
+    "resource-stack": {
+      "class_type": "CheckpointLoaderSimple",
+      "inputs": { "ckpt_name": "urn:air:sdxl:checkpoint:civitai:827184@1410435" }
+    },
+    "resource-stack-1": {
+      "class_type": "LoraLoader",
+      "inputs": {
+        "lora_name": "urn:air:sdxl:lora:civitai:1107767@1253442",
+        "strength_model": 1,
+        "strength_clip": 1,
+        "model": ["resource-stack", 0],
+        "clip": ["resource-stack", 1]
+      }
+    },
+    "resource-stack-2": {
+      "class_type": "LoraLoader",
+      "inputs": {
+        "lora_name": "urn:air:sdxl:lora:civitai:1342708@1516344",
+        "strength_model": 1,
+        "strength_clip": 1,
+        "model": ["resource-stack-1", 0],
+        "clip": ["resource-stack-1", 1]
+      }
+    },
+    "resource-stack-3": {
+      "class_type": "LoraLoader",
+      "inputs": {
+        "lora_name": "urn:air:sdxl:lora:civitai:122359@135867",
+        "strength_model": 1.55,
+        "strength_clip": 1,
+        "model": ["resource-stack-2", 0],
+        "clip": ["resource-stack-2", 1]
+      }
+    },
+    "6": {
+      "class_type": "smZ CLIPTextEncode",
+      "inputs": {
+        "text": "masterpiece, best quality, amazing quality, detailed setting, detailed background, 1girl, yunyun (konosuba), nude, red eyes, hair ornament, braid, hair between eyes,low twintails, pink ribbon, bow, hair bow, pussy, frilled skirt, layered skirt, belt, pink thighhighs, (pussy juice), large insertion, vaginal tugging, pussy grip, detailed skin, detailed soles, stretched pussy, feet in stockings, ass, nipples, medium breasts, french kiss, anus, shocked, nervous, penis awe,  BREAK Professor\u0027s office, college student, pornographic, 1boy, close eyes, (musscular male, detailed large cock), vaginal sex, college office setting, ass grab, fucking, riding, cowgirl, erotic, side view, deep fucking",
+        "parser": "comfy",
+        "text_g": "",
+        "text_l": "",
+        "ascore": 2.5,
+        "width": 0,
+        "height": 0,
+        "crop_w": 0,
+        "crop_h": 0,
+        "target_width": 0,
+        "target_height": 0,
+        "smZ_steps": 1,
+        "mean_normalization": true,
+        "multi_conditioning": true,
+        "use_old_emphasis_implementation": false,
+        "with_SDXL": false,
+        "clip": ["resource-stack-3", 1]
+      },
+      "_meta": { "title": "Positive" }
+    },
+    "7": {
+      "class_type": "smZ CLIPTextEncode",
+      "inputs": {
+        "text": "bad quality,worst quality,worst detail,sketch,censor",
+        "parser": "comfy",
+        "text_g": "",
+        "text_l": "",
+        "ascore": 2.5,
+        "width": 0,
+        "height": 0,
+        "crop_w": 0,
+        "crop_h": 0,
+        "target_width": 0,
+        "target_height": 0,
+        "smZ_steps": 1,
+        "mean_normalization": true,
+        "multi_conditioning": true,
+        "use_old_emphasis_implementation": false,
+        "with_SDXL": false,
+        "clip": ["resource-stack-3", 1]
+      },
+      "_meta": { "title": "Negative" }
+    },
+    "20": {
+      "class_type": "UpscaleModelLoader",
+      "inputs": { "model_name": "urn:air:other:upscaler:civitai:147759@164821" },
+      "_meta": { "title": "Load Upscale Model" }
+    },
+    "17": {
+      "class_type": "LoadImage",
+      "inputs": {
+        "image": "https://orchestration.civitai.com/v2/consumer/blobs/5KZ6358TW8CNEGPZKD08NVDB30",
+        "upload": "image"
+      },
+      "_meta": { "title": "Image Load" }
+    },
+    "19": {
+      "class_type": "ImageUpscaleWithModel",
+      "inputs": { "upscale_model": ["20", 0], "image": ["17", 0] },
+      "_meta": { "title": "Upscale Image (using Model)" }
+    },
+    "23": {
+      "class_type": "ImageScale",
+      "inputs": {
+        "upscale_method": "nearest-exact",
+        "crop": "disabled",
+        "width": 1280,
+        "height": 1856,
+        "image": ["19", 0]
+      },
+      "_meta": { "title": "Upscale Image" }
+    },
+    "21": {
+      "class_type": "VAEEncode",
+      "inputs": { "pixels": ["23", 0], "vae": ["resource-stack", 2] },
+      "_meta": { "title": "VAE Encode" }
+    },
+    "11": {
+      "class_type": "KSampler",
+      "inputs": {
+        "sampler_name": "euler_ancestral",
+        "scheduler": "normal",
+        "seed": 2088370631,
+        "steps": 47,
+        "cfg": 6.5,
+        "denoise": 0.3,
+        "model": ["resource-stack-3", 0],
+        "positive": ["6", 0],
+        "negative": ["7", 0],
+        "latent_image": ["21", 0]
+      },
+      "_meta": { "title": "KSampler" }
+    },
+    "13": {
+      "class_type": "VAEDecode",
+      "inputs": { "samples": ["11", 0], "vae": ["resource-stack", 2] },
+      "_meta": { "title": "VAE Decode" }
+    },
+    "12": {
+      "class_type": "SaveImage",
+      "inputs": { "filename_prefix": "ComfyUI", "images": ["13", 0] },
+      "_meta": { "title": "Save Image" }
+    },
+    "extra": {
+      "airs": [
+        "urn:air:other:upscaler:civitai:147759@164821",
+        "urn:air:sdxl:checkpoint:civitai:827184@1410435",
+        "urn:air:sdxl:lora:civitai:1107767@1253442",
+        "urn:air:sdxl:lora:civitai:1342708@1516344",
+        "urn:air:sdxl:lora:civitai:122359@135867"
+      ]
+    },
+    "extraMetadata": "{\u0022prompt\u0022:\u0022masterpiece, best quality, amazing quality, detailed setting, detailed background, 1girl, yunyun (konosuba), nude, red eyes, hair ornament, braid, hair between eyes,low twintails, pink ribbon, bow, hair bow, pussy, frilled skirt, layered skirt, belt, pink thighhighs, (pussy juice), large insertion, vaginal tugging, pussy grip, detailed skin, detailed soles, stretched pussy, feet in stockings, ass, nipples, medium breasts, french kiss, anus, shocked, nervous, penis awe,  BREAK Professor\u0027s office, college student, pornographic, 1boy, close eyes, (musscular male, detailed large cock), vaginal sex, college office setting, ass grab, fucking, riding, cowgirl, erotic, side view, deep fucking\u0022,\u0022negativePrompt\u0022:\u0022bad quality,worst quality,worst detail,sketch,censor\u0022,\u0022steps\u0022:47,\u0022cfgScale\u0022:6.5,\u0022sampler\u0022:\u0022euler_ancestral\u0022,\u0022workflowId\u0022:\u0022img2img-hires\u0022,\u0022resources\u0022:[{\u0022modelVersionId\u0022:1410435,\u0022strength\u0022:1},{\u0022modelVersionId\u0022:1410435,\u0022strength\u0022:1},{\u0022modelVersionId\u0022:1253442,\u0022strength\u0022:1},{\u0022modelVersionId\u0022:1516344,\u0022strength\u0022:1},{\u0022modelVersionId\u0022:135867,\u0022strength\u0022:1.55}],\u0022remixOfId\u0022:32140259}"
+  }
+  

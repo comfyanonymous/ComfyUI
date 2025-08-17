@@ -1,0 +1,84 @@
+/* Filter indicator styles */
+.control-group .filter-active {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: var(--lora-accent);
+    color: white;
+    border-radius: var(--border-radius-xs);
+    padding: 4px 10px;
+    transition: all 0.2s ease;
+    border: 1px solid var(--lora-accent);
+    cursor: pointer;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    font-size: 0.85em;
+}
+
+.control-group .filter-active:hover {
+    opacity: 0.92;
+    transform: translateY(-1px);
+    box-shadow: 0 3px 5px rgba(0, 0, 0, 0.15);
+}
+
+.control-group .filter-active:active {
+    transform: translateY(0);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.control-group .filter-active i.fa-filter {
+    font-size: 0.9em;
+    margin-right: 2px;
+    opacity: 0.9;
+}
+
+.control-group .filter-active i.clear-filter {
+    transition: transform 0.2s ease, background-color 0.2s ease;
+    cursor: pointer;
+    margin-left: 4px;
+    border-radius: 50%;
+    font-size: 0.85em;
+    width: 16px;
+    height: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.control-group .filter-active i.clear-filter:hover {
+    transform: scale(1.2);
+    background-color: rgba(255, 255, 255, 0.2);
+}
+
+.control-group .filter-active .lora-name {
+    font-weight: 500;
+    max-width: 150px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* Animation for filter indicator */
+@keyframes filterPulse {
+    0% { transform: scale(1); box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1); }
+    50% { transform: scale(1.03); box-shadow: 0 3px 8px rgba(0, 0, 0, 0.15); }
+    100% { transform: scale(1); box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1); }
+}
+
+.filter-active.animate {
+    animation: filterPulse 0.6s ease;
+}
+
+/* Make responsive */
+@media (max-width: 576px) {
+    .control-group .filter-active {
+        padding: 6px 10px;
+    }
+    
+    .control-group .filter-active .lora-name {
+        max-width: 100px;
+    }
+    
+    .control-group .filter-active:hover {
+        transform: none; /* Disable hover effects on mobile */
+    }
+}

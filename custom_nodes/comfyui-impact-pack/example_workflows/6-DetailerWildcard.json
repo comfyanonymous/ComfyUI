@@ -1,0 +1,1084 @@
+{
+  "last_node_id": 57,
+  "last_link_id": 116,
+  "nodes": [
+    {
+      "id": 38,
+      "type": "SAMLoader",
+      "pos": [
+        870,
+        1120
+      ],
+      "size": [
+        315,
+        82
+      ],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "SAM_MODEL",
+          "type": "SAM_MODEL",
+          "links": [
+            81
+          ],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "SAMLoader"
+      },
+      "widgets_values": [
+        "sam_vit_b_01ec64.pth",
+        "AUTO"
+      ],
+      "color": "#223",
+      "bgcolor": "#335"
+    },
+    {
+      "id": 50,
+      "type": "Reroute",
+      "pos": [
+        1100,
+        30
+      ],
+      "size": [
+        75,
+        26
+      ],
+      "flags": {},
+      "order": 6,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "",
+          "type": "*",
+          "link": 110
+        }
+      ],
+      "outputs": [
+        {
+          "name": "",
+          "type": "VAE",
+          "links": [
+            109
+          ],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "showOutputText": false,
+        "horizontal": false
+      }
+    },
+    {
+      "id": 48,
+      "type": "FromBasicPipe",
+      "pos": [
+        910,
+        300
+      ],
+      "size": [
+        221.4781951904297,
+        106
+      ],
+      "flags": {},
+      "order": 5,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "basic_pipe",
+          "type": "BASIC_PIPE",
+          "link": 116
+        }
+      ],
+      "outputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "links": [
+            99
+          ],
+          "slot_index": 0
+        },
+        {
+          "name": "clip",
+          "type": "CLIP",
+          "links": null
+        },
+        {
+          "name": "vae",
+          "type": "VAE",
+          "links": [
+            110
+          ],
+          "slot_index": 2
+        },
+        {
+          "name": "positive",
+          "type": "CONDITIONING",
+          "links": [
+            100
+          ],
+          "slot_index": 3
+        },
+        {
+          "name": "negative",
+          "type": "CONDITIONING",
+          "links": [
+            101
+          ],
+          "slot_index": 4
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "FromBasicPipe"
+      },
+      "widgets_values": []
+    },
+    {
+      "id": 5,
+      "type": "EmptyLatentImage",
+      "pos": [
+        490,
+        190
+      ],
+      "size": [
+        315,
+        106
+      ],
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "LATENT",
+          "type": "LATENT",
+          "links": [
+            2
+          ],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "EmptyLatentImage"
+      },
+      "widgets_values": [
+        768,
+        512,
+        1
+      ]
+    },
+    {
+      "id": 42,
+      "type": "PreviewImage",
+      "pos": [
+        2140,
+        130
+      ],
+      "size": [
+        793.8984985351562,
+        562.4002685546875
+      ],
+      "flags": {},
+      "order": 11,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 107
+        }
+      ],
+      "outputs": [],
+      "title": "Refined",
+      "properties": {
+        "Node name for S&R": "PreviewImage"
+      },
+      "widgets_values": [],
+      "color": "#223",
+      "bgcolor": "#335"
+    },
+    {
+      "id": 52,
+      "type": "PreviewImage",
+      "pos": [
+        2140,
+        770
+      ],
+      "size": [
+        800,
+        580
+      ],
+      "flags": {},
+      "order": 12,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 113
+        }
+      ],
+      "outputs": [],
+      "title": "Original",
+      "properties": {
+        "Node name for S&R": "PreviewImage"
+      },
+      "widgets_values": [],
+      "color": "#432",
+      "bgcolor": "#653"
+    },
+    {
+      "id": 44,
+      "type": "BasicPipeToDetailerPipe",
+      "pos": [
+        1230,
+        950
+      ],
+      "size": [
+        380,
+        240
+      ],
+      "flags": {},
+      "order": 4,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "basic_pipe",
+          "type": "BASIC_PIPE",
+          "link": 115,
+          "slot_index": 0
+        },
+        {
+          "name": "bbox_detector",
+          "type": "BBOX_DETECTOR",
+          "link": 114
+        },
+        {
+          "name": "sam_model_opt",
+          "type": "SAM_MODEL",
+          "shape": 7,
+          "link": 81
+        },
+        {
+          "name": "segm_detector_opt",
+          "type": "SEGM_DETECTOR",
+          "shape": 7,
+          "link": null
+        },
+        {
+          "name": "detailer_hook",
+          "type": "DETAILER_HOOK",
+          "shape": 7,
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "detailer_pipe",
+          "type": "DETAILER_PIPE",
+          "links": [
+            105
+          ],
+          "slot_index": 0
+        }
+      ],
+      "title": "BasicPipe -> DetailerPipe (NEW!!)",
+      "properties": {
+        "Node name for S&R": "BasicPipeToDetailerPipe"
+      },
+      "widgets_values": [
+        "{blue eyes, (angry:1.2)|{green eyes, mouth open|red eyes}|<lora:ChunLi_v1> smile}",
+        "Select the LoRA to add to the text",
+        "Select the Wildcard to add to the text"
+      ],
+      "color": "#223",
+      "bgcolor": "#335"
+    },
+    {
+      "id": 51,
+      "type": "Reroute",
+      "pos": [
+        2380,
+        30
+      ],
+      "size": [
+        82,
+        26
+      ],
+      "flags": {},
+      "order": 10,
+      "mode": 2,
+      "inputs": [
+        {
+          "name": "",
+          "type": "*",
+          "link": 111
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            113
+          ],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "showOutputText": true,
+        "horizontal": false
+      }
+    },
+    {
+      "id": 8,
+      "type": "VAEDecode",
+      "pos": [
+        1430,
+        60
+      ],
+      "size": [
+        140,
+        46
+      ],
+      "flags": {
+        "collapsed": true
+      },
+      "order": 8,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "samples",
+          "type": "LATENT",
+          "link": 7
+        },
+        {
+          "name": "vae",
+          "type": "VAE",
+          "link": 109
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            106,
+            111
+          ],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "VAEDecode"
+      },
+      "widgets_values": [],
+      "color": "#432",
+      "bgcolor": "#653"
+    },
+    {
+      "id": 3,
+      "type": "KSampler",
+      "pos": [
+        1209,
+        126
+      ],
+      "size": [
+        400,
+        650
+      ],
+      "flags": {},
+      "order": 7,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 99
+        },
+        {
+          "name": "positive",
+          "type": "CONDITIONING",
+          "link": 100
+        },
+        {
+          "name": "negative",
+          "type": "CONDITIONING",
+          "link": 101
+        },
+        {
+          "name": "latent_image",
+          "type": "LATENT",
+          "link": 2
+        }
+      ],
+      "outputs": [
+        {
+          "name": "LATENT",
+          "type": "LATENT",
+          "links": [
+            7
+          ],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "KSampler"
+      },
+      "widgets_values": [
+        497844439625000,
+        "fixed",
+        20,
+        8,
+        "euler",
+        "normal",
+        1
+      ],
+      "color": "#432",
+      "bgcolor": "#653"
+    },
+    {
+      "id": 56,
+      "type": "UltralyticsDetectorProvider",
+      "pos": [
+        870,
+        970
+      ],
+      "size": [
+        315,
+        78
+      ],
+      "flags": {},
+      "order": 2,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "BBOX_DETECTOR",
+          "type": "BBOX_DETECTOR",
+          "shape": 3,
+          "links": [
+            114
+          ],
+          "slot_index": 0
+        },
+        {
+          "name": "SEGM_DETECTOR",
+          "type": "SEGM_DETECTOR",
+          "shape": 3,
+          "links": null
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "UltralyticsDetectorProvider"
+      },
+      "widgets_values": [
+        "bbox/face_yolov8m.pt"
+      ],
+      "color": "#223",
+      "bgcolor": "#335"
+    },
+    {
+      "id": 57,
+      "type": "workflow>MAKE_BASIC_PIPE",
+      "pos": [
+        50,
+        470
+      ],
+      "size": [
+        410,
+        360
+      ],
+      "flags": {},
+      "order": 3,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "VAE",
+          "type": "VAE",
+          "shape": 3,
+          "links": null
+        },
+        {
+          "name": "basic_pipe",
+          "type": "BASIC_PIPE",
+          "shape": 3,
+          "links": [
+            115,
+            116
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "workflow/MAKE_BASIC_PIPE"
+      },
+      "widgets_values": [
+        "vae-ft-mse-840000-ema-pruned.safetensors",
+        "SD1.5/V07_v07.safetensors",
+        "RAW photo, delicate, best quality, colorful, 2girls, 8k uhd, film grain, soft lighting, dslr, (Fujifilm XT3), (photorealistic:1.4), (detailed skin), soft lips, (very detailed long ponytail), aged down, studio lighting, from top, colorful sports wear, happy face, spread lips, (walking), (central park, cloud, sunshine), small breast",
+        "(low quality:1.4), (worst quality:1.4), bad anatomy, (nsfw:1.2), muscle, from back, from front, monochrome, (bikini:1.2)"
+      ],
+      "color": "#222",
+      "bgcolor": "#000"
+    },
+    {
+      "id": 49,
+      "type": "FaceDetailerPipe",
+      "pos": [
+        1630,
+        130
+      ],
+      "size": [
+        480,
+        1220
+      ],
+      "flags": {},
+      "order": 9,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "image",
+          "type": "IMAGE",
+          "link": 106
+        },
+        {
+          "name": "detailer_pipe",
+          "type": "DETAILER_PIPE",
+          "link": 105
+        },
+        {
+          "name": "scheduler_func_opt",
+          "type": "SCHEDULER_FUNC",
+          "shape": 7,
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "image",
+          "type": "IMAGE",
+          "shape": 3,
+          "links": [
+            107
+          ],
+          "slot_index": 0
+        },
+        {
+          "name": "cropped_refined",
+          "type": "IMAGE",
+          "shape": 6,
+          "links": null
+        },
+        {
+          "name": "cropped_enhanced_alpha",
+          "type": "IMAGE",
+          "shape": 6,
+          "links": null
+        },
+        {
+          "name": "mask",
+          "type": "MASK",
+          "shape": 3,
+          "links": null
+        },
+        {
+          "name": "detailer_pipe",
+          "type": "DETAILER_PIPE",
+          "shape": 3,
+          "links": null
+        },
+        {
+          "name": "cnet_images",
+          "type": "IMAGE",
+          "shape": 6,
+          "links": null
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "FaceDetailerPipe"
+      },
+      "widgets_values": [
+        256,
+        true,
+        768,
+        307405256705890,
+        "fixed",
+        20,
+        8,
+        "euler",
+        "normal",
+        0.5,
+        5,
+        true,
+        false,
+        0.5,
+        10,
+        3,
+        "center-1",
+        0,
+        0.93,
+        0,
+        0.7,
+        "False",
+        10,
+        0.2,
+        1,
+        false,
+        0,
+        false,
+        false
+      ],
+      "color": "#223",
+      "bgcolor": "#335"
+    }
+  ],
+  "links": [
+    [
+      2,
+      5,
+      0,
+      3,
+      3,
+      "LATENT"
+    ],
+    [
+      7,
+      3,
+      0,
+      8,
+      0,
+      "LATENT"
+    ],
+    [
+      81,
+      38,
+      0,
+      44,
+      2,
+      "SAM_MODEL"
+    ],
+    [
+      99,
+      48,
+      0,
+      3,
+      0,
+      "MODEL"
+    ],
+    [
+      100,
+      48,
+      3,
+      3,
+      1,
+      "CONDITIONING"
+    ],
+    [
+      101,
+      48,
+      4,
+      3,
+      2,
+      "CONDITIONING"
+    ],
+    [
+      105,
+      44,
+      0,
+      49,
+      1,
+      "DETAILER_PIPE"
+    ],
+    [
+      106,
+      8,
+      0,
+      49,
+      0,
+      "IMAGE"
+    ],
+    [
+      107,
+      49,
+      0,
+      42,
+      0,
+      "IMAGE"
+    ],
+    [
+      109,
+      50,
+      0,
+      8,
+      1,
+      "VAE"
+    ],
+    [
+      110,
+      48,
+      2,
+      50,
+      0,
+      "*"
+    ],
+    [
+      111,
+      8,
+      0,
+      51,
+      0,
+      "*"
+    ],
+    [
+      113,
+      51,
+      0,
+      52,
+      0,
+      "IMAGE"
+    ],
+    [
+      114,
+      56,
+      0,
+      44,
+      1,
+      "BBOX_DETECTOR"
+    ],
+    [
+      115,
+      57,
+      1,
+      44,
+      0,
+      "BASIC_PIPE"
+    ],
+    [
+      116,
+      57,
+      1,
+      48,
+      0,
+      "BASIC_PIPE"
+    ]
+  ],
+  "groups": [],
+  "config": {},
+  "extra": {
+    "groupNodes": {
+      "MAKE_BASIC_PIPE": {
+        "nodes": [
+          {
+            "type": "VAELoader",
+            "pos": [
+              -200,
+              600
+            ],
+            "size": {
+              "0": 315,
+              "1": 58
+            },
+            "flags": {},
+            "order": 1,
+            "mode": 0,
+            "outputs": [
+              {
+                "name": "VAE",
+                "type": "VAE",
+                "links": [],
+                "slot_index": 0,
+                "localized_name": "VAE"
+              }
+            ],
+            "properties": {
+              "Node name for S&R": "VAELoader"
+            },
+            "widgets_values": [
+              "vae-ft-mse-840000-ema-pruned.safetensors"
+            ],
+            "index": 0,
+            "inputs": []
+          },
+          {
+            "type": "CheckpointLoaderSimple",
+            "pos": [
+              -660,
+              680
+            ],
+            "size": {
+              "0": 315,
+              "1": 98
+            },
+            "flags": {},
+            "order": 6,
+            "mode": 0,
+            "outputs": [
+              {
+                "name": "MODEL",
+                "type": "MODEL",
+                "links": [],
+                "slot_index": 0,
+                "localized_name": "MODEL"
+              },
+              {
+                "name": "CLIP",
+                "type": "CLIP",
+                "links": [],
+                "slot_index": 1,
+                "localized_name": "CLIP"
+              },
+              {
+                "name": "VAE",
+                "type": "VAE",
+                "links": [],
+                "slot_index": 2,
+                "localized_name": "VAE"
+              }
+            ],
+            "properties": {
+              "Node name for S&R": "CheckpointLoaderSimple"
+            },
+            "widgets_values": [
+              "SD1.5/V07_v07.safetensors"
+            ],
+            "index": 1,
+            "inputs": []
+          },
+          {
+            "type": "CLIPTextEncode",
+            "pos": [
+              -260,
+              750
+            ],
+            "size": {
+              "0": 411.9563903808594,
+              "1": 162.07196044921875
+            },
+            "flags": {},
+            "order": 7,
+            "mode": 0,
+            "inputs": [
+              {
+                "name": "clip",
+                "type": "CLIP",
+                "link": null,
+                "localized_name": "clip"
+              }
+            ],
+            "outputs": [
+              {
+                "name": "CONDITIONING",
+                "type": "CONDITIONING",
+                "links": [],
+                "slot_index": 0,
+                "localized_name": "CONDITIONING"
+              }
+            ],
+            "title": "Positive",
+            "properties": {
+              "Node name for S&R": "CLIPTextEncode"
+            },
+            "widgets_values": [
+              "RAW photo, delicate, best quality, colorful, 2girls, 8k uhd, film grain, soft lighting, dslr, (Fujifilm XT3), (photorealistic:1.4), (detailed skin), soft lips, (very detailed long ponytail), aged down, studio lighting, from top, colorful sports wear, happy face, spread lips, (walking), (central park, cloud, sunshine), small breast"
+            ],
+            "index": 2
+          },
+          {
+            "type": "CLIPTextEncode",
+            "pos": [
+              -260,
+              960
+            ],
+            "size": {
+              "0": 410,
+              "1": 130
+            },
+            "flags": {},
+            "order": 8,
+            "mode": 0,
+            "inputs": [
+              {
+                "name": "clip",
+                "type": "CLIP",
+                "link": null,
+                "localized_name": "clip"
+              }
+            ],
+            "outputs": [
+              {
+                "name": "CONDITIONING",
+                "type": "CONDITIONING",
+                "links": [],
+                "slot_index": 0,
+                "localized_name": "CONDITIONING"
+              }
+            ],
+            "title": "Negative",
+            "properties": {
+              "Node name for S&R": "CLIPTextEncode"
+            },
+            "widgets_values": [
+              "(low quality:1.4), (worst quality:1.4), bad anatomy, (nsfw:1.2), muscle, from back, from front, monochrome, (bikini:1.2)"
+            ],
+            "index": 3
+          },
+          {
+            "type": "ToBasicPipe",
+            "pos": [
+              210,
+              680
+            ],
+            "size": {
+              "0": 241.79998779296875,
+              "1": 106
+            },
+            "flags": {},
+            "order": 9,
+            "mode": 0,
+            "inputs": [
+              {
+                "name": "model",
+                "type": "MODEL",
+                "link": null,
+                "localized_name": "model"
+              },
+              {
+                "name": "clip",
+                "type": "CLIP",
+                "link": null,
+                "localized_name": "clip"
+              },
+              {
+                "name": "vae",
+                "type": "VAE",
+                "link": null,
+                "localized_name": "vae"
+              },
+              {
+                "name": "positive",
+                "type": "CONDITIONING",
+                "link": null,
+                "localized_name": "positive"
+              },
+              {
+                "name": "negative",
+                "type": "CONDITIONING",
+                "link": null,
+                "localized_name": "negative"
+              }
+            ],
+            "outputs": [
+              {
+                "name": "basic_pipe",
+                "type": "BASIC_PIPE",
+                "links": [],
+                "slot_index": 0,
+                "localized_name": "basic_pipe"
+              }
+            ],
+            "properties": {
+              "Node name for S&R": "ToBasicPipe"
+            },
+            "index": 4
+          }
+        ],
+        "links": [
+          [
+            1,
+            1,
+            2,
+            0,
+            4,
+            "CLIP"
+          ],
+          [
+            1,
+            1,
+            3,
+            0,
+            4,
+            "CLIP"
+          ],
+          [
+            1,
+            0,
+            4,
+            0,
+            4,
+            "MODEL"
+          ],
+          [
+            1,
+            1,
+            4,
+            1,
+            4,
+            "CLIP"
+          ],
+          [
+            0,
+            0,
+            4,
+            2,
+            14,
+            "VAE"
+          ],
+          [
+            2,
+            0,
+            4,
+            3,
+            6,
+            "CONDITIONING"
+          ],
+          [
+            3,
+            0,
+            4,
+            4,
+            7,
+            "CONDITIONING"
+          ]
+        ],
+        "external": [
+          [
+            4,
+            0,
+            "BASIC_PIPE"
+          ]
+        ]
+      }
+    },
+    "controller_panel": {
+      "controllers": {},
+      "hidden": true,
+      "highlight": true,
+      "version": 2,
+      "default_order": []
+    },
+    "ds": {
+      "scale": 0.7513148009015777,
+      "offset": {
+        "0": 149.68603515625,
+        "1": 245.33897399902344
+      }
+    },
+    "node_versions": {
+      "comfyui-impact-pack": "1ae7cae2df8cca06027edfa3a24512671239d6c4",
+      "comfy-core": "0.3.14",
+      "comfyui-impact-subpack": "74db20c95eca152a6d686c914edc0ef4e4762cb8"
+    },
+    "ue_links": [],
+    "VHS_latentpreview": false,
+    "VHS_latentpreviewrate": 0,
+    "VHS_MetadataImage": true,
+    "VHS_KeepIntermediate": true
+  },
+  "version": 0.4
+}

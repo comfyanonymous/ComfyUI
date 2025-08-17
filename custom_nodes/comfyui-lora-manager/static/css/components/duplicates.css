@@ -1,0 +1,608 @@
+/* Duplicates Management Styles */
+
+/* Duplicates banner */
+.duplicates-banner {
+    position: sticky; /* Keep the sticky position */
+    top: var(--space-1);
+    width: 100%;
+    background-color: oklch(var(--lora-accent-l) var(--lora-accent-c) var(--lora-accent-h) / 0.1); /* Use accent color with low opacity */
+    color: var(--text-color);
+    border-top: 1px solid oklch(var(--lora-accent-l) var(--lora-accent-c) var(--lora-accent-h) / 0.3); /* Add top border with accent color */
+    border-bottom: 1px solid oklch(var(--lora-accent-l) var(--lora-accent-c) var(--lora-accent-h) / 0.4); /* Make bottom border stronger */
+    z-index: var(--z-overlay);
+    padding: 12px 0;
+    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.2); /* Stronger shadow */
+    transition: all 0.3s ease;
+    margin-bottom: 20px;
+}
+
+.duplicates-banner .banner-content {
+    position: relative;
+    max-width: 1400px;
+    margin: 0 auto;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 0 16px;
+}
+
+/* Responsive container for larger screens - match container in layout.css */
+@media (min-width: 2000px) {
+    .duplicates-banner .banner-content {
+        max-width: 1800px;
+    }
+}
+
+@media (min-width: 3000px) {
+    .duplicates-banner .banner-content {
+        max-width: 2400px;
+    }
+}
+
+.duplicates-banner i.fa-exclamation-triangle {
+    font-size: 18px;
+    color: oklch(var(--lora-warning-l) var(--lora-warning-c) var(--lora-warning-h));
+}
+
+.duplicates-banner .banner-actions {
+    margin-left: auto;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+/* Improved exit button in banner */
+.duplicates-banner button.btn-exit-mode {
+    min-width: 120px;
+    background-color: var(--card-bg);
+    color: var(--text-color);
+    border: 1px solid var(--border-color);
+    padding: 6px 12px;
+    border-radius: var(--border-radius-xs);
+    font-size: 0.85em;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    transition: all 0.2s ease;
+}
+
+.duplicates-banner button.btn-exit-mode:hover {
+    background-color: var(--bg-color);
+    border-color: var(--lora-accent-l) var(--lora-accent-c) var(--lora-accent-h);
+    transform: translateY(-1px);
+}
+
+.duplicates-banner button {
+    min-width: 100px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    border-radius: var(--border-radius-xs);
+    padding: 4px 10px;
+    border: 1px solid var(--border-color);
+    background: var(--card-bg);
+    color: var(--text-color);
+    font-size: 0.85em;
+    transition: all 0.2s ease;
+    cursor: pointer;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+.duplicates-banner button:hover {
+    border-color: var(--lora-accent-l) var(--lora-accent-c) var(--lora-accent-h);
+    background: var(--bg-color);
+    transform: translateY(-1px);
+    box-shadow: 0 3px 5px rgba(0, 0, 0, 0.08);
+}
+
+.duplicates-banner button.btn-exit {
+    min-width: unset;
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+}
+
+.duplicates-banner button.disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* Duplicate groups */
+.duplicate-group {
+    position: relative;
+    border: 2px solid oklch(var(--lora-warning-l) var(--lora-warning-c) var(--lora-warning-h));
+    border-radius: var(--border-radius-base);
+    padding: 16px;
+    margin-bottom: 24px;
+    background: var(--card-bg);
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12); /* Add subtle shadow to groups */
+    /* Add responsive width settings to match banner */
+    max-width: 1400px;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+/* Add responsive container adjustments for duplicate groups - match container in banner */
+@media (min-width: 2000px) {
+    .duplicate-group {
+        max-width: 1800px;
+    }
+}
+
+@media (min-width: 3000px) {
+    .duplicate-group {
+        max-width: 2400px;
+    }
+}
+
+.duplicate-group-header {
+    background-color: var(--bg-color);
+    color: var(--text-color);
+    border: 1px solid var(--border-color);
+    padding: 10px 16px; /* Slightly increased padding */
+    border-radius: var(--border-radius-xs);
+    margin-bottom: 16px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-left: 4px solid oklch(var(--lora-warning-l) var(--lora-warning-c) var(--lora-warning-h)); /* Add accent border on the left */
+}
+
+.duplicate-group-header span:last-child {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.duplicate-group-header button {
+    min-width: 80px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    border-radius: var(--border-radius-xs);
+    padding: 4px 8px;
+    border: 1px solid var(--border-color);
+    background: var(--card-bg);
+    color: var(--text-color);
+    font-size: 0.85em;
+    transition: all 0.2s ease;
+    cursor: pointer;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+    margin-left: 8px;
+}
+
+.duplicate-group-header button:hover {
+    border-color: var(--lora-accent-l) var(--lora-accent-c) var(--lora-accent-h);
+    background: var(--bg-color);
+    transform: translateY(-1px);
+    box-shadow: 0 3px 5px rgba(0, 0, 0, 0.08);
+}
+
+.card-group-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    justify-content: flex-start;
+    align-items: flex-start;
+}
+
+/* Make cards in duplicate groups have consistent width */
+.card-group-container .model-card {
+    flex: 0 0 auto;
+    width: 240px;
+    margin: 0;
+    cursor: pointer; /* Indicate the card is clickable */
+}
+
+/* Ensure the grid layout is only applied to the main recipe grid, not duplicate groups */
+.duplicate-mode .card-grid {
+    display: block;
+}
+
+/* Scrollable container for large duplicate groups */
+.card-group-container.scrollable {
+    max-height: 450px;
+    overflow-y: auto;
+    padding-right: 8px;
+}
+
+/* Add a toggle button to expand/collapse large duplicate groups */
+.group-toggle-btn {
+    position: absolute;
+    right: 16px;
+    bottom: -12px;
+    background: var(--card-bg);
+    color: var(--text-color);
+    border: 1px solid var(--border-color);
+    border-radius: 50%;
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    z-index: 1;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    transition: all 0.2s ease;
+}
+
+.group-toggle-btn:hover {
+    border-color: var(--lora-accent-l) var(--lora-accent-c) var (--lora-accent-h);
+    transform: translateY(-1px);
+    box-shadow: 0 3px 5px rgba(0, 0, 0, 0.08);
+}
+
+/* Duplicate card styling */
+.model-card.duplicate {
+    position: relative;
+    transition: all 0.2s ease;
+}
+
+.model-card.duplicate:hover {
+    border-color: var(--lora-accent-l) var(--lora-accent-c) var(--lora-accent-h);
+}
+
+.model-card.duplicate.latest {
+    border-style: solid;
+    border-color: oklch(var(--lora-warning-l) var(--lora-warning-c) var(--lora-warning-h));
+}
+
+.model-card.duplicate-selected {
+    border: 2px solid oklch(var(--lora-accent-l) var(--lora-accent-c) var(--lora-accent-h));
+    box-shadow: 0 0 8px rgba(0, 0, 0, 0.2);
+}
+
+.model-card .selector-checkbox {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    z-index: 10;
+    width: 20px;
+    height: 20px;
+    cursor: pointer;
+}
+
+/* Latest indicator */
+.model-card.duplicate.latest::after {
+    content: "Latest";
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    background: oklch(var(--lora-accent-l) var(--lora-accent-c) var(--lora-accent-h));
+    color: white;
+    font-size: 12px;
+    padding: 2px 6px;
+    border-radius: var(--border-radius-xs);
+    z-index: 5;
+}
+
+/* Model tooltip for duplicates mode */
+.model-tooltip {
+    position: absolute;
+    background-color: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius-sm);
+    box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+    padding: 10px;
+    z-index: 1000;
+    max-width: 350px;
+    min-width: 250px;
+    color: var(--text-color);
+    font-size: 0.9em;
+    pointer-events: none; /* Don't block mouse events */
+}
+
+.model-tooltip .tooltip-header {
+    font-weight: bold;
+    font-size: 1.1em;
+    margin-bottom: 8px;
+    padding-bottom: 5px;
+    border-bottom: 1px solid var(--border-color);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.model-tooltip .tooltip-info div {
+    margin-bottom: 4px;
+    display: flex;
+    flex-wrap: wrap;
+    word-break: break-all; /* Ensure long hashes wrap properly */
+}
+
+.model-tooltip .tooltip-info div strong {
+    margin-right: 5px;
+    min-width: 70px;
+}
+
+/* Latest indicator */
+.hash-mismatch-info {
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px dashed var(--border-color);
+    color: oklch(var(--lora-warning-l) var(--lora-warning-c) var(--lora-warning-h));
+    font-weight: bold;
+    word-break: break-all; /* Ensure long hashes wrap properly */
+}
+
+/* Verification Badge Styles */
+.verification-badge {
+    display: inline-flex;
+    align-items: center;
+    margin-left: 8px;
+    padding: 2px 6px;
+    font-size: 0.8em;
+    border-radius: var(--border-radius-xs);
+    font-weight: normal;
+}
+
+.verification-badge.metadata {
+    background-color: var(--bg-color);
+    border: 1px solid var(--border-color);
+    color: var(--text-color);
+}
+
+.verification-badge.verified {
+    background-color: oklch(70% 0.2 140); /* Green for verified */
+    color: white;
+}
+
+.verification-badge.mismatch {
+    background-color: oklch(var(--lora-warning-l) var(--lora-warning-c) var(--lora-warning-h));
+    color: white;
+}
+
+.verification-badge i {
+    margin-right: 4px;
+}
+
+/* Hash Mismatch Styling */
+.model-card.duplicate.hash-mismatch {
+    border: 2px dashed oklch(var(--lora-warning-l) var(--lora-warning-c) var(--lora-warning-h));
+    opacity: 0.85;
+    position: relative;
+}
+
+.model-card.duplicate.hash-mismatch::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: repeating-linear-gradient(
+        45deg,
+        oklch(var(--lora-warning-l) var(--lora-warning-c) var(--lora-warning-h) / 0.05),
+        oklch(var(--lora-warning-l) var(--lora-warning-c) var(--lora-warning-h) / 0.05) 10px,
+        transparent 10px,
+        transparent 20px
+    );
+    z-index: 1;
+    pointer-events: none;
+}
+
+.model-card.duplicate.hash-mismatch .card-preview {
+    filter: grayscale(20%);
+}
+
+/* Mismatch Badge */
+.mismatch-badge {
+    position: absolute;
+    top: 10px;
+    left: 10px; /* Changed from right:10px to left:10px */
+    background: oklch(var(--lora-warning-l) var(--lora-warning-c) var(--lora-warning-h));
+    color: white;
+    font-size: 12px;
+    padding: 3px 8px;
+    border-radius: var(--border-radius-xs);
+    z-index: 5;
+}
+
+/* Disabled checkbox style */
+.model-card.duplicate.hash-mismatch .selector-checkbox {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* Hash mismatch info in tooltip */
+.hash-mismatch-info {
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px dashed var(--border-color);
+    color: oklch(var(--lora-warning-l) var(--lora-warning-c) var(--lora-warning-h));
+    font-weight: bold;
+}
+
+/* Verify hash button styling */
+.btn-verify-hashes {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius-xs);
+    font-size: 0.85em;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.btn-verify-hashes:hover {
+    background: var(--bg-color);
+    border-color: oklch(var(--lora-accent-l) var(--lora-accent-c) var(--lora-accent-h));
+    transform: translateY(-1px);
+}
+
+.btn-verify-hashes i {
+    font-size: 0.9em;
+}
+
+/* Badge Styles */
+.badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 16px; /* Reduced from 20px */
+    height: 16px; /* Reduced from 20px */
+    border-radius: 8px; /* Adjusted for smaller size */
+    background-color: var(--lora-error);
+    color: white;
+    font-size: 10px; /* Smaller font size */
+    font-weight: bold;
+    padding: 0 4px; /* Reduced padding */
+    position: absolute;
+    top: -8px; /* Moved closer to button */
+    right: -8px; /* Moved closer to button */
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15); /* Softer shadow */
+    transition: transform 0.2s ease, opacity 0.2s ease;
+}
+
+.badge:empty {
+    display: none;
+}
+
+/* Make the pulse animation more subtle */
+.badge.pulse {
+    animation: badge-pulse 2s infinite; /* Slower animation */
+}
+
+@keyframes badge-pulse {
+    0% {
+        transform: scale(1);
+    }
+    50% {
+        transform: scale(1.1); /* Less expansion */
+    }
+    100% {
+        transform: scale(1);
+    }
+}
+
+/* Help icon styling */
+.help-icon {
+    color: var(--text-color);
+    opacity: 0.7;
+    cursor: help;
+    font-size: 16px;
+    margin-left: 8px;
+    transition: all 0.2s ease;
+}
+
+.help-icon:hover {
+    opacity: 1;
+    color: oklch(var(--lora-accent-l) var(--lora-accent-c) var(--lora-accent-h));
+}
+
+/* Help tooltip */
+.help-tooltip {
+    display: none;
+    position: absolute;
+    max-width: 400px;
+    background: var(--card-bg);
+    color: var(--text-color);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius-sm);
+    padding: 12px 16px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    z-index: var(--z-overlay);
+    font-size: 0.9em;
+    margin-top: 10px;
+    text-align: left;
+    pointer-events: none;
+}
+
+.help-tooltip:after {
+    content: "";
+    position: absolute;
+    top: -8px;
+    left: 10px; /* Position the arrow near the left instead of center */
+    border-width: 0 8px 8px 8px;
+    border-style: solid;
+    border-color: transparent transparent var(--card-bg) transparent;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .duplicates-banner .banner-content {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 8px;
+    }
+    
+    .duplicates-banner .banner-actions {
+        width: 100%;
+        margin-left: 0;
+        justify-content: space-between;
+    }
+    
+    .duplicate-group-header {
+        flex-direction: column;
+        gap: 8px;
+        align-items: flex-start;
+    }
+    
+    .duplicate-group-header span:last-child {
+        display: flex;
+        gap: 8px;
+        width: 100%;
+    }
+    
+    .duplicate-group-header button {
+        margin-left: 0;
+        flex: 1;
+    }
+
+    .help-tooltip {
+        max-width: calc(100% - 40px);
+    }
+    
+    /* Remove the fixed positioning adjustments for mobile since we're now using dynamic positioning */
+    .help-tooltip:after {
+        left: 10px;
+    }
+}
+
+/* In dark mode, add additional distinction */
+html[data-theme="dark"] .duplicates-banner {
+    box-shadow: 0 3px 12px rgba(0, 0, 0, 0.4); /* Stronger shadow in dark mode */
+    background-color: oklch(var(--lora-accent-l) var(--lora-accent-c) var(--lora-accent-h) / 0.15); /* Slightly stronger background in dark mode */
+}
+
+html[data-theme="dark"] .duplicate-group {
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25); /* Stronger shadow in dark mode */
+}
+
+html[data-theme="dark"] .help-tooltip {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+/* Styles for disabled controls during duplicates mode */
+.disabled-during-duplicates {
+    opacity: 0.5 !important;
+    pointer-events: none !important;
+    cursor: not-allowed !important;
+    user-select: none !important;
+    filter: grayscale(50%) !important;
+}
+
+/* Make the active duplicates button more prominent */
+#findDuplicatesBtn.active {
+    background: var(--lora-accent);
+    color: white;
+    border-color: var(--lora-accent);
+    box-shadow: 0 0 0 2px oklch(var(--lora-accent-l) var(--lora-accent-c) var(--lora-accent-h) / 0.25);
+    position: relative;
+    z-index: 5;
+}
+
+#findDuplicatesBtn.active:hover {
+    background: oklch(calc(var(--lora-accent-l) - 5%) var(--lora-accent-c) var(--lora-accent-h));
+}

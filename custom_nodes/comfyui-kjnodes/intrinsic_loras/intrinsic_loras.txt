@@ -1,0 +1,4 @@
+source for the loras:
+https://github.com/duxiaodan/intrinsic-lora
+
+Renamed and conveted to .safetensors

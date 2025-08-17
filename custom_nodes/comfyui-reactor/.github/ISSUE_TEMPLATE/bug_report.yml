@@ -1,0 +1,56 @@
+name: Bug Report
+description: You think somethings is broken
+labels: ["bug", "new"]
+
+body:
+  - type: checkboxes
+    attributes:
+      label: First, confirm
+      description: Make sure you use the latest version of the ReActor extension and you have already searched to see if an issue already exists for the bug you encountered before you create a new Issue.
+      options:
+        - label: I have read the [instruction](https://github.com/Gourieff/ComfyUI-ReActor/blob/main/README.md) carefully
+          required: true
+        - label: I have searched the existing issues
+          required: true
+        - label: I have updated the extension to the latest version
+          required: true
+  - type: markdown
+    attributes:
+      value: |
+        *Please fill this form with as much information as possible and *provide screenshots if possible**
+  - type: textarea
+    id: what-did
+    attributes:
+      label: What happened?
+      description: Tell what happened in a very clear and simple way
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce the problem
+      description: Please provide with precise step by step instructions on how to reproduce the bug
+      value: |
+        Your workflow
+    validations:
+      required: true
+  - type: textarea
+    id: sysinfo
+    attributes:
+      label: Sysinfo
+      description: Describe your platform. OS, browser, GPU, what other nodes are also enabled.
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant console log
+      description: Please provide cmd/terminal logs from the moment you started UI to the momemt you got an error. This will be automatically formatted into code, so no need for backticks.
+      render: Shell
+    validations:
+      required: true
+  - type: textarea
+    id: misc
+    attributes:
+      label: Additional information
+      description: Please provide with any relevant additional info or context.

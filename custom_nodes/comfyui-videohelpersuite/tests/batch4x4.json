@@ -1,0 +1,535 @@
+{
+  "last_node_id": 18,
+  "last_link_id": 28,
+  "nodes": [
+    {
+      "id": 16,
+      "type": "SolidMask",
+      "pos": [
+        38,
+        1066
+      ],
+      "size": {
+        "0": 315,
+        "1": 106
+      },
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "outputs": [
+        {
+          "name": "MASK",
+          "type": "MASK",
+          "links": [
+            18
+          ],
+          "slot_index": 0,
+          "shape": 3
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "SolidMask"
+      },
+      "widgets_values": [
+        1,
+        512,
+        512
+      ]
+    },
+    {
+      "id": 15,
+      "type": "ImageCompositeMasked",
+      "pos": [
+        412.0800030517579,
+        591.4099975585939
+      ],
+      "size": {
+        "0": 315,
+        "1": 146
+      },
+      "flags": {},
+      "order": 5,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "destination",
+          "type": "IMAGE",
+          "link": 16
+        },
+        {
+          "name": "source",
+          "type": "IMAGE",
+          "link": 17
+        },
+        {
+          "name": "mask",
+          "type": "MASK",
+          "link": 18
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            19
+          ],
+          "slot_index": 0,
+          "shape": 3
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "ImageCompositeMasked"
+      },
+      "widgets_values": [
+        0,
+        0,
+        false
+      ]
+    },
+    {
+      "id": 18,
+      "type": "VHS_BatchManager",
+      "pos": [
+        329.8000881958008,
+        -87.40008056640622
+      ],
+      "size": {
+        "0": 315,
+        "1": 58
+      },
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "outputs": [
+        {
+          "name": "VHS_BatchManager",
+          "type": "VHS_BatchManager",
+          "links": [
+            24,
+            25,
+            26,
+            27
+          ],
+          "slot_index": 0,
+          "shape": 3
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "VHS_BatchManager"
+      },
+      "widgets_values": {
+        "frames_per_batch": 4,
+        "count": 2
+      }
+    },
+    {
+      "id": 10,
+      "type": "VHS_LoadVideoPath",
+      "pos": [
+        24,
+        102
+      ],
+      "size": [
+        320,
+        420.7188019966722
+      ],
+      "flags": {},
+      "order": 2,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "meta_batch",
+          "type": "VHS_BatchManager",
+          "link": 25,
+          "slot_index": 0
+        },
+        {
+          "name": "vae",
+          "type": "VAE",
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            16,
+            22
+          ],
+          "slot_index": 0,
+          "shape": 3
+        },
+        {
+          "name": "frame_count",
+          "type": "INT",
+          "links": null,
+          "shape": 3
+        },
+        {
+          "name": "audio",
+          "type": "AUDIO",
+          "links": [
+            28
+          ],
+          "slot_index": 2,
+          "shape": 3
+        },
+        {
+          "name": "video_info",
+          "type": "VHS_VIDEOINFO",
+          "links": null,
+          "shape": 3
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "VHS_LoadVideoPath"
+      },
+      "widgets_values": {
+        "video": "input/bigbuckbunny.mp4",
+        "force_rate": 8,
+        "force_size": "512x?",
+        "custom_width": 512,
+        "custom_height": 512,
+        "frame_load_cap": 16,
+        "skip_first_frames": 64,
+        "select_every_nth": 1,
+        "videopreview": {
+          "hidden": false,
+          "paused": false,
+          "params": {
+            "frame_load_cap": 16,
+            "skip_first_frames": 64,
+            "force_rate": 8,
+            "filename": "input/bigbuckbunny.mp4",
+            "type": "path",
+            "format": "video/mp4",
+            "select_every_nth": 1,
+            "force_size": "512x?"
+          }
+        }
+      }
+    },
+    {
+      "id": 14,
+      "type": "VHS_LoadVideoPath",
+      "pos": [
+        26,
+        598
+      ],
+      "size": [
+        320,
+        444.7188019966722
+      ],
+      "flags": {},
+      "order": 3,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "meta_batch",
+          "type": "VHS_BatchManager",
+          "link": 26,
+          "slot_index": 0
+        },
+        {
+          "name": "vae",
+          "type": "VAE",
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            17
+          ],
+          "slot_index": 0,
+          "shape": 3
+        },
+        {
+          "name": "frame_count",
+          "type": "INT",
+          "links": null,
+          "shape": 3
+        },
+        {
+          "name": "audio",
+          "type": "VHS_AUDIO",
+          "links": [],
+          "slot_index": 2,
+          "shape": 3
+        },
+        {
+          "name": "video_info",
+          "type": "VHS_VIDEOINFO",
+          "links": null,
+          "shape": 3
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "VHS_LoadVideoPath"
+      },
+      "widgets_values": {
+        "video": "input/bigbuckbunny.mp4",
+        "force_rate": 8,
+        "force_size": "Custom Width",
+        "custom_width": 384,
+        "custom_height": 512,
+        "frame_load_cap": 16,
+        "skip_first_frames": 64,
+        "select_every_nth": 1,
+        "videopreview": {
+          "hidden": false,
+          "paused": false,
+          "params": {
+            "frame_load_cap": 16,
+            "skip_first_frames": 64,
+            "force_rate": 8,
+            "filename": "input/bigbuckbunny.mp4",
+            "type": "path",
+            "format": "video/mp4",
+            "select_every_nth": 1,
+            "force_size": "512x?"
+          }
+        }
+      }
+    },
+    {
+      "id": 11,
+      "type": "VHS_VideoCombine",
+      "pos": [
+        762,
+        646
+      ],
+      "size": [
+        320,
+        492.75
+      ],
+      "flags": {},
+      "order": 6,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 19
+        },
+        {
+          "name": "audio",
+          "type": "AUDIO",
+          "link": 28
+        },
+        {
+          "name": "meta_batch",
+          "type": "VHS_BatchManager",
+          "link": 27,
+          "slot_index": 2
+        },
+        {
+          "name": "vae",
+          "type": "VAE",
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "Filenames",
+          "type": "VHS_FILENAMES",
+          "links": null,
+          "shape": 3
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "VHS_VideoCombine"
+      },
+      "widgets_values": {
+        "frame_rate": 8,
+        "loop_count": 0,
+        "filename_prefix": "AnimateDiff",
+        "format": "video/h264-mp4",
+        "pix_fmt": "yuv420p",
+        "crf": 19,
+        "save_metadata": true,
+        "pingpong": false,
+        "save_output": false,
+        "videopreview": {
+          "hidden": false,
+          "paused": false,
+          "params": {
+            "filename": "AnimateDiff_00005-audio.mp4",
+            "subfolder": "",
+            "type": "temp",
+            "format": "video/h264-mp4",
+            "frame_rate": 8
+          }
+        }
+      }
+    },
+    {
+      "id": 17,
+      "type": "VHS_VideoCombine",
+      "pos": [
+        756,
+        100
+      ],
+      "size": [
+        320,
+        492.75
+      ],
+      "flags": {},
+      "order": 4,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 22
+        },
+        {
+          "name": "audio",
+          "type": "VHS_AUDIO",
+          "link": null
+        },
+        {
+          "name": "meta_batch",
+          "type": "VHS_BatchManager",
+          "link": 24,
+          "slot_index": 2
+        },
+        {
+          "name": "vae",
+          "type": "VAE",
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "Filenames",
+          "type": "VHS_FILENAMES",
+          "links": null,
+          "shape": 3
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "VHS_VideoCombine"
+      },
+      "widgets_values": {
+        "frame_rate": 8,
+        "loop_count": 0,
+        "filename_prefix": "AnimateDiff",
+        "format": "video/webm",
+        "pix_fmt": "yuv420p",
+        "crf": 20,
+        "save_metadata": true,
+        "pingpong": false,
+        "save_output": false,
+        "videopreview": {
+          "hidden": false,
+          "paused": false,
+          "params": {
+            "filename": "AnimateDiff_00004.webm",
+            "subfolder": "",
+            "type": "temp",
+            "format": "video/webm",
+            "frame_rate": 8
+          }
+        }
+      }
+    }
+  ],
+  "links": [
+    [
+      16,
+      10,
+      0,
+      15,
+      0,
+      "IMAGE"
+    ],
+    [
+      17,
+      14,
+      0,
+      15,
+      1,
+      "IMAGE"
+    ],
+    [
+      18,
+      16,
+      0,
+      15,
+      2,
+      "MASK"
+    ],
+    [
+      19,
+      15,
+      0,
+      11,
+      0,
+      "IMAGE"
+    ],
+    [
+      22,
+      10,
+      0,
+      17,
+      0,
+      "IMAGE"
+    ],
+    [
+      24,
+      18,
+      0,
+      17,
+      2,
+      "VHS_BatchManager"
+    ],
+    [
+      25,
+      18,
+      0,
+      10,
+      0,
+      "VHS_BatchManager"
+    ],
+    [
+      26,
+      18,
+      0,
+      14,
+      0,
+      "VHS_BatchManager"
+    ],
+    [
+      27,
+      18,
+      0,
+      11,
+      2,
+      "VHS_BatchManager"
+    ],
+    [
+      28,
+      10,
+      2,
+      11,
+      1,
+      "VHS_AUDIO"
+    ]
+  ],
+  "groups": [],
+  "config": {},
+  "extra": {},
+  "version": 0.4,
+  "tests": {
+      "17": [{"type": "video", "key": "nb_read_packets", "value": "16"}],
+      "11": [{"type": "video", "key": "nb_read_packets", "value": "16"},
+          {"type": "compare", "filename": "custom_nodes/ComfyUI-VideoHelperSuite/tests/outputs/batch.mp4", "tolerance": 0.02}
+      ],
+      "length": 1
+  }
+}

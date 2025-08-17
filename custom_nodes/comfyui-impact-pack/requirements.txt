@@ -1,0 +1,10 @@
+segment-anything
+scikit-image
+piexif
+transformers
+opencv-python-headless
+scipy>=1.11.4
+numpy
+dill
+matplotlib
+git+https://github.com/facebookresearch/sam2

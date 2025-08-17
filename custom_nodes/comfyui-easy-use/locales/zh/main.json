@@ -1,0 +1,32 @@
+{
+  "settingsCategories": {
+    "Hotkeys": "快捷键",
+    "Nodes": "节点相关",
+    "NodesMap": "管理节点组",
+    "StylesSelector": "样式选择器"
+  },
+  "nodeCategories": {
+    "Util": "工具",
+    "Seed": "随机种",
+    "Prompt": "提示词",
+    "Loaders": "模型加载器",
+    "Adapter": "模型适配器",
+    "Inpaint": "内补重绘",
+    "PreSampling": "预采样参数",
+    "Sampler": "采样器",
+    "Fix": "修复相关",
+    "Pipe": "节点束",
+    "XY Inputs": "XY图表输入项",
+    "Image": "图像",
+    "Segmentation": "分割",
+    "Logic": "逻辑",
+    "\uD83D\uDEAB Deprecated": "\uD83D\uDEAB 已弃用",
+    "Type": "类型",
+    "Math": "数学计算",
+    "Switch": "开关",
+    "Index Switch": "索引开关",
+    "While Loop": "While循环",
+    "For Loop": "For循环",
+    "LoadImage": "加载图像"
+  }
+}

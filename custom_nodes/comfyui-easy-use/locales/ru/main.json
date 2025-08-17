@@ -1,0 +1,30 @@
+{
+  "settingsCategories": {
+    "Hotkeys": "Горячие клавиши",
+    "Nodes": "Узлы",
+    "NodesMap": "Карта узлов"
+  },
+  "nodeCategories": {
+    "Util": "Утилиты",
+    "Seed": "Сид",
+    "Prompt": "Подсказка",
+    "Loaders": "Загрузчики",
+    "Adapter": "Адаптер",
+    "Inpaint": "Ретушь",
+    "PreSampling": "Предвыборка",
+    "Sampler": "Сэмплер",
+    "Fix": "Исправление",
+    "Pipe": "Конвейер",
+    "XY Inputs": "Ввод XY",
+    "Image": "Изображение",
+    "Segmentation": "Сегментация",
+    "\uD83D\uDEAB Deprecated": "\uD83D\uDEAB Устарело",
+    "Type": "Тип",
+    "Math": "Математика",
+    "Switch": "Переключатель",
+    "Index Switch": "Переключатель индексов",
+    "While Loop": "Цикл while",
+    "For Loop": "Цикл for",
+    "LoadImage": "Загрузка изображения"
+  }
+}

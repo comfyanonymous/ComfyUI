@@ -1,0 +1,68 @@
+.easy-dropdown, .easy-nested-dropdown {
+    position: relative;
+    box-sizing: border-box;
+    background-color: #171717;
+    box-shadow: 0 4px 4px rgba(255, 255, 255, .25);
+    padding: 0;
+    margin: 0;
+    list-style: none;
+    z-index: 1000;
+    overflow: visible;
+    max-height: fit-content;
+    max-width: fit-content;
+}
+
+.easy-dropdown {
+    position: absolute;
+    border-radius: 0;
+}
+
+/* Style for final items */
+.easy-dropdown li.item, .easy-nested-dropdown li.item {
+    font-weight: normal;
+    min-width: max-content;
+}
+
+/* Style for folders (parent items) */
+.easy-dropdown li.folder, .easy-nested-dropdown li.folder {
+    cursor: default;
+    position: relative;
+    border-right: 3px solid cyan;
+}
+
+.easy-dropdown li.folder::after, .easy-nested-dropdown li.folder::after {
+    content: ">";
+    position: absolute;
+    right: 2px;
+    font-weight: normal;
+}
+
+.easy-dropdown li, .easy-nested-dropdown li {
+    padding: 4px 10px;
+    cursor: pointer;
+    font-family: system-ui;
+    font-size: 0.7rem;
+    position: relative;
+}
+
+/* Style for nested dropdowns */
+.easy-nested-dropdown {
+    position: absolute;
+    top: 0;
+    left: 100%;
+    margin: 0;
+    border: none;
+    display: none;
+}
+
+.easy-dropdown li.selected > .easy-nested-dropdown,
+.easy-nested-dropdown li.selected > .easy-nested-dropdown {
+    display: block;
+    border: none;
+}
+
+.easy-dropdown li.selected,
+.easy-nested-dropdown li.selected {
+    background-color: #e5e5e5;
+    border: none;
+}

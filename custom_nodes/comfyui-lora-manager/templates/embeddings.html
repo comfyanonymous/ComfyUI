@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+
+{% block title %}Embeddings Manager{% endblock %}
+{% block page_id %}embeddings{% endblock %}
+
+{% block preload %}
+<link rel="preload" href="/loras_static/js/embeddings.js" as="script" crossorigin="anonymous">
+{% endblock %}
+
+{% block init_title %}Initializing Embeddings Manager{% endblock %}
+{% block init_message %}Scanning and building embeddings cache. This may take a few moments...{% endblock %}
+{% block init_check_url %}/api/embeddings/list?page=1&page_size=1{% endblock %}
+
+{% block additional_components %}
+
+<div id="embeddingContextMenu" class="context-menu" style="display: none;">
+    <div class="context-menu-item" data-action="refresh-metadata"><i class="fas fa-sync"></i> Refresh Civitai Data</div>
+    <div class="context-menu-item" data-action="relink-civitai"><i class="fas fa-link"></i> Re-link to Civitai</div>
+    <div class="context-menu-item" data-action="copyname"><i class="fas fa-copy"></i> Copy Model Filename</div>
+    <div class="context-menu-item" data-action="preview"><i class="fas fa-folder-open"></i> Open Examples Folder</div>
+    <div class="context-menu-item" data-action="replace-preview"><i class="fas fa-image"></i> Replace Preview</div>
+    <div class="context-menu-item" data-action="set-nsfw"><i class="fas fa-exclamation-triangle"></i> Set Content Rating</div>
+    <div class="context-menu-separator"></div>
+    <div class="context-menu-item" data-action="move"><i class="fas fa-folder-open"></i> Move to Folder</div>
+    <div class="context-menu-item" data-action="exclude"><i class="fas fa-eye-slash"></i> Exclude Model</div>
+    <div class="context-menu-item delete-item" data-action="delete"><i class="fas fa-trash"></i> Delete Model</div>
+</div>
+{% endblock %}
+
+{% block content %}
+    {% include 'components/controls.html' %}
+    
+    <!-- Duplicates banner (hidden by default) -->
+    <div id="duplicatesBanner" class="duplicates-banner" style="display: none;">
+        <div class="banner-content">
+          <i class="fas fa-exclamation-triangle"></i>
+          <span id="duplicatesCount">Found 0 duplicate groups</span>
+          <i class="fas fa-question-circle help-icon" id="duplicatesHelp" aria-label="Help information"></i>
+          <div class="banner-actions">
+            <button class="btn-delete-selected disabled" onclick="modelDuplicatesManager.deleteSelectedDuplicates()">
+              Delete Selected (<span id="duplicatesSelectedCount">0</span>)
+            </button>
+            <button class="btn-exit-mode" onclick="modelDuplicatesManager.exitDuplicateMode()">
+              <i class="fas fa-times"></i> Exit Mode
+            </button>
+          </div>
+        </div>
+        <div class="help-tooltip" id="duplicatesHelpTooltip">
+          <p>Identical hashes mean identical model files, even if they have different names or previews.</p>
+          <p>Keep only one version (preferably with better metadata/previews) and safely delete the others.</p>
+        </div>
+    </div>
+    
+    <!-- Embedding cards container -->
+    <div class="card-grid" id="modelGrid">
+        <!-- Cards will be dynamically inserted here -->
+    </div>
+{% endblock %}
+
+{% block main_script %}
+<script type="module" src="/loras_static/js/embeddings.js"></script>
+{% endblock %}

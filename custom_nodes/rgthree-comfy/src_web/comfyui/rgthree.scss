@@ -1,0 +1,328 @@
+.rgthree-top-messages-container {
+  position: fixed;
+  z-index: 9999;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: start;
+}
+
+.rgthree-top-messages-container > div {
+  position: relative;
+  height: fit-content;
+  padding: 4px;
+  margin-top: -100px; /* re-set by JS */
+  opacity: 0;
+  transition: all 0.33s ease-in-out;
+  z-index: 3;
+}
+.rgthree-top-messages-container > div:last-child {
+  z-index: 2;
+}
+.rgthree-top-messages-container > div:not(.-show) {
+  z-index: 1;
+}
+
+.rgthree-top-messages-container > div.-show {
+  opacity: 1;
+  margin-top: 0px !important;
+}
+
+.rgthree-top-messages-container > div.-show {
+  opacity: 1;
+  transform: translateY(0%);
+}
+
+.rgthree-top-messages-container > div > div {
+  position: relative;
+  background: #353535;
+  color: #fff;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  height: fit-content;
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.88);
+  padding: 6px 12px;
+  border-radius: 4px;
+  font-family: Arial, sans-serif;
+  font-size: 14px;
+}
+.rgthree-top-messages-container > div > div > span {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+}
+.rgthree-top-messages-container > div > div > span svg {
+  width: 20px;
+  height: auto;
+  margin-right: 8px;
+}
+.rgthree-top-messages-container > div > div > span svg.icon-checkmark {
+  fill: #2e9720;
+}
+
+.rgthree-top-messages-container [type="warn"]::before,
+.rgthree-top-messages-container [type="success"]::before {
+  content: '⚠️';
+  display: inline-block;
+  flex: 0 0 auto;
+  font-size: 18px;
+  margin-right: 4px;
+  line-height: 1;
+}
+.rgthree-top-messages-container [type="success"]::before {
+  content: '🎉';
+}
+
+.rgthree-top-messages-container a {
+  cursor: pointer;
+  text-decoration: underline;
+  color: #fc0;
+  margin-left: 4px;
+  display: inline-block;
+  line-height: 1;
+}
+
+.rgthree-top-messages-container a:hover {
+  color: #fc0;
+  text-decoration: none;
+}
+
+/* Fix node selector being crazy long b/c of array types. */
+.litegraph.litesearchbox input,
+.litegraph.litesearchbox select {
+  max-width: 250px;
+}
+
+/* There's no reason for this z-index to be so high. It layers on top of things it shouldn't,
+  (like pythongssss' image gallery, the properties panel, etc.) */
+.comfy-multiline-input {
+  z-index: 1 !important;
+}
+.comfy-multiline-input:focus {
+  z-index: 2 !important;
+}
+.litegraph .dialog {
+  z-index: 3 !important; /* This is set to 1, but goes under the multi-line inputs, so bump it. */
+}
+
+
+@import '../common/css/buttons.scss';
+@import '../common/css/dialog.scss';
+@import '../common/css/menu.scss';
+
+.rgthree-dialog.-settings {
+  width: 100%;
+}
+.rgthree-dialog.-settings fieldset {
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  padding: 0 12px 8px;
+  margin-bottom: 16px;
+}
+.rgthree-dialog.-settings fieldset > legend {
+  margin-left: 8px;
+  padding: 0 8px;
+  opacity: 0.5;
+}
+.rgthree-dialog.-settings .formrow {
+  display: flex;
+  flex-direction: column;
+}
+.rgthree-dialog.-settings .formrow + .formrow {
+  border-top: 1px solid rgba(255, 255, 255, 0.25);
+}
+.rgthree-dialog.-settings .fieldrow {
+  display: flex;
+  flex-direction: row;
+}
+.rgthree-dialog.-settings .fieldrow > label {
+  flex: 1 1 auto;
+  user-select: none;
+  padding: 8px 12px 12px;
+}
+.rgthree-dialog.-settings .fieldrow > label span {
+  font-weight: bold;
+}
+.rgthree-dialog.-settings .fieldrow > label small {
+  display: block;
+  margin-top: 4px;
+  font-size: calc(11rem / 16);
+  opacity: 0.75;
+  padding-left: 16px;
+}
+.rgthree-dialog.-settings .fieldrow ~ .fieldrow {
+  font-size: 0.9rem;
+  border-top: 1px dotted rgba(255, 255, 255, 0.25);
+}
+.rgthree-dialog.-settings .fieldrow ~ .fieldrow label {
+  padding-left: 28px;
+}
+.rgthree-dialog.-settings .fieldrow:first-child:not(.-checked) ~ .fieldrow {
+  display: none;
+}
+.rgthree-dialog.-settings .fieldrow:hover {
+  background: rgba(255,255,255,0.1);
+}
+.rgthree-dialog.-settings .fieldrow ~ .fieldrow span {
+  font-weight: normal;
+}
+
+.rgthree-dialog.-settings .fieldrow > .fieldrow-value {
+  display: flex;
+  align-items: center;
+  justify-content: end;
+  flex: 0 0 auto;
+  width: 50%;
+  max-width: 230px;
+}
+.rgthree-dialog.-settings .fieldrow.-type-boolean > .fieldrow-value {
+  max-width: 64px;
+}
+.rgthree-dialog.-settings .fieldrow.-type-number input {
+  width: 48px;
+  text-align: right;
+}
+
+.rgthree-dialog.-settings .fieldrow input[type="checkbox"] {
+  width: 24px;
+  height: 24px;
+  cursor: pointer;
+}
+
+.rgthree-dialog.-settings .fieldrow fieldset.rgthree-checklist-group {
+  padding: 0;
+  border: 0;
+  margin: 0;
+
+  > span.rgthree-checklist-item {
+    display: inline-block;
+    white-space: nowrap;
+    padding-right: 6px;
+    vertical-align: middle;
+
+    input[type="checkbox"] {
+      width: 16px;
+      height: 16px;
+    }
+
+    label {
+      padding-left: 4px;
+      text-align: left;
+      cursor: pointer;
+    }
+  }
+}
+
+.rgthree-comfyui-settings-row div {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: end;
+}
+.rgthree-comfyui-settings-row div svg {
+  width: 36px;
+  height: 36px;
+  margin-right: 16px;
+}
+
+
+.litegraph.litecontextmenu .litemenu-title .rgthree-contextmenu-title-rgthree-comfy,
+.litegraph.litecontextmenu .litemenu-entry.rgthree-contextmenu-item {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: start;
+}
+
+.litegraph.litecontextmenu .litemenu-title .rgthree-contextmenu-title-rgthree-comfy svg,
+.litegraph.litecontextmenu .litemenu-entry.rgthree-contextmenu-item svg {
+  fill: currentColor;
+  width: auto;
+  height: 16px;
+  margin-right: 6px;
+}
+.litegraph.litecontextmenu .litemenu-entry.rgthree-contextmenu-item svg.github-star {
+  fill: rgb(227, 179, 65);
+}
+
+.litegraph.litecontextmenu .litemenu-title .rgthree-contextmenu-title-rgthree-comfy,
+.litegraph.litecontextmenu .litemenu-entry.rgthree-contextmenu-label {
+  color: #dde;
+  background-color: #212121 !important;
+  margin: 0;
+  padding: 2px;
+  cursor: default;
+  opacity: 1;
+  padding: 4px;
+  font-weight: bold;
+}
+.litegraph.litecontextmenu .litemenu-title .rgthree-contextmenu-title-rgthree-comfy {
+  font-size: 1.1em;
+  color: #fff;
+  background-color: #090909 !important;
+  justify-content: center;
+  padding: 4px 8px;
+}
+
+rgthree-progress-bar {
+  display: block;
+  position: relative;
+  z-index: 999;
+  top: 0;
+  left: 0;
+  height: 14px;
+  font-size: 10px;
+  width: 100%;
+  overflow: hidden;
+  box-shadow: 0px 0px 3px rgba(0, 0, 0, 0.25);
+  box-shadow:
+    inset 0px -1px 0px rgba(0, 0, 0, 0.25),
+    0px 1px 0px rgba(255, 255, 255, 0.125);
+
+}
+
+* ~ rgthree-progress-bar,
+.comfyui-body-bottom rgthree-progress-bar {
+  box-shadow:
+    0px -1px 0px rgba(0, 0, 0, 1),
+    inset 0px 1px 0px rgba(255, 255, 255, 0.15), inset 0px -1px 0px rgba(0, 0, 0, 0.25), 0px 1px 0px rgba(255, 255, 255, 0.125);
+}
+
+body:not([style*=grid]):not([class*=grid]) {
+  rgthree-progress-bar {
+    position: fixed;
+    top: 0px;
+    bottom: auto;
+  }
+  rgthree-progress-bar.rgthree-pos-bottom {
+    top: auto;
+    bottom: 0px;
+  }
+}
+
+
+.rgthree-debug-keydowns {
+  display: block;
+  position: fixed;
+  z-index: 1050;
+  top: 3px;
+  right: 8px;
+  font-size: 10px;
+  color: #fff;
+  font-family: sans-serif;
+  pointer-events: none;
+}
+
+
+.rgthree-comfy-about-badge-logo {
+  width: 20px;
+  height: 20px;
+  background: url(/rgthree/logo.svg?bg=transparent&fg=%2393c5fd);
+  background-size: 100% 100%;
+}

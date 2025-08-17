@@ -1,0 +1,8 @@
+{
+    "main_pass":
+    [
+        "-n",
+        "-filter_complex", ["dither", ["bayer", "heckbert", "floyd_steinberg", "sierra2", "sierra2_4a", "sierra3", "burkes", "atkinson", "none"], {"default": "sierra2_4a"}, "[0:v] split [a][b]; [a] palettegen=reserve_transparent=on:transparency_color=ffffff [p]; [b][p] paletteuse=dither=$val"]
+    ],
+    "extension": "gif"
+}

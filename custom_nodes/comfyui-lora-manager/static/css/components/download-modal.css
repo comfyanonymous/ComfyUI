@@ -1,0 +1,197 @@
+/* Download Modal Styles */
+.download-step {
+    margin: var(--space-2) 0;
+}
+
+.input-group {
+    margin-bottom: var(--space-2);
+}
+
+.input-group label {
+    display: block;
+    margin-bottom: 8px;
+    color: var(--text-color);
+}
+
+.input-group input,
+.input-group select {
+    width: 100%;
+    padding: 8px;
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius-xs);
+    background: var(--bg-color);
+    color: var(--text-color);
+}
+
+/* Version List Styles */
+.version-list {
+    max-height: 400px;
+    overflow-y: auto;
+    margin: var(--space-2) 0;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 1px;
+}
+
+.version-item {
+    display: flex;
+    gap: var(--space-2);
+    padding: var(--space-2);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius-sm);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    background: var(--bg-color);
+    margin: 1px;
+    position: relative;
+}
+
+.version-item:hover {
+    border-color: var(--lora-accent);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    z-index: 1;
+}
+
+.version-item.selected {
+    border: 2px solid var(--lora-accent);
+    background: oklch(var(--lora-accent) / 0.05);
+}
+
+.version-thumbnail {
+    width: 80px;
+    height: 80px;
+    flex-shrink: 0;
+    border-radius: var(--border-radius-xs);
+    overflow: hidden;
+    background: var(--bg-color);
+}
+
+.version-thumbnail img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.version-content {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    flex: 1;
+    min-width: 0;
+}
+
+.version-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: var(--space-2);
+}
+
+.version-content h3 {
+    margin: 0;
+    font-size: 1.1em;
+    color: var(--text-color);
+    flex: 1;
+}
+
+.version-content .version-info {
+    display: flex;
+    flex-wrap: wrap;
+    flex-direction: row !important;
+    gap: 8px;
+    align-items: center;
+    font-size: 0.9em;
+}
+
+.version-content .version-info .base-model {
+    background: oklch(var(--lora-accent) / 0.1);
+    color: var(--lora-accent);
+    padding: 2px 8px;
+    border-radius: var(--border-radius-xs);
+}
+
+.version-meta {
+    display: flex;
+    gap: 12px;
+    font-size: 0.85em;
+    color: var(--text-color);
+    opacity: 0.7;
+}
+
+.version-meta span {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+/* Folder Browser Styles */
+.folder-browser {
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius-xs);
+    padding: var(--space-1);
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+.folder-item {
+    padding: 8px;
+    cursor: pointer;
+    border-radius: var(--border-radius-xs);
+    transition: background-color 0.2s;
+}
+
+.folder-item:hover {
+    background: var(--lora-surface);
+}
+
+.folder-item.selected {
+    background: oklch(var(--lora-accent) / 0.1);
+    border: 1px solid var(--lora-accent);
+}
+
+/* Path Preview Styles */
+.path-preview {
+    margin-bottom: var(--space-3);
+    padding: var(--space-2);
+    background: var(--bg-color);
+    border-radius: var(--border-radius-sm);
+    border: 1px dashed var(--border-color);
+}
+
+.path-preview label {
+    display: block;
+    margin-bottom: 8px;
+    color: var(--text-color);
+    font-size: 0.9em;
+    opacity: 0.8;
+}
+
+.path-display {
+    padding: var(--space-1);
+    color: var(--text-color);
+    font-family: monospace;
+    font-size: 0.9em;
+    line-height: 1.4;
+    white-space: pre-wrap;
+    word-break: break-all;
+    opacity: 0.85;
+    background: var(--lora-surface);
+    border-radius: var(--border-radius-xs);
+}
+
+/* Dark theme adjustments */
+[data-theme="dark"] .version-item {
+    background: var(--lora-surface);
+}
+
+[data-theme="dark"] .local-path {
+    background: var(--lora-surface);
+    border-color: var(--lora-border);
+}
+
+/* Enhance the local badge to make it more noticeable */
+.version-item.exists-locally {
+    background: oklch(var(--lora-accent) / 0.05);
+    border-left: 4px solid var(--lora-accent);
+}

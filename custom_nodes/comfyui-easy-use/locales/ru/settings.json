@@ -1,0 +1,67 @@
+{
+  "EasyUse_Hotkeys_AddGroup": {
+    "name": "Включить Shift+g для добавления выделенных узлов в группу",
+    "tooltip": "Начиная с версии v1.2.39, можно использовать Ctrl+g"
+  },
+  "EasyUse_Hotkeys_cleanVRAMUsed": {
+    "name": "Включить Shift+r для выгрузки модели и кэша узлов"
+  },
+  "EasyUse_Hotkeys_toggleNodesMap": {
+    "name": "Включить Shift+m для переключения карты узлов"
+  },
+  "EasyUse_Hotkeys_AlignSelectedNodes": {
+    "name": "Включить Shift+Стрелки для выравнивания выделенных узлов и Shift+Ctrl+Alt+Стрелки для распределения узлов по горизонтали/вертикали",
+    "tooltip": "Shift+Стрелки выравнивают выделенные узлы, Shift+Ctrl+Alt+Стрелки распределяют узлы по горизонтали/вертикали"
+  },
+  "EasyUse_Hotkeys_NormalizeSelectedNodes": {
+    "name": "Включить Shift+Ctrl+Стрелки для нормализации выделенных узлов",
+    "tooltip": "Включить Shift+Ctrl+Лево для нормализации ширины и Shift+Ctrl+Право для нормализации высоты"
+  },
+  "EasyUse_Hotkeys_NodesTemplate": {
+    "name": "Включить Alt+1~9 для вставки шаблонов узлов в рабочий процесс"
+  },
+  "EasyUse_Hotkeys_JumpNearestNodes": {
+    "name": "Включить Стрелки для перехода к ближайшему узлу"
+  },
+  "EasyUse_ContextMenu_SubDirectories": {
+    "name": "Включить автоматическое вложение подкаталогов в контекстном меню"
+  },
+  "EasyUse_ContextMenu_ModelsThumbnails": {
+    "name": "Включить превью миниатюр моделей"
+  },
+  "EasyUse_ContextMenu_NodesSort": {
+    "name": "Включить A~Z сортировку новых узлов в контекстном меню"
+  },
+  "EasyUse_ContextMenu_QuickOptions": {
+    "name": "Использовать три быстрых кнопки в контекстном меню",
+    "options": {
+      "At the forefront": "В начале",
+      "At the end": "В конце",
+      "Disable": "Отключено"
+    }
+  },
+  "EasyUse_Nodes_Runtime": {
+    "name": "Включить отображение времени выполнения узлов"
+  },
+  "EasyUse_Nodes_ChainGetSet": {
+    "name": "Включить связывание точек получения и установки с родительским узлом"
+  },
+  "EasyUse_NodesMap_Sorting": {
+    "name": "Управление режимом сортировки групп узлов",
+    "tooltip": "По умолчанию автоматическая сортировка. При ручном режиме группы можно перемещать методом перетаскивания, и порядок будет сохранён.",
+    "options": {
+      "Auto sorting": "Автоматическая сортировка",
+      "Manual drag&drop sorting": "Ручная сортировка перетаскиванием"
+    }
+  },
+  "EasyUse_NodesMap_DisplayNodeID": {
+    "name": "Включить отображение ID узлов"
+  },
+  "EasyUse_NodesMap_DisplayGroupOnly": {
+    "name": "Показывать только группы"
+  },
+  "EasyUse_NodesMap_Enable": {
+    "name": "Включить карту групп",
+    "tooltip": "Необходимо обновить страницу для успешного обновления"
+  }
+}

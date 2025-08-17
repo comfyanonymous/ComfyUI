@@ -1,0 +1,13 @@
+__pycache__
+*.ini
+wildcards/**
+.vscode/
+.idea/
+node_modules/
+rgthree_config.json
+web/rgthree_config.js
+web/comfyui/rgthree_config.js
+userdata/
+userdata/**
+web/comfyui/testing/
+web/comfyui/tests/

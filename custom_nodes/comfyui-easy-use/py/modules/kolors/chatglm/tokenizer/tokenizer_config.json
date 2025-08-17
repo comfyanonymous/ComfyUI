@@ -1,0 +1,12 @@
+{
+  "name_or_path": "THUDM/chatglm3-6b-base",
+  "remove_space": false,
+  "do_lower_case": false,
+  "tokenizer_class": "ChatGLMTokenizer",
+  "auto_map": {
+    "AutoTokenizer": [
+      "tokenization_chatglm.ChatGLMTokenizer",
+      null
+      ]
+  }
+}

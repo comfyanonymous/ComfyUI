@@ -1,0 +1,31 @@
+{
+  "settingsCategories": {
+    "Hotkeys": "Hotkeys",
+    "Nodes": "Nodes",
+    "NodesMap": "NodesMap",
+    "StylesSelector": "StylesSelector"
+  },
+  "nodeCategories": {
+    "Util": "Util",
+    "Seed": "Seed",
+    "Prompt": "Prompt",
+    "Loaders": "Loaders",
+    "Adapter": "Adapter",
+    "Inpaint": "Inpaint",
+    "PreSampling": "PreSampling",
+    "Sampler": "Sampler",
+    "Fix": "Fix",
+    "Pipe": "Pipe",
+    "XY Inputs": "XY Inputs",
+    "Image": "Image",
+    "Segmentation": "Segmentation",
+    "\uD83D\uDEAB Deprecated": "\uD83D\uDEAB Deprecated",
+    "Type": "Type",
+    "Math": "Math",
+    "Switch": "Switch",
+    "Index Switch": "Index Switch",
+    "While Loop": "While Loop",
+    "For Loop": "For Loop",
+    "LoadImage": "Load Image"
+  }
+}

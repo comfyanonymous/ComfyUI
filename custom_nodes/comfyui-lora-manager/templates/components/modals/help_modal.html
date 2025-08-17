@@ -1,0 +1,131 @@
+<!-- Help Modal -->
+<div id="helpModal" class="modal">
+    <div class="modal-content help-modal">
+        <button class="close" onclick="modalManager.closeModal('helpModal')">&times;</button>
+        <div class="help-header">
+            <h2>Help & Tutorials</h2>
+        </div>
+        
+        <div class="help-tabs">
+            <button class="tab-btn active" data-tab="getting-started">Getting Started</button>
+            <button class="tab-btn" data-tab="update-vlogs">Update Vlogs</button>
+            <button class="tab-btn" data-tab="documentation">Documentation</button>
+        </div>
+        
+        <div class="help-content">
+            <!-- Getting Started Tab -->
+            <div class="tab-pane active" id="getting-started">
+                <h3>Getting Started with LoRA Manager</h3>
+                <div class="video-container">
+                    <div class="video-thumbnail" data-video-id="hvKw31YpE-U">
+                        <img src="/loras_static/images/video-thumbnails/getting-started.jpg" alt="Getting Started with LoRA Manager">
+                        <div class="video-play-overlay">
+                            <a href="https://www.youtube.com/watch?v=hvKw31YpE-U" target="_blank" class="external-link-btn">
+                                <i class="fas fa-external-link-alt"></i>
+                                <span>Watch on YouTube</span>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+                <div class="help-text">
+                    <h4>Key Features:</h4>
+                    <ul>
+                        <li><strong>Seamless Integration:</strong> One-click workflow integration with ComfyUI</li>
+                        <li><strong>Visual Management:</strong> Organize and manage all your LoRA models with an intuitive interface</li>
+                        <li><strong>Automatic Metadata:</strong> Fetch previews, trigger words, and details automatically</li>
+                        <li><strong>Civitai Integration:</strong> Direct downloads with full API support</li>
+                        <li><strong>Offline Preview Storage:</strong> Store and manage model examples locally</li>
+                        <li><strong>Advanced Controls:</strong> Trigger word toggles and customizable loader node</li>
+                        <li><strong>Recipe System:</strong> Create, save and share your perfect combinations</li>
+                    </ul>
+                </div>
+            </div>
+            
+            <!-- Update Vlogs Tab -->
+            <div class="tab-pane" id="update-vlogs">
+                <h3>
+                    Latest Updates
+                    <span class="update-date-badge">
+                        <i class="fas fa-calendar-alt"></i>
+                        Apr 28, 2025
+                    </span>
+                </h3>
+                <div class="video-list">
+                    <div class="video-item">
+                        <div class="video-container">
+                            <div class="video-thumbnail" data-video-id="videoseries?list=PLU2fMdHNl8ohz1u7Ke3ooOuMbU5Y4sgoj">
+                                <img src="/loras_static/images/video-thumbnails/updates-playlist.jpg" alt="LoRA Manager Updates Playlist">
+                                <div class="video-play-overlay">
+                                    <a href="https://www.youtube.com/playlist?list=PLU2fMdHNl8ohz1u7Ke3ooOuMbU5Y4sgoj" target="_blank" class="external-link-btn">
+                                        <i class="fas fa-external-link-alt"></i>
+                                        <span>Watch on YouTube</span>
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="video-info">
+                            <h4>LoRA Manager Updates Playlist</h4>
+                            <p>Watch all update videos showcasing the latest features and improvements.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Documentation Tab -->
+            <div class="tab-pane" id="documentation">
+                <h3>Documentation</h3>
+                
+                <div class="docs-section">
+                    <h4><i class="fas fa-book"></i> General</h4>
+                    <ul class="docs-links">
+                        <li><a href="https://github.com/willmiao/ComfyUI-Lora-Manager/wiki" target="_blank">Wiki Home</a></li>
+                        <li><a href="https://github.com/willmiao/ComfyUI-Lora-Manager/blob/main/README.md" target="_blank">README</a></li>
+                    </ul>
+                </div>
+                
+                <div class="docs-section">
+                    <h4><i class="fas fa-tools"></i> Troubleshooting</h4>
+                    <ul class="docs-links">
+                        <li><a href="https://github.com/willmiao/ComfyUI-Lora-Manager/wiki/FAQ-(Frequently-Asked-Questions)" target="_blank">FAQ (Frequently Asked Questions)</a></li>
+                    </ul>
+                </div>
+                
+                <div class="docs-section">
+                    <h4><i class="fas fa-layer-group"></i> Model Management</h4>
+                    <ul class="docs-links">
+                        <li><a href="https://github.com/willmiao/ComfyUI-Lora-Manager/wiki/Example-Images" target="_blank">Example Images (WIP)</a></li>
+                    </ul>
+                </div>
+                
+                <div class="docs-section">
+                    <h4><i class="fas fa-book-open"></i> Recipes</h4>
+                    <ul class="docs-links">
+                        <li><a href="https://github.com/willmiao/ComfyUI-Lora-Manager/wiki/Recipes-Feature-Tutorial-%E2%80%93-ComfyUI-LoRA-Manager" target="_blank">Recipes Tutorial</a></li>
+                    </ul>
+                </div>
+                
+                <div class="docs-section">
+                    <h4><i class="fas fa-cog"></i> Settings & Configuration</h4>
+                    <ul class="docs-links">
+                        <li><a href="https://github.com/willmiao/ComfyUI-Lora-Manager/wiki/Configuration" target="_blank">Configuration Options (WIP)</a></li>
+                    </ul>
+                </div>
+                
+                <div class="docs-section">
+                    <h4>
+                        <i class="fas fa-puzzle-piece"></i> Extensions
+                        <span class="new-content-badge">NEW</span>
+                    </h4>
+                    <ul class="docs-links">
+                        <li>
+                            <a href="https://github.com/willmiao/ComfyUI-Lora-Manager/wiki/LoRA-Manager-Civitai-Extension-(Chrome-Extension)" target="_blank">
+                                LM Civitai Extension
+                                <span class="new-content-badge inline">NEW</span>
+                            </a>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

@@ -1,0 +1,400 @@
+
+.rgthree-info-dialog {
+
+  width: 90vw;
+  max-width: 960px;
+
+  .rgthree-info-area {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+
+    > li {
+      display: inline-flex;
+      margin: 0;
+      vertical-align: top;
+
+      + li {
+        margin-left: 6px;
+      }
+      &:not(.-link) + li.-link {
+        margin-left: auto;
+      }
+
+      &.rgthree-info-tag > * {
+        min-height: 24px;
+        border-radius: 4px;
+        line-height: 1;
+        color: rgba(255,255,255,0.85);
+        background: rgb(69, 92, 85);;
+        font-size: 14px;
+        font-weight: bold;
+        text-decoration: none;
+        display: flex;
+        height: 1.6em;
+        padding-left: .5em;
+        padding-right: .5em;
+        padding-bottom: .1em;
+        align-content: center;
+        justify-content: center;
+        align-items: center;
+        box-shadow: inset 0px 0px 0 1px  rgba(0, 0, 0, 0.5);
+
+        > svg {
+          width: 16px;
+          height: 16px;
+
+          &:last-child {
+            margin-left: .5em;
+          }
+        }
+
+
+        &[href] {
+          box-shadow: inset 0px 1px 0px rgba(255,255,255,0.25), inset 0px -1px 0px rgba(0,0,0,0.66);
+        }
+
+        &:empty {
+          display: none;
+        }
+      }
+
+      // &.-civitai > * {
+      //   color: #ddd;
+      //   background: #1b65aa;
+      //   transition: all 0.15s ease-in-out;
+      //   &:hover {
+      //     color: #fff;
+      //     border-color: #1971c2;
+      //     background: #1971c2;
+      //   }
+      // }
+      &.-type > * {
+        background: rgb(73, 54, 94);
+        color: rgb(228, 209, 248);
+      }
+
+      &.rgthree-info-menu {
+        margin-left: auto;
+
+        :not(#fakeid) & .rgthree-button {
+          margin: 0;
+          min-height: 24px;
+          padding: 0 12px;
+        }
+
+        svg {
+          width: 16px;
+          height: 16px;
+        }
+      }
+    }
+  }
+
+  .rgthree-info-table {
+    border-collapse: collapse;
+    margin: 16px 0px;
+    width: 100%;
+    font-size: 12px;
+
+    tr.editable button {
+      display: flex;
+      width: 28px;
+      height: 28px;
+      align-items: center;
+      justify-content: center;
+
+      svg + svg {display: none;}
+    }
+    tr.editable.-rgthree-editing button {
+      svg {display: none;}
+      svg + svg {display: inline-block;}
+    }
+
+    td {
+      position: relative;
+      border: 1px solid rgba(255,255,255,0.25);
+      padding: 0;
+      vertical-align: top;
+
+      &:first-child {
+        background: rgba(255,255,255,0.075);
+        width: 10px; // Small, so it doesn't adjust.
+        > *:first-child {
+          white-space: nowrap;
+          padding-right: 32px;
+        }
+
+        small {
+          display: block;
+          margin-top: 2px;
+          opacity: 0.75;
+
+          > [data-action] {
+            text-decoration: underline;
+            cursor: pointer;
+            &:hover {
+              text-decoration: none;
+            }
+          }
+        }
+      }
+
+      a, a:hover, a:visited {
+        color: inherit;
+      }
+
+      svg {
+        width: 1.3333em;
+        height: 1.3333em;
+        vertical-align: -0.285em;
+
+        &.logo-civitai {
+          margin-right: 0.3333em;
+        }
+      }
+
+      > *:first-child {
+        display: block;
+        padding: 6px 10px;
+      }
+
+      > input, > textarea{
+        padding: 5px 10px;
+        border: 0;
+        box-shadow: inset 1px 1px 5px 0px rgba(0,0,0,0.5);
+        font: inherit;
+        appearance: none;
+        background: #fff;
+        color: #121212;
+        resize: vertical;
+
+        &:only-child {
+          width: 100%;
+        }
+      }
+
+      :not(#fakeid) & .rgthree-button[data-action="fetch-civitai"] {
+        font-size: inherit;
+        padding: 6px 16px;
+        margin: 2px;
+      }
+    }
+
+    tr[data-field-name="userNote"] td > span:first-child {
+      white-space: pre;
+    }
+
+    tr.rgthree-info-table-break-row td {
+      border: 0;
+      background: transparent;
+      padding: 12px 4px 4px;
+      font-size: 1.2em;
+
+      > small {
+        font-style: italic;
+        opacity: 0.66;
+      }
+
+      &:empty {
+        padding: 4px;
+      }
+    }
+
+    td .-help {
+      border: 1px solid currentColor;
+      position: absolute;
+      right: 5px;
+      top: 6px;
+      line-height: 1;
+      font-size: 11px;
+      width: 12px;
+      height: 12px;
+      border-radius: 8px;
+      display: flex;
+      align-content: center;
+      justify-content: center;
+      cursor: help;
+      &::before {
+        content: '?';
+      }
+
+    }
+
+    td > ul.rgthree-info-trained-words-list {
+      list-style: none;
+      padding: 2px 8px;
+      margin: 0;
+      display: flex;
+      flex-direction: row;
+      flex-wrap: wrap;
+      max-height: 15vh;
+      overflow: auto;
+
+      > li {
+        display: inline-flex;
+        margin: 2px;
+        vertical-align: top;
+        border-radius: 4px;
+        line-height: 1;
+        color: rgba(255,255,255,0.85);
+        background: rgb(73, 91, 106);
+        font-size: 1.2em;
+        font-weight: 600;
+        text-decoration: none;
+        display: flex;
+        height: 1.6em;
+        align-content: center;
+        justify-content: center;
+        align-items: center;
+        box-shadow: inset 0px 0px 0 1px  rgba(0, 0, 0, 0.5);
+        cursor: pointer;
+        white-space: nowrap;
+        max-width: 183px;
+
+        &:hover {
+          background: rgb(68, 109, 142);
+        }
+
+        > svg {
+          width: auto;
+          height: 1.2em;
+        }
+
+        > span {
+          padding-left: .5em;
+          padding-right: .5em;
+          padding-bottom: .1em;
+          text-overflow: ellipsis;
+          overflow: hidden;
+        }
+
+        > small {
+          align-self: stretch;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          padding: 0 0.5em;
+          background: rgba(0,0,0,0.2);
+        }
+
+        &.-rgthree-is-selected {
+          background: rgb(42, 126, 193);
+        }
+      }
+    }
+  }
+
+  .rgthree-info-images {
+    list-style:none;
+    padding:0;
+    margin:0;
+    scroll-snap-type: x mandatory;
+    display:flex;
+    flex-direction:row;
+    overflow: auto;
+
+    > li {
+      scroll-snap-align: start;
+      max-width: 90%;
+      flex: 0 0 auto;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      overflow: hidden;
+      padding: 0;
+      margin: 6px;
+      font-size: 0;
+      position: relative;
+
+      figure {
+        margin: 0;
+        position: static;
+
+        video, img {
+          max-height: 45vh;
+        }
+
+        figcaption {
+          position: absolute;
+          left: 0;
+          width: 100%;
+          bottom: 0;
+          padding: 12px;
+          font-size: 12px;
+          background: rgba(0,0,0,0.85);
+          opacity: 0;
+          transform: translateY(50px);
+          transition: all 0.25s ease-in-out;
+
+          > span {
+            display: inline-block;
+            padding: 2px 4px;
+            margin: 2px;
+            border-radius: 2px;
+            border: 1px solid rgba(255,255,255,0.2);
+            word-break: break-word;
+
+            label {
+              display: inline;
+              padding: 0;
+              margin: 0;
+              opacity: 0.5;
+              pointer-events: none;
+              user-select: none;
+            }
+            a {
+              color: inherit;
+              text-decoration: underline;
+              &:hover {
+                text-decoration: none;
+              }
+
+              svg {
+                height: 10px;
+                margin-left: 4px;
+                fill: currentColor;
+              }
+            }
+          }
+          &:empty {
+            text-align: center;
+
+            &::before {
+              content: 'No data.';
+            }
+          }
+        }
+      }
+
+      &:hover figure figcaption {
+        opacity: 1;
+        transform: translateY(0px);
+      }
+
+      .rgthree-info-table {
+        width: calc(100% - 16px);
+      }
+    }
+  }
+
+  .rgthree-info-civitai-link {
+    margin: 8px;
+    color: #eee;
+
+    a, a:hover, a:visited {
+      color: inherit;
+      text-decoration: none;
+    }
+
+    > svg {
+      width: 16px;
+      height: 16px;
+      margin-right: 8px;
+    }
+  }
+}
+
+

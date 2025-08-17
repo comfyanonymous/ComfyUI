@@ -1,0 +1,67 @@
+{
+  "EasyUse_Hotkeys_AddGroup": {
+    "name": "Activer Shift+g pour ajouter les nœuds sélectionnés à un groupe",
+    "tooltip": "Depuis la v1.2.39, vous pouvez utiliser Ctrl+g à la place"
+  },
+  "EasyUse_Hotkeys_cleanVRAMUsed": {
+    "name": "Activer Shift+r pour décharger le cache du modèle et des nœuds"
+  },
+  "EasyUse_Hotkeys_toggleNodesMap": {
+    "name": "Activer Shift+m pour basculer la carte des nœuds"
+  },
+  "EasyUse_Hotkeys_AlignSelectedNodes": {
+    "name": "Activer Shift+Up/Down/Left/Right et Shift+Ctrl+Alt+Left/Right pour aligner les nœuds sélectionnés",
+    "tooltip": "Shift+Up/Down/Left/Right peut aligner les nœuds sélectionnés, Shift+Ctrl+Alt+Left/Right peut les répartir horizontalement/verticalement"
+  },
+  "EasyUse_Hotkeys_NormalizeSelectedNodes": {
+    "name": "Activer Shift+Ctrl+Left/Right pour normaliser les nœuds sélectionnés",
+    "tooltip": "Activer Shift+Ctrl+Left pour normaliser la largeur et Shift+Ctrl+Right pour normaliser la hauteur"
+  },
+  "EasyUse_Hotkeys_NodesTemplate": {
+    "name": "Activer Alt+1~9 pour coller les modèles de nœuds dans le workflow"
+  },
+  "EasyUse_Hotkeys_JumpNearestNodes": {
+    "name": "Activer Up/Down/Left/Right pour passer au nœud le plus proche"
+  },
+  "EasyUse_ContextMenu_SubDirectories": {
+    "name": "Activer l'imbrication automatique des sous-répertoires dans le menu contextuel"
+  },
+  "EasyUse_ContextMenu_ModelsThumbnails": {
+    "name": "Activer les vignettes d'aperçu du modèle"
+  },
+  "EasyUse_ContextMenu_NodesSort": {
+    "name": "Activer le tri A~Z des nouveaux nœuds dans le menu contextuel"
+  },
+  "EasyUse_ContextMenu_QuickOptions": {
+    "name": "Utiliser trois boutons rapides dans le menu contextuel",
+    "options": {
+      "At the forefront": "À l'avant-plan",
+      "At the end": "À la fin",
+      "Disable": "Désactiver"
+    }
+  },
+  "EasyUse_Nodes_Runtime": {
+    "name": "Activer l'affichage du temps d'exécution des nœuds"
+  },
+  "EasyUse_Nodes_ChainGetSet": {
+    "name": "Activer le chaînage des points get et set avec le nœud parent"
+  },
+  "EasyUse_NodesMap_Sorting": {
+    "name": "Gérer le mode de tri des groupes de nœuds",
+    "tooltip": "Tri automatique par défaut. Si défini sur manuel, les groupes peuvent être glissés-déposés et l'ordre sera sauvegardé.",
+    "options": {
+      "Auto sorting": "Tri automatique",
+      "Manual drag&drop sorting": "Tri manuel par glisser-déposer"
+    }
+  },
+  "EasyUse_NodesMap_DisplayNodeID": {
+    "name": "Activer l'affichage de l'ID du nœud"
+  },
+  "EasyUse_NodesMap_DisplayGroupOnly": {
+    "name": "Afficher uniquement les groupes"
+  },
+  "EasyUse_NodesMap_Enable": {
+    "name": "Activer la carte des groupes",
+    "tooltip": "Vous devez actualiser la page pour mettre à jour"
+  }
+}

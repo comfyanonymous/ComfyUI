@@ -1,0 +1,91 @@
+<!-- Support Modal -->
+<div id="supportModal" class="modal">
+    <div class="modal-content support-modal">
+        <button class="close" onclick="modalManager.closeModal('supportModal')">&times;</button>
+        <div class="support-header">
+            <i class="fas fa-heart support-icon"></i>
+            <h2>Support the Project</h2>
+        </div>
+        <div class="support-content">
+            <p>If you find LoRA Manager useful, I'd really appreciate your support! 🙌</p>
+            
+            <div class="support-section">
+                <h3><i class="fas fa-comment"></i> Provide Feedback</h3>
+                <p>Your feedback helps shape future updates! Share your thoughts:</p>
+                <div class="support-links">
+                    <a href="https://github.com/willmiao/ComfyUI-Lora-Manager/issues/new" class="social-link" target="_blank">
+                        <i class="fab fa-github"></i>
+                        <span>Submit GitHub Issue</span>
+                    </a>
+                    <a href="https://discord.gg/vcqNrWVFvM" class="social-link" target="_blank">
+                        <i class="fab fa-discord"></i>
+                        <span>Join Discord</span>
+                    </a>
+                </div>
+            </div>
+            
+            <div class="support-section">
+                <h3><i class="fas fa-rss"></i> Follow for Updates</h3>
+                <div class="support-links">
+                    <a href="https://www.youtube.com/@pixelpaws-ai" class="social-link" target="_blank">
+                        <i class="fab fa-youtube"></i>
+                        <span>YouTube Channel</span>
+                    </a>
+                    <a href="https://civitai.com/user/PixelPawsAI" class="social-link civitai-link" target="_blank">
+                        <svg class="civitai-icon" viewBox="0 0 225 225" width="20" height="20">
+                            <g transform="translate(0,225) scale(0.1,-0.1)" fill="currentColor">
+                                <path d="M950 1899 c-96 -55 -262 -150 -367 -210 -106 -61 -200 -117 -208
+                                -125 -13 -13 -15 -76 -15 -443 0 -395 1 -429 18 -443 9 -9 116 -73 237 -143
+                                121 -70 283 -163 359 -208 76 -45 146 -80 155 -80 9 1 183 98 386 215 l370
+                                215 2 444 3 444 -376 215 c-206 118 -378 216 -382 217 -4 1 -86 -43 -182 -98z
+                                m346 -481 l163 -93 1 -57 0 -58 -89 0 c-87 0 -91 1 -166 44 l-78 45 -51 -30
+                                c-28 -17 -61 -35 -73 -41 -21 -10 -23 -18 -23 -99 l0 -87 71 -41 c39 -23 73
+                                -41 76 -41 3 0 37 18 75 40 68 39 72 40 164 40 l94 0 0 -53 c0 -60 23 -41
+                                -198 -168 l-133 -77 -92 52 c-51 29 -126 73 -167 97 l-75 45 0 193 0 192 164
+                                95 c91 52 167 94 169 94 2 0 78 -42 168 -92z"/>
+                            </g>
+                        </svg>
+                        <span>Civitai Profile</span>
+                    </a>
+                </div>
+            </div>
+            
+            <div class="support-section">
+                <h3><i class="fas fa-coffee"></i> Buy me a coffee</h3>
+                <p>If you'd like to support my work directly:</p>
+                <a href="https://ko-fi.com/pixelpawsai" class="kofi-button" target="_blank">
+                    <i class="fas fa-mug-hot"></i>
+                    <span>Support on Ko-fi</span>
+                </a>
+            </div>
+
+            <!-- Patreon Support Section -->
+            <div class="support-section">
+                <h3><i class="fab fa-patreon"></i> Become a Patron</h3>
+                <p>Support ongoing development with monthly contributions:</p>
+                <a href="https://patreon.com/PixelPawsAI" class="patreon-button" target="_blank">
+                    <i class="fab fa-patreon"></i>
+                    <span>Support on Patreon</span>
+                </a>
+            </div>
+
+            <!-- New section for Chinese payment methods -->
+            <div class="support-section">
+                <h3><i class="fas fa-qrcode"></i> WeChat Support</h3>
+                <p>For users in China, you can support via WeChat:</p>
+                <button class="secondary-btn qrcode-toggle" id="toggleQRCode">
+                    <i class="fas fa-qrcode"></i>
+                    <span class="toggle-text">Show WeChat QR Code</span>
+                    <i class="fas fa-chevron-down toggle-icon"></i>
+                </button>
+                <div class="qrcode-container" id="qrCodeContainer">
+                    <img src="/loras_static/images/wechat-qr.webp" alt="WeChat Pay QR Code" class="qrcode-image">
+                </div>
+            </div>
+            
+            <div class="support-footer">
+                <p>Thank you for using LoRA Manager! ❤️</p>
+            </div>
+        </div>
+    </div>
+</div>

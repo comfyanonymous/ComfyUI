@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+
+{% block title %}LoRA Recipes{% endblock %}
+{% block page_id %}recipes{% endblock %}
+
+{% block page_css %}
+<link rel="stylesheet" href="/loras_static/css/components/card.css">
+<link rel="stylesheet" href="/loras_static/css/components/recipe-modal.css">
+<link rel="stylesheet" href="/loras_static/css/components/import-modal.css">
+{% endblock %}
+
+{% block preload %}
+<link rel="preload" href="/loras_static/js/recipes.js" as="script" crossorigin="anonymous">
+{% endblock %}
+
+{% block additional_components %}
+{% include 'components/import_modal.html' %}
+{% include 'components/recipe_modal.html' %}
+
+<div id="recipeContextMenu" class="context-menu" style="display: none;">
+    <!-- <div class="context-menu-item" data-action="details"><i class="fas fa-info-circle"></i> View Details</div> -->
+    <div class="context-menu-item" data-action="share"><i class="fas fa-share-alt"></i> Share Recipe</div>
+    <div class="context-menu-item" data-action="copy"><i class="fas fa-copy"></i> Copy Recipe Syntax</div>
+    <div class="context-menu-item" data-action="sendappend"><i class="fas fa-paper-plane"></i> Send to Workflow (Append)</div>
+    <div class="context-menu-item" data-action="sendreplace"><i class="fas fa-exchange-alt"></i> Send to Workflow (Replace)</div>
+    <div class="context-menu-item" data-action="viewloras"><i class="fas fa-layer-group"></i> View All LoRAs</div>
+    <div class="context-menu-item download-missing-item" data-action="download-missing"><i class="fas fa-download"></i> Download Missing LoRAs</div>
+    <div class="context-menu-item" data-action="set-nsfw">
+        <i class="fas fa-exclamation-triangle"></i> Set Content Rating
+    </div>
+    <div class="context-menu-separator"></div>
+    <div class="context-menu-item delete-item" data-action="delete"><i class="fas fa-trash"></i> Delete Recipe</div>
+</div>
+{% endblock %}
+
+{% block init_title %}Initializing Recipe Manager{% endblock %}
+{% block init_message %}Scanning and building recipe cache. This may take a few moments...{% endblock %}
+{% block init_check_url %}/api/recipes?page=1&page_size=1{% endblock %}
+
+{% block content %}
+    <!-- Recipe controls -->
+    <div class="controls">
+        <div class="action-buttons">
+            <div title="Refresh recipe list" class="control-group">
+                <button onclick="recipeManager.refreshRecipes()"><i class="fas fa-sync"></i> Refresh</button>
+            </div>
+            <div title="Import recipes" class="control-group">
+                <button onclick="importManager.showImportModal()"><i class="fas fa-file-import"></i> Import</button>
+            </div>
+            <!-- Add duplicate detection button -->
+            <div title="Find duplicate recipes" class="control-group">
+                <button onclick="recipeManager.findDuplicateRecipes()"><i class="fas fa-clone"></i> Duplicates</button>
+            </div>
+            <!-- Custom filter indicator button (hidden by default) -->
+            <div id="customFilterIndicator" class="control-group hidden">
+                <div class="filter-active">
+                    <i class="fas fa-filter"></i> <span id="customFilterText">Filtered by LoRA</span>
+                    <i class="fas fa-times-circle clear-filter"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Duplicates banner (hidden by default) -->
+    <div id="duplicatesBanner" class="duplicates-banner" style="display: none;">
+        <div class="banner-content">
+          <i class="fas fa-exclamation-triangle"></i>
+          <span id="duplicatesCount">Found 0 duplicate groups</span>
+          <div class="banner-actions">
+            <button class="btn-select-latest" onclick="recipeManager.selectLatestDuplicates()">
+              Keep Latest Versions
+            </button>
+            <button class="btn-delete-selected disabled" onclick="recipeManager.deleteSelectedDuplicates()">
+              Delete Selected (<span id="duplicatesSelectedCount">0</span>)
+            </button>
+            <button class="btn-exit" onclick="recipeManager.exitDuplicateMode()">
+              <i class="fas fa-times"></i>
+            </button>
+          </div>
+        </div>
+    </div>
+    
+    <!-- Recipe grid -->
+    <div class="card-grid" id="recipeGrid">
+        <!-- Remove the server-side conditional rendering and placeholder -->
+        <!-- Virtual scrolling will handle the display logic on the client side -->
+    </div>
+{% endblock %}
+
+{% block main_script %}
+<script type="module" src="/loras_static/js/recipes.js"></script>
+{% endblock %}

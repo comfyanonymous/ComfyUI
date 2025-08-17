@@ -1,0 +1,14 @@
+[project]
+name = "rgthree-comfy"
+description = "Making ComfyUI more comfortable."
+version = "1.0.2508162219"
+license = { file = "LICENSE" }
+dependencies = []
+
+[project.urls]
+Repository = "https://github.com/rgthree/rgthree-comfy"
+
+[tool.comfy]
+PublisherId = "rgthree"
+DisplayName = "rgthree-comfy"
+Icon = "https://comfy.rgthree.com/media/rgthree.svg"

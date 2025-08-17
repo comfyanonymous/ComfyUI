@@ -1,0 +1,578 @@
+/* 卡片网格布局 */
+.card-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); /* Base size */
+    gap: 12px; /* Consistent gap for both row and column spacing */
+    row-gap: 20px; /* Increase vertical spacing between rows */
+    margin-top: var(--space-2);
+    padding-top: 4px; /* 添加顶部内边距，为悬停动画提供空间 */
+    padding-bottom: 4px; /* 添加底部内边距，为悬停动画提供空间 */
+    width: 100%; /* Ensure it takes full width of container */
+    max-width: 1400px; /* Base container width */
+    margin-left: auto;
+    margin-right: auto;
+    box-sizing: border-box; /* Include padding in width calculation */
+}
+
+.model-card {
+    background: var(--lora-surface);
+    border: 1px solid var(--lora-border);
+    border-radius: var(--border-radius-base);
+    backdrop-filter: blur(16px);
+    transition: transform 160ms ease-out;
+    aspect-ratio: 896/1152; /* Preserve aspect ratio */
+    max-width: 260px; /* Base size */
+    width: 100%;
+    margin: 0 auto;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.model-card:hover {
+    transform: translateY(-2px);
+    background: oklch(100% 0 0 / 0.6);
+}
+
+.model-card:focus-visible {
+    outline: 2px solid var(--lora-accent);
+    outline-offset: 2px;
+}
+
+/* Responsive adjustments for 1440p screens (2K) */
+@media (min-width: 2000px) {
+    .card-grid {
+        max-width: 1800px; /* Increased for 2K screens */
+        grid-template-columns: repeat(auto-fill, minmax(270px, 1fr));
+    }
+    
+    .model-card {
+        max-width: 270px;
+    }
+}
+
+/* Responsive adjustments for 4K screens */
+@media (min-width: 3000px) {
+    .card-grid {
+        max-width: 2400px; /* Increased for 4K screens */
+        grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    }
+    
+    .model-card {
+        max-width: 280px;
+    }
+}
+
+/* Responsive adjustments */
+@media (max-width: 1400px) {
+    .card-grid {
+        grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    }
+    
+    .model-card {
+        max-width: 240px;
+    }
+}
+
+/* Card Preview and Footer Overlay */
+.card-preview {
+    position: relative;
+    width: 100%;
+    height: 100%; /* This should work with aspect-ratio on parent */
+    border-radius: var(--border-radius-base);
+    overflow: hidden;
+    flex-shrink: 0; /* Prevent shrinking */
+    min-height: 0; /* Fix for potential flexbox sizing issue in Firefox */
+}
+
+/* Smaller text for medium density */
+.medium-density .model-name {
+    font-size: 0.95em;
+    max-height: 3em; /* Increased from 2.6em */
+}
+
+.medium-density .base-model-label {
+    font-size: 0.85em;
+    max-width: 120px;
+}
+
+.medium-density .card-actions i {
+    font-size: 0.98em;
+    padding: 4px;
+}
+
+/* Smaller text for compact mode */
+.compact-density .model-name {
+    font-size: 0.9em;
+    max-height: 2.8em; /* Increased from 2.4em */
+}
+
+.compact-density .base-model-label {
+    font-size: 0.8em;
+    max-width: 110px;
+}
+
+.compact-density .card-actions i {
+    font-size: 0.95em;
+    padding: 3px;
+}
+
+.compact-density .model-info {
+    padding-bottom: 2px;
+}
+
+.card-preview img,
+.card-preview video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: center top; /* Align the top of the image with the top of the container */
+}
+
+/* NSFW Content Blur */
+.card-preview.blurred img,
+.card-preview.blurred video {
+    filter: blur(25px);
+}
+
+.nsfw-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 2;
+    pointer-events: none;
+}
+
+.nsfw-warning {
+    text-align: center;
+    color: white;
+    background: rgba(0, 0, 0, 0.6);
+    padding: var(--space-2);
+    border-radius: var(--border-radius-base);
+    backdrop-filter: blur(4px);
+    max-width: 80%;
+    pointer-events: auto;
+}
+
+.nsfw-warning p {
+    margin: 0 0 var(--space-1);
+    font-weight: bold;
+    font-size: 1.1em;
+    text-shadow: 1px 1px 1px rgba(0, 0, 0, 0.5);
+}
+
+/* NSFW warning adjustments for medium density */
+.medium-density .nsfw-warning {
+    padding: calc(var(--space-2) * 0.85);
+    max-width: 70%;
+}
+
+.medium-density .nsfw-warning p {
+    font-size: 0.95em;
+    margin-bottom: calc(var(--space-1) * 0.85);
+}
+
+.medium-density .show-content-btn {
+    font-size: 0.85em;
+    padding: 3px calc(var(--space-1) * 0.85);
+}
+
+/* NSFW warning adjustments for compact density */
+.compact-density .nsfw-warning {
+    padding: calc(var(--space-2) * 0.7);
+    max-width: 60%;
+}
+
+.compact-density .nsfw-warning p {
+    font-size: 0.85em;
+    margin-bottom: calc(var(--space-1) * 0.7);
+}
+
+.compact-density .show-content-btn {
+    font-size: 0.8em;
+    padding: 2px var(--space-1);
+}
+
+.toggle-blur-btn {
+    position: absolute;
+    left: var(--space-1);
+    top: var(--space-1);
+    background: rgba(0, 0, 0, 0.5);
+    border: none;
+    border-radius: 50%;
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    cursor: pointer;
+    z-index: 3;
+    transition: background-color 0.2s, transform 0.2s;
+}
+
+.toggle-blur-btn:hover {
+    background: rgba(0, 0, 0, 0.7);
+    transform: scale(1.1);
+}
+
+.toggle-blur-btn i {
+    font-size: 0.9em;
+}
+
+.show-content-btn {
+    background: var(--lora-accent);
+    color: white;
+    border: none;
+    border-radius: var(--border-radius-xs);
+    padding: 4px var(--space-1);
+    cursor: pointer;
+    font-size: 0.9em;
+    transition: background-color 0.2s, transform 0.2s;
+}
+
+.show-content-btn:hover {
+    background: oklch(58% 0.28 256);
+    transform: scale(1.05);
+}
+
+/* Adjust base model label positioning when toggle button is present */
+.base-model-label.with-toggle {
+    margin-left: 28px; /* Make room for the toggle button */
+}
+
+/* Ensure card actions remain clickable */
+.card-header .card-actions {
+    z-index: 3;
+}
+
+/* New styles for hover reveal mode */
+.hover-reveal .card-header,
+.hover-reveal .card-footer {
+    opacity: 0;
+    transition: opacity 0.2s ease;
+}
+
+.hover-reveal .model-card:hover .card-header,
+.hover-reveal .model-card:hover .card-footer {
+    opacity: 1;
+}
+
+.card-footer {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: linear-gradient(transparent 15%, oklch(0% 0 0 / 0.75));
+    backdrop-filter: blur(8px);
+    color: white;
+    padding: var(--space-1);
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;  /* Changed from flex-end to allow for text wrapping */
+    min-height: 32px;
+    gap: var(--space-1);  /* Add gap between model info and actions */
+}
+
+.card-header {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    background: linear-gradient(oklch(0% 0 0 / 0.75), transparent 85%);
+    backdrop-filter: blur(8px);
+    color: white;
+    padding: var(--space-1);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    z-index: 1;
+    min-height: 20px;
+}
+
+.card-actions i {
+    margin-left: var(--space-1);
+    cursor: pointer;
+    color: white;
+    transition: opacity 0.2s, transform 0.15s ease;
+    font-size: 1.0em; /* Increased from 0.9em for better visibility */
+    width: 16px; /* Fixed width for consistent spacing */
+    height: 16px; /* Fixed height for larger touch target */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    padding: 4px; /* Add padding to increase clickable area */
+    box-sizing: content-box; /* Ensure padding adds to dimensions */
+    position: relative; /* For proper positioning */
+    margin: 0; /* Reset margin */
+}
+
+.card-actions i::before {
+    position: absolute; /* Position the icon glyph */
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%); /* Center the icon */
+}
+
+.card-actions {
+    display: flex;
+    gap: var(--space-1); /* Use gap instead of margin for spacing between icons */
+    align-items: center;
+}
+
+.card-actions i:hover {
+    opacity: 0.9;
+    transform: scale(1.1);
+    background-color: rgba(255, 255, 255, 0.1);
+}
+
+/* Style for active favorites */
+.favorite-active {
+    color: #ffc107 !important; /* Gold color for favorites */
+    text-shadow: 0 0 5px rgba(255, 193, 7, 0.5);
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+    .card-grid {
+        grid-template-columns: minmax(260px, 1fr); /* Adjusted minimum size for mobile */
+    }
+    
+    .model-card {
+        max-width: 100%; /* Allow cards to fill available space on mobile */
+    }
+}
+
+.card-actions {
+    flex-shrink: 0;  /* Prevent actions from shrinking */
+    display: flex;
+    gap: var(--space-1);
+    align-items: flex-end; /* 将图标靠下对齐 */
+    align-self: flex-end; /* 将整个actions容器靠下对齐 */
+}
+
+.model-link {
+    margin-top: var(--space-1);
+}
+
+.model-link a {
+    color: var(--lora-accent);
+    text-decoration: none;
+    font-size: 1.1em;
+    transition: opacity 0.2s;
+    text-shadow: none;
+}
+
+.model-link a:hover {
+    opacity: 0.8;
+    text-decoration: none;
+}
+
+/* Updated model name to fix text cutoff issues */
+.model-name {
+    font-weight: bold;
+    text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.5);
+    font-size: 0.95em;
+    word-break: break-word;
+    display: block;
+    max-height: 3em; /* Increased to ensure two full lines */
+    overflow: hidden;
+    /* Add line height for consistency */
+    line-height: 1.4;
+}
+
+.model-info {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    padding-bottom: 6px; /* Increased from 4px to give more room for text */
+}
+
+.base-model {
+    display: inline-block;
+    background: #f0f0f0;
+    padding: 2px 6px;
+    border-radius: var(--border-radius-xs);
+    margin-right: 6px;
+}
+
+.file-size,
+.modified {
+    display: block;
+    margin-top: 2px;
+}
+
+.base-model-label {
+    max-width: 120px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: inline-block;
+    color: white;
+    text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.5);
+    background: rgba(255, 255, 255, 0.2);
+    padding: 2px var(--space-1);
+    border-radius: var(--border-radius-xs);
+    backdrop-filter: blur(2px);
+    font-size: 0.85em;
+}
+
+/* Style for version name */
+.version-name {
+    display: inline-block;
+    color: rgba(255,255,255,0.8); /* Muted white */
+    text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.5);
+    font-size: 0.85em;
+    word-break: break-word;
+    overflow: hidden;
+    line-height: 1.4;
+    margin-top: 2px;
+    opacity: 0.8; /* Slightly transparent for better readability */
+    border: 1px solid rgba(255,255,255,0.25); /* Subtle border */
+    border-radius: var(--border-radius-xs);
+    padding: 1px 6px;
+    background: rgba(0,0,0,0.18); /* Optional: subtle background for contrast */
+}
+
+/* Medium density adjustments for version name */
+.medium-density .version-name {
+    font-size: 0.8em;
+}
+
+/* Compact density adjustments for version name */
+.compact-density .version-name {
+    font-size: 0.75em;
+}
+
+/* Prevent text selection on cards and interactive elements */
+.model-card,
+.model-card *,
+.card-actions,
+.card-actions i,
+.toggle-blur-btn,
+.show-content-btn,
+.card-preview img,
+.card-preview video,
+.card-footer,
+.card-header,
+.model-name,
+.base-model-label {
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+}
+
+.lora-count {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    background: rgba(255, 255, 255, 0.2);
+    padding: 2px 8px;
+    border-radius: var(--border-radius-xs);
+    font-size: 0.85em;
+    position: relative;
+}
+
+.lora-count.ready {
+    background: rgba(46, 204, 113, 0.3);
+}
+
+.lora-count.missing {
+    background: rgba(231, 76, 60, 0.3);
+}
+
+.placeholder-message {
+    grid-column: 1 / -1;
+    text-align: center;
+    padding: 2rem;
+    background: var(--lora-surface-alt);
+    border-radius: var(--border-radius-base);
+}
+
+/* Virtual scrolling specific styles - updated */
+.virtual-scroll-item {
+    position: absolute;
+    box-sizing: border-box;
+    transition: transform 160ms ease-out;
+    margin: 0; /* Remove margins, positioning is handled by VirtualScroller */
+    width: 100%; /* Allow width to be set by the VirtualScroller */
+}
+
+.virtual-scroll-item:hover {
+    transform: translateY(-2px); /* Keep hover effect */
+    z-index: 1; /* Ensure hovered items appear above others */
+}
+
+/* When using virtual scroll, adjust container */
+.card-grid.virtual-scroll {
+    display: block;
+    position: relative;
+    margin: 0 auto;
+    padding: 4px 0; /* Add top/bottom padding equivalent to card padding */
+    height: auto;
+    width: 100%;
+    max-width: 1400px; /* Keep the max-width from original grid */
+    box-sizing: border-box; /* Include padding in width calculation */
+    overflow-x: hidden; /* Prevent horizontal overflow */
+}
+
+/* For larger screens, allow more space for the cards */
+@media (min-width: 2000px) {
+    .card-grid.virtual-scroll {
+        max-width: 1800px;
+    }
+}
+
+@media (min-width: 3000px) {
+    .card-grid.virtual-scroll {
+        max-width: 2400px;
+    }
+}
+
+/* Add after the existing .model-card:hover styles */
+
+@keyframes update-pulse {
+    0% { box-shadow: 0 0 0 0 var(--lora-accent-transparent); }
+    50% { box-shadow: 0 0 0 4px var(--lora-accent-transparent); }
+    100% { box-shadow: 0 0 0 0 var(--lora-accent-transparent); }
+  }
+  
+  /* Add semi-transparent version of accent color for animation */
+  :root {
+    --lora-accent-transparent: oklch(var(--lora-accent-l) var(--lora-accent-c) var(--lora-accent-h) / 0.6);
+  }
+  
+  .model-card.updated {
+    animation: update-pulse 1.2s ease-out;
+  }
+  
+  /* Add a subtle updated tag that fades in and out */
+  .update-indicator {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    background: var(--lora-accent);
+    color: white;
+    border-radius: var(--border-radius-xs);
+    padding: 3px 6px;
+    font-size: 0.75em;
+    opacity: 0;
+    transform: translateY(-5px);
+    z-index: 4;
+    animation: update-tag 1.8s ease-out forwards;
+  }
+  
+  @keyframes update-tag {
+    0% { opacity: 0; transform: translateY(-5px); }
+    15% { opacity: 1; transform: translateY(0); }
+    85% { opacity: 1; transform: translateY(0); }
+    100% { opacity: 0; transform: translateY(0); }
+  }

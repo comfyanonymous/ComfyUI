@@ -1,0 +1,2 @@
+class Script:
+    pass

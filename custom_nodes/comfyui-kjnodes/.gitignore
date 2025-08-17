@@ -1,0 +1,11 @@
+__pycache__
+/venv
+*.code-workspace
+.history
+.vscode
+*.ckpt
+*.pth
+types
+models
+jsconfig.json
+custom_dimensions.json

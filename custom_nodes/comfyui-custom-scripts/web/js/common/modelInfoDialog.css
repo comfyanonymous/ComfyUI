@@ -1,0 +1,119 @@
+.pysssss-model-info {
+	color: white;
+	font-family: sans-serif;
+	max-width: 90vw;
+}
+.pysssss-model-content {
+	display: flex;
+	flex-direction: column;
+	overflow: hidden;
+}
+.pysssss-model-info h2 {
+	text-align: center;
+	margin: 0 0 10px 0;
+}
+.pysssss-model-info p {
+	margin: 5px 0;
+}
+.pysssss-model-info a {
+	color: dodgerblue;
+}
+.pysssss-model-info a:hover {
+	text-decoration: underline;
+}
+.pysssss-model-tags-list {
+	display: flex;
+	flex-wrap: wrap;
+	list-style: none;
+	gap: 10px;
+	max-height: 200px;
+	overflow: auto;
+	margin: 10px 0;
+	padding: 0;
+}
+.pysssss-model-tag {
+	background-color: rgb(128, 213, 247);
+	color: #000;
+	display: flex;
+	align-items: center;
+	gap: 5px;
+	border-radius: 5px;
+	padding: 2px 5px;
+	cursor: pointer;
+}
+.pysssss-model-tag--selected span::before {
+	content: "✅";
+	position: absolute;
+	background-color: dodgerblue;
+	left: 0;
+	top: 0;
+	right: 0;
+	bottom: 0;
+	text-align: center;
+}
+.pysssss-model-tag:hover {
+	outline: 2px solid dodgerblue;
+}
+.pysssss-model-tag p {
+	margin: 0;
+}
+.pysssss-model-tag span {
+	text-align: center;
+	border-radius: 5px;
+	background-color: dodgerblue;
+	color: #fff;
+	padding: 2px;
+	position: relative;
+	min-width: 20px;
+	overflow: hidden;
+}
+
+.pysssss-model-metadata .comfy-modal-content {
+	max-width: 100%;
+}
+.pysssss-model-metadata label {
+	margin-right: 1ch;
+	color: #ccc;
+}
+
+.pysssss-model-metadata span {
+	color: dodgerblue;
+}
+
+.pysssss-preview {
+	max-width: 50%;
+	margin-left: 10px;
+	position: relative;
+}
+.pysssss-preview img {
+	max-height: 300px;
+}
+.pysssss-preview button {
+	position: absolute;
+	font-size: 12px;
+	bottom: 10px;
+	right: 10px;
+}
+.pysssss-preview button+button {
+	bottom: 34px;
+}
+
+.pysssss-preview button.pysssss-preview-nav {
+	bottom: unset;
+	right: 30px;
+	top: 10px;
+	font-size: 14px;
+	line-height: 14px;
+}
+
+.pysssss-preview button.pysssss-preview-nav+.pysssss-preview-nav {
+	right: 10px;
+}
+.pysssss-model-notes {
+	background-color: rgba(0, 0, 0, 0.25);
+	padding: 5px;
+	margin-top: 5px;
+}
+.pysssss-model-notes:empty {
+	display: none;
+}

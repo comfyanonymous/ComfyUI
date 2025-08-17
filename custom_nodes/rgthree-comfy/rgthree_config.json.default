@@ -1,0 +1,60 @@
+// COPY THIS FILE BEFORE MAKING CHANGES TO: rgthree_config.json
+{
+  "log_level": "WARN",
+  "features": {
+    "show_alerts_for_corrupt_workflows": false,
+    "monitor_for_corrupt_links": false,
+    "menu_queue_selected_nodes": true,
+    "menu_auto_nest": {
+      "subdirs": null,
+      "threshold": 20
+    },
+    "menu_bookmarks": {
+      "enabled": true
+    },
+    "group_header_fast_toggle": {
+      "enabled": null,
+      "toggles": ["queue", "bypass", "mute"],
+      "show": "hover"
+    },
+    "progress_bar": {
+      "enabled": true,
+      "height": 16,
+      "position": "top"
+    },
+    "comfy_top_bar_menu": {
+      "enabled": true,
+      "button_bookmarks": {
+        "enabled": true
+      }
+    },
+    // Allows for dragging and dropping a workflow (image, json) onto an individual node to import
+    // that specific node's widgets if it also exists in the dropped workflow (same id, type).
+    "import_individual_nodes": {
+      "enabled": null
+    },
+    // Enables invokeExtensionsAsync for rgthree-nodes allowing other extensions to hook into the
+    // nodes like the default ComfyNodes. This was not possible before Apr 2024, so it's a config
+    // entry in case it causes issues. This is only for the nodeCreated event/function as of now.
+    "invoke_extensions_async": {
+      "node_created": true
+    }
+  },
+  "nodes": {
+    "reroute": {
+      "default_width": 40,
+      "default_height": 30,
+      "default_resizable": false,
+      "default_layout": ["Left", "Right"],
+      "fast_reroute": {
+        "enabled": true,
+        "key_create_while_dragging_link" : "Shift + R",
+        "key_rotate": "Shift + A",
+        "key_resize": "Shift + X",
+        "key_move": "Shift + Z",
+        "key_connections_input": "Shift + S",
+        "key_connections_output": "Shift + D"
+      }
+    }
+  }
+}

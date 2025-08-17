@@ -1,0 +1,258 @@
+{
+    "id": 649516,
+    "name": "Cynthia -シロナ - Pokemon Diamond and Pearl - PDXL LORA",
+    "description": "<p><strong>Warning: Without Adetailer eyes are fucked (rainbow color and artefact)</strong></p><p><span style=\"color:rgb(193, 194, 197)\">Trained on </span><a target=\"_blank\" rel=\"ugc\" href=\"https://civitai.com/models/257749/horsefucker-diffusion-v6-xl\"><strong>Pony Diffusion V6 XL</strong></a> with 63 pictures.<br />Best result with weight between : 0.8-1.</p><p><span style=\"color:rgb(193, 194, 197)\">Basic prompts : </span><code>1girl, cynthia \\(pokemon\\), blonde hair, hair over one eye, very long hair, grey eyes, eyelashes, hair ornament</code> <br /><span style=\"color:rgb(193, 194, 197)\">Outfit prompts : </span><code>fur collar, black coat, fur-trimmed coat, long sleeves, black pants, black shirt, high heels</code></p><p>Reviews are really appreciated, i love to see the community use my work, that's why I share it.<br />If you like my work, you can tip me <a target=\"_blank\" rel=\"ugc\" href=\"https://ko-fi.com/konan49773\"><strong>here.</strong></a></p><p>Got a specific request ? I'm open for commission on my <a target=\"_blank\" rel=\"ugc\" href=\"https://ko-fi.com/konan49773/commissions\"><strong>kofi</strong></a> or<strong> </strong><a target=\"_blank\" rel=\"ugc\" href=\"https://www.fiverr.com/konanai/create-lora-model-for-you\"><strong>fiverr gig</strong></a> *! If you provide enough data, OCs are accepted</p>",
+    "allowNoCredit": true,
+    "allowCommercialUse": [
+        "Image",
+        "RentCivit"
+    ],
+    "allowDerivatives": true,
+    "allowDifferentLicense": true,
+    "type": "LORA",
+    "minor": false,
+    "sfwOnly": false,
+    "poi": false,
+    "nsfw": false,
+    "nsfwLevel": 29,
+    "availability": "Public",
+    "cosmetic": null,
+    "supportsGeneration": true,
+    "stats": {
+        "downloadCount": 811,
+        "favoriteCount": 0,
+        "thumbsUpCount": 175,
+        "thumbsDownCount": 0,
+        "commentCount": 4,
+        "ratingCount": 0,
+        "rating": 0,
+        "tippedAmountCount": 10
+    },
+    "creator": {
+        "username": "Konan",
+        "image": "https://image.civitai.com/xG1nkqKTMzGDvpLrqFT7WA/7cd552a1-60fe-4baf-a0e4-f7d5d5381711/width=96/Konan.jpeg"
+    },
+    "tags": [
+        "anime",
+        "character",
+        "cynthia",
+        "woman",
+        "pokemon",
+        "pokegirl"
+    ],
+    "modelVersions": [
+        {
+            "id": 726676,
+            "index": 0,
+            "name": "v1.0",
+            "baseModel": "Pony",
+            "createdAt": "2024-08-16T01:13:16.099Z",
+            "publishedAt": "2024-08-16T01:14:44.984Z",
+            "status": "Published",
+            "availability": "Public",
+            "nsfwLevel": 29,
+            "trainedWords": [
+                "1girl, cynthia \\(pokemon\\), blonde hair, hair over one eye, very long hair, grey eyes, eyelashes, hair ornament",
+                "fur collar, black coat, fur-trimmed coat, long sleeves, black pants, black shirt, high heels"
+            ],
+            "covered": true,
+            "stats": {
+                "downloadCount": 811,
+                "ratingCount": 0,
+                "rating": 0,
+                "thumbsUpCount": 175,
+                "thumbsDownCount": 0
+            },
+            "files": [
+                {
+                    "id": 641092,
+                    "sizeKB": 56079.65234375,
+                    "name": "CynthiaXL.safetensors",
+                    "type": "Model",
+                    "pickleScanResult": "Success",
+                    "pickleScanMessage": "No Pickle imports",
+                    "virusScanResult": "Success",
+                    "virusScanMessage": null,
+                    "scannedAt": "2024-08-16T01:17:19.087Z",
+                    "metadata": {
+                        "format": "SafeTensor"
+                    },
+                    "hashes": {},
+                    "downloadUrl": "https://civitai.com/api/download/models/726676",
+                    "primary": true
+                }
+            ],
+            "images": [
+                {
+                    "url": "https://image.civitai.com/xG1nkqKTMzGDvpLrqFT7WA/b346d757-2b59-4aeb-9f09-3bee2724519d/width=1248/24511993.jpeg",
+                    "nsfwLevel": 1,
+                    "width": 1248,
+                    "height": 1824,
+                    "hash": "UqNc==RP.9s+~pxvIst7kWWBWBjY%MWBt7WB",
+                    "type": "image",
+                    "minor": false,
+                    "poi": false,
+                    "hasMeta": true,
+                    "hasPositivePrompt": true,
+                    "onSite": false,
+                    "remixOfId": null
+                },
+                {
+                    "url": "https://image.civitai.com/xG1nkqKTMzGDvpLrqFT7WA/fc132ac0-cc1c-4b68-a1d7-5b97b0996ac2/width=1248/24511997.jpeg",
+                    "nsfwLevel": 1,
+                    "width": 1248,
+                    "height": 1824,
+                    "hash": "UMGSS+?tTw.60MIX9cbb~WxHRRR-NEtLRiR%",
+                    "type": "image",
+                    "minor": false,
+                    "poi": false,
+                    "hasMeta": true,
+                    "hasPositivePrompt": true,
+                    "onSite": false,
+                    "remixOfId": null
+                },
+                {
+                    "url": "https://image.civitai.com/xG1nkqKTMzGDvpLrqFT7WA/7b3237d1-e672-466a-85d0-cc5dd42ab130/width=1160/24512001.jpeg",
+                    "nsfwLevel": 4,
+                    "width": 1160,
+                    "height": 1696,
+                    "hash": "U9NA6f~o00%h00wvIYt74:ER-=D%5600DiE1",
+                    "type": "image",
+                    "minor": false,
+                    "poi": false,
+                    "hasMeta": true,
+                    "hasPositivePrompt": true,
+                    "onSite": false,
+                    "remixOfId": null
+                },
+                {
+                    "url": "https://image.civitai.com/xG1nkqKTMzGDvpLrqFT7WA/ccd7d11d-4fa9-4434-85a1-fb999312e60d/width=1248/24511991.jpeg",
+                    "nsfwLevel": 1,
+                    "width": 1248,
+                    "height": 1824,
+                    "hash": "UyNTg.j?~qxu?aoLRkj]%MfkM{jZaya}a#ax",
+                    "type": "image",
+                    "minor": false,
+                    "poi": false,
+                    "hasMeta": true,
+                    "hasPositivePrompt": true,
+                    "onSite": false,
+                    "remixOfId": null
+                },
+                {
+                    "url": "https://image.civitai.com/xG1nkqKTMzGDvpLrqFT7WA/1743be6d-7fe5-4b55-9f19-c931618fa259/width=1248/24511996.jpeg",
+                    "nsfwLevel": 4,
+                    "width": 1248,
+                    "height": 1824,
+                    "hash": "UGOC~n^+?w~6Tx_4oM^$yYEkMds74:9F#*xY",
+                    "type": "image",
+                    "minor": false,
+                    "poi": false,
+                    "hasMeta": true,
+                    "hasPositivePrompt": true,
+                    "onSite": false,
+                    "remixOfId": null
+                },
+                {
+                    "url": "https://image.civitai.com/xG1nkqKTMzGDvpLrqFT7WA/91693c98-d037-4489-882c-100eb26019a0/width=1160/24512010.jpeg",
+                    "nsfwLevel": 4,
+                    "width": 1160,
+                    "height": 1696,
+                    "hash": "UJI}kp^-Kl%hXAIX4;Nf^+M|9GRP0Mt8%L%2",
+                    "type": "image",
+                    "minor": false,
+                    "poi": false,
+                    "hasMeta": true,
+                    "hasPositivePrompt": true,
+                    "onSite": false,
+                    "remixOfId": null
+                },
+                {
+                    "url": "https://image.civitai.com/xG1nkqKTMzGDvpLrqFT7WA/49c7a294-ac5b-4832-98e5-2acd0f1a8782/width=1248/24512017.jpeg",
+                    "nsfwLevel": 4,
+                    "width": 1248,
+                    "height": 1824,
+                    "hash": "UML;8Qn|9G%3mnWA4nWFMf%N?Hae~qog-oNF",
+                    "type": "image",
+                    "minor": false,
+                    "poi": false,
+                    "hasMeta": true,
+                    "hasPositivePrompt": true,
+                    "onSite": false,
+                    "remixOfId": null
+                },
+                {
+                    "url": "https://image.civitai.com/xG1nkqKTMzGDvpLrqFT7WA/d7b442f2-6ead-4a7a-9578-54d9ec2ff148/width=1248/24512015.jpeg",
+                    "nsfwLevel": 1,
+                    "width": 1248,
+                    "height": 1824,
+                    "hash": "UPGR#kt8xw%M0LWC9bWC?wxtR*NLM^jrxWM|",
+                    "type": "image",
+                    "minor": false,
+                    "poi": false,
+                    "hasMeta": true,
+                    "hasPositivePrompt": true,
+                    "onSite": false,
+                    "remixOfId": null
+                },
+                {
+                    "url": "https://image.civitai.com/xG1nkqKTMzGDvpLrqFT7WA/d840f1e9-3dd3-4531-b83a-1ba2c6b7feaa/width=1160/24512004.jpeg",
+                    "nsfwLevel": 8,
+                    "width": 1160,
+                    "height": 1696,
+                    "hash": "ULNm1i_39wi^*I%hDiM_tlo#xuV?^kNIxCs,",
+                    "type": "image",
+                    "minor": false,
+                    "poi": false,
+                    "hasMeta": true,
+                    "hasPositivePrompt": true,
+                    "onSite": false,
+                    "remixOfId": null
+                },
+                {
+                    "url": "https://image.civitai.com/xG1nkqKTMzGDvpLrqFT7WA/520387ae-c176-43e3-92bd-5cd2a672475e/width=1248/24512012.jpeg",
+                    "nsfwLevel": 4,
+                    "width": 1248,
+                    "height": 1824,
+                    "hash": "URM%l.%M.9Ip~poIkExu_3V@M|xuD%oJM{D*",
+                    "type": "image",
+                    "minor": false,
+                    "poi": false,
+                    "hasMeta": true,
+                    "hasPositivePrompt": true,
+                    "onSite": false,
+                    "remixOfId": null
+                },
+                {
+                    "url": "https://image.civitai.com/xG1nkqKTMzGDvpLrqFT7WA/9ea28b94-f326-4776-83ff-851cc203c627/width=1248/24511988.jpeg",
+                    "nsfwLevel": 1,
+                    "width": 1248,
+                    "height": 1824,
+                    "hash": "U-PZloog_Nxut6j]WXWB-;j?IVa#ofaxj]j]",
+                    "type": "image",
+                    "minor": false,
+                    "poi": false,
+                    "hasMeta": true,
+                    "hasPositivePrompt": true,
+                    "onSite": false,
+                    "remixOfId": null
+                },
+                {
+                    "url": "https://image.civitai.com/xG1nkqKTMzGDvpLrqFT7WA/2e749dbb-7d5a-48f1-8e29-fea5022a5fe9/width=1248/24522268.jpeg",
+                    "nsfwLevel": 16,
+                    "width": 1248,
+                    "height": 1824,
+                    "hash": "UPLgtm9Z0z=|0yRRE2-A9rWAoNE1~DwOr=t7",
+                    "type": "image",
+                    "minor": false,
+                    "poi": false,
+                    "hasMeta": true,
+                    "hasPositivePrompt": true,
+                    "onSite": false,
+                    "remixOfId": null
+                }
+            ],
+            "downloadUrl": "https://civitai.com/api/download/models/726676"
+        }
+    ]
+}

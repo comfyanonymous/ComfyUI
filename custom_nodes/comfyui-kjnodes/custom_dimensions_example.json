@@ -1,0 +1,22 @@
+[
+    {
+        "label": "SD",
+        "value": "512x512"
+    },
+    {
+        "label": "HD",
+        "value": "768x768"
+    },
+    {
+        "label": "Full HD",
+        "value": "1024x1024"
+    },
+    {
+        "label": "4k",
+        "value": "2048x2048"
+    },
+    {
+        "label": "SVD",
+        "value": "1024x576"
+    }
+]
