@@ -82,8 +82,6 @@ wget -c https://huggingface.co/h94/IP-Adapter/resolve/main/sdxl_models/ip-adapte
 
 
 
-wget -c https://huggingface.co/davisbro/half_illustration/resolve/main/flux_train_replicate.safetensors -P ./models/loras
-
 # ComfyUI-Kolors-MZ faceid做什么用的?
 # wget -c https://huggingface.co/Kwai-Kolors/Kolors-IP-Adapter-Plus/resolve/main/ip_adapter_plus_general.bin -P ./models/ipadapter
 # wget -c https://huggingface.co/Kwai-Kolors/Kolors-IP-Adapter-Plus/resolve/main/image_encoder/pytorch_model.bin -P ./models/clip_vision
