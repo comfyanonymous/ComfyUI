@@ -31,6 +31,7 @@ wget -c https://huggingface.co/madebyollin/sdxl-vae-fp16-fix/resolve/main/sdxl.v
 ln -s /kaggle/input/flux-ae/flux-ae.safetensors ./models/vae/ae.safetensors
 ln -s /kaggle/input/clip-l/clip_l.safetensors ./models/text_encoders/clip_l.safetensors
 ln -s /kaggle/input/t5xxl-fp8-e4m3fn-scaled/t5xxl_fp8_e4m3fn_scaled.safetensors ./models/text_encoders/t5xxl_fp8_e4m3fn_scaled.safetensors
+ln -s /kaggle/input/t5xxl-fp8-e4m3fn/t5xxl_fp8_e4m3fn.safetensors ./models/text_encoders/t5xxl_fp8_e4m3fn.safetensors
 ln -s /kaggle/input/flux1-dev-kontext-fp8-scaled/flux1-dev-kontext_fp8_scaled.safetensors ./models/diffusion_models/flux1-dev-kontext_fp8_scaled.safetensors
 
 #Flux dev
@@ -80,7 +81,9 @@ wget -c https://huggingface.co/h94/IP-Adapter/resolve/main/sdxl_models/ip-adapte
 wget -c https://huggingface.co/h94/IP-Adapter/resolve/main/sdxl_models/ip-adapter-plus_sdxl_vit-h.safetensors -P ./models/ipadapter
 wget -c https://huggingface.co/h94/IP-Adapter/resolve/main/sdxl_models/ip-adapter_sdxl_vit-h.safetensors -P ./models/ipadapter
 
-
+# pulid model
+mkdir -p ./models/pulid/
+wget -c https://huggingface.co/guozinan/PuLID/resolve/main/pulid_flux_v0.9.1.safetensors -P ./models/pulid/
 
 # ComfyUI-Kolors-MZ faceid做什么用的?
 # wget -c https://huggingface.co/Kwai-Kolors/Kolors-IP-Adapter-Plus/resolve/main/ip_adapter_plus_general.bin -P ./models/ipadapter
@@ -227,12 +230,6 @@ cd /kaggle/ComfyUI
 
 
 
-# cd custom_nodes
-# git clone https://github.com/Fannovel16/comfyui_controlnet_aux/
-# cd comfyui_controlnet_aux
-# pip install -r requirements.txt
-# cd /kaggle/ComfyUI
-
 # These custom nodes used by workflow VACE ControlNet 1.0 (base).json ------------ end ------------
 
 
@@ -327,8 +324,14 @@ git clone https://github.com/Suzie1/ComfyUI_Comfyroll_CustomNodes.git
 cd /kaggle/ComfyUI
 
 cd custom_nodes
-git clone https://github.com/cubiq/PuLID_ComfyUI.git
-cd PuLID_ComfyUI
+git clone https://github.com/sipie800/ComfyUI-PuLID-Flux-Enhanced.git
+cd ComfyUI-PuLID-Flux-Enhanced
+pip install -r requirements.txt
+cd /kaggle/ComfyUI
+
+cd custom_nodes
+git clone https://github.com/Fannovel16/comfyui_controlnet_aux/
+cd comfyui_controlnet_aux
 pip install -r requirements.txt
 cd /kaggle/ComfyUI
 
