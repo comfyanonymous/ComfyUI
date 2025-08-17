@@ -76,6 +76,9 @@ wget -c https://huggingface.co/h94/IP-Adapter/resolve/main/sdxl_models/ip-adapte
 wget -c https://huggingface.co/h94/IP-Adapter/resolve/main/sdxl_models/ip-adapter_sdxl_vit-h.safetensors -P ./models/ipadapter
 
 
+
+wget -c https://huggingface.co/davisbro/half_illustration/resolve/main/flux_train_replicate.safetensors -P ./models/loras
+
 # ComfyUI-Kolors-MZ faceid做什么用的?
 # wget -c https://huggingface.co/Kwai-Kolors/Kolors-IP-Adapter-Plus/resolve/main/ip_adapter_plus_general.bin -P ./models/ipadapter
 # wget -c https://huggingface.co/Kwai-Kolors/Kolors-IP-Adapter-Plus/resolve/main/image_encoder/pytorch_model.bin -P ./models/clip_vision
@@ -220,11 +223,6 @@ cd /kaggle/ComfyUI
 # cd /kaggle/ComfyUI
 
 
-# cd custom_nodes
-# git clone https://github.com/yolain/ComfyUI-Easy-Use
-# cd ComfyUI-Easy-Use
-# pip install -r requirements.txt
-# cd /kaggle/ComfyUI
 
 # cd custom_nodes
 # git clone https://github.com/Fannovel16/comfyui_controlnet_aux/
@@ -312,6 +310,17 @@ cd custom_nodes
 git clone https://github.com/kijai/ComfyUI-FluxTrainer.git
 cd ComfyUI-FluxTrainer
 pip install -r requirements.txt
+cd /kaggle/ComfyUI
+
+
+cd custom_nodes
+git clone https://github.com/yolain/ComfyUI-Easy-Use
+cd ComfyUI-Easy-Use
+pip install -r requirements.txt
+cd /kaggle/ComfyUI
+
+cd custom_nodes
+git clone https://github.com/Suzie1/ComfyUI_Comfyroll_CustomNodes.git
 cd /kaggle/ComfyUI
 
 cd custom_nodes
