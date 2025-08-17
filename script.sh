@@ -101,8 +101,7 @@ wget -c https://huggingface.co/schwgHao/RealESRGAN_x4plus/resolve/main/RealESRGA
 
 ln -s /kaggle/input/clip-vision-h/clip_vision_h.safetensors ./models/clip_vision/clip_vision_h.safetensors
 
-
-
+pip install onnxruntime-gpu --extra-index-url https://aiinfra.pkgs.visualstudio.com/PublicPackages/_packaging/onnxruntime-cuda-12/pypi/simple/
 
 # ----------------   安装自定义插件节点  ----------------
 
@@ -112,9 +111,6 @@ git clone https://github.com/ltdrdata/ComfyUI-Manager comfyui-manager
 cd /kaggle/ComfyUI
 
 # 2 安装 nunchaku
-# pip install facexlib
-# pip install onnxruntime
-# pip install insightface
 # pip install https://huggingface.co/mit-han-lab/nunchaku/resolve/main/nunchaku-0.3.1+torch2.6-cp311-cp311-linux_x86_64.whl
 # # wget -c https://huggingface.co/mit-han-lab/nunchaku-flux.1-kontext-dev/resolve/main/svdq-int4_r32-flux.1-kontext-dev.safetensors -P ./models/diffusion_models
 # cd /kaggle/ComfyUI
@@ -126,11 +122,11 @@ cd /kaggle/ComfyUI
 
 
 # 3 ComfyUI-GGUF
-# cd custom_nodes
-# git clone https://github.com/city96/ComfyUI-GGUF
-# cd ComfyUI-GGUF
-# pip install --upgrade gguf
-# cd /kaggle/ComfyUI
+cd custom_nodes
+git clone https://github.com/city96/ComfyUI-GGUF
+cd ComfyUI-GGUF
+pip install --upgrade gguf
+cd /kaggle/ComfyUI
 
 # 4 encrypt image
 cd custom_nodes
@@ -154,12 +150,6 @@ git clone https://github.com/Vander-Bilt/save2hf.git
 cd save2hf
 pip install -r requirements.txt
 cd /kaggle/ComfyUI
-
-#class MyHTMLNode:
-# cd custom_nodes
-# git clone https://github.com/Vander-Bilt/MyHTMLNode.git
-# cd /kaggle/ComfyUI
-
 
 cd custom_nodes
 git clone https://github.com/kijai/ComfyUI-KJNodes.git
@@ -321,6 +311,13 @@ cd /kaggle/ComfyUI
 
 cd custom_nodes
 git clone https://github.com/Suzie1/ComfyUI_Comfyroll_CustomNodes.git
+cd /kaggle/ComfyUI
+
+
+cd custom_nodes
+git clone https://github.com/cubiq/PuLID_ComfyUI.git
+cd PuLID_ComfyUI
+pip install -r requirements.txt
 cd /kaggle/ComfyUI
 
 cd custom_nodes
