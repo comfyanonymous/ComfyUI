@@ -699,7 +699,7 @@ class WanTrackToVideo(io.ComfyNode):
     @classmethod
     def define_schema(cls):
         return io.Schema(
-            node_id="WanPhantomSubjectToVideo",
+            node_id="WanTrackToVideo",
             category="conditioning/video_models",
             inputs=[
                 io.Conditioning.Input("positive"),
