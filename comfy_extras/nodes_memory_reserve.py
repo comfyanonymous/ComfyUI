@@ -19,6 +19,7 @@ class MemoryReserveNode(io.ComfyNode):
 
     @classmethod
     def execute(cls, model: io.Model.Type, memory_reserve_gb: float) -> io.NodeOutput:
+        model = model.clone()
         model.add_model_memory_reserve(memory_reserve_gb)
         return io.NodeOutput(model)
 
