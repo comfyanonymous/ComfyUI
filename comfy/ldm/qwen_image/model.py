@@ -360,6 +360,7 @@ class QwenImageTransformer2DModel(nn.Module):
         context,
         attention_mask=None,
         guidance: torch.Tensor = None,
+        ref_latents=None,
         transformer_options={},
         **kwargs
     ):
@@ -369,6 +370,31 @@ class QwenImageTransformer2DModel(nn.Module):
 
         hidden_states, img_ids, orig_shape = self.process_img(x)
         num_embeds = hidden_states.shape[1]
+
+        if ref_latents is not None:
+            h = 0
+            w = 0
+            index = 0
+            index_ref_method = kwargs.get("ref_latents_method", "index") == "index"
+            for ref in ref_latents:
+                if index_ref_method:
+                    index += 1
+                    h_offset = 0
+                    w_offset = 0
+                else:
+                    index = 1
+                    h_offset = 0
+                    w_offset = 0
+                    if ref.shape[-2] + h > ref.shape[-1] + w:
+                        w_offset = w
+                    else:
+                        h_offset = h
+                    h = max(h, ref.shape[-2] + h_offset)
+                    w = max(w, ref.shape[-1] + w_offset)
+
+                kontext, kontext_ids, _ = self.process_img(ref, index=index, h_offset=h_offset, w_offset=w_offset)
+                hidden_states = torch.cat([hidden_states, kontext], dim=1)
+                img_ids = torch.cat([img_ids, kontext_ids], dim=1)
 
         txt_start = round(max(((x.shape[-1] + (self.patch_size // 2)) // self.patch_size), ((x.shape[-2] + (self.patch_size // 2)) // self.patch_size)))
         txt_ids = torch.linspace(txt_start, txt_start + context.shape[1], steps=context.shape[1], device=x.device, dtype=x.dtype).reshape(1, -1, 1).repeat(x.shape[0], 1, 3)
