@@ -178,7 +178,7 @@ class FourierEmbedder(nn.Module):
 
 class CrossAttentionProcessor:
     def __call__(self, attn, q, k, v):
-        out = F.scaled_dot_product_attention(q, k, v)
+        out = comfy.ops.scaled_dot_product_attention(q, k, v)
         return out
 
 

@@ -364,7 +364,10 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
             dit_config["vace_in_dim"] = state_dict['{}vace_patch_embedding.weight'.format(key_prefix)].shape[1]
             dit_config["vace_layers"] = count_blocks(state_dict_keys, '{}vace_blocks.'.format(key_prefix) + '{}.')
         elif '{}control_adapter.conv.weight'.format(key_prefix) in state_dict_keys:
-            dit_config["model_type"] = "camera"
+            if '{}img_emb.proj.0.bias'.format(key_prefix) in state_dict_keys:
+                dit_config["model_type"] = "camera"
+            else:
+                dit_config["model_type"] = "camera_2.2"
         else:
             if '{}img_emb.proj.0.bias'.format(key_prefix) in state_dict_keys:
                 dit_config["model_type"] = "i2v"
@@ -373,6 +376,11 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
         flf_weight = state_dict.get('{}img_emb.emb_pos'.format(key_prefix))
         if flf_weight is not None:
             dit_config["flf_pos_embed_token_number"] = flf_weight.shape[1]
+
+        ref_conv_weight = state_dict.get('{}ref_conv.weight'.format(key_prefix))
+        if ref_conv_weight is not None:
+            dit_config["in_dim_ref_conv"] = ref_conv_weight.shape[1]
+
         return dit_config
 
     if '{}latent_in.weight'.format(key_prefix) in state_dict_keys:  # Hunyuan 3D
