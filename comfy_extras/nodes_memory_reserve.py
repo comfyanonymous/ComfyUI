@@ -5,7 +5,7 @@ class MemoryReserveNode(io.ComfyNode):
     def define_schema(cls) -> io.Schema:
         return io.Schema(
             node_id="AddMemoryToReserve",
-            display_name="Add Memory to Reserve",
+            display_name="Reserve Additional Memory",
             description="Adds additional expected memory usage for the model, in gigabytes.",
             category="advanced/debug/model",
             inputs=[
