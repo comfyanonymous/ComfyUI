@@ -85,6 +85,10 @@ wget -c https://huggingface.co/h94/IP-Adapter/resolve/main/sdxl_models/ip-adapte
 mkdir -p ./models/pulid/
 wget -c https://huggingface.co/guozinan/PuLID/resolve/main/pulid_flux_v0.9.1.safetensors -P ./models/pulid/
 
+# 质量还不错，速度有点慢
+wget -c https://huggingface.co/city96/t5-v1_1-xxl-encoder-gguf/resolve/main/t5-v1_1-xxl-encoder-Q8_0.gguf -P ./models/text_encoders
+wget -c https://huggingface.co/city96/FLUX.1-dev-gguf/resolve/main/flux1-dev-Q8_0.gguf -P ./models/diffusion_models
+
 # ComfyUI-Kolors-MZ faceid做什么用的?
 # wget -c https://huggingface.co/Kwai-Kolors/Kolors-IP-Adapter-Plus/resolve/main/ip_adapter_plus_general.bin -P ./models/ipadapter
 # wget -c https://huggingface.co/Kwai-Kolors/Kolors-IP-Adapter-Plus/resolve/main/image_encoder/pytorch_model.bin -P ./models/clip_vision
@@ -101,7 +105,6 @@ wget -c https://huggingface.co/schwgHao/RealESRGAN_x4plus/resolve/main/RealESRGA
 
 ln -s /kaggle/input/clip-vision-h/clip_vision_h.safetensors ./models/clip_vision/clip_vision_h.safetensors
 
-pip install onnxruntime-gpu --extra-index-url https://aiinfra.pkgs.visualstudio.com/PublicPackages/_packaging/onnxruntime-cuda-12/pypi/simple/
 
 # ----------------   安装自定义插件节点  ----------------
 
