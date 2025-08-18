@@ -582,16 +582,23 @@ def free_memory(memory_required, device, keep_loaded=[]):
                 soft_empty_cache()
     return unloaded_models
 
+def get_models_memory_reserve(models):
+    total_reserve = 0
+    for model in models:
+        total_reserve += model.get_model_memory_reserve(convert_to_bytes=True)
+    return total_reserve
+
 def load_models_gpu(models, memory_required=0, force_patch_weights=False, minimum_memory_required=None, force_full_load=False):
     cleanup_models_gc()
     global vram_state
 
     inference_memory = minimum_inference_memory()
-    extra_mem = max(inference_memory, memory_required + extra_reserved_memory())
+    models_memory_reserve = get_models_memory_reserve(models)
+    extra_mem = max(inference_memory, memory_required + extra_reserved_memory() + models_memory_reserve)
     if minimum_memory_required is None:
         minimum_memory_required = extra_mem
     else:
-        minimum_memory_required = max(inference_memory, minimum_memory_required + extra_reserved_memory())
+        minimum_memory_required = max(inference_memory, minimum_memory_required + extra_reserved_memory() + models_memory_reserve)
 
     models = set(models)
 

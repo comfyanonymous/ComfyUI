@@ -2321,6 +2321,7 @@ async def init_builtin_extra_nodes():
         "nodes_edit_model.py",
         "nodes_tcfg.py",
         "nodes_context_windows.py",
+        "nodes_memory_reserve.py",
     ]
 
     import_failed = []
