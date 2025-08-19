@@ -1,8 +1,4 @@
 # Docker Compose file to run ComfyUI locally using Docker.
-#
-# Authors:
-# B. Bergeron <me@bbergeron.xyz>
-#
 
 services:
   comfyui:
