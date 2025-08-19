@@ -1,10 +1,6 @@
 # Docker buildfile for the ComfyUI image, with support for hardware
 # acceleration, file ownership synchronization, custom nodes, and custom node
 # managers.
-#
-# Authors:
-# B. Bergeron <me@bbergeron.xyz>
-#
 
 # Use the recommended Python version 3.12, as specified in the README.
 FROM python:3.12.11-bookworm AS comfyui-base

@@ -1,10 +1,6 @@
 #!/bin/sh
 
 # Entrypoint script for the ComfyUI Docker image.
-#
-# Authors:
-# B. Bergeron <me@bbergeron.xyz>
-#
 
 set -e
 
