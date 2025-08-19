@@ -20,6 +20,8 @@ else:
     base_path = os.path.dirname(os.path.realpath(__file__))
 
 models_dir = os.path.join(base_path, "models")
+if args.models_directory:
+    models_dir = args.models_directory
 folder_names_and_paths["checkpoints"] = ([os.path.join(models_dir, "checkpoints")], supported_pt_extensions)
 folder_names_and_paths["configs"] = ([os.path.join(models_dir, "configs")], [".yaml"])
 
@@ -130,6 +132,14 @@ def set_user_directory(user_dir: str) -> None:
     global user_directory
     user_directory = user_dir
 
+def set_models_directory(models_dir_path: str) -> None:
+    global models_dir
+    models_dir = models_dir_path
+
+def get_models_directory() -> str:
+    global models_dir
+    return models_dir
+
 
 #NOTE: used in http server so don't put folders that should not be accessed remotely
 def get_directory_by_type(type_name: str) -> str | None:
@@ -139,6 +149,8 @@ def get_directory_by_type(type_name: str) -> str | None:
         return get_temp_directory()
     if type_name == "input":
         return get_input_directory()
+    if type_name == "models":
+        return get_models_directory()
     return None
 
 def filter_files_content_types(files: list[str], content_types: List[Literal["image", "video", "audio", "model"]]) -> list[str]:
@@ -179,6 +191,9 @@ def annotated_filepath(name: str) -> tuple[str, str | None]:
     elif name.endswith("[temp]"):
         base_dir = get_temp_directory()
         name = name[:-7]
+    elif name.endswith("[models]"):
+        base_dir = get_models_directory()
+        name = name[:-9]
     else:
         return name, None
 
