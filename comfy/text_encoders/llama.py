@@ -287,7 +287,7 @@ class Llama2_(nn.Module):
             x *= self.config.hidden_size ** 0.5
 
         if position_ids is None:
-            position_ids = torch.arange(0, x.shape[1], device=xdevice).unsqueeze(0)
+            position_ids = torch.arange(0, x.shape[1], device=x.device).unsqueeze(0)
 
         freqs_cis = precompute_freqs_cis(self.config.head_dim,
                                          position_ids,
