@@ -17,6 +17,14 @@ import requests
 
 
 if __name__ == "__main__":
+    import signal
+    import sys
+
+    def sigterm_handler(_signo, _stack_frame):
+        logging.info("Kaggle session terminated. Shutting down gracefully.")
+        sys.exit(0)
+
+    signal.signal(signal.SIGTERM, sigterm_handler)
     #NOTE: These do not do anything on core ComfyUI, they are for custom nodes.
     os.environ['HF_HUB_DISABLE_TELEMETRY'] = '1'
     os.environ['DO_NOT_TRACK'] = '1'
