@@ -403,7 +403,7 @@ class Qwen25_7BVLI(BaseLlama, torch.nn.Module):
                 position_ids[2, start:end] = torch.arange(start, start + max_d, device=embeds.device).unsqueeze(0).repeat(math.ceil((end - start) / max_d), 1).flatten(0)[:end - start]
 
         if grid is None:
-            position_ids = torch.arange(0, embeds.shape[1], device=embeds.device)
+            position_ids = None
 
         return super().forward(x, attention_mask=attention_mask, embeds=embeds, num_tokens=num_tokens, intermediate_output=intermediate_output, final_layer_norm_intermediate=final_layer_norm_intermediate, dtype=dtype, position_ids=position_ids)
 
