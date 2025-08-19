@@ -603,6 +603,17 @@ class MoonvalleyVideo2VideoNode(BaseMoonvalleyVideoNode):
                     tooltip="Random seed value",
                     control_after_generate=False,
                 ),
+                "steps": model_field_to_node_input(
+                    IO.INT,
+                    MoonvalleyVideoToVideoInferenceParams,
+                    "steps",
+                    default=100,
+                    min=1,
+                    max=100,
+                    step=1,
+                    display="number",
+                    tooltip="Number of inference steps",
+                ),
                 "prompt_adherence": model_field_to_node_input(
                     IO.FLOAT,
                     MoonvalleyVideoToVideoInferenceParams,
@@ -643,7 +654,7 @@ class MoonvalleyVideo2VideoNode(BaseMoonvalleyVideoNode):
                 ),
                 "image": model_field_to_node_input(
                     IO.IMAGE,
-                    MoonvalleyTextToVideoRequest,
+                    MoonvalleyVideoToVideoRequest,
                     "image_url",
                     tooltip="The reference image used to generate the video",
                 ),
@@ -669,12 +680,14 @@ class MoonvalleyVideo2VideoNode(BaseMoonvalleyVideoNode):
                 validated_video, auth_kwargs=kwargs
             )
         mime_type = "image/png"
-
+        image_url = None
         if not image is None:
             validate_input_image(image, with_frame_conditioning=True)
-            image_url = await upload_images_to_comfyapi(
-                image=image, auth_kwargs=kwargs, max_images=1, mime_type=mime_type
-            )
+            image_url = (
+                await upload_images_to_comfyapi(
+                    image=image, auth_kwargs=kwargs, max_images=1, mime_type=mime_type
+                )
+            )[0]
         control_type = kwargs.get("control_type")
         motion_intensity = kwargs.get("motion_intensity")
 
@@ -690,6 +703,8 @@ class MoonvalleyVideo2VideoNode(BaseMoonvalleyVideoNode):
             negative_prompt=negative_prompt,
             seed=kwargs.get("seed"),
             control_params=control_params,
+            steps=kwargs.get("steps"),
+            guidance_scale=kwargs.get("prompt_adherence"),
         )
 
         control = self.parseControlParameter(control_type)
@@ -698,9 +713,9 @@ class MoonvalleyVideo2VideoNode(BaseMoonvalleyVideoNode):
             control_type=control,
             video_url=video_url,
             prompt_text=prompt,
+            image_url=image_url,
             inference_params=inference_params,
         )
-        request.image_url = image_url if not image is None else None
 
         initial_operation = SynchronousOperation(
             endpoint=ApiEndpoint(
