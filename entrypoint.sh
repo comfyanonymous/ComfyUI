@@ -54,8 +54,8 @@ packages_extras=$(echo "$PIP_EXTRA_PACKAGES" | tr ' ' '\n')
 
 current_hash=$(
     {
-        echo "$packages_comfyui";
-        echo "$packages_custom";
+        echo "$packages_comfyui"
+        echo "$packages_custom"
         echo "$packages_extras"
     } | sort | sha256sum | awk '{print $1}'
 )
