@@ -37,6 +37,7 @@ from app.model_manager import ModelFileManager
 from app.custom_node_manager import CustomNodeManager
 from typing import Optional, Union
 from api_server.routes.internal.internal_routes import InternalRoutes
+from app.api.assets_routes import register_assets_routes
 from protocol import BinaryEventTypes
 
 async def send_socket_catch_exception(function, message):
@@ -183,6 +184,7 @@ class PromptServer():
             else args.front_end_root
         )
         logging.info(f"[Prompt Server] web root: {self.web_root}")
+        register_assets_routes(self.app)
         routes = web.RouteTableDef()
         self.routes = routes
         self.last_node_id = None

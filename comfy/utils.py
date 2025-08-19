@@ -102,12 +102,6 @@ def load_torch_file(ckpt, safe_load=False, device=None, return_metadata=False):
             else:
                 sd = pl_sd
 
-    try:
-        from app.model_processor import model_processor
-        model_processor.process_file(ckpt)
-    except Exception as e:
-        logging.error(f"Error processing file {ckpt}: {e}")
-
     return (sd, metadata) if return_metadata else sd
 
 def save_torch_file(sd, ckpt, metadata=None):

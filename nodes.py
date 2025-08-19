@@ -28,9 +28,10 @@ import comfy.sd
 import comfy.utils
 import comfy.controlnet
 from comfy.comfy_types import IO, ComfyNodeABC, InputTypeDict, FileLocator
-from comfy_api.internal import register_versions, ComfyAPIWithVersion
+from comfy_api.internal import async_to_sync, register_versions, ComfyAPIWithVersion
 from comfy_api.version_list import supported_versions
 from comfy_api.latest import io, ComfyExtension
+from app.assets_manager import add_local_asset
 
 import comfy.clip_vision
 
@@ -777,6 +778,9 @@ class VAELoader:
         else:
             vae_path = folder_paths.get_full_path_or_raise("vae", vae_name)
             sd = comfy.utils.load_torch_file(vae_path)
+            async_to_sync.AsyncToSyncConverter.run_async_in_thread(
+                add_local_asset, tags=["models", "vae"], file_name=vae_name, file_path=vae_path
+            )
         vae = comfy.sd.VAE(sd=sd)
         vae.throw_exception_if_invalid()
         return (vae,)
@@ -2321,7 +2325,6 @@ async def init_builtin_extra_nodes():
         "nodes_edit_model.py",
         "nodes_tcfg.py",
         "nodes_context_windows.py",
-        "nodes_assets_test.py",
     ]
 
     import_failed = []

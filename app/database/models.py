@@ -1,59 +1,257 @@
+from datetime import datetime
+from typing import Any, Optional
+
 from sqlalchemy import (
-    Column,
     Integer,
-    Text,
+    BigInteger,
     DateTime,
+    ForeignKey,
+    Index,
+    JSON,
+    String,
+    Text,
+    CheckConstraint,
+    Numeric,
+    Boolean,
 )
-from sqlalchemy.orm import declarative_base
 from sqlalchemy.sql import func
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship, foreign
 
-Base = declarative_base()
+
+class Base(DeclarativeBase):
+    pass
 
 
-def to_dict(obj):
+def to_dict(obj: Any, include_none: bool = False) -> dict[str, Any]:
     fields = obj.__table__.columns.keys()
-    return {
-        field: (val.to_dict() if hasattr(val, "to_dict") else val)
-        for field in fields
-        if (val := getattr(obj, field))
-    }
+    out: dict[str, Any] = {}
+    for field in fields:
+        val = getattr(obj, field)
+        if val is None and not include_none:
+            continue
+        if isinstance(val, datetime):
+            out[field] = val.isoformat()
+        else:
+            out[field] = val
+    return out
 
 
-class Model(Base):
-    """
-    sqlalchemy model representing a model file in the system.
+class Asset(Base):
+    __tablename__ = "assets"
 
-    This class defines the database schema for storing information about model files,
-    including their type, path, hash, and when they were added to the system.
+    hash: Mapped[str] = mapped_column(String(256), primary_key=True)
+    size_bytes: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
+    mime_type: Mapped[str | None] = mapped_column(String(255))
+    refcount: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
+    storage_backend: Mapped[str] = mapped_column(String(32), nullable=False, default="fs")
+    storage_locator: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.current_timestamp()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.current_timestamp()
+    )
 
-    Attributes:
-        type (Text): The type of the model, this is the name of the folder in the models folder (primary key)
-        path (Text): The file path of the model relative to the type folder (primary key)
-        file_name (Text): The name of the model file
-        file_size (Integer): The size of the model file in bytes
-        hash (Text): A hash of the model file
-        hash_algorithm (Text): The algorithm used to generate the hash
-        source_url (Text): The URL of the model file
-        date_added (DateTime): Timestamp of when the model was added to the system
-    """
+    infos: Mapped[list["AssetInfo"]] = relationship(
+        "AssetInfo",
+        back_populates="asset",
+        primaryjoin=lambda: Asset.hash == foreign(AssetInfo.asset_hash),
+        foreign_keys=lambda: [AssetInfo.asset_hash],
+        cascade="all,delete-orphan",
+        passive_deletes=True,
+    )
 
-    __tablename__ = "model"
+    preview_of: Mapped[list["AssetInfo"]] = relationship(
+        "AssetInfo",
+        back_populates="preview_asset",
+        primaryjoin=lambda: Asset.hash == foreign(AssetInfo.preview_hash),
+        foreign_keys=lambda: [AssetInfo.preview_hash],
+        viewonly=True,
+    )
 
-    type = Column(Text, primary_key=True)
-    path = Column(Text, primary_key=True)
-    file_name = Column(Text)
-    file_size = Column(Integer)
-    hash = Column(Text)
-    hash_algorithm = Column(Text)
-    source_url = Column(Text)
-    date_added = Column(DateTime, server_default=func.now())
+    locator_state: Mapped["AssetLocatorState | None"] = relationship(
+        back_populates="asset",
+        uselist=False,
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
 
-    def to_dict(self):
-        """
-        Convert the model instance to a dictionary representation.
+    __table_args__ = (
+        Index("ix_assets_mime_type", "mime_type"),
+        Index("ix_assets_backend_locator", "storage_backend", "storage_locator"),
+    )
 
-        Returns:
-            dict: A dictionary containing the attributes of the model
-        """
-        dict = to_dict(self)
-        return dict
+    def to_dict(self, include_none: bool = False) -> dict[str, Any]:
+        return to_dict(self, include_none=include_none)
+
+    def __repr__(self) -> str:
+        return f"<Asset hash={self.hash[:12]} backend={self.storage_backend}>"
+
+
+class AssetLocatorState(Base):
+    __tablename__ = "asset_locator_state"
+
+    asset_hash: Mapped[str] = mapped_column(
+        String(256), ForeignKey("assets.hash", ondelete="CASCADE"), primary_key=True
+    )
+    # For fs backends: nanosecond mtime; nullable if not applicable
+    mtime_ns: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    # For HTTP/S3/GCS/Azure, etc.: optional validators
+    etag: Mapped[str | None] = mapped_column(String(256), nullable=True)
+    last_modified: Mapped[str | None] = mapped_column(String(128), nullable=True)
+
+    asset: Mapped["Asset"] = relationship(back_populates="locator_state", uselist=False)
+
+    __table_args__ = (
+        CheckConstraint("(mtime_ns IS NULL) OR (mtime_ns >= 0)", name="ck_als_mtime_nonneg"),
+    )
+
+    def to_dict(self, include_none: bool = False) -> dict[str, Any]:
+        return to_dict(self, include_none=include_none)
+
+    def __repr__(self) -> str:
+        return f"<AssetLocatorState hash={self.asset_hash[:12]} mtime_ns={self.mtime_ns}>"
+
+
+class AssetInfo(Base):
+    __tablename__ = "assets_info"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    owner_id: Mapped[str | None] = mapped_column(String(128))
+    name: Mapped[str] = mapped_column(String(512), nullable=False)
+    asset_hash: Mapped[str] = mapped_column(
+        String(256), ForeignKey("assets.hash", ondelete="RESTRICT"), nullable=False
+    )
+    preview_hash: Mapped[str | None] = mapped_column(String(256), ForeignKey("assets.hash", ondelete="SET NULL"))
+    user_metadata: Mapped[dict[str, Any] | None] = mapped_column(JSON)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.current_timestamp()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.current_timestamp()
+    )
+    last_access_time: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.current_timestamp()
+    )
+
+    # Relationships
+    asset: Mapped[Asset] = relationship(
+        "Asset",
+        back_populates="infos",
+        foreign_keys=[asset_hash],
+    )
+    preview_asset: Mapped[Asset | None] = relationship(
+        "Asset",
+        back_populates="preview_of",
+        foreign_keys=[preview_hash],
+    )
+
+    metadata_entries: Mapped[list["AssetInfoMeta"]] = relationship(
+        back_populates="asset_info",
+        cascade="all,delete-orphan",
+        passive_deletes=True,
+    )
+
+    tag_links: Mapped[list["AssetInfoTag"]] = relationship(
+        back_populates="asset_info",
+        cascade="all,delete-orphan",
+        passive_deletes=True,
+        overlaps="tags,asset_infos",
+    )
+
+    tags: Mapped[list["Tag"]] = relationship(
+        secondary="asset_info_tags",
+        back_populates="asset_infos",
+        lazy="joined",
+        viewonly=True,
+        overlaps="tag_links,asset_info_links,asset_infos,tag",
+    )
+
+    __table_args__ = (
+        Index("ix_assets_info_owner_id", "owner_id"),
+        Index("ix_assets_info_asset_hash", "asset_hash"),
+        Index("ix_assets_info_name", "name"),
+        Index("ix_assets_info_created_at", "created_at"),
+        Index("ix_assets_info_last_access_time", "last_access_time"),
+        {"sqlite_autoincrement": True},
+    )
+
+    def to_dict(self, include_none: bool = False) -> dict[str, Any]:
+        data = to_dict(self, include_none=include_none)
+        data["tags"] = [t.name for t in self.tags]
+        return data
+
+    def __repr__(self) -> str:
+        return f"<AssetInfo id={self.id} name={self.name!r} hash={self.asset_hash[:12]}>"
+
+
+
+class AssetInfoMeta(Base):
+    __tablename__ = "asset_info_meta"
+
+    asset_info_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("assets_info.id", ondelete="CASCADE"), primary_key=True
+    )
+    key: Mapped[str] = mapped_column(String(256), primary_key=True)
+    ordinal: Mapped[int] = mapped_column(Integer, primary_key=True, default=0)
+
+    val_str: Mapped[Optional[str]] = mapped_column(String(2048), nullable=True)
+    val_num: Mapped[Optional[float]] = mapped_column(Numeric(38, 10), nullable=True)
+    val_bool: Mapped[Optional[bool]] = mapped_column(Boolean, nullable=True)
+    val_json: Mapped[Optional[Any]] = mapped_column(JSON, nullable=True)
+
+    asset_info: Mapped["AssetInfo"] = relationship(back_populates="metadata_entries")
+
+    __table_args__ = (
+        Index("ix_asset_info_meta_key", "key"),
+        Index("ix_asset_info_meta_key_val_str", "key", "val_str"),
+        Index("ix_asset_info_meta_key_val_num", "key", "val_num"),
+        Index("ix_asset_info_meta_key_val_bool", "key", "val_bool"),
+    )
+
+
+class AssetInfoTag(Base):
+    __tablename__ = "asset_info_tags"
+
+    asset_info_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("assets_info.id", ondelete="CASCADE"), primary_key=True
+    )
+    tag_name: Mapped[str] = mapped_column(
+        String(128), ForeignKey("tags.name", ondelete="RESTRICT"), primary_key=True
+    )
+    origin: Mapped[str] = mapped_column(String(32), nullable=False, default="manual")
+    added_by: Mapped[str | None] = mapped_column(String(128))
+    added_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+    asset_info: Mapped["AssetInfo"] = relationship(back_populates="tag_links")
+    tag: Mapped["Tag"] = relationship(back_populates="asset_info_links")
+
+    __table_args__ = (
+        Index("ix_asset_info_tags_tag_name", "tag_name"),
+        Index("ix_asset_info_tags_asset_info_id", "asset_info_id"),
+    )
+
+
+class Tag(Base):
+    __tablename__ = "tags"
+
+    name: Mapped[str] = mapped_column(String(128), primary_key=True)
+    tag_type: Mapped[str] = mapped_column(String(32), nullable=False, default="user")
+
+    asset_info_links: Mapped[list["AssetInfoTag"]] = relationship(
+        back_populates="tag",
+        overlaps="asset_infos,tags",
+    )
+    asset_infos: Mapped[list["AssetInfo"]] = relationship(
+        secondary="asset_info_tags",
+        back_populates="tags",
+        viewonly=True,
+        overlaps="asset_info_links,tag_links,tags,asset_info",
+    )
+
+    __table_args__ = (
+        Index("ix_tags_tag_type", "tag_type"),
+    )
+
+    def __repr__(self) -> str:
+        return f"<Tag {self.name}>"
