@@ -23,3 +23,8 @@
 /comfy_extras/ @yoland68 @robinjhuang @pythongosssss @ltdrdata @Kosinkadink @webfiltered @christian-byrne @guill
 /comfy/comfy_types/ @yoland68 @robinjhuang @pythongosssss @ltdrdata @Kosinkadink @webfiltered @christian-byrne @guill
 /comfy_api_nodes/ @yoland68 @robinjhuang @pythongosssss @ltdrdata @Kosinkadink @webfiltered @christian-byrne @guill
+
+# Docker developers
+Dockerfile @bbergeron0
+entrypoint.sh @bbergeron0
+docker-compose.yaml @bbergeron0
