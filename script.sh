@@ -111,6 +111,10 @@ wget -c https://huggingface.co/schwgHao/RealESRGAN_x4plus/resolve/main/RealESRGA
 ln -s /kaggle/input/clip-vision-h/clip_vision_h.safetensors ./models/clip_vision/clip_vision_h.safetensors
 
 
+
+# Flux ControlNet
+wget -c https://huggingface.co/Shakker-Labs/FLUX.1-dev-ControlNet-Union-Pro-2.0/resolve/main/diffusion_pytorch_model.safetensors -P ./models/controlnet
+
 # ----------------   安装自定义插件节点  ----------------
 
 # 1 ComfyUI-Manager
@@ -287,11 +291,12 @@ cd ComfyUI_essentials
 pip install -r requirements.txt
 cd /kaggle/ComfyUI
 
-cd custom_nodes
-git clone https://github.com/crystian/comfyui-crystools.git
-cd comfyui-crystools
-pip install -r requirements.txt
-cd /kaggle/ComfyUI
+# 监控VRAM等
+# cd custom_nodes
+# git clone https://github.com/crystian/comfyui-crystools.git
+# cd comfyui-crystools
+# pip install -r requirements.txt
+# cd /kaggle/ComfyUI
 
 cd custom_nodes
 git clone https://github.com/melMass/comfy_mtb.git
