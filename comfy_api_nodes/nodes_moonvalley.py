@@ -383,7 +383,7 @@ class BaseMoonvalleyVideoNode:
             "1:1 (1152 x 1152)": {"width": 1152, "height": 1152},
             "4:3 (1536 x 1152)": {"width": 1536, "height": 1152},
             "3:4 (1152 x 1536)": {"width": 1152, "height": 1536},
-            "21:9 (2560 x 1080)": {"width": 2560, "height": 1080},
+            # "21:9 (2560 x 1080)": {"width": 2560, "height": 1080},
         }
         if resolution in res_map:
             return res_map[resolution]
@@ -444,7 +444,7 @@ class BaseMoonvalleyVideoNode:
                             "1:1 (1152 x 1152)",
                             "4:3 (1440 x 1080)",
                             "3:4 (1080 x 1440)",
-                            "21:9 (2560 x 1080)",
+                            # "21:9 (2560 x 1080)",
                         ],
                         "default": "16:9 (1920 x 1080)",
                         "tooltip": "Resolution of the output video",
@@ -469,6 +469,7 @@ class BaseMoonvalleyVideoNode:
                     step=1,
                     display="number",
                     tooltip="Random seed value",
+                    control_after_generate=False,
                 ),
                 "steps": model_field_to_node_input(
                     IO.INT,
@@ -530,7 +531,6 @@ class MoonvalleyImg2VideoNode(BaseMoonvalleyVideoNode):
             steps=kwargs.get("steps"),
             seed=kwargs.get("seed"),
             guidance_scale=kwargs.get("prompt_adherence"),
-            num_frames=128,
             width=width_height.get("width"),
             height=width_height.get("height"),
             use_negative_prompts=True,
@@ -645,7 +645,7 @@ class MoonvalleyVideo2VideoNode(BaseMoonvalleyVideoNode):
                 "motion_intensity": (
                     "INT",
                     {
-                        "default": 100,
+                        "default": 6,
                         "step": 1,
                         "min": 0,
                         "max": 100,
