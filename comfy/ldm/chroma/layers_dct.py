@@ -33,7 +33,7 @@ class NerfEmbedder(nn.Module):
         # A linear layer to project the concatenated input features and
         # positional encodings to the final output dimension.
         self.embedder = nn.Sequential(
-            operations.Linear(in_channels + max_freqs**2, hidden_size_input, device=device, dtype=dtype)
+            operations.Linear(in_channels + max_freqs**2, hidden_size_input, dtype=dtype, device=device)
         )
 
     @lru_cache(maxsize=4)
@@ -126,17 +126,15 @@ class NerfGLUBlock(nn.Module):
     """
     A NerfBlock using a Gated Linear Unit (GLU) like MLP.
     """
-    def __init__(self, hidden_size_s, hidden_size_x, mlp_ratio, device=None, dtype=None, operations=None):
+    def __init__(self, hidden_size_s, hidden_size_x, mlp_ratio, dtype=None, device=None, operations=None):
         super().__init__()
         # The total number of parameters for the MLP is increased to accommodate
         # the gate, value, and output projection matrices.
         # We now need to generate parameters for 3 matrices.
         total_params = 3 * hidden_size_x**2 * mlp_ratio
-        self.param_generator = operations.Linear(hidden_size_s, total_params, device=device, dtype=dtype)
-        self.norm = RMSNorm(hidden_size_x, device=device, dtype=dtype, operations=operations)
+        self.param_generator = operations.Linear(hidden_size_s, total_params, dtype=dtype, device=device)
+        self.norm = RMSNorm(hidden_size_x, dtype=dtype, device=device, operations=operations)
         self.mlp_ratio = mlp_ratio
-        # nn.init.zeros_(self.param_generator.weight)
-        # nn.init.zeros_(self.param_generator.bias)
 
 
     def forward(self, x, s):
@@ -171,8 +169,6 @@ class NerfFinalLayer(nn.Module):
         super().__init__()
         self.norm = RMSNorm(hidden_size, dtype=dtype, device=device, operations=operations)
         self.linear = operations.Linear(hidden_size, out_channels, dtype=dtype, device=device)
-        nn.init.zeros_(self.linear.weight)
-        nn.init.zeros_(self.linear.bias)
 
     def forward(self, x):
         x = self.norm(x)

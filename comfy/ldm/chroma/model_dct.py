@@ -65,11 +65,9 @@ class ChromaRadiance(chroma_model.Chroma):
             kernel_size=params.patch_size,
             stride=params.patch_size,
             bias=True,
-            device=device,
             dtype=dtype,
+            device=device,
         )
-        nn.init.zeros_(self.img_in_patch.weight)
-        nn.init.zeros_(self.img_in_patch.bias)
         self.txt_in = operations.Linear(params.context_in_dim, self.hidden_size, dtype=dtype, device=device)
         # set as nn identity for now, will overwrite it later.
         self.distilled_guidance_layer = Approximator(
@@ -121,6 +119,7 @@ class ChromaRadiance(chroma_model.Chroma):
                 operations=operations,
             ) for _ in range(params.nerf_depth)
         ])
+
         self.nerf_final_layer = NerfFinalLayer(
             params.nerf_hidden_size,
             out_channels=params.in_channels,
@@ -300,6 +299,3 @@ class ChromaRadiance(chroma_model.Chroma):
         txt_ids = torch.zeros((bs, context.shape[1], 3), device=x.device, dtype=x.dtype)
 
         return self.forward_orig(img, img_ids, context, txt_ids, timestep, guidance, control, transformer_options, attn_mask=kwargs.get("attention_mask", None))
-
-
-
