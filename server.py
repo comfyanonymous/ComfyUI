@@ -330,7 +330,7 @@ class PromptServer():
                     else:
                         print("image_save_function is None")
                         # 使用 PIL 打开上传的图片流
-                        img = PILImage.open(image.file)
+                        img = Image.open(image.file)
                         # 使用被你的插件修改过的 save 方法进行保存，这将触发加密
                         img.save(filepath)
 
