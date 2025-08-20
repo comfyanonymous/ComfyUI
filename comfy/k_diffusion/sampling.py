@@ -1344,7 +1344,6 @@ def res_multistep(model, x, sigmas, extra_args=None, callback=None, disable=None
     s_in = x.new_ones([x.shape[0]])
 
     model_sampling = model.inner_model.model_patcher.get_model_object('model_sampling')
-    sigma_fn = partial(half_log_snr_to_sigma, model_sampling=model_sampling)
     lambda_fn = partial(sigma_to_half_log_snr, model_sampling=model_sampling)
     sigmas = offset_first_sigma_for_snr(sigmas, model_sampling)
 
