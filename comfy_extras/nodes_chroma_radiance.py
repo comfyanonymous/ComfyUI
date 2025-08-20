@@ -24,6 +24,9 @@ class EmptyChromaRadianceLatentImage:
 
 
 class ChromaRadianceLatentToImage:
+    def __init__(self):
+        self.device = comfy.model_management.intermediate_device()
+
     @classmethod
     def INPUT_TYPES(s):
         return {"required": {"latent": ("LATENT",)}}
@@ -33,13 +36,17 @@ class ChromaRadianceLatentToImage:
 
     CATEGORY = "latent/chroma_radiance"
 
-    @classmethod
-    def go(cls, *, latent):
-        img = latent["samples"].movedim(1, -1).clamp(-1, 1).contiguous()
-        img = (img + 1.0) * 0.5
-        return (img,)
+    def go(self, *, latent):
+        img = latent["samples"].to(device=self.device, dtype=torch.float32, copy=True)
+        img = img.clamp_(-1, 1).movedim(1, -1).contiguous()
+        img += 1.0
+        img *= 0.5
+        return (img.clamp_(0, 1),)
 
 class ChromaRadianceImageToLatent:
+    def __init__(self):
+        self.device = comfy.model_management.intermediate_device()
+
     @classmethod
     def INPUT_TYPES(s):
         return {"required": {"image": ("IMAGE",)}}
@@ -49,11 +56,12 @@ class ChromaRadianceImageToLatent:
 
     CATEGORY = "latent/chroma_radiance"
 
-    @classmethod
-    def go(cls, *, image):
-        image = (image.clone().clamp(0, 1) - 0.5) * 2
-        image = image.movedim(-1, 1).contiguous()
-        return ({"samples": image},)
+    def go(self, *, image):
+        latent = image.to(device=self.device, dtype=torch.float32, copy=True)
+        latent = latent.clamp_(0, 1).movedim(-1, 1).contiguous()
+        latent -= 0.5
+        latent *= 2
+        return ({"samples": latent.clamp_(-1, 1)},)
 
 NODE_CLASS_MAPPINGS = {
     "EmptyChromaRadianceLatentImage": EmptyChromaRadianceLatentImage,
