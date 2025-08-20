@@ -421,6 +421,8 @@ class KlingTextToVideoNode(KlingNodeBase):
             "pro mode / 10s duration / kling-v2-master": ("pro", "10", "kling-v2-master"),
             "standard mode / 5s duration / kling-v2-master": ("std", "5", "kling-v2-master"),
             "standard mode / 10s duration / kling-v2-master": ("std", "10", "kling-v2-master"),
+            "pro mode / 5s duration / kling-v2-1-master": ("pro", "5", "kling-v2-1-master"),
+            "pro mode / 10s duration / kling-v2-1-master": ("pro", "10", "kling-v2-1-master"),
         }
 
     @classmethod
