@@ -25,9 +25,9 @@ def easycache_forward_wrapper(executor, *args, **kwargs):
         if easycache.initial_step:
             easycache.first_cond_uuid = transformer_options["uuids"][0]
             easycache.initial_step = False
-        if easycache.has_x_prev():
+        if easycache.has_x_prev_subsampled():
             input_change = (easycache.subsample(x, clone=False) - easycache.x_prev_subsampled).flatten().abs().mean()
-        if easycache.has_output_prev() and easycache.has_relative_transformation_rate():
+        if easycache.has_output_prev_norm() and easycache.has_relative_transformation_rate():
             output_prev_norm = easycache.output_prev_norm
             approx_output_change_rate = (easycache.relative_transformation_rate * input_change) / output_prev_norm
             easycache.cumulative_change_rate += approx_output_change_rate
@@ -40,8 +40,8 @@ def easycache_forward_wrapper(executor, *args, **kwargs):
                 easycache.cumulative_change_rate = 0.0
 
     output: torch.Tensor = executor(*args, **kwargs)
-    if easycache.has_output_prev():
-        output_change = (output - easycache.output_prev).flatten().abs().mean()
+    if easycache.has_output_prev_norm():
+        output_change = (easycache.subsample(output, clone=False) - easycache.output_prev_subsampled).flatten().abs().mean()
         if output_prev_norm is None:
             output_prev_norm = easycache.output_prev_norm
         output_change_rate = output_change / output_prev_norm
@@ -57,7 +57,7 @@ def easycache_forward_wrapper(executor, *args, **kwargs):
     easycache.x_prev_subsampled = easycache.subsample(next_x_prev)
     logging.info(f"easycache_wrapper: x_prev_subsampled: {easycache.x_prev_subsampled.shape}")
     easycache.output_prev_norm = output.flatten().abs().mean()
-    easycache.output_prev = output.clone()
+    easycache.output_prev_subsampled = easycache.subsample(output)
     return output
 
 def easycache_calc_cond_batch_wrapper(executor, *args, **kwargs):
@@ -100,7 +100,7 @@ class EasyCacheHolder:
         # cache values
         self.first_cond_uuid = None
         self.x_prev_subsampled = None
-        self.output_prev = None
+        self.output_prev_subsampled = None
         self.output_prev_norm = None
         self.cache_diff = None
         self.output_change_rates = []
@@ -112,11 +112,11 @@ class EasyCacheHolder:
     def should_do_easycache(self, timestep: float) -> bool:
         return (timestep[0] <= self.start_t).item()
 
-    def has_x_prev(self) -> bool:
+    def has_x_prev_subsampled(self) -> bool:
         return self.x_prev_subsampled is not None
 
-    def has_output_prev(self) -> bool:
-        return self.output_prev is not None
+    def has_output_prev_subsampled(self) -> bool:
+        return self.output_prev_subsampled is not None
 
     def has_output_prev_norm(self) -> bool:
         return self.output_prev_norm is not None
@@ -157,8 +157,8 @@ class EasyCacheHolder:
         self.first_cond_uuid = None
         del self.x_prev_subsampled
         self.x_prev_subsampled = None
-        del self.output_prev
-        self.output_prev = None
+        del self.output_prev_subsampled
+        self.output_prev_subsampled = None
         del self.output_prev_norm
         self.output_prev_norm = None
         del self.cache_diff
