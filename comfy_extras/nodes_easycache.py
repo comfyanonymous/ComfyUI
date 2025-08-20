@@ -22,6 +22,9 @@ def easycache_forward_wrapper(executor, *args, **kwargs):
     output_prev_norm = None
     input_change = None
     if do_easycache:
+        if easycache.initial_step:
+            easycache.first_cond_uuid = transformer_options["uuids"][0]
+            easycache.initial_step = False
         if easycache.has_x_prev():
             input_change = (x - easycache.x_prev).flatten().abs().mean()
         if easycache.has_output_prev() and easycache.has_relative_transformation_rate():
@@ -32,9 +35,9 @@ def easycache_forward_wrapper(executor, *args, **kwargs):
                 logging.info(f"easycache_wrapper: skipping step; cumulative_change_rate: {easycache.cumulative_change_rate}, reuse_threshold: {easycache.reuse_threshold}")
                 return x + easycache.cache_diff
             else:
-                easycache.cumulative_change_rate = 0.0
                 logging.info(f"easycache_wrapper: NOT skipping step; cumulative_change_rate: {easycache.cumulative_change_rate}, reuse_threshold: {easycache.reuse_threshold}")
                 logging.info(f"easycache_wrapper: approx_output_change_rate: {approx_output_change_rate}")
+                easycache.cumulative_change_rate = 0.0
 
     output: torch.Tensor = executor(*args, **kwargs)
     if easycache.has_output_prev():
@@ -54,6 +57,12 @@ def easycache_forward_wrapper(executor, *args, **kwargs):
     easycache.x_prev = next_x_prev
     easycache.output_prev = output.clone()
     return output
+
+def easycache_calc_cond_batch_wrapper(executor, *args, **kwargs):
+    model_options = args[-1]
+    easycache: EasyCacheHolder = model_options["transformer_options"]["easycache"]
+    easycache.skip_current_step = False
+    return executor(*args, **kwargs)
 
 def easycache_sample_wrapper(executor, *args, **kwargs):
     try:
@@ -83,7 +92,10 @@ class EasyCacheHolder:
         # control values
         self.relative_transformation_rate: float = None
         self.cumulative_change_rate = 0.0
+        self.initial_step = True
+        self.skip_current_step = False
         # cache values
+        self.first_cond_uuid = None
         self.x_prev = None
         self.output_prev = None
         self.cache_diff = None
@@ -122,7 +134,10 @@ class EasyCacheHolder:
     def reset(self):
         self.relative_transformation_rate = 0.0
         self.cumulative_change_rate = 0.0
+        self.initial_step = True
+        self.skip_current_step = False
         self.output_change_rates = []
+        self.first_cond_uuid = None
         del self.x_prev
         self.x_prev = None
         del self.output_prev
