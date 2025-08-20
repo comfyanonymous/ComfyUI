@@ -325,8 +325,10 @@ class PromptServer():
 
                 if not image_is_duplicate:
                     if image_save_function is not None:
+                        print("image_save_function is not None")
                         image_save_function(image, post, filepath)
                     else:
+                        print("image_save_function is None")
                         with open(filepath, "wb") as f:
                             f.write(image.file.read())
 
