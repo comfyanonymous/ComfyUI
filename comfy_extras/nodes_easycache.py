@@ -7,17 +7,17 @@ import comfy.model_patcher
 def easycache_forward_wrapper(executor, *args, **kwargs):
     # get values from args
     x: torch.Tensor = args[0]
-    timestep: torch.Tensor = args[1]
     transformer_options: dict[str] = args[-1]
     # x: torch.Tensor = args[0]
     # timestep: torch.Tensor = args[4]
     # transformer_options: dict[str] = args[-2]
     easycache: EasyCacheHolder = transformer_options["easycache"]
-    if easycache.is_past_end_timestep(timestep):
+    sigmas = transformer_options["sigmas"]
+    if sigmas is not None and easycache.is_past_end_timestep(sigmas):
         return executor(*args, **kwargs)
     # prepare next x_prev
     next_x_prev = x.clone()
-    do_easycache = easycache.should_do_easycache(timestep)
+    do_easycache = easycache.should_do_easycache(sigmas)
     logging.info(f"easycache_wrapper: do_easycache: {do_easycache}")
     output_prev_norm = None
     input_change = None
@@ -91,10 +91,10 @@ class EasyCacheHolder:
         self.approx_output_change_rates = []
 
     def is_past_end_timestep(self, timestep: float) -> bool:
-        return not (timestep > self.end_t).item()
+        return not (timestep[0] > self.end_t).item()
 
     def should_do_easycache(self, timestep: float) -> bool:
-        return (timestep <= self.start_t).item()
+        return (timestep[0] <= self.start_t).item()
 
     def has_x_prev(self) -> bool:
         return self.x_prev is not None
