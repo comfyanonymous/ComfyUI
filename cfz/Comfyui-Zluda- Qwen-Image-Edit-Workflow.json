@@ -2,7 +2,7 @@
   "id": "7cbcec68-7fa6-47bb-a38a-da689949a001",
   "revision": 0,
   "last_node_id": 239,
-  "last_link_id": 419,
+  "last_link_id": 420,
   "nodes": [
     {
       "id": 31,
@@ -58,10 +58,10 @@
       "widgets_values": [
         909357180612308,
         "randomize",
-        4,
+        2,
         1,
-        "euler",
-        "beta",
+        "res_2s",
+        "bong_tangent",
         1
       ],
       "color": "#2a363b",
@@ -169,7 +169,7 @@
       "flags": {
         "collapsed": false
       },
-      "order": 12,
+      "order": 11,
       "mode": 0,
       "inputs": [
         {
@@ -274,7 +274,6 @@
           "type": "IMAGE",
           "links": [
             412,
-            418,
             419
           ]
         },
@@ -347,7 +346,7 @@
       "flags": {
         "collapsed": false
       },
-      "order": 10,
+      "order": 9,
       "mode": 0,
       "inputs": [
         {
@@ -391,7 +390,7 @@
       "flags": {
         "collapsed": true
       },
-      "order": 13,
+      "order": 14,
       "mode": 0,
       "inputs": [
         {
@@ -578,7 +577,7 @@
       "flags": {
         "collapsed": false
       },
-      "order": 9,
+      "order": 8,
       "mode": 0,
       "inputs": [
         {
@@ -659,7 +658,7 @@
         58
       ],
       "flags": {},
-      "order": 14,
+      "order": 13,
       "mode": 0,
       "inputs": [
         {
@@ -758,7 +757,7 @@
       "flags": {
         "collapsed": false
       },
-      "order": 11,
+      "order": 12,
       "mode": 0,
       "inputs": [
         {
@@ -804,13 +803,13 @@
         150
       ],
       "flags": {},
-      "order": 8,
+      "order": 10,
       "mode": 0,
       "inputs": [
         {
           "name": "pixels",
           "type": "IMAGE",
-          "link": 418
+          "link": 420
         },
         {
           "name": "vae",
@@ -848,7 +847,7 @@
       "type": "ImageScaleToTotalPixels",
       "pos": [
         -775.2783813476562,
-        726.0894165039062
+        720.5057373046875
       ],
       "size": [
         234.56919860839844,
@@ -868,7 +867,9 @@
         {
           "name": "IMAGE",
           "type": "IMAGE",
-          "links": []
+          "links": [
+            420
+          ]
         }
       ],
       "properties": {
@@ -1068,18 +1069,18 @@
       "CLIP"
     ],
     [
-      418,
-      201,
-      0,
-      235,
-      0,
-      "IMAGE"
-    ],
-    [
       419,
       201,
       0,
       222,
+      0,
+      "IMAGE"
+    ],
+    [
+      420,
+      236,
+      0,
+      235,
       0,
       "IMAGE"
     ]
