@@ -12,7 +12,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [macos, linux, windows]
-        python_version: ["3.9", "3.10", "3.11", "3.12"]
+        python_version: ["3.10", "3.11", "3.12"]
         cuda_version: ["12.1"]
         torch_version: ["stable"]
         include:
