@@ -7,7 +7,7 @@ torchvision
 torchaudio
 numpy>=1.25.0
 einops
-transformers>=4.54.1
+transformers>=4.55.3
 tokenizers>=0.13.3
 sentencepiece
 safetensors>=0.4.2
