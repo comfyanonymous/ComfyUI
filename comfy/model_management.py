@@ -593,7 +593,13 @@ def load_models_gpu(models, memory_required=0, force_patch_weights=False, minimu
     else:
         minimum_memory_required = max(inference_memory, minimum_memory_required + extra_reserved_memory())
 
-    models = set(models)
+    models_temp = set()
+    for m in models:
+        models_temp.add(m)
+        for mm in m.model_patches_models():
+            models_temp.add(mm)
+
+    models = models_temp
 
     models_to_load = []
 
