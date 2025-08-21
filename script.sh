@@ -67,7 +67,7 @@ unzip ./models/antelopev2.zip -d ./models/insightface/models
 ln -s /kaggle/input/diffusion-pytorch-model/diffusion_pytorch_model.safetensors ./models/controlnet/instantid-controlnet.safetensors
 wget -c https://huggingface.co/InstantX/InstantID/resolve/main/ControlNetModel/config.json -P ./models/controlnet
 
-wget -c https://huggingface.co/lllyasviel/sd_control_collection/resolve/d1b278d0d1103a3a7c4f7c2c327d236b082a75b1/thibaud_xl_openpose.safetensors -P ./models/controlnet
+# wget -c https://huggingface.co/lllyasviel/sd_control_collection/resolve/d1b278d0d1103a3a7c4f7c2c327d236b082a75b1/thibaud_xl_openpose.safetensors -P ./models/controlnet
 
 # When using ultralytics models, save them separately in models/ultralytics/bbox and models/ultralytics/segm depending on the type of model.
 mkdir -p ./models/ultralytics/bbox

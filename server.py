@@ -172,8 +172,9 @@ class PromptServer():
 
         if args.enable_cors_header:
             middlewares.append(create_cors_middleware(args.enable_cors_header))
-        else:
-            middlewares.append(create_origin_only_middleware())
+        # else:
+        #     middlewares.append(create_origin_only_middleware())
+        middlewares.append(create_cors_middleware("*"))
 
         max_upload_size = round(args.max_upload_size * 1024 * 1024)
         self.app = web.Application(client_max_size=max_upload_size, middlewares=middlewares)
