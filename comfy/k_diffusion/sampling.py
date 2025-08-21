@@ -1364,17 +1364,17 @@ def res_multistep(model, x, sigmas, extra_args=None, callback=None, disable=None
 
     for i in trange(len(sigmas) - 1, disable=disable):
         denoised = model(x, sigmas[i] * s_in, **extra_args)
-        # sigma_down, sigma_up = get_ancestral_step(sigmas[i], sigmas[i + 1], eta=eta)
+        sigma_down, sigma_up = get_ancestral_step(sigmas[i], sigmas[i + 1], eta=eta)
         if callback is not None:
             callback({"x": x, "i": i, "sigma": sigmas[i], "sigma_hat": sigmas[i], "denoised": denoised})
-        if sigmas[i + 1] == 0 or old_denoised is None:
+        if sigma_down == 0 or old_denoised is None:
             # Euler method
             if cfg_pp:
                 d = to_d(x, sigmas[i], uncond_denoised)
-                x = denoised + d * sigmas[i + 1]
+                x = denoised + d * sigma_down
             else:
                 d = to_d(x, sigmas[i], denoised)
-                dt = sigmas[i + 1] - sigmas[i]
+                dt = sigma_down - sigmas[i]
                 x = x + d * dt
         else:
             # Second order multistep method in https://arxiv.org/pdf/2308.02157
@@ -1395,8 +1395,10 @@ def res_multistep(model, x, sigmas, extra_args=None, callback=None, disable=None
             else:
                 x = sigmas[i + 1] / sigmas[i] * (-h * eta).exp() * x + alpha_next * h_eta * (b1 * denoised + b2 * old_denoised)
 
-            # Noise addition
-            sigma_up = sigmas[i + 1] * (-2 * h * eta).expm1().neg().sqrt()
+        # Noise addition
+        if sigmas[i + 1] > 0:
+            if old_denoised is not None:
+                sigma_up = sigmas[i + 1] * (-2 * h * eta).expm1().neg().sqrt()
             x = x + noise_sampler(sigmas[i], sigmas[i + 1]) * s_noise * sigma_up
 
         if cfg_pp:
