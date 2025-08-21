@@ -1213,7 +1213,7 @@ class ChromaRadiance(Chroma):
     latent_format = comfy.latent_formats.ChromaRadiance
 
     # Pixel-space model, no spatial compression for model input.
-    memory_usage_factor = 0.75
+    memory_usage_factor = 0.0325
 
     def get_model(self, state_dict, prefix="", device=None):
         return model_base.ChromaRadiance(self, device=device)

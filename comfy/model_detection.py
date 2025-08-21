@@ -213,6 +213,7 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
                 dit_config["nerf_mlp_ratio"] = 4
                 dit_config["nerf_depth"] = 4
                 dit_config["nerf_max_freqs"] = 8
+                dit_config["nerf_tile_size"] = 16
         else:
             dit_config["guidance_embed"] = "{}guidance_in.in_layer.weight".format(key_prefix) in state_dict_keys
         return dit_config
