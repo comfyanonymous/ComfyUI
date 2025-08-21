@@ -448,7 +448,7 @@ def attention_pytorch(q, k, v, heads, mask=None, attn_precision=None, skip_resha
             mask = mask.unsqueeze(1)
 
     if SDP_BATCH_LIMIT >= b:
-        out = torch.nn.functional.scaled_dot_product_attention(q, k, v, attn_mask=mask, dropout_p=0.0, is_causal=False)
+        out = comfy.ops.scaled_dot_product_attention(q, k, v, attn_mask=mask, dropout_p=0.0, is_causal=False)
         if not skip_output_reshape:
             out = (
                 out.transpose(1, 2).reshape(b, -1, heads * dim_head)
@@ -461,7 +461,7 @@ def attention_pytorch(q, k, v, heads, mask=None, attn_precision=None, skip_resha
                 if mask.shape[0] > 1:
                     m = mask[i : i + SDP_BATCH_LIMIT]
 
-            out[i : i + SDP_BATCH_LIMIT] = torch.nn.functional.scaled_dot_product_attention(
+            out[i : i + SDP_BATCH_LIMIT] = comfy.ops.scaled_dot_product_attention(
                 q[i : i + SDP_BATCH_LIMIT],
                 k[i : i + SDP_BATCH_LIMIT],
                 v[i : i + SDP_BATCH_LIMIT],

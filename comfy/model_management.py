@@ -78,7 +78,6 @@ try:
     torch_version = torch.version.__version__
     temp = torch_version.split(".")
     torch_version_numeric = (int(temp[0]), int(temp[1]))
-    xpu_available = (torch_version_numeric[0] < 2 or (torch_version_numeric[0] == 2 and torch_version_numeric[1] <= 4)) and torch.xpu.is_available()
 except:
     pass
 
@@ -102,10 +101,14 @@ if args.directml is not None:
 
 try:
     import intel_extension_for_pytorch as ipex  # noqa: F401
-    _ = torch.xpu.device_count()
-    xpu_available = xpu_available or torch.xpu.is_available()
 except:
-    xpu_available = xpu_available or (hasattr(torch, "xpu") and torch.xpu.is_available())
+    pass
+
+try:
+    _ = torch.xpu.device_count()
+    xpu_available = torch.xpu.is_available()
+except:
+    xpu_available = False
 
 try:
     if torch.backends.mps.is_available():
@@ -321,9 +324,9 @@ try:
             if torch_version_numeric >= (2, 7):  # works on 2.6 but doesn't actually seem to improve much
                 if any((a in arch) for a in ["gfx90a", "gfx942", "gfx1100", "gfx1101", "gfx1151"]):  # TODO: more arches, TODO: gfx950
                     ENABLE_PYTORCH_ATTENTION = True
-            if torch_version_numeric >= (2, 8):
-                if any((a in arch) for a in ["gfx1201"]):
-                    ENABLE_PYTORCH_ATTENTION = True
+#            if torch_version_numeric >= (2, 8):
+#                if any((a in arch) for a in ["gfx1201"]):
+#                    ENABLE_PYTORCH_ATTENTION = True
         if torch_version_numeric >= (2, 7) and rocm_version >= (6, 4):
             if any((a in arch) for a in ["gfx1201", "gfx942", "gfx950"]):  # TODO: more arches
                 SUPPORT_FP8_OPS = True
@@ -340,7 +343,7 @@ if ENABLE_PYTORCH_ATTENTION:
 
 PRIORITIZE_FP16 = False  # TODO: remove and replace with something that shows exactly which dtype is faster than the other
 try:
-    if is_nvidia() and PerformanceFeature.Fp16Accumulation in args.fast:
+    if (is_nvidia() or is_amd()) and PerformanceFeature.Fp16Accumulation in args.fast:
         torch.backends.cuda.matmul.allow_fp16_accumulation = True
         PRIORITIZE_FP16 = True  # TODO: limit to cards where it actually boosts performance
         logging.info("Enabled fp16 accumulation.")
@@ -590,7 +593,13 @@ def load_models_gpu(models, memory_required=0, force_patch_weights=False, minimu
     else:
         minimum_memory_required = max(inference_memory, minimum_memory_required + extra_reserved_memory())
 
-    models = set(models)
+    models_temp = set()
+    for m in models:
+        models_temp.add(m)
+        for mm in m.model_patches_models():
+            models_temp.add(mm)
+
+    models = models_temp
 
     models_to_load = []
 
@@ -946,10 +955,12 @@ def pick_weight_dtype(dtype, fallback_dtype, device=None):
     return dtype
 
 def device_supports_non_blocking(device):
+    if args.force_non_blocking:
+        return True
     if is_device_mps(device):
         return False #pytorch bug? mps doesn't support non blocking
-    if is_intel_xpu():
-        return True
+    if is_intel_xpu(): #xpu does support non blocking but it is slower on iGPUs for some reason so disable by default until situation changes
+        return False
     if args.deterministic: #TODO: figure out why deterministic breaks non blocking from gpu to cpu (previews)
         return False
     if directml_enabled:
@@ -1282,10 +1293,10 @@ def should_use_bf16(device=None, model_params=0, prioritize_performance=True, ma
         return False
 
     if is_intel_xpu():
-        if torch_version_numeric < (2, 6):
+        if torch_version_numeric < (2, 3):
             return True
         else:
-            return torch.xpu.get_device_capability(device)['has_bfloat16_conversions']
+            return torch.xpu.is_bf16_supported()
 
     if is_ascend_npu():
         return True

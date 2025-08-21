@@ -925,7 +925,7 @@ class CLIPLoader:
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "clip_name": (folder_paths.get_filename_list("text_encoders"), ),
-                              "type": (["stable_diffusion", "stable_cascade", "sd3", "stable_audio", "mochi", "ltxv", "pixart", "cosmos", "lumina2", "wan", "hidream", "chroma", "ace", "omnigen2"], ),
+                              "type": (["stable_diffusion", "stable_cascade", "sd3", "stable_audio", "mochi", "ltxv", "pixart", "cosmos", "lumina2", "wan", "hidream", "chroma", "ace", "omnigen2", "qwen_image"], ),
                               },
                 "optional": {
                               "device": (["default", "cpu"], {"advanced": True}),
@@ -1229,12 +1229,12 @@ class RepeatLatentBatch:
         s = samples.copy()
         s_in = samples["samples"]
 
-        s["samples"] = s_in.repeat((amount, 1,1,1))
+        s["samples"] = s_in.repeat((amount,) + ((1,) * (s_in.ndim - 1)))
         if "noise_mask" in samples and samples["noise_mask"].shape[0] > 1:
             masks = samples["noise_mask"]
             if masks.shape[0] < s_in.shape[0]:
-                masks = masks.repeat(math.ceil(s_in.shape[0] / masks.shape[0]), 1, 1, 1)[:s_in.shape[0]]
-            s["noise_mask"] = samples["noise_mask"].repeat((amount, 1,1,1))
+                masks = masks.repeat((math.ceil(s_in.shape[0] / masks.shape[0]),) + ((1,) * (masks.ndim - 1)))[:s_in.shape[0]]
+            s["noise_mask"] = samples["noise_mask"].repeat((amount,) + ((1,) * (samples["noise_mask"].ndim - 1)))
         if "batch_index" in s:
             offset = max(s["batch_index"]) - min(s["batch_index"]) + 1
             s["batch_index"] = s["batch_index"] + [x + (i * offset) for i in range(1, amount) for x in s["batch_index"]]
@@ -2320,6 +2320,9 @@ async def init_builtin_extra_nodes():
         "nodes_camera_trajectory.py",
         "nodes_edit_model.py",
         "nodes_tcfg.py",
+        "nodes_context_windows.py",
+        "nodes_qwen.py",
+        "nodes_model_patch.py"
     ]
 
     import_failed = []
@@ -2349,6 +2352,7 @@ async def init_builtin_api_nodes():
         "nodes_moonvalley.py",
         "nodes_rodin.py",
         "nodes_gemini.py",
+        "nodes_vidu.py",
     ]
 
     if not await load_custom_node(os.path.join(api_nodes_dir, "canary.py"), module_parent="comfy_api_nodes"):
