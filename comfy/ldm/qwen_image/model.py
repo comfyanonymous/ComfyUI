@@ -416,6 +416,7 @@ class QwenImageTransformer2DModel(nn.Module):
         )
 
         patches_replace = transformer_options.get("patches_replace", {})
+        patches = transformer_options.get("patches", {})
         blocks_replace = patches_replace.get("dit", {})
 
         for i, block in enumerate(self.transformer_blocks):
@@ -435,6 +436,12 @@ class QwenImageTransformer2DModel(nn.Module):
                     temb=temb,
                     image_rotary_emb=image_rotary_emb,
                 )
+
+            if "double_block" in patches:
+                for p in patches["double_block"]:
+                    out = p({"img": hidden_states, "txt": encoder_hidden_states, "x": x, "block_index": i})
+                    hidden_states = out["img"]
+                    encoder_hidden_states = out["txt"]
 
         hidden_states = self.norm_out(hidden_states, temb)
         hidden_states = self.proj_out(hidden_states)
