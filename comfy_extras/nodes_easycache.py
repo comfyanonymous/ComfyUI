@@ -267,6 +267,7 @@ class EasyCacheNode(io.ComfyNode):
             display_name="EasyCache",
             description="Native EasyCache implementation.",
             category="advanced/debug/model",
+            is_experimental=True,
             inputs=[
                 io.Model.Input("model", tooltip="The model to add EasyCache to."),
                 io.Float.Input("reuse_threshold", min=0.0, default=0.2, max=3.0, step=0.01, tooltip="The threshold for reusing cached steps."),
@@ -380,6 +381,7 @@ class SuperEasyCacheNode(io.ComfyNode):
             display_name="Super EasyCache",
             description="Native SuperEasyCache implementation.",
             category="advanced/debug/model",
+            is_experimental=True,
             inputs=[
                 io.Model.Input("model", tooltip="The model to add SuperEasyCache to."),
                 io.Float.Input("reuse_threshold", min=0.0, default=0.2, max=3.0, step=0.01, tooltip="The threshold for reusing cached steps."),
