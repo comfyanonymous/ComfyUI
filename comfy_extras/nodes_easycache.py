@@ -269,7 +269,7 @@ class EasyCacheNode(io.ComfyNode):
             category="advanced/debug/model",
             inputs=[
                 io.Model.Input("model", tooltip="The model to add EasyCache to."),
-                io.Float.Input("reuse_threshold", min=0.0, default=0.2, max=1.0, step=0.01, tooltip="The threshold for reusing cached steps."),
+                io.Float.Input("reuse_threshold", min=0.0, default=0.2, max=3.0, step=0.01, tooltip="The threshold for reusing cached steps."),
                 io.Float.Input("start_percent", min=0.0, default=0.15, max=1.0, step=0.01, tooltip="The relative sampling step to begin use of EasyCache."),
                 io.Float.Input("end_percent", min=0.0, default=0.95, max=1.0, step=0.01, tooltip="The relative sampling step to end use of EasyCache."),
                 io.Int.Input("subsample_factor", min=1, default=8, max=128, step=1, tooltip="The factor to subsample latents to cache by."),
@@ -382,7 +382,7 @@ class SuperEasyCacheNode(io.ComfyNode):
             category="advanced/debug/model",
             inputs=[
                 io.Model.Input("model", tooltip="The model to add SuperEasyCache to."),
-                io.Float.Input("reuse_threshold", min=0.0, default=0.2, max=1.0, step=0.01, tooltip="The threshold for reusing cached steps."),
+                io.Float.Input("reuse_threshold", min=0.0, default=0.2, max=3.0, step=0.01, tooltip="The threshold for reusing cached steps."),
                 io.Float.Input("start_percent", min=0.0, default=0.15, max=1.0, step=0.01, tooltip="The relative sampling step to begin use of EasyCache."),
                 io.Float.Input("end_percent", min=0.0, default=0.95, max=1.0, step=0.01, tooltip="The relative sampling step to end use of EasyCache."),
                 io.Int.Input("subsample_factor", min=1, default=8, max=128, step=1, tooltip="The factor to subsample latents to cache by."),
