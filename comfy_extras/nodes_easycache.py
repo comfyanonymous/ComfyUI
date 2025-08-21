@@ -13,6 +13,8 @@ def easycache_forward_wrapper(executor, *args, **kwargs):
     # get values from args
     x: torch.Tensor = args[0]
     transformer_options: dict[str] = args[-1]
+    if not isinstance(transformer_options, dict):
+        transformer_options = kwargs.get("transformer_options")
     easycache: EasyCacheHolder = transformer_options["easycache"]
     sigmas = transformer_options["sigmas"]
     uuids = transformer_options["uuids"]
