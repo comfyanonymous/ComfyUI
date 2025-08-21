@@ -113,7 +113,9 @@ ln -s /kaggle/input/clip-vision-h/clip_vision_h.safetensors ./models/clip_vision
 
 
 # Flux ControlNet
-wget -c https://huggingface.co/Shakker-Labs/FLUX.1-dev-ControlNet-Union-Pro-2.0/resolve/main/diffusion_pytorch_model.safetensors -P ./models/controlnet
+wget -c https://huggingface.co/Shakker-Labs/FLUX.1-dev-ControlNet-Union-Pro-2.0/resolve/main/diffusion_pytorch_model.safetensors -O ./models/controlnet/flux.1-dev-controlnet-union-pro-2.0.safetensors
+# Flux ControlNet fp8
+wget -c https://huggingface.co/ABDALLALSWAITI/FLUX.1-dev-ControlNet-Union-Pro-2.0-fp8/resolve/main/diffusion_pytorch_model.safetensors -O ./models/controlnet/flux.1-dev-controlnet-union-pro-2.0-fp8.safetensors
 
 # ----------------   安装自定义插件节点  ----------------
 
