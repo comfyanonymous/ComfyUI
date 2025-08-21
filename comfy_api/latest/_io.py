@@ -726,6 +726,10 @@ class SEGS(ComfyTypeIO):
 class AnyType(ComfyTypeIO):
     Type = Any
 
+@comfytype(io_type="MODEL_PATCH")
+class MODEL_PATCH(ComfyTypeIO):
+    Type = Any
+
 @comfytype(io_type="COMFY_MULTITYPED_V3")
 class MultiType:
     Type = Any
