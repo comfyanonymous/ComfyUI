@@ -80,6 +80,9 @@ class SupportedOpenAIModel(str, Enum):
     gpt_4_1 = "gpt-4.1"
     gpt_4_1_mini = "gpt-4.1-mini"
     gpt_4_1_nano = "gpt-4.1-nano"
+    gpt_5 = "gpt-5"
+    gpt_5_mini = "gpt-5-mini"
+    gpt_5_nano = "gpt-5-nano"
 
 
 class OpenAIDalle2(ComfyNodeABC):
@@ -464,8 +467,6 @@ class OpenAIGPTImage1(ComfyNodeABC):
         path = "/proxy/openai/images/generations"
         content_type = "application/json"
         request_class = OpenAIImageGenerationRequest
-        img_binaries = []
-        mask_binary = None
         files = []
 
         if image is not None:
@@ -484,14 +485,11 @@ class OpenAIGPTImage1(ComfyNodeABC):
                 img_byte_arr = io.BytesIO()
                 img.save(img_byte_arr, format="PNG")
                 img_byte_arr.seek(0)
-                img_binary = img_byte_arr
-                img_binary.name = f"image_{i}.png"
 
-                img_binaries.append(img_binary)
                 if batch_size == 1:
-                    files.append(("image", img_binary))
+                    files.append(("image", (f"image_{i}.png", img_byte_arr, "image/png")))
                 else:
-                    files.append(("image[]", img_binary))
+                    files.append(("image[]", (f"image_{i}.png", img_byte_arr, "image/png")))
 
         if mask is not None:
             if image is None:
@@ -511,9 +509,7 @@ class OpenAIGPTImage1(ComfyNodeABC):
             mask_img_byte_arr = io.BytesIO()
             mask_img.save(mask_img_byte_arr, format="PNG")
             mask_img_byte_arr.seek(0)
-            mask_binary = mask_img_byte_arr
-            mask_binary.name = "mask.png"
-            files.append(("mask", mask_binary))
+            files.append(("mask", ("mask.png", mask_img_byte_arr, "image/png")))
 
         # Build the operation
         operation = SynchronousOperation(

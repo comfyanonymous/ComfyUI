@@ -422,9 +422,12 @@ class WanCameraImageToVideo(io.ComfyNode):
             start_image = comfy.utils.common_upscale(start_image[:length].movedim(-1, 1), width, height, "bilinear", "center").movedim(1, -1)
             concat_latent_image = vae.encode(start_image[:, :, :, :3])
             concat_latent[:,:,:concat_latent_image.shape[2]] = concat_latent_image[:,:,:concat_latent.shape[2]]
+            mask = torch.ones((1, 1, latent.shape[2] * 4, latent.shape[-2], latent.shape[-1]))
+            mask[:, :, :start_image.shape[0] + 3] = 0.0
+            mask = mask.view(1, mask.shape[2] // 4, 4, mask.shape[3], mask.shape[4]).transpose(1, 2)
 
-            positive = node_helpers.conditioning_set_values(positive, {"concat_latent_image": concat_latent})
-            negative = node_helpers.conditioning_set_values(negative, {"concat_latent_image": concat_latent})
+            positive = node_helpers.conditioning_set_values(positive, {"concat_latent_image": concat_latent, "concat_mask": mask})
+            negative = node_helpers.conditioning_set_values(negative, {"concat_latent_image": concat_latent, "concat_mask": mask})
 
         if camera_conditions is not None:
             positive = node_helpers.conditioning_set_values(positive, {'camera_conditions': camera_conditions})
@@ -696,7 +699,7 @@ class WanTrackToVideo(io.ComfyNode):
     @classmethod
     def define_schema(cls):
         return io.Schema(
-            node_id="WanPhantomSubjectToVideo",
+            node_id="WanTrackToVideo",
             category="conditioning/video_models",
             inputs=[
                 io.Conditioning.Input("positive"),
