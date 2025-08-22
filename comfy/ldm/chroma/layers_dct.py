@@ -171,6 +171,24 @@ class NerfFinalLayer(nn.Module):
         self.linear = operations.Linear(hidden_size, out_channels, dtype=dtype, device=device)
 
     def forward(self, x):
-        x = self.norm(x)
-        x = self.linear(x)
-        return x
+        # RMSNorm normalizes over the last dimension, but our channel dim (C) is at dim=1.
+        # So we temporarily move the channel dimension to the end for the norm operation.
+        return self.linear(self.norm(x.movedim(1, -1))).movedim(-1, 1)
+
+class NerfFinalLayerConv(nn.Module):
+    def __init__(self, hidden_size, out_channels, dtype=None, device=None, operations=None):
+        super().__init__()
+        self.norm = RMSNorm(hidden_size, dtype=dtype, device=device, operations=operations)
+        self.conv = operations.Conv2d(
+            in_channels=hidden_size,
+            out_channels=out_channels,
+            kernel_size=3,
+            padding=1,
+            dtype=dtype,
+            device=device,
+        )
+
+    def forward(self, x):
+        # RMSNorm normalizes over the last dimension, but our channel dim (C) is at dim=1.
+        # So we temporarily move the channel dimension to the end for the norm operation.
+        return self.conv(self.norm(x.movedim(1, -1)).movedim(-1, 1))

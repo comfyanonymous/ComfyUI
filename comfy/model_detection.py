@@ -174,7 +174,7 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
         dit_config["guidance_embed"] = len(guidance_keys) > 0
         return dit_config
 
-    if '{}double_blocks.0.img_attn.norm.key_norm.scale'.format(key_prefix) in state_dict_keys and ('{}img_in.weight'.format(key_prefix) in state_dict_keys or f"{key_prefix}nerf_final_layer.norm.scale" in state_dict_keys): #Flux or Chroma Radiance (has no img_in.weight)
+    if '{}double_blocks.0.img_attn.norm.key_norm.scale'.format(key_prefix) in state_dict_keys and ('{}img_in.weight'.format(key_prefix) in state_dict_keys or f"{key_prefix}distilled_guidance_layer.norms.0.scale" in state_dict_keys): #Flux or Chroma Radiance (has no img_in.weight)
         dit_config = {}
         dit_config["image_model"] = "flux"
         dit_config["in_channels"] = 16
@@ -204,7 +204,7 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
             dit_config["out_dim"] = 3072
             dit_config["hidden_dim"] = 5120
             dit_config["n_layers"] = 5
-            if f"{key_prefix}nerf_final_layer.norm.scale" in state_dict_keys: #Radiance
+            if f"{key_prefix}nerf_blocks.0.norm.scale" in state_dict_keys: #Radiance
                 dit_config["image_model"] = "chroma_radiance"
                 dit_config["in_channels"] = 3
                 dit_config["out_channels"] = 3
@@ -214,6 +214,7 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
                 dit_config["nerf_depth"] = 4
                 dit_config["nerf_max_freqs"] = 8
                 dit_config["nerf_tile_size"] = 16
+                dit_config["nerf_final_head_type"] = "conv" if f"{key_prefix}nerf_final_layer_conv.norm.scale" in state_dict_keys else "linear"
         else:
             dit_config["guidance_embed"] = "{}guidance_in.in_layer.weight".format(key_prefix) in state_dict_keys
         return dit_config

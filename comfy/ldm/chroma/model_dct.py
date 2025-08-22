@@ -19,7 +19,12 @@ from .layers import (
     SingleStreamBlock,
     Approximator,
 )
-from .layers_dct import NerfEmbedder, NerfGLUBlock, NerfFinalLayer
+from .layers_dct import (
+    NerfEmbedder,
+    NerfGLUBlock,
+    NerfFinalLayer,
+    NerfFinalLayerConv,
+)
 
 from . import model as chroma_model
 
@@ -31,6 +36,7 @@ class ChromaRadianceParams(chroma_model.ChromaParams):
     nerf_depth: int
     nerf_max_freqs: int
     nerf_tile_size: int
+    nerf_final_head_type: str
 
 
 class ChromaRadiance(chroma_model.Chroma):
@@ -121,13 +127,26 @@ class ChromaRadiance(chroma_model.Chroma):
             ) for _ in range(params.nerf_depth)
         ])
 
-        self.nerf_final_layer = NerfFinalLayer(
-            params.nerf_hidden_size,
-            out_channels=params.in_channels,
-            dtype=dtype,
-            device=device,
-            operations=operations,
-        )
+        if params.nerf_final_head_type == "linear":
+            self.nerf_final_layer = NerfFinalLayer(
+                params.nerf_hidden_size,
+                out_channels=params.in_channels,
+                dtype=dtype,
+                device=device,
+                operations=operations,
+            )
+            self._nerf_final_layer = self.nerf_final_layer
+        elif params.nerf_final_head_type == "conv":
+            self.nerf_final_layer_conv = NerfFinalLayerConv(
+                params.nerf_hidden_size,
+                out_channels=params.in_channels,
+                dtype=dtype,
+                device=device,
+                operations=operations,
+            )
+            self._nerf_final_layer = self.nerf_final_layer_conv
+        else:
+            errstr = f"Unsupported nerf_final_head_type {params.nerf_final_head_type}"
 
         self.skip_mmdit = []
         self.skip_dit = []
@@ -172,9 +191,6 @@ class ChromaRadiance(chroma_model.Chroma):
             # pass through the dynamic MLP blocks (the NeRF)
             for block in self.nerf_blocks:
                 img_dct_tile = block(img_dct_tile, nerf_hidden_tile)
-
-            # final projection to get the output pixel values
-            img_dct_tile = self.nerf_final_layer(img_dct_tile) # -> [B*NumPatches_tile, P*P, C]
 
             output_tiles.append(img_dct_tile)
 
@@ -319,8 +335,7 @@ class ChromaRadiance(chroma_model.Chroma):
             kernel_size=self.params.patch_size,
             stride=self.params.patch_size
         )
-
-        return img_dct
+        return self._nerf_final_layer(img_dct)
 
     def forward(self, x, timestep, context, guidance, control=None, transformer_options={}, **kwargs):
         bs, c, h, w = x.shape
