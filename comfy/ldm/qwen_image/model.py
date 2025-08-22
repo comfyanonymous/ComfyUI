@@ -216,7 +216,7 @@ class QwenImageTransformerBlock(nn.Module):
 
     def _modulate(self, x, mod_params):
         shift, scale, gate = mod_params.chunk(3, dim=-1)
-        return x * (1 + scale.unsqueeze(1)) + shift.unsqueeze(1), gate.unsqueeze(1)
+        return torch.addcmul(shift.unsqueeze(1), x, (1 + scale.unsqueeze(1))), gate.unsqueeze(1)
 
     def forward(
         self,

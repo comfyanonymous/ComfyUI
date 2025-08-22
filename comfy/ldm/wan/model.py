@@ -148,8 +148,8 @@ WAN_CROSSATTENTION_CLASSES = {
 
 def repeat_e(e, x):
     repeats = 1
-    if e.shape[1] > 1:
-        repeats = x.shape[1] // e.shape[1]
+    if e.size(1) > 1:
+        repeats = x.size(1) // e.size(1)
     if repeats == 1:
         return e
     return torch.repeat_interleave(e, repeats, dim=1)
@@ -219,15 +219,15 @@ class WanAttentionBlock(nn.Module):
 
         # self-attention
         y = self.self_attn(
-            self.norm1(x) * (1 + repeat_e(e[1], x)) + repeat_e(e[0], x),
+            torch.addcmul(repeat_e(e[0], x), self.norm1(x), 1 + repeat_e(e[1], x)),
             freqs)
 
-        x = x + y * repeat_e(e[2], x)
+        x = torch.addcmul(x, y, repeat_e(e[2], x))
 
         # cross-attention & ffn
         x = x + self.cross_attn(self.norm3(x), context, context_img_len=context_img_len)
-        y = self.ffn(self.norm2(x) * (1 + repeat_e(e[4], x)) + repeat_e(e[3], x))
-        x = x + y * repeat_e(e[5], x)
+        y = self.ffn(torch.addcmul(repeat_e(e[3], x), self.norm2(x), 1 + repeat_e(e[4], x)))
+        x = torch.addcmul(x, y, repeat_e(e[5], x))
         return x
 
 
@@ -342,7 +342,7 @@ class Head(nn.Module):
         else:
             e = (comfy.model_management.cast_to(self.modulation, dtype=x.dtype, device=x.device).unsqueeze(0) + e.unsqueeze(2)).unbind(2)
 
-        x = (self.head(self.norm(x) * (1 + repeat_e(e[1], x)) + repeat_e(e[0], x)))
+        x = (self.head(torch.addcmul(repeat_e(e[0], x), self.norm(x), 1 + repeat_e(e[1], x))))
         return x
 
 
