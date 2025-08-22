@@ -20,13 +20,14 @@ def load_extra_path_config(yaml_path):
         is_default = False
         if "is_default" in conf:
             is_default = conf.pop("is_default")
+            folder_paths.models_dir = base_path
         for x in conf:
             for y in conf[x].split("\n"):
                 if len(y) == 0:
                     continue
                 full_path = y
                 if base_path:
-                    full_path = os.path.join(base_path, full_path)
+                    full_path = os.path.normpath(os.path.join(base_path, full_path))
                 elif not os.path.isabs(full_path):
                     full_path = os.path.abspath(os.path.join(yaml_dir, y))
                 normalized_path = os.path.normpath(full_path)
