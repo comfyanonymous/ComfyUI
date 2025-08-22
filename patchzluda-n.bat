@@ -1,13 +1,8 @@
 @Echo off
 cls
-echo ======================================================================
-echo Custom ZLUDA Patcher (Specifically for HIP 6.2.4 with MIOPEN - Triton)
-echo ======================================================================
-echo.
-echo :: Make sure (1) you have HIP 6.2.4 freshly installed. (if you were using it previously, completely remove it, remove the folder (C:\Program Files\AMD\ROCm\6.2) after uninstall as well since there could be leftover files from the addon)
-echo :: (2) *new* HIP Addon (https://drive.google.com/file/d/1Gvg3hxNEj2Vsd2nQgwadrUEY6dYXy0H9/view?usp=sharing) downloaded and extracted into "C:\Program Files\AMD\ROCm\6.2"
-echo :: (3) Change the zluda.py inside comfy\ folder with the one under comfy\customzluda\. (it is done automatically with this batch file now)
-echo :: * Don't forget if you want to update comfy,and if there is a change in the zluda.py, just delete the file for update to work, and after it completes copy it back from the comfy\customzluda\ folder.
+echo -----------------------------------------------------------------------
+Echo     * ZLUDA Patcher (for HIP 6.2.4 / 6.4.2 with MIOPEN and Triton)*
+echo -----------------------------------------------------------------------
 echo.
 echo :: Activating virtual environment
 Call "venv\Scripts\activate.bat"
@@ -35,6 +30,7 @@ copy zluda\cufft.dll venv\Lib\site-packages\torch\lib\cufft64_10.dll /y >NUL
 copy zluda\cufftw.dll venv\Lib\site-packages\torch\lib\cufftw64_10.dll /y >NUL
 copy comfy\customzluda\zluda.py comfy\zluda.py /y >NUL
 echo.
-echo  :: ZLUDA 3.9.5 nightly patched for HIP SDK 6.2.4 with miopen and triton-flash attention.
+echo  :: ZLUDA 3.9.5 nightly patched for HIP SDK 6.2.4 / 6.4.2 with miopen and triton-flash attention.
 pause
+
 
