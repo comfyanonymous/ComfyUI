@@ -363,6 +363,11 @@ cd was-node-suite-comfyui
 pip install -r requirements.txt
 cd /kaggle/ComfyUI
 
+cd custom_nodes
+git clone https://github.com/giriss/comfy-image-saver.git
+cd comfy-image-saver
+pip install -r requirements.txt
+cd /kaggle/ComfyUI
 
 # REMOTE_PORT="$1"
 
