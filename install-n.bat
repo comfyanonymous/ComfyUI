@@ -7,9 +7,9 @@ setlocal EnableDelayedExpansion
 set "startTime=%time: =0%"
 
 cls
-echo ---------------------------------------------------------------
-Echo * COMFYUI-ZLUDA INSTALL (for HIP 6.2.4 with MIOPEN and Triton)*
-echo ---------------------------------------------------------------
+echo -----------------------------------------------------------------------
+Echo * COMFYUI-ZLUDA INSTALL (for HIP 6.2.4 / 6.4.2 with MIOPEN and Triton)*
+echo -----------------------------------------------------------------------
 echo.
 echo  ::  %time:~0,8%  ::  - Setting up the virtual enviroment
 Set "VIRTUAL_ENV=venv"
@@ -123,7 +123,7 @@ copy zluda\cufft.dll %VIRTUAL_ENV%\Lib\site-packages\torch\lib\cufft64_10.dll /y
 copy zluda\cufftw.dll %VIRTUAL_ENV%\Lib\site-packages\torch\lib\cufftw64_10.dll /y >NUL
 copy comfy\customzluda\zluda.py comfy\zluda.py /y >NUL
 
-echo  ::  %time:~0,8%  ::  - ZLUDA 3.9.5 nightly patched for HIP SDK 6.2.4 with miopen and triton-flash attention.
+echo  ::  %time:~0,8%  ::  - ZLUDA 3.9.5 nightly patched for HIP SDK 6.2.4 / 6.4.2 with miopen and triton-flash attention.
 echo. 
 set "endTime=%time: =0%"
 set "end=!endTime:%time:~8,1%=%%100)*100+1!"  &  set "start=!startTime:%time:~8,1%=%%100)*100+1!"
@@ -142,6 +142,7 @@ set FLASH_ATTENTION_TRITON_AMD_ENABLE=TRUE
 set MIOPEN_FIND_MODE=2
 set MIOPEN_LOG_LEVEL=3
 .\zluda\zluda.exe -- python main.py --auto-launch --use-quad-cross-attention
+
 
 
 
