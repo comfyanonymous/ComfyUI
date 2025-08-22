@@ -30,6 +30,8 @@ def easycache_forward_wrapper(executor, *args, **kwargs):
     if do_easycache:
         # if first cond marked this step for skipping, skip it and use appropriate cached values
         if easycache.skip_current_step:
+            if easycache.verbose:
+                logging.info(f"EasyCache [verbose] - was marked to skip this step by {easycache.first_cond_uuid}. Present uuids: {uuids}")
             return easycache.apply_cache_diff(x, uuids)
         if easycache.initial_step:
             easycache.first_cond_uuid = uuids[0]
