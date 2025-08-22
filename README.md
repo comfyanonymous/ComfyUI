@@ -133,7 +133,7 @@ install-for-older-amd.bat
 </details>
 
 <details>
-<summary><strong>For GPU's below 6800 VEGA, RX 5000 and remaining 6000's (6700, 6600 etc)</strong></summary>
+<summary><strong>For GPU's below 6800 (VEGA, RX 5000 and remaining 6000's; 6700, 6600 etc)</strong></summary>
 
 * **IMPORTANT**: With this install method you MUST make sure you have the latest GPU drivers (specifically you need drivers above 25.5.1)
 
