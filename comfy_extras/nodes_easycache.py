@@ -185,6 +185,8 @@ class EasyCacheHolder:
         self.output_change_rates = []
         self.approx_output_change_rates = []
         self.total_steps_skipped = 0
+        # how to deal with mismatched dims
+        self.cut_from_start = True
 
     def is_past_end_timestep(self, timestep: float) -> bool:
         return not (timestep[0] > self.end_t).item()
@@ -227,10 +229,39 @@ class EasyCacheHolder:
             self.total_steps_skipped += 1
         batch_offset = x.shape[0] // len(uuids)
         for i, uuid in enumerate(uuids):
-            x[i*batch_offset:(i+1)*batch_offset, ...] += self.uuid_cache_diffs[uuid].to(x.device)
+            # if cached dims don't match x dims, cut off excess and hope for the best (cosmos world2video)
+            if x.shape != self.uuid_cache_diffs[uuid].shape:
+                slicing = []
+                skip_this_dim = True
+                for dim_u, dim_x in zip(self.uuid_cache_diffs[uuid].shape, x.shape):
+                    if skip_this_dim:
+                        skip_this_dim = False
+                        continue
+                    if dim_u != dim_x:
+                        if self.cut_from_start:
+                            slicing.append(slice(dim_x-dim_u, None))
+                        else:
+                            slicing.append(slice(None, dim_u))
+                    else:
+                        slicing.append(slice(None))
+                slicing = [slice(i*batch_offset,(i+1)*batch_offset)] + slicing
+                x = x[slicing]
+            x += self.uuid_cache_diffs[uuid].to(x.device)
         return x
 
     def update_cache_diff(self, output: torch.Tensor, x: torch.Tensor, uuids: list[UUID]):
+        # if output dims don't match x dims, cut off excess and hope for the best (cosmos world2video)
+        if output.shape != x.shape:
+            slicing = []
+            for dim_o, dim_x in zip(output.shape, x.shape):
+                if dim_o != dim_x:
+                    if self.cut_from_start:
+                        slicing.append(slice(dim_x-dim_o, None))
+                    else:
+                        slicing.append(slice(None, dim_o))
+                else:
+                    slicing.append(slice(None))
+            x = x[slicing]
         diff = output - x
         batch_offset = diff.shape[0] // len(uuids)
         for i, uuid in enumerate(uuids):
