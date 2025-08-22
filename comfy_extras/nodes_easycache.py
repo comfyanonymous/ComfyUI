@@ -15,6 +15,8 @@ def easycache_forward_wrapper(executor, *args, **kwargs):
     transformer_options: dict[str] = args[-1]
     if not isinstance(transformer_options, dict):
         transformer_options = kwargs.get("transformer_options")
+        if not transformer_options:
+            transformer_options = args[-2]
     easycache: EasyCacheHolder = transformer_options["easycache"]
     sigmas = transformer_options["sigmas"]
     uuids = transformer_options["uuids"]
@@ -186,6 +188,7 @@ class EasyCacheHolder:
         self.approx_output_change_rates = []
         self.total_steps_skipped = 0
         # how to deal with mismatched dims
+        self.allow_mismatch = True
         self.cut_from_start = True
 
     def is_past_end_timestep(self, timestep: float) -> bool:
@@ -230,7 +233,9 @@ class EasyCacheHolder:
         batch_offset = x.shape[0] // len(uuids)
         for i, uuid in enumerate(uuids):
             # if cached dims don't match x dims, cut off excess and hope for the best (cosmos world2video)
-            if x.shape != self.uuid_cache_diffs[uuid].shape:
+            if x.shape[1:] != self.uuid_cache_diffs[uuid].shape[1:]:
+                if not self.allow_mismatch:
+                    raise ValueError(f"Cached dims {self.uuid_cache_diffs[uuid].shape} don't match x dims {x.shape} - this is no good")
                 slicing = []
                 skip_this_dim = True
                 for dim_u, dim_x in zip(self.uuid_cache_diffs[uuid].shape, x.shape):
@@ -251,16 +256,20 @@ class EasyCacheHolder:
 
     def update_cache_diff(self, output: torch.Tensor, x: torch.Tensor, uuids: list[UUID]):
         # if output dims don't match x dims, cut off excess and hope for the best (cosmos world2video)
-        if output.shape != x.shape:
+        if output.shape[1:] != x.shape[1:]:
+            if not self.allow_mismatch:
+                raise ValueError(f"Output dims {output.shape} don't match x dims {x.shape} - this is no good")
             slicing = []
+            skip_dim = True
             for dim_o, dim_x in zip(output.shape, x.shape):
-                if dim_o != dim_x:
+                if not skip_dim and dim_o != dim_x:
                     if self.cut_from_start:
                         slicing.append(slice(dim_x-dim_o, None))
                     else:
                         slicing.append(slice(None, dim_o))
                 else:
                     slicing.append(slice(None))
+                skip_dim = False
             x = x[slicing]
         diff = output - x
         batch_offset = diff.shape[0] // len(uuids)
