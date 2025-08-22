@@ -41,7 +41,8 @@ if hasattr(torch.serialization, "add_safe_globals"):  # TODO: this was added in 
 
     from numpy.core.multiarray import scalar
     from numpy import dtype
-    from numpy.dtypes import Float64DType
+    import numpy as np
+    Float64DType = np.float64
     from _codecs import encode
 
     torch.serialization.add_safe_globals([ModelCheckpoint, scalar, dtype, Float64DType, encode])
