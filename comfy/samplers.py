@@ -23,6 +23,7 @@ from .model_base import BaseModel
 from .model_management_types import ModelOptions
 from .model_patcher import ModelPatcher
 from .sampler_names import SCHEDULER_NAMES, SAMPLER_NAMES
+from .context_windows import ContextHandlerABC
 
 logger = logging.getLogger(__name__)
 
@@ -31,6 +32,7 @@ def add_area_dims(area, num_dims):
     while (len(area) // 2) < num_dims:
         area = [2147483648] + area[:len(area) // 2] + [0] + area[len(area) // 2:]
     return area
+
 
 def get_area_and_mult(conds, x_in, timestep_in):
     dims = tuple(x_in.shape[2:])
@@ -210,7 +212,14 @@ def finalize_default_conds(model: BaseModel, hooked_to_run: dict[HookGroup, list
             hooked_to_run[p.hooks] += [(p, i)]
 
 
-def calc_cond_batch(model: BaseModel, conds: list[list[dict]], x_in: torch.Tensor, timestep, model_options):
+def calc_cond_batch(model: BaseModel, conds: list[list[dict]], x_in: torch.Tensor, timestep, model_options: dict[str]):
+    handler: ContextHandlerABC = model_options.get("context_handler", None)
+    if handler is None or not handler.should_use_context(model, conds, x_in, timestep, model_options):
+        return _calc_cond_batch_outer(model, conds, x_in, timestep, model_options)
+    return handler.execute(_calc_cond_batch_outer, model, conds, x_in, timestep, model_options)
+
+
+def _calc_cond_batch_outer(model: BaseModel, conds: list[list[dict]], x_in: torch.Tensor, timestep, model_options):
     executor = patcher_extension.WrapperExecutor.new_executor(
         _calc_cond_batch,
         patcher_extension.get_all_wrappers(patcher_extension.WrappersMP.CALC_COND_BATCH, model_options, is_model_options=True)
@@ -753,6 +762,7 @@ class Sampler:
         max_sigma = float(model_wrap.inner_model.model_sampling.sigma_max)
         sigma = float(sigmas[0])
         return math.isclose(max_sigma, sigma, rel_tol=1e-05) or sigma > max_sigma
+
 
 class KSAMPLER(Sampler):
     def __init__(self, sampler_function, extra_options={}, inpaint_options={}):

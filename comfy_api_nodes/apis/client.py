@@ -43,7 +43,7 @@ operation = ApiOperation(
     endpoint=user_info_endpoint,
     request=request
 )
-user_profile = operation.execute(client=api_client)  # Returns immediately with the result
+user_profile = await operation.execute(client=api_client)  # Returns immediately with the result
 
 
 # Example 2: Asynchronous API Operation with Polling
@@ -87,18 +87,19 @@ operation = PollingOperation(
 )
 
 # This will make the initial request and then poll until completion
-result = operation.execute(client=api_client)  # Returns the final ImageGenerationResult when done
+result = await operation.execute(client=api_client)  # Returns the final ImageGenerationResult when done
 """
 
 from __future__ import annotations
+import aiohttp
+import asyncio
 import logging
-import time
 import io
 import socket
+from aiohttp.client_exceptions import ClientError, ClientResponseError
 from typing import Dict, Type, Optional, Any, TypeVar, Generic, Callable, Tuple
 from enum import Enum
 import json
-import requests
 from urllib.parse import urljoin, urlparse
 from pydantic import BaseModel, Field
 import uuid # For generating unique operation IDs
@@ -174,6 +175,7 @@ class ApiClient:
         retry_delay: float = 1.0,
         retry_backoff_factor: float = 2.0,
         retry_status_codes: Optional[Tuple[int, ...]] = None,
+        session: Optional[aiohttp.ClientSession] = None,
     ):
         self.base_url = base_url
         self.auth_token = auth_token
@@ -186,13 +188,16 @@ class ApiClient:
         # Default retry status codes: 408 (Request Timeout), 429 (Too Many Requests),
         # 500, 502, 503, 504 (Server Errors)
         self.retry_status_codes = retry_status_codes or (408, 429, 500, 502, 503, 504)
+        self._session: Optional[aiohttp.ClientSession] = session
+        self._owns_session = session is None  # Track if we have to close it
 
-    def _generate_operation_id(self, path: str) -> str:
+    @staticmethod
+    def _generate_operation_id(path: str) -> str:
         """Generates a unique operation ID for logging."""
         return f"{path.strip('/').replace('/', '_')}_{uuid.uuid4().hex[:8]}"
 
+    @staticmethod
     def _create_json_payload_args(
-        self,
         data: Optional[Dict[str, Any]] = None,
         headers: Optional[Dict[str, str]] = None,
     ) -> Dict[str, Any]:
@@ -203,31 +208,53 @@ class ApiClient:
 
     def _create_form_data_args(
         self,
-        data: Dict[str, Any],
-        files: Dict[str, Any],
+        data: Dict[str, Any] | None,
+        files: Dict[str, Any] | None,
         headers: Optional[Dict[str, str]] = None,
-        multipart_parser = None,
+        multipart_parser: Callable | None = None,
     ) -> Dict[str, Any]:
         if headers and "Content-Type" in headers:
             del headers["Content-Type"]
 
-        if multipart_parser:
+        if multipart_parser and data:
             data = multipart_parser(data)
 
-        return {
-            "data": data,
-            "files": files,
-            "headers": headers,
-        }
+        form = aiohttp.FormData(default_to_multipart=True)
+        if data:  # regular text fields
+            for k, v in data.items():
+                if v is None:
+                    continue  # aiohttp fails to serialize "None" values
+                # aiohttp expects strings or bytes; convert enums etc.
+                form.add_field(k, str(v) if not isinstance(v, (bytes, bytearray)) else v)
 
+        if files:
+            file_iter = files if isinstance(files, list) else files.items()
+            for field_name, file_obj in file_iter:
+                if file_obj is None:
+                    continue  # aiohttp fails to serialize "None" values
+                # file_obj can be (filename, bytes/io.BytesIO, content_type) tuple
+                if isinstance(file_obj, tuple):
+                    filename, file_value, content_type = self._unpack_tuple(file_obj)
+                else:
+                    file_value = file_obj
+                    filename = getattr(file_obj, "name", field_name)
+                    content_type = "application/octet-stream"
+
+                form.add_field(
+                    name=field_name,
+                    value=file_value,
+                    filename=filename,
+                    content_type=content_type,
+                )
+        return {"data": form, "headers": headers or {}}
+
+    @staticmethod
     def _create_urlencoded_form_data_args(
-        self,
         data: Dict[str, Any],
         headers: Optional[Dict[str, str]] = None,
     ) -> Dict[str, Any]:
         headers = headers or {}
         headers["Content-Type"] = "application/x-www-form-urlencoded"
-
         return {
             "data": data,
             "headers": headers,
@@ -244,7 +271,7 @@ class ApiClient:
 
         return headers
 
-    def _check_connectivity(self, target_url: str) -> Dict[str, bool]:
+    async def _check_connectivity(self, target_url: str) -> Dict[str, bool]:
         """
         Check connectivity to determine if network issues are local or server-related.
 
@@ -258,52 +285,39 @@ class ApiClient:
             "internet_accessible": False,
             "api_accessible": False,
             "is_local_issue": False,
-            "is_api_issue": False
+            "is_api_issue": False,
         }
+        timeout = aiohttp.ClientTimeout(total=5.0)
+        async with aiohttp.ClientSession(timeout=timeout) as session:
+            try:
+                async with session.get("https://www.google.com", ssl=self.verify_ssl) as resp:
+                    results["internet_accessible"] = resp.status < 500
+            except (ClientError, asyncio.TimeoutError, socket.gaierror):
+                results["is_local_issue"] = True
+                return results  # cannot reach the internet – early exit
 
-        # First check basic internet connectivity using a reliable external site
-        try:
-            # Use a reliable external domain for checking basic connectivity
-            check_response = requests.get("https://www.google.com",
-                                         timeout=5.0,
-                                         verify=self.verify_ssl)
-            if check_response.status_code < 500:
-                results["internet_accessible"] = True
-        except (requests.RequestException, socket.error):
-            results["internet_accessible"] = False
-            results["is_local_issue"] = True
-            return results
+            # Now check API health endpoint
+            parsed = urlparse(target_url)
+            health_url = f"{parsed.scheme}://{parsed.netloc}/health"
+            try:
+                async with session.get(health_url, ssl=self.verify_ssl) as resp:
+                    results["api_accessible"] = resp.status < 500
+            except ClientError:
+                pass  # leave as False
 
-        # Now check API server connectivity
-        try:
-            # Extract domain from the target URL to do a simpler health check
-            parsed_url = urlparse(target_url)
-            api_base = f"{parsed_url.scheme}://{parsed_url.netloc}"
-
-            # Try to reach the API domain
-            api_response = requests.get(f"{api_base}/health", timeout=5.0, verify=self.verify_ssl)
-            if api_response.status_code < 500:
-                results["api_accessible"] = True
-            else:
-                results["api_accessible"] = False
-                results["is_api_issue"] = True
-        except requests.RequestException:
-            results["api_accessible"] = False
-            # If we can reach the internet but not the API, it's an API issue
-            results["is_api_issue"] = True
-
+        results["is_api_issue"] = results["internet_accessible"] and not results["api_accessible"]
         return results
 
-    def request(
+    async def request(
         self,
         method: str,
         path: str,
         params: Optional[Dict[str, Any]] = None,
         data: Optional[Dict[str, Any]] = None,
-        files: Optional[Dict[str, Any]] = None,
+        files: Optional[Dict[str, Any] | list[tuple[str, Any]]] = None,
         headers: Optional[Dict[str, str]] = None,
         content_type: str = "application/json",
-        multipart_parser: Callable = None,
+        multipart_parser: Callable | None = None,
         retry_count: int = 0,  # Used internally for tracking retries
     ) -> Dict[str, Any]:
         """
@@ -327,18 +341,19 @@ class ApiClient:
             ApiServerError: If the API server is unreachable but internet is working
             Exception: For other request failures
         """
-        # Use urljoin but ensure path is relative to avoid absolute path behavior
-        relative_path = path.lstrip('/')
+
+        # Build full URL and merge headers
+        relative_path = path.lstrip("/")
         url = urljoin(self.base_url, relative_path)
-        self.check_auth(self.auth_token, self.comfy_api_key)
-        # Combine default headers with any provided headers
+        self._check_auth(self.auth_token, self.comfy_api_key)
+
         request_headers = self.get_headers()
         if headers:
             request_headers.update(headers)
-
-        # Let requests handle the content type when files are present.
         if files:
-            del request_headers["Content-Type"]
+            request_headers.pop("Content-Type", None)
+        if params:
+            params = {k: v for k, v in params.items() if v is not None}  # aiohttp fails to serialize None values
 
         logging.debug(f"[DEBUG] Request Headers: {request_headers}")
         logging.debug(f"[DEBUG] Files: {files}")
@@ -346,11 +361,9 @@ class ApiClient:
         logging.debug(f"[DEBUG] Data: {data}")
 
         if content_type == "application/x-www-form-urlencoded":
-            payload_args = self._create_urlencoded_form_data_args(data, request_headers)
+            payload_args = self._create_urlencoded_form_data_args(data or {}, request_headers)
         elif content_type == "multipart/form-data":
-            payload_args = self._create_form_data_args(
-                data, files, request_headers, multipart_parser
-            )
+            payload_args = self._create_form_data_args(data, files, request_headers, multipart_parser)
         else:
             payload_args = self._create_json_payload_args(data, request_headers)
 
@@ -361,220 +374,67 @@ class ApiClient:
             request_url=url,
             request_headers=request_headers,
             request_params=params,
-            request_data=data if content_type == "application/json" else "[form-data or other]"
+            request_data=data if content_type == "application/json" else "[form-data or other]",
         )
 
+        session = await self._get_session()
         try:
-            response = requests.request(
-                method=method,
-                url=url,
+            async with session.request(
+                method,
+                url,
                 params=params,
-                timeout=self.timeout,
-                verify=self.verify_ssl,
+                ssl=self.verify_ssl,
                 **payload_args,
-            )
+            ) as resp:
+                if resp.status >= 400:
+                    try:
+                        error_data = await resp.json()
+                    except (aiohttp.ContentTypeError, json.JSONDecodeError):
+                        error_data = await resp.text()
 
-            # Check if we should retry based on status code
-            if (response.status_code in self.retry_status_codes and
-                retry_count < self.max_retries):
+                    return await self._handle_http_error(
+                        ClientResponseError(resp.request_info, resp.history, status=resp.status, message=error_data),
+                        operation_id,
+                        method,
+                        url,
+                        params,
+                        data,
+                        files,
+                        headers,
+                        content_type,
+                        multipart_parser,
+                        retry_count=retry_count,
+                        response_content=error_data,
+                    )
 
-                # Calculate delay with exponential backoff
-                delay = self.retry_delay * (self.retry_backoff_factor ** retry_count)
-
-                logging.warning(
-                    f"Request failed with status {response.status_code}. "
-                    f"Retrying in {delay:.2f}s ({retry_count + 1}/{self.max_retries})"
-                )
-
-                time.sleep(delay)
-                return self.request(
-                    method=method,
-                    path=path,
-                    params=params,
-                    data=data,
-                    files=files,
-                    headers=headers,
-                    content_type=content_type,
-                    multipart_parser=multipart_parser,
-                    retry_count=retry_count + 1,
-                )
-
-            # Raise exception for error status codes
-            response.raise_for_status()
-
-            # Log successful response
-            response_content_to_log = response.content
-            try:
-                # Attempt to parse JSON for prettier logging, fallback to raw content
-                response_content_to_log = response.json()
-            except json.JSONDecodeError:
-                pass # Keep as bytes/str if not JSON
-
-            request_logger.log_request_response(
-                operation_id=operation_id,
-                request_method=method, # Pass request details again for context in log
-                request_url=url,
-                response_status_code=response.status_code,
-                response_headers=dict(response.headers),
-                response_content=response_content_to_log
-            )
-
-        except requests.ConnectionError as e:
-            error_message = f"ConnectionError: {str(e)}"
-            request_logger.log_request_response(
-                operation_id=operation_id,
-                request_method=method,
-                request_url=url,
-                error_message=error_message
-            )
-            # Only perform connectivity check if we've exhausted all retries
-            if retry_count >= self.max_retries:
-                # Check connectivity to determine if it's a local or API issue
-                connectivity = self._check_connectivity(self.base_url)
-
-                if connectivity["is_local_issue"]:
-                    raise LocalNetworkError(
-                        "Unable to connect to the API server due to local network issues. "
-                        "Please check your internet connection and try again."
-                    ) from e
-                elif connectivity["is_api_issue"]:
-                    raise ApiServerError(
-                        f"The API server at {self.base_url} is currently unreachable. "
-                        f"The service may be experiencing issues. Please try again later."
-                    ) from e
-
-            # If we haven't exhausted retries yet, retry the request
-            if retry_count < self.max_retries:
-                delay = self.retry_delay * (self.retry_backoff_factor ** retry_count)
-                logging.warning(
-                    f"Connection error: {str(e)}. "
-                    f"Retrying in {delay:.2f}s ({retry_count + 1}/{self.max_retries})"
-                )
-                time.sleep(delay)
-                return self.request(
-                    method=method,
-                    path=path,
-                    params=params,
-                    data=data,
-                    files=files,
-                    headers=headers,
-                    content_type=content_type,
-                    multipart_parser=multipart_parser,
-                    retry_count=retry_count + 1,
-                )
-
-            # If we've exhausted retries and didn't identify the specific issue,
-            # raise a generic exception
-            final_error_message = (
-                f"Unable to connect to the API server after {self.max_retries} attempts. "
-                f"Please check your internet connection or try again later."
-            )
-            request_logger.log_request_response( # Log final failure
-                operation_id=operation_id,
-                request_method=method, request_url=url,
-                error_message=final_error_message
-            )
-            raise Exception(final_error_message) from e
-
-        except requests.Timeout as e:
-            error_message = f"Timeout: {str(e)}"
-            request_logger.log_request_response(
-                operation_id=operation_id,
-                request_method=method, request_url=url,
-                error_message=error_message
-            )
-            # Retry timeouts if we haven't exhausted retries
-            if retry_count < self.max_retries:
-                delay = self.retry_delay * (self.retry_backoff_factor ** retry_count)
-                logging.warning(
-                    f"Request timed out. "
-                    f"Retrying in {delay:.2f}s ({retry_count + 1}/{self.max_retries})"
-                )
-                time.sleep(delay)
-                return self.request(
-                    method=method,
-                    path=path,
-                    params=params,
-                    data=data,
-                    files=files,
-                    headers=headers,
-                    content_type=content_type,
-                    multipart_parser=multipart_parser,
-                    retry_count=retry_count + 1,
-                )
-            final_error_message = (
-                f"Request timed out after {self.timeout} seconds and {self.max_retries} retry attempts. "
-                f"The server might be experiencing high load or the operation is taking longer than expected."
-            )
-            request_logger.log_request_response( # Log final failure
-                operation_id=operation_id,
-                request_method=method, request_url=url,
-                error_message=final_error_message
-            )
-            raise Exception(final_error_message) from e
-
-        except requests.HTTPError as e:
-            status_code = e.response.status_code if hasattr(e, "response") else None
-            original_error_message = f"HTTP Error: {str(e)}"
-            error_content_for_log = None
-            if hasattr(e, "response") and e.response is not None:
-                error_content_for_log = e.response.content
+                # Success – parse JSON (safely) and log
                 try:
-                    error_content_for_log = e.response.json()
-                except json.JSONDecodeError:
-                    pass
+                    payload = await resp.json()
+                    response_content_to_log = payload
+                except (aiohttp.ContentTypeError, json.JSONDecodeError):
+                    payload = {}
+                    response_content_to_log = await resp.text()
 
-
-            # Try to extract detailed error message from JSON response for user display
-            # but log the full error content.
-            user_display_error_message = original_error_message
-
-            try:
-                if hasattr(e, "response") and e.response is not None and e.response.content:
-                    error_json = e.response.json()
-                    if "error" in error_json and "message" in error_json["error"]:
-                        user_display_error_message = f"API Error: {error_json['error']['message']}"
-                        if "type" in error_json["error"]:
-                            user_display_error_message += f" (Type: {error_json['error']['type']})"
-                    elif isinstance(error_json, dict): # Handle cases where error is just a JSON dict
-                        user_display_error_message = f"API Error: {json.dumps(error_json)}"
-                    else: # Non-dict JSON error
-                        user_display_error_message = f"API Error: {str(error_json)}"
-            except json.JSONDecodeError:
-                # If not JSON, use the raw content if it's not too long, or a summary
-                if hasattr(e, "response") and e.response is not None and e.response.content:
-                    raw_content = e.response.content.decode(errors='ignore')
-                    if len(raw_content) < 200: # Arbitrary limit for display
-                        user_display_error_message = f"API Error (raw): {raw_content}"
-                    else:
-                        user_display_error_message = f"API Error (raw, status {status_code})"
-
-            request_logger.log_request_response(
-                operation_id=operation_id,
-                request_method=method, request_url=url,
-                response_status_code=status_code,
-                response_headers=dict(e.response.headers) if hasattr(e, "response") and e.response is not None else None,
-                response_content=error_content_for_log,
-                error_message=original_error_message # Log the original exception string as error
-            )
-
-            logging.debug(f"[DEBUG] API Error: {user_display_error_message} (Status: {status_code})")
-            if hasattr(e, "response") and e.response is not None and e.response.content:
-                logging.debug(f"[DEBUG] Response content: {e.response.content}")
-
-            # Retry if the status code is in our retry list and we haven't exhausted retries
-            if (status_code in self.retry_status_codes and
-                retry_count < self.max_retries):
-
-                delay = self.retry_delay * (self.retry_backoff_factor ** retry_count)
-                logging.warning(
-                    f"HTTP error {status_code}. "
-                    f"Retrying in {delay:.2f}s ({retry_count + 1}/{self.max_retries})"
+                request_logger.log_request_response(
+                    operation_id=operation_id,
+                    request_method=method,
+                    request_url=url,
+                    response_status_code=resp.status,
+                    response_headers=dict(resp.headers),
+                    response_content=response_content_to_log,
                 )
-                time.sleep(delay)
-                return self.request(
-                    method=method,
-                    path=path,
+                return payload
+
+        except (ClientError, asyncio.TimeoutError, socket.gaierror) as e:
+            # Treat as *connection* problem – optionally retry, else escalate
+            if retry_count < self.max_retries:
+                delay = self.retry_delay * (self.retry_backoff_factor ** retry_count)
+                logging.warning("Connection error. Retrying in %.2fs (%s/%s): %s", delay, retry_count + 1,
+                                self.max_retries, str(e))
+                await asyncio.sleep(delay)
+                return await self.request(
+                    method,
+                    path,
                     params=params,
                     data=data,
                     files=files,
@@ -583,40 +443,34 @@ class ApiClient:
                     multipart_parser=multipart_parser,
                     retry_count=retry_count + 1,
                 )
+            # One final connectivity check for diagnostics
+            connectivity = await self._check_connectivity(self.base_url)
+            if connectivity["is_local_issue"]:
+                raise LocalNetworkError(
+                    "Unable to connect to the API server due to local network issues. "
+                    "Please check your internet connection and try again."
+                ) from e
+            raise ApiServerError(
+                f"The API server at {self.base_url} is currently unreachable. "
+                f"The service may be experiencing issues. Please try again later."
+            ) from e
 
-            # Specific error messages for common status codes for user display
-            if status_code == 401:
-                user_display_error_message = "Unauthorized: Please login first to use this node."
-            elif status_code == 402:
-                user_display_error_message = "Payment Required: Please add credits to your account to use this node."
-            elif status_code == 409:
-                user_display_error_message = "There is a problem with your account. Please contact support@comfy.org."
-            elif status_code == 429:
-                user_display_error_message = "Rate Limit Exceeded: Please try again later."
-            # else, user_display_error_message remains as parsed from response or original HTTPError string
-
-            raise Exception(user_display_error_message) # Raise with the user-friendly message
-
-        # Parse and return JSON response
-        if response.content:
-            return response.json()
-        return {}
-
-    def check_auth(self, auth_token, comfy_api_key):
+    @staticmethod
+    def _check_auth(auth_token, comfy_api_key):
         """Verify that an auth token is present or comfy_api_key is present"""
         if auth_token is None and comfy_api_key is None:
             raise Exception("Unauthorized: Please login first to use this node.")
         return auth_token or comfy_api_key
 
     @staticmethod
-    def upload_file(
+    async def upload_file(
         upload_url: str,
         file: io.BytesIO | str,
         content_type: str | None = None,
         max_retries: int = 3,
         retry_delay: float = 1.0,
         retry_backoff_factor: float = 2.0,
-    ):
+    ) -> aiohttp.ClientResponse:
         """Upload a file to the API with retry logic.
 
         Args:
@@ -627,112 +481,167 @@ class ApiClient:
             retry_delay: Initial delay between retries in seconds
             retry_backoff_factor: Multiplier for the delay after each retry
         """
-        headers = {}
+        headers: Dict[str, str] = {}
+        skip_auto_headers: set[str] = set()
         if content_type:
             headers["Content-Type"] = content_type
+        else:
+            # tell aiohttp not to add Content-Type that will break the request signature and result in a 403 status.
+            skip_auto_headers.add("Content-Type")
 
-        # Prepare the file data
+        # Extract file bytes
         if isinstance(file, io.BytesIO):
-            file.seek(0)  # Ensure we're at the start of the file
+            file.seek(0)
             data = file.read()
         elif isinstance(file, str):
             with open(file, "rb") as f:
                 data = f.read()
         else:
-            raise ValueError("File must be either a BytesIO object or a file path string")
+            raise ValueError("File must be BytesIO or str path")
 
-        # Try the upload with retries
-        last_exception = None
-        operation_id = f"upload_{upload_url.split('/')[-1]}_{uuid.uuid4().hex[:8]}" # Simplified ID for uploads
-
-        # Log initial attempt (without full file data for brevity)
+        operation_id = f"upload_{upload_url.split('/')[-1]}_{uuid.uuid4().hex[:8]}"
         request_logger.log_request_response(
             operation_id=operation_id,
             request_method="PUT",
             request_url=upload_url,
             request_headers=headers,
-            request_data=f"[File data of type {content_type or 'unknown'}, size {len(data)} bytes]"
+            request_data=f"[File data {len(data)} bytes]",
         )
 
-        for retry_attempt in range(max_retries + 1):
+        delay = retry_delay
+        for attempt in range(max_retries + 1):
             try:
-                response = requests.put(upload_url, data=data, headers=headers)
-                response.raise_for_status()
+                timeout = aiohttp.ClientTimeout(total=None)  # honour server side timeouts
+                async with aiohttp.ClientSession(timeout=timeout) as session:
+                    async with session.put(
+                        upload_url, data=data, headers=headers, skip_auto_headers=skip_auto_headers,
+                    ) as resp:
+                        resp.raise_for_status()
+                        request_logger.log_request_response(
+                            operation_id=operation_id,
+                            request_method="PUT",
+                            request_url=upload_url,
+                            response_status_code=resp.status,
+                            response_headers=dict(resp.headers),
+                            response_content="File uploaded successfully.",
+                        )
+                        return resp
+            except (ClientError, asyncio.TimeoutError) as e:
                 request_logger.log_request_response(
                     operation_id=operation_id,
-                    request_method="PUT", request_url=upload_url, # For context
-                    response_status_code=response.status_code,
-                    response_headers=dict(response.headers),
-                    response_content="File uploaded successfully." # Or response.text if available
+                    request_method="PUT",
+                    request_url=upload_url,
+                    response_status_code=e.status if hasattr(e, "status") else None,
+                    response_headers=dict(e.headers) if getattr(e, "headers") else None,
+                    response_content=None,
+                    error_message=f"{type(e).__name__}: {str(e)}",
                 )
-                return response
-
-            except (requests.ConnectionError, requests.Timeout, requests.HTTPError) as e:
-                last_exception = e
-                error_message_for_log = f"{type(e).__name__}: {str(e)}"
-                response_content_for_log = None
-                status_code_for_log = None
-                headers_for_log = None
-
-                if hasattr(e, 'response') and e.response is not None:
-                    status_code_for_log = e.response.status_code
-                    headers_for_log = dict(e.response.headers)
-                    try:
-                        response_content_for_log = e.response.json()
-                    except json.JSONDecodeError:
-                        response_content_for_log = e.response.content
-
-
-                request_logger.log_request_response(
-                    operation_id=operation_id,
-                    request_method="PUT", request_url=upload_url,
-                    response_status_code=status_code_for_log,
-                    response_headers=headers_for_log,
-                    response_content=response_content_for_log,
-                    error_message=error_message_for_log
-                )
-
-                if retry_attempt < max_retries:
-                    delay = retry_delay * (retry_backoff_factor ** retry_attempt)
+                if attempt < max_retries:
                     logging.warning(
-                        f"File upload failed: {str(e)}. "
-                        f"Retrying in {delay:.2f}s ({retry_attempt + 1}/{max_retries})"
+                        "Upload failed (%s/%s). Retrying in %.2fs. %s", attempt + 1, max_retries, delay, str(e)
                     )
-                    time.sleep(delay)
+                    await asyncio.sleep(delay)
+                    delay *= retry_backoff_factor
                 else:
-                    break # Max retries reached
+                    raise NetworkError(f"Failed to upload file after {max_retries + 1} attempts: {e}") from e
 
-        # If we've exhausted all retries, determine the final error type and raise
-        final_error_message = f"Failed to upload file after {max_retries + 1} attempts. Error: {str(last_exception)}"
-        try:
-            # Check basic internet connectivity
-            check_response = requests.get("https://www.google.com", timeout=5.0, verify=True) # Assuming verify=True is desired
-            if check_response.status_code >= 500: # Google itself has an issue (rare)
-                 final_error_message = (f"Failed to upload file. Internet connectivity check to Google failed "
-                                       f"(status {check_response.status_code}). Original error: {str(last_exception)}")
-                 # Not raising LocalNetworkError here as Google itself might be down.
-            # If Google is reachable, the issue is likely with the upload server or a more specific local problem
-            # not caught by a simple Google ping (e.g., DNS for the specific upload URL, firewall).
-            # The original last_exception is probably most relevant.
+    async def _handle_http_error(
+        self,
+        exc: ClientResponseError,
+        operation_id: str,
+        *req_meta,
+        retry_count: int,
+        response_content: dict | str = "",
+    ) -> Dict[str, Any]:
+        status_code = exc.status
+        if status_code == 401:
+            user_friendly = "Unauthorized: Please login first to use this node."
+        elif status_code == 402:
+            user_friendly = "Payment Required: Please add credits to your account to use this node."
+        elif status_code == 409:
+            user_friendly = "There is a problem with your account. Please contact support@comfy.org."
+        elif status_code == 429:
+            user_friendly = "Rate Limit Exceeded: Please try again later."
+        else:
+            if isinstance(response_content, dict):
+                if "error" in response_content and "message" in response_content["error"]:
+                    user_friendly = f"API Error: {response_content['error']['message']}"
+                    if "type" in response_content["error"]:
+                        user_friendly += f" (Type: {response_content['error']['type']})"
+                else: # Handle cases where error is just a JSON dict with unknown format
+                    user_friendly = f"API Error: {json.dumps(response_content)}"
+            else:
+                if len(response_content) < 200:  # Arbitrary limit for display
+                    user_friendly = f"API Error (raw): {response_content}"
+                else:
+                    user_friendly = f"API Error (raw, status {response_content})"
 
-        except (requests.RequestException, socket.error) as conn_check_exc:
-            # Could not reach Google, likely a local network issue
-            final_error_message = (f"Failed to upload file due to network connectivity issues "
-                                   f"(cannot reach Google: {str(conn_check_exc)}). "
-                                   f"Original upload error: {str(last_exception)}")
-            request_logger.log_request_response( # Log final failure reason
-                operation_id=operation_id,
-                request_method="PUT", request_url=upload_url,
-                error_message=final_error_message
-            )
-            raise LocalNetworkError(final_error_message) from last_exception
-
-        request_logger.log_request_response( # Log final failure reason if not LocalNetworkError
+        request_logger.log_request_response(
             operation_id=operation_id,
-            request_method="PUT", request_url=upload_url,
-            error_message=final_error_message
+            request_method=req_meta[0],
+            request_url=req_meta[1],
+            response_status_code=exc.status,
+            response_headers=dict(req_meta[5]) if req_meta[5] else None,
+            response_content=response_content,
+            error_message=f"HTTP Error {exc.status}",
         )
-        raise Exception(final_error_message) from last_exception
+
+        logging.debug(f"[DEBUG] API Error: {user_friendly} (Status: {status_code})")
+        if response_content:
+            logging.debug(f"[DEBUG] Response content: {response_content}")
+
+        # Retry if eligible
+        if status_code in self.retry_status_codes and retry_count < self.max_retries:
+            delay = self.retry_delay * (self.retry_backoff_factor ** retry_count)
+            logging.warning(
+                "HTTP error %s. Retrying in %.2fs (%s/%s)",
+                status_code,
+                delay,
+                retry_count + 1,
+                self.max_retries,
+            )
+            await asyncio.sleep(delay)
+            return await self.request(
+                req_meta[0],  # method
+                req_meta[1].replace(self.base_url, ""),  # path
+                params=req_meta[2],
+                data=req_meta[3],
+                files=req_meta[4],
+                headers=req_meta[5],
+                content_type=req_meta[6],
+                multipart_parser=req_meta[7],
+                retry_count=retry_count + 1,
+            )
+
+        raise Exception(user_friendly) from exc
+
+    @staticmethod
+    def _unpack_tuple(t):
+        """Helper to normalise (filename, file, content_type) tuples."""
+        if len(t) == 3:
+            return t
+        elif len(t) == 2:
+            return t[0], t[1], "application/octet-stream"
+        else:
+            raise ValueError("files tuple must be (filename, file[, content_type])")
+
+    async def _get_session(self) -> aiohttp.ClientSession:
+        if self._session is None or self._session.closed:
+            timeout = aiohttp.ClientTimeout(total=self.timeout)
+            self._session = aiohttp.ClientSession(timeout=timeout)
+            self._owns_session = True
+        return self._session
+
+    async def close(self) -> None:
+        if self._owns_session and self._session and not self._session.closed:
+            await self._session.close()
+
+    async def __aenter__(self) -> "ApiClient":
+        """Allow usage as async‑context‑manager – ensures clean teardown"""
+        return self
+
+    async def __aexit__(self, exc_type, exc, tb):
+        await self.close()
 
 
 class ApiEndpoint(Generic[T, R]):
@@ -763,31 +672,28 @@ class ApiEndpoint(Generic[T, R]):
 
 
 class SynchronousOperation(Generic[T, R]):
-    """
-    Represents a single synchronous API operation.
-    """
+    """Represents a single synchronous API operation."""
 
     def __init__(
         self,
         endpoint: ApiEndpoint[T, R],
         request: T,
-        files: Optional[Dict[str, Any]] = None,
+        files: Optional[Dict[str, Any] | list[tuple[str, Any]]] = None,
         api_base: str | None = None,
         auth_token: Optional[str] = None,
         comfy_api_key: Optional[str] = None,
-        auth_kwargs: Optional[Dict[str,str]] = None,
+        auth_kwargs: Optional[Dict[str, str]] = None,
         timeout: float = 604800.0,
         verify_ssl: bool = True,
         content_type: str = "application/json",
-        multipart_parser: Callable = None,
+        multipart_parser: Callable | None = None,
         max_retries: int = 3,
         retry_delay: float = 1.0,
         retry_backoff_factor: float = 2.0,
-    ):
+    ) -> None:
         self.endpoint = endpoint
         self.request = request
-        self.response = None
-        self.error = None
+        self.files = files
         self.api_base: str = api_base or args.comfy_api_base
         self.auth_token = auth_token
         self.comfy_api_key = comfy_api_key
@@ -796,91 +702,64 @@ class SynchronousOperation(Generic[T, R]):
             self.comfy_api_key = auth_kwargs.get("comfy_api_key", self.comfy_api_key)
         self.timeout = timeout
         self.verify_ssl = verify_ssl
-        self.files = files
         self.content_type = content_type
         self.multipart_parser = multipart_parser
         self.max_retries = max_retries
         self.retry_delay = retry_delay
         self.retry_backoff_factor = retry_backoff_factor
 
-    def execute(self, client: Optional[ApiClient] = None) -> R:
-        """Execute the API operation using the provided client or create one with retry support"""
-        try:
-            # Create client if not provided
-            if client is None:
-                client = ApiClient(
-                    base_url=self.api_base,
-                    auth_token=self.auth_token,
-                    comfy_api_key=self.comfy_api_key,
-                    timeout=self.timeout,
-                    verify_ssl=self.verify_ssl,
-                    max_retries=self.max_retries,
-                    retry_delay=self.retry_delay,
-                    retry_backoff_factor=self.retry_backoff_factor,
-                )
-
-            # Convert request model to dict, but use None for EmptyRequest
-            request_dict = (
-                None
-                if isinstance(self.request, EmptyRequest)
-                else self.request.model_dump(exclude_none=True)
+    async def execute(self, client: Optional[ApiClient] = None) -> R:
+        owns_client = client is None
+        if owns_client:
+            client = ApiClient(
+                base_url=self.api_base,
+                auth_token=self.auth_token,
+                comfy_api_key=self.comfy_api_key,
+                timeout=self.timeout,
+                verify_ssl=self.verify_ssl,
+                max_retries=self.max_retries,
+                retry_delay=self.retry_delay,
+                retry_backoff_factor=self.retry_backoff_factor,
             )
-            if request_dict:
-                for key, value in request_dict.items():
-                    if isinstance(value, Enum):
-                        request_dict[key] = value.value
 
-            # Debug log for request
+        try:
+            request_dict: Optional[Dict[str, Any]]
+            if isinstance(self.request, EmptyRequest):
+                request_dict = None
+            else:
+                request_dict = self.request.model_dump(exclude_none=True)
+                for k, v in list(request_dict.items()):
+                    if isinstance(v, Enum):
+                        request_dict[k] = v.value
+
             logging.debug(
                 f"[DEBUG] API Request: {self.endpoint.method.value} {self.endpoint.path}"
             )
             logging.debug(f"[DEBUG] Request Data: {json.dumps(request_dict, indent=2)}")
             logging.debug(f"[DEBUG] Query Params: {self.endpoint.query_params}")
 
-            # Make the request with built-in retry
-            resp = client.request(
-                method=self.endpoint.method.value,
-                path=self.endpoint.path,
-                data=request_dict,
+            response_json = await client.request(
+                self.endpoint.method.value,
+                self.endpoint.path,
                 params=self.endpoint.query_params,
+                data=request_dict,
                 files=self.files,
                 content_type=self.content_type,
-                multipart_parser=self.multipart_parser
+                multipart_parser=self.multipart_parser,
             )
 
-            # Debug log for response
             logging.debug("=" * 50)
             logging.debug("[DEBUG] RESPONSE DETAILS:")
             logging.debug("[DEBUG] Status Code: 200 (Success)")
-            logging.debug(f"[DEBUG] Response Body: {json.dumps(resp, indent=2)}")
+            logging.debug(f"[DEBUG] Response Body: {json.dumps(response_json, indent=2)}")
             logging.debug("=" * 50)
 
-            # Parse and return the response
-            return self._parse_response(resp)
-
-        except LocalNetworkError as e:
-            # Propagate specific network error types
-            logging.error(f"[ERROR] Local network error: {str(e)}")
-            raise
-
-        except ApiServerError as e:
-            # Propagate API server errors
-            logging.error(f"[ERROR] API server error: {str(e)}")
-            raise
-
-        except Exception as e:
-            logging.error(f"[ERROR] API Exception: {str(e)}")
-            raise Exception(str(e))
-
-    def _parse_response(self, resp):
-        """Parse response data - can be overridden by subclasses"""
-        # The response is already the complete object, don't extract just the "data" field
-        # as that would lose the outer structure (created timestamp, etc.)
-
-        # Parse response using the provided model
-        self.response = self.endpoint.response_model.model_validate(resp)
-        logging.debug(f"[DEBUG] Parsed Response: {self.response}")
-        return self.response
+            parsed_response = self.endpoint.response_model.model_validate(response_json)
+            logging.debug(f"[DEBUG] Parsed Response: {parsed_response}")
+            return parsed_response
+        finally:
+            if owns_client:
+                await client.close()
 
 
 class TaskStatus(str, Enum):
@@ -892,23 +771,21 @@ class TaskStatus(str, Enum):
 
 
 class PollingOperation(Generic[T, R]):
-    """
-    Represents an asynchronous API operation that requires polling for completion.
-    """
+    """Represents an asynchronous API operation that requires polling for completion."""
 
     def __init__(
         self,
         poll_endpoint: ApiEndpoint[EmptyRequest, R],
-        completed_statuses: list,
-        failed_statuses: list,
+        completed_statuses: list[str],
+        failed_statuses: list[str],
         status_extractor: Callable[[R], str],
-        progress_extractor: Callable[[R], float] = None,
-        result_url_extractor: Callable[[R], str] = None,
+        progress_extractor: Callable[[R], float] | None = None,
+        result_url_extractor: Callable[[R], str] | None = None,
         request: Optional[T] = None,
         api_base: str | None = None,
         auth_token: Optional[str] = None,
         comfy_api_key: Optional[str] = None,
-        auth_kwargs: Optional[Dict[str,str]] = None,
+        auth_kwargs: Optional[Dict[str, str]] = None,
         poll_interval: float = 5.0,
         max_poll_attempts: int = 120,  # Default max polling attempts (10 minutes with 5s interval)
         max_retries: int = 3,  # Max retries per individual API call
@@ -916,7 +793,7 @@ class PollingOperation(Generic[T, R]):
         retry_backoff_factor: float = 2.0,
         estimated_duration: Optional[float] = None,
         node_id: Optional[str] = None,
-    ):
+    ) -> None:
         self.poll_endpoint = poll_endpoint
         self.request = request
         self.api_base: str = api_base or args.comfy_api_base
@@ -931,100 +808,73 @@ class PollingOperation(Generic[T, R]):
         self.retry_delay = retry_delay
         self.retry_backoff_factor = retry_backoff_factor
         self.estimated_duration = estimated_duration
-
-        # Polling configuration
-        self.status_extractor = status_extractor or (
-            lambda x: getattr(x, "status", None)
-        )
+        self.status_extractor = status_extractor or (lambda x: getattr(x, "status", None))
         self.progress_extractor = progress_extractor
         self.result_url_extractor = result_url_extractor
         self.node_id = node_id
         self.completed_statuses = completed_statuses
         self.failed_statuses = failed_statuses
+        self.final_response: Optional[R] = None
 
-        # For storing response data
-        self.final_response = None
-        self.error = None
-
-    def execute(self, client: Optional[ApiClient] = None) -> R:
-        """Execute the polling operation using the provided client. If failed, raise an exception."""
+    async def execute(self, client: Optional[ApiClient] = None) -> R:
+        owns_client = client is None
+        if owns_client:
+            client = ApiClient(
+                base_url=self.api_base,
+                auth_token=self.auth_token,
+                comfy_api_key=self.comfy_api_key,
+                max_retries=self.max_retries,
+                retry_delay=self.retry_delay,
+                retry_backoff_factor=self.retry_backoff_factor,
+            )
         try:
-            if client is None:
-                client = ApiClient(
-                    base_url=self.api_base,
-                    auth_token=self.auth_token,
-                    comfy_api_key=self.comfy_api_key,
-                    max_retries=self.max_retries,
-                    retry_delay=self.retry_delay,
-                    retry_backoff_factor=self.retry_backoff_factor,
-                )
-            return self._poll_until_complete(client)
-        except LocalNetworkError as e:
-            # Provide clear message for local network issues
-            raise Exception(
-                f"Polling failed due to local network issues. Please check your internet connection. "
-                f"Details: {str(e)}"
-            ) from e
-        except ApiServerError as e:
-            # Provide clear message for API server issues
-            raise Exception(
-                f"Polling failed due to API server issues. The service may be experiencing problems. "
-                f"Please try again later. Details: {str(e)}"
-            ) from e
-        except Exception as e:
-            raise Exception(f"Error during polling: {str(e)}")
+            return await self._poll_until_complete(client)
+        finally:
+            if owns_client:
+                await client.close()
 
     def _display_text_on_node(self, text: str):
-        """Sends text to the client which will be displayed on the node in the UI"""
         if not self.node_id:
             return
-
         PromptServer.instance.send_progress_text(text, self.node_id)
 
-    def _display_time_progress_on_node(self, time_completed: int):
+    def _display_time_progress_on_node(self, time_completed: int | float):
         if not self.node_id:
             return
-
         if self.estimated_duration is not None:
-            estimated_time_remaining = max(
-                0, int(self.estimated_duration) - int(time_completed)
-            )
-            message = f"Task in progress: {time_completed:.0f}s (~{estimated_time_remaining:.0f}s remaining)"
+            remaining = max(0, int(self.estimated_duration) - time_completed)
+            message = f"Task in progress: {time_completed}s (~{remaining}s remaining)"
         else:
-            message = f"Task in progress: {time_completed:.0f}s"
+            message = f"Task in progress: {time_completed}s"
         self._display_text_on_node(message)
 
     def _check_task_status(self, response: R) -> TaskStatus:
-        """Check task status using the status extractor function"""
         try:
             status = self.status_extractor(response)
             if status in self.completed_statuses:
                 return TaskStatus.COMPLETED
-            elif status in self.failed_statuses:
+            if status in self.failed_statuses:
                 return TaskStatus.FAILED
             return TaskStatus.PENDING
         except Exception as e:
-            logging.error(f"Error extracting status: {e}")
+            logging.error("Error extracting status: %s", e)
             return TaskStatus.PENDING
 
-    def _poll_until_complete(self, client: ApiClient) -> R:
+    async def _poll_until_complete(self, client: ApiClient) -> R:
         """Poll until the task is complete"""
-        poll_count = 0
         consecutive_errors = 0
         max_consecutive_errors = min(5, self.max_retries * 2)  # Limit consecutive errors
 
         if self.progress_extractor:
             progress = utils.ProgressBar(PROGRESS_BAR_MAX)
 
-        while poll_count < self.max_poll_attempts:
+        status = TaskStatus.PENDING
+        for poll_count in range(1, self.max_poll_attempts + 1):
             try:
-                poll_count += 1
                 logging.debug(f"[DEBUG] Polling attempt #{poll_count}")
 
                 request_dict = (
-                    self.request.model_dump(exclude_none=True)
-                    if self.request is not None
-                    else None
+                    None if self.request is None else self.request.model_dump(exclude_none=True)
                 )
 
                 if poll_count == 1:
@@ -1036,18 +886,14 @@ class PollingOperation(Generic[T, R]):
                     )
 
                 # Query task status
-                resp = client.request(
-                    method=self.poll_endpoint.method.value,
-                    path=self.poll_endpoint.path,
+                resp = await client.request(
+                    self.poll_endpoint.method.value,
+                    self.poll_endpoint.path,
                     params=self.poll_endpoint.query_params,
                     data=request_dict,
                 )
-
-                # Successfully got a response, reset consecutive error count
-                consecutive_errors = 0
-
-                # Parse response
-                response_obj = self.poll_endpoint.response_model.model_validate(resp)
+                consecutive_errors = 0  # reset on success
+                response_obj: R = self.poll_endpoint.response_model.model_validate(resp)
 
                 # Check if task is complete
                 status = self._check_task_status(response_obj)
@@ -1065,45 +911,30 @@ class PollingOperation(Generic[T, R]):
                         result_url = self.result_url_extractor(response_obj)
                         if result_url:
                             message = f"Result URL: {result_url}"
-                    else:
-                        message = "Task completed successfully!"
                     logging.debug(f"[DEBUG] {message}")
                     self._display_text_on_node(message)
                     self.final_response = response_obj
                     if self.progress_extractor:
                         progress.update(100)
                     return self.final_response
-                elif status == TaskStatus.FAILED:
+                if status == TaskStatus.FAILED:
                     message = f"Task failed: {json.dumps(resp)}"
                     logging.error(f"[DEBUG] {message}")
                     raise Exception(message)
-                else:
-                    logging.debug("[DEBUG] Task still pending, continuing to poll...")
-
-                # Wait before polling again
-                logging.debug(
-                    f"[DEBUG] Waiting {self.poll_interval} seconds before next poll"
-                )
+                logging.debug("[DEBUG] Task still pending, continuing to poll...")
+                # Task pending – wait
                 for i in range(int(self.poll_interval)):
-                    time_completed = (poll_count * self.poll_interval) + i
-                    self._display_time_progress_on_node(time_completed)
-                    time.sleep(1)
+                    self._display_time_progress_on_node((poll_count - 1) * self.poll_interval + i)
+                    await asyncio.sleep(1)
 
-            except (LocalNetworkError, ApiServerError) as e:
-                # For network-related errors, increment error count and potentially abort
+            except (LocalNetworkError, ApiServerError, NetworkError) as e:
                 consecutive_errors += 1
                 if consecutive_errors >= max_consecutive_errors:
                     raise Exception(
-                        f"Polling aborted after {consecutive_errors} consecutive network errors: {str(e)}"
+                        f"Polling aborted after {consecutive_errors} network errors: {str(e)}"
                     ) from e
-
-                # Log the error but continue polling
-                logging.warning(
-                    f"Network error during polling (attempt {poll_count}/{self.max_poll_attempts}): {str(e)}. "
-                    f"Will retry in {self.poll_interval} seconds."
-                )
-                time.sleep(self.poll_interval)
-
+                logging.warning("Network error (%s/%s): %s", consecutive_errors, max_consecutive_errors, str(e))
+                await asyncio.sleep(self.poll_interval)
             except Exception as e:
                 # For other errors, increment count and potentially abort
                 consecutive_errors += 1
@@ -1117,10 +948,10 @@ class PollingOperation(Generic[T, R]):
                     f"Error during polling (attempt {poll_count}/{self.max_poll_attempts}): {str(e)}. "
                     f"Will retry in {self.poll_interval} seconds."
                 )
-                time.sleep(self.poll_interval)
+                await asyncio.sleep(self.poll_interval)
 
         # If we've exhausted all polling attempts
         raise Exception(
-            f"Polling timed out after {poll_count} attempts ({poll_count * self.poll_interval} seconds). "
-            f"The operation may still be running on the server but is taking longer than expected."
+            f"Polling timed out after {self.max_poll_attempts} attempts (" f"{self.max_poll_attempts * self.poll_interval} seconds). "
+            "The operation may still be running on the server but is taking longer than expected."
         )

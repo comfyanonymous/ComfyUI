@@ -163,7 +163,7 @@ def cleanup_models(conds, models):
     cleanup_additional_models(set(control_cleanup))
 
 
-def prepare_model_patcher(model: 'ModelPatcher', conds, model_options: dict):
+def prepare_model_patcher(model: ModelPatcher, conds, model_options: dict):
     '''
     Registers hooks from conds.
     '''
@@ -172,8 +172,8 @@ def prepare_model_patcher(model: 'ModelPatcher', conds, model_options: dict):
     for k in conds:
         get_hooks_from_cond(conds[k], hooks)
     # add wrappers and callbacks from ModelPatcher to transformer_options
-    model_options["transformer_options"]["wrappers"] = patcher_extension.copy_nested_dicts(model.wrappers)
-    model_options["transformer_options"]["callbacks"] = patcher_extension.copy_nested_dicts(model.callbacks)
+    patcher_extension.merge_nested_dicts(model_options["transformer_options"].setdefault("wrappers", {}), model.wrappers, copy_dict1=False)
+    patcher_extension.merge_nested_dicts(model_options["transformer_options"].setdefault("callbacks", {}), model.callbacks, copy_dict1=False)
     # begin registering hooks
     registered = HookGroup()
     target_dict = create_target_dict(EnumWeightTarget.Model)

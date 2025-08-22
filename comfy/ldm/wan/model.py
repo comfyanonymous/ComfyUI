@@ -391,6 +391,7 @@ class WanModel(torch.nn.Module):
                  cross_attn_norm=True,
                  eps=1e-6,
                  flf_pos_embed_token_number=None,
+                 in_dim_ref_conv=None,
                  image_model=None,
                  device=None,
                  dtype=None,
@@ -484,6 +485,11 @@ class WanModel(torch.nn.Module):
         else:
             self.img_emb = None
 
+        if in_dim_ref_conv is not None:
+            self.ref_conv = operations.Conv2d(in_dim_ref_conv, dim, kernel_size=patch_size[1:], stride=patch_size[1:], device=operation_settings.get("device"), dtype=operation_settings.get("dtype"))
+        else:
+            self.ref_conv = None
+
     def forward_orig(
         self,
         x,
@@ -526,6 +532,13 @@ class WanModel(torch.nn.Module):
         e = e.reshape(t.shape[0], -1, e.shape[-1])
         e0 = self.time_projection(e).unflatten(2, (6, self.dim))
 
+        full_ref = None
+        if self.ref_conv is not None:
+            full_ref = kwargs.get("reference_latent", None)
+            if full_ref is not None:
+                full_ref = self.ref_conv(full_ref).flatten(2).transpose(1, 2)
+                x = torch.concat((full_ref, x), dim=1)
+
         # context
         context = self.text_embedding(context)
 
@@ -552,6 +565,9 @@ class WanModel(torch.nn.Module):
         # head
         x = self.head(x, e)
 
+        if full_ref is not None:
+            x = x[:, full_ref.shape[1]:]
+
         # unpatchify
         x = self.unpatchify(x, grid_sizes)
         return x
@@ -569,6 +585,9 @@ class WanModel(torch.nn.Module):
             time_dim_concat = pad_to_patch_size(time_dim_concat, self.patch_size)
             x = torch.cat([x, time_dim_concat], dim=2)
             t_len = ((x.shape[2] + (patch_size[0] // 2)) // patch_size[0])
+
+        if self.ref_conv is not None and "reference_latent" in kwargs:
+            t_len += 1
 
         img_ids = torch.zeros((t_len, h_len, w_len, 3), device=x.device, dtype=x.dtype)
         img_ids[:, :, :, 0] = img_ids[:, :, :, 0] + torch.linspace(0, t_len - 1, steps=t_len, device=x.device, dtype=x.dtype).reshape(-1, 1, 1)
@@ -749,7 +768,12 @@ class CameraWanModel(WanModel):
                  operations=None,
                  ):
 
-        super().__init__(model_type='i2v', patch_size=patch_size, text_len=text_len, in_dim=in_dim, dim=dim, ffn_dim=ffn_dim, freq_dim=freq_dim, text_dim=text_dim, out_dim=out_dim, num_heads=num_heads, num_layers=num_layers, window_size=window_size, qk_norm=qk_norm, cross_attn_norm=cross_attn_norm, eps=eps, flf_pos_embed_token_number=flf_pos_embed_token_number, image_model=image_model, device=device, dtype=dtype, operations=operations)
+        if model_type == 'camera':
+            model_type = 'i2v'
+        else:
+            model_type = 't2v'
+
+        super().__init__(model_type=model_type, patch_size=patch_size, text_len=text_len, in_dim=in_dim, dim=dim, ffn_dim=ffn_dim, freq_dim=freq_dim, text_dim=text_dim, out_dim=out_dim, num_heads=num_heads, num_layers=num_layers, window_size=window_size, qk_norm=qk_norm, cross_attn_norm=cross_attn_norm, eps=eps, flf_pos_embed_token_number=flf_pos_embed_token_number, image_model=image_model, device=device, dtype=dtype, operations=operations)
         operation_settings = {"operations": operations, "device": device, "dtype": dtype}
 
         self.control_adapter = WanCamAdapter(in_dim_control_adapter, dim, kernel_size=patch_size[1:], stride=patch_size[1:], operation_settings=operation_settings)

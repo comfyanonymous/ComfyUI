@@ -928,6 +928,10 @@ class Flux(BaseModel):
             for lat in ref_latents:
                 latents.append(self.process_latent_in(lat))
             out['ref_latents'] = conds.CONDList(latents)
+
+            ref_latents_method = kwargs.get("reference_latents_method", None)
+            if ref_latents_method is not None:
+                out['ref_latents_method'] = conds.CONDConstant(ref_latents_method)
         return out
 
     def extra_conds_shapes(self, **kwargs):
@@ -1169,7 +1173,11 @@ class WAN21(BaseModel):
                 mask = mask.repeat(1, 4, 1, 1, 1)
             mask = utils.resize_to_batch_size(mask, noise.shape[0])
 
-        return torch.cat((mask, image), dim=1)
+        concat_mask_index = kwargs.get("concat_mask_index", 0)
+        if concat_mask_index != 0:
+            return torch.cat((image[:, :concat_mask_index], mask, image[:, concat_mask_index:]), dim=1)
+        else:
+            return torch.cat((mask, image), dim=1)
 
     def extra_conds(self, **kwargs):
         out = super().extra_conds(**kwargs)
@@ -1184,6 +1192,10 @@ class WAN21(BaseModel):
         time_dim_concat = kwargs.get("time_dim_concat", None)
         if time_dim_concat is not None:
             out['time_dim_concat'] = conds.CONDRegular(self.process_latent_in(time_dim_concat))
+
+        reference_latents = kwargs.get("reference_latents", None)
+        if reference_latents is not None:
+            out['reference_latent'] = conds.CONDRegular(self.process_latent_in(reference_latents[-1])[:, :, 0])
         return out
 
 
@@ -1365,10 +1377,28 @@ class Omnigen2(BaseModel):
 class QwenImage(BaseModel):
     def __init__(self, model_config, model_type=ModelType.FLUX, device=None):
         super().__init__(model_config, model_type, device=device, unet_model=QwenImageTransformer2DModel)
+        self.memory_usage_factor_conds = ("ref_latents",)
 
     def extra_conds(self, **kwargs):
         out = super().extra_conds(**kwargs)
         cross_attn = kwargs.get("cross_attn", None)
         if cross_attn is not None:
             out['c_crossattn'] = conds.CONDRegular(cross_attn)
+        ref_latents = kwargs.get("reference_latents", None)
+        if ref_latents is not None:
+            latents = []
+            for lat in ref_latents:
+                latents.append(self.process_latent_in(lat))
+            out['ref_latents'] = conds.CONDList(latents)
+
+            ref_latents_method = kwargs.get("reference_latents_method", None)
+            if ref_latents_method is not None:
+                out['ref_latents_method'] = conds.CONDConstant(ref_latents_method)
+        return out
+
+    def extra_conds_shapes(self, **kwargs):
+        out = {}
+        ref_latents = kwargs.get("reference_latents", None)
+        if ref_latents is not None:
+            out['ref_latents'] = list([1, 16, sum(map(lambda a: math.prod(a.size()), ref_latents)) // 16])
         return out

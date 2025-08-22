@@ -1129,6 +1129,18 @@ class WAN21_Camera(WAN21_T2V):
         return out
 
 
+class WAN22_Camera(WAN21_T2V):
+    unet_config = {
+        "image_model": "wan2.1",
+        "model_type": "camera_2.2",
+        "in_dim": 36,
+    }
+
+    def get_model(self, state_dict, prefix="", device=None):
+        out = model_base.WAN21_Camera(self, image_to_video=False, device=device)
+        return out
+
+
 class WAN21_Vace(WAN21_T2V):
     unet_config = {
         "image_model": "wan2.1",
@@ -1327,6 +1339,7 @@ class Omnigen2(supported_models_base.BASE):
         hunyuan_detect = hunyuan_video.llama_detect(state_dict, "{}qwen25_3b.transformer.".format(pref))
         return supported_models_base.ClipTarget(omnigen2.Omnigen2Tokenizer, omnigen2.te(**hunyuan_detect))
 
+
 class QwenImage(supported_models_base.BASE):
     unet_config = {
         "image_model": "qwen_image",
@@ -1337,7 +1350,7 @@ class QwenImage(supported_models_base.BASE):
         "shift": 1.15,
     }
 
-    memory_usage_factor = 1.8 #TODO
+    memory_usage_factor = 1.8  # TODO
 
     unet_extra_config = {}
     latent_format = latent_formats.Wan21
@@ -1357,6 +1370,6 @@ class QwenImage(supported_models_base.BASE):
         return supported_models_base.ClipTarget(qwen_image.QwenImageTokenizer, qwen_image.te(**hunyuan_detect))
 
 
-models = [LotusD, Stable_Zero123, SD15_instructpix2pix, SD15, SD20, SD21UnclipL, SD21UnclipH, SDXL_instructpix2pix, SDXLRefiner, SDXL, SSD1B, KOALA_700M, KOALA_1B, Segmind_Vega, SD_X4Upscaler, Stable_Cascade_C, Stable_Cascade_B, SV3D_u, SV3D_p, SD3, StableAudio, AuraFlow, PixArtAlpha, PixArtSigma, HunyuanDiT, HunyuanDiT1, FluxInpaint, Flux, FluxSchnell, GenmoMochi, LTXV, HunyuanVideoSkyreelsI2V, HunyuanVideoI2V, HunyuanVideo, CosmosT2V, CosmosI2V, CosmosT2IPredict2, CosmosI2VPredict2, Lumina2, WAN22_T2V, WAN21_T2V, WAN21_I2V, WAN21_FunControl2V, WAN21_Vace, WAN21_Camera, Hunyuan3Dv2mini, Hunyuan3Dv2, HiDream, Chroma, ACEStep, Omnigen2, QwenImage]
+models = [LotusD, Stable_Zero123, SD15_instructpix2pix, SD15, SD20, SD21UnclipL, SD21UnclipH, SDXL_instructpix2pix, SDXLRefiner, SDXL, SSD1B, KOALA_700M, KOALA_1B, Segmind_Vega, SD_X4Upscaler, Stable_Cascade_C, Stable_Cascade_B, SV3D_u, SV3D_p, SD3, StableAudio, AuraFlow, PixArtAlpha, PixArtSigma, HunyuanDiT, HunyuanDiT1, FluxInpaint, Flux, FluxSchnell, GenmoMochi, LTXV, HunyuanVideoSkyreelsI2V, HunyuanVideoI2V, HunyuanVideo, CosmosT2V, CosmosI2V, CosmosT2IPredict2, CosmosI2VPredict2, Lumina2, WAN22_T2V, WAN21_T2V, WAN21_I2V, WAN21_FunControl2V, WAN21_Vace, WAN21_Camera, WAN22_Camera, Hunyuan3Dv2mini, Hunyuan3Dv2, HiDream, Chroma, ACEStep, Omnigen2, QwenImage]
 
 models += [SVD_img2vid]

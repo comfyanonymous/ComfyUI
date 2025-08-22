@@ -10,6 +10,11 @@ from typing import Type
 import av
 import numpy as np
 import torch
+try:
+    import torchaudio
+    TORCH_AUDIO_AVAILABLE = True
+except:
+    TORCH_AUDIO_AVAILABLE = False
 from PIL import Image as PILImage
 from PIL.PngImagePlugin import PngInfo
 

@@ -109,6 +109,7 @@ def init_default_paths(folder_names_and_paths: FolderNames, configuration: Optio
         ModelPaths(["photomaker"], supported_extensions=set(supported_pt_extensions)),
         ModelPaths(["classifiers"], supported_extensions=set()),
         ModelPaths(["huggingface"], supported_extensions=set()),
+        ModelPaths(["model_patches"], supported_extensions=set(supported_pt_extensions)),
         hf_cache_paths,
         hf_xet,
     ]

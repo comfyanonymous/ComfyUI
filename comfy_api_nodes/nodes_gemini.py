@@ -5,7 +5,10 @@ See: https://cloud.google.com/vertex-ai/generative-ai/docs/model-reference/infer
 from __future__ import annotations
 
 
+import json
+import time
 import os
+import uuid
 from enum import Enum
 from typing import Optional, Literal
 
@@ -46,6 +49,8 @@ class GeminiModel(str, Enum):
 
     gemini_2_5_pro_preview_05_06 = "gemini-2.5-pro-preview-05-06"
     gemini_2_5_flash_preview_04_17 = "gemini-2.5-flash-preview-04-17"
+    gemini_2_5_pro = "gemini-2.5-pro"
+    gemini_2_5_flash = "gemini-2.5-flash"
 
 
 def get_gemini_endpoint(
@@ -97,7 +102,7 @@ class GeminiNode(ComfyNodeABC):
                     {
                         "tooltip": "The Gemini model to use for generating responses.",
                         "options": [model.value for model in GeminiModel],
-                        "default": GeminiModel.gemini_2_5_pro_preview_05_06.value,
+                        "default": GeminiModel.gemini_2_5_pro.value,
                     },
                 ),
                 "seed": (
@@ -303,7 +308,7 @@ class GeminiNode(ComfyNodeABC):
         """
         return GeminiPart(text=text)
 
-    def api_call(
+    async def api_call(
         self,
         prompt: str,
         model: GeminiModel,
@@ -332,7 +337,7 @@ class GeminiNode(ComfyNodeABC):
             parts.extend(files)
 
         # Create response
-        response = SynchronousOperation(
+        response = await SynchronousOperation(
             endpoint=get_gemini_endpoint(model),
             request=GeminiGenerateContentRequest(
                 contents=[
@@ -348,7 +353,27 @@ class GeminiNode(ComfyNodeABC):
         # Get result output
         output_text = self.get_text_from_response(response)
         if unique_id and output_text:
-            PromptServer.instance.send_progress_text(output_text, node_id=unique_id)
+            # Not a true chat history like the OpenAI Chat node. It is emulated so the frontend can show a copy button.
+            render_spec = {
+                "node_id": unique_id,
+                "component": "ChatHistoryWidget",
+                "props": {
+                    "history": json.dumps(
+                        [
+                            {
+                                "prompt": prompt,
+                                "response": output_text,
+                                "response_id": str(uuid.uuid4()),
+                                "timestamp": time.time(),
+                            }
+                        ]
+                    ),
+                },
+            }
+            PromptServer.instance.send_sync(
+                "display_component",
+                render_spec,
+            )
 
         return (output_text or "Empty response from Gemini model...",)
 

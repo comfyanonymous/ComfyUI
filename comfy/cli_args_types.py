@@ -155,6 +155,7 @@ class Configuration(dict):
         cache_classic (bool): WARNING: Unused. Use the old style (aggressive) caching.
         cache_none (bool): Reduced RAM/VRAM usage at the expense of executing every node for each run.
         async_offload (bool): Use async weight offloading.
+        force_non_blocking (bool): Force ComfyUI to use non-blocking operations for all applicable tensors. This may improve performance on some non-Nvidia systems but can cause issues with some workflows.
         default_hashing_function (str): Allows you to choose the hash function to use for duplicate filename / contents comparison. Default is sha256.
         mmap_torch_files (bool): Use mmap when loading ckpt/pt files.
         disable_mmap (bool): Don't use mmap when loading safetensors.
@@ -274,6 +275,7 @@ class Configuration(dict):
         self.cache_classic: bool = False
         self.cache_none: bool = False
         self.async_offload: bool = False
+        self.force_non_blocking: bool = False
         self.default_hashing_function: str = 'sha256'
         self.mmap_torch_files: bool = False
         self.disable_mmap: bool = False

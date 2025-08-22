@@ -756,6 +756,13 @@ class PromptExecutor:
         if ex is not None and self.raise_exceptions:
             raise ex
 
+    def execute(self, prompt, prompt_id, extra_data=None, execute_outputs=None):
+        if execute_outputs is None:
+            execute_outputs = []
+        if extra_data is None:
+            extra_data = {}
+        asyncio.run(self.execute_async(prompt, prompt_id, extra_data, execute_outputs))
+
     async def execute_async(self, prompt, prompt_id, extra_data={}, execute_outputs=[]):
         # torchao and potentially other optimization approaches break when the models are created in inference mode
         # todo: this should really be backpropagated to code which creates ModelPatchers via lazy evaluation rather than globally checked here
@@ -1109,7 +1116,7 @@ def full_type_name(klass):
 
 
 @tracer.start_as_current_span("Validate Prompt")
-async def validate_prompt(prompt_id: typing.Any, prompt: typing.Mapping[str, typing.Any], partial_execution_list: typing.Union[list[str], None]=None) -> ValidationTuple:
+async def validate_prompt(prompt_id: typing.Any, prompt: typing.Mapping[str, typing.Any], partial_execution_list: typing.Union[list[str], None] = None) -> ValidationTuple:
     # todo: partial_execution_list=None, because nobody uses these features
     res = await _validate_prompt(prompt_id, prompt, partial_execution_list)
     if not res.valid:
@@ -1132,7 +1139,7 @@ async def validate_prompt(prompt_id: typing.Any, prompt: typing.Mapping[str, typ
     return res
 
 
-async def _validate_prompt(prompt_id: typing.Any, prompt: typing.Mapping[str, typing.Any], partial_execution_list: typing.Union[list[str], None]=None) -> ValidationTuple:
+async def _validate_prompt(prompt_id: typing.Any, prompt: typing.Mapping[str, typing.Any], partial_execution_list: typing.Union[list[str], None] = None) -> ValidationTuple:
     outputs = set()
     for x in prompt:
         if 'class_type' not in prompt[x]:

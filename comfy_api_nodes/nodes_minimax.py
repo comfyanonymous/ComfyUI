@@ -1,3 +1,4 @@
+from inspect import cleandoc
 from typing import Union
 import logging
 import torch
@@ -10,7 +11,7 @@ from comfy_api_nodes.apis import (
     MinimaxFileRetrieveResponse,
     MinimaxTaskResultResponse,
     SubjectReferenceItem,
-    Model
+    MiniMaxModel
 )
 from comfy_api_nodes.apis.client import (
     ApiEndpoint,
@@ -84,9 +85,8 @@ class MinimaxTextToVideoNode:
     FUNCTION = "generate_video"
     CATEGORY = "api node/video/MiniMax"
     API_NODE = True
-    OUTPUT_NODE = True
 
-    def generate_video(
+    async def generate_video(
         self,
         prompt_text,
         seed=0,
@@ -104,12 +104,12 @@ class MinimaxTextToVideoNode:
         # upload image, if passed in
         image_url = None
         if image is not None:
-            image_url = upload_images_to_comfyapi(image, max_images=1, auth_kwargs=kwargs)[0]
+            image_url = (await upload_images_to_comfyapi(image, max_images=1, auth_kwargs=kwargs))[0]
 
         # TODO: figure out how to deal with subject properly, API returns invalid params when using S2V-01 model
         subject_reference = None
         if subject is not None:
-            subject_url = upload_images_to_comfyapi(subject, max_images=1, auth_kwargs=kwargs)[0]
+            subject_url = (await upload_images_to_comfyapi(subject, max_images=1, auth_kwargs=kwargs))[0]
             subject_reference = [SubjectReferenceItem(image=subject_url)]
 
 
@@ -121,7 +121,7 @@ class MinimaxTextToVideoNode:
                 response_model=MinimaxVideoGenerationResponse,
             ),
             request=MinimaxVideoGenerationRequest(
-                model=Model(model),
+                model=MiniMaxModel(model),
                 prompt=prompt_text,
                 callback_url=None,
                 first_frame_image=image_url,
@@ -130,7 +130,7 @@ class MinimaxTextToVideoNode:
             ),
             auth_kwargs=kwargs,
         )
-        response = video_generate_operation.execute()
+        response = await video_generate_operation.execute()
 
         task_id = response.task_id
         if not task_id:
@@ -151,7 +151,7 @@ class MinimaxTextToVideoNode:
             node_id=unique_id,
             auth_kwargs=kwargs,
         )
-        task_result = video_generate_operation.execute()
+        task_result = await video_generate_operation.execute()
 
         file_id = task_result.file_id
         if file_id is None:
@@ -167,7 +167,7 @@ class MinimaxTextToVideoNode:
             request=EmptyRequest(),
             auth_kwargs=kwargs,
         )
-        file_result = file_retrieve_operation.execute()
+        file_result = await file_retrieve_operation.execute()
 
         file_url = file_result.file.download_url
         if file_url is None:
@@ -182,7 +182,7 @@ class MinimaxTextToVideoNode:
                 message = f"Result URL: {file_url}"
             PromptServer.instance.send_progress_text(message, unique_id)
 
-        video_io = download_url_to_bytesio(file_url)
+        video_io = await download_url_to_bytesio(file_url)
         if video_io is None:
             error_msg = f"Failed to download video from {file_url}"
             logging.error(error_msg)
@@ -251,7 +251,6 @@ class MinimaxImageToVideoNode(MinimaxTextToVideoNode):
     FUNCTION = "generate_video"
     CATEGORY = "api node/video/MiniMax"
     API_NODE = True
-    OUTPUT_NODE = True
 
 
 class MinimaxSubjectToVideoNode(MinimaxTextToVideoNode):
@@ -313,7 +312,181 @@ class MinimaxSubjectToVideoNode(MinimaxTextToVideoNode):
     FUNCTION = "generate_video"
     CATEGORY = "api node/video/MiniMax"
     API_NODE = True
-    OUTPUT_NODE = True
+
+
+class MinimaxHailuoVideoNode:
+    """Generates videos from prompt, with optional start frame using the new MiniMax Hailuo-02 model."""
+
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "prompt_text": (
+                    "STRING",
+                    {
+                        "multiline": True,
+                        "default": "",
+                        "tooltip": "Text prompt to guide the video generation.",
+                    },
+                ),
+            },
+            "optional": {
+                "seed": (
+                    IO.INT,
+                    {
+                        "default": 0,
+                        "min": 0,
+                        "max": 0xFFFFFFFFFFFFFFFF,
+                        "control_after_generate": True,
+                        "tooltip": "The random seed used for creating the noise.",
+                    },
+                ),
+                "first_frame_image": (
+                    IO.IMAGE,
+                    {
+                        "tooltip": "Optional image to use as the first frame to generate a video."
+                    },
+                ),
+                "prompt_optimizer": (
+                    IO.BOOLEAN,
+                    {
+                        "tooltip": "Optimize prompt to improve generation quality when needed.",
+                        "default": True,
+                    },
+                ),
+                "duration": (
+                    IO.COMBO,
+                    {
+                        "tooltip": "The length of the output video in seconds.",
+                        "default": 6,
+                        "options": [6, 10],
+                    },
+                ),
+                "resolution": (
+                    IO.COMBO,
+                    {
+                        "tooltip": "The dimensions of the video display. "
+                                   "1080p corresponds to 1920 x 1080 pixels, 768p corresponds to 1366 x 768 pixels.",
+                        "default": "768P",
+                        "options": ["768P", "1080P"],
+                    },
+                ),
+            },
+            "hidden": {
+                "auth_token": "AUTH_TOKEN_COMFY_ORG",
+                "comfy_api_key": "API_KEY_COMFY_ORG",
+                "unique_id": "UNIQUE_ID",
+            },
+        }
+
+    RETURN_TYPES = ("VIDEO",)
+    DESCRIPTION = cleandoc(__doc__ or "")
+    FUNCTION = "generate_video"
+    CATEGORY = "api node/video/MiniMax"
+    API_NODE = True
+
+    async def generate_video(
+        self,
+        prompt_text,
+        seed=0,
+        first_frame_image: torch.Tensor=None, # used for ImageToVideo
+        prompt_optimizer=True,
+        duration=6,
+        resolution="768P",
+        model="MiniMax-Hailuo-02",
+        unique_id: Union[str, None]=None,
+        **kwargs,
+    ):
+        if first_frame_image is None:
+            validate_string(prompt_text, field_name="prompt_text")
+
+        if model == "MiniMax-Hailuo-02" and resolution.upper() == "1080P" and duration != 6:
+            raise Exception(
+                "When model is MiniMax-Hailuo-02 and resolution is 1080P, duration is limited to 6 seconds."
+            )
+
+        # upload image, if passed in
+        image_url = None
+        if first_frame_image is not None:
+            image_url = (await upload_images_to_comfyapi(first_frame_image, max_images=1, auth_kwargs=kwargs))[0]
+
+        video_generate_operation = SynchronousOperation(
+            endpoint=ApiEndpoint(
+                path="/proxy/minimax/video_generation",
+                method=HttpMethod.POST,
+                request_model=MinimaxVideoGenerationRequest,
+                response_model=MinimaxVideoGenerationResponse,
+            ),
+            request=MinimaxVideoGenerationRequest(
+                model=MiniMaxModel(model),
+                prompt=prompt_text,
+                callback_url=None,
+                first_frame_image=image_url,
+                prompt_optimizer=prompt_optimizer,
+                duration=duration,
+                resolution=resolution,
+            ),
+            auth_kwargs=kwargs,
+        )
+        response = await video_generate_operation.execute()
+
+        task_id = response.task_id
+        if not task_id:
+            raise Exception(f"MiniMax generation failed: {response.base_resp}")
+
+        average_duration = 120 if resolution == "768P" else 240
+        video_generate_operation = PollingOperation(
+            poll_endpoint=ApiEndpoint(
+                path="/proxy/minimax/query/video_generation",
+                method=HttpMethod.GET,
+                request_model=EmptyRequest,
+                response_model=MinimaxTaskResultResponse,
+                query_params={"task_id": task_id},
+            ),
+            completed_statuses=["Success"],
+            failed_statuses=["Fail"],
+            status_extractor=lambda x: x.status.value,
+            estimated_duration=average_duration,
+            node_id=unique_id,
+            auth_kwargs=kwargs,
+        )
+        task_result = await video_generate_operation.execute()
+
+        file_id = task_result.file_id
+        if file_id is None:
+            raise Exception("Request was not successful. Missing file ID.")
+        file_retrieve_operation = SynchronousOperation(
+            endpoint=ApiEndpoint(
+                path="/proxy/minimax/files/retrieve",
+                method=HttpMethod.GET,
+                request_model=EmptyRequest,
+                response_model=MinimaxFileRetrieveResponse,
+                query_params={"file_id": int(file_id)},
+            ),
+            request=EmptyRequest(),
+            auth_kwargs=kwargs,
+        )
+        file_result = await file_retrieve_operation.execute()
+
+        file_url = file_result.file.download_url
+        if file_url is None:
+            raise Exception(
+                f"No video was found in the response. Full response: {file_result.model_dump()}"
+            )
+        logging.info(f"Generated video URL: {file_url}")
+        if unique_id:
+            if hasattr(file_result.file, "backup_download_url"):
+                message = f"Result URL: {file_url}\nBackup URL: {file_result.file.backup_download_url}"
+            else:
+                message = f"Result URL: {file_url}"
+            PromptServer.instance.send_progress_text(message, unique_id)
+
+        video_io = await download_url_to_bytesio(file_url)
+        if video_io is None:
+            error_msg = f"Failed to download video from {file_url}"
+            logging.error(error_msg)
+            raise Exception(error_msg)
+        return (VideoFromFile(video_io),)
 
 
 # A dictionary that contains all nodes you want to export with their names
@@ -322,6 +495,7 @@ NODE_CLASS_MAPPINGS = {
     "MinimaxTextToVideoNode": MinimaxTextToVideoNode,
     "MinimaxImageToVideoNode": MinimaxImageToVideoNode,
     # "MinimaxSubjectToVideoNode": MinimaxSubjectToVideoNode,
+    "MinimaxHailuoVideoNode": MinimaxHailuoVideoNode,
 }
 
 # A dictionary that contains the friendly/humanly readable titles for the nodes
@@ -329,4 +503,5 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "MinimaxTextToVideoNode": "MiniMax Text to Video",
     "MinimaxImageToVideoNode": "MiniMax Image to Video",
     "MinimaxSubjectToVideoNode": "MiniMax Subject to Video",
+    "MinimaxHailuoVideoNode": "MiniMax Hailuo Video",
 }

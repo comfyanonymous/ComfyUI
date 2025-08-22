@@ -313,6 +313,7 @@ def model_lora_keys_unet(model, key_map=None):
                 key_map["{}".format(key_lora)] = k
                 # Support transformer prefix format
                 key_map["transformer.{}".format(key_lora)] = k
+                key_map["lycoris_{}".format(key_lora.replace(".", "_"))] = k #SimpleTuner lycoris format
 
     return key_map
 
