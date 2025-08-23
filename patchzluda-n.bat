@@ -11,6 +11,7 @@ pip uninstall torch torchvision torchaudio -y --quiet
 rmdir /S /Q "venv\Lib\site-packages\torch" 2>nul
 echo :: Installing torch 2.7 - torchaudio 2.7 and torchvision 0.22
 pip install torch==2.7.0 torchvision==0.22.0 torchaudio==2.7.0 --index-url https://download.pytorch.org/whl/cu118 --quiet
+pip install numpy==1.26.4 --quiet
 rmdir /S /Q zluda 2>nul
 mkdir zluda
 cd zluda
@@ -32,5 +33,6 @@ copy comfy\customzluda\zluda.py comfy\zluda.py /y >NUL
 echo.
 echo  :: ZLUDA 3.9.5 nightly patched for HIP SDK 6.2.4 / 6.4.2 with miopen and triton-flash attention.
 pause
+
 
 
