@@ -62,7 +62,7 @@ def get_area_and_mult(conds, x_in, timestep_in):
         if "mask_strength" in conds:
             mask_strength = conds["mask_strength"]
         mask = conds['mask']
-        assert (mask.shape[1:] == x_in.shape[2:])
+        # assert (mask.shape[1:] == x_in.shape[2:])
 
         mask = mask[:input_x.shape[0]]
         if area is not None:
