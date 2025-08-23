@@ -195,6 +195,9 @@ class ExportedNodes:
         exported_nodes = ExportedNodes().update(self)
         return exported_nodes.update(other)
 
+    def __bool__(self):
+        return len(self.NODE_CLASS_MAPPINGS) + len(self.NODE_DISPLAY_NAME_MAPPINGS) + len(self.EXTENSION_WEB_DIRS) > 0
+
 
 class _ExportedNodesAsChainMap(ExportedNodes):
     @classmethod

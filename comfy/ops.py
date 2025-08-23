@@ -27,8 +27,6 @@ from .execution_context import current_execution_context
 from .float import stochastic_rounding
 
 
-def scaled_dot_product_attention(q, k, v, *args, **kwargs):
-    return torch.nn.functional.scaled_dot_product_attention(q, k, v, *args, **kwargs)
 
 
 try:
@@ -51,6 +49,9 @@ try:
             logging.warning("Torch version too old to set sdpa backend priority.")
 except (ModuleNotFoundError, TypeError):
     logging.warning("Could not set sdpa backend priority.")
+
+    def scaled_dot_product_attention(q, k, v, *args, **kwargs):
+        return torch.nn.functional.scaled_dot_product_attention(q, k, v, *args, **kwargs)
 
 cast_to = model_management.cast_to  # TODO: remove once no more references
 

@@ -6,12 +6,13 @@ import collections
 from dataclasses import dataclass
 from abc import ABC, abstractmethod
 import logging
-import comfy.model_management
-import comfy.patcher_extension
+from .model_management import throw_exception_if_processing_interrupted
+from .patcher_extension import get_all_callbacks, WrappersMP
+
 if TYPE_CHECKING:
-    from comfy.model_base import BaseModel
-    from comfy.model_patcher import ModelPatcher
-    from comfy.controlnet import ControlBase
+    from .model_base import BaseModel
+    from .model_patcher import ModelPatcher
+    from .controlnet import ControlBase
 
 
 class ContextWindowABC(ABC):
@@ -32,6 +33,7 @@ class ContextWindowABC(ABC):
         """
         raise NotImplementedError("Not implemented.")
 
+
 class ContextHandlerABC(ABC):
     def __init__(self):
         ...
@@ -49,9 +51,8 @@ class ContextHandlerABC(ABC):
         raise NotImplementedError("Not implemented.")
 
 
-
 class IndexListContextWindow(ContextWindowABC):
-    def __init__(self, index_list: list[int], dim: int=0):
+    def __init__(self, index_list: list[int], dim: int = 0):
         self.index_list = index_list
         self.context_length = len(index_list)
         self.dim = dim
@@ -87,14 +88,18 @@ class ContextSchedule:
     name: str
     func: Callable
 
+
 @dataclass
 class ContextFuseMethod:
     name: str
     func: Callable
 
+
 ContextResults = collections.namedtuple("ContextResults", ['window_idx', 'sub_conds_out', 'sub_conds', 'window'])
+
+
 class IndexListContextHandler(ContextHandlerABC):
-    def __init__(self, context_schedule: ContextSchedule, fuse_method: ContextFuseMethod, context_length: int=1, context_overlap: int=0, context_stride: int=1, closed_loop=False, dim=0):
+    def __init__(self, context_schedule: ContextSchedule, fuse_method: ContextFuseMethod, context_length: int = 1, context_overlap: int = 0, context_stride: int = 1, closed_loop=False, dim=0):
         self.context_schedule = context_schedule
         self.fuse_method = fuse_method
         self.context_length = context_length
@@ -152,7 +157,7 @@ class IndexListContextHandler(ContextHandlerABC):
                             elif hasattr(cond_value, "cond") and isinstance(cond_value.cond, torch.Tensor):
                                 if cond_value.cond.ndim < self.dim and cond_value.cond.size(0) == x_in.size(self.dim):
                                     new_cond_item[cond_key] = cond_value._copy_with(window.get_tensor(cond_value.cond, device))
-                            elif cond_key == "num_video_frames": # for SVD
+                            elif cond_key == "num_video_frames":  # for SVD
                                 new_cond_item[cond_key] = cond_value._copy_with(cond_value.cond)
                                 new_cond_item[cond_key].cond = window.context_length
                         resized_actual_cond[key] = new_cond_item
@@ -171,7 +176,7 @@ class IndexListContextHandler(ContextHandlerABC):
         self._step = int(matches[0].item())
 
     def get_context_windows(self, model: BaseModel, x_in: torch.Tensor, model_options: dict[str]) -> list[IndexListContextWindow]:
-        full_length = x_in.size(self.dim) # TODO: choose dim based on model
+        full_length = x_in.size(self.dim)  # TODO: choose dim based on model
         context_windows = self.context_schedule.func(full_length, self, model_options)
         context_windows = [IndexListContextWindow(window, dim=self.dim) for window in context_windows]
         return context_windows
@@ -188,14 +193,14 @@ class IndexListContextHandler(ContextHandlerABC):
             counts_final = [torch.zeros(get_shape_for_dim(x_in, self.dim), device=x_in.device) for _ in conds]
         biases_final = [([0.0] * x_in.shape[self.dim]) for _ in conds]
 
-        for callback in comfy.patcher_extension.get_all_callbacks(IndexListCallbacks.EXECUTE_START, self.callbacks):
+        for callback in get_all_callbacks(IndexListCallbacks.EXECUTE_START, self.callbacks):
             callback(self, model, x_in, conds, timestep, model_options)
 
         for enum_window in enumerated_context_windows:
             results = self.evaluate_context_windows(calc_cond_batch, model, x_in, conds, timestep, [enum_window], model_options)
             for result in results:
                 self.combine_context_window_results(x_in, result.sub_conds_out, result.sub_conds, result.window, result.window_idx, len(enumerated_context_windows), timestep,
-                                            conds_final, counts_final, biases_final)
+                                                    conds_final, counts_final, biases_final)
         try:
             # finalize conds
             if self.fuse_method.name == ContextFuseMethods.RELATIVE:
@@ -209,17 +214,17 @@ class IndexListContextHandler(ContextHandlerABC):
                 del counts_final
                 return conds_final
         finally:
-            for callback in comfy.patcher_extension.get_all_callbacks(IndexListCallbacks.EXECUTE_CLEANUP, self.callbacks):
+            for callback in get_all_callbacks(IndexListCallbacks.EXECUTE_CLEANUP, self.callbacks):
                 callback(self, model, x_in, conds, timestep, model_options)
 
     def evaluate_context_windows(self, calc_cond_batch: Callable, model: BaseModel, x_in: torch.Tensor, conds, timestep: torch.Tensor, enumerated_context_windows: list[tuple[int, IndexListContextWindow]],
-                                model_options, device=None, first_device=None):
+                                 model_options, device=None, first_device=None):
         results: list[ContextResults] = []
         for window_idx, window in enumerated_context_windows:
             # allow processing to end between context window executions for faster Cancel
-            comfy.model_management.throw_exception_if_processing_interrupted()
+            throw_exception_if_processing_interrupted()
 
-            for callback in comfy.patcher_extension.get_all_callbacks(IndexListCallbacks.EVALUATE_CONTEXT_WINDOWS, self.callbacks):
+            for callback in get_all_callbacks(IndexListCallbacks.EVALUATE_CONTEXT_WINDOWS, self.callbacks):
                 callback(self, model, x_in, conds, timestep, model_options, window_idx, window, model_options, device, first_device)
 
             # update exposed params
@@ -236,9 +241,8 @@ class IndexListContextHandler(ContextHandlerABC):
             results.append(ContextResults(window_idx, sub_conds_out, sub_conds, window))
         return results
 
-
     def combine_context_window_results(self, x_in: torch.Tensor, sub_conds_out, sub_conds, window: IndexListContextWindow, window_idx: int, total_windows: int, timestep: torch.Tensor,
-                                    conds_final: list[torch.Tensor], counts_final: list[torch.Tensor], biases_final: list[torch.Tensor]):
+                                       conds_final: list[torch.Tensor], counts_final: list[torch.Tensor], biases_final: list[torch.Tensor]):
         if self.fuse_method.name == ContextFuseMethods.RELATIVE:
             for pos, idx in enumerate(window.index_list):
                 # bias is the influence of a specific index in relation to the whole context window
@@ -263,7 +267,7 @@ class IndexListContextHandler(ContextHandlerABC):
                 window.add_window(conds_final[i], sub_conds_out[i] * weights_tensor)
                 window.add_window(counts_final[i], weights_tensor)
 
-        for callback in comfy.patcher_extension.get_all_callbacks(IndexListCallbacks.COMBINE_CONTEXT_WINDOW_RESULTS, self.callbacks):
+        for callback in get_all_callbacks(IndexListCallbacks.COMBINE_CONTEXT_WINDOW_RESULTS, self.callbacks):
             callback(self, x_in, sub_conds_out, sub_conds, window, window_idx, total_windows, timestep, conds_final, counts_final, biases_final)
 
 
@@ -281,7 +285,7 @@ def _prepare_sampling_wrapper(executor, model, noise_shape: torch.Tensor, *args,
 
 def create_prepare_sampling_wrapper(model: ModelPatcher):
     model.add_wrapper_with_key(
-        comfy.patcher_extension.WrappersMP.PREPARE_SAMPLING,
+        WrappersMP.PREPARE_SAMPLING,
         "ContextWindows_prepare_sampling",
         _prepare_sampling_wrapper
     )
@@ -296,6 +300,7 @@ def match_weights_to_dim(weights: list[float], x_in: torch.Tensor, dim: int, dev
         weights_tensor = weights_tensor.unsqueeze(-1)
     return weights_tensor
 
+
 def get_shape_for_dim(x_in: torch.Tensor, dim: int) -> list[int]:
     total_dims = len(x_in.shape)
     shape = []
@@ -305,6 +310,7 @@ def get_shape_for_dim(x_in: torch.Tensor, dim: int) -> list[int]:
     for _ in range(total_dims - dim - 1):
         shape.append(1)
     return shape
+
 
 class ContextSchedules:
     UNIFORM_LOOPED = "looped_uniform"
@@ -325,13 +331,14 @@ def create_windows_uniform_looped(num_frames: int, handler: IndexListContextHand
     for context_step in 1 << np.arange(context_stride):
         pad = int(round(num_frames * ordered_halving(handler._step)))
         for j in range(
-            int(ordered_halving(handler._step) * context_step) + pad,
-            num_frames + pad + (0 if handler.closed_loop else -handler.context_overlap),
-            (handler.context_length * context_step - handler.context_overlap),
+                int(ordered_halving(handler._step) * context_step) + pad,
+                num_frames + pad + (0 if handler.closed_loop else -handler.context_overlap),
+                (handler.context_length * context_step - handler.context_overlap),
         ):
             windows.append([e % num_frames for e in range(j, j + handler.context_length * context_step, context_step)])
 
     return windows
+
 
 def create_windows_uniform_standard(num_frames: int, handler: IndexListContextHandler, model_options: dict[str]):
     # unlike looped, uniform_straight does NOT allow windows that loop back to the beginning;
@@ -347,9 +354,9 @@ def create_windows_uniform_standard(num_frames: int, handler: IndexListContextHa
     for context_step in 1 << np.arange(context_stride):
         pad = int(round(num_frames * ordered_halving(handler._step)))
         for j in range(
-            int(ordered_halving(handler._step) * context_step) + pad,
-            num_frames + pad + (-handler.context_overlap),
-            (handler.context_length * context_step - handler.context_overlap),
+                int(ordered_halving(handler._step) * context_step) + pad,
+                num_frames + pad + (-handler.context_overlap),
+                (handler.context_length * context_step - handler.context_overlap),
         ):
             windows.append([e % num_frames for e in range(j, j + handler.context_length * context_step, context_step)])
 
@@ -363,9 +370,9 @@ def create_windows_uniform_standard(num_frames: int, handler: IndexListContextHa
             roll_val = windows[win_i][roll_idx]  # roll_val might not be 0 for windows of higher strides
             shift_window_to_end(windows[win_i], num_frames=num_frames)
             # check if next window (cyclical) is missing roll_val
-            if roll_val not in windows[(win_i+1) % len(windows)]:
+            if roll_val not in windows[(win_i + 1) % len(windows)]:
                 # need to insert new window here - just insert window starting at roll_val
-                windows.insert(win_i+1, list(range(roll_val, roll_val + handler.context_length)))
+                windows.insert(win_i + 1, list(range(roll_val, roll_val + handler.context_length)))
         # delete window if it's not unique
         for pre_i in range(0, win_i):
             if windows[win_i] == windows[pre_i]:
@@ -432,13 +439,14 @@ def get_matching_context_schedule(context_schedule: str) -> ContextSchedule:
     return ContextSchedule(context_schedule, func)
 
 
-def get_context_weights(length: int, full_length: int, idxs: list[int], handler: IndexListContextHandler, sigma: torch.Tensor=None):
+def get_context_weights(length: int, full_length: int, idxs: list[int], handler: IndexListContextHandler, sigma: torch.Tensor = None):
     return handler.fuse_method.func(length, sigma=sigma, handler=handler, full_length=full_length, idxs=idxs)
 
 
 def create_weights_flat(length: int, **kwargs) -> list[float]:
     # weight is the same for all
     return [1.0] * length
+
 
 def create_weights_pyramid(length: int, **kwargs) -> list[float]:
     # weight is based on the distance away from the edge of the context window;
@@ -451,6 +459,7 @@ def create_weights_pyramid(length: int, **kwargs) -> list[float]:
         weight_sequence = list(range(1, max_weight, 1)) + [max_weight] + list(range(max_weight - 1, 0, -1))
     return weight_sequence
 
+
 def create_weights_overlap_linear(length: int, full_length: int, idxs: list[int], handler: IndexListContextHandler, **kwargs):
     # based on code in Kijai's WanVideoWrapper: https://github.com/kijai/ComfyUI-WanVideoWrapper/blob/dbb2523b37e4ccdf45127e5ae33e31362f755c8e/nodes.py#L1302
     # only expected overlap is given different weights
@@ -460,10 +469,11 @@ def create_weights_overlap_linear(length: int, full_length: int, idxs: list[int]
         ramp_up = torch.linspace(1e-37, 1, handler.context_overlap)
         weights_torch[:handler.context_overlap] = ramp_up
     # blend right-side on all except last window
-    if max(idxs) < full_length-1:
+    if max(idxs) < full_length - 1:
         ramp_down = torch.linspace(1, 1e-37, handler.context_overlap)
         weights_torch[-handler.context_overlap:] = ramp_down
     return weights_torch
+
 
 class ContextFuseMethods:
     FLAT = "flat"
@@ -482,11 +492,13 @@ FUSE_MAPPING = {
     ContextFuseMethods.OVERLAP_LINEAR: create_weights_overlap_linear,
 }
 
+
 def get_matching_fuse_method(fuse_method: str) -> ContextFuseMethod:
     func = FUSE_MAPPING.get(fuse_method, None)
     if func is None:
         raise ValueError(f"Unknown fuse_method '{fuse_method}'.")
     return ContextFuseMethod(fuse_method, func)
+
 
 # Returns fraction that has denominator that is a power of 2
 def ordered_halving(val):

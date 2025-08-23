@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import os
+import platform
 import time
 from concurrent.futures import Future
 from pathlib import Path
@@ -17,16 +18,19 @@ from pebble import ThreadPool
 
 from .tqdm_watcher import TqdmWatcher
 
+logger = logging.getLogger(__name__)
+
 _VAR = "HF_HUB_ENABLE_HF_TRANSFER"
 _XET_VAR = "HF_XET_HIGH_PERFORMANCE"
 
-os.environ[_VAR] = "True"
 
-os.environ["HF_HUB_DISABLE_XET"] = "1"
-# os.environ["HF_XET_HIGH_PERFORMANCE"] = "True"
+if platform.system() == "Windows":
+    os.environ["HF_HUB_DISABLE_XET"] = "1"
+    logger.debug("Xet was disabled since it is currently not reliable")
+    os.environ[_VAR] = "True"
+else:
+    os.environ[_XET_VAR] = "True"
 
-logger = logging.getLogger(__name__)
-logger.debug("Xet was disabled since it is currently not reliable")
 
 
 def hf_hub_download_with_disable_fast(repo_id=None, filename=None, disable_fast=None, hf_env: dict[str, str] = None, **kwargs):

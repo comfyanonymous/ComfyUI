@@ -3,7 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from typing import Optional, Tuple
 import math
-from comfy.ldm.modules.attention import optimized_attention_for_device
+from ..ldm.modules.attention import optimized_attention_for_device
 
 
 def process_qwen2vl_images(

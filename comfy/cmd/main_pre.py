@@ -45,6 +45,7 @@ logging.getLogger("torch.distributed.elastic.multiprocessing.redirects").addFilt
     lambda record: log_msg_to_filter not in record.getMessage()
 )
 logging.getLogger("alembic.runtime.migration").setLevel(logging.WARNING)
+logging.getLogger("asyncio").addFilter(lambda record: 'Using selector:' not in record.getMessage())
 
 from ..cli_args import args
 

@@ -1,4 +1,4 @@
-import node_helpers
+from comfy import node_helpers
 import comfy.utils
 import math
 
@@ -7,11 +7,11 @@ class TextEncodeQwenImageEdit:
     @classmethod
     def INPUT_TYPES(s):
         return {"required": {
-            "clip": ("CLIP", ),
+            "clip": ("CLIP",),
             "prompt": ("STRING", {"multiline": True, "dynamicPrompts": True}),
-            },
-            "optional": {"vae": ("VAE", ),
-                         "image": ("IMAGE", ),}}
+        },
+            "optional": {"vae": ("VAE",),
+                         "image": ("IMAGE",), }}
 
     RETURN_TYPES = ("CONDITIONING",)
     FUNCTION = "encode"
@@ -40,7 +40,7 @@ class TextEncodeQwenImageEdit:
         conditioning = clip.encode_from_tokens_scheduled(tokens)
         if ref_latent is not None:
             conditioning = node_helpers.conditioning_set_values(conditioning, {"reference_latents": [ref_latent]}, append=True)
-        return (conditioning, )
+        return (conditioning,)
 
 
 NODE_CLASS_MAPPINGS = {

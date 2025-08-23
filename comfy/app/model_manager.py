@@ -78,7 +78,6 @@ class ModelFileManager:
                 return web.Response(status=404)
 
     def get_model_file_list(self, folder_name: str):
-        folder_name = folder_paths.map_legacy(folder_name)
         folders = folder_paths.folder_names_and_paths[folder_name]
         output_list: list[dict] = []
 

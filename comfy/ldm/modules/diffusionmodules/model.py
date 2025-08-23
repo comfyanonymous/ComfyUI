@@ -7,6 +7,7 @@ import torch.nn as nn
 
 from .... import model_management
 from .... import ops
+from ....ops import scaled_dot_product_attention
 
 ops = ops.disable_weight_init
 
@@ -295,7 +296,7 @@ def pytorch_attention(q, k, v):
     )
 
     try:
-        out = comfy.ops.scaled_dot_product_attention(q, k, v, attn_mask=None, dropout_p=0.0, is_causal=False)
+        out = scaled_dot_product_attention(q, k, v, attn_mask=None, dropout_p=0.0, is_causal=False)
         out = out.transpose(2, 3).reshape(orig_shape)
     except model_management.OOM_EXCEPTION:
         logger.warning("scaled_dot_product_attention OOMed: switched to slice attention")

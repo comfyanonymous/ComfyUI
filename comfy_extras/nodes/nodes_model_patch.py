@@ -1,5 +1,5 @@
 import torch
-import folder_paths
+from comfy.cmd import folder_paths  # pylint: disable=no-name-in-module
 import comfy.utils
 import comfy.ops
 import comfy.model_management
@@ -27,12 +27,12 @@ class BlockWiseControlBlock(torch.nn.Module):
 
 class QwenImageBlockWiseControlNet(torch.nn.Module):
     def __init__(
-        self,
-        num_layers: int = 60,
-        in_dim: int = 64,
-        additional_in_dim: int = 0,
-        dim: int = 3072,
-        device=None, dtype=None, operations=None
+            self,
+            num_layers: int = 60,
+            in_dim: int = 64,
+            additional_in_dim: int = 0,
+            dim: int = 3072,
+            device=None, dtype=None, operations=None
     ):
         super().__init__()
         self.additional_in_dim = additional_in_dim
@@ -61,8 +61,9 @@ class QwenImageBlockWiseControlNet(torch.nn.Module):
 class ModelPatchLoader:
     @classmethod
     def INPUT_TYPES(s):
-        return {"required": { "name": (folder_paths.get_filename_list("model_patches"), ),
-                              }}
+        return {"required": {"name": (folder_paths.get_filename_list("model_patches"),),
+                             }}
+
     RETURN_TYPES = ("MODEL_PATCH",)
     FUNCTION = "load_model_patch"
     EXPERIMENTAL = True
@@ -125,16 +126,18 @@ class DiffSynthCnetPatch:
     def models(self):
         return [self.model_patch]
 
+
 class QwenImageDiffsynthControlnet:
     @classmethod
     def INPUT_TYPES(s):
-        return {"required": { "model": ("MODEL",),
-                              "model_patch": ("MODEL_PATCH",),
-                              "vae": ("VAE",),
-                              "image": ("IMAGE",),
-                              "strength": ("FLOAT", {"default": 1.0, "min": -10.0, "max": 10.0, "step": 0.01}),
-                              },
+        return {"required": {"model": ("MODEL",),
+                             "model_patch": ("MODEL_PATCH",),
+                             "vae": ("VAE",),
+                             "image": ("IMAGE",),
+                             "strength": ("FLOAT", {"default": 1.0, "min": -10.0, "max": 10.0, "step": 0.01}),
+                             },
                 "optional": {"mask": ("MASK",)}}
+
     RETURN_TYPES = ("MODEL",)
     FUNCTION = "diffsynth_controlnet"
     EXPERIMENTAL = True

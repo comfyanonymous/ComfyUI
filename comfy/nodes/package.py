@@ -23,10 +23,11 @@ _nodes_available_at_startup: ExportedNodes = ExportedNodes()
 logger = logging.getLogger(__name__)
 
 
-def _import_nodes_in_module(exported_nodes: ExportedNodes, module: types.ModuleType):
+def _import_nodes_in_module(module: types.ModuleType) -> ExportedNodes:
     node_class_mappings = getattr(module, 'NODE_CLASS_MAPPINGS', None)
     node_display_names = getattr(module, 'NODE_DISPLAY_NAME_MAPPINGS', None)
     web_directory = getattr(module, "WEB_DIRECTORY", None)
+    exported_nodes = ExportedNodes()
     if node_class_mappings:
         exported_nodes.NODE_CLASS_MAPPINGS.update(node_class_mappings)
     if node_display_names:
@@ -42,7 +43,7 @@ def _import_nodes_in_module(exported_nodes: ExportedNodes, module: types.ModuleT
             raise ImportError(path=abs_web_directory)
         exported_nodes.EXTENSION_WEB_DIRS[module.__name__] = abs_web_directory
     exported_nodes.update(_comfy_entrypoint_upstream_v3_imports(module))
-    return node_class_mappings and len(node_class_mappings) > 0 or web_directory
+    return exported_nodes
 
 
 
@@ -58,17 +59,19 @@ def _import_and_enumerate_nodes_in_module(module: types.ModuleType,
         time_before = time.perf_counter()
         full_name = module.__name__
         try:
-            any_content_in_module = _import_nodes_in_module(exported_nodes, module)
+            module_exported_nodes = _import_nodes_in_module(module)
             span.set_attribute("full_name", full_name)
             timings.append((time.perf_counter() - time_before, full_name, True, exported_nodes))
         except Exception as exc:
-            any_content_in_module = None
+            module_exported_nodes = None
             logger.error(f"{full_name} import failed", exc_info=exc)
             span.set_status(Status(StatusCode.ERROR))
             span.record_exception(exc)
             exceptions.append(exc)
-    if any_content_in_module is None or not any_content_in_module:
-        # Iterate through all the submodules
+    if module_exported_nodes:
+        exported_nodes.update(module_exported_nodes)
+    else:
+        # iterate through all the submodules and try to find exported nodes
         for _, name, is_pkg in pkgutil.iter_modules(module.__path__):
             span: Span
             with tracer.start_as_current_span("Load Node") as span:

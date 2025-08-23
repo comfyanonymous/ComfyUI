@@ -1,7 +1,7 @@
 from __future__ import annotations
 from comfy_api.latest import ComfyExtension, io
 import comfy.context_windows
-import nodes
+from comfy.nodes import base_nodes as nodes
 
 
 class ContextWindowsManualNode(io.ComfyNode):

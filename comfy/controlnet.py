@@ -662,7 +662,7 @@ def load_controlnet_qwen_instantx(sd, model_options={}):
     model_config, operations, load_device, unet_dtype, manual_cast_dtype, offload_device = controlnet_config(sd, model_options=model_options)
     control_model = QwenImageControlNetModel(operations=operations, device=offload_device, dtype=unet_dtype, **model_config.unet_config)
     control_model = controlnet_load_state_dict(control_model, sd)
-    latent_format = comfy.latent_formats.Wan21()
+    latent_format = latent_formats.Wan21()
     extra_conds = []
     control = ControlNet(control_model, compression_ratio=1, latent_format=latent_format, load_device=load_device, manual_cast_dtype=manual_cast_dtype, extra_conds=extra_conds)
     return control

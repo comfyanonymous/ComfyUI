@@ -656,6 +656,7 @@ class MoonvalleyVideo2VideoNode(BaseMoonvalleyVideoNode):
     async def generate(
         self, prompt, negative_prompt, unique_id: Optional[str] = None, **kwargs
     ):
+        image_url: Optional[str] = None
         video = kwargs.get("video")
         image = kwargs.get("image", None)
 

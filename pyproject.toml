@@ -119,7 +119,7 @@ where = ["."]
 include = ["comfy*"]
 namespaces = false
 
-[dependency-groups]
+[project.optional-dependencies]
 dev = [
     "pytest",
     "pytest-asyncio",
@@ -137,7 +137,6 @@ dev = [
     "astroid",
 ]
 
-[project.optional-dependencies]
 cpu = [
     "torch",
     "torchvision",

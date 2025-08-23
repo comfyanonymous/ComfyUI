@@ -13,15 +13,13 @@ from os.path import join
 from pathlib import Path
 from typing import List, Optional, Final, Set
 
-from .component_model.hf_hub_download_with_disable_xet import hf_hub_download_with_retries
-
 import tqdm
-from huggingface_hub import hf_hub_download, scan_cache_dir, snapshot_download, HfFileSystem
+from huggingface_hub import dump_environment_info
+from huggingface_hub import hf_hub_download, scan_cache_dir, snapshot_download, HfFileSystem, CacheNotFound
 from huggingface_hub.utils import GatedRepoError, LocalEntryNotFoundError
 from requests import Session
 from safetensors import safe_open
 from safetensors.torch import save_file
-from huggingface_hub import dump_environment_info
 
 from .cli_args import args
 from .cmd import folder_paths
@@ -140,11 +138,11 @@ def get_or_download(folder_name: str, filename: str, known_files: Optional[List[
                         try:
                             logger.debug(f"{folder_name}/{filename} is being downloaded from {known_file.repo_id}/{known_file.filename} candidate_str_match={candidate_str_match} candidate_filename_match={candidate_filename_match} candidate_alternate_filenames_match={candidate_alternate_filenames_match} candidate_save_filename_match={candidate_save_filename_match}")
                             path = hf_hub_download(repo_id=known_file.repo_id,
-                                                                filename=known_file.filename,
-                                                                repo_type=known_file.repo_type,
-                                                                revision=known_file.revision,
-                                                                local_dir=hf_destination_dir if args.force_hf_local_dir_mode else None,
-                                                                )
+                                                   filename=known_file.filename,
+                                                   repo_type=known_file.repo_type,
+                                                   revision=known_file.revision,
+                                                   local_dir=hf_destination_dir if args.force_hf_local_dir_mode else None,
+                                                   )
                         except IOError as exc_info:
                             logger.error(f"cannot reach huggingface {known_file.repo_id}/{known_file.filename}", exc_info=exc_info)
                         except Exception as exc_info:
@@ -689,10 +687,14 @@ def get_huggingface_repo_list(*extra_cache_dirs: str) -> List[str]:
         extra_cache_dirs = folder_paths.get_folder_paths("huggingface_cache")
 
     # all in cache directories
+    try:
+        default_cache_dir = [scan_cache_dir()]
+    except CacheNotFound as exc_info:
+        default_cache_dir = []
     existing_repo_ids = frozenset(
         cache_item.repo_id for cache_item in \
         reduce(operator.or_,
-               map(lambda cache_info: cache_info.repos, [scan_cache_dir()] + [scan_cache_dir(cache_dir=cache_dir) for cache_dir in extra_cache_dirs if os.path.isdir(cache_dir)]))
+               map(lambda cache_info: cache_info.repos, default_cache_dir + [scan_cache_dir(cache_dir=cache_dir) for cache_dir in extra_cache_dirs if os.path.isdir(cache_dir)]))
         if cache_item.repo_type == "model" or cache_item.repo_type == "space"
     )
 

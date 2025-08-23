@@ -5,30 +5,37 @@ from typing import Optional
 
 import torch
 import torch.nn.functional as F
+from diffusers.models.attention_dispatch import sageattn
 from einops import rearrange, repeat
 from torch import nn, einsum
 
 from .diffusionmodules.util import AlphaBlender, timestep_embedding
 from .sub_quadratic_attention import efficient_dot_product_attention
 from ... import model_management
+from ...ops import scaled_dot_product_attention
+
+logger = logging.getLogger(__name__)
 
 if model_management.xformers_enabled():
     import xformers  # pylint: disable=import-error
     import xformers.ops  # pylint: disable=import-error
 
+sageattn = None
 if model_management.sage_attention_enabled():
     try:
         from sageattention import sageattn  # pylint: disable=import-error
     except ModuleNotFoundError as e:
         if e.name == "sageattention":
             import sys
-            logging.error(f"\n\nTo use the `--use-sage-attention` feature, the `sageattention` package must be installed first.\ncommand:\n\t{sys.executable} -m pip install sageattention")
+
+            logger.error(f"To use the `--use-sage-attention` feature, the `sageattention` package must be installed first.")
         else:
             raise e
+        sageattn = torch.nn.functional.scaled_dot_product_attention
 else:
     sageattn = torch.nn.functional.scaled_dot_product_attention
 
-
+flash_attn_func = None
 if model_management.flash_attention_enabled():
     from flash_attn import flash_attn_func  # pylint: disable=import-error
 else:
@@ -40,7 +47,6 @@ from ... import ops
 ops = ops.disable_weight_init
 
 FORCE_UPCAST_ATTENTION_DTYPE = model_management.force_upcast_attention_dtype()
-logger = logging.getLogger(__name__)
 
 
 def get_attn_precision(attn_precision, current_dtype):
@@ -480,7 +486,7 @@ def attention_pytorch(q, k, v, heads, mask=None, attn_precision=None, skip_resha
             mask = mask.unsqueeze(1)
 
     if SDP_BATCH_LIMIT >= b:
-        out = comfy.ops.scaled_dot_product_attention(q, k, v, attn_mask=mask, dropout_p=0.0, is_causal=False)
+        out = scaled_dot_product_attention(q, k, v, attn_mask=mask, dropout_p=0.0, is_causal=False)
         if not skip_output_reshape:
             out = (
                 out.transpose(1, 2).reshape(b, -1, heads * dim_head)
@@ -493,7 +499,7 @@ def attention_pytorch(q, k, v, heads, mask=None, attn_precision=None, skip_resha
                 if mask.shape[0] > 1:
                     m = mask[i: i + SDP_BATCH_LIMIT]
 
-            out[i: i + SDP_BATCH_LIMIT] = comfy.ops.scaled_dot_product_attention(
+            out[i: i + SDP_BATCH_LIMIT] = scaled_dot_product_attention(
                 q[i: i + SDP_BATCH_LIMIT],
                 k[i: i + SDP_BATCH_LIMIT],
                 v[i: i + SDP_BATCH_LIMIT],
@@ -527,7 +533,7 @@ def attention_sage(q, k, v, heads, mask=None, attn_precision=None, skip_reshape=
     try:
         out = sageattn(q, k, v, attn_mask=mask, is_causal=False, tensor_layout=tensor_layout)
     except Exception as e:
-        logging.error("Error running sage attention: {}, using pytorch attention instead.".format(e))
+        logger.error("Error running sage attention: {}, using pytorch attention instead.".format(e))
         if tensor_layout == "NHD":
             q, k, v = map(
                 lambda t: t.transpose(1, 2),
@@ -551,7 +557,7 @@ def attention_sage(q, k, v, heads, mask=None, attn_precision=None, skip_reshape=
 try:
     @torch.library.custom_op("flash_attention::flash_attn", mutates_args=())
     def flash_attn_wrapper(q: torch.Tensor, k: torch.Tensor, v: torch.Tensor,
-                    dropout_p: float = 0.0, causal: bool = False) -> torch.Tensor:
+                           dropout_p: float = 0.0, causal: bool = False) -> torch.Tensor:
         return flash_attn_func(q, k, v, dropout_p=dropout_p, causal=causal)  # pylint: disable=possibly-used-before-assignment,used-before-assignment
 
 
@@ -562,8 +568,9 @@ try:
 except AttributeError as error:
     FLASH_ATTN_ERROR = error
 
+
     def flash_attn_wrapper(q: torch.Tensor, k: torch.Tensor, v: torch.Tensor,
-                    dropout_p: float = 0.0, causal: bool = False) -> torch.Tensor:
+                           dropout_p: float = 0.0, causal: bool = False) -> torch.Tensor:
         assert False, f"Could not define flash_attn_wrapper: {FLASH_ATTN_ERROR}"
 
 
@@ -596,7 +603,7 @@ def attention_flash(q, k, v, heads, mask=None, attn_precision=None, skip_reshape
             causal=False,
         ).transpose(1, 2)
     except Exception as e:
-        logging.warning(f"Flash Attention failed, using default SDPA: {e}")
+        logger.warning(f"Flash Attention failed, using default SDPA: {e}")
         out = torch.nn.functional.scaled_dot_product_attention(q, k, v, attn_mask=mask, dropout_p=0.0, is_causal=False)
     if not skip_output_reshape:
         out = (
@@ -616,7 +623,7 @@ elif model_management.xformers_enabled():
     logger.debug("Using xformers attention")
     optimized_attention = attention_xformers
 elif model_management.flash_attention_enabled():
-    logging.debug("Using Flash Attention")
+    logger.debug("Using Flash Attention")
     optimized_attention = attention_flash
 elif model_management.pytorch_attention_enabled():
     logger.debug("Using pytorch attention")
