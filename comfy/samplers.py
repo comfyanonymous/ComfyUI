@@ -953,7 +953,14 @@ class CFGGuider:
             self.original_conds[k] = comfy.sampler_helpers.convert_cond(conds[k])
 
     def __call__(self, *args, **kwargs):
-        return self.predict_noise(*args, **kwargs)
+        return self.outer_predict_noise(*args, **kwargs)
+
+    def outer_predict_noise(self, x, timestep, model_options={}, seed=None):
+        return comfy.patcher_extension.WrapperExecutor.new_class_executor(
+            self.predict_noise,
+            self,
+            comfy.patcher_extension.get_all_wrappers(comfy.patcher_extension.WrappersMP.PREDICT_NOISE, self.model_options, is_model_options=True)
+        ).execute(x, timestep, model_options, seed)
 
     def predict_noise(self, x, timestep, model_options={}, seed=None):
         return sampling_function(self.inner_model, x, timestep, self.conds.get("negative", None), self.conds.get("positive", None), self.cfg, model_options=model_options, seed=seed)

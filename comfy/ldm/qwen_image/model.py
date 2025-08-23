@@ -9,6 +9,7 @@ from comfy.ldm.lightricks.model import TimestepEmbedding, Timesteps
 from comfy.ldm.modules.attention import optimized_attention_masked
 from comfy.ldm.flux.layers import EmbedND
 import comfy.ldm.common_dit
+import comfy.patcher_extension
 
 class GELU(nn.Module):
     def __init__(self, dim_in: int, dim_out: int, approximate: str = "none", bias: bool = True, dtype=None, device=None, operations=None):
@@ -355,7 +356,14 @@ class QwenImageTransformer2DModel(nn.Module):
         img_ids[:, :, 2] = img_ids[:, :, 2] + torch.linspace(w_offset, w_len - 1 + w_offset, steps=w_len, device=x.device, dtype=x.dtype).unsqueeze(0) - (w_len // 2)
         return hidden_states, repeat(img_ids, "h w c -> b (h w) c", b=bs), orig_shape
 
-    def forward(
+    def forward(self, x, timestep, context, attention_mask=None, guidance=None, ref_latents=None, transformer_options={}, **kwargs):
+        return comfy.patcher_extension.WrapperExecutor.new_class_executor(
+            self._forward,
+            self,
+            comfy.patcher_extension.get_all_wrappers(comfy.patcher_extension.WrappersMP.DIFFUSION_MODEL, transformer_options)
+        ).execute(x, timestep, context, attention_mask, guidance, ref_latents, transformer_options, **kwargs)
+
+    def _forward(
         self,
         x,
         timesteps,
