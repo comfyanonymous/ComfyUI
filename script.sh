@@ -93,7 +93,7 @@ wget -c https://huggingface.co/h94/IP-Adapter/resolve/main/sdxl_models/ip-adapte
 
 # pulid model
 mkdir -p ./models/pulid/
-wget -c https://huggingface.co/guozinan/PuLID/resolve/main/pulid_flux_v0.9.1.safetensors -P ./models/pulid/
+wget -c https://huggingface.co/guozinan/PuLID/resolve/main/pulid_flux_v0.9.0.safetensors -P ./models/pulid/
 
 # 质量还不错，速度有点慢
 # wget -c https://huggingface.co/city96/t5-v1_1-xxl-encoder-gguf/resolve/main/t5-v1_1-xxl-encoder-Q8_0.gguf -P ./models/text_encoders
