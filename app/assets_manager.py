@@ -2,6 +2,9 @@ import os
 from datetime import datetime, timezone
 from typing import Optional, Sequence
 
+from comfy.cli_args import args
+from comfy_api.internal import async_to_sync
+
 from .database.db import create_session
 from .storage import hashing
 from .database.services import (
@@ -14,9 +17,11 @@ from .database.services import (
 )
 
 
-def get_size_mtime_ns(path: str) -> tuple[int, int]:
-    st = os.stat(path, follow_symlinks=True)
-    return st.st_size, getattr(st, "st_mtime_ns", int(st.st_mtime * 1_000_000_000))
+def populate_db_with_asset(tags: list[str], file_name: str, file_path: str) -> None:
+    if not args.disable_model_processing:
+        async_to_sync.AsyncToSyncConverter.run_async_in_thread(
+            add_local_asset, tags=tags, file_name=file_name, file_path=file_path
+        )
 
 
 async def add_local_asset(tags: list[str], file_name: str, file_path: str) -> None:
@@ -28,7 +33,7 @@ async def add_local_asset(tags: list[str], file_name: str, file_path: str) -> No
     - This function ensures the identity row and seeds mtime in asset_locator_state.
     """
     abs_path = os.path.abspath(file_path)
-    size_bytes, mtime_ns = get_size_mtime_ns(abs_path)
+    size_bytes, mtime_ns = _get_size_mtime_ns(abs_path)
     if not size_bytes:
         return
 
@@ -146,3 +151,8 @@ def _safe_sort_field(requested: str | None) -> str:
     if v in {"name", "created_at", "updated_at", "size", "last_access_time"}:
         return v
     return "created_at"
+
+
+def _get_size_mtime_ns(path: str) -> tuple[int, int]:
+    st = os.stat(path, follow_symlinks=True)
+    return st.st_size, getattr(st, "st_mtime_ns", int(st.st_mtime * 1_000_000_000))

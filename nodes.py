@@ -28,10 +28,10 @@ import comfy.sd
 import comfy.utils
 import comfy.controlnet
 from comfy.comfy_types import IO, ComfyNodeABC, InputTypeDict, FileLocator
-from comfy_api.internal import async_to_sync, register_versions, ComfyAPIWithVersion
+from comfy_api.internal import register_versions, ComfyAPIWithVersion
 from comfy_api.version_list import supported_versions
 from comfy_api.latest import io, ComfyExtension
-from app.assets_manager import add_local_asset
+from app.assets_manager import populate_db_with_asset
 
 import comfy.clip_vision
 
@@ -555,7 +555,9 @@ class CheckpointLoader:
     def load_checkpoint(self, config_name, ckpt_name):
         config_path = folder_paths.get_full_path("configs", config_name)
         ckpt_path = folder_paths.get_full_path_or_raise("checkpoints", ckpt_name)
-        return comfy.sd.load_checkpoint(config_path, ckpt_path, output_vae=True, output_clip=True, embedding_directory=folder_paths.get_folder_paths("embeddings"))
+        out = comfy.sd.load_checkpoint(config_path, ckpt_path, output_vae=True, output_clip=True, embedding_directory=folder_paths.get_folder_paths("embeddings"))
+        populate_db_with_asset(["models", "checkpoint"], ckpt_name, ckpt_path)
+        return out
 
 class CheckpointLoaderSimple:
     @classmethod
@@ -577,6 +579,7 @@ class CheckpointLoaderSimple:
     def load_checkpoint(self, ckpt_name):
         ckpt_path = folder_paths.get_full_path_or_raise("checkpoints", ckpt_name)
         out = comfy.sd.load_checkpoint_guess_config(ckpt_path, output_vae=True, output_clip=True, embedding_directory=folder_paths.get_folder_paths("embeddings"))
+        populate_db_with_asset(["models", "checkpoint"], ckpt_name, ckpt_path)
         return out[:3]
 
 class DiffusersLoader:
@@ -619,6 +622,7 @@ class unCLIPCheckpointLoader:
     def load_checkpoint(self, ckpt_name, output_vae=True, output_clip=True):
         ckpt_path = folder_paths.get_full_path_or_raise("checkpoints", ckpt_name)
         out = comfy.sd.load_checkpoint_guess_config(ckpt_path, output_vae=True, output_clip=True, output_clipvision=True, embedding_directory=folder_paths.get_folder_paths("embeddings"))
+        populate_db_with_asset(["models", "checkpoint"], ckpt_name, ckpt_path)
         return out
 
 class CLIPSetLastLayer:
@@ -677,6 +681,7 @@ class LoraLoader:
             self.loaded_lora = (lora_path, lora)
 
         model_lora, clip_lora = comfy.sd.load_lora_for_models(model, clip, lora, strength_model, strength_clip)
+        populate_db_with_asset(["models", "lora"], lora_name, lora_path)
         return (model_lora, clip_lora)
 
 class LoraLoaderModelOnly(LoraLoader):
@@ -741,11 +746,15 @@ class VAELoader:
         encoder = next(filter(lambda a: a.startswith("{}_encoder.".format(name)), approx_vaes))
         decoder = next(filter(lambda a: a.startswith("{}_decoder.".format(name)), approx_vaes))
 
-        enc = comfy.utils.load_torch_file(folder_paths.get_full_path_or_raise("vae_approx", encoder))
+        encoder_path = folder_paths.get_full_path_or_raise("vae_approx", encoder)
+        populate_db_with_asset(["models", "vae-approx", "encoder"], name, encoder_path)
+        enc = comfy.utils.load_torch_file(encoder_path)
         for k in enc:
             sd["taesd_encoder.{}".format(k)] = enc[k]
 
-        dec = comfy.utils.load_torch_file(folder_paths.get_full_path_or_raise("vae_approx", decoder))
+        decoder_path = folder_paths.get_full_path_or_raise("vae_approx", decoder)
+        populate_db_with_asset(["models", "vae-approx", "decoder"], name, decoder_path)
+        dec = comfy.utils.load_torch_file(decoder_path)
         for k in dec:
             sd["taesd_decoder.{}".format(k)] = dec[k]
 
@@ -778,9 +787,7 @@ class VAELoader:
         else:
             vae_path = folder_paths.get_full_path_or_raise("vae", vae_name)
             sd = comfy.utils.load_torch_file(vae_path)
-            async_to_sync.AsyncToSyncConverter.run_async_in_thread(
-                add_local_asset, tags=["models", "vae"], file_name=vae_name, file_path=vae_path
-            )
+            populate_db_with_asset(["models", "vae"], vae_name, vae_path)
         vae = comfy.sd.VAE(sd=sd)
         vae.throw_exception_if_invalid()
         return (vae,)
@@ -800,6 +807,7 @@ class ControlNetLoader:
         controlnet = comfy.controlnet.load_controlnet(controlnet_path)
         if controlnet is None:
             raise RuntimeError("ERROR: controlnet file is invalid and does not contain a valid controlnet model.")
+        populate_db_with_asset(["models", "controlnet"], control_net_name, controlnet_path)
         return (controlnet,)
 
 class DiffControlNetLoader:
@@ -816,6 +824,7 @@ class DiffControlNetLoader:
     def load_controlnet(self, model, control_net_name):
         controlnet_path = folder_paths.get_full_path_or_raise("controlnet", control_net_name)
         controlnet = comfy.controlnet.load_controlnet(controlnet_path, model)
+        populate_db_with_asset(["models", "controlnet"], control_net_name, controlnet_path)
         return (controlnet,)
 
 
@@ -923,6 +932,7 @@ class UNETLoader:
 
         unet_path = folder_paths.get_full_path_or_raise("diffusion_models", unet_name)
         model = comfy.sd.load_diffusion_model(unet_path, model_options=model_options)
+        populate_db_with_asset(["models", "diffusion-model"], unet_name, unet_path)
         return (model,)
 
 class CLIPLoader:
@@ -950,6 +960,7 @@ class CLIPLoader:
 
         clip_path = folder_paths.get_full_path_or_raise("text_encoders", clip_name)
         clip = comfy.sd.load_clip(ckpt_paths=[clip_path], embedding_directory=folder_paths.get_folder_paths("embeddings"), clip_type=clip_type, model_options=model_options)
+        populate_db_with_asset(["models", "text-encoder"], clip_name, clip_path)
         return (clip,)
 
 class DualCLIPLoader:
@@ -980,6 +991,8 @@ class DualCLIPLoader:
             model_options["load_device"] = model_options["offload_device"] = torch.device("cpu")
 
         clip = comfy.sd.load_clip(ckpt_paths=[clip_path1, clip_path2], embedding_directory=folder_paths.get_folder_paths("embeddings"), clip_type=clip_type, model_options=model_options)
+        populate_db_with_asset(["models", "text-encoder"], clip_name1, clip_path1)
+        populate_db_with_asset(["models", "text-encoder"], clip_name2, clip_path2)
         return (clip,)
 
 class CLIPVisionLoader:
@@ -997,6 +1010,7 @@ class CLIPVisionLoader:
         clip_vision = comfy.clip_vision.load(clip_path)
         if clip_vision is None:
             raise RuntimeError("ERROR: clip vision file is invalid and does not contain a valid vision model.")
+        populate_db_with_asset(["models", "clip-vision"], clip_name, clip_path)
         return (clip_vision,)
 
 class CLIPVisionEncode:
@@ -1031,6 +1045,7 @@ class StyleModelLoader:
     def load_style_model(self, style_model_name):
         style_model_path = folder_paths.get_full_path_or_raise("style_models", style_model_name)
         style_model = comfy.sd.load_style_model(style_model_path)
+        populate_db_with_asset(["models", "style-model"], style_model_name, style_model_path)
         return (style_model,)
 
 
@@ -1128,6 +1143,7 @@ class GLIGENLoader:
     def load_gligen(self, gligen_name):
         gligen_path = folder_paths.get_full_path_or_raise("gligen", gligen_name)
         gligen = comfy.sd.load_gligen(gligen_path)
+        populate_db_with_asset(["models", "gligen"], gligen_name, gligen_path)
         return (gligen,)
 
 class GLIGENTextBoxApply:

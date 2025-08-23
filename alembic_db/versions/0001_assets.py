@@ -124,8 +124,12 @@ def upgrade() -> None:
             {"name": "upscale", "tag_type": "system"},
             {"name": "diffusion-model", "tag_type": "system"},
             {"name": "hypernetwork", "tag_type": "system"},
-            {"name": "vae_approx", "tag_type": "system"},
-            # TODO: decide what to do with: style_models, diffusers, gligen, photomaker, classifiers
+            {"name": "vae-approx", "tag_type": "system"},
+            {"name": "gligen", "tag_type": "system"},
+            {"name": "style-model", "tag_type": "system"},
+            {"name": "encoder", "tag_type": "system"},
+            {"name": "decoder", "tag_type": "system"},
+            # TODO: decide what to do with: photomaker, classifiers
         ],
     )
 

@@ -33,7 +33,6 @@ from app.frontend_management import FrontendManager
 from comfy_api.internal import _ComfyNodeInternal
 
 from app.user_manager import UserManager
-from app.model_manager import ModelFileManager
 from app.custom_node_manager import CustomNodeManager
 from typing import Optional, Union
 from api_server.routes.internal.internal_routes import InternalRoutes
@@ -155,7 +154,6 @@ class PromptServer():
         mimetypes.add_type('image/webp', '.webp')
 
         self.user_manager = UserManager()
-        self.model_file_manager = ModelFileManager()
         self.custom_node_manager = CustomNodeManager()
         self.internal_routes = InternalRoutes(self)
         self.supports = ["custom_nodes_from_web"]
@@ -764,7 +762,6 @@ class PromptServer():
 
     def add_routes(self):
         self.user_manager.add_routes(self.routes)
-        self.model_file_manager.add_routes(self.routes)
         self.custom_node_manager.add_routes(self.routes, self.app, nodes.LOADED_MODULE_DIRS.items())
         self.app.add_subapp('/internal', self.internal_routes.get_app())
 
