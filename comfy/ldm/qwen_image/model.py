@@ -9,6 +9,7 @@ from comfy.ldm.lightricks.model import TimestepEmbedding, Timesteps
 from comfy.ldm.modules.attention import optimized_attention_masked
 from comfy.ldm.flux.layers import EmbedND
 import comfy.ldm.common_dit
+import comfy.patcher_extension
 
 class GELU(nn.Module):
     def __init__(self, dim_in: int, dim_out: int, approximate: str = "none", bias: bool = True, dtype=None, device=None, operations=None):
@@ -214,9 +215,9 @@ class QwenImageTransformerBlock(nn.Module):
             operations=operations,
         )
 
-    def _modulate(self, x, mod_params):
-        shift, scale, gate = mod_params.chunk(3, dim=-1)
-        return x * (1 + scale.unsqueeze(1)) + shift.unsqueeze(1), gate.unsqueeze(1)
+    def _modulate(self, x: torch.Tensor, mod_params: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
+        shift, scale, gate = torch.chunk(mod_params, 3, dim=-1)
+        return torch.addcmul(shift.unsqueeze(1), x, 1 + scale.unsqueeze(1)), gate.unsqueeze(1)
 
     def forward(
         self,
@@ -248,11 +249,11 @@ class QwenImageTransformerBlock(nn.Module):
 
         img_normed2 = self.img_norm2(hidden_states)
         img_modulated2, img_gate2 = self._modulate(img_normed2, img_mod2)
-        hidden_states = hidden_states + img_gate2 * self.img_mlp(img_modulated2)
+        hidden_states = torch.addcmul(hidden_states, img_gate2, self.img_mlp(img_modulated2))
 
         txt_normed2 = self.txt_norm2(encoder_hidden_states)
         txt_modulated2, txt_gate2 = self._modulate(txt_normed2, txt_mod2)
-        encoder_hidden_states = encoder_hidden_states + txt_gate2 * self.txt_mlp(txt_modulated2)
+        encoder_hidden_states = torch.addcmul(encoder_hidden_states, txt_gate2, self.txt_mlp(txt_modulated2))
 
         return encoder_hidden_states, hidden_states
 
@@ -275,7 +276,7 @@ class LastLayer(nn.Module):
     def forward(self, x: torch.Tensor, conditioning_embedding: torch.Tensor) -> torch.Tensor:
         emb = self.linear(self.silu(conditioning_embedding))
         scale, shift = torch.chunk(emb, 2, dim=1)
-        x = self.norm(x) * (1 + scale)[:, None, :] + shift[:, None, :]
+        x = torch.addcmul(shift[:, None, :], self.norm(x), (1 + scale)[:, None, :])
         return x
 
 
@@ -355,7 +356,14 @@ class QwenImageTransformer2DModel(nn.Module):
         img_ids[:, :, 2] = img_ids[:, :, 2] + torch.linspace(w_offset, w_len - 1 + w_offset, steps=w_len, device=x.device, dtype=x.dtype).unsqueeze(0) - (w_len // 2)
         return hidden_states, repeat(img_ids, "h w c -> b (h w) c", b=bs), orig_shape
 
-    def forward(
+    def forward(self, x, timestep, context, attention_mask=None, guidance=None, ref_latents=None, transformer_options={}, **kwargs):
+        return comfy.patcher_extension.WrapperExecutor.new_class_executor(
+            self._forward,
+            self,
+            comfy.patcher_extension.get_all_wrappers(comfy.patcher_extension.WrappersMP.DIFFUSION_MODEL, transformer_options)
+        ).execute(x, timestep, context, attention_mask, guidance, ref_latents, transformer_options, **kwargs)
+
+    def _forward(
         self,
         x,
         timesteps,
