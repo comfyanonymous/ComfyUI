@@ -6,6 +6,7 @@ import torch
 from torch import Tensor, nn
 from einops import rearrange, repeat
 import comfy.ldm.common_dit
+import comfy.patcher_extension
 
 from .layers import (
     DoubleStreamBlock,
@@ -214,6 +215,13 @@ class Flux(nn.Module):
         return img, repeat(img_ids, "h w c -> b (h w) c", b=bs)
 
     def forward(self, x, timestep, context, y=None, guidance=None, ref_latents=None, control=None, transformer_options={}, **kwargs):
+        return comfy.patcher_extension.WrapperExecutor.new_class_executor(
+            self._forward,
+            self,
+            comfy.patcher_extension.get_all_wrappers(comfy.patcher_extension.WrappersMP.DIFFUSION_MODEL, transformer_options)
+        ).execute(x, timestep, context, y, guidance, ref_latents, control, transformer_options, **kwargs)
+
+    def _forward(self, x, timestep, context, y=None, guidance=None, ref_latents=None, control=None, transformer_options={}, **kwargs):
         bs, c, h_orig, w_orig = x.shape
         patch_size = self.patch_size
 

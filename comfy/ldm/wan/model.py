@@ -11,6 +11,7 @@ from comfy.ldm.flux.layers import EmbedND
 from comfy.ldm.flux.math import apply_rope
 import comfy.ldm.common_dit
 import comfy.model_management
+import comfy.patcher_extension
 
 
 def sinusoidal_embedding_1d(dim, position):
@@ -148,8 +149,8 @@ WAN_CROSSATTENTION_CLASSES = {
 
 def repeat_e(e, x):
     repeats = 1
-    if e.shape[1] > 1:
-        repeats = x.shape[1] // e.shape[1]
+    if e.size(1) > 1:
+        repeats = x.size(1) // e.size(1)
     if repeats == 1:
         return e
     return torch.repeat_interleave(e, repeats, dim=1)
@@ -219,15 +220,15 @@ class WanAttentionBlock(nn.Module):
 
         # self-attention
         y = self.self_attn(
-            self.norm1(x) * (1 + repeat_e(e[1], x)) + repeat_e(e[0], x),
+            torch.addcmul(repeat_e(e[0], x), self.norm1(x), 1 + repeat_e(e[1], x)),
             freqs)
 
-        x = x + y * repeat_e(e[2], x)
+        x = torch.addcmul(x, y, repeat_e(e[2], x))
 
         # cross-attention & ffn
         x = x + self.cross_attn(self.norm3(x), context, context_img_len=context_img_len)
-        y = self.ffn(self.norm2(x) * (1 + repeat_e(e[4], x)) + repeat_e(e[3], x))
-        x = x + y * repeat_e(e[5], x)
+        y = self.ffn(torch.addcmul(repeat_e(e[3], x), self.norm2(x), 1 + repeat_e(e[4], x)))
+        x = torch.addcmul(x, y, repeat_e(e[5], x))
         return x
 
 
@@ -342,7 +343,7 @@ class Head(nn.Module):
         else:
             e = (comfy.model_management.cast_to(self.modulation, dtype=x.dtype, device=x.device).unsqueeze(0) + e.unsqueeze(2)).unbind(2)
 
-        x = (self.head(self.norm(x) * (1 + repeat_e(e[1], x)) + repeat_e(e[0], x)))
+        x = (self.head(torch.addcmul(repeat_e(e[0], x), self.norm(x), 1 + repeat_e(e[1], x))))
         return x
 
 
@@ -573,6 +574,13 @@ class WanModel(torch.nn.Module):
         return x
 
     def forward(self, x, timestep, context, clip_fea=None, time_dim_concat=None, transformer_options={}, **kwargs):
+        return comfy.patcher_extension.WrapperExecutor.new_class_executor(
+            self._forward,
+            self,
+            comfy.patcher_extension.get_all_wrappers(comfy.patcher_extension.WrappersMP.DIFFUSION_MODEL, transformer_options)
+        ).execute(x, timestep, context, clip_fea, time_dim_concat, transformer_options, **kwargs)
+
+    def _forward(self, x, timestep, context, clip_fea=None, time_dim_concat=None, transformer_options={}, **kwargs):
         bs, c, t, h, w = x.shape
         x = comfy.ldm.common_dit.pad_to_patch_size(x, self.patch_size)
 

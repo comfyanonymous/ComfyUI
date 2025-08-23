@@ -192,7 +192,7 @@ comfy install
 
 ## Manual Install (Windows, Linux)
 
-python 3.13 is supported but using 3.12 is recommended because some custom nodes and their dependencies might not support it yet.
+Python 3.13 is very well supported. If you have trouble with some custom node dependencies you can try 3.12
 
 Git clone this repo.
 
