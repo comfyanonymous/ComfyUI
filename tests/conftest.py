@@ -149,7 +149,7 @@ def comfy_background_server(tmp_path_factory) -> Generator[tuple[Configuration, 
 
 
 def comfy_background_server_from_config(configuration):
-    server_process = multiprocessing.Process(target=run_server, args=(configuration,))
+    server_process = multiprocessing.get_context('spawn').Process(target=run_server, args=(configuration,))
     server_process.start()
     # wait for http url to be ready
     success = False

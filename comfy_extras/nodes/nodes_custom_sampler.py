@@ -755,7 +755,8 @@ class DualCFGGuider:
                     "negative": ("CONDITIONING", ),
                     "cfg_conds": ("FLOAT", {"default": 8.0, "min": 0.0, "max": 100.0, "step":0.1, "round": 0.01}),
                     "cfg_cond2_negative": ("FLOAT", {"default": 8.0, "min": 0.0, "max": 100.0, "step":0.1, "round": 0.01}),
-                    "style": (["regular", "nested"],),
+                     }, "optional": {
+                    "style": (["regular", "nested"], {"default": "regular"}),
                      }
                 }
 

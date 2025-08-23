@@ -13,8 +13,9 @@ from os.path import join
 from pathlib import Path
 from typing import List, Optional, Final, Set
 
+import requests
 import tqdm
-from huggingface_hub import dump_environment_info
+from huggingface_hub import dump_environment_info, try_to_load_from_cache
 from huggingface_hub import hf_hub_download, scan_cache_dir, snapshot_download, HfFileSystem, CacheNotFound
 from huggingface_hub.utils import GatedRepoError, LocalEntryNotFoundError
 from requests import Session
@@ -143,6 +144,9 @@ def get_or_download(folder_name: str, filename: str, known_files: Optional[List[
                                                    revision=known_file.revision,
                                                    local_dir=hf_destination_dir if args.force_hf_local_dir_mode else None,
                                                    )
+                        except requests.exceptions.HTTPError as exc_info:
+                            if exc_info.response.status_code == 401:
+                                raise GatedRepoError(f"{known_file.repo_id}/{known_file.filename}", response=exc_info.response)
                         except IOError as exc_info:
                             logger.error(f"cannot reach huggingface {known_file.repo_id}/{known_file.filename}", exc_info=exc_info)
                         except Exception as exc_info:
@@ -305,7 +309,7 @@ KNOWN_CHECKPOINTS: Final[KnownDownloadables] = KnownDownloadables([
     HuggingFile("stabilityai/stable-diffusion-3-medium", "sd3_medium_incl_clips_t5xxlfp8.safetensors"),
     HuggingFile("fal/AuraFlow", "aura_flow_0.1.safetensors"),
     # stable audio, # uses names from https://comfyanonymous.github.io/ComfyUI_examples/audio/
-    HuggingFile("stabilityai/stable-audio-open-1.0", "model.safetensors", save_with_filename="stable_audio_open_1.0.safetensors"),
+    HuggingFile("Comfy-Org/stable-audio-open-1.0_repackaged", "stable-audio-open-1.0.safetensors", alternate_filenames="stable_audio_open_1.0.safetensors"),
     # hunyuandit
     HuggingFile("comfyanonymous/hunyuan_dit_comfyui", "hunyuan_dit_1.0.safetensors"),
     HuggingFile("comfyanonymous/hunyuan_dit_comfyui", "hunyuan_dit_1.1.safetensors"),
@@ -502,7 +506,8 @@ KNOWN_APPROX_VAES: Final[KnownDownloadables] = KnownDownloadables([
 KNOWN_VAES: Final[KnownDownloadables] = KnownDownloadables([
     HuggingFile("stabilityai/sdxl-vae", "sdxl_vae.safetensors"),
     HuggingFile("stabilityai/sd-vae-ft-mse-original", "vae-ft-mse-840000-ema-pruned.safetensors"),
-    HuggingFile("black-forest-labs/FLUX.1-schnell", "ae.safetensors"),
+    # this is the flux VAE
+    HuggingFile("Comfy-Org/HiDream-I1_ComfyUI", "split_files/vae/ae.safetensors"),
     HuggingFile("Comfy-Org/mochi_preview_repackaged", "split_files/vae/mochi_vae.safetensors"),
     HuggingFile("Comfy-Org/HunyuanVideo_repackaged", "split_files/vae/hunyuan_video_vae_bf16.safetensors"),
     HuggingFile("comfyanonymous/cosmos_1.0_text_encoder_and_VAE_ComfyUI", "vae/cosmos_cv8x8x8_1.0.safetensors"),
