@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import dataclasses
+from abc import ABCMeta, abstractmethod
 from typing import Protocol, Optional, TypeVar, runtime_checkable, Callable, Any, NamedTuple
 
 import torch
@@ -24,7 +25,7 @@ class DeviceSettable(Protocol):
         ...
 
 
-class ModelManageable(Protocol):
+class ModelManageable(Protocol, metaclass=ABCMeta):
     """
     Objects which implement this protocol can be managed by
 
@@ -136,6 +137,10 @@ class ModelManageable(Protocol):
     @property
     def force_cast_weights(self) -> bool:
         return False
+
+    @abstractmethod
+    def prepare_hook_patches_current_keyframe(self, t, hook_group, model_options):
+        pass
 
 
 @dataclasses.dataclass

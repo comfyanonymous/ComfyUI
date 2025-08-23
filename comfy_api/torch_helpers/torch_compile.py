@@ -27,9 +27,6 @@ def apply_torch_compile_factory(compiled_module_dict: dict[str, Callable], model
             for key, value in compiled_module_dict.items():
                 orig_modules[key] = comfy.utils.get_attr(executor.class_obj, key)
                 comfy.utils.set_attr(executor.class_obj, key, value)
-            # todo: compilation has to patch all weights
-            if model_patcher is not None:
-                model_patcher.patch_model(device_to=model_management.get_torch_device(), force_patch_weights=True)
             return executor(*args, **kwargs)
         finally:
             for key, value in orig_modules.items():
