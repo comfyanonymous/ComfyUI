@@ -340,11 +340,11 @@ cd PuLID_ComfyUI
 pip install -r requirements.txt
 cd /kaggle/ComfyUI
 
-# cd custom_nodes
-# git clone https://github.com/sipie800/ComfyUI-PuLID-Flux-Enhanced.git
-# cd ComfyUI-PuLID-Flux-Enhanced
-# pip install -r requirements.txt
-# cd /kaggle/ComfyUI
+cd custom_nodes
+git clone https://github.com/sipie800/ComfyUI-PuLID-Flux-Enhanced.git
+cd ComfyUI-PuLID-Flux-Enhanced
+pip install -r requirements.txt
+cd /kaggle/ComfyUI
 
 cd custom_nodes
 git clone https://github.com/balazik/ComfyUI-PuLID-Flux.git
