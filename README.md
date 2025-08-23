@@ -36,23 +36,7 @@
 
 ComfyUI lets you design and execute advanced stable diffusion pipelines using a graph/nodes/flowchart based interface. Available on Windows, Linux, and macOS.
 
-## Get Started
-
-#### [Desktop Application](https://www.comfy.org/download)
-- The easiest way to get started.
-- Available on Windows & macOS.
-
-#### [Windows Portable Package](#installing)
-- Get the latest commits and completely portable.
-- Available on Windows.
-
-#### [Manual Install](#manual-install-windows-linux)
-Supports all operating systems and GPU types (NVIDIA, AMD, Intel, Apple Silicon, Ascend).
-
-## [Examples](https://comfyanonymous.github.io/ComfyUI_examples/)
-See what ComfyUI can do with the [example workflows](https://comfyanonymous.github.io/ComfyUI_examples/).
-
-## Features
+## I. Features
 - Nodes/graph/flowchart interface to experiment and create complex Stable Diffusion workflows without needing to code anything.
 - Image Models
    - SD1.x, SD2.x ([unCLIP](https://comfyanonymous.github.io/ComfyUI_examples/unclip/))
@@ -164,41 +148,23 @@ ComfyUI follows a weekly release cycle targeting Friday but this regularly chang
 
 `Ctrl` can also be replaced with `Cmd` instead for macOS users
 
-# Installing
-
-## Windows Portable
-
-There is a portable standalone build for Windows that should work for running on Nvidia GPUs or for running on your CPU only on the [releases page](https://github.com/comfyanonymous/ComfyUI/releases).
-
-### [Direct link to download](https://github.com/comfyanonymous/ComfyUI/releases/latest/download/ComfyUI_windows_portable_nvidia.7z)
-
-Simply download, extract with [7-Zip](https://7-zip.org) and run. Make sure you put your Stable Diffusion checkpoints/models (the huge ckpt/safetensors files) in: ComfyUI\models\checkpoints
-
-If you have trouble extracting it, right click the file -> properties -> unblock
-
-#### How do I share models between another UI and ComfyUI?
-
-See the [Config file](extra_model_paths.yaml.example) to set the search paths for models. In the standalone windows build you can find this file in the ComfyUI directory. Rename this file to extra_model_paths.yaml and edit it with your favorite text editor.
-
-
-## [comfy-cli](https://docs.comfy.org/comfy-cli/getting-started)
-
-You can install and start ComfyUI using comfy-cli:
-```bash
-pip install comfy-cli
-comfy install
-```
-
 ## Manual Install (Windows, Linux)
 
-python 3.13 is supported but using 3.12 is recommended because some custom nodes and their dependencies might not support it yet.
+**NOTE**: Python 3.12 is used in this repository
 
-Git clone this repo.
+1. Git clone this repo.
 
-Put your SD checkpoints (the huge ckpt/safetensors files) in: models/checkpoints
+```
+git clone https://github.com/rzasharp79/4090_ComfyUI
+```
 
-Put your VAE in: models/vae
+2. Put your SD checkpoints (the huge ckpt/safetensors files) in: models/checkpoints
 
+3. Put your VAE in: models/vae
+
+4. Run STEP1-INSTALL.bat
+
+5. Run STEP2-INSTALL_CUSTOM_NODES.bat
 
 ### AMD GPUs (Linux only)
 AMD users can install rocm and pytorch with pip if you don't have it already installed, this is the command to install the stable version:
