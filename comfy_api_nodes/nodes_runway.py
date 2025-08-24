@@ -588,7 +588,7 @@ class RunwayTextToImageNode(comfy_io.ComfyNode):
         return comfy_io.NodeOutput(await download_url_to_image_tensor(get_image_url_from_task_status(final_response)))
 
 
-class RunAwayExtension(ComfyExtension):
+class RunwayExtension(ComfyExtension):
     @override
     async def get_node_list(self) -> list[type[comfy_io.ComfyNode]]:
         return [
@@ -598,5 +598,5 @@ class RunAwayExtension(ComfyExtension):
             RunwayTextToImageNode,
         ]
 
-async def comfy_entrypoint() -> RunAwayExtension:
-    return RunAwayExtension()
+async def comfy_entrypoint() -> RunwayExtension:
+    return RunwayExtension()
