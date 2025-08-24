@@ -519,7 +519,7 @@ MEM_BUS_WIDTH = {
     "AMD Radeon PRO W6600": 128,
     "AMD Radeon PRO W6400": 64,
     "AMD Radeon PRO W5700": 256,
-    "AMD Radeon PRO W5500": 128,  
+    "AMD Radeon PRO W5500": 128,
 }
 
 # ------------------- Device Properties Implementation -------------------
@@ -678,6 +678,11 @@ def do_hijack():
     torch.backends.cuda.enable_mem_efficient_sdp = do_nothing
     torch.backends.cudnn.enabled = False
     torch.backends.cudnn.benchmark = False
+    torch.backends.cudnn.enabled = os.environ.get("TORCH_BACKENDS_CUDNN_ENABLED", "1").strip().lower() not in {"0", "off", "false", "disable", "disabled", "no"}
+    if torch.backends.cudnn.enabled:
+        print("  ::  Enabled cuDNN")
+    else:
+        print("  ::  Disabled cuDNN")
     if hasattr(torch.backends.cuda, "enable_flash_sdp"):
         torch.backends.cuda.enable_flash_sdp(True)
         print("  ::  Disabled CUDA flash attention")
