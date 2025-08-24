@@ -16,7 +16,11 @@ from comfy_execution.utils import get_executing_context
 from comfy_api import feature_flags
 
 if not args.disable_manager:
-    import comfyui_manager
+    try:
+        import comfyui_manager
+    except Exception:
+        logging.warning(f"\n\nUnable to run comfyui-manager, disabling it. To enable comfyui-manager, run the following command:\ncommand:\n\t{sys.executable} -m pip install --pre comfyui_manager\n")
+        args.disable_manager = True
 
 if __name__ == "__main__":
     #NOTE: These do not do anything on core ComfyUI, they are for custom nodes.
