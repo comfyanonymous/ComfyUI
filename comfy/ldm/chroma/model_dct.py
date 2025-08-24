@@ -3,6 +3,7 @@
 # Chroma Radiance adaption referenced from https://github.com/lodestone-rock/flow
 
 from dataclasses import dataclass
+from typing import Optional
 
 import torch
 from torch import Tensor, nn
@@ -37,6 +38,7 @@ class ChromaRadianceParams(chroma_model.ChromaParams):
     nerf_max_freqs: int
     nerf_tile_size: int
     nerf_final_head_type: str
+    nerf_embedder_dtype: Optional[torch.dtype]
 
 
 class ChromaRadiance(chroma_model.Chroma):
@@ -101,7 +103,12 @@ class ChromaRadiance(chroma_model.Chroma):
 
         self.single_blocks = nn.ModuleList(
             [
-                SingleStreamBlock(self.hidden_size, self.num_heads, mlp_ratio=params.mlp_ratio, dtype=dtype, device=device, operations=operations)
+                SingleStreamBlock(
+                    self.hidden_size,
+                    self.num_heads,
+                    mlp_ratio=params.mlp_ratio,
+                    dtype=dtype, device=device, operations=operations,
+                )
                 for _ in range(params.depth_single_blocks)
             ]
         )
@@ -114,6 +121,7 @@ class ChromaRadiance(chroma_model.Chroma):
             dtype=dtype,
             device=device,
             operations=operations,
+            embedder_dtype=params.nerf_embedder_dtype,
         )
 
         self.nerf_blocks = nn.ModuleList([
@@ -135,7 +143,6 @@ class ChromaRadiance(chroma_model.Chroma):
                 device=device,
                 operations=operations,
             )
-            self._nerf_final_layer = self.nerf_final_layer
         elif params.nerf_final_head_type == "conv":
             self.nerf_final_layer_conv = NerfFinalLayerConv(
                 params.nerf_hidden_size,
@@ -144,13 +151,22 @@ class ChromaRadiance(chroma_model.Chroma):
                 device=device,
                 operations=operations,
             )
-            self._nerf_final_layer = self.nerf_final_layer_conv
         else:
             errstr = f"Unsupported nerf_final_head_type {params.nerf_final_head_type}"
+            raise ValueError(errstr)
 
         self.skip_mmdit = []
         self.skip_dit = []
         self.lite = False
+
+    @property
+    def _nerf_final_layer(self) -> nn.Module:
+        if self.params.nerf_final_head_type == "linear":
+            return self.nerf_final_layer
+        if self.params.nerf_final_head_type == "conv":
+            return self.nerf_final_layer_conv
+        # Impossible to get here as we raise an error on unexpected types on initialization.
+        raise NotImplementedError
 
     def forward_tiled_nerf(
         self,
@@ -337,7 +353,7 @@ class ChromaRadiance(chroma_model.Chroma):
         )
         return self._nerf_final_layer(img_dct)
 
-    def forward(self, x, timestep, context, guidance, control=None, transformer_options={}, **kwargs):
+    def _forward(self, x, timestep, context, guidance, control=None, transformer_options={}, **kwargs):
         bs, c, h, w = x.shape
         img = comfy.ldm.common_dit.pad_to_patch_size(x, (self.patch_size, self.patch_size))
 
