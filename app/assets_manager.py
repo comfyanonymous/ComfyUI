@@ -14,7 +14,11 @@ from .database.services import (
     list_asset_infos_page,
     update_asset_info_full,
     get_asset_tags,
+    list_tags_with_usage,
+    add_tags_to_asset_info,
+    remove_tags_from_asset_info,
 )
+from .api import schemas_out
 
 
 def populate_db_with_asset(tags: list[str], file_name: str, file_path: str) -> None:
@@ -70,7 +74,7 @@ async def list_assets(
     offset: int = 0,
     sort: str | None = "created_at",
     order: str | None = "desc",
-) -> dict:
+) -> schemas_out.AssetsList:
     sort = _safe_sort_field(sort)
     order = "desc" if (order or "desc").lower() not in {"asc", "desc"} else order.lower()
 
@@ -87,30 +91,30 @@ async def list_assets(
             order=order,
         )
 
-    assets_json = []
+    summaries: list[schemas_out.AssetSummary] = []
     for info in infos:
-        asset = info.asset  # populated via contains_eager
+        asset = info.asset
         tags = tag_map.get(info.id, [])
-        assets_json.append(
-            {
-                "id": info.id,
-                "name": info.name,
-                "asset_hash": info.asset_hash,
-                "size": int(asset.size_bytes) if asset else None,
-                "mime_type": asset.mime_type if asset else None,
-                "tags": tags,
-                "preview_url": f"/api/v1/assets/{info.id}/content",  # TODO: implement actual content endpoint later
-                "created_at": info.created_at.isoformat() if info.created_at else None,
-                "updated_at": info.updated_at.isoformat() if info.updated_at else None,
-                "last_access_time": info.last_access_time.isoformat() if info.last_access_time else None,
-            }
+        summaries.append(
+            schemas_out.AssetSummary(
+                id=info.id,
+                name=info.name,
+                asset_hash=info.asset_hash,
+                size=int(asset.size_bytes) if asset else None,
+                mime_type=asset.mime_type if asset else None,
+                tags=tags,
+                preview_url=f"/api/v1/assets/{info.id}/content",  # TODO: implement actual content endpoint later
+                created_at=info.created_at,
+                updated_at=info.updated_at,
+                last_access_time=info.last_access_time,
+            )
         )
 
-    return {
-        "assets": assets_json,
-        "total": total,
-        "has_more": (offset + len(assets_json)) < total,
-    }
+    return schemas_out.AssetsList(
+        assets=summaries,
+        total=total,
+        has_more=(offset + len(summaries)) < total,
+    )
 
 
 async def update_asset(
@@ -119,7 +123,7 @@ async def update_asset(
     name: str | None = None,
     tags: list[str] | None = None,
     user_metadata: dict | None = None,
-) -> dict:
+) -> schemas_out.AssetUpdated:
     async with await create_session() as session:
         info = await update_asset_info_full(
             session,
@@ -134,14 +138,40 @@ async def update_asset(
         tag_names = await get_asset_tags(session, asset_info_id=asset_info_id)
         await session.commit()
 
-    return {
-        "id": info.id,
-        "name": info.name,
-        "asset_hash": info.asset_hash,
-        "tags": tag_names,
-        "user_metadata": info.user_metadata or {},
-        "updated_at": info.updated_at.isoformat() if info.updated_at else None,
-    }
+    return schemas_out.AssetUpdated(
+        id=info.id,
+        name=info.name,
+        asset_hash=info.asset_hash,
+        tags=tag_names,
+        user_metadata=info.user_metadata or {},
+        updated_at=info.updated_at,
+    )
+
+
+
+async def list_tags(
+    *,
+    prefix: str | None = None,
+    limit: int = 100,
+    offset: int = 0,
+    order: str = "count_desc",
+    include_zero: bool = True,
+) -> schemas_out.TagsList:
+    limit = max(1, min(1000, limit))
+    offset = max(0, offset)
+
+    async with await create_session() as session:
+        rows, total = await list_tags_with_usage(
+            session,
+            prefix=prefix,
+            limit=limit,
+            offset=offset,
+            include_zero=include_zero,
+            order=order,
+        )
+
+    tags = [schemas_out.TagUsage(name=name, count=count, type=tag_type) for (name, tag_type, count) in rows]
+    return schemas_out.TagsList(tags=tags, total=total, has_more=(offset + len(tags)) < total)
 
 
 def _safe_sort_field(requested: str | None) -> str:
@@ -156,3 +186,38 @@ def _safe_sort_field(requested: str | None) -> str:
 def _get_size_mtime_ns(path: str) -> tuple[int, int]:
     st = os.stat(path, follow_symlinks=True)
     return st.st_size, getattr(st, "st_mtime_ns", int(st.st_mtime * 1_000_000_000))
+
+
+async def add_tags_to_asset(
+    *,
+    asset_info_id: int,
+    tags: list[str],
+    origin: str = "manual",
+    added_by: str | None = None,
+) -> schemas_out.TagsAdd:
+    async with await create_session() as session:
+        data = await add_tags_to_asset_info(
+            session,
+            asset_info_id=asset_info_id,
+            tags=tags,
+            origin=origin,
+            added_by=added_by,
+            create_if_missing=True,
+        )
+        await session.commit()
+    return schemas_out.TagsAdd(**data)
+
+
+async def remove_tags_from_asset(
+    *,
+    asset_info_id: int,
+    tags: list[str],
+) -> schemas_out.TagsRemove:
+    async with await create_session() as session:
+        data = await remove_tags_from_asset_info(
+            session,
+            asset_info_id=asset_info_id,
+            tags=tags,
+        )
+        await session.commit()
+    return schemas_out.TagsRemove(**data)

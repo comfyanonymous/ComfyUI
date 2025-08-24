@@ -4,7 +4,7 @@ from aiohttp import web
 from pydantic import ValidationError
 
 from .. import assets_manager
-from .schemas_in import ListAssetsQuery, UpdateAssetBody
+from . import schemas_in
 
 
 ROUTES = web.RouteTableDef()
@@ -15,7 +15,7 @@ async def list_assets(request: web.Request) -> web.Response:
     query_dict = dict(request.rel_url.query)
 
     try:
-        q = ListAssetsQuery.model_validate(query_dict)
+        q = schemas_in.ListAssetsQuery.model_validate(query_dict)
     except ValidationError as ve:
         return _validation_error_response("INVALID_QUERY", ve)
 
@@ -29,7 +29,7 @@ async def list_assets(request: web.Request) -> web.Response:
         sort=q.sort,
         order=q.order,
     )
-    return web.json_response(payload)
+    return web.json_response(payload.model_dump(mode="json"))
 
 
 @ROUTES.put("/api/assets/{id}")
@@ -41,7 +41,7 @@ async def update_asset(request: web.Request) -> web.Response:
         return _error_response(400, "INVALID_ID", f"AssetInfo id '{asset_info_id_raw}' is not a valid integer.")
 
     try:
-        body = UpdateAssetBody.model_validate(await request.json())
+        body = schemas_in.UpdateAssetBody.model_validate(await request.json())
     except ValidationError as ve:
         return _validation_error_response("INVALID_BODY", ve)
     except Exception:
@@ -58,7 +58,89 @@ async def update_asset(request: web.Request) -> web.Response:
         return _error_response(404, "ASSET_NOT_FOUND", str(ve), {"id": asset_info_id})
     except Exception:
         return _error_response(500, "INTERNAL", "Unexpected server error.")
-    return web.json_response(result, status=200)
+    return web.json_response(result.model_dump(mode="json"), status=200)
+
+
+@ROUTES.get("/api/tags")
+async def get_tags(request: web.Request) -> web.Response:
+    query_map = dict(request.rel_url.query)
+
+    try:
+        query = schemas_in.TagsListQuery.model_validate(query_map)
+    except ValidationError as ve:
+        return web.json_response(
+            {"error": {"code": "INVALID_QUERY", "message": "Invalid query parameters", "details": ve.errors()}},
+            status=400,
+        )
+
+    result = await assets_manager.list_tags(
+        prefix=query.prefix,
+        limit=query.limit,
+        offset=query.offset,
+        order=query.order,
+        include_zero=query.include_zero,
+    )
+    return web.json_response(result.model_dump(mode="json"))
+
+
+@ROUTES.post("/api/assets/{id}/tags")
+async def add_asset_tags(request: web.Request) -> web.Response:
+    asset_info_id_raw = request.match_info.get("id")
+    try:
+        asset_info_id = int(asset_info_id_raw)
+    except Exception:
+        return _error_response(400, "INVALID_ID", f"AssetInfo id '{asset_info_id_raw}' is not a valid integer.")
+
+    try:
+        payload = await request.json()
+        data = schemas_in.TagsAdd.model_validate(payload)
+    except ValidationError as ve:
+        return _error_response(400, "INVALID_BODY", "Invalid JSON body for tags add.", {"errors": ve.errors()})
+    except Exception:
+        return _error_response(400, "INVALID_JSON", "Request body must be valid JSON.")
+
+    try:
+        result = await assets_manager.add_tags_to_asset(
+            asset_info_id=asset_info_id,
+            tags=data.tags,
+            origin="manual",
+            added_by=None,
+        )
+    except ValueError as ve:
+        return _error_response(404, "ASSET_NOT_FOUND", str(ve), {"id": asset_info_id})
+    except Exception:
+        return _error_response(500, "INTERNAL", "Unexpected server error.")
+
+    return web.json_response(result.model_dump(mode="json"), status=200)
+
+
+@ROUTES.delete("/api/assets/{id}/tags")
+async def delete_asset_tags(request: web.Request) -> web.Response:
+    asset_info_id_raw = request.match_info.get("id")
+    try:
+        asset_info_id = int(asset_info_id_raw)
+    except Exception:
+        return _error_response(400, "INVALID_ID", f"AssetInfo id '{asset_info_id_raw}' is not a valid integer.")
+
+    try:
+        payload = await request.json()
+        data = schemas_in.TagsRemove.model_validate(payload)
+    except ValidationError as ve:
+        return _error_response(400, "INVALID_BODY", "Invalid JSON body for tags remove.", {"errors": ve.errors()})
+    except Exception:
+        return _error_response(400, "INVALID_JSON", "Request body must be valid JSON.")
+
+    try:
+        result = await assets_manager.remove_tags_from_asset(
+            asset_info_id=asset_info_id,
+            tags=data.tags,
+        )
+    except ValueError as ve:
+        return _error_response(404, "ASSET_NOT_FOUND", str(ve), {"id": asset_info_id})
+    except Exception:
+        return _error_response(500, "INTERNAL", "Unexpected server error.")
+
+    return web.json_response(result.model_dump(mode="json"), status=200)
 
 
 def register_assets_routes(app: web.Application) -> None:

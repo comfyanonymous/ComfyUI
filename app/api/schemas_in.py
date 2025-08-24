@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from typing import Any, Optional, Literal
-from pydantic import BaseModel, Field, field_validator, model_validator, conint
+from pydantic import BaseModel, Field, ConfigDict, field_validator, model_validator, conint
 
 
 class ListAssetsQuery(BaseModel):
@@ -64,3 +64,48 @@ class UpdateAssetBody(BaseModel):
             if not isinstance(self.tags, list) or not all(isinstance(t, str) for t in self.tags):
                 raise ValueError("Field 'tags' must be an array of strings.")
         return self
+
+
+class TagsListQuery(BaseModel):
+    model_config = ConfigDict(extra="ignore", str_strip_whitespace=True)
+
+    prefix: Optional[str] = Field(None, min_length=1, max_length=256)
+    limit: int = Field(100, ge=1, le=1000)
+    offset: int = Field(0, ge=0, le=10_000_000)
+    order: Literal["count_desc", "name_asc"] = "count_desc"
+    include_zero: bool = True
+
+    @field_validator("prefix")
+    @classmethod
+    def normalize_prefix(cls, v: Optional[str]) -> Optional[str]:
+        if v is None:
+            return v
+        v = v.strip()
+        return v.lower() or None
+
+
+class TagsAdd(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    tags: list[str] = Field(..., min_length=1)
+
+    @field_validator("tags")
+    @classmethod
+    def normalize_tags(cls, v: list[str]) -> list[str]:
+        out = []
+        for t in v:
+            if not isinstance(t, str):
+                raise TypeError("tags must be strings")
+            tnorm = t.strip().lower()
+            if tnorm:
+                out.append(tnorm)
+        seen = set()
+        deduplicated = []
+        for x in out:
+            if x not in seen:
+                seen.add(x)
+                deduplicated.append(x)
+        return deduplicated
+
+
+class TagsRemove(TagsAdd):
+    pass

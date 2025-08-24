@@ -65,7 +65,7 @@ def upgrade() -> None:
     op.create_table(
         "asset_info_tags",
         sa.Column("asset_info_id", sa.BigInteger(), sa.ForeignKey("assets_info.id", ondelete="CASCADE"), nullable=False),
-        sa.Column("tag_name", sa.String(length=128), sa.ForeignKey("tags.name", ondelete="RESTRICT"), nullable=False),
+        sa.Column("tag_name", sa.String(length=512), sa.ForeignKey("tags.name", ondelete="RESTRICT"), nullable=False),
         sa.Column("origin", sa.String(length=32), nullable=False, server_default="manual"),
         sa.Column("added_by", sa.String(length=128), nullable=True),
         sa.Column("added_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.text("CURRENT_TIMESTAMP")),
@@ -104,7 +104,7 @@ def upgrade() -> None:
     # Tags vocabulary for models
     tags_table = sa.table(
         "tags",
-        sa.column("name", sa.String()),
+        sa.column("name", sa.String(length=512)),
         sa.column("tag_type", sa.String()),
     )
     op.bulk_insert(
