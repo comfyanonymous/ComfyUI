@@ -4,7 +4,7 @@ from typing import Optional
 from aiohttp import web
 from pydantic import ValidationError
 
-from .. import assets_manager
+from .. import assets_manager, assets_scanner
 from . import schemas_in
 
 
@@ -223,6 +223,31 @@ async def delete_asset_tags(request: web.Request) -> web.Response:
         return _error_response(500, "INTERNAL", "Unexpected server error.")
 
     return web.json_response(result.model_dump(mode="json"), status=200)
+
+
+@ROUTES.post("/api/assets/scan/schedule")
+async def schedule_asset_scan(request: web.Request) -> web.Response:
+    try:
+        payload = await request.json()
+    except Exception:
+        payload = {}
+
+    try:
+        body = schemas_in.ScheduleAssetScanBody.model_validate(payload)
+    except ValidationError as ve:
+        return _validation_error_response("INVALID_BODY", ve)
+
+    states = await assets_scanner.schedule_scans(body.roots)
+    return web.json_response(states.model_dump(mode="json"), status=202)
+
+
+@ROUTES.get("/api/assets/scan")
+async def get_asset_scan_status(request: web.Request) -> web.Response:
+    root = request.query.get("root", "").strip().lower()
+    states = assets_scanner.current_statuses()
+    if root in {"models", "input", "output"}:
+        states = [s for s in states.scans if s.root == root]  # type: ignore
+    return web.json_response(states.model_dump(mode="json"), status=200)
 
 
 def register_assets_routes(app: web.Application) -> None:

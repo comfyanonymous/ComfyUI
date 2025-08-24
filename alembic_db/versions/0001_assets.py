@@ -111,12 +111,12 @@ def upgrade() -> None:
     op.bulk_insert(
         tags_table,
         [
-            # Core concept tags
+            # Root folder tags
             {"name": "models", "tag_type": "system"},
             {"name": "input", "tag_type": "system"},
             {"name": "output", "tag_type": "system"},
 
-            # Canonical single-word types
+            # Core tags
             {"name": "checkpoint", "tag_type": "system"},
             {"name": "lora", "tag_type": "system"},
             {"name": "vae", "tag_type": "system"},
@@ -130,9 +130,10 @@ def upgrade() -> None:
             {"name": "vae-approx", "tag_type": "system"},
             {"name": "gligen", "tag_type": "system"},
             {"name": "style-model", "tag_type": "system"},
+            {"name": "photomaker", "tag_type": "system"},
+            {"name": "classifier", "tag_type": "system"},
             {"name": "encoder", "tag_type": "system"},
             {"name": "decoder", "tag_type": "system"},
-            # TODO: decide what to do with: photomaker, classifiers
         ],
     )
 

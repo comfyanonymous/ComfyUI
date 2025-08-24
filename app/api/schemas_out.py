@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Any, Optional
+from typing import Any, Literal, Optional
 from pydantic import BaseModel, ConfigDict, Field, field_serializer
 
 
@@ -87,3 +87,20 @@ class TagsRemove(BaseModel):
     removed: list[str] = Field(default_factory=list)
     not_present: list[str] = Field(default_factory=list)
     total_tags: list[str] = Field(default_factory=list)
+
+
+class AssetScanStatus(BaseModel):
+    scan_id: str
+    root: Literal["models","input","output"]
+    status: Literal["scheduled","running","completed","failed","cancelled"]
+    scheduled_at: Optional[str] = None
+    started_at: Optional[str] = None
+    finished_at: Optional[str] = None
+    discovered: int = 0
+    processed: int = 0
+    errors: int = 0
+    last_error: Optional[str] = None
+
+
+class AssetScanStatusResponse(BaseModel):
+    scans: list[AssetScanStatus] = Field(default_factory=list)

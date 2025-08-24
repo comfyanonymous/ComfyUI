@@ -146,3 +146,29 @@ class TagsAdd(BaseModel):
 
 class TagsRemove(TagsAdd):
     pass
+
+
+class ScheduleAssetScanBody(BaseModel):
+    roots: list[Literal["models","input","output"]] = Field(default_factory=list)
+
+    @field_validator("roots", mode="before")
+    @classmethod
+    def _normalize_roots(cls, v):
+        if v is None:
+            return []
+        if isinstance(v, str):
+            items = [x.strip().lower() for x in v.split(",")]
+        elif isinstance(v, list):
+            items = []
+            for x in v:
+                if isinstance(x, str):
+                    items.extend([p.strip().lower() for p in x.split(",")])
+        else:
+            return []
+        out = []
+        seen = set()
+        for r in items:
+            if r in {"models","input","output"} and r not in seen:
+                out.append(r)
+                seen.add(r)
+        return out
