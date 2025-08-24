@@ -49,7 +49,7 @@ class TCFG(ComfyNodeABC):
             #  Assume [cond, uncond, ...]
             x = args["input"]
             conds_out = args["conds_out"]
-            if len(conds_out) <= 1 or None in args["conds"][:2]:
+            if len(conds_out) <= 1 or None in args["conds"][:2] or not args["conds_out"][1].any():
                 # Skip when either cond or uncond is None
                 return conds_out
             cond_pred = conds_out[0]
