@@ -14,8 +14,9 @@ from sqlalchemy import (
     Numeric,
     Boolean,
 )
-from sqlalchemy.sql import func
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship, foreign
+
+from .timeutil import utcnow
 
 
 class Base(DeclarativeBase):
@@ -46,10 +47,10 @@ class Asset(Base):
     storage_backend: Mapped[str] = mapped_column(String(32), nullable=False, default="fs")
     storage_locator: Mapped[str] = mapped_column(Text, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False, server_default=func.current_timestamp()
+        DateTime(timezone=False), nullable=False, default=utcnow
     )
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False, server_default=func.current_timestamp()
+        DateTime(timezone=False), nullable=False, default=utcnow
     )
 
     infos: Mapped[list["AssetInfo"]] = relationship(
@@ -125,13 +126,13 @@ class AssetInfo(Base):
     preview_hash: Mapped[str | None] = mapped_column(String(256), ForeignKey("assets.hash", ondelete="SET NULL"))
     user_metadata: Mapped[dict[str, Any] | None] = mapped_column(JSON)
     created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False, server_default=func.current_timestamp()
+        DateTime(timezone=False), nullable=False, default=utcnow
     )
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False, server_default=func.current_timestamp()
+        DateTime(timezone=False), nullable=False, default=utcnow
     )
     last_access_time: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False, server_default=func.current_timestamp()
+        DateTime(timezone=False), nullable=False, default=utcnow
     )
 
     # Relationships
@@ -221,7 +222,9 @@ class AssetInfoTag(Base):
     )
     origin: Mapped[str] = mapped_column(String(32), nullable=False, default="manual")
     added_by: Mapped[str | None] = mapped_column(String(128))
-    added_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    added_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=False), nullable=False, default=utcnow
+    )
 
     asset_info: Mapped["AssetInfo"] = relationship(back_populates="tag_links")
     tag: Mapped["Tag"] = relationship(back_populates="asset_info_links")

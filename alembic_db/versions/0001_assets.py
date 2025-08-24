@@ -24,8 +24,8 @@ def upgrade() -> None:
         sa.Column("refcount", sa.BigInteger(), nullable=False, server_default="0"),
         sa.Column("storage_backend", sa.String(length=32), nullable=False, server_default="fs"),
         sa.Column("storage_locator", sa.Text(), nullable=False),
-        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.text("CURRENT_TIMESTAMP")),
-        sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.text("CURRENT_TIMESTAMP")),
+        sa.Column("created_at", sa.DateTime(timezone=False), nullable=False),
+        sa.Column("updated_at", sa.DateTime(timezone=False), nullable=False),
         sa.CheckConstraint("size_bytes >= 0", name="ck_assets_size_nonneg"),
         sa.CheckConstraint("refcount >= 0", name="ck_assets_refcount_nonneg"),
     )
@@ -41,9 +41,9 @@ def upgrade() -> None:
         sa.Column("asset_hash", sa.String(length=128), sa.ForeignKey("assets.hash", ondelete="RESTRICT"), nullable=False),
         sa.Column("preview_hash", sa.String(length=128), sa.ForeignKey("assets.hash", ondelete="SET NULL"), nullable=True),
         sa.Column("user_metadata", sa.JSON(), nullable=True),
-        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.text("CURRENT_TIMESTAMP")),
-        sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.text("CURRENT_TIMESTAMP")),
-        sa.Column("last_access_time", sa.DateTime(timezone=True), nullable=False, server_default=sa.text("CURRENT_TIMESTAMP")),
+        sa.Column("created_at", sa.DateTime(timezone=False), nullable=False),
+        sa.Column("updated_at", sa.DateTime(timezone=False), nullable=False),
+        sa.Column("last_access_time", sa.DateTime(timezone=False), nullable=False),
         sqlite_autoincrement=True,
     )
     op.create_index("ix_assets_info_owner_id", "assets_info", ["owner_id"])
@@ -68,7 +68,7 @@ def upgrade() -> None:
         sa.Column("tag_name", sa.String(length=512), sa.ForeignKey("tags.name", ondelete="RESTRICT"), nullable=False),
         sa.Column("origin", sa.String(length=32), nullable=False, server_default="manual"),
         sa.Column("added_by", sa.String(length=128), nullable=True),
-        sa.Column("added_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.text("CURRENT_TIMESTAMP")),
+        sa.Column("added_at", sa.DateTime(timezone=False), nullable=False),
         sa.PrimaryKeyConstraint("asset_info_id", "tag_name", name="pk_asset_info_tags"),
     )
     op.create_index("ix_asset_info_tags_tag_name", "asset_info_tags", ["tag_name"])

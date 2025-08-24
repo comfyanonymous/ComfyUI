@@ -1,3 +1,4 @@
+import urllib.parse
 from typing import Optional
 
 from aiohttp import web
@@ -32,6 +33,39 @@ async def list_assets(request: web.Request) -> web.Response:
     return web.json_response(payload.model_dump(mode="json"))
 
 
+
+@ROUTES.get("/api/assets/{id}/content")
+async def download_asset_content(request: web.Request) -> web.Response:
+    asset_info_id_raw = request.match_info.get("id")
+    try:
+        asset_info_id = int(asset_info_id_raw)
+    except Exception:
+        return _error_response(400, "INVALID_ID", f"AssetInfo id '{asset_info_id_raw}' is not a valid integer.")
+
+    disposition = request.query.get("disposition", "attachment").lower().strip()
+    if disposition not in {"inline", "attachment"}:
+        disposition = "attachment"
+
+    try:
+        abs_path, content_type, filename = await assets_manager.resolve_asset_content_for_download(
+            asset_info_id=asset_info_id
+        )
+    except ValueError as ve:
+        return _error_response(404, "ASSET_NOT_FOUND", str(ve))
+    except NotImplementedError as nie:
+        return _error_response(501, "BACKEND_UNSUPPORTED", str(nie))
+    except FileNotFoundError:
+        return _error_response(404, "FILE_NOT_FOUND", "Underlying file not found on disk.")
+
+    quoted = filename.replace('"', "'")
+    cd = f'{disposition}; filename="{quoted}"; filename*=UTF-8\'\'{urllib.parse.quote(filename)}'
+
+    resp = web.FileResponse(abs_path)
+    resp.content_type = content_type
+    resp.headers["Content-Disposition"] = cd
+    return resp
+
+
 @ROUTES.put("/api/assets/{id}")
 async def update_asset(request: web.Request) -> web.Response:
     asset_info_id_raw = request.match_info.get("id")
@@ -59,6 +93,24 @@ async def update_asset(request: web.Request) -> web.Response:
     except Exception:
         return _error_response(500, "INTERNAL", "Unexpected server error.")
     return web.json_response(result.model_dump(mode="json"), status=200)
+
+
+@ROUTES.delete("/api/assets/{id}")
+async def delete_asset(request: web.Request) -> web.Response:
+    asset_info_id_raw = request.match_info.get("id")
+    try:
+        asset_info_id = int(asset_info_id_raw)
+    except Exception:
+        return _error_response(400, "INVALID_ID", f"AssetInfo id '{asset_info_id_raw}' is not a valid integer.")
+
+    try:
+        deleted = await assets_manager.delete_asset_reference(asset_info_id=asset_info_id)
+    except Exception:
+        return _error_response(500, "INTERNAL", "Unexpected server error.")
+
+    if not deleted:
+        return _error_response(404, "ASSET_NOT_FOUND", f"AssetInfo {asset_info_id} not found.")
+    return web.Response(status=204)
 
 
 @ROUTES.get("/api/tags")

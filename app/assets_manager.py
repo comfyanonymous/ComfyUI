@@ -1,5 +1,5 @@
+import mimetypes
 import os
-from datetime import datetime, timezone
 from typing import Optional, Sequence
 
 from comfy.cli_args import args
@@ -17,6 +17,9 @@ from .database.services import (
     list_tags_with_usage,
     add_tags_to_asset_info,
     remove_tags_from_asset_info,
+    fetch_asset_info_and_asset,
+    touch_asset_info_by_id,
+    delete_asset_info_by_id,
 )
 from .api import schemas_out
 
@@ -43,7 +46,7 @@ async def add_local_asset(tags: list[str], file_name: str, file_path: str) -> No
 
     async with await create_session() as session:
         if await check_fs_asset_exists_quick(session, file_path=abs_path, size_bytes=size_bytes, mtime_ns=mtime_ns):
-            await touch_asset_infos_by_fs_path(session, abs_path=abs_path, ts=datetime.now(timezone.utc))
+            await touch_asset_infos_by_fs_path(session, abs_path=abs_path)
             await session.commit()
             return
 
@@ -117,6 +120,40 @@ async def list_assets(
     )
 
 
+async def resolve_asset_content_for_download(
+    *, asset_info_id: int
+) -> tuple[str, str, str]:
+    """
+    Returns (abs_path, content_type, download_name) for the given AssetInfo id.
+    Also touches last_access_time (only_if_newer).
+    Raises:
+      ValueError if AssetInfo not found
+      NotImplementedError for unsupported backend
+      FileNotFoundError if underlying file does not exist (fs backend)
+    """
+    async with await create_session() as session:
+        pair = await fetch_asset_info_and_asset(session, asset_info_id=asset_info_id)
+        if not pair:
+            raise ValueError(f"AssetInfo {asset_info_id} not found")
+
+        info, asset = pair
+
+        if asset.storage_backend != "fs":
+            # Future: support http/s3/gcs/...
+            raise NotImplementedError(f"backend {asset.storage_backend!r} not supported yet")
+
+        abs_path = os.path.abspath(asset.storage_locator)
+        if not os.path.exists(abs_path):
+            raise FileNotFoundError(abs_path)
+
+        await touch_asset_info_by_id(session, asset_info_id=asset_info_id)
+        await session.commit()
+
+        ctype = asset.mime_type or mimetypes.guess_type(info.name or abs_path)[0] or "application/octet-stream"
+        download_name = info.name or os.path.basename(abs_path)
+        return abs_path, ctype, download_name
+
+
 async def update_asset(
     *,
     asset_info_id: int,
@@ -147,6 +184,12 @@ async def update_asset(
         updated_at=info.updated_at,
     )
 
+
+async def delete_asset_reference(*, asset_info_id: int) -> bool:
+    async with await create_session() as session:
+        r = await delete_asset_info_by_id(session, asset_info_id=asset_info_id)
+        await session.commit()
+    return r
 
 
 async def list_tags(

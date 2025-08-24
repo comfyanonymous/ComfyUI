@@ -1,7 +1,7 @@
 import os
 import logging
 from collections import defaultdict
-from datetime import datetime, timezone
+from datetime import datetime
 from decimal import Decimal
 from typing import Any, Sequence, Optional, Iterable
 
@@ -12,6 +12,7 @@ from sqlalchemy.orm import contains_eager
 from sqlalchemy.exc import IntegrityError
 
 from .models import Asset, AssetInfo, AssetInfoTag, AssetLocatorState, Tag, AssetInfoMeta
+from .timeutil import utcnow
 
 
 async def check_fs_asset_exists_quick(
@@ -93,7 +94,7 @@ async def ingest_fs_asset(
       }
     """
     locator = os.path.abspath(abs_path)
-    datetime_now = datetime.now(timezone.utc)
+    datetime_now = utcnow()
 
     out = {
         "asset_created": False,
@@ -246,7 +247,7 @@ async def touch_asset_infos_by_fs_path(
     only_if_newer: bool = True,
 ) -> int:
     locator = os.path.abspath(abs_path)
-    ts = ts or datetime.now(timezone.utc)
+    ts = ts or utcnow()
 
     stmt = sa.update(AssetInfo).where(
         sa.exists(
@@ -274,13 +275,31 @@ async def touch_asset_infos_by_fs_path(
     return int(res.rowcount or 0)
 
 
+async def touch_asset_info_by_id(
+    session: AsyncSession,
+    *,
+    asset_info_id: int,
+    ts: Optional[datetime] = None,
+    only_if_newer: bool = True,
+) -> int:
+    ts = ts or utcnow()
+    stmt = sa.update(AssetInfo).where(AssetInfo.id == asset_info_id)
+    if only_if_newer:
+        stmt = stmt.where(
+            sa.or_(AssetInfo.last_access_time.is_(None), AssetInfo.last_access_time < ts)
+        )
+    stmt = stmt.values(last_access_time=ts)
+    res = await session.execute(stmt)
+    return int(res.rowcount or 0)
+
+
 async def list_asset_infos_page(
     session: AsyncSession,
     *,
-    include_tags: Sequence[str] | None = None,
-    exclude_tags: Sequence[str] | None = None,
-    name_contains: str | None = None,
-    metadata_filter: dict | None = None,
+    include_tags: Optional[Sequence[str]] = None,
+    exclude_tags: Optional[Sequence[str]] = None,
+    name_contains: Optional[str] = None,
+    metadata_filter: Optional[dict] = None,
     limit: int = 20,
     offset: int = 0,
     sort: str = "created_at",
@@ -361,6 +380,19 @@ async def list_asset_infos_page(
     return infos, tag_map, total
 
 
+async def fetch_asset_info_and_asset(session: AsyncSession, *, asset_info_id: int) -> Optional[tuple[AssetInfo, Asset]]:
+    row = await session.execute(
+        select(AssetInfo, Asset)
+        .join(Asset, Asset.hash == AssetInfo.asset_hash)
+        .where(AssetInfo.id == asset_info_id)
+        .limit(1)
+    )
+    pair = row.first()
+    if not pair:
+        return None
+    return pair[0], pair[1]
+
+
 async def set_asset_info_tags(
     session: AsyncSession,
     *,
@@ -374,7 +406,6 @@ async def set_asset_info_tags(
     Creates missing tag names as 'user'.
     """
     desired = _normalize_tags(tags)
-    now = datetime.now(timezone.utc)
 
     # current links
     current = set(
@@ -389,7 +420,7 @@ async def set_asset_info_tags(
     if to_add:
         await _ensure_tags_exist(session, to_add, tag_type="user")
         session.add_all([
-            AssetInfoTag(asset_info_id=asset_info_id, tag_name=t, origin=origin, added_by=added_by, added_at=now)
+            AssetInfoTag(asset_info_id=asset_info_id, tag_name=t, origin=origin, added_by=added_by, added_at=utcnow())
             for t in to_add
         ])
         await session.flush()
@@ -447,17 +478,23 @@ async def update_asset_info_full(
         touched = True
 
     if touched and user_metadata is None:
-        info.updated_at = datetime.now(timezone.utc)
+        info.updated_at = utcnow()
         await session.flush()
 
     return info
+
+
+async def delete_asset_info_by_id(session: AsyncSession, *, asset_info_id: int) -> bool:
+    """Delete the user-visible AssetInfo row. Cascades clear tags and metadata."""
+    res = await session.execute(delete(AssetInfo).where(AssetInfo.id == asset_info_id))
+    return bool(res.rowcount)
 
 
 async def replace_asset_info_metadata_projection(
     session: AsyncSession,
     *,
     asset_info_id: int,
-    user_metadata: dict | None,
+    user_metadata: Optional[dict],
 ) -> None:
     """Replaces the `assets_info.user_metadata` AND rebuild the projection rows in `asset_info_meta`."""
     info = await session.get(AssetInfo, asset_info_id)
@@ -465,7 +502,7 @@ async def replace_asset_info_metadata_projection(
         raise ValueError(f"AssetInfo {asset_info_id} not found")
 
     info.user_metadata = user_metadata or {}
-    info.updated_at = datetime.now(timezone.utc)
+    info.updated_at = utcnow()
     await session.flush()
 
     await session.execute(delete(AssetInfoMeta).where(AssetInfoMeta.asset_info_id == asset_info_id))
@@ -507,7 +544,7 @@ async def get_asset_tags(session: AsyncSession, *, asset_info_id: int) -> list[s
 async def list_tags_with_usage(
     session,
     *,
-    prefix: str | None = None,
+    prefix: Optional[str] = None,
     limit: int = 100,
     offset: int = 0,
     include_zero: bool = True,
@@ -611,7 +648,6 @@ async def add_tags_to_asset_info(
     already = [t for t in norm if t in existing]
 
     if to_add:
-        now = datetime.now(timezone.utc)
         # Make insert race-safe with a nested tx; ignore dup conflicts if any.
         async with session.begin_nested():
             session.add_all([
@@ -620,7 +656,7 @@ async def add_tags_to_asset_info(
                     tag_name=t,
                     origin=origin,
                     added_by=added_by,
-                    added_at=now,
+                    added_at=utcnow(),
                 ) for t in to_add
             ])
             try:
@@ -677,7 +713,7 @@ async def remove_tags_from_asset_info(
     return {"removed": to_remove, "not_present": not_present, "total_tags": total}
 
 
-def _normalize_tags(tags: Sequence[str] | None) -> list[str]:
+def _normalize_tags(tags: Optional[Sequence[str]]) -> list[str]:
     return [t.strip().lower() for t in (tags or []) if (t or "").strip()]
 
 
@@ -697,8 +733,8 @@ async def _ensure_tags_exist(session: AsyncSession, names: Iterable[str], tag_ty
 
 def _apply_tag_filters(
     stmt: sa.sql.Select,
-    include_tags: Sequence[str] | None,
-    exclude_tags: Sequence[str] | None,
+    include_tags: Optional[Sequence[str]],
+    exclude_tags: Optional[Sequence[str]],
 ) -> sa.sql.Select:
     """include_tags: every tag must be present; exclude_tags: none may be present."""
     include_tags = _normalize_tags(include_tags)
@@ -724,7 +760,7 @@ def _apply_tag_filters(
 
 def _apply_metadata_filter(
     stmt: sa.sql.Select,
-    metadata_filter: dict | None,
+    metadata_filter: Optional[dict],
 ) -> sa.sql.Select:
     """Apply metadata filters using the projection table asset_info_meta.
 
