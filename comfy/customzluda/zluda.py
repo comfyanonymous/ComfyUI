@@ -652,7 +652,7 @@ def do_hijack():
     print("  ::  Configuring PyTorch backends...")
     torch.backends.cuda.enable_mem_efficient_sdp(False)
     torch.backends.cuda.enable_mem_efficient_sdp = do_nothing
-    torch.backends.cudnn.enabled = True
+    # torch.backends.cudnn.enabled = True #this was here from the early days , always assumed this was required for other stuff, disabling it.
     if hasattr(torch.backends.cuda, "enable_flash_sdp"):
         torch.backends.cuda.enable_flash_sdp(True)
         print("  ::  Disabled CUDA flash attention")
