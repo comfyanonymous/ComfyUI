@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import re
 import time
 import mimetypes
 import logging
@@ -376,6 +377,21 @@ def get_save_image_path(filename_prefix: str, output_dir: str, image_width=0, im
         input = input.replace("%hour%", str(now.tm_hour).zfill(2))
         input = input.replace("%minute%", str(now.tm_min).zfill(2))
         input = input.replace("%second%", str(now.tm_sec).zfill(2))
+
+        # Handle %date:FORMAT%
+        def date_repl(match):
+            fmt = match.group(1)
+            # Map Java-like formatting to strftime where possible
+            fmt = (fmt.replace("yyyy", "%Y")
+                    .replace("MM", "%m")
+                    .replace("dd", "%d")
+                    .replace("hh", "%H")
+                    .replace("mm", "%M")
+                    .replace("ss", "%S"))
+            return time.strftime(fmt, now)
+
+        input = re.sub(r"%date:(.*?)%", date_repl, input)
+
         return input
 
     if "%" in filename_prefix:
