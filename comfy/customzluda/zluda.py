@@ -71,7 +71,7 @@ def detect_amd_gpu_architecture():
         try:
             import subprocess
             result = subprocess.run(['wmic', 'path', 'win32_VideoController', 'get', 'name'],
-                                    capture_output=True, text=True, timeout=10)
+                                  capture_output=True, text=True, timeout=10)
             if result.returncode == 0:
                 for line in result.stdout.split('\n'):
                     line = line.strip()
@@ -303,10 +303,10 @@ def handle_pydantic_packages(required_packages):
     try:
         print("  ::  Installing compatible pydantic packages...")
         combined_args = [sys.executable, '-m', 'pip', 'install',
-                         'pydantic~=2.0',
-                         'pydantic-settings~=2.0',
-                         '--quiet',
-                         '--disable-pip-version-check']
+                       'pydantic~=2.0',
+                       'pydantic-settings~=2.0',
+                       '--quiet',
+                       '--disable-pip-version-check']
 
         subprocess.check_call(combined_args)
 
@@ -344,10 +344,10 @@ def install_package(package_name, version_spec, upgrade=False):
             try:
                 print(f"  ::  Retrying {package_name} installation without version constraint...")
                 fallback_args = [sys.executable, '-m', 'pip', 'install',
-                                 package_name,
-                                 '--upgrade',
-                                 '--quiet',
-                                 '--disable-pip-version-check']
+                               package_name,
+                               '--upgrade',
+                               '--quiet',
+                               '--disable-pip-version-check']
                 subprocess.check_call(fallback_args)
                 print(f"  ::  {package_name} installed successfully without version constraint")
             except subprocess.CalledProcessError as e2:
@@ -537,23 +537,23 @@ class DeviceProperties:
 
 # # ------------------- Audio Ops Patch -------------------
 # if is_zluda:
-# _torch_stft = torch.stft
-# _torch_istft = torch.istft
+    # _torch_stft = torch.stft
+    # _torch_istft = torch.istft
 
-# def z_stft(input: torch.Tensor, window: torch.Tensor, *args, **kwargs):
-# return _torch_stft(input=input.cpu(), window=window.cpu(), *args, **kwargs).to(input.device)
+    # def z_stft(input: torch.Tensor, window: torch.Tensor, *args, **kwargs):
+        # return _torch_stft(input=input.cpu(), window=window.cpu(), *args, **kwargs).to(input.device)
 
-# def z_istft(input: torch.Tensor, window: torch.Tensor, *args, **kwargs):
-# return _torch_istft(input=input.cpu(), window=window.cpu(), *args, **kwargs).to(input.device)
+    # def z_istft(input: torch.Tensor, window: torch.Tensor, *args, **kwargs):
+        # return _torch_istft(input=input.cpu(), window=window.cpu(), *args, **kwargs).to(input.device)
 
-# def z_jit(f, *_, **__):
-# f.graph = torch._C.Graph()
-# return f
+    # def z_jit(f, *_, **__):
+        # f.graph = torch._C.Graph()
+        # return f
 
-# torch._dynamo.config.suppress_errors = True
-# torch.stft = z_stft
-# torch.istft = z_istft
-# torch.jit.script = z_jit
+    # torch._dynamo.config.suppress_errors = True
+    # torch.stft = z_stft
+    # torch.istft = z_istft
+    # torch.jit.script = z_jit
 # # ------------------- End Audio Patch -------------------
 
 # ------------------- Top-K Fallback Patch -------------------
@@ -637,8 +637,8 @@ def do_hijack():
                 def amd_flash_wrapper(query, key, value, attn_mask=None, dropout_p=0.0, is_causal=False, scale=None):
                     try:
                         if (query.shape[-1] <= 128 and
-                                attn_mask is None and # fix flash-attention error : "Flash attention error: Boolean value of Tensor with more than one value is ambiguous"
-                                query.dtype != torch.float32):
+                            attn_mask is None and # fix flash-attention error : "Flash attention error: Boolean value of Tensor with more than one value is ambiguous"
+                            query.dtype != torch.float32):
                             if scale is None:
                                 scale = query.shape[-1] ** -0.5
                             return interface_fa.fwd(
