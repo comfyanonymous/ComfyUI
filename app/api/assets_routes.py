@@ -11,6 +11,15 @@ from . import schemas_in
 ROUTES = web.RouteTableDef()
 
 
+@ROUTES.head("/api/assets/hash/{hash}")
+async def head_asset_by_hash(request: web.Request) -> web.Response:
+    hash_str = request.match_info.get("hash", "").strip().lower()
+    if not hash_str or ":" not in hash_str:
+        return _error_response(400, "INVALID_HASH", "hash must be like 'blake3:<hex>'")
+    exists = await assets_manager.asset_exists(asset_hash=hash_str)
+    return web.Response(status=200 if exists else 404)
+
+
 @ROUTES.get("/api/assets")
 async def list_assets(request: web.Request) -> web.Response:
     query_dict = dict(request.rel_url.query)
@@ -93,6 +102,27 @@ async def update_asset(request: web.Request) -> web.Response:
     except Exception:
         return _error_response(500, "INTERNAL", "Unexpected server error.")
     return web.json_response(result.model_dump(mode="json"), status=200)
+
+
+@ROUTES.post("/api/assets/from-hash")
+async def create_asset_from_hash(request: web.Request) -> web.Response:
+    try:
+        payload = await request.json()
+        body = schemas_in.CreateFromHashBody.model_validate(payload)
+    except ValidationError as ve:
+        return _validation_error_response("INVALID_BODY", ve)
+    except Exception:
+        return _error_response(400, "INVALID_JSON", "Request body must be valid JSON.")
+
+    result = await assets_manager.create_asset_from_hash(
+        hash_str=body.hash,
+        name=body.name,
+        tags=body.tags,
+        user_metadata=body.user_metadata,
+    )
+    if result is None:
+        return _error_response(404, "ASSET_NOT_FOUND", f"Asset content {body.hash} does not exist")
+    return web.json_response(result.model_dump(mode="json"), status=201)
 
 
 @ROUTES.delete("/api/assets/{id}")

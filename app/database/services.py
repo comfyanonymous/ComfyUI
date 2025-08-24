@@ -15,6 +15,20 @@ from .models import Asset, AssetInfo, AssetInfoTag, AssetLocatorState, Tag, Asse
 from .timeutil import utcnow
 
 
+
+async def asset_exists_by_hash(session: AsyncSession, *, asset_hash: str) -> bool:
+    row = (
+        await session.execute(
+            select(sa.literal(True)).select_from(Asset).where(Asset.hash == asset_hash).limit(1)
+        )
+    ).first()
+    return row is not None
+
+
+async def get_asset_by_hash(session: AsyncSession, *, asset_hash: str) -> Optional[Asset]:
+    return await session.get(Asset, asset_hash)
+
+
 async def check_fs_asset_exists_quick(
     session,
     *,
@@ -391,6 +405,46 @@ async def fetch_asset_info_and_asset(session: AsyncSession, *, asset_info_id: in
     if not pair:
         return None
     return pair[0], pair[1]
+
+
+async def create_asset_info_for_existing_asset(
+    session: AsyncSession,
+    *,
+    asset_hash: str,
+    name: str,
+    user_metadata: Optional[dict] = None,
+    tags: Optional[Sequence[str]] = None,
+    tag_origin: str = "manual",
+    added_by: Optional[str] = None,
+) -> AssetInfo:
+    """Create a new AssetInfo referencing an existing Asset (no content write)."""
+    now = utcnow()
+    info = AssetInfo(
+        owner_id=None,
+        name=name,
+        asset_hash=asset_hash,
+        preview_hash=None,
+        created_at=now,
+        updated_at=now,
+        last_access_time=now,
+    )
+    session.add(info)
+    await session.flush()  # get info.id
+
+    if user_metadata is not None:
+        await replace_asset_info_metadata_projection(
+            session, asset_info_id=info.id, user_metadata=user_metadata
+        )
+
+    if tags is not None:
+        await set_asset_info_tags(
+            session,
+            asset_info_id=info.id,
+            tags=tags,
+            origin=tag_origin,
+            added_by=added_by,
+        )
+    return info
 
 
 async def set_asset_info_tags(

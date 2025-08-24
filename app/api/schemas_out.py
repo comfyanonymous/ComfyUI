@@ -43,6 +43,26 @@ class AssetUpdated(BaseModel):
         return v.isoformat() if v else None
 
 
+class AssetCreated(BaseModel):
+    id: int
+    name: str
+    asset_hash: str
+    size: Optional[int] = None
+    mime_type: Optional[str] = None
+    tags: list[str] = Field(default_factory=list)
+    user_metadata: dict[str, Any] = Field(default_factory=dict)
+    preview_hash: Optional[str] = None
+    created_at: Optional[datetime] = None
+    last_access_time: Optional[datetime] = None
+    created_new: bool
+
+    model_config = ConfigDict(from_attributes=True)
+
+    @field_serializer("created_at", "last_access_time")
+    def _ser_dt(self, v: Optional[datetime], _info):
+        return v.isoformat() if v else None
+
+
 class TagUsage(BaseModel):
     name: str
     count: int
