@@ -287,7 +287,7 @@ class EasyCacheHolder:
         return self.first_cond_uuid in uuids
 
     def check_metadata(self, x: torch.Tensor) -> bool:
-        metadata = (x.device, x.dtype, x.shape)
+        metadata = (x.device, x.dtype, x.shape[1:])
         if self.state_metadata is None:
             self.state_metadata = metadata
             return True
@@ -375,6 +375,7 @@ class LazyCacheHolder:
         self.output_change_rates = []
         self.approx_output_change_rates = []
         self.total_steps_skipped = 0
+        self.state_metadata = None
 
     def has_cache_diff(self) -> bool:
         return self.cache_diff is not None
@@ -419,6 +420,17 @@ class LazyCacheHolder:
     def update_cache_diff(self, output: torch.Tensor, x: torch.Tensor):
         self.cache_diff = output - x
 
+    def check_metadata(self, x: torch.Tensor) -> bool:
+        metadata = (x.device, x.dtype, x.shape)
+        if self.state_metadata is None:
+            self.state_metadata = metadata
+            return True
+        if metadata == self.state_metadata:
+            return True
+        logging.warn(f"{self.name} - Tensor shape, dtype or device changed, resetting state")
+        self.reset()
+        return False
+
     def reset(self):
         self.relative_transformation_rate = 0.0
         self.cumulative_change_rate = 0.0
@@ -427,7 +439,14 @@ class LazyCacheHolder:
         self.approx_output_change_rates = []
         del self.cache_diff
         self.cache_diff = None
+        del self.x_prev_subsampled
+        self.x_prev_subsampled = None
+        del self.output_prev_subsampled
+        self.output_prev_subsampled = None
+        del self.output_prev_norm
+        self.output_prev_norm = None
         self.total_steps_skipped = 0
+        self.state_metadata = None
         return self
 
     def clone(self):
