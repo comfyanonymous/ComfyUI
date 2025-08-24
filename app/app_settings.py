@@ -25,7 +25,7 @@ class AppSettings():
                 logging.error(f"The user settings file is corrupted: {file}")
                 return {}
         else:
-            return {"Comfy.Canvas.NavigationMode": "legacy"}
+            return {}
 
     def save_settings(self, request, settings):
         file = self.user_manager.get_request_user_filepath(
