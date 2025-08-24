@@ -66,14 +66,15 @@ class ImageUpscaleWithModel:
             try:
                 steps = in_img.shape[0] * comfy.utils.get_tiled_scale_steps(in_img.shape[3], in_img.shape[2], tile_x=tile, tile_y=tile, overlap=overlap)
                 pbar = comfy.utils.ProgressBar(steps)
-                s = comfy.utils.tiled_scale(in_img, lambda a: upscale_model(a), tile_x=tile, tile_y=tile, overlap=overlap, upscale_amount=upscale_model.scale, pbar=pbar)
+                 # KEY CHANGE: Pass device as output_device instead of default "cpu"
+                s = comfy.utils.tiled_scale(in_img, lambda a: upscale_model(a), tile_x=tile, tile_y=tile, overlap=overlap, upscale_amount=upscale_model.scale, output_device=device, pbar=pbar)
                 oom = False
             except model_management.OOM_EXCEPTION as e:
                 tile //= 2
                 if tile < 128:
                     raise e
 
-        upscale_model.to("cpu")
+        # upscale_model.to("cpu")  # Commented out to keep model on GPU because when processing batch images then model unnecessarily moves to CPU
         s = torch.clamp(s.movedim(-3,-1), min=0, max=1.0)
         return (s,)
 
