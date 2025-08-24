@@ -7,6 +7,7 @@ from sqlalchemy import (
     DateTime,
     ForeignKey,
     Index,
+    UniqueConstraint,
     JSON,
     String,
     Text,
@@ -118,7 +119,7 @@ class AssetInfo(Base):
     __tablename__ = "assets_info"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    owner_id: Mapped[str | None] = mapped_column(String(128))
+    owner_id: Mapped[str] = mapped_column(String(128), nullable=False, default="")
     name: Mapped[str] = mapped_column(String(512), nullable=False)
     asset_hash: Mapped[str] = mapped_column(
         String(256), ForeignKey("assets.hash", ondelete="RESTRICT"), nullable=False
@@ -169,6 +170,8 @@ class AssetInfo(Base):
     )
 
     __table_args__ = (
+        UniqueConstraint("asset_hash", "owner_id", "name", name="uq_assets_info_hash_owner_name"),
+        Index("ix_assets_info_owner_name", "owner_id", "name"),
         Index("ix_assets_info_owner_id", "owner_id"),
         Index("ix_assets_info_asset_hash", "asset_hash"),
         Index("ix_assets_info_name", "name"),
@@ -184,7 +187,6 @@ class AssetInfo(Base):
 
     def __repr__(self) -> str:
         return f"<AssetInfo id={self.id} name={self.name!r} hash={self.asset_hash[:12]}>"
-
 
 
 class AssetInfoMeta(Base):

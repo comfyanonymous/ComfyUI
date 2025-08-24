@@ -1,6 +1,7 @@
 import mimetypes
 import os
 from typing import Optional, Sequence
+from pathlib import Path
 
 from comfy.cli_args import args
 from comfy_api.internal import async_to_sync
@@ -34,8 +35,13 @@ async def asset_exists(*, asset_hash: str) -> bool:
 
 def populate_db_with_asset(tags: list[str], file_name: str, file_path: str) -> None:
     if not args.disable_model_processing:
+        p = Path(file_name)
+        dir_parts = [part for part in p.parent.parts if part not in (".", "..", p.anchor)]
         async_to_sync.AsyncToSyncConverter.run_async_in_thread(
-            add_local_asset, tags=tags, file_name=file_name, file_path=file_path
+            add_local_asset,
+            tags=list(dict.fromkeys([*tags, *dir_parts])),
+            file_name=p.name,
+            file_path=file_path,
         )
 
 
@@ -114,7 +120,7 @@ async def list_assets(
                 size=int(asset.size_bytes) if asset else None,
                 mime_type=asset.mime_type if asset else None,
                 tags=tags,
-                preview_url=f"/api/v1/assets/{info.id}/content",  # TODO: implement actual content endpoint later
+                preview_url=f"/api/v1/assets/{info.id}/content",
                 created_at=info.created_at,
                 updated_at=info.updated_at,
                 last_access_time=info.last_access_time,

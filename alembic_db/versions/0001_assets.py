@@ -18,7 +18,7 @@ def upgrade() -> None:
     # ASSETS: content identity (deduplicated by hash)
     op.create_table(
         "assets",
-        sa.Column("hash", sa.String(length=128), primary_key=True),
+        sa.Column("hash", sa.String(length=256), primary_key=True),
         sa.Column("size_bytes", sa.BigInteger(), nullable=False, server_default="0"),
         sa.Column("mime_type", sa.String(length=255), nullable=True),
         sa.Column("refcount", sa.BigInteger(), nullable=False, server_default="0"),
@@ -36,14 +36,15 @@ def upgrade() -> None:
     op.create_table(
         "assets_info",
         sa.Column("id", sa.Integer(), primary_key=True, autoincrement=True),
-        sa.Column("owner_id", sa.String(length=128), nullable=True),
+        sa.Column("owner_id", sa.String(length=128), nullable=False, server_default=""),
         sa.Column("name", sa.String(length=512), nullable=False),
-        sa.Column("asset_hash", sa.String(length=128), sa.ForeignKey("assets.hash", ondelete="RESTRICT"), nullable=False),
-        sa.Column("preview_hash", sa.String(length=128), sa.ForeignKey("assets.hash", ondelete="SET NULL"), nullable=True),
+        sa.Column("asset_hash", sa.String(length=256), sa.ForeignKey("assets.hash", ondelete="RESTRICT"), nullable=False),
+        sa.Column("preview_hash", sa.String(length=256), sa.ForeignKey("assets.hash", ondelete="SET NULL"), nullable=True),
         sa.Column("user_metadata", sa.JSON(), nullable=True),
         sa.Column("created_at", sa.DateTime(timezone=False), nullable=False),
         sa.Column("updated_at", sa.DateTime(timezone=False), nullable=False),
         sa.Column("last_access_time", sa.DateTime(timezone=False), nullable=False),
+        sa.UniqueConstraint("asset_hash", "owner_id", "name", name="uq_assets_info_hash_owner_name"),
         sqlite_autoincrement=True,
     )
     op.create_index("ix_assets_info_owner_id", "assets_info", ["owner_id"])
@@ -65,7 +66,7 @@ def upgrade() -> None:
     op.create_table(
         "asset_info_tags",
         sa.Column("asset_info_id", sa.BigInteger(), sa.ForeignKey("assets_info.id", ondelete="CASCADE"), nullable=False),
-        sa.Column("tag_name", sa.String(length=512), sa.ForeignKey("tags.name", ondelete="RESTRICT"), nullable=False),
+        sa.Column("tag_name", sa.String(length=128), sa.ForeignKey("tags.name", ondelete="RESTRICT"), nullable=False),
         sa.Column("origin", sa.String(length=32), nullable=False, server_default="manual"),
         sa.Column("added_by", sa.String(length=128), nullable=True),
         sa.Column("added_at", sa.DateTime(timezone=False), nullable=False),
@@ -77,7 +78,7 @@ def upgrade() -> None:
     # ASSET_LOCATOR_STATE: 1:1 filesystem metadata(for fast integrity checking) for an Asset records
     op.create_table(
         "asset_locator_state",
-        sa.Column("asset_hash", sa.String(length=128), sa.ForeignKey("assets.hash", ondelete="CASCADE"), primary_key=True),
+        sa.Column("asset_hash", sa.String(length=256), sa.ForeignKey("assets.hash", ondelete="CASCADE"), primary_key=True),
         sa.Column("mtime_ns", sa.BigInteger(), nullable=True),
         sa.Column("etag", sa.String(length=256), nullable=True),
         sa.Column("last_modified", sa.String(length=128), nullable=True),
@@ -112,6 +113,8 @@ def upgrade() -> None:
         [
             # Core concept tags
             {"name": "models", "tag_type": "system"},
+            {"name": "input", "tag_type": "system"},
+            {"name": "output", "tag_type": "system"},
 
             # Canonical single-word types
             {"name": "checkpoint", "tag_type": "system"},
@@ -150,6 +153,7 @@ def downgrade() -> None:
     op.drop_index("ix_tags_tag_type", table_name="tags")
     op.drop_table("tags")
 
+    op.drop_constraint("uq_assets_info_hash_owner_name", table_name="assets_info")
     op.drop_index("ix_assets_info_last_access_time", table_name="assets_info")
     op.drop_index("ix_assets_info_created_at", table_name="assets_info")
     op.drop_index("ix_assets_info_name", table_name="assets_info")
