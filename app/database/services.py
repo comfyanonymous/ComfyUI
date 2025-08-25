@@ -14,7 +14,7 @@ from sqlalchemy.exc import IntegrityError
 
 from .models import Asset, AssetInfo, AssetInfoTag, AssetLocatorState, Tag, AssetInfoMeta
 from .timeutil import utcnow
-
+from .._assets_helpers import normalize_tags
 
 
 async def asset_exists_by_hash(session: AsyncSession, *, asset_hash: str) -> bool:
@@ -471,7 +471,7 @@ async def set_asset_info_tags(
     Replace the tag set on an AssetInfo with `tags`. Idempotent.
     Creates missing tag names as 'user'.
     """
-    desired = _normalize_tags(tags)
+    desired = normalize_tags(tags)
 
     # current links
     current = set(
@@ -691,7 +691,7 @@ async def add_tags_to_asset_info(
     if not info:
         raise ValueError(f"AssetInfo {asset_info_id} not found")
 
-    norm = _normalize_tags(tags)
+    norm = normalize_tags(tags)
     if not norm:
         total = await get_asset_tags(session, asset_info_id=asset_info_id)
         return {"added": [], "already_present": [], "total_tags": total}
@@ -753,7 +753,7 @@ async def remove_tags_from_asset_info(
     if not info:
         raise ValueError(f"AssetInfo {asset_info_id} not found")
 
-    norm = _normalize_tags(tags)
+    norm = normalize_tags(tags)
     if not norm:
         total = await get_asset_tags(session, asset_info_id=asset_info_id)
         return {"removed": [], "not_present": [], "total_tags": total}
@@ -784,12 +784,8 @@ async def remove_tags_from_asset_info(
     return {"removed": to_remove, "not_present": not_present, "total_tags": total}
 
 
-def _normalize_tags(tags: Optional[Sequence[str]]) -> list[str]:
-    return [t.strip().lower() for t in (tags or []) if (t or "").strip()]
-
-
 async def _ensure_tags_exist(session: AsyncSession, names: Iterable[str], tag_type: str = "user") -> list[Tag]:
-    wanted = _normalize_tags(list(names))
+    wanted = normalize_tags(list(names))
     if not wanted:
         return []
     existing = (await session.execute(select(Tag).where(Tag.name.in_(wanted)))).scalars().all()
@@ -808,8 +804,8 @@ def _apply_tag_filters(
     exclude_tags: Optional[Sequence[str]],
 ) -> sa.sql.Select:
     """include_tags: every tag must be present; exclude_tags: none may be present."""
-    include_tags = _normalize_tags(include_tags)
-    exclude_tags = _normalize_tags(exclude_tags)
+    include_tags = normalize_tags(include_tags)
+    exclude_tags = normalize_tags(exclude_tags)
 
     if include_tags:
         for tag_name in include_tags:

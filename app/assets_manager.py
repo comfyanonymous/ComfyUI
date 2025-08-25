@@ -1,7 +1,7 @@
+import logging
 import mimetypes
 import os
 from typing import Optional, Sequence
-from pathlib import Path
 
 from comfy.cli_args import args
 from comfy_api.internal import async_to_sync
@@ -26,6 +26,7 @@ from .database.services import (
     create_asset_info_for_existing_asset,
 )
 from .api import schemas_out
+from ._assets_helpers import get_name_and_tags_from_asset_path
 
 
 async def asset_exists(*, asset_hash: str) -> bool:
@@ -33,16 +34,20 @@ async def asset_exists(*, asset_hash: str) -> bool:
         return await asset_exists_by_hash(session, asset_hash=asset_hash)
 
 
-def populate_db_with_asset(tags: list[str], file_name: str, file_path: str) -> None:
+def populate_db_with_asset(file_path: str, tags: Optional[list[str]] = None) -> None:
     if not args.disable_model_processing:
-        p = Path(file_name)
-        dir_parts = [part for part in p.parent.parts if part not in (".", "..", p.anchor)]
-        async_to_sync.AsyncToSyncConverter.run_async_in_thread(
-            add_local_asset,
-            tags=list(dict.fromkeys([*tags, *dir_parts])),
-            file_name=p.name,
-            file_path=file_path,
-        )
+        if tags is None:
+            tags = []
+        try:
+            asset_name, path_tags = get_name_and_tags_from_asset_path(file_path)
+            async_to_sync.AsyncToSyncConverter.run_async_in_thread(
+                add_local_asset,
+                tags=list(dict.fromkeys([*path_tags, *tags])),
+                file_name=asset_name,
+                file_path=file_path,
+            )
+        except ValueError:
+            logging.exception("Cant parse '%s' as an asset file path.", file_path)
 
 
 async def add_local_asset(tags: list[str], file_name: str, file_path: str) -> None:
