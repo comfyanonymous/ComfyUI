@@ -20,6 +20,7 @@ tqdm
 psutil
 alembic
 SQLAlchemy
+aiosqlite
 av>=14.2.0
 blake3
 
