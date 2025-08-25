@@ -31,7 +31,7 @@ wget -c https://huggingface.co/Heng365/dabaichui/resolve/main/dabaichui.safetens
 
 wget -c https://huggingface.co/madebyollin/sdxl-vae-fp16-fix/resolve/main/sdxl.vae.safetensors -P ./models/vae
 
-wget -c https://huggingface.co/thibaud/controlnet-openpose-sdxl-1.0/resolve/d973c1cc9d205a69cb3650663e827acc4863a640/OpenPoseXL2.safetensors -P ./models/controlnet
+# wget -c https://huggingface.co/thibaud/controlnet-openpose-sdxl-1.0/resolve/d973c1cc9d205a69cb3650663e827acc4863a640/OpenPoseXL2.safetensors -P ./models/controlnet
 
 #Flux kontext
 ln -s /kaggle/input/flux-ae/flux-ae.safetensors ./models/vae/ae.safetensors
@@ -39,6 +39,8 @@ ln -s /kaggle/input/clip-l/clip_l.safetensors ./models/text_encoders/clip_l.safe
 ln -s /kaggle/input/t5xxl-fp8-e4m3fn-scaled/t5xxl_fp8_e4m3fn_scaled.safetensors ./models/text_encoders/t5xxl_fp8_e4m3fn_scaled.safetensors
 ln -s /kaggle/input/t5xxl-fp8-e4m3fn/t5xxl_fp8_e4m3fn.safetensors ./models/text_encoders/t5xxl_fp8_e4m3fn.safetensors
 ln -s /kaggle/input/flux1-dev-kontext-fp8-scaled/flux1-dev-kontext_fp8_scaled.safetensors ./models/diffusion_models/flux1-dev-kontext_fp8_scaled.safetensors
+
+ln -s /kaggle/input/flux1-fill-dev/flux1-fill-dev.safetensors ./models/diffusion_models/flux1-fill-dev.safetensors
 
 wget https://huggingface.co/zer0int/CLIP-GmP-ViT-L-14/resolve/main/ViT-L-14-TEXT-detail-improved-hiT-GmP-TE-only-HF.safetensors -P ./models/text_encoders
 wget https://huggingface.co/Madespace/clip/resolve/main/google_t5-v1_1-xxl_encoderonly-fp8_e4m3fn.safetensors -P ./models/text_encoders
