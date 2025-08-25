@@ -25,8 +25,8 @@ from .database.services import (
     get_asset_by_hash,
     create_asset_info_for_existing_asset,
 )
-from .api import schemas_out
-from ._assets_helpers import get_name_and_tags_from_asset_path
+from .api import schemas_in, schemas_out
+from ._assets_helpers import get_name_and_tags_from_asset_path, resolve_destination_from_tags, ensure_within_base
 
 
 async def asset_exists(*, asset_hash: str) -> bool:
@@ -171,6 +171,97 @@ async def resolve_asset_content_for_download(
         ctype = asset.mime_type or mimetypes.guess_type(info.name or abs_path)[0] or "application/octet-stream"
         download_name = info.name or os.path.basename(abs_path)
         return abs_path, ctype, download_name
+
+
+async def upload_asset_from_temp_path(
+    spec: schemas_in.UploadAssetSpec,
+    *,
+    temp_path: str,
+    client_filename: Optional[str] = None,
+) -> schemas_out.AssetCreated:
+    """
+    Finalize an uploaded temp file:
+      - compute blake3 hash
+      - resolve destination from tags
+      - decide filename (spec.name or client filename or hash)
+      - move file atomically
+      - ingest into DB (assets, locator state, asset_info + tags)
+    Returns a populated AssetCreated payload.
+    """
+
+    try:
+        digest = await hashing.blake3_hash(temp_path)
+    except Exception as e:
+        raise RuntimeError(f"failed to hash uploaded file: {e}")
+    asset_hash = "blake3:" + digest
+
+    # Resolve destination
+    base_dir, subdirs = resolve_destination_from_tags(spec.tags)
+    dest_dir = os.path.join(base_dir, *subdirs) if subdirs else base_dir
+    os.makedirs(dest_dir, exist_ok=True)
+
+    # Decide filename
+    desired_name = _safe_filename(spec.name or (client_filename or ""), fallback=digest)
+    dest_abs = os.path.abspath(os.path.join(dest_dir, desired_name))
+    ensure_within_base(dest_abs, base_dir)
+
+    # Content type based on final name
+    content_type = mimetypes.guess_type(desired_name, strict=False)[0] or "application/octet-stream"
+
+    # Atomic move into place
+    try:
+        os.replace(temp_path, dest_abs)
+    except Exception as e:
+        raise RuntimeError(f"failed to move uploaded file into place: {e}")
+
+    # Stat final file
+    try:
+        size_bytes, mtime_ns = _get_size_mtime_ns(dest_abs)
+    except OSError as e:
+        raise RuntimeError(f"failed to stat destination file: {e}")
+
+    # Ingest + build response
+    async with await create_session() as session:
+        result = await ingest_fs_asset(
+            session,
+            asset_hash=asset_hash,
+            abs_path=dest_abs,
+            size_bytes=size_bytes,
+            mtime_ns=mtime_ns,
+            mime_type=content_type,
+            info_name=os.path.basename(dest_abs),
+            owner_id="",
+            preview_hash=None,
+            user_metadata=spec.user_metadata or {},
+            tags=spec.tags,
+            tag_origin="manual",
+            added_by=None,
+            require_existing_tags=False,
+        )
+        info_id = result.get("asset_info_id")
+        if not info_id:
+            raise RuntimeError("failed to create asset metadata")
+
+        pair = await fetch_asset_info_and_asset(session, asset_info_id=int(info_id))
+        if not pair:
+            raise RuntimeError("inconsistent DB state after ingest")
+        info, asset = pair
+        tag_names = await get_asset_tags(session, asset_info_id=info.id)
+        await session.commit()
+
+    return schemas_out.AssetCreated(
+        id=info.id,
+        name=info.name,
+        asset_hash=info.asset_hash,
+        size=int(asset.size_bytes),
+        mime_type=asset.mime_type,
+        tags=tag_names,
+        user_metadata=info.user_metadata or {},
+        preview_hash=info.preview_hash,
+        created_at=info.created_at,
+        last_access_time=info.last_access_time,
+        created_new=True,
+    )
 
 
 async def update_asset(

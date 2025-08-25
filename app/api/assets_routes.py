@@ -1,8 +1,12 @@
+import os
+import uuid
 import urllib.parse
 from typing import Optional
 
 from aiohttp import web
 from pydantic import ValidationError
+
+import folder_paths
 
 from .. import assets_manager, assets_scanner
 from . import schemas_in
@@ -42,7 +46,6 @@ async def list_assets(request: web.Request) -> web.Response:
     return web.json_response(payload.model_dump(mode="json"))
 
 
-
 @ROUTES.get("/api/assets/{id}/content")
 async def download_asset_content(request: web.Request) -> web.Response:
     asset_info_id_raw = request.match_info.get("id")
@@ -75,6 +78,118 @@ async def download_asset_content(request: web.Request) -> web.Response:
     return resp
 
 
+@ROUTES.post("/api/assets/from-hash")
+async def create_asset_from_hash(request: web.Request) -> web.Response:
+    try:
+        payload = await request.json()
+        body = schemas_in.CreateFromHashBody.model_validate(payload)
+    except ValidationError as ve:
+        return _validation_error_response("INVALID_BODY", ve)
+    except Exception:
+        return _error_response(400, "INVALID_JSON", "Request body must be valid JSON.")
+
+    result = await assets_manager.create_asset_from_hash(
+        hash_str=body.hash,
+        name=body.name,
+        tags=body.tags,
+        user_metadata=body.user_metadata,
+    )
+    if result is None:
+        return _error_response(404, "ASSET_NOT_FOUND", f"Asset content {body.hash} does not exist")
+    return web.json_response(result.model_dump(mode="json"), status=201)
+
+
+@ROUTES.post("/api/assets")
+async def upload_asset(request: web.Request) -> web.Response:
+    """Multipart/form-data endpoint for Asset uploads."""
+
+    if not (request.content_type or "").lower().startswith("multipart/"):
+        return _error_response(415, "UNSUPPORTED_MEDIA_TYPE", "Use multipart/form-data for uploads.")
+
+    reader = await request.multipart()
+
+    file_field = None
+    file_client_name: Optional[str] = None
+    tags_raw: list[str] = []
+    provided_name: Optional[str] = None
+    user_metadata_raw: Optional[str] = None
+    file_written = 0
+
+    while True:
+        field = await reader.next()
+        if field is None:
+            break
+
+        fname = getattr(field, "name", None) or ""
+        if fname == "file":
+            # Save to temp
+            uploads_root = os.path.join(folder_paths.get_temp_directory(), "uploads")
+            unique_dir = os.path.join(uploads_root, uuid.uuid4().hex)
+            os.makedirs(unique_dir, exist_ok=True)
+            tmp_path = os.path.join(unique_dir, ".upload.part")
+
+            file_field = field
+            file_client_name = (field.filename or "").strip()
+            try:
+                with open(tmp_path, "wb") as f:
+                    while True:
+                        chunk = await field.read_chunk(8 * 1024 * 1024)
+                        if not chunk:
+                            break
+                        f.write(chunk)
+                        file_written += len(chunk)
+            except Exception:
+                try:
+                    if os.path.exists(tmp_path):
+                        os.remove(tmp_path)
+                finally:
+                    return _error_response(500, "UPLOAD_IO_ERROR", "Failed to receive and store uploaded file.")
+        elif fname == "tags":
+            tags_raw.append((await field.text()) or "")
+        elif fname == "name":
+            provided_name = (await field.text()) or None
+        elif fname == "user_metadata":
+            user_metadata_raw = (await field.text()) or None
+
+    if file_field is None:
+        return _error_response(400, "MISSING_FILE", "Form must include a 'file' part.")
+
+    if file_written == 0:
+        try:
+            os.remove(tmp_path)
+        finally:
+            return _error_response(400, "EMPTY_UPLOAD", "Uploaded file is empty.")
+
+    try:
+        spec = schemas_in.UploadAssetSpec.model_validate({
+            "tags": tags_raw,
+            "name": provided_name,
+            "user_metadata": user_metadata_raw,
+        })
+    except ValidationError as ve:
+        try:
+            os.remove(tmp_path)
+        finally:
+            return _validation_error_response("INVALID_BODY", ve)
+
+    if spec.tags[0] == "models" and spec.tags[1] not in folder_paths.folder_names_and_paths:
+        return _error_response(400, "INVALID_BODY", f"unknown models category '{spec.tags[1]}'")
+
+    try:
+        created = await assets_manager.upload_asset_from_temp_path(
+            spec,
+            temp_path=tmp_path,
+            client_filename=file_client_name,
+        )
+        return web.json_response(created.model_dump(mode="json"), status=201)
+    except Exception:
+        try:
+            if os.path.exists(tmp_path):
+                os.remove(tmp_path)
+        finally:
+            return _error_response(500, "INTERNAL", "Unexpected server error.")
+
+
 @ROUTES.put("/api/assets/{id}")
 async def update_asset(request: web.Request) -> web.Response:
     asset_info_id_raw = request.match_info.get("id")
@@ -102,27 +217,6 @@ async def update_asset(request: web.Request) -> web.Response:
     except Exception:
         return _error_response(500, "INTERNAL", "Unexpected server error.")
     return web.json_response(result.model_dump(mode="json"), status=200)
-
-
-@ROUTES.post("/api/assets/from-hash")
-async def create_asset_from_hash(request: web.Request) -> web.Response:
-    try:
-        payload = await request.json()
-        body = schemas_in.CreateFromHashBody.model_validate(payload)
-    except ValidationError as ve:
-        return _validation_error_response("INVALID_BODY", ve)
-    except Exception:
-        return _error_response(400, "INVALID_JSON", "Request body must be valid JSON.")
-
-    result = await assets_manager.create_asset_from_hash(
-        hash_str=body.hash,
-        name=body.name,
-        tags=body.tags,
-        user_metadata=body.user_metadata,
-    )
-    if result is None:
-        return _error_response(404, "ASSET_NOT_FOUND", f"Asset content {body.hash} does not exist")
-    return web.json_response(result.model_dump(mode="json"), status=201)
 
 
 @ROUTES.delete("/api/assets/{id}")
