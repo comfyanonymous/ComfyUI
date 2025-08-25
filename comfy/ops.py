@@ -183,7 +183,6 @@ class disable_weight_init:
                 self.register_buffer('weight', weight)
                 return
 
-            device = state_dict[f"{prefix}weight"].device
             weight_dtype = state_dict[f"{prefix}weight"].dtype
             weight = torch.nn.Parameter(
             torch.empty((self.out_features, self.in_features), device=self.device, dtype=weight_dtype)
@@ -196,11 +195,11 @@ class disable_weight_init:
             scale_weight = state_dict.get(f"{prefix}scale_weight", None)
             if scale_weight is None:
                 raise Exception("Using quantized Weights requires a scale to be present!")
-            self.register_buffer('scale_weight', scale_weight.float())
+            self.register_buffer('scale_weight', scale_weight.to(device=self.device, dtype=torch.float32))
 
             scale_input = state_dict.get(f"{prefix}scale_input", None)
             if scale_input is not None:
-                self.register_buffer('scale_input', scale_input.float())
+                self.register_buffer('scale_input', scale_input.to(device=self.device, dtype=torch.float32))
 
             self.forward = types.MethodType(get_quantized_forward(scale_weight, scale_input), self)
             setattr(self, "quantizer", get_quantizer_fn(scale_weight, scale_input))
