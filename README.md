@@ -240,6 +240,12 @@ install-n.bat
 
 ## Troubleshooting
 
+- If you are getting `RuntimeError: GET was unable to find an engine to execute this computation` or `RuntimeError: FIND was unable to find an engine to execute this computation` in the vae decoding stage, please use CFZ CUDNN Toggle node between ksampler latent and vae decoding. And leave the enable_cudnn setting "False" , this persists until you close the comfyui from the commandline for the rest of that run. So you won't see this error again.
+
+<img width="667" height="350" alt="Screenshot 2025-08-25 123335" src="https://github.com/user-attachments/assets/db56d460-34aa-4fda-94e2-f0bae7162691" />
+
+That node can actually be used between conditioning or image loading etc so it's not only usable between latent and vae decoding , also you can use it in a simple workflow that it makes the setting disabled , than you can use any other workflow for the rest of the instance without worry. (try running the  [1step-cudnn-disabler-workflow](https://github.com/patientx/ComfyUI-Zluda/blob/master/cfz/1step-cudnn-disabler-workflow.json) in cfz folder once after you start comfyui-zluda, it can use any sd15 or sdxl model it would just generate 1 step image than preview it so no saving) after that workflow runs once, switch to any workflow or start a new one.
+
 - Problems with triton , try this : Remove visual studio 2022 (if you have already installed it and getting errors) and install "https://aka.ms/vs/17/release/vs_BuildTools.exe" , and then use  "Developer Command Prompt" to run comfyui. This option shouldn't be needed for many but nevertheless try.
 - `CUDA device detected: None` , if seeing this error with the new install-n , make sure you are NOT using the amd driver 25.5.1 . Use a previous driver, it has problems with zluda.
 - `RuntimeError: CUDNN_BACKEND_OPERATIONGRAPH_DESCRIPTOR: cudnnFinalize FailedmiopenStatusInternalError cudnn_status: miopenStatusUnknownError` , if this is encountered at the end, while vae-decoding, use tiled-vae decoding either from official comfy nodes or from Tiled-Diffussion (my preference). Also vae-decoding is overall better with tiled-vae decoding. 
