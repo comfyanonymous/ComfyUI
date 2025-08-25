@@ -395,11 +395,11 @@ cd ComfyUI_roop
 python install.py
 cd /kaggle/ComfyUI
 
-cd custom_nodes
-git clone https://github.com/Gourieff/ComfyUI-ReActor.git
-cd ComfyUI-ReActor
-pip install -r requirements.txt
-cd /kaggle/ComfyUI
+# cd custom_nodes
+# git clone https://github.com/Gourieff/ComfyUI-ReActor.git
+# cd ComfyUI-ReActor
+# pip install -r requirements.txt
+# cd /kaggle/ComfyUI
 
 # REMOTE_PORT="$1"
 
