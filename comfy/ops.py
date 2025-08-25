@@ -31,14 +31,14 @@ Q_TYPES = [torch.float8_e4m3fn, torch.float4_e2m1fn_x2]
 def dynamic_quantizer(x: torch.Tensor, dtype: torch.dtype):
     input_scale = x.max() / torch.finfo(dtype).max
     x = (x / input_scale).clamp(torch.finfo(dtype).min, torch.finfo(dtype).max).to(dtype=dtype)
-    return x, input_scale
+    return x, input_scale.float()
 
 def quantizer(x: torch.Tensor, scale: torch.Tensor, dtype: torch.dtype):
     x = (x / scale).clamp(torch.finfo(dtype).min, torch.finfo(dtype).max).to(dtype=dtype).contiguous()
     return x
 
 def dequantizer(x: torch.Tensor, scale: torch.Tensor, dtype: torch.dtype):
-    x = x.to(dtype=dtype) * scale
+    x = (x.to(dtype=scale.dtype) * scale).to(dtype=dtype)
     return x
 
 def woq_fwd(self, x):
@@ -196,7 +196,9 @@ class disable_weight_init:
 
             scale_weight = state_dict.get(f"{prefix}scale_weight", None)
             if scale_weight is None:
-                raise Exception("Using quantized Weights requires a scale to be present!")
+                logging.warning("Using quantized Weights requires a scale to be present! Falling back to 1.0")
+                scale_weight = torch.ones(1)
+                state_dict[f"{prefix}scale_weight"] = scale_weight
             self.register_buffer('scale_weight', scale_weight.to(device=self.device, dtype=torch.float32))
 
             scale_input = state_dict.get(f"{prefix}scale_input", None)
@@ -556,7 +558,7 @@ try:
 except ImportError:
     pass
 
-if CUBLAS_IS_AVAILABLE:
+if CUBLAS_IS_AVAILABLE: # TODO check if this is actually faster I call BS
     class cublas_ops(disable_weight_init):
         class Linear(CublasLinear, disable_weight_init.Linear):
             def reset_parameters(self):
@@ -570,27 +572,30 @@ if CUBLAS_IS_AVAILABLE:
 
 def pick_operations(weight_dtype, compute_dtype, load_device=None, disable_fast_fp8=False, fp8_optimizations=False, scaled_fp8=None):
     fp8_compute = comfy.model_management.supports_fp8_compute(load_device)
-    if scaled_fp8 is not None:
-        return disable_weight_init
-        # return scaled_fp8_ops(fp8_matrix_mult=fp8_compute and fp8_optimizations, scale_input=fp8_optimizations, override_dtype=scaled_fp8)
-
-    if (
-        fp8_compute and
-        (fp8_optimizations or PerformanceFeature.Fp8MatrixMultiplication in args.fast) and
-        not disable_fast_fp8
-    ):
-        return fp8_ops
-
-    if (
-        PerformanceFeature.CublasOps in args.fast and
-        CUBLAS_IS_AVAILABLE and
-        weight_dtype == torch.float16 and
-        (compute_dtype == torch.float16 or compute_dtype is None)
-    ):
-        logging.info("Using cublas ops")
-        return cublas_ops
-
-    if compute_dtype is None or weight_dtype == compute_dtype:
-        return disable_weight_init
-
-    return manual_cast
+    # TODO consider the different support cases
+    # Potentially also allow for auto-quant with dynamic input quantizers
+    return disable_weight_init
+    # if scaled_fp8 is not None:
+    #     return disable_weight_init
+    #     # return scaled_fp8_ops(fp8_matrix_mult=fp8_compute and fp8_optimizations, scale_input=fp8_optimizations, override_dtype=scaled_fp8)
+    #
+    # if (
+    #     fp8_compute and
+    #     (fp8_optimizations or PerformanceFeature.Fp8MatrixMultiplication in args.fast) and
+    #     not disable_fast_fp8
+    # ):
+    #     return fp8_ops
+    #
+    # if (
+    #     PerformanceFeature.CublasOps in args.fast and
+    #     CUBLAS_IS_AVAILABLE and
+    #     weight_dtype == torch.float16 and
+    #     (compute_dtype == torch.float16 or compute_dtype is None)
+    # ):
+    #     logging.info("Using cublas ops")
+    #     return cublas_ops
+    #
+    # if compute_dtype is None or weight_dtype == compute_dtype:
+    #     return disable_weight_init
+    #
+    # return manual_cast
