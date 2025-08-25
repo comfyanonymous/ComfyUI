@@ -106,10 +106,11 @@ copy comfyui.bat comfyui-user.bat /y >NUL
 echo ..................................................... 
 echo *** Installation is completed in %hh:~1%%time:~2,1%%mm:~1%%time:~2,1%%ss:~1%%time:~8,1%%cc:~1% . 
 echo *** You can use "comfyui.bat" or "comfyui-user.bat" to start the app later. 
-echo *** If you want to modify the launcher please use the "comfyui-user.bat" as it is not effected from the updates.
+echo *** If you want to modify the launcher please use the "comfyui-user.bat" as it is not effected by the updates.
 echo ..................................................... 
 echo.
 echo *** Starting the Comfyui-ZLUDA for the first time, please be patient...
 echo.
 .\zluda\zluda.exe -- python main.py --auto-launch --use-quad-cross-attention
+
 
