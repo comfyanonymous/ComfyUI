@@ -35,7 +35,7 @@ from comfy_api.internal import _ComfyNodeInternal
 from app.user_manager import UserManager
 from app.model_manager import ModelFileManager
 from app.custom_node_manager import CustomNodeManager
-from typing import Optional, Union
+from typing import Optional, Union, Callable, Awaitable
 from api_server.routes.internal.internal_routes import InternalRoutes
 from protocol import BinaryEventTypes
 
@@ -51,14 +51,14 @@ async def send_socket_catch_exception(function, message):
         logging.warning("send error: {}".format(err))
 
 @web.middleware
-async def cache_control(request: web.Request, handler) -> web.Response:
+async def cache_control(request: web.Request, handler: Callable[[web.Request], Awaitable[web.Response]]) -> web.Response:
     response: web.Response = await handler(request)
 
     if request.path.endswith('.js') or request.path.endswith('.css') or request.path.endswith('index.json'):
         response.headers.setdefault('Cache-Control', 'no-cache')
     elif request.path.lower().endswith(IMG_EXTENSIONS):
-        max_age = ONE_DAY if response.status == 200 else ONE_HOUR
-        response.headers['Cache-Control'] = f"public, max-age={max_age}"
+        max_age = ONE_DAY if 200 <= response.status < 300 else ONE_HOUR
+        response.headers.setdefault('Cache-Control', f"public, max-age={max_age}")
 
     return response
 
