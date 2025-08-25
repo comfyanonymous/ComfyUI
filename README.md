@@ -90,6 +90,8 @@ ZLUDA, MIOpen, and Triton will rebuild everything from scratch, making future op
 
 * Install HIP SDK 5.7.1 from "https://www.amd.com/en/developer/resources/rocm-hub/hip-sdk.html", "Windows 10 & 11 5.7.1 HIP SDK"
 
+* You *might* need older drivers for sdk 5.7.1 and old zluda to work so if you are getting errors with latest drivers please install an older version (below 25.5.1) 
+
 * Install "https://aka.ms/vs/17/release/vs_BuildTools.exe" 
 
 * Make sure the system variables HIP_PATH and HIP_PATH_57 exist, both should have this value: `C:\Program Files\AMD\ROCm\5.7\`
