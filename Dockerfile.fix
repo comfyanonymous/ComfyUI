@@ -1,0 +1,17 @@
+# Dockerfile.fix - Shows the fix from the fix-electron-port branch
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Copy ComfyUI from current directory (fix-electron-port branch with our changes)
+COPY . /app/
+
+# Install dependencies
+RUN pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu && \
+    pip install -r requirements.txt
+
+# FIX: With our changes, --windows-standalone-build automatically uses port 0
+# No EXPOSE needed - port is dynamically assigned
+
+# The fix makes --windows-standalone-build use port 0 automatically
+CMD ["python", "main.py", "--listen", "0.0.0.0", "--windows-standalone-build", "--cpu"]

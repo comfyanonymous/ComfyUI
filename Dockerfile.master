@@ -1,0 +1,20 @@
+# Dockerfile.master - Shows the issue from master branch
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Clone ComfyUI from master branch (without the fix)
+RUN apt-get update && apt-get install -y git && \
+    git clone https://github.com/comfyanonymous/ComfyUI.git /app && \
+    git checkout master
+
+# Install dependencies
+RUN pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu && \
+    pip install -r requirements.txt
+
+# ISSUE: Desktop app expects port 8000, but that conflicts with Docker
+# Running with --windows-standalone-build doesn't help on master
+EXPOSE 8188
+
+# This will use port 8188 even with --windows-standalone-build (no fix yet)
+CMD ["python", "main.py", "--port", "8188", "--listen", "0.0.0.0", "--windows-standalone-build", "--cpu"]
