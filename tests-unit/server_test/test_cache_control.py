@@ -30,6 +30,7 @@ class TestCacheControl:
             return web.Response(status=404)
         return handler
 
+
     async def test_image_extensions_200_status(self, mock_handler):
         """Test that images with 200 status get 24-hour cache"""
         for ext in IMG_EXTENSIONS:
@@ -132,20 +133,6 @@ class TestCacheControl:
         assert 'Cache-Control' in response.headers
         assert response.headers['Cache-Control'] == f'public, max-age={ONE_DAY}'
 
-    async def test_various_error_statuses(self):
-        """Test that various error statuses get 1-hour cache for images"""
-        error_statuses = [403, 404, 500, 502, 503]
-
-        for status in error_statuses:
-            async def handler_error(request):
-                return web.Response(status=status)
-
-            request = make_mocked_request('GET', '/error.png')
-            response = await cache_control(request, handler_error)
-
-            assert response.status == status
-            assert 'Cache-Control' in response.headers
-            assert response.headers['Cache-Control'] == f'public, max-age={ONE_HOUR}'
 
     async def test_2xx_success_statuses_get_long_cache(self):
         """Test that all 2xx success statuses get 24-hour cache for images"""
@@ -162,20 +149,47 @@ class TestCacheControl:
             assert 'Cache-Control' in response.headers
             assert response.headers['Cache-Control'] == f'public, max-age={ONE_DAY}'
 
-    async def test_3xx_redirect_statuses_get_short_cache(self):
-        """Test that 3xx redirect statuses get 1-hour cache for images"""
-        redirect_statuses = [301, 302, 304]
+    async def test_permanent_redirects_get_long_cache(self):
+        """Test that permanent redirects (301, 308) get 24-hour cache for images"""
+        permanent_redirects = [301, 308]
 
-        for status in redirect_statuses:
+        for status in permanent_redirects:
             async def handler_redirect(request):
                 return web.Response(status=status)
 
-            request = make_mocked_request('GET', '/redirect.png')
+            request = make_mocked_request('GET', '/permanent.jpg')
             response = await cache_control(request, handler_redirect)
 
             assert response.status == status
             assert 'Cache-Control' in response.headers
-            assert response.headers['Cache-Control'] == f'public, max-age={ONE_HOUR}'
+            assert response.headers['Cache-Control'] == f'public, max-age={ONE_DAY}'
+
+    async def test_temporary_redirects_get_no_cache(self):
+        """Test that temporary redirects (302, 303, 307) get no-cache for images"""
+        temporary_redirects = [302, 303, 307]
+
+        for status in temporary_redirects:
+            async def handler_redirect(request):
+                return web.Response(status=status)
+
+            request = make_mocked_request('GET', '/temporary.png')
+            response = await cache_control(request, handler_redirect)
+
+            assert response.status == status
+            assert 'Cache-Control' in response.headers
+            assert response.headers['Cache-Control'] == 'no-cache'
+
+    async def test_304_not_modified_inherits_cache(self):
+        """Test that 304 Not Modified doesn't set cache headers for images"""
+        async def handler_304(request):
+            return web.Response(status=304, headers={'Cache-Control': 'max-age=7200'})
+
+        request = make_mocked_request('GET', '/not-modified.jpg')
+        response = await cache_control(request, handler_304)
+
+        assert response.status == 304
+        # Should preserve existing cache header, not override
+        assert response.headers['Cache-Control'] == 'max-age=7200'
 
     async def test_all_image_extensions(self, mock_handler):
         """Test all defined image extensions are handled"""

@@ -57,8 +57,19 @@ async def cache_control(request: web.Request, handler: Callable[[web.Request], A
     if request.path.endswith('.js') or request.path.endswith('.css') or request.path.endswith('index.json'):
         response.headers.setdefault('Cache-Control', 'no-cache')
     elif request.path.lower().endswith(IMG_EXTENSIONS):
-        max_age = ONE_DAY if 200 <= response.status < 300 else ONE_HOUR
-        response.headers.setdefault('Cache-Control', f"public, max-age={max_age}")
+        if 200 <= response.status < 300:
+            response.headers.setdefault('Cache-Control', f"public, max-age={ONE_DAY}")
+        elif response.status == 304:
+            # 304 Not Modified - don't set cache headers, inherit from original
+            pass
+        elif response.status in (301, 308):
+            # Permanent redirects - cache for 1 day
+            response.headers.setdefault('Cache-Control', f"public, max-age={ONE_DAY}")
+        elif 300 <= response.status < 400:
+            # Temporary redirects (302, 303, 307) and other 3xx - no cache
+            response.headers.setdefault('Cache-Control', 'no-cache')
+        elif response.status == 404:
+            response.headers.setdefault('Cache-Control', f"public, max-age={ONE_HOUR}")
 
     return response
 
