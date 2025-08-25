@@ -27,4 +27,4 @@
 # Docker developers
 Dockerfile @bbergeron0
 entrypoint.sh @bbergeron0
-docker-compose.yaml @bbergeron0
+compose.yaml @bbergeron0

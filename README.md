@@ -303,7 +303,7 @@ For models compatible with Iluvatar Extension for PyTorch. Here's a step-by-step
 ## Running with Docker
 
 Start by installing Docker and Docker Compose on your host. Next, edit
-`docker-compose.yaml` and update the `UID` and `GID` variables to match your
+`compose.yaml` and update the `UID` and `GID` variables to match your
 user. Additional fields are documented in the file for further customization.
 
 Once ready, build and run the image locally:
