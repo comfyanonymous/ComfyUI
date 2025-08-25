@@ -95,7 +95,20 @@ git clone https://github.com/styler00dollar/ComfyUI-deepcache.git --quiet
 cd ..
 
 echo  ::  %time:~0,8%  ::  - Copying python libs
-xcopy /E /I /Y "%LocalAppData%\Programs\Python\Python3%PY_MINOR%\libs" "venv\libs"
+FOR /F "tokens=* delims=" %%i IN ('python -c "import sys; print(f'{sys.base_prefix}\\libs')"') DO (
+    SET "PYTHON_LIBS_PATH=%%i"
+)
+if exist "%PYTHON_LIBS_PATH%\" (
+    echo Found Python libs path via sys.base_prefix: !PYTHON_LIBS_PATH!
+) else (
+    echo Path not found via sys.base_prefix.
+    
+    REM Construct and set the corrected fallback path.
+    SET "FALLBACK_PATH=%LocalAppData%\Programs\Python\Python3!PY_MINOR!\libs"
+    SET "PYTHON_LIBS_PATH=!FALLBACK_PATH!"
+    echo Using fallback path: !PYTHON_LIBS_PATH!
+)
+xcopy /E /I /Y "!PYTHON_LIBS_PATH!" "venv\libs"
 set ERRLEVEL=%errorlevel%
 if %ERRLEVEL% neq 0 (
     echo "Failed to copy Python3%PY_MINOR%\libs to virtual environment."
@@ -143,6 +156,7 @@ set FLASH_ATTENTION_TRITON_AMD_ENABLE=TRUE
 set MIOPEN_FIND_MODE=2
 set MIOPEN_LOG_LEVEL=3
 .\zluda\zluda.exe -- python main.py --auto-launch --use-quad-cross-attention
+
 
 
 
