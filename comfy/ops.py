@@ -43,7 +43,10 @@ def dequantizer(x: torch.Tensor, scale: torch.Tensor, dtype: torch.dtype):
 
 def woq_fwd(self, x):
     dq_weight = self.dequantizer(self.weight, self.scale_weight, x.dtype)
-    return torch.nn.functional.linear(x, dq_weight, self.bias)
+    bias = self.bias
+    if bias is not None and bias.dtype != x.dtype:
+        bias = self.dequantizer(bias, self.scale_weight, x.dtype)
+    return torch.nn.functional.linear(x, dq_weight, bias)
 
 def quantized_fwd(self, input):
     tensor_2d = False
@@ -79,7 +82,6 @@ def get_dequantizer_fn(scale_weight, scale_input):
 
 def scaled_dot_product_attention(q, k, v, *args, **kwargs):
     return torch.nn.functional.scaled_dot_product_attention(q, k, v, *args, **kwargs)
-
 
 try:
     if torch.cuda.is_available():
@@ -199,8 +201,10 @@ class disable_weight_init:
 
             scale_input = state_dict.get(f"{prefix}scale_input", None)
             if scale_input is not None:
-                self.register_buffer('scale_input', scale_input.to(device=self.device, dtype=torch.float32))
-
+                if  scale_input != 1: # TODO not really nice but e.g. Qwen VL has an input scale but does not use it?
+                    self.register_buffer('scale_input', scale_input.to(device=self.device, dtype=torch.float32))
+                else:
+                    scale_input = None
             self.forward = types.MethodType(get_quantized_forward(scale_weight, scale_input), self)
             setattr(self, "quantizer", get_quantizer_fn(scale_weight, scale_input))
             setattr(self, "dequantizer", get_dequantizer_fn(scale_weight, scale_input))
