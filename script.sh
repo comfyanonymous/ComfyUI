@@ -45,6 +45,17 @@ ln -s /kaggle/input/flux1-fill-dev/flux1-fill-dev.safetensors ./models/diffusion
 wget https://huggingface.co/zer0int/CLIP-GmP-ViT-L-14/resolve/main/ViT-L-14-TEXT-detail-improved-hiT-GmP-TE-only-HF.safetensors -P ./models/text_encoders
 wget https://huggingface.co/Madespace/clip/resolve/main/google_t5-v1_1-xxl_encoderonly-fp8_e4m3fn.safetensors -P ./models/text_encoders
 
+
+# Qwen Image
+ln -s /kaggle/input/qwen-image-edit-fp8-e4m3fn/qwen_image_edit_fp8_e4m3fn.safetensors ./models/diffusion_models/qwen_image_edit_fp8_e4m3fn.safetensors
+ln -s /kaggle/input/qwen-image-lightning-4steps-v1-0/Qwen-Image-Lightning-4steps-V1.0.safetensors ./models/loras/Qwen-Image-Lightning-4steps-V1.0.safetensors
+ln -s /kaggle/input/qwen-image-vae/qwen_image_vae.safetensors ./models/vae/qwen_image_vae.safetensors
+ln -s /kaggle/input/qwen-2-5-vl-7b-fp8-scaled/qwen_2.5_vl_7b_fp8_scaled.safetensors ./models/text_encoders/qwen_2.5_vl_7b_fp8_scaled.safetensors
+
+ln -s /kaggle/input/qwen-image-fp8-e4m3fn/qwen_image_fp8_e4m3fn.safetensors ./models/diffusion_models/qwen_image_fp8_e4m3fn.safetensors
+ln -s /kaggle/input/qwen-image-lightning-8steps-v1-0/Qwen-Image-Lightning-8steps-V1.0.safetensors ./models/loras/Qwen-Image-Lightning-8steps-V1.0.safetensors
+
+
 #Flux dev
 ln -s /kaggle/input/flux1-dev-fp8/flux1-dev-fp8.safetensors ./models/diffusion_models/flux1-dev-fp8.safetensors
 ln -s /kaggle/input/flux1-dev-fp8/flux1-dev-fp8.safetensors ./models/checkpoints/flux1-dev-fp8.safetensors
