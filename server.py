@@ -39,6 +39,11 @@ from typing import Optional, Union
 from api_server.routes.internal.internal_routes import InternalRoutes
 from protocol import BinaryEventTypes
 
+# Time in seconds
+ONE_HOUR: int = 3600
+ONE_DAY: int = 86400
+IMG_EXTENSIONS = ('.jpg', '.jpeg', '.png', '.ppm', '.bmp', '.pgm', '.tif', '.tiff', '.webp')
+
 async def send_socket_catch_exception(function, message):
     try:
         await function(message)
@@ -46,12 +51,16 @@ async def send_socket_catch_exception(function, message):
         logging.warning("send error: {}".format(err))
 
 @web.middleware
-async def cache_control(request: web.Request, handler):
+async def cache_control(request: web.Request, handler) -> web.Response:
     response: web.Response = await handler(request)
+
     if request.path.endswith('.js') or request.path.endswith('.css') or request.path.endswith('index.json'):
         response.headers.setdefault('Cache-Control', 'no-cache')
-    return response
+    elif request.path.lower().endswith(IMG_EXTENSIONS):
+        max_age = ONE_DAY if response.status == 200 else ONE_HOUR
+        response.headers['Cache-Control'] = f"public, max-age={max_age}"
 
+    return response
 
 @web.middleware
 async def compress_body(request: web.Request, handler):
