@@ -102,11 +102,14 @@ set "endTime=%time: =0%"
 set "end=!endTime:%time:~8,1%=%%100)*100+1!"  &  set "start=!startTime:%time:~8,1%=%%100)*100+1!"
 set /A "elap=((((10!end:%time:~2,1%=%%100)*60+1!%%100)-((((10!start:%time:~2,1%=%%100)*60+1!%%100), elap-=(elap>>31)*24*60*60*100"
 set /A "cc=elap%%100+100,elap/=100,ss=elap%%60+100,elap/=60,mm=elap%%60+100,hh=elap/60+100"
+copy comfyui.bat comfyui-user.bat /y >NUL
 echo ..................................................... 
 echo *** Installation is completed in %hh:~1%%time:~2,1%%mm:~1%%time:~2,1%%ss:~1%%time:~8,1%%cc:~1% . 
-echo *** You can use "comfyui.bat" to start the app later. 
+echo *** You can use "comfyui.bat" or "comfyui-user.bat" to start the app later. 
+echo *** If you want to modify the launcher please use the "comfyui-user.bat" as it is not effected from the updates.
 echo ..................................................... 
 echo.
 echo *** Starting the Comfyui-ZLUDA for the first time, please be patient...
 echo.
 .\zluda\zluda.exe -- python main.py --auto-launch --use-quad-cross-attention
+
