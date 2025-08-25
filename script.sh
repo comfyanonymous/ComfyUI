@@ -389,9 +389,15 @@ cd custom_nodes
 git clone https://github.com/tusharbhutt/Endless-Nodes.git
 cd /kaggle/ComfyUI
 
+# cd custom_nodes
+# git clone https://github.com/ssitu/ComfyUI_roop
+# cd ComfyUI_roop
+# pip install -r requirements.txt
+# cd /kaggle/ComfyUI
+
 cd custom_nodes
-git clone https://github.com/ssitu/ComfyUI_roop
-cd ComfyUI_roop
+git clone https://github.com/Gourieff/ComfyUI-ReActor.git
+cd ComfyUI-ReActor
 pip install -r requirements.txt
 cd /kaggle/ComfyUI
 
