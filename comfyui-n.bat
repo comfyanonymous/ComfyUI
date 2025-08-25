@@ -12,6 +12,11 @@ set VENV_DIR=./venv
 
 set COMMANDLINE_ARGS=--auto-launch --use-quad-cross-attention --reserve-vram 0.9
 
+:: in the comfyui-user.bat remove the dots on the line below and change the gfx1030 to your gpu's specific code. 
+:: you can find out about yours here, https://llvm.org/docs/AMDGPUUsage.html#processors
+
+:: Set TRITON_OVERRIDE_ARCH=gfx1030
+
 set ZLUDA_COMGR_LOG_LEVEL=1
 
 echo *** Checking and updating to new version if possible 
