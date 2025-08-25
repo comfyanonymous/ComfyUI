@@ -23,7 +23,6 @@ from comfy.cli_args import args, PerformanceFeature
 import comfy.float
 import comfy.rmsnorm
 import contextlib
-from torch.nn.attention import SDPBackend, sdpa_kernel
 import types
 
 
@@ -39,7 +38,7 @@ def quantizer(x: torch.Tensor, scale: torch.Tensor, dtype: torch.dtype):
     return x
 
 def dequantizer(x: torch.Tensor, scale: torch.Tensor, dtype: torch.dtype):
-    x = (x * scale).to(dtype=dtype)
+    x = x.to(dtype=dtype) * scale
     return x
 
 def woq_fwd(self, x):
@@ -72,6 +71,7 @@ def get_quantized_forward(scale_weight, scale_input):
         return quantized_fwd
 
 def get_quantizer_fn(scale_weight, scale_input):
+    # TODO Block Scaling, MX Scaling, Double-Q-NVFP4
     return quantizer
 
 def get_dequantizer_fn(scale_weight, scale_input):
@@ -164,7 +164,7 @@ class disable_weight_init:
             self.out_features = out_features
 
             self.device = device
-            self.dtype = dtype
+            self.compute_dtype = dtype
 
             if bias:
                 self.bias = torch.nn.Parameter(torch.empty(out_features, **factory_kwargs))
@@ -178,7 +178,7 @@ class disable_weight_init:
             if not state_dict:
                 logging.warning("No state dict provided.")
                 weight = torch.nn.Parameter(
-                    torch.empty((self.out_features, self.in_features))
+                    torch.empty((self.out_features, self.in_features), dtype=self.compute_dtype, device=self.device)
                 )
                 self.register_buffer('weight', weight)
                 return
@@ -186,7 +186,7 @@ class disable_weight_init:
             device = state_dict[f"{prefix}weight"].device
             weight_dtype = state_dict[f"{prefix}weight"].dtype
             weight = torch.nn.Parameter(
-            torch.empty((self.out_features, self.in_features), device=device, dtype=weight_dtype)
+            torch.empty((self.out_features, self.in_features), device=self.device, dtype=weight_dtype)
             )
 
             self.register_buffer('weight', weight)
@@ -204,7 +204,7 @@ class disable_weight_init:
 
             self.forward = types.MethodType(get_quantized_forward(scale_weight, scale_input), self)
             setattr(self, "quantizer", get_quantizer_fn(scale_weight, scale_input))
-            setattr(self, "dequanizer", get_dequantizer_fn(scale_weight, scale_input))
+            setattr(self, "dequantizer", get_dequantizer_fn(scale_weight, scale_input))
 
         def _load_from_state_dict(
                 self,
