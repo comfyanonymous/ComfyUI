@@ -26,13 +26,20 @@ from .cli_args import args, PerformanceFeature
 from .execution_context import current_execution_context
 from .float import stochastic_rounding
 
+logger = logging.getLogger(__name__)
 
+scaled_dot_product_attention = None
+
+
+def _scaled_dot_product_attention(q, k, v, *args, **kwargs):
+    return torch.nn.functional.scaled_dot_product_attention(q, k, v, *args, **kwargs)
 
 
 try:
     if torch.cuda.is_available():
         from torch.nn.attention import SDPBackend, sdpa_kernel
         import inspect
+
         if "set_priority" in inspect.signature(sdpa_kernel).parameters:
             SDPA_BACKEND_PRIORITY = [
                 SDPBackend.FLASH_ATTENTION,
@@ -42,20 +49,25 @@ try:
 
             SDPA_BACKEND_PRIORITY.insert(0, SDPBackend.CUDNN_ATTENTION)
 
-            def scaled_dot_product_attention(q, k, v, *args, **kwargs):
+
+            def _scaled_dot_product_attention_sdpa(q, k, v, *args, **kwargs):
                 with sdpa_kernel(SDPA_BACKEND_PRIORITY, set_priority=True):
                     return torch.nn.functional.scaled_dot_product_attention(q, k, v, *args, **kwargs)
-        else:
-            logging.warning("Torch version too old to set sdpa backend priority.")
-except (ModuleNotFoundError, TypeError):
-    logging.warning("Could not set sdpa backend priority.")
 
-    def scaled_dot_product_attention(q, k, v, *args, **kwargs):
-        return torch.nn.functional.scaled_dot_product_attention(q, k, v, *args, **kwargs)
+
+            scaled_dot_product_attention = _scaled_dot_product_attention_sdpa
+        else:
+            logger.warning("Torch version too old to set sdpa backend priority, even though you are using CUDA")
+            scaled_dot_product_attention = _scaled_dot_product_attention
+    else:
+        scaled_dot_product_attention = _scaled_dot_product_attention
+except Exception as exc_info:
+    if torch.cuda.is_available():
+        logger.debug("Could not set sdpa backend priority.", exc_info=exc_info)
+    scaled_dot_product_attention = _scaled_dot_product_attention
 
 cast_to = model_management.cast_to  # TODO: remove once no more references
 
-logger = logging.getLogger(__name__)
 
 def cast_to_input(weight, input, non_blocking=False, copy=True):
     return model_management.cast_to(weight, input.dtype, input.device, non_blocking=non_blocking, copy=copy)
