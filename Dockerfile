@@ -21,10 +21,16 @@ RUN mkdir -p      \
 # Also create a home directory for this user (-m), as some common Python tools
 # (such as uv) interact with the user’s home directory.
 RUN useradd -m comfyui
-USER comfyui
 
-# Install ComfyUI under /comfyui.
+# Install ComfyUI under /comfyui and set folder ownership to the comfyui user.
+# With the legacy Docker builder (DOCKER_BUILDKIT=0), WORKDIR always creates missing
+# directories as root (even if a different USER is active). To ensure the comfyui user
+# can write inside, ownership must be fixed manually.
 WORKDIR /comfyui
+RUN chown comfyui:comfyui .
+
+# Install ComfyUI as ComfyUI
+USER comfyui
 
 # Set up a Python virtual environment and configure it as the default Python.
 #
