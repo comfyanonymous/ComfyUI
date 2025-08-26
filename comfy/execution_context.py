@@ -12,10 +12,6 @@ from .distributed.server_stub import ServerStub
 from .nodes.package_typing import ExportedNodes, exported_nodes_view
 from .progress_types import AbstractProgressRegistry, ProgressRegistryStub
 
-comfyui_execution_context: Final[ContextVar] = ContextVar("comfyui_execution_context")
-# enables context var propagation across process boundaries for process pool executors
-cvpickle.register_contextvar(comfyui_execution_context, __name__)
-
 
 @dataclass(frozen=True)
 class ExecutionContext:
@@ -38,7 +34,9 @@ class ExecutionContext:
         yield self.list_index
 
 
-comfyui_execution_context.set(ExecutionContext(server=ServerStub(), folder_names_and_paths=FolderNames(is_root=True), custom_nodes=ExportedNodes(), progress_registry=ProgressRegistryStub()))
+comfyui_execution_context: Final[ContextVar] = ContextVar("comfyui_execution_context", default=ExecutionContext(server=ServerStub(), folder_names_and_paths=FolderNames(is_root=True), custom_nodes=ExportedNodes(), progress_registry=ProgressRegistryStub()))
+# enables context var propagation across process boundaries for process pool executors
+cvpickle.register_contextvar(comfyui_execution_context, __name__)
 
 
 def current_execution_context() -> ExecutionContext:
