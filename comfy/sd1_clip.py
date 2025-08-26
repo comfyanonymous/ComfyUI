@@ -113,9 +113,11 @@ class SDClipModel(torch.nn.Module, ClipTokenWeightEncoder):
         if operations is None:
             scaled_fp8 = model_options.get("scaled_fp8", None)
             if scaled_fp8 is not None:
-                operations = comfy.ops.scaled_fp8_ops(fp8_matrix_mult=False, override_dtype=scaled_fp8)
+                # operations = comfy.ops.scaled_fp8_ops(fp8_matrix_mult=False, override_dtype=scaled_fp8) # TODO
+                operations = comfy.ops.pick_operations(compute_dtype=torch.float8_e4m3fn, weight_dtype=torch.float8_e4m3fn)
+
             else:
-                operations = comfy.ops.manual_cast
+                operations = comfy.ops.operator_factory(comfy_cast_weights=True)
 
         self.operations = operations
         self.transformer = model_class(config, dtype, device, self.operations)
