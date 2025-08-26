@@ -1,7 +1,9 @@
 import dataclasses
-from typing import List
+from typing import List, NamedTuple, Optional
 
 from typing_extensions import TypedDict, Literal, NotRequired
+
+from comfy.component_model.executor_types import SendSyncEvent, SendSyncData
 
 
 class FileOutput(TypedDict, total=False):
@@ -22,3 +24,9 @@ class Output(TypedDict, total=False):
 class V1QueuePromptResponse:
     urls: List[str]
     outputs: dict[str, Output]
+
+
+class ProgressNotification(NamedTuple):
+    event: SendSyncEvent
+    data: SendSyncData
+    sid: Optional[str] = None

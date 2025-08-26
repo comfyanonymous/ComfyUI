@@ -10,12 +10,13 @@ import uuid
 from asyncio import get_event_loop
 from dataclasses import dataclass
 from multiprocessing import RLock
-from typing import Optional
+from typing import Optional, Generator
 
 from opentelemetry import context, propagate
 from opentelemetry.context import Context, attach, detach
 from opentelemetry.trace import Status, StatusCode
 
+from .async_progress_iterable import _ProgressHandler, QueuePromptWithProgress
 from ..cmd.main_pre import tracer
 from .client_types import V1QueuePromptResponse
 from ..api.components.schema.prompt import PromptDict
@@ -201,7 +202,8 @@ class Comfy:
         self._is_running = False
 
     async def queue_prompt_api(self,
-                               prompt: PromptDict | str | dict) -> V1QueuePromptResponse:
+                               prompt: PromptDict | str | dict,
+                               progress_handler: Optional[ExecutorToClientProgress] = None) -> V1QueuePromptResponse:
         """
         Queues a prompt for execution, returning the output when it is complete.
         :param prompt: a PromptDict, string or dictionary containing a so-called Workflow API prompt
@@ -212,8 +214,30 @@ class Comfy:
         if isinstance(prompt, dict):
             from ..api.components.schema.prompt import Prompt
             prompt = Prompt.validate(prompt)
-        outputs = await self.queue_prompt(prompt)
+        outputs = await self.queue_prompt(prompt, progress_handler=progress_handler)
         return V1QueuePromptResponse(urls=[], outputs=outputs)
+
+    def queue_with_progress(self, prompt: PromptDict | str | dict) -> QueuePromptWithProgress:
+        """
+        Queues a prompt with progress notifications.
+
+        >>> from comfy.client.embedded_comfy_client import Comfy
+        >>> from comfy.client.client_types import ProgressNotification
+        >>> async with Comfy() as comfy:
+        >>>     task = comfy.queue_with_progress({ ... })
+        >>>     # Raises an exception while iterating
+        >>>     notification: ProgressNotification
+        >>>     async for notification in task.progress():
+        >>>         print(notification.data)
+        >>>     # If you get this far, no errors occurred.
+        >>>     result = await task.get()
+        :param prompt:
+        :return:
+        """
+        handler = QueuePromptWithProgress()
+        task = asyncio.create_task(self.queue_prompt_api(prompt, progress_handler=handler.progress_handler))
+        task.add_done_callback(handler.complete)
+        return handler
 
     @tracer.start_as_current_span("Queue Prompt")
     async def queue_prompt(self,

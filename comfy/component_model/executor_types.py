@@ -143,6 +143,13 @@ class ExecutorToClientProgress(Protocol):
 
     @property
     def sockets_metadata(self) -> SocketsMetadataType:
+        """
+        Metadata about what the socket supports
+
+        Currently used only by the frontend
+
+        :return: in the abstract base class, a static object that is used by the web server to ignore this; in the real classes, sometimes information about connected users
+        """
         return {"__unimplemented": True}
 
     def send_sync(self,
@@ -160,6 +167,13 @@ class ExecutorToClientProgress(Protocol):
         pass
 
     def send_progress_text(self, text: Union[bytes, bytearray, str], node_id: str, sid=None):
+        """
+        Send text to the client
+        :param text: the text to send
+        :param node_id: the node this belongs to
+        :param sid: websocket ID / the client ID to be responding to
+        :return:
+        """
         message = encode_text_for_progress(node_id, text)
 
         self.send_sync(BinaryEventTypes.TEXT, message, sid)
@@ -167,7 +181,7 @@ class ExecutorToClientProgress(Protocol):
     def queue_updated(self, queue_remaining: Optional[int] = None):
         """
         Indicates that the local client's queue has been updated
-        :return:
+        :return: nothing
         """
         pass
 

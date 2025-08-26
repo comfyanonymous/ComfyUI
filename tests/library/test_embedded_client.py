@@ -48,3 +48,19 @@ async def test_multithreaded_comfy():
         prompt = sdxl_workflow_with_refiner("test")
         outputs_iter = await asyncio.gather(*[client.queue_prompt(prompt) for _ in range(4)])
         assert all(outputs["13"]["images"][0]["abs_path"] is not None for outputs in outputs_iter)
+
+
+@pytest.mark.asyncio
+async def test_progress_notifications():
+    async with Comfy() as client:
+        prompt = sdxl_workflow_with_refiner("test")
+        task = client.queue_with_progress(prompt)
+
+        notifications_received = []
+        async for notification in task.progress():
+            notifications_received.append(notification)
+
+        assert len(notifications_received) > 0, "Should have received progress notifications"
+
+        result = await task.get()
+        assert result.outputs["13"]["images"][0]["abs_path"] is not None
