@@ -8,7 +8,7 @@ FROM python:3.12.11-bookworm AS comfyui-base
 ARG APT_EXTRA_PACKAGES
 
 # Install cmake, which is an indirect installation dependencies
-RUN apt update && apt install -y --no-install-recommends cmake
+RUN apt-get update && apt-get install -y --no-install-recommends cmake
 
 # Create a mount point for user-generated data.
 RUN mkdir -p      \
@@ -67,8 +67,8 @@ VOLUME [ "/data", "/comfyui/.venv", "/comfyui/custom_nodes", "/comfyui/models", 
 USER root
 
 # Install additional system dependencies
-RUN apt install -y --no-install-recommends $APT_EXTRA_PACKAGES \
-	&& apt clean                                               \
+RUN apt-get install -y --no-install-recommends $APT_EXTRA_PACKAGES \
+	&& apt-get clean                                               \
 	&& rm -rf /var/lib/apt/lists/*
 
 # Configure entrypoint
