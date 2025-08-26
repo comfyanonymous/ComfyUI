@@ -138,7 +138,6 @@ class ModelManageable(Protocol, metaclass=ABCMeta):
     def force_cast_weights(self) -> bool:
         return False
 
-    @abstractmethod
     def prepare_hook_patches_current_keyframe(self, t, hook_group, model_options):
         pass
 

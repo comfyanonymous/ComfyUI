@@ -25,6 +25,7 @@ from .model_patcher import ModelPatcher
 from .sampler_names import SCHEDULER_NAMES, SAMPLER_NAMES
 from .context_windows import ContextHandlerABC
 from .utils import common_upscale
+from .patcher_extension import WrapperExecutor, get_all_wrappers, WrappersMP
 
 logger = logging.getLogger(__name__)
 
@@ -998,10 +999,10 @@ class CFGGuider:
         return self.outer_predict_noise(*args, **kwargs)
 
     def outer_predict_noise(self, x, timestep, model_options={}, seed=None):
-        return comfy.patcher_extension.WrapperExecutor.new_class_executor(
+        return WrapperExecutor.new_class_executor(
             self.predict_noise,
             self,
-            comfy.patcher_extension.get_all_wrappers(comfy.patcher_extension.WrappersMP.PREDICT_NOISE, self.model_options, is_model_options=True)
+            get_all_wrappers(WrappersMP.PREDICT_NOISE, self.model_options, is_model_options=True)
         ).execute(x, timestep, model_options, seed)
 
     def predict_noise(self, x, timestep, model_options={}, seed=None):

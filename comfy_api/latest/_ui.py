@@ -11,7 +11,7 @@ import av
 import numpy as np
 import torch
 try:
-    import torchaudio
+    import torchaudio  # pylint: disable=import-error
     TORCH_AUDIO_AVAILABLE = True
 except:
     TORCH_AUDIO_AVAILABLE = False
