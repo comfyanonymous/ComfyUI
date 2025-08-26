@@ -731,11 +731,11 @@ class MODEL_PATCH(ComfyTypeIO):
     Type = Any
 
 @comfytype(io_type="AUDIO_ENCODER")
-class AUDIO_ENCODER(ComfyTypeIO):
+class AudioEncoder(ComfyTypeIO):
     Type = Any
 
 @comfytype(io_type="AUDIO_ENCODER_OUTPUT")
-class AUDIO_ENCODER_OUTPUT(ComfyTypeIO):
+class AudioEncoderOutput(ComfyTypeIO):
     Type = Any
 
 @comfytype(io_type="COMFY_MULTITYPED_V3")
@@ -1592,6 +1592,7 @@ class _IO:
     Model = Model
     ClipVision = ClipVision
     ClipVisionOutput = ClipVisionOutput
+    AudioEncoderOutput = AudioEncoderOutput
     StyleModel = StyleModel
     Gligen = Gligen
     UpscaleModel = UpscaleModel
