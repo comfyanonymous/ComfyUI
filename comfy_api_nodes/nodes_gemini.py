@@ -8,6 +8,8 @@ import json
 import time
 import os
 import uuid
+import base64
+from io import BytesIO
 from enum import Enum
 from typing import Optional, Literal
 
@@ -24,6 +26,7 @@ from comfy_api_nodes.apis import (
     GeminiPart,
     GeminiMimeType,
 )
+from comfy_api_nodes.apis.gemini_api import GeminiImageGenerationConfig, GeminiImageGenerateContentRequest
 from comfy_api_nodes.apis.client import (
     ApiEndpoint,
     HttpMethod,
@@ -34,6 +37,7 @@ from comfy_api_nodes.apinode_utils import (
     audio_to_base64_string,
     video_to_base64_string,
     tensor_to_base64_string,
+    bytesio_to_image_tensor,
 )
 
 
@@ -50,6 +54,14 @@ class GeminiModel(str, Enum):
     gemini_2_5_flash_preview_04_17 = "gemini-2.5-flash-preview-04-17"
     gemini_2_5_pro = "gemini-2.5-pro"
     gemini_2_5_flash = "gemini-2.5-flash"
+
+
+class GeminiImageModel(str, Enum):
+    """
+    Gemini Image Model Names allowed by comfy-api
+    """
+
+    gemini_2_5_flash_image_preview = "gemini-2.5-flash-image-preview"
 
 
 def get_gemini_endpoint(
@@ -70,6 +82,28 @@ def get_gemini_endpoint(
         path=f"{GEMINI_BASE_ENDPOINT}/{model.value}",
         method=HttpMethod.POST,
         request_model=GeminiGenerateContentRequest,
+        response_model=GeminiGenerateContentResponse,
+    )
+
+
+def get_gemini_image_endpoint(
+    model: GeminiImageModel,
+) -> ApiEndpoint[GeminiGenerateContentRequest, GeminiGenerateContentResponse]:
+    """
+    Get the API endpoint for a given Gemini model.
+
+    Args:
+        model: The Gemini model to use, either as enum or string value.
+
+    Returns:
+        ApiEndpoint configured for the specific Gemini model.
+    """
+    if isinstance(model, str):
+        model = GeminiImageModel(model)
+    return ApiEndpoint(
+        path=f"{GEMINI_BASE_ENDPOINT}/{model.value}",
+        method=HttpMethod.POST,
+        request_model=GeminiImageGenerateContentRequest,
         response_model=GeminiGenerateContentResponse,
     )
 
@@ -171,32 +205,14 @@ def get_text_from_response(response: GeminiGenerateContentResponse) -> str:
 
 def get_image_from_response(response: GeminiGenerateContentResponse) -> torch.Tensor:
     image_tensors: list[torch.Tensor] = []
-    # TODO:
-    """
-    TODO something like this but without download but getting it from response:   
-
-    # Process each image in the data array
-    async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=timeout)) as session:
-        for img_data in data:
-            img_bytes: bytes
-            if img_data.b64_json:
-                img_bytes = base64.b64decode(img_data.b64_json)
-            elif img_data.url:
-                if node_id:
-                    PromptServer.instance.send_progress_text(f"Result URL: {img_data.url}", node_id)
-                async with session.get(img_data.url) as resp:
-                    if resp.status != 200:
-                        raise ValueError("Failed to download generated image")
-                    img_bytes = await resp.read()
-            else:
-                raise ValueError("Invalid image payload – neither URL nor base64 data present.")
-
-            pil_img = Image.open(BytesIO(img_bytes)).convert("RGBA")
-            arr = np.asarray(pil_img).astype(np.float32) / 255.0
-            image_tensors.append(torch.from_numpy(arr))
-
-    """
-    return torch.stack(image_tensors, dim=0)
+    parts = get_parts_by_type(response, "image/png")
+    for part in parts:
+        image_data = base64.b64decode(part.inlineData.data)
+        returned_image = bytesio_to_image_tensor(BytesIO(image_data))
+        image_tensors.append(returned_image)
+    if len(image_tensors) == 0:
+        return torch.zeros((1,1024,1024,4))
+    return torch.cat(image_tensors, dim=0)
 
 
 class GeminiNode(ComfyNodeABC):
@@ -497,7 +513,14 @@ class GeminiInputFiles(ComfyNodeABC):
 
 
 class GeminiImage(ComfyNodeABC):
+    """
+    Node to generate text and image responses from a Gemini model.
 
+    This node allows users to interact with Google's Gemini AI models, providing
+    multimodal inputs (text, images, files) to generate coherent
+    text and image responses. The node works with the latest Gemini models, handling the
+    API communication and response parsing.
+    """
     @classmethod
     def INPUT_TYPES(cls) -> InputTypeDict:
         return {
@@ -510,18 +533,38 @@ class GeminiImage(ComfyNodeABC):
                         "tooltip": "Text prompt for generation",
                     },
                 ),
-            },
-            "optional": {
+                "model": (
+                    IO.COMBO,
+                    {
+                        "tooltip": "The Gemini model to use for generating responses.",
+                        "options": [model.value for model in GeminiImageModel],
+                        "default": GeminiImageModel.gemini_2_5_flash_image_preview.value,
+                    },
+                ),
                 "seed": (
                     IO.INT,
                     {
-                        "default": 0,
+                        "default": 42,
                         "min": 0,
-                        "max": 2**31 - 1,
-                        "step": 1,
-                        "display": "number",
+                        "max": 0xFFFFFFFFFFFFFFFF,
                         "control_after_generate": True,
-                        "tooltip": "not implemented yet in backend",
+                        "tooltip": "When seed is fixed to a specific value, the model makes a best effort to provide the same response for repeated requests. Deterministic output isn't guaranteed. Also, changing the model or parameter settings, such as the temperature, can cause variations in the response even when you use the same seed value. By default, a random seed value is used.",
+                    },
+                ),
+            },
+            "optional": {
+                "images": (
+                    IO.IMAGE,
+                    {
+                        "default": None,
+                        "tooltip": "Optional image(s) to use as context for the model. To include multiple images, you can use the Batch Images node.",
+                    },
+                ),
+                "files": (
+                    "GEMINI_INPUT_FILES",
+                    {
+                        "default": None,
+                        "tooltip": "Optional file(s) to use as context for the model. Accepts inputs from the Gemini Generate Content Input Files node.",
                     },
                 ),
                 # TODO: later we can add this parameter later
@@ -536,13 +579,6 @@ class GeminiImage(ComfyNodeABC):
                 #         "tooltip": "How many images to generate",
                 #     },
                 # ),
-                "image": (
-                    IO.IMAGE,
-                    {
-                        "default": None,
-                        "tooltip": "Optional reference images (Max 3).",
-                    },
-                ),
             },
             "hidden": {
                 "auth_token": "AUTH_TOKEN_COMFY_ORG",
@@ -559,49 +595,79 @@ class GeminiImage(ComfyNodeABC):
 
     async def api_call(
         self,
-        prompt,
+        prompt: str,
+        model: GeminiImageModel,
+        images: Optional[IO.IMAGE] = None,
+        files: Optional[list[GeminiPart]] = None,
         n=1,
-        image=None,
+        unique_id: Optional[str] = None,
         **kwargs,
     ):
+        # Validate inputs
         validate_string(prompt, strip_whitespace=True, min_length=1)
+        # Create parts list with text prompt as the first part
         parts: list[GeminiPart] = [create_text_part(prompt)]
 
-        if image is not None:
-            image_parts = create_image_parts(image)
+        # Add other modal parts
+        if images is not None:
+            image_parts = create_image_parts(images)
             parts.extend(image_parts)
+        if files is not None:
+            parts.extend(files)
 
         response = await SynchronousOperation(
-            endpoint=ApiEndpoint(
-                path=f"{GEMINI_BASE_ENDPOINT}/gemini-2.5-flash-image-preview",
-                method=HttpMethod.POST,
-                request_model=GeminiGenerateContentRequest,
-                response_model=GeminiGenerateContentResponse,
-            ),
-            request=GeminiGenerateContentRequest(
+            endpoint=get_gemini_image_endpoint(model),
+            request=GeminiImageGenerateContentRequest(
                 contents=[
                     GeminiContent(
                         role="user",
                         parts=parts,
-                    )
-                ]
+                    ),
+                ],
+                generationConfig=GeminiImageGenerationConfig(
+                    responseModalities=["TEXT","IMAGE"]
+                )
             ),
             auth_kwargs=kwargs,
         ).execute()
 
         output_image = get_image_from_response(response)
         output_text = get_text_from_response(response)
-        return output_image, output_text
+        if unique_id and output_text:
+            # Not a true chat history like the OpenAI Chat node. It is emulated so the frontend can show a copy button.
+            render_spec = {
+                "node_id": unique_id,
+                "component": "ChatHistoryWidget",
+                "props": {
+                    "history": json.dumps(
+                        [
+                            {
+                                "prompt": prompt,
+                                "response": output_text,
+                                "response_id": str(uuid.uuid4()),
+                                "timestamp": time.time(),
+                            }
+                        ]
+                    ),
+                },
+            }
+            PromptServer.instance.send_sync(
+                "display_component",
+                render_spec,
+            )
+
+        output_text = output_text or "Empty response from Gemini model..."
+        return (output_image, output_text,)
 
 
 NODE_CLASS_MAPPINGS = {
     "GeminiNode": GeminiNode,
+    "GeminiImageNode": GeminiImage,
     "GeminiInputFiles": GeminiInputFiles,
-    "GeminiImage": GeminiImage,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
     "GeminiNode": "Google Gemini",
+    "GeminiImageNode": "Google Gemini Image",
     "GeminiInputFiles": "Gemini Input Files",
-    "GeminiImage": "Gemini Image",
 }
