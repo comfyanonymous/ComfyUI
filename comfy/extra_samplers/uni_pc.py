@@ -344,7 +344,7 @@ def model_wrapper(
                 noise_uncond, noise = noise_pred_fn(x_in, t_in, cond=c_in).chunk(2)
                 return noise_uncond + guidance_scale * (noise - noise_uncond)
 
-    assert model_type in ["noise", "x_start", "v"]
+    assert model_type in ["noise", "x_start", "v", "score"]
     assert guidance_type in ["uncond", "classifier", "classifier-free"]
     return model_fn
 
