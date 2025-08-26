@@ -316,6 +316,32 @@ class ModelComputeDtype:
         return (m, )
 
 
+class ModelLowvramHint:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "model": ("MODEL", ),
+                "hints": ("STRING", {"default": "img_mlp.\ntxt_mlp.\n", "multiline": True}),
+            }
+        }
+
+    RETURN_TYPES = ("MODEL",)
+    FUNCTION = "set_hints"
+    EXPERIMENTAL = True
+
+    DESCRIPTION = "Force some weights to always use lowvram. One rule per line."
+    CATEGORY = "advanced/debug/model"
+
+    def set_hints(self, model, hints=""):
+        hints = [x.strip() for x in hints.split("\n") if x.strip()]
+        if not hints:
+            return model
+
+        m = model.clone()
+        m.add_object_patch("lowvram_hints", hints)
+        return (m, )
+
 NODE_CLASS_MAPPINGS = {
     "ModelSamplingDiscrete": ModelSamplingDiscrete,
     "ModelSamplingContinuousEDM": ModelSamplingContinuousEDM,
@@ -326,4 +352,5 @@ NODE_CLASS_MAPPINGS = {
     "ModelSamplingFlux": ModelSamplingFlux,
     "RescaleCFG": RescaleCFG,
     "ModelComputeDtype": ModelComputeDtype,
+    "ModelLowvramHint": ModelLowvramHint,
 }
