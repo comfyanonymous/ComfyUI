@@ -5,6 +5,7 @@ from typing import Optional
 import yaml
 from .component_model.folder_path_types import FolderNames
 
+logger = logging.getLogger(__name__)
 
 def load_extra_path_config(yaml_path, folder_names: Optional[FolderNames] = None):
     from .cmd import folder_paths
@@ -34,5 +35,5 @@ def load_extra_path_config(yaml_path, folder_names: Optional[FolderNames] = None
                 elif not os.path.isabs(full_path):
                     full_path = os.path.abspath(os.path.join(yaml_dir, y))
                 normalized_path = os.path.normpath(full_path)
-                logging.info("Adding extra search path {} {}".format(x, normalized_path))
+                logger.info("Adding extra search path {} {}".format(x, normalized_path))
                 folder_paths.add_model_folder_path(x, normalized_path, is_default=is_default, folder_names_and_paths=folder_names)
