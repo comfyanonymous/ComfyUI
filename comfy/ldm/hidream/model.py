@@ -14,6 +14,7 @@ from ..flux.layers import LastLayer
 from ..modules.attention import optimized_attention
 from ...model_management import cast_to
 from ..common_dit import pad_to_patch_size
+from ...patcher_extension import WrapperExecutor, get_all_wrappers, WrappersMP
 
 
 # Copied from https://github.com/black-forest-labs/flux/blob/main/src/flux/modules/layers.py
@@ -692,7 +693,23 @@ class HiDreamImageTransformer2DModel(nn.Module):
             raise NotImplementedError
         return x, x_masks, img_sizes
 
-    def forward(
+    def forward(self,
+        x: torch.Tensor,
+        t: torch.Tensor,
+        y: Optional[torch.Tensor] = None,
+        context: Optional[torch.Tensor] = None,
+        encoder_hidden_states_llama3=None,
+        image_cond=None,
+        control = None,
+        transformer_options = {},
+    ):
+        return WrapperExecutor.new_class_executor(
+            self._forward,
+            self,
+            get_all_wrappers(WrappersMP.DIFFUSION_MODEL, transformer_options)
+        ).execute(x, t, y, context, encoder_hidden_states_llama3, image_cond, control, transformer_options)
+
+    def _forward(
         self,
         x: torch.Tensor,
         t: torch.Tensor,

@@ -8,6 +8,7 @@ from typing import Dict, Optional, Tuple
 
 from .symmetric_patchifier import SymmetricPatchifier, latent_to_pixel_coords
 from ..modules.attention import optimized_attention, optimized_attention_masked
+from ...patcher_extension import WrapperExecutor, get_all_wrappers, WrappersMP
 
 
 def get_timestep_embedding(
@@ -421,6 +422,13 @@ class LTXVModel(torch.nn.Module):
         self.patchifier = SymmetricPatchifier(1)
 
     def forward(self, x, timestep, context, attention_mask, frame_rate=25, transformer_options={}, keyframe_idxs=None, **kwargs):
+        return WrapperExecutor.new_class_executor(
+            self._forward,
+            self,
+            get_all_wrappers(WrappersMP.DIFFUSION_MODEL, transformer_options)
+        ).execute(x, timestep, context, attention_mask, frame_rate, transformer_options, keyframe_idxs, **kwargs)
+
+    def _forward(self, x, timestep, context, attention_mask, frame_rate=25, transformer_options={}, keyframe_idxs=None, **kwargs):
         patches_replace = transformer_options.get("patches_replace", {})
 
         orig_shape = list(x.shape)

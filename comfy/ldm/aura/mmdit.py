@@ -10,6 +10,7 @@ import torch.nn.functional as F
 from ..modules.attention import optimized_attention
 from ... import ops
 from .. import common_dit
+from ...patcher_extension import WrapperExecutor, get_all_wrappers, WrappersMP
 
 def modulate(x, shift, scale):
     return x * (1 + scale.unsqueeze(1)) + shift.unsqueeze(1)
@@ -436,6 +437,13 @@ class MMDiT(nn.Module):
         return x + pos_encoding.reshape(1, -1, self.positional_encoding.shape[-1])
 
     def forward(self, x, timestep, context, transformer_options={}, **kwargs):
+        return WrapperExecutor.new_class_executor(
+            self._forward,
+            self,
+            get_all_wrappers(WrappersMP.DIFFUSION_MODEL, transformer_options)
+        ).execute(x, timestep, context, transformer_options, **kwargs)
+
+    def _forward(self, x, timestep, context, transformer_options={}, **kwargs):
         patches_replace = transformer_options.get("patches_replace", {})
         # patchify x, add PE
         b, c, h, w = x.shape

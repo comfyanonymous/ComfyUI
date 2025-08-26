@@ -11,6 +11,7 @@ from ..flux.layers import EmbedND
 from ..flux.math import apply_rope
 from ..common_dit import pad_to_patch_size
 from ...model_management import cast_to
+from ...patcher_extension import WrapperExecutor, get_all_wrappers, WrappersMP
 
 
 def sinusoidal_embedding_1d(dim, position):
@@ -573,6 +574,13 @@ class WanModel(torch.nn.Module):
         return x
 
     def forward(self, x, timestep, context, clip_fea=None, time_dim_concat=None, transformer_options={}, **kwargs):
+        return WrapperExecutor.new_class_executor(
+            self._forward,
+            self,
+            get_all_wrappers(WrappersMP.DIFFUSION_MODEL, transformer_options)
+        ).execute(x, timestep, context, clip_fea, time_dim_concat, transformer_options, **kwargs)
+
+    def _forward(self, x, timestep, context, clip_fea=None, time_dim_concat=None, transformer_options={}, **kwargs):
         bs, c, t, h, w = x.shape
         x = pad_to_patch_size(x, self.patch_size)
 

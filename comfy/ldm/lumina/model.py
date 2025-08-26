@@ -11,6 +11,7 @@ from ..common_dit import pad_to_patch_size
 from ..modules.diffusionmodules.mmdit import TimestepEmbedder
 from ..modules.attention import optimized_attention_masked
 from ..flux.layers import EmbedND
+from ...patcher_extension import WrapperExecutor, get_all_wrappers, WrappersMP
 
 
 def modulate(x, scale):
@@ -590,8 +591,15 @@ class NextDiT(nn.Module):
 
         return padded_full_embed, mask, img_sizes, l_effective_cap_len, freqs_cis
 
-    # def forward(self, x, t, cap_feats, cap_mask):
     def forward(self, x, timesteps, context, num_tokens, attention_mask=None, **kwargs):
+        return WrapperExecutor.new_class_executor(
+            self._forward,
+            self,
+            get_all_wrappers(WrappersMP.DIFFUSION_MODEL, kwargs.get("transformer_options", {}))
+        ).execute(x, timesteps, context, num_tokens, attention_mask, **kwargs)
+
+    # def forward(self, x, t, cap_feats, cap_mask):
+    def _forward(self, x, timesteps, context, num_tokens, attention_mask=None, **kwargs):
         t = 1.0 - timesteps
         cap_feats = context
         cap_mask = attention_mask

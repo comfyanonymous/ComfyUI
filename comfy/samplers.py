@@ -24,6 +24,7 @@ from .model_management_types import ModelOptions
 from .model_patcher import ModelPatcher
 from .sampler_names import SCHEDULER_NAMES, SAMPLER_NAMES
 from .context_windows import ContextHandlerABC
+from .utils import common_upscale
 
 logger = logging.getLogger(__name__)
 
@@ -69,7 +70,7 @@ def get_area_and_mult(conds, x_in, timestep_in):
         if "mask_strength" in conds:
             mask_strength = conds["mask_strength"]
         mask = conds['mask']
-        assert (mask.shape[1:] == x_in.shape[2:])
+        # assert (mask.shape[1:] == x_in.shape[2:])
 
         mask = mask[:input_x.shape[0]]
         if area is not None:
@@ -77,7 +78,7 @@ def get_area_and_mult(conds, x_in, timestep_in):
                 mask = mask.narrow(i + 1, area[len(dims) + i], area[i])
 
         mask = mask * mask_strength
-        mask = mask.unsqueeze(1).repeat(input_x.shape[0] // mask.shape[0], input_x.shape[1], 1, 1)
+        mask = mask.unsqueeze(1).repeat((input_x.shape[0] // mask.shape[0], input_x.shape[1]) + (1,) * (mask.ndim - 1))
     else:
         mask = torch.ones_like(input_x)
     mult = mask * strength
@@ -586,7 +587,10 @@ def resolve_areas_and_cond_masks_multidim(conditions, dims, device):
             if len(mask.shape) == len(dims):
                 mask = mask.unsqueeze(0)
             if mask.shape[1:] != dims:
-                mask = torch.nn.functional.interpolate(mask.unsqueeze(1), size=dims, mode='bilinear', align_corners=False).squeeze(1)
+                if mask.ndim < 4:
+                    mask = common_upscale(mask.unsqueeze(1), dims[-1], dims[-2], 'bilinear', 'none').squeeze(1)
+                else:
+                    mask = common_upscale(mask, dims[-1], dims[-2], 'bilinear', 'none')
 
             if modified.get("set_area_to_bounds", False):  # TODO: handle dim != 2
                 bounds = torch.max(torch.abs(mask), dim=0).values.unsqueeze(0)
@@ -991,7 +995,14 @@ class CFGGuider:
             self.original_conds[k] = sampler_helpers.convert_cond(conds[k])
 
     def __call__(self, *args, **kwargs):
-        return self.predict_noise(*args, **kwargs)
+        return self.outer_predict_noise(*args, **kwargs)
+
+    def outer_predict_noise(self, x, timestep, model_options={}, seed=None):
+        return comfy.patcher_extension.WrapperExecutor.new_class_executor(
+            self.predict_noise,
+            self,
+            comfy.patcher_extension.get_all_wrappers(comfy.patcher_extension.WrappersMP.PREDICT_NOISE, self.model_options, is_model_options=True)
+        ).execute(x, timestep, model_options, seed)
 
     def predict_noise(self, x, timestep, model_options={}, seed=None):
         return sampling_function(self.inner_model, x, timestep, self.conds.get("negative", None), self.conds.get("positive", None), self.cfg, model_options=model_options, seed=seed)

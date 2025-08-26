@@ -4,6 +4,7 @@ import torch
 
 from ..modules.attention import optimized_attention
 
+from ...patcher_extension import WrapperExecutor, get_all_wrappers, WrappersMP
 
 from dataclasses import dataclass
 from einops import repeat
@@ -339,6 +340,13 @@ class HunyuanVideo(nn.Module):
         return repeat(img_ids, "t h w c -> b (t h w) c", b=bs)
 
     def forward(self, x, timestep, context, y, guidance=None, attention_mask=None, guiding_frame_index=None, ref_latent=None, control=None, transformer_options={}, **kwargs):
+        return WrapperExecutor.new_class_executor(
+            self._forward,
+            self,
+            get_all_wrappers(WrappersMP.DIFFUSION_MODEL, transformer_options)
+        ).execute(x, timestep, context, y, guidance, attention_mask, guiding_frame_index, ref_latent, control, transformer_options, **kwargs)
+
+    def _forward(self, x, timestep, context, y, guidance=None, attention_mask=None, guiding_frame_index=None, ref_latent=None, control=None, transformer_options={}, **kwargs):
         bs, c, t, h, w = x.shape
         img_ids = self.img_ids(x)
         txt_ids = torch.zeros((bs, context.shape[1], 3), device=x.device, dtype=x.dtype)

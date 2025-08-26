@@ -11,6 +11,7 @@ import math
 from .position_embedding import VideoRopePosition3DEmb, LearnablePosEmbAxis
 from torchvision import transforms
 
+from ...patcher_extension import WrapperExecutor, get_all_wrappers, WrappersMP
 from ..modules.attention import optimized_attention
 
 def apply_rotary_pos_emb(
@@ -805,7 +806,21 @@ class MiniTrainDIT(nn.Module):
         )
         return x_B_C_Tt_Hp_Wp
 
-    def forward(
+    def forward(self,
+        x: torch.Tensor,
+        timesteps: torch.Tensor,
+        context: torch.Tensor,
+        fps: Optional[torch.Tensor] = None,
+        padding_mask: Optional[torch.Tensor] = None,
+        **kwargs,
+    ):
+        return WrapperExecutor.new_class_executor(
+            self._forward,
+            self,
+            get_all_wrappers(WrappersMP.DIFFUSION_MODEL, kwargs.get("transformer_options", {}))
+        ).execute(x, timesteps, context, fps, padding_mask, **kwargs)
+
+    def _forward(
         self,
         x: torch.Tensor,
         timesteps: torch.Tensor,

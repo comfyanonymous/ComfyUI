@@ -4,6 +4,7 @@ import torch
 from dataclasses import dataclass
 from einops import rearrange, repeat
 from torch import Tensor, nn
+from ...patcher_extension import WrapperExecutor, get_all_wrappers, WrappersMP
 
 from .layers import (
     DoubleStreamBlock,
@@ -41,6 +42,7 @@ class Flux(nn.Module):
 
     def __init__(self, image_model=None, final_layer=True, dtype=None, device=None, operations=None, **kwargs):
         super().__init__()
+        # todo: should this be here?
         self.device = device
         self.dtype = dtype
         params = FluxParams(**kwargs)
@@ -215,6 +217,13 @@ class Flux(nn.Module):
         return img, repeat(img_ids, "h w c -> b (h w) c", b=bs)
 
     def forward(self, x, timestep, context, y=None, guidance=None, ref_latents=None, control=None, transformer_options={}, **kwargs):
+        return WrapperExecutor.new_class_executor(
+            self._forward,
+            self,
+            get_all_wrappers(WrappersMP.DIFFUSION_MODEL, transformer_options)
+        ).execute(x, timestep, context, y, guidance, ref_latents, control, transformer_options, **kwargs)
+
+    def _forward(self, x, timestep, context, y=None, guidance=None, ref_latents=None, control=None, transformer_options={}, **kwargs):
         bs, c, h_orig, w_orig = x.shape
         patch_size = self.patch_size
 

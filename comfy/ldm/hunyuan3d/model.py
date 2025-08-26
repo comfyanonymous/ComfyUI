@@ -1,6 +1,7 @@
 import torch
 from torch import nn
 from ..flux.layers import DoubleStreamBlock, LastLayer, MLPEmbedder, SingleStreamBlock, timestep_embedding
+from ...patcher_extension import WrapperExecutor, get_all_wrappers, WrappersMP
 
 
 class Hunyuan3Dv2(nn.Module):
@@ -61,6 +62,13 @@ class Hunyuan3Dv2(nn.Module):
         self.final_layer = LastLayer(hidden_size, 1, in_channels, dtype=dtype, device=device, operations=operations)
 
     def forward(self, x, timestep, context, guidance=None, transformer_options={}, **kwargs):
+        return WrapperExecutor.new_class_executor(
+            self._forward,
+            self,
+            get_all_wrappers(WrappersMP.DIFFUSION_MODEL, transformer_options)
+        ).execute(x, timestep, context, guidance, transformer_options, **kwargs)
+
+    def _forward(self, x, timestep, context, guidance=None, transformer_options={}, **kwargs):
         x = x.movedim(-1, -2)
         timestep = 1.0 - timestep
         txt = context

@@ -6,6 +6,7 @@ import torch
 from torch import Tensor, nn
 from einops import rearrange, repeat
 from ..common_dit import pad_to_patch_size
+from ...patcher_extension import WrapperExecutor, get_all_wrappers, WrappersMP
 
 from ..flux.layers import EmbedND, timestep_embedding
 
@@ -250,6 +251,13 @@ class Chroma(nn.Module):
         return img
 
     def forward(self, x, timestep, context, guidance, control=None, transformer_options={}, **kwargs):
+        return WrapperExecutor.new_class_executor(
+            self._forward,
+            self,
+            get_all_wrappers(WrappersMP.DIFFUSION_MODEL, transformer_options)
+        ).execute(x, timestep, context, guidance, control, transformer_options, **kwargs)
+
+    def _forward(self, x, timestep, context, guidance, control=None, transformer_options={}, **kwargs):
         bs, c, h, w = x.shape
         x = pad_to_patch_size(x, (self.patch_size, self.patch_size))
 
