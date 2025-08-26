@@ -437,8 +437,7 @@ try:
         print("  ::  Enabled cuDNN")
     else:
         print("  ::  Disabled cuDNN")
-    torch.backends.cudnn.benchmark = False
-    
+
     @triton.jit
     def _zluda_kernel_test(x_ptr, y_ptr, n_elements, BLOCK_SIZE: tl.constexpr):
         pid = tl.program_id(axis=0)
