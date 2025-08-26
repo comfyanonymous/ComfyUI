@@ -31,6 +31,7 @@ class ChromaRadianceLatentToImage:
     def INPUT_TYPES(s):
         return {"required": {"latent": ("LATENT",)}}
 
+    DESCRIPTION = "For use with Chroma Radiance. Converts an input LATENT to IMAGE."
     RETURN_TYPES = ("IMAGE",)
     FUNCTION = "go"
 
@@ -51,6 +52,7 @@ class ChromaRadianceImageToLatent:
     def INPUT_TYPES(s):
         return {"required": {"image": ("IMAGE",)}}
 
+    DESCRIPTION = "For use with Chroma Radiance. Converts an input IMAGE to LATENT."
     RETURN_TYPES = ("LATENT",)
     FUNCTION = "go"
 
@@ -76,8 +78,44 @@ class ChromaRadianceImageToLatent:
         latent *= 2
         return ({"samples": latent.clamp_(-1, 1)},)
 
+class ChromaRadianceStubVAE:
+    def __init__(self):
+        self.image_to_latent = ChromaRadianceImageToLatent()
+        self.latent_to_image = ChromaRadianceLatentToImage()
+
+    DESCRIPTION = "For use with Chroma Radiance. Allows converting between latent and image types with nodes that require a VAE input."
+    RETURN_TYPES = ("VAE",)
+    FUNCTION = "go"
+
+    CATEGORY = "vae/chroma_radiance"
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict:
+        return {}
+
+    def go(self) -> tuple["ChromaRadianceStubVAE"]:
+        return (self,)
+
+    def encode(self, pixels: torch.Tensor, *_args, **_kwargs) -> torch.Tensor:
+        return self.image_to_latent.go(image=pixels)[0]["samples"]
+
+    encode_tiled = encode
+
+    def decode(self, samples: torch.Tensor, *_args, **_kwargs) -> torch.Tensor:
+        return self.latent_to_image.go(latent={"samples": samples})[0]
+
+    decode_tiled = decode
+
+    def spacial_compression_decode(self) -> int:
+        return 1
+
+    spacial_compression_encode = spacial_compression_decode
+    temporal_compression_decode = spacial_compression_decode
+
+
 NODE_CLASS_MAPPINGS = {
     "EmptyChromaRadianceLatentImage": EmptyChromaRadianceLatentImage,
     "ChromaRadianceLatentToImage": ChromaRadianceLatentToImage,
     "ChromaRadianceImageToLatent": ChromaRadianceImageToLatent,
+    "ChromaRadianceStubVAE": ChromaRadianceStubVAE,
 }
