@@ -5,7 +5,6 @@ from typing import Optional
 
 import torch
 import torch.nn.functional as F
-from diffusers.models.attention_dispatch import sageattn
 from einops import rearrange, repeat
 from torch import nn, einsum
 
