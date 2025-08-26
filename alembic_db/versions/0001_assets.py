@@ -1,3 +1,4 @@
+# File: /alembic_db/versions/0001_assets.py
 """initial assets schema + per-asset state cache
 
 Revision ID: 0001_assets
@@ -22,15 +23,12 @@ def upgrade() -> None:
         sa.Column("size_bytes", sa.BigInteger(), nullable=False, server_default="0"),
         sa.Column("mime_type", sa.String(length=255), nullable=True),
         sa.Column("refcount", sa.BigInteger(), nullable=False, server_default="0"),
-        sa.Column("storage_backend", sa.String(length=32), nullable=False, server_default="fs"),
-        sa.Column("storage_locator", sa.Text(), nullable=False),
         sa.Column("created_at", sa.DateTime(timezone=False), nullable=False),
         sa.Column("updated_at", sa.DateTime(timezone=False), nullable=False),
         sa.CheckConstraint("size_bytes >= 0", name="ck_assets_size_nonneg"),
         sa.CheckConstraint("refcount >= 0", name="ck_assets_refcount_nonneg"),
     )
     op.create_index("ix_assets_mime_type", "assets", ["mime_type"])
-    op.create_index("ix_assets_backend_locator", "assets", ["storage_backend", "storage_locator"])
 
     # ASSETS_INFO: user-visible references (mutable metadata)
     op.create_table(
@@ -52,11 +50,12 @@ def upgrade() -> None:
     op.create_index("ix_assets_info_name", "assets_info", ["name"])
     op.create_index("ix_assets_info_created_at", "assets_info", ["created_at"])
     op.create_index("ix_assets_info_last_access_time", "assets_info", ["last_access_time"])
+    op.create_index("ix_assets_info_owner_name", "assets_info", ["owner_id", "name"])
 
     # TAGS: normalized tag vocabulary
     op.create_table(
         "tags",
-        sa.Column("name", sa.String(length=128), primary_key=True),
+        sa.Column("name", sa.String(length=512), primary_key=True),
         sa.Column("tag_type", sa.String(length=32), nullable=False, server_default="user"),
         sa.CheckConstraint("name = lower(name)", name="ck_tags_lowercase"),
     )
@@ -65,8 +64,8 @@ def upgrade() -> None:
     # ASSET_INFO_TAGS: many-to-many for tags on AssetInfo
     op.create_table(
         "asset_info_tags",
-        sa.Column("asset_info_id", sa.BigInteger(), sa.ForeignKey("assets_info.id", ondelete="CASCADE"), nullable=False),
-        sa.Column("tag_name", sa.String(length=128), sa.ForeignKey("tags.name", ondelete="RESTRICT"), nullable=False),
+        sa.Column("asset_info_id", sa.Integer(), sa.ForeignKey("assets_info.id", ondelete="CASCADE"), nullable=False),
+        sa.Column("tag_name", sa.String(length=512), sa.ForeignKey("tags.name", ondelete="RESTRICT"), nullable=False),
         sa.Column("origin", sa.String(length=32), nullable=False, server_default="manual"),
         sa.Column("added_by", sa.String(length=128), nullable=True),
         sa.Column("added_at", sa.DateTime(timezone=False), nullable=False),
@@ -75,15 +74,15 @@ def upgrade() -> None:
     op.create_index("ix_asset_info_tags_tag_name", "asset_info_tags", ["tag_name"])
     op.create_index("ix_asset_info_tags_asset_info_id", "asset_info_tags", ["asset_info_id"])
 
-    # ASSET_LOCATOR_STATE: 1:1 filesystem metadata(for fast integrity checking) for an Asset records
+    # ASSET_CACHE_STATE: 1:1 local cache metadata for an Asset
     op.create_table(
-        "asset_locator_state",
+        "asset_cache_state",
         sa.Column("asset_hash", sa.String(length=256), sa.ForeignKey("assets.hash", ondelete="CASCADE"), primary_key=True),
+        sa.Column("file_path", sa.Text(), nullable=False),  # absolute local path to cached file
         sa.Column("mtime_ns", sa.BigInteger(), nullable=True),
-        sa.Column("etag", sa.String(length=256), nullable=True),
-        sa.Column("last_modified", sa.String(length=128), nullable=True),
-        sa.CheckConstraint("(mtime_ns IS NULL) OR (mtime_ns >= 0)", name="ck_als_mtime_nonneg"),
+        sa.CheckConstraint("(mtime_ns IS NULL) OR (mtime_ns >= 0)", name="ck_acs_mtime_nonneg"),
     )
+    op.create_index("ix_asset_cache_state_file_path", "asset_cache_state", ["file_path"])
 
     # ASSET_INFO_META: typed KV projection of user_metadata for filtering/sorting
     op.create_table(
@@ -101,6 +100,21 @@ def upgrade() -> None:
     op.create_index("ix_asset_info_meta_key_val_str", "asset_info_meta", ["key", "val_str"])
     op.create_index("ix_asset_info_meta_key_val_num", "asset_info_meta", ["key", "val_num"])
     op.create_index("ix_asset_info_meta_key_val_bool", "asset_info_meta", ["key", "val_bool"])
+
+    # ASSET_LOCATIONS: remote locations per asset
+    op.create_table(
+        "asset_locations",
+        sa.Column("id", sa.Integer(), primary_key=True, autoincrement=True),
+        sa.Column("asset_hash", sa.String(length=256), sa.ForeignKey("assets.hash", ondelete="CASCADE"), nullable=False),
+        sa.Column("provider", sa.String(length=32), nullable=False),  # e.g., "gcs"
+        sa.Column("locator", sa.Text(), nullable=False),             # e.g., "gs://bucket/path/to/blob"
+        sa.Column("expected_size_bytes", sa.BigInteger(), nullable=True),
+        sa.Column("etag", sa.String(length=256), nullable=True),
+        sa.Column("last_modified", sa.String(length=128), nullable=True),
+        sa.UniqueConstraint("asset_hash", "provider", "locator", name="uq_asset_locations_triplet"),
+    )
+    op.create_index("ix_asset_locations_hash", "asset_locations", ["asset_hash"])
+    op.create_index("ix_asset_locations_provider", "asset_locations", ["provider"])
 
     # Tags vocabulary for models
     tags_table = sa.table(
@@ -143,13 +157,18 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    op.drop_index("ix_asset_locations_provider", table_name="asset_locations")
+    op.drop_index("ix_asset_locations_hash", table_name="asset_locations")
+    op.drop_table("asset_locations")
+
     op.drop_index("ix_asset_info_meta_key_val_bool", table_name="asset_info_meta")
     op.drop_index("ix_asset_info_meta_key_val_num", table_name="asset_info_meta")
     op.drop_index("ix_asset_info_meta_key_val_str", table_name="asset_info_meta")
     op.drop_index("ix_asset_info_meta_key", table_name="asset_info_meta")
     op.drop_table("asset_info_meta")
 
-    op.drop_table("asset_locator_state")
+    op.drop_index("ix_asset_cache_state_file_path", table_name="asset_cache_state")
+    op.drop_table("asset_cache_state")
 
     op.drop_index("ix_asset_info_tags_asset_info_id", table_name="asset_info_tags")
     op.drop_index("ix_asset_info_tags_tag_name", table_name="asset_info_tags")
@@ -159,6 +178,7 @@ def downgrade() -> None:
     op.drop_table("tags")
 
     op.drop_constraint("uq_assets_info_hash_owner_name", table_name="assets_info")
+    op.drop_index("ix_assets_info_owner_name", table_name="assets_info")
     op.drop_index("ix_assets_info_last_access_time", table_name="assets_info")
     op.drop_index("ix_assets_info_created_at", table_name="assets_info")
     op.drop_index("ix_assets_info_name", table_name="assets_info")
@@ -166,6 +186,5 @@ def downgrade() -> None:
     op.drop_index("ix_assets_info_owner_id", table_name="assets_info")
     op.drop_table("assets_info")
 
-    op.drop_index("ix_assets_backend_locator", table_name="assets")
     op.drop_index("ix_assets_mime_type", table_name="assets")
     op.drop_table("assets")

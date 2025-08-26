@@ -26,7 +26,8 @@ from .database.services import (
     create_asset_info_for_existing_asset,
 )
 from .api import schemas_in, schemas_out
-from ._assets_helpers import get_name_and_tags_from_asset_path, resolve_destination_from_tags, ensure_within_base
+from ._assets_helpers import get_name_and_tags_from_asset_path, ensure_within_base, resolve_destination_from_tags
+from .assets_fetcher import ensure_asset_cached
 
 
 async def asset_exists(*, asset_hash: str) -> bool:
@@ -46,17 +47,17 @@ def populate_db_with_asset(file_path: str, tags: Optional[list[str]] = None) -> 
                 file_name=asset_name,
                 file_path=file_path,
             )
-        except ValueError:
-            logging.exception("Cant parse '%s' as an asset file path.", file_path)
+        except ValueError as e:
+            logging.warning("Skipping non-asset path %s: %s", file_path, e)
 
 
 async def add_local_asset(tags: list[str], file_name: str, file_path: str) -> None:
     """Adds a local asset to the DB. If already present and unchanged, does nothing.
 
     Notes:
-    - Uses absolute path as the canonical locator for the 'fs' backend.
+    - Uses absolute path as the canonical locator for the cache backend.
     - Computes BLAKE3 only when the fast existence check indicates it's needed.
-    - This function ensures the identity row and seeds mtime in asset_locator_state.
+    - This function ensures the identity row and seeds mtime in asset_cache_state.
     """
     abs_path = os.path.abspath(file_path)
     size_bytes, mtime_ns = _get_size_mtime_ns(abs_path)
@@ -125,7 +126,7 @@ async def list_assets(
                 size=int(asset.size_bytes) if asset else None,
                 mime_type=asset.mime_type if asset else None,
                 tags=tags,
-                preview_url=f"/api/v1/assets/{info.id}/content",
+                preview_url=f"/api/assets/{info.id}/content",
                 created_at=info.created_at,
                 updated_at=info.updated_at,
                 last_access_time=info.last_access_time,
@@ -143,12 +144,11 @@ async def resolve_asset_content_for_download(
     *, asset_info_id: int
 ) -> tuple[str, str, str]:
     """
-    Returns (abs_path, content_type, download_name) for the given AssetInfo id.
+    Returns (abs_path, content_type, download_name) for the given AssetInfo id and touches last_access_time.
     Also touches last_access_time (only_if_newer).
+    Ensures the local cache is present (uses resolver if needed).
     Raises:
-      ValueError if AssetInfo not found
-      NotImplementedError for unsupported backend
-      FileNotFoundError if underlying file does not exist (fs backend)
+      ValueError if AssetInfo cannot be found
     """
     async with await create_session() as session:
         pair = await fetch_asset_info_and_asset(session, asset_info_id=asset_info_id)
@@ -156,21 +156,19 @@ async def resolve_asset_content_for_download(
             raise ValueError(f"AssetInfo {asset_info_id} not found")
 
         info, asset = pair
+        tag_names = await get_asset_tags(session, asset_info_id=info.id)
 
-        if asset.storage_backend != "fs":
-            # Future: support http/s3/gcs/...
-            raise NotImplementedError(f"backend {asset.storage_backend!r} not supported yet")
+    # Ensure cached (download if missing)
+    preferred_name = info.name or info.asset_hash.split(":", 1)[-1]
+    abs_path = await ensure_asset_cached(info.asset_hash, preferred_name=preferred_name, tags_hint=tag_names)
 
-        abs_path = os.path.abspath(asset.storage_locator)
-        if not os.path.exists(abs_path):
-            raise FileNotFoundError(abs_path)
-
+    async with await create_session() as session:
         await touch_asset_info_by_id(session, asset_info_id=asset_info_id)
         await session.commit()
 
-        ctype = asset.mime_type or mimetypes.guess_type(info.name or abs_path)[0] or "application/octet-stream"
-        download_name = info.name or os.path.basename(abs_path)
-        return abs_path, ctype, download_name
+    ctype = asset.mime_type or mimetypes.guess_type(info.name or abs_path)[0] or "application/octet-stream"
+    download_name = info.name or os.path.basename(abs_path)
+    return abs_path, ctype, download_name
 
 
 async def upload_asset_from_temp_path(
@@ -238,7 +236,7 @@ async def upload_asset_from_temp_path(
             added_by=None,
             require_existing_tags=False,
         )
-        info_id = result.get("asset_info_id")
+        info_id = result["asset_info_id"]
         if not info_id:
             raise RuntimeError("failed to create asset metadata")
 
@@ -260,7 +258,7 @@ async def upload_asset_from_temp_path(
         preview_hash=info.preview_hash,
         created_at=info.created_at,
         last_access_time=info.last_access_time,
-        created_new=True,
+        created_new=result["asset_created"],
     )
 
 
@@ -416,7 +414,7 @@ def _get_size_mtime_ns(path: str) -> tuple[int, int]:
     return st.st_size, getattr(st, "st_mtime_ns", int(st.st_mtime * 1_000_000_000))
 
 
-def _safe_filename(name: Optional[str] , fallback: str) -> str:
+def _safe_filename(name: Optional[str], fallback: str) -> str:
     n = os.path.basename((name or "").strip() or fallback)
     if n:
         return n

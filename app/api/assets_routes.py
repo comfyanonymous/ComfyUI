@@ -9,7 +9,7 @@ from pydantic import ValidationError
 import folder_paths
 
 from .. import assets_manager, assets_scanner
-from . import schemas_in
+from . import schemas_in, schemas_out
 
 
 ROUTES = web.RouteTableDef()
@@ -19,6 +19,9 @@ ROUTES = web.RouteTableDef()
 async def head_asset_by_hash(request: web.Request) -> web.Response:
     hash_str = request.match_info.get("hash", "").strip().lower()
     if not hash_str or ":" not in hash_str:
+        return _error_response(400, "INVALID_HASH", "hash must be like 'blake3:<hex>'")
+    algo, digest = hash_str.split(":", 1)
+    if algo != "blake3" or not digest or any(c for c in digest if c not in "0123456789abcdef"):
         return _error_response(400, "INVALID_HASH", "hash must be like 'blake3:<hex>'")
     exists = await assets_manager.asset_exists(asset_hash=hash_str)
     return web.Response(status=200 if exists else 404)
@@ -69,7 +72,7 @@ async def download_asset_content(request: web.Request) -> web.Response:
     except FileNotFoundError:
         return _error_response(404, "FILE_NOT_FOUND", "Underlying file not found on disk.")
 
-    quoted = filename.replace('"', "'")
+    quoted = (filename or "").replace("\r", "").replace("\n", "").replace('"', "'")
     cd = f'{disposition}; filename="{quoted}"; filename*=UTF-8\'\'{urllib.parse.quote(filename)}'
 
     resp = web.FileResponse(abs_path)
@@ -115,6 +118,7 @@ async def upload_asset(request: web.Request) -> web.Response:
     user_metadata_raw: Optional[str] = None
     file_written = 0
 
+    tmp_path: Optional[str] = None
     while True:
         field = await reader.next()
         if field is None:
@@ -173,6 +177,8 @@ async def upload_asset(request: web.Request) -> web.Response:
             return _validation_error_response("INVALID_BODY", ve)
 
     if spec.tags[0] == "models" and spec.tags[1] not in folder_paths.folder_names_and_paths:
+        if tmp_path and os.path.exists(tmp_path):
+            os.remove(tmp_path)
         return _error_response(400, "INVALID_BODY", f"unknown models category '{spec.tags[1]}'")
 
     try:
@@ -182,12 +188,14 @@ async def upload_asset(request: web.Request) -> web.Response:
             client_filename=file_client_name,
         )
         return web.json_response(created.model_dump(mode="json"), status=201)
+    except ValueError:
+        if tmp_path and os.path.exists(tmp_path):
+            os.remove(tmp_path)
+        return _error_response(400, "BAD_REQUEST", "Invalid inputs.")
     except Exception:
-        try:
-            if os.path.exists(tmp_path):
-                os.remove(tmp_path)
-        finally:
-            return _error_response(500, "INTERNAL", "Unexpected server error.")
+        if tmp_path and os.path.exists(tmp_path):
+            os.remove(tmp_path)
+        return _error_response(500, "INTERNAL", "Unexpected server error.")
 
 
 @ROUTES.put("/api/assets/{id}")
@@ -341,6 +349,7 @@ async def get_asset_scan_status(request: web.Request) -> web.Response:
     states = assets_scanner.current_statuses()
     if root in {"models", "input", "output"}:
         states = [s for s in states.scans if s.root == root]  # type: ignore
+        states = schemas_out.AssetScanStatusResponse(scans=states)
     return web.json_response(states.model_dump(mode="json"), status=200)
 
 

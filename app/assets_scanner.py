@@ -147,9 +147,7 @@ async def _run_scan_for_root(root: RootType, prog: ScanProgress) -> None:
         prog.last_error = str(exc)
     finally:
         prog.finished_at = time.time()
-        t = RUNNING_TASKS.get(root)
-        if t and t.done():
-            RUNNING_TASKS.pop(root, None)
+        RUNNING_TASKS.pop(root, None)
 
 
 async def _scan_models(prog: ScanProgress) -> None:

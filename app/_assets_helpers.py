@@ -105,7 +105,10 @@ def resolve_destination_from_tags(tags: list[str]) -> tuple[str, list[str]]:
     if root == "models":
         if len(tags) < 2:
             raise ValueError("at least two tags required for model asset")
-        bases = folder_paths.folder_names_and_paths[tags[1]][0]
+        try:
+            bases = folder_paths.folder_names_and_paths[tags[1]][0]
+        except KeyError:
+            raise ValueError(f"unknown model category '{tags[1]}'")
         if not bases:
             raise ValueError(f"no base path configured for category '{tags[1]}'")
         base_dir = os.path.abspath(bases[0])

@@ -45,8 +45,6 @@ class Asset(Base):
     size_bytes: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
     mime_type: Mapped[str | None] = mapped_column(String(255))
     refcount: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
-    storage_backend: Mapped[str] = mapped_column(String(32), nullable=False, default="fs")
-    storage_locator: Mapped[str] = mapped_column(Text, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=False), nullable=False, default=utcnow
     )
@@ -71,48 +69,71 @@ class Asset(Base):
         viewonly=True,
     )
 
-    locator_state: Mapped["AssetLocatorState | None"] = relationship(
+    cache_state: Mapped["AssetCacheState | None"] = relationship(
         back_populates="asset",
         uselist=False,
         cascade="all, delete-orphan",
         passive_deletes=True,
     )
 
+    locations: Mapped[list["AssetLocation"]] = relationship(
+        back_populates="asset",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+
     __table_args__ = (
         Index("ix_assets_mime_type", "mime_type"),
-        Index("ix_assets_backend_locator", "storage_backend", "storage_locator"),
     )
 
     def to_dict(self, include_none: bool = False) -> dict[str, Any]:
         return to_dict(self, include_none=include_none)
 
     def __repr__(self) -> str:
-        return f"<Asset hash={self.hash[:12]} backend={self.storage_backend}>"
+        return f"<Asset hash={self.hash[:12]}>"
 
 
-class AssetLocatorState(Base):
-    __tablename__ = "asset_locator_state"
+class AssetCacheState(Base):
+    __tablename__ = "asset_cache_state"
 
     asset_hash: Mapped[str] = mapped_column(
         String(256), ForeignKey("assets.hash", ondelete="CASCADE"), primary_key=True
     )
-    # For fs backends: nanosecond mtime; nullable if not applicable
+    file_path: Mapped[str] = mapped_column(Text, nullable=False)
     mtime_ns: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
-    # For HTTP/S3/GCS/Azure, etc.: optional validators
-    etag: Mapped[str | None] = mapped_column(String(256), nullable=True)
-    last_modified: Mapped[str | None] = mapped_column(String(128), nullable=True)
 
-    asset: Mapped["Asset"] = relationship(back_populates="locator_state", uselist=False)
+    asset: Mapped["Asset"] = relationship(back_populates="cache_state", uselist=False)
 
     __table_args__ = (
-        CheckConstraint("(mtime_ns IS NULL) OR (mtime_ns >= 0)", name="ck_als_mtime_nonneg"),
+        Index("ix_asset_cache_state_file_path", "file_path"),
+        CheckConstraint("(mtime_ns IS NULL) OR (mtime_ns >= 0)", name="ck_acs_mtime_nonneg"),
     )
 
     def to_dict(self, include_none: bool = False) -> dict[str, Any]:
         return to_dict(self, include_none=include_none)
 
     def __repr__(self) -> str:
-        return f"<AssetLocatorState hash={self.asset_hash[:12]} mtime_ns={self.mtime_ns}>"
+        return f"<AssetCacheState hash={self.asset_hash[:12]} path={self.file_path!r}>"
+
+
+class AssetLocation(Base):
+    __tablename__ = "asset_locations"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    asset_hash: Mapped[str] = mapped_column(String(256), ForeignKey("assets.hash", ondelete="CASCADE"), nullable=False)
+    provider: Mapped[str] = mapped_column(String(32), nullable=False)  # "gcs"
+    locator: Mapped[str] = mapped_column(Text, nullable=False)         # "gs://bucket/object"
+    expected_size_bytes: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    etag: Mapped[str | None] = mapped_column(String(256), nullable=True)
+    last_modified: Mapped[str | None] = mapped_column(String(128), nullable=True)
+
+    asset: Mapped["Asset"] = relationship(back_populates="locations")
+
+    __table_args__ = (
+        UniqueConstraint("asset_hash", "provider", "locator", name="uq_asset_locations_triplet"),
+        Index("ix_asset_locations_hash", "asset_hash"),
+        Index("ix_asset_locations_provider", "provider"),
+    )
 
 
 class AssetInfo(Base):
@@ -220,7 +241,7 @@ class AssetInfoTag(Base):
         Integer, ForeignKey("assets_info.id", ondelete="CASCADE"), primary_key=True
     )
     tag_name: Mapped[str] = mapped_column(
-        String(128), ForeignKey("tags.name", ondelete="RESTRICT"), primary_key=True
+        String(512), ForeignKey("tags.name", ondelete="RESTRICT"), primary_key=True
     )
     origin: Mapped[str] = mapped_column(String(32), nullable=False, default="manual")
     added_by: Mapped[str | None] = mapped_column(String(128))
@@ -240,7 +261,7 @@ class AssetInfoTag(Base):
 class Tag(Base):
     __tablename__ = "tags"
 
-    name: Mapped[str] = mapped_column(String(128), primary_key=True)
+    name: Mapped[str] = mapped_column(String(512), primary_key=True)
     tag_type: Mapped[str] = mapped_column(String(32), nullable=False, default="user")
 
     asset_info_links: Mapped[list["AssetInfoTag"]] = relationship(
