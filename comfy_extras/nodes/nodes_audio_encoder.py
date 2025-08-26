@@ -1,4 +1,4 @@
-import folder_paths
+from comfy.cmd import folder_paths
 import comfy.audio_encoders.audio_encoders
 import comfy.utils
 
