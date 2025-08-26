@@ -158,6 +158,11 @@ class Flux(nn.Module):
                 if i < len(control_i):
                     add = control_i[i]
                     if add is not None:
+                        if img.shape[1] != add.shape[1]:
+                            padding_size = img.shape[1] - add.shape[1]
+                            if padding_size > 0:
+                                padding = torch.zeros(add.shape[0], padding_size, add.shape[2], device=add.device, dtype=add.dtype)
+                                add = torch.cat([add, padding], dim=1)
                         img += add
 
         if img.dtype == torch.float16:
