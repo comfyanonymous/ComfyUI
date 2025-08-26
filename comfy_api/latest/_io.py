@@ -730,6 +730,14 @@ class AnyType(ComfyTypeIO):
 class MODEL_PATCH(ComfyTypeIO):
     Type = Any
 
+@comfytype(io_type="AUDIO_ENCODER")
+class AUDIO_ENCODER(ComfyTypeIO):
+    Type = Any
+
+@comfytype(io_type="AUDIO_ENCODER_OUTPUT")
+class AUDIO_ENCODER_OUTPUT(ComfyTypeIO):
+    Type = Any
+
 @comfytype(io_type="COMFY_MULTITYPED_V3")
 class MultiType:
     Type = Any
