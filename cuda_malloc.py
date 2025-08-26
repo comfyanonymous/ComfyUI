@@ -2,6 +2,7 @@ import os
 import importlib.util
 from comfy.cli_args import args
 import subprocess
+import logging
 
 #Can't use pytorch to get the GPU names because the cuda malloc has to be set before the first import.
 def get_gpu_names():
@@ -50,7 +51,7 @@ blacklist = {"GeForce GTX TITAN X", "GeForce GTX 980", "GeForce GTX 970", "GeFor
                 "GeForce GTX 1650", "GeForce GTX 1630", "Tesla M4", "Tesla M6", "Tesla M10", "Tesla M40", "Tesla M60"
                 }
 
-def cuda_malloc_supported():
+def device_cuda_malloc_supported():
     try:
         names = get_gpu_names()
     except:
@@ -62,8 +63,8 @@ def cuda_malloc_supported():
                     return False
     return True
 
-
-if not args.cuda_malloc:
+def cuda_malloc_supported():
+    software_supported = False
     try:
         version = ""
         torch_spec = importlib.util.find_spec("torch")
@@ -76,16 +77,20 @@ if not args.cuda_malloc:
                 version = module.__version__
 
         if int(version[0]) >= 2 and "+cu" in version: #enable by default for torch version 2.0 and up only on cuda torch
-            args.cuda_malloc = cuda_malloc_supported()
+            software_supported = True
     except:
         pass
 
+    return (software_supported and device_cuda_malloc_supported())
 
-if args.cuda_malloc and not args.disable_cuda_malloc:
+if args.cuda_malloc:
     env_var = os.environ.get('PYTORCH_CUDA_ALLOC_CONF', None)
     if env_var is None:
         env_var = "backend:cudaMallocAsync"
     else:
         env_var += ",backend:cudaMallocAsync"
+
+    if not cuda_malloc_supported():
+        logging.warning("WARNING: this card most likely does not support cuda-malloc\n")
 
     os.environ['PYTORCH_CUDA_ALLOC_CONF'] = env_var
