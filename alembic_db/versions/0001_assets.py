@@ -22,11 +22,9 @@ def upgrade() -> None:
         sa.Column("hash", sa.String(length=256), primary_key=True),
         sa.Column("size_bytes", sa.BigInteger(), nullable=False, server_default="0"),
         sa.Column("mime_type", sa.String(length=255), nullable=True),
-        sa.Column("refcount", sa.BigInteger(), nullable=False, server_default="0"),
         sa.Column("created_at", sa.DateTime(timezone=False), nullable=False),
         sa.Column("updated_at", sa.DateTime(timezone=False), nullable=False),
         sa.CheckConstraint("size_bytes >= 0", name="ck_assets_size_nonneg"),
-        sa.CheckConstraint("refcount >= 0", name="ck_assets_refcount_nonneg"),
     )
     op.create_index("ix_assets_mime_type", "assets", ["mime_type"])
 

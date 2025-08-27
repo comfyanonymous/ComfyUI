@@ -89,7 +89,7 @@ async def ingest_fs_asset(
       - Insert AssetCacheState if missing; else update mtime_ns if different.
 
     Optionally (when info_name is provided):
-      - Create an AssetInfo (no refcount changes).
+      - Create an AssetInfo.
       - Link provided tags to that AssetInfo.
         * If the require_existing_tags=True, raises ValueError if any tag does not exist in `tags` table.
         * If False (default), create unknown tags.
@@ -122,7 +122,6 @@ async def ingest_fs_asset(
                     hash=asset_hash,
                     size_bytes=int(size_bytes),
                     mime_type=mime_type,
-                    refcount=0,
                     created_at=datetime_now,
                     updated_at=datetime_now,
                 )

@@ -44,7 +44,6 @@ class Asset(Base):
     hash: Mapped[str] = mapped_column(String(256), primary_key=True)
     size_bytes: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
     mime_type: Mapped[str | None] = mapped_column(String(255))
-    refcount: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=False), nullable=False, default=utcnow
     )
