@@ -1201,6 +1201,29 @@ class WAN21_Camera(WAN21):
             out['camera_conditions'] = comfy.conds.CONDRegular(camera_conditions)
         return out
 
+class WAN22_S2V(WAN21):
+    def __init__(self, model_config, model_type=ModelType.FLOW, device=None):
+        super(WAN21, self).__init__(model_config, model_type, device=device, unet_model=comfy.ldm.wan.model.WanModel_S2V)
+
+    def extra_conds(self, **kwargs):
+        out = super().extra_conds(**kwargs)
+        audio_embed = kwargs.get("audio_embed", None)
+        if audio_embed is not None:
+            out['audio_embed'] = comfy.conds.CONDRegular(audio_embed)
+
+        reference_latents = kwargs.get("reference_latents", None)
+        if reference_latents is not None:
+            out['reference_latent'] = comfy.conds.CONDRegular(self.process_latent_in(reference_latents[-1]))
+
+        reference_motion = kwargs.get("reference_motion", None)
+        if reference_motion is not None:
+            out['reference_motion'] = comfy.conds.CONDRegular(self.process_latent_in(reference_motion))
+
+        control_video = kwargs.get("control_video", None)
+        if control_video is not None:
+            out['control_video'] = comfy.conds.CONDRegular(self.process_latent_in(control_video))
+        return out
+
 class WAN22(BaseModel):
     def __init__(self, model_config, model_type=ModelType.FLOW, image_to_video=False, device=None):
         super().__init__(model_config, model_type, device=device, unet_model=comfy.ldm.wan.model.WanModel)
