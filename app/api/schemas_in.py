@@ -180,12 +180,31 @@ class UploadAssetSpec(BaseModel):
             if root == 'models', second must be a valid category from folder_paths.folder_names_and_paths
     - name: desired filename (optional); fallback will be the file hash
     - user_metadata: arbitrary JSON object (optional)
+    - hash: optional canonical 'blake3:<hex>' provided by the client for validation / fast-path
     """
     model_config = ConfigDict(extra="ignore", str_strip_whitespace=True)
 
     tags: list[str] = Field(..., min_length=1)
     name: Optional[str] = Field(default=None, max_length=512)
     user_metadata: dict[str, Any] = Field(default_factory=dict)
+    hash: Optional[str] = Field(default=None)
+
+    @field_validator("hash", mode="before")
+    @classmethod
+    def _parse_hash(cls, v):
+        if v is None:
+            return None
+        s = str(v).strip().lower()
+        if not s:
+            return None
+        if ":" not in s:
+            raise ValueError("hash must be 'blake3:<hex>'")
+        algo, digest = s.split(":", 1)
+        if algo != "blake3":
+            raise ValueError("only canonical 'blake3:<hex>' is accepted here")
+        if not digest or any(c for c in digest if c not in "0123456789abcdef"):
+            raise ValueError("hash digest must be lowercase hex")
+        return f"{algo}:{digest}"
 
     @field_validator("tags", mode="before")
     @classmethod

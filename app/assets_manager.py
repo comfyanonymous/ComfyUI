@@ -1,3 +1,4 @@
+import contextlib
 import logging
 import mimetypes
 import os
@@ -208,13 +209,14 @@ async def upload_asset_from_temp_path(
     temp_path: str,
     client_filename: Optional[str] = None,
     owner_id: str = "",
+    expected_asset_hash: Optional[str] = None,
 ) -> schemas_out.AssetCreated:
     """
     Finalize an uploaded temp file:
       - compute blake3 hash
-      - resolve destination from tags
-      - decide filename (spec.name or client filename or hash)
-      - move file atomically
+      - if expected_asset_hash provided, verify equality (400 on mismatch at caller)
+      - if an Asset with the same hash exists: discard temp, create AssetInfo only (no write)
+      - else resolve destination from tags and atomically move into place
       - ingest into DB (assets, locator state, asset_info + tags)
     Returns a populated AssetCreated payload.
     """
@@ -225,7 +227,46 @@ async def upload_asset_from_temp_path(
         raise RuntimeError(f"failed to hash uploaded file: {e}")
     asset_hash = "blake3:" + digest
 
-    # Resolve destination
+    if expected_asset_hash and asset_hash != expected_asset_hash.strip().lower():
+        raise ValueError("HASH_MISMATCH")
+
+    # Fast path: content already known --> no writes, just create a reference
+    async with await create_session() as session:
+        existing = await get_asset_by_hash(session, asset_hash=asset_hash)
+        if existing is not None:
+            with contextlib.suppress(Exception):
+                if temp_path and os.path.exists(temp_path):
+                    os.remove(temp_path)
+
+            desired_name = _safe_filename(spec.name or (client_filename or ""), fallback=digest)
+            info = await create_asset_info_for_existing_asset(
+                session,
+                asset_hash=asset_hash,
+                name=desired_name,
+                user_metadata=spec.user_metadata or {},
+                tags=spec.tags or [],
+                tag_origin="manual",
+                added_by=None,
+                owner_id=owner_id,
+            )
+            tag_names = await get_asset_tags(session, asset_info_id=info.id)
+            await session.commit()
+
+            return schemas_out.AssetCreated(
+                id=info.id,
+                name=info.name,
+                asset_hash=info.asset_hash,
+                size=int(existing.size_bytes) if existing.size_bytes is not None else None,
+                mime_type=existing.mime_type,
+                tags=tag_names,
+                user_metadata=info.user_metadata or {},
+                preview_hash=info.preview_hash,
+                created_at=info.created_at,
+                last_access_time=info.last_access_time,
+                created_new=False,
+            )
+
+    # Resolve destination (only for truly new content)
     base_dir, subdirs = resolve_destination_from_tags(spec.tags)
     dest_dir = os.path.join(base_dir, *subdirs) if subdirs else base_dir
     os.makedirs(dest_dir, exist_ok=True)
