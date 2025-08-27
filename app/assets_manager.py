@@ -24,6 +24,7 @@ from .database.services import (
     asset_exists_by_hash,
     get_asset_by_hash,
     create_asset_info_for_existing_asset,
+    fetch_asset_info_asset_and_tags,
 )
 from .api import schemas_in, schemas_out
 from ._assets_helpers import get_name_and_tags_from_asset_path, ensure_within_base, resolve_destination_from_tags
@@ -137,6 +138,27 @@ async def list_assets(
         assets=summaries,
         total=total,
         has_more=(offset + len(summaries)) < total,
+    )
+
+
+async def get_asset(*, asset_info_id: int) -> schemas_out.AssetDetail:
+    async with await create_session() as session:
+        res = await fetch_asset_info_asset_and_tags(session, asset_info_id=asset_info_id)
+        if not res:
+            raise ValueError(f"AssetInfo {asset_info_id} not found")
+        info, asset, tag_names = res
+
+    return schemas_out.AssetDetail(
+        id=info.id,
+        name=info.name,
+        asset_hash=info.asset_hash,
+        size=int(asset.size_bytes) if asset and asset.size_bytes is not None else None,
+        mime_type=asset.mime_type if asset else None,
+        tags=tag_names,
+        preview_hash=info.preview_hash,
+        user_metadata=info.user_metadata or {},
+        created_at=info.created_at,
+        last_access_time=info.last_access_time,
     )
 
 

@@ -43,7 +43,7 @@ class AssetUpdated(BaseModel):
         return v.isoformat() if v else None
 
 
-class AssetCreated(BaseModel):
+class AssetDetail(BaseModel):
     id: int
     name: str
     asset_hash: str
@@ -54,13 +54,16 @@ class AssetCreated(BaseModel):
     preview_hash: Optional[str] = None
     created_at: Optional[datetime] = None
     last_access_time: Optional[datetime] = None
-    created_new: bool
 
     model_config = ConfigDict(from_attributes=True)
 
     @field_serializer("created_at", "last_access_time")
     def _ser_dt(self, v: Optional[datetime], _info):
         return v.isoformat() if v else None
+
+
+class AssetCreated(AssetDetail):
+    created_new: bool
 
 
 class TagUsage(BaseModel):

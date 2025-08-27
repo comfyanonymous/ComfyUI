@@ -9,7 +9,7 @@ from typing import Any, Sequence, Optional, Iterable
 import sqlalchemy as sa
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, delete, exists, func
-from sqlalchemy.orm import contains_eager
+from sqlalchemy.orm import contains_eager, noload
 from sqlalchemy.exc import IntegrityError
 
 from .models import Asset, AssetInfo, AssetInfoTag, AssetCacheState, Tag, AssetInfoMeta, AssetLocation
@@ -405,6 +405,41 @@ async def fetch_asset_info_and_asset(session: AsyncSession, *, asset_info_id: in
     if not pair:
         return None
     return pair[0], pair[1]
+
+
+async def fetch_asset_info_asset_and_tags(
+    session: AsyncSession,
+    *,
+    asset_info_id: int,
+) -> Optional[tuple[AssetInfo, Asset, list[str]]]:
+    """Fetch AssetInfo, its Asset, and all tag names.
+
+    Returns:
+      (AssetInfo, Asset, [tag_names]) or None if the asset_info_id does not exist.
+    """
+    stmt = (
+        select(AssetInfo, Asset, Tag.name)
+        .join(Asset, Asset.hash == AssetInfo.asset_hash)
+        .join(AssetInfoTag, AssetInfoTag.asset_info_id == AssetInfo.id, isouter=True)
+        .join(Tag, Tag.name == AssetInfoTag.tag_name, isouter=True)
+        .where(AssetInfo.id == asset_info_id)
+        .options(noload(AssetInfo.tags))
+        .order_by(Tag.name.asc())
+    )
+
+    rows = (await session.execute(stmt)).all()
+    if not rows:
+        return None
+
+    # First row contains the mapped entities; tags may repeat across rows
+    first_info, first_asset, _ = rows[0]
+    tags: list[str] = []
+    seen: set[str] = set()
+    for _info, _asset, tag_name in rows:
+        if tag_name and tag_name not in seen:
+            seen.add(tag_name)
+            tags.append(tag_name)
+    return first_info, first_asset, tags
 
 
 async def get_cache_state_by_asset_hash(session: AsyncSession, *, asset_hash: str) -> Optional[AssetCacheState]:

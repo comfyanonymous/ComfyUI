@@ -49,7 +49,7 @@ async def list_assets(request: web.Request) -> web.Response:
     return web.json_response(payload.model_dump(mode="json"))
 
 
-@ROUTES.get("/api/assets/{id}/content")
+@ROUTES.get("/api/assets/{id:\\d+}/content")
 async def download_asset_content(request: web.Request) -> web.Response:
     asset_info_id_raw = request.match_info.get("id")
     try:
@@ -198,7 +198,24 @@ async def upload_asset(request: web.Request) -> web.Response:
         return _error_response(500, "INTERNAL", "Unexpected server error.")
 
 
-@ROUTES.put("/api/assets/{id}")
+@ROUTES.get("/api/assets/{id:\\d+}")
+async def get_asset(request: web.Request) -> web.Response:
+    asset_info_id_raw = request.match_info.get("id")
+    try:
+        asset_info_id = int(asset_info_id_raw)
+    except Exception:
+        return _error_response(400, "INVALID_ID", f"AssetInfo id '{asset_info_id_raw}' is not a valid integer.")
+
+    try:
+        result = await assets_manager.get_asset(asset_info_id=asset_info_id)
+    except ValueError as ve:
+        return _error_response(404, "ASSET_NOT_FOUND", str(ve), {"id": asset_info_id})
+    except Exception:
+        return _error_response(500, "INTERNAL", "Unexpected server error.")
+    return web.json_response(result.model_dump(mode="json"), status=200)
+
+
+@ROUTES.put("/api/assets/{id:\\d+}")
 async def update_asset(request: web.Request) -> web.Response:
     asset_info_id_raw = request.match_info.get("id")
     try:
@@ -227,7 +244,7 @@ async def update_asset(request: web.Request) -> web.Response:
     return web.json_response(result.model_dump(mode="json"), status=200)
 
 
-@ROUTES.delete("/api/assets/{id}")
+@ROUTES.delete("/api/assets/{id:\\d+}")
 async def delete_asset(request: web.Request) -> web.Response:
     asset_info_id_raw = request.match_info.get("id")
     try:
@@ -267,7 +284,7 @@ async def get_tags(request: web.Request) -> web.Response:
     return web.json_response(result.model_dump(mode="json"))
 
 
-@ROUTES.post("/api/assets/{id}/tags")
+@ROUTES.post("/api/assets/{id:\\d+}/tags")
 async def add_asset_tags(request: web.Request) -> web.Response:
     asset_info_id_raw = request.match_info.get("id")
     try:
@@ -298,7 +315,7 @@ async def add_asset_tags(request: web.Request) -> web.Response:
     return web.json_response(result.model_dump(mode="json"), status=200)
 
 
-@ROUTES.delete("/api/assets/{id}/tags")
+@ROUTES.delete("/api/assets/{id:\\d+}/tags")
 async def delete_asset_tags(request: web.Request) -> web.Response:
     asset_info_id_raw = request.match_info.get("id")
     try:
