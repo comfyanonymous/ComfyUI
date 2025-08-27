@@ -459,7 +459,7 @@ class QwenImageTransformer2DModel(nn.Module):
                 if i < len(control_i):
                     add = control_i[i]
                     if add is not None:
-                        hidden_states += add
+                        hidden_states[:, :add.shape[1]] += add
 
         hidden_states = self.norm_out(hidden_states, temb)
         hidden_states = self.proj_out(hidden_states)

@@ -158,7 +158,7 @@ class Flux(nn.Module):
                 if i < len(control_i):
                     add = control_i[i]
                     if add is not None:
-                        img += add
+                        img[:, :add.shape[1]] += add
 
         if img.dtype == torch.float16:
             img = torch.nan_to_num(img, nan=0.0, posinf=65504, neginf=-65504)
@@ -189,7 +189,7 @@ class Flux(nn.Module):
                 if i < len(control_o):
                     add = control_o[i]
                     if add is not None:
-                        img[:, txt.shape[1] :, ...] += add
+                        img[:, txt.shape[1] : txt.shape[1] + add.shape[1], ...] += add
 
         img = img[:, txt.shape[1] :, ...]
 
