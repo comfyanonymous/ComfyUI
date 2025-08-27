@@ -85,7 +85,7 @@ async def ingest_fs_asset(
     Upsert Asset identity row + cache state pointing at local file.
 
     Always:
-      - Insert Asset if missing; else update size_bytes (and updated_at) if different.
+      - Insert Asset if missing;
       - Insert AssetCacheState if missing; else update mtime_ns if different.
 
     Optionally (when info_name is provided):
@@ -123,7 +123,6 @@ async def ingest_fs_asset(
                     size_bytes=int(size_bytes),
                     mime_type=mime_type,
                     created_at=datetime_now,
-                    updated_at=datetime_now,
                 )
             )
             await session.flush()
@@ -140,7 +139,6 @@ async def ingest_fs_asset(
                 existing.mime_type = mime_type
                 changed = True
             if changed:
-                existing.updated_at = datetime_now
                 out["asset_updated"] = True
         else:
             logging.error("Asset %s not found after PK conflict; skipping update.", asset_hash)
