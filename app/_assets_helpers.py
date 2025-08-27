@@ -2,7 +2,11 @@ import os
 from pathlib import Path
 from typing import Optional, Literal, Sequence
 
+import sqlalchemy as sa
+
 import folder_paths
+
+from .database.models import AssetInfo
 
 
 def get_comfy_models_folders() -> list[tuple[str, list[str]]]:
@@ -133,3 +137,11 @@ def ensure_within_base(candidate: str, base: str) -> None:
             raise ValueError("destination escapes base directory")
     except Exception:
         raise ValueError("invalid destination path")
+
+
+def visible_owner_clause(owner_id: str) -> sa.sql.ClauseElement:
+    """Build owner visibility predicate for reads."""
+    owner_id = (owner_id or "").strip()
+    if owner_id == "":
+        return AssetInfo.owner_id == ""
+    return AssetInfo.owner_id.in_(["", owner_id])

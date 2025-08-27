@@ -8,11 +8,12 @@ from pydantic import ValidationError
 
 import folder_paths
 
-from .. import assets_manager, assets_scanner
+from .. import assets_manager, assets_scanner, user_manager
 from . import schemas_in, schemas_out
 
 
 ROUTES = web.RouteTableDef()
+UserManager: Optional[user_manager.UserManager] = None
 
 
 @ROUTES.head("/api/assets/hash/{hash}")
@@ -45,6 +46,7 @@ async def list_assets(request: web.Request) -> web.Response:
         offset=q.offset,
         sort=q.sort,
         order=q.order,
+        owner_id=UserManager.get_request_user_id(request),
     )
     return web.json_response(payload.model_dump(mode="json"))
 
@@ -63,7 +65,8 @@ async def download_asset_content(request: web.Request) -> web.Response:
 
     try:
         abs_path, content_type, filename = await assets_manager.resolve_asset_content_for_download(
-            asset_info_id=asset_info_id
+            asset_info_id=asset_info_id,
+            owner_id=UserManager.get_request_user_id(request),
         )
     except ValueError as ve:
         return _error_response(404, "ASSET_NOT_FOUND", str(ve))
@@ -96,6 +99,7 @@ async def create_asset_from_hash(request: web.Request) -> web.Response:
         name=body.name,
         tags=body.tags,
         user_metadata=body.user_metadata,
+        owner_id=UserManager.get_request_user_id(request),
     )
     if result is None:
         return _error_response(404, "ASSET_NOT_FOUND", f"Asset content {body.hash} does not exist")
@@ -186,6 +190,7 @@ async def upload_asset(request: web.Request) -> web.Response:
             spec,
             temp_path=tmp_path,
             client_filename=file_client_name,
+            owner_id=UserManager.get_request_user_id(request),
         )
         return web.json_response(created.model_dump(mode="json"), status=201)
     except ValueError:
@@ -207,7 +212,10 @@ async def get_asset(request: web.Request) -> web.Response:
         return _error_response(400, "INVALID_ID", f"AssetInfo id '{asset_info_id_raw}' is not a valid integer.")
 
     try:
-        result = await assets_manager.get_asset(asset_info_id=asset_info_id)
+        result = await assets_manager.get_asset(
+            asset_info_id=asset_info_id,
+            owner_id=UserManager.get_request_user_id(request),
+        )
     except ValueError as ve:
         return _error_response(404, "ASSET_NOT_FOUND", str(ve), {"id": asset_info_id})
     except Exception:
@@ -236,8 +244,9 @@ async def update_asset(request: web.Request) -> web.Response:
             name=body.name,
             tags=body.tags,
             user_metadata=body.user_metadata,
+            owner_id=UserManager.get_request_user_id(request),
         )
-    except ValueError as ve:
+    except (ValueError, PermissionError) as ve:
         return _error_response(404, "ASSET_NOT_FOUND", str(ve), {"id": asset_info_id})
     except Exception:
         return _error_response(500, "INTERNAL", "Unexpected server error.")
@@ -253,7 +262,10 @@ async def delete_asset(request: web.Request) -> web.Response:
         return _error_response(400, "INVALID_ID", f"AssetInfo id '{asset_info_id_raw}' is not a valid integer.")
 
     try:
-        deleted = await assets_manager.delete_asset_reference(asset_info_id=asset_info_id)
+        deleted = await assets_manager.delete_asset_reference(
+            asset_info_id=asset_info_id,
+            owner_id=UserManager.get_request_user_id(request),
+        )
     except Exception:
         return _error_response(500, "INTERNAL", "Unexpected server error.")
 
@@ -280,6 +292,7 @@ async def get_tags(request: web.Request) -> web.Response:
         offset=query.offset,
         order=query.order,
         include_zero=query.include_zero,
+        owner_id=UserManager.get_request_user_id(request),
     )
     return web.json_response(result.model_dump(mode="json"))
 
@@ -306,8 +319,9 @@ async def add_asset_tags(request: web.Request) -> web.Response:
             tags=data.tags,
             origin="manual",
             added_by=None,
+            owner_id=UserManager.get_request_user_id(request),
         )
-    except ValueError as ve:
+    except (ValueError, PermissionError) as ve:
         return _error_response(404, "ASSET_NOT_FOUND", str(ve), {"id": asset_info_id})
     except Exception:
         return _error_response(500, "INTERNAL", "Unexpected server error.")
@@ -335,6 +349,7 @@ async def delete_asset_tags(request: web.Request) -> web.Response:
         result = await assets_manager.remove_tags_from_asset(
             asset_info_id=asset_info_id,
             tags=data.tags,
+            owner_id=UserManager.get_request_user_id(request),
         )
     except ValueError as ve:
         return _error_response(404, "ASSET_NOT_FOUND", str(ve), {"id": asset_info_id})
@@ -370,7 +385,9 @@ async def get_asset_scan_status(request: web.Request) -> web.Response:
     return web.json_response(states.model_dump(mode="json"), status=200)
 
 
-def register_assets_routes(app: web.Application) -> None:
+def register_assets_system(app: web.Application, user_manager_instance: user_manager.UserManager) -> None:
+    global UserManager
+    UserManager = user_manager_instance
     app.add_routes(ROUTES)
 
 

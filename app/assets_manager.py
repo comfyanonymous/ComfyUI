@@ -25,9 +25,14 @@ from .database.services import (
     get_asset_by_hash,
     create_asset_info_for_existing_asset,
     fetch_asset_info_asset_and_tags,
+    get_asset_info_by_id,
 )
 from .api import schemas_in, schemas_out
-from ._assets_helpers import get_name_and_tags_from_asset_path, ensure_within_base, resolve_destination_from_tags
+from ._assets_helpers import (
+    get_name_and_tags_from_asset_path,
+    ensure_within_base,
+    resolve_destination_from_tags,
+)
 from .assets_fetcher import ensure_asset_cached
 
 
@@ -98,6 +103,7 @@ async def list_assets(
     offset: int = 0,
     sort: str = "created_at",
     order: str = "desc",
+    owner_id: str = "",
 ) -> schemas_out.AssetsList:
     sort = _safe_sort_field(sort)
     order = "desc" if (order or "desc").lower() not in {"asc", "desc"} else order.lower()
@@ -105,6 +111,7 @@ async def list_assets(
     async with await create_session() as session:
         infos, tag_map, total = await list_asset_infos_page(
             session,
+            owner_id=owner_id,
             include_tags=include_tags,
             exclude_tags=exclude_tags,
             name_contains=name_contains,
@@ -141,9 +148,9 @@ async def list_assets(
     )
 
 
-async def get_asset(*, asset_info_id: int) -> schemas_out.AssetDetail:
+async def get_asset(*, asset_info_id: int, owner_id: str = "") -> schemas_out.AssetDetail:
     async with await create_session() as session:
-        res = await fetch_asset_info_asset_and_tags(session, asset_info_id=asset_info_id)
+        res = await fetch_asset_info_asset_and_tags(session, asset_info_id=asset_info_id, owner_id=owner_id)
         if not res:
             raise ValueError(f"AssetInfo {asset_info_id} not found")
         info, asset, tag_names = res
@@ -163,7 +170,9 @@ async def get_asset(*, asset_info_id: int) -> schemas_out.AssetDetail:
 
 
 async def resolve_asset_content_for_download(
-    *, asset_info_id: int
+    *,
+    asset_info_id: int,
+    owner_id: str = "",
 ) -> tuple[str, str, str]:
     """
     Returns (abs_path, content_type, download_name) for the given AssetInfo id and touches last_access_time.
@@ -173,7 +182,7 @@ async def resolve_asset_content_for_download(
       ValueError if AssetInfo cannot be found
     """
     async with await create_session() as session:
-        pair = await fetch_asset_info_and_asset(session, asset_info_id=asset_info_id)
+        pair = await fetch_asset_info_and_asset(session, asset_info_id=asset_info_id, owner_id=owner_id)
         if not pair:
             raise ValueError(f"AssetInfo {asset_info_id} not found")
 
@@ -198,6 +207,7 @@ async def upload_asset_from_temp_path(
     *,
     temp_path: str,
     client_filename: Optional[str] = None,
+    owner_id: str = "",
 ) -> schemas_out.AssetCreated:
     """
     Finalize an uploaded temp file:
@@ -250,7 +260,7 @@ async def upload_asset_from_temp_path(
             mtime_ns=mtime_ns,
             mime_type=content_type,
             info_name=os.path.basename(dest_abs),
-            owner_id="",
+            owner_id=owner_id,
             preview_hash=None,
             user_metadata=spec.user_metadata or {},
             tags=spec.tags,
@@ -262,7 +272,7 @@ async def upload_asset_from_temp_path(
         if not info_id:
             raise RuntimeError("failed to create asset metadata")
 
-        pair = await fetch_asset_info_and_asset(session, asset_info_id=int(info_id))
+        pair = await fetch_asset_info_and_asset(session, asset_info_id=int(info_id), owner_id=owner_id)
         if not pair:
             raise RuntimeError("inconsistent DB state after ingest")
         info, asset = pair
@@ -290,8 +300,15 @@ async def update_asset(
     name: Optional[str] = None,
     tags: Optional[list[str]] = None,
     user_metadata: Optional[dict] = None,
+    owner_id: str = "",
 ) -> schemas_out.AssetUpdated:
     async with await create_session() as session:
+        info_row = await get_asset_info_by_id(session, asset_info_id=asset_info_id)
+        if not info_row:
+            raise ValueError(f"AssetInfo {asset_info_id} not found")
+        if info_row.owner_id and info_row.owner_id != owner_id:
+            raise PermissionError("not owner")
+
         info = await update_asset_info_full(
             session,
             asset_info_id=asset_info_id,
@@ -300,6 +317,7 @@ async def update_asset(
             user_metadata=user_metadata,
             tag_origin="manual",
             added_by=None,
+            asset_info_row=info_row,
         )
 
         tag_names = await get_asset_tags(session, asset_info_id=asset_info_id)
@@ -315,9 +333,9 @@ async def update_asset(
     )
 
 
-async def delete_asset_reference(*, asset_info_id: int) -> bool:
+async def delete_asset_reference(*, asset_info_id: int, owner_id: str) -> bool:
     async with await create_session() as session:
-        r = await delete_asset_info_by_id(session, asset_info_id=asset_info_id)
+        r = await delete_asset_info_by_id(session, asset_info_id=asset_info_id, owner_id=owner_id)
         await session.commit()
     return r
 
@@ -328,6 +346,7 @@ async def create_asset_from_hash(
     name: str,
     tags: Optional[list[str]] = None,
     user_metadata: Optional[dict] = None,
+    owner_id: str = "",
 ) -> Optional[schemas_out.AssetCreated]:
     canonical = hash_str.strip().lower()
     async with await create_session() as session:
@@ -343,6 +362,7 @@ async def create_asset_from_hash(
             tags=tags or [],
             tag_origin="manual",
             added_by=None,
+            owner_id=owner_id,
         )
         tag_names = await get_asset_tags(session, asset_info_id=info.id)
         await session.commit()
@@ -369,6 +389,7 @@ async def list_tags(
     offset: int = 0,
     order: str = "count_desc",
     include_zero: bool = True,
+    owner_id: str = "",
 ) -> schemas_out.TagsList:
     limit = max(1, min(1000, limit))
     offset = max(0, offset)
@@ -381,6 +402,7 @@ async def list_tags(
             offset=offset,
             include_zero=include_zero,
             order=order,
+            owner_id=owner_id,
         )
 
     tags = [schemas_out.TagUsage(name=name, count=count, type=tag_type) for (name, tag_type, count) in rows]
@@ -393,8 +415,14 @@ async def add_tags_to_asset(
     tags: list[str],
     origin: str = "manual",
     added_by: Optional[str] = None,
+    owner_id: str = "",
 ) -> schemas_out.TagsAdd:
     async with await create_session() as session:
+        info_row = await get_asset_info_by_id(session, asset_info_id=asset_info_id)
+        if not info_row:
+            raise ValueError(f"AssetInfo {asset_info_id} not found")
+        if info_row.owner_id and info_row.owner_id != owner_id:
+            raise PermissionError("not owner")
         data = await add_tags_to_asset_info(
             session,
             asset_info_id=asset_info_id,
@@ -402,6 +430,7 @@ async def add_tags_to_asset(
             origin=origin,
             added_by=added_by,
             create_if_missing=True,
+            asset_info_row=info_row,
         )
         await session.commit()
     return schemas_out.TagsAdd(**data)
@@ -411,8 +440,15 @@ async def remove_tags_from_asset(
     *,
     asset_info_id: int,
     tags: list[str],
+    owner_id: str = "",
 ) -> schemas_out.TagsRemove:
     async with await create_session() as session:
+        info_row = await get_asset_info_by_id(session, asset_info_id=asset_info_id)
+        if not info_row:
+            raise ValueError(f"AssetInfo {asset_info_id} not found")
+        if info_row.owner_id and info_row.owner_id != owner_id:
+            raise PermissionError("not owner")
+
         data = await remove_tags_from_asset_info(
             session,
             asset_info_id=asset_info_id,
