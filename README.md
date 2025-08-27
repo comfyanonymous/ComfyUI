@@ -3,7 +3,7 @@ ComfyUI LTS
 
 A vanilla, up-to-date fork of [ComfyUI](https://github.com/comfyanonymous/comfyui) intended for long term support (LTS) from [AppMana](https://appmana.com) and [Hidden Switch](https://hiddenswitch.com).
 
-### New Features
+### New Features Compared to Upstream
 
 - To run, just type `comfyui` in your command line and press enter.
 - [Installable](#installing) via `uv`: `uv pip install --torch-backend=auto "comfyui@git+https://github.com/hiddenswitch/ComfyUI.git"`.
@@ -16,69 +16,6 @@ A vanilla, up-to-date fork of [ComfyUI](https://github.com/comfyanonymous/comfyu
 - [Embed](#embedded) ComfyUI as a library inside your Python application. No server or frontend needed.
 - [Containers](#containers) for running on Linux, Windows and Kubernetes with CUDA acceleration.
 - Automated tests for new features.
-
-![ComfyUI Screenshot](https://github.com/user-attachments/assets/7ccaf2c1-9b72-41ae-9a89-5688c94b7abe)
-
-ComfyUI lets you design and execute advanced stable diffusion pipelines using a graph/nodes/flowchart based interface. Available on Windows, Linux, and macOS.
-
-## [Examples](https://comfyanonymous.github.io/ComfyUI_examples/)
-
-See what ComfyUI can do with the [example workflows](https://comfyanonymous.github.io/ComfyUI_examples/).
-
-## Upstream Features
-- Nodes/graph/flowchart interface to experiment and create complex Stable Diffusion workflows without needing to code anything.
-- Image Models
-    - SD1.x, SD2.x ([unCLIP](https://comfyanonymous.github.io/ComfyUI_examples/unclip/))
-    - [SDXL](https://comfyanonymous.github.io/ComfyUI_examples/sdxl/), [SDXL Turbo](https://comfyanonymous.github.io/ComfyUI_examples/sdturbo/)
-    - [Stable Cascade](https://comfyanonymous.github.io/ComfyUI_examples/stable_cascade/)
-    - [SD3 and SD3.5](https://comfyanonymous.github.io/ComfyUI_examples/sd3/)
-    - Pixart Alpha and Sigma
-    - [AuraFlow](https://comfyanonymous.github.io/ComfyUI_examples/aura_flow/)
-    - [HunyuanDiT](https://comfyanonymous.github.io/ComfyUI_examples/hunyuan_dit/)
-    - [Flux](https://comfyanonymous.github.io/ComfyUI_examples/flux/)
-    - [Lumina Image 2.0](https://comfyanonymous.github.io/ComfyUI_examples/lumina2/)
-    - [HiDream](https://comfyanonymous.github.io/ComfyUI_examples/hidream/)
-   - [Qwen Image](https://comfyanonymous.github.io/ComfyUI_examples/qwen_image/)
-- Image Editing Models
-   - [Omnigen 2](https://comfyanonymous.github.io/ComfyUI_examples/omnigen/)
-   - [Flux Kontext](https://comfyanonymous.github.io/ComfyUI_examples/flux/#flux-kontext-image-editing-model)
-   - [HiDream E1.1](https://comfyanonymous.github.io/ComfyUI_examples/hidream/#hidream-e11)
-   - [Qwen Image Edit](https://comfyanonymous.github.io/ComfyUI_examples/qwen_image/#edit-model)
-- Video Models
-    - [Stable Video Diffusion](https://comfyanonymous.github.io/ComfyUI_examples/video/)
-    - [Mochi](https://comfyanonymous.github.io/ComfyUI_examples/mochi/)
-    - [LTX-Video](https://comfyanonymous.github.io/ComfyUI_examples/ltxv/)
-    - [Hunyuan Video](https://comfyanonymous.github.io/ComfyUI_examples/hunyuan_video/)
-    - [Wan 2.1](https://comfyanonymous.github.io/ComfyUI_examples/wan/)
-   - [Wan 2.2](https://comfyanonymous.github.io/ComfyUI_examples/wan22/)
-- Audio Models
-   - [Stable Audio](https://comfyanonymous.github.io/ComfyUI_examples/audio/)
-   - [ACE Step](https://comfyanonymous.github.io/ComfyUI_examples/audio/)
-- 3D Models
-    - [Hunyuan3D 2.0](https://docs.comfy.org/tutorials/3d/hunyuan3D-2)
-- Asynchronous Queue system
-- Many optimizations: Only re-executes the parts of the workflow that changes between executions.
-- Smart memory management: can automatically run large models on GPUs with as low as 1GB vram with smart offloading.
-- Works even if you don't have a GPU with: ```--cpu``` (slow)
-- Can load ckpt and safetensors: All in one checkpoints or standalone diffusion models, VAEs and CLIP models.
-- Safe loading of ckpt, pt, pth, etc.. files.
-- Embeddings/Textual inversion
-- [Loras (regular, locon and loha)](https://comfyanonymous.github.io/ComfyUI_examples/lora/)
-- [Hypernetworks](https://comfyanonymous.github.io/ComfyUI_examples/hypernetworks/)
-- Loading full workflows (with seeds) from generated PNG, WebP and FLAC files.
-- Saving/Loading workflows as Json files.
-- Nodes interface can be used to create complex workflows like one for [Hires fix](https://comfyanonymous.github.io/ComfyUI_examples/2_pass_txt2img/) or much more advanced ones.
-- [Area Composition](https://comfyanonymous.github.io/ComfyUI_examples/area_composition/)
-- [Inpainting](https://comfyanonymous.github.io/ComfyUI_examples/inpaint/) with both regular and inpainting models.
-- [ControlNet and T2I-Adapter](https://comfyanonymous.github.io/ComfyUI_examples/controlnet/)
-- [Upscale Models (ESRGAN, ESRGAN variants, SwinIR, Swin2SR, etc...)](https://comfyanonymous.github.io/ComfyUI_examples/upscale_models/)
-- [GLIGEN](https://comfyanonymous.github.io/ComfyUI_examples/gligen/)
-- [Model Merging](https://comfyanonymous.github.io/ComfyUI_examples/model_merging/)
-- [LCM models and Loras](https://comfyanonymous.github.io/ComfyUI_examples/lcm/)
-- Latent previews with [TAESD](#how-to-show-high-quality-previews)
-- Works fully offline: core will never download anything unless you want to.
-- Optional API nodes to use paid models from external providers through the online [Comfy API](https://docs.comfy.org/tutorials/api-nodes/overview).
-- [Config file](extra_model_paths.yaml.example) to set the search paths for models.
 
 ### Table of Contents
 
@@ -295,32 +232,6 @@ RDNA 2 (RX 6600 and others)
 export HSA_OVERRIDE_GFX_VERSION=10.3.0
 uv run comfyui
 ```
-
-You can enable experimental memory efficient attention on pytorch 2.5 in ComfyUI on RDNA3 and potentially other AMD GPUs using this command:
-
-```TORCH_ROCM_AOTRITON_ENABLE_EXPERIMENTAL=1 python main.py --use-pytorch-cross-attention```
-
-You can also try setting this env variable `PYTORCH_TUNABLEOP_ENABLED=1` which might speed things up at the cost of a very slow initial run.
-
-###### Notes for Ascend NPU Users
-
-These instructions from upstream have not yet been validated.
-
-For models compatible with Ascend Extension for PyTorch (`torch_npu`). To get started, ensure your environment meets the prerequisites outlined on the [installation](https://ascend.github.io/docs/sources/ascend/quick_install.html) page. Here's a step-by-step guide tailored to your platform and installation method:
-
-1. Begin by installing the recommended or newer kernel version for Linux as specified in the Installation page of torch-npu, if necessary.
-2. Proceed with the installation of Ascend Basekit, which includes the driver, firmware, and CANN, following the instructions provided for your specific platform.
-3. Next, install the necessary packages for `torch-npu` by adhering to the platform-specific instructions on the [Installation](https://ascend.github.io/docs/sources/pytorch/install.html#pytorch) page.
-
-###### Notes for Cambricon MLU Users
-
-These instructions from upstream have not yet been validated.
-
-For models compatible with Cambricon Extension for PyTorch (`torch_mlu`). Here's a step-by-step guide tailored to your platform and installation method:
-
-1. Install the Cambricon CNToolkit by adhering to the platform-specific instructions on the [Installation](https://www.cambricon.com/docs/sdk_1.15.0/cntoolkit_3.7.2/cntoolkit_install_3.7.2/index.html)
-2. Next, install the PyTorch (`torch_mlu`) extension following the instructions on the [Installation](https://www.cambricon.com/docs/sdk_1.15.0/cambricon_pytorch_1.17.0/user_guide_1.9/index.html)
-3. Launch ComfyUI by running `python main.py`
 
 # Large Language Models
 
@@ -765,81 +676,9 @@ You must use Python 3.11 on macOS devices, and update to at least Ventura.
 
 Download your model file again.
 
-# Using the Editor
-
-## Notes
-
-Only parts of the graph that have an output with all the correct inputs will be executed.
-
-Only parts of the graph that change from each execution to the next will be executed, if you submit the same graph twice only the first will be executed. If you change the last part of the graph only the part you changed and the part that depends on it will be executed.
-
-Dragging a generated png on the webpage or loading one will give you the full workflow including seeds that were used to create it.
-
-You can use `()` to change emphasis of a word or phrase like: `(good code:1.2)` or `(bad code:0.8)`. The default emphasis for `()` is 1.1. To use `()` characters in your actual prompt escape them like `\\(` or `\\)`.
-
-You can use `{day|night}`, for wildcard/dynamic prompts. With this syntax "{wild|card|test}" will be randomly replaced by either "wild", "card" or "test" by the frontend every time you queue the prompt. To use {} characters in your actual prompt escape them like: \\{ or \\}.
-
-Dynamic prompts also support C-style comments, like `// comment` or `/* comment */`.
-
-To use a textual inversion concepts/embeddings in a text prompt put them in the models/embeddings directory and use them in the CLIPTextEncode node like this (you can omit the .pt extension):
-
-```embedding:embedding_filename.pt```
-
-##### How to increase generation speed?
-
-Make sure you use the regular loaders/Load Checkpoint node to load checkpoints. It will auto pick the right settings depending on your GPU.
-
-You can set this command line setting to disable the upcasting to fp32 in some cross attention operations which will increase your speed. Note that this will very likely give you black images on SD2.x models. If you use xformers or pytorch attention this option does not do anything.
-
-```--dont-upcast-attention```
-
-##### How to show high-quality previews?
-
-Use ```--preview-method auto``` to enable previews.
-
-The default installation includes a fast latent preview method that's low-resolution. To enable higher-quality previews with [TAESD](https://github.com/madebyollin/taesd), download the [taesd_decoder.pth](https://github.com/madebyollin/taesd/raw/main/taesd_decoder.pth) (for SD1.x and SD2.x) and [taesdxl_decoder.pth](https://github.com/madebyollin/taesd/raw/main/taesdxl_decoder.pth) (for SDXL) models and place them in the `models/vae_approx` folder. Once they're installed, restart ComfyUI to enable high-quality previews.
-
-## Keyboard Shortcuts
-
-| Keybind                                | Explanation                                                                                                        |
-|----------------------------------------|--------------------------------------------------------------------------------------------------------------------|
-| `Ctrl` + `Enter`                       | Queue up current graph for generation                                                                              |
-| `Ctrl` + `Shift` + `Enter`             | Queue up current graph as first for generation                                                                     |
-| `Ctrl` + `Alt` + `Enter`               | Cancel current generation                                                                                          |
-| `Ctrl` + `Z`/`Ctrl` + `Y`              | Undo/Redo                                                                                                          |
-| `Ctrl` + `S`                           | Save workflow                                                                                                      |
-| `Ctrl` + `O`                           | Load workflow                                                                                                      |
-| `Ctrl` + `A`                           | Select all nodes                                                                                                   |
-| `Alt `+ `C`                            | Collapse/uncollapse selected nodes                                                                                 |
-| `Ctrl` + `M`                           | Mute/unmute selected nodes                                                                                         |
-| `Ctrl` + `B`                           | Bypass selected nodes (acts like the node was removed from the graph and the wires reconnected through)            |
-| `Delete`/`Backspace`                   | Delete selected nodes                                                                                              |
-| `Ctrl` + `Backspace`                   | Delete the current graph                                                                                           |
-| `Space`                                | Move the canvas around when held and moving the cursor                                                             |
-| `Ctrl`/`Shift` + `Click`               | Add clicked node to selection                                                                                      |
-| `Ctrl` + `C`/`Ctrl` + `V`              | Copy and paste selected nodes (without maintaining connections to outputs of unselected nodes)                     |
-| `Ctrl` + `C`/`Ctrl` + `Shift` + `V`    | Copy and paste selected nodes (maintaining connections from outputs of unselected nodes to inputs of pasted nodes) |
-| `Shift` + `Drag`                       | Move multiple selected nodes at the same time                                                                      |
-| `Ctrl` + `D`                           | Load default graph                                                                                                 |
-| `Alt` + `+`                            | Canvas Zoom in                                                                                                     |
-| `Alt` + `-`                            | Canvas Zoom out                                                                                                    |
-| `Ctrl` + `Shift` + LMB + Vertical drag | Canvas Zoom in/out                                                                                                 |
-| `P`                                    | Pin/Unpin selected nodes                                                                                           |
-| `Ctrl` + `G`                           | Group selected nodes                                                                                               |
-| `Q`                                    | Toggle visibility of the queue                                                                                     |
-| `H`                                    | Toggle visibility of history                                                                                       |
-| `R`                                    | Refresh graph                                                                                                      |
-| `F`                                    | Show/Hide menu                                                                                                     |
-| `.`                                    | Fit view to selection (Whole graph when nothing is selected)                                                       |
-| Double-Click LMB                       | Open node quick search palette                                                                                     |
-| `Shift` + Drag                         | Move multiple wires at once                                                                                        |
-| `Ctrl` + `Alt` + LMB                   | Disconnect all wires from clicked slot                                                                             |
-
-`Ctrl` can also be replaced with `Cmd` instead for macOS users
-
 # Configuration
 
-This supports configuration with command line arguments, the environment and a configuration file.
+This project supports configuration with command line arguments, the environment and a configuration file.
 
 ## Configuration File
 
@@ -1313,6 +1152,26 @@ async with Comfy() as client:
 
 See [script_examples/basic_api_example.py](docs/examples/script_examples/basic_api_example.py) for a complete example.
 
+Preview can be retrieved too:
+
+```python
+prompt_dict = copy.deepcopy(_PROMPT_FROM_WEB_UI)
+prompt_dict["6"]["inputs"]["text"] = "masterpiece best quality man"
+...
+preview_frames = []
+async with Comfy() as client:
+    task = client.queue_with_progress(prompt)
+    async for notification in task.progress():
+        if notification.event == BinaryEventTypes.PREVIEW_IMAGE_WITH_METADATA:
+            image_data: PreviewImageWithMetadataMessage = notification.data
+            unencoded_preview, _ = image_data
+            
+            preview_frames.append(unencoded_preview.pil_image.copy())
+```
+
+See more in Colab: https://colab.research.google.com/drive/1Gd9F8iYRJW-LG8JLiwGTKLAcXLJ5eH78#scrollTo=mP_72JH6v1BK
+
+
 ### Remote
 
 Visit the ComfyUI interface, design your workflow and click **Save (API Format)**. This JSON is what you will use as your workflow.
@@ -1533,55 +1392,6 @@ docker run -p "8188:8188" -v %cd%:/workspace -w "/workspace" --rm -it --gpus=all
 ```shell
 docker run -p "8188:8188" -v $(pwd):/workspace -w "/workspace" --rm -it --gpus=all --ipc=host ghcr.io/hiddenswitch/comfyui:latest
 ```
-
-## Frontend Development
-
-As of August 15, 2024, we have transitioned to a new frontend, which is now hosted in a separate repository: [ComfyUI Frontend](https://github.com/Comfy-Org/ComfyUI_frontend). This repository now hosts the compiled JS (from TS/Vue) under the `web/` directory.
-
-### Reporting Issues and Requesting Features
-
-For any bugs, issues, or feature requests related to the frontend, please use the [ComfyUI Frontend repository](https://github.com/Comfy-Org/ComfyUI_frontend). This will help us manage and address frontend-specific concerns more efficiently.
-
-### Using the Latest Frontend
-
-The new frontend is now the default for ComfyUI. However, please note:
-
-1. The frontend in the main ComfyUI repository is updated fortnightly.
-2. Daily releases are available in the separate frontend repository.
-
-To use the most up-to-date frontend version:
-
-1. For the latest daily release, launch ComfyUI with this command line argument:
-
-   ```
-   --front-end-version Comfy-Org/ComfyUI_frontend@latest
-   ```
-
-2. For a specific version, replace `latest` with the desired version number:
-
-   ```
-   --front-end-version Comfy-Org/ComfyUI_frontend@1.2.2
-   ```
-
-This approach allows you to easily switch between the stable fortnightly release and the cutting-edge daily updates, or even specific versions for testing purposes.
-
-### Accessing the Legacy Frontend
-
-If you need to use the legacy frontend for any reason, you can access it using the following command line argument:
-
-```
---front-end-version Comfy-Org/ComfyUI_legacy_frontend@latest
-```
-
-This will use a snapshot of the legacy frontend preserved in the [ComfyUI Legacy Frontend repository](https://github.com/Comfy-Org/ComfyUI_legacy_frontend).
-
-### Iluvatar Corex
-
-For models compatible with Iluvatar Extension for PyTorch. Here's a step-by-step guide tailored to your platform and installation method:
-
-1. Install the Iluvatar Corex Toolkit by adhering to the platform-specific instructions on the [Installation](https://support.iluvatar.com/#/DocumentCentre?id=1&nameCenter=2&productId=520117912052801536)
-2. Launch ComfyUI by running `python main.py`
-
 
 ## Community
 
