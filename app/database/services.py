@@ -79,7 +79,6 @@ async def ingest_fs_asset(
     user_metadata: Optional[dict] = None,
     tags: Sequence[str] = (),
     tag_origin: str = "manual",
-    added_by: Optional[str] = None,
     require_existing_tags: bool = False,
 ) -> dict:
     """
@@ -247,7 +246,6 @@ async def ingest_fs_asset(
                             asset_info_id=out["asset_info_id"],
                             tag_name=t,
                             origin=tag_origin,
-                            added_by=added_by,
                             added_at=datetime_now,
                         )
                         for t in to_add
@@ -516,7 +514,6 @@ async def create_asset_info_for_existing_asset(
     user_metadata: Optional[dict] = None,
     tags: Optional[Sequence[str]] = None,
     tag_origin: str = "manual",
-    added_by: Optional[str] = None,
     owner_id: str = "",
 ) -> AssetInfo:
     """Create a new AssetInfo referencing an existing Asset (no content write)."""
@@ -544,7 +541,6 @@ async def create_asset_info_for_existing_asset(
             asset_info_id=info.id,
             tags=tags,
             origin=tag_origin,
-            added_by=added_by,
         )
     return info
 
@@ -555,7 +551,6 @@ async def set_asset_info_tags(
     asset_info_id: int,
     tags: Sequence[str],
     origin: str = "manual",
-    added_by: Optional[str] = None,
 ) -> dict:
     """
     Replace the tag set on an AssetInfo with `tags`. Idempotent.
@@ -576,7 +571,7 @@ async def set_asset_info_tags(
     if to_add:
         await _ensure_tags_exist(session, to_add, tag_type="user")
         session.add_all([
-            AssetInfoTag(asset_info_id=asset_info_id, tag_name=t, origin=origin, added_by=added_by, added_at=utcnow())
+            AssetInfoTag(asset_info_id=asset_info_id, tag_name=t, origin=origin, added_at=utcnow())
             for t in to_add
         ])
         await session.flush()
@@ -599,7 +594,6 @@ async def update_asset_info_full(
     tags: Optional[Sequence[str]] = None,
     user_metadata: Optional[dict] = None,
     tag_origin: str = "manual",
-    added_by: Optional[str] = None,
     asset_info_row: Any = None,
 ) -> AssetInfo:
     """
@@ -633,7 +627,6 @@ async def update_asset_info_full(
             asset_info_id=asset_info_id,
             tags=tags,
             origin=tag_origin,
-            added_by=added_by,
         )
         touched = True
 
@@ -776,7 +769,6 @@ async def add_tags_to_asset_info(
     asset_info_id: int,
     tags: Sequence[str],
     origin: str = "manual",
-    added_by: Optional[str] = None,
     create_if_missing: bool = True,
     asset_info_row: Any = None,
 ) -> dict:
@@ -820,7 +812,6 @@ async def add_tags_to_asset_info(
                             asset_info_id=asset_info_id,
                             tag_name=t,
                             origin=origin,
-                            added_by=added_by,
                             added_at=utcnow(),
                         )
                         for t in to_add

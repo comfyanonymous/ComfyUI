@@ -67,7 +67,6 @@ def upgrade() -> None:
         sa.Column("asset_info_id", sa.Integer(), sa.ForeignKey("assets_info.id", ondelete="CASCADE"), nullable=False),
         sa.Column("tag_name", sa.String(length=512), sa.ForeignKey("tags.name", ondelete="RESTRICT"), nullable=False),
         sa.Column("origin", sa.String(length=32), nullable=False, server_default="manual"),
-        sa.Column("added_by", sa.String(length=128), nullable=True),
         sa.Column("added_at", sa.DateTime(timezone=False), nullable=False),
         sa.PrimaryKeyConstraint("asset_info_id", "tag_name", name="pk_asset_info_tags"),
     )

@@ -246,7 +246,6 @@ async def upload_asset_from_temp_path(
                 user_metadata=spec.user_metadata or {},
                 tags=spec.tags or [],
                 tag_origin="manual",
-                added_by=None,
                 owner_id=owner_id,
             )
             tag_names = await get_asset_tags(session, asset_info_id=info.id)
@@ -306,7 +305,6 @@ async def upload_asset_from_temp_path(
             user_metadata=spec.user_metadata or {},
             tags=spec.tags,
             tag_origin="manual",
-            added_by=None,
             require_existing_tags=False,
         )
         info_id = result["asset_info_id"]
@@ -357,7 +355,6 @@ async def update_asset(
             tags=tags,
             user_metadata=user_metadata,
             tag_origin="manual",
-            added_by=None,
             asset_info_row=info_row,
         )
 
@@ -402,7 +399,6 @@ async def create_asset_from_hash(
             user_metadata=user_metadata or {},
             tags=tags or [],
             tag_origin="manual",
-            added_by=None,
             owner_id=owner_id,
         )
         tag_names = await get_asset_tags(session, asset_info_id=info.id)
@@ -455,7 +451,6 @@ async def add_tags_to_asset(
     asset_info_id: int,
     tags: list[str],
     origin: str = "manual",
-    added_by: Optional[str] = None,
     owner_id: str = "",
 ) -> schemas_out.TagsAdd:
     async with await create_session() as session:
@@ -469,7 +464,6 @@ async def add_tags_to_asset(
             asset_info_id=asset_info_id,
             tags=tags,
             origin=origin,
-            added_by=added_by,
             create_if_missing=True,
             asset_info_row=info_row,
         )

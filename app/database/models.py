@@ -244,7 +244,6 @@ class AssetInfoTag(Base):
         String(512), ForeignKey("tags.name", ondelete="RESTRICT"), primary_key=True
     )
     origin: Mapped[str] = mapped_column(String(32), nullable=False, default="manual")
-    added_by: Mapped[str | None] = mapped_column(String(128))
     added_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=False), nullable=False, default=utcnow
     )

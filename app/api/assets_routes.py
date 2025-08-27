@@ -397,7 +397,6 @@ async def add_asset_tags(request: web.Request) -> web.Response:
             asset_info_id=asset_info_id,
             tags=data.tags,
             origin="manual",
-            added_by=None,
             owner_id=UserManager.get_request_user_id(request),
         )
     except (ValueError, PermissionError) as ve:
