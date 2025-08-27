@@ -894,7 +894,7 @@ class WanSoundImageToVideo(io.ComfyNode):
                 io.AudioEncoderOutput.Input("audio_encoder_output", optional=True),
                 io.Image.Input("ref_image", optional=True),
                 io.Image.Input("control_video", optional=True),
-                # io.Image.Input("ref_motion", optional=True),
+                io.Image.Input("ref_motion", optional=True),
             ],
             outputs=[
                 io.Conditioning.Output(display_name="positive"),

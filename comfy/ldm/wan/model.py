@@ -4,7 +4,7 @@ import math
 
 import torch
 import torch.nn as nn
-from einops import repeat, rearrange
+from einops import rearrange
 
 from comfy.ldm.modules.attention import optimized_attention
 from comfy.ldm.flux.layers import EmbedND
@@ -153,7 +153,10 @@ def repeat_e(e, x):
         repeats = x.size(1) // e.size(1)
     if repeats == 1:
         return e
-    return torch.repeat_interleave(e, repeats, dim=1)
+    if repeats * e.size(1) == x.size(1):
+        return torch.repeat_interleave(e, repeats, dim=1)
+    else:
+        return torch.repeat_interleave(e, repeats + 1, dim=1)[:, :x.size(1)]
 
 
 class WanAttentionBlock(nn.Module):
@@ -573,16 +576,23 @@ class WanModel(torch.nn.Module):
         x = self.unpatchify(x, grid_sizes)
         return x
 
-    def rope_encode(self, t, h, w, t_start=0, device=None, dtype=None):
+    def rope_encode(self, t, h, w, t_start=0, steps_t=None, steps_h=None, steps_w=None, device=None, dtype=None):
         patch_size = self.patch_size
         t_len = ((t + (patch_size[0] // 2)) // patch_size[0])
         h_len = ((h + (patch_size[1] // 2)) // patch_size[1])
         w_len = ((w + (patch_size[2] // 2)) // patch_size[2])
 
-        img_ids = torch.zeros((t_len, h_len, w_len, 3), device=device, dtype=dtype)
-        img_ids[:, :, :, 0] = img_ids[:, :, :, 0] + torch.linspace(0, t_len - 1, steps=t_len, device=device, dtype=dtype).reshape(-1, 1, 1)
-        img_ids[:, :, :, 1] = img_ids[:, :, :, 1] + torch.linspace(0, h_len - 1, steps=h_len, device=device, dtype=dtype).reshape(1, -1, 1)
-        img_ids[:, :, :, 2] = img_ids[:, :, :, 2] + torch.linspace(0, w_len - 1, steps=w_len, device=device, dtype=dtype).reshape(1, 1, -1)
+        if steps_t is None:
+            steps_t = t_len
+        if steps_h is None:
+            steps_h = h_len
+        if steps_w is None:
+            steps_w = w_len
+
+        img_ids = torch.zeros((steps_t, steps_h, steps_w, 3), device=device, dtype=dtype)
+        img_ids[:, :, :, 0] = img_ids[:, :, :, 0] + torch.linspace(t_start, t_start + (t_len - 1), steps=steps_t, device=device, dtype=dtype).reshape(-1, 1, 1)
+        img_ids[:, :, :, 1] = img_ids[:, :, :, 1] + torch.linspace(0, h_len - 1, steps=steps_h, device=device, dtype=dtype).reshape(1, -1, 1)
+        img_ids[:, :, :, 2] = img_ids[:, :, :, 2] + torch.linspace(0, w_len - 1, steps=steps_w, device=device, dtype=dtype).reshape(1, 1, -1)
         img_ids = img_ids.reshape(1, -1, img_ids.shape[-1])
 
         freqs = self.rope_embedder(img_ids).movedim(1, 2)
@@ -942,7 +952,7 @@ class MotionEncoder_tc(nn.Module):
         x = self.norm3(x)
         x = self.act(x)
         x = rearrange(x, '(b n) t c -> b t n c', b=b)
-        padding = self.padding_tokens.repeat(b, x.shape[1], 1, 1)
+        padding = comfy.model_management.cast_to(self.padding_tokens, dtype=x.dtype, device=x.device).repeat(b, x.shape[1], 1, 1)
         x = torch.cat([x, padding], dim=-2)
         x_local = x.clone()
 
@@ -994,7 +1004,7 @@ class CausalAudioEncoder(nn.Module):
 
     def forward(self, features):
         # features B * num_layers * dim * video_length
-        weights = self.act(self.weights)
+        weights = self.act(comfy.model_management.cast_to(self.weights, dtype=features.dtype, device=features.device))
         weights_sum = weights.sum(dim=1, keepdims=True)
         weighted_feat = ((features * weights) / weights_sum).sum(
             dim=1)  # b dim f
@@ -1097,6 +1107,67 @@ class AudioInjector_WAN(nn.Module):
         return x
 
 
+class FramePackMotioner(nn.Module):
+    def __init__(
+            self,
+            inner_dim=1024,
+            num_heads=16,  # Used to indicate the number of heads in the backbone network; unrelated to this module's design
+            zip_frame_buckets=[
+                1, 2, 16
+            ],  # Three numbers representing the number of frames sampled for patch operations from the nearest to the farthest frames
+            drop_mode="drop",  # If not "drop", it will use "padd", meaning padding instead of deletion
+            dtype=None,
+            device=None,
+            operations=None):
+        super().__init__()
+        self.proj = operations.Conv3d(16, inner_dim, kernel_size=(1, 2, 2), stride=(1, 2, 2), dtype=dtype, device=device)
+        self.proj_2x = operations.Conv3d(16, inner_dim, kernel_size=(2, 4, 4), stride=(2, 4, 4), dtype=dtype, device=device)
+        self.proj_4x = operations.Conv3d(16, inner_dim, kernel_size=(4, 8, 8), stride=(4, 8, 8), dtype=dtype, device=device)
+        self.zip_frame_buckets = zip_frame_buckets
+
+        self.inner_dim = inner_dim
+        self.num_heads = num_heads
+
+        self.drop_mode = drop_mode
+
+    def forward(self, motion_latents, rope_embedder, add_last_motion=2):
+        lat_height, lat_width = motion_latents.shape[3], motion_latents.shape[4]
+        padd_lat = torch.zeros(motion_latents.shape[0], 16, sum(self.zip_frame_buckets), lat_height, lat_width).to(device=motion_latents.device, dtype=motion_latents.dtype)
+        overlap_frame = min(padd_lat.shape[2], motion_latents.shape[2])
+        if overlap_frame > 0:
+            padd_lat[:, :, -overlap_frame:] = motion_latents[:, :, -overlap_frame:]
+
+        if add_last_motion < 2 and self.drop_mode != "drop":
+            zero_end_frame = sum(self.zip_frame_buckets[:len(self.zip_frame_buckets) - add_last_motion - 1])
+            padd_lat[:, :, -zero_end_frame:] = 0
+
+        clean_latents_4x, clean_latents_2x, clean_latents_post = padd_lat[:, :, -sum(self.zip_frame_buckets):, :, :].split(self.zip_frame_buckets[::-1], dim=2)  # 16, 2 ,1
+
+        # patchfy
+        clean_latents_post = self.proj(clean_latents_post).flatten(2).transpose(1, 2)
+        clean_latents_2x = self.proj_2x(clean_latents_2x)
+        l_2x_shape = clean_latents_2x.shape
+        clean_latents_2x = clean_latents_2x.flatten(2).transpose(1, 2)
+        clean_latents_4x = self.proj_4x(clean_latents_4x)
+        l_4x_shape = clean_latents_4x.shape
+        clean_latents_4x = clean_latents_4x.flatten(2).transpose(1, 2)
+
+        if add_last_motion < 2 and self.drop_mode == "drop":
+            clean_latents_post = clean_latents_post[:, :
+                                                    0] if add_last_motion < 2 else clean_latents_post
+            clean_latents_2x = clean_latents_2x[:, :
+                                                0] if add_last_motion < 1 else clean_latents_2x
+
+        motion_lat = torch.cat([clean_latents_post, clean_latents_2x, clean_latents_4x], dim=1)
+
+        rope_post = rope_embedder.rope_encode(1, lat_height, lat_width, t_start=-1, device=motion_latents.device, dtype=motion_latents.dtype)
+        rope_2x = rope_embedder.rope_encode(1, lat_height, lat_width, t_start=-3, steps_h=l_2x_shape[-2], steps_w=l_2x_shape[-1], device=motion_latents.device, dtype=motion_latents.dtype)
+        rope_4x = rope_embedder.rope_encode(4, lat_height, lat_width, t_start=-19, steps_h=l_4x_shape[-2], steps_w=l_4x_shape[-1], device=motion_latents.device, dtype=motion_latents.dtype)
+
+        rope = torch.cat([rope_post, rope_2x, rope_4x], dim=1)
+        return motion_lat, rope
+
+
 class WanModel_S2V(WanModel):
     def __init__(self,
                  model_type='s2v',
@@ -1128,7 +1199,6 @@ class WanModel_S2V(WanModel):
                  ):
 
         super().__init__(model_type='t2v', patch_size=patch_size, text_len=text_len, in_dim=in_dim, dim=dim, ffn_dim=ffn_dim, freq_dim=freq_dim, text_dim=text_dim, out_dim=out_dim, num_heads=num_heads, num_layers=num_layers, window_size=window_size, qk_norm=qk_norm, cross_attn_norm=cross_attn_norm, eps=eps, image_model=image_model, device=device, dtype=dtype, operations=operations)
-        operation_settings = {"operations": operations, "device": device, "dtype": dtype}
 
         self.trainable_cond_mask = operations.Embedding(3, self.dim, device=device, dtype=dtype)
 
@@ -1155,6 +1225,13 @@ class WanModel_S2V(WanModel):
             adain_mode=adain_mode,
             dtype=dtype, device=device, operations=operations
         )
+
+        self.frame_packer = FramePackMotioner(
+            inner_dim=self.dim,
+            num_heads=self.num_heads,
+            zip_frame_buckets=[1, 2, 16],
+            drop_mode=framepack_drop_mode,
+            dtype=dtype, device=device, operations=operations)
 
     def forward_orig(
         self,
@@ -1187,16 +1264,27 @@ class WanModel_S2V(WanModel):
         grid_sizes = x.shape[2:]
         x = x.flatten(2).transpose(1, 2)
         seq_len = x.size(1)
-        mask_input = torch.zeros([1, x.shape[1]], dtype=torch.long, device=x.device)
+
+        cond_mask_weight = comfy.model_management.cast_to(self.trainable_cond_mask.weight, dtype=x.dtype, device=x.device).unsqueeze(1).unsqueeze(1)
+        x = x + cond_mask_weight[0]
 
         if reference_latent is not None:
             ref = self.patch_embedding(reference_latent.float()).to(x.dtype)
             ref = ref.flatten(2).transpose(1, 2)
             freqs_ref = self.rope_encode(reference_latent.shape[-3], reference_latent.shape[-2], reference_latent.shape[-1], t_start=30, device=x.device, dtype=x.dtype)
+            ref = ref + cond_mask_weight[1]
             x = torch.cat([x, ref], dim=1)
             freqs = torch.cat([freqs, freqs_ref], dim=1)
-            mask_input = torch.cat([mask_input, torch.ones([1, ref.shape[1]], dtype=torch.long, device=x.device)], dim=1)
             t = torch.cat([t, torch.zeros((t.shape[0], reference_latent.shape[-3]), device=t.device, dtype=t.dtype)], dim=1)
+
+        if reference_motion is not None:
+            motion_encoded, freqs_motion = self.frame_packer(reference_motion, self)
+            motion_encoded = motion_encoded + cond_mask_weight[2]
+            x = torch.cat([x, motion_encoded], dim=1)
+            freqs = torch.cat([freqs, freqs_motion], dim=1)
+
+            t = torch.repeat_interleave(t, 2, dim=1)
+            t = torch.cat([t, torch.zeros((t.shape[0], 3), device=t.device, dtype=t.dtype)], dim=1)
 
         # time embeddings
         e = self.time_embedding(
@@ -1207,7 +1295,6 @@ class WanModel_S2V(WanModel):
         # context
         context = self.text_embedding(context)
 
-        x = x + self.trainable_cond_mask(mask_input).to(x.dtype)
 
         patches_replace = transformer_options.get("patches_replace", {})
         blocks_replace = patches_replace.get("dit", {})
