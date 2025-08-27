@@ -96,12 +96,13 @@ class ProgressStateMessage(TypedDict, total=True):
     prompt_id: str
     nodes: dict[str, ActiveNodeProgressState]
 
+PreviewImageWithMetadataMessage = tuple[UnencodedPreviewImageMessage, PreviewImageMetadata]
 
 ExecutedMessage = ExecutingMessage
 
 SendSyncEvent = Union[Literal["status", "execution_error", "executing", "progress", "executed", "progress_state"], BinaryEventTypes, None]
 
-SendSyncData = Union[ProgressStateMessage, StatusMessage, ExecutingMessage, DependencyExecutionErrorMessage, ExecutionErrorMessage, ExecutionInterruptedMessage, ProgressMessage, UnencodedPreviewImageMessage, tuple[PIL.Image.Image, PreviewImageMetadata], bytes, bytearray, str, None]
+SendSyncData = Union[ProgressStateMessage, StatusMessage, ExecutingMessage, DependencyExecutionErrorMessage, ExecutionErrorMessage, ExecutionInterruptedMessage, ProgressMessage, UnencodedPreviewImageMessage, PreviewImageWithMetadataMessage, bytes, bytearray, str, None]
 
 
 class SocketsMetadata(TypedDict, total=True):
