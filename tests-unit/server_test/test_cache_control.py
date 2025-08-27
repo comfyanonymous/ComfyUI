@@ -7,10 +7,8 @@ from unittest.mock import patch
 pytestmark = pytest.mark.asyncio  # Apply asyncio mark to all tests
 
 # Mock the problematic imports before importing server
-with patch('app.frontend_management.FrontendManager'):
-    with patch('utils.install_util.get_missing_requirements_message'):
-        with patch('utils.install_util.requirements_path'):
-            from server import cache_control, ONE_HOUR, ONE_DAY, IMG_EXTENSIONS
+with patch('app.frontend_management.FrontendManager'), patch('utils.install_util.get_missing_requirements_message'), patch('utils.install_util.requirements_path'):
+    from server import cache_control, ONE_HOUR, ONE_DAY, IMG_EXTENSIONS
 
 
 class TestCacheControl:
