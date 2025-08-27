@@ -786,6 +786,180 @@ class WanTrackToVideo(io.ComfyNode):
         return io.NodeOutput(positive, negative, out_latent)
 
 
+def linear_interpolation(features, input_fps, output_fps, output_len=None):
+    """
+    features: shape=[1, T, 512]
+    input_fps: fps for audio, f_a
+    output_fps: fps for video, f_m
+    output_len: video length
+    """
+    features = features.transpose(1, 2)  # [1, 512, T]
+    seq_len = features.shape[2] / float(input_fps)  # T/f_a
+    if output_len is None:
+        output_len = int(seq_len * output_fps)  # f_m*T/f_a
+    output_features = torch.nn.functional.interpolate(
+        features, size=output_len, align_corners=True,
+        mode='linear')  # [1, 512, output_len]
+    return output_features.transpose(1, 2)  # [1, output_len, 512]
+
+
+def get_sample_indices(original_fps,
+                       total_frames,
+                       target_fps,
+                       num_sample,
+                       fixed_start=None):
+    required_duration = num_sample / target_fps
+    required_origin_frames = int(np.ceil(required_duration * original_fps))
+    if required_duration > total_frames / original_fps:
+        raise ValueError("required_duration must be less than video length")
+
+    if not fixed_start is None and fixed_start >= 0:
+        start_frame = fixed_start
+    else:
+        max_start = total_frames - required_origin_frames
+        if max_start < 0:
+            raise ValueError("video length is too short")
+        start_frame = np.random.randint(0, max_start + 1)
+    start_time = start_frame / original_fps
+
+    end_time = start_time + required_duration
+    time_points = np.linspace(start_time, end_time, num_sample, endpoint=False)
+
+    frame_indices = np.round(np.array(time_points) * original_fps).astype(int)
+    frame_indices = np.clip(frame_indices, 0, total_frames - 1)
+    return frame_indices
+
+
+def get_audio_embed_bucket_fps(audio_embed, fps=16, batch_frames=81, m=0, video_rate=30):
+    num_layers, audio_frame_num, audio_dim = audio_embed.shape
+
+    if num_layers > 1:
+        return_all_layers = True
+    else:
+        return_all_layers = False
+
+    scale = video_rate / fps
+
+    min_batch_num = int(audio_frame_num / (batch_frames * scale)) + 1
+
+    bucket_num = min_batch_num * batch_frames
+    padd_audio_num = math.ceil(min_batch_num * batch_frames / fps * video_rate) - audio_frame_num
+    batch_idx = get_sample_indices(
+        original_fps=video_rate,
+        total_frames=audio_frame_num + padd_audio_num,
+        target_fps=fps,
+        num_sample=bucket_num,
+        fixed_start=0)
+    batch_audio_eb = []
+    audio_sample_stride = int(video_rate / fps)
+    for bi in batch_idx:
+        if bi < audio_frame_num:
+
+            chosen_idx = list(
+                range(bi - m * audio_sample_stride, bi + (m + 1) * audio_sample_stride, audio_sample_stride))
+            chosen_idx = [0 if c < 0 else c for c in chosen_idx]
+            chosen_idx = [
+                audio_frame_num - 1 if c >= audio_frame_num else c
+                for c in chosen_idx
+            ]
+
+            if return_all_layers:
+                frame_audio_embed = audio_embed[:, chosen_idx].flatten(
+                    start_dim=-2, end_dim=-1)
+            else:
+                frame_audio_embed = audio_embed[0][chosen_idx].flatten()
+        else:
+            frame_audio_embed = torch.zeros([audio_dim * (2 * m + 1)], device=audio_embed.device) if not return_all_layers \
+                else torch.zeros([num_layers, audio_dim * (2 * m + 1)], device=audio_embed.device)
+        batch_audio_eb.append(frame_audio_embed)
+    batch_audio_eb = torch.cat([c.unsqueeze(0) for c in batch_audio_eb], dim=0)
+
+    return batch_audio_eb, min_batch_num
+
+
+class WanSoundImageToVideo(io.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return io.Schema(
+            node_id="WanSoundImageToVideo",
+            category="conditioning/video_models",
+            inputs=[
+                io.Conditioning.Input("positive"),
+                io.Conditioning.Input("negative"),
+                io.Vae.Input("vae"),
+                io.Int.Input("width", default=832, min=16, max=nodes.MAX_RESOLUTION, step=16),
+                io.Int.Input("height", default=480, min=16, max=nodes.MAX_RESOLUTION, step=16),
+                io.Int.Input("length", default=77, min=1, max=nodes.MAX_RESOLUTION, step=4),
+                io.Int.Input("batch_size", default=1, min=1, max=4096),
+                io.AudioEncoderOutput.Input("audio_encoder_output", optional=True),
+                io.Image.Input("ref_image", optional=True),
+                io.Image.Input("control_video", optional=True),
+                io.Image.Input("ref_motion", optional=True),
+            ],
+            outputs=[
+                io.Conditioning.Output(display_name="positive"),
+                io.Conditioning.Output(display_name="negative"),
+                io.Latent.Output(display_name="latent"),
+            ],
+            is_experimental=True,
+        )
+
+    @classmethod
+    def execute(cls, positive, negative, vae, width, height, length, batch_size, ref_image=None, audio_encoder_output=None, control_video=None, ref_motion=None) -> io.NodeOutput:
+        latent_t = ((length - 1) // 4) + 1
+        if audio_encoder_output is not None:
+            feat = torch.cat(audio_encoder_output["encoded_audio_all_layers"])
+            video_rate = 30
+            fps = 16
+            feat = linear_interpolation(feat, input_fps=50, output_fps=video_rate)
+            audio_embed_bucket, num_repeat = get_audio_embed_bucket_fps(feat, fps=fps, batch_frames=latent_t * 4, m=0, video_rate=video_rate)
+            audio_embed_bucket = audio_embed_bucket.unsqueeze(0)
+            if len(audio_embed_bucket.shape) == 3:
+                audio_embed_bucket = audio_embed_bucket.permute(0, 2, 1)
+            elif len(audio_embed_bucket.shape) == 4:
+                audio_embed_bucket = audio_embed_bucket.permute(0, 2, 3, 1)
+
+            positive = node_helpers.conditioning_set_values(positive, {"audio_embed": audio_embed_bucket})
+            negative = node_helpers.conditioning_set_values(negative, {"audio_embed": audio_embed_bucket})
+
+        if ref_image is not None:
+            ref_image = comfy.utils.common_upscale(ref_image[:1].movedim(-1, 1), width, height, "bilinear", "center").movedim(1, -1)
+            ref_latent = vae.encode(ref_image[:, :, :, :3])
+            positive = node_helpers.conditioning_set_values(positive, {"reference_latents": [ref_latent]}, append=True)
+            negative = node_helpers.conditioning_set_values(negative, {"reference_latents": [ref_latent]}, append=True)
+
+        if ref_motion is not None:
+            if ref_motion.shape[0] > 73:
+                ref_motion = ref_motion[-73:]
+
+            ref_motion = comfy.utils.common_upscale(ref_motion.movedim(-1, 1), width, height, "bilinear", "center").movedim(1, -1)
+
+            if ref_motion.shape[0] < 73:
+                r = torch.ones([73, height, width, 3]) * 0.5
+                r[-ref_motion.shape[0]:] = ref_motion
+                ref_motion = r
+
+            ref_motion = vae.encode(ref_motion[:, :, :, :3])
+            positive = node_helpers.conditioning_set_values(positive, {"reference_motion": ref_motion})
+            negative = node_helpers.conditioning_set_values(negative, {"reference_motion": ref_motion})
+
+        latent = torch.zeros([batch_size, 16, latent_t, height // 8, width // 8], device=comfy.model_management.intermediate_device())
+
+        control_video_out = comfy.latent_formats.Wan21().process_out(torch.zeros_like(latent))
+        if control_video is not None:
+            control_video = comfy.utils.common_upscale(control_video[:length].movedim(-1, 1), width, height, "bilinear", "center").movedim(1, -1)
+            control_video = vae.encode(control_video[:, :, :, :3])
+            control_video_out[:, :, :control_video.shape[2]] = control_video
+
+        # TODO: check if zero is better than none if none provided
+        positive = node_helpers.conditioning_set_values(positive, {"control_video": control_video_out})
+        negative = node_helpers.conditioning_set_values(negative, {"control_video": control_video_out})
+
+        out_latent = {}
+        out_latent["samples"] = latent
+        return io.NodeOutput(positive, negative, out_latent)
+
+
 class Wan22ImageToVideoLatent(io.ComfyNode):
     @classmethod
     def define_schema(cls):
@@ -844,6 +1018,7 @@ class WanExtension(ComfyExtension):
             TrimVideoLatent,
             WanCameraImageToVideo,
             WanPhantomSubjectToVideo,
+            WanSoundImageToVideo,
             Wan22ImageToVideoLatent,
         ]
 
