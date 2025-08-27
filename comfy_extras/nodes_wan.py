@@ -920,7 +920,7 @@ class WanSoundImageToVideo(io.ComfyNode):
                 audio_embed_bucket = audio_embed_bucket.permute(0, 2, 3, 1)
 
             positive = node_helpers.conditioning_set_values(positive, {"audio_embed": audio_embed_bucket})
-            negative = node_helpers.conditioning_set_values(negative, {"audio_embed": audio_embed_bucket})
+            negative = node_helpers.conditioning_set_values(negative, {"audio_embed": audio_embed_bucket * 0.0})
 
         if ref_image is not None:
             ref_image = comfy.utils.common_upscale(ref_image[:1].movedim(-1, 1), width, height, "bilinear", "center").movedim(1, -1)
