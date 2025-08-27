@@ -609,15 +609,16 @@ class WanModel(torch.nn.Module):
         bs, c, t, h, w = x.shape
         x = comfy.ldm.common_dit.pad_to_patch_size(x, self.patch_size)
 
+        t_len = t
         if time_dim_concat is not None:
             time_dim_concat = comfy.ldm.common_dit.pad_to_patch_size(time_dim_concat, self.patch_size)
             x = torch.cat([x, time_dim_concat], dim=2)
-            t = x.shape[2]
+            t_len = x.shape[2]
 
         if self.ref_conv is not None and "reference_latent" in kwargs:
-            t += 1
+            t_len += 1
 
-        freqs = self.rope_encode(t, h, w, device=x.device, dtype=x.dtype)
+        freqs = self.rope_encode(t_len, h, w, device=x.device, dtype=x.dtype)
         return self.forward_orig(x, timestep, context, clip_fea=clip_fea, freqs=freqs, transformer_options=transformer_options, **kwargs)[:, :, :t, :h, :w]
 
     def unpatchify(self, x, grid_sizes):
