@@ -21,6 +21,7 @@ from io import BytesIO
 import aiohttp
 from aiohttp import web
 import logging
+import webbrowser
 
 import mimetypes
 from comfy.cli_args import args
@@ -943,6 +944,7 @@ class PromptServer():
             port = addr[1]
             site = web.TCPSite(runner, address, port, ssl_context=ssl_ctx)
             await site.start()
+            webbrowser.open(f"{scheme}://{address}:{port}")
 
             if not hasattr(self, 'address'):
                 self.address = address #TODO: remove this
