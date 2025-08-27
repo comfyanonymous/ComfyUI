@@ -691,6 +691,109 @@ class LoraLoaderModelOnly(LoraLoader):
     def load_lora_model_only(self, model, lora_name, strength_model):
         return (self.load_lora(model, None, lora_name, strength_model, 0)[0],)
 
+class LoadLora:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "model": ("MODEL", {"tooltip": "The diffusion model the LoRA will be applied to."}),
+                "clip": ("CLIP", {"tooltip": "The CLIP model the LoRA will be applied to."}),
+                "lora_name": (folder_paths.get_filename_list("loras"), {"tooltip": "The name of the LoRA."}),
+                "strength_model": ("FLOAT", {"default": 1.0, "min": -100.0, "max": 100.0, "step": 0.01, "tooltip": "How strongly to modify the diffusion model. This value can be negative."}),
+                "strength_clip": ("FLOAT", {"default": 1.0, "min": -100.0, "max": 100.0, "step": 0.01, "tooltip": "How strongly to modify the CLIP model. This value can be negative."}),
+            }
+        }
+
+    RETURN_TYPES = ("MODEL", "CLIP")
+    OUTPUT_TOOLTIPS = ("The modified diffusion model.", "The modified CLIP model.")
+    FUNCTION = "load_lora"
+
+    CATEGORY = "loaders"
+    DESCRIPTION = "LoRAs are used to modify diffusion and CLIP models, altering the way in which latents are denoised such as applying styles. Multiple LoRA nodes can be linked together."
+
+    def load_lora(self, model, clip, lora_name, strength_model, strength_clip):
+        if strength_model == 0 and strength_clip == 0:
+            return (model, clip)
+
+        from comfy_execution.graph_utils import GraphBuilder
+        g = GraphBuilder()
+        # create the nodes
+        load_weights = g.node("LoadLoraWeights", lora_name=lora_name)
+        apply_weights = g.node("ApplyLoraWeights", model=model, clip=clip, lora=load_weights.out(0), strength_model=strength_model, strength_clip=strength_clip)
+
+        return {
+            "result": (apply_weights.out(0), apply_weights.out(1)),
+            "expand": g.finalize(),
+        }
+
+class LoadLoraModelOnly(LoadLora):
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": { "model": ("MODEL",),
+                              "lora_name": (folder_paths.get_filename_list("loras"), ),
+                              "strength_model": ("FLOAT", {"default": 1.0, "min": -100.0, "max": 100.0, "step": 0.01}),
+                              }}
+    RETURN_TYPES = ("MODEL",)
+    FUNCTION = "load_lora_model_only"
+    def load_lora_model_only(self, model, lora_name, strength_model):
+        if strength_model == 0:
+            return (model,)
+
+        from comfy_execution.graph_utils import GraphBuilder
+        g = GraphBuilder()
+        load_weights = g.node("LoadLoraWeights", lora_name=lora_name)
+        apply_weights = g.node("ApplyLoraWeights", model=model, clip=None, lora=load_weights.out(0), strength_model=strength_model, strength_clip=0)
+
+        return {
+            "result": (apply_weights.out(0),),
+            "expand": g.finalize(),
+        }
+
+class LoadLoraWeights:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": { "lora_name": (folder_paths.get_filename_list("loras"), ),
+                              }}
+    RETURN_TYPES = ("LORA_MODEL",)
+    FUNCTION = "load_lora_weights"
+    DEPRECATED = False
+
+    def load_lora_weights(self, lora_name):
+        lora_path = folder_paths.get_full_path_or_raise("loras", lora_name)
+        lora = comfy.utils.load_torch_file(lora_path, safe_load=True)
+        return (lora,)
+
+class ApplyLoraWeights:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": { "model": ("MODEL",),
+                              "clip": ("CLIP",),
+                              "lora": ("LORA_MODEL",),
+                              "strength_model": ("FLOAT", {"default": 1.0, "min": -100.0, "max": 100.0, "step": 0.01, "tooltip": "How strongly to modify the diffusion model. This value can be negative."}),
+                              "strength_clip": ("FLOAT", {"default": 1.0, "min": -100.0, "max": 100.0, "step": 0.01, "tooltip": "How strongly to modify the CLIP model. This value can be negative."}),
+                              }}
+    RETURN_TYPES = ("MODEL", "CLIP")
+    FUNCTION = "apply_lora_weights"
+    DEPRECATED = False
+
+    def apply_lora_weights(self, model, clip, lora, strength_model: float, strength_clip: float):
+        model_lora, clip_lora = comfy.sd.load_lora_for_models(model, clip, lora, strength_model, strength_clip)
+        return (model_lora, clip_lora)
+
+class ApplyLoraWeightsModelOnly(ApplyLoraWeights):
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": { "model": ("MODEL",),
+                              "lora": ("LORA_MODEL",),
+                              "strength_model": ("FLOAT", {"default": 1.0, "min": -100.0, "max": 100.0, "step": 0.01, "tooltip": "How strongly to modify the diffusion model. This value can be negative."}),
+                              }}
+    RETURN_TYPES = ("MODEL",)
+    FUNCTION = "apply_lora_weights_model_only"
+    DEPRECATED = False
+
+    def apply_lora_weights_model_only(self, model, lora, strength_model: float):
+        return (self.apply_lora_weights(model, None, lora, strength_model, 0)[0],)
+
 class VAELoader:
     @staticmethod
     def vae_list():
@@ -2007,6 +2110,12 @@ NODE_CLASS_MAPPINGS = {
     "ConditioningZeroOut": ConditioningZeroOut,
     "ConditioningSetTimestepRange": ConditioningSetTimestepRange,
     "LoraLoaderModelOnly": LoraLoaderModelOnly,
+
+    "LoadLora": LoadLora,
+    "LoadLoraModelOnly": LoadLoraModelOnly,
+    "LoadLoraWeights": LoadLoraWeights,
+    "ApplyLoraWeights": ApplyLoraWeights,
+    "ApplyLoraWeightsModelOnly": ApplyLoraWeightsModelOnly,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
@@ -2025,6 +2134,11 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "CLIPVisionLoader": "Load CLIP Vision",
     "UpscaleModelLoader": "Load Upscale Model",
     "UNETLoader": "Load Diffusion Model",
+    "LoadLora": "Load LoRA Expand",
+    "LoadLoraModelOnly": "Load LoRA Expand (Model Only)",
+    "LoadLoraWeights": "Load LoRA Weights",
+    "ApplyLoraWeights": "Apply LoRA Weights",
+    "ApplyLoraWeightsModelOnly": "Apply LoRA Weights (Model Only)",
     # Conditioning
     "CLIPVisionEncode": "CLIP Vision Encode",
     "StyleModelApply": "Apply Style Model",
