@@ -729,7 +729,6 @@ class PromptServer():
 
         @routes.post("/interrupt")
         async def post_interrupt(request):
-            logging.info("got interrupt")
             try:
                 json_data = await request.json()
             except json.JSONDecodeError:
