@@ -105,6 +105,38 @@ class LatentInterpolate:
         samples_out["samples"] = st * (m1 * ratio + m2 * (1.0 - ratio))
         return (samples_out,)
 
+class LatentConcat:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": { "samples1": ("LATENT",), "samples2": ("LATENT",), "dim": (["x", "-x", "y", "-y", "t", "-t"], )}}
+
+    RETURN_TYPES = ("LATENT",)
+    FUNCTION = "op"
+
+    CATEGORY = "latent/advanced"
+
+    def op(self, samples1, samples2, dim):
+        samples_out = samples1.copy()
+
+        s1 = samples1["samples"]
+        s2 = samples2["samples"]
+        s2 = comfy.utils.repeat_to_batch_size(s2, s1.shape[0])
+
+        if "-" in dim:
+            c = (s2, s1)
+        else:
+            c = (s1, s2)
+
+        if "x" in dim:
+            dim = -1
+        elif "y" in dim:
+            dim = -2
+        elif "t" in dim:
+            dim = -3
+
+        samples_out["samples"] = torch.cat(c, dim=dim)
+        return (samples_out,)
+
 class LatentBatch:
     @classmethod
     def INPUT_TYPES(s):
@@ -279,6 +311,7 @@ NODE_CLASS_MAPPINGS = {
     "LatentSubtract": LatentSubtract,
     "LatentMultiply": LatentMultiply,
     "LatentInterpolate": LatentInterpolate,
+    "LatentConcat": LatentConcat,
     "LatentBatch": LatentBatch,
     "LatentBatchSeedBehavior": LatentBatchSeedBehavior,
     "LatentApplyOperation": LatentApplyOperation,
