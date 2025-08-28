@@ -700,7 +700,7 @@ class Flux(supported_models_base.BASE):
     unet_extra_config = {}
     latent_format = latent_formats.Flux
 
-    memory_usage_factor = 2.8
+    memory_usage_factor = 3.1 # TODO: debug why flux mem usage is so weird on windows.
 
     supported_inference_dtypes = [torch.bfloat16, torch.float16, torch.float32]
 
