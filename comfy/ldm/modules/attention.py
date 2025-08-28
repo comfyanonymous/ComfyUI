@@ -142,38 +142,58 @@ def wrap_attn(func):
             to_add = 1000
             logged_stack = []
             logged_stack_to_index = -1
-            for frame_info in inspect.stack()[1:]:
-                if not continue_to_add:
-                    break
-                if to_add == 0:
-                    break
-                if frame_info.function == "_calc_cond_batch_outer":
-                    break
-                if 'venv' in frame_info.filename:
-                    continue
-                elif 'ComfyUI' not in frame_info.filename:
-                    continue
-                elif 'execution.py' in frame_info.filename:
-                    continue
-                elif 'patcher_extension.py' in frame_info.filename:
-                    continue
-                to_add -= 1
-                cls_name = get_class_from_frame(frame_info.frame)
-                log_string = f"{frame_info.filename}:{frame_info.lineno}"
-                if cls_name:
-                    log_string += f":{cls_name}.{frame_info.function}"
-                else:
-                    log_string += f":{frame_info.function}"
-                if has_transformer_options_passed(frame_info.frame):
-                    log_string += ":✅"
-                    if logged_stack_to_index == -1:
-                        logged_stack_to_index = len(logged_stack)
-                else:
-                    log_string += ":❌"
-                logged_stack.append(log_string)
-            # logging.info(f"Attn call stack: {logged_stack}")
-            # logging.info(f"Logged stack to index: {logged_stack[:logged_stack_to_index+1]}")
-            LOG_CONTENTS["|".join(logged_stack)] = (logged_stack_to_index, logged_stack)
+
+            frame = inspect.currentframe()
+            try:
+                # skip wrapper, start at actual wrapped function
+                frame = frame.f_back
+
+                while frame and continue_to_add and to_add > 0:
+                    code = frame.f_code
+                    filename = code.co_filename
+                    function = code.co_name
+                    lineno = frame.f_lineno
+
+                    if function == "_calc_cond_batch_outer":
+                        break
+                    if 'venv' in filename:
+                        frame = frame.f_back
+                        continue
+                    elif 'ComfyUI' not in filename:
+                        frame = frame.f_back
+                        continue
+                    elif 'execution.py' in filename:
+                        frame = frame.f_back
+                        continue
+                    elif 'patcher_extension.py' in filename:
+                        frame = frame.f_back
+                        continue
+
+                    to_add -= 1
+                    cls_name = get_class_from_frame(frame)
+                    log_string = f"{filename}:{lineno}"
+                    if cls_name:
+                        log_string += f":{cls_name}.{function}"
+                    else:
+                        log_string += f":{function}"
+
+                    if has_transformer_options_passed(frame):
+                        log_string += ":✅"
+                        if logged_stack_to_index == -1:
+                            logged_stack_to_index = len(logged_stack)
+                    else:
+                        log_string += ":❌"
+
+                    logged_stack.append(log_string)
+
+                    # move up the stack
+                    frame = frame.f_back
+
+                LOG_CONTENTS["|".join(logged_stack)] = (logged_stack_to_index, logged_stack)
+
+            finally:
+                # Important: break ref cycles so tensors aren't pinned
+                del frame
         transformer_options = kwargs.pop("transformer_options", None)
         if transformer_options is not None:
             if "optimized_attention_override" in transformer_options:
