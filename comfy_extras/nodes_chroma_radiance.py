@@ -28,7 +28,7 @@ class ChromaRadianceLatentToImage:
         self.device = comfy.model_management.intermediate_device()
 
     @classmethod
-    def INPUT_TYPES(s):
+    def INPUT_TYPES(s) -> dict:
         return {"required": {"latent": ("LATENT",)}}
 
     DESCRIPTION = "For use with Chroma Radiance. Converts an input LATENT to IMAGE."
@@ -37,7 +37,7 @@ class ChromaRadianceLatentToImage:
 
     CATEGORY = "latent/chroma_radiance"
 
-    def go(self, *, latent):
+    def go(self, *, latent: dict) -> tuple[torch.Tensor]:
         img = latent["samples"].to(device=self.device, dtype=torch.float32, copy=True)
         img = img.clamp_(-1, 1).movedim(1, -1).contiguous()
         img += 1.0
@@ -49,26 +49,32 @@ class ChromaRadianceImageToLatent:
         self.device = comfy.model_management.intermediate_device()
 
     @classmethod
-    def INPUT_TYPES(s):
+    def INPUT_TYPES(s) -> dict:
         return {"required": {"image": ("IMAGE",)}}
 
-    DESCRIPTION = "For use with Chroma Radiance. Converts an input IMAGE to LATENT."
+    DESCRIPTION = "For use with Chroma Radiance. Converts an input IMAGE to LATENT. Note: Radiance requires inputs with width/height that are multiples of 16 so your image will be cropped if necessary."
     RETURN_TYPES = ("LATENT",)
     FUNCTION = "go"
 
     CATEGORY = "latent/chroma_radiance"
 
-    def go(self, *, image):
+    def go(self, *, image: torch.Tensor) -> tuple[dict]:
         if image.ndim == 3:
             image = image.unsqueeze(0)
         elif image.ndim != 4:
             raise ValueError("Unexpected input image shape")
+        dims = image.shape[1:-1]
+        for d in range(len(dims)):
+            d_adj = (dims[d] // 16) * 16
+            if d_adj == d:
+                continue
+            d_offset = (dims[d] % 16) // 2
+            image = image.narrow(d + 1, d_offset, d_adj)
         h, w, c = image.shape[1:]
-        if h < 16 or w < 16 or not (h / 16).is_integer() or not (w / 16).is_integer():
-            raise ValueError("Chroma Radiance image inputs must have sizes that are multiples of 16.")
-        if c > 3:
-            image = image[..., :3]
-        elif c == 1:
+        if h < 16 or w < 16:
+            raise ValueError("Chroma Radiance image inputs must have height/width of at least 16 pixels.")
+        image = image[..., :3]
+        if c == 1:
             image = image.expand(-1, -1, -1, 3)
         elif c != 3:
             raise ValueError("Unexpected number of channels in input image")
@@ -83,7 +89,7 @@ class ChromaRadianceStubVAE:
         self.image_to_latent = ChromaRadianceImageToLatent()
         self.latent_to_image = ChromaRadianceLatentToImage()
 
-    DESCRIPTION = "For use with Chroma Radiance. Allows converting between latent and image types with nodes that require a VAE input."
+    DESCRIPTION = "For use with Chroma Radiance. Allows converting between latent and image types with nodes that require a VAE input. Note: Radiance requires inputs with width/height that are multiples of 16 so your image will be cropped if necessary."
     RETURN_TYPES = ("VAE",)
     FUNCTION = "go"
 
