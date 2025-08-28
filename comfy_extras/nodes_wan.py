@@ -1003,6 +1003,42 @@ class Wan22ImageToVideoLatent(io.ComfyNode):
         out_latent["noise_mask"] = mask.repeat((batch_size, ) + (1,) * (mask.ndim - 1))
         return io.NodeOutput(out_latent)
 
+import comfy.patcher_extension
+import comfy.ldm.modules.attention
+class AttentionOverrideTest(io.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return io.Schema(
+            node_id="AttentionOverrideTest",
+            category="devtools",
+            inputs=[
+                io.Model.Input("model"),
+            ],
+            outputs=[
+                io.Model.Output(),
+            ],
+        )
+
+    @staticmethod
+    def attention_override(func, transformer_options, *args, **kwargs):
+        new_attention = comfy.ldm.modules.attention.attention_basic
+        return new_attention.__wrapped__(*args, **kwargs)
+
+    @staticmethod
+    def sampler_sampler_wrapper(executor, *args, **kwargs):
+        try:
+            # extra_args = args[2]
+            return executor(*args, **kwargs)
+        finally:
+            pass
+
+    @classmethod
+    def execute(cls, model: io.Model.Type) -> io.NodeOutput:
+        model = model.clone()
+
+        model.model_options["transformer_options"]["optimized_attention_override"] = cls.attention_override
+        model.add_wrapper_with_key(comfy.patcher_extension.WrappersMP.SAMPLER_SAMPLE, "attention_override_test", cls.sampler_sampler_wrapper)
+        return io.NodeOutput(model)
 
 class WanExtension(ComfyExtension):
     @override
@@ -1020,6 +1056,7 @@ class WanExtension(ComfyExtension):
             WanPhantomSubjectToVideo,
             WanSoundImageToVideo,
             Wan22ImageToVideoLatent,
+            AttentionOverrideTest,
         ]
 
 async def comfy_entrypoint() -> WanExtension:
