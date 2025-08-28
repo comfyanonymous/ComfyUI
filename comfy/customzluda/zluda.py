@@ -438,6 +438,13 @@ try:
     else:
         print("  ::  Disabled cuDNN")
 
+    if os.environ.get("TORCH_BACKENDS_CUDNN_BENCHMARK"):
+        torch.backends.cudnn.benchmark = os.environ.get("TORCH_BACKENDS_CUDNN_BENCHMARK", "1").strip().lower() not in {"0", "off", "false", "disable", "disabled", "no"}
+        if torch.backends.cudnn.benchmark:
+            print("  ::  Enabled cuDNN Benchmark")
+        else:
+            print("  ::  Disabled cuDNN Benchmark")
+
     @triton.jit
     def _zluda_kernel_test(x_ptr, y_ptr, n_elements, BLOCK_SIZE: tl.constexpr):
         pid = tl.program_id(axis=0)
