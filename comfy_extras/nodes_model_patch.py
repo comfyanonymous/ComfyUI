@@ -108,7 +108,7 @@ class DiffSynthCnetPatch:
         img = kwargs.get("img")
         block_index = kwargs.get("block_index")
         spacial_compression = self.vae.spacial_compression_encode()
-        if self.encoded_image is None or self.encoded_image_size != (x.shape[-1] * spacial_compression, x.shape[-2] * spacial_compression):
+        if self.encoded_image is None or self.encoded_image_size != (x.shape[-2] * spacial_compression, x.shape[-1] * spacial_compression):
             image_scaled = comfy.utils.common_upscale(self.image.movedim(-1, 1), x.shape[-1] * spacial_compression, x.shape[-2] * spacial_compression, "area", "center")
             loaded_models = comfy.model_management.loaded_models(only_currently_used=True)
             self.encoded_image = self.model_patch.model.process_input_latent_image(self.encode_latent_cond(image_scaled.movedim(1, -1)))
