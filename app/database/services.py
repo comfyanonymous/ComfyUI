@@ -30,7 +30,7 @@ async def get_asset_by_hash(session: AsyncSession, *, asset_hash: str) -> Option
     return await session.get(Asset, asset_hash)
 
 
-async def get_asset_info_by_id(session: AsyncSession, *, asset_info_id: int) -> Optional[AssetInfo]:
+async def get_asset_info_by_id(session: AsyncSession, *, asset_info_id: str) -> Optional[AssetInfo]:
     return await session.get(AssetInfo, asset_info_id)
 
 
@@ -100,13 +100,13 @@ async def ingest_fs_asset(
         "asset_updated": bool,
         "state_created": bool,
         "state_updated": bool,
-        "asset_info_id": int | None,
+        "asset_info_id": str | None,
       }
     """
     locator = os.path.abspath(abs_path)
     datetime_now = utcnow()
 
-    out = {
+    out: dict[str, Any] = {
         "asset_created": False,
         "asset_updated": False,
         "state_created": False,
@@ -187,7 +187,7 @@ async def ingest_fs_asset(
                     last_access_time=datetime_now,
                 )
                 session.add(info)
-                await session.flush()  # get info.id
+                await session.flush()  # get info.id (UUID)
                 out["asset_info_id"] = info.id
 
         existing_info = (
@@ -263,11 +263,11 @@ async def ingest_fs_asset(
 async def touch_asset_infos_by_fs_path(
     session: AsyncSession,
     *,
-    abs_path: str,
+    file_path: str,
     ts: Optional[datetime] = None,
     only_if_newer: bool = True,
 ) -> int:
-    locator = os.path.abspath(abs_path)
+    locator = os.path.abspath(file_path)
     ts = ts or utcnow()
 
     stmt = sa.update(AssetInfo).where(
@@ -298,7 +298,7 @@ async def touch_asset_infos_by_fs_path(
 async def touch_asset_info_by_id(
     session: AsyncSession,
     *,
-    asset_info_id: int,
+    asset_info_id: str,
     ts: Optional[datetime] = None,
     only_if_newer: bool = True,
 ) -> int:
@@ -325,7 +325,7 @@ async def list_asset_infos_page(
     offset: int = 0,
     sort: str = "created_at",
     order: str = "desc",
-) -> tuple[list[AssetInfo], dict[int, list[str]], int]:
+) -> tuple[list[AssetInfo], dict[str, list[str]], int]:
     """Return page of AssetInfo rows in the viewers visibility."""
     base = (
         select(AssetInfo)
@@ -373,8 +373,8 @@ async def list_asset_infos_page(
     infos = (await session.execute(base)).scalars().unique().all()
 
     # Collect tags in bulk (single query)
-    id_list = [i.id for i in infos]
-    tag_map: dict[int, list[str]] = defaultdict(list)
+    id_list: list[str] = [i.id for i in infos]
+    tag_map: dict[str, list[str]] = defaultdict(list)
     if id_list:
         rows = await session.execute(
             select(AssetInfoTag.asset_info_id, Tag.name)
@@ -390,7 +390,7 @@ async def list_asset_infos_page(
 async def fetch_asset_info_and_asset(
     session: AsyncSession,
     *,
-    asset_info_id: int,
+    asset_info_id: str,
     owner_id: str = "",
 ) -> Optional[tuple[AssetInfo, Asset]]:
     stmt = (
@@ -412,7 +412,7 @@ async def fetch_asset_info_and_asset(
 async def fetch_asset_info_asset_and_tags(
     session: AsyncSession,
     *,
-    asset_info_id: int,
+    asset_info_id: str,
     owner_id: str = "",
 ) -> Optional[tuple[AssetInfo, Asset, list[str]]]:
     stmt = (
@@ -449,7 +449,7 @@ async def get_cache_state_by_asset_hash(session: AsyncSession, *, asset_hash: st
 
 async def list_asset_locations(
         session: AsyncSession, *, asset_hash: str, provider: Optional[str] = None
-) -> list[AssetLocation]:
+) -> list[AssetLocation] | Sequence[AssetLocation]:
     stmt = select(AssetLocation).where(AssetLocation.asset_hash == asset_hash)
     if provider:
         stmt = stmt.where(AssetLocation.provider == provider)
@@ -545,7 +545,7 @@ async def create_asset_info_for_existing_asset(
 async def set_asset_info_tags(
     session: AsyncSession,
     *,
-    asset_info_id: int,
+    asset_info_id: str,
     tags: Sequence[str],
     origin: str = "manual",
 ) -> dict:
@@ -586,7 +586,7 @@ async def set_asset_info_tags(
 async def update_asset_info_full(
     session: AsyncSession,
     *,
-    asset_info_id: int,
+    asset_info_id: str,
     name: Optional[str] = None,
     tags: Optional[Sequence[str]] = None,
     user_metadata: Optional[dict] = None,
@@ -634,7 +634,7 @@ async def update_asset_info_full(
     return info
 
 
-async def delete_asset_info_by_id(session: AsyncSession, *, asset_info_id: int, owner_id: str) -> bool:
+async def delete_asset_info_by_id(session: AsyncSession, *, asset_info_id: str, owner_id: str) -> bool:
     """Delete the user-visible AssetInfo row. Cascades clear tags and metadata."""
     res = await session.execute(delete(AssetInfo).where(
         AssetInfo.id == asset_info_id,
@@ -646,7 +646,7 @@ async def delete_asset_info_by_id(session: AsyncSession, *, asset_info_id: int, 
 async def replace_asset_info_metadata_projection(
     session: AsyncSession,
     *,
-    asset_info_id: int,
+    asset_info_id: str,
     user_metadata: Optional[dict],
 ) -> None:
     """Replaces the `assets_info.user_metadata` AND rebuild the projection rows in `asset_info_meta`."""
@@ -683,7 +683,7 @@ async def replace_asset_info_metadata_projection(
         await session.flush()
 
 
-async def get_asset_tags(session: AsyncSession, *, asset_info_id: int) -> list[str]:
+async def get_asset_tags(session: AsyncSession, *, asset_info_id: str) -> list[str]:
     return [
             tag_name
             for (tag_name,) in (
@@ -763,7 +763,7 @@ async def list_tags_with_usage(
 async def add_tags_to_asset_info(
     session: AsyncSession,
     *,
-    asset_info_id: int,
+    asset_info_id: str,
     tags: Sequence[str],
     origin: str = "manual",
     create_if_missing: bool = True,
@@ -829,7 +829,7 @@ async def add_tags_to_asset_info(
 async def remove_tags_from_asset_info(
     session: AsyncSession,
     *,
-    asset_info_id: int,
+    asset_info_id: str,
     tags: Sequence[str],
 ) -> dict:
     """Removes tags from an AssetInfo.

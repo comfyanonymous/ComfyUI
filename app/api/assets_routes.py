@@ -16,6 +16,9 @@ from . import schemas_in, schemas_out
 ROUTES = web.RouteTableDef()
 UserManager: Optional[user_manager.UserManager] = None
 
+# UUID regex (canonical hyphenated form, case-insensitive)
+UUID_RE = r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"
+
 
 @ROUTES.head("/api/assets/hash/{hash}")
 async def head_asset_by_hash(request: web.Request) -> web.Response:
@@ -52,13 +55,13 @@ async def list_assets(request: web.Request) -> web.Response:
     return web.json_response(payload.model_dump(mode="json"))
 
 
-@ROUTES.get("/api/assets/{id:\\d+}/content")
+@ROUTES.get(f"/api/assets/{{id:{UUID_RE}}}/content")
 async def download_asset_content(request: web.Request) -> web.Response:
-    asset_info_id_raw = request.match_info.get("id")
+    asset_info_id_raw = request.match_info.get("id", "")
     try:
-        asset_info_id = int(asset_info_id_raw)
+        asset_info_id = str(uuid.UUID(asset_info_id_raw))
     except Exception:
-        return _error_response(400, "INVALID_ID", f"AssetInfo id '{asset_info_id_raw}' is not a valid integer.")
+        return _error_response(400, "INVALID_ID", f"AssetInfo id '{asset_info_id_raw}' is not a valid UUID.")
 
     disposition = request.query.get("disposition", "attachment").lower().strip()
     if disposition not in {"inline", "attachment"}:
@@ -282,13 +285,13 @@ async def upload_asset(request: web.Request) -> web.Response:
         return _error_response(500, "INTERNAL", "Unexpected server error.")
 
 
-@ROUTES.get("/api/assets/{id:\\d+}")
+@ROUTES.get(f"/api/assets/{{id:{UUID_RE}}}")
 async def get_asset(request: web.Request) -> web.Response:
-    asset_info_id_raw = request.match_info.get("id")
+    asset_info_id_raw = request.match_info.get("id", "")
     try:
-        asset_info_id = int(asset_info_id_raw)
+        asset_info_id = str(uuid.UUID(asset_info_id_raw))
     except Exception:
-        return _error_response(400, "INVALID_ID", f"AssetInfo id '{asset_info_id_raw}' is not a valid integer.")
+        return _error_response(400, "INVALID_ID", f"AssetInfo id '{asset_info_id_raw}' is not a valid UUID.")
 
     try:
         result = await assets_manager.get_asset(
@@ -302,13 +305,13 @@ async def get_asset(request: web.Request) -> web.Response:
     return web.json_response(result.model_dump(mode="json"), status=200)
 
 
-@ROUTES.put("/api/assets/{id:\\d+}")
+@ROUTES.put(f"/api/assets/{{id:{UUID_RE}}}")
 async def update_asset(request: web.Request) -> web.Response:
-    asset_info_id_raw = request.match_info.get("id")
+    asset_info_id_raw = request.match_info.get("id", "")
     try:
-        asset_info_id = int(asset_info_id_raw)
+        asset_info_id = str(uuid.UUID(asset_info_id_raw))
     except Exception:
-        return _error_response(400, "INVALID_ID", f"AssetInfo id '{asset_info_id_raw}' is not a valid integer.")
+        return _error_response(400, "INVALID_ID", f"AssetInfo id '{asset_info_id_raw}' is not a valid UUID.")
 
     try:
         body = schemas_in.UpdateAssetBody.model_validate(await request.json())
@@ -332,13 +335,13 @@ async def update_asset(request: web.Request) -> web.Response:
     return web.json_response(result.model_dump(mode="json"), status=200)
 
 
-@ROUTES.delete("/api/assets/{id:\\d+}")
+@ROUTES.delete(f"/api/assets/{{id:{UUID_RE}}}")
 async def delete_asset(request: web.Request) -> web.Response:
-    asset_info_id_raw = request.match_info.get("id")
+    asset_info_id_raw = request.match_info.get("id", "")
     try:
-        asset_info_id = int(asset_info_id_raw)
+        asset_info_id = str(uuid.UUID(asset_info_id_raw))
     except Exception:
-        return _error_response(400, "INVALID_ID", f"AssetInfo id '{asset_info_id_raw}' is not a valid integer.")
+        return _error_response(400, "INVALID_ID", f"AssetInfo id '{asset_info_id_raw}' is not a valid UUID.")
 
     try:
         deleted = await assets_manager.delete_asset_reference(
@@ -376,13 +379,13 @@ async def get_tags(request: web.Request) -> web.Response:
     return web.json_response(result.model_dump(mode="json"))
 
 
-@ROUTES.post("/api/assets/{id:\\d+}/tags")
+@ROUTES.post(f"/api/assets/{{id:{UUID_RE}}}/tags")
 async def add_asset_tags(request: web.Request) -> web.Response:
-    asset_info_id_raw = request.match_info.get("id")
+    asset_info_id_raw = request.match_info.get("id", "")
     try:
-        asset_info_id = int(asset_info_id_raw)
+        asset_info_id = str(uuid.UUID(asset_info_id_raw))
     except Exception:
-        return _error_response(400, "INVALID_ID", f"AssetInfo id '{asset_info_id_raw}' is not a valid integer.")
+        return _error_response(400, "INVALID_ID", f"AssetInfo id '{asset_info_id_raw}' is not a valid UUID.")
 
     try:
         payload = await request.json()
@@ -407,13 +410,13 @@ async def add_asset_tags(request: web.Request) -> web.Response:
     return web.json_response(result.model_dump(mode="json"), status=200)
 
 
-@ROUTES.delete("/api/assets/{id:\\d+}/tags")
+@ROUTES.delete(f"/api/assets/{{id:{UUID_RE}}}/tags")
 async def delete_asset_tags(request: web.Request) -> web.Response:
-    asset_info_id_raw = request.match_info.get("id")
+    asset_info_id_raw = request.match_info.get("id", "")
     try:
-        asset_info_id = int(asset_info_id_raw)
+        asset_info_id = str(uuid.UUID(asset_info_id_raw))
     except Exception:
-        return _error_response(400, "INVALID_ID", f"AssetInfo id '{asset_info_id_raw}' is not a valid integer.")
+        return _error_response(400, "INVALID_ID", f"AssetInfo id '{asset_info_id_raw}' is not a valid UUID.")
 
     try:
         payload = await request.json()

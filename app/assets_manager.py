@@ -73,7 +73,7 @@ async def add_local_asset(tags: list[str], file_name: str, file_path: str) -> No
 
     async with await create_session() as session:
         if await check_fs_asset_exists_quick(session, file_path=abs_path, size_bytes=size_bytes, mtime_ns=mtime_ns):
-            await touch_asset_infos_by_fs_path(session, abs_path=abs_path)
+            await touch_asset_infos_by_fs_path(session, file_path=abs_path)
             await session.commit()
             return
 
@@ -149,7 +149,7 @@ async def list_assets(
     )
 
 
-async def get_asset(*, asset_info_id: int, owner_id: str = "") -> schemas_out.AssetDetail:
+async def get_asset(*, asset_info_id: str, owner_id: str = "") -> schemas_out.AssetDetail:
     async with await create_session() as session:
         res = await fetch_asset_info_asset_and_tags(session, asset_info_id=asset_info_id, owner_id=owner_id)
         if not res:
@@ -172,7 +172,7 @@ async def get_asset(*, asset_info_id: int, owner_id: str = "") -> schemas_out.As
 
 async def resolve_asset_content_for_download(
     *,
-    asset_info_id: int,
+    asset_info_id: str,
     owner_id: str = "",
 ) -> tuple[str, str, str]:
     """
@@ -311,7 +311,7 @@ async def upload_asset_from_temp_path(
         if not info_id:
             raise RuntimeError("failed to create asset metadata")
 
-        pair = await fetch_asset_info_and_asset(session, asset_info_id=int(info_id), owner_id=owner_id)
+        pair = await fetch_asset_info_and_asset(session, asset_info_id=info_id, owner_id=owner_id)
         if not pair:
             raise RuntimeError("inconsistent DB state after ingest")
         info, asset = pair
@@ -335,7 +335,7 @@ async def upload_asset_from_temp_path(
 
 async def update_asset(
     *,
-    asset_info_id: int,
+    asset_info_id: str,
     name: Optional[str] = None,
     tags: Optional[list[str]] = None,
     user_metadata: Optional[dict] = None,
@@ -371,7 +371,7 @@ async def update_asset(
     )
 
 
-async def delete_asset_reference(*, asset_info_id: int, owner_id: str) -> bool:
+async def delete_asset_reference(*, asset_info_id: str, owner_id: str) -> bool:
     async with await create_session() as session:
         r = await delete_asset_info_by_id(session, asset_info_id=asset_info_id, owner_id=owner_id)
         await session.commit()
@@ -448,7 +448,7 @@ async def list_tags(
 
 async def add_tags_to_asset(
     *,
-    asset_info_id: int,
+    asset_info_id: str,
     tags: list[str],
     origin: str = "manual",
     owner_id: str = "",
@@ -473,7 +473,7 @@ async def add_tags_to_asset(
 
 async def remove_tags_from_asset(
     *,
-    asset_info_id: int,
+    asset_info_id: str,
     tags: list[str],
     owner_id: str = "",
 ) -> schemas_out.TagsRemove:

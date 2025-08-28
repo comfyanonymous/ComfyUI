@@ -30,7 +30,7 @@ def upgrade() -> None:
     # ASSETS_INFO: user-visible references (mutable metadata)
     op.create_table(
         "assets_info",
-        sa.Column("id", sa.Integer(), primary_key=True, autoincrement=True),
+        sa.Column("id", sa.String(length=36), primary_key=True),
         sa.Column("owner_id", sa.String(length=128), nullable=False, server_default=""),
         sa.Column("name", sa.String(length=512), nullable=False),
         sa.Column("asset_hash", sa.String(length=256), sa.ForeignKey("assets.hash", ondelete="RESTRICT"), nullable=False),
@@ -40,7 +40,6 @@ def upgrade() -> None:
         sa.Column("updated_at", sa.DateTime(timezone=False), nullable=False),
         sa.Column("last_access_time", sa.DateTime(timezone=False), nullable=False),
         sa.UniqueConstraint("asset_hash", "owner_id", "name", name="uq_assets_info_hash_owner_name"),
-        sqlite_autoincrement=True,
     )
     op.create_index("ix_assets_info_owner_id", "assets_info", ["owner_id"])
     op.create_index("ix_assets_info_asset_hash", "assets_info", ["asset_hash"])
@@ -61,7 +60,7 @@ def upgrade() -> None:
     # ASSET_INFO_TAGS: many-to-many for tags on AssetInfo
     op.create_table(
         "asset_info_tags",
-        sa.Column("asset_info_id", sa.Integer(), sa.ForeignKey("assets_info.id", ondelete="CASCADE"), nullable=False),
+        sa.Column("asset_info_id", sa.String(length=36), sa.ForeignKey("assets_info.id", ondelete="CASCADE"), nullable=False),
         sa.Column("tag_name", sa.String(length=512), sa.ForeignKey("tags.name", ondelete="RESTRICT"), nullable=False),
         sa.Column("origin", sa.String(length=32), nullable=False, server_default="manual"),
         sa.Column("added_at", sa.DateTime(timezone=False), nullable=False),
@@ -83,7 +82,7 @@ def upgrade() -> None:
     # ASSET_INFO_META: typed KV projection of user_metadata for filtering/sorting
     op.create_table(
         "asset_info_meta",
-        sa.Column("asset_info_id", sa.Integer(), sa.ForeignKey("assets_info.id", ondelete="CASCADE"), nullable=False),
+        sa.Column("asset_info_id", sa.String(length=36), sa.ForeignKey("assets_info.id", ondelete="CASCADE"), nullable=False),
         sa.Column("key", sa.String(length=256), nullable=False),
         sa.Column("ordinal", sa.Integer(), nullable=False, server_default="0"),
         sa.Column("val_str", sa.String(length=2048), nullable=True),

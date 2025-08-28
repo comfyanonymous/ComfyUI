@@ -1,5 +1,6 @@
 from datetime import datetime
 from typing import Any, Optional
+import uuid
 
 from sqlalchemy import (
     Integer,
@@ -135,7 +136,7 @@ class AssetLocation(Base):
 class AssetInfo(Base):
     __tablename__ = "assets_info"
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     owner_id: Mapped[str] = mapped_column(String(128), nullable=False, default="")
     name: Mapped[str] = mapped_column(String(512), nullable=False)
     asset_hash: Mapped[str] = mapped_column(
@@ -194,7 +195,6 @@ class AssetInfo(Base):
         Index("ix_assets_info_name", "name"),
         Index("ix_assets_info_created_at", "created_at"),
         Index("ix_assets_info_last_access_time", "last_access_time"),
-        {"sqlite_autoincrement": True},
     )
 
     def to_dict(self, include_none: bool = False) -> dict[str, Any]:
@@ -209,8 +209,8 @@ class AssetInfo(Base):
 class AssetInfoMeta(Base):
     __tablename__ = "asset_info_meta"
 
-    asset_info_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("assets_info.id", ondelete="CASCADE"), primary_key=True
+    asset_info_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("assets_info.id", ondelete="CASCADE"), primary_key=True
     )
     key: Mapped[str] = mapped_column(String(256), primary_key=True)
     ordinal: Mapped[int] = mapped_column(Integer, primary_key=True, default=0)
@@ -233,8 +233,8 @@ class AssetInfoMeta(Base):
 class AssetInfoTag(Base):
     __tablename__ = "asset_info_tags"
 
-    asset_info_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("assets_info.id", ondelete="CASCADE"), primary_key=True
+    asset_info_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("assets_info.id", ondelete="CASCADE"), primary_key=True
     )
     tag_name: Mapped[str] = mapped_column(
         String(512), ForeignKey("tags.name", ondelete="RESTRICT"), primary_key=True

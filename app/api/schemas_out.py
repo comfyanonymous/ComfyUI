@@ -4,7 +4,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_serializer
 
 
 class AssetSummary(BaseModel):
-    id: int
+    id: str
     name: str
     asset_hash: str
     size: Optional[int] = None
@@ -29,7 +29,7 @@ class AssetsList(BaseModel):
 
 
 class AssetUpdated(BaseModel):
-    id: int
+    id: str
     name: str
     asset_hash: str
     tags: list[str] = Field(default_factory=list)
@@ -44,7 +44,7 @@ class AssetUpdated(BaseModel):
 
 
 class AssetDetail(BaseModel):
-    id: int
+    id: str
     name: str
     asset_hash: str
     size: Optional[int] = None
