@@ -145,3 +145,30 @@ def visible_owner_clause(owner_id: str) -> sa.sql.ClauseElement:
     if owner_id == "":
         return AssetInfo.owner_id == ""
     return AssetInfo.owner_id.in_(["", owner_id])
+
+
+def compute_model_relative_filename(file_path: str) -> str | None:
+    """
+    Return the model's path relative to the last well-known folder (the model category),
+    using forward slashes, eg:
+      /.../models/checkpoints/flux/123/flux.safetensors -> "flux/123/flux.safetensors"
+      /.../models/text_encoders/clip_g.safetensors -> "clip_g.safetensors"
+
+    For non-model paths, returns None.
+    NOTE: this is a temporary helper, used only for initializing metadata["filename"] field.
+    """
+    try:
+        root_category, rel_path = get_relative_to_root_category_path_of_asset(file_path)
+    except ValueError:
+        return None
+
+    if root_category != "models":
+        return None
+
+    p = Path(rel_path)
+    # parts[0] is the well-known category (eg "checkpoints" or "text_encoders")
+    parts = [seg for seg in p.parts if seg not in (".", "..", p.anchor)]
+    if not parts:
+        return None
+    inside = parts[1:] if len(parts) > 1 else [parts[0]]
+    return "/".join(inside)  # normalize to POSIX style for portability

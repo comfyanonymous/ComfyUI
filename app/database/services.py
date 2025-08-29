@@ -14,7 +14,7 @@ from sqlalchemy.exc import IntegrityError
 
 from .models import Asset, AssetInfo, AssetInfoTag, AssetCacheState, Tag, AssetInfoMeta, AssetLocation
 from .timeutil import utcnow
-from .._assets_helpers import normalize_tags, visible_owner_clause
+from .._assets_helpers import normalize_tags, visible_owner_clause, compute_model_relative_filename
 
 
 async def asset_exists_by_hash(session: AsyncSession, *, asset_hash: str) -> bool:
@@ -251,12 +251,38 @@ async def ingest_fs_asset(
                 await session.flush()
 
         # 2c) Rebuild metadata projection if provided
-        if user_metadata is not None and out["asset_info_id"] is not None:
-            await replace_asset_info_metadata_projection(
-                session,
-                asset_info_id=out["asset_info_id"],
-                user_metadata=user_metadata,
-            )
+        # Uncomment next code, and remove code after it, once the hack with "metadata[filename" is not needed anymore
+        # if user_metadata is not None and out["asset_info_id"] is not None:
+        #     await replace_asset_info_metadata_projection(
+        #         session,
+        #         asset_info_id=out["asset_info_id"],
+        #         user_metadata=user_metadata,
+        #     )
+        # start of adding metadata["filename"]
+        if out["asset_info_id"] is not None:
+            computed_filename = compute_model_relative_filename(abs_path)
+
+            # Start from current metadata on this AssetInfo, if any
+            current_meta = existing_info.user_metadata or {}
+            new_meta = dict(current_meta)
+
+            # Merge caller-provided metadata, if any (caller keys override current)
+            if user_metadata is not None:
+                for k, v in user_metadata.items():
+                    new_meta[k] = v
+
+            # Enforce correct model-relative filename when known
+            if computed_filename:
+                new_meta["filename"] = computed_filename
+
+            # Only write when there is a change
+            if new_meta != current_meta:
+                await replace_asset_info_metadata_projection(
+                    session,
+                    asset_info_id=out["asset_info_id"],
+                    user_metadata=new_meta,
+                )
+        # end of adding metadata["filename"]
     return out
 
 
@@ -527,10 +553,33 @@ async def create_asset_info_for_existing_asset(
     session.add(info)
     await session.flush()  # get info.id
 
-    if user_metadata is not None:
+    # Uncomment next code, and remove code after it, once the hack with "metadata[filename" is not needed anymore
+    # if user_metadata is not None:
+    #     await replace_asset_info_metadata_projection(
+    #         session, asset_info_id=info.id, user_metadata=user_metadata
+    #     )
+
+    # start of adding metadata["filename"]
+    new_meta = dict(user_metadata or {})
+
+    computed_filename = None
+    try:
+        state = await get_cache_state_by_asset_hash(session, asset_hash=asset_hash)
+        if state and state.file_path:
+            computed_filename = compute_model_relative_filename(state.file_path)
+    except Exception:
+        computed_filename = None
+
+    if computed_filename:
+        new_meta["filename"] = computed_filename
+
+    if new_meta:
         await replace_asset_info_metadata_projection(
-            session, asset_info_id=info.id, user_metadata=user_metadata
+            session,
+            asset_info_id=info.id,
+            user_metadata=new_meta,
         )
+    # end of adding metadata["filename"]
 
     if tags is not None:
         await set_asset_info_tags(
@@ -612,11 +661,41 @@ async def update_asset_info_full(
         info.name = name
         touched = True
 
+    # Uncomment next code, and remove code after it, once the hack with "metadata[filename" is not needed anymore
+    # if user_metadata is not None:
+    #     await replace_asset_info_metadata_projection(
+    #         session, asset_info_id=asset_info_id, user_metadata=user_metadata
+    #     )
+    #     touched = True
+
+    # start of adding metadata["filename"]
+    computed_filename = None
+    try:
+        state = await get_cache_state_by_asset_hash(session, asset_hash=info.asset_hash)
+        if state and state.file_path:
+            computed_filename = compute_model_relative_filename(state.file_path)
+    except Exception:
+        computed_filename = None
+
     if user_metadata is not None:
+        new_meta = dict(user_metadata)
+        if computed_filename:
+            new_meta["filename"] = computed_filename
         await replace_asset_info_metadata_projection(
-            session, asset_info_id=asset_info_id, user_metadata=user_metadata
+            session, asset_info_id=asset_info_id, user_metadata=new_meta
         )
         touched = True
+    else:
+        if computed_filename:
+            current_meta = info.user_metadata or {}
+            if current_meta.get("filename") != computed_filename:
+                new_meta = dict(current_meta)
+                new_meta["filename"] = computed_filename
+                await replace_asset_info_metadata_projection(
+                    session, asset_info_id=asset_info_id, user_metadata=new_meta
+                )
+                touched = True
+    # end of adding metadata["filename"]
 
     if tags is not None:
         await set_asset_info_tags(
