@@ -32,15 +32,21 @@ async def cache_control(
         or request.path.endswith("index.json")
     ):
         response.headers.setdefault("Cache-Control", "no-cache")
-    elif request.path.lower().endswith(IMG_EXTENSIONS):
-        if response.status == 404:
-            response.headers.setdefault("Cache-Control", f"public, max-age={ONE_HOUR}")
-        elif response.status in (200, 201, 202, 203, 204, 205, 206, 301, 308):
-            # Success responses and permanent redirects - cache for 1 day
-            response.headers.setdefault("Cache-Control", f"public, max-age={ONE_DAY}")
-        elif response.status in (302, 303, 307):
-            # Temporary redirects - no cache
-            response.headers.setdefault("Cache-Control", "no-cache")
-        # Note: 304 Not Modified falls through - no cache headers set
+        return response
+
+    # Early return for non-image files - no cache headers needed
+    if not request.path.lower().endswith(IMG_EXTENSIONS):
+        return response
+
+    # Handle image files
+    if response.status == 404:
+        response.headers.setdefault("Cache-Control", f"public, max-age={ONE_HOUR}")
+    elif response.status in (200, 201, 202, 203, 204, 205, 206, 301, 308):
+        # Success responses and permanent redirects - cache for 1 day
+        response.headers.setdefault("Cache-Control", f"public, max-age={ONE_DAY}")
+    elif response.status in (302, 303, 307):
+        # Temporary redirects - no cache
+        response.headers.setdefault("Cache-Control", "no-cache")
+    # Note: 304 Not Modified falls through - no cache headers set
 
     return response
