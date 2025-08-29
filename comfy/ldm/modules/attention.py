@@ -226,7 +226,14 @@ def wrap_attn(func):
                         # move up the stack
                         frame = frame.f_back
 
-                    LOG_CONTENTS["|".join(logged_stack)] = (logged_stack_to_index, logged_stack)
+                    # check if we get what we want from transformer_options
+                    t_check = "❌❌❌"
+                    transformer_options = kwargs.get("transformer_options", None)
+                    if transformer_options is not None:
+                        if "optimized_attention_override" in transformer_options:
+                            t_check = "✅✅✅"
+
+                    LOG_CONTENTS["|".join(logged_stack)] = (t_check, logged_stack_to_index, logged_stack)
 
                 finally:
                     # Important: break ref cycles so tensors aren't pinned
