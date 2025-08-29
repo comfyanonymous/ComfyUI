@@ -35,12 +35,12 @@ from comfy_api.internal import _ComfyNodeInternal
 from app.user_manager import UserManager
 from app.model_manager import ModelFileManager
 from app.custom_node_manager import CustomNodeManager
-from typing import Optional, Union, Callable, Awaitable
+from typing import Optional, Union
 from api_server.routes.internal.internal_routes import InternalRoutes
 from protocol import BinaryEventTypes
 
 # Import cache control middleware
-from middleware.cache_middleware import cache_control, ONE_HOUR, ONE_DAY, IMG_EXTENSIONS
+from middleware.cache_middleware import cache_control
 
 async def send_socket_catch_exception(function, message):
     try:

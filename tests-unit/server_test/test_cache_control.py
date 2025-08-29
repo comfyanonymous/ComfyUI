@@ -3,7 +3,7 @@
 import pytest
 from aiohttp import web
 from aiohttp.test_utils import make_mocked_request
-from typing import Dict, Any, List
+from typing import Dict, Any
 
 from middleware.cache_middleware import cache_control, ONE_HOUR, ONE_DAY, IMG_EXTENSIONS
 
