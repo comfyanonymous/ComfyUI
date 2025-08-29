@@ -2680,7 +2680,7 @@ class ReleaseNote(BaseModel):
 
 
 class RenderingSpeed(str, Enum):
-    BALANCED = 'BALANCED'
+    DEFAULT = 'DEFAULT'
     TURBO = 'TURBO'
     QUALITY = 'QUALITY'
 

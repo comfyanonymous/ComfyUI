@@ -615,8 +615,8 @@ class IdeogramV3(comfy_io.ComfyNode):
                 ),
                 comfy_io.Combo.Input(
                     "rendering_speed",
-                    options=["BALANCED", "TURBO", "QUALITY"],
-                    default="BALANCED",
+                    options=["DEFAULT", "TURBO", "QUALITY"],
+                    default="DEFAULT",
                     tooltip="Controls the trade-off between generation speed and quality",
                     optional=True,
                 ),
@@ -652,7 +652,7 @@ class IdeogramV3(comfy_io.ComfyNode):
         magic_prompt_option="AUTO",
         seed=0,
         num_images=1,
-        rendering_speed="BALANCED",
+        rendering_speed="DEFAULT",
         character_image=None,
         character_mask=None,
     ):
@@ -660,6 +660,8 @@ class IdeogramV3(comfy_io.ComfyNode):
             "auth_token": cls.hidden.auth_token_comfy_org,
             "comfy_api_key": cls.hidden.api_key_comfy_org,
         }
+        if rendering_speed == "BALANCED":  # for backward compatibility
+            rendering_speed = "DEFAULT"
 
         character_img_binary = None
         character_mask_binary = None
