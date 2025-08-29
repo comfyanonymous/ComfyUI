@@ -12,6 +12,8 @@ with (
     patch("app.frontend_management.FrontendManager"),
     patch("utils.install_util.get_missing_requirements_message"),
     patch("utils.install_util.requirements_path"),
+    patch("comfy.model_management.get_torch_device"),
+    patch("comfy.model_management.get_total_memory", return_value=1024 * 1024 * 1024),
 ):
     from server import cache_control, ONE_HOUR, ONE_DAY, IMG_EXTENSIONS
 
