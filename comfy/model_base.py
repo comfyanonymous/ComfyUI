@@ -1110,9 +1110,10 @@ class WAN21(BaseModel):
             shape_image[1] = extra_channels
             image = torch.zeros(shape_image, dtype=noise.dtype, layout=noise.layout, device=noise.device)
         else:
+            latent_dim = self.latent_format.latent_channels
             image = utils.common_upscale(image.to(device), noise.shape[-1], noise.shape[-2], "bilinear", "center")
-            for i in range(0, image.shape[1], 16):
-                image[:, i: i + 16] = self.process_latent_in(image[:, i: i + 16])
+            for i in range(0, image.shape[1], latent_dim):
+                image[:, i: i + latent_dim] = self.process_latent_in(image[:, i: i + latent_dim])
             image = utils.resize_to_batch_size(image, noise.shape[0])
 
         if extra_channels != image.shape[1] + 4:
@@ -1245,18 +1246,14 @@ class WAN22_S2V(WAN21):
             out['reference_motion'] = reference_motion.shape
         return out
 
-class WAN22(BaseModel):
+class WAN22(WAN21):
     def __init__(self, model_config, model_type=ModelType.FLOW, image_to_video=False, device=None):
-        super().__init__(model_config, model_type, device=device, unet_model=comfy.ldm.wan.model.WanModel)
+        super(WAN21, self).__init__(model_config, model_type, device=device, unet_model=comfy.ldm.wan.model.WanModel)
         self.image_to_video = image_to_video
 
     def extra_conds(self, **kwargs):
         out = super().extra_conds(**kwargs)
-        cross_attn = kwargs.get("cross_attn", None)
-        if cross_attn is not None:
-            out['c_crossattn'] = comfy.conds.CONDRegular(cross_attn)
-
-        denoise_mask = kwargs.get("concat_mask", kwargs.get("denoise_mask", None))
+        denoise_mask = kwargs.get("denoise_mask", None)
         if denoise_mask is not None:
             out["denoise_mask"] = comfy.conds.CONDRegular(denoise_mask)
         return out
