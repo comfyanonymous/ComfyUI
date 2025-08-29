@@ -29,6 +29,7 @@ import itertools
 from torch.nn.functional import interpolate
 from einops import rearrange
 from comfy.cli_args import args
+from app.assets_manager import populate_db_with_asset
 
 MMAP_TORCH_FILES = args.mmap_torch_files
 DISABLE_MMAP = args.disable_mmap
@@ -102,12 +103,7 @@ def load_torch_file(ckpt, safe_load=False, device=None, return_metadata=False):
             else:
                 sd = pl_sd
 
-    try:
-        from app.model_processor import model_processor
-        model_processor.process_file(ckpt)
-    except Exception as e:
-        logging.error(f"Error processing file {ckpt}: {e}")
-
+    populate_db_with_asset(ckpt)
     return (sd, metadata) if return_metadata else sd
 
 def save_torch_file(sd, ckpt, metadata=None):
