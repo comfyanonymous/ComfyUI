@@ -1181,7 +1181,7 @@ class SpatialVideoTransformer(SpatialTransformer):
 
             B, S, C = x_mix.shape
             x_mix = rearrange(x_mix, "(b t) s c -> (b s) t c", t=timesteps)
-            x_mix = mix_block(x_mix, context=time_context) #TODO: transformer_options
+            x_mix = mix_block(x_mix, context=time_context, transformer_options=transformer_options)
             x_mix = rearrange(
                 x_mix, "(b s) t c -> (b t) s c", s=S, b=B // timesteps, c=C, t=timesteps
             )
