@@ -39,10 +39,8 @@ from typing import Optional, Union, Callable, Awaitable
 from api_server.routes.internal.internal_routes import InternalRoutes
 from protocol import BinaryEventTypes
 
-# Time in seconds
-ONE_HOUR: int = 3600
-ONE_DAY: int = 86400
-IMG_EXTENSIONS = ('.jpg', '.jpeg', '.png', '.ppm', '.bmp', '.pgm', '.tif', '.tiff', '.webp')
+# Import cache control middleware
+from middleware.cache_middleware import cache_control, ONE_HOUR, ONE_DAY, IMG_EXTENSIONS
 
 async def send_socket_catch_exception(function, message):
     try:
@@ -51,23 +49,6 @@ async def send_socket_catch_exception(function, message):
         logging.warning("send error: {}".format(err))
 
 @web.middleware
-async def cache_control(request: web.Request, handler: Callable[[web.Request], Awaitable[web.Response]]) -> web.Response:
-    response: web.Response = await handler(request)
-
-    if request.path.endswith('.js') or request.path.endswith('.css') or request.path.endswith('index.json'):
-        response.headers.setdefault('Cache-Control', 'no-cache')
-    elif request.path.lower().endswith(IMG_EXTENSIONS):
-        if response.status == 404:
-            response.headers.setdefault('Cache-Control', f"public, max-age={ONE_HOUR}")
-        elif response.status in (200, 201, 202, 203, 204, 205, 206, 301, 308):
-            # Success responses and permanent redirects - cache for 1 day
-            response.headers.setdefault('Cache-Control', f"public, max-age={ONE_DAY}")
-        elif response.status in (302, 303, 307):
-            # Temporary redirects - no cache
-            response.headers.setdefault('Cache-Control', 'no-cache')
-        # Note: 304 Not Modified falls through - no cache headers set
-
-    return response
 
 @web.middleware
 async def compress_body(request: web.Request, handler):

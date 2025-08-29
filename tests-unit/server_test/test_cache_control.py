@@ -3,19 +3,10 @@
 import pytest
 from aiohttp import web
 from aiohttp.test_utils import make_mocked_request
-from unittest.mock import patch
+
+from middleware.cache_middleware import cache_control, ONE_HOUR, ONE_DAY, IMG_EXTENSIONS
 
 pytestmark = pytest.mark.asyncio  # Apply asyncio mark to all tests
-
-# Mock the problematic imports before importing server
-with (
-    patch("app.frontend_management.FrontendManager"),
-    patch("utils.install_util.get_missing_requirements_message"),
-    patch("utils.install_util.requirements_path"),
-    patch("comfy.model_management.get_torch_device"),
-    patch("comfy.model_management.get_total_memory", return_value=1024 * 1024 * 1024),
-):
-    from server import cache_control, ONE_HOUR, ONE_DAY, IMG_EXTENSIONS
 
 
 class TestCacheControl:
