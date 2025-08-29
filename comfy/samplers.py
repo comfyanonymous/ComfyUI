@@ -1034,7 +1034,7 @@ class CFGGuider:
                 self,
                 comfy.patcher_extension.get_all_wrappers(comfy.patcher_extension.WrappersMP.OUTER_SAMPLE, self.model_options, is_model_options=True)
             )
-            comfy.ldm.modules.attention.LOG_ATTN_CALLS = True  #TODO: Remove this $$$$$
+            # comfy.ldm.modules.attention.LOG_ATTN_CALLS = True  #TODO: Remove this $$$$$
             comfy.ldm.modules.attention.LOG_CONTENTS = {}
             output = executor.execute(noise, latent_image, sampler, sigmas, denoise_mask, callback, disable_pbar, seed)
         finally:
@@ -1042,8 +1042,9 @@ class CFGGuider:
             self.model_options = orig_model_options
             self.model_patcher.hook_mode = orig_hook_mode
             self.model_patcher.restore_hook_patches()
+            if comfy.ldm.modules.attention.LOG_ATTN_CALLS:
+                comfy.ldm.modules.attention.save_log_contents()
             comfy.ldm.modules.attention.LOG_ATTN_CALLS = False  #TODO: Remove this $$$$$
-            comfy.ldm.modules.attention.save_log_contents()
             comfy.ldm.modules.attention.LOG_CONTENTS = {}
 
         del self.conds
