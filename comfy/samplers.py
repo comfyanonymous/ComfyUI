@@ -1034,7 +1034,7 @@ class CFGGuider:
                 self,
                 comfy.patcher_extension.get_all_wrappers(comfy.patcher_extension.WrappersMP.OUTER_SAMPLE, self.model_options, is_model_options=True)
             )
-            comfy.ldm.modules.attention.LOG_ATTN_CALLS = True  #TODO: Remove this $$$$$
+            comfy.ldm.modules.attention.LOG_ATTN_CALLS = False  #TODO: Remove this $$$$$
             comfy.ldm.modules.attention.LOG_CONTENTS = {}
             if "optimized_attention_override" not in self.model_options["transformer_options"]:
                 def optimized_attention_override(func, *args, **kwargs):
