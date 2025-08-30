@@ -368,6 +368,8 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
                 dit_config["model_type"] = "camera"
             else:
                 dit_config["model_type"] = "camera_2.2"
+        elif '{}casual_audio_encoder.encoder.final_linear.weight'.format(key_prefix) in state_dict_keys:
+            dit_config["model_type"] = "s2v"
         else:
             if '{}img_emb.proj.0.bias'.format(key_prefix) in state_dict_keys:
                 dit_config["model_type"] = "i2v"
@@ -492,6 +494,8 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
     if '{}txt_norm.weight'.format(key_prefix) in state_dict_keys:  # Qwen Image
         dit_config = {}
         dit_config["image_model"] = "qwen_image"
+        dit_config["in_channels"] = state_dict['{}img_in.weight'.format(key_prefix)].shape[1]
+        dit_config["num_layers"] = count_blocks(state_dict_keys, '{}transformer_blocks.'.format(key_prefix) + '{}.')
         return dit_config
 
     if '{}input_blocks.0.0.weight'.format(key_prefix) not in state_dict_keys:

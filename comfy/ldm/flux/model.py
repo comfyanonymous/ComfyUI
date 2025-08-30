@@ -6,6 +6,7 @@ import torch
 from torch import Tensor, nn
 from einops import rearrange, repeat
 import comfy.ldm.common_dit
+import comfy.patcher_extension
 
 from .layers import (
     DoubleStreamBlock,
@@ -157,7 +158,7 @@ class Flux(nn.Module):
                 if i < len(control_i):
                     add = control_i[i]
                     if add is not None:
-                        img += add
+                        img[:, :add.shape[1]] += add
 
         if img.dtype == torch.float16:
             img = torch.nan_to_num(img, nan=0.0, posinf=65504, neginf=-65504)
@@ -188,7 +189,7 @@ class Flux(nn.Module):
                 if i < len(control_o):
                     add = control_o[i]
                     if add is not None:
-                        img[:, txt.shape[1] :, ...] += add
+                        img[:, txt.shape[1] : txt.shape[1] + add.shape[1], ...] += add
 
         img = img[:, txt.shape[1] :, ...]
 
@@ -214,6 +215,13 @@ class Flux(nn.Module):
         return img, repeat(img_ids, "h w c -> b (h w) c", b=bs)
 
     def forward(self, x, timestep, context, y=None, guidance=None, ref_latents=None, control=None, transformer_options={}, **kwargs):
+        return comfy.patcher_extension.WrapperExecutor.new_class_executor(
+            self._forward,
+            self,
+            comfy.patcher_extension.get_all_wrappers(comfy.patcher_extension.WrappersMP.DIFFUSION_MODEL, transformer_options)
+        ).execute(x, timestep, context, y, guidance, ref_latents, control, transformer_options, **kwargs)
+
+    def _forward(self, x, timestep, context, y=None, guidance=None, ref_latents=None, control=None, transformer_options={}, **kwargs):
         bs, c, h_orig, w_orig = x.shape
         patch_size = self.patch_size
 

@@ -2323,6 +2323,9 @@ async def init_builtin_extra_nodes():
         "nodes_tcfg.py",
         "nodes_context_windows.py",
         "nodes_qwen.py",
+        "nodes_model_patch.py",
+        "nodes_easycache.py",
+        "nodes_audio_encoder.py",
     ]
 
     import_failed = []
@@ -2352,6 +2355,7 @@ async def init_builtin_api_nodes():
         "nodes_moonvalley.py",
         "nodes_rodin.py",
         "nodes_gemini.py",
+        "nodes_vidu.py",
     ]
 
     if not await load_custom_node(os.path.join(api_nodes_dir, "canary.py"), module_parent="comfy_api_nodes"):

@@ -19,6 +19,7 @@ import torch
 from torch import nn
 
 import comfy.model_management
+import comfy.patcher_extension
 
 from comfy.ldm.lightricks.model import TimestepEmbedding, Timesteps
 from .attention import LinearTransformerBlock, t2i_modulate
@@ -343,7 +344,28 @@ class ACEStepTransformer2DModel(nn.Module):
         output = self.final_layer(hidden_states, embedded_timestep, output_length)
         return output
 
-    def forward(
+    def forward(self,
+        x,
+        timestep,
+        attention_mask=None,
+        context: Optional[torch.Tensor] = None,
+        text_attention_mask: Optional[torch.LongTensor] = None,
+        speaker_embeds: Optional[torch.FloatTensor] = None,
+        lyric_token_idx: Optional[torch.LongTensor] = None,
+        lyric_mask: Optional[torch.LongTensor] = None,
+        block_controlnet_hidden_states: Optional[Union[List[torch.Tensor], torch.Tensor]] = None,
+        controlnet_scale: Union[float, torch.Tensor] = 1.0,
+        lyrics_strength=1.0,
+        **kwargs
+    ):
+        return comfy.patcher_extension.WrapperExecutor.new_class_executor(
+            self._forward,
+            self,
+            comfy.patcher_extension.get_all_wrappers(comfy.patcher_extension.WrappersMP.DIFFUSION_MODEL, kwargs.get("transformer_options", {}))
+        ).execute(x, timestep, attention_mask, context, text_attention_mask, speaker_embeds, lyric_token_idx, lyric_mask, block_controlnet_hidden_states,
+                  controlnet_scale, lyrics_strength, **kwargs)
+
+    def _forward(
         self,
         x,
         timestep,
