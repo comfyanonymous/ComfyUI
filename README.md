@@ -139,6 +139,15 @@ install-for-older-amd.bat
 
 * **IMPORTANT**: With this install method you MUST make sure you have the latest GPU drivers (specifically you need drivers above 25.5.1)
 
+* **UPDATE** : There are now new libraries for "some of" these gpu's namely these listed below for HIP 6.4.2 BUT they are not tested and some of those probably won't work with the newer triton-miopen stuff so if you want you can try using the 6.4.2 route with those new libraries AND if you are updating from 6.2.4 to 6.4.2 please remember to uninstall hip 6.2.4 THEN delete the rocm folder inside program files otherwise even after uninstall the addon's added files would remain there and may cause problems.  
+* AMD Radeon RX 5700 XT (gfx1010) , AMD Radeon Pro V540 (gfx1011) , AMD Radeon RX 5500 XT (gfx1012)
+* AMD Radeon RX 6700, AMD Radeon RX 6700 XT (gfx1031) , AMD Radeon RX 6600, AMD Radeon RX 6600 XT (gfx1032)
+* AMD Radeon RX 6500, 6500XT, 6500M, 6400, 6300, 6450, W6400 (gfx1034)
+* AMD Radeon 680M, AMD Radeon 660M (gfx1035)
+* AMD Radeon Graphics 128SP (All 7000 series IGP Variants) (gfx1036)
+* AMD Radeon 780M , AMD Ryzen Z1 ,AMD Radeon 740M (gfx1103)
+* But they are not all tested and even if they work with 6.4.2 they might not work with triton-miopen stuff, in that case use legacy installer instead. 
+
 * [There is the legacy installer method still available with `install-legacy.bat` (this is the old "install.bat") which doesn't include miopen-triton stuff, but I strongly recommend them now we have solved most of the problems with them.So if you want you can still install hip 5.7.1 and use the libraries for your gpu for hip 5.7.1 or 6.2.4 and you don't need to install miopen stuff. You can use the `install-legacy.bat` but first try the install-n.bat if you have problems than go back to the legacy one.]
 
 * Install HIP SDK 6.2.4 from [AMD ROCm Hub](https://www.amd.com/en/developer/resources/rocm-hub/hip-sdk.html) - "Windows 10 & 11 6.2.4 HIP SDK"
@@ -193,12 +202,31 @@ install-n.bat
 <summary><strong>For GPU's above 6800 (6800, 6800XT, other 6000s above & 7000s and 9000s)</strong></summary>
 
 * **IMPORTANT**: With this install method you MUST make sure you have the latest GPU drivers (specifically you need drivers above 25.5.1)
+* **UPDATE** : There are now new libraries for "some of" the unsupported gpu's from previous generations namely these listed below for HIP 6.4.2 BUT they are not tested and some of those probably won't work with the newer triton-miopen stuff so if you want you can try using the 6.4.2 route with those new libraries AND if you are updating from 6.2.4 to 6.4.2 please remember to uninstall hip 6.2.4 THEN delete the rocm folder inside program files otherwise even after uninstall the addon's added files would remain there and may cause problems.  
+* AMD Radeon RX 5700 XT (gfx1010) , AMD Radeon Pro V540 (gfx1011) , AMD Radeon RX 5500 XT (gfx1012)
+* AMD Radeon RX 6700, AMD Radeon RX 6700 XT (gfx1031) , AMD Radeon RX 6600, AMD Radeon RX 6600 XT (gfx1032)
+* AMD Radeon RX 6500, 6500XT, 6500M, 6400, 6300, 6450, W6400 (gfx1034)
+* AMD Radeon 680M, AMD Radeon 660M (gfx1035)
+* AMD Radeon Graphics 128SP (All 7000 series IGP Variants) (gfx1036)
+* AMD Radeon 780M , AMD Ryzen Z1 ,AMD Radeon 740M (gfx1103)
+* The libraries for these can be had here : [6.4.2 Libraries for unsupported GPU's](https://github.com/likelovewant/ROCmLibs-for-gfx1103-AMD780M-APU/releases/tag/v0.6.4.2)
+* But they are not all tested and even if they work with 6.4.2 they might not work with triton-miopen stuff, in that case use legacy installer instead. 
 
 * Install HIP SDK 6.4.2 from [AMD ROCm Hub](https://www.amd.com/en/developer/resources/rocm-hub/hip-sdk.html) - "Windows 10 & 11 6.4.2 HIP SDK"
 
 * Make sure the system variables `HIP_PATH` and `HIP_PATH_64` exist, both should have this value: `C:\Program Files\AMD\ROCm\6.4\`
 
 * Also check the system path defining variable called "Path". Double-click it and click "New", then add: `C:\Program Files\AMD\ROCm\6.4\bin`
+
+* FOR THE UNSUPPORTED GPU'S THAT HAS LIBRARIES ; DO THESE :
+
+* Get library files for your GPU from [6.4.2 Libraries for unsupported GPU's](https://github.com/likelovewant/ROCmLibs-for-gfx1103-AMD780M-APU/releases/tag/v0.6.4.2) (for HIP 6.4.2)
+
+* Go to folder `C:\Program Files\AMD\ROCm\6.2\bin\rocblas`, there should be a "library" folder. **Backup the files inside to somewhere else.**
+
+* Open your downloaded optimized library archive and put them inside the library folder (overwriting if necessary): `C:\Program Files\AMD\ROCm\6.2\bin\rocblas\library`
+
+* If there's a `rocblas.dll` file in the archive, copy it inside `C:\Program Files\AMD\ROCm\6.2\bin\rocblas`
 
 * Install [Visual Studio Build Tools](https://aka.ms/vs/17/release/vs_BuildTools.exe)
 
