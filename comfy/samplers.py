@@ -1019,7 +1019,6 @@ class CFGGuider:
             self.conds[k] = list(map(lambda a: a.copy(), self.original_conds[k]))
         preprocess_conds_hooks(self.conds)
 
-        import comfy.ldm.modules.attention #TODO: Remove this $$$$$
         try:
             orig_model_options = self.model_options
             self.model_options = comfy.model_patcher.create_model_options_clone(self.model_options)
@@ -1034,23 +1033,12 @@ class CFGGuider:
                 self,
                 comfy.patcher_extension.get_all_wrappers(comfy.patcher_extension.WrappersMP.OUTER_SAMPLE, self.model_options, is_model_options=True)
             )
-            comfy.ldm.modules.attention.LOG_ATTN_CALLS = False  #TODO: Remove this $$$$$
-            comfy.ldm.modules.attention.LOG_CONTENTS = {}
-            if "optimized_attention_override" not in self.model_options["transformer_options"]:
-                def optimized_attention_override(func, *args, **kwargs):
-                    return func(*args, **kwargs)
-                self.model_options["transformer_options"]["optimized_attention_override"] = optimized_attention_override
-
             output = executor.execute(noise, latent_image, sampler, sigmas, denoise_mask, callback, disable_pbar, seed)
         finally:
             cast_to_load_options(self.model_options, device=self.model_patcher.offload_device)
             self.model_options = orig_model_options
             self.model_patcher.hook_mode = orig_hook_mode
             self.model_patcher.restore_hook_patches()
-            if comfy.ldm.modules.attention.LOG_ATTN_CALLS:
-                comfy.ldm.modules.attention.save_log_contents()
-            comfy.ldm.modules.attention.LOG_ATTN_CALLS = False  #TODO: Remove this $$$$$
-            comfy.ldm.modules.attention.LOG_CONTENTS = {}
 
         del self.conds
         return output
