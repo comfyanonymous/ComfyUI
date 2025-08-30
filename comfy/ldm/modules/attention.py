@@ -51,7 +51,9 @@ def register_attention_function(name: str, func: Callable):
         logging.warning(f"Attention function {name} already registered, skipping registration.")
 
 def get_attention_function(name: str, default: Any=...) -> Union[Callable, None]:
-    if name not in REGISTERED_ATTENTION_FUNCTIONS:
+    if name == "optimized":
+        return optimized_attention
+    elif name not in REGISTERED_ATTENTION_FUNCTIONS:
         if default is ...:
             raise KeyError(f"Attention function {name} not found.")
         else:
@@ -62,7 +64,7 @@ def _register_core_attention_functions():
     """
     Register attention functions exposed by core ComfyUI.
     """
-    # NOTE: attention_basic is purposely not registered, as it is not used in code
+    # NOTE: attention_basic is purposely not registered, as it should not be used
     if SAGE_ATTENTION_IS_AVAILABLE:
         register_attention_function("sage", attention_sage)
     if FLASH_ATTENTION_IS_AVAILABLE:
