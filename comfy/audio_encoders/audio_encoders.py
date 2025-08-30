@@ -43,7 +43,7 @@ def load_audio_encoder_from_sd(sd, prefix=""):
     sd = comfy.utils.state_dict_prefix_replace(sd, {"wav2vec2.": ""})
     embed_dim = sd["encoder.layer_norm.bias"].shape[0]
     if embed_dim == 1024:# large
-        config = { 
+        config = {
             "embed_dim": 1024,
             "num_heads": 16,
             "num_layers": 24,

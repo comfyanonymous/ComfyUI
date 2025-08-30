@@ -12,7 +12,7 @@ class LayerNormConv(nn.Module):
     def forward(self, x):
         x = self.conv(x)
         return torch.nn.functional.gelu(self.layer_norm(x.transpose(-2, -1)).transpose(-2, -1))
-    
+
 class LayerGroupNormConv(nn.Module):
     def __init__(self, in_channels, out_channels, kernel_size, stride, bias=False, dtype=None, device=None, operations=None):
         super().__init__()
@@ -22,7 +22,7 @@ class LayerGroupNormConv(nn.Module):
     def forward(self, x):
         x = self.conv(x)
         return torch.nn.functional.gelu(self.layer_norm(x))
-    
+
 class ConvNoNorm(nn.Module):
     def __init__(self, in_channels, out_channels, kernel_size, stride, bias=False, dtype=None, device=None, operations=None):
         super().__init__()
@@ -250,13 +250,13 @@ class Wav2Vec2Model(nn.Module):
             audio_duration = x.shape[1] / sr
             target_seq_len = int(audio_duration * fps)
             features = self.linear_interpolation(features, target_seq_len)
-        
+
         features = self.feature_projection(features)
         batch_size, seq_len, _ = features.shape
 
         x, all_x = self.encoder(features)
         return x, all_x
-    
+
     def linear_interpolation(self, features, target_seq_len):
         features = features.transpose(1, 2)
         output_features = torch.nn.functional.interpolate(features, size=target_seq_len, align_corners=True, mode='linear')
