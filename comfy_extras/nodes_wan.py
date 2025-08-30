@@ -139,16 +139,21 @@ class Wan22FunControlToVideo(io.ComfyNode):
 
     @classmethod
     def execute(cls, positive, negative, vae, width, height, length, batch_size, ref_image=None, start_image=None, control_video=None) -> io.NodeOutput:
-        latent = torch.zeros([batch_size, 16, ((length - 1) // 4) + 1, height // 8, width // 8], device=comfy.model_management.intermediate_device())
-        concat_latent = torch.zeros([batch_size, 16, ((length - 1) // 4) + 1, height // 8, width // 8], device=comfy.model_management.intermediate_device())
-        concat_latent = comfy.latent_formats.Wan21().process_out(concat_latent)
+        spacial_scale = vae.spacial_compression_encode()
+        latent_channels = vae.latent_channels
+        latent = torch.zeros([batch_size, latent_channels, ((length - 1) // 4) + 1, height // spacial_scale, width // spacial_scale], device=comfy.model_management.intermediate_device())
+        concat_latent = torch.zeros([batch_size, latent_channels, ((length - 1) // 4) + 1, height // spacial_scale, width // spacial_scale], device=comfy.model_management.intermediate_device())
+        if latent_channels == 48:
+            concat_latent = comfy.latent_formats.Wan22().process_out(concat_latent)
+        else:
+            concat_latent = comfy.latent_formats.Wan21().process_out(concat_latent)
         concat_latent = concat_latent.repeat(1, 2, 1, 1, 1)
         mask = torch.ones((1, 1, latent.shape[2] * 4, latent.shape[-2], latent.shape[-1]))
 
         if start_image is not None:
             start_image = comfy.utils.common_upscale(start_image[:length].movedim(-1, 1), width, height, "bilinear", "center").movedim(1, -1)
             concat_latent_image = vae.encode(start_image[:, :, :, :3])
-            concat_latent[:,16:,:concat_latent_image.shape[2]] = concat_latent_image[:,:,:concat_latent.shape[2]]
+            concat_latent[:,latent_channels:,:concat_latent_image.shape[2]] = concat_latent_image[:,:,:concat_latent.shape[2]]
             mask[:, :, :start_image.shape[0] + 3] = 0.0
 
         ref_latent = None
@@ -159,11 +164,11 @@ class Wan22FunControlToVideo(io.ComfyNode):
         if control_video is not None:
             control_video = comfy.utils.common_upscale(control_video[:length].movedim(-1, 1), width, height, "bilinear", "center").movedim(1, -1)
             concat_latent_image = vae.encode(control_video[:, :, :, :3])
-            concat_latent[:,:16,:concat_latent_image.shape[2]] = concat_latent_image[:,:,:concat_latent.shape[2]]
+            concat_latent[:,:latent_channels,:concat_latent_image.shape[2]] = concat_latent_image[:,:,:concat_latent.shape[2]]
 
         mask = mask.view(1, mask.shape[2] // 4, 4, mask.shape[3], mask.shape[4]).transpose(1, 2)
-        positive = node_helpers.conditioning_set_values(positive, {"concat_latent_image": concat_latent, "concat_mask": mask, "concat_mask_index": 16})
-        negative = node_helpers.conditioning_set_values(negative, {"concat_latent_image": concat_latent, "concat_mask": mask, "concat_mask_index": 16})
+        positive = node_helpers.conditioning_set_values(positive, {"concat_latent_image": concat_latent, "concat_mask": mask, "concat_mask_index": latent_channels})
+        negative = node_helpers.conditioning_set_values(negative, {"concat_latent_image": concat_latent, "concat_mask": mask, "concat_mask_index": latent_channels})
 
         if ref_latent is not None:
             positive = node_helpers.conditioning_set_values(positive, {"reference_latents": [ref_latent]}, append=True)
@@ -201,7 +206,8 @@ class WanFirstLastFrameToVideo(io.ComfyNode):
 
     @classmethod
     def execute(cls, positive, negative, vae, width, height, length, batch_size, start_image=None, end_image=None, clip_vision_start_image=None, clip_vision_end_image=None) -> io.NodeOutput:
-        latent = torch.zeros([batch_size, 16, ((length - 1) // 4) + 1, height // 8, width // 8], device=comfy.model_management.intermediate_device())
+        spacial_scale = vae.spacial_compression_encode()
+        latent = torch.zeros([batch_size, vae.latent_channels, ((length - 1) // 4) + 1, height // spacial_scale, width // spacial_scale], device=comfy.model_management.intermediate_device())
         if start_image is not None:
             start_image = comfy.utils.common_upscale(start_image[:length].movedim(-1, 1), width, height, "bilinear", "center").movedim(1, -1)
         if end_image is not None:
@@ -877,6 +883,68 @@ def get_audio_embed_bucket_fps(audio_embed, fps=16, batch_frames=81, m=0, video_
     return batch_audio_eb, min_batch_num
 
 
+def wan_sound_to_video(positive, negative, vae, width, height, length, batch_size, frame_offset=0, ref_image=None, audio_encoder_output=None, control_video=None, ref_motion=None, ref_motion_latent=None):
+    latent_t = ((length - 1) // 4) + 1
+    if audio_encoder_output is not None:
+        feat = torch.cat(audio_encoder_output["encoded_audio_all_layers"])
+        video_rate = 30
+        fps = 16
+        feat = linear_interpolation(feat, input_fps=50, output_fps=video_rate)
+        batch_frames = latent_t * 4
+        audio_embed_bucket, num_repeat = get_audio_embed_bucket_fps(feat, fps=fps, batch_frames=batch_frames, m=0, video_rate=video_rate)
+        audio_embed_bucket = audio_embed_bucket.unsqueeze(0)
+        if len(audio_embed_bucket.shape) == 3:
+            audio_embed_bucket = audio_embed_bucket.permute(0, 2, 1)
+        elif len(audio_embed_bucket.shape) == 4:
+            audio_embed_bucket = audio_embed_bucket.permute(0, 2, 3, 1)
+
+        audio_embed_bucket = audio_embed_bucket[:, :, :, frame_offset:frame_offset + batch_frames]
+        if audio_embed_bucket.shape[3] > 0:
+            positive = node_helpers.conditioning_set_values(positive, {"audio_embed": audio_embed_bucket})
+            negative = node_helpers.conditioning_set_values(negative, {"audio_embed": audio_embed_bucket * 0.0})
+            frame_offset += batch_frames
+
+    if ref_image is not None:
+        ref_image = comfy.utils.common_upscale(ref_image[:1].movedim(-1, 1), width, height, "bilinear", "center").movedim(1, -1)
+        ref_latent = vae.encode(ref_image[:, :, :, :3])
+        positive = node_helpers.conditioning_set_values(positive, {"reference_latents": [ref_latent]}, append=True)
+        negative = node_helpers.conditioning_set_values(negative, {"reference_latents": [ref_latent]}, append=True)
+
+    if ref_motion is not None:
+        if ref_motion.shape[0] > 73:
+            ref_motion = ref_motion[-73:]
+
+        ref_motion = comfy.utils.common_upscale(ref_motion.movedim(-1, 1), width, height, "bilinear", "center").movedim(1, -1)
+
+        if ref_motion.shape[0] < 73:
+            r = torch.ones([73, height, width, 3]) * 0.5
+            r[-ref_motion.shape[0]:] = ref_motion
+            ref_motion = r
+
+        ref_motion_latent = vae.encode(ref_motion[:, :, :, :3])
+
+    if ref_motion_latent is not None:
+        ref_motion_latent = ref_motion_latent[:, :, -19:]
+        positive = node_helpers.conditioning_set_values(positive, {"reference_motion": ref_motion_latent})
+        negative = node_helpers.conditioning_set_values(negative, {"reference_motion": ref_motion_latent})
+
+    latent = torch.zeros([batch_size, 16, latent_t, height // 8, width // 8], device=comfy.model_management.intermediate_device())
+
+    control_video_out = comfy.latent_formats.Wan21().process_out(torch.zeros_like(latent))
+    if control_video is not None:
+        control_video = comfy.utils.common_upscale(control_video[:length].movedim(-1, 1), width, height, "bilinear", "center").movedim(1, -1)
+        control_video = vae.encode(control_video[:, :, :, :3])
+        control_video_out[:, :, :control_video.shape[2]] = control_video
+
+    # TODO: check if zero is better than none if none provided
+    positive = node_helpers.conditioning_set_values(positive, {"control_video": control_video_out})
+    negative = node_helpers.conditioning_set_values(negative, {"control_video": control_video_out})
+
+    out_latent = {}
+    out_latent["samples"] = latent
+    return positive, negative, out_latent, frame_offset
+
+
 class WanSoundImageToVideo(io.ComfyNode):
     @classmethod
     def define_schema(cls):
@@ -906,57 +974,44 @@ class WanSoundImageToVideo(io.ComfyNode):
 
     @classmethod
     def execute(cls, positive, negative, vae, width, height, length, batch_size, ref_image=None, audio_encoder_output=None, control_video=None, ref_motion=None) -> io.NodeOutput:
-        latent_t = ((length - 1) // 4) + 1
-        if audio_encoder_output is not None:
-            feat = torch.cat(audio_encoder_output["encoded_audio_all_layers"])
-            video_rate = 30
-            fps = 16
-            feat = linear_interpolation(feat, input_fps=50, output_fps=video_rate)
-            audio_embed_bucket, num_repeat = get_audio_embed_bucket_fps(feat, fps=fps, batch_frames=latent_t * 4, m=0, video_rate=video_rate)
-            audio_embed_bucket = audio_embed_bucket.unsqueeze(0)
-            if len(audio_embed_bucket.shape) == 3:
-                audio_embed_bucket = audio_embed_bucket.permute(0, 2, 1)
-            elif len(audio_embed_bucket.shape) == 4:
-                audio_embed_bucket = audio_embed_bucket.permute(0, 2, 3, 1)
+        positive, negative, out_latent, frame_offset = wan_sound_to_video(positive, negative, vae, width, height, length, batch_size, ref_image=ref_image, audio_encoder_output=audio_encoder_output,
+                                                                          control_video=control_video, ref_motion=ref_motion)
+        return io.NodeOutput(positive, negative, out_latent)
 
-            positive = node_helpers.conditioning_set_values(positive, {"audio_embed": audio_embed_bucket})
-            negative = node_helpers.conditioning_set_values(negative, {"audio_embed": audio_embed_bucket * 0.0})
 
-        if ref_image is not None:
-            ref_image = comfy.utils.common_upscale(ref_image[:1].movedim(-1, 1), width, height, "bilinear", "center").movedim(1, -1)
-            ref_latent = vae.encode(ref_image[:, :, :, :3])
-            positive = node_helpers.conditioning_set_values(positive, {"reference_latents": [ref_latent]}, append=True)
-            negative = node_helpers.conditioning_set_values(negative, {"reference_latents": [ref_latent]}, append=True)
+class WanSoundImageToVideoExtend(io.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return io.Schema(
+            node_id="WanSoundImageToVideoExtend",
+            category="conditioning/video_models",
+            inputs=[
+                io.Conditioning.Input("positive"),
+                io.Conditioning.Input("negative"),
+                io.Vae.Input("vae"),
+                io.Int.Input("length", default=77, min=1, max=nodes.MAX_RESOLUTION, step=4),
+                io.Latent.Input("video_latent"),
+                io.AudioEncoderOutput.Input("audio_encoder_output", optional=True),
+                io.Image.Input("ref_image", optional=True),
+                io.Image.Input("control_video", optional=True),
+            ],
+            outputs=[
+                io.Conditioning.Output(display_name="positive"),
+                io.Conditioning.Output(display_name="negative"),
+                io.Latent.Output(display_name="latent"),
+            ],
+            is_experimental=True,
+        )
 
-        if ref_motion is not None:
-            if ref_motion.shape[0] > 73:
-                ref_motion = ref_motion[-73:]
-
-            ref_motion = comfy.utils.common_upscale(ref_motion.movedim(-1, 1), width, height, "bilinear", "center").movedim(1, -1)
-
-            if ref_motion.shape[0] < 73:
-                r = torch.ones([73, height, width, 3]) * 0.5
-                r[-ref_motion.shape[0]:] = ref_motion
-                ref_motion = r
-
-            ref_motion = vae.encode(ref_motion[:, :, :, :3])
-            positive = node_helpers.conditioning_set_values(positive, {"reference_motion": ref_motion})
-            negative = node_helpers.conditioning_set_values(negative, {"reference_motion": ref_motion})
-
-        latent = torch.zeros([batch_size, 16, latent_t, height // 8, width // 8], device=comfy.model_management.intermediate_device())
-
-        control_video_out = comfy.latent_formats.Wan21().process_out(torch.zeros_like(latent))
-        if control_video is not None:
-            control_video = comfy.utils.common_upscale(control_video[:length].movedim(-1, 1), width, height, "bilinear", "center").movedim(1, -1)
-            control_video = vae.encode(control_video[:, :, :, :3])
-            control_video_out[:, :, :control_video.shape[2]] = control_video
-
-        # TODO: check if zero is better than none if none provided
-        positive = node_helpers.conditioning_set_values(positive, {"control_video": control_video_out})
-        negative = node_helpers.conditioning_set_values(negative, {"control_video": control_video_out})
-
-        out_latent = {}
-        out_latent["samples"] = latent
+    @classmethod
+    def execute(cls, positive, negative, vae, length, video_latent, ref_image=None, audio_encoder_output=None, control_video=None) -> io.NodeOutput:
+        video_latent = video_latent["samples"]
+        width = video_latent.shape[-1] * 8
+        height = video_latent.shape[-2] * 8
+        batch_size = video_latent.shape[0]
+        frame_offset = video_latent.shape[-3] * 4
+        positive, negative, out_latent, frame_offset = wan_sound_to_video(positive, negative, vae, width, height, length, batch_size, frame_offset=frame_offset, ref_image=ref_image, audio_encoder_output=audio_encoder_output,
+                                                                          control_video=control_video, ref_motion=None, ref_motion_latent=video_latent)
         return io.NodeOutput(positive, negative, out_latent)
 
 
@@ -1064,6 +1119,7 @@ class WanExtension(ComfyExtension):
             WanCameraImageToVideo,
             WanPhantomSubjectToVideo,
             WanSoundImageToVideo,
+            WanSoundImageToVideoExtend,
             Wan22ImageToVideoLatent,
             AttentionOverrideTest,
         ]
