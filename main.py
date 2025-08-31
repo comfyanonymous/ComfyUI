@@ -8,7 +8,7 @@ import time
 from comfy.cli_args import args
 from app.logger import setup_logger
 import itertools
-import utils.extra_config
+import utils.extra_config, utils.extra_custom_node_config
 import logging
 import sys
 from comfy_execution.progress import get_progress_state
@@ -32,6 +32,11 @@ def apply_custom_paths():
         for config_path in itertools.chain(*args.extra_model_paths_config):
             utils.extra_config.load_extra_path_config(config_path)
 
+    #extra custom node paths
+    extra_custom_node_paths_config_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "extra_custom_node_paths.yaml")
+    if os.path.isfile(extra_custom_node_paths_config_path):
+        utils.extra_custom_node_config.load_extra_custom_node_path_config(extra_custom_node_paths_config_path)
+    
     # --output-directory, --input-directory, --user-directory
     if args.output_directory:
         output_dir = os.path.abspath(args.output_directory)
