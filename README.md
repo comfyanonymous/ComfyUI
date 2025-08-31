@@ -105,7 +105,7 @@ ZLUDA, MIOpen, and Triton will rebuild everything from scratch, making future op
 
 * Open your downloaded optimized library archive and put them inside the library folder (overwriting if necessary): `C:\Program Files\AMD\ROCm\5.7\bin\rocblas\library`
 
-* There could be a rocblas.dll file in the archive as well, if it is present then copy it inside `C:\Program Files\AMD\ROCm\5.7\bin\rocblas`
+* There could be a rocblas.dll file in the archive as well, if it is present then copy it inside `C:\Program Files\AMD\ROCm\5.7\bin`
 
 * Restart your system.
 
@@ -166,7 +166,7 @@ install-for-older-amd.bat
 
 * Open your downloaded optimized library archive and put them inside the library folder (overwriting if necessary): `C:\Program Files\AMD\ROCm\6.2\bin\rocblas\library`
 
-* If there's a `rocblas.dll` file in the archive, copy it inside `C:\Program Files\AMD\ROCm\6.2\bin\rocblas`
+* If there's a `rocblas.dll` file in the archive, copy it inside `C:\Program Files\AMD\ROCm\6.2\bin`
 
 * Install [Visual Studio Build Tools](https://aka.ms/vs/17/release/vs_BuildTools.exe)
 
@@ -222,11 +222,11 @@ install-n.bat
 
 * Get library files for your GPU from [6.4.2 Libraries for unsupported GPU's](https://github.com/likelovewant/ROCmLibs-for-gfx1103-AMD780M-APU/releases/tag/v0.6.4.2) (for HIP 6.4.2)
 
-* Go to folder `C:\Program Files\AMD\ROCm\6.2\bin\rocblas`, there should be a "library" folder. **Backup the files inside to somewhere else.**
+* Go to folder `C:\Program Files\AMD\ROCm\6.4\bin\rocblas`, there should be a "library" folder. **Backup the files inside to somewhere else.**
 
-* Open your downloaded optimized library archive and put them inside the library folder (overwriting if necessary): `C:\Program Files\AMD\ROCm\6.2\bin\rocblas\library`
+* Open your downloaded optimized library archive and put them inside the library folder (overwriting if necessary): `C:\Program Files\AMD\ROCm\6.4\bin\rocblas\library`
 
-* If there's a `rocblas.dll` file in the archive, copy it inside `C:\Program Files\AMD\ROCm\6.2\bin\rocblas`
+* If there's a `rocblas.dll` file in the archive, copy it inside `C:\Program Files\AMD\ROCm\6.4\bin`
 
 * Install [Visual Studio Build Tools](https://aka.ms/vs/17/release/vs_BuildTools.exe)
 
