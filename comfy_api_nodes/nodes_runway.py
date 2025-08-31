@@ -214,6 +214,7 @@ class RunwayImageToVideoNodeGen3a(comfy_io.ComfyNode):
                     step=1,
                     control_after_generate=True,
                     display_mode=comfy_io.NumberDisplay.number,
+                    tooltip="Random seed for generation",
                 ),
             ],
             outputs=[
@@ -313,6 +314,7 @@ class RunwayImageToVideoNodeGen4(comfy_io.ComfyNode):
                     step=1,
                     control_after_generate=True,
                     display_mode=comfy_io.NumberDisplay.number,
+                    tooltip="Random seed for generation",
                 ),
             ],
             outputs=[
@@ -420,6 +422,7 @@ class RunwayFirstLastFrameNode(comfy_io.ComfyNode):
                     step=1,
                     control_after_generate=True,
                     display_mode=comfy_io.NumberDisplay.number,
+                    tooltip="Random seed for generation",
                 ),
             ],
             outputs=[
