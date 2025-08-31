@@ -128,6 +128,7 @@ class Flux(nn.Module):
 
         blocks_replace = patches_replace.get("dit", {})
         for i, block in enumerate(self.double_blocks):
+            transformer_options["block"] = ("double_block", i)
             if ("double_block", i) in blocks_replace:
                 def block_wrap(args):
                     out = {}
@@ -169,6 +170,7 @@ class Flux(nn.Module):
         img = torch.cat((txt, img), 1)
 
         for i, block in enumerate(self.single_blocks):
+            transformer_options["block"] = ("single_block", i)
             if ("single_block", i) in blocks_replace:
                 def block_wrap(args):
                     out = {}
