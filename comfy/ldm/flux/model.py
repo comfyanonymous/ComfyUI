@@ -6,6 +6,7 @@ import torch
 from torch import Tensor, nn
 from einops import rearrange, repeat
 import comfy.ldm.common_dit
+import comfy.patcher_extension
 
 from .layers import (
     DoubleStreamBlock,
@@ -157,7 +158,7 @@ class Flux(nn.Module):
                 if i < len(control_i):
                     add = control_i[i]
                     if add is not None:
-                        img += add
+                        img[:, :add.shape[1]] += add
 
         if img.dtype == torch.float16:
             img = torch.nan_to_num(img, nan=0.0, posinf=65504, neginf=-65504)
@@ -188,7 +189,7 @@ class Flux(nn.Module):
                 if i < len(control_o):
                     add = control_o[i]
                     if add is not None:
-                        img[:, txt.shape[1] :, ...] += add
+                        img[:, txt.shape[1] : txt.shape[1] + add.shape[1], ...] += add
 
         img = img[:, txt.shape[1] :, ...]
 
@@ -214,6 +215,13 @@ class Flux(nn.Module):
         return img, repeat(img_ids, "h w c -> b (h w) c", b=bs)
 
     def forward(self, x, timestep, context, y=None, guidance=None, ref_latents=None, control=None, transformer_options={}, **kwargs):
+        return comfy.patcher_extension.WrapperExecutor.new_class_executor(
+            self._forward,
+            self,
+            comfy.patcher_extension.get_all_wrappers(comfy.patcher_extension.WrappersMP.DIFFUSION_MODEL, transformer_options)
+        ).execute(x, timestep, context, y, guidance, ref_latents, control, transformer_options, **kwargs)
+
+    def _forward(self, x, timestep, context, y=None, guidance=None, ref_latents=None, control=None, transformer_options={}, **kwargs):
         bs, c, h_orig, w_orig = x.shape
         patch_size = self.patch_size
 
@@ -224,19 +232,27 @@ class Flux(nn.Module):
         if ref_latents is not None:
             h = 0
             w = 0
+            index = 0
+            index_ref_method = kwargs.get("ref_latents_method", "offset") == "index"
             for ref in ref_latents:
-                h_offset = 0
-                w_offset = 0
-                if ref.shape[-2] + h > ref.shape[-1] + w:
-                    w_offset = w
+                if index_ref_method:
+                    index += 1
+                    h_offset = 0
+                    w_offset = 0
                 else:
-                    h_offset = h
+                    index = 1
+                    h_offset = 0
+                    w_offset = 0
+                    if ref.shape[-2] + h > ref.shape[-1] + w:
+                        w_offset = w
+                    else:
+                        h_offset = h
+                    h = max(h, ref.shape[-2] + h_offset)
+                    w = max(w, ref.shape[-1] + w_offset)
 
-                kontext, kontext_ids = self.process_img(ref, index=1, h_offset=h_offset, w_offset=w_offset)
+                kontext, kontext_ids = self.process_img(ref, index=index, h_offset=h_offset, w_offset=w_offset)
                 img = torch.cat([img, kontext], dim=1)
                 img_ids = torch.cat([img_ids, kontext_ids], dim=1)
-                h = max(h, ref.shape[-2] + h_offset)
-                w = max(w, ref.shape[-1] + w_offset)
 
         txt_ids = torch.zeros((bs, context.shape[1], 3), device=x.device, dtype=x.dtype)
         out = self.forward_orig(img, img_ids, context, txt_ids, timestep, y, guidance, control, transformer_options, attn_mask=kwargs.get("attention_mask", None))

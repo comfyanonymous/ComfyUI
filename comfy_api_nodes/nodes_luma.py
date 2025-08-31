@@ -38,7 +38,7 @@ from comfy_api_nodes.apinode_utils import (
 )
 from server import PromptServer
 
-import requests
+import aiohttp
 import torch
 from io import BytesIO
 
@@ -217,7 +217,7 @@ class LumaImageGenerationNode(ComfyNodeABC):
             },
         }
 
-    def api_call(
+    async def api_call(
         self,
         prompt: str,
         model: str,
@@ -234,19 +234,19 @@ class LumaImageGenerationNode(ComfyNodeABC):
         # handle image_luma_ref
         api_image_ref = None
         if image_luma_ref is not None:
-            api_image_ref = self._convert_luma_refs(
+            api_image_ref = await self._convert_luma_refs(
                 image_luma_ref, max_refs=4, auth_kwargs=kwargs,
             )
         # handle style_luma_ref
         api_style_ref = None
         if style_image is not None:
-            api_style_ref = self._convert_style_image(
+            api_style_ref = await self._convert_style_image(
                 style_image, weight=style_image_weight, auth_kwargs=kwargs,
             )
         # handle character_ref images
         character_ref = None
         if character_image is not None:
-            download_urls = upload_images_to_comfyapi(
+            download_urls = await upload_images_to_comfyapi(
                 character_image, max_images=4, auth_kwargs=kwargs,
             )
             character_ref = LumaCharacterRef(
@@ -270,7 +270,7 @@ class LumaImageGenerationNode(ComfyNodeABC):
             ),
             auth_kwargs=kwargs,
         )
-        response_api: LumaGeneration = operation.execute()
+        response_api: LumaGeneration = await operation.execute()
 
         operation = PollingOperation(
             poll_endpoint=ApiEndpoint(
@@ -286,19 +286,20 @@ class LumaImageGenerationNode(ComfyNodeABC):
             node_id=unique_id,
             auth_kwargs=kwargs,
         )
-        response_poll = operation.execute()
+        response_poll = await operation.execute()
 
-        img_response = requests.get(response_poll.assets.image)
-        img = process_image_response(img_response)
+        async with aiohttp.ClientSession() as session:
+            async with session.get(response_poll.assets.image) as img_response:
+                img = process_image_response(await img_response.content.read())
         return (img,)
 
-    def _convert_luma_refs(
+    async def _convert_luma_refs(
         self, luma_ref: LumaReferenceChain, max_refs: int, auth_kwargs: Optional[dict[str,str]] = None
     ):
         luma_urls = []
         ref_count = 0
         for ref in luma_ref.refs:
-            download_urls = upload_images_to_comfyapi(
+            download_urls = await upload_images_to_comfyapi(
                 ref.image, max_images=1, auth_kwargs=auth_kwargs
             )
             luma_urls.append(download_urls[0])
@@ -307,13 +308,13 @@ class LumaImageGenerationNode(ComfyNodeABC):
                 break
         return luma_ref.create_api_model(download_urls=luma_urls, max_refs=max_refs)
 
-    def _convert_style_image(
+    async def _convert_style_image(
         self, style_image: torch.Tensor, weight: float, auth_kwargs: Optional[dict[str,str]] = None
     ):
         chain = LumaReferenceChain(
             first_ref=LumaReference(image=style_image, weight=weight)
         )
-        return self._convert_luma_refs(chain, max_refs=1, auth_kwargs=auth_kwargs)
+        return await self._convert_luma_refs(chain, max_refs=1, auth_kwargs=auth_kwargs)
 
 
 class LumaImageModifyNode(ComfyNodeABC):
@@ -370,7 +371,7 @@ class LumaImageModifyNode(ComfyNodeABC):
             },
         }
 
-    def api_call(
+    async def api_call(
         self,
         prompt: str,
         model: str,
@@ -381,7 +382,7 @@ class LumaImageModifyNode(ComfyNodeABC):
         **kwargs,
     ):
         # first, upload image
-        download_urls = upload_images_to_comfyapi(
+        download_urls = await upload_images_to_comfyapi(
             image, max_images=1, auth_kwargs=kwargs,
         )
         image_url = download_urls[0]
@@ -402,7 +403,7 @@ class LumaImageModifyNode(ComfyNodeABC):
             ),
             auth_kwargs=kwargs,
         )
-        response_api: LumaGeneration = operation.execute()
+        response_api: LumaGeneration = await operation.execute()
 
         operation = PollingOperation(
             poll_endpoint=ApiEndpoint(
@@ -418,10 +419,11 @@ class LumaImageModifyNode(ComfyNodeABC):
             node_id=unique_id,
             auth_kwargs=kwargs,
         )
-        response_poll = operation.execute()
+        response_poll = await operation.execute()
 
-        img_response = requests.get(response_poll.assets.image)
-        img = process_image_response(img_response)
+        async with aiohttp.ClientSession() as session:
+            async with session.get(response_poll.assets.image) as img_response:
+                img = process_image_response(await img_response.content.read())
         return (img,)
 
 
@@ -494,7 +496,7 @@ class LumaTextToVideoGenerationNode(ComfyNodeABC):
             },
         }
 
-    def api_call(
+    async def api_call(
         self,
         prompt: str,
         model: str,
@@ -529,7 +531,7 @@ class LumaTextToVideoGenerationNode(ComfyNodeABC):
             ),
             auth_kwargs=kwargs,
         )
-        response_api: LumaGeneration = operation.execute()
+        response_api: LumaGeneration = await operation.execute()
 
         if unique_id:
             PromptServer.instance.send_progress_text(f"Luma video generation started: {response_api.id}", unique_id)
@@ -549,10 +551,11 @@ class LumaTextToVideoGenerationNode(ComfyNodeABC):
             estimated_duration=LUMA_T2V_AVERAGE_DURATION,
             auth_kwargs=kwargs,
         )
-        response_poll = operation.execute()
+        response_poll = await operation.execute()
 
-        vid_response = requests.get(response_poll.assets.video)
-        return (VideoFromFile(BytesIO(vid_response.content)),)
+        async with aiohttp.ClientSession() as session:
+            async with session.get(response_poll.assets.video) as vid_response:
+                return (VideoFromFile(BytesIO(await vid_response.content.read())),)
 
 
 class LumaImageToVideoGenerationNode(ComfyNodeABC):
@@ -626,7 +629,7 @@ class LumaImageToVideoGenerationNode(ComfyNodeABC):
             },
         }
 
-    def api_call(
+    async def api_call(
         self,
         prompt: str,
         model: str,
@@ -644,7 +647,7 @@ class LumaImageToVideoGenerationNode(ComfyNodeABC):
             raise Exception(
                 "At least one of first_image and last_image requires an input."
             )
-        keyframes = self._convert_to_keyframes(first_image, last_image, auth_kwargs=kwargs)
+        keyframes = await self._convert_to_keyframes(first_image, last_image, auth_kwargs=kwargs)
         duration = duration if model != LumaVideoModel.ray_1_6 else None
         resolution = resolution if model != LumaVideoModel.ray_1_6 else None
 
@@ -667,7 +670,7 @@ class LumaImageToVideoGenerationNode(ComfyNodeABC):
             ),
             auth_kwargs=kwargs,
         )
-        response_api: LumaGeneration = operation.execute()
+        response_api: LumaGeneration = await operation.execute()
 
         if unique_id:
             PromptServer.instance.send_progress_text(f"Luma video generation started: {response_api.id}", unique_id)
@@ -687,12 +690,13 @@ class LumaImageToVideoGenerationNode(ComfyNodeABC):
             estimated_duration=LUMA_I2V_AVERAGE_DURATION,
             auth_kwargs=kwargs,
         )
-        response_poll = operation.execute()
+        response_poll = await operation.execute()
 
-        vid_response = requests.get(response_poll.assets.video)
-        return (VideoFromFile(BytesIO(vid_response.content)),)
+        async with aiohttp.ClientSession() as session:
+            async with session.get(response_poll.assets.video) as vid_response:
+                return (VideoFromFile(BytesIO(await vid_response.content.read())),)
 
-    def _convert_to_keyframes(
+    async def _convert_to_keyframes(
         self,
         first_image: torch.Tensor = None,
         last_image: torch.Tensor = None,
@@ -703,12 +707,12 @@ class LumaImageToVideoGenerationNode(ComfyNodeABC):
         frame0 = None
         frame1 = None
         if first_image is not None:
-            download_urls = upload_images_to_comfyapi(
+            download_urls = await upload_images_to_comfyapi(
                 first_image, max_images=1, auth_kwargs=auth_kwargs,
             )
             frame0 = LumaImageReference(type="image", url=download_urls[0])
         if last_image is not None:
-            download_urls = upload_images_to_comfyapi(
+            download_urls = await upload_images_to_comfyapi(
                 last_image, max_images=1, auth_kwargs=auth_kwargs,
             )
             frame1 = LumaImageReference(type="image", url=download_urls[0])

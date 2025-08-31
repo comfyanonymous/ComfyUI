@@ -9,6 +9,7 @@ import torch.nn.functional as F
 
 from comfy.ldm.modules.attention import optimized_attention
 import comfy.ops
+import comfy.patcher_extension
 import comfy.ldm.common_dit
 
 def modulate(x, shift, scale):
@@ -436,6 +437,13 @@ class MMDiT(nn.Module):
         return x + pos_encoding.reshape(1, -1, self.positional_encoding.shape[-1])
 
     def forward(self, x, timestep, context, transformer_options={}, **kwargs):
+        return comfy.patcher_extension.WrapperExecutor.new_class_executor(
+            self._forward,
+            self,
+            comfy.patcher_extension.get_all_wrappers(comfy.patcher_extension.WrappersMP.DIFFUSION_MODEL, transformer_options)
+        ).execute(x, timestep, context, transformer_options, **kwargs)
+
+    def _forward(self, x, timestep, context, transformer_options={}, **kwargs):
         patches_replace = transformer_options.get("patches_replace", {})
         # patchify x, add PE
         b, c, h, w = x.shape

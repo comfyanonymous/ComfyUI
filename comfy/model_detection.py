@@ -364,7 +364,12 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
             dit_config["vace_in_dim"] = state_dict['{}vace_patch_embedding.weight'.format(key_prefix)].shape[1]
             dit_config["vace_layers"] = count_blocks(state_dict_keys, '{}vace_blocks.'.format(key_prefix) + '{}.')
         elif '{}control_adapter.conv.weight'.format(key_prefix) in state_dict_keys:
-            dit_config["model_type"] = "camera"
+            if '{}img_emb.proj.0.bias'.format(key_prefix) in state_dict_keys:
+                dit_config["model_type"] = "camera"
+            else:
+                dit_config["model_type"] = "camera_2.2"
+        elif '{}casual_audio_encoder.encoder.final_linear.weight'.format(key_prefix) in state_dict_keys:
+            dit_config["model_type"] = "s2v"
         else:
             if '{}img_emb.proj.0.bias'.format(key_prefix) in state_dict_keys:
                 dit_config["model_type"] = "i2v"
@@ -373,6 +378,11 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
         flf_weight = state_dict.get('{}img_emb.emb_pos'.format(key_prefix))
         if flf_weight is not None:
             dit_config["flf_pos_embed_token_number"] = flf_weight.shape[1]
+
+        ref_conv_weight = state_dict.get('{}ref_conv.weight'.format(key_prefix))
+        if ref_conv_weight is not None:
+            dit_config["in_dim_ref_conv"] = ref_conv_weight.shape[1]
+
         return dit_config
 
     if '{}latent_in.weight'.format(key_prefix) in state_dict_keys:  # Hunyuan 3D
@@ -493,6 +503,13 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
         dit_config["patch_size"] = 2
         dit_config["text_feat_dim"] = 2048
         dit_config["timestep_scale"] = 1000.0
+        return dit_config
+
+    if '{}txt_norm.weight'.format(key_prefix) in state_dict_keys:  # Qwen Image
+        dit_config = {}
+        dit_config["image_model"] = "qwen_image"
+        dit_config["in_channels"] = state_dict['{}img_in.weight'.format(key_prefix)].shape[1]
+        dit_config["num_layers"] = count_blocks(state_dict_keys, '{}transformer_blocks.'.format(key_prefix) + '{}.')
         return dit_config
 
     if '{}input_blocks.0.0.weight'.format(key_prefix) not in state_dict_keys:
@@ -881,7 +898,7 @@ def convert_diffusers_mmdit(state_dict, output_prefix=""):
         depth_single_blocks = count_blocks(state_dict, 'single_transformer_blocks.{}.')
         hidden_size = state_dict["x_embedder.bias"].shape[0]
         sd_map = comfy.utils.flux_to_diffusers({"depth": depth, "depth_single_blocks": depth_single_blocks, "hidden_size": hidden_size}, output_prefix=output_prefix)
-    elif 'transformer_blocks.0.attn.add_q_proj.weight' in state_dict: #SD3
+    elif 'transformer_blocks.0.attn.add_q_proj.weight' in state_dict and 'pos_embed.proj.weight' in state_dict: #SD3
         num_blocks = count_blocks(state_dict, 'transformer_blocks.{}.')
         depth = state_dict["pos_embed.proj.weight"].shape[0] // 64
         sd_map = comfy.utils.mmdit_to_diffusers({"depth": depth, "num_blocks": num_blocks}, output_prefix=output_prefix)

@@ -552,6 +552,11 @@ class FourierEmbedder(nn.Module):
         else:
             return x
 
+class CrossAttentionProcessor:
+    def __call__(self, attn, q, k, v):
+        out = comfy.ops.scaled_dot_product_attention(q, k, v)
+        return out
+
 class DropPath(nn.Module):
     """Drop paths (Stochastic Depth) per sample  (when applied in main path of residual blocks).
     """

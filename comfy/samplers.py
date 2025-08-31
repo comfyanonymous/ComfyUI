@@ -16,6 +16,8 @@ import comfy.sampler_helpers
 import comfy.model_patcher
 import comfy.patcher_extension
 import comfy.hooks
+import comfy.context_windows
+import comfy.utils
 import scipy.stats
 import numpy
 
@@ -60,7 +62,7 @@ def get_area_and_mult(conds, x_in, timestep_in):
         if "mask_strength" in conds:
             mask_strength = conds["mask_strength"]
         mask = conds['mask']
-        assert (mask.shape[1:] == x_in.shape[2:])
+        # assert (mask.shape[1:] == x_in.shape[2:])
 
         mask = mask[:input_x.shape[0]]
         if area is not None:
@@ -68,7 +70,7 @@ def get_area_and_mult(conds, x_in, timestep_in):
                 mask = mask.narrow(i + 1, area[len(dims) + i], area[i])
 
         mask = mask * mask_strength
-        mask = mask.unsqueeze(1).repeat(input_x.shape[0] // mask.shape[0], input_x.shape[1], 1, 1)
+        mask = mask.unsqueeze(1).repeat((input_x.shape[0] // mask.shape[0], input_x.shape[1]) + (1, ) * (mask.ndim - 1))
     else:
         mask = torch.ones_like(input_x)
     mult = mask * strength
@@ -89,7 +91,7 @@ def get_area_and_mult(conds, x_in, timestep_in):
     conditioning = {}
     model_conds = conds["model_conds"]
     for c in model_conds:
-        conditioning[c] = model_conds[c].process_cond(batch_size=x_in.shape[0], device=x_in.device, area=area)
+        conditioning[c] = model_conds[c].process_cond(batch_size=x_in.shape[0], area=area)
 
     hooks = conds.get('hooks', None)
     control = conds.get('control', None)
@@ -198,14 +200,20 @@ def finalize_default_conds(model: 'BaseModel', hooked_to_run: dict[comfy.hooks.H
             hooked_to_run.setdefault(p.hooks, list())
             hooked_to_run[p.hooks] += [(p, i)]
 
-def calc_cond_batch(model: 'BaseModel', conds: list[list[dict]], x_in: torch.Tensor, timestep, model_options):
+def calc_cond_batch(model: BaseModel, conds: list[list[dict]], x_in: torch.Tensor, timestep, model_options: dict[str]):
+    handler: comfy.context_windows.ContextHandlerABC = model_options.get("context_handler", None)
+    if handler is None or not handler.should_use_context(model, conds, x_in, timestep, model_options):
+        return _calc_cond_batch_outer(model, conds, x_in, timestep, model_options)
+    return handler.execute(_calc_cond_batch_outer, model, conds, x_in, timestep, model_options)
+
+def _calc_cond_batch_outer(model: BaseModel, conds: list[list[dict]], x_in: torch.Tensor, timestep, model_options):
     executor = comfy.patcher_extension.WrapperExecutor.new_executor(
         _calc_cond_batch,
         comfy.patcher_extension.get_all_wrappers(comfy.patcher_extension.WrappersMP.CALC_COND_BATCH, model_options, is_model_options=True)
     )
     return executor.execute(model, conds, x_in, timestep, model_options)
 
-def _calc_cond_batch(model: 'BaseModel', conds: list[list[dict]], x_in: torch.Tensor, timestep, model_options):
+def _calc_cond_batch(model: BaseModel, conds: list[list[dict]], x_in: torch.Tensor, timestep, model_options):
     out_conds = []
     out_counts = []
     # separate conds by matching hooks
@@ -546,7 +554,10 @@ def resolve_areas_and_cond_masks_multidim(conditions, dims, device):
             if len(mask.shape) == len(dims):
                 mask = mask.unsqueeze(0)
             if mask.shape[1:] != dims:
-                mask = torch.nn.functional.interpolate(mask.unsqueeze(1), size=dims, mode='bilinear', align_corners=False).squeeze(1)
+                if mask.ndim < 4:
+                    mask = comfy.utils.common_upscale(mask.unsqueeze(1), dims[-1], dims[-2], 'bilinear', 'none').squeeze(1)
+                else:
+                    mask = comfy.utils.common_upscale(mask, dims[-1], dims[-2], 'bilinear', 'none')
 
             if modified.get("set_area_to_bounds", False): #TODO: handle dim != 2
                 bounds = torch.max(torch.abs(mask),dim=0).values.unsqueeze(0)
@@ -718,7 +729,7 @@ class Sampler:
 
 KSAMPLER_NAMES = ["euler", "euler_cfg_pp", "euler_ancestral", "euler_ancestral_cfg_pp", "heun", "heunpp2","dpm_2", "dpm_2_ancestral",
                   "lms", "dpm_fast", "dpm_adaptive", "dpmpp_2s_ancestral", "dpmpp_2s_ancestral_cfg_pp", "dpmpp_sde", "dpmpp_sde_gpu",
-                  "dpmpp_2m", "dpmpp_2m_cfg_pp", "dpmpp_2m_sde", "dpmpp_2m_sde_gpu", "dpmpp_3m_sde", "dpmpp_3m_sde_gpu", "ddpm", "lcm",
+                  "dpmpp_2m", "dpmpp_2m_cfg_pp", "dpmpp_2m_sde", "dpmpp_2m_sde_gpu", "dpmpp_2m_sde_heun", "dpmpp_2m_sde_heun_gpu", "dpmpp_3m_sde", "dpmpp_3m_sde_gpu", "ddpm", "lcm",
                   "ipndm", "ipndm_v", "deis", "res_multistep", "res_multistep_cfg_pp", "res_multistep_ancestral", "res_multistep_ancestral_cfg_pp",
                   "gradient_estimation", "gradient_estimation_cfg_pp", "er_sde", "seeds_2", "seeds_3", "sa_solver", "sa_solver_pece"]
 
@@ -946,7 +957,14 @@ class CFGGuider:
             self.original_conds[k] = comfy.sampler_helpers.convert_cond(conds[k])
 
     def __call__(self, *args, **kwargs):
-        return self.predict_noise(*args, **kwargs)
+        return self.outer_predict_noise(*args, **kwargs)
+
+    def outer_predict_noise(self, x, timestep, model_options={}, seed=None):
+        return comfy.patcher_extension.WrapperExecutor.new_class_executor(
+            self.predict_noise,
+            self,
+            comfy.patcher_extension.get_all_wrappers(comfy.patcher_extension.WrappersMP.PREDICT_NOISE, self.model_options, is_model_options=True)
+        ).execute(x, timestep, model_options, seed)
 
     def predict_noise(self, x, timestep, model_options={}, seed=None):
         return sampling_function(self.inner_model, x, timestep, self.conds.get("negative", None), self.conds.get("positive", None), self.cfg, model_options=model_options, seed=seed)

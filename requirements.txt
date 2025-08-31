@@ -1,6 +1,6 @@
-comfyui-frontend-package==1.23.4
-comfyui-workflow-templates==0.1.41
-comfyui-embedded-docs==0.2.4
+comfyui-frontend-package==1.25.11
+comfyui-workflow-templates==0.1.70
+comfyui-embedded-docs==0.2.6
 torch
 torchsde
 torchvision
@@ -20,11 +20,11 @@ tqdm
 psutil
 alembic
 SQLAlchemy
+av>=14.2.0
 
 #non essential dependencies:
 kornia>=0.7.1
 spandrel
 soundfile
-av>=14.2.0
 pydantic~=2.0
 pydantic-settings~=2.0

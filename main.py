@@ -112,7 +112,7 @@ import gc
 
 
 if os.name == "nt":
-    logging.getLogger("xformers").addFilter(lambda record: 'A matching Triton is not available' not in record.getMessage())
+    os.environ['MIMALLOC_PURGE_DELAY'] = '0'
 
 if __name__ == "__main__":
     if args.default_device is not None:
@@ -313,10 +313,10 @@ def start_comfyui(asyncio_loop=None):
     prompt_server = server.PromptServer(asyncio_loop)
 
     hook_breaker_ac10a0.save_functions()
-    nodes.init_extra_nodes(
+    asyncio_loop.run_until_complete(nodes.init_extra_nodes(
         init_custom_nodes=(not args.disable_all_custom_nodes) or len(args.whitelist_custom_nodes) > 0,
         init_api_nodes=not args.disable_api_nodes
-    )
+    ))
     hook_breaker_ac10a0.restore_functions()
 
     cuda_malloc_warning()
