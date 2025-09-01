@@ -105,7 +105,7 @@ class FluxKontextMultiReferenceLatentMethod:
     def INPUT_TYPES(s):
         return {"required": {
             "conditioning": ("CONDITIONING", ),
-            "reference_latents_method": (("offset", "index"), ),
+            "reference_latents_method": (("offset", "index", "uso"), ),
             }}
 
     RETURN_TYPES = ("CONDITIONING",)
