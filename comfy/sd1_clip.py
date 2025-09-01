@@ -259,7 +259,7 @@ class SDClipModel(torch.nn.Module, ClipTokenWeightEncoder):
                 # Adjust output embedding indices based on where
                 # multi-token INPUT embeddings were inserted.
                 if emb is not None:
-                    num_new_tokens = emb.shape[1]
+                    num_new_tokens = emb.shape[0] if len(emb.shape) > 1 else 1
                     for i in range(len(output_embeds_for_prompt)):
                         if output_embeds_for_prompt[i][0] > o[0]:
                             output_embeds_for_prompt[i] = (output_embeds_for_prompt[i][0] + num_new_tokens - 1, output_embeds_for_prompt[i][1])
