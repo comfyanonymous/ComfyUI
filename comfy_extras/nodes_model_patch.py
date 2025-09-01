@@ -89,6 +89,7 @@ class DiffSynthCnetPatch:
         self.strength = strength
         self.mask = mask
         self.encoded_image = model_patch.model.process_input_latent_image(self.encode_latent_cond(image))
+        self.encoded_image_size = (image.shape[1], image.shape[2])
 
     def encode_latent_cond(self, image):
         latent_image = self.vae.encode(image)
@@ -106,14 +107,15 @@ class DiffSynthCnetPatch:
         x = kwargs.get("x")
         img = kwargs.get("img")
         block_index = kwargs.get("block_index")
-        if self.encoded_image is None or self.encoded_image.shape[1:] != img.shape[1:]:
-            spacial_compression = self.vae.spacial_compression_encode()
+        spacial_compression = self.vae.spacial_compression_encode()
+        if self.encoded_image is None or self.encoded_image_size != (x.shape[-2] * spacial_compression, x.shape[-1] * spacial_compression):
             image_scaled = comfy.utils.common_upscale(self.image.movedim(-1, 1), x.shape[-1] * spacial_compression, x.shape[-2] * spacial_compression, "area", "center")
             loaded_models = comfy.model_management.loaded_models(only_currently_used=True)
             self.encoded_image = self.model_patch.model.process_input_latent_image(self.encode_latent_cond(image_scaled.movedim(1, -1)))
+            self.encoded_image_size = (image_scaled.shape[-2], image_scaled.shape[-1])
             comfy.model_management.load_models_gpu(loaded_models)
 
-        img = img + (self.model_patch.model.control_block(img, self.encoded_image.to(img.dtype), block_index) * self.strength)
+        img[:, :self.encoded_image.shape[1]] += (self.model_patch.model.control_block(img[:, :self.encoded_image.shape[1]], self.encoded_image.to(img.dtype), block_index) * self.strength)
         kwargs['img'] = img
         return kwargs
 
