@@ -422,8 +422,6 @@ def operator_factory(**factory_kwargs):
 
     return op_set
 
-# TODO might be nicer to have a unified interface to the factory
-# TODO logic might not be 1-1 match to original implementation
 def pick_operations(weight_dtype=None, compute_dtype=None, load_device=None, fast_fp8=False, disable_fast_fp8=False):
     fp8_compute = (comfy.model_management.supports_fp8_compute(load_device) and not disable_fast_fp8)
     use_dynamic_quantizer = fast_fp8
