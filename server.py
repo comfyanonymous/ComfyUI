@@ -49,8 +49,6 @@ async def send_socket_catch_exception(function, message):
         logging.warning("send error: {}".format(err))
 
 @web.middleware
-
-@web.middleware
 async def compress_body(request: web.Request, handler):
     accept_encoding = request.headers.get("Accept-Encoding", "")
     response: web.Response = await handler(request)
