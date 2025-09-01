@@ -260,6 +260,10 @@ def model_lora_keys_unet(model, key_map={}):
                 key_map["transformer.{}".format(k[:-len(".weight")])] = to #simpletrainer and probably regular diffusers flux lora format
                 key_map["lycoris_{}".format(k[:-len(".weight")].replace(".", "_"))] = to #simpletrainer lycoris
                 key_map["lora_transformer_{}".format(k[:-len(".weight")].replace(".", "_"))] = to #onetrainer
+        for k in sdk:
+            hidden_size = model.model_config.unet_config.get("hidden_size", 0)
+            if k.endswith(".weight") and ".linear1." in k:
+                key_map["{}".format(k.replace(".linear1.weight", ".linear1_qkv"))] = (k, (0, 0, hidden_size * 3))
 
     if isinstance(model, comfy.model_base.GenmoMochi):
         for k in sdk:
