@@ -1,5 +1,4 @@
 import os
-import logging
 
 from transformers import CLIPTokenizer
 import comfy.ops
@@ -306,7 +305,7 @@ class SDClipModel(torch.nn.Module, ClipTokenWeightEncoder):
         else:
             intermediate_output = self.layer_idx
 
-        outputs = self.transformer(None, attention_mask_model, embeds=embeds, num_tokens=num_tokens, intermediate_output=intermediate_output, final_layer_norm_intermediate=self.layer_norm_hidden_state, dtype=torch.float32, embeds_info=embeds_info)
+        outputs = self.transformer(None, attention_mask_model, embeds=embeds, num_tokens=num_tokens, intermediate_output=intermediate_output, final_layer_norm_intermediate=self.layer_norm_hidden_state, dtype=torch.float32)
 
         if self.layer == "last":
             z = outputs[0].float()
@@ -500,8 +499,16 @@ def load_embed(embedding_name, embedding_directory, embedding_size, embed_key=No
             embed_out = {"type": "embedding", "data": torch.cat(out_list, dim=0)}
         elif embed_key is not None:
             mapped_key = embed_key_map.get(embed_key, embed_key)
-            output_key = f"{mapped_key}_out" # output embeddings has _out tensors like "t5_out"
-            if output_key in embed:
+            output_key = f"{mapped_key}_out"
+
+            # Check for different embedding key conventions.
+            # 1. SD1.5 'emp_params' convention
+            if "emp_params_out" in embed:
+                embed_out = {"type": "output_embedding", "data": embed["emp_params_out"]}
+            elif "emp_params" in embed:
+                embed_out = {"type": "embedding", "data": embed["emp_params"]}
+            # 2. Generic '<text_encoder>_out' convention (SDXL, SD3, FLUX, Chroma, etc.)
+            elif output_key in embed:
                 embed_out = {"type": "output_embedding", "data": embed[output_key]}
             elif mapped_key in embed:
                 embed_out = {"type": "embedding", "data": embed[mapped_key]}
