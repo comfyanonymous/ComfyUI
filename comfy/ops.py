@@ -19,11 +19,10 @@
 import torch
 import logging
 import comfy.model_management
-from comfy.cli_args import args, PerformanceFeature
 import comfy.float
 import comfy.rmsnorm
 import contextlib
-from comfy.quant_tensor import Q_TYPES, tensor_quantizer, tensor_dequantizer, dynamic_tensor_quantizer, woq_fwd, quantized_fwd
+from comfy.quant_tensor import Q_TYPES, tensor_quantizer, tensor_dequantizer, dynamic_tensor_quantizer, woq_fwd, quantized_fwd, get_quantizer_with_constraints
 import types
 import inspect
 
@@ -128,7 +127,7 @@ class disable_weight_init:
         def _set_quantizer_fn(self, scale_weight, scale_input):
             if scale_weight.ndim != 0 and scale_weight.shape[0] != 1:
                 raise ValueError("Blockwise quantization is not supported")
-            if self.use_dynamic_quantizer:
+            if scale_input is None and self.use_dynamic_quantizer:
                 setattr(self, "quantizer", dynamic_tensor_quantizer)
             else:
                 setattr(self, "quantizer", tensor_quantizer)
@@ -147,14 +146,22 @@ class disable_weight_init:
 
         def _init_parameters_from_sd(self, state_dict, prefix):
             if not state_dict:
-                logging.warning("No state dict provided.")
+                logging.warning(f"No state dict provided for {prefix}.")
                 weight = torch.nn.Parameter(
                     torch.empty((self.out_features, self.in_features), dtype=self.compute_dtype, device=self.device)
                 )
                 self.register_buffer('weight', weight)
                 return
 
-            weight_dtype = state_dict[f"{prefix}weight"].dtype
+            scale_weight = None
+            _w = state_dict.pop(f"{prefix}weight")
+            if len(self.weight_function):
+                _w, scale_weight = self.weight_function[0](_w)
+            state_dict[f"{prefix}weight"] = _w
+            if scale_weight is not None:
+                state_dict[f"{prefix}scale_weight"] = scale_weight
+
+            weight_dtype = _w.dtype
             weight = torch.nn.Parameter(
                 torch.empty((self.out_features, self.in_features), device=self.device, dtype=weight_dtype))
 
@@ -164,20 +171,21 @@ class disable_weight_init:
 
             scale_weight = state_dict.get(f"{prefix}scale_weight", None)
             if scale_weight is None:
-                logging.warning("Using quantized Weights requires a scale to be present! Falling back to 1.0")
+                logging.warning("Using quantized weights without a scale can result in low accuracy.")
                 scale_weight = torch.ones(1)
                 state_dict[f"{prefix}scale_weight"] = scale_weight
             self.register_buffer('scale_weight', scale_weight.to(device=self.device))
 
             scale_input = state_dict.get(f"{prefix}scale_input", None)
-            if scale_input is None and self.use_dynamic_quantizer:
-                scale_input = torch.ones(1) # Placeholder for API
             if scale_input is not None:
                 self.register_buffer('scale_input', scale_input.to(device=self.device))
+            elif not self.use_dynamic_quantizer:
+                # Fallback to WoQ
+                self.fp8_compute = False
 
             if self.bias is not None:
                 # WAR not really nice, but Qwen VL has an input scale but uses f32 intermediates and quantized bias
-                self.fp8_compute = not self.bias.dtype in Q_TYPES
+                self.fp8_compute = self.fp8_compute and (self.bias.dtype in [torch.float16, torch.bfloat16])
 
             self._set_quantizer_fn(scale_weight, scale_input)
             self._set_dequantizer_fn(scale_weight)
@@ -416,9 +424,12 @@ def operator_factory(**factory_kwargs):
 
 # TODO might be nicer to have a unified interface to the factory
 # TODO logic might not be 1-1 match to original implementation
-def pick_operations(weight_dtype=None, compute_dtype=None, load_device=None, disable_fast_fp8=False):
+def pick_operations(weight_dtype=None, compute_dtype=None, load_device=None, fast_fp8=False, disable_fast_fp8=False):
     fp8_compute = (comfy.model_management.supports_fp8_compute(load_device) and not disable_fast_fp8)
-    use_dynamic_quantizer = PerformanceFeature.DynamicQuantizer in args.fast
+    use_dynamic_quantizer = fast_fp8
     manual_cast = not((weight_dtype == compute_dtype) or use_dynamic_quantizer or fp8_compute)
-    return operator_factory(comfy_cast_weights=manual_cast, use_dynamic_quantizer=use_dynamic_quantizer, fp8_compute=fp8_compute)
 
+    weight_function = []
+    if weight_dtype is not None and compute_dtype is not None and not manual_cast:
+        weight_function = [get_quantizer_with_constraints(weight_dtype)]
+    return operator_factory(comfy_cast_weights=manual_cast, use_dynamic_quantizer=use_dynamic_quantizer, fp8_compute=fp8_compute, weight_function=weight_function)

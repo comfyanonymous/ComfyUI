@@ -48,6 +48,7 @@ class BASE:
     memory_usage_factor = 2.0
 
     manual_cast_dtype = None
+    target_dtype = None
     custom_operations = None
     scaled_fp8 = None
     optimizations = {"fp8": False}
@@ -115,5 +116,6 @@ class BASE:
         return utils.state_dict_prefix_replace(state_dict, replace_prefix)
 
     def set_inference_dtype(self, dtype, manual_cast_dtype):
-        self.unet_config['dtype'] = dtype
+        self.unet_config['dtype'] = dtype if manual_cast_dtype is None else manual_cast_dtype
+        self.target_dtype = dtype
         self.manual_cast_dtype = manual_cast_dtype
