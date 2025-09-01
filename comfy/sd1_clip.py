@@ -226,8 +226,8 @@ class SDClipModel(torch.nn.Module, ClipTokenWeightEncoder):
                         # For output embeddings, store their position and data for later.
                         # Insert placeholder tokens to maintain sequence length.
                         output_embeds_for_prompt.append((index, y["data"]))
-                        tokens_temp.extend([self.special_tokens["pad"]] * num_tokens_in_embed)
-                        attention_mask.extend([1] * num_tokens_in_embed)
+                        placeholder_data = torch.zeros_like(y["data"])
+                        other_embeds.append((index, {"type": "embedding", "data": placeholder_data}))
                     else: # Regular input embedding
                         other_embeds.append((index, y))
                     index += num_tokens_in_embed
