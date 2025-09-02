@@ -24,6 +24,12 @@ The antiviruses, including Windows Defender on my computer, didn't detect them a
 
 ### Recent Updates
 
+- **Changed node storage folder and added CFZ-Condition-Caching node. This allows you to save-load conditionings -prompts basically- it helps on two fronts, if you are using same prompts over and over it skips the clip part AND more importantly it skips loading clip model all together, giving you more memory to load other stuff, main model being the most important.
+
+<img width="1292" height="979" alt="Screenshot 2025-09-02 182907" src="https://github.com/user-attachments/assets/e7ab712b-4adc-426a-932a-acd0e49a30e0" />
+
+* I also uploaded an example workflow on how to use the nodes in your workflows. It is not fully working , and it is there to an idea how to incorporate to your workflows.
+
 - **Added "cfz-vae-loader" node** to CFZ folder - enables changing VAE precision on the fly without using `--fp16-vae` etc. on the starting command line. This is important because while "WAN" works faster with fp16, Flux produces black output if fp16 VAE is used. Start ComfyUI normally and add this node to your WAN workflow to change it only with that model type.
 
 - **Use update.bat** if comfyui.bat or comfyui-n.bat can't update (as when they are the files that need to be updated, so delete them, run update.bat). When you run your comfyui(-n).bat afterwards, it now copies correct ZLUDA and uses that.
