@@ -84,9 +84,7 @@ echo.
 echo  ::  %time:~0,8%  ::  Custom node(s) installation ...
 echo. 
 echo :: %time:~0,8%  ::  - Installing CFZ Nodes (description in readme on github) 
-copy cfz\cfz_patcher.py custom_nodes\cfz_patcher.py /y >NUL
-copy cfz\cfz_cudnn.toggle.py custom_nodes\cfz_cudnn.toggle.py /y >NUL
-copy cfz\cfz_vae_loader.py custom_nodes\cfz_vae_loader.py /y >NUL
+xcopy /E /I /Y "cfz\nodes" "custom_nodes" >NUL
 echo  ::  %time:~0,8%  ::  - Installing Comfyui Manager
 cd custom_nodes
 git clone https://github.com/ltdrdata/ComfyUI-Manager.git --quiet
@@ -156,6 +154,7 @@ set FLASH_ATTENTION_TRITON_AMD_ENABLE=TRUE
 set MIOPEN_FIND_MODE=2
 set MIOPEN_LOG_LEVEL=3
 .\zluda\zluda.exe -- python main.py --auto-launch --use-quad-cross-attention
+
 
 
 
