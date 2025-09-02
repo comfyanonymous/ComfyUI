@@ -248,7 +248,7 @@ class Flux(nn.Module):
                     index += 1
                     h_offset = 0
                     w_offset = 0
-                elif ref_latents_method == "uso":
+                elif ref_latents_method == "uxo":
                     index = 0
                     h_offset = h_len * patch_size + h
                     w_offset = w_len * patch_size + w
