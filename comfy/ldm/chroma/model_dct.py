@@ -10,10 +10,7 @@ from torch import Tensor, nn
 from einops import repeat
 import comfy.ldm.common_dit
 
-from comfy.ldm.flux.layers import (
-    EmbedND,
-    timestep_embedding,
-)
+from comfy.ldm.flux.layers import EmbedND
 
 from .layers import (
     DoubleStreamBlock,
@@ -28,6 +25,7 @@ from .layers_dct import (
 )
 
 from . import model as chroma_model
+
 
 @dataclass
 class ChromaRadianceParams(chroma_model.ChromaParams):

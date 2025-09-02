@@ -6,6 +6,7 @@ from torch import nn
 
 from comfy.ldm.flux.layers import RMSNorm
 
+
 class NerfEmbedder(nn.Module):
     """
     An embedder module that combines input features with a 2D positional
@@ -130,6 +131,7 @@ class NerfEmbedder(nn.Module):
         # No-op if already the same dtype.
         return inputs.to(dtype=orig_dtype)
 
+
 class NerfGLUBlock(nn.Module):
     """
     A NerfBlock using a Gated Linear Unit (GLU) like MLP.
@@ -181,6 +183,7 @@ class NerfFinalLayer(nn.Module):
         # RMSNorm normalizes over the last dimension, but our channel dim (C) is at dim=1.
         # So we temporarily move the channel dimension to the end for the norm operation.
         return self.linear(self.norm(x.movedim(1, -1))).movedim(-1, 1)
+
 
 class NerfFinalLayerConv(nn.Module):
     def __init__(self, hidden_size, out_channels, dtype=None, device=None, operations=None):
