@@ -433,6 +433,9 @@ class ModelPatcher:
     def set_model_double_block_patch(self, patch):
         self.set_model_patch(patch, "double_block")
 
+    def set_model_post_input_patch(self, patch):
+        self.set_model_patch(patch, "post_input")
+
     def add_object_patch(self, name, obj):
         self.object_patches[name] = obj
 
