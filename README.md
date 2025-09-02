@@ -24,7 +24,7 @@ The antiviruses, including Windows Defender on my computer, didn't detect them a
 
 ### Recent Updates
 
-- **Changed node storage folder and added CFZ-Condition-Caching node. This allows you to save-load conditionings -prompts basically- it helps on two fronts, if you are using same prompts over and over it skips the clip part AND more importantly it skips loading clip model all together, giving you more memory to load other stuff, main model being the most important.
+- **Changed node storage folder and added CFZ-Condition-Caching node. This allows you to save-load conditionings -prompts basically- it helps on two fronts, if you are using same prompts over and over it skips the clip part AND more importantly it skips loading clip model all together, giving you more memory to load other stuff, main model being the most important. (It is based on this nodepack , https://github.com/alastor-666-1933/caching_to_not_waste)
 
 <img width="1292" height="979" alt="Screenshot 2025-09-02 182907" src="https://github.com/user-attachments/assets/e7ab712b-4adc-426a-932a-acd0e49a30e0" />
 
