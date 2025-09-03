@@ -625,6 +625,37 @@ class ImageFlip:
 
         return (image,)
 
+class ImageScaleToMaxDimension:
+    upscale_methods = ["area", "lanczos", "bilinear", "nearest-exact", "bilinear", "bicubic"]
+
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": {"image": ("IMAGE",),
+                             "upscale_method": (s.upscale_methods,),
+                             "largest_size": ("INT", {"default": 512, "min": 0, "max": MAX_RESOLUTION, "step": 1})}}
+    RETURN_TYPES = ("IMAGE",)
+    FUNCTION = "upscale"
+
+    CATEGORY = "image/upscaling"
+
+    def upscale(self, image, upscale_method, largest_size):
+        height = image.shape[1]
+        width = image.shape[2]
+
+        if height > width:
+            width = round((width / height) * largest_size)
+            height = largest_size
+        elif width > height:
+            height = round((height / width) * largest_size)
+            width = largest_size
+        else:
+            height = largest_size
+            width = largest_size
+
+        samples = image.movedim(-1, 1)
+        s = comfy.utils.common_upscale(samples, width, height, upscale_method, "disabled")
+        s = s.movedim(1, -1)
+        return (s,)
 
 NODE_CLASS_MAPPINGS = {
     "ImageCrop": ImageCrop,
@@ -639,4 +670,5 @@ NODE_CLASS_MAPPINGS = {
     "GetImageSize": GetImageSize,
     "ImageRotate": ImageRotate,
     "ImageFlip": ImageFlip,
+    "ImageScaleToMaxDimension": ImageScaleToMaxDimension,
 }
