@@ -37,48 +37,65 @@ def auto_patch_workspace_and_restart():
     ]
 
     patched_any_file = False
+    files_to_ignore = []
 
     for dir_name in target_base_dirs:
         start_dir = os.path.join(workspace_dir, dir_name)
         if not os.path.isdir(start_dir):
             continue
 
+        dirs_with_py_files = set()
         for dirpath, _, filenames in os.walk(start_dir):
-            init_py_path = os.path.join(dirpath, '__init__.py')
-
-            if os.path.exists(init_py_path):
-                continue
-
             if any(fname.endswith('.py') for fname in filenames):
+                dirs_with_py_files.add(dirpath)
+
+        if not dirs_with_py_files:
+            continue
+
+        dirs_to_initialize = set()
+        for dirpath in dirs_with_py_files:
+            parent = dirpath
+            while len(parent) >= len(start_dir):
+                dirs_to_initialize.add(parent)
+                new_parent = os.path.dirname(parent)
+                if new_parent == parent:
+                    break
+                parent = new_parent
+
+        for dirpath in sorted(list(dirs_to_initialize)):
+            init_py_path = os.path.join(dirpath, '__init__.py')
+            if not os.path.exists(init_py_path):
                 logger.debug(f"  Initializing package: {dirpath}")
                 try:
                     with open(init_py_path, 'w') as f:
                         pass
                     patched_any_file = True
-
-                    if git_is_available:
-                        try:
-                            relative_path = os.path.relpath(init_py_path, workspace_dir).replace(os.sep, '/')
-
-                            exclude_file = os.path.join(workspace_dir, '.git', 'info', 'exclude')
-                            os.makedirs(os.path.dirname(exclude_file), exist_ok=True)
-
-                            content = ""
-                            if os.path.exists(exclude_file):
-                                with open(exclude_file, 'r') as f_read:
-                                    content = f_read.read()
-
-                            if relative_path not in content.splitlines():
-                                with open(exclude_file, 'a') as f_append:
-                                    f_append.write(f"\n{relative_path}")
-                                logger.debug(f"  Ignoring via .git/info/exclude: {relative_path}")
-
-                        except Exception as e:
-                            logger.debug(f"Warning: Could not add {relative_path} to Git exclude file. Error: {e}")
-
+                    files_to_ignore.append(init_py_path)
                 except OSError as e:
                     logger.debug(f"Warning: Could not create {init_py_path}. Error: {e}")
+
+    if git_is_available and files_to_ignore:
+        try:
+            exclude_file = os.path.join(workspace_dir, '.git', 'info', 'exclude')
+            os.makedirs(os.path.dirname(exclude_file), exist_ok=True)
+
+            existing_lines = set()
+            if os.path.exists(exclude_file):
+                with open(exclude_file, 'r') as f_read:
+                    existing_lines = set(line.strip() for line in f_read)
+
+            with open(exclude_file, 'a') as f_append:
+                for init_py_path in files_to_ignore:
+                    relative_path = os.path.relpath(init_py_path, workspace_dir).replace(os.sep, '/')
+                    if relative_path not in existing_lines:
+                        f_append.write(f"\n{relative_path}")
+                        existing_lines.add(relative_path)
+                        logger.debug(f"  Ignoring via .git/info/exclude: {relative_path}")
+
+        except Exception as e:
+            logger.debug(f"Warning: Could not update Git exclude file. Error: {e}")
 
     if patched_any_file:
         logger.debug("Found and initialized Python package directories in your workspace. This is a one-time operation to enable proper imports. Now restarting...")
         os.execv(sys.executable, [sys.executable] + sys.argv)
+
