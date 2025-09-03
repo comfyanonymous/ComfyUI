@@ -12,7 +12,7 @@ COMFYUI_REPO = "https://github.com/comfyanonymous/ComfyUI.git"
 COMFYSTREAM_REPO = "https://github.com/doctorpangloss/comfystream.git"
 COMFYSTREAM_COMMIT = "f2f7929def53a4853cc5a1c2774aea70775ce2ff"
 COMFYUI_LTS_REPO = "https://github.com/hiddenswitch/ComfyUI.git"
-COMFYUI_LTS_COMMIT = "6cffd4c4c22e45a8bf07d3a3565ca88de1ca6168"
+COMFYUI_LTS_COMMIT = "75e39c27202c8e31f8ec84eea4fc560c4e34f2c8"
 
 
 def run_command(cmd, cwd, desc, shell=False):
@@ -188,4 +188,38 @@ def test_server_starts_with_comfystream(comfyui_workspace):
             if remaining_output:
                 print("\n--- Remaining Server Output ---")
                 print(remaining_output)
+
+        # --- Assert that the main .gitignore was not modified ---
+        print("\n--- Verifying .gitignore integrity ---")
+        gitignore_path = comfyui_dir / ".gitignore"
+        assert gitignore_path.is_file(), ".gitignore file not found in ComfyUI directory."
+
+        with open(gitignore_path, 'r') as f:
+            gitignore_content = f.read()
+
+        assert "__init__.py" not in gitignore_content, (
+            "Found '__init__.py' in the main .gitignore file. "
+            "The patcher should use .git/info/exclude instead."
+        )
+        print("--- Success: .gitignore was not modified. ---")
+
+        # --- Assert that no __init__.py files are untracked by Git ---
+        print("\n--- Verifying Git status for untracked files ---")
+        git_status_result = run_command(
+            ["git", "status", "--porcelain"],
+            cwd=comfyui_dir,
+            desc="Checking git status for untracked files"
+        )
+
+        untracked_inits = []
+        for line in git_status_result.stdout.strip().splitlines():
+            # Untracked files are prefixed with '??'
+            if line.startswith("??") and line.endswith("__init__.py"):
+                untracked_inits.append(line.strip().split("?? ")[1])
+
+        assert not untracked_inits, (
+            "Found untracked __init__.py files. The patcher failed to add them to .git/info/exclude.\n"
+            f"Untracked files: {untracked_inits}"
+        )
+        print("--- Success: No untracked __init__.py files found. ---")
 
