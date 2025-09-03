@@ -149,7 +149,7 @@ class TestExecution:
             '--output-directory', args_pytest["output_dir"],
             '--listen', args_pytest["listen"],
             '--port', str(args_pytest["port"]),
-            '--extra-model-paths-config', 'tests/inference/extra_model_paths.yaml',
+            '--extra-model-paths-config', 'tests/execution/extra_model_paths.yaml',
             '--cpu',
         ]
         use_lru, lru_size = request.param

@@ -7,7 +7,7 @@ import subprocess
 
 from pytest import fixture
 from comfy_execution.graph_utils import GraphBuilder
-from tests.inference.test_execution import ComfyClient, run_warmup
+from tests.execution.test_execution import ComfyClient, run_warmup
 
 
 @pytest.mark.execution
@@ -23,7 +23,7 @@ class TestAsyncNodes:
             '--output-directory', args_pytest["output_dir"],
             '--listen', args_pytest["listen"],
             '--port', str(args_pytest["port"]),
-            '--extra-model-paths-config', 'tests/inference/extra_model_paths.yaml',
+            '--extra-model-paths-config', 'tests/execution/extra_model_paths.yaml',
             '--cpu',
         ]
         use_lru, lru_size = request.param
