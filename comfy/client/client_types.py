@@ -3,7 +3,7 @@ from typing import List, NamedTuple, Optional
 
 from typing_extensions import TypedDict, Literal, NotRequired
 
-from comfy.component_model.executor_types import SendSyncEvent, SendSyncData
+from ..component_model.executor_types import SendSyncEvent, SendSyncData
 
 
 class FileOutput(TypedDict, total=False):

@@ -1,5 +1,6 @@
 from .wav2vec2 import Wav2Vec2Model
 from ..model_management import text_encoder_offload_device, text_encoder_device, load_model_gpu, text_encoder_dtype
+from ..model_patcher import ModelPatcher
 from ..ops import manual_cast
 from ..utils import state_dict_prefix_replace
 
@@ -12,7 +13,7 @@ class AudioEncoderModel():
         self.dtype = text_encoder_dtype(self.load_device)
         self.model = Wav2Vec2Model(dtype=self.dtype, device=offload_device, operations=manual_cast)
         self.model.eval()
-        self.patcher = comfy.model_patcher.ModelPatcher(self.model, load_device=self.load_device, offload_device=offload_device)
+        self.patcher = ModelPatcher(self.model, load_device=self.load_device, offload_device=offload_device)
         self.model_sample_rate = 16000
 
     def load_sd(self, sd):

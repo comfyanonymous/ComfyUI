@@ -1,5 +1,5 @@
 import torch
-import nodes
+from comfy.nodes import base_nodes as nodes
 
 
 import comfy.utils

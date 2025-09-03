@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-from comfy.ldm.modules.attention import optimized_attention_masked
+from ..ldm.modules.attention import optimized_attention_masked
 
 
 class LayerNormConv(nn.Module):

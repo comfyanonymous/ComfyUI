@@ -771,7 +771,7 @@ class Sampler:
         return math.isclose(max_sigma, sigma, rel_tol=1e-05) or sigma > max_sigma
 
 
-@_module_properties.getter()
+@_module_properties.getter
 def _KSAMPLER_NAMES():
     return KSAMPLER_NAMES
 

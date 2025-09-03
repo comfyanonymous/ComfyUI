@@ -6,6 +6,7 @@ import comfy.ops
 import comfy.model_management
 import comfy.ldm.common_dit
 import comfy.latent_formats
+from comfy.model_patcher import ModelPatcher
 
 
 class BlockWiseControlBlock(torch.nn.Module):
@@ -207,6 +208,7 @@ class ModelPatchLoader:
         sd = comfy.utils.load_torch_file(model_patch_path, safe_load=True)
         dtype = comfy.utils.weight_dtype(sd)
 
+        model = None
         if 'controlnet_blocks.0.y_rms.weight' in sd:
             additional_in_dim = sd["img_in.weight"].shape[1] - 64
             model = QwenImageBlockWiseControlNet(additional_in_dim=additional_in_dim, device=comfy.model_management.unet_offload_device(), dtype=dtype, operations=comfy.ops.manual_cast)
@@ -215,7 +217,7 @@ class ModelPatchLoader:
             model = SigLIPMultiFeatProjModel(device=comfy.model_management.unet_offload_device(), dtype=dtype, operations=comfy.ops.manual_cast)
 
         model.load_state_dict(sd)
-        model = comfy.model_patcher.ModelPatcher(model, load_device=comfy.model_management.get_torch_device(), offload_device=comfy.model_management.unet_offload_device())
+        model = ModelPatcher(model, load_device=comfy.model_management.get_torch_device(), offload_device=comfy.model_management.unet_offload_device())
         return (model,)
 
 

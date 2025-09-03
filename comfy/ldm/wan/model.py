@@ -953,7 +953,7 @@ class MotionEncoder_tc(nn.Module):
         x = self.norm3(x)
         x = self.act(x)
         x = rearrange(x, '(b n) t c -> b t n c', b=b)
-        padding = comfy.model_management.cast_to(self.padding_tokens, dtype=x.dtype, device=x.device).repeat(b, x.shape[1], 1, 1)
+        padding = cast_to(self.padding_tokens, dtype=x.dtype, device=x.device).repeat(b, x.shape[1], 1, 1)
         x = torch.cat([x, padding], dim=-2)
         x_local = x.clone()
 
@@ -1005,7 +1005,7 @@ class CausalAudioEncoder(nn.Module):
 
     def forward(self, features):
         # features B * num_layers * dim * video_length
-        weights = self.act(comfy.model_management.cast_to(self.weights, dtype=features.dtype, device=features.device))
+        weights = self.act(cast_to(self.weights, dtype=features.dtype, device=features.device))
         weights_sum = weights.sum(dim=1, keepdims=True)
         weighted_feat = ((features * weights) / weights_sum).sum(
             dim=1)  # b dim f
@@ -1267,7 +1267,7 @@ class WanModel_S2V(WanModel):
         x = x.flatten(2).transpose(1, 2)
         seq_len = x.size(1)
 
-        cond_mask_weight = comfy.model_management.cast_to(self.trainable_cond_mask.weight, dtype=x.dtype, device=x.device).unsqueeze(1).unsqueeze(1)
+        cond_mask_weight = cast_to(self.trainable_cond_mask.weight, dtype=x.dtype, device=x.device).unsqueeze(1).unsqueeze(1)
         x = x + cond_mask_weight[0]
 
         if reference_latent is not None:

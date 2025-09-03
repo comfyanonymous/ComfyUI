@@ -8,7 +8,6 @@ import logging
 import threading
 import uuid
 from asyncio import get_event_loop
-from dataclasses import dataclass
 from multiprocessing import RLock
 from typing import Optional, Generator
 
@@ -16,8 +15,8 @@ from opentelemetry import context, propagate
 from opentelemetry.context import Context, attach, detach
 from opentelemetry.trace import Status, StatusCode
 
-from .async_progress_iterable import _ProgressHandler, QueuePromptWithProgress
 from ..cmd.main_pre import tracer
+from .async_progress_iterable import _ProgressHandler, QueuePromptWithProgress
 from .client_types import V1QueuePromptResponse
 from ..api.components.schema.prompt import PromptDict
 from ..cli_args_types import Configuration
