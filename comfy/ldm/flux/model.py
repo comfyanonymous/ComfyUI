@@ -108,6 +108,7 @@ class Flux(nn.Module):
         if y is None:
             y = torch.zeros((img.shape[0], self.params.vec_in_dim), device=img.device, dtype=img.dtype)
 
+        patches = transformer_options.get("patches", {})
         patches_replace = transformer_options.get("patches_replace", {})
         if img.ndim != 3 or txt.ndim != 3:
             raise ValueError("Input img and txt tensors must have 3 dimensions.")
@@ -121,6 +122,14 @@ class Flux(nn.Module):
 
         vec = vec + self.vector_in(y[:, :self.params.vec_in_dim])
         txt = self.txt_in(txt)
+
+        if "post_input" in patches:
+            for p in patches["post_input"]:
+                out = p({"img": img, "txt": txt, "img_ids": img_ids, "txt_ids": txt_ids})
+                img = out["img"]
+                txt = out["txt"]
+                img_ids = out["img_ids"]
+                txt_ids = out["txt_ids"]
 
         if img_ids is not None:
             ids = torch.cat((txt_ids, img_ids), dim=1)
@@ -160,7 +169,7 @@ class Flux(nn.Module):
                 if i < len(control_i):
                     add = control_i[i]
                     if add is not None:
-                        img += add
+                        img[:, :add.shape[1]] += add
 
         if img.dtype == torch.float16:
             img = torch.nan_to_num(img, nan=0.0, posinf=65504, neginf=-65504)
@@ -191,7 +200,7 @@ class Flux(nn.Module):
                 if i < len(control_o):
                     add = control_o[i]
                     if add is not None:
-                        img[:, txt.shape[1]:, ...] += add
+                        img[:, txt.shape[1]: txt.shape[1] + add.shape[1], ...] += add
 
         img = img[:, txt.shape[1]:, ...]
 
@@ -235,12 +244,18 @@ class Flux(nn.Module):
             h = 0
             w = 0
             index = 0
-            index_ref_method = kwargs.get("ref_latents_method", "offset") == "index"
+            ref_latents_method = kwargs.get("ref_latents_method", "offset")
             for ref in ref_latents:
-                if index_ref_method:
+                if ref_latents_method == "index":
                     index += 1
                     h_offset = 0
                     w_offset = 0
+                elif ref_latents_method == "uxo":
+                    index = 0
+                    h_offset = h_len * patch_size + h
+                    w_offset = w_len * patch_size + w
+                    h += ref.shape[-2]
+                    w += ref.shape[-1]
                 else:
                     index = 1
                     h_offset = 0

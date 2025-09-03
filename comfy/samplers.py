@@ -22,12 +22,14 @@ from .k_diffusion import sampling as k_diffusion_sampling
 from .model_base import BaseModel
 from .model_management_types import ModelOptions
 from .model_patcher import ModelPatcher
-from .sampler_names import SCHEDULER_NAMES, SAMPLER_NAMES
+from .sampler_names import SCHEDULER_NAMES, SAMPLER_NAMES, KSAMPLER_NAMES
 from .context_windows import ContextHandlerABC
 from .utils import common_upscale
 from .patcher_extension import WrapperExecutor, get_all_wrappers, WrappersMP
+from .component_model import module_property
 
 logger = logging.getLogger(__name__)
+_module_properties = module_property.create_module_properties()
 
 
 def add_area_dims(area, num_dims):
@@ -767,6 +769,11 @@ class Sampler:
         max_sigma = float(model_wrap.inner_model.model_sampling.sigma_max)
         sigma = float(sigmas[0])
         return math.isclose(max_sigma, sigma, rel_tol=1e-05) or sigma > max_sigma
+
+
+@_module_properties.getter()
+def _KSAMPLER_NAMES():
+    return KSAMPLER_NAMES
 
 
 class KSAMPLER(Sampler):

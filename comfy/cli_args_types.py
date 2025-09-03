@@ -52,6 +52,7 @@ class PerformanceFeature(enum.Enum):
     Fp16Accumulation = "fp16_accumulation"
     Fp8MatrixMultiplication = "fp8_matrix_mult"
     CublasOps = "cublas_ops"
+    AutoTune = "autotune"
 
 
 class Configuration(dict):

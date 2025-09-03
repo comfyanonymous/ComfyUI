@@ -88,7 +88,7 @@ class FluxKontextMultiReferenceLatentMethod:
     def INPUT_TYPES(s):
         return {"required": {
             "conditioning": ("CONDITIONING", ),
-            "reference_latents_method": (("offset", "index"), ),
+            "reference_latents_method": (("offset", "index", "uxo/uno"), ),
             }}
 
     RETURN_TYPES = ("CONDITIONING",)
@@ -98,6 +98,8 @@ class FluxKontextMultiReferenceLatentMethod:
     CATEGORY = "advanced/conditioning/flux"
 
     def append(self, conditioning, reference_latents_method):
+        if "uxo" in reference_latents_method or "uso" in reference_latents_method:
+            reference_latents_method = "uxo"
         c = node_helpers.conditioning_set_values(conditioning, {"reference_latents_method": reference_latents_method})
         return (c, )
 

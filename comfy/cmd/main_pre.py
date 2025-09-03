@@ -24,6 +24,8 @@ os.environ["BITSANDBYTES_NOWELCOME"] = "1"
 os.environ["NO_ALBUMENTATIONS_UPDATE"] = "1"
 os.environ['HF_HUB_DISABLE_TELEMETRY'] = '1'
 os.environ['DO_NOT_TRACK'] = '1'
+if os.name == "nt":
+    os.environ['MIMALLOC_PURGE_DELAY'] = '0'
 
 this_logger = logging.getLogger(__name__)
 

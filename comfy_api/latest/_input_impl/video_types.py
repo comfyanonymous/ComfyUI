@@ -8,6 +8,7 @@ import av
 import io
 import json
 import numpy as np
+import math
 import torch
 from comfy_api.latest._util import VideoContainer, VideoCodec, VideoComponents
 
@@ -282,8 +283,6 @@ class VideoFromComponents(VideoInput):
             if self.__components.audio:
                 audio_sample_rate = int(self.__components.audio['sample_rate'])
                 audio_stream = output.add_stream('aac', rate=audio_sample_rate)
-                audio_stream.sample_rate = audio_sample_rate
-                audio_stream.format = 'fltp'
 
             # Encode video
             for i, frame in enumerate(self.__components.images):
@@ -298,27 +297,12 @@ class VideoFromComponents(VideoInput):
             output.mux(packet)
 
             if audio_stream and self.__components.audio:
-                # Encode audio
-                samples_per_frame = int(audio_sample_rate / frame_rate)
-                num_frames = self.__components.audio['waveform'].shape[2] // samples_per_frame
-                for i in range(num_frames):
-                    start = i * samples_per_frame
-                    end = start + samples_per_frame
-                    # TODO(Feature) - Add support for stereo audio
-                    chunk = (
-                        self.__components.audio["waveform"][0, 0, start:end]
-                        .unsqueeze(0)
-                        .contiguous()
-                        .numpy()
-                    )
-                    audio_frame = av.AudioFrame.from_ndarray(chunk, format='fltp', layout='mono')
-                    audio_frame.sample_rate = audio_sample_rate
-                    audio_frame.pts = i * samples_per_frame
-                    for packet in audio_stream.encode(audio_frame):
-                        output.mux(packet)
+                waveform = self.__components.audio['waveform']
+                waveform = waveform[:, :, :math.ceil((audio_sample_rate / frame_rate) * self.__components.images.shape[0])]
+                frame = av.AudioFrame.from_ndarray(waveform.movedim(2, 1).reshape(1, -1).float().numpy(), format='flt', layout='mono' if waveform.shape[1] == 1 else 'stereo')
+                frame.sample_rate = audio_sample_rate
+                frame.pts = 0
+                output.mux(audio_stream.encode(frame))
 
-                # Flush audio
-                for packet in audio_stream.encode(None):
-                    output.mux(packet)
-
-
+                # Flush encoder
+                output.mux(audio_stream.encode(None))

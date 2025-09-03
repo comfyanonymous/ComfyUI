@@ -299,6 +299,17 @@ paths:
       responses:
         '200':
           description: OK
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                prompt_id:
+                  type: string
+                  description: |
+                    The prompt to interrupt.
   /free:
     # from 6d281b4ff4ad3918a4f3b4ca4a8b547a2ba3bf80
     post:
