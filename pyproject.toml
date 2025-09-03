@@ -277,4 +277,4 @@ exclude = ["*.ipynb", "**/generated/*.pyi"]
 allow-direct-references = true
 
 [tool.hatch.build.targets.wheel]
-packages = ["comfy/", "comfy_extras/", "comfy_api/", "comfy_api_nodes/", "comfy_config/", "comfy_execution/"]
+packages = ["comfy/", "comfy_extras/", "comfy_api/", "comfy_api_nodes/", "comfy_config/", "comfy_execution/", "comfy_compatibility/"]
