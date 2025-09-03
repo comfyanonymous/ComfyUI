@@ -2326,6 +2326,7 @@ async def init_builtin_extra_nodes():
         "nodes_easycache.py",
         "nodes_audio_encoder.py",
         "nodes_sortblock.py",
+        "nodes_easysortblock.py",
     ]
 
     import_failed = []
