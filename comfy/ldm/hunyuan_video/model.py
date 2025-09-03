@@ -1,6 +1,7 @@
 #Based on Flux code because of weird hunyuan video code license.
 
 import torch
+import comfy.patcher_extension
 import comfy.ldm.flux.layers
 import comfy.ldm.modules.diffusionmodules.mmdit
 from comfy.ldm.modules.attention import optimized_attention
@@ -348,6 +349,13 @@ class HunyuanVideo(nn.Module):
         return repeat(img_ids, "t h w c -> b (t h w) c", b=bs)
 
     def forward(self, x, timestep, context, y, guidance=None, attention_mask=None, guiding_frame_index=None, ref_latent=None, control=None, transformer_options={}, **kwargs):
+        return comfy.patcher_extension.WrapperExecutor.new_class_executor(
+            self._forward,
+            self,
+            comfy.patcher_extension.get_all_wrappers(comfy.patcher_extension.WrappersMP.DIFFUSION_MODEL, transformer_options)
+        ).execute(x, timestep, context, y, guidance, attention_mask, guiding_frame_index, ref_latent, control, transformer_options, **kwargs)
+
+    def _forward(self, x, timestep, context, y, guidance=None, attention_mask=None, guiding_frame_index=None, ref_latent=None, control=None, transformer_options={}, **kwargs):
         bs, c, t, h, w = x.shape
         img_ids = self.img_ids(x)
         txt_ids = torch.zeros((bs, context.shape[1], 3), device=x.device, dtype=x.dtype)

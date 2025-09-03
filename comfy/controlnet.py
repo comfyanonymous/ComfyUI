@@ -36,6 +36,7 @@ import comfy.ldm.cascade.controlnet
 import comfy.cldm.mmdit
 import comfy.ldm.hydit.controlnet
 import comfy.ldm.flux.controlnet
+import comfy.ldm.qwen_image.controlnet
 import comfy.cldm.dit_embedder
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
@@ -236,11 +237,11 @@ class ControlNet(ControlBase):
             self.cond_hint = None
             compression_ratio = self.compression_ratio
             if self.vae is not None:
-                compression_ratio *= self.vae.downscale_ratio
+                compression_ratio *= self.vae.spacial_compression_encode()
             else:
                 if self.latent_format is not None:
                     raise ValueError("This Controlnet needs a VAE but none was provided, please use a ControlNetApply node with a VAE input and connect it.")
-            self.cond_hint = comfy.utils.common_upscale(self.cond_hint_original, x_noisy.shape[3] * compression_ratio, x_noisy.shape[2] * compression_ratio, self.upscale_algorithm, "center")
+            self.cond_hint = comfy.utils.common_upscale(self.cond_hint_original, x_noisy.shape[-1] * compression_ratio, x_noisy.shape[-2] * compression_ratio, self.upscale_algorithm, "center")
             self.cond_hint = self.preprocess_image(self.cond_hint)
             if self.vae is not None:
                 loaded_models = comfy.model_management.loaded_models(only_currently_used=True)
@@ -582,6 +583,15 @@ def load_controlnet_flux_instantx(sd, model_options={}):
     control = ControlNet(control_model, compression_ratio=1, latent_format=latent_format, concat_mask=concat_mask, load_device=load_device, manual_cast_dtype=manual_cast_dtype, extra_conds=extra_conds)
     return control
 
+def load_controlnet_qwen_instantx(sd, model_options={}):
+    model_config, operations, load_device, unet_dtype, manual_cast_dtype, offload_device = controlnet_config(sd, model_options=model_options)
+    control_model = comfy.ldm.qwen_image.controlnet.QwenImageControlNetModel(operations=operations, device=offload_device, dtype=unet_dtype, **model_config.unet_config)
+    control_model = controlnet_load_state_dict(control_model, sd)
+    latent_format = comfy.latent_formats.Wan21()
+    extra_conds = []
+    control = ControlNet(control_model, compression_ratio=1, latent_format=latent_format, load_device=load_device, manual_cast_dtype=manual_cast_dtype, extra_conds=extra_conds)
+    return control
+
 def convert_mistoline(sd):
     return comfy.utils.state_dict_prefix_replace(sd, {"single_controlnet_blocks.": "controlnet_single_blocks."})
 
@@ -655,8 +665,11 @@ def load_controlnet_state_dict(state_dict, model=None, model_options={}):
                 return load_controlnet_sd35(controlnet_data, model_options=model_options) #Stability sd3.5 format
             else:
                 return load_controlnet_mmdit(controlnet_data, model_options=model_options) #SD3 diffusers controlnet
+        elif "transformer_blocks.0.img_mlp.net.0.proj.weight" in controlnet_data:
+            return load_controlnet_qwen_instantx(controlnet_data, model_options=model_options)
         elif "controlnet_x_embedder.weight" in controlnet_data:
             return load_controlnet_flux_instantx(controlnet_data, model_options=model_options)
+
     elif "controlnet_blocks.0.linear.weight" in controlnet_data: #mistoline flux
         return load_controlnet_flux_xlabs_mistoline(convert_mistoline(controlnet_data), mistoline=True, model_options=model_options)
 

@@ -11,6 +11,7 @@ import comfy.ldm.common_dit
 from comfy.ldm.modules.diffusionmodules.mmdit import TimestepEmbedder
 from comfy.ldm.modules.attention import optimized_attention_masked
 from comfy.ldm.flux.layers import EmbedND
+import comfy.patcher_extension
 
 
 def modulate(x, scale):
@@ -590,8 +591,15 @@ class NextDiT(nn.Module):
 
         return padded_full_embed, mask, img_sizes, l_effective_cap_len, freqs_cis
 
-    # def forward(self, x, t, cap_feats, cap_mask):
     def forward(self, x, timesteps, context, num_tokens, attention_mask=None, **kwargs):
+        return comfy.patcher_extension.WrapperExecutor.new_class_executor(
+            self._forward,
+            self,
+            comfy.patcher_extension.get_all_wrappers(comfy.patcher_extension.WrappersMP.DIFFUSION_MODEL, kwargs.get("transformer_options", {}))
+        ).execute(x, timesteps, context, num_tokens, attention_mask, **kwargs)
+
+    # def forward(self, x, t, cap_feats, cap_mask):
+    def _forward(self, x, timesteps, context, num_tokens, attention_mask=None, **kwargs):
         t = 1.0 - timesteps
         cap_feats = context
         cap_mask = attention_mask
