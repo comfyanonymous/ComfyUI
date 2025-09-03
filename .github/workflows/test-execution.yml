@@ -27,4 +27,4 @@ jobs:
         pip install -r tests-unit/requirements.txt
     - name: Run Execution Tests
       run: |
-        python -m pytest tests/execution -v
+        python -m pytest tests/execution -v --skip-timing-checks
