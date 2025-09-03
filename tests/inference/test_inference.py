@@ -14,6 +14,8 @@ import websocket #NOTE: websocket-client (https://github.com/websocket-client/we
 import uuid
 import urllib.request
 import urllib.parse
+import sys
+
 
 
 from comfy.samplers import KSampler
@@ -21,6 +23,7 @@ from comfy.samplers import KSampler
 """
 These tests generate and save images through a range of parameters
 """
+PYTHON_EXECUTABLE_PATH = os.path.realpath(sys.executable)
 
 class ComfyGraph:
     def __init__(self,
@@ -152,7 +155,7 @@ class TestInference:
     def _server(self, args_pytest):
         # Start server
         p = subprocess.Popen([
-                'python','main.py',
+                PYTHON_EXECUTABLE_PATH,'main.py',
                 '--output-directory', args_pytest["output_dir"],
                 '--listen', args_pytest["listen"],
                 '--port', str(args_pytest["port"]),
