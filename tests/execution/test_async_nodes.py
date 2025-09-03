@@ -345,8 +345,8 @@ class TestAsyncNodes:
         dynamic_async = g.node("TestDynamicAsyncGeneration",
                               image1=image1.out(0),
                               image2=image2.out(0),
-                              num_async_nodes=3,
-                              sleep_duration=0.2)
+                              num_async_nodes=5,
+                              sleep_duration=0.4)
         g.node("SaveImage", images=dynamic_async.out(0))
 
         start_time = time.time()
@@ -354,7 +354,7 @@ class TestAsyncNodes:
         elapsed_time = time.time() - start_time
 
         # Should execute async nodes in parallel within dynamic prompt
-        assert elapsed_time < 0.5, f"Dynamic async execution took {elapsed_time}s"
+        assert elapsed_time < 1.0, f"Dynamic async execution took {elapsed_time}s"
         assert result.did_run(dynamic_async)
 
     def test_async_resource_cleanup(self, client: ComfyClient, builder: GraphBuilder):

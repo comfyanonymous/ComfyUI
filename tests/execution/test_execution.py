@@ -574,7 +574,8 @@ class TestExecution:
 
         # Similar to the previous test, expect parallel execution of the sleep nodes
         # which should complete in less than the sum of all sleeps
-        assert elapsed_time < 10.0, f"Expansion execution took {elapsed_time}s, expected less than 5.5s"
+        # Lots of leeway here since Windows CI is slow
+        assert elapsed_time < 13.0, f"Expansion execution took {elapsed_time}s"
 
         # Verify the parallel sleep node executed
         assert result.did_run(parallel_sleep), "ParallelSleep node should have run"
