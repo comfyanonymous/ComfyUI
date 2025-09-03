@@ -24,7 +24,7 @@ jobs:
         python -m pip install --upgrade pip
         pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
         pip install -r requirements.txt
-        pip install websocket-client
-    - name: Run Execution Tests (with timing checks disabled)
+        pip install -r tests-unit/requirements.txt
+    - name: Run Execution Tests
       run: |
-        python -m pytest tests/execution -v --skip-timing-checks
+        python -m pytest tests/execution -v
