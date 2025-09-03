@@ -255,6 +255,7 @@ class IdeogramV1(comfy_io.ComfyNode):
             display_name="Ideogram V1",
             category="api node/image/Ideogram",
             description="Generates images using the Ideogram V1 model.",
+            is_api_node=True,
             inputs=[
                 comfy_io.String.Input(
                     "prompt",
@@ -383,6 +384,7 @@ class IdeogramV2(comfy_io.ComfyNode):
             display_name="Ideogram V2",
             category="api node/image/Ideogram",
             description="Generates images using the Ideogram V2 model.",
+            is_api_node=True,
             inputs=[
                 comfy_io.String.Input(
                     "prompt",
@@ -552,6 +554,7 @@ class IdeogramV3(comfy_io.ComfyNode):
             category="api node/image/Ideogram",
             description="Generates images using the Ideogram V3 model. "
                         "Supports both regular image generation from text prompts and image editing with mask.",
+            is_api_node=True,
             inputs=[
                 comfy_io.String.Input(
                     "prompt",
@@ -612,9 +615,19 @@ class IdeogramV3(comfy_io.ComfyNode):
                 ),
                 comfy_io.Combo.Input(
                     "rendering_speed",
-                    options=["BALANCED", "TURBO", "QUALITY"],
-                    default="BALANCED",
+                    options=["DEFAULT", "TURBO", "QUALITY"],
+                    default="DEFAULT",
                     tooltip="Controls the trade-off between generation speed and quality",
+                    optional=True,
+                ),
+                comfy_io.Image.Input(
+                    "character_image",
+                    tooltip="Image to use as character reference.",
+                    optional=True,
+                ),
+                comfy_io.Mask.Input(
+                    "character_mask",
+                    tooltip="Optional mask for character reference image.",
                     optional=True,
                 ),
             ],
@@ -639,12 +652,46 @@ class IdeogramV3(comfy_io.ComfyNode):
         magic_prompt_option="AUTO",
         seed=0,
         num_images=1,
-        rendering_speed="BALANCED",
+        rendering_speed="DEFAULT",
+        character_image=None,
+        character_mask=None,
     ):
         auth = {
             "auth_token": cls.hidden.auth_token_comfy_org,
             "comfy_api_key": cls.hidden.api_key_comfy_org,
         }
+        if rendering_speed == "BALANCED":  # for backward compatibility
+            rendering_speed = "DEFAULT"
+
+        character_img_binary = None
+        character_mask_binary = None
+
+        if character_image is not None:
+            input_tensor = character_image.squeeze().cpu()
+            if character_mask is not None:
+                character_mask = resize_mask_to_image(character_mask, character_image, allow_gradient=False)
+                character_mask = 1.0 - character_mask
+                if character_mask.shape[1:] != character_image.shape[1:-1]:
+                    raise Exception("Character mask and image must be the same size")
+
+                mask_np = (character_mask.squeeze().cpu().numpy() * 255).astype(np.uint8)
+                mask_img = Image.fromarray(mask_np)
+                mask_byte_arr = BytesIO()
+                mask_img.save(mask_byte_arr, format="PNG")
+                mask_byte_arr.seek(0)
+                character_mask_binary = mask_byte_arr
+                character_mask_binary.name = "mask.png"
+
+            img_np = (input_tensor.numpy() * 255).astype(np.uint8)
+            img = Image.fromarray(img_np)
+            img_byte_arr = BytesIO()
+            img.save(img_byte_arr, format="PNG")
+            img_byte_arr.seek(0)
+            character_img_binary = img_byte_arr
+            character_img_binary.name = "image.png"
+        elif character_mask is not None:
+            raise Exception("Character mask requires character image to be present")
+
         # Check if both image and mask are provided for editing mode
         if image is not None and mask is not None:
             # Edit mode
@@ -693,6 +740,15 @@ class IdeogramV3(comfy_io.ComfyNode):
             if num_images > 1:
                 edit_request.num_images = num_images
 
+            files = {
+                "image": img_binary,
+                "mask": mask_binary,
+            }
+            if character_img_binary:
+                files["character_reference_images"] = character_img_binary
+            if character_mask_binary:
+                files["character_mask_binary"] = character_mask_binary
+
             # Execute the operation for edit mode
             operation = SynchronousOperation(
                 endpoint=ApiEndpoint(
@@ -702,10 +758,7 @@ class IdeogramV3(comfy_io.ComfyNode):
                     response_model=IdeogramGenerateResponse,
                 ),
                 request=edit_request,
-                files={
-                    "image": img_binary,
-                    "mask": mask_binary,
-                },
+                files=files,
                 content_type="multipart/form-data",
                 auth_kwargs=auth,
             )
@@ -739,6 +792,14 @@ class IdeogramV3(comfy_io.ComfyNode):
             if num_images > 1:
                 gen_request.num_images = num_images
 
+            files = {}
+            if character_img_binary:
+                files["character_reference_images"] = character_img_binary
+            if character_mask_binary:
+                files["character_mask_binary"] = character_mask_binary
+            if files:
+                gen_request.style_type = "AUTO"
+
             # Execute the operation for generation mode
             operation = SynchronousOperation(
                 endpoint=ApiEndpoint(
@@ -748,6 +809,8 @@ class IdeogramV3(comfy_io.ComfyNode):
                     response_model=IdeogramGenerateResponse,
                 ),
                 request=gen_request,
+                files=files if files else None,
+                content_type="multipart/form-data",
                 auth_kwargs=auth,
             )
 
