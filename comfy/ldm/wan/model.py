@@ -1252,6 +1252,7 @@ class WanModel_S2V(WanModel):
             num_embeds = x.shape[-3] * 4
             audio_emb_global, audio_emb = self.casual_audio_encoder(audio_embed[:, :, :, :num_embeds])
         else:
+            audio_emb_global = None
             audio_emb = None
 
         # embeddings
@@ -1311,7 +1312,7 @@ class WanModel_S2V(WanModel):
                 x = out["img"]
             else:
                 x = block(x, e=e0, freqs=freqs, context=context)
-            if audio_emb is not None:
+            if audio_emb is not None and audio_emb_global is not None:
                 x = self.audio_injector(x, i, audio_emb, audio_emb_global, seq_len)
         # head
         x = self.head(x, e)
