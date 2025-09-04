@@ -951,7 +951,11 @@ class MagicPrompt2(str, Enum):
 
 
 class StyleType1(str, Enum):
+    AUTO = 'AUTO'
     GENERAL = 'GENERAL'
+    REALISTIC = 'REALISTIC'
+    DESIGN = 'DESIGN'
+    FICTION = 'FICTION'
 
 
 class ImagenImageGenerationInstance(BaseModel):
@@ -2676,7 +2680,7 @@ class ReleaseNote(BaseModel):
 
 
 class RenderingSpeed(str, Enum):
-    BALANCED = 'BALANCED'
+    DEFAULT = 'DEFAULT'
     TURBO = 'TURBO'
     QUALITY = 'QUALITY'
 
@@ -4918,6 +4922,14 @@ class IdeogramV3EditRequest(BaseModel):
         None,
         description='A set of images to use as style references (maximum total size 10MB across all style references). The images should be in JPEG, PNG or WebP format.',
     )
+    character_reference_images: Optional[List[str]] = Field(
+        None,
+        description='Generations with character reference are subject to the character reference pricing. A set of images to use as character references (maximum total size 10MB across all character references), currently only supports 1 character reference image. The images should be in JPEG, PNG or WebP format.'
+    )
+    character_reference_images_mask: Optional[List[str]] = Field(
+        None,
+        description='Optional masks for character reference images. When provided, must match the number of character_reference_images. Each mask should be a grayscale image of the same dimensions as the corresponding character reference image. The images should be in JPEG, PNG or WebP format.'
+    )
 
 
 class IdeogramV3Request(BaseModel):
@@ -4950,6 +4962,14 @@ class IdeogramV3Request(BaseModel):
     )
     style_type: Optional[StyleType1] = Field(
         None, description='The type of style to apply'
+    )
+    character_reference_images: Optional[List[str]] = Field(
+        None,
+        description='Generations with character reference are subject to the character reference pricing. A set of images to use as character references (maximum total size 10MB across all character references), currently only supports 1 character reference image. The images should be in JPEG, PNG or WebP format.'
+    )
+    character_reference_images_mask: Optional[List[str]] = Field(
+        None,
+        description='Optional masks for character reference images. When provided, must match the number of character_reference_images. Each mask should be a grayscale image of the same dimensions as the corresponding character reference image. The images should be in JPEG, PNG or WebP format.'
     )
 
 
