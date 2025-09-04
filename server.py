@@ -79,6 +79,7 @@ def create_cors_middleware(allowed_origin: str):
         response.headers['Access-Control-Allow-Methods'] = 'POST, GET, DELETE, PUT, OPTIONS'
         response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization'
         response.headers['Access-Control-Allow-Credentials'] = 'true'
+        response.headers['Access-Control-Allow-Private-Network'] = 'true'
         return response
 
     return cors_middleware
