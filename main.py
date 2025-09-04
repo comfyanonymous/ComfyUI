@@ -11,17 +11,25 @@ import itertools
 import utils.extra_config
 import logging
 import sys
-import importlib.util
 from comfy_execution.progress import get_progress_state
 from comfy_execution.utils import get_executing_context
 from comfy_api import feature_flags
 
+
+def handle_comfyui_manager_unavailable():
+    logging.warning(f"\n\nYou appear to be running comfyui-manager from source, this is not recommended. Please install comfyui-manager using the following command:\ncommand:\n\t{sys.executable} -m pip install --pre comfyui_manager\n")
+    args.disable_manager = True
+
+
 if not args.disable_manager:
     if importlib.util.find_spec("comfyui_manager"):
         import comfyui_manager
+
+        if not comfyui_manager.__file__.endswith('__init__.py'):
+            handle_comfyui_manager_unavailable()
     else:
-        logging.warning(f"\n\nUnable to run comfyui-manager, disabling it. To enable comfyui-manager, run the following command:\ncommand:\n\t{sys.executable} -m pip install --pre comfyui_manager\n")
-        args.disable_manager = True
+        handle_comfyui_manager_unavailable()
+
 
 if __name__ == "__main__":
     #NOTE: These do not do anything on core ComfyUI, they are for custom nodes.
