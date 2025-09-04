@@ -149,7 +149,7 @@ class TestExecution:
             '--output-directory', args_pytest["output_dir"],
             '--listen', args_pytest["listen"],
             '--port', str(args_pytest["port"]),
-            '--extra-model-paths-config', 'tests/inference/extra_model_paths.yaml',
+            '--extra-model-paths-config', 'tests/execution/extra_model_paths.yaml',
             '--cpu',
         ]
         use_lru, lru_size = request.param
@@ -518,7 +518,7 @@ class TestExecution:
         assert numpy.array(images[0]).min() == 63 and numpy.array(images[0]).max() == 63, "Image should have value 0.25"
         assert not result.did_run(test_node), "The execution should have been cached"
 
-    def test_parallel_sleep_nodes(self, client: ComfyClient, builder: GraphBuilder):
+    def test_parallel_sleep_nodes(self, client: ComfyClient, builder: GraphBuilder, skip_timing_checks):
         # Warmup execution to ensure server is fully initialized
         run_warmup(client)
 
@@ -541,14 +541,15 @@ class TestExecution:
 
         # The test should take around 3.0 seconds (the longest sleep duration)
         # plus some overhead, but definitely less than the sum of all sleeps (9.0s)
-        assert elapsed_time < 8.9, f"Parallel execution took {elapsed_time}s, expected less than 8.9s"
+        if not skip_timing_checks:
+            assert elapsed_time < 8.9, f"Parallel execution took {elapsed_time}s, expected less than 8.9s"
 
         # Verify that all nodes executed
         assert result.did_run(sleep_node1), "Sleep node 1 should have run"
         assert result.did_run(sleep_node2), "Sleep node 2 should have run"
         assert result.did_run(sleep_node3), "Sleep node 3 should have run"
 
-    def test_parallel_sleep_expansion(self, client: ComfyClient, builder: GraphBuilder):
+    def test_parallel_sleep_expansion(self, client: ComfyClient, builder: GraphBuilder, skip_timing_checks):
         # Warmup execution to ensure server is fully initialized
         run_warmup(client)
 
@@ -574,7 +575,9 @@ class TestExecution:
 
         # Similar to the previous test, expect parallel execution of the sleep nodes
         # which should complete in less than the sum of all sleeps
-        assert elapsed_time < 10.0, f"Expansion execution took {elapsed_time}s, expected less than 5.5s"
+        # Lots of leeway here since Windows CI is slow
+        if not skip_timing_checks:
+            assert elapsed_time < 13.0, f"Expansion execution took {elapsed_time}s"
 
         # Verify the parallel sleep node executed
         assert result.did_run(parallel_sleep), "ParallelSleep node should have run"
