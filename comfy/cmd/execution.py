@@ -48,7 +48,7 @@ from ..nodes.package_typing import InputTypeSpec, FloatSpecOptions, IntSpecOptio
 from ..nodes_context import get_nodes
 from comfy_execution.progress import get_progress_state, reset_progress_state, add_progress_handler, WebUIProgressHandler, \
     ProgressRegistry
-from ..validation import validate_node_input
+from comfy_execution.validation import validate_node_input
 
 _module_properties = create_module_properties()
 logger = logging.getLogger(__name__)
