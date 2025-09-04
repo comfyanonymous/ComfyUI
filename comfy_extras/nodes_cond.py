@@ -1,15 +1,25 @@
+from typing_extensions import override
+
+from comfy_api.latest import ComfyExtension, io
 
 
-class CLIPTextEncodeControlnet:
+class CLIPTextEncodeControlnet(io.ComfyNode):
     @classmethod
-    def INPUT_TYPES(s):
-        return {"required": {"clip": ("CLIP", ), "conditioning": ("CONDITIONING", ), "text": ("STRING", {"multiline": True, "dynamicPrompts": True})}}
-    RETURN_TYPES = ("CONDITIONING",)
-    FUNCTION = "encode"
+    def define_schema(cls) -> io.Schema:
+        return io.Schema(
+            node_id="CLIPTextEncodeControlnet",
+            category="_for_testing/conditioning",
+            inputs=[
+                io.Clip.Input("clip"),
+                io.Conditioning.Input("conditioning"),
+                io.String.Input("text", multiline=True, dynamic_prompts=True),
+            ],
+            outputs=[io.Conditioning.Output()],
+            is_experimental=True,
+        )
 
-    CATEGORY = "_for_testing/conditioning"
-
-    def encode(self, clip, conditioning, text):
+    @classmethod
+    def execute(cls, clip, conditioning, text) -> io.NodeOutput:
         tokens = clip.tokenize(text)
         cond, pooled = clip.encode_from_tokens(tokens, return_pooled=True)
         c = []
@@ -18,32 +28,41 @@ class CLIPTextEncodeControlnet:
             n[1]['cross_attn_controlnet'] = cond
             n[1]['pooled_output_controlnet'] = pooled
             c.append(n)
-        return (c, )
+        return io.NodeOutput(c)
 
-class T5TokenizerOptions:
+class T5TokenizerOptions(io.ComfyNode):
     @classmethod
-    def INPUT_TYPES(s):
-        return {
-            "required": {
-                "clip": ("CLIP", ),
-                "min_padding": ("INT", {"default": 0, "min": 0, "max": 10000, "step": 1}),
-                "min_length": ("INT", {"default": 0, "min": 0, "max": 10000, "step": 1}),
-            }
-        }
+    def define_schema(cls) -> io.Schema:
+        return io.Schema(
+            node_id="T5TokenizerOptions",
+            category="_for_testing/conditioning",
+            inputs=[
+                io.Clip.Input("clip"),
+                io.Int.Input("min_padding", default=0, min=0, max=10000, step=1),
+                io.Int.Input("min_length", default=0, min=0, max=10000, step=1),
+            ],
+            outputs=[io.Clip.Output()],
+            is_experimental=True,
+        )
 
-    CATEGORY = "_for_testing/conditioning"
-    RETURN_TYPES = ("CLIP",)
-    FUNCTION = "set_options"
-
-    def set_options(self, clip, min_padding, min_length):
+    @classmethod
+    def execute(cls, clip, min_padding, min_length) -> io.NodeOutput:
         clip = clip.clone()
         for t5_type in ["t5xxl", "pile_t5xl", "t5base", "mt5xl", "umt5xxl"]:
             clip.set_tokenizer_option("{}_min_padding".format(t5_type), min_padding)
             clip.set_tokenizer_option("{}_min_length".format(t5_type), min_length)
 
-        return (clip, )
+        return io.NodeOutput(clip)
 
-NODE_CLASS_MAPPINGS = {
-    "CLIPTextEncodeControlnet": CLIPTextEncodeControlnet,
-    "T5TokenizerOptions": T5TokenizerOptions,
-}
+
+class CondExtension(ComfyExtension):
+    @override
+    async def get_node_list(self) -> list[type[io.ComfyNode]]:
+        return [
+            CLIPTextEncodeControlnet,
+            T5TokenizerOptions,
+        ]
+
+
+async def comfy_entrypoint() -> CondExtension:
+    return CondExtension()
