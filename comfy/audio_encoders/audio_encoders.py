@@ -7,7 +7,7 @@ import torchaudio
 
 
 class AudioEncoderModel():
-    def __init__(self, config, fps=50):
+    def __init__(self, config):
         self.load_device = comfy.model_management.text_encoder_device()
         offload_device = comfy.model_management.text_encoder_offload_device()
         self.dtype = comfy.model_management.text_encoder_dtype(self.load_device)
@@ -21,7 +21,6 @@ class AudioEncoderModel():
         self.model.eval()
         self.patcher = comfy.model_patcher.ModelPatcher(self.model, load_device=self.load_device, offload_device=offload_device)
         self.model_sample_rate = 16000
-        self.fps = fps
 
     def load_sd(self, sd):
         return self.model.load_state_dict(sd, strict=False)
@@ -32,7 +31,7 @@ class AudioEncoderModel():
     def encode_audio(self, audio, sample_rate):
         comfy.model_management.load_model_gpu(self.patcher)
         audio = torchaudio.functional.resample(audio, sample_rate, self.model_sample_rate)
-        out, all_layers = self.model(audio.to(self.load_device), fps=self.fps, sr=self.model_sample_rate)
+        out, all_layers = self.model(audio.to(self.load_device), sr=self.model_sample_rate)
         outputs = {}
         outputs["encoded_audio"] = out
         outputs["encoded_audio_all_layers"] = all_layers
@@ -52,7 +51,6 @@ def load_audio_encoder_from_sd(sd, prefix=""):
             "do_normalize": True,
             "do_stable_layer_norm": True
             }
-        fps = 50
     elif embed_dim == 768: # base
         config = {
             "embed_dim": 768,
@@ -63,11 +61,10 @@ def load_audio_encoder_from_sd(sd, prefix=""):
             "do_normalize": False, # chinese-wav2vec2-base has this False
             "do_stable_layer_norm": False
         }
-        fps = 25
     else:
         raise RuntimeError("ERROR: audio encoder file is invalid or unsupported embed_dim: {}".format(embed_dim))
 
-    audio_encoder = AudioEncoderModel(config, fps=fps)
+    audio_encoder = AudioEncoderModel(config)
     m, u = audio_encoder.load_sd(sd)
     if len(m) > 0:
         logging.warning("missing audio encoder: {}".format(m))
