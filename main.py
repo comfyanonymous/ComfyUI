@@ -25,7 +25,7 @@ if not args.disable_manager:
     if importlib.util.find_spec("comfyui_manager"):
         import comfyui_manager
 
-        if not comfyui_manager.__file__.endswith('__init__.py'):
+        if comfyui_manager.__file__ and not comfyui_manager.__file__.endswith('__init__.py'):
             handle_comfyui_manager_unavailable()
     else:
         handle_comfyui_manager_unavailable()
