@@ -14,10 +14,12 @@ import comfy.ldm.genmo.vae.model
 import comfy.ldm.lightricks.vae.causal_video_autoencoder
 import comfy.ldm.cosmos.vae
 import comfy.ldm.wan.vae
+import comfy.ldm.wan.vae2_2
 import comfy.ldm.hunyuan3d.vae
 import comfy.ldm.ace.vae.music_dcae_pipeline
 import yaml
 import math
+import os
 
 import comfy.utils
 
@@ -45,6 +47,7 @@ import comfy.text_encoders.wan
 import comfy.text_encoders.hidream
 import comfy.text_encoders.ace
 import comfy.text_encoders.omnigen2
+import comfy.text_encoders.qwen_image
 
 import comfy.model_patcher
 import comfy.lora
@@ -419,28 +422,53 @@ class VAE:
                 self.memory_used_encode = lambda shape, dtype: (50 * (round((shape[2] + 7) / 8) * 8) * shape[3] * shape[4]) * model_management.dtype_size(dtype)
                 self.working_dtypes = [torch.bfloat16, torch.float32]
             elif "decoder.middle.0.residual.0.gamma" in sd:
-                self.upscale_ratio = (lambda a: max(0, a * 4 - 3), 8, 8)
-                self.upscale_index_formula = (4, 8, 8)
-                self.downscale_ratio = (lambda a: max(0, math.floor((a + 3) / 4)), 8, 8)
-                self.downscale_index_formula = (4, 8, 8)
-                self.latent_dim = 3
-                self.latent_channels = 16
-                ddconfig = {"dim": 96, "z_dim": self.latent_channels, "dim_mult": [1, 2, 4, 4], "num_res_blocks": 2, "attn_scales": [], "temperal_downsample": [False, True, True], "dropout": 0.0}
-                self.first_stage_model = comfy.ldm.wan.vae.WanVAE(**ddconfig)
-                self.working_dtypes = [torch.bfloat16, torch.float16, torch.float32]
-                self.memory_used_encode = lambda shape, dtype: 6000 * shape[3] * shape[4] * model_management.dtype_size(dtype)
-                self.memory_used_decode = lambda shape, dtype: 7000 * shape[3] * shape[4] * (8 * 8) * model_management.dtype_size(dtype)
+                if "decoder.upsamples.0.upsamples.0.residual.2.weight" in sd:  # Wan 2.2 VAE
+                    self.upscale_ratio = (lambda a: max(0, a * 4 - 3), 16, 16)
+                    self.upscale_index_formula = (4, 16, 16)
+                    self.downscale_ratio = (lambda a: max(0, math.floor((a + 3) / 4)), 16, 16)
+                    self.downscale_index_formula = (4, 16, 16)
+                    self.latent_dim = 3
+                    self.latent_channels = 48
+                    ddconfig = {"dim": 160, "z_dim": self.latent_channels, "dim_mult": [1, 2, 4, 4], "num_res_blocks": 2, "attn_scales": [], "temperal_downsample": [False, True, True], "dropout": 0.0}
+                    self.first_stage_model = comfy.ldm.wan.vae2_2.WanVAE(**ddconfig)
+                    self.working_dtypes = [torch.bfloat16, torch.float16, torch.float32]
+                    self.memory_used_encode = lambda shape, dtype: 3300 * shape[3] * shape[4] * model_management.dtype_size(dtype)
+                    self.memory_used_decode = lambda shape, dtype: 8000 * shape[3] * shape[4] * (16 * 16) * model_management.dtype_size(dtype)
+                else:  # Wan 2.1 VAE
+                    self.upscale_ratio = (lambda a: max(0, a * 4 - 3), 8, 8)
+                    self.upscale_index_formula = (4, 8, 8)
+                    self.downscale_ratio = (lambda a: max(0, math.floor((a + 3) / 4)), 8, 8)
+                    self.downscale_index_formula = (4, 8, 8)
+                    self.latent_dim = 3
+                    self.latent_channels = 16
+                    ddconfig = {"dim": 96, "z_dim": self.latent_channels, "dim_mult": [1, 2, 4, 4], "num_res_blocks": 2, "attn_scales": [], "temperal_downsample": [False, True, True], "dropout": 0.0}
+                    self.first_stage_model = comfy.ldm.wan.vae.WanVAE(**ddconfig)
+                    self.working_dtypes = [torch.bfloat16, torch.float16, torch.float32]
+                    self.memory_used_encode = lambda shape, dtype: 6000 * shape[3] * shape[4] * model_management.dtype_size(dtype)
+                    self.memory_used_decode = lambda shape, dtype: 7000 * shape[3] * shape[4] * (8 * 8) * model_management.dtype_size(dtype)
+            # Hunyuan 3d v2 2.0 & 2.1
             elif "geo_decoder.cross_attn_decoder.ln_1.bias" in sd:
+
                 self.latent_dim = 1
-                ln_post = "geo_decoder.ln_post.weight" in sd
-                inner_size = sd["geo_decoder.output_proj.weight"].shape[1]
-                downsample_ratio = sd["post_kl.weight"].shape[0] // inner_size
-                mlp_expand = sd["geo_decoder.cross_attn_decoder.mlp.c_fc.weight"].shape[0] // inner_size
-                self.memory_used_encode = lambda shape, dtype: (1000 * shape[2]) * model_management.dtype_size(dtype)  # TODO
-                self.memory_used_decode = lambda shape, dtype: (1024 * 1024 * 1024 * 2.0) * model_management.dtype_size(dtype)  # TODO
-                ddconfig = {"embed_dim": 64, "num_freqs": 8, "include_pi": False, "heads": 16, "width": 1024, "num_decoder_layers": 16, "qkv_bias": False, "qk_norm": True, "geo_decoder_mlp_expand_ratio": mlp_expand, "geo_decoder_downsample_ratio": downsample_ratio, "geo_decoder_ln_post": ln_post}
-                self.first_stage_model = comfy.ldm.hunyuan3d.vae.ShapeVAE(**ddconfig)
+
+                def estimate_memory(shape, dtype, num_layers = 16, kv_cache_multiplier = 2):
+                    batch, num_tokens, hidden_dim = shape
+                    dtype_size = model_management.dtype_size(dtype)
+
+                    total_mem = batch * num_tokens * hidden_dim * dtype_size * (1 + kv_cache_multiplier * num_layers)
+                    return total_mem
+
+                # better memory estimations
+                self.memory_used_encode = lambda shape, dtype, num_layers = 8, kv_cache_multiplier = 0:\
+                    estimate_memory(shape, dtype, num_layers, kv_cache_multiplier)
+
+                self.memory_used_decode = lambda shape, dtype, num_layers = 16, kv_cache_multiplier = 2: \
+                    estimate_memory(shape, dtype, num_layers, kv_cache_multiplier)
+
+                self.first_stage_model = comfy.ldm.hunyuan3d.vae.ShapeVAE()
                 self.working_dtypes = [torch.float16, torch.bfloat16, torch.float32]
+
+
             elif "vocoder.backbone.channel_layers.0.0.bias" in sd: #Ace Step Audio
                 self.first_stage_model = comfy.ldm.ace.vae.music_dcae_pipeline.MusicDCAE(source_sample_rate=44100)
                 self.memory_used_encode = lambda shape, dtype: (shape[2] * 330) * model_management.dtype_size(dtype)
@@ -756,6 +784,7 @@ class CLIPType(Enum):
     CHROMA = 15
     ACE = 16
     OMNIGEN2 = 17
+    QWEN_IMAGE = 18
 
 
 def load_clip(ckpt_paths, embedding_directory=None, clip_type=CLIPType.STABLE_DIFFUSION, model_options={}):
@@ -776,6 +805,7 @@ class TEModel(Enum):
     T5_XXL_OLD = 8
     GEMMA_2_2B = 9
     QWEN25_3B = 10
+    QWEN25_7B = 11
 
 def detect_te_model(sd):
     if "text_model.encoder.layers.30.mlp.fc1.weight" in sd:
@@ -797,7 +827,11 @@ def detect_te_model(sd):
     if 'model.layers.0.post_feedforward_layernorm.weight' in sd:
         return TEModel.GEMMA_2_2B
     if 'model.layers.0.self_attn.k_proj.bias' in sd:
-        return TEModel.QWEN25_3B
+        weight = sd['model.layers.0.self_attn.k_proj.bias']
+        if weight.shape[0] == 256:
+            return TEModel.QWEN25_3B
+        if weight.shape[0] == 512:
+            return TEModel.QWEN25_7B
     if "model.layers.0.post_attention_layernorm.weight" in sd:
         return TEModel.LLAMA3_8
     return None
@@ -902,6 +936,9 @@ def load_text_encoder_state_dicts(state_dicts=[], embedding_directory=None, clip
         elif te_model == TEModel.QWEN25_3B:
             clip_target.clip = comfy.text_encoders.omnigen2.te(**llama_detect(clip_data))
             clip_target.tokenizer = comfy.text_encoders.omnigen2.Omnigen2Tokenizer
+        elif te_model == TEModel.QWEN25_7B:
+            clip_target.clip = comfy.text_encoders.qwen_image.te(**llama_detect(clip_data))
+            clip_target.tokenizer = comfy.text_encoders.qwen_image.QwenImageTokenizer
         else:
             # clip_l
             if clip_type == CLIPType.SD3:
@@ -977,6 +1014,12 @@ def load_gligen(ckpt_path):
         model = model.half()
     return comfy.model_patcher.ModelPatcher(model, load_device=model_management.get_torch_device(), offload_device=model_management.unet_offload_device())
 
+def model_detection_error_hint(path, state_dict):
+    filename = os.path.basename(path)
+    if 'lora' in filename.lower():
+        return "\nHINT: This seems to be a Lora file and Lora files should be put in the lora folder and loaded with a lora loader node.."
+    return ""
+
 def load_checkpoint(config_path=None, ckpt_path=None, output_vae=True, output_clip=True, embedding_directory=None, state_dict=None, config=None):
     logging.warning("Warning: The load checkpoint with config function is deprecated and will eventually be removed, please use the other one.")
     model, clip, vae, _ = load_checkpoint_guess_config(ckpt_path, output_vae=output_vae, output_clip=output_clip, output_clipvision=False, embedding_directory=embedding_directory, output_model=True)
@@ -1005,7 +1048,7 @@ def load_checkpoint_guess_config(ckpt_path, output_vae=True, output_clip=True, o
     sd, metadata = comfy.utils.load_torch_file(ckpt_path, return_metadata=True)
     out = load_state_dict_guess_config(sd, output_vae, output_clip, output_clipvision, embedding_directory, output_model, model_options, te_model_options=te_model_options, metadata=metadata)
     if out is None:
-        raise RuntimeError("ERROR: Could not detect model type of: {}".format(ckpt_path))
+        raise RuntimeError("ERROR: Could not detect model type of: {}\n{}".format(ckpt_path, model_detection_error_hint(ckpt_path, sd)))
     return out
 
 def load_state_dict_guess_config(sd, output_vae=True, output_clip=True, output_clipvision=False, embedding_directory=None, output_model=True, model_options={}, te_model_options={}, metadata=None):
@@ -1178,7 +1221,7 @@ def load_diffusion_model(unet_path, model_options={}):
     model = load_diffusion_model_state_dict(sd, model_options=model_options)
     if model is None:
         logging.error("ERROR UNSUPPORTED DIFFUSION MODEL {}".format(unet_path))
-        raise RuntimeError("ERROR: Could not detect model type of: {}".format(unet_path))
+        raise RuntimeError("ERROR: Could not detect model type of: {}\n{}".format(unet_path, model_detection_error_hint(unet_path, sd)))
     return model
 
 def load_unet(unet_path, dtype=None):
