@@ -4,35 +4,28 @@ import hashlib
 import folder_paths
 from pathlib import Path
 
-# Standalone configuration - no external dependencies
 CACHE_DIR = os.path.join(folder_paths.output_directory, "cfz_conditioning_cache")
 
-# Simple proxy class for any type matching
-class AlwaysEqualProxy:
-    def __init__(self, name):
-        self.name = name
-    
-    def __eq__(self, other):
+class AlwaysEqualProxy(str):
+    def __eq__(self, _):
         return True
-    
-    def __ne__(self, other):
+
+    def __ne__(self, _):
         return False
 
 any_type = AlwaysEqualProxy("*")
 
-# Simple version comparison function
 def compare_revision(target_revision):
     """Simple version check - defaults to supporting lazy loading"""
     try:
         import comfy
         if hasattr(comfy, 'model_management') and hasattr(comfy.model_management, 'get_torch_device'):
-            return True  # Assume modern ComfyUI supports lazy loading
+            return True
     except:
         pass
     return False
 
 lazy_options = {"lazy": True} if compare_revision(2543) else {}
-
 
 class save_conditioning:
     @classmethod
@@ -52,13 +45,11 @@ class save_conditioning:
     def save_conditioning(self, conditioning, cache_name):
         """Save conditioning to cache with custom name"""
         
-        # Ensure cache directory exists
         os.makedirs(CACHE_DIR, exist_ok=True)
         
         if not cache_name.strip():
             raise ValueError("Cache name cannot be empty")
         
-        # Sanitize cache name (remove invalid characters)
         sanitized_name = self.sanitize_filename(cache_name)
         file_path = os.path.join(CACHE_DIR, f"{sanitized_name}.pt")
         file_path = self._resolve_path(file_path)
@@ -74,7 +65,6 @@ class save_conditioning:
             print("[CFZ Save] Or there's an issue with the node execution order")
             raise ValueError(f"No conditioning input provided for cache '{sanitized_name}'. Please connect conditioning input.")
 
-        # Save conditioning (will overwrite if exists)
         try:
             print(f"[CFZ Save] Attempting to save conditioning...")
             torch.save(conditioning, file_path)
@@ -87,15 +77,12 @@ class save_conditioning:
 
     def sanitize_filename(self, filename):
         """Remove invalid characters from filename"""
-        # Remove or replace invalid characters for filenames
         invalid_chars = '<>:"/\\|?*'
         for char in invalid_chars:
             filename = filename.replace(char, '_')
         
-        # Remove leading/trailing spaces and dots
         filename = filename.strip(' .')
         
-        # Ensure filename is not empty after sanitization
         if not filename:
             filename = "unnamed_conditioning"
             
@@ -106,12 +93,10 @@ class save_conditioning:
         try:
             return Path(folder_paths.get_annotated_filepath(str(path_str)))
         except:
-            # Fallback to simple path if annotation fails
             return Path(path_str)
 
     @classmethod
     def IS_CHANGED(cls, conditioning, cache_name):
-        # Change detection based on cache name
         return hashlib.sha256(f"{cache_name}".encode('utf-8')).hexdigest()
 
     @classmethod
@@ -125,7 +110,6 @@ class save_conditioning:
 class load_conditioning:
     @classmethod
     def INPUT_TYPES(cls):
-        # Get list of cached files for dropdown
         cached_files = cls.get_cached_files()
         
         return {
@@ -146,23 +130,19 @@ class load_conditioning:
             os.makedirs(CACHE_DIR, exist_ok=True)
             cache_files = []
             
-            # Check if directory exists and is readable
             if not os.path.exists(CACHE_DIR):
                 print(f"[CFZ Load] Cache directory doesn't exist: {CACHE_DIR}")
                 return ["no_cache_directory"]
             
             for filename in os.listdir(CACHE_DIR):
                 if filename.endswith('.pt'):
-                    # Remove .pt extension for display
                     cache_name = filename[:-3]
                     cache_files.append(cache_name)
             
-            # Sort alphabetically
             cache_files.sort()
             
-            # Return list with at least one option
             if cache_files:
-                print(f"[CFZ Load] Found {len(cache_files)} cached files")
+                # print(f"[CFZ Load] Found {len(cache_files)} cached files")
                 return cache_files
             else:
                 print("[CFZ Load] No cache files found")
@@ -174,8 +154,8 @@ class load_conditioning:
 
     def load_conditioning(self, cache_name):
         """Load conditioning from selected cached file"""
-        print(f"[CFZ Load] Loading conditioning:")
-        print(f"  - cache_name: '{cache_name}'")
+        # print(f"[CFZ Load] Loading conditioning:")
+        # print(f"  - cache_name: '{cache_name}'")
         
         if cache_name in ["no_cache_files_found", "error_reading_cache", "no_cache_directory", ""]:
             raise ValueError("No valid cached conditioning file selected")
@@ -183,16 +163,15 @@ class load_conditioning:
         file_path = os.path.join(CACHE_DIR, f"{cache_name}.pt")
         file_path = self._resolve_path(file_path)
         
-        print(f"  - file path: {file_path}")
-        print(f"  - file exists: {os.path.exists(file_path)}")
+        # print(f"  - file path: {file_path}")
+        # print(f"  - file exists: {os.path.exists(file_path)}")
         
         if not os.path.exists(file_path):
             raise ValueError(f"Cached conditioning not found: {cache_name}.pt")
         
         try:
             cached_tensor = torch.load(file_path, map_location='cpu')
-            print(f"[CFZ Load] ✓ Successfully loaded: {cache_name}.pt")
-            print(f"  - tensor type: {type(cached_tensor)}")
+            print(f"[CFZ Load Cached Conditioning] ✓ Successfully loaded: {cache_name}.pt")
             return (cached_tensor,)
         except Exception as e:
             print(f"[CFZ Load] ✗ Error loading: {e}")
@@ -203,12 +182,10 @@ class load_conditioning:
         try:
             return Path(folder_paths.get_annotated_filepath(str(path_str)))
         except:
-            # Fallback to simple path if annotation fails
             return Path(path_str)
 
     @classmethod
     def IS_CHANGED(cls, cache_name):
-        # Change detection based on selected cache file
         return cache_name
 
     @classmethod
@@ -222,3 +199,26 @@ class load_conditioning:
             return f"Selected cache file does not exist: {cache_name}.pt"
         
         return True
+
+class CFZ_PrintMarker:
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "message": ("STRING", {"default": "Reached this step!", "multiline": True}),
+            },
+            "optional": {
+                "trigger": (any_type, {}),
+            },
+            "hidden": {"unique_id": "UNIQUE_ID", "extra_pnginfo": "EXTRA_PNGINFO"}
+        }
+
+    RETURN_TYPES = (any_type,)  # Pass through whatever was received
+    RETURN_NAMES = ("output",)
+    OUTPUT_NODE = True
+    FUNCTION = "run"
+    CATEGORY = "CFZ Utils/Debug"
+
+    def run(self, message, trigger=None, unique_id=None, extra_pnginfo=None):
+        print(f"\n[🔔 CFZ Marker] {message}\n")
+        return (trigger,)
