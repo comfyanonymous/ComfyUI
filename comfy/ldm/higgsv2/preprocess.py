@@ -1,4 +1,4 @@
-from typing import ( 
+from typing import (
     Dict, List, Optional, Union, Tuple, MutableMapping, Any, Mapping, Collection, get_type_hints, get_args, get_origin
 )
 
@@ -153,13 +153,13 @@ def from_dict(data_class, data):
                 value = _build_value(type_=field_type, data=data[key])
             except Exception as error:
                 raise ValueError(error)
-            
+
             if not is_instance(value, field_type):
                 raise ValueError((
                     f'wrong value type for field "{field.name}" - should be "{field_type}" '
                     f'instead of value "{value}" of type "{type(value)}"'
                 ))
-            
+
             init_values[field.name] = value
 
     instance = data_class(**init_values)
@@ -273,7 +273,7 @@ def prepare_chatml_sample(sample: Union[ChatMLSample, Dict], tokenizer):
     try:
         if not isinstance(sample, ChatMLSample):
 
-            # replacing pd.isna            
+            # replacing pd.isna
             def is_nan(x):
                 if isinstance(x, float):
                     return math.isnan(x)
@@ -282,7 +282,7 @@ def prepare_chatml_sample(sample: Union[ChatMLSample, Dict], tokenizer):
                 if isinstance(x, torch.Tensor) and x.numel() == 1:
                     return torch.isnan(x).item()
                 return False
-            
+
             if "speaker" in sample and is_nan(sample["speaker"]):
                 sample["speaker"] = None
             if "start_index" in sample and is_nan(sample["start_index"]):
@@ -489,7 +489,7 @@ class HiggsAudioSampleCollator:
     def _process_and_duplicate_audio_tokens(
         self, input_ids: torch.Tensor, audio_idx: int, wv: torch.Tensor, labels: Optional[torch.Tensor] = None
     ) -> Tuple[torch.Tensor, torch.Tensor, int]:
-        
+
         total_samples = len(wv)
         num_chunks = math.ceil(total_samples / self.chunk_size_samples)
 
@@ -583,15 +583,15 @@ class HiggsAudioSampleCollator:
             audio_out_no_train_flag = torch.cat(audio_out_no_train_flag, dim=0)
 
         if len(audio_in_ids_l) > 0:
-            
+
             # I tried to remove the for-loop in original implementation
             # but to do batching with padding caused problem so I turned it into a list compre.
-            lengths = [seg.shape[1] for seg in audio_in_ids_l]           
-            aug_lengths = [l + 2 for l in lengths]                   
+            lengths = [seg.shape[1] for seg in audio_in_ids_l]
+            aug_lengths = [l + 2 for l in lengths]
             audio_in_ids_start = torch.cumsum(
                 torch.tensor([0] + aug_lengths[:-1], dtype=torch.long), dim=0
             )
-        
+
             if self.disable_audio_codes_transform:
                 audio_in_ids = torch.cat(audio_in_ids_l, dim=1).long()
             else:
@@ -607,7 +607,7 @@ class HiggsAudioSampleCollator:
                 if self.use_delay_pattern:
                     with_tokens = [
                         build_delay_pattern_mask(
-                            tok.unsqueeze(0),  
+                            tok.unsqueeze(0),
                             bos_token_id=self.audio_stream_bos_id,
                             pad_token_id=self.audio_stream_eos_id
                         )[0]

@@ -160,7 +160,7 @@ class DACDecoder(nn.Module):
 
     def forward(self, x):
         return self.model(x)
-    
+
 class Conv1d1x1:
     def __new__(cls, in_channels, out_channels, bias=True, device=None, dtype=None, operations=None):
         operations = operations or nn
@@ -168,7 +168,7 @@ class Conv1d1x1:
             in_channels, out_channels, kernel_size=1,
             bias=bias, device=device, dtype=dtype
         )
-    
+
 class Conv1d(nn.Module):
     def __init__(
         self,
@@ -203,7 +203,7 @@ class Conv1d(nn.Module):
     def forward(self, x):
         x = self.conv(x)
         return x
-    
+
 class ConvTranspose1d(nn.Module):
     def __init__(
         self,
@@ -237,7 +237,7 @@ class ConvTranspose1d(nn.Module):
     def forward(self, x):
         x = self.deconv(x)
         return x
-    
+
 class ResidualUnit(nn.Module):
     def __init__(
         self,
@@ -283,7 +283,7 @@ class EncoderBlock(nn.Module):
         self.conv = Conv1d(
             in_channels=in_channels,
             out_channels=out_channels,
-            kernel_size = kernel_size, 
+            kernel_size = kernel_size,
             stride=stride,
             bias=bias,
             device = device, dtype = dtype, operations = operations
@@ -435,7 +435,7 @@ class Decoder(nn.Module):
             x = self.conv_blocks[i](x)
         x = self.conv2(x)
         return x
-    
+
 class HiggsAudioFeatureExtractor(nn.Module):
     def __init__(self, sampling_rate=16000):
         super().__init__()
@@ -493,7 +493,7 @@ class EuclideanCodebook(nn.Module):
         embed = self.embed.t()
         if x.dtype != embed.dtype:
             x = x.to(embed.dtype)
-            
+
         dist = -(x.pow(2).sum(1, keepdim=True) - 2 * x @ embed + embed.pow(2).sum(0, keepdim=True))
         embed_ind = dist.max(dim=-1).indices
         return embed_ind
@@ -520,14 +520,14 @@ class EuclideanCodebook(nn.Module):
         return quantize
 
     def forward(self, x):
-        orig_shape = x.shape  # [B, T, D]  
+        orig_shape = x.shape  # [B, T, D]
         flat = x.view(-1, x.shape[-1]) # [B*T, D]
 
-        embed_ind = self.quantize(flat)             
-        embed_ind = self.postprocess_emb(embed_ind, orig_shape)  
+        embed_ind = self.quantize(flat)
+        embed_ind = self.postprocess_emb(embed_ind, orig_shape)
         # now embed_ind has shape [B, T]
 
-        quantize = self.dequantize(embed_ind) 
+        quantize = self.dequantize(embed_ind)
         # quantize: [B, T, D]
 
         return quantize, embed_ind
@@ -636,9 +636,9 @@ class ResidualVectorQuantization(nn.Module):
             quantized = F.embedding(embed_id, codebook_weight).transpose(1, 2)  # (B, D, T)
             quantized = F.linear(quantized.transpose(1, 2), proj_weight, proj_biases).transpose(1, 2)
             return quantized
-        
+
         codebook_weights = torch.stack([q._codebook.embed for q in self.layers])       # (n_codebooks, vocab_size, D)
-        proj_weights = torch.stack([q.project_out.weight for q in self.layers])   
+        proj_weights = torch.stack([q.project_out.weight for q in self.layers])
 
         quantized = vmap(decode_one)(codebook_weights, proj_weights, q_indices, biases)
 
@@ -705,7 +705,7 @@ class ResidualVectorQuantizer(nn.Module):
         """Decode the given codes to the quantized representation."""
         quantized = self.vq.decode(codes)
         return quantized
-    
+
 class HiggsAudioTokenizer(nn.Module):
     def __init__(
         self,
@@ -786,7 +786,7 @@ class HiggsAudioTokenizer(nn.Module):
         x = x[:, 0, :]
         x = F.pad(x, (160, 160))
         target = self.semantic_model(x, output_hidden_states=True).hidden_states
-        target = torch.stack(target, dim=1) 
+        target = torch.stack(target, dim=1)
 
         target = target.mean(1)
 

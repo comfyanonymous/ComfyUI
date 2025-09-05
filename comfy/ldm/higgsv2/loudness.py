@@ -125,7 +125,7 @@ class IIRfilter(object):
     @property
     def b_and_a(self):
         return self.generate_coefficients()
-    
+
 class Meter(torch.nn.Module):
 
     def __init__(
@@ -227,7 +227,7 @@ class Meter(torch.nn.Module):
         return unfolded
 
     def integrated_loudness(self, data: torch.Tensor):
-        
+
         if not torch.is_tensor(data):
             data = torch.from_numpy(data).float()
         else:
@@ -291,10 +291,10 @@ class Meter(torch.nn.Module):
 
 def loudness(
     audio_data, sample_rate: int, target_loudness: int, filter_class: str = "K-weighting", block_size: float = 0.400, **kwargs
-):  
+):
     MIN_LOUDNESS = -70
     device = audio_data.device
-    
+
     original_length = audio_data.shape[-1]
     signal_duration = original_length / sample_rate
 

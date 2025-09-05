@@ -13,7 +13,7 @@ class DummyTokenizer:
 def revert_delay_pattern_vectorized(data: torch.Tensor) -> torch.Tensor:
     num_codebooks, total_len = data.shape
     seq_len = total_len - num_codebooks + 1
-    
+
     col_idx = torch.arange(seq_len, device=data.device)[None, :] \
              + torch.arange(num_codebooks, device=data.device)[:, None]
     out = data[torch.arange(num_codebooks)[:, None], col_idx]
@@ -27,7 +27,7 @@ class HiggsTokenizer(nn.Module):
         self.device = device
         self.dtypes = [torch.float32]
 
-        here = os.path.dirname(__file__) 
+        here = os.path.dirname(__file__)
         tokenizer_path = os.path.join(here, "higgs_text_tokenizer")
 
         self.tokenizer = AutoTokenizer.from_pretrained(tokenizer_path)
@@ -65,16 +65,16 @@ class HiggsTokenizer(nn.Module):
         # due to instability issues, I had to convert the audio tokenizer to float32, avoiding outputing nans
         self.audio_tokenizer = self.audio_tokenizer.to(self.dtype)
         torch.cuda.synchronize()
-        
+
         for audio in audio_tokens:
             vq_code = revert_delay_pattern_vectorized(audio).clip(0, self.audio_codebook_size - 1)[:, 1:-1]
             wv_numpy = self.audio_tokenizer.decode(vq_code.unsqueeze(0))[0, 0]
             outputs.append(wv_numpy)
 
         return (None, {"waveform": torch.stack(outputs, dim = 0).unsqueeze(1), "sample_rate": self.audio_tokenizer.sample_rate}) # audio only
-    
+
     def load_state_dict(self, sd, strict = False):
         return self.audio_tokenizer.load_state_dict(sd, strict = strict)
-    
+
     def state_dict(self):
         return self.audio_tokenizer.state_dict()

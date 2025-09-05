@@ -19,27 +19,27 @@ def estimate_autoregressive_vram(
     max_seq_len: int,
     batch_size: int = 1,
     dtype = torch.float16,
-    intermediate_factor: float = 4.0, 
+    intermediate_factor: float = 4.0,
     device = torch.device('cuda')
 ) -> bool:
-    
+
     dtype_size = torch.finfo(dtype).bits // 8
     kv_cache_bytes = num_layers * max_seq_len * hidden_dim * 2 * batch_size * dtype_size
 
-    # we only calculate hidden states in cuda graphs, so we don't care about the output logits    
-    input_bytes = output_bytes = batch_size * max_seq_len * hidden_dim * dtype_size    
-    
+    # we only calculate hidden states in cuda graphs, so we don't care about the output logits
+    input_bytes = output_bytes = batch_size * max_seq_len * hidden_dim * dtype_size
+
     # rough calculation for activation sizes
     intermediate_bytes = intermediate_factor * output_bytes
-    
+
     total_estimated = kv_cache_bytes + input_bytes + output_bytes + intermediate_bytes
-    
+
     # get vram info
     free_vram = get_free_memory(device)
     minimum_vram = minimum_inference_memory()
-    
+
     enough_vram = free_vram - minimum_vram >= total_estimated
-    
+
     return enough_vram
 
 class TopKLogits:
@@ -64,7 +64,7 @@ class TemperatureLogitsWarper:
     def __call__(self, scores: torch.FloatTensor) -> torch.FloatTensor:
         scores_processed = scores / self.temperature
         return scores_processed
-    
+
 class TopPLogitsWarper:
     def __init__(self, top_p: float, filter_value: float = -float("Inf"), min_tokens_to_keep: int = 1):
         top_p = float(top_p)
@@ -175,7 +175,7 @@ class GenerationConfig:
 
         config_dict = {key: value for key, value in config_dict.items() if value is not None}
         valid_fields = {f.name for f in fields(cls)}
-        
+
         filtered_args = {k: v for k, v in {**config_dict, **kwargs}.items() if k in valid_fields}
 
         generation_config = cls(**filtered_args)
@@ -216,7 +216,7 @@ class AutoRegressiveGeneration:
         self.model.cache_config = self.cache_config
 
         self.kv_caches = {
-            
+
             length: StaticCache(
                 config=self.cache_config,
                 max_batch_size = self.cache_config.max_batch,
@@ -234,8 +234,8 @@ class AutoRegressiveGeneration:
 
         # cuda graphs only help if input shapes are constant
         if (
-            device == "cuda" 
-            and hasattr(model, "capture_model") 
+            device == "cuda"
+            and hasattr(model, "capture_model")
             and self.model.cache_implementation == "static"
             and self.model.use_kv_buckets
             and enough_vram
@@ -247,7 +247,7 @@ class AutoRegressiveGeneration:
     @torch.inference_mode()
     def generate(self, input_ids: Optional[torch.LongTensor] = None, max_new_length: int = 1024, min_new_length = 0,
                  top_k: int = 50, top_p: float = 1.0, temperature: float = 1.0, do_sample: bool = False, seed = None, **kwargs):
-        
+
         if seed is not None:
             torch_generator = torch.Generator(device = input_ids.device).manual_seed(seed)
         else:
@@ -335,7 +335,7 @@ class AutoRegressiveGeneration:
             # TODO: have a default self._sample fn and a default check if the model supports autoregGen or not
             if not hasattr(self.model, "_sample"):
                 raise ValueError("Model doesn't support AutoRegressive Generation!")
-            
+
             self._prepare_kv_caches()
 
             result = self.model._sample(
@@ -347,7 +347,7 @@ class AutoRegressiveGeneration:
             )
 
         return result
-    
+
     def _prepare_kv_caches(self):
         for kv_cache in self.kv_caches.values():
             kv_cache.reset()
@@ -357,13 +357,13 @@ class AutoRegressiveGeneration:
             return GenerationSampling.BEAM_SAMPLING
         else:
             return GenerationSampling.GREEDY_SEARCH
-        
+
     def _prepare_generated_length(
         self,
         generation_config: GenerationConfig,
         input_ids_length,
     ):
-        
+
         """ max_length = user_input_id_tokens + generation_max_length """
 
         if generation_config.max_new_length is not None:
@@ -374,11 +374,11 @@ class AutoRegressiveGeneration:
             generation_config.min_length = generation_config.min_new_length + input_ids_length
 
         return generation_config
-    
+
     def _get_cache(
         self, cache_implementation: str, batch_size: int, max_cache_len: int, device: torch.device, model_kwargs
     ) -> Cache:
-        
+
         assert cache_implementation == "static", f"Only 'static' cache is supported, got {cache_implementation}"
 
         cache_cls: Cache = NEED_SETUP_CACHE_CLASSES_MAPPING[cache_implementation]
@@ -412,7 +412,7 @@ class AutoRegressiveGeneration:
 
         return self.model._cache
 
-    
+
     def _prepare_cache_for_generation(
         self,
         generation_config: GenerationConfig,
@@ -466,7 +466,7 @@ class AutoRegressiveGeneration:
         model_kwargs = generation_config.update(**kwargs)
 
         return generation_config, model_kwargs
-    
+
     def _validate_generated_length(self, generation_config: GenerationConfig, input_ids_length):
         """Performs validation related to the resulting generated length"""
 
@@ -498,7 +498,7 @@ class AutoRegressiveGeneration:
                     f" the maximum possible length ({generation_config.max_length})." + min_length_error_suffix,
                     UserWarning,
                 )
-    
+
     def _expand_inputs_for_generation(
         self,
         expand_size: int = 1,
@@ -526,13 +526,13 @@ class AutoRegressiveGeneration:
         model_kwargs = _expand_dict_for_generation(model_kwargs)
 
         return input_ids, model_kwargs
-    
+
     def _prepare_special_tokens(
         self,
         generation_config: GenerationConfig,
         device: Optional[Union[torch.device, str]] = None,
     ):
-        
+
         def _tensor_or_none(token, device=None):
             if token is None:
                 return token
@@ -564,7 +564,7 @@ class AutoRegressiveGeneration:
         generation_config: GenerationConfig,
         model_kwargs: dict[str, Any],
     ) -> torch.LongTensor:
-        
+
         pad_token_id = generation_config._pad_token_tensor
         eos_token_id = generation_config._eos_token_tensor
 
@@ -593,12 +593,12 @@ class AutoRegressiveGeneration:
             attention_mask_from_padding * can_infer_attention_mask + default_attention_mask * ~can_infer_attention_mask
         )
         return attention_mask
-    
+
 def auto_sample(node, patcher, input_ids, max_new_length=1024, min_new_length=0, top_k=50, top_p=1.0, temperature=1.0, do_sample = False, seed=None, **kwargs):
     # to work with BaseModel
     if hasattr(patcher, "model") and hasattr(patcher.model, "diffusion_model"):
         model = patcher.model.diffusion_model
-    
+
     if node._cached_autoregressive_sampler is None or node._cached_autoregressive_sampler.model is not model:
         if model.device != patcher.load_device:
             model = model.to(patcher.load_device, dtype=model.dtype)
@@ -610,7 +610,7 @@ def auto_sample(node, patcher, input_ids, max_new_length=1024, min_new_length=0,
         kwargs.update({k: v for k, v in input_ids.items() if k != "input_ids"})
     else:
         main_input_ids = input_ids
-    
+
     device = node._cached_autoregressive_sampler.device
 
     main_input_ids = main_input_ids.to(device)

@@ -1307,8 +1307,8 @@ class Higgsv2(supported_models_base.BASE):
 
     def get_model(self, state_dict, prefix="", device=None):
         out = model_base.Higgsv2(self, device=device)
-        return out    
-    
+        return out
+
     def clip_target(self, state_dict = {}):
         return supported_models_base.ClipTarget(comfy.text_encoders.higgsv2.DummyTokenizer, comfy.text_encoders.higgsv2.HiggsTokenizer)
 

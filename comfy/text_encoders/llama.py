@@ -244,10 +244,10 @@ class Attention(nn.Module):
 
         output = optimized_attention(xq, xk, xv, self.num_heads, mask=attention_mask, skip_reshape=True)
         out = self.o_proj(output)
-        
+
         if past_key_value is not None:
             return out, past_key_value
-        
+
         return out
 
 class MLP(nn.Module):

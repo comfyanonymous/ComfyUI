@@ -1571,7 +1571,7 @@ class AutoRegressiveGeneration:
                 "do_sample": ("BOOLEAN", {"default": False, "tooltip": "Add randomness in decoding the tokens."}),
             }
         }
-    
+
     RETURN_TYPES = ("TOKENS",)
     FUNCTION = "generate"
 
@@ -1582,7 +1582,7 @@ class AutoRegressiveGeneration:
 
     def generate(self, model, input_ids, seed, max_new_length, min_new_length, top_k, top_p, temperature, do_sample):
         return (auto_sample(self, model, input_ids, max_new_length, min_new_length, top_k, top_p, temperature, do_sample, seed = seed),)
-    
+
 class DecodeTokens:
     @classmethod
     def INPUT_TYPES(s):
@@ -1591,7 +1591,7 @@ class DecodeTokens:
                 "clip": (IO.CLIP, {"tooltip": "The model used for generation."}),
                 "tokens": ("TOKENS", ),}
         }
-    
+
     FUNCTION = "decode"
     CATEGORY = "conditioning"
     RETURN_TYPES = ("TEXT", "AUDIO")

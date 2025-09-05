@@ -9,19 +9,17 @@ import folder_paths
 import os
 import io
 import json
-import base64
 import random
 import hashlib
 import numpy as np
 import node_helpers
-from io import BytesIO
 from comfy.cli_args import args
 from comfy.comfy_types import IO
 from comfy.comfy_types import FileLocator
 from dataclasses import  asdict
 from comfy.ldm.higgsv2.loudness import loudness
 from comfy.ldm.higgsv2.preprocess import (
-    prepare_chatml_sample, Message, ChatMLSample, ChatMLDatasetSample, AudioContent, TextContent, transcript_normalize
+    prepare_chatml_sample, Message, ChatMLSample, ChatMLDatasetSample, AudioContent, transcript_normalize
 )
 
 AUDIO_PLACEHOLDER_TOKEN = "<|__AUDIO_PLACEHOLDER__|>"
@@ -29,7 +27,7 @@ AUDIO_PLACEHOLDER_TOKEN = "<|__AUDIO_PLACEHOLDER__|>"
 MULTISPEAKER_DEFAULT_SYSTEM_MESSAGE = """You are an AI assistant designed to convert text into speech.
 If the user's message includes a [SPEAKER*] tag, do not read out the tag and generate speech for the following text, using the specified voice.
 If no speaker tag is present, select a suitable voice on your own."""
-    
+
 class LoudnessNormalization:
 
     CATEGORY = "audio"
@@ -42,7 +40,7 @@ class LoudnessNormalization:
                              "block_size": ("FLOAT", {"default": 0.400, "min": 0.1, "max": 1.0, "step": 0.05}),
                              "loudness_threshold": ("FLOAT", {"default": -23.0, "min": -70.0, "max": 0.0, "step": 0.5,
                                                               "tooltip": "Target loudness in LUFS. Common values are -23.0 (broadcast), -14.0 (streaming)."})}}
-    
+
     def normalize(self, audio, loudness_threshold, block_size):
         sampling_rate = audio["sample_rate"]
         waveform = audio["waveform"]
@@ -75,10 +73,10 @@ def prepare_chatml_input(
 
             if audio_content.raw_audio.device != next(clip.audio_tokenizer.parameters()).device:
                 audio_content.raw_audio = audio_content.raw_audio.to(next(clip.audio_tokenizer.parameters()).device)
-                
+
             audio_ids = clip.audio_tokenizer.encode(audio_content.raw_audio, sampling_rate)
             audio_ids_l.append(audio_ids.squeeze(0))
-    
+
     if len(audio_ids_l) > 0:
         audio_ids_start = torch.tensor(
             np.cumsum(np.array([0] + [audio_ids.shape[1] for audio_ids in audio_ids_l])),
@@ -115,18 +113,18 @@ def prepare_chatml_input(
 def postprocess_chatml(text: str) -> str:
     speakers = set(re.findall(r'\[SPEAKER\d+\]', text))
     skip_recon = True
-    
+
     if len(speakers) > 1:
         parts = text.split('<|eot_id|>')
-        
+
         # keep the first <|eot_id|> and the last one
         first_eot = parts[0] + '<|eot_id|>'
-        middle_parts = ''.join(parts[1:-1]) 
+        middle_parts = ''.join(parts[1:-1])
         last_eot = '<|eot_id|>' + parts[-1]
-        
+
         text = first_eot + middle_parts + last_eot
         skip_recon = False
-        
+
     return text, skip_recon
 
 class CreateChatMLSample:
@@ -165,30 +163,30 @@ class CreateChatMLSample:
 
         if audio is not None:
             clip.load_model()
-        
+
         if hasattr(clip, "cond_stage_model"):
             clip = clip.cond_stage_model
 
         text = transcript_normalize(text)
-    
+
         messages = []
         lines = text.splitlines()
         sampling_rate = False
         current_role = None
         collecting_system = False
         system_buffer = []
-    
+
         for line in lines:
             line = line.strip()
             if not line:
                 continue
-    
+
             # system start
             if line.lower().startswith("system:"):
                 collecting_system = True
                 system_buffer.append(line[len("system:"):].strip())
                 continue
-    
+
             # while collecting system prompt
             if collecting_system:
                 system_buffer.append(line)
@@ -198,7 +196,7 @@ class CreateChatMLSample:
                     system_buffer = []
                     collecting_system = False
                 continue
-            
+
             # speaker lines SPEAKER-0: text
             match = re.match(r"SPEAKER-(\d+):\s*(.*)", line, re.IGNORECASE)
             if match:
@@ -245,12 +243,12 @@ class CreateChatMLSample:
             chat_ml_sample,
             clip.tokenizer,
         )
-    
+
         if audio is None:
             audio_contents = None
         out = prepare_chatml_input(clip, input_tokens, audio_contents, sampling_rate = sampling_rate)
         return (out,)
-        
+
 class EmptyLatentAudio:
     def __init__(self):
         self.device = comfy.model_management.intermediate_device()
@@ -612,7 +610,7 @@ NODE_CLASS_MAPPINGS = {
     "PreviewAudio": PreviewAudio,
     "ConditioningStableAudio": ConditioningStableAudio,
     "LoudnessNormalization": LoudnessNormalization,
-    "CreateChatMLSample": CreateChatMLSample
+    "CreateChatMLSample": CreateChatMLSample,
     "RecordAudio": RecordAudio,
 }
 
@@ -626,6 +624,6 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SaveAudioMP3": "Save Audio (MP3)",
     "SaveAudioOpus": "Save Audio (Opus)",
     "LoudnessNormalization": "Loudness Normalization",
-    "CreateChatMLSample": "Create ChatML Sample"
+    "CreateChatMLSample": "Create ChatML Sample",
     "RecordAudio": "Record Audio",
 }

@@ -22,7 +22,7 @@ class CUDAGraphRunner(nn.Module):
 
     def capture(self, *args, **kwargs):
         assert self._graph is None
-        
+
         for _ in range(_NUM_WARMUP_ITERS):
             self.model(*args, **kwargs)
 

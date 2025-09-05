@@ -413,7 +413,7 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
         dit_config["qkv_bias"] = False
         dit_config["guidance_cond_proj_dim"] = None#f"{key_prefix}t_embedder.cond_proj.weight" in state_dict_keys
         return dit_config
-    
+
     if "{}layers.27.audio_post_attention_layernorm.weight".format(key_prefix) in state_dict_keys:
 
         autoregressive_config = {}

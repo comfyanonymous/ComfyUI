@@ -19,8 +19,8 @@ from collections import defaultdict, OrderedDict
 from typing import Optional, Tuple, Union, List
 
 class GenerationMode(Enum):
-    TEXT = 0 
-    AUDIO_INIT = 1 
+    TEXT = 0
+    AUDIO_INIT = 1
     AUDIO_IN_PROGRESS = 2
 
 def _ignore_causal_mask_sdpa(
@@ -413,7 +413,7 @@ class HiggsAudioModel(nn.Module):
 
     def __init__(self, device = None, dtype = None, operations = None, **kwargs):
         super().__init__()
-        
+
         self.padding_idx = kwargs["pad_token_id"]
         self.audio_in_token_idx = kwargs["audio_in_token_idx"]
         self.audio_out_token_idx = kwargs["audio_out_token_idx"]
@@ -439,7 +439,7 @@ class HiggsAudioModel(nn.Module):
 
         self.audio_out_bos_token_id = 128013
         self.audio_eos_token_id = 128012
-        
+
         text_config = kwargs["text_config"]
         llama_config = Llama2Config(num_attention_heads = text_config["num_attention_heads"],
                             num_key_value_heads = text_config["num_key_value_heads"],
@@ -616,7 +616,7 @@ class HiggsAudioModel(nn.Module):
             next_audio_tokens = None
 
         return next_tokens, next_audio_tokens
-    
+
     def _update_causal_mask(
         self,
         attention_mask: torch.Tensor,
@@ -677,7 +677,7 @@ class HiggsAudioModel(nn.Module):
             causal_mask =  causal_mask.mul(~torch.all(causal_mask == min_dtype, dim=-1, keepdim=True))
 
         return causal_mask
-    
+
     def _embed_audio_ids(self, audio_ids):
         codebook_shift = (
             torch.arange(self.config["audio_num_codebooks"], device=audio_ids.device) * self.audio_codebook_size
@@ -712,7 +712,7 @@ class HiggsAudioModel(nn.Module):
         )
         audio_attention_mask = attention_mask.masked_fill(no_audio_out_mask, min_dtype)
         return fast_forward_attention_mask, audio_attention_mask
-    
+
     def _forward_core(
         self,
         hidden_states: torch.Tensor,
@@ -728,7 +728,7 @@ class HiggsAudioModel(nn.Module):
         is_using_cuda_graph: Optional[bool] = False,
     ):
 
-        position_id_offset = cache_position[0] if use_cache else 0 
+        position_id_offset = cache_position[0] if use_cache else 0
         position_embeddings = self.rotary_emb(hidden_states, position_ids + position_id_offset)
 
         for decoder_layer in self.layers:
@@ -927,7 +927,7 @@ class HiggsAudioModel(nn.Module):
         )
 
         return ret
-    
+
     def _update_model_kwargs_for_generation(
         self,
         outputs,
@@ -956,13 +956,13 @@ class HiggsAudioModel(nn.Module):
                 )
 
         return model_kwargs
-    
+
     def _copy_kv_cache(self, from_cache: Cache, to_cache: Cache):
         from_cache_size = from_cache.get_max_cache_shape()
         assert to_cache.get_max_cache_shape() >= from_cache_size, (
             f"The target cache size {to_cache.get_max_cache_shape()} is smaller than the source cache size {from_cache_size}."
         )
-    
+
         n_layers = self.num_hidden_layers
 
         for i in range(n_layers):
@@ -977,7 +977,7 @@ class HiggsAudioModel(nn.Module):
                      self.cache_config.head_dim),
                     device=self.device, dtype=self.dtype
                 )
-                
+
             if getattr(to_layer, "values", None) is None:
                 to_layer.values = torch.zeros(
                     (self.cache_config.max_batch, self.cache_config.num_key_value_heads,
@@ -1011,7 +1011,7 @@ class HiggsAudioModel(nn.Module):
             f"The current sequence length {current_sequence_length} is larger than "
             f"all past key values buckets {past_key_values_buckets.keys()}."
         )
-    
+
     def _sample(
         self,
         input_ids: torch.LongTensor,
@@ -1020,7 +1020,7 @@ class HiggsAudioModel(nn.Module):
         past_key_values_buckets: Optional[OrderedDict[int, Cache]],
         **model_kwargs,
     ):
-        
+
         # code supports only non-mixed batchs
 
         audio_out_bos_token_id = generation_config.generation_kwargs.get("audio_out_bos_token_id", None)
@@ -1069,7 +1069,7 @@ class HiggsAudioModel(nn.Module):
 
         while not this_peer_finished:
             eos_token_tensor = torch.tensor([self.config["text_config"]["eos_token_id"]], device=input_ids.device)
-            
+
             if input_ids[0][-1] == audio_out_bos_token_id:
                 generation_mode = GenerationMode.AUDIO_INIT
             elif input_ids[0][-1] == self.audio_out_token_idx:
@@ -1211,7 +1211,7 @@ class HiggsAudioModel(nn.Module):
                 pbar.update(pbar.total - pbar.current)
 
         return audio_sequences
-    
+
     @torch.inference_mode()
     def generate(
         self,
@@ -1222,7 +1222,7 @@ class HiggsAudioModel(nn.Module):
         generation_functions = None,
         **kwargs,
     ):
-        
+
         if generation_config is None:
             generation_config = GenerationConfig()
 
