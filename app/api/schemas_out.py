@@ -92,17 +92,25 @@ class TagsRemove(BaseModel):
     total_tags: list[str] = Field(default_factory=list)
 
 
+class AssetScanError(BaseModel):
+    path: str
+    message: str
+    phase: Literal["fast", "slow"]
+    at: Optional[str] = Field(None, description="ISO timestamp")
+
+
 class AssetScanStatus(BaseModel):
     scan_id: str
-    root: Literal["models","input","output"]
-    status: Literal["scheduled","running","completed","failed","cancelled"]
+    root: Literal["models", "input", "output"]
+    status: Literal["scheduled", "running", "completed", "failed", "cancelled"]
     scheduled_at: Optional[str] = None
     started_at: Optional[str] = None
     finished_at: Optional[str] = None
     discovered: int = 0
     processed: int = 0
-    errors: int = 0
-    last_error: Optional[str] = None
+    slow_queue_total: int = 0
+    slow_queue_finished: int = 0
+    file_errors: list[AssetScanError] = Field(default_factory=list)
 
 
 class AssetScanStatusResponse(BaseModel):

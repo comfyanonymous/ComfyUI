@@ -43,7 +43,7 @@ async def asset_exists(*, asset_hash: str) -> bool:
 
 
 def populate_db_with_asset(file_path: str, tags: Optional[list[str]] = None) -> None:
-    if not args.disable_model_processing:
+    if not args.enable_model_processing:
         if tags is None:
             tags = []
         try:
