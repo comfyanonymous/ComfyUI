@@ -387,10 +387,7 @@ def prepare_chatml_sample(sample: Union[ChatMLSample, Dict], tokenizer):
 
         return input_tokens, audio_contents, speaker_id
 
-    except Exception as e:
-        import json
-        print(f"Error in prepare_chatml_sample: {str(e)}")
-        print(f"Sample data: {json.dumps(sample, indent=2)}")
+    except Exception:
         return None, None, None
 
 @dataclass
