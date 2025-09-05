@@ -45,7 +45,7 @@ class CFZVAELoader:
             # Load the VAE with patched precision functions
             vae_loader = VAELoader()
             vae = vae_loader.load_vae(vae_name)[0]
-            print(f"CFZ VAE: Loaded with forced precision {precision}")
+            print(f"[CFZ VAE] VAE loaded with precision {precision}")
             return (vae,)
         finally:
             # Restore original functions
@@ -59,4 +59,5 @@ NODE_CLASS_MAPPINGS = {
 
 NODE_DISPLAY_NAME_MAPPINGS = {
     "CFZVAELoader": "CFZ VAE Loader"
+
 }
