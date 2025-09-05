@@ -25,6 +25,7 @@ import comfy.sample
 import comfy.sd
 import comfy.utils
 import comfy.controlnet
+from comfy.autoregressive_sampling import auto_sample
 from comfy.comfy_types import IO, ComfyNodeABC, InputTypeDict, FileLocator
 
 import comfy.clip_vision
@@ -1549,6 +1550,54 @@ class KSamplerAdvanced:
             disable_noise = True
         return common_ksampler(model, noise_seed, steps, cfg, sampler_name, scheduler, positive, negative, latent_image, denoise=denoise, disable_noise=disable_noise, start_step=start_at_step, last_step=end_at_step, force_full_denoise=force_full_denoise)
 
+class AutoRegressiveGeneration:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "model": ("MODEL", {"tooltip": "The model used for generation."}),
+                "input_ids": ("TOKENS", ),
+                "seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff, "control_after_generate": True, "tooltip": "The random seed used for controling the generation."}),
+                "max_new_length": ("INT", {"default": 1024, "min": 1, "max": 10_000, "tooltip": "The max length for generation."}),
+                "min_new_length": ("INT", {"default": 1, "min": 1, "max": 10_000, "tooltip": "The min length for generation."}),
+                "top_k": ("INT", {"default": 50, "min": 1, "max": 30_000, "tooltip": "Takes the top k of the most probable tokens."}),
+                "top_p": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 1.0, "step": 0.01, "tooltip": "Percentage of tokens to leave after generation (top most probable tokens)."}),
+                "temperature": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 50, "step": 0.01, "tooltip": "Temperature controls randomess by decreasing or increasing the probability of lesser likely tokens. Higher Temperature -> More Randomness"}),
+                "do_sample": ("BOOLEAN", {"default": False, "tooltip": "Add randomness in decoding the tokens."}),
+            }
+        }
+    
+    RETURN_TYPES = ("TOKENS",)
+    FUNCTION = "generate"
+
+    CATEGORY = "sampling"
+
+    # for cuda graphs
+    _cached_autoregressive_sampler = None
+
+    def generate(self, model, input_ids, seed, max_new_length, min_new_length, top_k, top_p, temperature, do_sample):
+        return (auto_sample(self, model, input_ids, max_new_length, min_new_length, top_k, top_p, temperature, do_sample, seed = seed),)
+    
+class DecodeTokens:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "clip": (IO.CLIP, {"tooltip": "The model used for generation."}),
+                "tokens": ("TOKENS", ),}
+        }
+    
+    FUNCTION = "decode"
+    CATEGORY = "conditioning"
+    RETURN_TYPES = ("TEXT", "AUDIO")
+
+    def decode(self, clip, tokens):
+        clip.load_model()
+        if hasattr(clip.cond_stage_model, "decode_tokens"): # for special tokenizers
+            return clip.cond_stage_model.decode_tokens(tokens)
+        else:
+            return (clip.tokenizer.decode(tokens, skip_special_tokens=True), None)
+
 class SaveImage:
     def __init__(self):
         self.output_dir = folder_paths.get_output_directory()
@@ -1936,9 +1985,11 @@ class ImagePadForOutpaint:
 
 NODE_CLASS_MAPPINGS = {
     "KSampler": KSampler,
+    "AutoRegressiveGeneration": AutoRegressiveGeneration,
     "CheckpointLoaderSimple": CheckpointLoaderSimple,
     "CLIPTextEncode": CLIPTextEncode,
     "CLIPSetLastLayer": CLIPSetLastLayer,
+    "DecodeTokens": DecodeTokens,
     "VAEDecode": VAEDecode,
     "VAEEncode": VAEEncode,
     "VAEEncodeForInpaint": VAEEncodeForInpaint,
@@ -2008,6 +2059,8 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     # Sampling
     "KSampler": "KSampler",
     "KSamplerAdvanced": "KSampler (Advanced)",
+    "AutoRegressiveGeneration": "Autoregressive Generation",
+    ""
     # Loaders
     "CheckpointLoader": "Load Checkpoint With Config (DEPRECATED)",
     "CheckpointLoaderSimple": "Load Checkpoint",
@@ -2025,6 +2078,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "StyleModelApply": "Apply Style Model",
     "CLIPTextEncode": "CLIP Text Encode (Prompt)",
     "CLIPSetLastLayer": "CLIP Set Last Layer",
+    "DecodeTokens": "Decode Tokens",
     "ConditioningCombine": "Conditioning (Combine)",
     "ConditioningAverage ": "Conditioning (Average)",
     "ConditioningConcat": "Conditioning (Concat)",
