@@ -1058,27 +1058,6 @@ def load_state_dict_guess_config(sd, output_vae=True, output_clip=True, output_c
     model = None
     model_patcher = None
 
-    if isinstance(sd, dict) and all(k in sd for k in ["model", "vae", "conditioner"]):
-        from collections import OrderedDict
-        import gc
-
-        merged_sd = OrderedDict()
-
-        for k, v in sd["model"].items():
-            merged_sd[f"model.{k}"] = v
-
-        for k, v in sd["vae"].items():
-            merged_sd[f"vae.{k}"] = v
-
-        for key, value in sd["conditioner"].items():
-            merged_sd[f"conditioner.{key}"] = value
-
-        sd = merged_sd
-
-        del merged_sd
-        gc.collect()
-        torch.cuda.empty_cache()
-
     diffusion_model_prefix = model_detection.unet_prefix_from_state_dict(sd)
     parameters = comfy.utils.calculate_parameters(sd, diffusion_model_prefix)
     weight_dtype = comfy.utils.weight_dtype(sd, diffusion_model_prefix)
