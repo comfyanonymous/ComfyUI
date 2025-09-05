@@ -30,7 +30,7 @@ from comfy.comfy_types.node_typing import IO, ComfyNodeABC
 from comfy_api.input_impl import VideoFromFile
 
 import torch
-import requests
+import aiohttp
 from io import BytesIO
 
 
@@ -47,7 +47,7 @@ def get_video_url_from_response(
     return str(response.Resp.url)
 
 
-def upload_image_to_pixverse(image: torch.Tensor, auth_kwargs=None):
+async def upload_image_to_pixverse(image: torch.Tensor, auth_kwargs=None):
     # first, upload image to Pixverse and get image id to use in actual generation call
     files = {"image": tensor_to_bytesio(image)}
     operation = SynchronousOperation(
@@ -62,7 +62,7 @@ def upload_image_to_pixverse(image: torch.Tensor, auth_kwargs=None):
         content_type="multipart/form-data",
         auth_kwargs=auth_kwargs,
     )
-    response_upload: PixverseImageUploadResponse = operation.execute()
+    response_upload: PixverseImageUploadResponse = await operation.execute()
 
     if response_upload.Resp is None:
         raise Exception(
@@ -164,7 +164,7 @@ class PixverseTextToVideoNode(ComfyNodeABC):
             },
         }
 
-    def api_call(
+    async def api_call(
         self,
         prompt: str,
         aspect_ratio: str,
@@ -205,7 +205,7 @@ class PixverseTextToVideoNode(ComfyNodeABC):
             ),
             auth_kwargs=kwargs,
         )
-        response_api = operation.execute()
+        response_api = await operation.execute()
 
         if response_api.Resp is None:
             raise Exception(f"PixVerse request failed: '{response_api.ErrMsg}'")
@@ -229,11 +229,11 @@ class PixverseTextToVideoNode(ComfyNodeABC):
             result_url_extractor=get_video_url_from_response,
             estimated_duration=AVERAGE_DURATION_T2V,
         )
-        response_poll = operation.execute()
+        response_poll = await operation.execute()
 
-        vid_response = requests.get(response_poll.Resp.url)
-
-        return (VideoFromFile(BytesIO(vid_response.content)),)
+        async with aiohttp.ClientSession() as session:
+            async with session.get(response_poll.Resp.url) as vid_response:
+                return (VideoFromFile(BytesIO(await vid_response.content.read())),)
 
 
 class PixverseImageToVideoNode(ComfyNodeABC):
@@ -302,7 +302,7 @@ class PixverseImageToVideoNode(ComfyNodeABC):
             },
         }
 
-    def api_call(
+    async def api_call(
         self,
         image: torch.Tensor,
         prompt: str,
@@ -316,7 +316,7 @@ class PixverseImageToVideoNode(ComfyNodeABC):
         **kwargs,
     ):
         validate_string(prompt, strip_whitespace=False)
-        img_id = upload_image_to_pixverse(image, auth_kwargs=kwargs)
+        img_id = await upload_image_to_pixverse(image, auth_kwargs=kwargs)
 
         # 1080p is limited to 5 seconds duration
         # only normal motion_mode supported for 1080p or for non-5 second duration
@@ -345,7 +345,7 @@ class PixverseImageToVideoNode(ComfyNodeABC):
             ),
             auth_kwargs=kwargs,
         )
-        response_api = operation.execute()
+        response_api = await operation.execute()
 
         if response_api.Resp is None:
             raise Exception(f"PixVerse request failed: '{response_api.ErrMsg}'")
@@ -369,10 +369,11 @@ class PixverseImageToVideoNode(ComfyNodeABC):
             result_url_extractor=get_video_url_from_response,
             estimated_duration=AVERAGE_DURATION_I2V,
         )
-        response_poll = operation.execute()
+        response_poll = await operation.execute()
 
-        vid_response = requests.get(response_poll.Resp.url)
-        return (VideoFromFile(BytesIO(vid_response.content)),)
+        async with aiohttp.ClientSession() as session:
+            async with session.get(response_poll.Resp.url) as vid_response:
+                return (VideoFromFile(BytesIO(await vid_response.content.read())),)
 
 
 class PixverseTransitionVideoNode(ComfyNodeABC):
@@ -436,7 +437,7 @@ class PixverseTransitionVideoNode(ComfyNodeABC):
             },
         }
 
-    def api_call(
+    async def api_call(
         self,
         first_frame: torch.Tensor,
         last_frame: torch.Tensor,
@@ -450,8 +451,8 @@ class PixverseTransitionVideoNode(ComfyNodeABC):
         **kwargs,
     ):
         validate_string(prompt, strip_whitespace=False)
-        first_frame_id = upload_image_to_pixverse(first_frame, auth_kwargs=kwargs)
-        last_frame_id = upload_image_to_pixverse(last_frame, auth_kwargs=kwargs)
+        first_frame_id = await upload_image_to_pixverse(first_frame, auth_kwargs=kwargs)
+        last_frame_id = await upload_image_to_pixverse(last_frame, auth_kwargs=kwargs)
 
         # 1080p is limited to 5 seconds duration
         # only normal motion_mode supported for 1080p or for non-5 second duration
@@ -480,7 +481,7 @@ class PixverseTransitionVideoNode(ComfyNodeABC):
             ),
             auth_kwargs=kwargs,
         )
-        response_api = operation.execute()
+        response_api = await operation.execute()
 
         if response_api.Resp is None:
             raise Exception(f"PixVerse request failed: '{response_api.ErrMsg}'")
@@ -504,10 +505,11 @@ class PixverseTransitionVideoNode(ComfyNodeABC):
             result_url_extractor=get_video_url_from_response,
             estimated_duration=AVERAGE_DURATION_T2V,
         )
-        response_poll = operation.execute()
+        response_poll = await operation.execute()
 
-        vid_response = requests.get(response_poll.Resp.url)
-        return (VideoFromFile(BytesIO(vid_response.content)),)
+        async with aiohttp.ClientSession() as session:
+            async with session.get(response_poll.Resp.url) as vid_response:
+                return (VideoFromFile(BytesIO(await vid_response.content.read())),)
 
 
 NODE_CLASS_MAPPINGS = {

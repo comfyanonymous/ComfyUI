@@ -24,7 +24,36 @@ import comfy.float
 import comfy.rmsnorm
 import contextlib
 
+
+def scaled_dot_product_attention(q, k, v, *args, **kwargs):
+    return torch.nn.functional.scaled_dot_product_attention(q, k, v, *args, **kwargs)
+
+
+try:
+    if torch.cuda.is_available():
+        from torch.nn.attention import SDPBackend, sdpa_kernel
+        import inspect
+        if "set_priority" in inspect.signature(sdpa_kernel).parameters:
+            SDPA_BACKEND_PRIORITY = [
+                SDPBackend.FLASH_ATTENTION,
+                SDPBackend.EFFICIENT_ATTENTION,
+                SDPBackend.MATH,
+            ]
+
+            SDPA_BACKEND_PRIORITY.insert(0, SDPBackend.CUDNN_ATTENTION)
+
+            def scaled_dot_product_attention(q, k, v, *args, **kwargs):
+                with sdpa_kernel(SDPA_BACKEND_PRIORITY, set_priority=True):
+                    return torch.nn.functional.scaled_dot_product_attention(q, k, v, *args, **kwargs)
+        else:
+            logging.warning("Torch version too old to set sdpa backend priority.")
+except (ModuleNotFoundError, TypeError):
+    logging.warning("Could not set sdpa backend priority.")
+
 cast_to = comfy.model_management.cast_to #TODO: remove once no more references
+
+if torch.cuda.is_available() and torch.backends.cudnn.is_available() and PerformanceFeature.AutoTune in args.fast:
+    torch.backends.cudnn.benchmark = True
 
 def cast_to_input(weight, input, non_blocking=False, copy=True):
     return comfy.model_management.cast_to(weight, input.dtype, input.device, non_blocking=non_blocking, copy=copy)

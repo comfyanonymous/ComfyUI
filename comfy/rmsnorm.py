@@ -1,6 +1,7 @@
 import torch
 import comfy.model_management
 import numbers
+import logging
 
 RMSNorm = None
 
@@ -9,6 +10,7 @@ try:
     RMSNorm = torch.nn.RMSNorm
 except:
     rms_norm_torch = None
+    logging.warning("Please update pytorch to use native RMSNorm")
 
 
 def rms_norm(x, weight=None, eps=1e-6):

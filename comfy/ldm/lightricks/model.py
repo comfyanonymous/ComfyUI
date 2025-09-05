@@ -1,5 +1,6 @@
 import torch
 from torch import nn
+import comfy.patcher_extension
 import comfy.ldm.modules.attention
 import comfy.ldm.common_dit
 from einops import rearrange
@@ -420,6 +421,13 @@ class LTXVModel(torch.nn.Module):
         self.patchifier = SymmetricPatchifier(1)
 
     def forward(self, x, timestep, context, attention_mask, frame_rate=25, transformer_options={}, keyframe_idxs=None, **kwargs):
+        return comfy.patcher_extension.WrapperExecutor.new_class_executor(
+            self._forward,
+            self,
+            comfy.patcher_extension.get_all_wrappers(comfy.patcher_extension.WrappersMP.DIFFUSION_MODEL, transformer_options)
+        ).execute(x, timestep, context, attention_mask, frame_rate, transformer_options, keyframe_idxs, **kwargs)
+
+    def _forward(self, x, timestep, context, attention_mask, frame_rate=25, transformer_options={}, keyframe_idxs=None, **kwargs):
         patches_replace = transformer_options.get("patches_replace", {})
 
         orig_shape = list(x.shape)

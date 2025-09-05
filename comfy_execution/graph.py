@@ -2,8 +2,13 @@ from __future__ import annotations
 from typing import Type, Literal
 
 import nodes
-from comfy_execution.graph_utils import is_link
+import asyncio
+import inspect
+from comfy_execution.graph_utils import is_link, ExecutionBlocker
 from comfy.comfy_types.node_typing import ComfyNodeABC, InputTypeDict, InputTypeOptions
+
+# NOTE: ExecutionBlocker code got moved to graph_utils.py to prevent torch being imported too soon during unit tests
+ExecutionBlocker = ExecutionBlocker
 
 class DependencyCycleError(Exception):
     pass
@@ -100,6 +105,8 @@ class TopologicalSort:
         self.pendingNodes = {}
         self.blockCount = {} # Number of nodes this node is directly blocked by
         self.blocking = {} # Which nodes are blocked by this node
+        self.externalBlocks = 0
+        self.unblockedEvent = asyncio.Event()
 
     def get_input_info(self, unique_id, input_name):
         class_type = self.dynprompt.get_node(unique_id)["class_type"]
@@ -153,6 +160,16 @@ class TopologicalSort:
         for link in links:
             self.add_strong_link(*link)
 
+    def add_external_block(self, node_id):
+        assert node_id in self.blockCount, "Can't add external block to a node that isn't pending"
+        self.externalBlocks += 1
+        self.blockCount[node_id] += 1
+        def unblock():
+            self.externalBlocks -= 1
+            self.blockCount[node_id] -= 1
+            self.unblockedEvent.set()
+        return unblock
+
     def is_cached(self, node_id):
         return False
 
@@ -181,11 +198,16 @@ class ExecutionList(TopologicalSort):
     def is_cached(self, node_id):
         return self.output_cache.get(node_id) is not None
 
-    def stage_node_execution(self):
+    async def stage_node_execution(self):
         assert self.staged_node_id is None
         if self.is_empty():
             return None, None, None
         available = self.get_ready_nodes()
+        while len(available) == 0 and self.externalBlocks > 0:
+            # Wait for an external block to be released
+            await self.unblockedEvent.wait()
+            self.unblockedEvent.clear()
+            available = self.get_ready_nodes()
         if len(available) == 0:
             cycled_nodes = self.get_nodes_in_cycle()
             # Because cycles composed entirely of static nodes are caught during initial validation,
@@ -221,8 +243,15 @@ class ExecutionList(TopologicalSort):
                 return True
             return False
 
+        # If an available node is async, do that first.
+        # This will execute the asynchronous function earlier, reducing the overall time.
+        def is_async(node_id):
+            class_type = self.dynprompt.get_node(node_id)["class_type"]
+            class_def = nodes.NODE_CLASS_MAPPINGS[class_type]
+            return inspect.iscoroutinefunction(getattr(class_def, class_def.FUNCTION))
+
         for node_id in node_list:
-            if is_output(node_id):
+            if is_output(node_id) or is_async(node_id):
                 return node_id
 
         #This should handle the VAEDecode -> preview case
@@ -268,21 +297,3 @@ class ExecutionList(TopologicalSort):
                 del blocked_by[node_id]
             to_remove = [node_id for node_id in blocked_by if len(blocked_by[node_id]) == 0]
         return list(blocked_by.keys())
-
-class ExecutionBlocker:
-    """
-    Return this from a node and any users will be blocked with the given error message.
-    If the message is None, execution will be blocked silently instead.
-    Generally, you should avoid using this functionality unless absolutely necessary. Whenever it's
-    possible, a lazy input will be more efficient and have a better user experience.
-    This functionality is useful in two cases:
-    1. You want to conditionally prevent an output node from executing. (Particularly a built-in node
-       like SaveImage. For your own output nodes, I would recommend just adding a BOOL input and using
-       lazy evaluation to let it conditionally disable itself.)
-    2. You have a node with multiple possible outputs, some of which are invalid and should not be used.
-       (I would recommend not making nodes like this in the future -- instead, make multiple nodes with
-       different outputs. Unfortunately, there are several popular existing nodes using this pattern.)
-    """
-    def __init__(self, message):
-        self.message = message
-

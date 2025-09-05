@@ -96,6 +96,7 @@ class LoRAAdapter(WeightAdapterBase):
         diffusers3_lora = "{}.lora.up.weight".format(x)
         mochi_lora = "{}.lora_B".format(x)
         transformers_lora = "{}.lora_linear_layer.up.weight".format(x)
+        qwen_default_lora = "{}.lora_B.default.weight".format(x)
         A_name = None
 
         if regular_lora in lora.keys():
@@ -121,6 +122,10 @@ class LoRAAdapter(WeightAdapterBase):
         elif transformers_lora in lora.keys():
             A_name = transformers_lora
             B_name = "{}.lora_linear_layer.down.weight".format(x)
+            mid_name = None
+        elif qwen_default_lora in lora.keys():
+            A_name = qwen_default_lora
+            B_name = "{}.lora_A.default.weight".format(x)
             mid_name = None
 
         if A_name is not None:

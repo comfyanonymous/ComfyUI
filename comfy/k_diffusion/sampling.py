@@ -9,6 +9,7 @@ from tqdm.auto import trange, tqdm
 
 from . import utils
 from . import deis
+from . import sa_solver
 import comfy.model_patcher
 import comfy.model_sampling
 
@@ -168,6 +169,16 @@ def offset_first_sigma_for_snr(sigmas, model_sampling, percent_offset=1e-4):
             sigmas = sigmas.clone()
             sigmas[0] = model_sampling.percent_to_sigma(percent_offset)
     return sigmas
+
+
+def ei_h_phi_1(h: torch.Tensor) -> torch.Tensor:
+    """Compute the result of h*phi_1(h) in exponential integrator methods."""
+    return torch.expm1(h)
+
+
+def ei_h_phi_2(h: torch.Tensor) -> torch.Tensor:
+    """Compute the result of h*phi_2(h) in exponential integrator methods."""
+    return (torch.expm1(h) - h) / h
 
 
 @torch.no_grad()
@@ -853,6 +864,11 @@ def sample_dpmpp_2m_sde(model, x, sigmas, extra_args=None, callback=None, disabl
 
 
 @torch.no_grad()
+def sample_dpmpp_2m_sde_heun(model, x, sigmas, extra_args=None, callback=None, disable=None, eta=1., s_noise=1., noise_sampler=None, solver_type='heun'):
+    return sample_dpmpp_2m_sde(model, x, sigmas, extra_args=extra_args, callback=callback, disable=disable, eta=eta, s_noise=s_noise, noise_sampler=noise_sampler, solver_type=solver_type)
+
+
+@torch.no_grad()
 def sample_dpmpp_3m_sde(model, x, sigmas, extra_args=None, callback=None, disable=None, eta=1., s_noise=1., noise_sampler=None):
     """DPM-Solver++(3M) SDE."""
 
@@ -922,6 +938,16 @@ def sample_dpmpp_3m_sde_gpu(model, x, sigmas, extra_args=None, callback=None, di
     sigma_min, sigma_max = sigmas[sigmas > 0].min(), sigmas.max()
     noise_sampler = BrownianTreeNoiseSampler(x, sigma_min, sigma_max, seed=extra_args.get("seed", None), cpu=False) if noise_sampler is None else noise_sampler
     return sample_dpmpp_3m_sde(model, x, sigmas, extra_args=extra_args, callback=callback, disable=disable, eta=eta, s_noise=s_noise, noise_sampler=noise_sampler)
+
+
+@torch.no_grad()
+def sample_dpmpp_2m_sde_heun_gpu(model, x, sigmas, extra_args=None, callback=None, disable=None, eta=1., s_noise=1., noise_sampler=None, solver_type='heun'):
+    if len(sigmas) <= 1:
+        return x
+    extra_args = {} if extra_args is None else extra_args
+    sigma_min, sigma_max = sigmas[sigmas > 0].min(), sigmas.max()
+    noise_sampler = BrownianTreeNoiseSampler(x, sigma_min, sigma_max, seed=extra_args.get("seed", None), cpu=False) if noise_sampler is None else noise_sampler
+    return sample_dpmpp_2m_sde_heun(model, x, sigmas, extra_args=extra_args, callback=callback, disable=disable, eta=eta, s_noise=s_noise, noise_sampler=noise_sampler, solver_type=solver_type)
 
 
 @torch.no_grad()
@@ -1210,38 +1236,20 @@ def sample_deis(model, x, sigmas, extra_args=None, callback=None, disable=None, 
 
 
 @torch.no_grad()
-def sample_euler_cfg_pp(model, x, sigmas, extra_args=None, callback=None, disable=None):
-    extra_args = {} if extra_args is None else extra_args
-
-    temp = [0]
-    def post_cfg_function(args):
-        temp[0] = args["uncond_denoised"]
-        return args["denoised"]
-
-    model_options = extra_args.get("model_options", {}).copy()
-    extra_args["model_options"] = comfy.model_patcher.set_model_options_post_cfg_function(model_options, post_cfg_function, disable_cfg1_optimization=True)
-
-    s_in = x.new_ones([x.shape[0]])
-    for i in trange(len(sigmas) - 1, disable=disable):
-        sigma_hat = sigmas[i]
-        denoised = model(x, sigma_hat * s_in, **extra_args)
-        d = to_d(x, sigma_hat, temp[0])
-        if callback is not None:
-            callback({'x': x, 'i': i, 'sigma': sigmas[i], 'sigma_hat': sigma_hat, 'denoised': denoised})
-        # Euler method
-        x = denoised + d * sigmas[i + 1]
-    return x
-
-@torch.no_grad()
 def sample_euler_ancestral_cfg_pp(model, x, sigmas, extra_args=None, callback=None, disable=None, eta=1., s_noise=1., noise_sampler=None):
-    """Ancestral sampling with Euler method steps."""
+    """Ancestral sampling with Euler method steps (CFG++)."""
     extra_args = {} if extra_args is None else extra_args
     seed = extra_args.get("seed", None)
     noise_sampler = default_noise_sampler(x, seed=seed) if noise_sampler is None else noise_sampler
 
-    temp = [0]
+    model_sampling = model.inner_model.model_patcher.get_model_object("model_sampling")
+    lambda_fn = partial(sigma_to_half_log_snr, model_sampling=model_sampling)
+
+    uncond_denoised = None
+
     def post_cfg_function(args):
-        temp[0] = args["uncond_denoised"]
+        nonlocal uncond_denoised
+        uncond_denoised = args["uncond_denoised"]
         return args["denoised"]
 
     model_options = extra_args.get("model_options", {}).copy()
@@ -1250,15 +1258,33 @@ def sample_euler_ancestral_cfg_pp(model, x, sigmas, extra_args=None, callback=No
     s_in = x.new_ones([x.shape[0]])
     for i in trange(len(sigmas) - 1, disable=disable):
         denoised = model(x, sigmas[i] * s_in, **extra_args)
-        sigma_down, sigma_up = get_ancestral_step(sigmas[i], sigmas[i + 1], eta=eta)
         if callback is not None:
             callback({'x': x, 'i': i, 'sigma': sigmas[i], 'sigma_hat': sigmas[i], 'denoised': denoised})
-        d = to_d(x, sigmas[i], temp[0])
-        # Euler method
-        x = denoised + d * sigma_down
-        if sigmas[i + 1] > 0:
-            x = x + noise_sampler(sigmas[i], sigmas[i + 1]) * s_noise * sigma_up
+        if sigmas[i + 1] == 0:
+            # Denoising step
+            x = denoised
+        else:
+            alpha_s = sigmas[i] * lambda_fn(sigmas[i]).exp()
+            alpha_t = sigmas[i + 1] * lambda_fn(sigmas[i + 1]).exp()
+            d = to_d(x, sigmas[i], alpha_s * uncond_denoised)   # to noise
+
+            # DDIM stochastic sampling
+            sigma_down, sigma_up = get_ancestral_step(sigmas[i] / alpha_s, sigmas[i + 1] / alpha_t, eta=eta)
+            sigma_down = alpha_t * sigma_down
+
+            # Euler method
+            x = alpha_t * denoised + sigma_down * d
+            if eta > 0 and s_noise > 0:
+                x = x + alpha_t * noise_sampler(sigmas[i], sigmas[i + 1]) * s_noise * sigma_up
     return x
+
+
+@torch.no_grad()
+def sample_euler_cfg_pp(model, x, sigmas, extra_args=None, callback=None, disable=None):
+    """Euler method steps (CFG++)."""
+    return sample_euler_ancestral_cfg_pp(model, x, sigmas, extra_args=extra_args, callback=callback, disable=disable, eta=0.0, s_noise=0.0, noise_sampler=None)
+
+
 @torch.no_grad()
 def sample_dpmpp_2s_ancestral_cfg_pp(model, x, sigmas, extra_args=None, callback=None, disable=None, eta=1., s_noise=1., noise_sampler=None):
     """Ancestral sampling with DPM-Solver++(2S) second-order steps."""
@@ -1534,13 +1560,12 @@ def sample_er_sde(model, x, sigmas, extra_args=None, callback=None, disable=None
 @torch.no_grad()
 def sample_seeds_2(model, x, sigmas, extra_args=None, callback=None, disable=None, eta=1., s_noise=1., noise_sampler=None, r=0.5):
     """SEEDS-2 - Stochastic Explicit Exponential Derivative-free Solvers (VP Data Prediction) stage 2.
-    arXiv: https://arxiv.org/abs/2305.14267
+    arXiv: https://arxiv.org/abs/2305.14267 (NeurIPS 2023)
     """
     extra_args = {} if extra_args is None else extra_args
     seed = extra_args.get("seed", None)
     noise_sampler = default_noise_sampler(x, seed=seed) if noise_sampler is None else noise_sampler
     s_in = x.new_ones([x.shape[0]])
-
     inject_noise = eta > 0 and s_noise > 0
 
     model_sampling = model.inner_model.model_patcher.get_model_object('model_sampling')
@@ -1548,55 +1573,53 @@ def sample_seeds_2(model, x, sigmas, extra_args=None, callback=None, disable=Non
     lambda_fn = partial(sigma_to_half_log_snr, model_sampling=model_sampling)
     sigmas = offset_first_sigma_for_snr(sigmas, model_sampling)
 
+    fac = 1 / (2 * r)
+
     for i in trange(len(sigmas) - 1, disable=disable):
         denoised = model(x, sigmas[i] * s_in, **extra_args)
         if callback is not None:
             callback({'x': x, 'i': i, 'sigma': sigmas[i], 'sigma_hat': sigmas[i], 'denoised': denoised})
+
         if sigmas[i + 1] == 0:
             x = denoised
-        else:
-            lambda_s, lambda_t = lambda_fn(sigmas[i]), lambda_fn(sigmas[i + 1])
-            h = lambda_t - lambda_s
-            h_eta = h * (eta + 1)
-            lambda_s_1 = lambda_s + r * h
-            fac = 1 / (2 * r)
-            sigma_s_1 = sigma_fn(lambda_s_1)
+            continue
 
-            # alpha_t = sigma_t * exp(log(alpha_t / sigma_t)) = sigma_t * exp(lambda_t)
-            alpha_s_1 = sigma_s_1 * lambda_s_1.exp()
-            alpha_t = sigmas[i + 1] * lambda_t.exp()
+        lambda_s, lambda_t = lambda_fn(sigmas[i]), lambda_fn(sigmas[i + 1])
+        h = lambda_t - lambda_s
+        h_eta = h * (eta + 1)
+        lambda_s_1 = torch.lerp(lambda_s, lambda_t, r)
+        sigma_s_1 = sigma_fn(lambda_s_1)
 
-            coeff_1, coeff_2 = (-r * h_eta).expm1(), (-h_eta).expm1()
-            if inject_noise:
-                # 0 < r < 1
-                noise_coeff_1 = (-2 * r * h * eta).expm1().neg().sqrt()
-                noise_coeff_2 = (-r * h * eta).exp() * (-2 * (1 - r) * h * eta).expm1().neg().sqrt()
-                noise_1, noise_2 = noise_sampler(sigmas[i], sigma_s_1), noise_sampler(sigma_s_1, sigmas[i + 1])
+        alpha_s_1 = sigma_s_1 * lambda_s_1.exp()
+        alpha_t = sigmas[i + 1] * lambda_t.exp()
 
-            # Step 1
-            x_2 = sigma_s_1 / sigmas[i] * (-r * h * eta).exp() * x - alpha_s_1 * coeff_1 * denoised
-            if inject_noise:
-                x_2 = x_2 + sigma_s_1 * (noise_coeff_1 * noise_1) * s_noise
-            denoised_2 = model(x_2, sigma_s_1 * s_in, **extra_args)
+        # Step 1
+        x_2 = sigma_s_1 / sigmas[i] * (-r * h * eta).exp() * x - alpha_s_1 * ei_h_phi_1(-r * h_eta) * denoised
+        if inject_noise:
+            sde_noise = (-2 * r * h * eta).expm1().neg().sqrt() * noise_sampler(sigmas[i], sigma_s_1)
+            x_2 = x_2 + sde_noise * sigma_s_1 * s_noise
+        denoised_2 = model(x_2, sigma_s_1 * s_in, **extra_args)
 
-            # Step 2
-            denoised_d = (1 - fac) * denoised + fac * denoised_2
-            x = sigmas[i + 1] / sigmas[i] * (-h * eta).exp() * x - alpha_t * coeff_2 * denoised_d
-            if inject_noise:
-                x = x + sigmas[i + 1] * (noise_coeff_2 * noise_1 + noise_coeff_1 * noise_2) * s_noise
+        # Step 2
+        denoised_d = torch.lerp(denoised, denoised_2, fac)
+        x = sigmas[i + 1] / sigmas[i] * (-h * eta).exp() * x - alpha_t * ei_h_phi_1(-h_eta) * denoised_d
+        if inject_noise:
+            segment_factor = (r - 1) * h * eta
+            sde_noise = sde_noise * segment_factor.exp()
+            sde_noise = sde_noise + segment_factor.mul(2).expm1().neg().sqrt() * noise_sampler(sigma_s_1, sigmas[i + 1])
+            x = x + sde_noise * sigmas[i + 1] * s_noise
     return x
 
 
 @torch.no_grad()
 def sample_seeds_3(model, x, sigmas, extra_args=None, callback=None, disable=None, eta=1., s_noise=1., noise_sampler=None, r_1=1./3, r_2=2./3):
     """SEEDS-3 - Stochastic Explicit Exponential Derivative-free Solvers (VP Data Prediction) stage 3.
-    arXiv: https://arxiv.org/abs/2305.14267
+    arXiv: https://arxiv.org/abs/2305.14267 (NeurIPS 2023)
     """
     extra_args = {} if extra_args is None else extra_args
     seed = extra_args.get("seed", None)
     noise_sampler = default_noise_sampler(x, seed=seed) if noise_sampler is None else noise_sampler
     s_in = x.new_ones([x.shape[0]])
-
     inject_noise = eta > 0 and s_noise > 0
 
     model_sampling = model.inner_model.model_patcher.get_model_object('model_sampling')
@@ -1608,43 +1631,157 @@ def sample_seeds_3(model, x, sigmas, extra_args=None, callback=None, disable=Non
         denoised = model(x, sigmas[i] * s_in, **extra_args)
         if callback is not None:
             callback({'x': x, 'i': i, 'sigma': sigmas[i], 'sigma_hat': sigmas[i], 'denoised': denoised})
+
         if sigmas[i + 1] == 0:
             x = denoised
-        else:
-            lambda_s, lambda_t = lambda_fn(sigmas[i]), lambda_fn(sigmas[i + 1])
-            h = lambda_t - lambda_s
-            h_eta = h * (eta + 1)
-            lambda_s_1 = lambda_s + r_1 * h
-            lambda_s_2 = lambda_s + r_2 * h
-            sigma_s_1, sigma_s_2 = sigma_fn(lambda_s_1), sigma_fn(lambda_s_2)
+            continue
 
-            # alpha_t = sigma_t * exp(log(alpha_t / sigma_t)) = sigma_t * exp(lambda_t)
-            alpha_s_1 = sigma_s_1 * lambda_s_1.exp()
-            alpha_s_2 = sigma_s_2 * lambda_s_2.exp()
-            alpha_t = sigmas[i + 1] * lambda_t.exp()
+        lambda_s, lambda_t = lambda_fn(sigmas[i]), lambda_fn(sigmas[i + 1])
+        h = lambda_t - lambda_s
+        h_eta = h * (eta + 1)
+        lambda_s_1 = torch.lerp(lambda_s, lambda_t, r_1)
+        lambda_s_2 = torch.lerp(lambda_s, lambda_t, r_2)
+        sigma_s_1, sigma_s_2 = sigma_fn(lambda_s_1), sigma_fn(lambda_s_2)
 
-            coeff_1, coeff_2, coeff_3 = (-r_1 * h_eta).expm1(), (-r_2 * h_eta).expm1(), (-h_eta).expm1()
-            if inject_noise:
-                # 0 < r_1 < r_2 < 1
-                noise_coeff_1 = (-2 * r_1 * h * eta).expm1().neg().sqrt()
-                noise_coeff_2 = (-r_1 * h * eta).exp() * (-2 * (r_2 - r_1) * h * eta).expm1().neg().sqrt()
-                noise_coeff_3 = (-r_2 * h * eta).exp() * (-2 * (1 - r_2) * h * eta).expm1().neg().sqrt()
-                noise_1, noise_2, noise_3 = noise_sampler(sigmas[i], sigma_s_1), noise_sampler(sigma_s_1, sigma_s_2), noise_sampler(sigma_s_2, sigmas[i + 1])
+        alpha_s_1 = sigma_s_1 * lambda_s_1.exp()
+        alpha_s_2 = sigma_s_2 * lambda_s_2.exp()
+        alpha_t = sigmas[i + 1] * lambda_t.exp()
 
-            # Step 1
-            x_2 = sigma_s_1 / sigmas[i] * (-r_1 * h * eta).exp() * x - alpha_s_1 * coeff_1 * denoised
-            if inject_noise:
-                x_2 = x_2 + sigma_s_1 * (noise_coeff_1 * noise_1) * s_noise
-            denoised_2 = model(x_2, sigma_s_1 * s_in, **extra_args)
+        # Step 1
+        x_2 = sigma_s_1 / sigmas[i] * (-r_1 * h * eta).exp() * x - alpha_s_1 * ei_h_phi_1(-r_1 * h_eta) * denoised
+        if inject_noise:
+            sde_noise = (-2 * r_1 * h * eta).expm1().neg().sqrt() * noise_sampler(sigmas[i], sigma_s_1)
+            x_2 = x_2 + sde_noise * sigma_s_1 * s_noise
+        denoised_2 = model(x_2, sigma_s_1 * s_in, **extra_args)
 
-            # Step 2
-            x_3 = sigma_s_2 / sigmas[i] * (-r_2 * h * eta).exp() * x - alpha_s_2 * coeff_2 * denoised + (r_2 / r_1) * alpha_s_2 * (coeff_2 / (r_2 * h_eta) + 1) * (denoised_2 - denoised)
-            if inject_noise:
-                x_3 = x_3 + sigma_s_2 * (noise_coeff_2 * noise_1 + noise_coeff_1 * noise_2) * s_noise
-            denoised_3 = model(x_3, sigma_s_2 * s_in, **extra_args)
+        # Step 2
+        a3_2 = r_2 / r_1 * ei_h_phi_2(-r_2 * h_eta)
+        a3_1 = ei_h_phi_1(-r_2 * h_eta) - a3_2
+        x_3 = sigma_s_2 / sigmas[i] * (-r_2 * h * eta).exp() * x - alpha_s_2 * (a3_1 * denoised + a3_2 * denoised_2)
+        if inject_noise:
+            segment_factor = (r_1 - r_2) * h * eta
+            sde_noise = sde_noise * segment_factor.exp()
+            sde_noise = sde_noise + segment_factor.mul(2).expm1().neg().sqrt() * noise_sampler(sigma_s_1, sigma_s_2)
+            x_3 = x_3 + sde_noise * sigma_s_2 * s_noise
+        denoised_3 = model(x_3, sigma_s_2 * s_in, **extra_args)
 
-            # Step 3
-            x = sigmas[i + 1] / sigmas[i] * (-h * eta).exp() * x - alpha_t * coeff_3 * denoised + (1. / r_2) * alpha_t * (coeff_3 / h_eta + 1) * (denoised_3 - denoised)
-            if inject_noise:
-                x = x + sigmas[i + 1] * (noise_coeff_3 * noise_1 + noise_coeff_2 * noise_2 + noise_coeff_1 * noise_3) * s_noise
+        # Step 3
+        b3 = ei_h_phi_2(-h_eta) / r_2
+        b1 = ei_h_phi_1(-h_eta) - b3
+        x = sigmas[i + 1] / sigmas[i] * (-h * eta).exp() * x - alpha_t * (b1 * denoised + b3 * denoised_3)
+        if inject_noise:
+            segment_factor = (r_2 - 1) * h * eta
+            sde_noise = sde_noise * segment_factor.exp()
+            sde_noise = sde_noise + segment_factor.mul(2).expm1().neg().sqrt() * noise_sampler(sigma_s_2, sigmas[i + 1])
+            x = x + sde_noise * sigmas[i + 1] * s_noise
     return x
+
+
+@torch.no_grad()
+def sample_sa_solver(model, x, sigmas, extra_args=None, callback=None, disable=False, tau_func=None, s_noise=1.0, noise_sampler=None, predictor_order=3, corrector_order=4, use_pece=False, simple_order_2=False):
+    """Stochastic Adams Solver with predictor-corrector method (NeurIPS 2023)."""
+    if len(sigmas) <= 1:
+        return x
+    extra_args = {} if extra_args is None else extra_args
+    seed = extra_args.get("seed", None)
+    noise_sampler = default_noise_sampler(x, seed=seed) if noise_sampler is None else noise_sampler
+    s_in = x.new_ones([x.shape[0]])
+
+    model_sampling = model.inner_model.model_patcher.get_model_object("model_sampling")
+    sigmas = offset_first_sigma_for_snr(sigmas, model_sampling)
+    lambdas = sigma_to_half_log_snr(sigmas, model_sampling=model_sampling)
+
+    if tau_func is None:
+        # Use default interval for stochastic sampling
+        start_sigma = model_sampling.percent_to_sigma(0.2)
+        end_sigma = model_sampling.percent_to_sigma(0.8)
+        tau_func = sa_solver.get_tau_interval_func(start_sigma, end_sigma, eta=1.0)
+
+    max_used_order = max(predictor_order, corrector_order)
+    x_pred = x  # x: current state, x_pred: predicted next state
+
+    h = 0.0
+    tau_t = 0.0
+    noise = 0.0
+    pred_list = []
+
+    # Lower order near the end to improve stability
+    lower_order_to_end = sigmas[-1].item() == 0
+
+    for i in trange(len(sigmas) - 1, disable=disable):
+        # Evaluation
+        denoised = model(x_pred, sigmas[i] * s_in, **extra_args)
+        if callback is not None:
+            callback({"x": x_pred, "i": i, "sigma": sigmas[i], "sigma_hat": sigmas[i], "denoised": denoised})
+        pred_list.append(denoised)
+        pred_list = pred_list[-max_used_order:]
+
+        predictor_order_used = min(predictor_order, len(pred_list))
+        if i == 0 or (sigmas[i + 1] == 0 and not use_pece):
+            corrector_order_used = 0
+        else:
+            corrector_order_used = min(corrector_order, len(pred_list))
+
+        if lower_order_to_end:
+            predictor_order_used = min(predictor_order_used, len(sigmas) - 2 - i)
+            corrector_order_used = min(corrector_order_used, len(sigmas) - 1 - i)
+
+        # Corrector
+        if corrector_order_used == 0:
+            # Update by the predicted state
+            x = x_pred
+        else:
+            curr_lambdas = lambdas[i - corrector_order_used + 1:i + 1]
+            b_coeffs = sa_solver.compute_stochastic_adams_b_coeffs(
+                sigmas[i],
+                curr_lambdas,
+                lambdas[i - 1],
+                lambdas[i],
+                tau_t,
+                simple_order_2,
+                is_corrector_step=True,
+            )
+            pred_mat = torch.stack(pred_list[-corrector_order_used:], dim=1)    # (B, K, ...)
+            corr_res = torch.tensordot(pred_mat, b_coeffs, dims=([1], [0]))  # (B, ...)
+            x = sigmas[i] / sigmas[i - 1] * (-(tau_t ** 2) * h).exp() * x + corr_res
+
+            if tau_t > 0 and s_noise > 0:
+                # The noise from the previous predictor step
+                x = x + noise
+
+            if use_pece:
+                # Evaluate the corrected state
+                denoised = model(x, sigmas[i] * s_in, **extra_args)
+                pred_list[-1] = denoised
+
+        # Predictor
+        if sigmas[i + 1] == 0:
+            # Denoising step
+            x = denoised
+        else:
+            tau_t = tau_func(sigmas[i + 1])
+            curr_lambdas = lambdas[i - predictor_order_used + 1:i + 1]
+            b_coeffs = sa_solver.compute_stochastic_adams_b_coeffs(
+                sigmas[i + 1],
+                curr_lambdas,
+                lambdas[i],
+                lambdas[i + 1],
+                tau_t,
+                simple_order_2,
+                is_corrector_step=False,
+            )
+            pred_mat = torch.stack(pred_list[-predictor_order_used:], dim=1)    # (B, K, ...)
+            pred_res = torch.tensordot(pred_mat, b_coeffs, dims=([1], [0]))  # (B, ...)
+            h = lambdas[i + 1] - lambdas[i]
+            x_pred = sigmas[i + 1] / sigmas[i] * (-(tau_t ** 2) * h).exp() * x + pred_res
+
+            if tau_t > 0 and s_noise > 0:
+                noise = noise_sampler(sigmas[i], sigmas[i + 1]) * sigmas[i + 1] * (-2 * tau_t ** 2 * h).expm1().neg().sqrt() * s_noise
+                x_pred = x_pred + noise
+    return x
+
+
+@torch.no_grad()
+def sample_sa_solver_pece(model, x, sigmas, extra_args=None, callback=None, disable=False, tau_func=None, s_noise=1.0, noise_sampler=None, predictor_order=3, corrector_order=4, simple_order_2=False):
+    """Stochastic Adams Solver with PECE (Predict–Evaluate–Correct–Evaluate) mode (NeurIPS 2023)."""
+    return sample_sa_solver(model, x, sigmas, extra_args=extra_args, callback=callback, disable=disable, tau_func=tau_func, s_noise=s_noise, noise_sampler=noise_sampler, predictor_order=predictor_order, corrector_order=corrector_order, use_pece=True, simple_order_2=simple_order_2)

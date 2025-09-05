@@ -127,7 +127,7 @@ class TripoTextToModelRequest(BaseModel):
     type: TripoTaskType = Field(TripoTaskType.TEXT_TO_MODEL, description='Type of task')
     prompt: str = Field(..., description='The text prompt describing the model to generate', max_length=1024)
     negative_prompt: Optional[str] = Field(None, description='The negative text prompt', max_length=1024)
-    model_version: Optional[TripoModelVersion] = TripoModelVersion.V2_5
+    model_version: Optional[TripoModelVersion] = TripoModelVersion.v2_5_20250123
     face_limit: Optional[int] = Field(None, description='The number of faces to limit the generation to')
     texture: Optional[bool] = Field(True, description='Whether to apply texture to the generated model')
     pbr: Optional[bool] = Field(True, description='Whether to apply PBR to the generated model')
