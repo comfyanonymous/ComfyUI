@@ -538,6 +538,11 @@ class Hunyuan3Dv2(LatentFormat):
     latent_dimensions = 1
     scale_factor = 0.9990943042622529
 
+class Hunyuan3Dv2_1(LatentFormat):
+    scale_factor = 1.0039506158752403
+    latent_channels = 64
+    latent_dimensions = 1
+
 class Hunyuan3Dv2mini(LatentFormat):
     latent_channels = 64
     latent_dimensions = 1

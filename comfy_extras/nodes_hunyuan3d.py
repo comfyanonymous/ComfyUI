@@ -8,13 +8,16 @@ import folder_paths
 import comfy.model_management
 from comfy.cli_args import args
 
-
 class EmptyLatentHunyuan3Dv2:
     @classmethod
     def INPUT_TYPES(s):
-        return {"required": {"resolution": ("INT", {"default": 3072, "min": 1, "max": 8192}),
-                             "batch_size": ("INT", {"default": 1, "min": 1, "max": 4096, "tooltip": "The number of latent images in the batch."}),
-                             }}
+        return {
+            "required": {
+                "resolution": ("INT", {"default": 3072, "min": 1, "max": 8192}),
+                "batch_size": ("INT", {"default": 1, "min": 1, "max": 4096, "tooltip": "The number of latent images in the batch."}),
+            }
+        }
+
     RETURN_TYPES = ("LATENT",)
     FUNCTION = "generate"
 
@@ -23,7 +26,6 @@ class EmptyLatentHunyuan3Dv2:
     def generate(self, resolution, batch_size):
         latent = torch.zeros([batch_size, 64, resolution], device=comfy.model_management.intermediate_device())
         return ({"samples": latent, "type": "hunyuan3dv2"}, )
-
 
 class Hunyuan3Dv2Conditioning:
     @classmethod
@@ -81,7 +83,6 @@ class VOXEL:
     def __init__(self, data):
         self.data = data
 
-
 class VAEDecodeHunyuan3D:
     @classmethod
     def INPUT_TYPES(s):
@@ -98,7 +99,6 @@ class VAEDecodeHunyuan3D:
     def decode(self, vae, samples, num_chunks, octree_resolution):
         voxels = VOXEL(vae.decode(samples["samples"], vae_options={"num_chunks": num_chunks, "octree_resolution": octree_resolution}))
         return (voxels, )
-
 
 def voxel_to_mesh(voxels, threshold=0.5, device=None):
     if device is None:
@@ -230,13 +230,9 @@ def voxel_to_mesh_surfnet(voxels, threshold=0.5, device=None):
         [0, 0, 1], [1, 0, 1], [0, 1, 1], [1, 1, 1]
     ], device=device)
 
-    corner_values = torch.zeros((cell_positions.shape[0], 8), device=device)
-    for c, (dz, dy, dx) in enumerate(corner_offsets):
-        corner_values[:, c] = padded[
-            cell_positions[:, 0] + dz,
-            cell_positions[:, 1] + dy,
-            cell_positions[:, 2] + dx
-        ]
+    pos = cell_positions.unsqueeze(1) + corner_offsets.unsqueeze(0)
+    z_idx, y_idx, x_idx = pos.unbind(-1)
+    corner_values = padded[z_idx, y_idx, x_idx]
 
     corner_signs = corner_values > threshold
     has_inside = torch.any(corner_signs, dim=1)
