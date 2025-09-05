@@ -12,29 +12,28 @@ import comfy.ldm.common_dit
 
 from comfy.ldm.flux.layers import EmbedND
 
-from .layers import (
+from comfy.ldm.chroma.model import Chroma, ChromaParams
+from comfy.ldm.chroma.layers import (
     DoubleStreamBlock,
     SingleStreamBlock,
     Approximator,
 )
-from .layers_dct import (
+from .layers import (
     NerfEmbedder,
     NerfGLUBlock,
     NerfFinalLayer,
     NerfFinalLayerConv,
 )
 
-from . import model as chroma_model
-
 
 @dataclass
-class ChromaRadianceParams(chroma_model.ChromaParams):
+class ChromaRadianceParams(ChromaParams):
     patch_size: int
     nerf_hidden_size: int
     nerf_mlp_ratio: int
     nerf_depth: int
     nerf_max_freqs: int
-    # nerf_tile_size of 0 means unlimited.
+    # Setting nerf_tile_size to 0 disables tiling.
     nerf_tile_size: int
     # Currently one of linear (legacy) or conv.
     nerf_final_head_type: str
@@ -42,12 +41,14 @@ class ChromaRadianceParams(chroma_model.ChromaParams):
     nerf_embedder_dtype: Optional[torch.dtype]
 
 
-class ChromaRadiance(chroma_model.Chroma):
+class ChromaRadiance(Chroma):
     """
     Transformer model for flow matching on sequences.
     """
 
     def __init__(self, image_model=None, final_layer=True, dtype=None, device=None, operations=None, **kwargs):
+        if operations is None:
+            raise RuntimeError("Attempt to create ChromaRadiance object without setting operations")
         nn.Module.__init__(self)
         self.dtype = dtype
         params = ChromaRadianceParams(**kwargs)
@@ -188,7 +189,9 @@ class ChromaRadiance(chroma_model.Chroma):
         nerf_pixels = nn.functional.unfold(img_orig, kernel_size=patch_size, stride=patch_size)
         nerf_pixels = nerf_pixels.transpose(1, 2) # -> [B, NumPatches, C * P * P]
 
-        if params.nerf_tile_size > 0:
+        if params.nerf_tile_size > 0 and num_patches > params.nerf_tile_size:
+            # Enable tiling if nerf_tile_size isn't 0 and we actually have more patches than
+            # the tile size.
             img_dct = self.forward_tiled_nerf(img_out, nerf_pixels, B, C, num_patches, patch_size, params)
         else:
             # Reshape for per-patch processing
@@ -219,8 +222,8 @@ class ChromaRadiance(chroma_model.Chroma):
         self,
         nerf_hidden: Tensor,
         nerf_pixels: Tensor,
-        B: int,
-        C: int,
+        batch: int,
+        channels: int,
         num_patches: int,
         patch_size: int,
         params: ChromaRadianceParams,
@@ -246,9 +249,9 @@ class ChromaRadiance(chroma_model.Chroma):
 
             # Reshape the tile for per-patch processing
             # [B, NumPatches_tile, D] -> [B * NumPatches_tile, D]
-            nerf_hidden_tile = nerf_hidden_tile.reshape(B * num_patches_tile, params.hidden_size)
+            nerf_hidden_tile = nerf_hidden_tile.reshape(batch * num_patches_tile, params.hidden_size)
             # [B, NumPatches_tile, C*P*P] -> [B*NumPatches_tile, C, P*P] -> [B*NumPatches_tile, P*P, C]
-            nerf_pixels_tile = nerf_pixels_tile.reshape(B * num_patches_tile, C, patch_size**2).transpose(1, 2)
+            nerf_pixels_tile = nerf_pixels_tile.reshape(batch * num_patches_tile, channels, patch_size**2).transpose(1, 2)
 
             # get DCT-encoded pixel embeddings [pixel-dct]
             img_dct_tile = self.nerf_image_embedder(nerf_pixels_tile, embedder_dtype)
@@ -284,7 +287,16 @@ class ChromaRadiance(chroma_model.Chroma):
         params_dict |= overrides
         return params.__class__(**params_dict)
 
-    def _forward(self, x, timestep, context, guidance, control=None, transformer_options={}, **kwargs):
+    def _forward(
+        self,
+        x: Tensor,
+        timestep: Tensor,
+        context: Tensor,
+        guidance: Optional[Tensor],
+        control: Optional[dict]=None,
+        transformer_options: dict={},
+        **kwargs: dict,
+    ) -> Tensor:
         bs, c, h, w = x.shape
         img = comfy.ldm.common_dit.pad_to_patch_size(x, (self.patch_size, self.patch_size))
 
@@ -303,5 +315,15 @@ class ChromaRadiance(chroma_model.Chroma):
         img_ids = repeat(img_ids, "h w c -> b (h w) c", b=bs)
         txt_ids = torch.zeros((bs, context.shape[1], 3), device=x.device, dtype=x.dtype)
 
-        img_out = self.forward_orig(img, img_ids, context, txt_ids, timestep, guidance, control, transformer_options, attn_mask=kwargs.get("attention_mask", None))
+        img_out = self.forward_orig(
+            img,
+            img_ids,
+            context,
+            txt_ids,
+            timestep,
+            guidance,
+            control,
+            transformer_options,
+            attn_mask=kwargs.get("attention_mask", None),
+        )
         return self.forward_nerf(img, img_out, params)

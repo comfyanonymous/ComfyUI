@@ -16,7 +16,15 @@ class NerfEmbedder(nn.Module):
     patch size, and enriches it with positional information before projecting
     it to a new hidden size.
     """
-    def __init__(self, in_channels, hidden_size_input, max_freqs, dtype=None, device=None, operations=None):
+    def __init__(
+        self,
+        in_channels: int,
+        hidden_size_input: int,
+        max_freqs: int,
+        dtype=None,
+        device=None,
+        operations=None,
+    ):
         """
         Initializes the NerfEmbedder.
 
@@ -38,7 +46,7 @@ class NerfEmbedder(nn.Module):
         )
 
     @lru_cache(maxsize=4)
-    def fetch_pos(self, patch_size: int, device, dtype) -> torch.Tensor:
+    def fetch_pos(self, patch_size: int, device: torch.device, dtype: torch.dtype) -> torch.Tensor:
         """
         Generates and caches 2D DCT-like positional embeddings for a given patch size.
 
@@ -179,14 +187,14 @@ class NerfFinalLayer(nn.Module):
         self.norm = RMSNorm(hidden_size, dtype=dtype, device=device, operations=operations)
         self.linear = operations.Linear(hidden_size, out_channels, dtype=dtype, device=device)
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         # RMSNorm normalizes over the last dimension, but our channel dim (C) is at dim=1.
         # So we temporarily move the channel dimension to the end for the norm operation.
         return self.linear(self.norm(x.movedim(1, -1))).movedim(-1, 1)
 
 
 class NerfFinalLayerConv(nn.Module):
-    def __init__(self, hidden_size, out_channels, dtype=None, device=None, operations=None):
+    def __init__(self, hidden_size: int, out_channels: int, dtype=None, device=None, operations=None):
         super().__init__()
         self.norm = RMSNorm(hidden_size, dtype=dtype, device=device, operations=operations)
         self.conv = operations.Conv2d(
@@ -198,7 +206,7 @@ class NerfFinalLayerConv(nn.Module):
             device=device,
         )
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         # RMSNorm normalizes over the last dimension, but our channel dim (C) is at dim=1.
         # So we temporarily move the channel dimension to the end for the norm operation.
         return self.conv(self.norm(x.movedim(1, -1)).movedim(-1, 1))

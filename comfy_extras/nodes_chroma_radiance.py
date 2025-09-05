@@ -29,13 +29,8 @@ class EmptyChromaRadianceLatentImage(io.ComfyNode):
 
 
 class ChromaRadianceStubVAE:
-    @classmethod
-    def encode(cls, pixels: torch.Tensor, *_args, **_kwargs) -> torch.Tensor:
-        device = comfy.model_management.intermediate_device()
-        if pixels.ndim == 3:
-            pixels = pixels.unsqueeze(0)
-        elif pixels.ndim != 4:
-            raise ValueError("Unexpected input image shape")
+    @staticmethod
+    def vae_encode_crop_pixels(pixels: torch.Tensor) -> torch.Tensor:
         dims = pixels.shape[1:-1]
         for d in range(len(dims)):
             d_adj = (dims[d] // 16) * 16
@@ -43,6 +38,17 @@ class ChromaRadianceStubVAE:
                 continue
             d_offset = (dims[d] % 16) // 2
             pixels = pixels.narrow(d + 1, d_offset, d_adj)
+        return pixels
+
+    @classmethod
+    def encode(cls, pixels: torch.Tensor, *_args, **_kwargs) -> torch.Tensor:
+        device = comfy.model_management.intermediate_device()
+        if pixels.ndim == 3:
+            pixels = pixels.unsqueeze(0)
+        elif pixels.ndim != 4:
+            raise ValueError("Unexpected input image shape")
+        # Ensure the image has spatial dimensions that are multiples of 16.
+        pixels = cls.vae_encode_crop_pixels(pixels)
         h, w, c = pixels.shape[1:]
         if h < 16 or w < 16:
             raise ValueError("Chroma Radiance image inputs must have height/width of at least 16 pixels.")
@@ -51,6 +57,7 @@ class ChromaRadianceStubVAE:
             pixels = pixels.expand(-1, -1, -1, 3)
         elif c != 3:
             raise ValueError("Unexpected number of channels in input image")
+        # Rescale to -1..1 and move the channel dimension to position 1.
         latent = pixels.to(device=device, dtype=torch.float32, copy=True)
         latent = latent.clamp_(0, 1).movedim(-1, 1).contiguous()
         latent -= 0.5
@@ -60,6 +67,7 @@ class ChromaRadianceStubVAE:
     @classmethod
     def decode(cls, samples: torch.Tensor, *_args, **_kwargs) -> torch.Tensor:
         device = comfy.model_management.intermediate_device()
+        # Rescale to 0..1 and move the channel dimension to the end.
         img = samples.to(device=device, dtype=torch.float32, copy=True)
         img = img.clamp_(-1, 1).movedim(1, -1).contiguous()
         img += 1.0
@@ -71,6 +79,7 @@ class ChromaRadianceStubVAE:
 
     @classmethod
     def spacial_compression_decode(cls) -> int:
+        # This just exists so the tiled VAE nodes don't crash.
         return 1
 
     spacial_compression_encode = spacial_compression_decode
@@ -115,7 +124,7 @@ class ChromaRadianceStubVAENode(io.ComfyNode):
         return io.Schema(
             node_id="ChromaRadianceStubVAE",
             category="vae/chroma_radiance",
-            description="For use with Chroma Radiance. Allows converting between latent and image types with nodes that require a VAE input. Note: Radiance requires inputs with width/height that are multiples of 16 so your image will be cropped if necessary.",
+            description="For use with Chroma Radiance. Allows converting between latent and image types with nodes that require a VAE input. Note: Chroma Radiance requires inputs with width/height that are multiples of 16 so your image will be cropped if necessary.",
             outputs=[io.Vae.Output()],
         )
 
@@ -129,37 +138,39 @@ class ChromaRadianceOptions(io.ComfyNode):
         return io.Schema(
             node_id="ChromaRadianceOptions",
             category="model_patches/chroma_radiance",
-            description="Allows setting some advanced options for the Chroma Radiance model.",
+            description="Allows setting advanced options for the Chroma Radiance model.",
             inputs=[
                 io.Model.Input(id="model"),
                 io.Boolean.Input(
                     id="preserve_wrapper",
                     default=True,
-                    tooltip="When enabled preserves an existing model wrapper if it exists. Generally should be left enabled.",
+                    tooltip="When enabled, will delegate to an existing model function wrapper if it exists. Generally should be left enabled.",
                 ),
                 io.Float.Input(
                     id="start_sigma",
                     default=1.0,
                     min=0.0,
                     max=1.0,
+                    tooltip="First sigma that these options will be in effect.",
                 ),
                 io.Float.Input(
                     id="end_sigma",
                     default=0.0,
                     min=0.0,
                     max=1.0,
+                    tooltip="Last sigma that these options will be in effect.",
                 ),
                 io.Int.Input(
                     id="nerf_tile_size",
                     default=-1,
                     min=-1,
-                    tooltip="Allows overriding the default NeRF tile size. -1 means use the default. 0 means use non-tiling mode (may require a lot of VRAM).",
+                    tooltip="Allows overriding the default NeRF tile size. -1 means use the default (32). 0 means use non-tiling mode (may require a lot of VRAM).",
                 ),
                 io.Combo.Input(
                     id="nerf_embedder_dtype",
                     default="default",
                     options=["default", "model_dtype", "float32", "float64", "float16", "bfloat16"],
-                    tooltip="Allows overriding the dtype the NeRF embedder uses.",
+                    tooltip="Allows overriding the dtype the NeRF embedder uses. The default is float32.",
                 ),
             ],
             outputs=[io.Model.Output()],
