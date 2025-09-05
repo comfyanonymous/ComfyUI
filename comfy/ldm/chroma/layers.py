@@ -76,7 +76,7 @@ class DoubleStreamBlock(nn.Module):
         )
         self.flipped_img_txt = flipped_img_txt
 
-    def forward(self, img: Tensor, txt: Tensor, pe: Tensor, vec: Tensor, attn_mask=None):
+    def forward(self, img: Tensor, txt: Tensor, pe: Tensor, vec: Tensor, attn_mask=None, transformer_options={}):
         (img_mod1, img_mod2), (txt_mod1, txt_mod2) = vec
 
         # prepare image for attention
@@ -95,7 +95,7 @@ class DoubleStreamBlock(nn.Module):
         attn = attention(torch.cat((txt_q, img_q), dim=2),
                          torch.cat((txt_k, img_k), dim=2),
                          torch.cat((txt_v, img_v), dim=2),
-                         pe=pe, mask=attn_mask)
+                         pe=pe, mask=attn_mask, transformer_options=transformer_options)
 
         txt_attn, img_attn = attn[:, : txt.shape[1]], attn[:, txt.shape[1] :]
 
@@ -148,7 +148,7 @@ class SingleStreamBlock(nn.Module):
 
         self.mlp_act = nn.GELU(approximate="tanh")
 
-    def forward(self, x: Tensor, pe: Tensor, vec: Tensor, attn_mask=None) -> Tensor:
+    def forward(self, x: Tensor, pe: Tensor, vec: Tensor, attn_mask=None, transformer_options={}) -> Tensor:
         mod = vec
         x_mod = torch.addcmul(mod.shift, 1 + mod.scale, self.pre_norm(x))
         qkv, mlp = torch.split(self.linear1(x_mod), [3 * self.hidden_size, self.mlp_hidden_dim], dim=-1)
@@ -157,7 +157,7 @@ class SingleStreamBlock(nn.Module):
         q, k = self.norm(q, k, v)
 
         # compute attention
-        attn = attention(q, k, v, pe=pe, mask=attn_mask)
+        attn = attention(q, k, v, pe=pe, mask=attn_mask, transformer_options=transformer_options)
         # compute activation in mlp stream, cat again and run second linear layer
         output = self.linear2(torch.cat((attn, self.mlp_act(mlp)), 2))
         x.addcmul_(mod.gate, output)
