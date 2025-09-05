@@ -53,7 +53,6 @@ parser.add_argument("--cuda-device", type=int, default=None, metavar="DEVICE_ID"
 parser.add_argument("--default-device", type=int, default=None, metavar="DEFAULT_DEVICE_ID", help="Set the id of the default device, all other devices will stay visible.")
 cm_group = parser.add_mutually_exclusive_group()
 cm_group.add_argument("--cuda-malloc", action="store_true", help="Enable cudaMallocAsync (enabled by default for torch 2.0 and up).")
-cm_group.add_argument("--disable-cuda-malloc", action="store_true", help="Disable cudaMallocAsync.")
 
 
 fp_group = parser.add_mutually_exclusive_group()
