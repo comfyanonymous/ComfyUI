@@ -44,6 +44,7 @@ import comfy.ldm.hidream.model
 import comfy.ldm.chroma.model
 import comfy.ldm.ace.model
 import comfy.ldm.omnigen.omnigen2
+import comfy.ldm.higgsv2.model
 import comfy.ldm.qwen_image.model
 
 import comfy.model_management
@@ -1379,6 +1380,10 @@ class Omnigen2(BaseModel):
         if ref_latents is not None:
             out['ref_latents'] = list([1, 16, sum(map(lambda a: math.prod(a.size()), ref_latents)) // 16])
         return out
+
+class Higgsv2(BaseModel):
+    def __init__(self, model_config, model_type=ModelType.EPS, device=None, unet_model=comfy.ldm.higgsv2.model.HiggsAudioModel):
+        super().__init__(model_config, model_type, device, unet_model)
 
 class QwenImage(BaseModel):
     def __init__(self, model_config, model_type=ModelType.FLUX, device=None):
