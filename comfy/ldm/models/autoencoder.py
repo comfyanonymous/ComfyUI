@@ -200,6 +200,8 @@ class AutoencodingEngineLegacy(AutoencodingEngine):
         return z
 
     def decode(self, z: torch.Tensor, **decoder_kwargs) -> torch.Tensor:
+        print('Decoding hunyuan latent. Received tensor:',z.shape)
+        
         if self.max_batch_size is None:
             dec = self.post_quant_conv(z)
             dec = self.decoder(dec, **decoder_kwargs)
