@@ -2,11 +2,11 @@ import nodes
 import torch
 import numpy as np
 from einops import rearrange
+from typing_extensions import override
 import comfy.model_management
 
+from comfy_api.latest import ComfyExtension, io
 
-
-MAX_RESOLUTION = nodes.MAX_RESOLUTION
 
 CAMERA_DICT = {
     "base_T_norm": 1.5,
@@ -148,32 +148,47 @@ def get_camera_motion(angle, T, speed, n=81):
     RT = np.stack(RT)
     return RT
 
-class WanCameraEmbedding:
+class WanCameraEmbedding(io.ComfyNode):
     @classmethod
-    def INPUT_TYPES(cls):
-        return {
-            "required": {
-                "camera_pose":(["Static","Pan Up","Pan Down","Pan Left","Pan Right","Zoom In","Zoom Out","Anti Clockwise (ACW)", "ClockWise (CW)"],{"default":"Static"}),
-                "width": ("INT", {"default": 832, "min": 16, "max": MAX_RESOLUTION, "step": 16}),
-                "height": ("INT", {"default": 480, "min": 16, "max": MAX_RESOLUTION, "step": 16}),
-                "length": ("INT", {"default": 81, "min": 1, "max": MAX_RESOLUTION, "step": 4}),
-            },
-            "optional":{
-                "speed":("FLOAT",{"default":1.0, "min": 0, "max": 10.0, "step": 0.1}),
-                "fx":("FLOAT",{"default":0.5, "min": 0, "max": 1, "step": 0.000000001}),
-                "fy":("FLOAT",{"default":0.5, "min": 0, "max": 1, "step": 0.000000001}),
-                "cx":("FLOAT",{"default":0.5, "min": 0, "max": 1, "step": 0.01}),
-                "cy":("FLOAT",{"default":0.5, "min": 0, "max": 1, "step": 0.01}),
-            }
+    def define_schema(cls):
+        return io.Schema(
+            node_id="WanCameraEmbedding",
+            category="camera",
+            inputs=[
+                io.Combo.Input(
+                    "camera_pose",
+                    options=[
+                        "Static",
+                        "Pan Up",
+                        "Pan Down",
+                        "Pan Left",
+                        "Pan Right",
+                        "Zoom In",
+                        "Zoom Out",
+                        "Anti Clockwise (ACW)",
+                        "ClockWise (CW)",
+                    ],
+                    default="Static",
+                ),
+                io.Int.Input("width", default=832, min=16, max=nodes.MAX_RESOLUTION, step=16),
+                io.Int.Input("height", default=480, min=16, max=nodes.MAX_RESOLUTION, step=16),
+                io.Int.Input("length", default=81, min=1, max=nodes.MAX_RESOLUTION, step=4),
+                io.Float.Input("speed", default=1.0, min=0, max=10.0, step=0.1, optional=True),
+                io.Float.Input("fx", default=0.5, min=0, max=1, step=0.000000001, optional=True),
+                io.Float.Input("fy", default=0.5, min=0, max=1, step=0.000000001, optional=True),
+                io.Float.Input("cx", default=0.5, min=0, max=1, step=0.01, optional=True),
+                io.Float.Input("cy", default=0.5, min=0, max=1, step=0.01, optional=True),
+            ],
+            outputs=[
+                io.WanCameraEmbedding.Output(display_name="camera_embedding"),
+                io.Int.Output(display_name="width"),
+                io.Int.Output(display_name="height"),
+                io.Int.Output(display_name="length"),
+            ],
+        )
 
-        }
-
-    RETURN_TYPES = ("WAN_CAMERA_EMBEDDING","INT","INT","INT")
-    RETURN_NAMES = ("camera_embedding","width","height","length")
-    FUNCTION = "run"
-    CATEGORY = "camera"
-
-    def run(self, camera_pose, width, height, length, speed=1.0,  fx=0.5, fy=0.5, cx=0.5, cy=0.5):
+    @classmethod
+    def execute(cls, camera_pose, width, height, length, speed=1.0, fx=0.5, fy=0.5, cx=0.5, cy=0.5) -> io.NodeOutput:
         """
         Use Camera trajectory as extrinsic parameters to calculate Plücker embeddings (Sitzmannet al., 2021)
         Adapted from https://github.com/aigc-apps/VideoX-Fun/blob/main/comfyui/comfyui_nodes.py
@@ -210,9 +225,15 @@ class WanCameraEmbedding:
         control_camera_video = control_camera_video.contiguous().view(b, f // 4, 4, c, h, w).transpose(2, 3)
         control_camera_video = control_camera_video.contiguous().view(b, f // 4, c * 4, h, w).transpose(1, 2)
 
-        return (control_camera_video, width, height, length)
+        return io.NodeOutput(control_camera_video, width, height, length)
 
 
-NODE_CLASS_MAPPINGS = {
-    "WanCameraEmbedding": WanCameraEmbedding,
-}
+class CameraTrajectoryExtension(ComfyExtension):
+    @override
+    async def get_node_list(self) -> list[type[io.ComfyNode]]:
+        return [
+            WanCameraEmbedding,
+        ]
+
+async def comfy_entrypoint() -> CameraTrajectoryExtension:
+    return CameraTrajectoryExtension()
