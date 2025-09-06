@@ -1,5 +1,4 @@
-# File: /alembic_db/versions/0001_assets.py
-"""initial assets schema + per-asset state cache
+"""initial assets schema
 
 Revision ID: 0001_assets
 Revises:
@@ -69,15 +68,18 @@ def upgrade() -> None:
     op.create_index("ix_asset_info_tags_tag_name", "asset_info_tags", ["tag_name"])
     op.create_index("ix_asset_info_tags_asset_info_id", "asset_info_tags", ["asset_info_id"])
 
-    # ASSET_CACHE_STATE: 1:1 local cache metadata for an Asset
+    # ASSET_CACHE_STATE: N:1 local cache metadata rows per Asset
     op.create_table(
         "asset_cache_state",
-        sa.Column("asset_hash", sa.String(length=256), sa.ForeignKey("assets.hash", ondelete="CASCADE"), primary_key=True),
+        sa.Column("id", sa.Integer(), primary_key=True, autoincrement=True),
+        sa.Column("asset_hash", sa.String(length=256), sa.ForeignKey("assets.hash", ondelete="CASCADE"), nullable=False),
         sa.Column("file_path", sa.Text(), nullable=False),  # absolute local path to cached file
         sa.Column("mtime_ns", sa.BigInteger(), nullable=True),
         sa.CheckConstraint("(mtime_ns IS NULL) OR (mtime_ns >= 0)", name="ck_acs_mtime_nonneg"),
+        sa.UniqueConstraint("file_path", name="uq_asset_cache_state_file_path"),
     )
     op.create_index("ix_asset_cache_state_file_path", "asset_cache_state", ["file_path"])
+    op.create_index("ix_asset_cache_state_asset_hash", "asset_cache_state", ["asset_hash"])
 
     # ASSET_INFO_META: typed KV projection of user_metadata for filtering/sorting
     op.create_table(
@@ -144,7 +146,7 @@ def upgrade() -> None:
             {"name": "photomaker", "tag_type": "system"},
             {"name": "classifiers", "tag_type": "system"},
 
-            # Extra basic tags (used for vae_approx, ...)
+            # Extra basic tags
             {"name": "encoder", "tag_type": "system"},
             {"name": "decoder", "tag_type": "system"},
         ],
@@ -162,6 +164,7 @@ def downgrade() -> None:
     op.drop_index("ix_asset_info_meta_key", table_name="asset_info_meta")
     op.drop_table("asset_info_meta")
 
+    op.drop_index("ix_asset_cache_state_asset_hash", table_name="asset_cache_state")
     op.drop_index("ix_asset_cache_state_file_path", table_name="asset_cache_state")
     op.drop_table("asset_cache_state")
 

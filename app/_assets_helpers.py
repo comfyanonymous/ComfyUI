@@ -147,7 +147,7 @@ def visible_owner_clause(owner_id: str) -> sa.sql.ClauseElement:
     return AssetInfo.owner_id.in_(["", owner_id])
 
 
-def compute_model_relative_filename(file_path: str) -> str | None:
+def compute_model_relative_filename(file_path: str) -> Optional[str]:
     """
     Return the model's path relative to the last well-known folder (the model category),
     using forward slashes, eg:

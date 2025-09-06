@@ -8,7 +8,7 @@ import aiohttp
 
 from .storage.hashing import blake3_hash_sync
 from .database.db import create_session
-from .database.services import ingest_fs_asset, get_cache_state_by_asset_hash
+from .database.services import ingest_fs_asset, list_cache_states_by_asset_hash
 from .resolvers import resolve_asset
 from ._assets_helpers import resolve_destination_from_tags, ensure_within_base
 
@@ -26,20 +26,25 @@ async def ensure_asset_cached(
     tags_hint: Optional[list[str]] = None,
 ) -> str:
     """
-    Ensure there is a verified local file for `asset_hash` in the correct Comfy folder.
-    Policy:
-      - Resolver must provide valid tags (root and, for models, category).
-      - If target path already exists:
-          * if hash matches -> reuse & ingest
-          * else -> remove and overwrite with the correct content
+    Ensure there is a verified local file for asset_hash in the correct Comfy folder.
+
+    Fast path:
+      - If any cache_state row has a file_path that exists, return it immediately.
+        Preference order is the oldest ID first for stability.
+
+    Slow path:
+      - Resolve remote location + placement tags.
+      - Download to the correct folder, verify hash, move into place.
+      - Ingest identity + cache state so future fast passes can skip hashing.
     """
     lock = _FETCH_LOCKS.setdefault(asset_hash, asyncio.Lock())
     async with lock:
-        # 1) If we already have a state -> trust the path
+        # 1) If we already have any cache_state path present on disk, use it (oldest-first)
         async with await create_session() as sess:
-            state = await get_cache_state_by_asset_hash(sess, asset_hash=asset_hash)
-            if state and os.path.isfile(state.file_path):
-                return state.file_path
+            states = await list_cache_states_by_asset_hash(sess, asset_hash=asset_hash)
+            for s in states:
+                if s and s.file_path and os.path.isfile(s.file_path):
+                    return s.file_path
 
         # 2) Resolve remote location + placement hints (must include valid tags)
         res = await resolve_asset(asset_hash)
@@ -107,7 +112,7 @@ async def ensure_asset_cached(
             finally:
                 raise ValueError(f"Hash mismatch: expected {asset_hash}, got {canonical}")
 
-        # 7) Atomically move into place (we already removed an invalid file if it existed)
+        # 7) Atomically move into place
         if os.path.exists(final_path):
             os.remove(final_path)
         os.replace(tmp_path, final_path)

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from datetime import datetime
 from typing import Any, Optional
 import uuid
@@ -66,9 +68,8 @@ class Asset(Base):
         viewonly=True,
     )
 
-    cache_state: Mapped["AssetCacheState | None"] = relationship(
+    cache_states: Mapped[list["AssetCacheState"]] = relationship(
         back_populates="asset",
-        uselist=False,
         cascade="all, delete-orphan",
         passive_deletes=True,
     )
@@ -93,24 +94,25 @@ class Asset(Base):
 class AssetCacheState(Base):
     __tablename__ = "asset_cache_state"
 
-    asset_hash: Mapped[str] = mapped_column(
-        String(256), ForeignKey("assets.hash", ondelete="CASCADE"), primary_key=True
-    )
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    asset_hash: Mapped[str] = mapped_column(String(256), ForeignKey("assets.hash", ondelete="CASCADE"), nullable=False)
     file_path: Mapped[str] = mapped_column(Text, nullable=False)
     mtime_ns: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
 
-    asset: Mapped["Asset"] = relationship(back_populates="cache_state", uselist=False)
+    asset: Mapped["Asset"] = relationship(back_populates="cache_states")
 
     __table_args__ = (
         Index("ix_asset_cache_state_file_path", "file_path"),
+        Index("ix_asset_cache_state_asset_hash", "asset_hash"),
         CheckConstraint("(mtime_ns IS NULL) OR (mtime_ns >= 0)", name="ck_acs_mtime_nonneg"),
+        UniqueConstraint("file_path", name="uq_asset_cache_state_file_path"),
     )
 
     def to_dict(self, include_none: bool = False) -> dict[str, Any]:
         return to_dict(self, include_none=include_none)
 
     def __repr__(self) -> str:
-        return f"<AssetCacheState hash={self.asset_hash[:12]} path={self.file_path!r}>"
+        return f"<AssetCacheState id={self.id} hash={self.asset_hash[:12]} path={self.file_path!r}>"
 
 
 class AssetLocation(Base):

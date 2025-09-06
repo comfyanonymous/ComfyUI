@@ -1,4 +1,5 @@
 import asyncio
+import contextlib
 import logging
 import os
 import uuid
@@ -106,7 +107,7 @@ async def schedule_scans(roots: Sequence[str]) -> schemas_out.AssetScanStatusRes
 
 
 async def fast_reconcile_and_kickoff(
-    roots: Sequence[str] | None = None,
+    roots: Optional[Sequence[str]] = None,
     *,
     progress_cb: Optional[Callable[[str, str, int, bool, dict], None]] = None,
 ) -> schemas_out.AssetScanStatusResponse:
@@ -216,18 +217,18 @@ async def _fast_reconcile_into_queue(
     """
     if root == "models":
         files = _collect_models_files()
-        preset_discovered = len(files)
+        preset_discovered = _count_nonzero_in_list(files)
         files_iter = asyncio.Queue()
         for p in files:
             await files_iter.put(p)
         await files_iter.put(None)  # sentinel for our local draining loop
     elif root == "input":
         base = folder_paths.get_input_directory()
-        preset_discovered = _count_files_in_tree(os.path.abspath(base))
+        preset_discovered = _count_files_in_tree(os.path.abspath(base), only_nonzero=True)
         files_iter = await _queue_tree_files(base)
     elif root == "output":
         base = folder_paths.get_output_directory()
-        preset_discovered = _count_files_in_tree(os.path.abspath(base))
+        preset_discovered = _count_files_in_tree(os.path.abspath(base), only_nonzero=True)
         files_iter = await _queue_tree_files(base)
     else:
         raise RuntimeError(f"Unsupported root: {root}")
@@ -378,24 +379,39 @@ def _collect_models_files() -> list[str]:
             allowed = False
             for b in bases:
                 base_abs = os.path.abspath(b)
-                try:
+                with contextlib.suppress(Exception):
                     if os.path.commonpath([abs_path, base_abs]) == base_abs:
                         allowed = True
                         break
-                except Exception:
-                    pass
             if allowed:
                 out.append(abs_path)
     return out
 
 
-def _count_files_in_tree(base_abs: str) -> int:
+def _count_files_in_tree(base_abs: str, *, only_nonzero: bool = False) -> int:
     if not os.path.isdir(base_abs):
         return 0
     total = 0
-    for _dirpath, _subdirs, filenames in os.walk(base_abs, topdown=True, followlinks=False):
-        total += len(filenames)
+    for dirpath, _subdirs, filenames in os.walk(base_abs, topdown=True, followlinks=False):
+        if not only_nonzero:
+            total += len(filenames)
+        else:
+            for name in filenames:
+                with contextlib.suppress(OSError):
+                    st = os.stat(os.path.join(dirpath, name), follow_symlinks=True)
+                    if st.st_size:
+                        total += 1
     return total
+
+
+def _count_nonzero_in_list(paths: list[str]) -> int:
+    cnt = 0
+    for p in paths:
+        with contextlib.suppress(OSError):
+            st = os.stat(p, follow_symlinks=True)
+            if st.st_size:
+                cnt += 1
+    return cnt
 
 
 async def _queue_tree_files(base_dir: str) -> asyncio.Queue:
@@ -455,7 +471,7 @@ def _console_cb(root: str, phase: str, total_processed: int, finished: bool, e: 
                 e["discovered"],
                 e["queued"],
             )
-        elif e.get("checked", 0) % 500 == 0:  # do not spam with fast progress
+        elif e.get("checked", 0) % 1000 == 0:  # do not spam with fast progress
             logging.info(
                 "[assets][%s] fast progress: processed=%s/%s",
                 root,
@@ -464,12 +480,13 @@ def _console_cb(root: str, phase: str, total_processed: int, finished: bool, e: 
             )
     elif phase == "slow":
         if finished:
-            logging.info(
-                "[assets][%s] slow done: %s/%s",
-                root,
-                e.get("slow_queue_finished", 0),
-                e.get("slow_queue_total", 0),
-            )
+            if e.get("slow_queue_finished", 0) or e.get("slow_queue_total", 0):
+                logging.info(
+                    "[assets][%s] slow done: %s/%s",
+                    root,
+                    e.get("slow_queue_finished", 0),
+                    e.get("slow_queue_total", 0),
+                )
         elif e.get('slow_queue_finished', 0) % 3 == 0:
             logging.info(
                 "[assets][%s] slow progress: %s/%s",
