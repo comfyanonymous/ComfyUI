@@ -424,6 +424,47 @@ def module_size(module):
         module_mem += t.nelement() * t.element_size()
     return module_mem
 
+def is_fsdp():
+    if args.fsdp:
+        fsdp = True
+    return fsdp
+
+def get_world_size():
+    if args.world_size:
+        return args.world_size
+    return 1
+
+def init_distributed():
+    world_size = get_world_size()
+
+    if world_size > 1 and not torch.distributed.is_initialized():
+        torch.distributed.init_process_group(backend="nccl", world_size=world_size)
+
+def get_distributed_model(
+    model,
+    param_dtype=torch.bfloat16,
+    reduce_dtype=torch.float32,
+    buffer_dtype=torch.float32,
+    sync_module_states=True,
+):
+    from torch.distributed.fsdp import (
+        FullyShardedDataParallel,
+        ShardingStrategy,
+        MixedPrecision,
+    )
+    
+    model = FullyShardedDataParallel(
+        model,
+        sharding_strategy=ShardingStrategy.FULL_SHARD,
+        mixed_precision=MixedPrecision(
+            param_dtype=param_dtype,
+            reduce_dtype=reduce_dtype,
+            buffer_dtype=buffer_dtype,
+        ),
+        sync_module_states=sync_module_states,
+    )
+    return model
+
 class LoadedModel:
     def __init__(self, model):
         self._set_model(model)
@@ -434,7 +475,12 @@ class LoadedModel:
         self._patcher_finalizer = None
 
     def _set_model(self, model):
-        self._model = weakref.ref(model)
+        if is_fsdp():
+            init_distributed()
+            dist_model = get_distributed_model(model)
+            self._model = weakref.ref(dist_model)
+        else:
+            self._model = weakref.ref(model)
         if model.parent is not None:
             self._parent_model = weakref.ref(model.parent)
             self._patcher_finalizer = weakref.finalize(model, self._switch_parent)
