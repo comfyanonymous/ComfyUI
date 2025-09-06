@@ -16,6 +16,7 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
 
+import os
 import psutil
 import logging
 from enum import Enum
@@ -424,7 +425,7 @@ def module_size(module):
         module_mem += t.nelement() * t.element_size()
     return module_mem
 
-def is_fsdp():
+def is_fsdp_enabled():
     if args.fsdp:
         fsdp = True
     return fsdp
@@ -438,7 +439,11 @@ def init_distributed():
     world_size = get_world_size()
 
     if world_size > 1 and not torch.distributed.is_initialized():
-        torch.distributed.init_process_group(backend="nccl", world_size=world_size)
+        rank = int(os.getenv("RANK"), 0)
+        local_rank = int(os.getenv("LOCAL_RANK"), 0)
+        torch.cuda.set_device(local_rank)
+
+        torch.distributed.init_process_group(backend="nccl", world_size=world_size, rank=rank)
 
 def get_distributed_model(
     model,
@@ -466,16 +471,22 @@ def get_distributed_model(
     return model
 
 class LoadedModel:
-    def __init__(self, model):
+    def __init__(
+        self, 
+        model,
+        # use_fsdp=False
+    ):
         self._set_model(model)
         self.device = model.load_device
         self.real_model = None
         self.currently_used = True
         self.model_finalizer = None
         self._patcher_finalizer = None
+        # self.use_fsdp = use_fsdp
+        self.use_fsdp = is_fsdp_enabled()
 
     def _set_model(self, model):
-        if is_fsdp():
+        if self.use_fsdp and is_fsdp_enabled():
             init_distributed()
             dist_model = get_distributed_model(model)
             self._model = weakref.ref(dist_model)
