@@ -1,0 +1,18 @@
+# Rename this to extra_custom_node_paths.yaml and ComfyUI will load it
+
+# Configuration for custom nodes
+# The custom_nodes directory is always called "custom_nodes" and is located under base_path
+# Each config section can only have one base_path
+
+# Example configuration using base_path
+# This will look for custom_nodes under the specified base_path
+comfyui:
+      base_path: ../
+
+# Another example with a different path
+# other_custom_nodes:
+#     base_path: /path/to/base
+
+# You can add more custom node path configurations as needed
+# additional_custom_nodes:
+#     base_path: another/base/path

@@ -427,3 +427,24 @@ def get_input_subfolders() -> list[str]:
         return sorted(folders)
     except FileNotFoundError:
         return []
+
+def get_custom_nodes_directories() -> list[str]:
+    """Get the list of custom node directories.
+    
+    Returns:
+        list[str]: List of paths to custom node directories
+    """
+    if "custom_nodes" not in folder_names_and_paths:
+        return []
+    return list(folder_names_and_paths["custom_nodes"][0])
+
+
+def add_custom_node_directory(directory: str) -> None:
+    """Add a new custom node directory to the list of custom node directories"""
+    global folder_names_and_paths
+    if "custom_nodes" in folder_names_and_paths:
+        paths, _exts = folder_names_and_paths["custom_nodes"]
+        if directory not in paths:
+            paths.append(directory)
+    else:
+        folder_names_and_paths["custom_nodes"] = ([directory], set())
