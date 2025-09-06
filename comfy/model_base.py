@@ -136,7 +136,7 @@ class BaseModel(torch.nn.Module):
             else:
                 operations = model_config.custom_operations
             self.diffusion_model = unet_model(**unet_config, device=device, operations=operations)
-            if comfy.model_management.force_channels_last():
+            if self.latent_format.latent_dimensions == 2 and comfy.model_management.force_channels_last():
                 self.diffusion_model.to(memory_format=torch.channels_last)
                 logging.debug("using channels last mode for diffusion model")
             logging.info("model weight dtype {}, manual cast: {}".format(self.get_dtype(), self.manual_cast_dtype))
