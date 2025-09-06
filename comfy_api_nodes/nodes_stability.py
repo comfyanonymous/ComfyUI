@@ -2,7 +2,7 @@ from inspect import cleandoc
 from typing import Optional
 from typing_extensions import override
 
-from comfy_api.latest import ComfyExtension, io as comfy_io
+from comfy_api.latest import ComfyExtension, Input, io as comfy_io
 from comfy_api_nodes.apis.stability_api import (
     StabilityUpscaleConservativeRequest,
     StabilityUpscaleCreativeRequest,
@@ -15,6 +15,10 @@ from comfy_api_nodes.apis.stability_api import (
     Stability_SD3_5_Model,
     Stability_SD3_5_GenerationMode,
     get_stability_style_presets,
+    StabilityTextToAudioRequest,
+    StabilityAudioToAudioRequest,
+    StabilityAudioInpaintRequest,
+    StabilityAudioResponse,
 )
 from comfy_api_nodes.apis.client import (
     ApiEndpoint,
@@ -27,7 +31,10 @@ from comfy_api_nodes.apinode_utils import (
     bytesio_to_image_tensor,
     tensor_to_bytesio,
     validate_string,
+    audio_bytes_to_audio_input,
+    audio_input_to_mp3,
 )
+from comfy_api_nodes.util.validation_utils import validate_audio_duration
 
 import torch
 import base64
@@ -649,6 +656,306 @@ class StabilityUpscaleFastNode(comfy_io.ComfyNode):
         return comfy_io.NodeOutput(returned_image)
 
 
+class StabilityTextToAudio(comfy_io.ComfyNode):
+    """Generates high-quality music and sound effects from text descriptions."""
+
+    @classmethod
+    def define_schema(cls):
+        return comfy_io.Schema(
+            node_id="StabilityTextToAudio",
+            display_name="Stability AI Text To Audio",
+            category="api node/audio/Stability AI",
+            description=cleandoc(cls.__doc__ or ""),
+            inputs=[
+                comfy_io.Combo.Input(
+                    "model",
+                    options=["stable-audio-2.5"],
+                ),
+                comfy_io.String.Input("prompt", multiline=True, default=""),
+                comfy_io.Int.Input(
+                    "duration",
+                    default=190,
+                    min=1,
+                    max=190,
+                    step=1,
+                    tooltip="Controls the duration in seconds of the generated audio.",
+                    optional=True,
+                ),
+                comfy_io.Int.Input(
+                    "seed",
+                    default=0,
+                    min=0,
+                    max=4294967294,
+                    step=1,
+                    display_mode=comfy_io.NumberDisplay.number,
+                    control_after_generate=True,
+                    tooltip="The random seed used for generation.",
+                    optional=True,
+                ),
+                comfy_io.Int.Input(
+                    "steps",
+                    default=8,
+                    min=4,
+                    max=8,
+                    step=1,
+                    tooltip="Controls the number of sampling steps.",
+                    optional=True,
+                ),
+            ],
+            outputs=[
+                comfy_io.Audio.Output(),
+            ],
+            hidden=[
+                comfy_io.Hidden.auth_token_comfy_org,
+                comfy_io.Hidden.api_key_comfy_org,
+                comfy_io.Hidden.unique_id,
+            ],
+            is_api_node=True,
+        )
+
+    @classmethod
+    async def execute(cls, model: str, prompt: str, duration: int, seed: int, steps: int) -> comfy_io.NodeOutput:
+        validate_string(prompt, max_length=10000)
+        payload = StabilityTextToAudioRequest(prompt=prompt, model=model, duration=duration, seed=seed, steps=steps)
+        operation = SynchronousOperation(
+            endpoint=ApiEndpoint(
+                path="/proxy/stability/v2beta/audio/stable-audio-2/text-to-audio",
+                method=HttpMethod.POST,
+                request_model=StabilityTextToAudioRequest,
+                response_model=StabilityAudioResponse,
+            ),
+            request=payload,
+            content_type="multipart/form-data",
+            auth_kwargs= {
+                "auth_token": cls.hidden.auth_token_comfy_org,
+                "comfy_api_key": cls.hidden.api_key_comfy_org,
+            },
+        )
+        response_api = await operation.execute()
+        if not response_api.audio:
+            raise ValueError("No audio file was received in response.")
+        return comfy_io.NodeOutput(audio_bytes_to_audio_input(base64.b64decode(response_api.audio)))
+
+
+class StabilityAudioToAudio(comfy_io.ComfyNode):
+    """Transforms existing audio samples into new high-quality compositions using text instructions."""
+
+    @classmethod
+    def define_schema(cls):
+        return comfy_io.Schema(
+            node_id="StabilityAudioToAudio",
+            display_name="Stability AI Audio To Audio",
+            category="api node/audio/Stability AI",
+            description=cleandoc(cls.__doc__ or ""),
+            inputs=[
+                comfy_io.Combo.Input(
+                    "model",
+                    options=["stable-audio-2.5"],
+                ),
+                comfy_io.String.Input("prompt", multiline=True, default=""),
+                comfy_io.Audio.Input("audio", tooltip="Audio must be between 6 and 190 seconds long."),
+                comfy_io.Int.Input(
+                    "duration",
+                    default=190,
+                    min=1,
+                    max=190,
+                    step=1,
+                    tooltip="Controls the duration in seconds of the generated audio.",
+                    optional=True,
+                ),
+                comfy_io.Int.Input(
+                    "seed",
+                    default=0,
+                    min=0,
+                    max=4294967294,
+                    step=1,
+                    display_mode=comfy_io.NumberDisplay.number,
+                    control_after_generate=True,
+                    tooltip="The random seed used for generation.",
+                    optional=True,
+                ),
+                comfy_io.Int.Input(
+                    "steps",
+                    default=8,
+                    min=4,
+                    max=8,
+                    step=1,
+                    tooltip="Controls the number of sampling steps.",
+                    optional=True,
+                ),
+                comfy_io.Float.Input(
+                    "strength",
+                    default=1,
+                    min=0.01,
+                    max=1.0,
+                    step=0.01,
+                    display_mode=comfy_io.NumberDisplay.slider,
+                    tooltip="Parameter controls how much influence the audio parameter has on the generated audio.",
+                    optional=True,
+                ),
+            ],
+            outputs=[
+                comfy_io.Audio.Output(),
+            ],
+            hidden=[
+                comfy_io.Hidden.auth_token_comfy_org,
+                comfy_io.Hidden.api_key_comfy_org,
+                comfy_io.Hidden.unique_id,
+            ],
+            is_api_node=True,
+        )
+
+    @classmethod
+    async def execute(
+        cls, model: str, prompt: str, audio: Input.Audio, duration: int, seed: int, steps: int, strength: float
+    ) -> comfy_io.NodeOutput:
+        validate_string(prompt, max_length=10000)
+        validate_audio_duration(audio, 6, 190)
+        payload = StabilityAudioToAudioRequest(
+            prompt=prompt, model=model, duration=duration, seed=seed, steps=steps, strength=strength
+        )
+        operation = SynchronousOperation(
+            endpoint=ApiEndpoint(
+                path="/proxy/stability/v2beta/audio/stable-audio-2/audio-to-audio",
+                method=HttpMethod.POST,
+                request_model=StabilityAudioToAudioRequest,
+                response_model=StabilityAudioResponse,
+            ),
+            request=payload,
+            content_type="multipart/form-data",
+            files={"audio": audio_input_to_mp3(audio)},
+            auth_kwargs= {
+                "auth_token": cls.hidden.auth_token_comfy_org,
+                "comfy_api_key": cls.hidden.api_key_comfy_org,
+            },
+        )
+        response_api = await operation.execute()
+        if not response_api.audio:
+            raise ValueError("No audio file was received in response.")
+        return comfy_io.NodeOutput(audio_bytes_to_audio_input(base64.b64decode(response_api.audio)))
+
+
+class StabilityAudioInpaint(comfy_io.ComfyNode):
+    """Transforms part of existing audio sample using text instructions."""
+
+    @classmethod
+    def define_schema(cls):
+        return comfy_io.Schema(
+            node_id="StabilityAudioInpaint",
+            display_name="Stability AI Audio Inpaint",
+            category="api node/audio/Stability AI",
+            description=cleandoc(cls.__doc__ or ""),
+            inputs=[
+                comfy_io.Combo.Input(
+                    "model",
+                    options=["stable-audio-2.5"],
+                ),
+                comfy_io.String.Input("prompt", multiline=True, default=""),
+                comfy_io.Audio.Input("audio", tooltip="Audio must be between 6 and 190 seconds long."),
+                comfy_io.Int.Input(
+                    "duration",
+                    default=190,
+                    min=1,
+                    max=190,
+                    step=1,
+                    tooltip="Controls the duration in seconds of the generated audio.",
+                    optional=True,
+                ),
+                comfy_io.Int.Input(
+                    "seed",
+                    default=0,
+                    min=0,
+                    max=4294967294,
+                    step=1,
+                    display_mode=comfy_io.NumberDisplay.number,
+                    control_after_generate=True,
+                    tooltip="The random seed used for generation.",
+                    optional=True,
+                ),
+                comfy_io.Int.Input(
+                    "steps",
+                    default=8,
+                    min=4,
+                    max=8,
+                    step=1,
+                    tooltip="Controls the number of sampling steps.",
+                    optional=True,
+                ),
+                comfy_io.Int.Input(
+                    "mask_start",
+                    default=30,
+                    min=0,
+                    max=190,
+                    step=1,
+                    optional=True,
+                ),
+                comfy_io.Int.Input(
+                    "mask_end",
+                    default=190,
+                    min=0,
+                    max=190,
+                    step=1,
+                    optional=True,
+                ),
+            ],
+            outputs=[
+                comfy_io.Audio.Output(),
+            ],
+            hidden=[
+                comfy_io.Hidden.auth_token_comfy_org,
+                comfy_io.Hidden.api_key_comfy_org,
+                comfy_io.Hidden.unique_id,
+            ],
+            is_api_node=True,
+        )
+
+    @classmethod
+    async def execute(
+        cls,
+        model: str,
+        prompt: str,
+        audio: Input.Audio,
+        duration: int,
+        seed: int,
+        steps: int,
+        mask_start: int,
+        mask_end: int,
+    ) -> comfy_io.NodeOutput:
+        validate_string(prompt, max_length=10000)
+        if mask_end <= mask_start:
+            raise ValueError(f"Value of mask_end({mask_end}) should be greater then mask_start({mask_start})")
+        validate_audio_duration(audio, 6, 190)
+
+        payload = StabilityAudioInpaintRequest(
+            prompt=prompt,
+            model=model,
+            duration=duration,
+            seed=seed,
+            steps=steps,
+            mask_start=mask_start,
+            mask_end=mask_end,
+        )
+        operation = SynchronousOperation(
+            endpoint=ApiEndpoint(
+                path="/proxy/stability/v2beta/audio/stable-audio-2/inpaint",
+                method=HttpMethod.POST,
+                request_model=StabilityAudioInpaintRequest,
+                response_model=StabilityAudioResponse,
+            ),
+            request=payload,
+            content_type="multipart/form-data",
+            files={"audio": audio_input_to_mp3(audio)},
+            auth_kwargs={
+                "auth_token": cls.hidden.auth_token_comfy_org,
+                "comfy_api_key": cls.hidden.api_key_comfy_org,
+            },
+        )
+        response_api = await operation.execute()
+        if not response_api.audio:
+            raise ValueError("No audio file was received in response.")
+        return comfy_io.NodeOutput(audio_bytes_to_audio_input(base64.b64decode(response_api.audio)))
+
+
 class StabilityExtension(ComfyExtension):
     @override
     async def get_node_list(self) -> list[type[comfy_io.ComfyNode]]:
@@ -658,6 +965,9 @@ class StabilityExtension(ComfyExtension):
             StabilityUpscaleConservativeNode,
             StabilityUpscaleCreativeNode,
             StabilityUpscaleFastNode,
+            StabilityTextToAudio,
+            StabilityAudioToAudio,
+            StabilityAudioInpaint,
         ]
 
 
