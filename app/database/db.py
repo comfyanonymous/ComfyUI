@@ -4,44 +4,18 @@ import shutil
 from contextlib import asynccontextmanager
 from typing import Optional
 
-from app.logger import log_startup_warning
-from utils.install_util import get_missing_requirements_message
 from comfy.cli_args import args
-
+from alembic import command
+from alembic.config import Config
+from alembic.runtime.migration import MigrationContext
+from alembic.script import ScriptDirectory
+from sqlalchemy import create_engine, text
+from sqlalchemy.engine import make_url
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker, create_async_engine
 
 LOGGER = logging.getLogger(__name__)
-
-# Attempt imports which may not exist in some environments
-try:
-    from alembic import command
-    from alembic.config import Config
-    from alembic.runtime.migration import MigrationContext
-    from alembic.script import ScriptDirectory
-    from sqlalchemy import create_engine, text
-    from sqlalchemy.engine import make_url
-    from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker, create_async_engine
-
-    _DB_AVAILABLE = True
-    ENGINE: AsyncEngine | None = None
-    SESSION: async_sessionmaker | None = None
-except ImportError as e:
-    log_startup_warning(
-        (
-            "------------------------------------------------------------------------\n"
-            f"Error importing DB dependencies: {e}\n"
-            f"{get_missing_requirements_message()}\n"
-            "This error is happening because ComfyUI now uses a local database.\n"
-            "------------------------------------------------------------------------"
-        ).strip()
-    )
-    _DB_AVAILABLE = False
-    ENGINE = None
-    SESSION = None
-
-
-def dependencies_available() -> bool:
-    """Check if DB dependencies are importable."""
-    return _DB_AVAILABLE
+ENGINE: Optional[AsyncEngine] = None
+SESSION: Optional[async_sessionmaker] = None
 
 
 def _root_paths():
@@ -114,9 +88,6 @@ async def init_db_engine() -> None:
     This must be called once on application startup before any DB usage.
     """
     global ENGINE, SESSION
-
-    if not dependencies_available():
-        raise RuntimeError("Database dependencies are not available.")
 
     if ENGINE is not None:
         return

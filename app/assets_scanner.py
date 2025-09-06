@@ -55,8 +55,8 @@ PROGRESS_BY_ROOT: dict[RootType, ScanProgress] = {}
 SLOW_STATE_BY_ROOT: dict[RootType, SlowQueueState] = {}
 
 
-def _new_scan_id(root: RootType) -> str:
-    return f"scan-{root}-{uuid.uuid4().hex[:8]}"
+async def start_background_assets_scan():
+    await fast_reconcile_and_kickoff(progress_cb=_console_cb)
 
 
 def current_statuses() -> schemas_out.AssetScanStatusResponse:
@@ -108,7 +108,7 @@ async def schedule_scans(roots: Sequence[str]) -> schemas_out.AssetScanStatusRes
 async def fast_reconcile_and_kickoff(
     roots: Sequence[str] | None = None,
     *,
-    progress_cb: Optional[Callable[[dict], None]] = None,
+    progress_cb: Optional[Callable[[str, str, int, bool, dict], None]] = None,
 ) -> schemas_out.AssetScanStatusResponse:
     """
     Startup helper: do the fast pass now (so we know queue size),
@@ -179,7 +179,7 @@ def _scan_progress_to_scan_status_model(progress: ScanProgress) -> schemas_out.A
 async def _pipeline_for_root(
     root: RootType,
     prog: ScanProgress,
-    progress_cb: Optional[Callable[[dict], None]],
+    progress_cb: Optional[Callable[[str, str, int, bool, dict], None]],
 ) -> None:
     state = SLOW_STATE_BY_ROOT.get(root) or SlowQueueState(queue=asyncio.Queue())
     SLOW_STATE_BY_ROOT[root] = state
@@ -208,7 +208,7 @@ async def _fast_reconcile_into_queue(
     prog: ScanProgress,
     state: SlowQueueState,
     *,
-    progress_cb: Optional[Callable[[dict], None]],
+    progress_cb: Optional[Callable[[str, str, int, bool, dict], None]],
 ) -> None:
     """
     Enumerate files, set 'discovered' to total files seen, increment 'processed' for fast-matched files,
@@ -281,29 +281,22 @@ async def _fast_reconcile_into_queue(
                 prog.slow_queue_total += 1
 
             if progress_cb:
-                progress_cb({
-                    "root": root,
-                    "phase": "fast",
+                progress_cb(root, "fast", prog.processed, False, {
                     "checked": checked,
                     "clean": clean,
                     "queued": queued,
                     "discovered": prog.discovered,
-                    "processed": prog.processed,
                 })
 
     prog._fast_total_seen = checked
     prog._fast_clean = clean
 
     if progress_cb:
-        progress_cb({
-            "root": root,
-            "phase": "fast",
+        progress_cb(root, "fast", prog.processed, True, {
             "checked": checked,
             "clean": clean,
             "queued": queued,
             "discovered": prog.discovered,
-            "processed": prog.processed,
-            "done": True,
         })
 
     state.closed = True
@@ -314,7 +307,7 @@ def _start_slow_workers(
     prog: ScanProgress,
     state: SlowQueueState,
     *,
-    progress_cb: Optional[Callable[[dict], None]],
+    progress_cb: Optional[Callable[[str, str, int, bool, dict], None]],
 ) -> None:
     if state.workers:
         return
@@ -334,10 +327,7 @@ def _start_slow_workers(
                     prog.slow_queue_finished += 1
                     prog.processed += 1
                     if progress_cb:
-                        progress_cb({
-                            "root": root,
-                            "phase": "slow",
-                            "processed": prog.processed,
+                        progress_cb(root, "slow", prog.processed, False, {
                             "slow_queue_finished": prog.slow_queue_finished,
                             "slow_queue_total": prog.slow_queue_total,
                         })
@@ -361,20 +351,16 @@ async def _await_workers_then_finish(
     prog: ScanProgress,
     state: SlowQueueState,
     *,
-    progress_cb: Optional[Callable[[dict], None]],
+    progress_cb: Optional[Callable[[str, str, int, bool, dict], None]],
 ) -> None:
     if state.workers:
         await asyncio.gather(*state.workers, return_exceptions=True)
     prog.finished_at = time.time()
     prog.status = "completed"
     if progress_cb:
-        progress_cb({
-            "root": root,
-            "phase": "slow",
-            "processed": prog.processed,
+        progress_cb(root, "slow", prog.processed, True, {
             "slow_queue_finished": prog.slow_queue_finished,
             "slow_queue_total": prog.slow_queue_total,
-            "done": True,
         })
 
 
@@ -453,3 +439,41 @@ def _ts_to_iso(ts: Optional[float]) -> Optional[str]:
         return datetime.fromtimestamp(float(ts), tz=timezone.utc).replace(tzinfo=None).isoformat()
     except Exception:
         return None
+
+
+def _new_scan_id(root: RootType) -> str:
+    return f"scan-{root}-{uuid.uuid4().hex[:8]}"
+
+
+def _console_cb(root: str, phase: str, total_processed: int, finished: bool, e: dict):
+    if phase == "fast":
+        if finished:
+            logging.info(
+                "[assets][%s] fast done: processed=%s/%s queued=%s",
+                root,
+                total_processed,
+                e["discovered"],
+                e["queued"],
+            )
+        elif e.get("checked", 0) % 500 == 0:  # do not spam with fast progress
+            logging.info(
+                "[assets][%s] fast progress: processed=%s/%s",
+                root,
+                total_processed,
+                e["discovered"],
+            )
+    elif phase == "slow":
+        if finished:
+            logging.info(
+                "[assets][%s] slow done: %s/%s",
+                root,
+                e.get("slow_queue_finished", 0),
+                e.get("slow_queue_total", 0),
+            )
+        elif e.get('slow_queue_finished', 0) % 3 == 0:
+            logging.info(
+                "[assets][%s] slow progress: %s/%s",
+                root,
+                e.get("slow_queue_finished", 0),
+                e.get("slow_queue_total", 0),
+            )

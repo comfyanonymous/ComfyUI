@@ -279,37 +279,12 @@ def cleanup_temp():
         shutil.rmtree(temp_dir, ignore_errors=True)
 
 async def setup_database():
-    def _console_cb(e: dict):
-        root = e.get("root")
-        phase = e.get("phase")
-        if phase == "fast":
-            if e.get("done"):
-                logging.info(
-                    f"[assets][{root}] fast done: processed={e['processed']}/{e['discovered']} queued={e['queued']}"
-                )
-            elif e.get("checked", 0) % 500 == 0:  # do not spam with fast progress
-                logging.info(f"[assets][{root}] fast progress: processed={e['processed']}/{e['discovered']}"
-                             )
-        elif phase == "slow":
-            if e.get("done"):
-                logging.info(
-                    f"[assets][{root}] slow done: {e.get('slow_queue_finished', 0)}/{e.get('slow_queue_total', 0)}"
-                )
-            else:
-                logging.info(
-                    f"[assets][{root}] slow progress: {e.get('slow_queue_finished', 0)}/{e.get('slow_queue_total', 0)}"
-                )
+    from app import init_db_engine, start_background_assets_scan
 
-    try:
-        from app.database.db import init_db_engine, dependencies_available
-        if dependencies_available():
-            await init_db_engine()
-            if not args.disable_assets_autoscan:
-                from app import assets_scanner
+    await init_db_engine()
+    if not args.disable_assets_autoscan:
+        await start_background_assets_scan()
 
-                await assets_scanner.fast_reconcile_and_kickoff(progress_cb=_console_cb)
-    except Exception as e:
-        logging.error(f"Failed to initialize database. Please ensure you have installed the latest requirements. If the error persists, please report this as in future the database will be required: {e}")
 
 def start_comfyui(asyncio_loop=None):
     """
