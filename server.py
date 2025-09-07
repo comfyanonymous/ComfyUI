@@ -558,7 +558,7 @@ class PromptServer():
 
             system_stats = {
                 "system": {
-                    "os": os.name,
+                    "os": sys.platform,
                     "ram_total": ram_total,
                     "ram_free": ram_free,
                     "comfyui_version": __version__,
