@@ -14,7 +14,12 @@ from . import assets_manager
 from .api import schemas_out
 from ._assets_helpers import get_comfy_models_folders
 from .database.db import create_session
-from .database.services import check_fs_asset_exists_quick
+from .database.services import (
+    check_fs_asset_exists_quick,
+    list_cache_states_under_prefixes,
+    add_missing_tag_for_asset_hash,
+    remove_missing_tag_for_asset_hash,
+)
 
 LOGGER = logging.getLogger(__name__)
 
@@ -239,7 +244,6 @@ async def _fast_reconcile_into_queue(
     checked = 0
     clean = 0
 
-    # Single session for the whole fast pass
     async with await create_session() as sess:
         while True:
             item = await files_iter.get()
@@ -261,7 +265,6 @@ async def _fast_reconcile_into_queue(
                 _append_error(prog, phase="fast", path=abs_path, message=str(e))
                 continue
 
-            # Known good -> count as processed immediately
             try:
                 known = await check_fs_asset_exists_quick(
                     sess,
@@ -275,7 +278,7 @@ async def _fast_reconcile_into_queue(
 
             if known:
                 clean += 1
-                prog.processed += 1  # preserve original semantics
+                prog.processed += 1
             else:
                 await state.queue.put(abs_path)
                 queued += 1
@@ -300,7 +303,54 @@ async def _fast_reconcile_into_queue(
             "discovered": prog.discovered,
         })
 
+    await _reconcile_missing_tags_for_root(root, prog)
     state.closed = True
+
+
+async def _reconcile_missing_tags_for_root(root: RootType, prog: ScanProgress) -> None:
+    """
+    For every AssetCacheState under the root's base directories:
+      - if at least one recorded file_path exists for a hash -> remove 'missing'
+      - if none of the recorded file_paths exist for a hash -> add 'missing'
+    """
+    if root == "models":
+        bases: list[str] = []
+        for _bucket, paths in get_comfy_models_folders():
+            bases.extend(paths)
+    elif root == "input":
+        bases = [folder_paths.get_input_directory()]
+    else:
+        bases = [folder_paths.get_output_directory()]
+
+    try:
+        async with await create_session() as sess:
+            states = await list_cache_states_under_prefixes(sess, prefixes=bases)
+
+            present: set[str] = set()
+            missing: set[str] = set()
+
+            for s in states:
+                try:
+                    if os.path.isfile(s.file_path):
+                        present.add(s.asset_hash)
+                    else:
+                        missing.add(s.asset_hash)
+                except Exception as e:
+                    _append_error(prog, phase="fast", path=s.file_path, message=f"stat error: {e}")
+
+            only_missing = missing - present
+
+            for h in present:
+                with contextlib.suppress(Exception):
+                    await remove_missing_tag_for_asset_hash(sess, asset_hash=h)
+
+            for h in only_missing:
+                with contextlib.suppress(Exception):
+                    await add_missing_tag_for_asset_hash(sess, asset_hash=h, origin="automatic")
+
+            await sess.commit()
+    except Exception as e:
+        _append_error(prog, phase="fast", path="", message=f"missing-tag reconcile failed: {e}")
 
 
 def _start_slow_workers(

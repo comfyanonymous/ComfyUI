@@ -149,6 +149,9 @@ def upgrade() -> None:
             # Extra basic tags
             {"name": "encoder", "tag_type": "system"},
             {"name": "decoder", "tag_type": "system"},
+
+            # Special tags
+            {"name": "missing", "tag_type": "system"},
         ],
     )
 
