@@ -22,6 +22,7 @@ from enum import Enum
 from comfy.cli_args import args, PerformanceFeature
 import torch
 import sys
+import importlib
 import platform
 import weakref
 import gc
@@ -289,6 +290,21 @@ def is_amd():
             return True
     return False
 
+def amd_min_version(device=None, min_rdna_version=0):
+    if not is_amd():
+        return False
+
+    arch = torch.cuda.get_device_properties(device).gcnArchName
+    if arch.startswith('gfx') and len(arch) == 7:
+        try:
+            cmp_rdna_version = int(arch[4]) + 2
+        except:
+            cmp_rdna_version = 0
+        if cmp_rdna_version >= min_rdna_version:
+            return True
+
+    return False
+
 MIN_WEIGHT_MEMORY_RATIO = 0.4
 if is_nvidia():
     MIN_WEIGHT_MEMORY_RATIO = 0.0
@@ -321,12 +337,13 @@ try:
         logging.info("AMD arch: {}".format(arch))
         logging.info("ROCm version: {}".format(rocm_version))
         if args.use_split_cross_attention == False and args.use_quad_cross_attention == False:
-            if torch_version_numeric >= (2, 7):  # works on 2.6 but doesn't actually seem to improve much
-                if any((a in arch) for a in ["gfx90a", "gfx942", "gfx1100", "gfx1101", "gfx1151"]):  # TODO: more arches, TODO: gfx950
-                    ENABLE_PYTORCH_ATTENTION = True
-#            if torch_version_numeric >= (2, 8):
-#                if any((a in arch) for a in ["gfx1201"]):
-#                    ENABLE_PYTORCH_ATTENTION = True
+            if importlib.util.find_spec('triton') is not None:  # AMD efficient attention implementation depends on triton. TODO: better way of detecting if it's compiled in or not.
+                if torch_version_numeric >= (2, 7):  # works on 2.6 but doesn't actually seem to improve much
+                    if any((a in arch) for a in ["gfx90a", "gfx942", "gfx1100", "gfx1101", "gfx1151"]):  # TODO: more arches, TODO: gfx950
+                        ENABLE_PYTORCH_ATTENTION = True
+#                if torch_version_numeric >= (2, 8):
+#                    if any((a in arch) for a in ["gfx1201"]):
+#                        ENABLE_PYTORCH_ATTENTION = True
         if torch_version_numeric >= (2, 7) and rocm_version >= (6, 4):
             if any((a in arch) for a in ["gfx1201", "gfx942", "gfx950"]):  # TODO: more arches
                 SUPPORT_FP8_OPS = True
@@ -905,7 +922,9 @@ def vae_dtype(device=None, allowed_dtypes=[]):
 
         # NOTE: bfloat16 seems to work on AMD for the VAE but is extremely slow in some cases compared to fp32
         # slowness still a problem on pytorch nightly 2.9.0.dev20250720+rocm6.4 tested on RDNA3
-        if d == torch.bfloat16 and (not is_amd()) and should_use_bf16(device):
+        # also a problem on RDNA4 except fp32 is also slow there.
+        # This is due to large bf16 convolutions being extremely slow.
+        if d == torch.bfloat16 and ((not is_amd()) or amd_min_version(device, min_rdna_version=4)) and should_use_bf16(device):
             return d
 
     return torch.float32
