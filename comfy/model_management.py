@@ -913,7 +913,7 @@ def vae_dtype(device=None, allowed_dtypes=[]):
         return torch.float16
     elif args.bf16_vae:
         return torch.bfloat16
-    elif args.fp32_vae:
+    elif args.fp32_vae or (device and is_device_cpu(device)):
         return torch.float32
 
     for d in allowed_dtypes:
