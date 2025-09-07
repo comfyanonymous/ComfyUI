@@ -25,6 +25,23 @@ copy comfy\customzluda\zluda-default.py comfy\zluda.py /y >NUL
 git pull
 copy comfy\customzluda\zluda.py comfy\zluda.py /y >NUL
 
+:: Check for zluda.exe and nccl.dll
+echo.
+echo ** Checking ZLUDA version
+pushd .
+cd ./zluda
+if exist zluda.exe (
+	if not exist nccl.dll (
+	echo nccl.dll is missing, likely blocked by AV as false positive.
+) else (
+zluda.exe --version
+echo Check passed.
+)
+) else (
+	echo Check failed. Can't detect ZLUDA.
+)
+popd
+
 echo.
 .\zluda\zluda.exe -- %PYTHON% main.py %COMMANDLINE_ARGS%
 pause
