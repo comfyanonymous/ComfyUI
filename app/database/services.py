@@ -157,7 +157,7 @@ async def ingest_fs_asset(
             out["state_created"] = True
 
     if not out["state_created"]:
-        # most likely a unique(file_path) conflict; update that row
+        # unique(file_path) conflict -> update that row
         state = (
             await session.execute(
                 select(AssetCacheState).where(AssetCacheState.file_path == locator).limit(1)
@@ -1044,12 +1044,12 @@ async def remove_missing_tag_for_asset_hash(
     return int(res.rowcount or 0)
 
 
-async def list_cache_states_under_prefixes(
+async def list_cache_states_with_asset_under_prefixes(
     session: AsyncSession,
     *,
     prefixes: Sequence[str],
-) -> list[AssetCacheState]:
-    """Return AssetCacheState rows whose file_path starts with any of the given absolute prefixes."""
+) -> list[tuple[AssetCacheState, int]]:
+    """Return (AssetCacheState, size_bytes) tuples for rows whose file_path starts with any of the absolute prefixes."""
     if not prefixes:
         return []
 
@@ -1067,9 +1067,10 @@ async def list_cache_states_under_prefixes(
 
     rows = (
         await session.execute(
-            select(AssetCacheState)
+            select(AssetCacheState, Asset.size_bytes)
+            .join(Asset, Asset.hash == AssetCacheState.asset_hash)
             .where(sa.or_(*conds))
             .order_by(AssetCacheState.id.asc())
         )
-    ).scalars().all()
-    return list(rows)
+    ).all()
+    return [(r[0], int(r[1] or 0)) for r in rows]
