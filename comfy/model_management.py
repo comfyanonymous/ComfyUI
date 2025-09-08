@@ -294,6 +294,9 @@ def amd_min_version(device=None, min_rdna_version=0):
     if not is_amd():
         return False
 
+    if is_device_cpu(device):
+        return False
+
     arch = torch.cuda.get_device_properties(device).gcnArchName
     if arch.startswith('gfx') and len(arch) == 7:
         try:
