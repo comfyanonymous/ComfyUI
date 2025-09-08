@@ -134,7 +134,7 @@ def gpu_name_to_gfx(gpu_name):
     # RDNA1 (gfx10xx)
     elif any(x in gpu_name_lower for x in ['rx 5700', 'w5700', 'rx 5600']):
         return 'gfx1010'  # Navi 10 (gfx1010)
-    elif any(x in gpu_name_lower for x in ['rx 5500', 'w5500','rx 5300', 'w5300']):
+    elif any(x in gpu_name_lower for x in ['rx 5500', 'w5500', 'rx 5300', 'w5300']):
         return 'gfx1010'  # Navi 14 (gfx1012)
     
     # Vega (gfx9xx)
