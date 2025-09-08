@@ -530,7 +530,7 @@ MEM_BUS_WIDTH = {
     "AMD Radeon Vega Frontier Edition": 2048,
     "AMD Radeon RX Vega 64": 2048,
     "AMD Radeon RX Vega 56": 2048,
-    "AMD Radeon RX Radeon VII": 4096,
+    "AMD Radeon VII": 4096,
     "AMD Radeon AI PRO R9700": 256,
     "AMD Radeon PRO W7900": 384,
     "AMD Radeon PRO W7800 48GB": 384,
