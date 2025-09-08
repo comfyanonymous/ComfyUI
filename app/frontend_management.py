@@ -16,40 +16,61 @@ from importlib.metadata import version
 import requests
 from typing_extensions import NotRequired
 
+from utils.install_util import get_missing_requirements_message, requirements_path
+
 from comfy.cli_args import DEFAULT_VERSION_STRING
 import app.logger
 
-# The path to the requirements.txt file
-req_path = Path(__file__).parents[1] / "requirements.txt"
-
 
 def frontend_install_warning_message():
-    """The warning message to display when the frontend version is not up to date."""
-
-    extra = ""
-    if sys.flags.no_user_site:
-        extra = "-s "
     return f"""
-Please install the updated requirements.txt file by running:
-{sys.executable} {extra}-m pip install -r {req_path}
+{get_missing_requirements_message()}
 
 This error is happening because the ComfyUI frontend is no longer shipped as part of the main repo but as a pip package instead.
-
-If you are on the portable package you can run: update\\update_comfyui.bat to solve this problem
 """.strip()
 
+def parse_version(version: str) -> tuple[int, int, int]:
+        return tuple(map(int, version.split(".")))
+
+def is_valid_version(version: str) -> bool:
+    """Validate if a string is a valid semantic version (X.Y.Z format)."""
+    pattern = r"^(\d+)\.(\d+)\.(\d+)$"
+    return bool(re.match(pattern, version))
+
+def get_installed_frontend_version():
+    """Get the currently installed frontend package version."""
+    frontend_version_str = version("comfyui-frontend-package")
+    return frontend_version_str
+
+def get_required_frontend_version():
+    """Get the required frontend version from requirements.txt."""
+    try:
+        with open(requirements_path, "r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if line.startswith("comfyui-frontend-package=="):
+                    version_str = line.split("==")[-1]
+                    if not is_valid_version(version_str):
+                        logging.error(f"Invalid version format in requirements.txt: {version_str}")
+                        return None
+                    return version_str
+            logging.error("comfyui-frontend-package not found in requirements.txt")
+            return None
+    except FileNotFoundError:
+        logging.error("requirements.txt not found. Cannot determine required frontend version.")
+        return None
+    except Exception as e:
+        logging.error(f"Error reading requirements.txt: {e}")
+        return None
 
 def check_frontend_version():
     """Check if the frontend version is up to date."""
 
-    def parse_version(version: str) -> tuple[int, int, int]:
-        return tuple(map(int, version.split(".")))
-
     try:
-        frontend_version_str = version("comfyui-frontend-package")
+        frontend_version_str = get_installed_frontend_version()
         frontend_version = parse_version(frontend_version_str)
-        with open(req_path, "r", encoding="utf-8") as f:
-            required_frontend = parse_version(f.readline().split("=")[-1])
+        required_frontend_str = get_required_frontend_version()
+        required_frontend = parse_version(required_frontend_str)
         if frontend_version < required_frontend:
             app.logger.log_startup_warning(
                 f"""
@@ -121,9 +142,22 @@ class FrontEndProvider:
         response.raise_for_status()  # Raises an HTTPError if the response was an error
         return response.json()
 
+    @cached_property
+    def latest_prerelease(self) -> Release:
+        """Get the latest pre-release version - even if it's older than the latest release"""
+        release = [release for release in self.all_releases if release["prerelease"]]
+
+        if not release:
+            raise ValueError("No pre-releases found")
+
+        # GitHub returns releases in reverse chronological order, so first is latest
+        return release[0]
+
     def get_release(self, version: str) -> Release:
         if version == "latest":
             return self.latest_release
+        elif version == "prerelease":
+            return self.latest_prerelease
         else:
             for release in self.all_releases:
                 if release["tag_name"] in [version, f"v{version}"]:
@@ -163,6 +197,11 @@ def download_release_asset_zip(release: Release, destination_path: str) -> None:
 
 class FrontendManager:
     CUSTOM_FRONTENDS_ROOT = str(Path(__file__).parents[1] / "web_custom_versions")
+
+    @classmethod
+    def get_required_frontend_version(cls) -> str:
+        """Get the required frontend package version."""
+        return get_required_frontend_version()
 
     @classmethod
     def default_frontend_path(cls) -> str:
@@ -230,7 +269,7 @@ comfyui-workflow-templates is not installed.
         Raises:
             argparse.ArgumentTypeError: If the version string is invalid.
         """
-        VERSION_PATTERN = r"^([a-zA-Z0-9][a-zA-Z0-9-]{0,38})/([a-zA-Z0-9_.-]+)@(v?\d+\.\d+\.\d+|latest)$"
+        VERSION_PATTERN = r"^([a-zA-Z0-9][a-zA-Z0-9-]{0,38})/([a-zA-Z0-9_.-]+)@(v?\d+\.\d+\.\d+[-._a-zA-Z0-9]*|latest|prerelease)$"
         match_result = re.match(VERSION_PATTERN, value)
         if match_result is None:
             raise argparse.ArgumentTypeError(f"Invalid version string: {value}")

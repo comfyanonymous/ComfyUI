@@ -133,14 +133,6 @@ def save_audio(self, audio, filename_prefix="ComfyUI", format="flac", prompt=Non
             if sample_rate != audio["sample_rate"]:
                 waveform = torchaudio.functional.resample(waveform, audio["sample_rate"], sample_rate)
 
-        # Create in-memory WAV buffer
-        wav_buffer = io.BytesIO()
-        torchaudio.save(wav_buffer, waveform, sample_rate, format="WAV")
-        wav_buffer.seek(0)  # Rewind for reading
-
-        # Use PyAV to convert and add metadata
-        input_container = av.open(wav_buffer)
-
         # Create output with specified format
         output_buffer = io.BytesIO()
         output_container = av.open(output_buffer, mode='w', format=format)
@@ -150,7 +142,6 @@ def save_audio(self, audio, filename_prefix="ComfyUI", format="flac", prompt=Non
             output_container.metadata[key] = value
 
         # Set up the output stream with appropriate properties
-        input_container.streams.audio[0]
         if format == "opus":
             out_stream = output_container.add_stream("libopus", rate=sample_rate)
             if quality == "64k":
@@ -175,18 +166,16 @@ def save_audio(self, audio, filename_prefix="ComfyUI", format="flac", prompt=Non
         else: #format == "flac":
             out_stream = output_container.add_stream("flac", rate=sample_rate)
 
-
-        # Copy frames from input to output
-        for frame in input_container.decode(audio=0):
-            frame.pts = None  # Let PyAV handle timestamps
-            output_container.mux(out_stream.encode(frame))
+        frame = av.AudioFrame.from_ndarray(waveform.movedim(0, 1).reshape(1, -1).float().numpy(), format='flt', layout='mono' if waveform.shape[0] == 1 else 'stereo')
+        frame.sample_rate = sample_rate
+        frame.pts = 0
+        output_container.mux(out_stream.encode(frame))
 
         # Flush encoder
         output_container.mux(out_stream.encode(None))
 
         # Close containers
         output_container.close()
-        input_container.close()
 
         # Write the output to file
         output_buffer.seek(0)
@@ -289,6 +278,42 @@ class PreviewAudio(SaveAudio):
                 "hidden": {"prompt": "PROMPT", "extra_pnginfo": "EXTRA_PNGINFO"},
                 }
 
+def f32_pcm(wav: torch.Tensor) -> torch.Tensor:
+    """Convert audio to float 32 bits PCM format."""
+    if wav.dtype.is_floating_point:
+        return wav
+    elif wav.dtype == torch.int16:
+        return wav.float() / (2 ** 15)
+    elif wav.dtype == torch.int32:
+        return wav.float() / (2 ** 31)
+    raise ValueError(f"Unsupported wav dtype: {wav.dtype}")
+
+def load(filepath: str) -> tuple[torch.Tensor, int]:
+    with av.open(filepath) as af:
+        if not af.streams.audio:
+            raise ValueError("No audio stream found in the file.")
+
+        stream = af.streams.audio[0]
+        sr = stream.codec_context.sample_rate
+        n_channels = stream.channels
+
+        frames = []
+        length = 0
+        for frame in af.decode(streams=stream.index):
+            buf = torch.from_numpy(frame.to_ndarray())
+            if buf.shape[0] != n_channels:
+                buf = buf.view(-1, n_channels).t()
+
+            frames.append(buf)
+            length += buf.shape[1]
+
+        if not frames:
+            raise ValueError("No audio frames decoded.")
+
+        wav = torch.cat(frames, dim=1)
+        wav = f32_pcm(wav)
+        return wav, sr
+
 class LoadAudio:
     @classmethod
     def INPUT_TYPES(s):
@@ -303,7 +328,7 @@ class LoadAudio:
 
     def load(self, audio):
         audio_path = folder_paths.get_annotated_filepath(audio)
-        waveform, sample_rate = torchaudio.load(audio_path)
+        waveform, sample_rate = load(audio_path)
         audio = {"waveform": waveform.unsqueeze(0), "sample_rate": sample_rate}
         return (audio, )
 
@@ -321,6 +346,24 @@ class LoadAudio:
             return "Invalid audio file: {}".format(audio)
         return True
 
+class RecordAudio:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": {"audio": ("AUDIO_RECORD", {})}}
+
+    CATEGORY = "audio"
+
+    RETURN_TYPES = ("AUDIO", )
+    FUNCTION = "load"
+
+    def load(self, audio):
+        audio_path = folder_paths.get_annotated_filepath(audio)
+
+        waveform, sample_rate = torchaudio.load(audio_path)
+        audio = {"waveform": waveform.unsqueeze(0), "sample_rate": sample_rate}
+        return (audio, )
+
+
 NODE_CLASS_MAPPINGS = {
     "EmptyLatentAudio": EmptyLatentAudio,
     "VAEEncodeAudio": VAEEncodeAudio,
@@ -331,6 +374,7 @@ NODE_CLASS_MAPPINGS = {
     "LoadAudio": LoadAudio,
     "PreviewAudio": PreviewAudio,
     "ConditioningStableAudio": ConditioningStableAudio,
+    "RecordAudio": RecordAudio,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
@@ -342,4 +386,5 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SaveAudio": "Save Audio (FLAC)",
     "SaveAudioMP3": "Save Audio (MP3)",
     "SaveAudioOpus": "Save Audio (Opus)",
+    "RecordAudio": "Record Audio",
 }

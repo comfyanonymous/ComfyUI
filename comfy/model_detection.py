@@ -346,7 +346,9 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
         dit_config = {}
         dit_config["image_model"] = "wan2.1"
         dim = state_dict['{}head.modulation'.format(key_prefix)].shape[-1]
+        out_dim = state_dict['{}head.head.weight'.format(key_prefix)].shape[0] // 4
         dit_config["dim"] = dim
+        dit_config["out_dim"] = out_dim
         dit_config["num_heads"] = dim // 128
         dit_config["ffn_dim"] = state_dict['{}blocks.0.ffn.0.weight'.format(key_prefix)].shape[0]
         dit_config["num_layers"] = count_blocks(state_dict_keys, '{}blocks.'.format(key_prefix) + '{}.')
@@ -362,7 +364,12 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
             dit_config["vace_in_dim"] = state_dict['{}vace_patch_embedding.weight'.format(key_prefix)].shape[1]
             dit_config["vace_layers"] = count_blocks(state_dict_keys, '{}vace_blocks.'.format(key_prefix) + '{}.')
         elif '{}control_adapter.conv.weight'.format(key_prefix) in state_dict_keys:
-            dit_config["model_type"] = "camera"
+            if '{}img_emb.proj.0.bias'.format(key_prefix) in state_dict_keys:
+                dit_config["model_type"] = "camera"
+            else:
+                dit_config["model_type"] = "camera_2.2"
+        elif '{}casual_audio_encoder.encoder.final_linear.weight'.format(key_prefix) in state_dict_keys:
+            dit_config["model_type"] = "s2v"
         else:
             if '{}img_emb.proj.0.bias'.format(key_prefix) in state_dict_keys:
                 dit_config["model_type"] = "i2v"
@@ -371,6 +378,11 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
         flf_weight = state_dict.get('{}img_emb.emb_pos'.format(key_prefix))
         if flf_weight is not None:
             dit_config["flf_pos_embed_token_number"] = flf_weight.shape[1]
+
+        ref_conv_weight = state_dict.get('{}ref_conv.weight'.format(key_prefix))
+        if ref_conv_weight is not None:
+            dit_config["in_dim_ref_conv"] = ref_conv_weight.shape[1]
+
         return dit_config
 
     if '{}latent_in.weight'.format(key_prefix) in state_dict_keys:  # Hunyuan 3D
@@ -386,6 +398,20 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
         dit_config["depth_single_blocks"] = count_blocks(state_dict_keys, '{}single_blocks.'.format(key_prefix) + '{}.')
         dit_config["qkv_bias"] = True
         dit_config["guidance_embed"] = "{}guidance_in.in_layer.weight".format(key_prefix) in state_dict_keys
+        return dit_config
+
+    if f"{key_prefix}t_embedder.mlp.2.weight" in state_dict_keys:  # Hunyuan 3D 2.1
+
+        dit_config = {}
+        dit_config["image_model"] = "hunyuan3d2_1"
+        dit_config["in_channels"] = state_dict[f"{key_prefix}x_embedder.weight"].shape[1]
+        dit_config["context_dim"] = 1024
+        dit_config["hidden_size"] = state_dict[f"{key_prefix}x_embedder.weight"].shape[0]
+        dit_config["mlp_ratio"] = 4.0
+        dit_config["num_heads"] = 16
+        dit_config["depth"] = count_blocks(state_dict_keys, f"{key_prefix}blocks.{{}}")
+        dit_config["qkv_bias"] = False
+        dit_config["guidance_cond_proj_dim"] = None#f"{key_prefix}t_embedder.cond_proj.weight" in state_dict_keys
         return dit_config
 
     if '{}caption_projection.0.linear.weight'.format(key_prefix) in state_dict_keys:  # HiDream
@@ -405,6 +431,85 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
         dit_config["out_channels"] = 16
         dit_config["patch_size"] = 2
         dit_config["text_emb_dim"] = 2048
+        return dit_config
+
+    if '{}blocks.0.mlp.layer1.weight'.format(key_prefix) in state_dict_keys:  # Cosmos predict2
+        dit_config = {}
+        dit_config["image_model"] = "cosmos_predict2"
+        dit_config["max_img_h"] = 240
+        dit_config["max_img_w"] = 240
+        dit_config["max_frames"] = 128
+        concat_padding_mask = True
+        dit_config["in_channels"] = (state_dict['{}x_embedder.proj.1.weight'.format(key_prefix)].shape[1] // 4) - int(concat_padding_mask)
+        dit_config["out_channels"] = 16
+        dit_config["patch_spatial"] = 2
+        dit_config["patch_temporal"] = 1
+        dit_config["model_channels"] = state_dict['{}x_embedder.proj.1.weight'.format(key_prefix)].shape[0]
+        dit_config["concat_padding_mask"] = concat_padding_mask
+        dit_config["crossattn_emb_channels"] = 1024
+        dit_config["pos_emb_cls"] = "rope3d"
+        dit_config["pos_emb_learnable"] = True
+        dit_config["pos_emb_interpolation"] = "crop"
+        dit_config["min_fps"] = 1
+        dit_config["max_fps"] = 30
+
+        dit_config["use_adaln_lora"] = True
+        dit_config["adaln_lora_dim"] = 256
+        if dit_config["model_channels"] == 2048:
+            dit_config["num_blocks"] = 28
+            dit_config["num_heads"] = 16
+        elif dit_config["model_channels"] == 5120:
+            dit_config["num_blocks"] = 36
+            dit_config["num_heads"] = 40
+
+        if dit_config["in_channels"] == 16:
+            dit_config["extra_per_block_abs_pos_emb"] = False
+            dit_config["rope_h_extrapolation_ratio"] = 4.0
+            dit_config["rope_w_extrapolation_ratio"] = 4.0
+            dit_config["rope_t_extrapolation_ratio"] = 1.0
+        elif dit_config["in_channels"] == 17: # img to video
+            if dit_config["model_channels"] == 2048:
+                dit_config["extra_per_block_abs_pos_emb"] = False
+                dit_config["rope_h_extrapolation_ratio"] = 3.0
+                dit_config["rope_w_extrapolation_ratio"] = 3.0
+                dit_config["rope_t_extrapolation_ratio"] = 1.0
+            elif dit_config["model_channels"] == 5120:
+                dit_config["rope_h_extrapolation_ratio"] = 2.0
+                dit_config["rope_w_extrapolation_ratio"] = 2.0
+                dit_config["rope_t_extrapolation_ratio"] = 0.8333333333333334
+
+        dit_config["extra_h_extrapolation_ratio"] = 1.0
+        dit_config["extra_w_extrapolation_ratio"] = 1.0
+        dit_config["extra_t_extrapolation_ratio"] = 1.0
+        dit_config["rope_enable_fps_modulation"] = False
+
+        return dit_config
+
+    if '{}time_caption_embed.timestep_embedder.linear_1.bias'.format(key_prefix) in state_dict_keys:  # Omnigen2
+        dit_config = {}
+        dit_config["image_model"] = "omnigen2"
+        dit_config["axes_dim_rope"] = [40, 40, 40]
+        dit_config["axes_lens"] = [1024, 1664, 1664]
+        dit_config["ffn_dim_multiplier"] = None
+        dit_config["hidden_size"] = 2520
+        dit_config["in_channels"] = 16
+        dit_config["multiple_of"] = 256
+        dit_config["norm_eps"] = 1e-05
+        dit_config["num_attention_heads"] = 21
+        dit_config["num_kv_heads"] = 7
+        dit_config["num_layers"] = 32
+        dit_config["num_refiner_layers"] = 2
+        dit_config["out_channels"] = None
+        dit_config["patch_size"] = 2
+        dit_config["text_feat_dim"] = 2048
+        dit_config["timestep_scale"] = 1000.0
+        return dit_config
+
+    if '{}txt_norm.weight'.format(key_prefix) in state_dict_keys:  # Qwen Image
+        dit_config = {}
+        dit_config["image_model"] = "qwen_image"
+        dit_config["in_channels"] = state_dict['{}img_in.weight'.format(key_prefix)].shape[1]
+        dit_config["num_layers"] = count_blocks(state_dict_keys, '{}transformer_blocks.'.format(key_prefix) + '{}.')
         return dit_config
 
     if '{}input_blocks.0.0.weight'.format(key_prefix) not in state_dict_keys:
@@ -793,7 +898,7 @@ def convert_diffusers_mmdit(state_dict, output_prefix=""):
         depth_single_blocks = count_blocks(state_dict, 'single_transformer_blocks.{}.')
         hidden_size = state_dict["x_embedder.bias"].shape[0]
         sd_map = comfy.utils.flux_to_diffusers({"depth": depth, "depth_single_blocks": depth_single_blocks, "hidden_size": hidden_size}, output_prefix=output_prefix)
-    elif 'transformer_blocks.0.attn.add_q_proj.weight' in state_dict: #SD3
+    elif 'transformer_blocks.0.attn.add_q_proj.weight' in state_dict and 'pos_embed.proj.weight' in state_dict: #SD3
         num_blocks = count_blocks(state_dict, 'transformer_blocks.{}.')
         depth = state_dict["pos_embed.proj.weight"].shape[0] // 64
         sd_map = comfy.utils.mmdit_to_diffusers({"depth": depth, "num_blocks": num_blocks}, output_prefix=output_prefix)

@@ -1,6 +1,11 @@
 import torch
+import time
+import asyncio
+from comfy.utils import ProgressBar
 from .tools import VariantSupport
 from comfy_execution.graph_utils import GraphBuilder
+from comfy.comfy_types.node_typing import ComfyNodeABC
+from comfy.comfy_types import IO
 
 class TestLazyMixImages:
     @classmethod
@@ -333,6 +338,150 @@ class TestMixedExpansionReturns:
                 "expand": g.finalize(),
             }
 
+class TestSamplingInExpansion:
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "model": ("MODEL",),
+                "clip": ("CLIP",),
+                "vae": ("VAE",),
+                "seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff}),
+                "steps": ("INT", {"default": 20, "min": 1, "max": 100}),
+                "cfg": ("FLOAT", {"default": 7.0, "min": 0.0, "max": 30.0}),
+                "prompt": ("STRING", {"multiline": True, "default": "a beautiful landscape with mountains and trees"}),
+                "negative_prompt": ("STRING", {"multiline": True, "default": "blurry, bad quality, worst quality"}),
+            },
+        }
+
+    RETURN_TYPES = ("IMAGE",)
+    FUNCTION = "sampling_in_expansion"
+
+    CATEGORY = "Testing/Nodes"
+
+    def sampling_in_expansion(self, model, clip, vae, seed, steps, cfg, prompt, negative_prompt):
+        g = GraphBuilder()
+
+        # Create a basic image generation workflow using the input model, clip and vae
+        # 1. Setup text prompts using the provided CLIP model
+        positive_prompt = g.node("CLIPTextEncode",
+                               text=prompt,
+                               clip=clip)
+        negative_prompt = g.node("CLIPTextEncode",
+                                text=negative_prompt,
+                                clip=clip)
+
+        # 2. Create empty latent with specified size
+        empty_latent = g.node("EmptyLatentImage", width=512, height=512, batch_size=1)
+
+        # 3. Setup sampler and generate image latent
+        sampler = g.node("KSampler",
+                        model=model,
+                        positive=positive_prompt.out(0),
+                        negative=negative_prompt.out(0),
+                        latent_image=empty_latent.out(0),
+                        seed=seed,
+                        steps=steps,
+                        cfg=cfg,
+                        sampler_name="euler_ancestral",
+                        scheduler="normal")
+
+        # 4. Decode latent to image using VAE
+        output = g.node("VAEDecode", samples=sampler.out(0), vae=vae)
+
+        return {
+            "result": (output.out(0),),
+            "expand": g.finalize(),
+        }
+
+class TestSleep(ComfyNodeABC):
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "value": (IO.ANY, {}),
+                "seconds": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 9999.0, "step": 0.01, "tooltip": "The amount of seconds to sleep."}),
+            },
+            "hidden": {
+                "unique_id": "UNIQUE_ID",
+            },
+        }
+    RETURN_TYPES = (IO.ANY,)
+    FUNCTION = "sleep"
+
+    CATEGORY = "_for_testing"
+
+    async def sleep(self, value, seconds, unique_id):
+        pbar = ProgressBar(seconds, node_id=unique_id)
+        start = time.time()
+        expiration = start + seconds
+        now = start
+        while now < expiration:
+            now = time.time()
+            pbar.update_absolute(now - start)
+            await asyncio.sleep(0.01)
+        return (value,)
+
+class TestParallelSleep(ComfyNodeABC):
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "image1": ("IMAGE", ),
+                "image2": ("IMAGE", ),
+                "image3": ("IMAGE", ),
+                "sleep1": ("FLOAT", {"default": 0.5, "min": 0.0, "max": 10.0, "step": 0.01}),
+                "sleep2": ("FLOAT", {"default": 0.5, "min": 0.0, "max": 10.0, "step": 0.01}),
+                "sleep3": ("FLOAT", {"default": 0.5, "min": 0.0, "max": 10.0, "step": 0.01}),
+            },
+            "hidden": {
+                "unique_id": "UNIQUE_ID",
+            },
+        }
+    RETURN_TYPES = ("IMAGE",)
+    FUNCTION = "parallel_sleep"
+    CATEGORY = "_for_testing"
+    OUTPUT_NODE = True
+
+    def parallel_sleep(self, image1, image2, image3, sleep1, sleep2, sleep3, unique_id):
+        # Create a graph dynamically with three TestSleep nodes
+        g = GraphBuilder()
+
+        # Create sleep nodes for each duration and image
+        sleep_node1 = g.node("TestSleep", value=image1, seconds=sleep1)
+        sleep_node2 = g.node("TestSleep", value=image2, seconds=sleep2)
+        sleep_node3 = g.node("TestSleep", value=image3, seconds=sleep3)
+
+        # Blend the results using TestVariadicAverage
+        blend = g.node("TestVariadicAverage",
+                       input1=sleep_node1.out(0),
+                       input2=sleep_node2.out(0),
+                       input3=sleep_node3.out(0))
+
+        return {
+            "result": (blend.out(0),),
+            "expand": g.finalize(),
+        }
+
+class TestOutputNodeWithSocketOutput:
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "image": ("IMAGE",),
+                "value": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 10.0}),
+            },
+        }
+    RETURN_TYPES = ("IMAGE",)
+    FUNCTION = "process"
+    CATEGORY = "_for_testing"
+    OUTPUT_NODE = True
+
+    def process(self, image, value):
+        # Apply value scaling and return both as output and socket
+        result = image * value
+        return (result,)
+
 TEST_NODE_CLASS_MAPPINGS = {
     "TestLazyMixImages": TestLazyMixImages,
     "TestVariadicAverage": TestVariadicAverage,
@@ -345,6 +494,10 @@ TEST_NODE_CLASS_MAPPINGS = {
     "TestCustomValidation5": TestCustomValidation5,
     "TestDynamicDependencyCycle": TestDynamicDependencyCycle,
     "TestMixedExpansionReturns": TestMixedExpansionReturns,
+    "TestSamplingInExpansion": TestSamplingInExpansion,
+    "TestSleep": TestSleep,
+    "TestParallelSleep": TestParallelSleep,
+    "TestOutputNodeWithSocketOutput": TestOutputNodeWithSocketOutput,
 }
 
 TEST_NODE_DISPLAY_NAME_MAPPINGS = {
@@ -359,4 +512,8 @@ TEST_NODE_DISPLAY_NAME_MAPPINGS = {
     "TestCustomValidation5": "Custom Validation 5",
     "TestDynamicDependencyCycle": "Dynamic Dependency Cycle",
     "TestMixedExpansionReturns": "Mixed Expansion Returns",
+    "TestSamplingInExpansion": "Sampling In Expansion",
+    "TestSleep": "Test Sleep",
+    "TestParallelSleep": "Test Parallel Sleep",
+    "TestOutputNodeWithSocketOutput": "Test Output Node With Socket Output",
 }

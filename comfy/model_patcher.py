@@ -17,23 +17,26 @@
 """
 
 from __future__ import annotations
-from typing import Optional, Callable
-import torch
+
+import collections
 import copy
 import inspect
 import logging
-import uuid
-import collections
 import math
+import uuid
+from typing import Callable, Optional
 
-import comfy.utils
+import torch
+
 import comfy.float
-import comfy.model_management
-import comfy.lora
 import comfy.hooks
+import comfy.lora
+import comfy.model_management
 import comfy.patcher_extension
-from comfy.patcher_extension import CallbacksMP, WrappersMP, PatcherInjection
+import comfy.utils
 from comfy.comfy_types import UnetWrapperFunction
+from comfy.patcher_extension import CallbacksMP, PatcherInjection, WrappersMP
+
 
 def string_to_seed(data):
     crc = 0xFFFFFFFF
@@ -376,6 +379,9 @@ class ModelPatcher:
     def set_model_sampler_pre_cfg_function(self, pre_cfg_function, disable_cfg1_optimization=False):
         self.model_options = set_model_options_pre_cfg_function(self.model_options, pre_cfg_function, disable_cfg1_optimization)
 
+    def set_model_sampler_calc_cond_batch_function(self, sampler_calc_cond_batch_function):
+        self.model_options["sampler_calc_cond_batch_function"] = sampler_calc_cond_batch_function
+
     def set_model_unet_function_wrapper(self, unet_wrapper_function: UnetWrapperFunction):
         self.model_options["model_function_wrapper"] = unet_wrapper_function
 
@@ -423,6 +429,12 @@ class ModelPatcher:
 
     def set_model_forward_timestep_embed_patch(self, patch):
         self.set_model_patch(patch, "forward_timestep_embed_patch")
+
+    def set_model_double_block_patch(self, patch):
+        self.set_model_patch(patch, "double_block")
+
+    def set_model_post_input_patch(self, patch):
+        self.set_model_patch(patch, "post_input")
 
     def add_object_patch(self, name, obj):
         self.object_patches[name] = obj
@@ -479,6 +491,30 @@ class ModelPatcher:
             wrap_func = self.model_options["model_function_wrapper"]
             if hasattr(wrap_func, "to"):
                 self.model_options["model_function_wrapper"] = wrap_func.to(device)
+
+    def model_patches_models(self):
+        to = self.model_options["transformer_options"]
+        models = []
+        if "patches" in to:
+            patches = to["patches"]
+            for name in patches:
+                patch_list = patches[name]
+                for i in range(len(patch_list)):
+                    if hasattr(patch_list[i], "models"):
+                        models += patch_list[i].models()
+        if "patches_replace" in to:
+            patches = to["patches_replace"]
+            for name in patches:
+                patch_list = patches[name]
+                for k in patch_list:
+                    if hasattr(patch_list[k], "models"):
+                        models += patch_list[k].models()
+        if "model_function_wrapper" in self.model_options:
+            wrap_func = self.model_options["model_function_wrapper"]
+            if hasattr(wrap_func, "models"):
+                models += wrap_func.models()
+
+        return models
 
     def model_dtype(self):
         if hasattr(self.model, "get_dtype"):

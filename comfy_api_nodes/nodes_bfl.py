@@ -1,3 +1,4 @@
+import asyncio
 import io
 from inspect import cleandoc
 from typing import Union, Optional
@@ -28,7 +29,7 @@ from comfy_api_nodes.apinode_utils import (
 
 import numpy as np
 from PIL import Image
-import requests
+import aiohttp
 import torch
 import base64
 import time
@@ -44,18 +45,18 @@ def convert_mask_to_image(mask: torch.Tensor):
     return mask
 
 
-def handle_bfl_synchronous_operation(
+async def handle_bfl_synchronous_operation(
     operation: SynchronousOperation,
     timeout_bfl_calls=360,
     node_id: Union[str, None] = None,
 ):
-    response_api: BFLFluxProGenerateResponse = operation.execute()
-    return _poll_until_generated(
+    response_api: BFLFluxProGenerateResponse = await operation.execute()
+    return await _poll_until_generated(
         response_api.polling_url, timeout=timeout_bfl_calls, node_id=node_id
     )
 
 
-def _poll_until_generated(
+async def _poll_until_generated(
     polling_url: str, timeout=360, node_id: Union[str, None] = None
 ):
     # used bfl-comfy-nodes to verify code implementation:
@@ -66,55 +67,56 @@ def _poll_until_generated(
     retry_404_seconds = 2
     retry_202_seconds = 2
     retry_pending_seconds = 1
-    request = requests.Request(method=HttpMethod.GET, url=polling_url)
-    # NOTE: should True loop be replaced with checking if workflow has been interrupted?
-    while True:
-        if node_id:
-            time_elapsed = time.time() - start_time
-            PromptServer.instance.send_progress_text(
-                f"Generating ({time_elapsed:.0f}s)", node_id
-            )
 
-        response = requests.Session().send(request.prepare())
-        if response.status_code == 200:
-            result = response.json()
-            if result["status"] == BFLStatus.ready:
-                img_url = result["result"]["sample"]
-                if node_id:
-                    PromptServer.instance.send_progress_text(
-                        f"Result URL: {img_url}", node_id
-                    )
-                img_response = requests.get(img_url)
-                return process_image_response(img_response)
-            elif result["status"] in [
-                BFLStatus.request_moderated,
-                BFLStatus.content_moderated,
-            ]:
-                status = result["status"]
-                raise Exception(
-                    f"BFL API did not return an image due to: {status}."
+    async with aiohttp.ClientSession() as session:
+        # NOTE: should True loop be replaced with checking if workflow has been interrupted?
+        while True:
+            if node_id:
+                time_elapsed = time.time() - start_time
+                PromptServer.instance.send_progress_text(
+                    f"Generating ({time_elapsed:.0f}s)", node_id
                 )
-            elif result["status"] == BFLStatus.error:
-                raise Exception(f"BFL API encountered an error: {result}.")
-            elif result["status"] == BFLStatus.pending:
-                time.sleep(retry_pending_seconds)
-                continue
-        elif response.status_code == 404:
-            if retries_404 < max_retries_404:
-                retries_404 += 1
-                time.sleep(retry_404_seconds)
-                continue
-            raise Exception(
-                f"BFL API could not find task after {max_retries_404} tries."
-            )
-        elif response.status_code == 202:
-            time.sleep(retry_202_seconds)
-        elif time.time() - start_time > timeout:
-            raise Exception(
-                f"BFL API experienced a timeout; could not return request under {timeout} seconds."
-            )
-        else:
-            raise Exception(f"BFL API encountered an error: {response.json()}")
+
+            async with session.get(polling_url) as response:
+                if response.status == 200:
+                    result = await response.json()
+                    if result["status"] == BFLStatus.ready:
+                        img_url = result["result"]["sample"]
+                        if node_id:
+                            PromptServer.instance.send_progress_text(
+                                f"Result URL: {img_url}", node_id
+                            )
+                        async with session.get(img_url) as img_resp:
+                            return process_image_response(await img_resp.content.read())
+                    elif result["status"] in [
+                        BFLStatus.request_moderated,
+                        BFLStatus.content_moderated,
+                    ]:
+                        status = result["status"]
+                        raise Exception(
+                            f"BFL API did not return an image due to: {status}."
+                        )
+                    elif result["status"] == BFLStatus.error:
+                        raise Exception(f"BFL API encountered an error: {result}.")
+                    elif result["status"] == BFLStatus.pending:
+                        await asyncio.sleep(retry_pending_seconds)
+                        continue
+                elif response.status == 404:
+                    if retries_404 < max_retries_404:
+                        retries_404 += 1
+                        await asyncio.sleep(retry_404_seconds)
+                        continue
+                    raise Exception(
+                        f"BFL API could not find task after {max_retries_404} tries."
+                    )
+                elif response.status == 202:
+                    await asyncio.sleep(retry_202_seconds)
+                elif time.time() - start_time > timeout:
+                    raise Exception(
+                        f"BFL API experienced a timeout; could not return request under {timeout} seconds."
+                    )
+                else:
+                    raise Exception(f"BFL API encountered an error: {response.json()}")
 
 def convert_image_to_base64(image: torch.Tensor):
     scaled_image = downscale_image_tensor(image, total_pixels=2048 * 2048)
@@ -222,7 +224,7 @@ class FluxProUltraImageNode(ComfyNodeABC):
     API_NODE = True
     CATEGORY = "api node/image/BFL"
 
-    def api_call(
+    async def api_call(
         self,
         prompt: str,
         aspect_ratio: str,
@@ -266,7 +268,7 @@ class FluxProUltraImageNode(ComfyNodeABC):
             ),
             auth_kwargs=kwargs,
         )
-        output_image = handle_bfl_synchronous_operation(operation, node_id=unique_id)
+        output_image = await handle_bfl_synchronous_operation(operation, node_id=unique_id)
         return (output_image,)
 
 
@@ -346,20 +348,6 @@ class FluxKontextProImageNode(ComfyNodeABC):
             },
         }
 
-    @classmethod
-    def VALIDATE_INPUTS(cls, aspect_ratio: str):
-        try:
-            validate_aspect_ratio(
-                aspect_ratio,
-                minimum_ratio=cls.MINIMUM_RATIO,
-                maximum_ratio=cls.MAXIMUM_RATIO,
-                minimum_ratio_str=cls.MINIMUM_RATIO_STR,
-                maximum_ratio_str=cls.MAXIMUM_RATIO_STR,
-            )
-        except Exception as e:
-            return str(e)
-        return True
-
     RETURN_TYPES = (IO.IMAGE,)
     DESCRIPTION = cleandoc(__doc__ or "")  # Handle potential None value
     FUNCTION = "api_call"
@@ -368,7 +356,7 @@ class FluxKontextProImageNode(ComfyNodeABC):
 
     BFL_PATH = "/proxy/bfl/flux-kontext-pro/generate"
 
-    def api_call(
+    async def api_call(
         self,
         prompt: str,
         aspect_ratio: str,
@@ -380,6 +368,13 @@ class FluxKontextProImageNode(ComfyNodeABC):
         unique_id: Union[str, None] = None,
         **kwargs,
     ):
+        aspect_ratio = validate_aspect_ratio(
+            aspect_ratio,
+            minimum_ratio=self.MINIMUM_RATIO,
+            maximum_ratio=self.MAXIMUM_RATIO,
+            minimum_ratio_str=self.MINIMUM_RATIO_STR,
+            maximum_ratio_str=self.MAXIMUM_RATIO_STR,
+        )
         if input_image is None:
             validate_string(prompt, strip_whitespace=False)
         operation = SynchronousOperation(
@@ -395,13 +390,7 @@ class FluxKontextProImageNode(ComfyNodeABC):
                 guidance=round(guidance, 1),
                 steps=steps,
                 seed=seed,
-                aspect_ratio=validate_aspect_ratio(
-                    aspect_ratio,
-                    minimum_ratio=self.MINIMUM_RATIO,
-                    maximum_ratio=self.MAXIMUM_RATIO,
-                    minimum_ratio_str=self.MINIMUM_RATIO_STR,
-                    maximum_ratio_str=self.MAXIMUM_RATIO_STR,
-                ),
+                aspect_ratio=aspect_ratio,
                 input_image=(
                     input_image
                     if input_image is None
@@ -410,7 +399,7 @@ class FluxKontextProImageNode(ComfyNodeABC):
             ),
             auth_kwargs=kwargs,
         )
-        output_image = handle_bfl_synchronous_operation(operation, node_id=unique_id)
+        output_image = await handle_bfl_synchronous_operation(operation, node_id=unique_id)
         return (output_image,)
 
 
@@ -502,7 +491,7 @@ class FluxProImageNode(ComfyNodeABC):
     API_NODE = True
     CATEGORY = "api node/image/BFL"
 
-    def api_call(
+    async def api_call(
         self,
         prompt: str,
         prompt_upsampling,
@@ -537,7 +526,7 @@ class FluxProImageNode(ComfyNodeABC):
             ),
             auth_kwargs=kwargs,
         )
-        output_image = handle_bfl_synchronous_operation(operation, node_id=unique_id)
+        output_image = await handle_bfl_synchronous_operation(operation, node_id=unique_id)
         return (output_image,)
 
 
@@ -645,7 +634,7 @@ class FluxProExpandNode(ComfyNodeABC):
     API_NODE = True
     CATEGORY = "api node/image/BFL"
 
-    def api_call(
+    async def api_call(
         self,
         image: torch.Tensor,
         prompt: str,
@@ -683,7 +672,7 @@ class FluxProExpandNode(ComfyNodeABC):
             ),
             auth_kwargs=kwargs,
         )
-        output_image = handle_bfl_synchronous_operation(operation, node_id=unique_id)
+        output_image = await handle_bfl_synchronous_operation(operation, node_id=unique_id)
         return (output_image,)
 
 
@@ -757,7 +746,7 @@ class FluxProFillNode(ComfyNodeABC):
     API_NODE = True
     CATEGORY = "api node/image/BFL"
 
-    def api_call(
+    async def api_call(
         self,
         image: torch.Tensor,
         mask: torch.Tensor,
@@ -793,7 +782,7 @@ class FluxProFillNode(ComfyNodeABC):
             ),
             auth_kwargs=kwargs,
         )
-        output_image = handle_bfl_synchronous_operation(operation, node_id=unique_id)
+        output_image = await handle_bfl_synchronous_operation(operation, node_id=unique_id)
         return (output_image,)
 
 
@@ -892,7 +881,7 @@ class FluxProCannyNode(ComfyNodeABC):
     API_NODE = True
     CATEGORY = "api node/image/BFL"
 
-    def api_call(
+    async def api_call(
         self,
         control_image: torch.Tensor,
         prompt: str,
@@ -942,7 +931,7 @@ class FluxProCannyNode(ComfyNodeABC):
             ),
             auth_kwargs=kwargs,
         )
-        output_image = handle_bfl_synchronous_operation(operation, node_id=unique_id)
+        output_image = await handle_bfl_synchronous_operation(operation, node_id=unique_id)
         return (output_image,)
 
 
@@ -1021,7 +1010,7 @@ class FluxProDepthNode(ComfyNodeABC):
     API_NODE = True
     CATEGORY = "api node/image/BFL"
 
-    def api_call(
+    async def api_call(
         self,
         control_image: torch.Tensor,
         prompt: str,
@@ -1058,7 +1047,7 @@ class FluxProDepthNode(ComfyNodeABC):
             ),
             auth_kwargs=kwargs,
         )
-        output_image = handle_bfl_synchronous_operation(operation, node_id=unique_id)
+        output_image = await handle_bfl_synchronous_operation(operation, node_id=unique_id)
         return (output_image,)
 
 

@@ -118,7 +118,7 @@ class Modulation(nn.Module):
 def apply_mod(tensor, m_mult, m_add=None, modulation_dims=None):
     if modulation_dims is None:
         if m_add is not None:
-            return tensor * m_mult + m_add
+            return torch.addcmul(m_add, tensor, m_mult)
         else:
             return tensor * m_mult
     else:
