@@ -527,7 +527,10 @@ MEM_BUS_WIDTH = {
     "AMD Radeon RX 5500 XT": 128,
     "AMD Radeon RX 5500": 128,
     "AMD Radeon RX 5300": 96,
-    # AMD Radeon Pro R9000/W7000/W6000/W5000 series, Apple exclusive WX series not listed
+    "AMD Radeon Vega Frontier Edition": 2048,
+    "AMD Radeon RX Vega 64": 2048,
+    "AMD Radeon RX Vega 56": 2048,
+    "AMD Radeon RX Radeon VII": 4096,
     "AMD Radeon AI PRO R9700": 256,
     "AMD Radeon PRO W7900": 384,
     "AMD Radeon PRO W7800 48GB": 384,
@@ -539,8 +542,9 @@ MEM_BUS_WIDTH = {
     "AMD Radeon PRO W6800": 256,
     "AMD Radeon PRO W6600": 128,
     "AMD Radeon PRO W6400": 64,
-    "AMD Radeon PRO W5700": 256,
-    "AMD Radeon PRO W5500": 128,  
+    "AMD Radeon Pro W5700": 256,
+    "AMD Radeon Pro W5500": 128,
+    "AMD Radeon Pro VII": 4096, 
 }
 
 # ------------------- Device Properties Implementation -------------------
