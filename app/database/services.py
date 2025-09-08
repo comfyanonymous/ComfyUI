@@ -36,6 +36,17 @@ async def get_asset_info_by_id(session: AsyncSession, *, asset_info_id: str) -> 
     return await session.get(AssetInfo, asset_info_id)
 
 
+async def asset_info_exists_for_hash(session: AsyncSession, *, asset_hash: str) -> bool:
+    return (
+        await session.execute(
+            sa.select(sa.literal(True))
+            .select_from(AssetInfo)
+            .where(AssetInfo.asset_hash == asset_hash)
+            .limit(1)
+        )
+    ).first() is not None
+
+
 async def check_fs_asset_exists_quick(
     session,
     *,
@@ -586,7 +597,7 @@ async def create_asset_info_for_existing_asset(
     tag_origin: str = "manual",
     owner_id: str = "",
 ) -> AssetInfo:
-    """Create a new AssetInfo referencing an existing Asset (no content write)."""
+    """Create a new AssetInfo referencing an existing Asset. If row already exists, return it unchanged."""
     now = utcnow()
     info = AssetInfo(
         owner_id=owner_id,
@@ -597,8 +608,25 @@ async def create_asset_info_for_existing_asset(
         updated_at=now,
         last_access_time=now,
     )
-    session.add(info)
-    await session.flush()  # get info.id
+    try:
+        async with session.begin_nested():
+            session.add(info)
+            await session.flush()  # get info.id
+    except IntegrityError:
+        existing = (
+                await session.execute(
+                    select(AssetInfo)
+                    .where(
+                    AssetInfo.asset_hash == asset_hash,
+                    AssetInfo.name == name,
+                    AssetInfo.owner_id == owner_id,
+                )
+                .limit(1)
+            )
+        ).scalars().first()
+        if not existing:
+            raise RuntimeError("AssetInfo upsert failed to find existing row after conflict.")
+        return existing
 
     # Uncomment next code, and remove code after it, once the hack with "metadata[filename" is not needed anymore
     # if user_metadata is not None:

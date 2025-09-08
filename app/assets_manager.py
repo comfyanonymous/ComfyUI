@@ -27,6 +27,8 @@ from .database.services import (
     create_asset_info_for_existing_asset,
     fetch_asset_info_asset_and_tags,
     get_asset_info_by_id,
+    list_cache_states_by_asset_hash,
+    asset_info_exists_for_hash,
 )
 from .api import schemas_in, schemas_out
 from ._assets_helpers import (
@@ -371,11 +373,40 @@ async def update_asset(
     )
 
 
-async def delete_asset_reference(*, asset_info_id: str, owner_id: str) -> bool:
+async def delete_asset_reference(*, asset_info_id: str, owner_id: str, delete_content_if_orphan: bool = True) -> bool:
+    """Delete single AssetInfo. If this was the last reference to Asset and delete_content_if_orphan=True (default),
+    delete the Asset row as well and remove all cached files recorded for that asset_hash.
+    """
     async with await create_session() as session:
-        r = await delete_asset_info_by_id(session, asset_info_id=asset_info_id, owner_id=owner_id)
+        info_row = await get_asset_info_by_id(session, asset_info_id=asset_info_id)
+        asset_hash = info_row.asset_hash if info_row else None
+        deleted = await delete_asset_info_by_id(session, asset_info_id=asset_info_id, owner_id=owner_id)
+        if not deleted:
+            await session.commit()
+            return False
+
+        if not delete_content_if_orphan or not asset_hash:
+            await session.commit()
+            return True
+
+        still_exists = await asset_info_exists_for_hash(session, asset_hash=asset_hash)
+        if still_exists:
+            await session.commit()
+            return True
+
+        states = await list_cache_states_by_asset_hash(session, asset_hash=asset_hash)
+        file_paths = [s.file_path for s in (states or []) if getattr(s, "file_path", None)]
+
+        asset_row = await get_asset_by_hash(session, asset_hash=asset_hash)
+        if asset_row is not None:
+            await session.delete(asset_row)
+
         await session.commit()
-    return r
+        for p in file_paths:
+            with contextlib.suppress(Exception):
+                if p and os.path.isfile(p):
+                    os.remove(p)
+    return True
 
 
 async def create_asset_from_hash(

@@ -52,7 +52,6 @@ def comfy_tmp_base_dir() -> Path:
     tmp = Path(tempfile.mkdtemp(prefix="comfyui-assets-tests-"))
     _make_base_dirs(tmp)
     yield tmp
-    # cleanup in a best-effort way; ComfyUI should not keep files open in this dir
     with contextlib.suppress(Exception):
         for p in sorted(tmp.rglob("*"), reverse=True):
             if p.is_file() or p.is_symlink():
@@ -72,10 +71,9 @@ def comfy_url_and_proc(comfy_tmp_base_dir: Path):
       - autoscan disabled
     Returns (base_url, process, port)
     """
-    port = 8500  # _free_port()
+    port = _free_port()
     db_url = "sqlite+aiosqlite:///:memory:"
 
-    # stdout/stderr capturing for debugging if something goes wrong
     logs_dir = comfy_tmp_base_dir / "logs"
     logs_dir.mkdir(exist_ok=True)
     out_log = open(logs_dir / "stdout.log", "w", buffering=1)
@@ -138,27 +136,58 @@ def api_base(comfy_url_and_proc) -> str:
     return base_url
 
 
-@pytest.fixture
-def make_asset_bytes() -> Callable[[str], bytes]:
-    def _make(name: str) -> bytes:
-        # Generate deterministic small content variations based on name
-        seed = sum(ord(c) for c in name) % 251
-        data = bytes((i * 31 + seed) % 256 for i in range(8192))
-        return data
-    return _make
-
-
-async def _upload_asset(session: aiohttp.ClientSession, base: str, *, name: str, tags: list[str], meta: dict) -> dict:
-    make_asset_bytes = bytes((i % 251) for i in range(4096))
+async def _post_multipart_asset(
+    session: aiohttp.ClientSession,
+    base: str,
+    *,
+    name: str,
+    tags: list[str],
+    meta: dict,
+    data: bytes,
+    extra_fields: dict | None = None,
+) -> tuple[int, dict]:
     form = aiohttp.FormData()
-    form.add_field("file", make_asset_bytes, filename=name, content_type="application/octet-stream")
+    form.add_field("file", data, filename=name, content_type="application/octet-stream")
     form.add_field("tags", json.dumps(tags))
     form.add_field("name", name)
     form.add_field("user_metadata", json.dumps(meta))
+    if extra_fields:
+        for k, v in extra_fields.items():
+            form.add_field(k, v)
     async with session.post(base + "/api/assets", data=form) as r:
         body = await r.json()
-        assert r.status in (200, 201), body
+        return r.status, body
+
+
+@pytest.fixture
+def make_asset_bytes() -> Callable[[str, int], bytes]:
+    def _make(name: str, size: int = 8192) -> bytes:
+        seed = sum(ord(c) for c in name) % 251
+        return bytes((i * 31 + seed) % 256 for i in range(size))
+    return _make
+
+
+@pytest_asyncio.fixture
+async def asset_factory(http: aiohttp.ClientSession, api_base: str):
+    """
+    Returns create(name, tags, meta, data) -> response dict
+    Tracks created ids and deletes them after the test.
+    """
+    created: list[str] = []
+
+    async def create(name: str, tags: list[str], meta: dict, data: bytes) -> dict:
+        status, body = await _post_multipart_asset(http, api_base, name=name, tags=tags, meta=meta, data=data)
+        assert status in (200, 201), body
+        created.append(body["id"])
         return body
+
+    yield create
+
+    # cleanup by id
+    for aid in created:
+        with contextlib.suppress(Exception):
+            async with http.delete(f"{api_base}/api/assets/{aid}") as r:
+                await r.read()
 
 
 @pytest_asyncio.fixture
@@ -179,3 +208,25 @@ async def seeded_asset(http: aiohttp.ClientSession, api_base: str) -> dict:
         body = await r.json()
         assert r.status == 201, body
         return body
+
+
+@pytest_asyncio.fixture(autouse=True)
+async def autoclean_unit_test_assets(http: aiohttp.ClientSession, api_base: str):
+    """Ensure isolation by removing all AssetInfo rows tagged with 'unit-tests' after each test."""
+    yield
+
+    while True:
+        async with http.get(
+            api_base + "/api/assets",
+            params={"include_tags": "unit-tests", "limit": "500", "sort": "name"},
+        ) as r:
+            body = await r.json()
+            if r.status != 200:
+                break
+            ids = [a["id"] for a in body.get("assets", [])]
+        if not ids:
+            break
+        for aid in ids:
+            with contextlib.suppress(Exception):
+                async with http.delete(f"{api_base}/api/assets/{aid}") as dr:
+                    await dr.read()

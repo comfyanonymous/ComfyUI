@@ -277,9 +277,13 @@ async def upload_asset(request: web.Request) -> web.Response:
             os.remove(tmp_path)
         msg = str(e)
         if "HASH_MISMATCH" in msg or msg.strip().upper() == "HASH_MISMATCH":
-            return _error_response(400, "HASH_MISMATCH", "Uploaded file hash does not match provided hash.")
+            return _error_response(
+                400,
+                "HASH_MISMATCH",
+                "Uploaded file hash does not match provided hash.",
+            )
         return _error_response(400, "BAD_REQUEST", "Invalid inputs.")
-    except Exception:
+    except Exception as e:
         if tmp_path and os.path.exists(tmp_path):
             os.remove(tmp_path)
         return _error_response(500, "INTERNAL", "Unexpected server error.")
@@ -343,10 +347,14 @@ async def delete_asset(request: web.Request) -> web.Response:
     except Exception:
         return _error_response(400, "INVALID_ID", f"AssetInfo id '{asset_info_id_raw}' is not a valid UUID.")
 
+    delete_content = request.query.get("delete_content")
+    delete_content = True if delete_content is None else delete_content.lower() not in {"0", "false", "no"}
+
     try:
         deleted = await assets_manager.delete_asset_reference(
             asset_info_id=asset_info_id,
             owner_id=UserManager.get_request_user_id(request),
+            delete_content_if_orphan=delete_content,
         )
     except Exception:
         return _error_response(500, "INTERNAL", "Unexpected server error.")
