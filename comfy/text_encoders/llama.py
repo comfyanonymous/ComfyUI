@@ -128,11 +128,12 @@ def precompute_freqs_cis(head_dim, position_ids, theta, rope_dims=None, device=N
 
 
 def apply_rope(xq, xk, freqs_cis):
+    org_dtype = xq.dtype
     cos = freqs_cis[0]
     sin = freqs_cis[1]
     q_embed = (xq * cos) + (rotate_half(xq) * sin)
     k_embed = (xk * cos) + (rotate_half(xk) * sin)
-    return q_embed, k_embed
+    return q_embed.to(org_dtype), k_embed.to(org_dtype)
 
 
 class Attention(nn.Module):
