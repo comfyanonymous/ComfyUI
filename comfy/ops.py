@@ -22,7 +22,8 @@ import comfy.model_management
 import comfy.float
 import comfy.rmsnorm
 import contextlib
-from comfy.quant_tensor import Q_TYPES, tensor_quantizer, tensor_dequantizer, dynamic_tensor_quantizer, woq_fwd, quantized_fwd, get_quantizer_with_constraints
+from comfy.quant_tensor import (Q_TYPES, tensor_quantizer, tensor_dequantizer, dynamic_tensor_quantizer,
+                                woq_fwd, quantized_fwd, get_quantizer_with_constraints)
 import types
 import inspect
 
@@ -99,7 +100,7 @@ class CastWeightBiasOp:
     use_dynamic_quantizer: bool = False
 
 class disable_weight_init:
-    class Linear(torch.nn.Module, CastWeightBiasOp):
+    class Linear(torch.nn.Linear, CastWeightBiasOp):
         def __init__(
                 self,
                 in_features: int,
@@ -109,7 +110,7 @@ class disable_weight_init:
                 dtype=None,
         ) -> None:
             factory_kwargs = {"device": device, "dtype": dtype}
-            super().__init__()
+            torch.nn.Module.__init__(self)
             self.in_features = in_features
             self.out_features = out_features
 
@@ -162,6 +163,9 @@ class disable_weight_init:
                 state_dict[f"{prefix}scale_weight"] = scale_weight
 
             weight_dtype = _w.dtype
+            if weight_dtype not in Q_TYPES:
+                weight_dtype = self.compute_dtype
+
             weight = torch.nn.Parameter(
                 torch.empty((self.out_features, self.in_features), device=self.device, dtype=weight_dtype))
 
@@ -171,7 +175,7 @@ class disable_weight_init:
 
             scale_weight = state_dict.get(f"{prefix}scale_weight", None)
             if scale_weight is None:
-                logging.warning("Using quantized weights without a scale can result in low accuracy.")
+                logging.debug("Using quantized weights without a scale can result in low accuracy.")
                 scale_weight = torch.ones(1)
                 state_dict[f"{prefix}scale_weight"] = scale_weight
             self.register_buffer('scale_weight', scale_weight.to(device=self.device))
@@ -213,11 +217,15 @@ class disable_weight_init:
                 error_msgs,
             )
 
+        def forward_comfy_cast_weights(self, input):
+            weight, bias = cast_bias_weight(self, input)
+            return torch.nn.functional.linear(input, weight, bias)
+
         def forward(self, input):
+            if self.comfy_cast_weights or len(self.weight_function) > 0 or len(self.bias_function) > 0:
+                return self.forward_comfy_cast_weights(input)
             weight = self.weight
             bias = self.bias
-            if self.comfy_cast_weights or len(self.weight_function) > 0 or len(self.bias_function) > 0:
-                weight, bias = cast_bias_weight(self, input)
             return torch.nn.functional.linear(input, weight, bias)
 
     class Conv1d(torch.nn.Conv1d, CastWeightBiasOp):
@@ -391,7 +399,7 @@ try:
 except ImportError:
     pass
 
-if CUBLAS_IS_AVAILABLE: # TODO check if this is actually faster I call BS
+if CUBLAS_IS_AVAILABLE:
     class cublas_ops(disable_weight_init):
         class Linear(CublasLinear, disable_weight_init.Linear):
             def reset_parameters(self):
@@ -408,6 +416,11 @@ op_class_list = [
     if cls.__module__ == disable_weight_init.__module__ and name != "__class__"
 ]
 
+op_fn_list = [ # conv_nd
+    fn for name, fn in inspect.getmembers(disable_weight_init, inspect.isroutine)
+    if not name.startswith('__')
+]
+
 def operator_factory(**factory_kwargs):
     class OpSet:
         pass
@@ -417,9 +430,15 @@ def operator_factory(**factory_kwargs):
 
     for base_class in op_class_list:
         new_class = type(base_class.__name__, (base_class,), factory_kwargs)
-        setattr(op_set, base_class.__name__, new_class)
+        setattr(OpSet, base_class.__name__, new_class)
 
-    return op_set
+    for fn in op_fn_list:
+        setattr(OpSet, fn.__name__, fn)
+
+    return OpSet
+
+# Backward Compatability (e.g. GGUF)
+manual_cast = operator_factory(comfy_cast_weights=True)
 
 def pick_operations(weight_dtype=None, compute_dtype=None, load_device=None, fast_fp8=False, disable_fast_fp8=False):
     fp8_compute = (comfy.model_management.supports_fp8_compute(load_device) and not disable_fast_fp8)
@@ -429,4 +448,5 @@ def pick_operations(weight_dtype=None, compute_dtype=None, load_device=None, fas
     weight_function = []
     if weight_dtype is not None and compute_dtype is not None and not manual_cast:
         weight_function = [get_quantizer_with_constraints(weight_dtype)]
-    return operator_factory(comfy_cast_weights=manual_cast, use_dynamic_quantizer=use_dynamic_quantizer, fp8_compute=fp8_compute, weight_function=weight_function)
+    return operator_factory(comfy_cast_weights=manual_cast, use_dynamic_quantizer=use_dynamic_quantizer,
+                            fp8_compute=fp8_compute, weight_function=weight_function)
