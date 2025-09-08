@@ -144,8 +144,6 @@ def gpu_name_to_gfx(gpu_name):
         return 'gfx900'   # Vega 20 (gfx906, gfx907)
     elif any(x in gpu_name_lower for x in ['vega 11', 'vega 10', 'vega 9', 'vega 8', 'vega 6', 'vega 3']):
         return 'gfx902'   # Raven Ridge APU (gfx902, gfx903)
-    elif 'radeon graphics' in gpu_name_lower: # Without (tm)
-        return 'gfx902'   # Vega APUs (gfx90c) - Barcelo, Cezanne, Lucienne, Renoir 
     
     # Polaris (gfx8xx)
     elif any(x in gpu_name_lower for x in ['rx 590', 'rx 580', 'rx 570', 'rx 560', 'rx 480', 'rx 470', 'rx 460']):
