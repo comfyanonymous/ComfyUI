@@ -1,20 +1,10 @@
 import torch
-import logging
-from abc import ABC, abstractmethod
-from dataclasses import dataclass
-from typing import Tuple
-from torch.utils._triton import has_triton
-from typing import Dict
 
-Q_TYPES = [torch.float8_e4m3fn]
+Q_TYPES = [torch.float8_e4m3fn, torch.float8_e5m2]
 
-if has_triton():
-    q_compile_decorator = torch.compile()
-else:
-    q_compile_decorator = lambda func: func
 
 def get_quantizer_with_constraints(target_dtype: torch.dtype):
-    if target_dtype == torch.float8_e4m3fn:
+    if target_dtype in Q_TYPES:
         q_fn = dynamic_tensor_quantizer
     else:
         raise ValueError(f"Unsupported dtype {target_dtype}")
@@ -24,25 +14,28 @@ def get_quantizer_with_constraints(target_dtype: torch.dtype):
     def fn(x, **kwargs):
         if alignment_check_fn(x):
             return x, None
-        return q_fn(x, **kwargs)
+        if x.dtype == target_dtype:
+            return x, None
+        return q_fn(x, dtype=target_dtype, **kwargs)
 
     return fn
 
-@q_compile_decorator
-def dynamic_tensor_quantizer(x: torch.Tensor, dtype=torch.dtype, *args, **kwargs):
+
+def dynamic_tensor_quantizer(x: torch.Tensor, dtype: torch.dtype, *args, **kwargs):
     input_scale = torch.abs(x).max() / torch.finfo(dtype).max
     x = (x / input_scale).clamp(torch.finfo(dtype).min, torch.finfo(dtype).max).to(dtype=dtype)
     return x, input_scale.float()
 
-@q_compile_decorator
+
 def tensor_quantizer(x: torch.Tensor, scale: torch.Tensor, dtype: torch.dtype):
     x = (x / scale).clamp(torch.finfo(dtype).min, torch.finfo(dtype).max).to(dtype=dtype).contiguous()
     return x, scale.float()
 
-@q_compile_decorator
+
 def tensor_dequantizer(x: torch.Tensor, scale: torch.Tensor, dtype: torch.dtype):
     x = x.to(dtype=dtype) * scale.to(dtype=dtype)
     return x
+
 
 def woq_fwd(self, x):
     dq_weight = self.dequantizer(self.weight, scale=self.scale_weight, dtype=x.dtype)
@@ -50,6 +43,7 @@ def woq_fwd(self, x):
     if bias is not None and bias.dtype == self.weight.dtype:
         bias = self.dequantizer(bias, torch.ones_like(self.scale_weight), x.dtype)
     return torch.nn.functional.linear(x, dq_weight, bias)
+
 
 def quantized_fwd(self, input):
     tensor_2d = False

@@ -411,7 +411,6 @@ op_class_list = [
 def operator_factory(**factory_kwargs):
     class OpSet:
         pass
-    op_set = OpSet()
 
     for k, v in factory_kwargs.items():
         assert hasattr(CastWeightBiasOp, k)
