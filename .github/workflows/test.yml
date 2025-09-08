@@ -35,8 +35,8 @@ jobs:
         run: |
           export UV_BREAK_SYSTEM_PACKAGES=true
           export UV_SYSTEM_PYTHON=true
-          pip freeze | grep numpy > numpy_override.txt
-          uv pip install . --inexact --group dev --override numpy_override.txt
+          uv pip freeze | grep numpy > numpy_override.txt
+          uv pip install ".[dev]" --inexact --override numpy_override.txt
       - name: Run tests
         run: |
           nvidia-smi

@@ -40,9 +40,9 @@ from .component_model.deprecation import _deprecate_method
 from .float import stochastic_rounding
 from .gguf import move_patch_to_device, is_torch_compatible, is_quantized, GGMLOps
 from .hooks import EnumHookMode, _HookRef, HookGroup, EnumHookType, WeightHook, create_transformer_options_from_hooks
-from .lora_types import PatchDict, PatchDictKey, PatchTuple, PatchWeightTuple, ModelPatchesDictValue
+from .lora_types import PatchDict, PatchDictKey, PatchTuple, PatchWeightTuple, ModelPatchesDictValue, PatchSupport
 from .model_base import BaseModel
-from .model_management_types import ModelManageable, MemoryMeasurements, ModelOptions, LatentFormatT, LoadingListItem
+from .model_management_types import ModelManageable, MemoryMeasurements, ModelOptions, LatentFormatT, LoadingListItem, TrainingSupport, HooksSupport
 from .patcher_extension import CallbacksMP, WrappersMP, PatcherInjection
 
 logger = logging.getLogger(__name__)
@@ -230,7 +230,7 @@ class GGUFQuantization:
     patch_on_device: bool = False
 
 
-class ModelPatcher(ModelManageable):
+class ModelPatcher(ModelManageable, TrainingSupport, HooksSupport, PatchSupport):
     def __init__(self, model: BaseModel | torch.nn.Module, load_device: torch.device, offload_device: torch.device, size=0, weight_inplace_update=False, ckpt_name: Optional[str] = None):
         self.size = size
         self.model: BaseModel | torch.nn.Module = model
