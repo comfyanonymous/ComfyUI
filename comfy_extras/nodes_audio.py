@@ -22,7 +22,6 @@ from comfy.ldm.higgsv2.preprocess import (
     prepare_chatml_sample, Message, ChatMLSample, ChatMLDatasetSample, AudioContent, transcript_normalize
 )
 
-AUDIO_PLACEHOLDER_TOKEN = "<|__AUDIO_PLACEHOLDER__|>"
 
 MULTISPEAKER_DEFAULT_SYSTEM_MESSAGE = """You are an AI assistant designed to convert text into speech.
 If the user's message includes a [SPEAKER*] tag, do not read out the tag and generate speech for the following text, using the specified voice.
@@ -175,6 +174,8 @@ class CreateChatMLSample:
         current_role = None
         collecting_system = False
         system_buffer = []
+        collecting_instruction = False
+        instruction_buffer = []
 
         for line in lines:
             line = line.strip()
@@ -195,6 +196,26 @@ class CreateChatMLSample:
                     messages.append(Message(role="system", content=system_prompt))
                     system_buffer = []
                     collecting_system = False
+                continue
+
+            # generation instruction start
+            if "<|generation_instruction_start|>" in line:
+                collecting_instruction = True
+                instruction_buffer = []
+                continue
+
+            if collecting_instruction:
+                if "<|generation_instruction_end|>" in line:
+                    instruction_text = "\n".join(instruction_buffer)
+                    # include both start and end tokens
+                    messages.append(Message(
+                        role="user",
+                        content=f"<|generation_instruction_start|>\n{instruction_text}\n<|generation_instruction_end|>"
+                    ))
+                    instruction_buffer = []
+                    collecting_instruction = False
+                else:
+                    instruction_buffer.append(line)
                 continue
 
             # speaker lines SPEAKER-0: text
@@ -221,14 +242,29 @@ class CreateChatMLSample:
             lines = all_text.splitlines()
             messages = [messages[0]] if messages[0].role == "system" else []
             current_role = None
+
             for line in lines:
-                match = re.match(r'\[SPEAKER\d+\]', line)
+                line = line.strip()
+                if not line:
+                    continue
+
+                match = re.match(r'(\[SPEAKER\d+\])\s*(.*)', line)
                 if match:
-                    current_role = match.group(0)
-                    messages.append(Message(role="user", content=line.strip()))
+                    current_role = match.group(1)
+                    content = match.group(2).strip()  # only take the text after the tag
+                    messages.append(Message(role="user", content=f"{current_role} {content}" if content else current_role))
                 else:
                     if current_role and messages:
-                        messages[-1].content += "\n" + line.strip()
+                        messages[-1].content += "\n" + line
+
+            # dedepulicate the messages
+            for idx, m in enumerate(messages):
+                double_eot = "<|eot_id|><|eot_id|>"
+                if double_eot in m.content:
+                    cut_index = m.content.index(double_eot)
+                    messages[idx].content = m.content[:cut_index + (len(double_eot) // 2)]
+                    break
+
         if audio is not None:
             # for audio cloning, the first message is a transcript, second is the audio,
             # third is the request of what the model should say

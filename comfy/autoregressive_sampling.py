@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 import copy
 import torch
 import inspect
@@ -56,9 +57,9 @@ class TopKLogits:
 
 class TemperatureLogitsWarper:
     def __init__(self, temperature: float):
-
         if not (temperature > 0):
-            raise ValueError(f"`temperature` (={temperature}) must be positive temperature > 0")
+            raise ValueError(f"`temperature` (={temperature}) must be a positive number > 0")
+
         self.temperature = temperature
 
     def __call__(self, scores: torch.FloatTensor) -> torch.FloatTensor:
@@ -86,9 +87,29 @@ class TopPLogitsWarper:
         scores_processed = scores.masked_fill(indices_to_remove, self.filter_value)
         return scores_processed
 
+class MinLengthLogitsProcessor:
+    def __init__(self, min_length: int, eos_token_id: torch.Tensor):
+        self.min_length = min_length
+        self.eos_token_id = eos_token_id
+
+    def __call__(self, input_ids: torch.LongTensor, scores: torch.FloatTensor) -> torch.FloatTensor:
+
+        if input_ids is None:
+            return scores
+
+        vocab_tensor = torch.arange(scores.shape[-1], device=scores.device)
+        eos_token_mask = torch.isin(vocab_tensor, self.eos_token_id)
+        scores_processed = scores.clone()
+        if input_ids.shape[-1] < self.min_length:
+            scores_processed = torch.where(eos_token_mask, -math.inf, scores)
+        return scores_processed
+
 def get_logits_processing(config: GenerationConfig):
     # TODO: add support for beam search with diversity penalty
     logits_processors = []
+
+    if config._eos_token_tensor is not None and config.min_length > 1:
+        logits_processors.append(MinLengthLogitsProcessor(config.min_length, config._eos_token_tensor))
 
     if config.top_k is not None and config.top_k != 0:
         logits_processors.append(TopKLogits(config.top_k))
@@ -101,28 +122,59 @@ def get_logits_processing(config: GenerationConfig):
 
     return logits_processors
 
-def apply_logits_processing(logits, logits_processing_list, **kwargs):
+def apply_logits_processing(input_ids, logits, logits_processing_list, **kwargs):
     for process in logits_processing_list:
         func_args = inspect.signature(process.__call__).parameters
-        if not all(arg in kwargs for arg in list(func_args.keys())[1:]):
+        if not all(arg in kwargs for arg in list(func_args.keys())[3:]):
             raise ValueError(
                 f"Make sure that all the required parameters: {list(func_args.keys())} for "
                 f"{process.__class__} are passed to the logits processor."
             )
-        logits = process(logits, **kwargs)
+        if "input_ids" in func_args:
+            logits = process(input_ids, logits)
+        else:
+            logits = process(logits, **kwargs)
     return logits
 
-def check_stopping_criteria(input_ids: torch.Tensor, max_length: int, eos_token):
+def check_stopping_strings(input_ids: torch.Tensor, stop_strings: list) -> torch.BoolTensor:
+    # stop_strings must be a list of lists: List[List[], List[]]
+
+    device = input_ids.device
+    batch_size, seq_len = input_ids.shape
+    finished = torch.zeros(batch_size, dtype = torch.bool, device = device)
+
+    for b in range(batch_size):
+        row = input_ids[b]
+        # check each stop token sequence
+        for stop_ids in stop_strings:
+            n = len(stop_ids)
+            if n == 0 or n > seq_len:
+                continue
+            # compare tail of the generated ids to the stop sequence
+            if torch.all(row[-n:] == torch.tensor(stop_ids, device = device, dtype = row.dtype)):
+                finished[b] = True
+                break
+
+    return finished
+
+def check_stopping_criteria(input_ids: torch.Tensor, max_length: int, eos_token, stop_strings: tuple = None):
+
+    device = input_ids.device
 
     if not isinstance(eos_token, torch.Tensor):
-        eos_token = torch.tensor(eos_token, device=input_ids.device)
+        eos_token = torch.tensor(eos_token, device = device)
 
     max_len_done = input_ids.shape[1] >= max_length
 
     eos_done = torch.isin(input_ids[:, -1], eos_token)
 
-    # finished either by lenght or eos
-    finished_mask = max_len_done | eos_done
+    if stop_strings is not None:
+        stop_done = check_stopping_strings(input_ids, stop_strings)
+    else:
+        stop_done = torch.zeros(input_ids.size(0), dtype=torch.bool, device=device)
+
+    # finished either by lenght or eos or stop strings
+    finished_mask = max_len_done | eos_done | stop_done
 
     unfinished_mask = ~finished_mask
 

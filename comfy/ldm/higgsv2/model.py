@@ -500,6 +500,8 @@ class HiggsAudioModel(nn.Module):
             torch.ones(kwargs["audio_num_codebooks"]) / kwargs["audio_num_codebooks"]
         )
 
+        self.stop_strings = [[128009], [128001]]
+
     def _sample_audio_tokens(
         self,
         audio_logits: torch.Tensor,
@@ -520,7 +522,7 @@ class HiggsAudioModel(nn.Module):
         audio_eos_token_id = generation_config.generation_kwargs.get("audio_eos_token_id", None)
 
         next_audio_token_logits = audio_logits.clone()[-1, :, :].float().to(device)
-        next_audio_token_scores = apply_logits_processing(next_audio_token_logits, logits_processing_list)
+        next_audio_token_scores = apply_logits_processing(None, next_audio_token_logits, logits_processing_list)
 
         if do_sample:
             probs = nn.functional.softmax(next_audio_token_scores, dim = -1)
@@ -588,6 +590,9 @@ class HiggsAudioModel(nn.Module):
         logits_processing_list,
         device: torch.device,
         generation_mode: GenerationMode,
+        torch_generator,
+        is_using_cuda_graphs,
+        do_sample = False,
     ) -> torch.Tensor:
         """Sample text tokens from the logits"""
 
@@ -595,7 +600,7 @@ class HiggsAudioModel(nn.Module):
         next_token_logits = next_token_logits.to(input_ids.device)
 
         # pre-process distribution
-        next_token_scores = apply_logits_processing(next_token_logits, logits_processing_list)
+        next_token_scores = apply_logits_processing(input_ids, next_token_logits, logits_processing_list)
 
         if generation_mode == GenerationMode.AUDIO_INIT:
             # See the audio bos token, we should start generating audio tokens
@@ -612,7 +617,17 @@ class HiggsAudioModel(nn.Module):
                 device=device,
             )
         else:
-            next_tokens = torch.argmax(next_token_scores, dim=-1)
+
+            if do_sample:
+                probs = nn.functional.softmax(next_token_scores, dim = -1)
+                # same as for audio
+                if not is_using_cuda_graphs:
+                    next_tokens = torch.multinomial(probs, num_samples = 1, generator=torch_generator).squeeze(1)
+                else:
+                    next_tokens = categorical_sample(probs, generator = torch_generator)
+            else:
+                next_tokens = torch.argmax(next_token_scores, dim=-1)
+
             next_audio_tokens = None
 
         return next_tokens, next_audio_tokens
@@ -1093,12 +1108,6 @@ class HiggsAudioModel(nn.Module):
                     del model_inputs["audio_out_ids_start"]
 
                 if generation_config.use_cache:
-                    if "audio_features" in model_inputs and model_inputs["audio_features"] is not None:
-                        model_inputs["audio_features"] = model_inputs["audio_features"][:0, ...]
-                        model_inputs["audio_feature_attention_mask"] = model_inputs["audio_feature_attention_mask"][
-                            :0, ...
-                        ]
-
                     if "audio_in_ids" in model_inputs and model_inputs["audio_in_ids"] is not None:
                         model_inputs["audio_in_ids"] = None
                         model_inputs["audio_in_ids_start"] = None
@@ -1159,6 +1168,9 @@ class HiggsAudioModel(nn.Module):
                     logits_processing_list=logits_processing_list,
                     device=input_ids.device,
                     generation_mode=generation_mode,
+                    torch_generator = torch_generator,
+                    do_sample = do_sample,
+                    is_using_cuda_graphs = is_using_cuda_graphs
                 )
 
                 if next_audio_tokens is not None:
@@ -1199,7 +1211,7 @@ class HiggsAudioModel(nn.Module):
                 input_ids = torch.cat([input_ids, next_tokens[:, None]], dim=-1)
 
             input_ids_full = torch.cat([input_ids_full, next_tokens[:, None]], dim=-1)
-            finished, unfinished_sequences = check_stopping_criteria(input_ids_full, max_length, eos_token = eos_token_tensor)
+            finished, unfinished_sequences = check_stopping_criteria(input_ids_full, max_length, eos_token = eos_token_tensor, stop_strings = self.stop_strings)
             this_peer_finished = finished.all()
             cur_len += 1
 

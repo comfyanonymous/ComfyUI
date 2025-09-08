@@ -2065,7 +2065,6 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "KSampler": "KSampler",
     "KSamplerAdvanced": "KSampler (Advanced)",
     "AutoRegressiveGeneration": "Autoregressive Generation",
-    ""
     # Loaders
     "CheckpointLoader": "Load Checkpoint With Config (DEPRECATED)",
     "CheckpointLoaderSimple": "Load Checkpoint",

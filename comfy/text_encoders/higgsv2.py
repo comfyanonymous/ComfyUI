@@ -71,7 +71,8 @@ class HiggsTokenizer(nn.Module):
             wv_numpy = self.audio_tokenizer.decode(vq_code.unsqueeze(0))[0, 0]
             outputs.append(wv_numpy)
 
-        return (None, {"waveform": torch.stack(outputs, dim = 0).unsqueeze(1), "sample_rate": self.audio_tokenizer.sample_rate}) # audio only
+        # currently only supports one batch size
+        return (None, {"waveform": torch.cat(outputs, dim = 0).unsqueeze(0).unsqueeze(1), "sample_rate": self.audio_tokenizer.sample_rate}) # audio only
 
     def load_state_dict(self, sd, strict = False):
         return self.audio_tokenizer.load_state_dict(sd, strict = strict)
