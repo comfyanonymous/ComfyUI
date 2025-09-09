@@ -22,11 +22,9 @@ if model_management.xformers_enabled():
 sageattn = None
 if model_management.sage_attention_enabled():
     try:
-        from sageattention import sageattn  # pylint: disable=import-error
+        from .sage_attention_dispatcher import sageattn
     except ModuleNotFoundError as e:
         if e.name == "sageattention":
-            import sys
-
             logger.error(f"To use the `--use-sage-attention` feature, the `sageattention` package must be installed first.")
         else:
             raise e

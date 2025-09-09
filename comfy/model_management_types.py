@@ -30,6 +30,68 @@ class HooksSupport(Protocol, metaclass=ABCMeta):
     def prepare_hook_patches_current_keyframe(self, t, hook_group, model_options):
         return
 
+    def model_patches_models(self) -> list[ModelManageableT]:
+        """
+        Used to implement Qwen DiffSynth Controlnets (?)
+        :return:
+        """
+        return []
+
+    @property
+    def hook_mode(self):
+        from .hooks import EnumHookMode
+        if not hasattr(self, "_hook_mode"):
+            setattr(self, "_hook_mode", EnumHookMode.MaxSpeed)
+        return getattr(self, "_hook_mode")
+
+
+    @hook_mode.setter
+    def hook_mode(self, value):
+        setattr(self, "_hook_mode", value)
+
+    def restore_hook_patches(self):
+        return
+
+    @property
+    def wrappers(self):
+        if not hasattr(self, "_wrappers"):
+            setattr(self, "_wrappers", {})
+        return getattr(self, "_wrappers")
+
+    @wrappers.setter
+    def wrappers(self, value):
+        setattr(self, "_wrappers", value)
+
+    @property
+    def callbacks(self) -> dict:
+        if not hasattr(self, "_callbacks"):
+            setattr(self, "_callbacks", {})
+        return getattr(self, "_callbacks")
+
+    @callbacks.setter
+    def callbacks(self, value):
+        setattr(self, "_callbacks", value)
+
+    def cleanup(self):
+        pass
+
+    def pre_run(self):
+        from .model_base import BaseModel
+        if hasattr(self, "model") and isinstance(self.model, BaseModel):
+            self.model.current_patcher = self
+
+    def prepare_state(self, *args, **kwargs):
+        pass
+
+    def register_all_hook_patches(self, a, b, c, d):
+        pass
+
+    def get_nested_additional_models(self):
+        return []
+
+    def apply_hooks(self, *args, **kwargs):
+        return {}
+
 
 class TrainingSupport(Protocol, metaclass=ABCMeta):
     def set_model_compute_dtype(self, dtype: torch.dtype):
@@ -146,14 +208,14 @@ class ModelManageable(ModelManageableRequired, ModelManageableExtras, Protocol, 
         self.unpatch_model(device_to)
         return self.model_size()
 
-    def memory_required(self, input_shape) -> int:
+    def memory_required(self, input_shape: torch.Size) -> int:
         from .model_base import BaseModel
 
         if isinstance(self.model, BaseModel):
             return self.model.memory_required(input_shape=input_shape)
         else:
-            # todo: why isn't this true?
-            return self.model_size()
+            # todo: we need a real implementation of this
+            return 0
 
     def loaded_size(self) -> int:
         if self.current_loaded_device() == self.load_device:
@@ -197,13 +259,6 @@ class ModelManageable(ModelManageableRequired, ModelManageableExtras, Protocol, 
         """
         self.unpatch_model(self.offload_device, unpatch_weights=unpatch_all)
         return self.model
-
-    def model_patches_models(self) -> list[ModelManageableT]:
-        """
-        Used to implement Qwen DiffSynth Controlnets (?)
-        :return:
-        """
-        return []
 
 
 @dataclasses.dataclass

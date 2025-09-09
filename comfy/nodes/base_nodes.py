@@ -812,10 +812,11 @@ class VAELoader:
     def load_vae(self, vae_name):
         if vae_name in ["taesd", "taesdxl", "taesd3", "taef1"]:
             sd_ = self.load_taesd(vae_name)
+            metadata = {}
         else:
             vae_path = get_or_download("vae", vae_name, KNOWN_VAES)
-            sd_ = utils.load_torch_file(vae_path)
-        vae = sd.VAE(sd=sd_)
+            sd_, metadata = utils.load_torch_file(vae_path, return_metadata=True)
+        vae = sd.VAE(sd=sd_, metadata=metadata, ckpt_name=vae_name)
         vae.throw_exception_if_invalid()
         return (vae,)
 
@@ -1321,12 +1322,12 @@ class RepeatLatentBatch:
         s = samples.copy()
         s_in = samples["samples"]
 
-        s["samples"] = s_in.repeat((amount,) + ((1, ) * (s_in.ndim - 1)))
+        s["samples"] = s_in.repeat((amount,) + ((1,) * (s_in.ndim - 1)))
         if "noise_mask" in samples and samples["noise_mask"].shape[0] > 1:
             masks = samples["noise_mask"]
             if masks.shape[0] < s_in.shape[0]:
                 masks = masks.repeat((math.ceil(s_in.shape[0] / masks.shape[0]),) + ((1,) * (masks.ndim - 1)))[:s_in.shape[0]]
-            s["noise_mask"] = samples["noise_mask"].repeat((amount,) + ((1, ) * (samples["noise_mask"].ndim - 1)))
+            s["noise_mask"] = samples["noise_mask"].repeat((amount,) + ((1,) * (samples["noise_mask"].ndim - 1)))
         if "batch_index" in s:
             offset = max(s["batch_index"]) - min(s["batch_index"]) + 1
             s["batch_index"] = s["batch_index"] + [x + (i * offset) for i in range(1, amount) for x in s["batch_index"]]

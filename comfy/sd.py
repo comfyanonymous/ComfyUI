@@ -11,6 +11,8 @@ import yaml
 from enum import Enum
 from typing import Any, Optional
 
+from humanize import naturalsize
+
 from . import clip_vision
 from . import diffusers_convert
 from . import gligen
@@ -281,7 +283,8 @@ class CLIP:
 
 
 class VAE:
-    def __init__(self, sd=None, device=None, config=None, dtype=None, metadata=None, no_init=False):
+    def __init__(self, sd=None, device=None, config=None, dtype=None, metadata=None, no_init=False, ckpt_name:Optional[str]=""):
+        self.ckpt_name = ckpt_name
         if no_init:
             return
         if 'decoder.up_blocks.0.resnets.0.norm1.weight' in sd.keys():  # diffusers format
@@ -459,8 +462,16 @@ class VAE:
                     ddconfig = {"dim": 96, "z_dim": self.latent_channels, "dim_mult": [1, 2, 4, 4], "num_res_blocks": 2, "attn_scales": [], "temperal_downsample": [False, True, True], "dropout": 0.0}
                     self.first_stage_model = wan_vae.WanVAE(**ddconfig)
                     self.working_dtypes = [torch.bfloat16, torch.float16, torch.float32]
-                    self.memory_used_encode = lambda shape, dtype: 6000 * shape[3] * shape[4] * model_management.dtype_size(dtype)
-                    self.memory_used_decode = lambda shape, dtype: 7000 * shape[3] * shape[4] * (8 * 8) * model_management.dtype_size(dtype)
+
+                    # todo: not sure how to detect qwen here
+                    wan_21_decode = 7000
+                    wan_21_encode = wan_21_decode - 1000
+                    qwen_vae_decode = int(wan_21_decode / 3)
+                    qwen_vae_encode = int(wan_21_encode / 3)
+                    encode_const = qwen_vae_encode if "qwen" in self.ckpt_name.lower() else wan_21_encode
+                    decode_const = qwen_vae_decode if "qwen" in self.ckpt_name.lower() else wan_21_decode
+                    self.memory_used_encode = lambda shape, dtype: encode_const * shape[3] * shape[4] * model_management.dtype_size(dtype)
+                    self.memory_used_decode = lambda shape, dtype: decode_const * shape[3] * shape[4] * (8 * 8) * model_management.dtype_size(dtype)
             elif "geo_decoder.cross_attn_decoder.ln_1.bias" in sd:
                 self.latent_dim = 1
                 ln_post = "geo_decoder.ln_post.weight" in sd
@@ -776,6 +787,14 @@ class VAE:
             return round(self.upscale_ratio[0](8192) / 8192)
         except:
             return None
+
+    def __str__(self):
+        info_str = f"dtype={self.vae_dtype} device={self.device}"
+
+        if self.ckpt_name == "":
+            return f"<VAE for {self.first_stage_model.__class__.__name__} {info_str}>"
+        else:
+            return f"<VAE for {self.ckpt_name} ({self.first_stage_model.__class__.__name__} {info_str})>"
 
 
 class StyleModel:
