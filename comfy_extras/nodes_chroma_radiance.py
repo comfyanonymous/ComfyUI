@@ -166,12 +166,6 @@ class ChromaRadianceOptions(io.ComfyNode):
                     min=-1,
                     tooltip="Allows overriding the default NeRF tile size. -1 means use the default (32). 0 means use non-tiling mode (may require a lot of VRAM).",
                 ),
-                io.Combo.Input(
-                    id="nerf_embedder_dtype",
-                    default="default",
-                    options=["default", "model_dtype", "float32", "float64", "float16", "bfloat16"],
-                    tooltip="Allows overriding the dtype the NeRF embedder uses. The default is float32.",
-                ),
             ],
             outputs=[io.Model.Output()],
         )
@@ -185,13 +179,10 @@ class ChromaRadianceOptions(io.ComfyNode):
         start_sigma: float,
         end_sigma: float,
         nerf_tile_size: int,
-        nerf_embedder_dtype: str,
     ) -> io.NodeOutput:
         radiance_options = {}
         if nerf_tile_size >= 0:
             radiance_options["nerf_tile_size"] = nerf_tile_size
-        if nerf_embedder_dtype != "default":
-            radiance_options["nerf_embedder_dtype"] = {"float32": torch.float32, "float16": torch.float16, "bfloat16": torch.bfloat16, "float64": torch.float64}.get(nerf_embedder_dtype)
 
         if not radiance_options:
             return io.NodeOutput(model)

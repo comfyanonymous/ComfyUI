@@ -36,15 +36,13 @@ class NerfEmbedder(nn.Module):
                              The total number of positional features will be max_freqs^2.
         """
         super().__init__()
-        self.dtype= dtype
+        self.dtype = dtype
         self.max_freqs = max_freqs
         self.hidden_size_input = hidden_size_input
 
         # A linear layer to project the concatenated input features and
         # positional encodings to the final output dimension.
-        self.embedder = nn.Sequential(
-            operations.Linear(in_channels + max_freqs**2, hidden_size_input, dtype=dtype, device=device)
-        )
+        self.embedder = operations.Linear(in_channels + max_freqs**2, hidden_size_input, dtype=dtype, device=device)
 
     @lru_cache(maxsize=4)
     def fetch_pos(self, patch_size: int, device: torch.device, dtype: torch.dtype) -> torch.Tensor:
@@ -101,7 +99,7 @@ class NerfEmbedder(nn.Module):
 
         return dct
 
-    def forward(self, inputs: torch.Tensor, embedder_dtype: torch.dtype) -> torch.Tensor:
+    def forward(self, inputs: torch.Tensor) -> torch.Tensor:
         """
         Forward pass for the embedder.
 
@@ -117,16 +115,11 @@ class NerfEmbedder(nn.Module):
         # Infer the patch side length from the number of pixels (P^2).
         patch_size = int(P2 ** 0.5)
 
-        # Possibly run the operation with a different dtype.
         input_dtype = inputs.dtype
-        if embedder_dtype != input_dtype or self.dtype != input_dtype:
-            embedder = self.embedder.to(dtype=embedder_dtype)
-            inputs = inputs.to(dtype=embedder_dtype)
-        else:
-            embedder = self.embedder
+        inputs = inputs.to(dtype=self.dtype)
 
         # Fetch the pre-computed or cached positional embeddings.
-        dct = self.fetch_pos(patch_size, inputs.device, embedder_dtype)
+        dct = self.fetch_pos(patch_size, inputs.device, self.dtype)
 
         # Repeat the positional embeddings for each item in the batch.
         dct = dct.repeat(B, 1, 1)
@@ -136,10 +129,7 @@ class NerfEmbedder(nn.Module):
         inputs = torch.cat((inputs, dct), dim=-1)
 
         # Project the combined tensor to the target hidden size.
-        inputs = embedder(inputs)
-
-        # No-op if already the same dtype.
-        return inputs.to(dtype=input_dtype)
+        return self.embedder(inputs).to(dtype=input_dtype)
 
 
 class NerfGLUBlock(nn.Module):

@@ -120,7 +120,7 @@ class ChromaRadiance(Chroma):
             in_channels=params.in_channels,
             hidden_size_input=params.nerf_hidden_size,
             max_freqs=params.nerf_max_freqs,
-            dtype=dtype,
+            dtype=params.nerf_embedder_dtype or dtype,
             device=device,
             operations=operations,
         )
@@ -199,7 +199,7 @@ class ChromaRadiance(Chroma):
             nerf_pixels = nerf_pixels.reshape(B * num_patches, C, patch_size**2).transpose(1, 2)
 
             # Get DCT-encoded pixel embeddings [pixel-dct]
-            img_dct = self.nerf_image_embedder(nerf_pixels, params.nerf_embedder_dtype or nerf_pixels.dtype)
+            img_dct = self.nerf_image_embedder(nerf_pixels)
 
             # Pass through the dynamic MLP blocks (the NeRF)
             for block in self.nerf_blocks:
@@ -235,7 +235,6 @@ class ChromaRadiance(Chroma):
         """
         tile_size = params.nerf_tile_size
         output_tiles = []
-        embedder_dtype= params.nerf_embedder_dtype or nerf_pixels.dtype
         # Iterate over the patches in tiles. The dimension L (num_patches) is at index 1.
         for i in range(0, num_patches, tile_size):
             end = min(i + tile_size, num_patches)
@@ -254,7 +253,7 @@ class ChromaRadiance(Chroma):
             nerf_pixels_tile = nerf_pixels_tile.reshape(batch * num_patches_tile, channels, patch_size**2).transpose(1, 2)
 
             # get DCT-encoded pixel embeddings [pixel-dct]
-            img_dct_tile = self.nerf_image_embedder(nerf_pixels_tile, embedder_dtype)
+            img_dct_tile = self.nerf_image_embedder(nerf_pixels_tile)
 
             # pass through the dynamic MLP blocks (the NeRF)
             for block in self.nerf_blocks:
