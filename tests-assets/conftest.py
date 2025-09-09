@@ -7,7 +7,7 @@ import sys
 import tempfile
 import time
 from pathlib import Path
-from typing import AsyncIterator, Callable
+from typing import AsyncIterator, Callable, Optional
 
 import aiohttp
 import pytest
@@ -191,13 +191,16 @@ async def asset_factory(http: aiohttp.ClientSession, api_base: str):
 
 
 @pytest_asyncio.fixture
-async def seeded_asset(http: aiohttp.ClientSession, api_base: str) -> dict:
+async def seeded_asset(request: pytest.FixtureRequest, http: aiohttp.ClientSession, api_base: str) -> dict:
     """
     Upload one asset into models/checkpoints/unit-tests/<name>.
     Returns response dict with id, asset_hash, tags, etc.
     """
     name = "unit_1_example.safetensors"
-    tags = ["models", "checkpoints", "unit-tests", "alpha"]
+    p = getattr(request, "param", {}) or {}
+    tags: Optional[list[str]] = p.get("tags")
+    if tags is None:
+        tags = ["models", "checkpoints", "unit-tests", "alpha"]
     meta = {"purpose": "test", "epoch": 1, "flags": ["x", "y"], "nullable": None}
     form = aiohttp.FormData()
     form.add_field("file", b"A" * 4096, filename=name, content_type="application/octet-stream")
