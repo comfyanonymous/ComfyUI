@@ -88,69 +88,59 @@ def detect_amd_gpu_architecture():
         print(f"  ::  GPU detection failed: {str(e)}")
         return None
 
-def gpu_name_to_gfx(gpu_name):
+def gpu_name_to_gfx(gpu_name: str) -> str:
     """
-    Map GPU names to their corresponding gfx architecture codes
+    Map GPU names to their corresponding gfx architecture codes.
+    Uses prioritized rules with substring matching.
     """
     gpu_name_lower = gpu_name.lower()
-    
-    # RDNA4 (gfx12xx)
-    if any(x in gpu_name_lower for x in ['rx 9070', 'r9070', 'rx 9060']):
-        if 'rx 9060' in gpu_name_lower:
-            return 'gfx1200'  # Navi 44 (gfx1200)
-        elif 'rx 9070' in gpu_name_lower or 'r9070' in gpu_name_lower:
-            return 'gfx1201'  # Navi 48 (gfx1201)
-    
-    # RDNA3.5 (gfx115x)
-    elif '890m' in gpu_name_lower:
-        return 'gfx1150'  # Strix Point (gfx1150)
-    elif any(x in gpu_name_lower for x in ['8060s', '8050s', '8040s', '880m']):
-        return 'gfx1151'  # Strix Halo (gfx1151)
-    elif any(x in gpu_name_lower for x in ['860m', '840m', '820m']):
-        return 'gfx1152'  # Krackan Point (gfx1152)
-    
-    # RDNA3 (gfx11xx)
-    elif any(x in gpu_name_lower for x in ['rx 7900', 'w7900', 'w7800']):
-        return 'gfx1100'  # Navi 31 (gfx1100)
-    elif any(x in gpu_name_lower for x in ['rx 7800', 'rx 7700', 'w7700']):
-        return 'gfx1101'  # Navi 32 (gfx1101)
-    elif any(x in gpu_name_lower for x in ['rx 7700s', 'rx 7650', 'w7600', 'rx 7600', 'w7500', 'w7400', 'rx 7400']):
-        return 'gfx1102'  # Navi 33 (gfx1102)
-    elif any(x in gpu_name_lower for x in ['780m', '760m', '740m']):
-        return 'gfx1100'  # Hawk Point (gfx1103)
-    
-    # RDNA2 (gfx10xx)
-    elif any(x in gpu_name_lower for x in ['rx 6950', 'rx 6900', 'w6800', 'rx 6800']):
-        return 'gfx1030'  # Navi 21 (gfx1030)
-    elif any(x in gpu_name_lower for x in ['rx 6850', 'rx 6800m', 'rx 6750', 'rx 6700']):
-        return 'gfx1030'  # Navi 22 (gfx1031)
-    elif any(x in gpu_name_lower for x in ['rx 6800s', 'rx 6700s', 'rx 6650', 'rx 6600', 'w6600', 'rx 6550', 'rx 6500', 'rx 6450', 'rx 6400', 'rx 6300']):
-        return 'gfx1032'  # Navi 23 (gfx1032)
-    elif any(x in gpu_name_lower for x in ['rx 6550', 'rx 6500', 'w6500', 'rx 6450', 'rx 6400', 'w6400', 'rx 6300', 'w6300']):
-        return 'gfx1032'  # Navi 24 (gfx1034)
-    elif '680m' in gpu_name_lower or '660m' in gpu_name_lower:
-        return 'gfx1030'  # Rembrandt (gfx1035)
-    
-    # RDNA1 (gfx10xx)
-    elif any(x in gpu_name_lower for x in ['rx 5700', 'w5700', 'rx 5600']):
-        return 'gfx1010'  # Navi 10 (gfx1010)
-    elif any(x in gpu_name_lower for x in ['rx 5500', 'w5500', 'rx 5300', 'w5300']):
-        return 'gfx1010'  # Navi 14 (gfx1012)
-    
-    # Vega (gfx9xx)
-    elif any(x in gpu_name_lower for x in ['vega 64', 'vega 56', 'frontier']):
-        return 'gfx900'   # Vega 10 (gfx900, gfx901)
-    elif 'radeon vii' in gpu_name_lower or 'radeon pro vii' in gpu_name_lower:
-        return 'gfx900'   # Vega 20 (gfx906, gfx907)
-    elif any(x in gpu_name_lower for x in ['vega 11', 'vega 10', 'vega 9', 'vega 8', 'vega 6', 'vega 3']):
-        return 'gfx902'   # Raven Ridge APU (gfx902, gfx903)
-    
-    # Polaris (gfx8xx)
-    elif any(x in gpu_name_lower for x in ['rx 590', 'rx 580', 'rx 570', 'rx 560', 'rx 480', 'rx 470', 'rx 460']):
-        return 'gfx803'   # Polaris 10/11/20/21/30/31 (gfx803)
-    elif any(x in gpu_name_lower for x in ['rx 640', 'rx 550', 'rx 540']):
-        return 'gfx803'   # Polaris 12/22/23 (gfx804)
-    
+
+    # List of (substrings, gfx_arch, comment)
+    rules = [
+        # RDNA4 (gfx12xx)
+        (['rx 9060'], 'gfx1200', 'Navi 44'),
+        (['rx 9070', 'r9070'], 'gfx1201', 'Navi 48'),
+
+        # RDNA3.5 (gfx115x)
+        (['890m'], 'gfx1150', 'Strix Point'),
+        (['8060s', '8050s', '8040s', '880m'], 'gfx1151', 'Strix Halo'),
+        (['860m', '840m', '820m'], 'gfx1152', 'Krackan Point'),
+
+        # RDNA3 (gfx110x)
+        (['rx 7900', 'w7900', 'w7800'], 'gfx1100', 'Navi 31'),
+        (['rx 7800', 'rx 7700', 'w7700'], 'gfx1101', 'Navi 32'),
+        (['rx 7700s', 'rx 7650', 'rx 7600', 'w7600', 'w7500', 'rx 7400', 'w7400'], 'gfx1102', 'Navi 33'),
+        (['780m', '760m', '740m'], 'gfx1100', 'Hawk Point'),
+
+        # RDNA2 (gfx103x)
+        (['rx 6800m'], 'gfx1031', 'Navi 22'),
+        (['rx 6800s', 'rx 6700s'], 'gfx1032', 'Navi 23'),  # must be before 'rx 6800'
+        (['rx 6950', 'rx 6900', 'rx 6800', 'w6800'], 'gfx1030', 'Navi 21'),
+        (['rx 6850', 'rx 6750', 'rx 6700'], 'gfx1031', 'Navi 22'),
+        (['rx 6650', 'rx 6600', 'w6600'], 'gfx1032', 'Navi 23'),
+        (['rx 6550', 'rx 6500', 'w6500', 'rx 6450', 'rx 6400', 'w6400', 'rx 6300', 'w6300'], 'gfx1034', 'Navi 24'),
+        (['680m', '660m'], 'gfx1035', 'Rembrandt'),
+        (['610m'], 'gfx1037', ''),
+
+        # RDNA1 (gfx101x)
+        (['rx 5700', 'w5700', 'rx 5600'], 'gfx1010', 'Navi 10'),
+        (['rx 5500', 'w5500', 'rx 5300', 'w5300'], 'gfx1012', 'Navi 14'),
+
+        # Vega (gfx90x)
+        (['vega 64', 'vega 56', 'frontier'], 'gfx900', 'Vega 10'),
+        (['radeon vii', 'radeon pro vii'], 'gfx906', 'Vega 20'),
+        (['vega 11', 'vega 10', 'vega 9', 'vega 8', 'vega 6', 'vega 3'], 'gfx902', 'Raven Ridge'),
+
+        # Polaris (gfx80x)
+        (['rx 590', 'rx 580', 'rx 570', 'rx 560', 'rx 480', 'rx 470', 'rx 460'], 'gfx803', 'Polaris 10'),
+        (['rx 640', 'rx 550', 'rx 540'], 'gfx804', 'Polaris 12'),
+    ]
+
+    # Apply rules in order (priority matters)
+    for substrings, gfx, _ in rules:
+        if any(sub in gpu_name_lower for sub in substrings):
+            return gfx
+
     # Default fallback - try to extract numbers and make educated guess
     if 'rx 9' in gpu_name_lower:  # Future RDNA4?
         return 'gfx1200'  # Default RDNA4
@@ -162,7 +152,7 @@ def gpu_name_to_gfx(gpu_name):
         return 'gfx1030'  # Default RDNA2
     elif 'rx 5' in gpu_name_lower:
         return 'gfx1010'  # Default RDNA1
-    
+
     print(f"  ::  Unknown GPU model: {gpu_name}, using default gfx1030")
     return 'gfx1030'  # Safe default for most modern AMD GPUs
 
