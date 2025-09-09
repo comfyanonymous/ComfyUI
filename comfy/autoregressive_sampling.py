@@ -255,6 +255,8 @@ class AutoRegressiveGeneration:
         self.dtype = model.dtype
 
         self.model = model
+        self.model.generation_config = GenerationConfig.from_model_config(self.model.config)
+        self.model.generation_config.cache_implementation = self.model.cache_implementation
 
         text_config = self.model.cache_config
         self.cache_config = CacheConfig(
@@ -330,8 +332,6 @@ class AutoRegressiveGeneration:
                                                 top_p = top_p,
                                                 do_sample = do_sample,
                                                 temperature = temperature)
-
-        generation_config, kwargs = self._prepare_generation_config(generation_config, **kwargs)
 
         generation_config, model_kwargs = self._prepare_generation_config(
             generation_config, **kwargs

@@ -174,8 +174,6 @@ class CreateChatMLSample:
         current_role = None
         collecting_system = False
         system_buffer = []
-        collecting_instruction = False
-        instruction_buffer = []
 
         for line in lines:
             line = line.strip()
@@ -196,26 +194,6 @@ class CreateChatMLSample:
                     messages.append(Message(role="system", content=system_prompt))
                     system_buffer = []
                     collecting_system = False
-                continue
-
-            # generation instruction start
-            if "<|generation_instruction_start|>" in line:
-                collecting_instruction = True
-                instruction_buffer = []
-                continue
-
-            if collecting_instruction:
-                if "<|generation_instruction_end|>" in line:
-                    instruction_text = "\n".join(instruction_buffer)
-                    # include both start and end tokens
-                    messages.append(Message(
-                        role="user",
-                        content=f"<|generation_instruction_start|>\n{instruction_text}\n<|generation_instruction_end|>"
-                    ))
-                    instruction_buffer = []
-                    collecting_instruction = False
-                else:
-                    instruction_buffer.append(line)
                 continue
 
             # speaker lines SPEAKER-0: text

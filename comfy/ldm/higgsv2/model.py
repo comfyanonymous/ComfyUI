@@ -428,14 +428,13 @@ class HiggsAudioModel(nn.Module):
         self.cache_config = kwargs["text_config"]
         self.hidden_dim = kwargs["text_config"]["hidden_size"]
         self.max_seq_len = kwargs["text_config"]["max_position_embeddings"]
+        self.cache_implementation = "static"
         self.use_kv_buckets = kwargs.get("use_kv_buckets", False)
 
         self.dtype = dtype
         self.device = device
         self.config = kwargs
 
-        self.generation_config = GenerationConfig.from_model_config(kwargs)
-        self.generation_config.cache_implementation = self.cache_implementation = "static"
 
         self.audio_out_bos_token_id = 128013
         self.audio_eos_token_id = 128012
