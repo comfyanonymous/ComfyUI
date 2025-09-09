@@ -67,32 +67,29 @@ def apply_metadata_filter(
         return stmt
 
     def _exists_for_pred(key: str, *preds) -> sa.sql.ClauseElement:
-        subquery = (
-            select(sa.literal(1))
-            .select_from(AssetInfoMeta)
-            .where(
-                AssetInfoMeta.asset_info_id == AssetInfo.id,
-                AssetInfoMeta.key == key,
-                *preds,
-            )
-            .limit(1)
+        return sa.exists().where(
+            AssetInfoMeta.asset_info_id == AssetInfo.id,
+            AssetInfoMeta.key == key,
+            *preds,
         )
-        return sa.exists(subquery)
 
     def _exists_clause_for_value(key: str, value) -> sa.sql.ClauseElement:
         # Missing OR null:
         if value is None:
             # either: no row for key OR a row for key with explicit null
-            no_row_for_key = ~sa.exists(
-                select(sa.literal(1))
-                .select_from(AssetInfoMeta)
-                .where(
+            no_row_for_key = sa.not_(
+                sa.exists().where(
                     AssetInfoMeta.asset_info_id == AssetInfo.id,
                     AssetInfoMeta.key == key,
                 )
-                .limit(1)
             )
-            null_row = _exists_for_pred(key, AssetInfoMeta.val_json.is_(None))
+            null_row = _exists_for_pred(
+                key,
+                AssetInfoMeta.val_json.is_(None),
+                AssetInfoMeta.val_str.is_(None),
+                AssetInfoMeta.val_num.is_(None),
+                AssetInfoMeta.val_bool.is_(None),
+            )
             return sa.or_(no_row_for_key, null_row)
 
         # Typed scalar matches:
@@ -135,13 +132,19 @@ def project_kv(key: str, value: Any) -> list[dict]:
     - scalar -> one row (ordinal=0) in the proper typed column
     - list of scalars -> one row per element with ordinal=i
     - dict or list with non-scalars -> single row with val_json (or one per element w/ val_json if list)
-    - None -> single row with val_json = None
+    - None -> single row with all value columns NULL
     Each row: {"key": key, "ordinal": i, "val_str"/"val_num"/"val_bool"/"val_json": ...}
     """
     rows: list[dict] = []
 
+    def _null_row(ordinal: int) -> dict:
+        return {
+            "key": key, "ordinal": ordinal,
+            "val_str": None, "val_num": None, "val_bool": None, "val_json": None
+        }
+
     if value is None:
-        rows.append({"key": key, "ordinal": 0, "val_json": None})
+        rows.append(_null_row(0))
         return rows
 
     if is_scalar(value):
@@ -162,7 +165,7 @@ def project_kv(key: str, value: Any) -> list[dict]:
         if all(is_scalar(x) for x in value):
             for i, x in enumerate(value):
                 if x is None:
-                    rows.append({"key": key, "ordinal": i, "val_json": None})
+                    rows.append(_null_row(i))
                 elif isinstance(x, bool):
                     rows.append({"key": key, "ordinal": i, "val_bool": bool(x)})
                 elif isinstance(x, (int, float, Decimal)):

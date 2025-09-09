@@ -283,7 +283,7 @@ async def upload_asset(request: web.Request) -> web.Response:
                 "Uploaded file hash does not match provided hash.",
             )
         return _error_response(400, "BAD_REQUEST", "Invalid inputs.")
-    except Exception as e:
+    except Exception:
         if tmp_path and os.path.exists(tmp_path):
             os.remove(tmp_path)
         return _error_response(500, "INTERNAL", "Unexpected server error.")

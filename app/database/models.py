@@ -145,7 +145,7 @@ class AssetInfo(Base):
         String(256), ForeignKey("assets.hash", ondelete="RESTRICT"), nullable=False
     )
     preview_hash: Mapped[str | None] = mapped_column(String(256), ForeignKey("assets.hash", ondelete="SET NULL"))
-    user_metadata: Mapped[dict[str, Any] | None] = mapped_column(JSON)
+    user_metadata: Mapped[dict[str, Any] | None] = mapped_column(JSON(none_as_null=True))
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=False), nullable=False, default=utcnow
     )
@@ -220,7 +220,7 @@ class AssetInfoMeta(Base):
     val_str: Mapped[Optional[str]] = mapped_column(String(2048), nullable=True)
     val_num: Mapped[Optional[float]] = mapped_column(Numeric(38, 10), nullable=True)
     val_bool: Mapped[Optional[bool]] = mapped_column(Boolean, nullable=True)
-    val_json: Mapped[Optional[Any]] = mapped_column(JSON, nullable=True)
+    val_json: Mapped[Optional[Any]] = mapped_column(JSON(none_as_null=True), nullable=True)
 
     asset_info: Mapped["AssetInfo"] = relationship(back_populates="metadata_entries")
 
