@@ -54,3 +54,47 @@ async def test_tags_empty_usage(http: aiohttp.ClientSession, api_base: str):
         body2 = await r2.json()
         assert r2.status == 200
         assert not [t["name"] for t in body2["tags"]]
+
+
+@pytest.mark.asyncio
+async def test_add_and_remove_tags(http: aiohttp.ClientSession, api_base: str, seeded_asset: dict):
+    aid = seeded_asset["id"]
+
+    # Add tags with duplicates and mixed case
+    payload_add = {"tags": ["NewTag", "unit-tests", "newtag", "BETA"]}
+    async with http.post(f"{api_base}/api/assets/{aid}/tags", json=payload_add) as r1:
+        b1 = await r1.json()
+        assert r1.status == 200, b1
+        # normalized and deduplicated
+        assert "newtag" in b1["added"] or "beta" in b1["added"] or "unit-tests" not in b1["added"]
+
+    async with http.get(f"{api_base}/api/assets/{aid}") as rg:
+        g = await rg.json()
+        assert rg.status == 200
+        tags_now = set(g["tags"])
+        assert "newtag" in tags_now
+        assert "beta" in tags_now
+
+    # Remove a tag and a non-existent tag
+    payload_del = {"tags": ["newtag", "does-not-exist"]}
+    async with http.delete(f"{api_base}/api/assets/{aid}/tags", json=payload_del) as r2:
+        b2 = await r2.json()
+        assert r2.status == 200
+        assert "newtag" in b2["removed"]
+        assert "does-not-exist" in b2["not_present"]
+
+
+@pytest.mark.asyncio
+async def test_tags_list_order_and_prefix(http: aiohttp.ClientSession, api_base: str, seeded_asset: dict):
+    # name ascending
+    async with http.get(api_base + "/api/tags", params={"order": "name_asc", "limit": "100"}) as r1:
+        b1 = await r1.json()
+        assert r1.status == 200
+        names = [t["name"] for t in b1["tags"]]
+        assert names == sorted(names)
+
+    # invalid limit rejected
+    async with http.get(api_base + "/api/tags", params={"limit": "1001"}) as r2:
+        b2 = await r2.json()
+        assert r2.status == 400
+        assert b2["error"]["code"] == "INVALID_QUERY"

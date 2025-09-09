@@ -485,4 +485,4 @@ def _error_response(status: int, code: str, message: str, details: Optional[dict
 
 
 def _validation_error_response(code: str, ve: ValidationError) -> web.Response:
-    return _error_response(400, code, "Validation failed.", {"errors": ve.errors()})
+    return _error_response(400, code, "Validation failed.", {"errors": ve.json()})
