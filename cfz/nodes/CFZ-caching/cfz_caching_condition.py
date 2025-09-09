@@ -3,6 +3,8 @@ import torch
 import hashlib
 import folder_paths
 from pathlib import Path
+import time
+from datetime import datetime
 
 CACHE_DIR = os.path.join(folder_paths.output_directory, "cfz_conditioning_cache")
 
@@ -26,6 +28,9 @@ def compare_revision(target_revision):
     return False
 
 lazy_options = {"lazy": True} if compare_revision(2543) else {}
+
+# Global timer storage - shared across all marker instances
+TIMER_STORAGE = {}
 
 class save_conditioning:
     @classmethod
@@ -60,7 +65,7 @@ class save_conditioning:
 
         # Check if conditioning is provided
         if conditioning is None:
-            print("[CFZ Save] ✗ ERROR: Conditioning is None!")
+            print("[CFZ Save] ❌ ERROR: Conditioning is None!")
             print("[CFZ Save] This suggests the CLIP Text Encode node is not connected properly")
             print("[CFZ Save] Or there's an issue with the node execution order")
             raise ValueError(f"No conditioning input provided for cache '{sanitized_name}'. Please connect conditioning input.")
@@ -68,9 +73,9 @@ class save_conditioning:
         try:
             print(f"[CFZ Save] Attempting to save conditioning...")
             torch.save(conditioning, file_path)
-            print(f"[CFZ Save] ✓ Successfully saved: {sanitized_name}.pt")
+            print(f"[CFZ Save] ✅ Successfully saved: {sanitized_name}.pt")
         except Exception as e:
-            print(f"[CFZ Save] ✗ Error saving: {e}")
+            print(f"[CFZ Save] ❌ Error saving: {e}")
             raise ValueError(f"Failed to save conditioning '{sanitized_name}': {str(e)}")
         
         return (conditioning,)
@@ -171,10 +176,10 @@ class load_conditioning:
         
         try:
             cached_tensor = torch.load(file_path, map_location='cpu')
-            print(f"[CFZ Load Cached Conditioning] ✓ Successfully loaded: {cache_name}.pt")
+            print(f"[CFZ Load Cached Conditioning] ✅ Successfully loaded: {cache_name}.pt")
             return (cached_tensor,)
         except Exception as e:
-            print(f"[CFZ Load] ✗ Error loading: {e}")
+            print(f"[CFZ Load] ❌ Error loading: {e}")
             raise ValueError(f"Error loading cached conditioning '{cache_name}': {str(e)}")
 
     def _resolve_path(self, path_str):
@@ -206,6 +211,10 @@ class CFZ_PrintMarker:
         return {
             "required": {
                 "message": ("STRING", {"default": "Reached this step!", "multiline": True}),
+                "timer_name": ("STRING", {"default": "workflow_timer"}),
+                "is_start_point": ("BOOLEAN", {"default": False}),
+                "is_end_point": ("BOOLEAN", {"default": False}),
+                "show_current_time": ("BOOLEAN", {"default": True}),
             },
             "optional": {
                 "trigger": (any_type, {}),
@@ -219,6 +228,59 @@ class CFZ_PrintMarker:
     FUNCTION = "run"
     CATEGORY = "CFZ Utils/Debug"
 
-    def run(self, message, trigger=None, unique_id=None, extra_pnginfo=None):
-        print(f"\n[🔔 CFZ Marker] {message}\n")
+    def run(self, message, timer_name="workflow_timer", is_start_point=False, is_end_point=False, 
+            show_current_time=True, trigger=None, unique_id=None, extra_pnginfo=None):
+        
+        current_time = time.time()
+        current_timestamp = datetime.fromtimestamp(current_time).strftime("%H:%M:%S.%f")[:-3]
+        
+        # Handle timer logic
+        timer_info = ""
+        
+        if is_start_point:
+            TIMER_STORAGE[timer_name] = current_time
+            timer_info = f" | TIMER START: '{timer_name}'"
+        
+        if is_end_point:
+            if timer_name in TIMER_STORAGE:
+                start_time = TIMER_STORAGE[timer_name]
+                elapsed = current_time - start_time
+                
+                # Format elapsed time nicely
+                if elapsed < 1:
+                    elapsed_str = f"{elapsed*1000:.1f}ms"
+                elif elapsed < 60:
+                    elapsed_str = f"{elapsed:.2f}s"
+                else:
+                    minutes = int(elapsed // 60)
+                    seconds = elapsed % 60
+                    elapsed_str = f"{minutes}m {seconds:.2f}s"
+                
+                timer_info = f" | TIMER END: '{timer_name}' - Elapsed: {elapsed_str}"
+                
+                # Clean up the timer
+                del TIMER_STORAGE[timer_name]
+            else:
+                timer_info = f" | TIMER ERROR: No start point found for '{timer_name}'"
+        
+        # Build the output message
+        output_parts = []
+        
+        if show_current_time:
+            output_parts.append(f"[{current_timestamp}]")
+        
+        output_parts.append(f"CFZ Marker")
+        output_parts.append(message)
+        
+        if timer_info:
+            output_parts.append(timer_info)
+        
+        final_message = " ".join(output_parts)
+        print(f"\n{final_message}\n")
+        
         return (trigger,)
+
+    @classmethod
+    def IS_CHANGED(cls, **kwargs):
+        # Always execute to ensure timing is accurate
+        return float("NaN")
