@@ -2,7 +2,7 @@ from typing import Optional, Any
 
 import torch
 # only imported when sage attention is enabled
-from sageattention import *  # pylint: disable=import-error
+from sageattention import sageattn_qk_int8_pv_fp16_cuda, sageattn_qk_int8_pv_fp8_cuda, sageattn_qk_int8_pv_fp8_cuda_sm90  # pylint: disable=import-error
 
 
 def get_cuda_arch_versions():
