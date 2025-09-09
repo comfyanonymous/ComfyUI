@@ -447,12 +447,11 @@ try:
     import triton.language as tl
     print("  ::  Triton core imported successfully")
 
-    # Get triton version, if possible, continue if no version string
-    try:
-        version = triton.__version__
+    # Detect Triton version, if possible
+    version = getattr(triton, "__version__", None)
+    if version:
         print(f"  ::  Detected Triton version: {version}")
-    except AttributeError:
-        print("  ::  Detected Triton version: no info")
+    # else: do nothing
 
     # This needs to be up here, so it can disable cudnn before anything can even think about using it
     torch.backends.cudnn.enabled = os.environ.get("TORCH_BACKENDS_CUDNN_ENABLED", "1").strip().lower() not in {"0", "off", "false", "disable", "disabled", "no"}
