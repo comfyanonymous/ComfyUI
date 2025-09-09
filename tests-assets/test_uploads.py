@@ -108,7 +108,7 @@ async def test_upload_fastpath_from_existing_hash_no_file(http: aiohttp.ClientSe
         h = b1["asset_hash"]
 
     # Now POST /api/assets with only hash and no file
-    form2 = aiohttp.FormData()
+    form2 = aiohttp.FormData(default_to_multipart=True)
     form2.add_field("hash", h)
     form2.add_field("tags", json.dumps(tags))
     form2.add_field("name", "fastpath_copy.safetensors")
