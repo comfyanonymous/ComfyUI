@@ -42,7 +42,9 @@ class NerfEmbedder(nn.Module):
 
         # A linear layer to project the concatenated input features and
         # positional encodings to the final output dimension.
-        self.embedder = operations.Linear(in_channels + max_freqs**2, hidden_size_input, dtype=dtype, device=device)
+        self.embedder = nn.Sequential(
+            operations.Linear(in_channels + max_freqs**2, hidden_size_input, dtype=dtype, device=device)
+        )
 
     @lru_cache(maxsize=4)
     def fetch_pos(self, patch_size: int, device: torch.device, dtype: torch.dtype) -> torch.Tensor:
