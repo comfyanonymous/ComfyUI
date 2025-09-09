@@ -66,19 +66,13 @@ async def list_assets(request: web.Request) -> web.Response:
 
 @ROUTES.get(f"/api/assets/{{id:{UUID_RE}}}/content")
 async def download_asset_content(request: web.Request) -> web.Response:
-    asset_info_id_raw = request.match_info.get("id", "")
-    try:
-        asset_info_id = str(uuid.UUID(asset_info_id_raw))
-    except Exception:
-        return _error_response(400, "INVALID_ID", f"AssetInfo id '{asset_info_id_raw}' is not a valid UUID.")
-
     disposition = request.query.get("disposition", "attachment").lower().strip()
     if disposition not in {"inline", "attachment"}:
         disposition = "attachment"
 
     try:
         abs_path, content_type, filename = await assets_manager.resolve_asset_content_for_download(
-            asset_info_id=asset_info_id,
+            asset_info_id=str(uuid.UUID(request.match_info["id"])),
             owner_id=UserManager.get_request_user_id(request),
         )
     except ValueError as ve:
@@ -300,12 +294,7 @@ async def upload_asset(request: web.Request) -> web.Response:
 
 @ROUTES.get(f"/api/assets/{{id:{UUID_RE}}}")
 async def get_asset(request: web.Request) -> web.Response:
-    asset_info_id_raw = request.match_info.get("id", "")
-    try:
-        asset_info_id = str(uuid.UUID(asset_info_id_raw))
-    except Exception:
-        return _error_response(400, "INVALID_ID", f"AssetInfo id '{asset_info_id_raw}' is not a valid UUID.")
-
+    asset_info_id = str(uuid.UUID(request.match_info["id"]))
     try:
         result = await assets_manager.get_asset(
             asset_info_id=asset_info_id,
@@ -320,12 +309,7 @@ async def get_asset(request: web.Request) -> web.Response:
 
 @ROUTES.put(f"/api/assets/{{id:{UUID_RE}}}")
 async def update_asset(request: web.Request) -> web.Response:
-    asset_info_id_raw = request.match_info.get("id", "")
-    try:
-        asset_info_id = str(uuid.UUID(asset_info_id_raw))
-    except Exception:
-        return _error_response(400, "INVALID_ID", f"AssetInfo id '{asset_info_id_raw}' is not a valid UUID.")
-
+    asset_info_id = str(uuid.UUID(request.match_info["id"]))
     try:
         body = schemas_in.UpdateAssetBody.model_validate(await request.json())
     except ValidationError as ve:
@@ -350,12 +334,7 @@ async def update_asset(request: web.Request) -> web.Response:
 
 @ROUTES.delete(f"/api/assets/{{id:{UUID_RE}}}")
 async def delete_asset(request: web.Request) -> web.Response:
-    asset_info_id_raw = request.match_info.get("id", "")
-    try:
-        asset_info_id = str(uuid.UUID(asset_info_id_raw))
-    except Exception:
-        return _error_response(400, "INVALID_ID", f"AssetInfo id '{asset_info_id_raw}' is not a valid UUID.")
-
+    asset_info_id = str(uuid.UUID(request.match_info["id"]))
     delete_content = request.query.get("delete_content")
     delete_content = True if delete_content is None else delete_content.lower() not in {"0", "false", "no"}
 
@@ -398,12 +377,7 @@ async def get_tags(request: web.Request) -> web.Response:
 
 @ROUTES.post(f"/api/assets/{{id:{UUID_RE}}}/tags")
 async def add_asset_tags(request: web.Request) -> web.Response:
-    asset_info_id_raw = request.match_info.get("id", "")
-    try:
-        asset_info_id = str(uuid.UUID(asset_info_id_raw))
-    except Exception:
-        return _error_response(400, "INVALID_ID", f"AssetInfo id '{asset_info_id_raw}' is not a valid UUID.")
-
+    asset_info_id = str(uuid.UUID(request.match_info["id"]))
     try:
         payload = await request.json()
         data = schemas_in.TagsAdd.model_validate(payload)
@@ -429,12 +403,7 @@ async def add_asset_tags(request: web.Request) -> web.Response:
 
 @ROUTES.delete(f"/api/assets/{{id:{UUID_RE}}}/tags")
 async def delete_asset_tags(request: web.Request) -> web.Response:
-    asset_info_id_raw = request.match_info.get("id", "")
-    try:
-        asset_info_id = str(uuid.UUID(asset_info_id_raw))
-    except Exception:
-        return _error_response(400, "INVALID_ID", f"AssetInfo id '{asset_info_id_raw}' is not a valid UUID.")
-
+    asset_info_id = str(uuid.UUID(request.match_info["id"]))
     try:
         payload = await request.json()
         data = schemas_in.TagsRemove.model_validate(payload)
