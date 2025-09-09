@@ -34,7 +34,16 @@ async def head_asset_by_hash(request: web.Request) -> web.Response:
 
 @ROUTES.get("/api/assets")
 async def list_assets(request: web.Request) -> web.Response:
-    query_dict = dict(request.rel_url.query)
+    qp = request.rel_url.query
+    query_dict = {}
+    if "include_tags" in qp:
+        query_dict["include_tags"] = qp.getall("include_tags")
+    if "exclude_tags" in qp:
+        query_dict["exclude_tags"] = qp.getall("exclude_tags")
+    for k in ("name_contains", "metadata_filter", "limit", "offset", "sort", "order"):
+        v = qp.get(k)
+        if v is not None:
+            query_dict[k] = v
 
     try:
         q = schemas_in.ListAssetsQuery.model_validate(query_dict)
