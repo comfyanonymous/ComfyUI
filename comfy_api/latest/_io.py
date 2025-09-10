@@ -1190,13 +1190,18 @@ class _ComfyNodeBaseInternal(_ComfyNodeInternal):
         raise NotImplementedError
 
     @classmethod
-    def validate_inputs(cls, **kwargs) -> bool:
-        """Optionally, define this function to validate inputs; equivalent to V1's VALIDATE_INPUTS."""
+    def validate_inputs(cls, **kwargs) -> bool | str:
+        """Optionally, define this function to validate inputs; equivalent to V1's VALIDATE_INPUTS.
+
+        If the function returns a string, it will be used as the validation error message for the node.
+        """
         raise NotImplementedError
 
     @classmethod
     def fingerprint_inputs(cls, **kwargs) -> Any:
-        """Optionally, define this function to fingerprint inputs; equivalent to V1's IS_CHANGED."""
+        """Optionally, define this function to fingerprint inputs; equivalent to V1's IS_CHANGED.
+
+        If this function returns the same value as last run, the node will not be executed."""
         raise NotImplementedError
 
     @classmethod
