@@ -69,23 +69,6 @@ def _normalize_sqlite_memory_url(db_url: str) -> tuple[str, bool]:
     return str(u), False
 
 
-def _to_sync_driver_url(async_url: str) -> str:
-    """Convert an async SQLAlchemy URL to a sync URL for Alembic."""
-    u = make_url(async_url)
-    driver = u.drivername
-
-    if driver.startswith("sqlite+aiosqlite"):
-        u = u.set(drivername="sqlite")
-    elif driver.startswith("postgresql+asyncpg"):
-        u = u.set(drivername="postgresql")
-    else:
-        # Generic: strip the async driver part if present
-        if "+" in driver:
-            u = u.set(drivername=driver.split("+", 1)[0])
-
-    return str(u)
-
-
 def _get_sqlite_file_path(sync_url: str) -> Optional[str]:
     """Return the on-disk path for a SQLite URL, else None."""
     try:
@@ -159,7 +142,7 @@ async def init_db_engine() -> None:
             await conn.execute(text("PRAGMA foreign_keys = ON;"))
             await conn.execute(text("PRAGMA synchronous = NORMAL;"))
 
-    await _run_migrations(raw_url=db_url, connect_args=connect_args)
+    await _run_migrations(database_url=db_url, connect_args=connect_args)
 
     SESSION = async_sessionmaker(
         bind=ENGINE,
@@ -170,20 +153,18 @@ async def init_db_engine() -> None:
     )
 
 
-async def _run_migrations(raw_url: str, connect_args: dict) -> None:
-    """
-    Run Alembic migrations up to head.
+async def _run_migrations(database_url: str, connect_args: dict) -> None:
+    if database_url.find("postgresql+psycopg") == -1:
+        """SQLite: Convert an async SQLAlchemy URL to a sync URL for Alembic."""
+        u = make_url(database_url)
+        driver = u.drivername
+        if not driver.startswith("sqlite+aiosqlite"):
+            raise ValueError(f"Unsupported DB driver: {driver}")
+        database_url, is_mem = _normalize_sqlite_memory_url(str(u.set(drivername="sqlite")))
+        database_url = _absolutize_sqlite_url(database_url)
 
-    We deliberately use a synchronous engine for migrations because Alembic's
-    programmatic API is synchronous by default and this path is robust.
-    """
-    # Convert to sync URL and make SQLite URL an absolute one
-    sync_url = _to_sync_driver_url(raw_url)
-    sync_url, is_mem = _normalize_sqlite_memory_url(sync_url)
-    sync_url = _absolutize_sqlite_url(sync_url)
-
-    cfg = _get_alembic_config(sync_url)
-    engine = create_engine(sync_url, future=True, connect_args=connect_args)
+    cfg = _get_alembic_config(database_url)
+    engine = create_engine(database_url, future=True, connect_args=connect_args)
     with engine.connect() as conn:
         context = MigrationContext.configure(conn)
         current_rev = context.get_current_revision()
@@ -203,7 +184,7 @@ async def _run_migrations(raw_url: str, connect_args: dict) -> None:
 
     # Optional backup for SQLite file DBs
     backup_path = None
-    sqlite_path = _get_sqlite_file_path(sync_url)
+    sqlite_path = _get_sqlite_file_path(database_url)
     if sqlite_path and os.path.exists(sqlite_path):
         backup_path = sqlite_path + ".bkp"
         try:
