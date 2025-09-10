@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 from datetime import datetime
 from typing import Any, Optional
 import uuid
@@ -18,9 +16,13 @@ from sqlalchemy import (
     Numeric,
     Boolean,
 )
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship, foreign
 
 from .timeutil import utcnow
+
+
+JSONB_V = JSON(none_as_null=True).with_variant(JSONB(none_as_null=True), 'postgresql')
 
 
 class Base(DeclarativeBase):
@@ -46,7 +48,7 @@ class Asset(Base):
 
     hash: Mapped[str] = mapped_column(String(256), primary_key=True)
     size_bytes: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
-    mime_type: Mapped[str | None] = mapped_column(String(255))
+    mime_type: Mapped[Optional[str]] = mapped_column(String(255))
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=False), nullable=False, default=utcnow
     )
@@ -97,7 +99,7 @@ class AssetCacheState(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     asset_hash: Mapped[str] = mapped_column(String(256), ForeignKey("assets.hash", ondelete="CASCADE"), nullable=False)
     file_path: Mapped[str] = mapped_column(Text, nullable=False)
-    mtime_ns: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    mtime_ns: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
 
     asset: Mapped["Asset"] = relationship(back_populates="cache_states")
 
@@ -122,9 +124,9 @@ class AssetLocation(Base):
     asset_hash: Mapped[str] = mapped_column(String(256), ForeignKey("assets.hash", ondelete="CASCADE"), nullable=False)
     provider: Mapped[str] = mapped_column(String(32), nullable=False)  # "gcs"
     locator: Mapped[str] = mapped_column(Text, nullable=False)         # "gs://bucket/object"
-    expected_size_bytes: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
-    etag: Mapped[str | None] = mapped_column(String(256), nullable=True)
-    last_modified: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    expected_size_bytes: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
+    etag: Mapped[Optional[str]] = mapped_column(String(256), nullable=True)
+    last_modified: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
 
     asset: Mapped["Asset"] = relationship(back_populates="locations")
 
@@ -144,8 +146,8 @@ class AssetInfo(Base):
     asset_hash: Mapped[str] = mapped_column(
         String(256), ForeignKey("assets.hash", ondelete="RESTRICT"), nullable=False
     )
-    preview_hash: Mapped[str | None] = mapped_column(String(256), ForeignKey("assets.hash", ondelete="SET NULL"))
-    user_metadata: Mapped[dict[str, Any] | None] = mapped_column(JSON(none_as_null=True))
+    preview_hash: Mapped[Optional[str]] = mapped_column(String(256), ForeignKey("assets.hash", ondelete="SET NULL"))
+    user_metadata: Mapped[Optional[dict[str, Any]]] = mapped_column(JSON(none_as_null=True))
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=False), nullable=False, default=utcnow
     )
@@ -162,7 +164,7 @@ class AssetInfo(Base):
         back_populates="infos",
         foreign_keys=[asset_hash],
     )
-    preview_asset: Mapped[Asset | None] = relationship(
+    preview_asset: Mapped[Optional[Asset]] = relationship(
         "Asset",
         back_populates="preview_of",
         foreign_keys=[preview_hash],
@@ -220,7 +222,7 @@ class AssetInfoMeta(Base):
     val_str: Mapped[Optional[str]] = mapped_column(String(2048), nullable=True)
     val_num: Mapped[Optional[float]] = mapped_column(Numeric(38, 10), nullable=True)
     val_bool: Mapped[Optional[bool]] = mapped_column(Boolean, nullable=True)
-    val_json: Mapped[Optional[Any]] = mapped_column(JSON(none_as_null=True), nullable=True)
+    val_json: Mapped[Optional[Any]] = mapped_column(JSONB_V, nullable=True)
 
     asset_info: Mapped["AssetInfo"] = relationship(back_populates="metadata_entries")
 

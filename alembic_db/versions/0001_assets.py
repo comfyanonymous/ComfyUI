@@ -7,6 +7,7 @@ Create Date: 2025-08-20 00:00:00
 
 from alembic import op
 import sqlalchemy as sa
+from sqlalchemy.dialects import postgresql
 
 revision = "0001_assets"
 down_revision = None
@@ -90,7 +91,7 @@ def upgrade() -> None:
         sa.Column("val_str", sa.String(length=2048), nullable=True),
         sa.Column("val_num", sa.Numeric(38, 10), nullable=True),
         sa.Column("val_bool", sa.Boolean(), nullable=True),
-        sa.Column("val_json", sa.JSON(), nullable=True),
+        sa.Column("val_json", sa.JSON().with_variant(postgresql.JSONB(), 'postgresql'), nullable=True),
         sa.PrimaryKeyConstraint("asset_info_id", "key", "ordinal", name="pk_asset_info_meta"),
     )
     op.create_index("ix_asset_info_meta_key", "asset_info_meta", ["key"])

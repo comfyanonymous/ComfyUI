@@ -15,6 +15,22 @@ import pytest_asyncio
 import subprocess
 
 
+def pytest_addoption(parser: pytest.Parser) -> None:
+    """
+    Allow overriding the database URL used by the spawned ComfyUI process.
+    Priority:
+      1) --db-url command line option
+      2) ASSETS_TEST_DB_URL environment variable (used by CI)
+      3) default: sqlite in-memory
+    """
+    parser.addoption(
+        "--db-url",
+        action="store",
+        default=os.environ.get("ASSETS_TEST_DB_URL", "sqlite+aiosqlite:///:memory:"),
+        help="Async SQLAlchemy DB URL (e.g. sqlite+aiosqlite:///:memory: or postgresql+psycopg://user:pass@host/db)",
+    )
+
+
 def _free_port() -> int:
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         s.bind(("127.0.0.1", 0))
@@ -49,30 +65,38 @@ def event_loop():
 
 @pytest.fixture(scope="session")
 def comfy_tmp_base_dir() -> Path:
-    tmp = Path(tempfile.mkdtemp(prefix="comfyui-assets-tests-"))
+    env_base = os.environ.get("ASSETS_TEST_BASE_DIR")
+    created_by_fixture = False
+    if env_base:
+        tmp = Path(env_base)
+        tmp.mkdir(parents=True, exist_ok=True)
+    else:
+        tmp = Path(tempfile.mkdtemp(prefix="comfyui-assets-tests-"))
+        created_by_fixture = True
     _make_base_dirs(tmp)
     yield tmp
-    with contextlib.suppress(Exception):
-        for p in sorted(tmp.rglob("*"), reverse=True):
-            if p.is_file() or p.is_symlink():
-                p.unlink(missing_ok=True)
-        for p in sorted(tmp.glob("**/*"), reverse=True):
-            with contextlib.suppress(Exception):
-                p.rmdir()
-        tmp.rmdir()
+    if created_by_fixture:
+        with contextlib.suppress(Exception):
+            for p in sorted(tmp.rglob("*"), reverse=True):
+                if p.is_file() or p.is_symlink():
+                    p.unlink(missing_ok=True)
+            for p in sorted(tmp.glob("**/*"), reverse=True):
+                with contextlib.suppress(Exception):
+                    p.rmdir()
+            tmp.rmdir()
 
 
 @pytest.fixture(scope="session")
-def comfy_url_and_proc(comfy_tmp_base_dir: Path):
+def comfy_url_and_proc(comfy_tmp_base_dir: Path, request: pytest.FixtureRequest):
     """
     Boot ComfyUI subprocess with:
       - sandbox base dir
-      - sqlite memory DB
+      - sqlite memory DB (default)
       - autoscan disabled
     Returns (base_url, process, port)
     """
     port = _free_port()
-    db_url = "sqlite+aiosqlite:///:memory:"
+    db_url = request.config.getoption("--db-url")
 
     logs_dir = comfy_tmp_base_dir / "logs"
     logs_dir.mkdir(exist_ok=True)
@@ -94,12 +118,20 @@ def comfy_url_and_proc(comfy_tmp_base_dir: Path):
             "127.0.0.1",
             "--port",
             str(port),
+            "--cpu",
         ],
         stdout=out_log,
         stderr=err_log,
         cwd=str(comfy_root),
         env={**os.environ},
     )
+
+    for _ in range(50):
+        if proc.poll() is not None:
+            out_log.flush()
+            err_log.flush()
+            raise RuntimeError(f"ComfyUI exited early with code {proc.returncode}")
+        time.sleep(0.1)
 
     base_url = f"http://127.0.0.1:{port}"
     try:
@@ -113,6 +145,9 @@ def comfy_url_and_proc(comfy_tmp_base_dir: Path):
         with contextlib.suppress(Exception):
             proc.terminate()
             proc.wait(timeout=10)
+        with contextlib.suppress(Exception):
+            out_log.flush()
+            err_log.flush()
         raise RuntimeError(f"ComfyUI did not become ready: {e}")
 
     if proc and proc.poll() is None:
@@ -144,7 +179,7 @@ async def _post_multipart_asset(
     tags: list[str],
     meta: dict,
     data: bytes,
-    extra_fields: dict | None = None,
+    extra_fields: Optional[dict] = None,
 ) -> tuple[int, dict]:
     form = aiohttp.FormData()
     form.add_field("file", data, filename=name, content_type="application/octet-stream")
