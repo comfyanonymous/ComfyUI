@@ -327,20 +327,24 @@ For models compatible with Iluvatar Extension for PyTorch. Here's a step-by-step
 
 ## Running with Docker
 
-Start by installing Docker and Docker Compose on your host. Next, edit
-`compose.yaml` and update the `UID` and `GID` variables to match your
-user. Additional fields are documented in the file for further customization.
+Start by installing Docker, Docker Compose, and the NVIDIA Container Toolkit on
+your host. Next, edit `compose.yaml` and update the `UID` and `GID` variables to
+match your user. Additional fields are documented in the file for further
+customization.
 
 Once ready, build and run the image locally:
 
-```
+```shell
+# (Re)build the Docker image. Run this before the first start, after updating
+# ComfyUI, or after changing any build arguments in `compose.yaml`.
 docker compose build
+# Start ComfyUI. This reuses the most recently built image.
 docker compose up
 ```
 
 To stop and remove the container along with its volumes, run:
 
-```
+```shell
 docker compose down -v
 ```
 
