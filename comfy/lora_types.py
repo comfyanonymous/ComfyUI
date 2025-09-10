@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Protocol, List, Dict, Optional, NamedTuple, Callable, Literal, Any
+from typing import Protocol, List, Dict, Optional, NamedTuple, Callable, Literal, Any, TypeAlias, Union
 import torch
 
 PatchOffset = tuple[int, int, int]
@@ -28,7 +28,7 @@ class PatchTuple(NamedTuple):
     function: PatchFunction
 
 
-ModelPatchesDictValue = list[PatchTuple | PatchWeightTuple]
+ModelPatchesDictValue: TypeAlias = list[Union[PatchTuple, PatchWeightTuple]]
 
 
 class PatchSupport(Protocol):

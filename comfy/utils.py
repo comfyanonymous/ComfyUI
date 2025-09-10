@@ -50,7 +50,6 @@ from .component_model.deprecation import _deprecate_method
 from .component_model.executor_types import ExecutorToClientProgress, ProgressMessage
 from .component_model.tqdm_watcher import TqdmWatcher
 from .execution_context import current_execution_context
-from .gguf import gguf_sd_loader
 
 MMAP_TORCH_FILES = args.mmap_torch_files
 DISABLE_MMAP = args.disable_mmap
@@ -136,6 +135,8 @@ def load_torch_file(ckpt: str, safe_load=False, device=None, return_metadata=Fal
             sd.update(safetensors.torch.load_file(str(checkpoint_file), device=device.type))
     elif ckpt.lower().endswith(".gguf"):
         # from gguf
+        # avoiding circular imports here by importing it lazily
+        from .gguf import gguf_sd_loader
         sd = gguf_sd_loader(ckpt)
         metadata = {"format": "gguf"}
     else:
