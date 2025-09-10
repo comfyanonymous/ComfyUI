@@ -1,23 +1,22 @@
 from __future__ import annotations
 
-import contextvars
 import importlib
+import importlib.util
 import logging
 import os
 import sys
 import time
 import types
 from contextlib import contextmanager
-from functools import partial
 from os.path import join, basename, dirname, isdir, isfile, exists, abspath, split, splitext, realpath
-from typing import Dict, Iterable
+from typing import Iterable, Any, Generator
 
+from comfy_compatibility.vanilla import prepare_vanilla_environment
 from . import base_nodes
 from .comfyui_v3_package_imports import _comfy_entrypoint_upstream_v3_imports
 from .package_typing import ExportedNodes
 from ..cmd import folder_paths
 from ..component_model.plugins import prompt_server_instance_routes
-from ..distributed.executors import ContextVarExecutor
 
 logger = logging.getLogger(__name__)
 
@@ -124,7 +123,7 @@ def _vanilla_load_importing_execute_prestartup_script(node_paths: Iterable[str])
 
 
 @contextmanager
-def _exec_mitigations(module: types.ModuleType, module_path: str) -> ExportedNodes:
+def _exec_mitigations(module: types.ModuleType, module_path: str) -> Generator[ExportedNodes, Any, None]:
     if module.__name__.lower() == "comfyui-manager":
         from ..cmd import folder_paths
         old_file = folder_paths.__file__
@@ -147,6 +146,7 @@ def _exec_mitigations(module: types.ModuleType, module_path: str) -> ExportedNod
     else:
         yield ExportedNodes()
 
+
 @contextmanager
 def _stdout_intercept(name: str):
     original_stdout = sys.stdout
@@ -159,8 +159,9 @@ def _stdout_intercept(name: str):
         sys.stdout = original_stdout
 
 
-
-def _vanilla_load_custom_nodes_1(module_path, ignore=set()) -> ExportedNodes:
+def _vanilla_load_custom_nodes_1(module_path, ignore: set = None) -> ExportedNodes:
+    if ignore is None:
+        ignore = set()
     exported_nodes = ExportedNodes()
     module_name = basename(module_path)
     if isfile(module_path):
@@ -222,7 +223,7 @@ def _vanilla_load_custom_nodes_2(node_paths: Iterable[str]) -> ExportedNodes:
                 logger.info(f"Skipping {possible_module} due to disable_all_custom_nodes and whitelist_custom_nodes")
                 continue
             time_before = time.perf_counter()
-            possible_exported_nodes = _vanilla_load_custom_nodes_1(module_path, base_node_names)
+            possible_exported_nodes = _vanilla_load_custom_nodes_1(module_path, ignore=base_node_names)
             # comfyui-manager mitigation
             import_succeeded = len(possible_exported_nodes.NODE_CLASS_MAPPINGS) > 0 or "ComfyUI-Manager" in module_path
             node_import_times.append(
@@ -244,42 +245,9 @@ def mitigated_import_of_vanilla_custom_nodes() -> ExportedNodes:
     # this mitigation puts files that custom nodes expects are at the root of the repository back where they should be
     # found. we're in the middle of executing the import of execution and server, in all likelihood, so like all things,
     # the way community custom nodes is pretty radioactive
-    from ..cmd import cuda_malloc, folder_paths, latent_preview, protocol
-    from .. import node_helpers
-    from .. import __version__
-    import concurrent.futures
-    import threading
-    for module in (cuda_malloc, folder_paths, latent_preview, node_helpers, protocol):
-        module_short_name = module.__name__.split(".")[-1]
-        sys.modules[module_short_name] = module
-    sys.modules['nodes'] = base_nodes
-    # apparently this is also something that happens
-    sys.modules['comfy.nodes'] = base_nodes
-    comfyui_version = types.ModuleType('comfyui_version', '')
-    setattr(comfyui_version, "__version__", __version__)
-    sys.modules['comfyui_version'] = comfyui_version
-    from ..cmd import execution, server
-    for module in (execution, server):
-        module_short_name = module.__name__.split(".")[-1]
-        sys.modules[module_short_name] = module
+    prepare_vanilla_environment()
 
-    if server.PromptServer.instance is None:
-        server.PromptServer.instance = _PromptServerStub()
-
-    # Impact Pack wants to find model_patcher
-    from .. import model_patcher
-    sys.modules['model_patcher'] = model_patcher
-
-    comfy_extras_mitigation: Dict[str, types.ModuleType] = {}
-
-    import comfy_extras
-    for module_name, module in sys.modules.items():
-        if not module_name.startswith("comfy_extras.nodes"):
-            continue
-        module_short_name = module_name.split(".")[-1]
-        setattr(comfy_extras, module_short_name, module)
-        comfy_extras_mitigation[f'comfy_extras.{module_short_name}'] = module
-    sys.modules.update(comfy_extras_mitigation)
+    from ..cmd import folder_paths
     node_paths = folder_paths.get_folder_paths("custom_nodes")
 
     potential_git_dir_parent = join(dirname(__file__), "..", "..")
@@ -288,23 +256,6 @@ def mitigated_import_of_vanilla_custom_nodes() -> ExportedNodes:
         node_paths += [abspath(join(potential_git_dir_parent, "custom_nodes"))]
 
     node_paths = frozenset(abspath(custom_node_path) for custom_node_path in node_paths)
-
-    _ThreadPoolExecutor = concurrent.futures.ThreadPoolExecutor
-    original_thread_start = threading.Thread.start
-    concurrent.futures.ThreadPoolExecutor = ContextVarExecutor
-
-    # mitigate missing folder names and paths context
-    def patched_start(self, *args, **kwargs):
-        if not hasattr(self.run, '__wrapped_by_context__'):
-            ctx = contextvars.copy_context()
-            self.run = partial(ctx.run, self.run)
-            setattr(self.run, '__wrapped_by_context__', True)
-        original_thread_start(self, *args, **kwargs)
-
-    if not getattr(threading.Thread.start, '__is_patched_by_us', False):
-        threading.Thread.start = patched_start
-        setattr(threading.Thread.start, '__is_patched_by_us', True)
-        logger.debug("Patched `threading.Thread.start` to propagate contextvars.")
     _vanilla_load_importing_execute_prestartup_script(node_paths)
     vanilla_custom_nodes = _vanilla_load_custom_nodes_2(node_paths)
     return vanilla_custom_nodes
