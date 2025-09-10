@@ -146,11 +146,13 @@ class IndexListContextHandler(ContextHandlerABC):
                         # when in dictionary, look for tensors and CONDCrossAttn [comfy/conds.py] (has cond attr that is a tensor)
                         for cond_key, cond_value in new_cond_item.items():
                             if isinstance(cond_value, torch.Tensor):
-                                if cond_value.ndim < self.dim and cond_value.size(0) == x_in.size(self.dim):
+                                if (self.dim < cond_value.ndim and cond_value(self.dim) == x_in.size(self.dim)) or \
+                                   (cond_value.ndim < self.dim and cond_value.size(0) == x_in.size(self.dim)):
                                     new_cond_item[cond_key] = window.get_tensor(cond_value, device)
                             # if has cond that is a Tensor, check if needs to be subset
                             elif hasattr(cond_value, "cond") and isinstance(cond_value.cond, torch.Tensor):
-                                if cond_value.cond.ndim < self.dim and cond_value.cond.size(0) == x_in.size(self.dim):
+                                if  (self.dim < cond_value.cond.ndim and cond_value.cond.size(self.dim) == x_in.size(self.dim)) or \
+                                    (cond_value.cond.ndim < self.dim and cond_value.cond.size(0) == x_in.size(self.dim)):
                                     new_cond_item[cond_key] = cond_value._copy_with(window.get_tensor(cond_value.cond, device))
                             elif cond_key == "num_video_frames": # for SVD
                                 new_cond_item[cond_key] = cond_value._copy_with(cond_value.cond)
