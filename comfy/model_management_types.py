@@ -287,9 +287,9 @@ class MemoryMeasurements:
     @device.setter
     def device(self, value: torch.device):
         if isinstance(self.model, DeviceSettable):
+            # todo: is this correct?
             self.model.device = value
-        elif hasattr(self.model, "to"):
-            self.model.to(value)
+        # todo: we don't want to `to` anything anymore here
         self._device = value
 
 
