@@ -77,6 +77,22 @@ class Image2ImageTaskCreationRequest(BaseModel):
     watermark: Optional[bool] = Field(True)
 
 
+class Seedream4Options(BaseModel):
+    max_images: int = Field(15)
+
+
+class Seedream4TaskCreationRequest(BaseModel):
+    model: str = Field("seedream-4-0-250828")
+    prompt: str = Field(...)
+    response_format: str = Field("url")
+    image: Optional[list[str]] = Field(None, description="Image URLs")
+    size: str = Field(...)
+    seed: int = Field(..., ge=0, le=2147483647)
+    sequential_image_generation: str = Field("disabled")
+    sequential_image_generation_options: Seedream4Options = Field(Seedream4Options(max_images=15))
+    watermark: bool = Field(True)
+
+
 class ImageTaskCreationResponse(BaseModel):
     model: str = Field(...)
     created: int = Field(..., description="Unix timestamp (in seconds) indicating time when the request was created.")
@@ -140,6 +156,19 @@ RECOMMENDED_PRESETS = [
     ("1248x832 (3:2)", 1248, 832),
     ("1512x648 (21:9)", 1512, 648),
     ("2048x2048 (1:1)", 2048, 2048),
+    ("Custom", None, None),
+]
+
+RECOMMENDED_PRESETS_SEEDREAM_4 = [
+    ("2048x2048 (1:1)", 2048, 2048),
+    ("2304x1728 (4:3)", 2304, 1728),
+    ("1728x2304 (3:4)", 1728, 2304),
+    ("2560x1440 (16:9)", 2560, 1440),
+    ("1440x2560 (9:16)", 1440, 2560),
+    ("2496x1664 (3:2)", 2496, 1664),
+    ("1664x2496 (2:3)", 1664, 2496),
+    ("3024x1296 (21:9)", 3024, 1296),
+    ("4096x4096 (1:1)", 4096, 4096),
     ("Custom", None, None),
 ]
 
@@ -348,7 +377,7 @@ class ByteDanceImageEditNode(comfy_io.ComfyNode):
         return comfy_io.Schema(
             node_id="ByteDanceImageEditNode",
             display_name="ByteDance Image Edit",
-            category="api node/video/ByteDance",
+            category="api node/image/ByteDance",
             description="Edit images using ByteDance models via api based on prompt",
             inputs=[
                 comfy_io.Combo.Input(
@@ -449,6 +478,182 @@ class ByteDanceImageEditNode(comfy_io.ComfyNode):
             auth_kwargs=auth_kwargs,
         ).execute()
         return comfy_io.NodeOutput(await download_url_to_image_tensor(get_image_url_from_response(response)))
+
+
+class ByteDanceSeedreamNode(comfy_io.ComfyNode):
+
+    @classmethod
+    def define_schema(cls):
+        return comfy_io.Schema(
+            node_id="ByteDanceSeedreamNode",
+            display_name="ByteDance Seedream 4",
+            category="api node/image/ByteDance",
+            description="Unified text-to-image generation and precise single-sentence editing at up to 4K resolution.",
+            inputs=[
+                comfy_io.Combo.Input(
+                    "model",
+                    options=["seedream-4-0-250828"],
+                    tooltip="Model name",
+                ),
+                comfy_io.String.Input(
+                    "prompt",
+                    multiline=True,
+                    default="",
+                    tooltip="Text prompt for creating or editing an image.",
+                ),
+                comfy_io.Image.Input(
+                    "image",
+                    tooltip="Input image(s) for image-to-image generation. "
+                            "List of 1-10 images for single or multi-reference generation.",
+                    optional=True,
+                ),
+                comfy_io.Combo.Input(
+                    "size_preset",
+                    options=[label for label, _, _ in RECOMMENDED_PRESETS_SEEDREAM_4],
+                    tooltip="Pick a recommended size. Select Custom to use the width and height below.",
+                ),
+                comfy_io.Int.Input(
+                    "width",
+                    default=2048,
+                    min=1024,
+                    max=4096,
+                    step=64,
+                    tooltip="Custom width for image. Value is working only if `size_preset` is set to `Custom`",
+                    optional=True,
+                ),
+                comfy_io.Int.Input(
+                    "height",
+                    default=2048,
+                    min=1024,
+                    max=4096,
+                    step=64,
+                    tooltip="Custom height for image. Value is working only if `size_preset` is set to `Custom`",
+                    optional=True,
+                ),
+                comfy_io.Combo.Input(
+                    "sequential_image_generation",
+                    options=["disabled", "auto"],
+                    tooltip="Group image generation mode. "
+                            "'disabled' generates a single image. "
+                            "'auto' lets the model decide whether to generate multiple related images "
+                            "(e.g., story scenes, character variations).",
+                    optional=True,
+                ),
+                comfy_io.Int.Input(
+                    "max_images",
+                    default=1,
+                    min=1,
+                    max=15,
+                    step=1,
+                    display_mode=comfy_io.NumberDisplay.number,
+                    tooltip="Maximum number of images to generate when sequential_image_generation='auto'. "
+                            "Total images (input + generated) cannot exceed 15.",
+                    optional=True,
+                ),
+                comfy_io.Int.Input(
+                    "seed",
+                    default=0,
+                    min=0,
+                    max=2147483647,
+                    step=1,
+                    display_mode=comfy_io.NumberDisplay.number,
+                    control_after_generate=True,
+                    tooltip="Seed to use for generation.",
+                    optional=True,
+                ),
+                comfy_io.Boolean.Input(
+                    "watermark",
+                    default=True,
+                    tooltip="Whether to add an \"AI generated\" watermark to the image.",
+                    optional=True,
+                ),
+            ],
+            outputs=[
+                comfy_io.Image.Output(),
+            ],
+            hidden=[
+                comfy_io.Hidden.auth_token_comfy_org,
+                comfy_io.Hidden.api_key_comfy_org,
+                comfy_io.Hidden.unique_id,
+            ],
+            is_api_node=True,
+        )
+
+    @classmethod
+    async def execute(
+        cls,
+        model: str,
+        prompt: str,
+        image: torch.Tensor = None,
+        size_preset: str = RECOMMENDED_PRESETS_SEEDREAM_4[0][0],
+        width: int = 2048,
+        height: int = 2048,
+        sequential_image_generation: str = "disabled",
+        max_images: int = 1,
+        seed: int = 0,
+        watermark: bool = True,
+    ) -> comfy_io.NodeOutput:
+        validate_string(prompt, strip_whitespace=True, min_length=1)
+        w = h = None
+        for label, tw, th in RECOMMENDED_PRESETS_SEEDREAM_4:
+            if label == size_preset:
+                w, h = tw, th
+                break
+
+        if w is None or h is None:
+            w, h = width, height
+            if not (1024 <= w <= 4096) or not (1024 <= h <= 4096):
+                raise ValueError(
+                    f"Custom size out of range: {w}x{h}. "
+                    "Both width and height must be between 1024 and 4096 pixels."
+                )
+        n_input_images = get_number_of_images(image) if image is not None else 0
+        if n_input_images > 10:
+            raise ValueError(f"Maximum of 10 reference images are supported, but {n_input_images} received.")
+        if sequential_image_generation == "auto" and n_input_images + max_images > 15:
+            raise ValueError(
+                "The maximum number of generated images plus the number of reference images cannot exceed 15."
+            )
+        auth_kwargs = {
+            "auth_token": cls.hidden.auth_token_comfy_org,
+            "comfy_api_key": cls.hidden.api_key_comfy_org,
+        }
+        reference_images_urls = []
+        if n_input_images:
+            for i in image:
+                validate_image_aspect_ratio_range(i, (1, 3), (3, 1))
+            reference_images_urls = (await upload_images_to_comfyapi(
+                image,
+                max_images=n_input_images,
+                mime_type="image/png",
+                auth_kwargs=auth_kwargs,
+            ))
+        payload = Seedream4TaskCreationRequest(
+            model=model,
+            prompt=prompt,
+            image=reference_images_urls,
+            size=f"{w}x{h}",
+            seed=seed,
+            sequential_image_generation=sequential_image_generation,
+            sequential_image_generation_options=Seedream4Options(max_images=max_images),
+            watermark=watermark,
+        )
+        response = await SynchronousOperation(
+            endpoint=ApiEndpoint(
+                path=BYTEPLUS_IMAGE_ENDPOINT,
+                method=HttpMethod.POST,
+                request_model=Seedream4TaskCreationRequest,
+                response_model=ImageTaskCreationResponse,
+            ),
+            request=payload,
+            auth_kwargs=auth_kwargs,
+        ).execute()
+
+        if len(response.data) == 1:
+            return comfy_io.NodeOutput(await download_url_to_image_tensor(get_image_url_from_response(response)))
+        return comfy_io.NodeOutput(
+            torch.cat([await download_url_to_image_tensor(str(i["url"])) for i in response.data])
+        )
 
 
 class ByteDanceTextToVideoNode(comfy_io.ComfyNode):
@@ -1001,6 +1206,7 @@ class ByteDanceExtension(ComfyExtension):
         return [
             ByteDanceImageNode,
             ByteDanceImageEditNode,
+            ByteDanceSeedreamNode,
             ByteDanceTextToVideoNode,
             ByteDanceImageToVideoNode,
             ByteDanceFirstLastFrameNode,
