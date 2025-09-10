@@ -65,7 +65,7 @@ class Encoder(nn.Module):
         self.mid.attn_1 = AttnBlock(ch, conv_op=ops.Conv2d)
         self.mid.block_2 = ResnetBlock(in_channels=ch, out_channels=ch, temb_channels=0, conv_op=ops.Conv2d)
 
-        self.norm_out = nn.GroupNorm(32, ch, 1e-6, True)
+        self.norm_out = ops.GroupNorm(32, ch, 1e-6, True)
         self.conv_out = ops.Conv2d(ch, z_channels << 1, 3, 1, 1)
 
     def forward(self, x):
@@ -120,7 +120,7 @@ class Decoder(nn.Module):
                 ch = nxt
             self.up.append(stage)
 
-        self.norm_out = nn.GroupNorm(32, ch, 1e-6, True)
+        self.norm_out = ops.GroupNorm(32, ch, 1e-6, True)
         self.conv_out = ops.Conv2d(ch, out_channels, 3, 1, 1)
 
     def forward(self, z):
