@@ -1,4 +1,3 @@
-import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from comfy.ldm.modules.diffusionmodules.model import ResnetBlock, AttnBlock
