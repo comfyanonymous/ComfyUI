@@ -27,6 +27,8 @@ from torchvision import transforms
 from enum import Enum
 import logging
 
+import comfy.patcher_extension
+
 from .blocks import (
     FinalLayer,
     GeneralDITTransformerBlock,
@@ -419,6 +421,42 @@ class GeneralDIT(nn.Module):
         return output
 
     def forward(
+        self,
+        x: torch.Tensor,
+        timesteps: torch.Tensor,
+        context: torch.Tensor,
+        attention_mask: Optional[torch.Tensor] = None,
+        # crossattn_emb: torch.Tensor,
+        # crossattn_mask: Optional[torch.Tensor] = None,
+        fps: Optional[torch.Tensor] = None,
+        image_size: Optional[torch.Tensor] = None,
+        padding_mask: Optional[torch.Tensor] = None,
+        scalar_feature: Optional[torch.Tensor] = None,
+        data_type: Optional[DataType] = DataType.VIDEO,
+        latent_condition: Optional[torch.Tensor] = None,
+        latent_condition_sigma: Optional[torch.Tensor] = None,
+        condition_video_augment_sigma: Optional[torch.Tensor] = None,
+        **kwargs,
+    ):
+        return comfy.patcher_extension.WrapperExecutor.new_class_executor(
+            self._forward,
+            self,
+            comfy.patcher_extension.get_all_wrappers(comfy.patcher_extension.WrappersMP.DIFFUSION_MODEL, kwargs.get("transformer_options", {}))
+        ).execute(x,
+                timesteps,
+                context,
+                attention_mask,
+                fps,
+                image_size,
+                padding_mask,
+                scalar_feature,
+                data_type,
+                latent_condition,
+                latent_condition_sigma,
+                condition_video_augment_sigma,
+                **kwargs)
+
+    def _forward(
         self,
         x: torch.Tensor,
         timesteps: torch.Tensor,

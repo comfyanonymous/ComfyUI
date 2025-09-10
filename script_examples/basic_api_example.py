@@ -3,11 +3,7 @@ from urllib import request
 
 #This is the ComfyUI api prompt format.
 
-#If you want it for a specific workflow you can "enable dev mode options"
-#in the settings of the UI (gear beside the "Queue Size: ") this will enable
-#a button on the UI to save workflows in api format.
-
-#keep in mind ComfyUI is pre alpha software so this format will change a bit.
+#If you want it for a specific workflow you can "File -> Export (API)" in the interface.
 
 #this is the one for the default workflow
 prompt_text = """

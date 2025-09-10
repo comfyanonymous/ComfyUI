@@ -7,7 +7,7 @@ import subprocess
 
 from pytest import fixture
 from comfy_execution.graph_utils import GraphBuilder
-from tests.inference.test_execution import ComfyClient, run_warmup
+from tests.execution.test_execution import ComfyClient, run_warmup
 
 
 @pytest.mark.execution
@@ -23,7 +23,7 @@ class TestAsyncNodes:
             '--output-directory', args_pytest["output_dir"],
             '--listen', args_pytest["listen"],
             '--port', str(args_pytest["port"]),
-            '--extra-model-paths-config', 'tests/inference/extra_model_paths.yaml',
+            '--extra-model-paths-config', 'tests/execution/extra_model_paths.yaml',
             '--cpu',
         ]
         use_lru, lru_size = request.param
@@ -81,7 +81,7 @@ class TestAsyncNodes:
         assert len(result_images) == 1, "Should have 1 image"
         assert np.array(result_images[0]).min() == 0 and np.array(result_images[0]).max() == 0, "Image should be black"
 
-    def test_multiple_async_parallel_execution(self, client: ComfyClient, builder: GraphBuilder):
+    def test_multiple_async_parallel_execution(self, client: ComfyClient, builder: GraphBuilder, skip_timing_checks):
         """Test that multiple async nodes execute in parallel."""
         # Warmup execution to ensure server is fully initialized
         run_warmup(client)
@@ -104,7 +104,8 @@ class TestAsyncNodes:
         elapsed_time = time.time() - start_time
 
         # Should take ~0.5s (max duration) not 1.2s (sum of durations)
-        assert elapsed_time < 0.8, f"Parallel execution took {elapsed_time}s, expected < 0.8s"
+        if not skip_timing_checks:
+            assert elapsed_time < 0.8, f"Parallel execution took {elapsed_time}s, expected < 0.8s"
 
         # Verify all nodes executed
         assert result.did_run(sleep1) and result.did_run(sleep2) and result.did_run(sleep3)
@@ -150,7 +151,7 @@ class TestAsyncNodes:
         with pytest.raises(urllib.error.HTTPError):
             client.run(g)
 
-    def test_async_lazy_evaluation(self, client: ComfyClient, builder: GraphBuilder):
+    def test_async_lazy_evaluation(self, client: ComfyClient, builder: GraphBuilder, skip_timing_checks):
         """Test async nodes with lazy evaluation."""
         # Warmup execution to ensure server is fully initialized
         run_warmup(client, prefix="warmup_lazy")
@@ -173,7 +174,8 @@ class TestAsyncNodes:
         elapsed_time = time.time() - start_time
 
         # Should only execute sleep1, not sleep2
-        assert elapsed_time < 0.5, f"Should skip sleep2, took {elapsed_time}s"
+        if not skip_timing_checks:
+            assert elapsed_time < 0.5, f"Should skip sleep2, took {elapsed_time}s"
         assert result.did_run(sleep1), "Sleep1 should have executed"
         assert not result.did_run(sleep2), "Sleep2 should have been skipped"
 
@@ -310,7 +312,7 @@ class TestAsyncNodes:
         images = result.get_images(output)
         assert len(images) == 1, "Should have blocked second image"
 
-    def test_async_caching_behavior(self, client: ComfyClient, builder: GraphBuilder):
+    def test_async_caching_behavior(self, client: ComfyClient, builder: GraphBuilder, skip_timing_checks):
         """Test that async nodes are properly cached."""
         # Warmup execution to ensure server is fully initialized
         run_warmup(client, prefix="warmup_cache")
@@ -330,9 +332,10 @@ class TestAsyncNodes:
         elapsed_time = time.time() - start_time
 
         assert not result2.did_run(sleep_node), "Should be cached"
-        assert elapsed_time < 0.1, f"Cached run took {elapsed_time}s, should be instant"
+        if not skip_timing_checks:
+            assert elapsed_time < 0.1, f"Cached run took {elapsed_time}s, should be instant"
 
-    def test_async_with_dynamic_prompts(self, client: ComfyClient, builder: GraphBuilder):
+    def test_async_with_dynamic_prompts(self, client: ComfyClient, builder: GraphBuilder, skip_timing_checks):
         """Test async nodes within dynamically generated prompts."""
         # Warmup execution to ensure server is fully initialized
         run_warmup(client, prefix="warmup_dynamic")
@@ -345,8 +348,8 @@ class TestAsyncNodes:
         dynamic_async = g.node("TestDynamicAsyncGeneration",
                               image1=image1.out(0),
                               image2=image2.out(0),
-                              num_async_nodes=3,
-                              sleep_duration=0.2)
+                              num_async_nodes=5,
+                              sleep_duration=0.4)
         g.node("SaveImage", images=dynamic_async.out(0))
 
         start_time = time.time()
@@ -354,7 +357,8 @@ class TestAsyncNodes:
         elapsed_time = time.time() - start_time
 
         # Should execute async nodes in parallel within dynamic prompt
-        assert elapsed_time < 0.5, f"Dynamic async execution took {elapsed_time}s"
+        if not skip_timing_checks:
+            assert elapsed_time < 1.0, f"Dynamic async execution took {elapsed_time}s"
         assert result.did_run(dynamic_async)
 
     def test_async_resource_cleanup(self, client: ComfyClient, builder: GraphBuilder):

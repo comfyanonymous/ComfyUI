@@ -1,6 +1,7 @@
 import comfy.utils
 import comfy_extras.nodes_post_processing
 import torch
+import nodes
 
 
 def reshape_latent_to(target_shape, latent, repeat_batch=True):
@@ -103,6 +104,73 @@ class LatentInterpolate:
         st = torch.nan_to_num(t / mt)
 
         samples_out["samples"] = st * (m1 * ratio + m2 * (1.0 - ratio))
+        return (samples_out,)
+
+class LatentConcat:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": { "samples1": ("LATENT",), "samples2": ("LATENT",), "dim": (["x", "-x", "y", "-y", "t", "-t"], )}}
+
+    RETURN_TYPES = ("LATENT",)
+    FUNCTION = "op"
+
+    CATEGORY = "latent/advanced"
+
+    def op(self, samples1, samples2, dim):
+        samples_out = samples1.copy()
+
+        s1 = samples1["samples"]
+        s2 = samples2["samples"]
+        s2 = comfy.utils.repeat_to_batch_size(s2, s1.shape[0])
+
+        if "-" in dim:
+            c = (s2, s1)
+        else:
+            c = (s1, s2)
+
+        if "x" in dim:
+            dim = -1
+        elif "y" in dim:
+            dim = -2
+        elif "t" in dim:
+            dim = -3
+
+        samples_out["samples"] = torch.cat(c, dim=dim)
+        return (samples_out,)
+
+class LatentCut:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": {"samples": ("LATENT",),
+                             "dim": (["x", "y", "t"], ),
+                             "index": ("INT", {"default": 0, "min": -nodes.MAX_RESOLUTION, "max": nodes.MAX_RESOLUTION, "step": 1}),
+                             "amount": ("INT", {"default": 1, "min": 1, "max": nodes.MAX_RESOLUTION, "step": 1})}}
+
+    RETURN_TYPES = ("LATENT",)
+    FUNCTION = "op"
+
+    CATEGORY = "latent/advanced"
+
+    def op(self, samples, dim, index, amount):
+        samples_out = samples.copy()
+
+        s1 = samples["samples"]
+
+        if "x" in dim:
+            dim = s1.ndim - 1
+        elif "y" in dim:
+            dim = s1.ndim - 2
+        elif "t" in dim:
+            dim = s1.ndim - 3
+
+        if index >= 0:
+            index = min(index, s1.shape[dim] - 1)
+            amount = min(s1.shape[dim] - index, amount)
+        else:
+            index = max(index, -s1.shape[dim])
+            amount = min(-index, amount)
+
+        samples_out["samples"] = torch.narrow(s1, dim, index, amount)
         return (samples_out,)
 
 class LatentBatch:
@@ -279,6 +347,8 @@ NODE_CLASS_MAPPINGS = {
     "LatentSubtract": LatentSubtract,
     "LatentMultiply": LatentMultiply,
     "LatentInterpolate": LatentInterpolate,
+    "LatentConcat": LatentConcat,
+    "LatentCut": LatentCut,
     "LatentBatch": LatentBatch,
     "LatentBatchSeedBehavior": LatentBatchSeedBehavior,
     "LatentApplyOperation": LatentApplyOperation,

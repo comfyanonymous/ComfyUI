@@ -632,7 +632,7 @@ class ContinuousTransformer(nn.Module):
         # Attention layers
 
         if self.rotary_pos_emb is not None:
-            rotary_pos_emb = self.rotary_pos_emb.forward_from_seq_len(x.shape[1], dtype=x.dtype, device=x.device)
+            rotary_pos_emb = self.rotary_pos_emb.forward_from_seq_len(x.shape[1], dtype=torch.float, device=x.device)
         else:
             rotary_pos_emb = None
 

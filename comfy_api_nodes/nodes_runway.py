@@ -12,6 +12,7 @@ User Guides:
 """
 
 from typing import Union, Optional, Any
+from typing_extensions import override
 from enum import Enum
 
 import torch
@@ -46,9 +47,9 @@ from comfy_api_nodes.apinode_utils import (
     validate_string,
     download_url_to_image_tensor,
 )
-from comfy_api_nodes.mapper_utils import model_field_to_node_input
 from comfy_api.input_impl import VideoFromFile
-from comfy.comfy_types.node_typing import IO, ComfyNodeABC
+from comfy_api.latest import ComfyExtension, io as comfy_io
+from comfy_api_nodes.util.validation_utils import validate_image_dimensions, validate_image_aspect_ratio
 
 PATH_IMAGE_TO_VIDEO = "/proxy/runway/image_to_video"
 PATH_TEXT_TO_IMAGE = "/proxy/runway/text_to_image"
@@ -85,18 +86,9 @@ class RunwayGen3aAspectRatio(str, Enum):
 
 def get_video_url_from_task_status(response: TaskStatusResponse) -> Union[str, None]:
     """Returns the video URL from the task status response if it exists."""
-    if response.output and len(response.output) > 0:
+    if hasattr(response, "output") and len(response.output) > 0:
         return response.output[0]
     return None
-
-
-# TODO: replace with updated image validation utils (upstream)
-def validate_input_image(image: torch.Tensor) -> bool:
-    """
-    Validate the input image is within the size limits for the Runway API.
-    See: https://docs.dev.runwayml.com/assets/inputs/#common-error-reasons
-    """
-    return image.shape[2] < 8000 and image.shape[1] < 8000
 
 
 async def poll_until_finished(
@@ -134,458 +126,438 @@ def extract_progress_from_task_status(
 
 def get_image_url_from_task_status(response: TaskStatusResponse) -> Union[str, None]:
     """Returns the image URL from the task status response if it exists."""
-    if response.output and len(response.output) > 0:
+    if hasattr(response, "output") and len(response.output) > 0:
         return response.output[0]
     return None
 
 
-class RunwayVideoGenNode(ComfyNodeABC):
-    """Runway Video Node Base."""
+async def get_response(
+    task_id: str, auth_kwargs: dict[str, str], node_id: Optional[str] = None, estimated_duration: Optional[int] = None
+) -> TaskStatusResponse:
+    """Poll the task status until it is finished then get the response."""
+    return await poll_until_finished(
+        auth_kwargs,
+        ApiEndpoint(
+            path=f"{PATH_GET_TASK_STATUS}/{task_id}",
+            method=HttpMethod.GET,
+            request_model=EmptyRequest,
+            response_model=TaskStatusResponse,
+        ),
+        estimated_duration=estimated_duration,
+        node_id=node_id,
+    )
 
-    RETURN_TYPES = ("VIDEO",)
-    FUNCTION = "api_call"
-    CATEGORY = "api node/video/Runway"
-    API_NODE = True
 
-    def validate_task_created(self, response: RunwayImageToVideoResponse) -> bool:
-        """
-        Validate the task creation response from the Runway API matches
-        expected format.
-        """
-        if not bool(response.id):
-            raise RunwayApiError("Invalid initial response from Runway API.")
-        return True
+async def generate_video(
+    request: RunwayImageToVideoRequest,
+    auth_kwargs: dict[str, str],
+    node_id: Optional[str] = None,
+    estimated_duration: Optional[int] = None,
+) -> VideoFromFile:
+    initial_operation = SynchronousOperation(
+        endpoint=ApiEndpoint(
+            path=PATH_IMAGE_TO_VIDEO,
+            method=HttpMethod.POST,
+            request_model=RunwayImageToVideoRequest,
+            response_model=RunwayImageToVideoResponse,
+        ),
+        request=request,
+        auth_kwargs=auth_kwargs,
+    )
 
-    def validate_response(self, response: RunwayImageToVideoResponse) -> bool:
-        """
-        Validate the successful task status response from the Runway API
-        matches expected format.
-        """
-        if not response.output or len(response.output) == 0:
-            raise RunwayApiError(
-                "Runway task succeeded but no video data found in response."
-            )
-        return True
+    initial_response = await initial_operation.execute()
 
-    async def get_response(
-        self, task_id: str, auth_kwargs: dict[str, str], node_id: Optional[str] = None
-    ) -> RunwayImageToVideoResponse:
-        """Poll the task status until it is finished then get the response."""
-        return await poll_until_finished(
-            auth_kwargs,
-            ApiEndpoint(
-                path=f"{PATH_GET_TASK_STATUS}/{task_id}",
-                method=HttpMethod.GET,
-                request_model=EmptyRequest,
-                response_model=TaskStatusResponse,
-            ),
-            estimated_duration=AVERAGE_DURATION_FLF_SECONDS,
-            node_id=node_id,
+    final_response = await get_response(initial_response.id, auth_kwargs, node_id, estimated_duration)
+    if not final_response.output:
+        raise RunwayApiError("Runway task succeeded but no video data found in response.")
+
+    video_url = get_video_url_from_task_status(final_response)
+    return await download_url_to_video_output(video_url)
+
+
+class RunwayImageToVideoNodeGen3a(comfy_io.ComfyNode):
+
+    @classmethod
+    def define_schema(cls):
+        return comfy_io.Schema(
+            node_id="RunwayImageToVideoNodeGen3a",
+            display_name="Runway Image to Video (Gen3a Turbo)",
+            category="api node/video/Runway",
+            description="Generate a video from a single starting frame using Gen3a Turbo model. "
+                        "Before diving in, review these best practices to ensure that "
+                        "your input selections will set your generation up for success: "
+                        "https://help.runwayml.com/hc/en-us/articles/33927968552339-Creating-with-Act-One-on-Gen-3-Alpha-and-Turbo.",
+            inputs=[
+                comfy_io.String.Input(
+                    "prompt",
+                    multiline=True,
+                    default="",
+                    tooltip="Text prompt for the generation",
+                ),
+                comfy_io.Image.Input(
+                    "start_frame",
+                    tooltip="Start frame to be used for the video",
+                ),
+                comfy_io.Combo.Input(
+                    "duration",
+                    options=[model.value for model in Duration],
+                ),
+                comfy_io.Combo.Input(
+                    "ratio",
+                    options=[model.value for model in RunwayGen3aAspectRatio],
+                ),
+                comfy_io.Int.Input(
+                    "seed",
+                    default=0,
+                    min=0,
+                    max=4294967295,
+                    step=1,
+                    control_after_generate=True,
+                    display_mode=comfy_io.NumberDisplay.number,
+                    tooltip="Random seed for generation",
+                ),
+            ],
+            outputs=[
+                comfy_io.Video.Output(),
+            ],
+            hidden=[
+                comfy_io.Hidden.auth_token_comfy_org,
+                comfy_io.Hidden.api_key_comfy_org,
+                comfy_io.Hidden.unique_id,
+            ],
+            is_api_node=True,
         )
 
-    async def generate_video(
-        self,
-        request: RunwayImageToVideoRequest,
-        auth_kwargs: dict[str, str],
-        node_id: Optional[str] = None,
-    ) -> tuple[VideoFromFile]:
-        initial_operation = SynchronousOperation(
-            endpoint=ApiEndpoint(
-                path=PATH_IMAGE_TO_VIDEO,
-                method=HttpMethod.POST,
-                request_model=RunwayImageToVideoRequest,
-                response_model=RunwayImageToVideoResponse,
-            ),
-            request=request,
+    @classmethod
+    async def execute(
+        cls,
+        prompt: str,
+        start_frame: torch.Tensor,
+        duration: str,
+        ratio: str,
+        seed: int,
+    ) -> comfy_io.NodeOutput:
+        validate_string(prompt, min_length=1)
+        validate_image_dimensions(start_frame, max_width=7999, max_height=7999)
+        validate_image_aspect_ratio(start_frame, min_aspect_ratio=0.5, max_aspect_ratio=2.0)
+
+        auth_kwargs = {
+            "auth_token": cls.hidden.auth_token_comfy_org,
+            "comfy_api_key": cls.hidden.api_key_comfy_org,
+        }
+
+        download_urls = await upload_images_to_comfyapi(
+            start_frame,
+            max_images=1,
+            mime_type="image/png",
             auth_kwargs=auth_kwargs,
         )
 
-        initial_response = await initial_operation.execute()
-        self.validate_task_created(initial_response)
-        task_id = initial_response.id
+        return comfy_io.NodeOutput(
+            await generate_video(
+                RunwayImageToVideoRequest(
+                    promptText=prompt,
+                    seed=seed,
+                    model=Model("gen3a_turbo"),
+                    duration=Duration(duration),
+                    ratio=AspectRatio(ratio),
+                    promptImage=RunwayPromptImageObject(
+                        root=[
+                            RunwayPromptImageDetailedObject(
+                                uri=str(download_urls[0]), position="first"
+                            )
+                        ]
+                    ),
+                ),
+                auth_kwargs=auth_kwargs,
+                node_id=cls.hidden.unique_id,
+            )
+        )
 
-        final_response = await self.get_response(task_id, auth_kwargs, node_id)
-        self.validate_response(final_response)
 
-        video_url = get_video_url_from_task_status(final_response)
-        return (await download_url_to_video_output(video_url),)
-
-
-class RunwayImageToVideoNodeGen3a(RunwayVideoGenNode):
-    """Runway Image to Video Node using Gen3a Turbo model."""
-
-    DESCRIPTION = "Generate a video from a single starting frame using Gen3a Turbo model. Before diving in, review these best practices to ensure that your input selections will set your generation up for success: https://help.runwayml.com/hc/en-us/articles/33927968552339-Creating-with-Act-One-on-Gen-3-Alpha-and-Turbo."
+class RunwayImageToVideoNodeGen4(comfy_io.ComfyNode):
 
     @classmethod
-    def INPUT_TYPES(s):
-        return {
-            "required": {
-                "prompt": model_field_to_node_input(
-                    IO.STRING, RunwayImageToVideoRequest, "promptText", multiline=True
+    def define_schema(cls):
+        return comfy_io.Schema(
+            node_id="RunwayImageToVideoNodeGen4",
+            display_name="Runway Image to Video (Gen4 Turbo)",
+            category="api node/video/Runway",
+            description="Generate a video from a single starting frame using Gen4 Turbo model. "
+                        "Before diving in, review these best practices to ensure that "
+                        "your input selections will set your generation up for success: "
+                        "https://help.runwayml.com/hc/en-us/articles/37327109429011-Creating-with-Gen-4-Video.",
+            inputs=[
+                comfy_io.String.Input(
+                    "prompt",
+                    multiline=True,
+                    default="",
+                    tooltip="Text prompt for the generation",
                 ),
-                "start_frame": (
-                    IO.IMAGE,
-                    {"tooltip": "Start frame to be used for the video"},
+                comfy_io.Image.Input(
+                    "start_frame",
+                    tooltip="Start frame to be used for the video",
                 ),
-                "duration": model_field_to_node_input(
-                    IO.COMBO, RunwayImageToVideoRequest, "duration", enum_type=Duration
+                comfy_io.Combo.Input(
+                    "duration",
+                    options=[model.value for model in Duration],
                 ),
-                "ratio": model_field_to_node_input(
-                    IO.COMBO,
-                    RunwayImageToVideoRequest,
+                comfy_io.Combo.Input(
                     "ratio",
-                    enum_type=RunwayGen3aAspectRatio,
+                    options=[model.value for model in RunwayGen4TurboAspectRatio],
                 ),
-                "seed": model_field_to_node_input(
-                    IO.INT,
-                    RunwayImageToVideoRequest,
+                comfy_io.Int.Input(
                     "seed",
+                    default=0,
+                    min=0,
+                    max=4294967295,
+                    step=1,
                     control_after_generate=True,
+                    display_mode=comfy_io.NumberDisplay.number,
+                    tooltip="Random seed for generation",
                 ),
-            },
-            "hidden": {
-                "auth_token": "AUTH_TOKEN_COMFY_ORG",
-                "comfy_api_key": "API_KEY_COMFY_ORG",
-                "unique_id": "UNIQUE_ID",
-            },
-        }
+            ],
+            outputs=[
+                comfy_io.Video.Output(),
+            ],
+            hidden=[
+                comfy_io.Hidden.auth_token_comfy_org,
+                comfy_io.Hidden.api_key_comfy_org,
+                comfy_io.Hidden.unique_id,
+            ],
+            is_api_node=True,
+        )
 
-    async def api_call(
-        self,
+    @classmethod
+    async def execute(
+        cls,
         prompt: str,
         start_frame: torch.Tensor,
         duration: str,
         ratio: str,
         seed: int,
-        unique_id: Optional[str] = None,
-        **kwargs,
-    ) -> tuple[VideoFromFile]:
-        # Validate inputs
+    ) -> comfy_io.NodeOutput:
         validate_string(prompt, min_length=1)
-        validate_input_image(start_frame)
+        validate_image_dimensions(start_frame, max_width=7999, max_height=7999)
+        validate_image_aspect_ratio(start_frame, min_aspect_ratio=0.5, max_aspect_ratio=2.0)
 
-        # Upload image
+        auth_kwargs = {
+            "auth_token": cls.hidden.auth_token_comfy_org,
+            "comfy_api_key": cls.hidden.api_key_comfy_org,
+        }
+
         download_urls = await upload_images_to_comfyapi(
             start_frame,
             max_images=1,
             mime_type="image/png",
-            auth_kwargs=kwargs,
+            auth_kwargs=auth_kwargs,
         )
-        if len(download_urls) != 1:
-            raise RunwayApiError("Failed to upload one or more images to comfy api.")
 
-        return await self.generate_video(
-            RunwayImageToVideoRequest(
-                promptText=prompt,
-                seed=seed,
-                model=Model("gen3a_turbo"),
-                duration=Duration(duration),
-                ratio=AspectRatio(ratio),
-                promptImage=RunwayPromptImageObject(
-                    root=[
-                        RunwayPromptImageDetailedObject(
-                            uri=str(download_urls[0]), position="first"
-                        )
-                    ]
+        return comfy_io.NodeOutput(
+            await generate_video(
+                RunwayImageToVideoRequest(
+                    promptText=prompt,
+                    seed=seed,
+                    model=Model("gen4_turbo"),
+                    duration=Duration(duration),
+                    ratio=AspectRatio(ratio),
+                    promptImage=RunwayPromptImageObject(
+                        root=[
+                            RunwayPromptImageDetailedObject(
+                                uri=str(download_urls[0]), position="first"
+                            )
+                        ]
+                    ),
                 ),
-            ),
-            auth_kwargs=kwargs,
-            node_id=unique_id,
+                auth_kwargs=auth_kwargs,
+                node_id=cls.hidden.unique_id,
+                estimated_duration=AVERAGE_DURATION_FLF_SECONDS,
+            )
         )
 
 
-class RunwayImageToVideoNodeGen4(RunwayVideoGenNode):
-    """Runway Image to Video Node using Gen4 Turbo model."""
-
-    DESCRIPTION = "Generate a video from a single starting frame using Gen4 Turbo model. Before diving in, review these best practices to ensure that your input selections will set your generation up for success: https://help.runwayml.com/hc/en-us/articles/37327109429011-Creating-with-Gen-4-Video."
+class RunwayFirstLastFrameNode(comfy_io.ComfyNode):
 
     @classmethod
-    def INPUT_TYPES(s):
-        return {
-            "required": {
-                "prompt": model_field_to_node_input(
-                    IO.STRING, RunwayImageToVideoRequest, "promptText", multiline=True
+    def define_schema(cls):
+        return comfy_io.Schema(
+            node_id="RunwayFirstLastFrameNode",
+            display_name="Runway First-Last-Frame to Video",
+            category="api node/video/Runway",
+            description="Upload first and last keyframes, draft a prompt, and generate a video. "
+                        "More complex transitions, such as cases where the Last frame is completely different "
+                        "from the First frame, may benefit from the longer 10s duration. "
+                        "This would give the generation more time to smoothly transition between the two inputs. "
+                        "Before diving in, review these best practices to ensure that your input selections "
+                        "will set your generation up for success: "
+                        "https://help.runwayml.com/hc/en-us/articles/34170748696595-Creating-with-Keyframes-on-Gen-3.",
+            inputs=[
+                comfy_io.String.Input(
+                    "prompt",
+                    multiline=True,
+                    default="",
+                    tooltip="Text prompt for the generation",
                 ),
-                "start_frame": (
-                    IO.IMAGE,
-                    {"tooltip": "Start frame to be used for the video"},
+                comfy_io.Image.Input(
+                    "start_frame",
+                    tooltip="Start frame to be used for the video",
                 ),
-                "duration": model_field_to_node_input(
-                    IO.COMBO, RunwayImageToVideoRequest, "duration", enum_type=Duration
+                comfy_io.Image.Input(
+                    "end_frame",
+                    tooltip="End frame to be used for the video. Supported for gen3a_turbo only.",
                 ),
-                "ratio": model_field_to_node_input(
-                    IO.COMBO,
-                    RunwayImageToVideoRequest,
+                comfy_io.Combo.Input(
+                    "duration",
+                    options=[model.value for model in Duration],
+                ),
+                comfy_io.Combo.Input(
                     "ratio",
-                    enum_type=RunwayGen4TurboAspectRatio,
+                    options=[model.value for model in RunwayGen3aAspectRatio],
                 ),
-                "seed": model_field_to_node_input(
-                    IO.INT,
-                    RunwayImageToVideoRequest,
+                comfy_io.Int.Input(
                     "seed",
+                    default=0,
+                    min=0,
+                    max=4294967295,
+                    step=1,
                     control_after_generate=True,
+                    display_mode=comfy_io.NumberDisplay.number,
+                    tooltip="Random seed for generation",
                 ),
-            },
-            "hidden": {
-                "auth_token": "AUTH_TOKEN_COMFY_ORG",
-                "comfy_api_key": "API_KEY_COMFY_ORG",
-                "unique_id": "UNIQUE_ID",
-            },
-        }
-
-    async def api_call(
-        self,
-        prompt: str,
-        start_frame: torch.Tensor,
-        duration: str,
-        ratio: str,
-        seed: int,
-        unique_id: Optional[str] = None,
-        **kwargs,
-    ) -> tuple[VideoFromFile]:
-        # Validate inputs
-        validate_string(prompt, min_length=1)
-        validate_input_image(start_frame)
-
-        # Upload image
-        download_urls = await upload_images_to_comfyapi(
-            start_frame,
-            max_images=1,
-            mime_type="image/png",
-            auth_kwargs=kwargs,
-        )
-        if len(download_urls) != 1:
-            raise RunwayApiError("Failed to upload one or more images to comfy api.")
-
-        return await self.generate_video(
-            RunwayImageToVideoRequest(
-                promptText=prompt,
-                seed=seed,
-                model=Model("gen4_turbo"),
-                duration=Duration(duration),
-                ratio=AspectRatio(ratio),
-                promptImage=RunwayPromptImageObject(
-                    root=[
-                        RunwayPromptImageDetailedObject(
-                            uri=str(download_urls[0]), position="first"
-                        )
-                    ]
-                ),
-            ),
-            auth_kwargs=kwargs,
-            node_id=unique_id,
-        )
-
-
-class RunwayFirstLastFrameNode(RunwayVideoGenNode):
-    """Runway First-Last Frame Node."""
-
-    DESCRIPTION = "Upload first and last keyframes, draft a prompt, and generate a video. More complex transitions, such as cases where the Last frame is completely different from the First frame, may benefit from the longer 10s duration. This would give the generation more time to smoothly transition between the two inputs. Before diving in, review these best practices to ensure that your input selections will set your generation up for success: https://help.runwayml.com/hc/en-us/articles/34170748696595-Creating-with-Keyframes-on-Gen-3."
-
-    async def get_response(
-        self, task_id: str, auth_kwargs: dict[str, str], node_id: Optional[str] = None
-    ) -> RunwayImageToVideoResponse:
-        return await poll_until_finished(
-            auth_kwargs,
-            ApiEndpoint(
-                path=f"{PATH_GET_TASK_STATUS}/{task_id}",
-                method=HttpMethod.GET,
-                request_model=EmptyRequest,
-                response_model=TaskStatusResponse,
-            ),
-            estimated_duration=AVERAGE_DURATION_FLF_SECONDS,
-            node_id=node_id,
+            ],
+            outputs=[
+                comfy_io.Video.Output(),
+            ],
+            hidden=[
+                comfy_io.Hidden.auth_token_comfy_org,
+                comfy_io.Hidden.api_key_comfy_org,
+                comfy_io.Hidden.unique_id,
+            ],
+            is_api_node=True,
         )
 
     @classmethod
-    def INPUT_TYPES(s):
-        return {
-            "required": {
-                "prompt": model_field_to_node_input(
-                    IO.STRING, RunwayImageToVideoRequest, "promptText", multiline=True
-                ),
-                "start_frame": (
-                    IO.IMAGE,
-                    {"tooltip": "Start frame to be used for the video"},
-                ),
-                "end_frame": (
-                    IO.IMAGE,
-                    {
-                        "tooltip": "End frame to be used for the video. Supported for gen3a_turbo only."
-                    },
-                ),
-                "duration": model_field_to_node_input(
-                    IO.COMBO, RunwayImageToVideoRequest, "duration", enum_type=Duration
-                ),
-                "ratio": model_field_to_node_input(
-                    IO.COMBO,
-                    RunwayImageToVideoRequest,
-                    "ratio",
-                    enum_type=RunwayGen3aAspectRatio,
-                ),
-                "seed": model_field_to_node_input(
-                    IO.INT,
-                    RunwayImageToVideoRequest,
-                    "seed",
-                    control_after_generate=True,
-                ),
-            },
-            "hidden": {
-                "auth_token": "AUTH_TOKEN_COMFY_ORG",
-                "unique_id": "UNIQUE_ID",
-                "comfy_api_key": "API_KEY_COMFY_ORG",
-            },
-        }
-
-    async def api_call(
-        self,
+    async def execute(
+        cls,
         prompt: str,
         start_frame: torch.Tensor,
         end_frame: torch.Tensor,
         duration: str,
         ratio: str,
         seed: int,
-        unique_id: Optional[str] = None,
-        **kwargs,
-    ) -> tuple[VideoFromFile]:
-        # Validate inputs
+    ) -> comfy_io.NodeOutput:
         validate_string(prompt, min_length=1)
-        validate_input_image(start_frame)
-        validate_input_image(end_frame)
+        validate_image_dimensions(start_frame, max_width=7999, max_height=7999)
+        validate_image_dimensions(end_frame, max_width=7999, max_height=7999)
+        validate_image_aspect_ratio(start_frame, min_aspect_ratio=0.5, max_aspect_ratio=2.0)
+        validate_image_aspect_ratio(end_frame, min_aspect_ratio=0.5, max_aspect_ratio=2.0)
 
-        # Upload images
+        auth_kwargs = {
+            "auth_token": cls.hidden.auth_token_comfy_org,
+            "comfy_api_key": cls.hidden.api_key_comfy_org,
+        }
+
         stacked_input_images = image_tensor_pair_to_batch(start_frame, end_frame)
         download_urls = await upload_images_to_comfyapi(
             stacked_input_images,
             max_images=2,
             mime_type="image/png",
-            auth_kwargs=kwargs,
+            auth_kwargs=auth_kwargs,
         )
         if len(download_urls) != 2:
             raise RunwayApiError("Failed to upload one or more images to comfy api.")
 
-        return await self.generate_video(
-            RunwayImageToVideoRequest(
-                promptText=prompt,
-                seed=seed,
-                model=Model("gen3a_turbo"),
-                duration=Duration(duration),
-                ratio=AspectRatio(ratio),
-                promptImage=RunwayPromptImageObject(
-                    root=[
-                        RunwayPromptImageDetailedObject(
-                            uri=str(download_urls[0]), position="first"
-                        ),
-                        RunwayPromptImageDetailedObject(
-                            uri=str(download_urls[1]), position="last"
-                        ),
-                    ]
+        return comfy_io.NodeOutput(
+            await generate_video(
+                RunwayImageToVideoRequest(
+                    promptText=prompt,
+                    seed=seed,
+                    model=Model("gen3a_turbo"),
+                    duration=Duration(duration),
+                    ratio=AspectRatio(ratio),
+                    promptImage=RunwayPromptImageObject(
+                        root=[
+                            RunwayPromptImageDetailedObject(
+                                uri=str(download_urls[0]), position="first"
+                            ),
+                            RunwayPromptImageDetailedObject(
+                                uri=str(download_urls[1]), position="last"
+                            ),
+                        ]
+                    ),
                 ),
-            ),
-            auth_kwargs=kwargs,
-            node_id=unique_id,
+                auth_kwargs=auth_kwargs,
+                node_id=cls.hidden.unique_id,
+                estimated_duration=AVERAGE_DURATION_FLF_SECONDS,
+            )
         )
 
 
-class RunwayTextToImageNode(ComfyNodeABC):
-    """Runway Text to Image Node."""
-
-    RETURN_TYPES = ("IMAGE",)
-    FUNCTION = "api_call"
-    CATEGORY = "api node/image/Runway"
-    API_NODE = True
-    DESCRIPTION = "Generate an image from a text prompt using Runway's Gen 4 model. You can also include reference images to guide the generation."
+class RunwayTextToImageNode(comfy_io.ComfyNode):
 
     @classmethod
-    def INPUT_TYPES(s):
-        return {
-            "required": {
-                "prompt": model_field_to_node_input(
-                    IO.STRING, RunwayTextToImageRequest, "promptText", multiline=True
+    def define_schema(cls):
+        return comfy_io.Schema(
+            node_id="RunwayTextToImageNode",
+            display_name="Runway Text to Image",
+            category="api node/image/Runway",
+            description="Generate an image from a text prompt using Runway's Gen 4 model. "
+                        "You can also include reference image to guide the generation.",
+            inputs=[
+                comfy_io.String.Input(
+                    "prompt",
+                    multiline=True,
+                    default="",
+                    tooltip="Text prompt for the generation",
                 ),
-                "ratio": model_field_to_node_input(
-                    IO.COMBO,
-                    RunwayTextToImageRequest,
+                comfy_io.Combo.Input(
                     "ratio",
-                    enum_type=RunwayTextToImageAspectRatioEnum,
+                    options=[model.value for model in RunwayTextToImageAspectRatioEnum],
                 ),
-            },
-            "optional": {
-                "reference_image": (
-                    IO.IMAGE,
-                    {"tooltip": "Optional reference image to guide the generation"},
-                )
-            },
-            "hidden": {
-                "auth_token": "AUTH_TOKEN_COMFY_ORG",
-                "comfy_api_key": "API_KEY_COMFY_ORG",
-                "unique_id": "UNIQUE_ID",
-            },
-        }
-
-    def validate_task_created(self, response: RunwayTextToImageResponse) -> bool:
-        """
-        Validate the task creation response from the Runway API matches
-        expected format.
-        """
-        if not bool(response.id):
-            raise RunwayApiError("Invalid initial response from Runway API.")
-        return True
-
-    def validate_response(self, response: TaskStatusResponse) -> bool:
-        """
-        Validate the successful task status response from the Runway API
-        matches expected format.
-        """
-        if not response.output or len(response.output) == 0:
-            raise RunwayApiError(
-                "Runway task succeeded but no image data found in response."
-            )
-        return True
-
-    async def get_response(
-        self, task_id: str, auth_kwargs: dict[str, str], node_id: Optional[str] = None
-    ) -> TaskStatusResponse:
-        """Poll the task status until it is finished then get the response."""
-        return await poll_until_finished(
-            auth_kwargs,
-            ApiEndpoint(
-                path=f"{PATH_GET_TASK_STATUS}/{task_id}",
-                method=HttpMethod.GET,
-                request_model=EmptyRequest,
-                response_model=TaskStatusResponse,
-            ),
-            estimated_duration=AVERAGE_DURATION_T2I_SECONDS,
-            node_id=node_id,
+                comfy_io.Image.Input(
+                    "reference_image",
+                    tooltip="Optional reference image to guide the generation",
+                    optional=True,
+                ),
+            ],
+            outputs=[
+                comfy_io.Image.Output(),
+            ],
+            hidden=[
+                comfy_io.Hidden.auth_token_comfy_org,
+                comfy_io.Hidden.api_key_comfy_org,
+                comfy_io.Hidden.unique_id,
+            ],
+            is_api_node=True,
         )
 
-    async def api_call(
-        self,
+    @classmethod
+    async def execute(
+        cls,
         prompt: str,
         ratio: str,
         reference_image: Optional[torch.Tensor] = None,
-        unique_id: Optional[str] = None,
-        **kwargs,
-    ) -> tuple[torch.Tensor]:
-        # Validate inputs
+    ) -> comfy_io.NodeOutput:
         validate_string(prompt, min_length=1)
+
+        auth_kwargs = {
+            "auth_token": cls.hidden.auth_token_comfy_org,
+            "comfy_api_key": cls.hidden.api_key_comfy_org,
+        }
 
         # Prepare reference images if provided
         reference_images = None
         if reference_image is not None:
-            validate_input_image(reference_image)
+            validate_image_dimensions(reference_image, max_width=7999, max_height=7999)
+            validate_image_aspect_ratio(reference_image, min_aspect_ratio=0.5, max_aspect_ratio=2.0)
             download_urls = await upload_images_to_comfyapi(
                 reference_image,
                 max_images=1,
                 mime_type="image/png",
-                auth_kwargs=kwargs,
+                auth_kwargs=auth_kwargs,
             )
-            if len(download_urls) != 1:
-                raise RunwayApiError("Failed to upload reference image to comfy api.")
-
             reference_images = [ReferenceImage(uri=str(download_urls[0]))]
 
-        # Create request
         request = RunwayTextToImageRequest(
             promptText=prompt,
             model=Model4.gen4_image,
@@ -593,7 +565,6 @@ class RunwayTextToImageNode(ComfyNodeABC):
             referenceImages=reference_images,
         )
 
-        # Execute initial request
         initial_operation = SynchronousOperation(
             endpoint=ApiEndpoint(
                 path=PATH_TEXT_TO_IMAGE,
@@ -602,34 +573,33 @@ class RunwayTextToImageNode(ComfyNodeABC):
                 response_model=RunwayTextToImageResponse,
             ),
             request=request,
-            auth_kwargs=kwargs,
+            auth_kwargs=auth_kwargs,
         )
 
         initial_response = await initial_operation.execute()
-        self.validate_task_created(initial_response)
-        task_id = initial_response.id
 
         # Poll for completion
-        final_response = await self.get_response(
-            task_id, auth_kwargs=kwargs, node_id=unique_id
+        final_response = await get_response(
+            initial_response.id,
+            auth_kwargs=auth_kwargs,
+            node_id=cls.hidden.unique_id,
+            estimated_duration=AVERAGE_DURATION_T2I_SECONDS,
         )
-        self.validate_response(final_response)
+        if not final_response.output:
+            raise RunwayApiError("Runway task succeeded but no image data found in response.")
 
-        # Download and return image
-        image_url = get_image_url_from_task_status(final_response)
-        return (await download_url_to_image_tensor(image_url),)
+        return comfy_io.NodeOutput(await download_url_to_image_tensor(get_image_url_from_task_status(final_response)))
 
 
-NODE_CLASS_MAPPINGS = {
-    "RunwayFirstLastFrameNode": RunwayFirstLastFrameNode,
-    "RunwayImageToVideoNodeGen3a": RunwayImageToVideoNodeGen3a,
-    "RunwayImageToVideoNodeGen4": RunwayImageToVideoNodeGen4,
-    "RunwayTextToImageNode": RunwayTextToImageNode,
-}
+class RunwayExtension(ComfyExtension):
+    @override
+    async def get_node_list(self) -> list[type[comfy_io.ComfyNode]]:
+        return [
+            RunwayFirstLastFrameNode,
+            RunwayImageToVideoNodeGen3a,
+            RunwayImageToVideoNodeGen4,
+            RunwayTextToImageNode,
+        ]
 
-NODE_DISPLAY_NAME_MAPPINGS = {
-    "RunwayFirstLastFrameNode": "Runway First-Last-Frame to Video",
-    "RunwayImageToVideoNodeGen3a": "Runway Image to Video (Gen3a Turbo)",
-    "RunwayImageToVideoNodeGen4": "Runway Image to Video (Gen4 Turbo)",
-    "RunwayTextToImageNode": "Runway Text to Image",
-}
+async def comfy_entrypoint() -> RunwayExtension:
+    return RunwayExtension()

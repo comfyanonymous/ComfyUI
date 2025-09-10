@@ -97,6 +97,9 @@ class LoKrAdapter(WeightAdapterBase):
             (mat1, mat2, alpha, None, None, None, None, None, None)
         )
 
+    def to_train(self):
+        return LokrDiff(self.weights)
+
     @classmethod
     def load(
         cls,

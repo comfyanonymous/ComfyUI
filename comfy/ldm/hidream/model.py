@@ -13,6 +13,7 @@ from comfy.ldm.flux.layers import LastLayer
 
 from comfy.ldm.modules.attention import optimized_attention
 import comfy.model_management
+import comfy.patcher_extension
 import comfy.ldm.common_dit
 
 
@@ -692,7 +693,23 @@ class HiDreamImageTransformer2DModel(nn.Module):
             raise NotImplementedError
         return x, x_masks, img_sizes
 
-    def forward(
+    def forward(self,
+        x: torch.Tensor,
+        t: torch.Tensor,
+        y: Optional[torch.Tensor] = None,
+        context: Optional[torch.Tensor] = None,
+        encoder_hidden_states_llama3=None,
+        image_cond=None,
+        control = None,
+        transformer_options = {},
+    ):
+        return comfy.patcher_extension.WrapperExecutor.new_class_executor(
+            self._forward,
+            self,
+            comfy.patcher_extension.get_all_wrappers(comfy.patcher_extension.WrappersMP.DIFFUSION_MODEL, transformer_options)
+        ).execute(x, t, y, context, encoder_hidden_states_llama3, image_cond, control, transformer_options)
+
+    def _forward(
         self,
         x: torch.Tensor,
         t: torch.Tensor,

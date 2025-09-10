@@ -166,7 +166,7 @@ class LTXVAddGuide:
         negative = self.add_keyframe_index(negative, frame_idx, guiding_latent, scale_factors)
 
         mask = torch.full(
-            (noise_mask.shape[0], 1, guiding_latent.shape[2], 1, 1),
+            (noise_mask.shape[0], 1, guiding_latent.shape[2], noise_mask.shape[3], noise_mask.shape[4]),
             1.0 - strength,
             dtype=noise_mask.dtype,
             device=noise_mask.device,

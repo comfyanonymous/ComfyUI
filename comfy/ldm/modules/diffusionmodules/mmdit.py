@@ -109,7 +109,7 @@ class PatchEmbed(nn.Module):
 def modulate(x, shift, scale):
     if shift is None:
         shift = torch.zeros_like(scale)
-    return x * (1 + scale.unsqueeze(1)) + shift.unsqueeze(1)
+    return torch.addcmul(shift.unsqueeze(1), x, 1+ scale.unsqueeze(1))
 
 
 #################################################################################
@@ -564,10 +564,7 @@ class DismantledBlock(nn.Module):
         assert not self.pre_only
         attn1 = self.attn.post_attention(attn)
         attn2 = self.attn2.post_attention(attn2)
-        out1 = gate_msa.unsqueeze(1) * attn1
-        out2 = gate_msa2.unsqueeze(1) * attn2
-        x = x + out1
-        x = x + out2
+        x = gate_cat(x, gate_msa, gate_msa2, attn1, attn2)
         x = x + gate_mlp.unsqueeze(1) * self.mlp(
             modulate(self.norm2(x), shift_mlp, scale_mlp)
         )
@@ -594,6 +591,11 @@ class DismantledBlock(nn.Module):
             )
             return self.post_attention(attn, *intermediates)
 
+def gate_cat(x, gate_msa, gate_msa2, attn1, attn2):
+    out1 = gate_msa.unsqueeze(1) * attn1
+    out2 = gate_msa2.unsqueeze(1) * attn2
+    x = torch.stack([x, out1, out2], dim=0).sum(dim=0)
+    return x
 
 def block_mixing(*args, use_checkpoint=True, **kwargs):
     if use_checkpoint:
