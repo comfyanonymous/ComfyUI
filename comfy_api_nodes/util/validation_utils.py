@@ -2,7 +2,7 @@ import logging
 from typing import Optional
 
 import torch
-from comfy_api.input.video_types import VideoInput
+from comfy_api.latest import Input
 
 
 def get_image_dimensions(image: torch.Tensor) -> tuple[int, int]:
@@ -101,7 +101,7 @@ def validate_aspect_ratio_closeness(
 
 
 def validate_video_dimensions(
-    video: VideoInput,
+    video: Input.Video,
     min_width: Optional[int] = None,
     max_width: Optional[int] = None,
     min_height: Optional[int] = None,
@@ -126,7 +126,7 @@ def validate_video_dimensions(
 
 
 def validate_video_duration(
-    video: VideoInput,
+    video: Input.Video,
     min_duration: Optional[float] = None,
     max_duration: Optional[float] = None,
 ):
@@ -151,3 +151,17 @@ def get_number_of_images(images):
     if isinstance(images, torch.Tensor):
         return images.shape[0] if images.ndim >= 4 else 1
     return len(images)
+
+
+def validate_audio_duration(
+    audio: Input.Audio,
+    min_duration: Optional[float] = None,
+    max_duration: Optional[float] = None,
+) -> None:
+    sr = int(audio["sample_rate"])
+    dur = int(audio["waveform"].shape[-1]) / sr
+    eps = 1.0 / sr
+    if min_duration is not None and dur + eps < min_duration:
+        raise ValueError(f"Audio duration must be at least {min_duration}s, got {dur + eps:.2f}s")
+    if max_duration is not None and dur - eps > max_duration:
+        raise ValueError(f"Audio duration must be at most {max_duration}s, got {dur - eps:.2f}s")

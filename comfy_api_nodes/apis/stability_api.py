@@ -125,3 +125,25 @@ class StabilityResultsGetResponse(BaseModel):
 
 class StabilityAsyncResponse(BaseModel):
     id: Optional[str] = Field(None)
+
+
+class StabilityTextToAudioRequest(BaseModel):
+    model: str = Field(...)
+    prompt: str = Field(...)
+    duration: int = Field(190, ge=1, le=190)
+    seed: int = Field(0, ge=0, le=4294967294)
+    steps: int = Field(8, ge=4, le=8)
+    output_format: str = Field("wav")
+
+
+class StabilityAudioToAudioRequest(StabilityTextToAudioRequest):
+    strength: float = Field(0.01, ge=0.01, le=1.0)
+
+
+class StabilityAudioInpaintRequest(StabilityTextToAudioRequest):
+    mask_start: int = Field(30, ge=0, le=190)
+    mask_end: int = Field(190, ge=0, le=190)
+
+
+class StabilityAudioResponse(BaseModel):
+    audio: Optional[str] = Field(None)
