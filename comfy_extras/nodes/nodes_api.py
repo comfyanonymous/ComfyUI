@@ -16,9 +16,7 @@ class OutputTensor(CustomNode):
     FUNCTION = "execute"
 
     def execute(self, tensor):
-        return {
-            "result": tensor
-        }
+        return {"ui": {"tensor": tensor}}
 
 
 export_custom_nodes()
