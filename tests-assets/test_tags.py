@@ -1,3 +1,4 @@
+import json
 import aiohttp
 import pytest
 
@@ -98,3 +99,29 @@ async def test_tags_list_order_and_prefix(http: aiohttp.ClientSession, api_base:
         b2 = await r2.json()
         assert r2.status == 400
         assert b2["error"]["code"] == "INVALID_QUERY"
+
+
+@pytest.mark.asyncio
+async def test_tags_endpoints_invalid_bodies(http: aiohttp.ClientSession, api_base: str, seeded_asset: dict):
+    aid = seeded_asset["id"]
+
+    # Add with empty list
+    async with http.post(f"{api_base}/api/assets/{aid}/tags", json={"tags": []}) as r1:
+        b1 = await r1.json()
+        assert r1.status == 400
+        assert b1["error"]["code"] == "INVALID_BODY"
+
+    # Remove with wrong type
+    async with http.delete(f"{api_base}/api/assets/{aid}/tags", json={"tags": [123]}) as r2:
+        b2 = await r2.json()
+        assert r2.status == 400
+        assert b2["error"]["code"] == "INVALID_BODY"
+
+    # metadata_filter provided as JSON array should be rejected (must be object)
+    async with http.get(
+        api_base + "/api/assets",
+        params={"metadata_filter": json.dumps([{"x": 1}])},
+    ) as r3:
+        b3 = await r3.json()
+        assert r3.status == 400
+        assert b3["error"]["code"] == "INVALID_QUERY"
