@@ -518,6 +518,71 @@ async def upload_audio_to_comfyapi(
     return await upload_file_to_comfyapi(audio_bytes_io, filename, mime_type, auth_kwargs)
 
 
+def f32_pcm(wav: torch.Tensor) -> torch.Tensor:
+    """Convert audio to float 32 bits PCM format. Copy-paste from nodes_audio.py file."""
+    if wav.dtype.is_floating_point:
+        return wav
+    elif wav.dtype == torch.int16:
+        return wav.float() / (2 ** 15)
+    elif wav.dtype == torch.int32:
+        return wav.float() / (2 ** 31)
+    raise ValueError(f"Unsupported wav dtype: {wav.dtype}")
+
+
+def audio_bytes_to_audio_input(audio_bytes: bytes,) -> dict:
+    """
+    Decode any common audio container from bytes using PyAV and return
+    a Comfy AUDIO dict: {"waveform": [1, C, T] float32, "sample_rate": int}.
+    """
+    with av.open(io.BytesIO(audio_bytes)) as af:
+        if not af.streams.audio:
+            raise ValueError("No audio stream found in response.")
+        stream = af.streams.audio[0]
+
+        in_sr = int(stream.codec_context.sample_rate)
+        out_sr = in_sr
+
+        frames: list[torch.Tensor] = []
+        n_channels = stream.channels or 1
+
+        for frame in af.decode(streams=stream.index):
+            arr = frame.to_ndarray()  # shape can be [C, T] or [T, C] or [T]
+            buf = torch.from_numpy(arr)
+            if buf.ndim == 1:
+                buf = buf.unsqueeze(0)  # [T] -> [1, T]
+            elif buf.shape[0] != n_channels and buf.shape[-1] == n_channels:
+                buf = buf.transpose(0, 1).contiguous()  # [T, C] -> [C, T]
+            elif buf.shape[0] != n_channels:
+                buf = buf.reshape(-1, n_channels).t().contiguous()  # fallback to [C, T]
+            frames.append(buf)
+
+    if not frames:
+        raise ValueError("Decoded zero audio frames.")
+
+    wav = torch.cat(frames, dim=1)  # [C, T]
+    wav = f32_pcm(wav)
+    return {"waveform": wav.unsqueeze(0).contiguous(), "sample_rate": out_sr}
+
+
+def audio_input_to_mp3(audio: AudioInput) -> io.BytesIO:
+    waveform = audio["waveform"].cpu()
+
+    output_buffer = io.BytesIO()
+    output_container = av.open(output_buffer, mode='w', format="mp3")
+
+    out_stream = output_container.add_stream("libmp3lame", rate=audio["sample_rate"])
+    out_stream.bit_rate = 320000
+
+    frame = av.AudioFrame.from_ndarray(waveform.movedim(0, 1).reshape(1, -1).float().numpy(), format='flt', layout='mono' if waveform.shape[0] == 1 else 'stereo')
+    frame.sample_rate = audio["sample_rate"]
+    frame.pts = 0
+    output_container.mux(out_stream.encode(frame))
+    output_container.mux(out_stream.encode(None))
+    output_container.close()
+    output_buffer.seek(0)
+    return output_buffer
+
+
 def audio_to_base64_string(
     audio: AudioInput, container_format: str = "mp4", codec_name: str = "aac"
 ) -> str:
