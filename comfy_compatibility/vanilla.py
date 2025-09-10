@@ -39,8 +39,6 @@ def prepare_vanilla_environment():
         module_short_name = module.__name__.split(".")[-1]
         sys.modules[module_short_name] = module
     sys.modules['nodes'] = base_nodes
-    # apparently this is also something that happens
-    sys.modules['comfy.nodes'] = base_nodes
     comfyui_version = types.ModuleType('comfyui_version', '')
     setattr(comfyui_version, "__version__", __version__)
     sys.modules['comfyui_version'] = comfyui_version
