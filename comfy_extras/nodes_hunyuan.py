@@ -113,6 +113,20 @@ class HunyuanImageToVideo:
         out_latent["samples"] = latent
         return (positive, out_latent)
 
+class EmptyHunyuanImageLatent:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": { "width": ("INT", {"default": 2048, "min": 64, "max": nodes.MAX_RESOLUTION, "step": 32}),
+                              "height": ("INT", {"default": 2048, "min": 64, "max": nodes.MAX_RESOLUTION, "step": 32}),
+                              "batch_size": ("INT", {"default": 1, "min": 1, "max": 4096})}}
+    RETURN_TYPES = ("LATENT",)
+    FUNCTION = "generate"
+
+    CATEGORY = "latent"
+
+    def generate(self, width, height, batch_size=1):
+        latent = torch.zeros([batch_size, 64, height // 32, width // 32], device=comfy.model_management.intermediate_device())
+        return ({"samples":latent}, )
 
 
 NODE_CLASS_MAPPINGS = {
@@ -120,4 +134,5 @@ NODE_CLASS_MAPPINGS = {
     "TextEncodeHunyuanVideo_ImageToVideo": TextEncodeHunyuanVideo_ImageToVideo,
     "EmptyHunyuanLatentVideo": EmptyHunyuanLatentVideo,
     "HunyuanImageToVideo": HunyuanImageToVideo,
+    "EmptyHunyuanImageLatent": EmptyHunyuanImageLatent,
 }
