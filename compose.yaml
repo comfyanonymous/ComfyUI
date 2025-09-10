@@ -10,7 +10,7 @@ services:
         APT_EXTRA_PACKAGES:
 
     ports:
-      - 127.0.0.1:8188:8188
+      - 8188:8188
 
     # Optional: enable GPU access for hardware acceleration.
     deploy:
