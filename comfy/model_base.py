@@ -1437,3 +1437,23 @@ class HunyuanImage21(BaseModel):
             out['guidance'] = comfy.conds.CONDRegular(torch.FloatTensor([guidance]))
 
         return out
+
+class HunyuanImage21Refiner(HunyuanImage21):
+    def concat_cond(self, **kwargs):
+        noise = kwargs.get("noise", None)
+        image = kwargs.get("concat_latent_image", None)
+        device = kwargs["device"]
+
+        if image is None:
+            shape_image = list(noise.shape)
+            image = torch.zeros(shape_image, dtype=noise.dtype, layout=noise.layout, device=noise.device)
+        else:
+            image = utils.common_upscale(image.to(device), noise.shape[-1], noise.shape[-2], "bilinear", "center")
+            image = self.process_latent_in(image)
+            image = utils.resize_to_batch_size(image, noise.shape[0])
+        return image
+
+    def extra_conds(self, **kwargs):
+        out = super().extra_conds(**kwargs)
+        out['disable_time_r'] = comfy.conds.CONDConstant(True)
+        return out
