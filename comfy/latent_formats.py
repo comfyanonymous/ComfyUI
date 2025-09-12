@@ -606,6 +606,11 @@ class HunyuanImage21(LatentFormat):
 
     latent_rgb_factors_bias = [0.0007, -0.0256, -0.0206]
 
+class HunyuanImage21Refiner(LatentFormat):
+    latent_channels = 64
+    latent_dimensions = 3
+    scale_factor = 1.03682
+
 class Hunyuan3Dv2(LatentFormat):
     latent_channels = 64
     latent_dimensions = 1
