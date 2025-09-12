@@ -128,6 +128,9 @@ if __name__ == "__main__":
         os.environ['CUDA_VISIBLE_DEVICES'] = str(args.cuda_device)
         os.environ['HIP_VISIBLE_DEVICES'] = str(args.cuda_device)
         logging.info("Set cuda device to: {}".format(args.cuda_device))
+    elif args.ascend_device is not None:
+        os.environ["ASCEND_RT_VISIBLE_DEVICES"] = str(args.ascend_device)
+        logging.info("Set npu device to: {}".format(args.ascend_device))
 
     if args.oneapi_device_selector is not None:
         os.environ['ONEAPI_DEVICE_SELECTOR'] = args.oneapi_device_selector
