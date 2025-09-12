@@ -136,20 +136,40 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
 
     if '{}txt_in.individual_token_refiner.blocks.0.norm1.weight'.format(key_prefix) in state_dict_keys: #Hunyuan Video
         dit_config = {}
+        in_w = state_dict['{}img_in.proj.weight'.format(key_prefix)]
+        out_w = state_dict['{}final_layer.linear.weight'.format(key_prefix)]
         dit_config["image_model"] = "hunyuan_video"
-        dit_config["in_channels"] = state_dict['{}img_in.proj.weight'.format(key_prefix)].shape[1] #SkyReels img2video has 32 input channels
-        dit_config["patch_size"] = [1, 2, 2]
-        dit_config["out_channels"] = 16
-        dit_config["vec_in_dim"] = 768
-        dit_config["context_in_dim"] = 4096
-        dit_config["hidden_size"] = 3072
+        dit_config["in_channels"] = in_w.shape[1] #SkyReels img2video has 32 input channels
+        dit_config["patch_size"] = list(in_w.shape[2:])
+        dit_config["out_channels"] = out_w.shape[0] // math.prod(dit_config["patch_size"])
+        if any(s.startswith('{}vector_in.'.format(key_prefix)) for s in state_dict_keys):
+            dit_config["vec_in_dim"] = 768
+        else:
+            dit_config["vec_in_dim"] = None
+
+        if len(dit_config["patch_size"]) == 2:
+            dit_config["axes_dim"] = [64, 64]
+        else:
+            dit_config["axes_dim"] = [16, 56, 56]
+
+        if any(s.startswith('{}time_r_in.'.format(key_prefix)) for s in state_dict_keys):
+            dit_config["meanflow"] = True
+        else:
+            dit_config["meanflow"] = False
+
+        dit_config["context_in_dim"] = state_dict['{}txt_in.input_embedder.weight'.format(key_prefix)].shape[1]
+        dit_config["hidden_size"] = in_w.shape[0]
         dit_config["mlp_ratio"] = 4.0
-        dit_config["num_heads"] = 24
+        dit_config["num_heads"] = in_w.shape[0] // 128
         dit_config["depth"] = count_blocks(state_dict_keys, '{}double_blocks.'.format(key_prefix) + '{}.')
         dit_config["depth_single_blocks"] = count_blocks(state_dict_keys, '{}single_blocks.'.format(key_prefix) + '{}.')
-        dit_config["axes_dim"] = [16, 56, 56]
         dit_config["theta"] = 256
         dit_config["qkv_bias"] = True
+        if '{}byt5_in.fc1.weight'.format(key_prefix) in state_dict:
+            dit_config["byt5"] = True
+        else:
+            dit_config["byt5"] = False
+
         guidance_keys = list(filter(lambda a: a.startswith("{}guidance_in.".format(key_prefix)), state_dict_keys))
         dit_config["guidance_embed"] = len(guidance_keys) > 0
         return dit_config
@@ -398,6 +418,20 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
         dit_config["depth_single_blocks"] = count_blocks(state_dict_keys, '{}single_blocks.'.format(key_prefix) + '{}.')
         dit_config["qkv_bias"] = True
         dit_config["guidance_embed"] = "{}guidance_in.in_layer.weight".format(key_prefix) in state_dict_keys
+        return dit_config
+
+    if f"{key_prefix}t_embedder.mlp.2.weight" in state_dict_keys:  # Hunyuan 3D 2.1
+
+        dit_config = {}
+        dit_config["image_model"] = "hunyuan3d2_1"
+        dit_config["in_channels"] = state_dict[f"{key_prefix}x_embedder.weight"].shape[1]
+        dit_config["context_dim"] = 1024
+        dit_config["hidden_size"] = state_dict[f"{key_prefix}x_embedder.weight"].shape[0]
+        dit_config["mlp_ratio"] = 4.0
+        dit_config["num_heads"] = 16
+        dit_config["depth"] = count_blocks(state_dict_keys, f"{key_prefix}blocks.{{}}")
+        dit_config["qkv_bias"] = False
+        dit_config["guidance_cond_proj_dim"] = None#f"{key_prefix}t_embedder.cond_proj.weight" in state_dict_keys
         return dit_config
 
     if '{}caption_projection.0.linear.weight'.format(key_prefix) in state_dict_keys:  # HiDream
