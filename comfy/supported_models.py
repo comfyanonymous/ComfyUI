@@ -1329,7 +1329,7 @@ class HunyuanImage21Refiner(HunyuanVideo):
     }
 
     sampling_settings = {
-        "shift": 1.0,
+        "shift": 4.0,
     }
 
     latent_format = latent_formats.HunyuanImage21Refiner

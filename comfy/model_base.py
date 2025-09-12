@@ -1448,8 +1448,12 @@ class HunyuanImage21Refiner(HunyuanImage21):
             image = self.process_latent_in(image)
             image = utils.resize_to_batch_size(image, noise.shape[0])
             if noise_augmentation > 0:
-                noise = torch.randn(image.shape, generator=torch.manual_seed(kwargs.get("seed", 0) - 10), dtype=image.dtype, device="cpu").to(image.device)
-                image = noise_augmentation * noise + (1.0 - noise_augmentation) * image
+                generator = torch.Generator(device="cpu")
+                generator.manual_seed(kwargs.get("seed", 0) - 10)
+                noise = torch.randn(image.shape, generator=generator, dtype=image.dtype, device="cpu").to(image.device)
+                image = noise_augmentation * noise + min(1.0 - noise_augmentation, 0.75) * image
+            else:
+                image = 0.75 * image
         return image
 
     def extra_conds(self, **kwargs):
