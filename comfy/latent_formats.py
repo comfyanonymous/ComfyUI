@@ -382,6 +382,7 @@ class HunyuanVideo(LatentFormat):
     ]
 
     latent_rgb_factors_bias = [ 0.0259, -0.0192, -0.0761]
+    taesd_decoder_name = "taehv"
 
 class Cosmos1CV8x8x8(LatentFormat):
     latent_channels = 16
@@ -445,7 +446,7 @@ class Wan21(LatentFormat):
         ]).view(1, self.latent_channels, 1, 1, 1)
 
 
-        self.taesd_decoder_name = None #TODO
+        self.taesd_decoder_name = "taew2_1"
 
     def process_in(self, latent):
         latents_mean = self.latents_mean.to(latent.device, latent.dtype)
