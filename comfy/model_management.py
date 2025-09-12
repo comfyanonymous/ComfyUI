@@ -1079,6 +1079,9 @@ def cast_to_device(tensor, device, dtype, copy=False):
 def sage_attention_enabled():
     return args.use_sage_attention
 
+def sage_attention3_enabled():
+    return args.use_sage_attention3
+
 def flash_attention_enabled():
     return args.use_flash_attention
 
