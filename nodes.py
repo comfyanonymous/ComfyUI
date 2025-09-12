@@ -361,6 +361,24 @@ class VAEEncodeTiled:
         t = vae.encode_tiled(pixels[:,:,:,:3], tile_x=tile_size, tile_y=tile_size, overlap=overlap, tile_t=temporal_size, overlap_t=temporal_overlap)
         return ({"samples": t}, )
 
+class ForceTiledVAEEncode:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": {"vae": ("VAE", ),
+                             "tile_size": ("INT", {"default": 256, "min": 64, "max": 4096, "step": 32}),
+                             "overlap": ("INT", {"default": 64, "min": 0, "max": 4096, "step": 32}),
+                             "temporal_size": ("INT", {"default": 64, "min": 8, "max": 4096, "step": 4, "tooltip": "Only used for video VAEs: Amount of frames to encode at a time."}),
+                             "temporal_overlap": ("INT", {"default": 8, "min": 4, "max": 4096, "step": 4, "tooltip": "Only used for video VAEs: Amount of frames to overlap."}),
+                             }}
+    RETURN_TYPES = ("VAE",)
+    FUNCTION = "cast"
+
+    CATEGORY = "_for_testing"
+
+    def cast(self, vae, tile_size, overlap, temporal_size=64, temporal_overlap=8):
+        tiled_vae = comfy.sd.ForcedTiledVAE.cast(vae, tile_size, overlap, temporal_size, temporal_overlap)
+        return (tiled_vae, )
+
 class VAEEncodeForInpaint:
     @classmethod
     def INPUT_TYPES(s):
@@ -1993,6 +2011,7 @@ NODE_CLASS_MAPPINGS = {
     "CLIPVisionLoader": CLIPVisionLoader,
     "VAEDecodeTiled": VAEDecodeTiled,
     "VAEEncodeTiled": VAEEncodeTiled,
+    "ForceTiledVAEEncode": ForceTiledVAEEncode,
     "unCLIPCheckpointLoader": unCLIPCheckpointLoader,
     "GLIGENLoader": GLIGENLoader,
     "GLIGENTextBoxApply": GLIGENTextBoxApply,
@@ -2076,6 +2095,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     # _for_testing
     "VAEDecodeTiled": "VAE Decode (Tiled)",
     "VAEEncodeTiled": "VAE Encode (Tiled)",
+    "ForceTiledVAEEncode": "Force tiled VAE Encode",
 }
 
 EXTENSION_WEB_DIRS = {}
