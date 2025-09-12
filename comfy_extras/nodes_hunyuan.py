@@ -128,6 +128,28 @@ class EmptyHunyuanImageLatent:
         latent = torch.zeros([batch_size, 64, height // 32, width // 32], device=comfy.model_management.intermediate_device())
         return ({"samples":latent}, )
 
+class HunyuanRefinerLatent:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": {"positive": ("CONDITIONING", ),
+                             "negative": ("CONDITIONING", ),
+                             "latent": ("LATENT", ),
+                             }}
+
+    RETURN_TYPES = ("CONDITIONING", "CONDITIONING", "LATENT")
+    RETURN_NAMES = ("positive", "negative", "latent")
+
+    FUNCTION = "execute"
+
+    def execute(self, positive, negative, latent):
+        latent = latent["samples"]
+
+        positive = node_helpers.conditioning_set_values(positive, {"concat_latent_image": latent})
+        negative = node_helpers.conditioning_set_values(negative, {"concat_latent_image": latent})
+        out_latent = {}
+        out_latent["samples"] = torch.zeros([latent.shape[0], 32, latent.shape[-3], latent.shape[-2], latent.shape[-1]], device=comfy.model_management.intermediate_device())
+        return (positive, negative, out_latent)
+
 
 NODE_CLASS_MAPPINGS = {
     "CLIPTextEncodeHunyuanDiT": CLIPTextEncodeHunyuanDiT,
@@ -135,4 +157,5 @@ NODE_CLASS_MAPPINGS = {
     "EmptyHunyuanLatentVideo": EmptyHunyuanLatentVideo,
     "HunyuanImageToVideo": HunyuanImageToVideo,
     "EmptyHunyuanImageLatent": EmptyHunyuanImageLatent,
+    "HunyuanRefinerLatent": HunyuanRefinerLatent,
 }
