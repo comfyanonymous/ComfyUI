@@ -1,9 +1,10 @@
 from inspect import cleandoc
-from typing import Union
+from typing import Optional
 import logging
 import torch
 
-from comfy.comfy_types.node_typing import IO
+from typing_extensions import override
+from comfy_api.latest import ComfyExtension, io as comfy_io
 from comfy_api.input_impl.video_types import VideoFromFile
 from comfy_api_nodes.apis import (
     MinimaxVideoGenerationRequest,
@@ -11,7 +12,7 @@ from comfy_api_nodes.apis import (
     MinimaxFileRetrieveResponse,
     MinimaxTaskResultResponse,
     SubjectReferenceItem,
-    MiniMaxModel
+    MiniMaxModel,
 )
 from comfy_api_nodes.apis.client import (
     ApiEndpoint,
@@ -31,372 +32,398 @@ from server import PromptServer
 I2V_AVERAGE_DURATION = 114
 T2V_AVERAGE_DURATION = 234
 
-class MinimaxTextToVideoNode:
+
+async def _generate_mm_video(
+    *,
+    auth: dict[str, str],
+    node_id: str,
+    prompt_text: str,
+    seed: int,
+    model: str,
+    image: Optional[torch.Tensor] = None,   # used for ImageToVideo
+    subject: Optional[torch.Tensor] = None, # used for SubjectToVideo
+    average_duration: Optional[int] = None,
+) -> comfy_io.NodeOutput:
+    if image is None:
+        validate_string(prompt_text, field_name="prompt_text")
+    # upload image, if passed in
+    image_url = None
+    if image is not None:
+        image_url = (await upload_images_to_comfyapi(image, max_images=1, auth_kwargs=auth))[0]
+
+    # TODO: figure out how to deal with subject properly, API returns invalid params when using S2V-01 model
+    subject_reference = None
+    if subject is not None:
+        subject_url = (await upload_images_to_comfyapi(subject, max_images=1, auth_kwargs=auth))[0]
+        subject_reference = [SubjectReferenceItem(image=subject_url)]
+
+
+    video_generate_operation = SynchronousOperation(
+        endpoint=ApiEndpoint(
+            path="/proxy/minimax/video_generation",
+            method=HttpMethod.POST,
+            request_model=MinimaxVideoGenerationRequest,
+            response_model=MinimaxVideoGenerationResponse,
+        ),
+        request=MinimaxVideoGenerationRequest(
+            model=MiniMaxModel(model),
+            prompt=prompt_text,
+            callback_url=None,
+            first_frame_image=image_url,
+            subject_reference=subject_reference,
+            prompt_optimizer=None,
+        ),
+        auth_kwargs=auth,
+    )
+    response = await video_generate_operation.execute()
+
+    task_id = response.task_id
+    if not task_id:
+        raise Exception(f"MiniMax generation failed: {response.base_resp}")
+
+    video_generate_operation = PollingOperation(
+        poll_endpoint=ApiEndpoint(
+            path="/proxy/minimax/query/video_generation",
+            method=HttpMethod.GET,
+            request_model=EmptyRequest,
+            response_model=MinimaxTaskResultResponse,
+            query_params={"task_id": task_id},
+        ),
+        completed_statuses=["Success"],
+        failed_statuses=["Fail"],
+        status_extractor=lambda x: x.status.value,
+        estimated_duration=average_duration,
+        node_id=node_id,
+        auth_kwargs=auth,
+    )
+    task_result = await video_generate_operation.execute()
+
+    file_id = task_result.file_id
+    if file_id is None:
+        raise Exception("Request was not successful. Missing file ID.")
+    file_retrieve_operation = SynchronousOperation(
+        endpoint=ApiEndpoint(
+            path="/proxy/minimax/files/retrieve",
+            method=HttpMethod.GET,
+            request_model=EmptyRequest,
+            response_model=MinimaxFileRetrieveResponse,
+            query_params={"file_id": int(file_id)},
+        ),
+        request=EmptyRequest(),
+        auth_kwargs=auth,
+    )
+    file_result = await file_retrieve_operation.execute()
+
+    file_url = file_result.file.download_url
+    if file_url is None:
+        raise Exception(
+            f"No video was found in the response. Full response: {file_result.model_dump()}"
+        )
+    logging.info("Generated video URL: %s", file_url)
+    if node_id:
+        if hasattr(file_result.file, "backup_download_url"):
+            message = f"Result URL: {file_url}\nBackup URL: {file_result.file.backup_download_url}"
+        else:
+            message = f"Result URL: {file_url}"
+        PromptServer.instance.send_progress_text(message, node_id)
+
+    # Download and return as VideoFromFile
+    video_io = await download_url_to_bytesio(file_url)
+    if video_io is None:
+        error_msg = f"Failed to download video from {file_url}"
+        logging.error(error_msg)
+        raise Exception(error_msg)
+    return comfy_io.NodeOutput(VideoFromFile(video_io))
+
+
+class MinimaxTextToVideoNode(comfy_io.ComfyNode):
     """
     Generates videos synchronously based on a prompt, and optional parameters using MiniMax's API.
     """
 
-    AVERAGE_DURATION = T2V_AVERAGE_DURATION
+    @classmethod
+    def define_schema(cls) -> comfy_io.Schema:
+        return comfy_io.Schema(
+            node_id="MinimaxTextToVideoNode",
+            display_name="MiniMax Text to Video",
+            category="api node/video/MiniMax",
+            description=cleandoc(cls.__doc__ or ""),
+            inputs=[
+                comfy_io.String.Input(
+                    "prompt_text",
+                    multiline=True,
+                    default="",
+                    tooltip="Text prompt to guide the video generation",
+                ),
+                comfy_io.Combo.Input(
+                    "model",
+                    options=["T2V-01", "T2V-01-Director"],
+                    default="T2V-01",
+                    tooltip="Model to use for video generation",
+                ),
+                comfy_io.Int.Input(
+                    "seed",
+                    default=0,
+                    min=0,
+                    max=0xFFFFFFFFFFFFFFFF,
+                    step=1,
+                    control_after_generate=True,
+                    tooltip="The random seed used for creating the noise.",
+                    optional=True,
+                ),
+            ],
+            outputs=[comfy_io.Video.Output()],
+            hidden=[
+                comfy_io.Hidden.auth_token_comfy_org,
+                comfy_io.Hidden.api_key_comfy_org,
+                comfy_io.Hidden.unique_id,
+            ],
+            is_api_node=True,
+        )
 
     @classmethod
-    def INPUT_TYPES(s):
-        return {
-            "required": {
-                "prompt_text": (
-                    "STRING",
-                    {
-                        "multiline": True,
-                        "default": "",
-                        "tooltip": "Text prompt to guide the video generation",
-                    },
-                ),
-                "model": (
-                    [
-                        "T2V-01",
-                        "T2V-01-Director",
-                    ],
-                    {
-                        "default": "T2V-01",
-                        "tooltip": "Model to use for video generation",
-                    },
-                ),
+    async def execute(
+        cls,
+        prompt_text: str,
+        model: str = "T2V-01",
+        seed: int = 0,
+    ) -> comfy_io.NodeOutput:
+        return await _generate_mm_video(
+            auth={
+                "auth_token": cls.hidden.auth_token_comfy_org,
+                "comfy_api_key": cls.hidden.api_key_comfy_org,
             },
-            "optional": {
-                "seed": (
-                    IO.INT,
-                    {
-                        "default": 0,
-                        "min": 0,
-                        "max": 0xFFFFFFFFFFFFFFFF,
-                        "control_after_generate": True,
-                        "tooltip": "The random seed used for creating the noise.",
-                    },
-                ),
-            },
-            "hidden": {
-                "auth_token": "AUTH_TOKEN_COMFY_ORG",
-                "comfy_api_key": "API_KEY_COMFY_ORG",
-                "unique_id": "UNIQUE_ID",
-            },
-        }
-
-    RETURN_TYPES = ("VIDEO",)
-    DESCRIPTION = "Generates videos from prompts using MiniMax's API"
-    FUNCTION = "generate_video"
-    CATEGORY = "api node/video/MiniMax"
-    API_NODE = True
-
-    async def generate_video(
-        self,
-        prompt_text,
-        seed=0,
-        model="T2V-01",
-        image: torch.Tensor=None, # used for ImageToVideo
-        subject: torch.Tensor=None, # used for SubjectToVideo
-        unique_id: Union[str, None]=None,
-        **kwargs,
-    ):
-        '''
-        Function used between MiniMax nodes - supports T2V, I2V, and S2V, based on provided arguments.
-        '''
-        if image is None:
-            validate_string(prompt_text, field_name="prompt_text")
-        # upload image, if passed in
-        image_url = None
-        if image is not None:
-            image_url = (await upload_images_to_comfyapi(image, max_images=1, auth_kwargs=kwargs))[0]
-
-        # TODO: figure out how to deal with subject properly, API returns invalid params when using S2V-01 model
-        subject_reference = None
-        if subject is not None:
-            subject_url = (await upload_images_to_comfyapi(subject, max_images=1, auth_kwargs=kwargs))[0]
-            subject_reference = [SubjectReferenceItem(image=subject_url)]
-
-
-        video_generate_operation = SynchronousOperation(
-            endpoint=ApiEndpoint(
-                path="/proxy/minimax/video_generation",
-                method=HttpMethod.POST,
-                request_model=MinimaxVideoGenerationRequest,
-                response_model=MinimaxVideoGenerationResponse,
-            ),
-            request=MinimaxVideoGenerationRequest(
-                model=MiniMaxModel(model),
-                prompt=prompt_text,
-                callback_url=None,
-                first_frame_image=image_url,
-                subject_reference=subject_reference,
-                prompt_optimizer=None,
-            ),
-            auth_kwargs=kwargs,
+            node_id=cls.hidden.unique_id,
+            prompt_text=prompt_text,
+            seed=seed,
+            model=model,
+            image=None,
+            subject=None,
+            average_duration=T2V_AVERAGE_DURATION,
         )
-        response = await video_generate_operation.execute()
-
-        task_id = response.task_id
-        if not task_id:
-            raise Exception(f"MiniMax generation failed: {response.base_resp}")
-
-        video_generate_operation = PollingOperation(
-            poll_endpoint=ApiEndpoint(
-                path="/proxy/minimax/query/video_generation",
-                method=HttpMethod.GET,
-                request_model=EmptyRequest,
-                response_model=MinimaxTaskResultResponse,
-                query_params={"task_id": task_id},
-            ),
-            completed_statuses=["Success"],
-            failed_statuses=["Fail"],
-            status_extractor=lambda x: x.status.value,
-            estimated_duration=self.AVERAGE_DURATION,
-            node_id=unique_id,
-            auth_kwargs=kwargs,
-        )
-        task_result = await video_generate_operation.execute()
-
-        file_id = task_result.file_id
-        if file_id is None:
-            raise Exception("Request was not successful. Missing file ID.")
-        file_retrieve_operation = SynchronousOperation(
-            endpoint=ApiEndpoint(
-                path="/proxy/minimax/files/retrieve",
-                method=HttpMethod.GET,
-                request_model=EmptyRequest,
-                response_model=MinimaxFileRetrieveResponse,
-                query_params={"file_id": int(file_id)},
-            ),
-            request=EmptyRequest(),
-            auth_kwargs=kwargs,
-        )
-        file_result = await file_retrieve_operation.execute()
-
-        file_url = file_result.file.download_url
-        if file_url is None:
-            raise Exception(
-                f"No video was found in the response. Full response: {file_result.model_dump()}"
-            )
-        logging.info(f"Generated video URL: {file_url}")
-        if unique_id:
-            if hasattr(file_result.file, "backup_download_url"):
-                message = f"Result URL: {file_url}\nBackup URL: {file_result.file.backup_download_url}"
-            else:
-                message = f"Result URL: {file_url}"
-            PromptServer.instance.send_progress_text(message, unique_id)
-
-        video_io = await download_url_to_bytesio(file_url)
-        if video_io is None:
-            error_msg = f"Failed to download video from {file_url}"
-            logging.error(error_msg)
-            raise Exception(error_msg)
-        return (VideoFromFile(video_io),)
 
 
-class MinimaxImageToVideoNode(MinimaxTextToVideoNode):
+class MinimaxImageToVideoNode(comfy_io.ComfyNode):
     """
     Generates videos synchronously based on an image and prompt, and optional parameters using MiniMax's API.
     """
 
-    AVERAGE_DURATION = I2V_AVERAGE_DURATION
+    @classmethod
+    def define_schema(cls) -> comfy_io.Schema:
+        return comfy_io.Schema(
+            node_id="MinimaxImageToVideoNode",
+            display_name="MiniMax Image to Video",
+            category="api node/video/MiniMax",
+            description=cleandoc(cls.__doc__ or ""),
+            inputs=[
+                comfy_io.Image.Input(
+                    "image",
+                    tooltip="Image to use as first frame of video generation",
+                ),
+                comfy_io.String.Input(
+                    "prompt_text",
+                    multiline=True,
+                    default="",
+                    tooltip="Text prompt to guide the video generation",
+                ),
+                comfy_io.Combo.Input(
+                    "model",
+                    options=["I2V-01-Director", "I2V-01", "I2V-01-live"],
+                    default="I2V-01",
+                    tooltip="Model to use for video generation",
+                ),
+                comfy_io.Int.Input(
+                    "seed",
+                    default=0,
+                    min=0,
+                    max=0xFFFFFFFFFFFFFFFF,
+                    step=1,
+                    control_after_generate=True,
+                    tooltip="The random seed used for creating the noise.",
+                    optional=True,
+                ),
+            ],
+            outputs=[comfy_io.Video.Output()],
+            hidden=[
+                comfy_io.Hidden.auth_token_comfy_org,
+                comfy_io.Hidden.api_key_comfy_org,
+                comfy_io.Hidden.unique_id,
+            ],
+            is_api_node=True,
+        )
 
     @classmethod
-    def INPUT_TYPES(s):
-        return {
-            "required": {
-                "image": (
-                    IO.IMAGE,
-                    {
-                        "tooltip": "Image to use as first frame of video generation"
-                    },
-                ),
-                "prompt_text": (
-                    "STRING",
-                    {
-                        "multiline": True,
-                        "default": "",
-                        "tooltip": "Text prompt to guide the video generation",
-                    },
-                ),
-                "model": (
-                    [
-                        "I2V-01-Director",
-                        "I2V-01",
-                        "I2V-01-live",
-                    ],
-                    {
-                        "default": "I2V-01",
-                        "tooltip": "Model to use for video generation",
-                    },
-                ),
+    async def execute(
+        cls,
+        image: torch.Tensor,
+        prompt_text: str,
+        model: str = "I2V-01",
+        seed: int = 0,
+    ) -> comfy_io.NodeOutput:
+        return await _generate_mm_video(
+            auth={
+                "auth_token": cls.hidden.auth_token_comfy_org,
+                "comfy_api_key": cls.hidden.api_key_comfy_org,
             },
-            "optional": {
-                "seed": (
-                    IO.INT,
-                    {
-                        "default": 0,
-                        "min": 0,
-                        "max": 0xFFFFFFFFFFFFFFFF,
-                        "control_after_generate": True,
-                        "tooltip": "The random seed used for creating the noise.",
-                    },
-                ),
-            },
-            "hidden": {
-                "auth_token": "AUTH_TOKEN_COMFY_ORG",
-                "comfy_api_key": "API_KEY_COMFY_ORG",
-                "unique_id": "UNIQUE_ID",
-            },
-        }
-
-    RETURN_TYPES = ("VIDEO",)
-    DESCRIPTION = "Generates videos from an image and prompts using MiniMax's API"
-    FUNCTION = "generate_video"
-    CATEGORY = "api node/video/MiniMax"
-    API_NODE = True
+            node_id=cls.hidden.unique_id,
+            prompt_text=prompt_text,
+            seed=seed,
+            model=model,
+            image=image,
+            subject=None,
+            average_duration=I2V_AVERAGE_DURATION,
+        )
 
 
-class MinimaxSubjectToVideoNode(MinimaxTextToVideoNode):
+class MinimaxSubjectToVideoNode(comfy_io.ComfyNode):
     """
     Generates videos synchronously based on an image and prompt, and optional parameters using MiniMax's API.
     """
 
-    AVERAGE_DURATION = T2V_AVERAGE_DURATION
+    @classmethod
+    def define_schema(cls) -> comfy_io.Schema:
+        return comfy_io.Schema(
+            node_id="MinimaxSubjectToVideoNode",
+            display_name="MiniMax Subject to Video",
+            category="api node/video/MiniMax",
+            description=cleandoc(cls.__doc__ or ""),
+            inputs=[
+                comfy_io.Image.Input(
+                    "subject",
+                    tooltip="Image of subject to reference for video generation",
+                ),
+                comfy_io.String.Input(
+                    "prompt_text",
+                    multiline=True,
+                    default="",
+                    tooltip="Text prompt to guide the video generation",
+                ),
+                comfy_io.Combo.Input(
+                    "model",
+                    options=["S2V-01"],
+                    default="S2V-01",
+                    tooltip="Model to use for video generation",
+                ),
+                comfy_io.Int.Input(
+                    "seed",
+                    default=0,
+                    min=0,
+                    max=0xFFFFFFFFFFFFFFFF,
+                    step=1,
+                    control_after_generate=True,
+                    tooltip="The random seed used for creating the noise.",
+                    optional=True,
+                ),
+            ],
+            outputs=[comfy_io.Video.Output()],
+            hidden=[
+                comfy_io.Hidden.auth_token_comfy_org,
+                comfy_io.Hidden.api_key_comfy_org,
+                comfy_io.Hidden.unique_id,
+            ],
+            is_api_node=True,
+        )
 
     @classmethod
-    def INPUT_TYPES(s):
-        return {
-            "required": {
-                "subject": (
-                    IO.IMAGE,
-                    {
-                        "tooltip": "Image of subject to reference video generation"
-                    },
-                ),
-                "prompt_text": (
-                    "STRING",
-                    {
-                        "multiline": True,
-                        "default": "",
-                        "tooltip": "Text prompt to guide the video generation",
-                    },
-                ),
-                "model": (
-                    [
-                        "S2V-01",
-                    ],
-                    {
-                        "default": "S2V-01",
-                        "tooltip": "Model to use for video generation",
-                    },
-                ),
+    async def execute(
+        cls,
+        subject: torch.Tensor,
+        prompt_text: str,
+        model: str = "S2V-01",
+        seed: int = 0,
+    ) -> comfy_io.NodeOutput:
+        return await _generate_mm_video(
+            auth={
+                "auth_token": cls.hidden.auth_token_comfy_org,
+                "comfy_api_key": cls.hidden.api_key_comfy_org,
             },
-            "optional": {
-                "seed": (
-                    IO.INT,
-                    {
-                        "default": 0,
-                        "min": 0,
-                        "max": 0xFFFFFFFFFFFFFFFF,
-                        "control_after_generate": True,
-                        "tooltip": "The random seed used for creating the noise.",
-                    },
-                ),
-            },
-            "hidden": {
-                "auth_token": "AUTH_TOKEN_COMFY_ORG",
-                "comfy_api_key": "API_KEY_COMFY_ORG",
-                "unique_id": "UNIQUE_ID",
-            },
-        }
-
-    RETURN_TYPES = ("VIDEO",)
-    DESCRIPTION = "Generates videos from an image and prompts using MiniMax's API"
-    FUNCTION = "generate_video"
-    CATEGORY = "api node/video/MiniMax"
-    API_NODE = True
+            node_id=cls.hidden.unique_id,
+            prompt_text=prompt_text,
+            seed=seed,
+            model=model,
+            image=None,
+            subject=subject,
+            average_duration=T2V_AVERAGE_DURATION,
+        )
 
 
-class MinimaxHailuoVideoNode:
+class MinimaxHailuoVideoNode(comfy_io.ComfyNode):
     """Generates videos from prompt, with optional start frame using the new MiniMax Hailuo-02 model."""
 
     @classmethod
-    def INPUT_TYPES(s):
-        return {
-            "required": {
-                "prompt_text": (
-                    "STRING",
-                    {
-                        "multiline": True,
-                        "default": "",
-                        "tooltip": "Text prompt to guide the video generation.",
-                    },
+    def define_schema(cls) -> comfy_io.Schema:
+        return comfy_io.Schema(
+            node_id="MinimaxHailuoVideoNode",
+            display_name="MiniMax Hailuo Video",
+            category="api node/video/MiniMax",
+            description=cleandoc(cls.__doc__ or ""),
+            inputs=[
+                comfy_io.String.Input(
+                    "prompt_text",
+                    multiline=True,
+                    default="",
+                    tooltip="Text prompt to guide the video generation.",
                 ),
-            },
-            "optional": {
-                "seed": (
-                    IO.INT,
-                    {
-                        "default": 0,
-                        "min": 0,
-                        "max": 0xFFFFFFFFFFFFFFFF,
-                        "control_after_generate": True,
-                        "tooltip": "The random seed used for creating the noise.",
-                    },
+                comfy_io.Int.Input(
+                    "seed",
+                    default=0,
+                    min=0,
+                    max=0xFFFFFFFFFFFFFFFF,
+                    step=1,
+                    control_after_generate=True,
+                    tooltip="The random seed used for creating the noise.",
+                    optional=True,
                 ),
-                "first_frame_image": (
-                    IO.IMAGE,
-                    {
-                        "tooltip": "Optional image to use as the first frame to generate a video."
-                    },
+                comfy_io.Image.Input(
+                    "first_frame_image",
+                    tooltip="Optional image to use as the first frame to generate a video.",
+                    optional=True,
                 ),
-                "prompt_optimizer": (
-                    IO.BOOLEAN,
-                    {
-                        "tooltip": "Optimize prompt to improve generation quality when needed.",
-                        "default": True,
-                    },
+                comfy_io.Boolean.Input(
+                    "prompt_optimizer",
+                    default=True,
+                    tooltip="Optimize prompt to improve generation quality when needed.",
+                    optional=True,
                 ),
-                "duration": (
-                    IO.COMBO,
-                    {
-                        "tooltip": "The length of the output video in seconds.",
-                        "default": 6,
-                        "options": [6, 10],
-                    },
+                comfy_io.Combo.Input(
+                    "duration",
+                    options=[6, 10],
+                    default=6,
+                    tooltip="The length of the output video in seconds.",
+                    optional=True,
                 ),
-                "resolution": (
-                    IO.COMBO,
-                    {
-                        "tooltip": "The dimensions of the video display. "
-                                   "1080p corresponds to 1920 x 1080 pixels, 768p corresponds to 1366 x 768 pixels.",
-                        "default": "768P",
-                        "options": ["768P", "1080P"],
-                    },
+                comfy_io.Combo.Input(
+                    "resolution",
+                    options=["768P", "1080P"],
+                    default="768P",
+                    tooltip="The dimensions of the video display. 1080p is 1920x1080, 768p is 1366x768.",
+                    optional=True,
                 ),
-            },
-            "hidden": {
-                "auth_token": "AUTH_TOKEN_COMFY_ORG",
-                "comfy_api_key": "API_KEY_COMFY_ORG",
-                "unique_id": "UNIQUE_ID",
-            },
+            ],
+            outputs=[comfy_io.Video.Output()],
+            hidden=[
+                comfy_io.Hidden.auth_token_comfy_org,
+                comfy_io.Hidden.api_key_comfy_org,
+                comfy_io.Hidden.unique_id,
+            ],
+            is_api_node=True,
+        )
+
+    @classmethod
+    async def execute(
+        cls,
+        prompt_text: str,
+        seed: int = 0,
+        first_frame_image: Optional[torch.Tensor] = None,  # used for ImageToVideo
+        prompt_optimizer: bool = True,
+        duration: int = 6,
+        resolution: str = "768P",
+        model: str = "MiniMax-Hailuo-02",
+    ) -> comfy_io.NodeOutput:
+        auth = {
+            "auth_token": cls.hidden.auth_token_comfy_org,
+            "comfy_api_key": cls.hidden.api_key_comfy_org,
         }
-
-    RETURN_TYPES = ("VIDEO",)
-    DESCRIPTION = cleandoc(__doc__ or "")
-    FUNCTION = "generate_video"
-    CATEGORY = "api node/video/MiniMax"
-    API_NODE = True
-
-    async def generate_video(
-        self,
-        prompt_text,
-        seed=0,
-        first_frame_image: torch.Tensor=None, # used for ImageToVideo
-        prompt_optimizer=True,
-        duration=6,
-        resolution="768P",
-        model="MiniMax-Hailuo-02",
-        unique_id: Union[str, None]=None,
-        **kwargs,
-    ):
         if first_frame_image is None:
             validate_string(prompt_text, field_name="prompt_text")
 
@@ -408,7 +435,7 @@ class MinimaxHailuoVideoNode:
         # upload image, if passed in
         image_url = None
         if first_frame_image is not None:
-            image_url = (await upload_images_to_comfyapi(first_frame_image, max_images=1, auth_kwargs=kwargs))[0]
+            image_url = (await upload_images_to_comfyapi(first_frame_image, max_images=1, auth_kwargs=auth))[0]
 
         video_generate_operation = SynchronousOperation(
             endpoint=ApiEndpoint(
@@ -426,7 +453,7 @@ class MinimaxHailuoVideoNode:
                 duration=duration,
                 resolution=resolution,
             ),
-            auth_kwargs=kwargs,
+            auth_kwargs=auth,
         )
         response = await video_generate_operation.execute()
 
@@ -447,8 +474,8 @@ class MinimaxHailuoVideoNode:
             failed_statuses=["Fail"],
             status_extractor=lambda x: x.status.value,
             estimated_duration=average_duration,
-            node_id=unique_id,
-            auth_kwargs=kwargs,
+            node_id=cls.hidden.unique_id,
+            auth_kwargs=auth,
         )
         task_result = await video_generate_operation.execute()
 
@@ -464,7 +491,7 @@ class MinimaxHailuoVideoNode:
                 query_params={"file_id": int(file_id)},
             ),
             request=EmptyRequest(),
-            auth_kwargs=kwargs,
+            auth_kwargs=auth,
         )
         file_result = await file_retrieve_operation.execute()
 
@@ -474,34 +501,31 @@ class MinimaxHailuoVideoNode:
                 f"No video was found in the response. Full response: {file_result.model_dump()}"
             )
         logging.info(f"Generated video URL: {file_url}")
-        if unique_id:
+        if cls.hidden.unique_id:
             if hasattr(file_result.file, "backup_download_url"):
                 message = f"Result URL: {file_url}\nBackup URL: {file_result.file.backup_download_url}"
             else:
                 message = f"Result URL: {file_url}"
-            PromptServer.instance.send_progress_text(message, unique_id)
+            PromptServer.instance.send_progress_text(message, cls.hidden.unique_id)
 
         video_io = await download_url_to_bytesio(file_url)
         if video_io is None:
             error_msg = f"Failed to download video from {file_url}"
             logging.error(error_msg)
             raise Exception(error_msg)
-        return (VideoFromFile(video_io),)
+        return comfy_io.NodeOutput(VideoFromFile(video_io))
 
 
-# A dictionary that contains all nodes you want to export with their names
-# NOTE: names should be globally unique
-NODE_CLASS_MAPPINGS = {
-    "MinimaxTextToVideoNode": MinimaxTextToVideoNode,
-    "MinimaxImageToVideoNode": MinimaxImageToVideoNode,
-    # "MinimaxSubjectToVideoNode": MinimaxSubjectToVideoNode,
-    "MinimaxHailuoVideoNode": MinimaxHailuoVideoNode,
-}
+class MinimaxExtension(ComfyExtension):
+    @override
+    async def get_node_list(self) -> list[type[comfy_io.ComfyNode]]:
+        return [
+            MinimaxTextToVideoNode,
+            MinimaxImageToVideoNode,
+            # MinimaxSubjectToVideoNode,
+            MinimaxHailuoVideoNode,
+        ]
 
-# A dictionary that contains the friendly/humanly readable titles for the nodes
-NODE_DISPLAY_NAME_MAPPINGS = {
-    "MinimaxTextToVideoNode": "MiniMax Text to Video",
-    "MinimaxImageToVideoNode": "MiniMax Image to Video",
-    "MinimaxSubjectToVideoNode": "MiniMax Subject to Video",
-    "MinimaxHailuoVideoNode": "MiniMax Hailuo Video",
-}
+
+async def comfy_entrypoint() -> MinimaxExtension:
+    return MinimaxExtension()
