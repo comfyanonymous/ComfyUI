@@ -314,6 +314,7 @@ class ACEStepTransformer2DModel(nn.Module):
         output_length: int = 0,
         block_controlnet_hidden_states: Optional[Union[List[torch.Tensor], torch.Tensor]] = None,
         controlnet_scale: Union[float, torch.Tensor] = 1.0,
+        transformer_options={},
     ):
         embedded_timestep = self.timestep_embedder(self.time_proj(timestep).to(dtype=hidden_states.dtype))
         temb = self.t_block(embedded_timestep)
@@ -339,6 +340,7 @@ class ACEStepTransformer2DModel(nn.Module):
                 rotary_freqs_cis=rotary_freqs_cis,
                 rotary_freqs_cis_cross=encoder_rotary_freqs_cis,
                 temb=temb,
+                transformer_options=transformer_options,
             )
 
         output = self.final_layer(hidden_states, embedded_timestep, output_length)
@@ -393,6 +395,7 @@ class ACEStepTransformer2DModel(nn.Module):
 
         output_length = hidden_states.shape[-1]
 
+        transformer_options = kwargs.get("transformer_options", {})
         output = self.decode(
             hidden_states=hidden_states,
             attention_mask=attention_mask,
@@ -402,6 +405,7 @@ class ACEStepTransformer2DModel(nn.Module):
             output_length=output_length,
             block_controlnet_hidden_states=block_controlnet_hidden_states,
             controlnet_scale=controlnet_scale,
+            transformer_options=transformer_options,
         )
 
         return output
