@@ -2,25 +2,35 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import pickle
 from asyncio import AbstractEventLoop
-from enum import Enum
 from functools import partial
-from typing import Optional, Dict, Any, Union
+from typing import Optional, Dict, Any, TypeVar, NewType
 
+from aio_pika import DeliveryMode
 from aio_pika.patterns import RPC
 
 from ..component_model.executor_types import SendSyncEvent, SendSyncData, ExecutorToClientProgress, \
-    UnencodedPreviewImageMessage, StatusMessage, QueueInfo, ExecInfo
-from ..component_model.queue_types import BinaryEventTypes
+    StatusMessage, QueueInfo, ExecInfo
+
+T = TypeVar('T')
+Base64Pickled = NewType('Base64Pickled', str)
 
 
-async def _progress(event: SendSyncEvent, data: SendSyncData, user_id: Optional[str] = None,
+def obj2base64(obj: T) -> Base64Pickled:
+    return Base64Pickled(base64.b64encode(pickle.dumps(obj)).decode())
+
+
+def base642obj(data: Base64Pickled) -> T:
+    return pickle.loads(base64.b64decode(data))
+
+
+async def _progress(event: Base64Pickled, data: Base64Pickled, user_id: Optional[str] = None,
                     caller_server: Optional[ExecutorToClientProgress] = None) -> None:
     assert caller_server is not None
     assert user_id is not None
-    if event == BinaryEventTypes.PREVIEW_IMAGE or event == BinaryEventTypes.UNENCODED_PREVIEW_IMAGE or isinstance(data, str):
-        data: bytes = base64.b64decode(data)
-    caller_server.send_sync(event, data, sid=user_id)
+
+    caller_server.send_sync(base642obj(event), base642obj(data), sid=user_id)
 
 
 def _get_name(queue_name: str, user_id: str) -> str:
@@ -43,27 +53,10 @@ class DistributedExecutorToClientProgress(ExecutorToClientProgress):
         return True
 
     async def send(self, event: SendSyncEvent, data: SendSyncData, user_id: Optional[str]) -> None:
-        if event == BinaryEventTypes.UNENCODED_PREVIEW_IMAGE:
-            from ..cmd.latent_preview_image_encoding import encode_preview_image
-
-            # encode preview image
-            event = BinaryEventTypes.PREVIEW_IMAGE.value
-            data: UnencodedPreviewImageMessage
-            format, pil_image, max_size, node_id, task_id = data
-            data: bytes = encode_preview_image(pil_image, format, max_size, node_id, task_id)
-
-        if isinstance(data, bytes) or isinstance(data, bytearray):
-            if isinstance(event, Enum):
-                event: int = event.value
-            data: str = base64.b64encode(data).decode()
-
-        if user_id is None:
-            # todo: user_id should never be none here
-            return
-
+        assert user_id is not None, f"event={event} data={data}"
         try:
             # we don't need to await this coroutine
-            _ = asyncio.create_task(self._rpc.call(_get_name(self._queue_name, user_id), {"event": event, "data": data}, expiration=1000))
+            _ = asyncio.create_task(self._rpc.call(_get_name(self._queue_name, user_id), {"event": obj2base64(event), "data": obj2base64(data)}, expiration=1000, delivery_mode=DeliveryMode.NOT_PERSISTENT))
         except asyncio.TimeoutError:
             # these can gracefully expire
             pass

@@ -5,7 +5,14 @@ services:
       context: .
       dockerfile: Dockerfile
     volumes:
+      # USING DOCKER MANAGED VOLUMES
       - workspace_data:/workspace
+      # OR: USE LOCAL DIRECTORIES
+      # Comment out the `- workspace_data...` line, then uncomment:
+      # - models:/workspace/models
+      # - custom_nodes:/workspace/custom_nodes
+      # - output:/workspace/output
+      # - input:/workspace/input
     deploy:
       replicas: 1
       resources:
@@ -16,7 +23,6 @@ services:
               capabilities: [ gpu ]
     environment:
       - COMFYUI_DISTRIBUTED_QUEUE_CONNECTION_URI=amqp://guest:guest@rabbitmq:5672
-      - COMFYUI_EXECUTOR_FACTORY=ProcessPoolExecutor
       - COMFYUI_PANIC_WHEN=torch.cuda.OutOfMemoryError
       - COMFYUI_LOGGING_LEVEL=ERROR
     command:
@@ -25,7 +31,7 @@ services:
       test: curl -f http://localhost:9090/health
       interval: 10s
       timeout: 5s
-      retries: 3
+      retries: 1
       start_period: 10s
     restart: unless-stopped
   frontend:
@@ -35,7 +41,14 @@ services:
     deploy:
       replicas: 1
     volumes:
+      # USING DOCKER MANAGED VOLUMES
       - workspace_data:/workspace
+      # OR: USE LOCAL DIRECTORIES
+      # Comment out the `- workspace_data...` line, then uncomment:
+      # - models:/workspace/models
+      # - custom_nodes:/workspace/custom_nodes
+      # - output:/workspace/output
+      # - input:/workspace/input
     environment:
       - COMFYUI_DISTRIBUTED_QUEUE_CONNECTION_URI=amqp://guest:guest@rabbitmq:5672
       - COMFYUI_DISTRIBUTED_QUEUE_FRONTEND=1
@@ -54,5 +67,34 @@ services:
     restart: unless-stopped
   rabbitmq:
     image: rabbitmq:3
+    command: >
+      sh -c "echo 'log.default.level = error' > /etc/rabbitmq/rabbitmq.conf && 
+             docker-entrypoint.sh rabbitmq-server"
 volumes:
+  # USING DOCKER MANAGED VOLUMES
   workspace_data: {}
+  # OR: USE LOCAL DIRECTORIES
+  # models:
+  #   driver: local
+  #   driver_opts:
+  #     type: 'none'
+  #     o: 'bind'
+  #     device: './models'
+  # custom_nodes:
+  #   driver: local
+  #   driver_opts:
+  #     type: 'none'
+  #     o: 'bind'
+  #     device: './custom_nodes'
+  # output:
+  #   driver: local
+  #   driver_opts:
+  #     type: 'none'
+  #     o: 'bind'
+  #     device: './output'
+  # input:
+  #   driver: local
+  #   driver_opts:
+  #     type: 'none'
+  #     o: 'bind'
+  #     device: './input'
