@@ -331,7 +331,7 @@ class String(ComfyTypeIO):
             })
 
 @comfytype(io_type="COMBO")
-class Combo(ComfyTypeI):
+class Combo(ComfyTypeIO):
     Type = str
     class Input(WidgetInput):
         """Combo input (dropdown)."""
@@ -360,6 +360,14 @@ class Combo(ComfyTypeI):
                 "remote": self.remote.as_dict() if self.remote else None,
             })
 
+    class Output(Output):
+        def __init__(self, id: str=None, display_name: str=None, options: list[str]=None, tooltip: str=None, is_output_list=False):
+            super().__init__(id, display_name, tooltip, is_output_list)
+            self.options = options if options is not None else []
+
+        @property
+        def io_type(self):
+            return self.options
 
 @comfytype(io_type="COMBO")
 class MultiCombo(ComfyTypeI):
