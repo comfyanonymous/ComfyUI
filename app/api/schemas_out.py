@@ -1,12 +1,13 @@
 from datetime import datetime
 from typing import Any, Literal, Optional
+
 from pydantic import BaseModel, ConfigDict, Field, field_serializer
 
 
 class AssetSummary(BaseModel):
     id: str
     name: str
-    asset_hash: str
+    asset_hash: Optional[str]
     size: Optional[int] = None
     mime_type: Optional[str] = None
     tags: list[str] = Field(default_factory=list)
@@ -31,7 +32,7 @@ class AssetsList(BaseModel):
 class AssetUpdated(BaseModel):
     id: str
     name: str
-    asset_hash: str
+    asset_hash: Optional[str]
     tags: list[str] = Field(default_factory=list)
     user_metadata: dict[str, Any] = Field(default_factory=dict)
     updated_at: Optional[datetime] = None
@@ -46,12 +47,12 @@ class AssetUpdated(BaseModel):
 class AssetDetail(BaseModel):
     id: str
     name: str
-    asset_hash: str
+    asset_hash: Optional[str]
     size: Optional[int] = None
     mime_type: Optional[str] = None
     tags: list[str] = Field(default_factory=list)
     user_metadata: dict[str, Any] = Field(default_factory=dict)
-    preview_hash: Optional[str] = None
+    preview_id: Optional[str] = None
     created_at: Optional[datetime] = None
     last_access_time: Optional[datetime] = None
 
@@ -95,7 +96,6 @@ class TagsRemove(BaseModel):
 class AssetScanError(BaseModel):
     path: str
     message: str
-    phase: Literal["fast", "slow"]
     at: Optional[str] = Field(None, description="ISO timestamp")
 
 
@@ -108,8 +108,6 @@ class AssetScanStatus(BaseModel):
     finished_at: Optional[str] = None
     discovered: int = 0
     processed: int = 0
-    slow_queue_total: int = 0
-    slow_queue_finished: int = 0
     file_errors: list[AssetScanError] = Field(default_factory=list)
 
 

@@ -279,11 +279,11 @@ def cleanup_temp():
         shutil.rmtree(temp_dir, ignore_errors=True)
 
 async def setup_database():
-    from app import init_db_engine, start_background_assets_scan
+    from app import init_db_engine, sync_seed_assets
 
     await init_db_engine()
     if not args.disable_assets_autoscan:
-        await start_background_assets_scan()
+        await sync_seed_assets(["models", "input", "output"])
 
 
 def start_comfyui(asyncio_loop=None):

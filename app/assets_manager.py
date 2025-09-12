@@ -4,38 +4,39 @@ import mimetypes
 import os
 from typing import Optional, Sequence
 
-from comfy.cli_args import args
 from comfy_api.internal import async_to_sync
 
-from .database.db import create_session
-from .storage import hashing
-from .database.services import (
-    check_fs_asset_exists_quick,
-    ingest_fs_asset,
-    touch_asset_infos_by_fs_path,
-    list_asset_infos_page,
-    update_asset_info_full,
-    get_asset_tags,
-    list_tags_with_usage,
-    add_tags_to_asset_info,
-    remove_tags_from_asset_info,
-    fetch_asset_info_and_asset,
-    touch_asset_info_by_id,
-    delete_asset_info_by_id,
-    asset_exists_by_hash,
-    get_asset_by_hash,
-    create_asset_info_for_existing_asset,
-    fetch_asset_info_asset_and_tags,
-    get_asset_info_by_id,
-    list_cache_states_by_asset_hash,
-    asset_info_exists_for_hash,
-)
-from .api import schemas_in, schemas_out
 from ._assets_helpers import (
-    get_name_and_tags_from_asset_path,
     ensure_within_base,
+    get_name_and_tags_from_asset_path,
     resolve_destination_from_tags,
 )
+from .api import schemas_in, schemas_out
+from .database.db import create_session
+from .database.models import Asset
+from .database.services import (
+    add_tags_to_asset_info,
+    asset_exists_by_hash,
+    asset_info_exists_for_asset_id,
+    check_fs_asset_exists_quick,
+    create_asset_info_for_existing_asset,
+    delete_asset_info_by_id,
+    fetch_asset_info_and_asset,
+    fetch_asset_info_asset_and_tags,
+    get_asset_by_hash,
+    get_asset_info_by_id,
+    get_asset_tags,
+    ingest_fs_asset,
+    list_asset_infos_page,
+    list_cache_states_by_asset_id,
+    list_tags_with_usage,
+    remove_tags_from_asset_info,
+    set_asset_info_preview,
+    touch_asset_info_by_id,
+    touch_asset_infos_by_fs_path,
+    update_asset_info_full,
+)
+from .storage import hashing
 
 
 async def asset_exists(*, asset_hash: str) -> bool:
@@ -44,29 +45,21 @@ async def asset_exists(*, asset_hash: str) -> bool:
 
 
 def populate_db_with_asset(file_path: str, tags: Optional[list[str]] = None) -> None:
-    if not args.enable_model_processing:
-        if tags is None:
-            tags = []
-        try:
-            asset_name, path_tags = get_name_and_tags_from_asset_path(file_path)
-            async_to_sync.AsyncToSyncConverter.run_async_in_thread(
-                add_local_asset,
-                tags=list(dict.fromkeys([*path_tags, *tags])),
-                file_name=asset_name,
-                file_path=file_path,
-            )
-        except ValueError as e:
-            logging.warning("Skipping non-asset path %s: %s", file_path, e)
+    if tags is None:
+        tags = []
+    try:
+        asset_name, path_tags = get_name_and_tags_from_asset_path(file_path)
+        async_to_sync.AsyncToSyncConverter.run_async_in_thread(
+            add_local_asset,
+            tags=list(dict.fromkeys([*path_tags, *tags])),
+            file_name=asset_name,
+            file_path=file_path,
+        )
+    except ValueError as e:
+        logging.warning("Skipping non-asset path %s: %s", file_path, e)
 
 
 async def add_local_asset(tags: list[str], file_name: str, file_path: str) -> None:
-    """Adds a local asset to the DB. If already present and unchanged, does nothing.
-
-    Notes:
-    - Uses absolute path as the canonical locator for the cache backend.
-    - Computes BLAKE3 only when the fast existence check indicates it's needed.
-    - This function ensures the identity row and seeds mtime in asset_cache_state.
-    """
     abs_path = os.path.abspath(file_path)
     size_bytes, mtime_ns = _get_size_mtime_ns(abs_path)
     if not size_bytes:
@@ -132,7 +125,7 @@ async def list_assets(
             schemas_out.AssetSummary(
                 id=info.id,
                 name=info.name,
-                asset_hash=info.asset_hash,
+                asset_hash=asset.hash if asset else None,
                 size=int(asset.size_bytes) if asset else None,
                 mime_type=asset.mime_type if asset else None,
                 tags=tags,
@@ -156,16 +149,17 @@ async def get_asset(*, asset_info_id: str, owner_id: str = "") -> schemas_out.As
         if not res:
             raise ValueError(f"AssetInfo {asset_info_id} not found")
         info, asset, tag_names = res
+        preview_id = info.preview_id
 
     return schemas_out.AssetDetail(
         id=info.id,
         name=info.name,
-        asset_hash=info.asset_hash,
+        asset_hash=asset.hash if asset else None,
         size=int(asset.size_bytes) if asset and asset.size_bytes is not None else None,
         mime_type=asset.mime_type if asset else None,
         tags=tag_names,
-        preview_hash=info.preview_hash,
         user_metadata=info.user_metadata or {},
+        preview_id=preview_id,
         created_at=info.created_at,
         last_access_time=info.last_access_time,
     )
@@ -176,20 +170,13 @@ async def resolve_asset_content_for_download(
     asset_info_id: str,
     owner_id: str = "",
 ) -> tuple[str, str, str]:
-    """
-    Returns (abs_path, content_type, download_name) for the given AssetInfo id and touches last_access_time.
-    Also touches last_access_time (only_if_newer).
-    Raises:
-      ValueError if AssetInfo cannot be found
-      FileNotFoundError if file for Asset cannot be found
-    """
     async with await create_session() as session:
         pair = await fetch_asset_info_and_asset(session, asset_info_id=asset_info_id, owner_id=owner_id)
         if not pair:
             raise ValueError(f"AssetInfo {asset_info_id} not found")
 
         info, asset = pair
-        states = await list_cache_states_by_asset_hash(session, asset_hash=info.asset_hash)
+        states = await list_cache_states_by_asset_id(session, asset_id=asset.id)
         abs_path = ""
         for s in states:
             if s and s.file_path and os.path.isfile(s.file_path):
@@ -214,16 +201,6 @@ async def upload_asset_from_temp_path(
     owner_id: str = "",
     expected_asset_hash: Optional[str] = None,
 ) -> schemas_out.AssetCreated:
-    """
-    Finalize an uploaded temp file:
-      - compute blake3 hash
-      - if expected_asset_hash provided, verify equality (400 on mismatch at caller)
-      - if an Asset with the same hash exists: discard temp, create AssetInfo only (no write)
-      - else resolve destination from tags and atomically move into place
-      - ingest into DB (assets, locator state, asset_info + tags)
-    Returns a populated AssetCreated payload.
-    """
-
     try:
         digest = await hashing.blake3_hash(temp_path)
     except Exception as e:
@@ -233,7 +210,6 @@ async def upload_asset_from_temp_path(
     if expected_asset_hash and asset_hash != expected_asset_hash.strip().lower():
         raise ValueError("HASH_MISMATCH")
 
-    # Fast path: content already known --> no writes, just create a reference
     async with await create_session() as session:
         existing = await get_asset_by_hash(session, asset_hash=asset_hash)
         if existing is not None:
@@ -257,43 +233,37 @@ async def upload_asset_from_temp_path(
             return schemas_out.AssetCreated(
                 id=info.id,
                 name=info.name,
-                asset_hash=info.asset_hash,
+                asset_hash=existing.hash,
                 size=int(existing.size_bytes) if existing.size_bytes is not None else None,
                 mime_type=existing.mime_type,
                 tags=tag_names,
                 user_metadata=info.user_metadata or {},
-                preview_hash=info.preview_hash,
+                preview_id=info.preview_id,
                 created_at=info.created_at,
                 last_access_time=info.last_access_time,
                 created_new=False,
             )
 
-    # Resolve destination (only for truly new content)
     base_dir, subdirs = resolve_destination_from_tags(spec.tags)
     dest_dir = os.path.join(base_dir, *subdirs) if subdirs else base_dir
     os.makedirs(dest_dir, exist_ok=True)
 
-    # Decide filename
     desired_name = _safe_filename(spec.name or (client_filename or ""), fallback=digest)
     dest_abs = os.path.abspath(os.path.join(dest_dir, desired_name))
     ensure_within_base(dest_abs, base_dir)
 
-    # Content type based on final name
     content_type = mimetypes.guess_type(desired_name, strict=False)[0] or "application/octet-stream"
 
-    # Atomic move into place
     try:
         os.replace(temp_path, dest_abs)
     except Exception as e:
         raise RuntimeError(f"failed to move uploaded file into place: {e}")
 
-    # Stat final file
     try:
         size_bytes, mtime_ns = _get_size_mtime_ns(dest_abs)
     except OSError as e:
         raise RuntimeError(f"failed to stat destination file: {e}")
 
-    # Ingest + build response
     async with await create_session() as session:
         result = await ingest_fs_asset(
             session,
@@ -304,7 +274,7 @@ async def upload_asset_from_temp_path(
             mime_type=content_type,
             info_name=os.path.basename(dest_abs),
             owner_id=owner_id,
-            preview_hash=None,
+            preview_id=None,
             user_metadata=spec.user_metadata or {},
             tags=spec.tags,
             tag_origin="manual",
@@ -324,12 +294,12 @@ async def upload_asset_from_temp_path(
     return schemas_out.AssetCreated(
         id=info.id,
         name=info.name,
-        asset_hash=info.asset_hash,
+        asset_hash=asset.hash,
         size=int(asset.size_bytes),
         mime_type=asset.mime_type,
         tags=tag_names,
         user_metadata=info.user_metadata or {},
-        preview_hash=info.preview_hash,
+        preview_id=info.preview_id,
         created_at=info.created_at,
         last_access_time=info.last_access_time,
         created_new=result["asset_created"],
@@ -367,38 +337,74 @@ async def update_asset(
     return schemas_out.AssetUpdated(
         id=info.id,
         name=info.name,
-        asset_hash=info.asset_hash,
+        asset_hash=info.asset.hash if info.asset else None,
         tags=tag_names,
         user_metadata=info.user_metadata or {},
         updated_at=info.updated_at,
     )
 
 
-async def delete_asset_reference(*, asset_info_id: str, owner_id: str, delete_content_if_orphan: bool = True) -> bool:
-    """Delete single AssetInfo. If this was the last reference to Asset and delete_content_if_orphan=True (default),
-    delete the Asset row as well and remove all cached files recorded for that asset_hash.
-    """
+async def set_asset_preview(
+    *,
+    asset_info_id: str,
+    preview_asset_id: Optional[str],
+    owner_id: str = "",
+) -> schemas_out.AssetDetail:
     async with await create_session() as session:
         info_row = await get_asset_info_by_id(session, asset_info_id=asset_info_id)
-        asset_hash = info_row.asset_hash if info_row else None
+        if not info_row:
+            raise ValueError(f"AssetInfo {asset_info_id} not found")
+        if info_row.owner_id and info_row.owner_id != owner_id:
+            raise PermissionError("not owner")
+
+        await set_asset_info_preview(
+            session,
+            asset_info_id=asset_info_id,
+            preview_asset_id=preview_asset_id,
+        )
+
+        res = await fetch_asset_info_asset_and_tags(session, asset_info_id=asset_info_id, owner_id=owner_id)
+        if not res:
+            raise RuntimeError("State changed during preview update")
+        info, asset, tags = res
+        await session.commit()
+
+    return schemas_out.AssetDetail(
+        id=info.id,
+        name=info.name,
+        asset_hash=asset.hash if asset else None,
+        size=int(asset.size_bytes) if asset and asset.size_bytes is not None else None,
+        mime_type=asset.mime_type if asset else None,
+        tags=tags,
+        user_metadata=info.user_metadata or {},
+        preview_id=info.preview_id,
+        created_at=info.created_at,
+        last_access_time=info.last_access_time,
+    )
+
+
+async def delete_asset_reference(*, asset_info_id: str, owner_id: str, delete_content_if_orphan: bool = True) -> bool:
+    async with await create_session() as session:
+        info_row = await get_asset_info_by_id(session, asset_info_id=asset_info_id)
+        asset_id = info_row.asset_id if info_row else None
         deleted = await delete_asset_info_by_id(session, asset_info_id=asset_info_id, owner_id=owner_id)
         if not deleted:
             await session.commit()
             return False
 
-        if not delete_content_if_orphan or not asset_hash:
+        if not delete_content_if_orphan or not asset_id:
             await session.commit()
             return True
 
-        still_exists = await asset_info_exists_for_hash(session, asset_hash=asset_hash)
+        still_exists = await asset_info_exists_for_asset_id(session, asset_id=asset_id)
         if still_exists:
             await session.commit()
             return True
 
-        states = await list_cache_states_by_asset_hash(session, asset_hash=asset_hash)
+        states = await list_cache_states_by_asset_id(session, asset_id=asset_id)
         file_paths = [s.file_path for s in (states or []) if getattr(s, "file_path", None)]
 
-        asset_row = await get_asset_by_hash(session, asset_hash=asset_hash)
+        asset_row = await session.get(Asset, asset_id)
         if asset_row is not None:
             await session.delete(asset_row)
 
@@ -439,12 +445,12 @@ async def create_asset_from_hash(
     return schemas_out.AssetCreated(
         id=info.id,
         name=info.name,
-        asset_hash=info.asset_hash,
+        asset_hash=asset.hash,
         size=int(asset.size_bytes),
         mime_type=asset.mime_type,
         tags=tag_names,
         user_metadata=info.user_metadata or {},
-        preview_hash=info.preview_hash,
+        preview_id=info.preview_id,
         created_at=info.created_at,
         last_access_time=info.last_access_time,
         created_new=False,

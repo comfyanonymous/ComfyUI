@@ -119,6 +119,16 @@ async def test_head_asset_by_hash(http: aiohttp.ClientSession, api_base: str, se
 
 
 @pytest.mark.asyncio
+async def test_head_asset_bad_hash_returns_400_and_no_body(http: aiohttp.ClientSession, api_base: str):
+    # Invalid format; handler returns a JSON error, but HEAD responses must not carry a payload.
+    # aiohttp exposes an empty body for HEAD, so validate status and that there is no payload.
+    async with http.head(f"{api_base}/api/assets/hash/not_a_hash") as rh:
+        assert rh.status == 400
+        body = await rh.read()
+        assert body == b""
+
+
+@pytest.mark.asyncio
 async def test_delete_nonexistent_returns_404(http: aiohttp.ClientSession, api_base: str):
     bogus = str(uuid.uuid4())
     async with http.delete(f"{api_base}/api/assets/{bogus}") as r:
@@ -166,12 +176,3 @@ async def test_update_requires_at_least_one_field(http: aiohttp.ClientSession, a
         body = await r.json()
         assert r.status == 400
         assert body["error"]["code"] == "INVALID_BODY"
-
-
-@pytest.mark.asyncio
-async def test_head_asset_bad_hash(http: aiohttp.ClientSession, api_base: str):
-    # Invalid format
-    async with http.head(f"{api_base}/api/assets/hash/not_a_hash") as rh3:
-        jb = await rh3.json()
-        assert rh3.status == 400
-        assert jb is None  # HEAD request should not include "body" in response

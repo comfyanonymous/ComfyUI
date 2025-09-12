@@ -37,7 +37,7 @@ from app.model_manager import ModelFileManager
 from app.custom_node_manager import CustomNodeManager
 from typing import Optional, Union
 from api_server.routes.internal.internal_routes import InternalRoutes
-from app.api.assets_routes import register_assets_system
+from app import sync_seed_assets, register_assets_system
 from protocol import BinaryEventTypes
 
 async def send_socket_catch_exception(function, message):
@@ -629,6 +629,7 @@ class PromptServer():
 
         @routes.get("/object_info")
         async def get_object_info(request):
+            await sync_seed_assets(["models"])
             with folder_paths.cache_helper:
                 out = {}
                 for x in nodes.NODE_CLASS_MAPPINGS:

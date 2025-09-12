@@ -1,12 +1,13 @@
+import contextlib
 import os
+import uuid
+from datetime import datetime, timezone
 from pathlib import Path
-from typing import Optional, Literal, Sequence
-
-import sqlalchemy as sa
+from typing import Literal, Optional, Sequence
 
 import folder_paths
 
-from .database.models import AssetInfo
+from .api import schemas_in
 
 
 def get_comfy_models_folders() -> list[tuple[str, list[str]]]:
@@ -139,14 +140,6 @@ def ensure_within_base(candidate: str, base: str) -> None:
         raise ValueError("invalid destination path")
 
 
-def visible_owner_clause(owner_id: str) -> sa.sql.ClauseElement:
-    """Build owner visibility predicate for reads."""
-    owner_id = (owner_id or "").strip()
-    if owner_id == "":
-        return AssetInfo.owner_id == ""
-    return AssetInfo.owner_id.in_(["", owner_id])
-
-
 def compute_model_relative_filename(file_path: str) -> Optional[str]:
     """
     Return the model's path relative to the last well-known folder (the model category),
@@ -172,3 +165,61 @@ def compute_model_relative_filename(file_path: str) -> Optional[str]:
         return None
     inside = parts[1:] if len(parts) > 1 else [parts[0]]
     return "/".join(inside)  # normalize to POSIX style for portability
+
+
+def list_tree(base_dir: str) -> list[str]:
+    out: list[str] = []
+    base_abs = os.path.abspath(base_dir)
+    if not os.path.isdir(base_abs):
+        return out
+    for dirpath, _subdirs, filenames in os.walk(base_abs, topdown=True, followlinks=False):
+        for name in filenames:
+            out.append(os.path.abspath(os.path.join(dirpath, name)))
+    return out
+
+
+def prefixes_for_root(root: schemas_in.RootType) -> list[str]:
+    if root == "models":
+        bases: list[str] = []
+        for _bucket, paths in get_comfy_models_folders():
+            bases.extend(paths)
+        return [os.path.abspath(p) for p in bases]
+    if root == "input":
+        return [os.path.abspath(folder_paths.get_input_directory())]
+    if root == "output":
+        return [os.path.abspath(folder_paths.get_output_directory())]
+    return []
+
+
+def ts_to_iso(ts: Optional[float]) -> Optional[str]:
+    if ts is None:
+        return None
+    try:
+        return datetime.fromtimestamp(float(ts), tz=timezone.utc).replace(tzinfo=None).isoformat()
+    except Exception:
+        return None
+
+
+def new_scan_id(root: schemas_in.RootType) -> str:
+    return f"scan-{root}-{uuid.uuid4().hex[:8]}"
+
+
+def collect_models_files() -> list[str]:
+    out: list[str] = []
+    for folder_name, bases in get_comfy_models_folders():
+        rel_files = folder_paths.get_filename_list(folder_name) or []
+        for rel_path in rel_files:
+            abs_path = folder_paths.get_full_path(folder_name, rel_path)
+            if not abs_path:
+                continue
+            abs_path = os.path.abspath(abs_path)
+            allowed = False
+            for b in bases:
+                base_abs = os.path.abspath(b)
+                with contextlib.suppress(Exception):
+                    if os.path.commonpath([abs_path, base_abs]) == base_abs:
+                        allowed = True
+                        break
+            if allowed:
+                out.append(abs_path)
+    return out

@@ -1,7 +1,15 @@
 import json
+import uuid
+from typing import Any, Literal, Optional
 
-from typing import Any, Optional, Literal
-from pydantic import BaseModel, Field, ConfigDict, field_validator, model_validator, conint
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    conint,
+    field_validator,
+    model_validator,
+)
 
 
 class ListAssetsQuery(BaseModel):
@@ -148,30 +156,12 @@ class TagsRemove(TagsAdd):
     pass
 
 
-class ScheduleAssetScanBody(BaseModel):
-    roots: list[Literal["models","input","output"]] = Field(default_factory=list)
+RootType = Literal["models", "input", "output"]
+ALLOWED_ROOTS: tuple[RootType, ...] = ("models", "input", "output")
 
-    @field_validator("roots", mode="before")
-    @classmethod
-    def _normalize_roots(cls, v):
-        if v is None:
-            return []
-        if isinstance(v, str):
-            items = [x.strip().lower() for x in v.split(",")]
-        elif isinstance(v, list):
-            items = []
-            for x in v:
-                if isinstance(x, str):
-                    items.extend([p.strip().lower() for p in x.split(",")])
-        else:
-            return []
-        out = []
-        seen = set()
-        for r in items:
-            if r in {"models","input","output"} and r not in seen:
-                out.append(r)
-                seen.add(r)
-        return out
+
+class ScheduleAssetScanBody(BaseModel):
+    roots: list[RootType] = Field(..., min_length=1)
 
 
 class UploadAssetSpec(BaseModel):
@@ -281,3 +271,22 @@ class UploadAssetSpec(BaseModel):
             if len(self.tags) < 2:
                 raise ValueError("models uploads require a category tag as the second tag")
         return self
+
+
+class SetPreviewBody(BaseModel):
+    """Set or clear the preview for an AssetInfo. Provide an Asset.id or null."""
+    preview_id: Optional[str] = None
+
+    @field_validator("preview_id", mode="before")
+    @classmethod
+    def _norm_uuid(cls, v):
+        if v is None:
+            return None
+        s = str(v).strip()
+        if not s:
+            return None
+        try:
+            uuid.UUID(s)
+        except Exception:
+            raise ValueError("preview_id must be a UUID")
+        return s

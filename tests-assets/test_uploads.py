@@ -206,7 +206,7 @@ async def test_upload_models_unknown_category(http: aiohttp.ClientSession, api_b
         body = await r.json()
         assert r.status == 400
         assert body["error"]["code"] == "INVALID_BODY"
-        assert "unknown models category" in body["error"]["message"] or "unknown model category" in body["error"]["message"]
+        assert body["error"]["message"].startswith("unknown models category")
 
 
 @pytest.mark.asyncio

@@ -1,7 +1,7 @@
 import contextlib
 import os
-import uuid
 import urllib.parse
+import uuid
 from typing import Optional
 
 from aiohttp import web
@@ -11,7 +11,6 @@ import folder_paths
 
 from .. import assets_manager, assets_scanner, user_manager
 from . import schemas_in, schemas_out
-
 
 ROUTES = web.RouteTableDef()
 UserManager: Optional[user_manager.UserManager] = None
@@ -272,6 +271,7 @@ async def upload_asset(request: web.Request) -> web.Response:
             temp_path=tmp_path,
             client_filename=file_client_name,
             owner_id=owner_id,
+            expected_asset_hash=spec.hash,
         )
         status = 201 if created.created_new else 200
         return web.json_response(created.model_dump(mode="json"), status=status)
@@ -326,6 +326,29 @@ async def update_asset(request: web.Request) -> web.Response:
             owner_id=UserManager.get_request_user_id(request),
         )
     except (ValueError, PermissionError) as ve:
+        return _error_response(404, "ASSET_NOT_FOUND", str(ve), {"id": asset_info_id})
+    except Exception:
+        return _error_response(500, "INTERNAL", "Unexpected server error.")
+    return web.json_response(result.model_dump(mode="json"), status=200)
+
+
+@ROUTES.put(f"/api/assets/{{id:{UUID_RE}}}/preview")
+async def set_asset_preview(request: web.Request) -> web.Response:
+    asset_info_id = str(uuid.UUID(request.match_info["id"]))
+    try:
+        body = schemas_in.SetPreviewBody.model_validate(await request.json())
+    except ValidationError as ve:
+        return _validation_error_response("INVALID_BODY", ve)
+    except Exception:
+        return _error_response(400, "INVALID_JSON", "Request body must be valid JSON.")
+
+    try:
+        result = await assets_manager.set_asset_preview(
+            asset_info_id=asset_info_id,
+            preview_asset_id=body.preview_id,
+            owner_id=UserManager.get_request_user_id(request),
+        )
+    except (PermissionError, ValueError) as ve:
         return _error_response(404, "ASSET_NOT_FOUND", str(ve), {"id": asset_info_id})
     except Exception:
         return _error_response(500, "INTERNAL", "Unexpected server error.")

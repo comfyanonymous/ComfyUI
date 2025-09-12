@@ -4,14 +4,20 @@ import shutil
 from contextlib import asynccontextmanager
 from typing import Optional
 
-from comfy.cli_args import args
 from alembic import command
 from alembic.config import Config
 from alembic.runtime.migration import MigrationContext
 from alembic.script import ScriptDirectory
 from sqlalchemy import create_engine, text
 from sqlalchemy.engine import make_url
-from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.ext.asyncio import (
+    AsyncEngine,
+    AsyncSession,
+    async_sessionmaker,
+    create_async_engine,
+)
+
+from comfy.cli_args import args
 
 LOGGER = logging.getLogger(__name__)
 ENGINE: Optional[AsyncEngine] = None

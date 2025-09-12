@@ -66,23 +66,32 @@ async def test_add_and_remove_tags(http: aiohttp.ClientSession, api_base: str, s
     async with http.post(f"{api_base}/api/assets/{aid}/tags", json=payload_add) as r1:
         b1 = await r1.json()
         assert r1.status == 200, b1
-        # normalized and deduplicated
-        assert "newtag" in b1["added"] or "beta" in b1["added"] or "unit-tests" not in b1["added"]
+        # normalized, deduplicated; 'unit-tests' was already present from the seed
+        assert set(b1["added"]) == {"newtag", "beta"}
+        assert set(b1["already_present"]) == {"unit-tests"}
+        assert "newtag" in b1["total_tags"] and "beta" in b1["total_tags"]
 
     async with http.get(f"{api_base}/api/assets/{aid}") as rg:
         g = await rg.json()
         assert rg.status == 200
         tags_now = set(g["tags"])
-        assert "newtag" in tags_now
-        assert "beta" in tags_now
+        assert {"newtag", "beta"}.issubset(tags_now)
 
     # Remove a tag and a non-existent tag
     payload_del = {"tags": ["newtag", "does-not-exist"]}
     async with http.delete(f"{api_base}/api/assets/{aid}/tags", json=payload_del) as r2:
         b2 = await r2.json()
         assert r2.status == 200
-        assert "newtag" in b2["removed"]
-        assert "does-not-exist" in b2["not_present"]
+        assert set(b2["removed"]) == {"newtag"}
+        assert set(b2["not_present"]) == {"does-not-exist"}
+
+    # Verify remaining tags after deletion
+    async with http.get(f"{api_base}/api/assets/{aid}") as rg2:
+        g2 = await rg2.json()
+        assert rg2.status == 200
+        tags_later = set(g2["tags"])
+        assert "newtag" not in tags_later
+        assert "beta" in tags_later  # still present
 
 
 @pytest.mark.asyncio
