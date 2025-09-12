@@ -846,6 +846,8 @@ class KlingStartEndFrameNode(KlingImage2VideoNode):
             "pro mode / 10s duration / kling-v1-5": ("pro", "10", "kling-v1-5"),
             "pro mode / 5s duration / kling-v1-6": ("pro", "5", "kling-v1-6"),
             "pro mode / 10s duration / kling-v1-6": ("pro", "10", "kling-v1-6"),
+            "pro mode / 5s duration / kling-v2-1": ("pro", "5", "kling-v2-1"),
+            "pro mode / 10s duration / kling-v2-1": ("pro", "10", "kling-v2-1"),
         }
 
     @classmethod
