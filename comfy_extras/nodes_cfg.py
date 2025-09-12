@@ -1,4 +1,9 @@
+from typing_extensions import override
+
 import torch
+
+from comfy_api.latest import ComfyExtension, io
+
 
 # https://github.com/WeichenFan/CFG-Zero-star
 def optimized_scale(positive, negative):
@@ -16,17 +21,20 @@ def optimized_scale(positive, negative):
 
     return st_star.reshape([positive.shape[0]] + [1] * (positive.ndim - 1))
 
-class CFGZeroStar:
+class CFGZeroStar(io.ComfyNode):
     @classmethod
-    def INPUT_TYPES(s):
-        return {"required": {"model": ("MODEL",),
-                            }}
-    RETURN_TYPES = ("MODEL",)
-    RETURN_NAMES = ("patched_model",)
-    FUNCTION = "patch"
-    CATEGORY = "advanced/guidance"
+    def define_schema(cls) -> io.Schema:
+        return io.Schema(
+            node_id="CFGZeroStar",
+            category="advanced/guidance",
+            inputs=[
+                io.Model.Input("model"),
+            ],
+            outputs=[io.Model.Output(display_name="patched_model")],
+        )
 
-    def patch(self, model):
+    @classmethod
+    def execute(cls, model) -> io.NodeOutput:
         m = model.clone()
         def cfg_zero_star(args):
             guidance_scale = args['cond_scale']
@@ -38,21 +46,24 @@ class CFGZeroStar:
 
             return out + uncond_p * (alpha - 1.0)  + guidance_scale * uncond_p * (1.0 - alpha)
         m.set_model_sampler_post_cfg_function(cfg_zero_star)
-        return (m, )
+        return io.NodeOutput(m)
 
-class CFGNorm:
+class CFGNorm(io.ComfyNode):
     @classmethod
-    def INPUT_TYPES(s):
-        return {"required": {"model": ("MODEL",),
-                             "strength": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 100.0, "step": 0.01}),
-                            }}
-    RETURN_TYPES = ("MODEL",)
-    RETURN_NAMES = ("patched_model",)
-    FUNCTION = "patch"
-    CATEGORY = "advanced/guidance"
-    EXPERIMENTAL = True
+    def define_schema(cls) -> io.Schema:
+        return io.Schema(
+            node_id="CFGNorm",
+            category="advanced/guidance",
+            inputs=[
+                io.Model.Input("model"),
+                io.Float.Input("strength", default=1.0, min=0.0, max=100.0, step=0.01),
+            ],
+            outputs=[io.Model.Output(display_name="patched_model")],
+            is_experimental=True,
+        )
 
-    def patch(self, model, strength):
+    @classmethod
+    def execute(cls, model, strength) -> io.NodeOutput:
         m = model.clone()
         def cfg_norm(args):
             cond_p = args['cond_denoised']
@@ -64,9 +75,17 @@ class CFGNorm:
             return pred_text_ * scale * strength
 
         m.set_model_sampler_post_cfg_function(cfg_norm)
-        return (m, )
+        return io.NodeOutput(m)
 
-NODE_CLASS_MAPPINGS = {
-    "CFGZeroStar": CFGZeroStar,
-    "CFGNorm": CFGNorm,
-}
+
+class CfgExtension(ComfyExtension):
+    @override
+    async def get_node_list(self) -> list[type[io.ComfyNode]]:
+        return [
+            CFGZeroStar,
+            CFGNorm,
+        ]
+
+
+async def comfy_entrypoint() -> CfgExtension:
+    return CfgExtension()
