@@ -99,21 +99,6 @@ def upgrade() -> None:
     op.create_index("ix_asset_info_meta_key_val_num", "asset_info_meta", ["key", "val_num"])
     op.create_index("ix_asset_info_meta_key_val_bool", "asset_info_meta", ["key", "val_bool"])
 
-    # ASSET_LOCATIONS: remote locations per asset
-    op.create_table(
-        "asset_locations",
-        sa.Column("id", sa.Integer(), primary_key=True, autoincrement=True),
-        sa.Column("asset_hash", sa.String(length=256), sa.ForeignKey("assets.hash", ondelete="CASCADE"), nullable=False),
-        sa.Column("provider", sa.String(length=32), nullable=False),  # e.g., "gcs"
-        sa.Column("locator", sa.Text(), nullable=False),             # e.g., "gs://bucket/path/to/blob"
-        sa.Column("expected_size_bytes", sa.BigInteger(), nullable=True),
-        sa.Column("etag", sa.String(length=256), nullable=True),
-        sa.Column("last_modified", sa.String(length=128), nullable=True),
-        sa.UniqueConstraint("asset_hash", "provider", "locator", name="uq_asset_locations_triplet"),
-    )
-    op.create_index("ix_asset_locations_hash", "asset_locations", ["asset_hash"])
-    op.create_index("ix_asset_locations_provider", "asset_locations", ["provider"])
-
     # Tags vocabulary for models
     tags_table = sa.table(
         "tags",
@@ -158,10 +143,6 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    op.drop_index("ix_asset_locations_provider", table_name="asset_locations")
-    op.drop_index("ix_asset_locations_hash", table_name="asset_locations")
-    op.drop_table("asset_locations")
-
     op.drop_index("ix_asset_info_meta_key_val_bool", table_name="asset_info_meta")
     op.drop_index("ix_asset_info_meta_key_val_num", table_name="asset_info_meta")
     op.drop_index("ix_asset_info_meta_key_val_str", table_name="asset_info_meta")

@@ -36,7 +36,6 @@ from ._assets_helpers import (
     ensure_within_base,
     resolve_destination_from_tags,
 )
-from .assets_fetcher import ensure_asset_cached
 
 
 async def asset_exists(*, asset_hash: str) -> bool:
@@ -180,9 +179,9 @@ async def resolve_asset_content_for_download(
     """
     Returns (abs_path, content_type, download_name) for the given AssetInfo id and touches last_access_time.
     Also touches last_access_time (only_if_newer).
-    Ensures the local cache is present (uses resolver if needed).
     Raises:
       ValueError if AssetInfo cannot be found
+      FileNotFoundError if file for Asset cannot be found
     """
     async with await create_session() as session:
         pair = await fetch_asset_info_and_asset(session, asset_info_id=asset_info_id, owner_id=owner_id)
@@ -190,13 +189,15 @@ async def resolve_asset_content_for_download(
             raise ValueError(f"AssetInfo {asset_info_id} not found")
 
         info, asset = pair
-        tag_names = await get_asset_tags(session, asset_info_id=info.id)
+        states = await list_cache_states_by_asset_hash(session, asset_hash=info.asset_hash)
+        abs_path = ""
+        for s in states:
+            if s and s.file_path and os.path.isfile(s.file_path):
+                abs_path = s.file_path
+                break
+        if not abs_path:
+            raise FileNotFoundError
 
-    # Ensure cached (download if missing)
-    preferred_name = info.name or info.asset_hash.split(":", 1)[-1]
-    abs_path = await ensure_asset_cached(info.asset_hash, preferred_name=preferred_name, tags_hint=tag_names)
-
-    async with await create_session() as session:
         await touch_asset_info_by_id(session, asset_info_id=asset_info_id)
         await session.commit()
 
