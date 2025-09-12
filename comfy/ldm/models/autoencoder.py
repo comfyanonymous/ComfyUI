@@ -26,6 +26,12 @@ class DiagonalGaussianRegularizer(torch.nn.Module):
             z = posterior.mode()
         return z, None
 
+class EmptyRegularizer(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    def forward(self, z: torch.Tensor) -> Tuple[torch.Tensor, dict]:
+        return z, None
 
 class AbstractAutoencoder(torch.nn.Module):
     """
