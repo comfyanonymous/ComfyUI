@@ -134,6 +134,7 @@ class HunyuanRefinerLatent:
         return {"required": {"positive": ("CONDITIONING", ),
                              "negative": ("CONDITIONING", ),
                              "latent": ("LATENT", ),
+                             "noise_augmentation": ("FLOAT", {"default": 0.10, "min": 0.0, "max": 1.0, "step": 0.01}),
                              }}
 
     RETURN_TYPES = ("CONDITIONING", "CONDITIONING", "LATENT")
@@ -141,11 +142,10 @@ class HunyuanRefinerLatent:
 
     FUNCTION = "execute"
 
-    def execute(self, positive, negative, latent):
+    def execute(self, positive, negative, latent, noise_augmentation):
         latent = latent["samples"]
-
-        positive = node_helpers.conditioning_set_values(positive, {"concat_latent_image": latent})
-        negative = node_helpers.conditioning_set_values(negative, {"concat_latent_image": latent})
+        positive = node_helpers.conditioning_set_values(positive, {"concat_latent_image": latent, "noise_augmentation": noise_augmentation})
+        negative = node_helpers.conditioning_set_values(negative, {"concat_latent_image": latent, "noise_augmentation": noise_augmentation})
         out_latent = {}
         out_latent["samples"] = torch.zeros([latent.shape[0], 32, latent.shape[-3], latent.shape[-2], latent.shape[-1]], device=comfy.model_management.intermediate_device())
         return (positive, negative, out_latent)
