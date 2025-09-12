@@ -14,6 +14,7 @@ A vanilla, up-to-date fork of [ComfyUI](https://github.com/comfyanonymous/comfyu
 - [New configuration options](#command-line-arguments) for directories, models and metrics.
 - [API](#using-comfyui-as-an-api--programmatically) support, using the vanilla ComfyUI API and new API endpoints.
 - [Embed](#embedded) ComfyUI as a library inside your Python application. No server or frontend needed.
+- [Docker Compose](#docker-compose) for running on Linux and Windows with CUDA acceleration.
 - [Containers](#containers) for running on Linux, Windows and Kubernetes with CUDA acceleration.
 - Automated tests for new features.
 
@@ -1372,6 +1373,62 @@ This means that workers and frontends do **not** have to have the same argument 
 Since reading models like large checkpoints over the network can be slow, you can use `--extra-model-paths-config` to specify additional model paths. Or, you can use `--cwd some/path`, where `some/path` is a local directory, and, and mount `some/path/outputs` to a network directory.
 
 Known models listed in [**model_downloader.py**](./comfy/model_downloader.py) are downloaded using `huggingface_hub` with the default `cache_dir`. This means you can mount a read-write-many volume, like an SMB share, into the default cache directory. Read more about this [here](https://huggingface.co/docs/huggingface_hub/en/guides/download).
+
+# Docker Compose
+
+This repository includes a `docker-compose.yml` file to simplify running ComfyUI with Docker.
+
+## Docker Volumes vs. Local Directories
+
+By default, the `docker-compose.yml` file uses a Docker-managed volume named `workspace_data`. This volume stores all of ComfyUI's data, including models, inputs, and outputs. This is the most straightforward way to get started, but it can be less convenient if you want to manage these files directly from your host machine.
+
+For more direct control, you can configure Docker Compose to use local directories (bind mounts) instead. This maps folders on your host machine directly into the container.
+
+To switch to using local directories, edit `docker-compose.yml`:
+
+1.  In both the `backend` and `frontend` services, replace `- workspace_data:/workspace` with the specific local directories you want to mount. For example:
+
+    ```yaml
+    services:
+      backend:
+        volumes:
+          # - workspace_data:/workspace # Comment out or remove this line
+          - ./models:/workspace/models
+          - ./custom_nodes:/workspace/custom_nodes
+          - ./output:/workspace/output
+          - ./input:/workspace/input
+      ...
+      frontend:
+        volumes:
+          # - workspace_data:/workspace # Comment out or remove this line
+          - ./models:/workspace/models
+          - ./custom_nodes:/workspace/custom_nodes
+          - ./output:/workspace/output
+          - ./input:/workspace/input
+    ```
+
+2.  At the bottom of the file, remove or comment out the `workspace_data: {}` definition under `volumes`.
+
+    ```yaml
+    volumes:
+      # workspace_data: {} # Comment out or remove this line
+    ```
+
+    Before running `docker compose up`, make sure the local directories (`./models`, `./custom_nodes`, etc.) exist in the same directory as your `docker-compose.yml` file.
+
+The example `docker-compose` file contains other configuration settings. You can also use bind-mount volumes in the `volumes` key of the whole compose file. Read it carefully.
+
+## Running with Docker Compose
+
+### Linux
+
+Before you begin, you must have the [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html) for Docker installed to enable GPU acceleration.
+
+### Starting the Stack
+
+```shell
+docker compose up
+```
 
 # Containers
 

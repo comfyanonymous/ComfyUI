@@ -1,9 +1,12 @@
 name: "comfyui"
 services:
   backend:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    # USING THE BUILT IMAGE FROM GITHUB
+    image: "ghcr.io/hiddenswitch/comfyui:latest"
+    # OR: USE THE LOCAL DOCKERFILE FROM GIT REPO
+    # build:
+    #   context: .
+    #   dockerfile: Dockerfile
     volumes:
       # USING DOCKER MANAGED VOLUMES
       - workspace_data:/workspace
@@ -35,9 +38,12 @@ services:
       start_period: 10s
     restart: unless-stopped
   frontend:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    # USING THE BUILT IMAGE FROM GITHUB
+    image: "ghcr.io/hiddenswitch/comfyui:latest"
+    # OR: USE THE LOCAL DOCKERFILE FROM GIT REPO
+    # build:
+    #   context: .
+    #   dockerfile: Dockerfile
     deploy:
       replicas: 1
     volumes:
