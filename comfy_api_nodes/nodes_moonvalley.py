@@ -1,6 +1,7 @@
 import logging
 from typing import Any, Callable, Optional, TypeVar
 import torch
+from typing_extensions import override
 from comfy_api_nodes.util.validation_utils import (
     get_image_dimensions,
     validate_image_dimensions,
@@ -26,11 +27,9 @@ from comfy_api_nodes.apinode_utils import (
     upload_images_to_comfyapi,
     upload_video_to_comfyapi,
 )
-from comfy_api_nodes.mapper_utils import model_field_to_node_input
 
-from comfy_api.input.video_types import VideoInput
-from comfy.comfy_types.node_typing import IO
-from comfy_api.input_impl import VideoFromFile
+from comfy_api.input import VideoInput
+from comfy_api.latest import ComfyExtension, InputImpl, io as comfy_io
 import av
 import io
 
@@ -362,7 +361,7 @@ def trim_video(video: VideoInput, duration_sec: float) -> VideoInput:
 
         # Return as VideoFromFile using the buffer
         output_buffer.seek(0)
-        return VideoFromFile(output_buffer)
+        return InputImpl.VideoFromFile(output_buffer)
 
     except Exception as e:
         # Clean up on error
@@ -373,166 +372,150 @@ def trim_video(video: VideoInput, duration_sec: float) -> VideoInput:
         raise RuntimeError(f"Failed to trim video: {str(e)}") from e
 
 
-# --- BaseMoonvalleyVideoNode ---
-class BaseMoonvalleyVideoNode:
-    def parseWidthHeightFromRes(self, resolution: str):
-        # Accepts a string like "16:9 (1920 x 1080)" and returns width, height as a dict
-        res_map = {
-            "16:9 (1920 x 1080)": {"width": 1920, "height": 1080},
-            "9:16 (1080 x 1920)": {"width": 1080, "height": 1920},
-            "1:1 (1152 x 1152)": {"width": 1152, "height": 1152},
-            "4:3 (1536 x 1152)": {"width": 1536, "height": 1152},
-            "3:4 (1152 x 1536)": {"width": 1152, "height": 1536},
-            "21:9 (2560 x 1080)": {"width": 2560, "height": 1080},
-        }
-        if resolution in res_map:
-            return res_map[resolution]
-        else:
-            # Default to 1920x1080 if unknown
-            return {"width": 1920, "height": 1080}
+def parse_width_height_from_res(resolution: str):
+    # Accepts a string like "16:9 (1920 x 1080)" and returns width, height as a dict
+    res_map = {
+        "16:9 (1920 x 1080)": {"width": 1920, "height": 1080},
+        "9:16 (1080 x 1920)": {"width": 1080, "height": 1920},
+        "1:1 (1152 x 1152)": {"width": 1152, "height": 1152},
+        "4:3 (1536 x 1152)": {"width": 1536, "height": 1152},
+        "3:4 (1152 x 1536)": {"width": 1152, "height": 1536},
+        "21:9 (2560 x 1080)": {"width": 2560, "height": 1080},
+    }
+    return res_map.get(resolution, {"width": 1920, "height": 1080})
 
-    def parseControlParameter(self, value):
-        control_map = {
-            "Motion Transfer": "motion_control",
-            "Canny": "canny_control",
-            "Pose Transfer": "pose_control",
-            "Depth": "depth_control",
-        }
-        if value in control_map:
-            return control_map[value]
-        else:
-            return control_map["Motion Transfer"]
 
-    async def get_response(
-        self, task_id: str, auth_kwargs: dict[str, str], node_id: Optional[str] = None
-    ) -> MoonvalleyPromptResponse:
-        return await poll_until_finished(
-            auth_kwargs,
-            ApiEndpoint(
-                path=f"{API_PROMPTS_ENDPOINT}/{task_id}",
-                method=HttpMethod.GET,
-                request_model=EmptyRequest,
-                response_model=MoonvalleyPromptResponse,
-            ),
-            result_url_extractor=get_video_url_from_response,
-            node_id=node_id,
-        )
+def parse_control_parameter(value):
+    control_map = {
+        "Motion Transfer": "motion_control",
+        "Canny": "canny_control",
+        "Pose Transfer": "pose_control",
+        "Depth": "depth_control",
+    }
+    return control_map.get(value, control_map["Motion Transfer"])
+
+
+async def get_response(
+    task_id: str, auth_kwargs: dict[str, str], node_id: Optional[str] = None
+) -> MoonvalleyPromptResponse:
+    return await poll_until_finished(
+        auth_kwargs,
+        ApiEndpoint(
+            path=f"{API_PROMPTS_ENDPOINT}/{task_id}",
+            method=HttpMethod.GET,
+            request_model=EmptyRequest,
+            response_model=MoonvalleyPromptResponse,
+        ),
+        result_url_extractor=get_video_url_from_response,
+        node_id=node_id,
+    )
+
+
+class MoonvalleyImg2VideoNode(comfy_io.ComfyNode):
 
     @classmethod
-    def INPUT_TYPES(cls):
-        return {
-            "required": {
-                "prompt": model_field_to_node_input(
-                    IO.STRING,
-                    MoonvalleyTextToVideoRequest,
-                    "prompt_text",
+    def define_schema(cls) -> comfy_io.Schema:
+        return comfy_io.Schema(
+            node_id="MoonvalleyImg2VideoNode",
+            display_name="Moonvalley Marey Image to Video",
+            category="api node/video/Moonvalley Marey",
+            description="Moonvalley Marey Image to Video Node",
+            inputs=[
+                comfy_io.Image.Input(
+                    "image",
+                    tooltip="The reference image used to generate the video",
+                ),
+                comfy_io.String.Input(
+                    "prompt",
                     multiline=True,
                 ),
-                "negative_prompt": model_field_to_node_input(
-                    IO.STRING,
-                    MoonvalleyTextToVideoInferenceParams,
+                comfy_io.String.Input(
                     "negative_prompt",
                     multiline=True,
-                    default="<synthetic> <scene cut> gopro, bright, contrast, static, overexposed, vignette, artifacts, still, noise, texture, scanlines, videogame, 360 camera, VR, transition, flare, saturation, distorted, warped, wide angle, saturated, vibrant, glowing, cross dissolve, cheesy, ugly hands, mutated hands, mutant, disfigured, extra fingers, blown out, horrible, blurry, worst quality, bad, dissolve, melt, fade in, fade out, wobbly, weird, low quality, plastic, stock footage, video camera, boring",
+                    default="<synthetic> <scene cut> gopro, bright, contrast, static, overexposed, vignette, "
+                            "artifacts, still, noise, texture, scanlines, videogame, 360 camera, VR, transition, "
+                            "flare, saturation, distorted, warped, wide angle, saturated, vibrant, glowing, "
+                            "cross dissolve, cheesy, ugly hands, mutated hands, mutant, disfigured, extra fingers, "
+                            "blown out, horrible, blurry, worst quality, bad, dissolve, melt, fade in, fade out, "
+                            "wobbly, weird, low quality, plastic, stock footage, video camera, boring",
+                    tooltip="Negative prompt text",
                 ),
-                "resolution": (
-                    IO.COMBO,
-                    {
-                        "options": [
-                            "16:9 (1920 x 1080)",
-                            "9:16 (1080 x 1920)",
-                            "1:1 (1152 x 1152)",
-                            "4:3 (1440 x 1080)",
-                            "3:4 (1080 x 1440)",
-                            "21:9 (2560 x 1080)",
-                        ],
-                        "default": "16:9 (1920 x 1080)",
-                        "tooltip": "Resolution of the output video",
-                    },
+                comfy_io.Combo.Input(
+                    "resolution",
+                    options=[
+                        "16:9 (1920 x 1080)",
+                        "9:16 (1080 x 1920)",
+                        "1:1 (1152 x 1152)",
+                        "4:3 (1536 x 1152)",
+                        "3:4 (1152 x 1536)",
+                        "21:9 (2560 x 1080)",
+                    ],
+                    default="16:9 (1920 x 1080)",
+                    tooltip="Resolution of the output video",
                 ),
-                "prompt_adherence": model_field_to_node_input(
-                    IO.FLOAT,
-                    MoonvalleyTextToVideoInferenceParams,
-                    "guidance_scale",
+                comfy_io.Float.Input(
+                    "prompt_adherence",
                     default=10.0,
-                    step=1,
-                    min=1,
-                    max=20,
+                    min=1.0,
+                    max=20.0,
+                    step=1.0,
+                    tooltip="Guidance scale for generation control",
                 ),
-                "seed": model_field_to_node_input(
-                    IO.INT,
-                    MoonvalleyTextToVideoInferenceParams,
+                comfy_io.Int.Input(
                     "seed",
                     default=9,
                     min=0,
                     max=4294967295,
                     step=1,
-                    display="number",
+                    display_mode=comfy_io.NumberDisplay.number,
                     tooltip="Random seed value",
                 ),
-                "steps": model_field_to_node_input(
-                    IO.INT,
-                    MoonvalleyTextToVideoInferenceParams,
+                comfy_io.Int.Input(
                     "steps",
                     default=100,
                     min=1,
                     max=100,
+                    step=1,
+                    tooltip="Number of denoising steps",
                 ),
-            },
-            "hidden": {
-                "auth_token": "AUTH_TOKEN_COMFY_ORG",
-                "comfy_api_key": "API_KEY_COMFY_ORG",
-                "unique_id": "UNIQUE_ID",
-            },
-            "optional": {
-                "image": model_field_to_node_input(
-                    IO.IMAGE,
-                    MoonvalleyTextToVideoRequest,
-                    "image_url",
-                    tooltip="The reference image used to generate the video",
-                ),
-            },
-        }
-
-    RETURN_TYPES = ("STRING",)
-    FUNCTION = "generate"
-    CATEGORY = "api node/video/Moonvalley Marey"
-    API_NODE = True
-
-    def generate(self, **kwargs):
-        return None
-
-
-# --- MoonvalleyImg2VideoNode ---
-class MoonvalleyImg2VideoNode(BaseMoonvalleyVideoNode):
+            ],
+            outputs=[comfy_io.Video.Output()],
+            hidden=[
+                comfy_io.Hidden.auth_token_comfy_org,
+                comfy_io.Hidden.api_key_comfy_org,
+                comfy_io.Hidden.unique_id,
+            ],
+            is_api_node=True,
+        )
 
     @classmethod
-    def INPUT_TYPES(cls):
-        return super().INPUT_TYPES()
-
-    RETURN_TYPES = ("VIDEO",)
-    RETURN_NAMES = ("video",)
-    DESCRIPTION = "Moonvalley Marey Image to Video Node"
-
-    async def generate(
-        self, prompt, negative_prompt, unique_id: Optional[str] = None, **kwargs
-    ):
-        image = kwargs.get("image", None)
-        if image is None:
-            raise MoonvalleyApiError("image is required")
-
+    async def execute(
+        cls,
+        image: torch.Tensor,
+        prompt: str,
+        negative_prompt: str,
+        resolution: str,
+        prompt_adherence: float,
+        seed: int,
+        steps: int,
+    ) -> comfy_io.NodeOutput:
         validate_input_image(image, True)
         validate_prompts(prompt, negative_prompt, MOONVALLEY_MAREY_MAX_PROMPT_LENGTH)
-        width_height = self.parseWidthHeightFromRes(kwargs.get("resolution"))
+        width_height = parse_width_height_from_res(resolution)
+
+        auth = {
+            "auth_token": cls.hidden.auth_token_comfy_org,
+            "comfy_api_key": cls.hidden.api_key_comfy_org,
+        }
 
         inference_params = MoonvalleyTextToVideoInferenceParams(
             negative_prompt=negative_prompt,
-            steps=kwargs.get("steps"),
-            seed=kwargs.get("seed"),
-            guidance_scale=kwargs.get("prompt_adherence"),
+            steps=steps,
+            seed=seed,
+            guidance_scale=prompt_adherence,
             num_frames=128,
-            width=width_height.get("width"),
-            height=width_height.get("height"),
+            width=width_height["width"],
+            height=width_height["height"],
             use_negative_prompts=True,
         )
         """Upload image to comfy backend to have a URL available for further processing"""
@@ -541,7 +524,7 @@ class MoonvalleyImg2VideoNode(BaseMoonvalleyVideoNode):
 
         image_url = (
             await upload_images_to_comfyapi(
-                image, max_images=1, auth_kwargs=kwargs, mime_type=mime_type
+                image, max_images=1, auth_kwargs=auth, mime_type=mime_type
             )
         )[0]
 
@@ -556,127 +539,102 @@ class MoonvalleyImg2VideoNode(BaseMoonvalleyVideoNode):
                 response_model=MoonvalleyPromptResponse,
             ),
             request=request,
-            auth_kwargs=kwargs,
+            auth_kwargs=auth,
         )
         task_creation_response = await initial_operation.execute()
         validate_task_creation_response(task_creation_response)
         task_id = task_creation_response.id
 
-        final_response = await self.get_response(
-            task_id, auth_kwargs=kwargs, node_id=unique_id
+        final_response = await get_response(
+            task_id, auth_kwargs=auth, node_id=cls.hidden.unique_id
         )
         video = await download_url_to_video_output(final_response.output_url)
-        return (video,)
+        return comfy_io.NodeOutput(video)
 
 
-# --- MoonvalleyVid2VidNode ---
-class MoonvalleyVideo2VideoNode(BaseMoonvalleyVideoNode):
-    def __init__(self):
-        super().__init__()
+class MoonvalleyVideo2VideoNode(comfy_io.ComfyNode):
 
     @classmethod
-    def INPUT_TYPES(cls):
-        return {
-            "required": {
-                "prompt": model_field_to_node_input(
-                    IO.STRING,
-                    MoonvalleyVideoToVideoRequest,
-                    "prompt_text",
+    def define_schema(cls) -> comfy_io.Schema:
+        return comfy_io.Schema(
+            node_id="MoonvalleyVideo2VideoNode",
+            display_name="Moonvalley Marey Video to Video",
+            category="api node/video/Moonvalley Marey",
+            description="",
+            inputs=[
+                comfy_io.String.Input(
+                    "prompt",
                     multiline=True,
+                    tooltip="Describes the video to generate",
                 ),
-                "negative_prompt": model_field_to_node_input(
-                    IO.STRING,
-                    MoonvalleyVideoToVideoInferenceParams,
+                comfy_io.String.Input(
                     "negative_prompt",
                     multiline=True,
-                    default="<synthetic> <scene cut> gopro, bright, contrast, static, overexposed, vignette, artifacts, still, noise, texture, scanlines, videogame, 360 camera, VR, transition, flare, saturation, distorted, warped, wide angle, saturated, vibrant, glowing, cross dissolve, cheesy, ugly hands, mutated hands, mutant, disfigured, extra fingers, blown out, horrible, blurry, worst quality, bad, dissolve, melt, fade in, fade out, wobbly, weird, low quality, plastic, stock footage, video camera, boring",
+                    default="<synthetic> <scene cut> gopro, bright, contrast, static, overexposed, vignette, "
+                            "artifacts, still, noise, texture, scanlines, videogame, 360 camera, VR, transition, "
+                            "flare, saturation, distorted, warped, wide angle, saturated, vibrant, glowing, "
+                            "cross dissolve, cheesy, ugly hands, mutated hands, mutant, disfigured, extra fingers, "
+                            "blown out, horrible, blurry, worst quality, bad, dissolve, melt, fade in, fade out, "
+                            "wobbly, weird, low quality, plastic, stock footage, video camera, boring",
+                    tooltip="Negative prompt text",
                 ),
-                "seed": model_field_to_node_input(
-                    IO.INT,
-                    MoonvalleyVideoToVideoInferenceParams,
+                comfy_io.Int.Input(
                     "seed",
                     default=9,
                     min=0,
                     max=4294967295,
                     step=1,
-                    display="number",
+                    display_mode=comfy_io.NumberDisplay.number,
                     tooltip="Random seed value",
                     control_after_generate=False,
                 ),
-                "prompt_adherence": model_field_to_node_input(
-                    IO.FLOAT,
-                    MoonvalleyVideoToVideoInferenceParams,
-                    "guidance_scale",
-                    default=10.0,
+                comfy_io.Video.Input(
+                    "video",
+                    tooltip="The reference video used to generate the output video. Must be at least 5 seconds long. "
+                            "Videos longer than 5s will be automatically trimmed. Only MP4 format supported.",
+                ),
+                comfy_io.Combo.Input(
+                    "control_type",
+                    options=["Motion Transfer", "Pose Transfer"],
+                    default="Motion Transfer",
+                    optional=True,
+                ),
+                comfy_io.Int.Input(
+                    "motion_intensity",
+                    default=100,
+                    min=0,
+                    max=100,
                     step=1,
-                    min=1,
-                    max=20,
+                    tooltip="Only used if control_type is 'Motion Transfer'",
+                    optional=True,
                 ),
-            },
-            "hidden": {
-                "auth_token": "AUTH_TOKEN_COMFY_ORG",
-                "comfy_api_key": "API_KEY_COMFY_ORG",
-                "unique_id": "UNIQUE_ID",
-            },
-            "optional": {
-                "video": (
-                    IO.VIDEO,
-                    {
-                        "default": "",
-                        "multiline": False,
-                        "tooltip": "The reference video used to generate the output video. Must be at least 5 seconds long. Videos longer than 5s will be automatically trimmed. Only MP4 format supported.",
-                    },
-                ),
-                "control_type": (
-                    ["Motion Transfer", "Pose Transfer"],
-                    {"default": "Motion Transfer"},
-                ),
-                "motion_intensity": (
-                    "INT",
-                    {
-                        "default": 100,
-                        "step": 1,
-                        "min": 0,
-                        "max": 100,
-                        "tooltip": "Only used if control_type is 'Motion Transfer'",
-                    },
-                ),
-                "image": model_field_to_node_input(
-                    IO.IMAGE,
-                    MoonvalleyTextToVideoRequest,
-                    "image_url",
-                    tooltip="The reference image used to generate the video",
-                ),
-            },
+            ],
+            outputs=[comfy_io.Video.Output()],
+            hidden=[
+                comfy_io.Hidden.auth_token_comfy_org,
+                comfy_io.Hidden.api_key_comfy_org,
+                comfy_io.Hidden.unique_id,
+            ],
+            is_api_node=True,
+        )
+
+    @classmethod
+    async def execute(
+        cls,
+        prompt: str,
+        negative_prompt: str,
+        seed: int,
+        video: Optional[VideoInput] = None,
+        control_type: str = "Motion Transfer",
+        motion_intensity: Optional[int] = 100,
+    ) -> comfy_io.NodeOutput:
+        auth = {
+            "auth_token": cls.hidden.auth_token_comfy_org,
+            "comfy_api_key": cls.hidden.api_key_comfy_org,
         }
 
-    RETURN_TYPES = ("VIDEO",)
-    RETURN_NAMES = ("video",)
-
-    async def generate(
-        self, prompt, negative_prompt, unique_id: Optional[str] = None, **kwargs
-    ):
-        video = kwargs.get("video")
-        image = kwargs.get("image", None)
-
-        if not video:
-            raise MoonvalleyApiError("video is required")
-
-        video_url = ""
-        if video:
-            validated_video = validate_video_to_video_input(video)
-            video_url = await upload_video_to_comfyapi(
-                validated_video, auth_kwargs=kwargs
-            )
-        mime_type = "image/png"
-
-        if not image is None:
-            validate_input_image(image, with_frame_conditioning=True)
-            image_url = await upload_images_to_comfyapi(
-                image=image, auth_kwargs=kwargs, max_images=1, mime_type=mime_type
-            )
-        control_type = kwargs.get("control_type")
-        motion_intensity = kwargs.get("motion_intensity")
+        validated_video = validate_video_to_video_input(video)
+        video_url = await upload_video_to_comfyapi(validated_video, auth_kwargs=auth)
 
         """Validate prompts and inference input"""
         validate_prompts(prompt, negative_prompt)
@@ -688,11 +646,11 @@ class MoonvalleyVideo2VideoNode(BaseMoonvalleyVideoNode):
 
         inference_params = MoonvalleyVideoToVideoInferenceParams(
             negative_prompt=negative_prompt,
-            seed=kwargs.get("seed"),
+            seed=seed,
             control_params=control_params,
         )
 
-        control = self.parseControlParameter(control_type)
+        control = parse_control_parameter(control_type)
 
         request = MoonvalleyVideoToVideoRequest(
             control_type=control,
@@ -700,7 +658,6 @@ class MoonvalleyVideo2VideoNode(BaseMoonvalleyVideoNode):
             prompt_text=prompt,
             inference_params=inference_params,
         )
-        request.image_url = image_url if not image is None else None
 
         initial_operation = SynchronousOperation(
             endpoint=ApiEndpoint(
@@ -710,58 +667,125 @@ class MoonvalleyVideo2VideoNode(BaseMoonvalleyVideoNode):
                 response_model=MoonvalleyPromptResponse,
             ),
             request=request,
-            auth_kwargs=kwargs,
+            auth_kwargs=auth,
         )
         task_creation_response = await initial_operation.execute()
         validate_task_creation_response(task_creation_response)
         task_id = task_creation_response.id
 
-        final_response = await self.get_response(
-            task_id, auth_kwargs=kwargs, node_id=unique_id
+        final_response = await get_response(
+            task_id, auth_kwargs=auth, node_id=cls.hidden.unique_id
         )
 
         video = await download_url_to_video_output(final_response.output_url)
+        return comfy_io.NodeOutput(video)
 
-        return (video,)
 
-
-# --- MoonvalleyTxt2VideoNode ---
-class MoonvalleyTxt2VideoNode(BaseMoonvalleyVideoNode):
-    def __init__(self):
-        super().__init__()
-
-    RETURN_TYPES = ("VIDEO",)
-    RETURN_NAMES = ("video",)
+class MoonvalleyTxt2VideoNode(comfy_io.ComfyNode):
 
     @classmethod
-    def INPUT_TYPES(cls):
-        input_types = super().INPUT_TYPES()
-        # Remove image-specific parameters
-        for param in ["image"]:
-            if param in input_types["optional"]:
-                del input_types["optional"][param]
-        return input_types
+    def define_schema(cls) -> comfy_io.Schema:
+        return comfy_io.Schema(
+            node_id="MoonvalleyTxt2VideoNode",
+            display_name="Moonvalley Marey Text to Video",
+            category="api node/video/Moonvalley Marey",
+            description="",
+            inputs=[
+                comfy_io.String.Input(
+                    "prompt",
+                    multiline=True,
+                ),
+                comfy_io.String.Input(
+                    "negative_prompt",
+                    multiline=True,
+                    default="<synthetic> <scene cut> gopro, bright, contrast, static, overexposed, vignette, "
+                            "artifacts, still, noise, texture, scanlines, videogame, 360 camera, VR, transition, "
+                            "flare, saturation, distorted, warped, wide angle, saturated, vibrant, glowing, "
+                            "cross dissolve, cheesy, ugly hands, mutated hands, mutant, disfigured, extra fingers, "
+                            "blown out, horrible, blurry, worst quality, bad, dissolve, melt, fade in, fade out, "
+                            "wobbly, weird, low quality, plastic, stock footage, video camera, boring",
+                    tooltip="Negative prompt text",
+                ),
+                comfy_io.Combo.Input(
+                    "resolution",
+                    options=[
+                        "16:9 (1920 x 1080)",
+                        "9:16 (1080 x 1920)",
+                        "1:1 (1152 x 1152)",
+                        "4:3 (1536 x 1152)",
+                        "3:4 (1152 x 1536)",
+                        "21:9 (2560 x 1080)",
+                    ],
+                    default="16:9 (1920 x 1080)",
+                    tooltip="Resolution of the output video",
+                ),
+                comfy_io.Float.Input(
+                    "prompt_adherence",
+                    default=10.0,
+                    min=1.0,
+                    max=20.0,
+                    step=1.0,
+                    tooltip="Guidance scale for generation control",
+                ),
+                comfy_io.Int.Input(
+                    "seed",
+                    default=9,
+                    min=0,
+                    max=4294967295,
+                    step=1,
+                    display_mode=comfy_io.NumberDisplay.number,
+                    tooltip="Random seed value",
+                ),
+                comfy_io.Int.Input(
+                    "steps",
+                    default=100,
+                    min=1,
+                    max=100,
+                    step=1,
+                    tooltip="Inference steps",
+                ),
+            ],
+            outputs=[comfy_io.Video.Output()],
+            hidden=[
+                comfy_io.Hidden.auth_token_comfy_org,
+                comfy_io.Hidden.api_key_comfy_org,
+                comfy_io.Hidden.unique_id,
+            ],
+            is_api_node=True,
+        )
 
-    async def generate(
-        self, prompt, negative_prompt, unique_id: Optional[str] = None, **kwargs
-    ):
+    @classmethod
+    async def execute(
+        cls,
+        prompt: str,
+        negative_prompt: str,
+        resolution: str,
+        prompt_adherence: float,
+        seed: int,
+        steps: int,
+    ) -> comfy_io.NodeOutput:
         validate_prompts(prompt, negative_prompt, MOONVALLEY_MAREY_MAX_PROMPT_LENGTH)
-        width_height = self.parseWidthHeightFromRes(kwargs.get("resolution"))
+        width_height = parse_width_height_from_res(resolution)
+
+        auth = {
+            "auth_token": cls.hidden.auth_token_comfy_org,
+            "comfy_api_key": cls.hidden.api_key_comfy_org,
+        }
 
         inference_params = MoonvalleyTextToVideoInferenceParams(
             negative_prompt=negative_prompt,
-            steps=kwargs.get("steps"),
-            seed=kwargs.get("seed"),
-            guidance_scale=kwargs.get("prompt_adherence"),
+            steps=steps,
+            seed=seed,
+            guidance_scale=prompt_adherence,
             num_frames=128,
-            width=width_height.get("width"),
-            height=width_height.get("height"),
+            width=width_height["width"],
+            height=width_height["height"],
         )
         request = MoonvalleyTextToVideoRequest(
             prompt_text=prompt, inference_params=inference_params
         )
 
-        initial_operation = SynchronousOperation(
+        init_op = SynchronousOperation(
             endpoint=ApiEndpoint(
                 path=API_TXT2VIDEO_ENDPOINT,
                 method=HttpMethod.POST,
@@ -769,29 +793,29 @@ class MoonvalleyTxt2VideoNode(BaseMoonvalleyVideoNode):
                 response_model=MoonvalleyPromptResponse,
             ),
             request=request,
-            auth_kwargs=kwargs,
+            auth_kwargs=auth,
         )
-        task_creation_response = await initial_operation.execute()
+        task_creation_response = await init_op.execute()
         validate_task_creation_response(task_creation_response)
         task_id = task_creation_response.id
 
-        final_response = await self.get_response(
-            task_id, auth_kwargs=kwargs, node_id=unique_id
+        final_response = await get_response(
+            task_id, auth_kwargs=auth, node_id=cls.hidden.unique_id
         )
 
         video = await download_url_to_video_output(final_response.output_url)
-        return (video,)
+        return comfy_io.NodeOutput(video)
 
 
-NODE_CLASS_MAPPINGS = {
-    "MoonvalleyImg2VideoNode": MoonvalleyImg2VideoNode,
-    "MoonvalleyTxt2VideoNode": MoonvalleyTxt2VideoNode,
-    "MoonvalleyVideo2VideoNode": MoonvalleyVideo2VideoNode,
-}
+class MoonvalleyExtension(ComfyExtension):
+    @override
+    async def get_node_list(self) -> list[type[comfy_io.ComfyNode]]:
+        return [
+            MoonvalleyImg2VideoNode,
+            MoonvalleyTxt2VideoNode,
+            MoonvalleyVideo2VideoNode,
+        ]
 
 
-NODE_DISPLAY_NAME_MAPPINGS = {
-    "MoonvalleyImg2VideoNode": "Moonvalley Marey Image to Video",
-    "MoonvalleyTxt2VideoNode": "Moonvalley Marey Text to Video",
-    "MoonvalleyVideo2VideoNode": "Moonvalley Marey Video to Video",
-}
+async def comfy_entrypoint() -> MoonvalleyExtension:
+    return MoonvalleyExtension()
