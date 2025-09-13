@@ -31,7 +31,7 @@ class AudioEncoderModel():
     def encode_audio(self, audio, sample_rate):
         comfy.model_management.load_model_gpu(self.patcher)
         audio = torchaudio.functional.resample(audio, sample_rate, self.model_sample_rate)
-        out, all_layers = self.model(audio.to(self.load_device), sr=self.model_sample_rate)
+        out, all_layers = self.model(audio.to(self.load_device))
         outputs = {}
         outputs["encoded_audio"] = out
         outputs["encoded_audio_all_layers"] = all_layers
