@@ -1,0 +1,174 @@
+name: Asset System Tests
+
+on:
+  push:
+    paths:
+      - 'app/**'
+      - 'alembic_db/**'
+      - 'tests-assets/**'
+      - '.github/workflows/test-assets.yml'
+      - 'requirements.txt'
+  pull_request:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  PIP_DISABLE_PIP_VERSION_CHECK: '1'
+  PYTHONUNBUFFERED: '1'
+
+jobs:
+  sqlite:
+    name: SQLite (${{ matrix.sqlite_mode }}) • Python ${{ matrix.python }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ['3.9', '3.12']
+        sqlite_mode: ['memory', 'file']
+
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+
+      - name: Install dependencies
+        run: |
+          python -m pip install -U pip wheel
+          pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
+          pip install -r requirements.txt
+          pip install pytest pytest-aiohttp pytest-asyncio
+
+      - name: Set deterministic test base dir
+        id: basedir
+        shell: bash
+        run: |
+          BASE="$RUNNER_TEMP/comfyui-assets-tests-${{ matrix.python }}-${{ matrix.sqlite_mode }}-${{ github.run_id }}-${{ github.run_attempt }}"
+          echo "ASSETS_TEST_BASE_DIR=$BASE" >> "$GITHUB_ENV"
+          echo "ASSETS_TEST_LOGS=$BASE/logs" >> "$GITHUB_ENV"
+          mkdir -p "$BASE/logs"
+          echo "ASSETS_TEST_BASE_DIR=$BASE"
+
+      - name: Set DB URL for SQLite
+        id: setdb
+        shell: bash
+        run: |
+          if [ "${{ matrix.sqlite_mode }}" = "memory" ]; then
+            echo "ASSETS_TEST_DB_URL=sqlite+aiosqlite:///:memory:" >> "$GITHUB_ENV"
+          else
+            DBFILE="$RUNNER_TEMP/assets-tests.sqlite"
+            mkdir -p "$(dirname "$DBFILE")"
+            echo "ASSETS_TEST_DB_URL=sqlite+aiosqlite:///$DBFILE" >> "$GITHUB_ENV"
+          fi
+
+      - name: Run tests
+        run: python -m pytest tests-assets
+
+      - name: Show ComfyUI logs
+        if: always()
+        shell: bash
+        run: |
+          echo "==== ASSETS_TEST_BASE_DIR: $ASSETS_TEST_BASE_DIR ===="
+          echo "==== ASSETS_TEST_LOGS: $ASSETS_TEST_LOGS ===="
+          ls -la "$ASSETS_TEST_LOGS" || true
+          for f in "$ASSETS_TEST_LOGS"/stdout.log "$ASSETS_TEST_LOGS"/stderr.log; do
+            if [ -f "$f" ]; then
+              echo "----- BEGIN $f -----"
+              sed -n '1,400p' "$f"
+              echo "----- END $f -----"
+            fi
+          done
+
+      - name: Upload ComfyUI logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: asset-logs-sqlite-${{ matrix.sqlite_mode }}-py${{ matrix.python }}
+          path: ${{ env.ASSETS_TEST_LOGS }}/*.log
+          if-no-files-found: warn
+
+  postgres:
+    name: PostgreSQL ${{ matrix.pgsql }} • Python ${{ matrix.python }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ['3.9', '3.12']
+        pgsql: ['14', '16']
+
+    services:
+      postgres:
+        image: postgres:${{ matrix.pgsql }}
+        env:
+          POSTGRES_DB: assets
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d assets"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 12
+
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+
+      - name: Install dependencies
+        run: |
+          python -m pip install -U pip wheel
+          pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
+          pip install -r requirements.txt
+          pip install pytest pytest-aiohttp pytest-asyncio
+          pip install greenlet psycopg
+
+      - name: Set deterministic test base dir
+        id: basedir
+        shell: bash
+        run: |
+          BASE="$RUNNER_TEMP/comfyui-assets-tests-${{ matrix.python }}-${{ matrix.sqlite_mode }}-${{ github.run_id }}-${{ github.run_attempt }}"
+          echo "ASSETS_TEST_BASE_DIR=$BASE" >> "$GITHUB_ENV"
+          echo "ASSETS_TEST_LOGS=$BASE/logs" >> "$GITHUB_ENV"
+          mkdir -p "$BASE/logs"
+          echo "ASSETS_TEST_BASE_DIR=$BASE"
+
+      - name: Set DB URL for PostgreSQL
+        shell: bash
+        run: |
+          echo "ASSETS_TEST_DB_URL=postgresql+psycopg://postgres:postgres@localhost:5432/assets" >> "$GITHUB_ENV"
+
+      - name: Run tests
+        run: python -m pytest tests-assets
+
+      - name: Show ComfyUI logs
+        if: always()
+        shell: bash
+        run: |
+          echo "==== ASSETS_TEST_BASE_DIR: $ASSETS_TEST_BASE_DIR ===="
+          echo "==== ASSETS_TEST_LOGS: $ASSETS_TEST_LOGS ===="
+          ls -la "$ASSETS_TEST_LOGS" || true
+          for f in "$ASSETS_TEST_LOGS"/stdout.log "$ASSETS_TEST_LOGS"/stderr.log; do
+            if [ -f "$f" ]; then
+              echo "----- BEGIN $f -----"
+              sed -n '1,400p' "$f"
+              echo "----- END $f -----"
+            fi
+          done
+
+      - name: Upload ComfyUI logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: asset-logs-pgsql-${{ matrix.pgsql }}-py${{ matrix.python }}
+          path: ${{ env.ASSETS_TEST_LOGS }}/*.log
+          if-no-files-found: warn
