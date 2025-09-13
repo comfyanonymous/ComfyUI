@@ -8,10 +8,13 @@ set "COMMANDLINE_ARGS=--auto-launch --use-quad-cross-attention --reserve-vram 0.
 
 set "ZLUDA_COMGR_LOG_LEVEL=1"
 
-echo ** Checking and updating to new version if possible
-
+echo ** Checking and updating to a new version if possible...
 copy comfy\customzluda\zluda-default.py comfy\zluda.py /y >NUL
-git pull
+setlocal EnableDelayedExpansion
+for /f "delims=" %%A in ('git pull 2^>^&1') do (
+    echo ** %%A
+)
+endlocal
 copy comfy\customzluda\zluda-default.py comfy\zluda.py /y >NUL
 
 rem Check for zluda.exe and nccl.dll inside the zluda folder
