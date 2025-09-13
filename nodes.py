@@ -297,6 +297,33 @@ class VAEDecode:
             images = images.reshape(-1, images.shape[-3], images.shape[-2], images.shape[-1])
         return (images, )
 
+class VAEDecodeRollback:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "samples": ("LATENT", {"tooltip": "From 0.2.0 - The latent to be decoded."}),
+                "vae": ("VAE", {"tooltip": "From 0.2.0 - The VAE model used for decoding the latent."})
+            }
+        }
+    RETURN_TYPES = ("IMAGE",)
+    OUTPUT_TOOLTIPS = ("The decoded image.",)
+    FUNCTION = "decode"
+
+    CATEGORY = "latent"
+    DESCRIPTION = "From ComfyUI 0.2.0 - Decodes latent images back into pixel space images. "
+
+    def decode(self, vae, samples):
+        return (vae.decode(samples["samples"]), )
+
+    # def decode(self, vae, samples):
+    #     images = vae.decode(samples["samples"])
+    #     if len(images.shape) == 5: #Combine batches
+    #         images = images.reshape(-1, images.shape[-3], images.shape[-2], images.shape[-1])
+    #     return (images, )
+
+
+
 class VAEDecodeTiled:
     @classmethod
     def INPUT_TYPES(s):
@@ -1945,6 +1972,7 @@ NODE_CLASS_MAPPINGS = {
     "CLIPTextEncode": CLIPTextEncode,
     "CLIPSetLastLayer": CLIPSetLastLayer,
     "VAEDecode": VAEDecode,
+    "VAEDecodeRollback": VAEDecodeRollback,
     "VAEEncode": VAEEncode,
     "VAEEncodeForInpaint": VAEEncodeForInpaint,
     "VAELoader": VAELoader,
@@ -2076,6 +2104,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     # _for_testing
     "VAEDecodeTiled": "VAE Decode (Tiled)",
     "VAEEncodeTiled": "VAE Encode (Tiled)",
+    "VAEDecodeRollback":"VAE Decode Rollback",
 }
 
 EXTENSION_WEB_DIRS = {}
