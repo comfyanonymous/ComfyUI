@@ -19,15 +19,16 @@
 import torch
 import logging
 import comfy.model_management
-from comfy.cli_args import args, PerformanceFeature
 import comfy.float
 import comfy.rmsnorm
 import contextlib
-
+from comfy.quant_tensor import (Q_TYPES, tensor_quantizer, tensor_dequantizer, dynamic_tensor_quantizer,
+                                woq_fwd, quantized_fwd, get_quantizer_with_constraints)
+import types
+import inspect
 
 def scaled_dot_product_attention(q, k, v, *args, **kwargs):
     return torch.nn.functional.scaled_dot_product_attention(q, k, v, *args, **kwargs)
-
 
 try:
     if torch.cuda.is_available():
@@ -98,21 +99,137 @@ class CastWeightBiasOp:
     comfy_cast_weights = False
     weight_function = []
     bias_function = []
+    fp8_compute: bool = False
+    use_dynamic_quantizer: bool = False
 
 class disable_weight_init:
     class Linear(torch.nn.Linear, CastWeightBiasOp):
+        def __init__(
+                self,
+                in_features: int,
+                out_features: int,
+                bias: bool = True,
+                device=None,
+                dtype=None,
+        ) -> None:
+            factory_kwargs = {"device": device, "dtype": dtype}
+            torch.nn.Module.__init__(self)
+            self.in_features = in_features
+            self.out_features = out_features
+
+            self.device = torch.device("cpu") if device is None else device
+            self.compute_dtype = torch.float32 if dtype is None else dtype
+
+            if bias:
+                self.bias = torch.nn.Parameter(torch.empty(out_features, **factory_kwargs))
+            else:
+                self.register_parameter("bias", None)
+
         def reset_parameters(self):
             return None
+
+        def _set_quantizer_fn(self, scale_weight, scale_input):
+            if scale_weight.ndim != 0 and scale_weight.shape[0] != 1:
+                raise ValueError("Blockwise quantization is not supported")
+            if scale_input is None and self.use_dynamic_quantizer:
+                setattr(self, "quantizer", dynamic_tensor_quantizer)
+            else:
+                setattr(self, "quantizer", tensor_quantizer)
+
+        def _set_dequantizer_fn(self, scale_weight):
+            if scale_weight.ndim != 0 and scale_weight.shape[0] != 1:
+                raise ValueError("Blockwise quantization is not supported")
+            setattr(self, "dequantizer", tensor_dequantizer)
+
+        def _set_quantized_forward(self):
+            if not self.fp8_compute:
+                q_fwd = woq_fwd
+            else:
+                q_fwd = quantized_fwd
+            self.forward = types.MethodType(q_fwd, self)
+
+        def _init_parameters_from_sd(self, state_dict, prefix):
+            if not state_dict:
+                logging.warning(f"No state dict provided for {prefix}.")
+                weight = torch.nn.Parameter(
+                    torch.empty((self.out_features, self.in_features), dtype=self.compute_dtype, device=self.device)
+                )
+                self.register_buffer('weight', weight)
+                return
+
+            scale_weight = None
+            _w = state_dict.pop(f"{prefix}weight")
+            if len(self.weight_function):
+                _w, scale_weight = self.weight_function[0](_w)
+            state_dict[f"{prefix}weight"] = _w
+            if scale_weight is not None:
+                state_dict[f"{prefix}scale_weight"] = scale_weight
+
+            weight_dtype = _w.dtype
+            if weight_dtype not in Q_TYPES:
+                weight_dtype = self.compute_dtype
+
+            weight = torch.nn.Parameter(
+                torch.empty((self.out_features, self.in_features), device=self.device, dtype=weight_dtype))
+
+            self.register_buffer('weight', weight)
+            if weight_dtype not in Q_TYPES:
+                return
+
+            scale_weight = state_dict.get(f"{prefix}scale_weight", None)
+            if scale_weight is None:
+                logging.debug("Using quantized weights without a scale can result in low accuracy.")
+                scale_weight = torch.ones(1)
+                state_dict[f"{prefix}scale_weight"] = scale_weight
+            self.register_buffer('scale_weight', scale_weight.to(device=self.device))
+
+            scale_input = state_dict.get(f"{prefix}scale_input", None)
+            if scale_input is not None:
+                self.register_buffer('scale_input', scale_input.to(device=self.device))
+            elif not self.use_dynamic_quantizer:
+                # Fallback to WoQ
+                self.fp8_compute = False
+
+            if self.bias is not None:
+                # WAR not really nice, but Qwen VL has an input scale but uses f32 intermediates and quantized bias
+                self.fp8_compute = self.fp8_compute and (self.bias.dtype in [torch.float16, torch.bfloat16])
+
+            self._set_quantizer_fn(scale_weight, scale_input)
+            self._set_dequantizer_fn(scale_weight)
+            self._set_quantized_forward()
+
+        def _load_from_state_dict(
+                self,
+                state_dict,
+                prefix,
+                local_metadata,
+                strict,
+                missing_keys,
+                unexpected_keys,
+                error_msgs,
+        ):
+            self._init_parameters_from_sd(state_dict, prefix)
+
+            return super()._load_from_state_dict(
+                state_dict,
+                prefix,
+                local_metadata,
+                strict,
+                missing_keys,
+                unexpected_keys,
+                error_msgs,
+            )
 
         def forward_comfy_cast_weights(self, input):
             weight, bias = cast_bias_weight(self, input)
             return torch.nn.functional.linear(input, weight, bias)
 
-        def forward(self, *args, **kwargs):
+        def forward(self, input):
             if self.comfy_cast_weights or len(self.weight_function) > 0 or len(self.bias_function) > 0:
-                return self.forward_comfy_cast_weights(*args, **kwargs)
-            else:
-                return super().forward(*args, **kwargs)
+                return self.forward_comfy_cast_weights(input)
+            weight = self.weight
+            bias = self.bias
+            return torch.nn.functional.linear(input, weight, bias)
 
     class Conv1d(torch.nn.Conv1d, CastWeightBiasOp):
         def reset_parameters(self):
@@ -278,152 +395,6 @@ class disable_weight_init:
         else:
             raise ValueError(f"unsupported dimensions: {dims}")
 
-
-class manual_cast(disable_weight_init):
-    class Linear(disable_weight_init.Linear):
-        comfy_cast_weights = True
-
-    class Conv1d(disable_weight_init.Conv1d):
-        comfy_cast_weights = True
-
-    class Conv2d(disable_weight_init.Conv2d):
-        comfy_cast_weights = True
-
-    class Conv3d(disable_weight_init.Conv3d):
-        comfy_cast_weights = True
-
-    class GroupNorm(disable_weight_init.GroupNorm):
-        comfy_cast_weights = True
-
-    class LayerNorm(disable_weight_init.LayerNorm):
-        comfy_cast_weights = True
-
-    class ConvTranspose2d(disable_weight_init.ConvTranspose2d):
-        comfy_cast_weights = True
-
-    class ConvTranspose1d(disable_weight_init.ConvTranspose1d):
-        comfy_cast_weights = True
-
-    class RMSNorm(disable_weight_init.RMSNorm):
-        comfy_cast_weights = True
-
-    class Embedding(disable_weight_init.Embedding):
-        comfy_cast_weights = True
-
-
-def fp8_linear(self, input):
-    dtype = self.weight.dtype
-    if dtype not in [torch.float8_e4m3fn]:
-        return None
-
-    tensor_2d = False
-    if len(input.shape) == 2:
-        tensor_2d = True
-        input = input.unsqueeze(1)
-
-    input_shape = input.shape
-    input_dtype = input.dtype
-    if len(input.shape) == 3:
-        w, bias = cast_bias_weight(self, input, dtype=dtype, bias_dtype=input_dtype)
-        w = w.t()
-
-        scale_weight = self.scale_weight
-        scale_input = self.scale_input
-        if scale_weight is None:
-            scale_weight = torch.ones((), device=input.device, dtype=torch.float32)
-        else:
-            scale_weight = scale_weight.to(input.device)
-
-        if scale_input is None:
-            scale_input = torch.ones((), device=input.device, dtype=torch.float32)
-            input = torch.clamp(input, min=-448, max=448, out=input)
-            input = input.reshape(-1, input_shape[2]).to(dtype).contiguous()
-        else:
-            scale_input = scale_input.to(input.device)
-            input = (input * (1.0 / scale_input).to(input_dtype)).reshape(-1, input_shape[2]).to(dtype).contiguous()
-
-        if bias is not None:
-            o = torch._scaled_mm(input, w, out_dtype=input_dtype, bias=bias, scale_a=scale_input, scale_b=scale_weight)
-        else:
-            o = torch._scaled_mm(input, w, out_dtype=input_dtype, scale_a=scale_input, scale_b=scale_weight)
-
-        if isinstance(o, tuple):
-            o = o[0]
-
-        if tensor_2d:
-            return o.reshape(input_shape[0], -1)
-
-        return o.reshape((-1, input_shape[1], self.weight.shape[0]))
-
-    return None
-
-class fp8_ops(manual_cast):
-    class Linear(manual_cast.Linear):
-        def reset_parameters(self):
-            self.scale_weight = None
-            self.scale_input = None
-            return None
-
-        def forward_comfy_cast_weights(self, input):
-            try:
-                out = fp8_linear(self, input)
-                if out is not None:
-                    return out
-            except Exception as e:
-                logging.info("Exception during fp8 op: {}".format(e))
-
-            weight, bias = cast_bias_weight(self, input)
-            return torch.nn.functional.linear(input, weight, bias)
-
-def scaled_fp8_ops(fp8_matrix_mult=False, scale_input=False, override_dtype=None):
-    logging.info("Using scaled fp8: fp8 matrix mult: {}, scale input: {}".format(fp8_matrix_mult, scale_input))
-    class scaled_fp8_op(manual_cast):
-        class Linear(manual_cast.Linear):
-            def __init__(self, *args, **kwargs):
-                if override_dtype is not None:
-                    kwargs['dtype'] = override_dtype
-                super().__init__(*args, **kwargs)
-
-            def reset_parameters(self):
-                if not hasattr(self, 'scale_weight'):
-                    self.scale_weight = torch.nn.parameter.Parameter(data=torch.ones((), device=self.weight.device, dtype=torch.float32), requires_grad=False)
-
-                if not scale_input:
-                    self.scale_input = None
-
-                if not hasattr(self, 'scale_input'):
-                    self.scale_input = torch.nn.parameter.Parameter(data=torch.ones((), device=self.weight.device, dtype=torch.float32), requires_grad=False)
-                return None
-
-            def forward_comfy_cast_weights(self, input):
-                if fp8_matrix_mult:
-                    out = fp8_linear(self, input)
-                    if out is not None:
-                        return out
-
-                weight, bias = cast_bias_weight(self, input)
-
-                if weight.numel() < input.numel(): #TODO: optimize
-                    return torch.nn.functional.linear(input, weight * self.scale_weight.to(device=weight.device, dtype=weight.dtype), bias)
-                else:
-                    return torch.nn.functional.linear(input * self.scale_weight.to(device=weight.device, dtype=weight.dtype), weight, bias)
-
-            def convert_weight(self, weight, inplace=False, **kwargs):
-                if inplace:
-                    weight *= self.scale_weight.to(device=weight.device, dtype=weight.dtype)
-                    return weight
-                else:
-                    return weight * self.scale_weight.to(device=weight.device, dtype=weight.dtype)
-
-            def set_weight(self, weight, inplace_update=False, seed=None, **kwargs):
-                weight = comfy.float.stochastic_rounding(weight / self.scale_weight.to(device=weight.device, dtype=weight.dtype), self.weight.dtype, seed=seed)
-                if inplace_update:
-                    self.weight.data.copy_(weight)
-                else:
-                    self.weight = torch.nn.Parameter(weight, requires_grad=False)
-
-    return scaled_fp8_op
-
 CUBLAS_IS_AVAILABLE = False
 try:
     from cublas_ops import CublasLinear
@@ -443,28 +414,42 @@ if CUBLAS_IS_AVAILABLE:
             def forward(self, *args, **kwargs):
                 return super().forward(*args, **kwargs)
 
-def pick_operations(weight_dtype, compute_dtype, load_device=None, disable_fast_fp8=False, fp8_optimizations=False, scaled_fp8=None):
-    fp8_compute = comfy.model_management.supports_fp8_compute(load_device)
-    if scaled_fp8 is not None:
-        return scaled_fp8_ops(fp8_matrix_mult=fp8_compute and fp8_optimizations, scale_input=fp8_optimizations, override_dtype=scaled_fp8)
+op_class_list = [
+    cls for name, cls in inspect.getmembers(disable_weight_init, inspect.isclass)
+    if cls.__module__ == disable_weight_init.__module__ and name != "__class__"
+]
 
-    if (
-        fp8_compute and
-        (fp8_optimizations or PerformanceFeature.Fp8MatrixMultiplication in args.fast) and
-        not disable_fast_fp8
-    ):
-        return fp8_ops
+op_fn_list = [ # conv_nd
+    fn for name, fn in inspect.getmembers(disable_weight_init, inspect.isroutine)
+    if not name.startswith('__')
+]
 
-    if (
-        PerformanceFeature.CublasOps in args.fast and
-        CUBLAS_IS_AVAILABLE and
-        weight_dtype == torch.float16 and
-        (compute_dtype == torch.float16 or compute_dtype is None)
-    ):
-        logging.info("Using cublas ops")
-        return cublas_ops
+def operator_factory(**factory_kwargs):
+    class OpSet:
+        pass
 
-    if compute_dtype is None or weight_dtype == compute_dtype:
-        return disable_weight_init
+    for k, v in factory_kwargs.items():
+        assert hasattr(CastWeightBiasOp, k)
 
-    return manual_cast
+    for base_class in op_class_list:
+        new_class = type(base_class.__name__, (base_class,), factory_kwargs)
+        setattr(OpSet, base_class.__name__, new_class)
+
+    for fn in op_fn_list:
+        setattr(OpSet, fn.__name__, fn)
+
+    return OpSet
+
+# Backward Compatability (e.g. GGUF)
+manual_cast = operator_factory(comfy_cast_weights=True)
+
+def pick_operations(weight_dtype=None, compute_dtype=None, load_device=None, fast_fp8=False, disable_fast_fp8=False):
+    fp8_compute = (comfy.model_management.supports_fp8_compute(load_device) and not disable_fast_fp8)
+    use_dynamic_quantizer = fast_fp8
+    manual_cast = not((weight_dtype == compute_dtype) or use_dynamic_quantizer or fp8_compute)
+
+    weight_function = []
+    if weight_dtype is not None and compute_dtype is not None and not manual_cast:
+        weight_function = [get_quantizer_with_constraints(weight_dtype)]
+    return operator_factory(comfy_cast_weights=manual_cast, use_dynamic_quantizer=use_dynamic_quantizer,
+                            fp8_compute=fp8_compute, weight_function=weight_function)
