@@ -238,7 +238,7 @@ class Wav2Vec2Model(nn.Module):
             device=device, dtype=dtype, operations=operations
         )
 
-    def forward(self, x, sr=16000, mask_time_indices=None, return_dict=False):
+    def forward(self, x, mask_time_indices=None, return_dict=False):
         x = torch.mean(x, dim=1)
 
         if self.do_normalize:
