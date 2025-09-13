@@ -730,6 +730,7 @@ class VAELoader:
             vaes.append("taesd3")
         if f1_taesd_dec and f1_taesd_enc:
             vaes.append("taef1")
+        vaes.append("chroma_radiance")
         return vaes
 
     @staticmethod
@@ -772,7 +773,9 @@ class VAELoader:
 
     #TODO: scale factor?
     def load_vae(self, vae_name):
-        if vae_name in ["taesd", "taesdxl", "taesd3", "taef1"]:
+        if vae_name == "chroma_radiance":
+            return (comfy.sd.PixelspaceConversionVAE(),)
+        elif vae_name in ["taesd", "taesdxl", "taesd3", "taef1"]:
             sd = self.load_taesd(vae_name)
         else:
             vae_path = folder_paths.get_full_path_or_raise("vae", vae_name)

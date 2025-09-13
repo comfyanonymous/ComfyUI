@@ -28,110 +28,6 @@ class EmptyChromaRadianceLatentImage(io.ComfyNode):
         return io.NodeOutput({"samples":latent})
 
 
-class ChromaRadianceStubVAE:
-    @staticmethod
-    def vae_encode_crop_pixels(pixels: torch.Tensor) -> torch.Tensor:
-        dims = pixels.shape[1:-1]
-        for d in range(len(dims)):
-            d_adj = (dims[d] // 16) * 16
-            if d_adj == d:
-                continue
-            d_offset = (dims[d] % 16) // 2
-            pixels = pixels.narrow(d + 1, d_offset, d_adj)
-        return pixels
-
-    @classmethod
-    def encode(cls, pixels: torch.Tensor, *_args, **_kwargs) -> torch.Tensor:
-        device = comfy.model_management.intermediate_device()
-        if pixels.ndim == 3:
-            pixels = pixels.unsqueeze(0)
-        elif pixels.ndim != 4:
-            raise ValueError("Unexpected input image shape")
-        # Ensure the image has spatial dimensions that are multiples of 16.
-        pixels = cls.vae_encode_crop_pixels(pixels)
-        h, w, c = pixels.shape[1:]
-        if h < 16 or w < 16:
-            raise ValueError("Chroma Radiance image inputs must have height/width of at least 16 pixels.")
-        pixels= pixels[..., :3]
-        if c == 1:
-            pixels = pixels.expand(-1, -1, -1, 3)
-        elif c != 3:
-            raise ValueError("Unexpected number of channels in input image")
-        # Rescale to -1..1 and move the channel dimension to position 1.
-        latent = pixels.to(device=device, dtype=torch.float32, copy=True)
-        latent = latent.clamp_(0, 1).movedim(-1, 1).contiguous()
-        latent -= 0.5
-        latent *= 2
-        return latent.clamp_(-1, 1)
-
-    @classmethod
-    def decode(cls, samples: torch.Tensor, *_args, **_kwargs) -> torch.Tensor:
-        device = comfy.model_management.intermediate_device()
-        # Rescale to 0..1 and move the channel dimension to the end.
-        img = samples.to(device=device, dtype=torch.float32, copy=True)
-        img = img.clamp_(-1, 1).movedim(1, -1).contiguous()
-        img += 1.0
-        img *= 0.5
-        return img.clamp_(0, 1)
-
-    encode_tiled = encode
-    decode_tiled = decode
-
-    @classmethod
-    def spacial_compression_decode(cls) -> int:
-        # This just exists so the tiled VAE nodes don't crash.
-        return 1
-
-    spacial_compression_encode = spacial_compression_decode
-    temporal_compression_decode = spacial_compression_decode
-
-
-class ChromaRadianceLatentToImage(io.ComfyNode):
-    @classmethod
-    def define_schema(cls) -> io.Schema:
-        return io.Schema(
-            node_id="ChromaRadianceLatentToImage",
-            category="latent/chroma_radiance",
-            description="For use with Chroma Radiance. Converts an input LATENT to IMAGE.",
-            inputs=[io.Latent.Input(id="latent")],
-            outputs=[io.Image.Output()],
-        )
-
-    @classmethod
-    def execute(cls, *, latent: dict) -> io.NodeOutput:
-        return io.NodeOutput(ChromaRadianceStubVAE.decode(latent["samples"]))
-
-
-class ChromaRadianceImageToLatent(io.ComfyNode):
-    @classmethod
-    def define_schema(cls) -> io.Schema:
-        return io.Schema(
-            node_id="ChromaRadianceImageToLatent",
-            category="latent/chroma_radiance",
-            description="For use with Chroma Radiance. Converts an input IMAGE to LATENT. Note: Radiance requires inputs with width/height that are multiples of 16 so your image will be cropped if necessary.",
-            inputs=[io.Image.Input(id="image")],
-            outputs=[io.Latent.Output()],
-        )
-
-    @classmethod
-    def execute(cls, *, image: torch.Tensor) -> io.NodeOutput:
-        return io.NodeOutput({"samples": ChromaRadianceStubVAE.encode(image)})
-
-
-class ChromaRadianceStubVAENode(io.ComfyNode):
-    @classmethod
-    def define_schema(cls) -> io.Schema:
-        return io.Schema(
-            node_id="ChromaRadianceStubVAE",
-            category="vae/chroma_radiance",
-            description="For use with Chroma Radiance. Allows converting between latent and image types with nodes that require a VAE input. Note: Chroma Radiance requires inputs with width/height that are multiples of 16 so your image will be cropped if necessary.",
-            outputs=[io.Vae.Output()],
-        )
-
-    @classmethod
-    def execute(cls) -> io.NodeOutput:
-        return io.NodeOutput(ChromaRadianceStubVAE())
-
 class ChromaRadianceOptions(io.ComfyNode):
     @classmethod
     def define_schema(cls) -> io.Schema:
@@ -210,9 +106,6 @@ class ChromaRadianceExtension(ComfyExtension):
     async def get_node_list(self) -> list[type[io.ComfyNode]]:
         return [
             EmptyChromaRadianceLatentImage,
-            ChromaRadianceLatentToImage,
-            ChromaRadianceImageToLatent,
-            ChromaRadianceStubVAENode,
             ChromaRadianceOptions,
         ]
 
