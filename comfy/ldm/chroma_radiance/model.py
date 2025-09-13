@@ -306,8 +306,9 @@ class ChromaRadiance(Chroma):
 
         params = self.radiance_get_override_params(transformer_options.get("chroma_radiance_options", {}))
 
-        h_len = ((h + (self.patch_size // 2)) // self.patch_size)
-        w_len = ((w + (self.patch_size // 2)) // self.patch_size)
+        h_len = (img.shape[-2] // self.patch_size)
+        w_len = (img.shape[-1] // self.patch_size)
+
         img_ids = torch.zeros((h_len, w_len, 3), device=x.device, dtype=x.dtype)
         img_ids[:, :, 1] = img_ids[:, :, 1] + torch.linspace(0, h_len - 1, steps=h_len, device=x.device, dtype=x.dtype).unsqueeze(1)
         img_ids[:, :, 2] = img_ids[:, :, 2] + torch.linspace(0, w_len - 1, steps=w_len, device=x.device, dtype=x.dtype).unsqueeze(0)
@@ -325,4 +326,4 @@ class ChromaRadiance(Chroma):
             transformer_options,
             attn_mask=kwargs.get("attention_mask", None),
         )
-        return self.forward_nerf(img, img_out, params)
+        return self.forward_nerf(img, img_out, params)[:, :, :h, :w]
