@@ -629,7 +629,7 @@ class PromptServer():
 
         @routes.get("/object_info")
         async def get_object_info(request):
-            await sync_seed_assets(["models"])
+            await sync_seed_assets(["models", "input", "output"])
             with folder_paths.cache_helper:
                 out = {}
                 for x in nodes.NODE_CLASS_MAPPINGS:

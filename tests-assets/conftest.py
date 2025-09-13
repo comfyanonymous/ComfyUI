@@ -268,3 +268,36 @@ async def autoclean_unit_test_assets(http: aiohttp.ClientSession, api_base: str)
             with contextlib.suppress(Exception):
                 async with http.delete(f"{api_base}/api/assets/{aid}") as dr:
                     await dr.read()
+
+
+async def trigger_sync_seed_assets(session: aiohttp.ClientSession, base_url: str) -> None:
+    """Force a fast sync/seed pass by calling the ComfyUI '/object_info' endpoint."""
+    async with session.get(base_url + "/object_info") as r:
+        await r.read()
+    await asyncio.sleep(0.05)  # tiny yield to the event loop to let any final DB commits flush
+
+
+@pytest_asyncio.fixture
+async def run_scan_and_wait(http: aiohttp.ClientSession, api_base: str):
+    """Schedule an asset scan for a given root and wait until it finishes."""
+    async def _run(root: str, timeout: float = 120.0):
+        async with http.post(api_base + "/api/assets/scan/schedule", json={"roots": [root]}) as r:
+            # we ignore body; scheduling returns 202 with a status payload
+            await r.read()
+
+        start = time.time()
+        while True:
+            async with http.get(api_base + "/api/assets/scan", params={"root": root}) as st:
+                body = await st.json()
+                scans = (body or {}).get("scans", [])
+                status = None
+                if scans:
+                    status = scans[-1].get("status")
+                if status in {"completed", "failed", "cancelled"}:
+                    if status != "completed":
+                        raise RuntimeError(f"Scan for root={root} finished with status={status}")
+                    return
+            if time.time() - start > timeout:
+                raise TimeoutError(f"Timed out waiting for scan of root={root}")
+            await asyncio.sleep(0.1)
+    return _run
