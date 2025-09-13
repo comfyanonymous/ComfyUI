@@ -4,6 +4,7 @@ import sys
 import os
 import shutil
 import filecmp
+import subprocess
 
 def pull(repo, remote_name='origin', branch='master'):
     for remote in repo.remotes:
@@ -133,13 +134,21 @@ if self_update and not files_equal(update_py_path, repo_update_py_path) and file
     exit()
 
 if not os.path.exists(req_path) or not files_equal(repo_req_path, req_path):
-    import subprocess
     try:
         subprocess.check_call([sys.executable, '-s', '-m', 'pip', 'install', '-r', repo_req_path])
         shutil.copy(repo_req_path, req_path)
     except:
         pass
 
+# TODO: Delete this once ComfyUI manager fully supports '; sys_platform == "win32"' syntax
+win_only_req_path = os.path.join(cur_path, "current_win_only_requirements.txt")
+win_only_repo_req_path = os.path.join(repo_path, "win_only_requirements.txt")
+if not os.path.exists(win_only_req_path) or not files_equal(win_only_repo_req_path, win_only_req_path):
+    try:
+        subprocess.check_call([sys.executable, '-s', '-m', 'pip', 'install', '-r', win_only_repo_req_path])
+        shutil.copy(win_only_repo_req_path, win_only_req_path)
+    except:
+        pass
 
 stable_update_script = os.path.join(repo_path, ".ci/update_windows/update_comfyui_stable.bat")
 stable_update_script_to = os.path.join(cur_path, "update_comfyui_stable.bat")
