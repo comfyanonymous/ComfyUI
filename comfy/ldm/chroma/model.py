@@ -151,8 +151,6 @@ class Chroma(nn.Module):
         attn_mask: Tensor = None,
     ) -> Tensor:
         patches_replace = transformer_options.get("patches_replace", {})
-        if img.ndim != 3 or txt.ndim != 3:
-            raise ValueError("Input img and txt tensors must have 3 dimensions.")
 
         # running on sequences img
         img = self.img_in(img)
@@ -254,8 +252,9 @@ class Chroma(nn.Module):
                             img[:, txt.shape[1] :, ...] += add
 
         img = img[:, txt.shape[1] :, ...]
-        final_mod = self.get_modulations(mod_vectors, "final")
-        img = self.final_layer(img, vec=final_mod)  # (N, T, patch_size ** 2 * out_channels)
+        if hasattr(self, "final_layer"):
+            final_mod = self.get_modulations(mod_vectors, "final")
+            img = self.final_layer(img, vec=final_mod)  # (N, T, patch_size ** 2 * out_channels)
         return img
 
     def forward(self, x, timestep, context, guidance, control=None, transformer_options={}, **kwargs):
@@ -270,6 +269,9 @@ class Chroma(nn.Module):
         x = comfy.ldm.common_dit.pad_to_patch_size(x, (self.patch_size, self.patch_size))
 
         img = rearrange(x, "b c (h ph) (w pw) -> b (h w) (c ph pw)", ph=self.patch_size, pw=self.patch_size)
+
+        if img.ndim != 3 or context.ndim != 3:
+            raise ValueError("Input img and txt tensors must have 3 dimensions.")
 
         h_len = ((h + (self.patch_size // 2)) // self.patch_size)
         w_len = ((w + (self.patch_size // 2)) // self.patch_size)
