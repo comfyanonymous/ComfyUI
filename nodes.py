@@ -730,7 +730,7 @@ class VAELoader:
             vaes.append("taesd3")
         if f1_taesd_dec and f1_taesd_enc:
             vaes.append("taef1")
-        vaes.append("chroma_radiance")
+        vaes.append("pixel_space")
         return vaes
 
     @staticmethod
@@ -773,8 +773,9 @@ class VAELoader:
 
     #TODO: scale factor?
     def load_vae(self, vae_name):
-        if vae_name == "chroma_radiance":
-            return (comfy.sd.PixelspaceConversionVAE(),)
+        if vae_name == "pixel_space":
+            sd = {}
+            sd["pixel_space_vae"] = torch.tensor(1.0)
         elif vae_name in ["taesd", "taesdxl", "taesd3", "taef1"]:
             sd = self.load_taesd(vae_name)
         else:
