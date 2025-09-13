@@ -3,6 +3,7 @@ import contextlib
 import json
 import os
 import socket
+import subprocess
 import sys
 import tempfile
 import time
@@ -12,7 +13,6 @@ from typing import AsyncIterator, Callable, Optional
 import aiohttp
 import pytest
 import pytest_asyncio
-import subprocess
 
 
 def pytest_addoption(parser: pytest.Parser) -> None:

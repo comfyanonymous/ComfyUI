@@ -1,9 +1,8 @@
-from pathlib import Path
 import uuid
+from pathlib import Path
 
 import aiohttp
 import pytest
-
 from conftest import trigger_sync_seed_assets
 
 

@@ -1,4 +1,6 @@
 import json
+import uuid
+
 import aiohttp
 import pytest
 
@@ -40,21 +42,49 @@ async def test_tags_present(http: aiohttp.ClientSession, api_base: str, seeded_a
 
 
 @pytest.mark.asyncio
-async def test_tags_empty_usage(http: aiohttp.ClientSession, api_base: str):
-    # Include zero-usage tags by default
-    async with http.get(api_base + "/api/tags", params={"limit": "50"}) as r1:
+async def test_tags_empty_usage(http: aiohttp.ClientSession, api_base: str, asset_factory, make_asset_bytes):
+    # Baseline: system tags exist when include_zero (default) is true
+    async with http.get(api_base + "/api/tags", params={"limit": "500"}) as r1:
         body1 = await r1.json()
         assert r1.status == 200
         names = [t["name"] for t in body1["tags"]]
-        # A few system tags from migration should exist:
-        assert "models" in names
-        assert "checkpoints" in names
+        assert "models" in names and "checkpoints" in names
 
-    # With include_zero=False there should be no tags returned for the database without Assets.
-    async with http.get(api_base + "/api/tags", params={"include_zero": "false"}) as r2:
+    # Create a short-lived asset under input with a unique custom tag
+    scope = f"tags-empty-usage-{uuid.uuid4().hex[:6]}"
+    custom_tag = f"temp-{uuid.uuid4().hex[:8]}"
+    name = "tag_seed.bin"
+    _asset = await asset_factory(
+        name,
+        ["input", "unit-tests", scope, custom_tag],
+        {},
+        make_asset_bytes(name, 512),
+    )
+
+    # While the asset exists, the custom tag must appear when include_zero=false
+    async with http.get(
+        api_base + "/api/tags",
+        params={"include_zero": "false", "prefix": custom_tag, "limit": "50"},
+    ) as r2:
         body2 = await r2.json()
         assert r2.status == 200
-        assert not [t["name"] for t in body2["tags"]]
+        used_names = [t["name"] for t in body2["tags"]]
+        assert custom_tag in used_names
+
+    # Delete the asset so the tag usage drops to zero
+    async with http.delete(f"{api_base}/api/assets/{_asset['id']}") as rd:
+        assert rd.status == 204
+
+    # Now the custom tag must not be returned when include_zero=false
+    async with http.get(
+        api_base + "/api/tags",
+        params={"include_zero": "false", "prefix": custom_tag, "limit": "50"},
+    ) as r3:
+        body3 = await r3.json()
+        assert r3.status == 200
+        names_after = [t["name"] for t in body3["tags"]]
+        assert custom_tag not in names_after
+        assert not names_after  # filtered view should be empty now
 
 
 @pytest.mark.asyncio
@@ -96,18 +126,55 @@ async def test_add_and_remove_tags(http: aiohttp.ClientSession, api_base: str, s
 
 @pytest.mark.asyncio
 async def test_tags_list_order_and_prefix(http: aiohttp.ClientSession, api_base: str, seeded_asset: dict):
-    # name ascending
-    async with http.get(api_base + "/api/tags", params={"order": "name_asc", "limit": "100"}) as r1:
-        b1 = await r1.json()
-        assert r1.status == 200
-        names = [t["name"] for t in b1["tags"]]
-        assert names == sorted(names)
+    aid = seeded_asset["id"]
+    h = seeded_asset["asset_hash"]
 
-    # invalid limit rejected
-    async with http.get(api_base + "/api/tags", params={"limit": "1001"}) as r2:
+    # Add both tags to the seeded asset (usage: orderaaa=1, orderbbb=1)
+    async with http.post(f"{api_base}/api/assets/{aid}/tags", json={"tags": ["orderaaa", "orderbbb"]}) as r_add:
+        add_body = await r_add.json()
+        assert r_add.status == 200, add_body
+
+    # Create another AssetInfo from the same content but tagged ONLY with 'orderbbb'.
+    payload = {
+        "hash": h,
+        "name": "order_only_bbb.safetensors",
+        "tags": ["input", "unit-tests", "orderbbb"],
+        "user_metadata": {},
+    }
+    async with http.post(f"{api_base}/api/assets/from-hash", json=payload) as r_copy:
+        copy_body = await r_copy.json()
+        assert r_copy.status == 201, copy_body
+
+    # 1) Default order (count_desc): 'orderbbb' should come before 'orderaaa'
+    #    because it has higher usage (2 vs 1).
+    async with http.get(api_base + "/api/tags", params={"prefix": "order", "include_zero": "false"}) as r1:
+        b1 = await r1.json()
+        assert r1.status == 200, b1
+        names1 = [t["name"] for t in b1["tags"]]
+        counts1 = {t["name"]: t["count"] for t in b1["tags"]}
+        # Both must be present within the prefix subset
+        assert "orderaaa" in names1 and "orderbbb" in names1
+        # Usage of 'orderbbb' must be >= 'orderaaa'; in our setup it's 2 vs 1
+        assert counts1["orderbbb"] >= counts1["orderaaa"]
+        # And with count_desc, 'orderbbb' appears earlier than 'orderaaa'
+        assert names1.index("orderbbb") < names1.index("orderaaa")
+
+    # 2) name_asc: lexical order should flip the relative order
+    async with http.get(
+        api_base + "/api/tags",
+        params={"prefix": "order", "include_zero": "false", "order": "name_asc"},
+    ) as r2:
         b2 = await r2.json()
-        assert r2.status == 400
-        assert b2["error"]["code"] == "INVALID_QUERY"
+        assert r2.status == 200, b2
+        names2 = [t["name"] for t in b2["tags"]]
+        assert "orderaaa" in names2 and "orderbbb" in names2
+        assert names2.index("orderaaa") < names2.index("orderbbb")
+
+    # 3) invalid limit rejected (existing negative case retained)
+    async with http.get(api_base + "/api/tags", params={"limit": "1001"}) as r3:
+        b3 = await r3.json()
+        assert r3.status == 400
+        assert b3["error"]["code"] == "INVALID_QUERY"
 
 
 @pytest.mark.asyncio

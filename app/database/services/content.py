@@ -86,7 +86,6 @@ async def ensure_seed_for_path(
                 asset_row.size_bytes = int(size_bytes)
         return asset_row.id
 
-    # Create new asset (hash=NULL)
     asset = Asset(hash=None, size_bytes=int(size_bytes), mime_type=None, created_at=now)
     session.add(asset)
     await session.flush()  # to get id
@@ -106,7 +105,6 @@ async def ensure_seed_for_path(
     session.add(info)
     await session.flush()
 
-    # Attach tags
     want = normalize_tags(tags)
     if want:
         await ensure_tags_exist(session, want, tag_type="user")
@@ -160,7 +158,6 @@ async def redirect_all_references_then_delete_asset(
         ).unique().scalars().first()
 
         if existing:
-            # Merge metadata (prefer existing keys, fill gaps from duplicate)
             merged_meta = dict(existing.user_metadata or {})
             other_meta = info.user_metadata or {}
             for k, v in other_meta.items():
@@ -173,7 +170,6 @@ async def redirect_all_references_then_delete_asset(
                     user_metadata=merged_meta,
                 )
 
-            # Merge tags (union)
             existing_tags = {
                 t for (t,) in (
                     await session.execute(
@@ -198,7 +194,6 @@ async def redirect_all_references_then_delete_asset(
                 ])
                 await session.flush()
 
-            # Merge preview and times
             if existing.preview_id is None and info.preview_id is not None:
                 existing.preview_id = info.preview_id
             if info.last_access_time and (
@@ -253,8 +248,7 @@ async def compute_hash_and_dedup_for_cache_state(
     path = state.file_path
     try:
         if not os.path.isfile(path):
-            # File vanished: drop the state. If the Asset was a seed (hash NULL)
-            # and has no other states, drop the Asset too.
+            # File vanished: drop the state. If the Asset has hash=NULL and has no other states, drop the Asset too.
             asset = await session.get(Asset, state.asset_id)
             await session.delete(state)
             await session.flush()
@@ -372,7 +366,6 @@ async def compute_hash_and_dedup_for_cache_state(
 
         # 2) Verify case for hashed assets
         if this_asset.hash == new_hash:
-            # Content unchanged; tidy up sizes/mtime
             if int(this_asset.size_bytes or 0) == 0 and new_size > 0:
                 this_asset.size_bytes = new_size
             state.mtime_ns = mtime_ns
@@ -569,7 +562,6 @@ async def ingest_fs_asset(
 
     # 3) Optional AssetInfo + tags + metadata
     if info_name:
-        # upsert by (asset_id, owner_id, name)
         try:
             async with session.begin_nested():
                 info = AssetInfo(
