@@ -185,7 +185,6 @@ class Encoder(nn.Module):
         self.regul = comfy.ldm.models.autoencoder.DiagonalGaussianRegularizer()
 
     def forward(self, x):
-        x = x.unsqueeze(2)
         x = self.conv_in(x)
 
         for stage in self.down:
