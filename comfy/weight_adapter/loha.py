@@ -130,12 +130,12 @@ class LoHaAdapter(WeightAdapterBase):
     def create_train(cls, weight, rank=1, alpha=1.0):
         out_dim = weight.shape[0]
         in_dim = weight.shape[1:].numel()
-        mat1 = torch.empty(out_dim, rank, device=weight.device, dtype=weight.dtype)
-        mat2 = torch.empty(rank, in_dim, device=weight.device, dtype=weight.dtype)
+        mat1 = torch.empty(out_dim, rank, device=weight.device, dtype=torch.float32)
+        mat2 = torch.empty(rank, in_dim, device=weight.device, dtype=torch.float32)
         torch.nn.init.normal_(mat1, 0.1)
         torch.nn.init.constant_(mat2, 0.0)
-        mat3 = torch.empty(out_dim, rank, device=weight.device, dtype=weight.dtype)
-        mat4 = torch.empty(rank, in_dim, device=weight.device, dtype=weight.dtype)
+        mat3 = torch.empty(out_dim, rank, device=weight.device, dtype=torch.float32)
+        mat4 = torch.empty(rank, in_dim, device=weight.device, dtype=torch.float32)
         torch.nn.init.normal_(mat3, 0.1)
         torch.nn.init.normal_(mat4, 0.01)
         return LohaDiff(
