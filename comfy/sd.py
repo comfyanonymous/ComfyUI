@@ -18,6 +18,7 @@ import comfy.ldm.wan.vae2_2
 import comfy.ldm.hunyuan3d.vae
 import comfy.ldm.ace.vae.music_dcae_pipeline
 import comfy.ldm.hunyuan_video.vae
+import comfy.pixel_space_convert
 import yaml
 import math
 import os
@@ -516,6 +517,15 @@ class VAE:
                 self.working_dtypes = [torch.bfloat16, torch.float16, torch.float32]
                 self.disable_offload = True
                 self.extra_1d_channel = 16
+            elif "pixel_space_vae" in sd:
+                self.first_stage_model = comfy.pixel_space_convert.PixelspaceConversionVAE()
+                self.memory_used_encode = lambda shape, dtype: (1 * shape[2] * shape[3]) * model_management.dtype_size(dtype)
+                self.memory_used_decode = lambda shape, dtype: (1 * shape[2] * shape[3]) * model_management.dtype_size(dtype)
+                self.downscale_ratio = 1
+                self.upscale_ratio = 1
+                self.latent_channels = 3
+                self.latent_dim = 2
+                self.output_channels = 3
             else:
                 logging.warning("WARNING: No VAE weights detected, VAE not initalized.")
                 self.first_stage_model = None
@@ -784,6 +794,7 @@ class VAE:
             return round(self.upscale_ratio[0](8192) / 8192)
         except:
             return None
+
 
 class StyleModel:
     def __init__(self, model, device="cpu"):
