@@ -8,7 +8,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import contains_eager, noload
 
-from ..._assets_helpers import compute_model_relative_filename, normalize_tags
+from ..._assets_helpers import compute_relative_filename, normalize_tags
 from ..helpers import (
     apply_metadata_filter,
     apply_tag_filters,
@@ -18,7 +18,11 @@ from ..helpers import (
 )
 from ..models import Asset, AssetInfo, AssetInfoMeta, AssetInfoTag, Tag
 from ..timeutil import utcnow
-from .queries import get_asset_by_hash, get_cache_state_by_asset_id
+from .queries import (
+    get_asset_by_hash,
+    list_cache_states_by_asset_id,
+    pick_best_live_path,
+)
 
 
 async def list_asset_infos_page(
@@ -196,9 +200,9 @@ async def create_asset_info_for_existing_asset(
     new_meta = dict(user_metadata or {})
     computed_filename = None
     try:
-        state = await get_cache_state_by_asset_id(session, asset_id=asset.id)
-        if state and state.file_path:
-            computed_filename = compute_model_relative_filename(state.file_path)
+        p = pick_best_live_path(await list_cache_states_by_asset_id(session, asset_id=asset.id))
+        if p:
+            computed_filename = compute_relative_filename(p)
     except Exception:
         computed_filename = None
     if computed_filename:
@@ -280,9 +284,9 @@ async def update_asset_info_full(
 
     computed_filename = None
     try:
-        state = await get_cache_state_by_asset_id(session, asset_id=info.asset_id)
-        if state and state.file_path:
-            computed_filename = compute_model_relative_filename(state.file_path)
+        p = pick_best_live_path(await list_cache_states_by_asset_id(session, asset_id=info.asset_id))
+        if p:
+            computed_filename = compute_relative_filename(p)
     except Exception:
         computed_filename = None
 

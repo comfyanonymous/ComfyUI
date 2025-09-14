@@ -30,6 +30,7 @@ from .database.services import (
     list_asset_infos_page,
     list_cache_states_by_asset_id,
     list_tags_with_usage,
+    pick_best_live_path,
     remove_tags_from_asset_info,
     set_asset_info_preview,
     touch_asset_info_by_id,
@@ -177,11 +178,7 @@ async def resolve_asset_content_for_download(
 
         info, asset = pair
         states = await list_cache_states_by_asset_id(session, asset_id=asset.id)
-        abs_path = ""
-        for s in states:
-            if s and s.file_path and os.path.isfile(s.file_path):
-                abs_path = s.file_path
-                break
+        abs_path = pick_best_live_path(states)
         if not abs_path:
             raise FileNotFoundError
 

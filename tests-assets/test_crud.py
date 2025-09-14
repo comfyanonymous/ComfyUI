@@ -1,8 +1,10 @@
 import asyncio
 import uuid
+from pathlib import Path
 
 import aiohttp
 import pytest
+from conftest import trigger_sync_seed_assets
 
 
 @pytest.mark.asyncio
@@ -218,3 +220,97 @@ async def test_concurrent_delete_same_asset_info_single_204(
     # The resource must be gone.
     async with http.get(f"{api_base}/api/assets/{aid}") as rg:
         assert rg.status == 404
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("root", ["input", "output"])
+async def test_metadata_filename_is_set_for_seed_asset_without_hash(
+    root: str,
+    http: aiohttp.ClientSession,
+    api_base: str,
+    comfy_tmp_base_dir: Path,
+):
+    """Seed ingest (no hash yet) must compute user_metadata['filename'] immediately."""
+    scope = f"seedmeta-{uuid.uuid4().hex[:6]}"
+    name = "seed_filename.bin"
+
+    base = comfy_tmp_base_dir / root / "unit-tests" / scope / "a" / "b"
+    base.mkdir(parents=True, exist_ok=True)
+    fp = base / name
+    fp.write_bytes(b"Z" * 2048)
+
+    await trigger_sync_seed_assets(http, api_base)
+
+    async with http.get(
+        api_base + "/api/assets",
+        params={"include_tags": f"unit-tests,{scope}", "name_contains": name},
+    ) as r1:
+        body = await r1.json()
+        assert r1.status == 200, body
+        matches = [a for a in body.get("assets", []) if a.get("name") == name]
+        assert matches, "Seed asset should be visible after sync"
+        assert matches[0].get("asset_hash") is None  # still a seed
+        aid = matches[0]["id"]
+
+    async with http.get(f"{api_base}/api/assets/{aid}") as r2:
+        detail = await r2.json()
+        assert r2.status == 200, detail
+        filename = (detail.get("user_metadata") or {}).get("filename")
+        expected = str(fp.relative_to(comfy_tmp_base_dir / root)).replace("\\", "/")
+        assert filename == expected, f"expected filename={expected}, got {filename!r}"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("root", ["input", "output"])
+async def test_metadata_filename_computed_and_updated_on_retarget(
+    root: str,
+    http: aiohttp.ClientSession,
+    api_base: str,
+    comfy_tmp_base_dir: Path,
+    asset_factory,
+    make_asset_bytes,
+    run_scan_and_wait,
+):
+    """
+    1) Ingest under {root}/unit-tests/<scope>/a/b/<name> -> filename reflects relative path.
+    2) Retarget by copying to {root}/unit-tests/<scope>/x/<new_name>, remove old file,
+       run fast pass + scan -> filename updates to new relative path.
+    """
+    scope = f"meta-fn-{uuid.uuid4().hex[:6]}"
+    name1 = "compute_metadata_filename.png"
+    name2 = "compute_changed_metadata_filename.png"
+    data = make_asset_bytes(name1, 2100)
+
+    # Upload into nested path a/b
+    a = await asset_factory(name1, [root, "unit-tests", scope, "a", "b"], {}, data)
+    aid = a["id"]
+
+    root_base = comfy_tmp_base_dir / root
+    p1 = root_base / "unit-tests" / scope / "a" / "b" / name1
+    assert p1.exists()
+
+    # filename at ingest should be the path relative to root
+    rel1 = str(p1.relative_to(root_base)).replace("\\", "/")
+    async with http.get(f"{api_base}/api/assets/{aid}") as g1:
+        d1 = await g1.json()
+        assert g1.status == 200, d1
+        fn1 = d1["user_metadata"].get("filename")
+        assert fn1 == rel1
+
+    # Retarget: copy to x/<name2>, remove old, then sync+scan
+    p2 = root_base / "unit-tests" / scope / "x" / name2
+    p2.parent.mkdir(parents=True, exist_ok=True)
+    p2.write_bytes(data)
+    if p1.exists():
+        p1.unlink()
+
+    await trigger_sync_seed_assets(http, api_base)  # seed the new path
+    await run_scan_and_wait(root)                   # verify/hash and reconcile
+
+    # filename should now point at x/<name2>
+    rel2 = str(p2.relative_to(root_base)).replace("\\", "/")
+    async with http.get(f"{api_base}/api/assets/{aid}") as g2:
+        d2 = await g2.json()
+        assert g2.status == 200, d2
+        fn2 = d2["user_metadata"].get("filename")
+        assert fn2 == rel2

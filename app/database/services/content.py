@@ -12,7 +12,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import noload
 
-from ..._assets_helpers import compute_model_relative_filename, normalize_tags
+from ..._assets_helpers import compute_relative_filename, normalize_tags
 from ...storage import hashing as hashing_mod
 from ..helpers import (
     ensure_tags_exist,
@@ -21,6 +21,7 @@ from ..helpers import (
 from ..models import Asset, AssetCacheState, AssetInfo, AssetInfoTag, Tag
 from ..timeutil import utcnow
 from .info import replace_asset_info_metadata_projection
+from .queries import list_cache_states_by_asset_id, pick_best_live_path
 
 
 async def check_fs_asset_exists_quick(
@@ -105,6 +106,15 @@ async def ensure_seed_for_path(
     )
     session.add(info)
     await session.flush()
+
+    with contextlib.suppress(Exception):
+        computed = compute_relative_filename(locator)
+        if computed:
+            await replace_asset_info_metadata_projection(
+                session,
+                asset_info_id=info.id,
+                user_metadata={"filename": computed},
+            )
 
     want = normalize_tags(tags)
     if want:
@@ -265,6 +275,8 @@ async def compute_hash_and_dedup_for_cache_state(
                 if int(remaining or 0) == 0:
                     await session.delete(asset)
                     await session.flush()
+                else:
+                    await _recompute_and_apply_filename_for_asset(session, asset_id=asset.id)
             return None
 
         digest = await hashing_mod.blake3_hash(path)
@@ -316,6 +328,7 @@ async def compute_hash_and_dedup_for_cache_state(
                     state.needs_verify = False
                     with contextlib.suppress(Exception):
                         await remove_missing_tag_for_asset_id(session, asset_id=canonical.id)
+                    await _recompute_and_apply_filename_for_asset(session, asset_id=canonical.id)
                     await session.flush()
                 return canonical.id
 
@@ -343,6 +356,7 @@ async def compute_hash_and_dedup_for_cache_state(
                         state.needs_verify = False
                         with contextlib.suppress(Exception):
                             await remove_missing_tag_for_asset_id(session, asset_id=canonical.id)
+                        await _recompute_and_apply_filename_for_asset(session, asset_id=canonical.id)
                         await session.flush()
                     return canonical.id
                 # If we got here, the integrity error was not about hash uniqueness
@@ -353,6 +367,7 @@ async def compute_hash_and_dedup_for_cache_state(
             state.needs_verify = False
             with contextlib.suppress(Exception):
                 await remove_missing_tag_for_asset_id(session, asset_id=this_asset.id)
+            await _recompute_and_apply_filename_for_asset(session, asset_id=this_asset.id)
             await session.flush()
             return this_asset.id
 
@@ -364,6 +379,7 @@ async def compute_hash_and_dedup_for_cache_state(
             state.needs_verify = False
             with contextlib.suppress(Exception):
                 await remove_missing_tag_for_asset_id(session, asset_id=this_asset.id)
+            await _recompute_and_apply_filename_for_asset(session, asset_id=this_asset.id)
             await session.flush()
             return this_asset.id
 
@@ -385,11 +401,10 @@ async def compute_hash_and_dedup_for_cache_state(
         state.needs_verify = False
         with contextlib.suppress(Exception):
             await remove_missing_tag_for_asset_id(session, asset_id=target_id)
+        await _recompute_and_apply_filename_for_asset(session, asset_id=target_id)
         await session.flush()
         return target_id
-
     except Exception:
-        # Propagate; caller records the error and continues the worker.
         raise
 
 
@@ -663,15 +678,8 @@ async def ingest_fs_asset(
 
         # metadata["filename"] hack
         if out["asset_info_id"] is not None:
-            primary_path = (
-                await session.execute(
-                    select(AssetCacheState.file_path)
-                    .where(AssetCacheState.asset_id == asset.id)
-                    .order_by(AssetCacheState.id.asc())
-                    .limit(1)
-                )
-            ).scalars().first()
-            computed_filename = compute_model_relative_filename(primary_path) if primary_path else None
+            primary_path = pick_best_live_path(await list_cache_states_by_asset_id(session, asset_id=asset.id))
+            computed_filename = compute_relative_filename(primary_path) if primary_path else None
 
             current_meta = existing_info.user_metadata or {}
             new_meta = dict(current_meta)
@@ -760,3 +768,26 @@ async def list_cache_states_with_asset_under_prefixes(
         )
     ).all()
     return [(r[0], r[1], int(r[2] or 0)) for r in rows]
+
+
+async def _recompute_and_apply_filename_for_asset(session: AsyncSession, *, asset_id: str) -> None:
+    """Compute filename from the first *existing* cache state path and apply it to all AssetInfo (if changed)."""
+    try:
+        primary_path = pick_best_live_path(await list_cache_states_by_asset_id(session, asset_id=asset_id))
+        if not primary_path:
+            return
+        new_filename = compute_relative_filename(primary_path)
+        if not new_filename:
+            return
+        infos = (
+            await session.execute(select(AssetInfo).where(AssetInfo.asset_id == asset_id))
+        ).scalars().all()
+        for info in infos:
+            current_meta = info.user_metadata or {}
+            if current_meta.get("filename") == new_filename:
+                continue
+            updated = dict(current_meta)
+            updated["filename"] = new_filename
+            await replace_asset_info_metadata_projection(session, asset_info_id=info.id, user_metadata=updated)
+    except Exception:
+        logging.exception("Failed to recompute filename metadata for asset %s", asset_id)

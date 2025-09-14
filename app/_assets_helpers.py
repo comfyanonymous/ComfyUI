@@ -140,7 +140,7 @@ def ensure_within_base(candidate: str, base: str) -> None:
         raise ValueError("invalid destination path")
 
 
-def compute_model_relative_filename(file_path: str) -> Optional[str]:
+def compute_relative_filename(file_path: str) -> Optional[str]:
     """
     Return the model's path relative to the last well-known folder (the model category),
     using forward slashes, eg:
@@ -155,16 +155,16 @@ def compute_model_relative_filename(file_path: str) -> Optional[str]:
     except ValueError:
         return None
 
-    if root_category != "models":
-        return None
-
     p = Path(rel_path)
-    # parts[0] is the well-known category (eg "checkpoints" or "text_encoders")
     parts = [seg for seg in p.parts if seg not in (".", "..", p.anchor)]
     if not parts:
         return None
-    inside = parts[1:] if len(parts) > 1 else [parts[0]]
-    return "/".join(inside)  # normalize to POSIX style for portability
+
+    if root_category == "models":
+        # parts[0] is the category ("checkpoints", "vae", etc) – drop it
+        inside = parts[1:] if len(parts) > 1 else [parts[0]]
+        return "/".join(inside)
+    return "/".join(parts)  # input/output: keep all parts
 
 
 def list_tree(base_dir: str) -> list[str]:

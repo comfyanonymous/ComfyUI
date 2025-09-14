@@ -32,6 +32,7 @@ from .queries import (
     get_asset_info_by_id,
     get_cache_state_by_asset_id,
     list_cache_states_by_asset_id,
+    pick_best_live_path,
 )
 
 __all__ = [
@@ -39,6 +40,7 @@ __all__ = [
     "asset_exists_by_hash", "get_asset_by_hash", "get_asset_info_by_id", "asset_info_exists_for_asset_id",
     "get_cache_state_by_asset_id",
     "list_cache_states_by_asset_id",
+    "pick_best_live_path",
     # info
     "list_asset_infos_page", "create_asset_info_for_existing_asset", "set_asset_info_tags",
     "update_asset_info_full", "replace_asset_info_metadata_projection",
