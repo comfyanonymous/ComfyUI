@@ -1,6 +1,8 @@
 from typing import Iterable
 
 from sqlalchemy import delete, select
+from sqlalchemy.dialects import postgresql as d_pg
+from sqlalchemy.dialects import sqlite as d_sqlite
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..._assets_helpers import normalize_tags
@@ -13,13 +15,29 @@ async def ensure_tags_exist(session: AsyncSession, names: Iterable[str], tag_typ
     if not wanted:
         return []
     existing = (await session.execute(select(Tag).where(Tag.name.in_(wanted)))).scalars().all()
+    existing_names = {t.name for t in existing}
+    missing = [n for n in wanted if n not in existing_names]
+    if missing:
+        dialect = session.bind.dialect.name
+        rows = [{"name": n, "tag_type": tag_type} for n in missing]
+        if dialect == "sqlite":
+            ins = (
+                d_sqlite.insert(Tag)
+                .values(rows)
+                .on_conflict_do_nothing(index_elements=[Tag.name])
+            )
+        elif dialect == "postgresql":
+            ins = (
+                d_pg.insert(Tag)
+                .values(rows)
+                .on_conflict_do_nothing(index_elements=[Tag.name])
+            )
+        else:
+            raise NotImplementedError(f"Unsupported database dialect: {dialect}")
+        await session.execute(ins)
+        existing = (await session.execute(select(Tag).where(Tag.name.in_(wanted)))).scalars().all()
     by_name = {t.name: t for t in existing}
-    to_create = [Tag(name=n, tag_type=tag_type) for n in wanted if n not in by_name]
-    if to_create:
-        session.add_all(to_create)
-        await session.flush()
-        by_name.update({t.name: t for t in to_create})
-    return [by_name[n] for n in wanted]
+    return [by_name[n] for n in wanted if n in by_name]
 
 
 async def add_missing_tag_for_asset_id(

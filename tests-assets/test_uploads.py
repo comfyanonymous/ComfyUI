@@ -1,4 +1,7 @@
+import asyncio
 import json
+import uuid
+
 import aiohttp
 import pytest
 
@@ -123,6 +126,54 @@ async def test_upload_multiple_tags_fields_are_merged(http: aiohttp.ClientSessio
         assert rg.status == 200, detail
         tags = set(detail["tags"])
         assert {"models", "checkpoints", "unit-tests", "alpha"}.issubset(tags)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("root", ["input", "output"])
+async def test_concurrent_upload_identical_bytes_different_names(
+    root: str,
+    http: aiohttp.ClientSession,
+    api_base: str,
+    make_asset_bytes,
+):
+    """
+    Two concurrent uploads of identical bytes but different names.
+    Expect a single Asset (same hash), two AssetInfo rows, and exactly one created_new=True.
+    """
+    scope = f"concupload-{uuid.uuid4().hex[:6]}"
+    name1, name2 = "cu_a.bin", "cu_b.bin"
+    data = make_asset_bytes("concurrent", 4096)
+    tags = [root, "unit-tests", scope]
+
+    def _form(name: str) -> aiohttp.FormData:
+        f = aiohttp.FormData()
+        f.add_field("file", data, filename=name, content_type="application/octet-stream")
+        f.add_field("tags", json.dumps(tags))
+        f.add_field("name", name)
+        f.add_field("user_metadata", json.dumps({}))
+        return f
+
+    r1, r2 = await asyncio.gather(
+        http.post(api_base + "/api/assets", data=_form(name1)),
+        http.post(api_base + "/api/assets", data=_form(name2)),
+    )
+    b1, b2 = await r1.json(), await r2.json()
+    assert r1.status in (200, 201), b1
+    assert r2.status in (200, 201), b2
+    assert b1["asset_hash"] == b2["asset_hash"]
+    assert b1["id"] != b2["id"]
+
+    created_flags = sorted([bool(b1.get("created_new")), bool(b2.get("created_new"))])
+    assert created_flags == [False, True]
+
+    async with http.get(
+        api_base + "/api/assets",
+        params={"include_tags": f"unit-tests,{scope}", "sort": "name"},
+    ) as rl:
+        bl = await rl.json()
+        assert rl.status == 200, bl
+        names = [a["name"] for a in bl.get("assets", [])]
+        assert set([name1, name2]).issubset(names)
 
 
 @pytest.mark.asyncio

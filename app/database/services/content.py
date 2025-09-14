@@ -484,6 +484,7 @@ async def ingest_fs_asset(
     """
     locator = os.path.abspath(abs_path)
     now = utcnow()
+    dialect = session.bind.dialect.name
 
     if preview_id:
         if not await session.get(Asset, preview_id):
@@ -502,10 +503,34 @@ async def ingest_fs_asset(
         await session.execute(select(Asset).where(Asset.hash == asset_hash).limit(1))
     ).scalars().first()
     if not asset:
-        async with session.begin_nested():
-            asset = Asset(hash=asset_hash, size_bytes=int(size_bytes), mime_type=mime_type, created_at=now)
-            session.add(asset)
-            await session.flush()
+        vals = {
+            "hash": asset_hash,
+            "size_bytes": int(size_bytes),
+            "mime_type": mime_type,
+            "created_at": now,
+        }
+        if dialect == "sqlite":
+            ins = (
+                d_sqlite.insert(Asset)
+                .values(**vals)
+                .on_conflict_do_nothing(index_elements=[Asset.hash])
+            )
+        elif dialect == "postgresql":
+            ins = (
+                d_pg.insert(Asset)
+                .values(**vals)
+                .on_conflict_do_nothing(index_elements=[Asset.hash])
+            )
+        else:
+            raise NotImplementedError(f"Unsupported database dialect: {dialect}")
+        res = await session.execute(ins)
+        rowcount = int(res.rowcount or 0)
+        asset = (
+            await session.execute(select(Asset).where(Asset.hash == asset_hash).limit(1))
+        ).scalars().first()
+        if not asset:
+            raise RuntimeError("Asset row not found after upsert.")
+        if rowcount > 0:
             out["asset_created"] = True
     else:
         changed = False
@@ -524,7 +549,6 @@ async def ingest_fs_asset(
         "file_path": locator,
         "mtime_ns": int(mtime_ns),
     }
-    dialect = session.bind.dialect.name
     if dialect == "sqlite":
         ins = (
             d_sqlite.insert(AssetCacheState)
