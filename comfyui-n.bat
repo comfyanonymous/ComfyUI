@@ -19,34 +19,45 @@ set "COMMANDLINE_ARGS=--auto-launch --use-quad-cross-attention --reserve-vram 0.
 
 set "ZLUDA_COMGR_LOG_LEVEL=1"
 
-echo ** Checking and updating to a new version if possible...
-copy comfy\customzluda\zluda-default.py comfy\zluda.py /y >NUL
-setlocal EnableDelayedExpansion
-for /f "delims=" %%A in ('git pull 2^>^&1') do (
-    echo ** %%A
+:: Check Git version and installed commit hash
+where git >NUL 2>&1
+if errorlevel 1 (
+    echo [FAIL] Git not found in PATH. Please install Git.
+    pause
+) else (
+    for /f "tokens=3*" %%v in ('git --version') do (
+        echo [INFO] Detected Git version: %%v %%w
+    )
+    for /f %%h in ('git rev-parse --short HEAD') do (
+        echo [INFO] Current ComfyUI-ZLUDA commit hash: %%h
+    )
 )
-endlocal
+
+echo [INFO] Checking and updating to a new version if possible...
+copy comfy\customzluda\zluda-default.py comfy\zluda.py /y >NUL
+git pull
 copy comfy\customzluda\zluda.py comfy\zluda.py /y >NUL
 
-rem Check for zluda.exe and nccl.dll inside the zluda folder
+:: Check for zluda.exe and nccl.dll inside the zluda folder
 echo.
-echo ** Checking ZLUDA installation...
+echo [INFO] Checking ZLUDA installation...
 pushd .\zluda
 if exist zluda.exe (
     if not exist nccl.dll (
         for /f "tokens=2 delims= " %%v in ('zluda.exe --version 2^>^&1') do (
-            echo ** [FAIL] Detected version [%%v], but nccl.dll is missing. Likely blocked by AV as false positive.
+            echo [FAIL] Detected version [%%v], but nccl.dll is missing. Likely blocked by AV as false positive.
         )
     ) else (
         for /f "tokens=2 delims= " %%v in ('zluda.exe --version 2^>^&1') do (
-            echo ** [PASS] Detected version: %%v
+            echo [PASS] Detected version: %%v
         )
     )
 ) else (
-    echo ** [FAIL] Can't detect zluda.exe inside .\zluda directory.
+    echo [FAIL] Can't detect zluda.exe inside .\zluda directory.
 )
 popd
 
+echo [INFO] Launching application via ZLUDA...
 echo.
 .\zluda\zluda.exe -- %PYTHON% main.py %COMMANDLINE_ARGS%
 pause
