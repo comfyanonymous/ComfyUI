@@ -274,7 +274,7 @@ async def trigger_sync_seed_assets(session: aiohttp.ClientSession, base_url: str
     """Force a fast sync/seed pass by calling the ComfyUI '/object_info' endpoint."""
     async with session.get(base_url + "/object_info") as r:
         await r.read()
-    await asyncio.sleep(0.05)  # tiny yield to the event loop to let any final DB commits flush
+    await asyncio.sleep(0.1)  # tiny yield to the event loop to let any final DB commits flush
 
 
 @pytest_asyncio.fixture

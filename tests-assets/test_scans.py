@@ -85,7 +85,7 @@ async def test_scan_status_filter_by_root_and_file_errors(
     data = b"A" * 4096
     await asset_factory(name_in, ["input", "unit-tests", in_scope, "deny"], {}, data)
     try:
-        os.chmod(protected_dir, 0x000)
+        os.chmod(protected_dir, 0o000)
 
         # Also schedule a scan for output root (no errors there)
         out_scope = f"filter-out-{uuid.uuid4().hex[:6]}"
@@ -141,7 +141,7 @@ async def test_scan_records_file_errors_permission_denied(
     a1 = await asset_factory(name, [root, "unit-tests", scope, "deny"], {}, b"X" * 2048)
     asset_filename = get_asset_filename(a1["asset_hash"], ".bin")
     try:
-        os.chmod(deny_dir, 0x000)
+        os.chmod(deny_dir, 0o000)
         async with http.post(api_base + "/api/assets/scan/schedule", json={"roots": [root]}) as r:
             assert r.status == 202
         await run_scan_and_wait(root)
@@ -157,7 +157,7 @@ async def test_scan_records_file_errors_permission_denied(
             assert any(e.get("path", "").endswith(asset_filename) and e.get("message") for e in errs)
     finally:
         try:
-            os.chmod(deny_dir, 0x755)
+            os.chmod(deny_dir, 0o755)
         except Exception:
             pass
 
@@ -402,7 +402,7 @@ async def test_sync_seed_nested_dirs_produce_parent_tags(
     # nested: unit-tests / scope / a / b / c / deep.txt
     deep_dir = _base_for(root, comfy_tmp_base_dir) / "unit-tests" / scope / "a" / "b" / "c"
     deep_dir.mkdir(parents=True, exist_ok=True)
-    (deep_dir / "deep.txt").write_bytes(b"content")
+    (deep_dir / "deep.txt").write_bytes(scope.encode())
 
     await trigger_sync_seed_assets(http, api_base)
 
