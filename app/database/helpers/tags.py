@@ -6,7 +6,7 @@ from sqlalchemy.dialects import sqlite as d_sqlite
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..._assets_helpers import normalize_tags
-from ..models import Asset, AssetInfo, AssetInfoTag, Tag
+from ..models import AssetInfo, AssetInfoTag, Tag
 from ..timeutil import utcnow
 
 
@@ -77,18 +77,6 @@ async def add_missing_tag_for_asset_id(
     return len(to_add)
 
 
-async def add_missing_tag_for_asset_hash(
-    session: AsyncSession,
-    *,
-    asset_hash: str,
-    origin: str = "automatic",
-) -> int:
-    asset = (await session.execute(select(Asset).where(Asset.hash == asset_hash).limit(1))).scalars().first()
-    if not asset:
-        return 0
-    return await add_missing_tag_for_asset_id(session, asset_id=asset.id, origin=origin)
-
-
 async def remove_missing_tag_for_asset_id(
     session: AsyncSession,
     *,
@@ -107,14 +95,3 @@ async def remove_missing_tag_for_asset_id(
     )
     await session.flush()
     return int(res.rowcount or 0)
-
-
-async def remove_missing_tag_for_asset_hash(
-    session: AsyncSession,
-    *,
-    asset_hash: str,
-) -> int:
-    asset = (await session.execute(select(Asset).where(Asset.hash == asset_hash).limit(1))).scalars().first()
-    if not asset:
-        return 0
-    return await remove_missing_tag_for_asset_id(session, asset_id=asset.id)
