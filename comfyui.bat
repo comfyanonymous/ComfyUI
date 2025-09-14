@@ -25,7 +25,7 @@ if errorlevel 1 (
 echo [INFO] Checking and updating to a new version if possible...
 copy comfy\customzluda\zluda-default.py comfy\zluda.py /y >NUL
 git pull
-copy comfy\customzluda\zluda.py comfy\zluda.py /y >NUL
+copy comfy\customzluda\zluda-default.py comfy\zluda.py /y >NUL
 
 :: Check for zluda.exe and nccl.dll inside the zluda folder
 echo.
@@ -50,3 +50,4 @@ echo [INFO] Launching application via ZLUDA...
 echo.
 .\zluda\zluda.exe -- %PYTHON% main.py %COMMANDLINE_ARGS%
 pause
+
