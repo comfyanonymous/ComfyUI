@@ -239,7 +239,8 @@ async def _run_hash_verify_pipeline(root: schemas_in.RootType, prog: ScanProgres
         for lst in (verify_ids, unhashed_ids):
             for sid in lst:
                 if sid not in seen:
-                    seen.add(sid); ordered.append(sid)
+                    seen.add(sid)
+                    ordered.append(sid)
 
         prog.discovered = len(ordered)
 
@@ -382,7 +383,9 @@ def _start_state_workers(root: schemas_in.RootType, prog: ScanProgress, state: S
     asyncio.create_task(_close_when_ready())
 
 
-async def _await_state_workers_then_finish(root: schemas_in.RootType, prog: ScanProgress, state: SlowQueueState) -> None:
+async def _await_state_workers_then_finish(
+    root: schemas_in.RootType, prog: ScanProgress, state: SlowQueueState
+) -> None:
     if state.workers:
         await asyncio.gather(*state.workers, return_exceptions=True)
     await _reconcile_missing_tags_for_root(root, prog)

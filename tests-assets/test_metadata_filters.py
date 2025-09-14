@@ -5,7 +5,9 @@ import pytest
 
 
 @pytest.mark.asyncio
-async def test_meta_and_across_keys_and_types(http: aiohttp.ClientSession, api_base: str, asset_factory, make_asset_bytes):
+async def test_meta_and_across_keys_and_types(
+    http: aiohttp.ClientSession, api_base: str, asset_factory, make_asset_bytes
+):
     name = "mf_and_mix.safetensors"
     tags = ["models", "checkpoints", "unit-tests", "mf-and"]
     meta = {"purpose": "mix", "epoch": 1, "active": True, "score": 1.23}
@@ -126,7 +128,9 @@ async def test_meta_any_of_list_of_scalars(http, api_base, asset_factory, make_a
 
 
 @pytest.mark.asyncio
-async def test_meta_none_semantics_missing_or_null_and_any_of_with_none(http, api_base, asset_factory, make_asset_bytes):
+async def test_meta_none_semantics_missing_or_null_and_any_of_with_none(
+    http, api_base, asset_factory, make_asset_bytes
+):
     # a1: key missing; a2: explicit null; a3: concrete value
     t = ["models", "checkpoints", "unit-tests", "mf-none"]
     a1 = await asset_factory("mf_none_missing.safetensors", t, {"x": 1}, make_asset_bytes("a1"))
@@ -362,7 +366,11 @@ async def test_meta_sort_and_paging_under_filter(http, api_base, asset_factory, 
     await asset_factory(n3, t, {"group": "g"}, make_asset_bytes(n3, 3072))
 
     # Sort by size ascending with paging
-    q = {"include_tags": "unit-tests,mf-sort", "metadata_filter": json.dumps({"group": "g"}), "sort": "size", "order": "asc", "limit": "2"}
+    q = {
+        "include_tags": "unit-tests,mf-sort",
+        "metadata_filter": json.dumps({"group": "g"}),
+        "sort": "size", "order": "asc", "limit": "2",
+    }
     async with http.get(api_base + "/api/assets", params=q) as r1:
         b1 = await r1.json()
         assert r1.status == 200

@@ -259,9 +259,11 @@ async def test_delete_one_assetinfo_of_missing_asset_keeps_identity(
 
     # Both infos should be marked missing
     async with http.get(f"{api_base}/api/assets/{a1['id']}") as g1:
-        d1 = await g1.json(); assert "missing" in set(d1.get("tags", []))
+        d1 = await g1.json()
+        assert "missing" in set(d1.get("tags", []))
     async with http.get(f"{api_base}/api/assets/{a2['id']}") as g2:
-        d2 = await g2.json(); assert "missing" in set(d2.get("tags", []))
+        d2 = await g2.json()
+        assert "missing" in set(d2.get("tags", []))
 
     # Delete one info
     async with http.delete(f"{api_base}/api/assets/{a1['id']}") as rd:
