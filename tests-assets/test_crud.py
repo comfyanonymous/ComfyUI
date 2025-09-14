@@ -1,3 +1,4 @@
+import asyncio
 import uuid
 
 import aiohttp
@@ -177,3 +178,43 @@ async def test_update_requires_at_least_one_field(http: aiohttp.ClientSession, a
         body = await r.json()
         assert r.status == 400
         assert body["error"]["code"] == "INVALID_BODY"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("root", ["input", "output"])
+async def test_concurrent_delete_same_asset_info_single_204(
+    root: str,
+    http: aiohttp.ClientSession,
+    api_base: str,
+    asset_factory,
+    make_asset_bytes,
+):
+    """
+    Many concurrent DELETE for the same AssetInfo should result in:
+      - exactly one 204 No Content (the one that actually deleted)
+      - all others 404 Not Found (row already gone)
+    """
+    scope = f"conc-del-{uuid.uuid4().hex[:6]}"
+    name = "to_delete.bin"
+    data = make_asset_bytes(name, 1536)
+
+    created = await asset_factory(name, [root, "unit-tests", scope], {}, data)
+    aid = created["id"]
+
+    # Hit the same endpoint N times in parallel.
+    n_tests = 4
+    url = f"{api_base}/api/assets/{aid}?delete_content=false"
+    tasks = [asyncio.create_task(http.delete(url)) for _ in range(n_tests)]
+    responses = await asyncio.gather(*tasks)
+
+    statuses = [r.status for r in responses]
+    # Drain bodies to close connections (optional but avoids warnings).
+    await asyncio.gather(*[r.read() for r in responses])
+
+    # Exactly one actual delete, the rest must be 404
+    assert statuses.count(204) == 1, f"Expected exactly one 204; got: {statuses}"
+    assert statuses.count(404) == n_tests - 1, f"Expected {n_tests-1} 404; got: {statuses}"
+
+    # The resource must be gone.
+    async with http.get(f"{api_base}/api/assets/{aid}") as rg:
+        assert rg.status == 404

@@ -379,11 +379,12 @@ async def touch_asset_info_by_id(
 
 
 async def delete_asset_info_by_id(session: AsyncSession, *, asset_info_id: str, owner_id: str) -> bool:
-    res = await session.execute(delete(AssetInfo).where(
-        AssetInfo.id == asset_info_id,
-        visible_owner_clause(owner_id),
-    ))
-    return bool(res.rowcount)
+    return (
+        await session.execute(delete(AssetInfo).where(
+            AssetInfo.id == asset_info_id,
+            visible_owner_clause(owner_id),
+        ).returning(AssetInfo.id))
+    ).scalar_one_or_none() is not None
 
 
 async def add_tags_to_asset_info(
