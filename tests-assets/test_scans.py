@@ -464,3 +464,49 @@ async def test_concurrent_seed_hashing_same_file_no_dupes(
         matches = [a for a in b.get("assets", []) if a.get("name") == name]
         assert len(matches) == 1
         assert matches[0].get("asset_hash"), "Seed should have been hashed into an Asset"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("root", ["input", "output"])
+async def test_cache_state_retarget_on_content_change_asset_info_stays(
+    root: str,
+    http,
+    api_base: str,
+    comfy_tmp_base_dir: Path,
+    asset_factory,
+    make_asset_bytes,
+    run_scan_and_wait,
+):
+    """
+    Start with hashed H1 (AssetInfo A1). Replace file bytes on disk to become H2.
+    After scan: AssetCacheState points to H2; A1 still references H1; downloading A1 -> 404.
+    """
+    scope = f"retarget-{uuid.uuid4().hex[:6]}"
+    name = "content_change.bin"
+    d1 = make_asset_bytes("v1-" + scope, 2048)
+
+    a1 = await asset_factory(name, [root, "unit-tests", scope], {}, d1)
+    aid = a1["id"]
+    h1 = a1["asset_hash"]
+
+    p = comfy_tmp_base_dir / root / "unit-tests" / scope / name
+    assert p.exists()
+
+    # Change the bytes in place to force a new content hash (H2)
+    d2 = make_asset_bytes("v2-" + scope, 3072)
+    p.write_bytes(d2)
+
+    # Scan to verify and retarget the state; reconcilers run after scan
+    await run_scan_and_wait(root)
+
+    # AssetInfo still on the old content identity (H1)
+    async with http.get(f"{api_base}/api/assets/{aid}") as rg:
+        g = await rg.json()
+        assert rg.status == 200, g
+        assert g.get("asset_hash") == h1
+
+    # Download must fail until a state exists for H1 (we removed the only one by retarget)
+    async with http.get(f"{api_base}/api/assets/{aid}/content") as dl:
+        body = await dl.json()
+        assert dl.status == 404, body
+        assert body["error"]["code"] == "FILE_NOT_FOUND"

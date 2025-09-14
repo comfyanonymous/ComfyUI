@@ -1,3 +1,4 @@
+import os
 import uuid
 from pathlib import Path
 
@@ -7,7 +8,9 @@ from conftest import trigger_sync_seed_assets
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("root", ["input", "output"])
 async def test_seed_asset_removed_when_file_is_deleted(
+    root: str,
     http: aiohttp.ClientSession,
     api_base: str,
     comfy_tmp_base_dir: Path,
@@ -16,7 +19,7 @@ async def test_seed_asset_removed_when_file_is_deleted(
        after triggering sync_seed_assets, Asset + AssetInfo disappear.
     """
     # Create a file directly under input/unit-tests/<case> so tags include "unit-tests"
-    case_dir = comfy_tmp_base_dir / "input" / "unit-tests" / "syncseed"
+    case_dir = comfy_tmp_base_dir / root / "unit-tests" / "syncseed"
     case_dir.mkdir(parents=True, exist_ok=True)
     name = f"seed_{uuid.uuid4().hex[:8]}.bin"
     fp = case_dir / name
@@ -130,6 +133,12 @@ async def test_hashed_asset_two_assetinfos_both_get_missing(
     assert p.exists()
     p.unlink()
 
+    async with http.get(api_base + "/api/tags", params={"limit": "1000", "include_zero": "false"}) as r0:
+        tags0 = await r0.json()
+        assert r0.status == 200, tags0
+        byname0 = {t["name"]: t for t in tags0.get("tags", [])}
+        old_missing = int(byname0.get("missing", {}).get("count", 0))
+
     # Sync -> both AssetInfos for this asset must receive 'missing'
     await trigger_sync_seed_assets(http, api_base)
 
@@ -142,6 +151,14 @@ async def test_hashed_asset_two_assetinfos_both_get_missing(
         db = await gb.json()
         assert gb.status == 200, db
         assert "missing" in set(db.get("tags", []))
+
+    # Tag usage for 'missing' increased by exactly 2 (two AssetInfos)
+    async with http.get(api_base + "/api/tags", params={"limit": "1000", "include_zero": "false"}) as r1:
+        tags1 = await r1.json()
+        assert r1.status == 200, tags1
+        byname1 = {t["name"]: t for t in tags1.get("tags", [])}
+        new_missing = int(byname1.get("missing", {}).get("count", 0))
+        assert new_missing == old_missing + 2
 
 
 @pytest.mark.asyncio
@@ -173,7 +190,7 @@ async def test_hashed_asset_two_cache_states_partial_delete_then_full_delete(
     # Fast seed so the second path appears (as a seed initially)
     await trigger_sync_seed_assets(http, api_base)
 
-    # Now run a 'models' scan so the seed copy is hashed and deduped
+    # Deduplication of AssetInfo-s will not happen as first AssetInfo has owner='default' and second has empty owner.
     await run_scan_and_wait("input")
 
     # Remove only one file and sync -> asset should still be healthy (no 'missing')
@@ -185,7 +202,13 @@ async def test_hashed_asset_two_cache_states_partial_delete_then_full_delete(
         assert g1.status == 200, d1
         assert "missing" not in set(d1.get("tags", [])), "Should not be missing while one valid path remains"
 
-    # Remove the second (last) file and sync -> now we expect 'missing'
+    # Baseline 'missing' usage count just before last file removal
+    async with http.get(api_base + "/api/tags", params={"limit": "1000", "include_zero": "false"}) as r0:
+        tags0 = await r0.json()
+        assert r0.status == 200, tags0
+        old_missing = int({t["name"]: t for t in tags0.get("tags", [])}.get("missing", {}).get("count", 0))
+
+    # Remove the second (last) file and sync -> now we expect 'missing' on this AssetInfo
     path2.unlink()
     await trigger_sync_seed_assets(http, api_base)
 
@@ -193,3 +216,129 @@ async def test_hashed_asset_two_cache_states_partial_delete_then_full_delete(
         d2 = await g2.json()
         assert g2.status == 200, d2
         assert "missing" in set(d2.get("tags", [])), "Missing must be set once no valid paths remain"
+
+    # Tag usage for 'missing' increased by exactly 2 (two AssetInfo for one Asset)
+    async with http.get(api_base + "/api/tags", params={"limit": "1000", "include_zero": "false"}) as r1:
+        tags1 = await r1.json()
+        assert r1.status == 200, tags1
+        new_missing = int({t["name"]: t for t in tags1.get("tags", [])}.get("missing", {}).get("count", 0))
+        assert new_missing == old_missing + 2
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("root", ["input", "output"])
+async def test_missing_tag_clears_on_fastpass_when_mtime_and_size_match(
+    root: str,
+    http: aiohttp.ClientSession,
+    api_base: str,
+    comfy_tmp_base_dir: Path,
+    asset_factory,
+    make_asset_bytes,
+):
+    """
+    Fast pass alone clears 'missing' when size and mtime match exactly:
+      1) upload (hashed), record original mtime_ns
+      2) delete -> fast pass adds 'missing'
+      3) restore same bytes and set mtime back to the original value
+      4) run fast pass again -> 'missing' is removed (no slow scan)
+    """
+    scope = f"fastclear-{uuid.uuid4().hex[:6]}"
+    name = "fastpass_clear.bin"
+    data = make_asset_bytes(name, 3072)
+
+    a = await asset_factory(name, [root, "unit-tests", scope], {}, data)
+    aid = a["id"]
+    base = comfy_tmp_base_dir / root / "unit-tests" / scope
+    p = base / name
+    st0 = p.stat()
+    orig_mtime_ns = getattr(st0, "st_mtime_ns", int(st0.st_mtime * 1_000_000_000))
+
+    # Delete -> fast pass adds 'missing'
+    p.unlink()
+    await trigger_sync_seed_assets(http, api_base)
+    async with http.get(f"{api_base}/api/assets/{aid}") as g1:
+        d1 = await g1.json()
+        assert g1.status == 200, d1
+        assert "missing" in set(d1.get("tags", []))
+
+    # Restore same bytes and revert mtime to the original value
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_bytes(data)
+    # set both atime and mtime in ns to ensure exact match
+    os.utime(p, ns=(orig_mtime_ns, orig_mtime_ns))
+
+    # Fast pass should clear 'missing' without a scan
+    await trigger_sync_seed_assets(http, api_base)
+    async with http.get(f"{api_base}/api/assets/{aid}") as g2:
+        d2 = await g2.json()
+        assert g2.status == 200, d2
+        assert "missing" not in set(d2.get("tags", [])), "Fast pass should clear 'missing' when size+mtime match"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("root", ["input", "output"])
+async def test_fastpass_removes_stale_state_row_no_missing(
+    root: str,
+    http: aiohttp.ClientSession,
+    api_base: str,
+    comfy_tmp_base_dir: Path,
+    asset_factory,
+    make_asset_bytes,
+    run_scan_and_wait,
+):
+    """
+    Hashed asset with two states:
+      - delete one file
+      - run fast pass only
+    Expect:
+      - asset stays healthy (no 'missing')
+      - stale AssetCacheState row for the deleted path is removed.
+        We verify this behaviorally by recreating the deleted path and running fast pass again:
+        a new *seed* AssetInfo is created, which proves the old state row was not reused.
+    """
+    scope = f"stale-{uuid.uuid4().hex[:6]}"
+    name = "two_states.bin"
+    data = make_asset_bytes(name, 2048)
+
+    # Upload hashed asset at path1
+    a = await asset_factory(name, [root, "unit-tests", scope], {}, data)
+    aid = a["id"]
+    h = a["asset_hash"]
+    base = comfy_tmp_base_dir / root / "unit-tests" / scope
+    p1 = base / name
+    assert p1.exists()
+
+    # Create second state path2, seed+scan to dedupe into the same Asset
+    p2 = base / "copy" / name
+    p2.parent.mkdir(parents=True, exist_ok=True)
+    p2.write_bytes(data)
+    await trigger_sync_seed_assets(http, api_base)
+    await run_scan_and_wait(root)
+
+    # Delete path1 and run fast pass -> no 'missing' and stale state row should be removed
+    p1.unlink()
+    await trigger_sync_seed_assets(http, api_base)
+    async with http.get(f"{api_base}/api/assets/{aid}") as g1:
+        d1 = await g1.json()
+        assert g1.status == 200, d1
+        assert "missing" not in set(d1.get("tags", []))
+
+    # Recreate path1 and run fast pass again.
+    # If the stale state row was removed, a NEW seed AssetInfo will appear for this path.
+    p1.write_bytes(data)
+    await trigger_sync_seed_assets(http, api_base)
+
+    async with http.get(
+        api_base + "/api/assets",
+        params={"include_tags": f"unit-tests,{scope}", "name_contains": name},
+    ) as rl:
+        bl = await rl.json()
+        assert rl.status == 200, bl
+        items = bl.get("assets", [])
+        # one hashed AssetInfo (asset_hash == h) + one seed AssetInfo (asset_hash == null)
+        hashes = [it.get("asset_hash") for it in items if it.get("name") == name]
+        assert h in hashes and any(x is None for x in hashes), "Expected a new seed AssetInfo for the recreated path"
+
+    # Asset identity still healthy
+    async with http.head(f"{api_base}/api/assets/hash/{h}") as rh:
+        assert rh.status == 200

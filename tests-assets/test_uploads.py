@@ -284,3 +284,42 @@ async def test_upload_tags_traversal_guard(http: aiohttp.ClientSession, api_base
         body = await r.json()
         assert r.status == 400
         assert body["error"]["code"] in ("BAD_REQUEST", "INVALID_BODY")
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("root", ["input", "output"])
+async def test_duplicate_upload_same_path_updates_state(
+    root: str,
+    http,
+    api_base: str,
+    asset_factory,
+    make_asset_bytes,
+):
+    """
+    Two uploads target the exact same destination path (same tags+name) with different bytes.
+    Expect: file on disk is from the last upload; its AssetInfo serves content; the first AssetInfo's content 404s.
+    This validates that AssetCacheState(file_path) remains unique and its asset_id/mtime_ns were updated.
+    """
+    scope = f"dup-path-{uuid.uuid4().hex[:6]}"
+    name = "same_path.bin"
+
+    d1 = make_asset_bytes(scope + "-v1", 1536)
+    d2 = make_asset_bytes(scope + "-v2", 2048)
+    tags = [root, "unit-tests", scope]
+
+    first = await asset_factory(name, tags, {}, d1)
+    second = await asset_factory(name, tags, {}, d2)
+
+    # Second one must serve the new bytes
+    async with http.get(f"{api_base}/api/assets/{second['id']}/content") as r2:
+        b2 = await r2.read()
+        assert r2.status == 200
+        assert b2 == d2
+
+    # The first AssetInfo now points to an identity with no live state for that path -> 404
+    async with http.get(f"{api_base}/api/assets/{first['id']}/content") as r1:
+        try:
+            body = await r1.json()
+        except Exception:
+            body = {}
+        assert r1.status == 404, body
