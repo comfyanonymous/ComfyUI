@@ -1,4 +1,5 @@
 import contextlib
+import logging
 import os
 import urllib.parse
 import uuid
@@ -13,7 +14,8 @@ from .. import assets_manager, assets_scanner, user_manager
 from . import schemas_in, schemas_out
 
 ROUTES = web.RouteTableDef()
-UserManager: Optional[user_manager.UserManager] = None
+USER_MANAGER: Optional[user_manager.UserManager] = None
+LOGGER = logging.getLogger(__name__)
 
 # UUID regex (canonical hyphenated form, case-insensitive)
 UUID_RE = r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"
@@ -58,7 +60,7 @@ async def list_assets(request: web.Request) -> web.Response:
         offset=q.offset,
         sort=q.sort,
         order=q.order,
-        owner_id=UserManager.get_request_user_id(request),
+        owner_id=USER_MANAGER.get_request_user_id(request),
     )
     return web.json_response(payload.model_dump(mode="json"))
 
@@ -72,7 +74,7 @@ async def download_asset_content(request: web.Request) -> web.Response:
     try:
         abs_path, content_type, filename = await assets_manager.resolve_asset_content_for_download(
             asset_info_id=str(uuid.UUID(request.match_info["id"])),
-            owner_id=UserManager.get_request_user_id(request),
+            owner_id=USER_MANAGER.get_request_user_id(request),
         )
     except ValueError as ve:
         return _error_response(404, "ASSET_NOT_FOUND", str(ve))
@@ -105,7 +107,7 @@ async def create_asset_from_hash(request: web.Request) -> web.Response:
         name=body.name,
         tags=body.tags,
         user_metadata=body.user_metadata,
-        owner_id=UserManager.get_request_user_id(request),
+        owner_id=USER_MANAGER.get_request_user_id(request),
     )
     if result is None:
         return _error_response(404, "ASSET_NOT_FOUND", f"Asset content {body.hash} does not exist")
@@ -234,7 +236,7 @@ async def upload_asset(request: web.Request) -> web.Response:
                 400, "INVALID_BODY", f"unknown models category '{spec.tags[1] if len(spec.tags) >= 2 else ''}'"
             )
 
-    owner_id = UserManager.get_request_user_id(request)
+    owner_id = USER_MANAGER.get_request_user_id(request)
 
     # Fast path: if a valid provided hash exists, create AssetInfo without writing anything
     if spec.hash and provided_hash_exists is True:
@@ -247,6 +249,7 @@ async def upload_asset(request: web.Request) -> web.Response:
                 owner_id=owner_id,
             )
         except Exception:
+            LOGGER.exception("create_asset_from_hash failed for hash=%s, owner_id=%s", spec.hash, owner_id)
             return _error_response(500, "INTERNAL", "Unexpected server error.")
 
         if result is None:
@@ -289,6 +292,7 @@ async def upload_asset(request: web.Request) -> web.Response:
     except Exception:
         if tmp_path and os.path.exists(tmp_path):
             os.remove(tmp_path)
+        LOGGER.exception("upload_asset_from_temp_path failed for tmp_path=%s, owner_id=%s", tmp_path, owner_id)
         return _error_response(500, "INTERNAL", "Unexpected server error.")
 
 
@@ -298,11 +302,16 @@ async def get_asset(request: web.Request) -> web.Response:
     try:
         result = await assets_manager.get_asset(
             asset_info_id=asset_info_id,
-            owner_id=UserManager.get_request_user_id(request),
+            owner_id=USER_MANAGER.get_request_user_id(request),
         )
     except ValueError as ve:
         return _error_response(404, "ASSET_NOT_FOUND", str(ve), {"id": asset_info_id})
     except Exception:
+        LOGGER.exception(
+            "get_asset failed for asset_info_id=%s, owner_id=%s",
+            asset_info_id,
+            USER_MANAGER.get_request_user_id(request),
+        )
         return _error_response(500, "INTERNAL", "Unexpected server error.")
     return web.json_response(result.model_dump(mode="json"), status=200)
 
@@ -323,11 +332,16 @@ async def update_asset(request: web.Request) -> web.Response:
             name=body.name,
             tags=body.tags,
             user_metadata=body.user_metadata,
-            owner_id=UserManager.get_request_user_id(request),
+            owner_id=USER_MANAGER.get_request_user_id(request),
         )
     except (ValueError, PermissionError) as ve:
         return _error_response(404, "ASSET_NOT_FOUND", str(ve), {"id": asset_info_id})
     except Exception:
+        LOGGER.exception(
+            "update_asset failed for asset_info_id=%s, owner_id=%s",
+            asset_info_id,
+            USER_MANAGER.get_request_user_id(request),
+        )
         return _error_response(500, "INTERNAL", "Unexpected server error.")
     return web.json_response(result.model_dump(mode="json"), status=200)
 
@@ -346,11 +360,16 @@ async def set_asset_preview(request: web.Request) -> web.Response:
         result = await assets_manager.set_asset_preview(
             asset_info_id=asset_info_id,
             preview_asset_id=body.preview_id,
-            owner_id=UserManager.get_request_user_id(request),
+            owner_id=USER_MANAGER.get_request_user_id(request),
         )
     except (PermissionError, ValueError) as ve:
         return _error_response(404, "ASSET_NOT_FOUND", str(ve), {"id": asset_info_id})
     except Exception:
+        LOGGER.exception(
+            "set_asset_preview failed for asset_info_id=%s, owner_id=%s",
+            asset_info_id,
+            USER_MANAGER.get_request_user_id(request),
+        )
         return _error_response(500, "INTERNAL", "Unexpected server error.")
     return web.json_response(result.model_dump(mode="json"), status=200)
 
@@ -364,10 +383,15 @@ async def delete_asset(request: web.Request) -> web.Response:
     try:
         deleted = await assets_manager.delete_asset_reference(
             asset_info_id=asset_info_id,
-            owner_id=UserManager.get_request_user_id(request),
+            owner_id=USER_MANAGER.get_request_user_id(request),
             delete_content_if_orphan=delete_content,
         )
     except Exception:
+        LOGGER.exception(
+            "delete_asset_reference failed for asset_info_id=%s, owner_id=%s",
+            asset_info_id,
+            USER_MANAGER.get_request_user_id(request),
+        )
         return _error_response(500, "INTERNAL", "Unexpected server error.")
 
     if not deleted:
@@ -393,7 +417,7 @@ async def get_tags(request: web.Request) -> web.Response:
         offset=query.offset,
         order=query.order,
         include_zero=query.include_zero,
-        owner_id=UserManager.get_request_user_id(request),
+        owner_id=USER_MANAGER.get_request_user_id(request),
     )
     return web.json_response(result.model_dump(mode="json"))
 
@@ -414,11 +438,16 @@ async def add_asset_tags(request: web.Request) -> web.Response:
             asset_info_id=asset_info_id,
             tags=data.tags,
             origin="manual",
-            owner_id=UserManager.get_request_user_id(request),
+            owner_id=USER_MANAGER.get_request_user_id(request),
         )
     except (ValueError, PermissionError) as ve:
         return _error_response(404, "ASSET_NOT_FOUND", str(ve), {"id": asset_info_id})
     except Exception:
+        LOGGER.exception(
+            "add_tags_to_asset failed for asset_info_id=%s, owner_id=%s",
+            asset_info_id,
+            USER_MANAGER.get_request_user_id(request),
+        )
         return _error_response(500, "INTERNAL", "Unexpected server error.")
 
     return web.json_response(result.model_dump(mode="json"), status=200)
@@ -439,11 +468,16 @@ async def delete_asset_tags(request: web.Request) -> web.Response:
         result = await assets_manager.remove_tags_from_asset(
             asset_info_id=asset_info_id,
             tags=data.tags,
-            owner_id=UserManager.get_request_user_id(request),
+            owner_id=USER_MANAGER.get_request_user_id(request),
         )
     except ValueError as ve:
         return _error_response(404, "ASSET_NOT_FOUND", str(ve), {"id": asset_info_id})
     except Exception:
+        LOGGER.exception(
+            "remove_tags_from_asset failed for asset_info_id=%s, owner_id=%s",
+            asset_info_id,
+            USER_MANAGER.get_request_user_id(request),
+        )
         return _error_response(500, "INTERNAL", "Unexpected server error.")
 
     return web.json_response(result.model_dump(mode="json"), status=200)
@@ -476,8 +510,8 @@ async def get_asset_scan_status(request: web.Request) -> web.Response:
 
 
 def register_assets_system(app: web.Application, user_manager_instance: user_manager.UserManager) -> None:
-    global UserManager
-    UserManager = user_manager_instance
+    global USER_MANAGER
+    USER_MANAGER = user_manager_instance
     app.add_routes(ROUTES)
 
 

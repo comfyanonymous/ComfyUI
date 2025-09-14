@@ -514,24 +514,36 @@ async def ingest_fs_asset(
                 d_sqlite.insert(Asset)
                 .values(**vals)
                 .on_conflict_do_nothing(index_elements=[Asset.hash])
+                .returning(Asset.id)
             )
         elif dialect == "postgresql":
             ins = (
                 d_pg.insert(Asset)
                 .values(**vals)
-                .on_conflict_do_nothing(index_elements=[Asset.hash])
+                .on_conflict_do_nothing(
+                    index_elements=[Asset.hash],
+                    index_where=Asset.__table__.c.hash.isnot(None),
+                )
+                .returning(Asset.id)
             )
         else:
             raise NotImplementedError(f"Unsupported database dialect: {dialect}")
         res = await session.execute(ins)
-        rowcount = int(res.rowcount or 0)
+        inserted_id = res.scalar_one_or_none()
         asset = (
             await session.execute(select(Asset).where(Asset.hash == asset_hash).limit(1))
         ).scalars().first()
         if not asset:
             raise RuntimeError("Asset row not found after upsert.")
-        if rowcount > 0:
+        if inserted_id:
             out["asset_created"] = True
+            asset = await session.get(Asset, inserted_id)
+        else:
+            asset = (
+                await session.execute(select(Asset).where(Asset.hash == asset_hash).limit(1))
+            ).scalars().first()
+            if not asset:
+                raise RuntimeError("Asset row not found after upsert.")
     else:
         changed = False
         if asset.size_bytes != int(size_bytes) and int(size_bytes) > 0:
