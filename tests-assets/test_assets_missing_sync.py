@@ -4,7 +4,7 @@ from pathlib import Path
 
 import aiohttp
 import pytest
-from conftest import trigger_sync_seed_assets
+from conftest import get_asset_filename, trigger_sync_seed_assets
 
 
 @pytest.mark.asyncio
@@ -77,7 +77,7 @@ async def test_hashed_asset_missing_tag_added_then_removed_after_scan(
     a = await asset_factory(name, tags, {}, data)
 
     # Compute its on-disk path and remove it
-    dest = comfy_tmp_base_dir / "input" / "unit-tests" / "msync2" / name
+    dest = comfy_tmp_base_dir / "input" / "unit-tests" / "msync2" / get_asset_filename(a["asset_hash"], ".png")
     assert dest.exists(), f"Expected asset file at {dest}"
     dest.unlink()
 
@@ -102,7 +102,7 @@ async def test_hashed_asset_missing_tag_added_then_removed_after_scan(
 
 
 @pytest.mark.asyncio
-async def test_hashed_asset_two_assetinfos_both_get_missing(
+async def test_hashed_asset_two_asset_infos_both_get_missing(
     http: aiohttp.ClientSession,
     api_base: str,
     comfy_tmp_base_dir: Path,
@@ -129,7 +129,7 @@ async def test_hashed_asset_two_assetinfos_both_get_missing(
         second_id = b2["id"]
 
     # Remove the single underlying file
-    p = comfy_tmp_base_dir / "input" / "unit-tests" / "multiinfo" / name
+    p = comfy_tmp_base_dir / "input" / "unit-tests" / "multiinfo" / get_asset_filename(b2["asset_hash"], ".png")
     assert p.exists()
     p.unlink()
 
@@ -179,7 +179,7 @@ async def test_hashed_asset_two_cache_states_partial_delete_then_full_delete(
     data = make_asset_bytes(name, 3072)
 
     created = await asset_factory(name, tags, {}, data)
-    path1 = comfy_tmp_base_dir / "input" / "unit-tests" / "dual" / name
+    path1 = comfy_tmp_base_dir / "input" / "unit-tests" / "dual" / get_asset_filename(created["asset_hash"], ".png")
     assert path1.exists()
 
     # Create a second on-disk copy under the same root but different subfolder
@@ -249,7 +249,7 @@ async def test_missing_tag_clears_on_fastpass_when_mtime_and_size_match(
     a = await asset_factory(name, [root, "unit-tests", scope], {}, data)
     aid = a["id"]
     base = comfy_tmp_base_dir / root / "unit-tests" / scope
-    p = base / name
+    p = base / get_asset_filename(a["asset_hash"], ".bin")
     st0 = p.stat()
     orig_mtime_ns = getattr(st0, "st_mtime_ns", int(st0.st_mtime * 1_000_000_000))
 
@@ -302,11 +302,13 @@ async def test_fastpass_removes_stale_state_row_no_missing(
 
     # Upload hashed asset at path1
     a = await asset_factory(name, [root, "unit-tests", scope], {}, data)
+    base = comfy_tmp_base_dir / root / "unit-tests" / scope
+    a1_filename = get_asset_filename(a["asset_hash"], ".bin")
+    p1 = base / a1_filename
+    assert p1.exists()
+
     aid = a["id"]
     h = a["asset_hash"]
-    base = comfy_tmp_base_dir / root / "unit-tests" / scope
-    p1 = base / name
-    assert p1.exists()
 
     # Create second state path2, seed+scan to dedupe into the same Asset
     p2 = base / "copy" / name
@@ -330,14 +332,15 @@ async def test_fastpass_removes_stale_state_row_no_missing(
 
     async with http.get(
         api_base + "/api/assets",
-        params={"include_tags": f"unit-tests,{scope}", "name_contains": name},
+        params={"include_tags": f"unit-tests,{scope}"},
     ) as rl:
         bl = await rl.json()
         assert rl.status == 200, bl
         items = bl.get("assets", [])
         # one hashed AssetInfo (asset_hash == h) + one seed AssetInfo (asset_hash == null)
-        hashes = [it.get("asset_hash") for it in items if it.get("name") == name]
-        assert h in hashes and any(x is None for x in hashes), "Expected a new seed AssetInfo for the recreated path"
+        hashes = [it.get("asset_hash") for it in items if it.get("name") in (name, a1_filename)]
+        assert h in hashes
+        assert any(x is None for x in hashes), "Expected a new seed AssetInfo for the recreated path"
 
     # Asset identity still healthy
     async with http.head(f"{api_base}/api/assets/hash/{h}") as rh:

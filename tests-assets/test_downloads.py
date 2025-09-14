@@ -6,7 +6,7 @@ from typing import Optional
 
 import aiohttp
 import pytest
-from conftest import trigger_sync_seed_assets
+from conftest import get_asset_filename, trigger_sync_seed_assets
 
 
 @pytest.mark.asyncio
@@ -53,7 +53,7 @@ async def test_download_chooses_existing_state_and_updates_access_time(
     aid = a["id"]
 
     base = comfy_tmp_base_dir / root / "unit-tests" / scope
-    path1 = base / name
+    path1 = base / get_asset_filename(a["asset_hash"], ".bin")
     assert path1.exists()
 
     # Seed path2 by copying, then scan to dedupe into a second state
@@ -108,14 +108,14 @@ async def test_download_missing_file_returns_404(
         async with http.get(f"{api_base}/api/assets/{aid}") as rg:
             detail = await rg.json()
             assert rg.status == 200
-            rel_inside_category = detail["name"]
-            abs_path = comfy_tmp_base_dir / "models" / "checkpoints" / rel_inside_category
-            if abs_path.exists():
-                abs_path.unlink()
+            asset_filename = get_asset_filename(detail["asset_hash"], ".safetensors")
+            abs_path = comfy_tmp_base_dir / "models" / "checkpoints" / asset_filename
+            assert abs_path.exists()
+            abs_path.unlink()
 
         async with http.get(f"{api_base}/api/assets/{aid}/content") as r2:
-            body = await r2.json()
             assert r2.status == 404
+            body = await r2.json()
             assert body["error"]["code"] == "FILE_NOT_FOUND"
     finally:
         # We created asset without the "unit-tests" tag(see `autoclean_unit_test_assets`), we need to clear it manually.
@@ -144,7 +144,7 @@ async def test_download_404_if_all_states_missing(
     aid = a["id"]
 
     base = comfy_tmp_base_dir / root / "unit-tests" / scope
-    p1 = base / name
+    p1 = base / get_asset_filename(a["asset_hash"], ".bin")
     assert p1.exists()
 
     # Seed a second state and dedupe

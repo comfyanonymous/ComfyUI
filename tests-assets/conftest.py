@@ -228,7 +228,7 @@ async def asset_factory(http: aiohttp.ClientSession, api_base: str):
 @pytest_asyncio.fixture
 async def seeded_asset(request: pytest.FixtureRequest, http: aiohttp.ClientSession, api_base: str) -> dict:
     """
-    Upload one asset into models/checkpoints/unit-tests/<name>.
+    Upload one asset with ".safetensors" extension into models/checkpoints/unit-tests/<name>.
     Returns response dict with id, asset_hash, tags, etc.
     """
     name = "unit_1_example.safetensors"
@@ -301,3 +301,7 @@ async def run_scan_and_wait(http: aiohttp.ClientSession, api_base: str):
                 raise TimeoutError(f"Timed out waiting for scan of root={root}")
             await asyncio.sleep(0.1)
     return _run
+
+
+def get_asset_filename(asset_hash: str, extension: str) -> str:
+    return asset_hash.removeprefix("blake3:") + extension

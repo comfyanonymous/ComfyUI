@@ -170,14 +170,17 @@ class UploadAssetSpec(BaseModel):
     """Upload Asset operation.
     - tags: ordered; first is root ('models'|'input'|'output');
             if root == 'models', second must be a valid category from folder_paths.folder_names_and_paths
-    - name: desired filename (optional); fallback will be the file hash
+    - name: display name
     - user_metadata: arbitrary JSON object (optional)
     - hash: optional canonical 'blake3:<hex>' provided by the client for validation / fast-path
+
+    Files created via this endpoint are stored on disk using the **content hash** as the filename stem
+    and the original extension is preserved when available.
     """
     model_config = ConfigDict(extra="ignore", str_strip_whitespace=True)
 
     tags: list[str] = Field(..., min_length=1)
-    name: Optional[str] = Field(default=None, max_length=512)
+    name: Optional[str] = Field(default=None, max_length=512, description="Display Name")
     user_metadata: dict[str, Any] = Field(default_factory=dict)
     hash: Optional[str] = Field(default=None)
 

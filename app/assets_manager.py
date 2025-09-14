@@ -214,11 +214,11 @@ async def upload_asset_from_temp_path(
                 if temp_path and os.path.exists(temp_path):
                     os.remove(temp_path)
 
-            desired_name = _safe_filename(spec.name or (client_filename or ""), fallback=digest)
+            display_name = _safe_filename(spec.name or (client_filename or ""), fallback=digest)
             info = await create_asset_info_for_existing_asset(
                 session,
                 asset_hash=asset_hash,
-                name=desired_name,
+                name=display_name,
                 user_metadata=spec.user_metadata or {},
                 tags=spec.tags or [],
                 tag_origin="manual",
@@ -245,11 +245,18 @@ async def upload_asset_from_temp_path(
     dest_dir = os.path.join(base_dir, *subdirs) if subdirs else base_dir
     os.makedirs(dest_dir, exist_ok=True)
 
-    desired_name = _safe_filename(spec.name or (client_filename or ""), fallback=digest)
-    dest_abs = os.path.abspath(os.path.join(dest_dir, desired_name))
+    src_for_ext = (client_filename or spec.name or "").strip()
+    _ext = os.path.splitext(os.path.basename(src_for_ext))[1] if src_for_ext else ""
+    ext = _ext if 0 < len(_ext) <= 16 else ""
+    hashed_basename = f"{digest}{ext}"
+    dest_abs = os.path.abspath(os.path.join(dest_dir, hashed_basename))
     ensure_within_base(dest_abs, base_dir)
 
-    content_type = mimetypes.guess_type(desired_name, strict=False)[0] or "application/octet-stream"
+    content_type = (
+        mimetypes.guess_type(os.path.basename(src_for_ext), strict=False)[0]
+        or mimetypes.guess_type(hashed_basename, strict=False)[0]
+        or "application/octet-stream"
+    )
 
     try:
         os.replace(temp_path, dest_abs)
@@ -269,7 +276,7 @@ async def upload_asset_from_temp_path(
             size_bytes=size_bytes,
             mtime_ns=mtime_ns,
             mime_type=content_type,
-            info_name=os.path.basename(dest_abs),
+            info_name=_safe_filename(spec.name or (client_filename or ""), fallback=digest),
             owner_id=owner_id,
             preview_id=None,
             user_metadata=spec.user_metadata or {},

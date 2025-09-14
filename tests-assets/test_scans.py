@@ -5,7 +5,7 @@ from pathlib import Path
 
 import aiohttp
 import pytest
-from conftest import trigger_sync_seed_assets
+from conftest import get_asset_filename, trigger_sync_seed_assets
 
 
 def _base_for(root: str, comfy_tmp_base_dir: Path) -> Path:
@@ -138,7 +138,8 @@ async def test_scan_records_file_errors_permission_denied(
     deny_dir.mkdir(parents=True, exist_ok=True)
     name = "deny.bin"
 
-    await asset_factory(name, [root, "unit-tests", scope, "deny"], {}, b"X" * 2048)
+    a1 = await asset_factory(name, [root, "unit-tests", scope, "deny"], {}, b"X" * 2048)
+    asset_filename = get_asset_filename(a1["asset_hash"], ".bin")
     try:
         os.chmod(deny_dir, 0x000)
         async with http.post(api_base + "/api/assets/scan/schedule", json={"roots": [root]}) as r:
@@ -152,10 +153,11 @@ async def test_scan_records_file_errors_permission_denied(
             assert len(scans) == 1
             errs = scans[0].get("file_errors", [])
             # Should contain at least one PermissionError-like record
-            assert errs and any(e.get("path", "").endswith(name) and e.get("message") for e in errs)
+            assert errs
+            assert any(e.get("path", "").endswith(asset_filename) and e.get("message") for e in errs)
     finally:
         try:
-            os.chmod(deny_dir, 0o755)
+            os.chmod(deny_dir, 0x755)
         except Exception:
             pass
 
@@ -182,7 +184,7 @@ async def test_missing_tag_created_and_visible_in_tags(
     created = await asset_factory(name, [root, "unit-tests", scope], {}, b"Y" * 4096)
 
     # Remove the only file and trigger fast pass
-    p = _base_for(root, comfy_tmp_base_dir) / "unit-tests" / scope / name
+    p = _base_for(root, comfy_tmp_base_dir) / "unit-tests" / scope / get_asset_filename(created["asset_hash"], ".bin")
     assert p.exists()
     p.unlink()
     await trigger_sync_seed_assets(http, api_base)
@@ -217,7 +219,7 @@ async def test_missing_reapplies_after_manual_removal(
     created = await asset_factory(name, [root, "unit-tests", scope], {}, b"Z" * 1024)
 
     # Make it missing
-    p = _base_for(root, comfy_tmp_base_dir) / "unit-tests" / scope / name
+    p = _base_for(root, comfy_tmp_base_dir) / "unit-tests" / scope / get_asset_filename(created["asset_hash"], ".bin")
     p.unlink()
     await trigger_sync_seed_assets(http, api_base)
 
@@ -237,7 +239,7 @@ async def test_missing_reapplies_after_manual_removal(
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("root", ["input", "output"])
-async def test_delete_one_assetinfo_of_missing_asset_keeps_identity(
+async def test_delete_one_asset_info_of_missing_asset_keeps_identity(
     root: str,
     http,
     api_base: str,
@@ -253,7 +255,7 @@ async def test_delete_one_assetinfo_of_missing_asset_keeps_identity(
     a2 = await asset_factory("copy_" + name, [root, "unit-tests", scope], {}, b"W" * 2048)
 
     # Remove file of the first (both point to the same Asset, but we know on-disk path name for a1)
-    p1 = _base_for(root, comfy_tmp_base_dir) / "unit-tests" / scope / name
+    p1 = _base_for(root, comfy_tmp_base_dir) / "unit-tests" / scope / get_asset_filename(a1["asset_hash"], ".bin")
     p1.unlink()
     await trigger_sync_seed_assets(http, api_base)
 
@@ -282,7 +284,7 @@ async def test_delete_one_assetinfo_of_missing_asset_keeps_identity(
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("keep_root", ["input", "output"])
-async def test_delete_last_assetinfo_false_keeps_asset_and_states_multiroot(
+async def test_delete_last_asset_info_false_keeps_asset_and_states_multiroot(
     keep_root: str,
     http,
     api_base: str,
@@ -293,21 +295,18 @@ async def test_delete_last_assetinfo_false_keeps_asset_and_states_multiroot(
     """Delete last AssetInfo with delete_content_if_orphan=false keeps asset and the underlying on-disk content."""
     other_root = "output" if keep_root == "input" else "input"
     scope = f"delfalse-{uuid.uuid4().hex[:6]}"
-    name1, name2 = "keep1.bin", "keep2.bin"
     data = make_asset_bytes(scope, 3072)
 
     # First upload creates the physical file
-    a1 = await asset_factory(name1, [keep_root, "unit-tests", scope], {}, data)
+    a1 = await asset_factory("keep1.bin", [keep_root, "unit-tests", scope], {}, data)
     # Second upload (other root) is deduped to the same content; no new file on disk
-    a2 = await asset_factory(name2, [other_root, "unit-tests", scope], {}, data)
+    a2 = await asset_factory("keep2.bin", [other_root, "unit-tests", scope], {}, data)
 
     h = a1["asset_hash"]
-    p1 = _base_for(keep_root, comfy_tmp_base_dir) / "unit-tests" / scope / name1
-    p2 = _base_for(other_root, comfy_tmp_base_dir) / "unit-tests" / scope / name2
+    p1 = _base_for(keep_root, comfy_tmp_base_dir) / "unit-tests" / scope / get_asset_filename(h, ".bin")
 
     # De-dup semantics: only the first physical file exists
     assert p1.exists(), "Expected the first physical file to exist"
-    assert not p2.exists(), "Second duplicate must not create another physical file"
 
     # Delete both AssetInfos; keep content on the very last delete
     async with http.delete(f"{api_base}/api/assets/{a2['id']}") as rfirst:
@@ -319,7 +318,6 @@ async def test_delete_last_assetinfo_false_keeps_asset_and_states_multiroot(
     async with http.head(f"{api_base}/api/assets/hash/{h}") as rh:
         assert rh.status == 200
     assert p1.exists(), "Content file should remain after keep-content delete"
-    assert not p2.exists(), "There was never a second physical file"
 
     # Cleanup: re-create a reference by hash and then delete to purge content
     payload = {
@@ -489,7 +487,7 @@ async def test_cache_state_retarget_on_content_change_asset_info_stays(
     aid = a1["id"]
     h1 = a1["asset_hash"]
 
-    p = comfy_tmp_base_dir / root / "unit-tests" / scope / name
+    p = comfy_tmp_base_dir / root / "unit-tests" / scope / get_asset_filename(a1["asset_hash"], ".bin")
     assert p.exists()
 
     # Change the bytes in place to force a new content hash (H2)

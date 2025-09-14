@@ -4,7 +4,7 @@ from pathlib import Path
 
 import aiohttp
 import pytest
-from conftest import trigger_sync_seed_assets
+from conftest import get_asset_filename, trigger_sync_seed_assets
 
 
 @pytest.mark.asyncio
@@ -286,7 +286,7 @@ async def test_metadata_filename_computed_and_updated_on_retarget(
     aid = a["id"]
 
     root_base = comfy_tmp_base_dir / root
-    p1 = root_base / "unit-tests" / scope / "a" / "b" / name1
+    p1 = (root_base / "unit-tests" / scope / "a" / "b" / get_asset_filename(a["asset_hash"], ".png"))
     assert p1.exists()
 
     # filename at ingest should be the path relative to root
