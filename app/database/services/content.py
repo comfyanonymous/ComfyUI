@@ -1,3 +1,4 @@
+import contextlib
 import logging
 import os
 from datetime import datetime
@@ -291,10 +292,8 @@ async def compute_hash_and_dedup_for_cache_state(
                 state.asset_id = new_asset.id
             state.mtime_ns = mtime_ns
             state.needs_verify = False
-            try:
+            with contextlib.suppress(Exception):
                 await remove_missing_tag_for_asset_id(session, asset_id=state.asset_id)
-            except Exception:
-                pass
             await session.flush()
             return state.asset_id
 
@@ -311,15 +310,12 @@ async def compute_hash_and_dedup_for_cache_state(
                     duplicate_asset_id=this_asset.id,
                     canonical_asset_id=canonical.id,
                 )
-                # Refresh state after the merge
                 state = await session.get(AssetCacheState, state_id)
                 if state:
                     state.mtime_ns = mtime_ns
                     state.needs_verify = False
-                    try:
+                    with contextlib.suppress(Exception):
                         await remove_missing_tag_for_asset_id(session, asset_id=canonical.id)
-                    except Exception:
-                        pass
                     await session.flush()
                 return canonical.id
 
@@ -345,10 +341,8 @@ async def compute_hash_and_dedup_for_cache_state(
                     if state:
                         state.mtime_ns = mtime_ns
                         state.needs_verify = False
-                        try:
+                        with contextlib.suppress(Exception):
                             await remove_missing_tag_for_asset_id(session, asset_id=canonical.id)
-                        except Exception:
-                            pass
                         await session.flush()
                     return canonical.id
                 # If we got here, the integrity error was not about hash uniqueness
@@ -357,10 +351,8 @@ async def compute_hash_and_dedup_for_cache_state(
             # Claimed successfully
             state.mtime_ns = mtime_ns
             state.needs_verify = False
-            try:
+            with contextlib.suppress(Exception):
                 await remove_missing_tag_for_asset_id(session, asset_id=this_asset.id)
-            except Exception:
-                pass
             await session.flush()
             return this_asset.id
 
@@ -370,10 +362,8 @@ async def compute_hash_and_dedup_for_cache_state(
                 this_asset.size_bytes = new_size
             state.mtime_ns = mtime_ns
             state.needs_verify = False
-            try:
+            with contextlib.suppress(Exception):
                 await remove_missing_tag_for_asset_id(session, asset_id=this_asset.id)
-            except Exception:
-                pass
             await session.flush()
             return this_asset.id
 
@@ -393,10 +383,8 @@ async def compute_hash_and_dedup_for_cache_state(
         state.asset_id = target_id
         state.mtime_ns = mtime_ns
         state.needs_verify = False
-        try:
+        with contextlib.suppress(Exception):
             await remove_missing_tag_for_asset_id(session, asset_id=target_id)
-        except Exception:
-            pass
         await session.flush()
         return target_id
 

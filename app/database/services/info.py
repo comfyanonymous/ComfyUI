@@ -366,16 +366,15 @@ async def touch_asset_info_by_id(
     asset_info_id: str,
     ts: Optional[datetime] = None,
     only_if_newer: bool = True,
-) -> int:
+) -> bool:
     ts = ts or utcnow()
     stmt = sa.update(AssetInfo).where(AssetInfo.id == asset_info_id)
     if only_if_newer:
         stmt = stmt.where(
             sa.or_(AssetInfo.last_access_time.is_(None), AssetInfo.last_access_time < ts)
         )
-    stmt = stmt.values(last_access_time=ts)
-    res = await session.execute(stmt)
-    return int(res.rowcount or 0)
+    stmt = stmt.values(last_access_time=ts).returning(AssetInfo.id)
+    return (await session.execute(stmt)).scalar_one_or_none() is not None
 
 
 async def delete_asset_info_by_id(session: AsyncSession, *, asset_info_id: str, owner_id: str) -> bool:
