@@ -377,17 +377,20 @@ async def touch_asset_info_by_id(
         stmt = stmt.where(
             sa.or_(AssetInfo.last_access_time.is_(None), AssetInfo.last_access_time < ts)
         )
-    stmt = stmt.values(last_access_time=ts).returning(AssetInfo.id)
-    return (await session.execute(stmt)).scalar_one_or_none() is not None
+    stmt = stmt.values(last_access_time=ts)
+    if session.bind.dialect.name == "postgresql":
+        return (await session.execute(stmt.returning(AssetInfo.id))).scalar_one_or_none() is not None
+    return int((await session.execute(stmt)).rowcount or 0) > 0
 
 
 async def delete_asset_info_by_id(session: AsyncSession, *, asset_info_id: str, owner_id: str) -> bool:
-    return (
-        await session.execute(delete(AssetInfo).where(
-            AssetInfo.id == asset_info_id,
-            visible_owner_clause(owner_id),
-        ).returning(AssetInfo.id))
-    ).scalar_one_or_none() is not None
+    stmt = sa.delete(AssetInfo).where(
+        AssetInfo.id == asset_info_id,
+        visible_owner_clause(owner_id),
+    )
+    if session.bind.dialect.name == "postgresql":
+        return (await session.execute(stmt.returning(AssetInfo.id))).scalar_one_or_none() is not None
+    return int((await session.execute(stmt)).rowcount or 0) > 0
 
 
 async def add_tags_to_asset_info(

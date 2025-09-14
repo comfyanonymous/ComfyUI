@@ -513,14 +513,20 @@ async def ingest_fs_asset(
             "created_at": now,
         }
         if dialect == "sqlite":
-            ins = (
+            res = await session.execute(
                 d_sqlite.insert(Asset)
                 .values(**vals)
                 .on_conflict_do_nothing(index_elements=[Asset.hash])
-                .returning(Asset.id)
             )
+            if int(res.rowcount or 0) > 0:
+                out["asset_created"] = True
+            asset = (
+                await session.execute(
+                    select(Asset).where(Asset.hash == asset_hash).limit(1)
+                )
+            ).scalars().first()
         elif dialect == "postgresql":
-            ins = (
+            res = await session.execute(
                 d_pg.insert(Asset)
                 .values(**vals)
                 .on_conflict_do_nothing(
@@ -529,24 +535,20 @@ async def ingest_fs_asset(
                 )
                 .returning(Asset.id)
             )
+            inserted_id = res.scalar_one_or_none()
+            if inserted_id:
+                out["asset_created"] = True
+                asset = await session.get(Asset, inserted_id)
+            else:
+                asset = (
+                    await session.execute(
+                        select(Asset).where(Asset.hash == asset_hash).limit(1)
+                    )
+                ).scalars().first()
         else:
             raise NotImplementedError(f"Unsupported database dialect: {dialect}")
-        res = await session.execute(ins)
-        inserted_id = res.scalar_one_or_none()
-        asset = (
-            await session.execute(select(Asset).where(Asset.hash == asset_hash).limit(1))
-        ).scalars().first()
         if not asset:
             raise RuntimeError("Asset row not found after upsert.")
-        if inserted_id:
-            out["asset_created"] = True
-            asset = await session.get(Asset, inserted_id)
-        else:
-            asset = (
-                await session.execute(select(Asset).where(Asset.hash == asset_hash).limit(1))
-            ).scalars().first()
-            if not asset:
-                raise RuntimeError("Asset row not found after upsert.")
     else:
         changed = False
         if asset.size_bytes != int(size_bytes) and int(size_bytes) > 0:
