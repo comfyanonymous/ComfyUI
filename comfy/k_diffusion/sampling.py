@@ -859,7 +859,9 @@ def sample_dpmpp_2m_sde(model, x, sigmas, extra_args=None, callback=None, disabl
             current_denoised = uncond_denoised if cfg_pp else denoised
 
             x = sigmas[i + 1] / sigmas[i] * (-h * eta).exp() * x + alpha_t * (-h_eta).expm1().neg() * denoised
-            x = x + alpha_t * (-h_eta).exp().neg() * (current_denoised - denoised)
+            
+            if cfg_pp:
+                x = x + alpha_t * (-h_eta).exp().neg() * (current_denoised - denoised)
 
             if old_denoised is not None:
                 r = h_last / h
