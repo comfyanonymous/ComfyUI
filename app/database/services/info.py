@@ -13,6 +13,7 @@ from ..helpers import (
     apply_metadata_filter,
     apply_tag_filters,
     ensure_tags_exist,
+    escape_like_prefix,
     project_kv,
     visible_owner_clause,
 )
@@ -527,7 +528,8 @@ async def list_tags_with_usage(
     )
 
     if prefix:
-        q = q.where(Tag.name.like(prefix.strip().lower() + "%"))
+        escaped, esc = escape_like_prefix(prefix.strip().lower())
+        q = q.where(Tag.name.like(escaped + "%", escape=esc))
 
     if not include_zero:
         q = q.where(func.coalesce(counts_sq.c.cnt, 0) > 0)
@@ -539,7 +541,8 @@ async def list_tags_with_usage(
 
     total_q = select(func.count()).select_from(Tag)
     if prefix:
-        total_q = total_q.where(Tag.name.like(prefix.strip().lower() + "%"))
+        escaped, esc = escape_like_prefix(prefix.strip().lower())
+        total_q = total_q.where(Tag.name.like(escaped + "%", escape=esc))
     if not include_zero:
         total_q = total_q.where(
             Tag.name.in_(select(AssetInfoTag.tag_name).group_by(AssetInfoTag.tag_name))

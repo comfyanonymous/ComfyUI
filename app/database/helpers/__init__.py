@@ -1,3 +1,4 @@
+from .escape_like import escape_like_prefix
 from .filters import apply_metadata_filter, apply_tag_filters
 from .ownership import visible_owner_clause
 from .projection import is_scalar, project_kv
@@ -10,6 +11,7 @@ from .tags import (
 __all__ = [
     "apply_tag_filters",
     "apply_metadata_filter",
+    "escape_like_prefix",
     "is_scalar",
     "project_kv",
     "ensure_tags_exist",

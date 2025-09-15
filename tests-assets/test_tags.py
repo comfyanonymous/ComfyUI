@@ -201,3 +201,28 @@ async def test_tags_endpoints_invalid_bodies(http: aiohttp.ClientSession, api_ba
         b3 = await r3.json()
         assert r3.status == 400
         assert b3["error"]["code"] == "INVALID_QUERY"
+
+
+@pytest.mark.asyncio
+async def test_tags_prefix_treats_underscore_literal(
+    http,
+    api_base,
+    asset_factory,
+    make_asset_bytes,
+):
+    """'prefix' for /api/tags must treat '_' literally, not as a wildcard."""
+    base = f"pref_{uuid.uuid4().hex[:6]}"
+    tag_ok = f"{base}_ok"   # should match prefix=f"{base}_"
+    tag_bad = f"{base}xok"  # must NOT match if '_' is escaped
+    scope = f"tags-underscore-{uuid.uuid4().hex[:6]}"
+
+    await asset_factory("t1.bin", ["input", "unit-tests", scope, tag_ok], {}, make_asset_bytes("t1", 512))
+    await asset_factory("t2.bin", ["input", "unit-tests", scope, tag_bad], {}, make_asset_bytes("t2", 512))
+
+    async with http.get(api_base + "/api/tags", params={"include_zero": "false", "prefix": f"{base}_"}) as r:
+        body = await r.json()
+        assert r.status == 200, body
+        names = [t["name"] for t in body["tags"]]
+        assert tag_ok in names, f"Expected {tag_ok} to be returned for prefix '{base}_'"
+        assert tag_bad not in names, f"'{tag_bad}' must not match — '_' is not a wildcard"
+        assert body["total"] == 1
