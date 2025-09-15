@@ -733,6 +733,7 @@ class VAELoader:
             vaes.append("taesd3")
         if f1_taesd_dec and f1_taesd_enc:
             vaes.append("taef1")
+        vaes.append("pixel_space")
         return vaes
 
     @staticmethod
@@ -775,7 +776,10 @@ class VAELoader:
 
     #TODO: scale factor?
     def load_vae(self, vae_name):
-        if vae_name in ["taesd", "taesdxl", "taesd3", "taef1"]:
+        if vae_name == "pixel_space":
+            sd = {}
+            sd["pixel_space_vae"] = torch.tensor(1.0)
+        elif vae_name in ["taesd", "taesdxl", "taesd3", "taef1"]:
             sd = self.load_taesd(vae_name)
         else:
             vae_path = folder_paths.get_full_path_or_raise("vae", vae_name)
@@ -2331,6 +2335,7 @@ async def init_builtin_extra_nodes():
         "nodes_tcfg.py",
         "nodes_context_windows.py",
         "nodes_qwen.py",
+        "nodes_chroma_radiance.py",
         "nodes_model_patch.py",
         "nodes_easycache.py",
         "nodes_audio_encoder.py",

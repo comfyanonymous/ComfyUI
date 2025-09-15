@@ -22,7 +22,7 @@ SAGE_ATTENTION_IS_AVAILABLE = False
 try:
     from sageattention import sageattn
     SAGE_ATTENTION_IS_AVAILABLE = True
-except ModuleNotFoundError as e:
+except ImportError as e:
     if model_management.sage_attention_enabled():
         if e.name == "sageattention":
             logging.error(f"\n\nTo use the `--use-sage-attention` feature, the `sageattention` package must be installed first.\ncommand:\n\t{sys.executable} -m pip install sageattention")
@@ -34,7 +34,7 @@ FLASH_ATTENTION_IS_AVAILABLE = False
 try:
     from flash_attn import flash_attn_func
     FLASH_ATTENTION_IS_AVAILABLE = True
-except ModuleNotFoundError:
+except ImportError:
     if model_management.flash_attention_enabled():
         logging.error(f"\n\nTo use the `--use-flash-attention` feature, the `flash-attn` package must be installed first.\ncommand:\n\t{sys.executable} -m pip install flash-attn")
         exit(-1)
