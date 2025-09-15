@@ -293,8 +293,44 @@ def pytorch_attention(q, k, v):
     return out
 
 
+def vae_sage_attention(q, k, v):
+    """Wrapper for attention_sage to work with VAE single-head attention"""
+    from ..attention import attention_sage
+
+    # Store original shape for output reshaping
+    orig_shape = q.shape
+    B = orig_shape[0]
+    C = orig_shape[1]
+
+    # Reshape from VAE format (B, C, H, W) to SageAttention format (B, seq_len, dim)
+    # Following the same pattern as xformers_attention
+    q, k, v = map(
+        lambda t: t.view(B, C, -1).transpose(1, 2).contiguous(),
+        (q, k, v),
+    )
+
+    try:
+        # Call SageAttention with heads=1 (VAE uses single-head attention)
+        out = attention_sage(q, k, v, heads=1, skip_reshape=False)
+        # Reshape back to original VAE format
+        out = out.transpose(1, 2).reshape(orig_shape)
+    except Exception as e:
+        # Fallback to pytorch attention if SageAttention fails
+        import logging
+        logging.warning(f"SageAttention failed in VAE: {e}, falling back to pytorch attention")
+        # Reshape back to original format for fallback
+        q = q.transpose(1, 2).reshape(orig_shape)
+        k = k.transpose(1, 2).reshape(orig_shape)
+        v = v.transpose(1, 2).reshape(orig_shape)
+        out = pytorch_attention(q, k, v)
+
+    return out
+
 def vae_attention():
-    if model_management.xformers_enabled_vae():
+    if model_management.sage_attention_enabled():
+        logging.info("Using sage attention in VAE")
+        return vae_sage_attention
+    elif model_management.xformers_enabled_vae():
         logging.info("Using xformers attention in VAE")
         return xformers_attention
     elif model_management.pytorch_attention_enabled_vae():
