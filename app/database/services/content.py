@@ -408,9 +408,7 @@ async def compute_hash_and_dedup_for_cache_state(
         raise
 
 
-async def list_unhashed_candidates_under_prefixes(
-    session: AsyncSession, *, prefixes: Sequence[str]
-) -> list[int]:
+async def list_unhashed_candidates_under_prefixes(session: AsyncSession, *, prefixes: list[str]) -> list[int]:
     if not prefixes:
         return []
 
@@ -421,23 +419,25 @@ async def list_unhashed_candidates_under_prefixes(
             base += os.sep
         conds.append(AssetCacheState.file_path.like(base + "%"))
 
-    rows = (
-        await session.execute(
+    path_filter = sa.or_(*conds) if len(conds) > 1 else conds[0]
+    if session.bind.dialect.name == "postgresql":
+        stmt = (
             sa.select(AssetCacheState.id)
             .join(Asset, Asset.id == AssetCacheState.asset_id)
-            .where(Asset.hash.is_(None))
-            .where(sa.or_(*conds))
+            .where(Asset.hash.is_(None), path_filter)
             .order_by(AssetCacheState.asset_id.asc(), AssetCacheState.id.asc())
+            .distinct(AssetCacheState.asset_id)
         )
-    ).scalars().all()
-    seen = set()
-    result: list[int] = []
-    for sid in rows:
-        st = await session.get(AssetCacheState, sid)
-        if st and st.asset_id not in seen:
-            seen.add(st.asset_id)
-            result.append(sid)
-    return result
+    else:
+        first_id = sa.func.min(AssetCacheState.id).label("first_id")
+        stmt = (
+            sa.select(first_id)
+            .join(Asset, Asset.id == AssetCacheState.asset_id)
+            .where(Asset.hash.is_(None), path_filter)
+            .group_by(AssetCacheState.asset_id)
+            .order_by(first_id.asc())
+        )
+    return [int(x) for x in (await session.execute(stmt)).scalars().all()]
 
 
 async def list_verify_candidates_under_prefixes(
