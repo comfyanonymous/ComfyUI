@@ -47,7 +47,8 @@ async def list_asset_infos_page(
     )
 
     if name_contains:
-        base = base.where(AssetInfo.name.ilike(f"%{name_contains}%"))
+        escaped, esc = escape_like_prefix(name_contains)
+        base = base.where(AssetInfo.name.ilike(f"%{escaped}%", escape=esc))
 
     base = apply_tag_filters(base, include_tags, exclude_tags)
     base = apply_metadata_filter(base, metadata_filter)
@@ -73,7 +74,8 @@ async def list_asset_infos_page(
         .where(visible_owner_clause(owner_id))
     )
     if name_contains:
-        count_stmt = count_stmt.where(AssetInfo.name.ilike(f"%{name_contains}%"))
+        escaped, esc = escape_like_prefix(name_contains)
+        count_stmt = count_stmt.where(AssetInfo.name.ilike(f"%{escaped}%", escape=esc))
     count_stmt = apply_tag_filters(count_stmt, include_tags, exclude_tags)
     count_stmt = apply_metadata_filter(count_stmt, metadata_filter)
 

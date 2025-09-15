@@ -1,4 +1,5 @@
 import asyncio
+import uuid
 
 import aiohttp
 import pytest
@@ -301,3 +302,36 @@ async def test_list_assets_invalid_query_rejected(http: aiohttp.ClientSession, a
         b2 = await r2.json()
         assert r2.status == 400
         assert b2["error"]["code"] == "INVALID_QUERY"
+
+
+@pytest.mark.asyncio
+async def test_list_assets_name_contains_literal_underscore(
+    http,
+    api_base,
+    asset_factory,
+    make_asset_bytes,
+):
+    """'name_contains' must treat '_' literally, not as a SQL wildcard.
+    We create:
+      - foo_bar.safetensors      (should match)
+      - fooxbar.safetensors      (must NOT match if '_' is escaped)
+      - foobar.safetensors       (must NOT match)
+    """
+    scope = f"lf-underscore-{uuid.uuid4().hex[:6]}"
+    tags = ["models", "checkpoints", "unit-tests", scope]
+
+    a = await asset_factory("foo_bar.safetensors", tags, {}, make_asset_bytes("a", 700))
+    b = await asset_factory("fooxbar.safetensors", tags, {}, make_asset_bytes("b", 700))
+    c = await asset_factory("foobar.safetensors", tags, {}, make_asset_bytes("c", 700))
+
+    async with http.get(
+        api_base + "/api/assets",
+        params={"include_tags": f"unit-tests,{scope}", "name_contains": "foo_bar"},
+    ) as r:
+        body = await r.json()
+        assert r.status == 200, body
+        names = [x["name"] for x in body["assets"]]
+        assert a["name"] in names, f"Expected literal underscore match to include {a['name']}"
+        assert b["name"] not in names, "Underscore must be escaped — should not match 'fooxbar'"
+        assert c["name"] not in names, "Underscore must be escaped — should not match 'foobar'"
+        assert body["total"] == 1
