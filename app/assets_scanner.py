@@ -22,6 +22,7 @@ from .api import schemas_in, schemas_out
 from .database.db import create_session
 from .database.helpers import (
     add_missing_tag_for_asset_id,
+    escape_like_prefix,
     remove_missing_tag_for_asset_id,
 )
 from .database.models import Asset, AssetCacheState, AssetInfo
@@ -160,7 +161,7 @@ def _scan_progress_to_scan_status_model(progress: ScanProgress) -> schemas_out.A
     )
 
 
-async def _refresh_verify_flags_for_root(root: schemas_in.RootType, prog: ScanProgress) -> None:
+async def _refresh_verify_flags_for_root(root: schemas_in.RootType) -> None:
     """Fast pass to mark verify candidates by comparing stored mtime_ns with on-disk mtime."""
     prefixes = prefixes_for_root(root)
     if not prefixes:
@@ -171,7 +172,8 @@ async def _refresh_verify_flags_for_root(root: schemas_in.RootType, prog: ScanPr
         base = os.path.abspath(p)
         if not base.endswith(os.sep):
             base += os.sep
-        conds.append(AssetCacheState.file_path.like(base + "%"))
+        escaped, esc = escape_like_prefix(base)
+        conds.append(AssetCacheState.file_path.like(escaped + "%", escape=esc))
 
     async with await create_session() as sess:
         rows = (
@@ -227,7 +229,7 @@ async def _run_hash_verify_pipeline(root: schemas_in.RootType, prog: ScanProgres
     try:
         prefixes = prefixes_for_root(root)
 
-        await _refresh_verify_flags_for_root(root, prog)
+        await _refresh_verify_flags_for_root(root)
 
         # collect candidates from DB
         async with await create_session() as sess:
@@ -419,7 +421,8 @@ async def _fast_db_consistency_pass(root: schemas_in.RootType) -> None:
         base = os.path.abspath(p)
         if not base.endswith(os.sep):
             base += os.sep
-        conds.append(AssetCacheState.file_path.like(base + "%"))
+        escaped, esc = escape_like_prefix(base)
+        conds.append(AssetCacheState.file_path.like(escaped + "%", escape=esc))
 
     async with await create_session() as sess:
         if not conds:
@@ -443,7 +446,6 @@ async def _fast_db_consistency_pass(root: schemas_in.RootType) -> None:
                 acc = {"hash": a_hash, "size_db": int(a_size or 0), "states": []}
                 by_asset[aid] = acc
 
-            exists = False
             fast_ok = False
             try:
                 s = os.stat(st.file_path, follow_symlinks=True)

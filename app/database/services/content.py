@@ -16,6 +16,7 @@ from ..._assets_helpers import compute_relative_filename, normalize_tags
 from ...storage import hashing as hashing_mod
 from ..helpers import (
     ensure_tags_exist,
+    escape_like_prefix,
     remove_missing_tag_for_asset_id,
 )
 from ..models import Asset, AssetCacheState, AssetInfo, AssetInfoTag, Tag
@@ -417,7 +418,8 @@ async def list_unhashed_candidates_under_prefixes(session: AsyncSession, *, pref
         base = os.path.abspath(p)
         if not base.endswith(os.sep):
             base += os.sep
-        conds.append(AssetCacheState.file_path.like(base + "%"))
+        escaped, esc = escape_like_prefix(base)
+        conds.append(AssetCacheState.file_path.like(escaped + "%", escape=esc))
 
     path_filter = sa.or_(*conds) if len(conds) > 1 else conds[0]
     if session.bind.dialect.name == "postgresql":
@@ -450,7 +452,8 @@ async def list_verify_candidates_under_prefixes(
         base = os.path.abspath(p)
         if not base.endswith(os.sep):
             base += os.sep
-        conds.append(AssetCacheState.file_path.like(base + "%"))
+        escaped, esc = escape_like_prefix(base)
+        conds.append(AssetCacheState.file_path.like(escaped + "%", escape=esc))
 
     return (
         await session.execute(
@@ -756,7 +759,8 @@ async def list_cache_states_with_asset_under_prefixes(
         base = os.path.abspath(p)
         if not base.endswith(os.sep):
             base = base + os.sep
-        conds.append(AssetCacheState.file_path.like(base + "%"))
+        escaped, esc = escape_like_prefix(base)
+        conds.append(AssetCacheState.file_path.like(escaped + "%", escape=esc))
 
     if not conds:
         return []
