@@ -42,6 +42,7 @@ import comfy.ldm.wan.model
 import comfy.ldm.hunyuan3d.model
 import comfy.ldm.hidream.model
 import comfy.ldm.chroma.model
+import comfy.ldm.chroma_radiance.model
 import comfy.ldm.ace.model
 import comfy.ldm.omnigen.omnigen2
 import comfy.ldm.higgsv2.model
@@ -1321,8 +1322,8 @@ class HiDream(BaseModel):
         return out
 
 class Chroma(Flux):
-    def __init__(self, model_config, model_type=ModelType.FLUX, device=None):
-        super().__init__(model_config, model_type, device=device, unet_model=comfy.ldm.chroma.model.Chroma)
+    def __init__(self, model_config, model_type=ModelType.FLUX, device=None, unet_model=comfy.ldm.chroma.model.Chroma):
+        super().__init__(model_config, model_type, device=device, unet_model=unet_model)
 
     def extra_conds(self, **kwargs):
         out = super().extra_conds(**kwargs)
@@ -1331,6 +1332,10 @@ class Chroma(Flux):
         if guidance is not None:
             out['guidance'] = comfy.conds.CONDRegular(torch.FloatTensor([guidance]))
         return out
+
+class ChromaRadiance(Chroma):
+    def __init__(self, model_config, model_type=ModelType.FLUX, device=None):
+        super().__init__(model_config, model_type, device=device, unet_model=comfy.ldm.chroma_radiance.model.ChromaRadiance)
 
 class ACEStep(BaseModel):
     def __init__(self, model_config, model_type=ModelType.FLOW, device=None):
@@ -1442,6 +1447,7 @@ class HunyuanImage21Refiner(HunyuanImage21):
     def concat_cond(self, **kwargs):
         noise = kwargs.get("noise", None)
         image = kwargs.get("concat_latent_image", None)
+        noise_augmentation = kwargs.get("noise_augmentation", 0.0)
         device = kwargs["device"]
 
         if image is None:
@@ -1451,6 +1457,13 @@ class HunyuanImage21Refiner(HunyuanImage21):
             image = utils.common_upscale(image.to(device), noise.shape[-1], noise.shape[-2], "bilinear", "center")
             image = self.process_latent_in(image)
             image = utils.resize_to_batch_size(image, noise.shape[0])
+            if noise_augmentation > 0:
+                generator = torch.Generator(device="cpu")
+                generator.manual_seed(kwargs.get("seed", 0) - 10)
+                noise = torch.randn(image.shape, generator=generator, dtype=image.dtype, device="cpu").to(image.device)
+                image = noise_augmentation * noise + min(1.0 - noise_augmentation, 0.75) * image
+            else:
+                image = 0.75 * image
         return image
 
     def extra_conds(self, **kwargs):

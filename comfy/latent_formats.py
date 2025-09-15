@@ -629,3 +629,20 @@ class Hunyuan3Dv2mini(LatentFormat):
 class ACEAudio(LatentFormat):
     latent_channels = 8
     latent_dimensions = 2
+
+class ChromaRadiance(LatentFormat):
+    latent_channels = 3
+
+    def __init__(self):
+        self.latent_rgb_factors = [
+            # R    G    B
+            [ 1.0, 0.0, 0.0 ],
+            [ 0.0, 1.0, 0.0 ],
+            [ 0.0, 0.0, 1.0 ]
+        ]
+
+    def process_in(self, latent):
+        return latent
+
+    def process_out(self, latent):
+        return latent

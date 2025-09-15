@@ -18,6 +18,7 @@ import comfy.ldm.wan.vae2_2
 import comfy.ldm.hunyuan3d.vae
 import comfy.ldm.ace.vae.music_dcae_pipeline
 import comfy.ldm.hunyuan_video.vae
+import comfy.pixel_space_convert
 import yaml
 import math
 import os
@@ -412,9 +413,12 @@ class VAE:
                 self.working_dtypes = [torch.bfloat16, torch.float32]
             elif "decoder.conv_in.conv.weight" in sd and sd['decoder.conv_in.conv.weight'].shape[1] == 32:
                 ddconfig = {"block_out_channels": [128, 256, 512, 1024, 1024], "in_channels": 3, "out_channels": 3, "num_res_blocks": 2, "ffactor_spatial": 16, "ffactor_temporal": 4, "downsample_match_channel": True, "upsample_match_channel": True}
-                self.latent_channels = ddconfig['z_channels'] = sd["decoder.conv_in.conv.weight"].shape[1]
-                self.downscale_ratio = 16
-                self.upscale_ratio = 16
+                ddconfig['z_channels'] = sd["decoder.conv_in.conv.weight"].shape[1]
+                self.latent_channels = 64
+                self.upscale_ratio = (lambda a: max(0, a * 4 - 3), 16, 16)
+                self.upscale_index_formula = (4, 16, 16)
+                self.downscale_ratio = (lambda a: max(0, math.floor((a + 3) / 4)), 16, 16)
+                self.downscale_index_formula = (4, 16, 16)
                 self.latent_dim = 3
                 self.not_video = True
                 self.working_dtypes = [torch.float16, torch.bfloat16, torch.float32]
@@ -513,6 +517,15 @@ class VAE:
                 self.working_dtypes = [torch.bfloat16, torch.float16, torch.float32]
                 self.disable_offload = True
                 self.extra_1d_channel = 16
+            elif "pixel_space_vae" in sd:
+                self.first_stage_model = comfy.pixel_space_convert.PixelspaceConversionVAE()
+                self.memory_used_encode = lambda shape, dtype: (1 * shape[2] * shape[3]) * model_management.dtype_size(dtype)
+                self.memory_used_decode = lambda shape, dtype: (1 * shape[2] * shape[3]) * model_management.dtype_size(dtype)
+                self.downscale_ratio = 1
+                self.upscale_ratio = 1
+                self.latent_channels = 3
+                self.latent_dim = 2
+                self.output_channels = 3
             else:
                 logging.warning("WARNING: No VAE weights detected, VAE not initalized.")
                 self.first_stage_model = None
@@ -684,8 +697,11 @@ class VAE:
         self.throw_exception_if_invalid()
         pixel_samples = self.vae_encode_crop_pixels(pixel_samples)
         pixel_samples = pixel_samples.movedim(-1, 1)
-        if not self.not_video and self.latent_dim == 3 and pixel_samples.ndim < 5:
-            pixel_samples = pixel_samples.movedim(1, 0).unsqueeze(0)
+        if self.latent_dim == 3 and pixel_samples.ndim < 5:
+            if not self.not_video:
+                pixel_samples = pixel_samples.movedim(1, 0).unsqueeze(0)
+            else:
+                pixel_samples = pixel_samples.unsqueeze(2)
         try:
             memory_used = self.memory_used_encode(pixel_samples.shape, self.vae_dtype)
             model_management.load_models_gpu([self.patcher], memory_required=memory_used, force_full_load=self.disable_offload)
@@ -719,7 +735,10 @@ class VAE:
         dims = self.latent_dim
         pixel_samples = pixel_samples.movedim(-1, 1)
         if dims == 3:
-            pixel_samples = pixel_samples.movedim(1, 0).unsqueeze(0)
+            if not self.not_video:
+                pixel_samples = pixel_samples.movedim(1, 0).unsqueeze(0)
+            else:
+                pixel_samples = pixel_samples.unsqueeze(2)
 
         memory_used = self.memory_used_encode(pixel_samples.shape, self.vae_dtype)  # TODO: calculate mem required for tile
         model_management.load_models_gpu([self.patcher], memory_required=memory_used, force_full_load=self.disable_offload)
@@ -775,6 +794,7 @@ class VAE:
             return round(self.upscale_ratio[0](8192) / 8192)
         except:
             return None
+
 
 class StyleModel:
     def __init__(self, model, device="cpu"):
