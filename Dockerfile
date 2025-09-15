@@ -2,7 +2,7 @@ FROM nvcr.io/nvidia/pytorch:25.03-py3
 
 ENV TZ="Etc/UTC"
 
-ENV PYTORCH_CUDA_ALLOC_CONF="backend:cudaMallocAsync"
+ENV PYTORCH_CUDA_ALLOC_CONF="backend:cudaMallocAsync,expandable_segments:True"
 ENV UV_COMPILE_BYTECODE=1
 ENV UV_NO_CACHE=1
 ENV UV_SYSTEM_PYTHON=1
@@ -56,7 +56,8 @@ EOF
 ADD . /workspace/src
 ARG SOURCES="comfyui[attention,comfyui_manager]@./src"
 # this builds from github
-#ARG SOURCES="comfyui[attention,comfyui_manager]@git+https://github.com/hiddenswitch/ComfyUI.git"
+# useful if you are copying and pasted in order to customize this
+# ARG SOURCES="comfyui[attention,comfyui_manager]@git+https://github.com/hiddenswitch/ComfyUI.git"
 ENV SOURCES=$SOURCES
 
 RUN uv pip install $SOURCES
@@ -64,8 +65,8 @@ RUN uv pip install $SOURCES
 WORKDIR /workspace
 # addresses https://github.com/pytorch/pytorch/issues/104801
 # and issues reported by importing nodes_canny
-RUN python -c "import torch; import xformers; import sageattention; import cv2"
-RUN comfyui --quick-test-for-ci --cpu --cwd /workspace
+# smoke test
+RUN python -c "import torch; import xformers; import sageattention; import cv2" && comfyui --quick-test-for-ci --cpu --cwd /workspace
 
 EXPOSE 8188
 CMD ["python", "-m", "comfy.cmd.main", "--listen", "--use-sage-attention", "--reserve-vram=0", "--logging-level=INFO", "--enable-cors"]
