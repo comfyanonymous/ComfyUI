@@ -87,6 +87,7 @@ async def ensure_seed_for_path(
             state_row.needs_verify = True
             if asset_row.size_bytes == 0 and size_bytes > 0:
                 asset_row.size_bytes = int(size_bytes)
+            await session.flush()
         return asset_row.id
 
     asset = Asset(hash=None, size_bytes=int(size_bytes), mime_type=None, created_at=now)
