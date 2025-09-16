@@ -23,6 +23,7 @@ from .api import schemas_in, schemas_out
 from .database.db import create_session
 from .database.helpers import (
     add_missing_tag_for_asset_id,
+    ensure_tags_exist,
     escape_like_prefix,
     fast_asset_file_check,
     remove_missing_tag_for_asset_id,
@@ -118,38 +119,52 @@ async def sync_seed_assets(roots: list[schemas_in.RootType]) -> None:
         if "output" in roots:
             paths.extend(list_tree(folder_paths.get_output_directory()))
 
+        new_specs: list[tuple[str, int, int, str, list[str]]] = []
+        tag_pool: set[str] = set()
+        for p in paths:
+            ap = os.path.abspath(p)
+            if ap in existing_paths:
+                skipped_existing += 1
+                continue
+            try:
+                st = os.stat(p, follow_symlinks=True)
+            except OSError:
+                continue
+            if not int(st.st_size or 0):
+                continue
+            name, tags = get_name_and_tags_from_asset_path(ap)
+            new_specs.append((
+                ap,
+                int(st.st_size),
+                getattr(st, "st_mtime_ns", int(st.st_mtime * 1_000_000_000)),
+                name,
+                tags,
+            ))
+            for t in tags:
+                tag_pool.add(t)
+
         async with await create_session() as sess:
-            for p in paths:
-                try:
-                    if os.path.abspath(p) in existing_paths:
-                        skipped_existing += 1
-                        continue
-                    st = os.stat(p, follow_symlinks=True)
-                    if not int(st.st_size or 0):
-                        continue
-                    size_bytes = int(st.st_size)
-                    mtime_ns = getattr(st, "st_mtime_ns", int(st.st_mtime * 1_000_000_000))
-                    name, tags = get_name_and_tags_from_asset_path(p)
+            if tag_pool:
+                await ensure_tags_exist(sess, tag_pool, tag_type="user")
+            for ap, sz, mt, name, tags in new_specs:
+                await ensure_seed_for_path(
+                    sess,
+                    abs_path=ap,
+                    size_bytes=sz,
+                    mtime_ns=mt,
+                    info_name=name,
+                    tags=tags,
+                    owner_id="",
+                    skip_tag_ensure=True,
+                )
 
-                    await ensure_seed_for_path(
-                        sess,
-                        abs_path=p,
-                        size_bytes=size_bytes,
-                        mtime_ns=mtime_ns,
-                        info_name=name,
-                        tags=tags,
-                        owner_id="",
-                    )
-
-                    created += 1
-                    if created % 500 == 0:
-                        await sess.commit()
-                except OSError:
-                    continue
+                created += 1
+                if created % 500 == 0:
+                    await sess.commit()
             await sess.commit()
     finally:
         LOGGER.info(
-            "Assets scan(roots=%s) completed in %.3f s (created=%d, skipped_existing=%d, total_seen=%d)",
+            "Assets scan(roots=%s) completed in %.3fs (created=%d, skipped_existing=%d, total_seen=%d)",
             roots,
             time.perf_counter() - t_total,
             created,

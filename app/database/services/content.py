@@ -65,6 +65,7 @@ async def ensure_seed_for_path(
     info_name: str,
     tags: Sequence[str],
     owner_id: str = "",
+    skip_tag_ensure: bool = False,
 ) -> str:
     """Ensure: Asset(hash=NULL), AssetCacheState(file_path), and AssetInfo exist for the path. Returns asset_id."""
     locator = os.path.abspath(abs_path)
@@ -81,20 +82,20 @@ async def ensure_seed_for_path(
     if state:
         state_row: AssetCacheState = state[0]
         asset_row: Asset = state[1]
-        changed = state_row.mtime_ns is None or int(state_row.mtime_ns) != int(mtime_ns)
+        changed = state_row.mtime_ns is None or int(state_row.mtime_ns) != mtime_ns
         if changed:
-            state_row.mtime_ns = int(mtime_ns)
+            state_row.mtime_ns = mtime_ns
             state_row.needs_verify = True
             if asset_row.size_bytes == 0 and size_bytes > 0:
-                asset_row.size_bytes = int(size_bytes)
+                asset_row.size_bytes = size_bytes
             await session.flush()
         return asset_row.id
 
-    asset = Asset(hash=None, size_bytes=int(size_bytes), mime_type=None, created_at=now)
+    asset = Asset(hash=None, size_bytes=size_bytes, mime_type=None, created_at=now)
     session.add(asset)
     await session.flush()  # to get id
 
-    cs = AssetCacheState(asset_id=asset.id, file_path=locator, mtime_ns=int(mtime_ns), needs_verify=False)
+    cs = AssetCacheState(asset_id=asset.id, file_path=locator, mtime_ns=mtime_ns, needs_verify=False)
     session.add(cs)
 
     info = AssetInfo(
@@ -120,12 +121,12 @@ async def ensure_seed_for_path(
 
     want = normalize_tags(tags)
     if want:
-        await ensure_tags_exist(session, want, tag_type="user")
+        if not skip_tag_ensure:
+            await ensure_tags_exist(session, want, tag_type="user")
         session.add_all([
             AssetInfoTag(asset_info_id=info.id, tag_name=t, origin="automatic", added_at=now)
             for t in want
         ])
-
     await session.flush()
     return asset.id
 
