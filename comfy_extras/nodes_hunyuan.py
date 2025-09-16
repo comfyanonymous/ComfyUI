@@ -1,9 +1,9 @@
-from numpy import arccos
 import nodes
 import node_helpers
 import torch
 import re
 import comfy.model_management
+import comfy.patcher_extension
 
 
 class CLIPTextEncodeHunyuanDiT:
@@ -137,10 +137,6 @@ class HunyuanMixModeAPG:
     CATEGORY = "sampling/custom_sampling/hunyuan"
 
 
-    @classmethod
-    def IS_CHANGED(cls, model):
-        return True
-
     def apply_mix_mode_apg(self, model,  has_quoted_text, guidance_scale, general_eta, general_norm_threshold, general_momentum, general_start_step,
                           ocr_eta, ocr_norm_threshold, ocr_momentum, ocr_start_step):
 
@@ -157,7 +153,13 @@ class HunyuanMixModeAPG:
             adaptive_projected_guidance_momentum=ocr_momentum
         )
 
-        current_step = {"step": 0}
+        m = model.clone()
+        step_tracker = {"step": 0}
+
+        def hunyuan_apg_outer_sample_wrapper(executor, *args, **kwargs):
+            step_tracker['step'] = 0
+            return executor(*args, **kwargs)
+
 
         def cfg_function(args):
             sigma = args["sigma"].to(torch.float32)
@@ -165,8 +167,8 @@ class HunyuanMixModeAPG:
             uncond = args["uncond"]
             cond_scale = args["cond_scale"]
 
-            step = current_step["step"]
-            current_step["step"] += 1
+            step = step_tracker['step']
+            step_tracker['step'] += 1
 
             if not has_quoted_text:
                 if step >= general_start_step:
@@ -187,8 +189,7 @@ class HunyuanMixModeAPG:
 
             return cond
 
-
-        m = model.clone()
+        m.add_wrapper_with_key(comfy.patcher_extension.WrappersMP.OUTER_SAMPLE, "hunyuan_apg", hunyuan_apg_outer_sample_wrapper)
         m.set_model_sampler_cfg_function(cfg_function, disable_cfg1_optimization=True)
         return (m,)
 
