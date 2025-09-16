@@ -24,6 +24,7 @@ from .database.db import create_session
 from .database.helpers import (
     add_missing_tag_for_asset_id,
     escape_like_prefix,
+    fast_asset_file_check,
     remove_missing_tag_for_asset_id,
 )
 from .database.models import Asset, AssetCacheState, AssetInfo
@@ -194,6 +195,7 @@ async def _refresh_verify_flags_for_root(root: schemas_in.RootType) -> None:
                     AssetCacheState.mtime_ns,
                     AssetCacheState.needs_verify,
                     Asset.hash,
+                    Asset.size_bytes,
                     AssetCacheState.file_path,
                 )
                 .join(Asset, Asset.id == AssetCacheState.asset_id)
@@ -203,22 +205,18 @@ async def _refresh_verify_flags_for_root(root: schemas_in.RootType) -> None:
 
         to_set = []
         to_clear = []
-        for sid, mtime_db, needs_verify, a_hash, fp in rows:
+        for sid, mtime_db, needs_verify, a_hash, size_db, fp in rows:
             try:
                 st = os.stat(fp, follow_symlinks=True)
             except OSError:
-                # Missing files are handled by missing-tag reconciliation later.
-                continue
+                continue  # Missing files are handled by missing-tag reconciliation later.
 
-            actual_mtime_ns = getattr(st, "st_mtime_ns", int(st.st_mtime * 1_000_000_000))
             if a_hash is not None:
-                if mtime_db is None or int(mtime_db) != int(actual_mtime_ns):
-                    if not needs_verify:
-                        to_set.append(sid)
-                else:
+                if fast_asset_file_check(mtime_db=mtime_db, size_db=size_db, stat_result=st):
                     if needs_verify:
                         to_clear.append(sid)
-
+                elif not needs_verify:
+                    to_set.append(sid)
         if to_set:
             await sess.execute(
                 sa.update(AssetCacheState)
@@ -306,15 +304,10 @@ async def _reconcile_missing_tags_for_root(root: schemas_in.RootType, prog: Scan
                     acc = {"any_fast_ok_here": False, "hashed": (a_hash is not None), "size_db": int(size_db or 0)}
                     by_asset[aid] = acc
                 try:
-                    st = os.stat(state.file_path, follow_symlinks=True)
-                    actual_mtime_ns = getattr(st, "st_mtime_ns", int(st.st_mtime * 1_000_000_000))
-                    fast_ok = False
                     if acc["hashed"]:
-                        if state.mtime_ns is not None and int(state.mtime_ns) == int(actual_mtime_ns):
-                            if int(acc["size_db"]) > 0 and int(st.st_size) == int(acc["size_db"]):
-                                fast_ok = True
-                    if fast_ok:
-                        acc["any_fast_ok_here"] = True
+                        st = os.stat(state.file_path, follow_symlinks=True)
+                        if fast_asset_file_check(mtime_db=state.mtime_ns, size_db=acc["size_db"], stat_result=st):
+                            acc["any_fast_ok_here"] = True
                 except FileNotFoundError:
                     pass
                 except OSError as e:
@@ -333,12 +326,11 @@ async def _reconcile_missing_tags_for_root(root: schemas_in.RootType, prog: Scan
                         others = await list_cache_states_by_asset_id(sess, asset_id=aid)
                         for st in others:
                             try:
-                                s = os.stat(st.file_path, follow_symlinks=True)
-                                actual_mtime_ns = getattr(s, "st_mtime_ns", int(s.st_mtime * 1_000_000_000))
-                                if st.mtime_ns is not None and int(st.mtime_ns) == int(actual_mtime_ns):
-                                    if acc["size_db"] > 0 and int(s.st_size) == acc["size_db"]:
-                                        any_fast_ok_global = True
-                                        break
+                                any_fast_ok_global = fast_asset_file_check(
+                                    mtime_db=st.mtime_ns,
+                                    size_db=acc["size_db"],
+                                    stat_result=os.stat(st.file_path, follow_symlinks=True),
+                                )
                             except OSError:
                                 continue
 
@@ -459,12 +451,12 @@ async def _fast_db_consistency_pass(root: schemas_in.RootType) -> None:
 
             fast_ok = False
             try:
-                s = os.stat(st.file_path, follow_symlinks=True)
+                fast_ok = fast_asset_file_check(
+                    mtime_db=st.mtime_ns,
+                    size_db=acc["size_db"],
+                    stat_result=os.stat(st.file_path, follow_symlinks=True),
+                )
                 exists = True
-                actual_mtime_ns = getattr(s, "st_mtime_ns", int(s.st_mtime * 1_000_000_000))
-                if st.mtime_ns is not None and int(st.mtime_ns) == int(actual_mtime_ns):
-                    if acc["size_db"] == 0 or int(s.st_size) == acc["size_db"]:
-                        fast_ok = True
             except FileNotFoundError:
                 exists = False
             except OSError as ex:
@@ -474,6 +466,7 @@ async def _fast_db_consistency_pass(root: schemas_in.RootType) -> None:
             acc["states"].append({"obj": st, "exists": exists, "fast_ok": fast_ok})
 
         # Apply actions
+        to_set_verify: list[int] = []
         for aid, acc in by_asset.items():
             a_hash = acc["hash"]
             states = acc["states"]
@@ -500,6 +493,15 @@ async def _fast_db_consistency_pass(root: schemas_in.RootType) -> None:
                 else:
                     with contextlib.suppress(Exception):
                         await add_missing_tag_for_asset_id(sess, asset_id=aid, origin="automatic")
-
+                for s in states:
+                    if s["exists"] and not s["fast_ok"]:
+                        to_set_verify.append(s["obj"].id)
+        await sess.flush()
+        if to_set_verify:
+            await sess.execute(
+                sa.update(AssetCacheState)
+                .where(AssetCacheState.id.in_(to_set_verify))
+                .values(needs_verify=True)
+            )
         await sess.flush()
         await sess.commit()
