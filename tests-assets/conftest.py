@@ -272,7 +272,7 @@ async def autoclean_unit_test_assets(http: aiohttp.ClientSession, api_base: str)
 
 async def trigger_sync_seed_assets(session: aiohttp.ClientSession, base_url: str) -> None:
     """Force a fast sync/seed pass by calling the ComfyUI '/object_info' endpoint."""
-    async with session.get(base_url + "/object_info") as r:
+    async with session.post(base_url + "/api/assets/scan/seed", json={"roots": ["models", "input", "output"]}) as r:
         await r.read()
     await asyncio.sleep(0.1)  # tiny yield to the event loop to let any final DB commits flush
 

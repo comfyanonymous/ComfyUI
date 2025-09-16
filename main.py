@@ -283,7 +283,7 @@ async def setup_database():
 
     await init_db_engine()
     if not args.disable_assets_autoscan:
-        await sync_seed_assets(["models", "input", "output"])
+        await sync_seed_assets(["models"])
 
 
 def start_comfyui(asyncio_loop=None):
