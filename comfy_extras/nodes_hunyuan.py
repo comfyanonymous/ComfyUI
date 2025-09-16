@@ -117,17 +117,17 @@ class HunyuanMixModeAPG:
                 "model": ("MODEL", ),
                 "has_quoted_text": ("HAS_QUOTED_TEXT", ),
 
-                "guidance_scale": ("FLOAT", {"default": 9.0, "min": 1.0, "max": 30.0, "step": 0.1}),
+                "guidance_scale": ("FLOAT", {"default": 10.0, "min": 1.0, "max": 30.0, "step": 0.1}),
 
                 "general_eta": ("FLOAT", {"default": 0.0, "min": -10.0, "max": 10.0, "step": 0.01}),
                 "general_norm_threshold": ("FLOAT", {"default": 10.0, "min": 0.0, "max": 50.0, "step": 0.1}),
                 "general_momentum": ("FLOAT", {"default": -0.5, "min": -5.0, "max": 1.0, "step": 0.01}),
-                "general_start_step": ("INT", {"default": 10, "min": -1, "max": 1000}),
+                "general_start_step": ("INT", {"default": 5, "min": -1, "max": 1000}),
 
                 "ocr_eta": ("FLOAT", {"default": 0.0, "min": -10.0, "max": 10.0, "step": 0.01}),
                 "ocr_norm_threshold": ("FLOAT", {"default": 10.0, "min": 0.0, "max": 50.0, "step": 0.1}),
                 "ocr_momentum": ("FLOAT", {"default": -0.5, "min": -5.0, "max": 1.0, "step": 0.01}),
-                "ocr_start_step": ("INT", {"default": 75, "min": -1, "max": 1000}),
+                "ocr_start_step": ("INT", {"default": 38, "min": -1, "max": 1000}),
 
             }
         }
@@ -160,6 +160,7 @@ class HunyuanMixModeAPG:
         current_step = {"step": 0}
 
         def cfg_function(args):
+            sigma = args["sigma"].to(torch.float32)
             cond = args["cond"]
             uncond = args["uncond"]
             cond_scale = args["cond_scale"]
@@ -168,20 +169,20 @@ class HunyuanMixModeAPG:
             current_step["step"] += 1
 
             if not has_quoted_text:
-                if step > general_start_step:
-                    modified_cond = general_apg(cond, uncond, step).to(torch.bfloat16)
-                    return modified_cond
+                if step >= general_start_step:
+                    modified_cond = general_apg(cond / sigma, uncond / sigma, step)
+                    return modified_cond * sigma
                 else:
                     if cond_scale > 1:
-                        _ = general_apg(cond, uncond, step) # track momentum
+                        _ = general_apg(cond / sigma, uncond / sigma, step) # track momentum
                         return uncond + (cond - uncond) * cond_scale
             else:
-                if step > ocr_start_step:
-                    modified_cond = ocr_apg(cond, uncond, step)
-                    return modified_cond
+                if step >= ocr_start_step:
+                    modified_cond = ocr_apg(cond / sigma, uncond / sigma, step)
+                    return modified_cond * sigma
                 else:
                     if cond_scale > 1:
-                        _ = ocr_apg(cond, uncond, step)
+                        _ = ocr_apg(cond / sigma, uncond / sigma, step) # track momentum
                         return uncond + (cond - uncond) * cond_scale
 
             return cond
