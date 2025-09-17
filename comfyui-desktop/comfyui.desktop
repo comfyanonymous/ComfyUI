@@ -1,0 +1,7 @@
+[Desktop Entry]
+Name=ComfyUI
+Exec="/opt/comfyui/run.sh"
+Type=Application
+Terminal=true
+Icon=/opt/comfyui/comfyui.png
+Categories=Utility;
