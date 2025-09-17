@@ -1,7 +1,6 @@
 import contextlib
 import logging
 import os
-import uuid
 from datetime import datetime
 from typing import Any, Optional, Sequence, Union
 
@@ -13,7 +12,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import noload
 
-from ..._assets_helpers import compute_relative_filename, normalize_tags
+from ..._assets_helpers import compute_relative_filename
 from ...storage import hashing as hashing_mod
 from ..helpers import (
     ensure_tags_exist,
@@ -56,128 +55,6 @@ async def check_fs_asset_exists_quick(
     if conds:
         stmt = stmt.where(*conds)
     return (await session.execute(stmt)).first() is not None
-
-
-async def seed_from_path(
-    session: AsyncSession,
-    *,
-    abs_path: str,
-    size_bytes: int,
-    mtime_ns: int,
-    info_name: str,
-    tags: Sequence[str],
-    owner_id: str = "",
-    collected_tag_rows: list[dict],
-    collected_meta_rows: list[dict],
-) -> None:
-    """Creates Asset(hash=NULL), AssetCacheState(file_path), and AssetInfo exist for the path."""
-    locator = os.path.abspath(abs_path)
-    now = utcnow()
-    dialect = session.bind.dialect.name
-
-    new_asset_id = str(uuid.uuid4())
-    new_info_id = str(uuid.uuid4())
-
-    # 1) Insert Asset (hash=NULL) – no conflict expected
-    asset_vals = {
-        "id": new_asset_id,
-        "hash": None,
-        "size_bytes": size_bytes,
-        "mime_type": None,
-        "created_at": now,
-    }
-    if dialect == "sqlite":
-        await session.execute(d_sqlite.insert(Asset).values(**asset_vals))
-    elif dialect == "postgresql":
-        await session.execute(d_pg.insert(Asset).values(**asset_vals))
-    else:
-        raise NotImplementedError(f"Unsupported database dialect: {dialect}")
-
-    # 2) Try to claim file_path in AssetCacheState. Our concurrency gate.
-    acs_vals = {
-        "asset_id": new_asset_id,
-        "file_path": locator,
-        "mtime_ns": mtime_ns,
-    }
-    if dialect == "sqlite":
-        ins_state = (
-            d_sqlite.insert(AssetCacheState)
-            .values(**acs_vals)
-            .on_conflict_do_nothing(index_elements=[AssetCacheState.file_path])
-        )
-        state_inserted = int((await session.execute(ins_state)).rowcount or 0) > 0
-    else:
-        ins_state = (
-            d_pg.insert(AssetCacheState)
-            .values(**acs_vals)
-            .on_conflict_do_nothing(index_elements=[AssetCacheState.file_path])
-            .returning(AssetCacheState.id)
-        )
-        state_inserted = (await session.execute(ins_state)).scalar_one_or_none() is not None
-
-    if not state_inserted:
-        # Lost the race - clean up our orphan seed Asset and exit
-        with contextlib.suppress(Exception):
-            await session.execute(sa.delete(Asset).where(Asset.id == new_asset_id))
-        return
-
-    # 3) Create AssetInfo (unique(asset_id, owner_id, name)).
-    fname = compute_relative_filename(locator)
-
-    info_vals = {
-        "id": new_info_id,
-        "owner_id": owner_id,
-        "name": info_name,
-        "asset_id": new_asset_id,
-        "preview_id": None,
-        "user_metadata": {"filename": fname} if fname else None,
-        "created_at": now,
-        "updated_at": now,
-        "last_access_time": now,
-    }
-    if dialect == "sqlite":
-        ins_info = (
-            d_sqlite.insert(AssetInfo)
-            .values(**info_vals)
-            .on_conflict_do_nothing(index_elements=[AssetInfo.asset_id, AssetInfo.owner_id, AssetInfo.name])
-        )
-        info_inserted = int((await session.execute(ins_info)).rowcount or 0) > 0
-    else:
-        ins_info = (
-            d_pg.insert(AssetInfo)
-            .values(**info_vals)
-            .on_conflict_do_nothing(index_elements=[AssetInfo.asset_id, AssetInfo.owner_id, AssetInfo.name])
-            .returning(AssetInfo.id)
-        )
-        info_inserted = (await session.execute(ins_info)).scalar_one_or_none() is not None
-
-    # 4) If we actually inserted AssetInfo, attach tags and filename.
-    if info_inserted:
-        want = normalize_tags(tags)
-        if want:
-            tag_rows = [
-                {
-                    "asset_info_id": new_info_id,
-                    "tag_name": t,
-                    "origin": "automatic",
-                    "added_at": now,
-                }
-                for t in want
-            ]
-            collected_tag_rows.extend(tag_rows)
-
-        if fname:  # simple filename projection with single row
-            collected_meta_rows.append(
-                {
-                    "asset_info_id": new_info_id,
-                    "key": "filename",
-                    "ordinal": 0,
-                    "val_str": fname,
-                    "val_num": None,
-                    "val_bool": None,
-                    "val_json": None,
-                }
-            )
 
 
 async def redirect_all_references_then_delete_asset(

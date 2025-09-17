@@ -12,6 +12,7 @@ import folder_paths
 
 from ._assets_helpers import (
     collect_models_files,
+    compute_relative_filename,
     get_comfy_models_folders,
     get_name_and_tags_from_asset_path,
     list_tree,
@@ -26,9 +27,8 @@ from .database.helpers import (
     ensure_tags_exist,
     escape_like_prefix,
     fast_asset_file_check,
-    insert_meta_from_batch,
-    insert_tags_from_batch,
     remove_missing_tag_for_asset_id,
+    seed_from_paths_batch,
 )
 from .database.models import Asset, AssetCacheState, AssetInfo
 from .database.services import (
@@ -37,7 +37,6 @@ from .database.services import (
     list_cache_states_with_asset_under_prefixes,
     list_unhashed_candidates_under_prefixes,
     list_verify_candidates_under_prefixes,
-    seed_from_path,
 )
 
 LOGGER = logging.getLogger(__name__)
@@ -121,7 +120,7 @@ async def sync_seed_assets(roots: list[schemas_in.RootType]) -> None:
         if "output" in roots:
             paths.extend(list_tree(folder_paths.get_output_directory()))
 
-        new_specs: list[tuple[str, int, int, str, list[str]]] = []
+        specs: list[dict] = []
         tag_pool: set[str] = set()
         for p in paths:
             ap = os.path.abspath(p)
@@ -129,54 +128,33 @@ async def sync_seed_assets(roots: list[schemas_in.RootType]) -> None:
                 skipped_existing += 1
                 continue
             try:
-                st = os.stat(p, follow_symlinks=True)
+                st = os.stat(ap, follow_symlinks=True)
             except OSError:
                 continue
-            if not int(st.st_size or 0):
+            if not st.st_size:
                 continue
             name, tags = get_name_and_tags_from_asset_path(ap)
-            new_specs.append((
-                ap,
-                int(st.st_size),
-                getattr(st, "st_mtime_ns", int(st.st_mtime * 1_000_000_000)),
-                name,
-                tags,
-            ))
+            specs.append(
+                {
+                    "abs_path": ap,
+                    "size_bytes": st.st_size,
+                    "mtime_ns": getattr(st, "st_mtime_ns", int(st.st_mtime * 1_000_000_000)),
+                    "info_name": name,
+                    "tags": tags,
+                    "fname": compute_relative_filename(ap),
+                }
+            )
             for t in tags:
                 tag_pool.add(t)
 
+        if not specs:
+            return
         async with await create_session() as sess:
             if tag_pool:
                 await ensure_tags_exist(sess, tag_pool, tag_type="user")
 
-            pending_tag_links: list[dict] = []
-            pending_meta_rows: list[dict] = []
-            for ap, sz, mt, name, tags in new_specs:
-                await seed_from_path(
-                    sess,
-                    abs_path=ap,
-                    size_bytes=sz,
-                    mtime_ns=mt,
-                    info_name=name,
-                    tags=tags,
-                    owner_id="",
-                    collected_tag_rows=pending_tag_links,
-                    collected_meta_rows=pending_meta_rows,
-                )
-
-                created += 1
-                if created % 500 == 0:
-                    if pending_tag_links:
-                        await insert_tags_from_batch(sess, tag_rows=pending_tag_links)
-                        pending_tag_links.clear()
-                    if pending_meta_rows:
-                        await insert_meta_from_batch(sess, rows=pending_meta_rows)
-                        pending_meta_rows.clear()
-                    await sess.commit()
-            if pending_tag_links:
-                await insert_tags_from_batch(sess, tag_rows=pending_tag_links)
-            if pending_meta_rows:
-                await insert_meta_from_batch(sess, rows=pending_meta_rows)
+            result = await seed_from_paths_batch(sess, specs=specs, owner_id="")
+            created += result["inserted_infos"]
             await sess.commit()
     finally:
         LOGGER.info(

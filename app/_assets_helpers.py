@@ -97,7 +97,7 @@ def get_name_and_tags_from_asset_path(file_path: str) -> tuple[str, list[str]]:
     root_category, some_path = get_relative_to_root_category_path_of_asset(file_path)
     p = Path(some_path)
     parent_parts = [part for part in p.parent.parts if part not in (".", "..", p.anchor)]
-    return p.name, normalize_tags([root_category, *parent_parts])
+    return p.name, list(dict.fromkeys(normalize_tags([root_category, *parent_parts])))
 
 
 def normalize_tags(tags: Optional[Sequence[str]]) -> list[str]:

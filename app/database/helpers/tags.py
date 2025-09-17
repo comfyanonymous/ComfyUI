@@ -88,21 +88,3 @@ async def remove_missing_tag_for_asset_id(
             AssetInfoTag.tag_name == "missing",
         )
     )
-
-
-async def insert_tags_from_batch(session: AsyncSession, *, tag_rows: list[dict]) -> None:
-    if session.bind.dialect.name == "sqlite":
-        ins_links = (
-            d_sqlite.insert(AssetInfoTag)
-            .values(tag_rows)
-            .on_conflict_do_nothing(index_elements=[AssetInfoTag.asset_info_id, AssetInfoTag.tag_name])
-        )
-    elif session.bind.dialect.name == "postgresql":
-        ins_links = (
-            d_pg.insert(AssetInfoTag)
-            .values(tag_rows)
-            .on_conflict_do_nothing(index_elements=[AssetInfoTag.asset_info_id, AssetInfoTag.tag_name])
-        )
-    else:
-        raise NotImplementedError(f"Unsupported database dialect: {session.bind.dialect.name}")
-    await session.execute(ins_links)
