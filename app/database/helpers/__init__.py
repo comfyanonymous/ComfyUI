@@ -1,6 +1,7 @@
 from .escape_like import escape_like_prefix
 from .fast_check import fast_asset_file_check
 from .filters import apply_metadata_filter, apply_tag_filters
+from .meta import insert_meta_from_batch
 from .ownership import visible_owner_clause
 from .projection import is_scalar, project_kv
 from .tags import (
@@ -20,6 +21,7 @@ __all__ = [
     "ensure_tags_exist",
     "add_missing_tag_for_asset_id",
     "remove_missing_tag_for_asset_id",
+    "insert_meta_from_batch",
     "insert_tags_from_batch",
     "visible_owner_clause",
 ]

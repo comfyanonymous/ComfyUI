@@ -26,6 +26,7 @@ from .database.helpers import (
     ensure_tags_exist,
     escape_like_prefix,
     fast_asset_file_check,
+    insert_meta_from_batch,
     insert_tags_from_batch,
     remove_missing_tag_for_asset_id,
 )
@@ -149,6 +150,7 @@ async def sync_seed_assets(roots: list[schemas_in.RootType]) -> None:
                 await ensure_tags_exist(sess, tag_pool, tag_type="user")
 
             pending_tag_links: list[dict] = []
+            pending_meta_rows: list[dict] = []
             for ap, sz, mt, name, tags in new_specs:
                 await seed_from_path(
                     sess,
@@ -159,6 +161,7 @@ async def sync_seed_assets(roots: list[schemas_in.RootType]) -> None:
                     tags=tags,
                     owner_id="",
                     collected_tag_rows=pending_tag_links,
+                    collected_meta_rows=pending_meta_rows,
                 )
 
                 created += 1
@@ -166,9 +169,14 @@ async def sync_seed_assets(roots: list[schemas_in.RootType]) -> None:
                     if pending_tag_links:
                         await insert_tags_from_batch(sess, tag_rows=pending_tag_links)
                         pending_tag_links.clear()
+                    if pending_meta_rows:
+                        await insert_meta_from_batch(sess, rows=pending_meta_rows)
+                        pending_meta_rows.clear()
                     await sess.commit()
             if pending_tag_links:
                 await insert_tags_from_batch(sess, tag_rows=pending_tag_links)
+            if pending_meta_rows:
+                await insert_meta_from_batch(sess, rows=pending_meta_rows)
             await sess.commit()
     finally:
         LOGGER.info(

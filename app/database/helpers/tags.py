@@ -97,10 +97,12 @@ async def insert_tags_from_batch(session: AsyncSession, *, tag_rows: list[dict])
             .values(tag_rows)
             .on_conflict_do_nothing(index_elements=[AssetInfoTag.asset_info_id, AssetInfoTag.tag_name])
         )
-    else:
+    elif session.bind.dialect.name == "postgresql":
         ins_links = (
             d_pg.insert(AssetInfoTag)
             .values(tag_rows)
             .on_conflict_do_nothing(index_elements=[AssetInfoTag.asset_info_id, AssetInfoTag.tag_name])
         )
+    else:
+        raise NotImplementedError(f"Unsupported database dialect: {session.bind.dialect.name}")
     await session.execute(ins_links)

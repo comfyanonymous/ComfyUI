@@ -20,7 +20,7 @@ from ..helpers import (
     escape_like_prefix,
     remove_missing_tag_for_asset_id,
 )
-from ..models import Asset, AssetCacheState, AssetInfo, AssetInfoMeta, AssetInfoTag, Tag
+from ..models import Asset, AssetCacheState, AssetInfo, AssetInfoTag, Tag
 from ..timeutil import utcnow
 from .info import replace_asset_info_metadata_projection
 from .queries import list_cache_states_by_asset_id, pick_best_live_path
@@ -68,6 +68,7 @@ async def seed_from_path(
     tags: Sequence[str],
     owner_id: str = "",
     collected_tag_rows: list[dict],
+    collected_meta_rows: list[dict],
 ) -> None:
     """Creates Asset(hash=NULL), AssetCacheState(file_path), and AssetInfo exist for the path."""
     locator = os.path.abspath(abs_path)
@@ -166,19 +167,17 @@ async def seed_from_path(
             collected_tag_rows.extend(tag_rows)
 
         if fname:  # simple filename projection with single row
-            meta_row = {
-                "asset_info_id": new_info_id,
-                "key": "filename",
-                "ordinal": 0,
-                "val_str": fname,
-                "val_num": None,
-                "val_bool": None,
-                "val_json": None,
-            }
-            if dialect == "sqlite":
-                await session.execute(d_sqlite.insert(AssetInfoMeta).values(**meta_row))
-            else:
-                await session.execute(d_pg.insert(AssetInfoMeta).values(**meta_row))
+            collected_meta_rows.append(
+                {
+                    "asset_info_id": new_info_id,
+                    "key": "filename",
+                    "ordinal": 0,
+                    "val_str": fname,
+                    "val_num": None,
+                    "val_bool": None,
+                    "val_json": None,
+                }
+            )
 
 
 async def redirect_all_references_then_delete_asset(
