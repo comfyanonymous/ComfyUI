@@ -9,7 +9,7 @@ from PIL import Image
 from tqdm import tqdm
 from typing_extensions import override
 
-from comfy.component_model.executor_types import ExecutorToClientProgress
+from comfy.component_model.executor_types import ExecutorToClientProgress, PreviewImageWithMetadataMessage
 from comfy.component_model.module_property import create_module_properties
 from comfy.execution_context import current_execution_context
 from comfy.progress_types import AbstractProgressRegistry, PreviewImageMetadata
@@ -232,9 +232,10 @@ class WebUIProgressHandler(ProgressHandler):
                     ),
                     "real_node_id": self.registry.dynprompt.get_real_node_id(node_id),
                 }
+                message: PreviewImageWithMetadataMessage = (image, metadata)
                 self.server_instance.send_sync(
                     BinaryEventTypes.PREVIEW_IMAGE_WITH_METADATA,
-                    (image, metadata),
+                    message,
                     self.server_instance.client_id,
                 )
 

@@ -49,7 +49,7 @@ from ..cmd import folder_paths
 from ..component_model.abstract_prompt_queue import AbstractPromptQueue, AsyncAbstractPromptQueue
 from ..component_model.encode_text_for_progress import encode_text_for_progress
 from ..component_model.executor_types import ExecutorToClientProgress, StatusMessage, QueueInfo, ExecInfo, \
-    UnencodedPreviewImageMessage
+    UnencodedPreviewImageMessage, PreviewImageWithMetadataMessage
 from ..component_model.file_output_path import file_output_path
 from ..component_model.queue_types import QueueItem, HistoryEntry, BinaryEventTypes, TaskInvocation, ExecutionError, \
     ExecutionStatus
@@ -1095,11 +1095,12 @@ class PromptServer(ExecutorToClientProgress):
         prompt_info['exec_info'] = exec_info
         return prompt_info
 
-    async def send(self, event, data: UnencodedPreviewImageMessage | tuple[UnencodedPreviewImageMessage, PreviewImageMetadata] | bytes | bytearray | dict, sid=None):
+    async def send(self, event, data: UnencodedPreviewImageMessage | PreviewImageWithMetadataMessage | bytes | bytearray | dict, sid=None):
         if event == BinaryEventTypes.UNENCODED_PREVIEW_IMAGE:
             await self.send_image(data, sid=sid)
         elif event == BinaryEventTypes.PREVIEW_IMAGE_WITH_METADATA:
             # data is (preview_image, metadata)
+            data: PreviewImageWithMetadataMessage
             preview_image, metadata = data
             await self.send_image_with_metadata(preview_image, metadata, sid=sid)
         elif isinstance(data, (bytes, bytearray)):
@@ -1131,9 +1132,13 @@ class PromptServer(ExecutorToClientProgress):
         await self.send_bytes(BinaryEventTypes.PREVIEW_IMAGE, preview_bytes, sid=sid)
 
     async def send_image_with_metadata(self, image_data: UnencodedPreviewImageMessage, metadata: Optional[PreviewImageMetadata] = None, sid=None):
-        image_type = image_data[0]
-        image = image_data[1]
-        max_size = image_data[2]
+        try:
+            image_type = image_data[0]
+            image = image_data[1]
+            max_size = image_data[2]
+        except Exception as exc_info:
+            logger.warning(f"tried to send_image_with_metadata but an error occurred, aboring send, image_data={image_data} metadata={metadata} sid={sid}", exc_info=exc_info)
+            return
         if max_size is not None:
             if hasattr(Image, 'Resampling'):
                 resampling = Image.Resampling.BILINEAR
