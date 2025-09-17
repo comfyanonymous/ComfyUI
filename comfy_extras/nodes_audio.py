@@ -502,7 +502,7 @@ class AudioMerge:
         sample_rate_2 = audio2["sample_rate"]
 
         waveform_1, waveform_2, output_sample_rate = match_audio_sample_rates(waveform_1, sample_rate_1, waveform_2, sample_rate_2)
-        
+
         length_1 = waveform_1.shape[-1]
         length_2 = waveform_2.shape[-1]
 
