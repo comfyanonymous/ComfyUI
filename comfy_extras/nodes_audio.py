@@ -556,6 +556,24 @@ class AudioAdjustVolume:
         return ({"waveform": waveform, "sample_rate": sample_rate},)
 
 
+class EmptyAudio:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": {
+            "duration": ("INT", {"default": 60, "min": 0, "max": 0xffffffffffffffff, "tooltip": "Duration of the empty audio clip in seconds."}),
+            "sample_rate": ("INT", {"default": 44100, "tooltip": "Sample rate of the empty audio clip."}),
+            "channels": ("INT", {"default": 2, "min": 1, "max": 2, "tooltip": "Number of audio channels (1 for mono, 2 for stereo)."}),
+        }}
+
+    RETURN_TYPES = ("AUDIO",)
+    FUNCTION = "create_empty_audio"
+    CATEGORY = "audio"
+
+    def create_empty_audio(self, duration, sample_rate, channels):
+        waveform = torch.zeros((1, channels, duration * sample_rate), dtype=torch.float32)
+        return ({"waveform": waveform, "sample_rate": sample_rate},)
+
+
 NODE_CLASS_MAPPINGS = {
     "EmptyLatentAudio": EmptyLatentAudio,
     "VAEEncodeAudio": VAEEncodeAudio,
@@ -572,6 +590,7 @@ NODE_CLASS_MAPPINGS = {
     "AudioConcat": AudioConcat,
     "AudioMerge": AudioMerge,
     "AudioAdjustVolume": AudioAdjustVolume,
+    "EmptyAudio": EmptyAudio,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
@@ -589,4 +608,5 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "AudioConcat": "Audio Concat",
     "AudioMerge": "Audio Merge",
     "AudioAdjustVolume": "Audio Adjust Volume",
+    "EmptyAudio": "Empty Audio",
 }
