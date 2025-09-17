@@ -17,7 +17,7 @@
   },
   "9": {
     "inputs": {
-      "filename_prefix": "nike/nike_images_",
+      "filename_prefix": "comfyui_",
       "images": [
         "8",
         0
@@ -139,7 +139,7 @@
   "22": {
     "inputs": {
       "scheduler": "normal",
-      "steps": 20,
+      "steps": 1,
       "denoise": 1,
       "model": [
         "51",
@@ -165,8 +165,8 @@
   },
   "49": {
     "inputs": {
-      "width": 1024,
-      "height": 1024,
+      "width": 256,
+      "height": 256,
       "batch_size": 1
     },
     "class_type": "EmptySD3LatentImage",

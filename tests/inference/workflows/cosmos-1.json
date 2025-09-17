@@ -61,7 +61,7 @@
   "37": {
     "inputs": {
       "unet_name": "Cosmos-1_0-Diffusion-7B-Video2World.safetensors",
-      "weight_dtype": "default"
+      "weight_dtype": "fp8_e4m3fn"
     },
     "class_type": "UNETLoader",
     "_meta": {
@@ -122,7 +122,7 @@
     "inputs": {
       "width": 1024,
       "height": 1024,
-      "length": 121,
+      "length": 1,
       "batch_size": 1,
       "vae": [
         "39",
@@ -140,7 +140,11 @@
   },
   "84": {
     "inputs": {
-      "value": "https://m.media-amazon.com/images/I/71lI3ioM1ZL.jpg"
+      "value": "https://m.media-amazon.com/images/I/71lI3ioM1ZL.jpg",
+      "name": "",
+      "title": "",
+      "description": "",
+      "__required": true
     },
     "class_type": "ImageRequestParameter",
     "_meta": {
@@ -152,6 +156,7 @@
       "resize_mode": "cover",
       "resolutions": "Cosmos",
       "interpolation": "bilinear",
+      "aspect_ratio_tolerance": 0.05,
       "image": [
         "84",
         0

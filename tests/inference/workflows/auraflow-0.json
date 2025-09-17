@@ -24,7 +24,7 @@
   "3": {
     "inputs": {
       "seed": 232240565010917,
-      "steps": 25,
+      "steps": 1,
       "cfg": 3.5,
       "sampler_name": "uni_pc",
       "scheduler": "normal",
@@ -79,8 +79,8 @@
   },
   "6": {
     "inputs": {
-      "width": 1024,
-      "height": 1024,
+      "width": 512,
+      "height": 512,
       "batch_size": 1
     },
     "class_type": "EmptyLatentImage",

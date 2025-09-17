@@ -1,3 +1,4 @@
+import json
 import logging
 import os
 import shutil
@@ -5,7 +6,6 @@ import shutil
 import pytest
 
 from comfy.cli_args import args
-
 
 _gitattributes = """*.7z filter=lfs diff=lfs merge=lfs -text
 *.arrow filter=lfs diff=lfs merge=lfs -text
@@ -165,3 +165,28 @@ async def test_known_repos(tmp_path_factory):
             os.environ["HF_HUB_CACHE"] = prev_hub_cache
         args.force_hf_local_dir_mode = False
         args.disable_known_models = False
+
+
+@pytest.mark.asyncio
+async def test_huggingface_alternate_filenames_in_combo():
+    from comfy.model_downloader import get_filename_list_with_downloadable
+    from comfy.model_downloader_types import HuggingFile
+
+    # 2. Define a HuggingFile with alternate filenames
+    main_filename = "model.safetensors"
+    alternate_filename = "alt_model.safetensors"
+    known_file = HuggingFile(
+        repo_id="test/repo",
+        filename=main_filename,
+        alternate_filenames=(alternate_filename,)
+    )
+
+    # 3. Get the list of files as the UI would
+    filename_list = get_filename_list_with_downloadable("checkpoints", known_files=[known_file])
+
+    # 4. Assert that both the main and alternate filenames are present
+    assert main_filename in filename_list
+    assert alternate_filename not in filename_list, "Alternate filename should not be in the list returned by get_filename_list_with_downloadable"
+    assert alternate_filename in filename_list.view_for_validation(), "Alternate filename should not be in the list returned by get_filename_list_with_downloadable"
+
+    assert json.dumps(filename_list) == "[\"model.safetensors\"]"

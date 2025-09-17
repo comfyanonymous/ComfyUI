@@ -37,7 +37,7 @@ from ..component_model.abstract_prompt_queue import AbstractPromptQueue
 from ..component_model.executor_types import ExecutorToClientProgress, ValidationTuple, ValidateInputsTuple, \
     ValidationErrorDict, NodeErrorsDictValue, ValidationErrorExtraInfoDict, FormattedValue, RecursiveExecutionTuple, \
     RecursiveExecutionErrorDetails, RecursiveExecutionErrorDetailsInterrupted, ExecutionResult, DuplicateNodeError, \
-    HistoryResultDict, ExecutionErrorMessage, ExecutionInterruptedMessage
+    HistoryResultDict, ExecutionErrorMessage, ExecutionInterruptedMessage, ValidationView
 from ..component_model.files import canonicalize_path
 from ..component_model.module_property import create_module_properties
 from ..component_model.queue_types import QueueTuple, HistoryEntry, QueueItem, MAXIMUM_HISTORY_SIZE, ExecutionStatus, \
@@ -1040,6 +1040,8 @@ async def validate_inputs(prompt_id: typing.Any, prompt, item, validated: typing
 
                 if isinstance(input_type, list):
                     combo_options = input_type
+                    if isinstance(combo_options, ValidationView):
+                        combo_options = combo_options.view_for_validation()
                     if isinstance(val, str) and "\\" in val:
                         # try to normalize paths for comparison purposes
                         val = canonicalize_path(val)

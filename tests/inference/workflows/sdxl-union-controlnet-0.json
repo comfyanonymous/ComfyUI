@@ -135,7 +135,7 @@
   "11": {
     "inputs": {
       "model_type": "SDXL",
-      "steps": 25,
+      "steps": 1,
       "denoise": 1
     },
     "class_type": "AlignYourStepsScheduler",

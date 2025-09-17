@@ -15,8 +15,7 @@ from typing import List, Optional, Final, Set
 
 import requests
 import tqdm
-from huggingface_hub import dump_environment_info, try_to_load_from_cache
-from huggingface_hub import hf_hub_download, scan_cache_dir, snapshot_download, HfFileSystem, CacheNotFound
+from huggingface_hub import dump_environment_info, hf_hub_download, scan_cache_dir, snapshot_download, HfFileSystem, CacheNotFound
 from huggingface_hub.utils import GatedRepoError, LocalEntryNotFoundError
 from requests import Session
 from safetensors import safe_open
@@ -28,7 +27,7 @@ from .cmd.folder_paths import add_model_folder_path, supported_pt_extensions  # 
 from .component_model.deprecation import _deprecate_method
 from .component_model.files import canonicalize_path
 from .interruption import InterruptProcessingException
-from .model_downloader_types import CivitFile, HuggingFile, CivitModelsGetResponse, CivitFile_, Downloadable, UrlFile
+from .model_downloader_types import CivitFile, HuggingFile, CivitModelsGetResponse, CivitFile_, Downloadable, UrlFile, DownloadableFileList
 from .utils import ProgressBar, comfy_tqdm
 
 _session = Session()
@@ -37,17 +36,21 @@ _hf_fs = HfFileSystem()
 logger = logging.getLogger(__name__)
 
 
-def get_filename_list(folder_name: str) -> list[str]:
+def get_filename_list(folder_name: str) -> Sequence[str]:
     return get_filename_list_with_downloadable(folder_name)
 
 
-def get_filename_list_with_downloadable(folder_name: str, known_files: Optional[List[Downloadable] | KnownDownloadables] = None) -> List[str]:
+def get_filename_list_with_downloadable(folder_name: str, known_files: Optional[List[Downloadable] | KnownDownloadables] = None) -> DownloadableFileList:
     if known_files is None:
         known_files = _get_known_models_for_folder_name(folder_name)
 
-    existing = frozenset(folder_paths.get_filename_list(folder_name))
-    downloadable = frozenset() if args.disable_known_models else frozenset(str(f) for f in known_files)
-    return list(map(canonicalize_path, sorted(list(existing | downloadable))))
+    existing = folder_paths.get_filename_list(folder_name)
+    
+    downloadable_files = []
+    if not args.disable_known_models:
+        downloadable_files = known_files
+
+    return DownloadableFileList(existing, downloadable_files)
 
 
 def get_full_path_or_raise(folder_name: str, filename: str) -> str:
@@ -299,7 +302,7 @@ KNOWN_CHECKPOINTS: Final[KnownDownloadables] = KnownDownloadables([
     CivitFile(139562, 344487, filename="realvisxlV40_v40Bakedvae.safetensors"),
     HuggingFile("SG161222/Realistic_Vision_V6.0_B1_noVAE", "Realistic_Vision_V6.0_NV_B1_fp16.safetensors"),
     HuggingFile("SG161222/Realistic_Vision_V5.1_noVAE", "Realistic_Vision_V5.1_fp16-no-ema.safetensors"),
-    HuggingFile("Lykon/DreamShaper", "DreamShaper_8_pruned.safetensors", save_with_filename="dreamshaper_8.safetensors", alternate_filenames=("DreamShaper_8_pruned.safetensors")),
+    HuggingFile("Lykon/DreamShaper", "DreamShaper_8_pruned.safetensors", save_with_filename="dreamshaper_8.safetensors", alternate_filenames=("DreamShaper_8_pruned.safetensors",)),
     CivitFile(7371, 425083, filename="revAnimated_v2Rebirth.safetensors"),
     CivitFile(4468, 57618, filename="counterfeitV30_v30.safetensors"),
     CivitFile(241415, 272376, filename="picxReal_10.safetensors"),
@@ -309,7 +312,7 @@ KNOWN_CHECKPOINTS: Final[KnownDownloadables] = KnownDownloadables([
     HuggingFile("stabilityai/stable-diffusion-3-medium", "sd3_medium_incl_clips_t5xxlfp8.safetensors"),
     HuggingFile("fal/AuraFlow", "aura_flow_0.1.safetensors"),
     # stable audio, # uses names from https://comfyanonymous.github.io/ComfyUI_examples/audio/
-    HuggingFile("Comfy-Org/stable-audio-open-1.0_repackaged", "stable-audio-open-1.0.safetensors", alternate_filenames="stable_audio_open_1.0.safetensors"),
+    HuggingFile("Comfy-Org/stable-audio-open-1.0_repackaged", "stable-audio-open-1.0.safetensors", alternate_filenames=("stable_audio_open_1.0.safetensors",)),
     # hunyuandit
     HuggingFile("comfyanonymous/hunyuan_dit_comfyui", "hunyuan_dit_1.0.safetensors"),
     HuggingFile("comfyanonymous/hunyuan_dit_comfyui", "hunyuan_dit_1.1.safetensors"),

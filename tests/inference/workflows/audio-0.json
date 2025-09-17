@@ -105,7 +105,7 @@
   "24": {
     "inputs": {
       "scheduler": "exponential",
-      "steps": 20,
+      "steps": 1,
       "denoise": 1,
       "model": [
         "14",

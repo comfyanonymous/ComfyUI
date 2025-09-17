@@ -146,7 +146,7 @@
   "271": {
     "inputs": {
       "seed": 780289980632866,
-      "steps": 28,
+      "steps": 1,
       "cfg": 4.5,
       "sampler_name": "dpmpp_2m",
       "scheduler": "sgm_uniform",

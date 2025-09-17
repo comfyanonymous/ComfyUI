@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import dataclasses
+import io
 import json
 import logging
 import os
@@ -11,7 +12,7 @@ import sys
 import uuid
 from datetime import datetime
 from fractions import Fraction
-from typing import Sequence, Optional, TypedDict, Dict, List, Literal, Callable, Tuple
+from typing import Sequence, Optional, TypedDict, List, Literal, Tuple, Any, Dict
 
 import PIL
 import aiohttp
@@ -20,7 +21,8 @@ import cv2
 import fsspec
 import numpy as np
 import torch
-from PIL import Image, ImageSequence, ImageOps
+from PIL import Image, ImageSequence, ImageOps, ExifTags
+from PIL.Image import Exif
 from PIL.ImageFile import ImageFile
 from PIL.PngImagePlugin import PngInfo
 from fsspec.core import OpenFile
@@ -83,11 +85,6 @@ class FsSpecComfyMetadata(TypedDict, total=True):
 
 class SaveNodeResultWithName(SaveNodeResult):
     name: str
-
-
-from PIL import ExifTags
-from PIL.Image import Exif
-from typing import Any, Dict
 
 
 def create_exif_from_pnginfo(metadata: Dict[str, Any]) -> Exif:
@@ -728,11 +725,25 @@ class SaveImagesResponse(CustomNode):
                 if save_method == 'pil':
                     with fsspec.open(uri, mode="wb", **fsspec_kwargs) as f:
                         image_as_pil.save(f, format=save_format, **additional_args)
-                else:
-                    _, img_encode = cv2.imencode(f'.{save_format}', image_scaled, cv_save_options)  # pylint: disable=no-member
+                elif save_method == 'opencv':
+                    _, img_encode = cv2.imencode(f'.{save_format}', image_scaled, cv_save_options)
+                    img_bytes = img_encode.tobytes()
+
+                    if exif_inst.exif and save_format == 'png':
+                        import zlib
+                        import struct
+                        exif_obj = create_exif_from_pnginfo(exif_inst.exif)
+                        # The eXIf chunk should contain the raw TIFF data, but Pillow's `tobytes()`
+                        # includes the "Exif\x00\x00" prefix for JPEG APP1 markers. We must strip it.
+                        exif_bytes = exif_obj.tobytes()[6:]
+                        # PNG signature (8 bytes) + IHDR chunk (25 bytes) = 33 bytes.
+                        insertion_point = 33
+                        # Create eXIf chunk
+                        exif_chunk = struct.pack('>I', len(exif_bytes)) + b'eXIf' + exif_bytes + struct.pack('>I', zlib.crc32(b'eXIf' + exif_bytes))
+                        img_bytes = img_bytes[:insertion_point] + exif_chunk + img_bytes[insertion_point:]
 
                     with fsspec.open(uri, mode="wb", **fsspec_kwargs) as f:
-                        f.write(img_encode.tobytes())
+                        f.write(img_bytes)
 
                 if metadata_uri is not None:
                     # all values are stringified for the metadata
@@ -774,7 +785,6 @@ class SaveImagesResponse(CustomNode):
             ui_images_result["result"] = (ui_images_result["ui"]["images"],)
 
         return ui_images_result
-
 
     def subfolder_of(self, local_uri, output_directory):
         return os.path.dirname(os.path.relpath(os.path.abspath(local_uri), os.path.abspath(output_directory)))

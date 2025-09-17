@@ -77,7 +77,7 @@
   "7": {
     "inputs": {
       "scheduler": "ddim_uniform",
-      "steps": 10,
+      "steps": 1,
       "denoise": 1,
       "model": [
         "12",

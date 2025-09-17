@@ -1,9 +1,8 @@
 from __future__ import annotations  # for Python 3.7-3.9
 
 import concurrent.futures
-import typing
 from enum import Enum
-from typing import Optional, Literal, Protocol, Union, NamedTuple, List
+from typing import Optional, Literal, Protocol, Union, NamedTuple, List, runtime_checkable, Iterable, Never, Dict, Any
 
 import PIL.Image
 from typing_extensions import NotRequired, TypedDict
@@ -68,7 +67,7 @@ class ExecutionErrorMessage(TypedDict):
     exception_message: str
     exception_type: str
     traceback: list[str]
-    current_inputs: list[typing.Never] | dict[str, FormattedValue]
+    current_inputs: list[Never] | dict[str, FormattedValue]
     current_outputs: list[str]
 
 
@@ -76,8 +75,8 @@ class DependencyExecutionErrorMessage(TypedDict):
     node_id: str
     exception_message: str
     exception_type: Literal["graph.DependencyCycleError"]
-    traceback: list[typing.Never]
-    current_inputs: list[typing.Never]
+    traceback: list[Never]
+    current_inputs: list[Never]
 
 
 class ActiveNodeProgressState(TypedDict, total=True):
@@ -106,7 +105,7 @@ SendSyncData = Union[ProgressStateMessage, StatusMessage, ExecutingMessage, Depe
 
 
 class SocketsMetadata(TypedDict, total=True):
-    feature_flags: dict[str, typing.Any]
+    feature_flags: dict[str, Any]
 
 
 class DefaultSocketsMetadata(TypedDict, total=True):
@@ -197,8 +196,8 @@ class ValidationErrorExtraInfoDict(TypedDict, total=False):
     dependent_outputs: NotRequired[List[str]]
     class_type: NotRequired[str]
     input_name: NotRequired[str]
-    input_config: NotRequired[typing.Dict[str, InputTypeSpec]]
-    received_value: NotRequired[typing.Any]
+    input_config: NotRequired[Dict[str, InputTypeSpec]]
+    received_value: NotRequired[Any]
     linked_node: NotRequired[str]
     traceback: NotRequired[list[str]]
     exception_message: NotRequired[str]
@@ -209,7 +208,7 @@ class ValidationErrorDict(TypedDict):
     type: str
     message: str
     details: str
-    extra_info: list[typing.Never] | ValidationErrorExtraInfoDict
+    extra_info: list[Never] | ValidationErrorExtraInfoDict
 
 
 class NodeErrorsDictValue(TypedDict, total=False):
@@ -218,14 +217,14 @@ class NodeErrorsDictValue(TypedDict, total=False):
     class_type: str
 
 
-class ValidationTuple(typing.NamedTuple):
+class ValidationTuple(NamedTuple):
     valid: bool
     error: Optional[ValidationErrorDict | DependencyExecutionErrorMessage]
     good_output_node_ids: List[str]
-    node_errors: list[typing.Never] | typing.Dict[str, NodeErrorsDictValue]
+    node_errors: list[Never] | Dict[str, NodeErrorsDictValue]
 
 
-class ValidateInputsTuple(typing.NamedTuple):
+class ValidateInputsTuple(NamedTuple):
     valid: bool
     errors: List[ValidationErrorDict]
     unique_id: str
@@ -244,7 +243,7 @@ class RecursiveExecutionErrorDetails(TypedDict, total=True):
     current_outputs: NotRequired[dict[str, list[list[FormattedValue]]]]
 
 
-class RecursiveExecutionTuple(typing.NamedTuple):
+class RecursiveExecutionTuple(NamedTuple):
     valid: ExecutionResult
     error_details: Optional[RecursiveExecutionErrorDetails | RecursiveExecutionErrorDetailsInterrupted]
     exc_info: Optional[Exception]
@@ -289,3 +288,9 @@ class Executor(Protocol):
 
 
 ExecutePromptArgs = tuple[dict, str, str, dict, ExecutorToClientProgress | None, Configuration | None]
+
+
+@runtime_checkable
+class ValidationView(Protocol):
+    def view_for_validation(self) -> Iterable[str]:
+        ...

@@ -1,13 +1,16 @@
 from __future__ import annotations
 
+import collections
 import dataclasses
 import functools
 from os.path import split
 from pathlib import PurePosixPath
-from typing import Optional, List, Sequence, Union
+from typing import Optional, List, Sequence, Union, Iterable
 
 from can_ada import parse, URL  # pylint: disable=no-name-in-module
 from typing_extensions import TypedDict, NotRequired
+
+from .component_model.executor_types import ValidationView
 
 
 @dataclasses.dataclass(frozen=True)
@@ -89,6 +92,31 @@ class HuggingFile:
 
     def __str__(self):
         return self.save_with_filename or split(self.filename)[-1]
+
+
+class DownloadableFileList(ValidationView, list[str]):
+    """
+    A list of downloadable files that can be validated differently than it will be serialized to JSON
+    """
+
+    def __init__(self, existing_files: Iterable[str], downloadable_files: Iterable[Downloadable]):
+        super().__init__()
+        self._validation_view = set(existing_files)
+
+        ui_view = set(existing_files)
+
+        for f in downloadable_files:
+            main_name = str(f)
+            self._validation_view.add(main_name)
+            self._validation_view.update(f.alternate_filenames)
+
+            if getattr(f, 'show_in_ui', True):
+                ui_view.add(main_name)
+
+        self.extend(sorted(list(ui_view)))
+
+    def view_for_validation(self) -> Iterable[str]:
+        return self._validation_view
 
 
 class CivitStats(TypedDict):
@@ -186,4 +214,4 @@ class CivitModelsGetResponse(TypedDict):
     modelVersions: List[CivitModelVersion]
 
 
-Downloadable = Union[CivitFile | HuggingFile | UrlFile]
+Downloadable = Union[CivitFile, HuggingFile, UrlFile]
