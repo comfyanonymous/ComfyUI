@@ -371,8 +371,8 @@ class TrimAudioDuration:
         return {
             "required": {
                 "audio": ("AUDIO",),
-                "start_index": ("INT", {"default": 0, "min": -0xffffffffffffffff, "max": 0xffffffffffffffff, "tooltip": "Start time in seconds, can be negative to count from the end."}),
-                "duration": ("INT", {"default": 60, "tooltip": "Duration in seconds."}),
+                "start_index": ("FLOAT", {"default": 0.0, "min": -0xffffffffffffffff, "max": 0xffffffffffffffff, "step": 0.01, "tooltip": "Start time in seconds, can be negative to count from the end (supports sub-seconds)."}),
+                "duration": ("FLOAT", {"default": 60.0, "min": 0.0, "step": 0.01, "tooltip": "Duration in seconds"}),
             },
         }
 
@@ -387,12 +387,12 @@ class TrimAudioDuration:
         audio_length = waveform.shape[-1]
 
         if start_index < 0:
-            start_frame = audio_length + start_index * sample_rate
+            start_frame = audio_length + int(round(start_index * sample_rate))
         else:
-            start_frame = start_index * sample_rate
+            start_frame = int(round(start_index * sample_rate))
         start_frame = max(0, min(start_frame, audio_length - 1))
 
-        end_frame = start_frame + duration * sample_rate
+        end_frame = start_frame + int(round(duration * sample_rate))
         end_frame = max(0, min(end_frame, audio_length))
 
         if start_frame >= end_frame:
@@ -560,7 +560,7 @@ class EmptyAudio:
     @classmethod
     def INPUT_TYPES(s):
         return {"required": {
-            "duration": ("INT", {"default": 60, "min": 0, "max": 0xffffffffffffffff, "tooltip": "Duration of the empty audio clip in seconds."}),
+            "duration": ("FLOAT", {"default": 60.0, "min": 0.0, "max": 0xffffffffffffffff, "step": 0.01, "tooltip": "Duration of the empty audio clip in seconds"}),
             "sample_rate": ("INT", {"default": 44100, "tooltip": "Sample rate of the empty audio clip."}),
             "channels": ("INT", {"default": 2, "min": 1, "max": 2, "tooltip": "Number of audio channels (1 for mono, 2 for stereo)."}),
         }}
@@ -570,7 +570,8 @@ class EmptyAudio:
     CATEGORY = "audio"
 
     def create_empty_audio(self, duration, sample_rate, channels):
-        waveform = torch.zeros((1, channels, duration * sample_rate), dtype=torch.float32)
+        num_samples = int(round(duration * sample_rate))
+        waveform = torch.zeros((1, channels, num_samples), dtype=torch.float32)
         return ({"waveform": waveform, "sample_rate": sample_rate},)
 
 
