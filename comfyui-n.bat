@@ -22,14 +22,14 @@ set "ZLUDA_COMGR_LOG_LEVEL=1"
 :: Check Git version and installed commit hash
 where git >NUL 2>&1
 if errorlevel 1 (
-    echo [FAIL] Git not found in PATH. Please install Git.
-    pause
+    echo [FAIL] Git is not installed or not found in the system PATH.
+    echo        Please install Git from https://git-scm.com and ensure it's added to your PATH during installation.
 ) else (
-    for /f "tokens=3*" %%v in ('git --version') do (
-        echo [INFO] Detected Git version: %%v %%w
+    for /f "tokens=2,*" %%a in ('git --version') do (
+        echo [INFO] Detected Git version: %%b
     )
-    for /f %%h in ('git rev-parse --short HEAD') do (
-        echo [INFO] Current ComfyUI-ZLUDA commit hash: %%h
+    for /f "usebackq delims=" %%h in (`git rev-parse --short HEAD`) do (
+        echo [INFO] Current ComfyUI-Zluda commit hash: %%h
     )
 )
 
