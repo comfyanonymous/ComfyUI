@@ -67,7 +67,7 @@ async def seed_from_path(
     info_name: str,
     tags: Sequence[str],
     owner_id: str = "",
-    skip_tag_ensure: bool = False,
+    collected_tag_rows: list[dict],
 ) -> None:
     """Creates Asset(hash=NULL), AssetCacheState(file_path), and AssetInfo exist for the path."""
     locator = os.path.abspath(abs_path)
@@ -154,8 +154,6 @@ async def seed_from_path(
     if info_inserted:
         want = normalize_tags(tags)
         if want:
-            if not skip_tag_ensure:
-                await ensure_tags_exist(session, want, tag_type="user")
             tag_rows = [
                 {
                     "asset_info_id": new_info_id,
@@ -165,19 +163,7 @@ async def seed_from_path(
                 }
                 for t in want
             ]
-            if dialect == "sqlite":
-                ins_links = (
-                    d_sqlite.insert(AssetInfoTag)
-                    .values(tag_rows)
-                    .on_conflict_do_nothing(index_elements=[AssetInfoTag.asset_info_id, AssetInfoTag.tag_name])
-                )
-            else:
-                ins_links = (
-                    d_pg.insert(AssetInfoTag)
-                    .values(tag_rows)
-                    .on_conflict_do_nothing(index_elements=[AssetInfoTag.asset_info_id, AssetInfoTag.tag_name])
-                )
-            await session.execute(ins_links)
+            collected_tag_rows.extend(tag_rows)
 
         if fname:  # simple filename projection with single row
             meta_row = {

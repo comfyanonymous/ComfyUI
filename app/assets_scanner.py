@@ -26,6 +26,7 @@ from .database.helpers import (
     ensure_tags_exist,
     escape_like_prefix,
     fast_asset_file_check,
+    insert_tags_from_batch,
     remove_missing_tag_for_asset_id,
 )
 from .database.models import Asset, AssetCacheState, AssetInfo
@@ -146,6 +147,8 @@ async def sync_seed_assets(roots: list[schemas_in.RootType]) -> None:
         async with await create_session() as sess:
             if tag_pool:
                 await ensure_tags_exist(sess, tag_pool, tag_type="user")
+
+            pending_tag_links: list[dict] = []
             for ap, sz, mt, name, tags in new_specs:
                 await seed_from_path(
                     sess,
@@ -155,12 +158,17 @@ async def sync_seed_assets(roots: list[schemas_in.RootType]) -> None:
                     info_name=name,
                     tags=tags,
                     owner_id="",
-                    skip_tag_ensure=True,
+                    collected_tag_rows=pending_tag_links,
                 )
 
                 created += 1
                 if created % 500 == 0:
+                    if pending_tag_links:
+                        await insert_tags_from_batch(sess, tag_rows=pending_tag_links)
+                        pending_tag_links.clear()
                     await sess.commit()
+            if pending_tag_links:
+                await insert_tags_from_batch(sess, tag_rows=pending_tag_links)
             await sess.commit()
     finally:
         LOGGER.info(
