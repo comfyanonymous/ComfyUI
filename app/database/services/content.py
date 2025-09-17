@@ -33,14 +33,18 @@ async def check_fs_asset_exists_quick(
     size_bytes: Optional[int] = None,
     mtime_ns: Optional[int] = None,
 ) -> bool:
-    """Return True if a cache row exists for this absolute path and (optionally) mtime/size match."""
+    """Returns True if we already track this absolute path with a HASHED asset and the cached mtime/size match."""
     locator = os.path.abspath(file_path)
 
     stmt = (
         sa.select(sa.literal(True))
         .select_from(AssetCacheState)
         .join(Asset, Asset.id == AssetCacheState.asset_id)
-        .where(AssetCacheState.file_path == locator)
+        .where(
+            AssetCacheState.file_path == locator,
+            Asset.hash.isnot(None),
+            AssetCacheState.needs_verify.is_(False),
+        )
         .limit(1)
     )
 
@@ -49,12 +53,9 @@ async def check_fs_asset_exists_quick(
         conds.append(AssetCacheState.mtime_ns == int(mtime_ns))
     if size_bytes is not None:
         conds.append(sa.or_(Asset.size_bytes == 0, Asset.size_bytes == int(size_bytes)))
-
     if conds:
         stmt = stmt.where(*conds)
-
-    row = (await session.execute(stmt)).first()
-    return row is not None
+    return (await session.execute(stmt)).first() is not None
 
 
 async def seed_from_path(
