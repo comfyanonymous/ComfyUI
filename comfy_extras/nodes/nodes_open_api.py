@@ -660,13 +660,16 @@ class SaveImagesResponse(CustomNode):
                     for x in extra_pnginfo:
                         exif_inst.exif[x] = json.dumps(extra_pnginfo[x])
 
-                png_metadata = PngInfo()
-                for tag, value in exif_inst.exif.items():
-                    png_metadata.add_text(tag, value)
-
-                additional_args = {"pnginfo": png_metadata, "compress_level": 9}
                 save_method = 'pil'
                 save_format = pil_save_format
+                if pil_save_format == 'png':
+                    png_metadata = PngInfo()
+                    for tag, value in exif_inst.exif.items():
+                        png_metadata.add_text(tag, value)
+                    additional_args = {"pnginfo": png_metadata, "compress_level": 9}
+                else:
+                    exif_obj = create_exif_from_pnginfo(exif_inst.exif)
+                    additional_args = {"exif": exif_obj.tobytes()}
 
             elif bits >= 16:
                 if 'exr' in pil_save_format:
