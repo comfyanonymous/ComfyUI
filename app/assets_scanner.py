@@ -31,11 +31,11 @@ from .database.helpers import (
 from .database.models import Asset, AssetCacheState, AssetInfo
 from .database.services import (
     compute_hash_and_dedup_for_cache_state,
-    ensure_seed_for_path,
     list_cache_states_by_asset_id,
     list_cache_states_with_asset_under_prefixes,
     list_unhashed_candidates_under_prefixes,
     list_verify_candidates_under_prefixes,
+    seed_from_path,
 )
 
 LOGGER = logging.getLogger(__name__)
@@ -147,7 +147,7 @@ async def sync_seed_assets(roots: list[schemas_in.RootType]) -> None:
             if tag_pool:
                 await ensure_tags_exist(sess, tag_pool, tag_type="user")
             for ap, sz, mt, name, tags in new_specs:
-                await ensure_seed_for_path(
+                await seed_from_path(
                     sess,
                     abs_path=ap,
                     size_bytes=sz,

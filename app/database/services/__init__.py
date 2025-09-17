@@ -1,12 +1,12 @@
 from .content import (
     check_fs_asset_exists_quick,
     compute_hash_and_dedup_for_cache_state,
-    ensure_seed_for_path,
     ingest_fs_asset,
     list_cache_states_with_asset_under_prefixes,
     list_unhashed_candidates_under_prefixes,
     list_verify_candidates_under_prefixes,
     redirect_all_references_then_delete_asset,
+    seed_from_path,
     touch_asset_infos_by_fs_path,
 )
 from .info import (
@@ -49,7 +49,7 @@ __all__ = [
     "get_asset_tags", "list_tags_with_usage", "set_asset_info_preview",
     "fetch_asset_info_and_asset", "fetch_asset_info_asset_and_tags",
     # content
-    "check_fs_asset_exists_quick", "ensure_seed_for_path",
+    "check_fs_asset_exists_quick", "seed_from_path",
     "redirect_all_references_then_delete_asset",
     "compute_hash_and_dedup_for_cache_state",
     "list_unhashed_candidates_under_prefixes", "list_verify_candidates_under_prefixes",
