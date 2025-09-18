@@ -606,6 +606,11 @@ class HunyuanImage21(LatentFormat):
 
     latent_rgb_factors_bias = [0.0007, -0.0256, -0.0206]
 
+class HunyuanImage21Refiner(LatentFormat):
+    latent_channels = 64
+    latent_dimensions = 3
+    scale_factor = 1.03682
+
 class Hunyuan3Dv2(LatentFormat):
     latent_channels = 64
     latent_dimensions = 1
@@ -624,3 +629,20 @@ class Hunyuan3Dv2mini(LatentFormat):
 class ACEAudio(LatentFormat):
     latent_channels = 8
     latent_dimensions = 2
+
+class ChromaRadiance(LatentFormat):
+    latent_channels = 3
+
+    def __init__(self):
+        self.latent_rgb_factors = [
+            # R    G    B
+            [ 1.0, 0.0, 0.0 ],
+            [ 0.0, 1.0, 0.0 ],
+            [ 0.0, 0.0, 1.0 ]
+        ]
+
+    def process_in(self, latent):
+        return latent
+
+    def process_out(self, latent):
+        return latent

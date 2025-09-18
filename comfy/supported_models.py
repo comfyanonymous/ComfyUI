@@ -1073,6 +1073,16 @@ class WAN21_Vace(WAN21_T2V):
         out = model_base.WAN21_Vace(self, image_to_video=False, device=device)
         return out
 
+class WAN21_HuMo(WAN21_T2V):
+    unet_config = {
+        "image_model": "wan2.1",
+        "model_type": "humo",
+    }
+
+    def get_model(self, state_dict, prefix="", device=None):
+        out = model_base.WAN21_HuMo(self, image_to_video=False, device=device)
+        return out
+
 class WAN22_S2V(WAN21_T2V):
     unet_config = {
         "image_model": "wan2.1",
@@ -1205,6 +1215,19 @@ class Chroma(supported_models_base.BASE):
         t5_detect = comfy.text_encoders.sd3_clip.t5_xxl_detect(state_dict, "{}t5xxl.transformer.".format(pref))
         return supported_models_base.ClipTarget(comfy.text_encoders.pixart_t5.PixArtTokenizer, comfy.text_encoders.pixart_t5.pixart_te(**t5_detect))
 
+class ChromaRadiance(Chroma):
+    unet_config = {
+        "image_model": "chroma_radiance",
+    }
+
+    latent_format = comfy.latent_formats.ChromaRadiance
+
+    # Pixel-space model, no spatial compression for model input.
+    memory_usage_factor = 0.038
+
+    def get_model(self, state_dict, prefix="", device=None):
+        return model_base.ChromaRadiance(self, device=device)
+
 class ACEStep(supported_models_base.BASE):
     unet_config = {
         "audio_model": "ace",
@@ -1321,6 +1344,23 @@ class HunyuanImage21(HunyuanVideo):
         hunyuan_detect = comfy.text_encoders.hunyuan_video.llama_detect(state_dict, "{}qwen25_7b.transformer.".format(pref))
         return supported_models_base.ClipTarget(comfy.text_encoders.hunyuan_image.HunyuanImageTokenizer, comfy.text_encoders.hunyuan_image.te(**hunyuan_detect))
 
-models = [LotusD, Stable_Zero123, SD15_instructpix2pix, SD15, SD20, SD21UnclipL, SD21UnclipH, SDXL_instructpix2pix, SDXLRefiner, SDXL, SSD1B, KOALA_700M, KOALA_1B, Segmind_Vega, SD_X4Upscaler, Stable_Cascade_C, Stable_Cascade_B, SV3D_u, SV3D_p, SD3, StableAudio, AuraFlow, PixArtAlpha, PixArtSigma, HunyuanDiT, HunyuanDiT1, FluxInpaint, Flux, FluxSchnell, GenmoMochi, LTXV, HunyuanImage21, HunyuanVideoSkyreelsI2V, HunyuanVideoI2V, HunyuanVideo, CosmosT2V, CosmosI2V, CosmosT2IPredict2, CosmosI2VPredict2, Lumina2, WAN22_T2V, WAN21_T2V, WAN21_I2V, WAN21_FunControl2V, WAN21_Vace, WAN21_Camera, WAN22_Camera, WAN22_S2V, Hunyuan3Dv2mini, Hunyuan3Dv2, Hunyuan3Dv2_1, HiDream, Chroma, ACEStep, Omnigen2, QwenImage]
+class HunyuanImage21Refiner(HunyuanVideo):
+    unet_config = {
+        "image_model": "hunyuan_video",
+        "patch_size": [1, 1, 1],
+        "vec_in_dim": None,
+    }
+
+    sampling_settings = {
+        "shift": 4.0,
+    }
+
+    latent_format = latent_formats.HunyuanImage21Refiner
+
+    def get_model(self, state_dict, prefix="", device=None):
+        out = model_base.HunyuanImage21Refiner(self, device=device)
+        return out
+
+models = [LotusD, Stable_Zero123, SD15_instructpix2pix, SD15, SD20, SD21UnclipL, SD21UnclipH, SDXL_instructpix2pix, SDXLRefiner, SDXL, SSD1B, KOALA_700M, KOALA_1B, Segmind_Vega, SD_X4Upscaler, Stable_Cascade_C, Stable_Cascade_B, SV3D_u, SV3D_p, SD3, StableAudio, AuraFlow, PixArtAlpha, PixArtSigma, HunyuanDiT, HunyuanDiT1, FluxInpaint, Flux, FluxSchnell, GenmoMochi, LTXV, HunyuanImage21Refiner, HunyuanImage21, HunyuanVideoSkyreelsI2V, HunyuanVideoI2V, HunyuanVideo, CosmosT2V, CosmosI2V, CosmosT2IPredict2, CosmosI2VPredict2, Lumina2, WAN22_T2V, WAN21_T2V, WAN21_I2V, WAN21_FunControl2V, WAN21_Vace, WAN21_Camera, WAN22_Camera, WAN22_S2V, WAN21_HuMo, Hunyuan3Dv2mini, Hunyuan3Dv2, Hunyuan3Dv2_1, HiDream, Chroma, ChromaRadiance, ACEStep, Omnigen2, QwenImage]
 
 models += [SVD_img2vid]
