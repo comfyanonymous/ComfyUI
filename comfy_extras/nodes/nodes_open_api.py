@@ -674,7 +674,7 @@ class SaveImagesResponse(CustomNode):
                     mut_srgb_to_linear(image_as_numpy_array[:, :, :3])
                     image_scaled = image_as_numpy_array.astype(np.float32)
                     if bits == 16:
-                        cv_save_options = [cv2.IMWRITE_EXR_TYPE, cv2.IMWRITE_EXR_TYPE_HALF]  # pylint: disable=no-member
+                        cv_save_options = [cv2.IMWRITE_EXR_TYPE, cv2.IMWRITE_EXR_TYPE_HALF]  
                 else:
                     image_scaled = np.clip(image_as_numpy_array * 65535, 0, 65535).astype(np.uint16)
 
@@ -769,7 +769,7 @@ class SaveImagesResponse(CustomNode):
                 if save_method == 'pil':
                     image_as_pil.save(local_path, format=save_format, **additional_args)
                 else:
-                    cv2.imwrite(local_path, image_scaled)  # pylint: disable=no-member
+                    cv2.imwrite(local_path, image_scaled)  
 
             img_item: SaveNodeResultWithName = {
                 "abs_path": str(abs_path),

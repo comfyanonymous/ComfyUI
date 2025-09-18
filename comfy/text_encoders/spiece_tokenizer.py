@@ -32,16 +32,16 @@ class SPieceTokenizer:
 
         self.end = self.tokenizer.eos_id()
         self.eos_token_id = self.end
-        self.eos_token = self.tokenizer.id_to_piece(self.eos_token_id)  # pylint: disable=no-member
+        self.eos_token = self.tokenizer.id_to_piece(self.eos_token_id)
         self._vocab = {
-            self.tokenizer.id_to_piece(i): i for i in range(self.tokenizer.get_piece_size())  # pylint: disable=no-member
+            self.tokenizer.id_to_piece(i): i for i in range(self.tokenizer.get_piece_size())
         }
 
     def get_vocab(self):
         return self._vocab
 
     def __call__(self, string):
-        out = self.tokenizer.encode(string)  # pylint: disable=no-member
+        out = self.tokenizer.encode(string)
         return {"input_ids": out}
 
     def serialize_model(self):

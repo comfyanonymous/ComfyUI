@@ -804,7 +804,7 @@ contextmanager-decorators=contextlib.contextmanager
 # List of members which are set dynamically and missed by pylint inference
 # system, and so shouldn't trigger E1101 when accessed. Python regular
 # expressions are accepted.
-generated-members=
+generated-members=cv2.*,sentencepiece.*
 
 # Tells whether to warn about missing members when the owner of the attribute
 # is inferred to be None.

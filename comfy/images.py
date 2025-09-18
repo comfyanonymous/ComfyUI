@@ -9,7 +9,7 @@ from . import node_helpers
 
 
 def _open_exr(exr_path) -> Image.Image:
-    return Image.fromarray(cv2.imread(exr_path, cv2.IMREAD_COLOR)) # pylint: disable=no-member
+    return Image.fromarray(cv2.imread(exr_path, cv2.IMREAD_COLOR)) 
 
 
 @contextmanager

@@ -28,7 +28,7 @@ SOFTWARE.
 import copy
 from typing import Sequence, Tuple
 
-import cv2 as cv
+import cv2
 import numpy as np
 import torch
 from torch import Tensor
@@ -36,7 +36,7 @@ from torch import Tensor
 from .component_model.images_types import RgbMaskTuple
 
 
-read_exr = lambda fp: cv.imread(fp, cv.IMREAD_UNCHANGED).astype(np.float32) # pylint: disable=no-member
+read_exr = lambda fp: cv2.imread(fp, cv2.IMREAD_UNCHANGED).astype(np.float32) 
 
 def mut_srgb_to_linear(np_array) -> None:
     less = np_array <= 0.0404482362771082
@@ -85,4 +85,4 @@ def save_exr(images: Tensor, filepaths_batched: Sequence[str], colorspace="linea
         bgr[:, :, :, 3] = np.clip(1 - linear[:, :, :, 3], 0, 1)  # invert alpha
 
     for i in range(len(linear.shape[0])):
-        cv.imwrite(filepaths_batched[i], bgr[i]) # pylint: disable=no-member
+        cv2.imwrite(filepaths_batched[i], bgr[i]) 
