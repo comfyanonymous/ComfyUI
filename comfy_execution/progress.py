@@ -181,8 +181,9 @@ class WebUIProgressHandler(ProgressHandler):
         }
 
         # Send a combined progress_state message with all node states
+        # Include client_id to ensure message is only sent to the initiating client
         self.server_instance.send_sync(
-            "progress_state", {"prompt_id": prompt_id, "nodes": active_nodes}
+            "progress_state", {"prompt_id": prompt_id, "nodes": active_nodes}, self.server_instance.client_id
         )
 
     @override

@@ -331,7 +331,7 @@ class String(ComfyTypeIO):
             })
 
 @comfytype(io_type="COMBO")
-class Combo(ComfyTypeI):
+class Combo(ComfyTypeIO):
     Type = str
     class Input(WidgetInput):
         """Combo input (dropdown)."""
@@ -360,6 +360,14 @@ class Combo(ComfyTypeI):
                 "remote": self.remote.as_dict() if self.remote else None,
             })
 
+    class Output(Output):
+        def __init__(self, id: str=None, display_name: str=None, options: list[str]=None, tooltip: str=None, is_output_list=False):
+            super().__init__(id, display_name, tooltip, is_output_list)
+            self.options = options if options is not None else []
+
+        @property
+        def io_type(self):
+            return self.options
 
 @comfytype(io_type="COMBO")
 class MultiCombo(ComfyTypeI):
@@ -724,6 +732,18 @@ class SEGS(ComfyTypeIO):
 
 @comfytype(io_type="*")
 class AnyType(ComfyTypeIO):
+    Type = Any
+
+@comfytype(io_type="MODEL_PATCH")
+class MODEL_PATCH(ComfyTypeIO):
+    Type = Any
+
+@comfytype(io_type="AUDIO_ENCODER")
+class AudioEncoder(ComfyTypeIO):
+    Type = Any
+
+@comfytype(io_type="AUDIO_ENCODER_OUTPUT")
+class AudioEncoderOutput(ComfyTypeIO):
     Type = Any
 
 @comfytype(io_type="COMFY_MULTITYPED_V3")
@@ -1178,13 +1198,18 @@ class _ComfyNodeBaseInternal(_ComfyNodeInternal):
         raise NotImplementedError
 
     @classmethod
-    def validate_inputs(cls, **kwargs) -> bool:
-        """Optionally, define this function to validate inputs; equivalent to V1's VALIDATE_INPUTS."""
+    def validate_inputs(cls, **kwargs) -> bool | str:
+        """Optionally, define this function to validate inputs; equivalent to V1's VALIDATE_INPUTS.
+
+        If the function returns a string, it will be used as the validation error message for the node.
+        """
         raise NotImplementedError
 
     @classmethod
     def fingerprint_inputs(cls, **kwargs) -> Any:
-        """Optionally, define this function to fingerprint inputs; equivalent to V1's IS_CHANGED."""
+        """Optionally, define this function to fingerprint inputs; equivalent to V1's IS_CHANGED.
+
+        If this function returns the same value as last run, the node will not be executed."""
         raise NotImplementedError
 
     @classmethod
@@ -1580,6 +1605,7 @@ class _IO:
     Model = Model
     ClipVision = ClipVision
     ClipVisionOutput = ClipVisionOutput
+    AudioEncoderOutput = AudioEncoderOutput
     StyleModel = StyleModel
     Gligen = Gligen
     UpscaleModel = UpscaleModel

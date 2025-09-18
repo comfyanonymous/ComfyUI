@@ -86,24 +86,24 @@ class BatchedBrownianTree:
     """A wrapper around torchsde.BrownianTree that enables batches of entropy."""
 
     def __init__(self, x, t0, t1, seed=None, **kwargs):
-        self.cpu_tree = True
-        if "cpu" in kwargs:
-            self.cpu_tree = kwargs.pop("cpu")
+        self.cpu_tree = kwargs.pop("cpu", True)
         t0, t1, self.sign = self.sort(t0, t1)
-        w0 = kwargs.get('w0', torch.zeros_like(x))
+        w0 = kwargs.pop('w0', None)
+        if w0 is None:
+            w0 = torch.zeros_like(x)
+        self.batched = False
         if seed is None:
-            seed = torch.randint(0, 2 ** 63 - 1, []).item()
-        self.batched = True
-        try:
-            assert len(seed) == x.shape[0]
+            seed = (torch.randint(0, 2 ** 63 - 1, ()).item(),)
+        elif isinstance(seed, (tuple, list)):
+            if len(seed) != x.shape[0]:
+                raise ValueError("Passing a list or tuple of seeds to BatchedBrownianTree requires a length matching the batch size.")
+            self.batched = True
             w0 = w0[0]
-        except TypeError:
-            seed = [seed]
-            self.batched = False
-        if self.cpu_tree:
-            self.trees = [torchsde.BrownianTree(t0.cpu(), w0.cpu(), t1.cpu(), entropy=s, **kwargs) for s in seed]
         else:
-            self.trees = [torchsde.BrownianTree(t0, w0, t1, entropy=s, **kwargs) for s in seed]
+            seed = (seed,)
+        if self.cpu_tree:
+            t0, w0, t1 = t0.detach().cpu(), w0.detach().cpu(), t1.detach().cpu()
+        self.trees = tuple(torchsde.BrownianTree(t0, w0, t1, entropy=s, **kwargs) for s in seed)
 
     @staticmethod
     def sort(a, b):
@@ -111,11 +111,10 @@ class BatchedBrownianTree:
 
     def __call__(self, t0, t1):
         t0, t1, sign = self.sort(t0, t1)
+        device, dtype = t0.device, t0.dtype
         if self.cpu_tree:
-            w = torch.stack([tree(t0.cpu().float(), t1.cpu().float()).to(t0.dtype).to(t0.device) for tree in self.trees]) * (self.sign * sign)
-        else:
-            w = torch.stack([tree(t0, t1) for tree in self.trees]) * (self.sign * sign)
-
+            t0, t1 = t0.detach().cpu().float(), t1.detach().cpu().float()
+        w = torch.stack([tree(t0, t1) for tree in self.trees]).to(device=device, dtype=dtype) * (self.sign * sign)
         return w if self.batched else w[0]
 
 
@@ -169,6 +168,16 @@ def offset_first_sigma_for_snr(sigmas, model_sampling, percent_offset=1e-4):
             sigmas = sigmas.clone()
             sigmas[0] = model_sampling.percent_to_sigma(percent_offset)
     return sigmas
+
+
+def ei_h_phi_1(h: torch.Tensor) -> torch.Tensor:
+    """Compute the result of h*phi_1(h) in exponential integrator methods."""
+    return torch.expm1(h)
+
+
+def ei_h_phi_2(h: torch.Tensor) -> torch.Tensor:
+    """Compute the result of h*phi_2(h) in exponential integrator methods."""
+    return (torch.expm1(h) - h) / h
 
 
 @torch.no_grad()
@@ -854,6 +863,11 @@ def sample_dpmpp_2m_sde(model, x, sigmas, extra_args=None, callback=None, disabl
 
 
 @torch.no_grad()
+def sample_dpmpp_2m_sde_heun(model, x, sigmas, extra_args=None, callback=None, disable=None, eta=1., s_noise=1., noise_sampler=None, solver_type='heun'):
+    return sample_dpmpp_2m_sde(model, x, sigmas, extra_args=extra_args, callback=callback, disable=disable, eta=eta, s_noise=s_noise, noise_sampler=noise_sampler, solver_type=solver_type)
+
+
+@torch.no_grad()
 def sample_dpmpp_3m_sde(model, x, sigmas, extra_args=None, callback=None, disable=None, eta=1., s_noise=1., noise_sampler=None):
     """DPM-Solver++(3M) SDE."""
 
@@ -923,6 +937,16 @@ def sample_dpmpp_3m_sde_gpu(model, x, sigmas, extra_args=None, callback=None, di
     sigma_min, sigma_max = sigmas[sigmas > 0].min(), sigmas.max()
     noise_sampler = BrownianTreeNoiseSampler(x, sigma_min, sigma_max, seed=extra_args.get("seed", None), cpu=False) if noise_sampler is None else noise_sampler
     return sample_dpmpp_3m_sde(model, x, sigmas, extra_args=extra_args, callback=callback, disable=disable, eta=eta, s_noise=s_noise, noise_sampler=noise_sampler)
+
+
+@torch.no_grad()
+def sample_dpmpp_2m_sde_heun_gpu(model, x, sigmas, extra_args=None, callback=None, disable=None, eta=1., s_noise=1., noise_sampler=None, solver_type='heun'):
+    if len(sigmas) <= 1:
+        return x
+    extra_args = {} if extra_args is None else extra_args
+    sigma_min, sigma_max = sigmas[sigmas > 0].min(), sigmas.max()
+    noise_sampler = BrownianTreeNoiseSampler(x, sigma_min, sigma_max, seed=extra_args.get("seed", None), cpu=False) if noise_sampler is None else noise_sampler
+    return sample_dpmpp_2m_sde_heun(model, x, sigmas, extra_args=extra_args, callback=callback, disable=disable, eta=eta, s_noise=s_noise, noise_sampler=noise_sampler, solver_type=solver_type)
 
 
 @torch.no_grad()
@@ -1535,13 +1559,12 @@ def sample_er_sde(model, x, sigmas, extra_args=None, callback=None, disable=None
 @torch.no_grad()
 def sample_seeds_2(model, x, sigmas, extra_args=None, callback=None, disable=None, eta=1., s_noise=1., noise_sampler=None, r=0.5):
     """SEEDS-2 - Stochastic Explicit Exponential Derivative-free Solvers (VP Data Prediction) stage 2.
-    arXiv: https://arxiv.org/abs/2305.14267
+    arXiv: https://arxiv.org/abs/2305.14267 (NeurIPS 2023)
     """
     extra_args = {} if extra_args is None else extra_args
     seed = extra_args.get("seed", None)
     noise_sampler = default_noise_sampler(x, seed=seed) if noise_sampler is None else noise_sampler
     s_in = x.new_ones([x.shape[0]])
-
     inject_noise = eta > 0 and s_noise > 0
 
     model_sampling = model.inner_model.model_patcher.get_model_object('model_sampling')
@@ -1549,55 +1572,53 @@ def sample_seeds_2(model, x, sigmas, extra_args=None, callback=None, disable=Non
     lambda_fn = partial(sigma_to_half_log_snr, model_sampling=model_sampling)
     sigmas = offset_first_sigma_for_snr(sigmas, model_sampling)
 
+    fac = 1 / (2 * r)
+
     for i in trange(len(sigmas) - 1, disable=disable):
         denoised = model(x, sigmas[i] * s_in, **extra_args)
         if callback is not None:
             callback({'x': x, 'i': i, 'sigma': sigmas[i], 'sigma_hat': sigmas[i], 'denoised': denoised})
+
         if sigmas[i + 1] == 0:
             x = denoised
-        else:
-            lambda_s, lambda_t = lambda_fn(sigmas[i]), lambda_fn(sigmas[i + 1])
-            h = lambda_t - lambda_s
-            h_eta = h * (eta + 1)
-            lambda_s_1 = lambda_s + r * h
-            fac = 1 / (2 * r)
-            sigma_s_1 = sigma_fn(lambda_s_1)
+            continue
 
-            # alpha_t = sigma_t * exp(log(alpha_t / sigma_t)) = sigma_t * exp(lambda_t)
-            alpha_s_1 = sigma_s_1 * lambda_s_1.exp()
-            alpha_t = sigmas[i + 1] * lambda_t.exp()
+        lambda_s, lambda_t = lambda_fn(sigmas[i]), lambda_fn(sigmas[i + 1])
+        h = lambda_t - lambda_s
+        h_eta = h * (eta + 1)
+        lambda_s_1 = torch.lerp(lambda_s, lambda_t, r)
+        sigma_s_1 = sigma_fn(lambda_s_1)
 
-            coeff_1, coeff_2 = (-r * h_eta).expm1(), (-h_eta).expm1()
-            if inject_noise:
-                # 0 < r < 1
-                noise_coeff_1 = (-2 * r * h * eta).expm1().neg().sqrt()
-                noise_coeff_2 = (-r * h * eta).exp() * (-2 * (1 - r) * h * eta).expm1().neg().sqrt()
-                noise_1, noise_2 = noise_sampler(sigmas[i], sigma_s_1), noise_sampler(sigma_s_1, sigmas[i + 1])
+        alpha_s_1 = sigma_s_1 * lambda_s_1.exp()
+        alpha_t = sigmas[i + 1] * lambda_t.exp()
 
-            # Step 1
-            x_2 = sigma_s_1 / sigmas[i] * (-r * h * eta).exp() * x - alpha_s_1 * coeff_1 * denoised
-            if inject_noise:
-                x_2 = x_2 + sigma_s_1 * (noise_coeff_1 * noise_1) * s_noise
-            denoised_2 = model(x_2, sigma_s_1 * s_in, **extra_args)
+        # Step 1
+        x_2 = sigma_s_1 / sigmas[i] * (-r * h * eta).exp() * x - alpha_s_1 * ei_h_phi_1(-r * h_eta) * denoised
+        if inject_noise:
+            sde_noise = (-2 * r * h * eta).expm1().neg().sqrt() * noise_sampler(sigmas[i], sigma_s_1)
+            x_2 = x_2 + sde_noise * sigma_s_1 * s_noise
+        denoised_2 = model(x_2, sigma_s_1 * s_in, **extra_args)
 
-            # Step 2
-            denoised_d = (1 - fac) * denoised + fac * denoised_2
-            x = sigmas[i + 1] / sigmas[i] * (-h * eta).exp() * x - alpha_t * coeff_2 * denoised_d
-            if inject_noise:
-                x = x + sigmas[i + 1] * (noise_coeff_2 * noise_1 + noise_coeff_1 * noise_2) * s_noise
+        # Step 2
+        denoised_d = torch.lerp(denoised, denoised_2, fac)
+        x = sigmas[i + 1] / sigmas[i] * (-h * eta).exp() * x - alpha_t * ei_h_phi_1(-h_eta) * denoised_d
+        if inject_noise:
+            segment_factor = (r - 1) * h * eta
+            sde_noise = sde_noise * segment_factor.exp()
+            sde_noise = sde_noise + segment_factor.mul(2).expm1().neg().sqrt() * noise_sampler(sigma_s_1, sigmas[i + 1])
+            x = x + sde_noise * sigmas[i + 1] * s_noise
     return x
 
 
 @torch.no_grad()
 def sample_seeds_3(model, x, sigmas, extra_args=None, callback=None, disable=None, eta=1., s_noise=1., noise_sampler=None, r_1=1./3, r_2=2./3):
     """SEEDS-3 - Stochastic Explicit Exponential Derivative-free Solvers (VP Data Prediction) stage 3.
-    arXiv: https://arxiv.org/abs/2305.14267
+    arXiv: https://arxiv.org/abs/2305.14267 (NeurIPS 2023)
     """
     extra_args = {} if extra_args is None else extra_args
     seed = extra_args.get("seed", None)
     noise_sampler = default_noise_sampler(x, seed=seed) if noise_sampler is None else noise_sampler
     s_in = x.new_ones([x.shape[0]])
-
     inject_noise = eta > 0 and s_noise > 0
 
     model_sampling = model.inner_model.model_patcher.get_model_object('model_sampling')
@@ -1609,45 +1630,49 @@ def sample_seeds_3(model, x, sigmas, extra_args=None, callback=None, disable=Non
         denoised = model(x, sigmas[i] * s_in, **extra_args)
         if callback is not None:
             callback({'x': x, 'i': i, 'sigma': sigmas[i], 'sigma_hat': sigmas[i], 'denoised': denoised})
+
         if sigmas[i + 1] == 0:
             x = denoised
-        else:
-            lambda_s, lambda_t = lambda_fn(sigmas[i]), lambda_fn(sigmas[i + 1])
-            h = lambda_t - lambda_s
-            h_eta = h * (eta + 1)
-            lambda_s_1 = lambda_s + r_1 * h
-            lambda_s_2 = lambda_s + r_2 * h
-            sigma_s_1, sigma_s_2 = sigma_fn(lambda_s_1), sigma_fn(lambda_s_2)
+            continue
 
-            # alpha_t = sigma_t * exp(log(alpha_t / sigma_t)) = sigma_t * exp(lambda_t)
-            alpha_s_1 = sigma_s_1 * lambda_s_1.exp()
-            alpha_s_2 = sigma_s_2 * lambda_s_2.exp()
-            alpha_t = sigmas[i + 1] * lambda_t.exp()
+        lambda_s, lambda_t = lambda_fn(sigmas[i]), lambda_fn(sigmas[i + 1])
+        h = lambda_t - lambda_s
+        h_eta = h * (eta + 1)
+        lambda_s_1 = torch.lerp(lambda_s, lambda_t, r_1)
+        lambda_s_2 = torch.lerp(lambda_s, lambda_t, r_2)
+        sigma_s_1, sigma_s_2 = sigma_fn(lambda_s_1), sigma_fn(lambda_s_2)
 
-            coeff_1, coeff_2, coeff_3 = (-r_1 * h_eta).expm1(), (-r_2 * h_eta).expm1(), (-h_eta).expm1()
-            if inject_noise:
-                # 0 < r_1 < r_2 < 1
-                noise_coeff_1 = (-2 * r_1 * h * eta).expm1().neg().sqrt()
-                noise_coeff_2 = (-r_1 * h * eta).exp() * (-2 * (r_2 - r_1) * h * eta).expm1().neg().sqrt()
-                noise_coeff_3 = (-r_2 * h * eta).exp() * (-2 * (1 - r_2) * h * eta).expm1().neg().sqrt()
-                noise_1, noise_2, noise_3 = noise_sampler(sigmas[i], sigma_s_1), noise_sampler(sigma_s_1, sigma_s_2), noise_sampler(sigma_s_2, sigmas[i + 1])
+        alpha_s_1 = sigma_s_1 * lambda_s_1.exp()
+        alpha_s_2 = sigma_s_2 * lambda_s_2.exp()
+        alpha_t = sigmas[i + 1] * lambda_t.exp()
 
-            # Step 1
-            x_2 = sigma_s_1 / sigmas[i] * (-r_1 * h * eta).exp() * x - alpha_s_1 * coeff_1 * denoised
-            if inject_noise:
-                x_2 = x_2 + sigma_s_1 * (noise_coeff_1 * noise_1) * s_noise
-            denoised_2 = model(x_2, sigma_s_1 * s_in, **extra_args)
+        # Step 1
+        x_2 = sigma_s_1 / sigmas[i] * (-r_1 * h * eta).exp() * x - alpha_s_1 * ei_h_phi_1(-r_1 * h_eta) * denoised
+        if inject_noise:
+            sde_noise = (-2 * r_1 * h * eta).expm1().neg().sqrt() * noise_sampler(sigmas[i], sigma_s_1)
+            x_2 = x_2 + sde_noise * sigma_s_1 * s_noise
+        denoised_2 = model(x_2, sigma_s_1 * s_in, **extra_args)
 
-            # Step 2
-            x_3 = sigma_s_2 / sigmas[i] * (-r_2 * h * eta).exp() * x - alpha_s_2 * coeff_2 * denoised + (r_2 / r_1) * alpha_s_2 * (coeff_2 / (r_2 * h_eta) + 1) * (denoised_2 - denoised)
-            if inject_noise:
-                x_3 = x_3 + sigma_s_2 * (noise_coeff_2 * noise_1 + noise_coeff_1 * noise_2) * s_noise
-            denoised_3 = model(x_3, sigma_s_2 * s_in, **extra_args)
+        # Step 2
+        a3_2 = r_2 / r_1 * ei_h_phi_2(-r_2 * h_eta)
+        a3_1 = ei_h_phi_1(-r_2 * h_eta) - a3_2
+        x_3 = sigma_s_2 / sigmas[i] * (-r_2 * h * eta).exp() * x - alpha_s_2 * (a3_1 * denoised + a3_2 * denoised_2)
+        if inject_noise:
+            segment_factor = (r_1 - r_2) * h * eta
+            sde_noise = sde_noise * segment_factor.exp()
+            sde_noise = sde_noise + segment_factor.mul(2).expm1().neg().sqrt() * noise_sampler(sigma_s_1, sigma_s_2)
+            x_3 = x_3 + sde_noise * sigma_s_2 * s_noise
+        denoised_3 = model(x_3, sigma_s_2 * s_in, **extra_args)
 
-            # Step 3
-            x = sigmas[i + 1] / sigmas[i] * (-h * eta).exp() * x - alpha_t * coeff_3 * denoised + (1. / r_2) * alpha_t * (coeff_3 / h_eta + 1) * (denoised_3 - denoised)
-            if inject_noise:
-                x = x + sigmas[i + 1] * (noise_coeff_3 * noise_1 + noise_coeff_2 * noise_2 + noise_coeff_1 * noise_3) * s_noise
+        # Step 3
+        b3 = ei_h_phi_2(-h_eta) / r_2
+        b1 = ei_h_phi_1(-h_eta) - b3
+        x = sigmas[i + 1] / sigmas[i] * (-h * eta).exp() * x - alpha_t * (b1 * denoised + b3 * denoised_3)
+        if inject_noise:
+            segment_factor = (r_2 - 1) * h * eta
+            sde_noise = sde_noise * segment_factor.exp()
+            sde_noise = sde_noise + segment_factor.mul(2).expm1().neg().sqrt() * noise_sampler(sigma_s_2, sigmas[i + 1])
+            x = x + sde_noise * sigmas[i + 1] * s_noise
     return x
 
 

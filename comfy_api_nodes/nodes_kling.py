@@ -421,6 +421,8 @@ class KlingTextToVideoNode(KlingNodeBase):
             "pro mode / 10s duration / kling-v2-master": ("pro", "10", "kling-v2-master"),
             "standard mode / 5s duration / kling-v2-master": ("std", "5", "kling-v2-master"),
             "standard mode / 10s duration / kling-v2-master": ("std", "10", "kling-v2-master"),
+            "pro mode / 5s duration / kling-v2-1-master": ("pro", "5", "kling-v2-1-master"),
+            "pro mode / 10s duration / kling-v2-1-master": ("pro", "10", "kling-v2-1-master"),
         }
 
     @classmethod
@@ -844,6 +846,8 @@ class KlingStartEndFrameNode(KlingImage2VideoNode):
             "pro mode / 10s duration / kling-v1-5": ("pro", "10", "kling-v1-5"),
             "pro mode / 5s duration / kling-v1-6": ("pro", "5", "kling-v1-6"),
             "pro mode / 10s duration / kling-v1-6": ("pro", "10", "kling-v1-6"),
+            "pro mode / 5s duration / kling-v2-1": ("pro", "5", "kling-v2-1"),
+            "pro mode / 10s duration / kling-v2-1": ("pro", "10", "kling-v2-1"),
         }
 
     @classmethod

@@ -113,6 +113,42 @@ class HunyuanImageToVideo:
         out_latent["samples"] = latent
         return (positive, out_latent)
 
+class EmptyHunyuanImageLatent:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": { "width": ("INT", {"default": 2048, "min": 64, "max": nodes.MAX_RESOLUTION, "step": 32}),
+                              "height": ("INT", {"default": 2048, "min": 64, "max": nodes.MAX_RESOLUTION, "step": 32}),
+                              "batch_size": ("INT", {"default": 1, "min": 1, "max": 4096})}}
+    RETURN_TYPES = ("LATENT",)
+    FUNCTION = "generate"
+
+    CATEGORY = "latent"
+
+    def generate(self, width, height, batch_size=1):
+        latent = torch.zeros([batch_size, 64, height // 32, width // 32], device=comfy.model_management.intermediate_device())
+        return ({"samples":latent}, )
+
+class HunyuanRefinerLatent:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": {"positive": ("CONDITIONING", ),
+                             "negative": ("CONDITIONING", ),
+                             "latent": ("LATENT", ),
+                             "noise_augmentation": ("FLOAT", {"default": 0.10, "min": 0.0, "max": 1.0, "step": 0.01}),
+                             }}
+
+    RETURN_TYPES = ("CONDITIONING", "CONDITIONING", "LATENT")
+    RETURN_NAMES = ("positive", "negative", "latent")
+
+    FUNCTION = "execute"
+
+    def execute(self, positive, negative, latent, noise_augmentation):
+        latent = latent["samples"]
+        positive = node_helpers.conditioning_set_values(positive, {"concat_latent_image": latent, "noise_augmentation": noise_augmentation})
+        negative = node_helpers.conditioning_set_values(negative, {"concat_latent_image": latent, "noise_augmentation": noise_augmentation})
+        out_latent = {}
+        out_latent["samples"] = torch.zeros([latent.shape[0], 32, latent.shape[-3], latent.shape[-2], latent.shape[-1]], device=comfy.model_management.intermediate_device())
+        return (positive, negative, out_latent)
 
 
 NODE_CLASS_MAPPINGS = {
@@ -120,4 +156,6 @@ NODE_CLASS_MAPPINGS = {
     "TextEncodeHunyuanVideo_ImageToVideo": TextEncodeHunyuanVideo_ImageToVideo,
     "EmptyHunyuanLatentVideo": EmptyHunyuanLatentVideo,
     "HunyuanImageToVideo": HunyuanImageToVideo,
+    "EmptyHunyuanImageLatent": EmptyHunyuanImageLatent,
+    "HunyuanRefinerLatent": HunyuanRefinerLatent,
 }
