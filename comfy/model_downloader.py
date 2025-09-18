@@ -523,7 +523,7 @@ KNOWN_VAES: Final[KnownDownloadables] = KnownDownloadables([
 KNOWN_HUGGINGFACE_MODEL_REPOS: Final[Set[str]] = {
     'JingyeChen22/textdiffuser2_layout_planner',
     'JingyeChen22/textdiffuser2-full-ft',
-    'microsoft/Phi-3-mini-4k-instruct',
+    'microsoft/Phi-4-mini-instruct',
     'llava-hf/llava-v1.6-mistral-7b-hf',
     'facebook/nllb-200-distilled-1.3B',
     'THUDM/chatglm3-6b',

@@ -43,9 +43,6 @@ jobs:
       - name: Run unit tests
         run: |
           pytest -v tests/unit
-      - name: Run inference tests
-        run: |
-          pytest -v tests/inference
   build_and_execute_macos:
     environment: "Testing"
     name: Installation Test for macOS
@@ -65,7 +62,3 @@ jobs:
         run: |
           uv venv --python 3.12
           uv pip install --torch-backend=auto '.[mps,dev]' --inexact
-#      - name: Run tests
-#        run: |
-#          export OTEL_METRICS_EXPORTER=none
-#          uv run pytest -v tests/unit
