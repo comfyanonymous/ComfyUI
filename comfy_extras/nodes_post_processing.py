@@ -233,6 +233,7 @@ class Sharpen:
 
         kernel_size = sharpen_radius * 2 + 1
         kernel = gaussian_kernel(kernel_size, sigma, device=image.device) * -(alpha*10)
+        kernel = kernel.to(dtype=image.dtype)
         center = kernel_size // 2
         kernel[center, center] = kernel[center, center] - kernel.sum() + 1.0
         kernel = kernel.repeat(channels, 1, 1).unsqueeze(1)
