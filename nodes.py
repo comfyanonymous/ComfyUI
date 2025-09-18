@@ -43,7 +43,7 @@ import folder_paths
 import latent_preview
 import node_helpers
 
-if not args.disable_manager:
+if args.enable_manager:
     import comfyui_manager
 
 def before_node_execution():
@@ -2234,7 +2234,7 @@ async def init_external_custom_nodes():
                 logging.info(f"Skipping {possible_module} due to disable_all_custom_nodes and whitelist_custom_nodes")
                 continue
 
-            if not args.disable_manager:
+            if args.enable_manager:
                 if comfyui_manager.should_be_disabled(module_path):
                     logging.info(f"Blocked by policy: {module_path}")
                     continue

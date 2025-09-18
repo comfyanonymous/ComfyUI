@@ -16,12 +16,19 @@ from comfy_execution.utils import get_executing_context
 from comfy_api import feature_flags
 
 
+if __name__ == "__main__":
+    #NOTE: These do not do anything on core ComfyUI, they are for custom nodes.
+    os.environ['HF_HUB_DISABLE_TELEMETRY'] = '1'
+    os.environ['DO_NOT_TRACK'] = '1'
+
+setup_logger(log_level=args.verbose, use_stdout=args.log_stdout)
+
+
 def handle_comfyui_manager_unavailable():
     logging.warning(f"\n\nYou appear to be running comfyui-manager from source, this is not recommended. Please install comfyui-manager using the following command:\ncommand:\n\t{sys.executable} -m pip install --pre comfyui_manager\n")
-    args.disable_manager = True
 
 
-if not args.disable_manager:
+if args.enable_manager:
     if importlib.util.find_spec("comfyui_manager"):
         import comfyui_manager
 
@@ -30,13 +37,6 @@ if not args.disable_manager:
     else:
         handle_comfyui_manager_unavailable()
 
-
-if __name__ == "__main__":
-    #NOTE: These do not do anything on core ComfyUI, they are for custom nodes.
-    os.environ['HF_HUB_DISABLE_TELEMETRY'] = '1'
-    os.environ['DO_NOT_TRACK'] = '1'
-
-setup_logger(log_level=args.verbose, use_stdout=args.log_stdout)
 
 def apply_custom_paths():
     # extra model paths
@@ -96,7 +96,7 @@ def execute_prestartup_script():
         for possible_module in possible_modules:
             module_path = os.path.join(custom_node_path, possible_module)
 
-            if not args.disable_manager:
+            if args.enable_manager:
                 if comfyui_manager.should_be_disabled(module_path):
                     continue
 
@@ -123,7 +123,7 @@ def execute_prestartup_script():
 
 apply_custom_paths()
 
-if not args.disable_manager:
+if args.enable_manager:
     comfyui_manager.prestartup()
 
 execute_prestartup_script()
@@ -337,7 +337,7 @@ def start_comfyui(asyncio_loop=None):
         asyncio.set_event_loop(asyncio_loop)
     prompt_server = server.PromptServer(asyncio_loop)
 
-    if not args.disable_manager and not args.disable_manager_ui:
+    if args.enable_manager and not args.disable_manager_ui:
         comfyui_manager.start()
 
     hook_breaker_ac10a0.save_functions()

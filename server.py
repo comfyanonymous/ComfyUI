@@ -42,7 +42,7 @@ from protocol import BinaryEventTypes
 # Import cache control middleware
 from middleware.cache_middleware import cache_control
 
-if not args.disable_manager:
+if args.enable_manager:
     import comfyui_manager
 
 async def send_socket_catch_exception(function, message):
@@ -171,7 +171,7 @@ class PromptServer():
         else:
             middlewares.append(create_origin_only_middleware())
 
-        if not args.disable_manager:
+        if args.enable_manager:
             middlewares.append(comfyui_manager.create_middleware())
 
         max_upload_size = round(args.max_upload_size * 1024 * 1024)
