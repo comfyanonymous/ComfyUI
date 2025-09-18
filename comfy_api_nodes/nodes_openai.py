@@ -80,6 +80,9 @@ class SupportedOpenAIModel(str, Enum):
     gpt_4_1 = "gpt-4.1"
     gpt_4_1_mini = "gpt-4.1-mini"
     gpt_4_1_nano = "gpt-4.1-nano"
+    gpt_5 = "gpt-5"
+    gpt_5_mini = "gpt-5-mini"
+    gpt_5_nano = "gpt-5-nano"
 
 
 class OpenAIDalle2(ComfyNodeABC):
@@ -995,7 +998,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "OpenAIDalle2": "OpenAI DALL·E 2",
     "OpenAIDalle3": "OpenAI DALL·E 3",
     "OpenAIGPTImage1": "OpenAI GPT Image 1",
-    "OpenAIChatNode": "OpenAI Chat",
-    "OpenAIInputFiles": "OpenAI Chat Input Files",
-    "OpenAIChatConfig": "OpenAI Chat Advanced Options",
+    "OpenAIChatNode": "OpenAI ChatGPT",
+    "OpenAIInputFiles": "OpenAI ChatGPT Input Files",
+    "OpenAIChatConfig": "OpenAI ChatGPT Advanced Options",
 }

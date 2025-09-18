@@ -15,13 +15,27 @@ class QwenImageTokenizer(sd1_clip.SD1Tokenizer):
     def __init__(self, embedding_directory=None, tokenizer_data={}):
         super().__init__(embedding_directory=embedding_directory, tokenizer_data=tokenizer_data, name="qwen25_7b", tokenizer=Qwen25_7BVLITokenizer)
         self.llama_template = "<|im_start|>system\nDescribe the image by detailing the color, shape, size, texture, quantity, text, spatial relationships of the objects and background:<|im_end|>\n<|im_start|>user\n{}<|im_end|>\n<|im_start|>assistant\n"
+        self.llama_template_images = "<|im_start|>system\nDescribe the key features of the input image (color, shape, size, texture, objects, background), then explain how the user's text instruction should alter or modify the image. Generate a new image that meets the user's requirements while maintaining consistency with the original input where appropriate.<|im_end|>\n<|im_start|>user\n<|vision_start|><|image_pad|><|vision_end|>{}<|im_end|>\n<|im_start|>assistant\n"
 
-    def tokenize_with_weights(self, text, return_word_ids=False, llama_template=None,**kwargs):
+    def tokenize_with_weights(self, text, return_word_ids=False, llama_template=None, images=[], **kwargs):
         if llama_template is None:
-            llama_text = self.llama_template.format(text)
+            if len(images) > 0:
+                llama_text = self.llama_template_images.format(text)
+            else:
+                llama_text = self.llama_template.format(text)
         else:
             llama_text = llama_template.format(text)
-        return super().tokenize_with_weights(llama_text, return_word_ids=return_word_ids, **kwargs)
+        tokens = super().tokenize_with_weights(llama_text, return_word_ids=return_word_ids, disable_weights=True, **kwargs)
+        key_name = next(iter(tokens))
+        embed_count = 0
+        qwen_tokens = tokens[key_name]
+        for r in qwen_tokens:
+            for i in range(len(r)):
+                if r[i][0] == 151655:
+                    if len(images) > embed_count:
+                        r[i] = ({"type": "image", "data": images[embed_count], "original_type": "image"},) + r[i][1:]
+                        embed_count += 1
+        return tokens
 
 
 class Qwen25_7BVLIModel(sd1_clip.SDClipModel):

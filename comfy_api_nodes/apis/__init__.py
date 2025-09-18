@@ -951,7 +951,11 @@ class MagicPrompt2(str, Enum):
 
 
 class StyleType1(str, Enum):
+    AUTO = 'AUTO'
     GENERAL = 'GENERAL'
+    REALISTIC = 'REALISTIC'
+    DESIGN = 'DESIGN'
+    FICTION = 'FICTION'
 
 
 class ImagenImageGenerationInstance(BaseModel):
@@ -1315,6 +1319,7 @@ class KlingTaskStatus(str, Enum):
 class KlingTextToVideoModelName(str, Enum):
     kling_v1 = 'kling-v1'
     kling_v1_6 = 'kling-v1-6'
+    kling_v2_1_master = 'kling-v2-1-master'
 
 
 class KlingVideoGenAspectRatio(str, Enum):
@@ -1347,6 +1352,8 @@ class KlingVideoGenModelName(str, Enum):
     kling_v1_5 = 'kling-v1-5'
     kling_v1_6 = 'kling-v1-6'
     kling_v2_master = 'kling-v2-master'
+    kling_v2_1 = 'kling-v2-1'
+    kling_v2_1_master = 'kling-v2-1-master'
 
 
 class KlingVideoResult(BaseModel):
@@ -1620,13 +1627,14 @@ class MinimaxTaskResultResponse(BaseModel):
     task_id: str = Field(..., description='The task ID being queried.')
 
 
-class Model(str, Enum):
+class MiniMaxModel(str, Enum):
     T2V_01_Director = 'T2V-01-Director'
     I2V_01_Director = 'I2V-01-Director'
     S2V_01 = 'S2V-01'
     I2V_01 = 'I2V-01'
     I2V_01_live = 'I2V-01-live'
     T2V_01 = 'T2V-01'
+    Hailuo_02 = 'MiniMax-Hailuo-02'
 
 
 class SubjectReferenceItem(BaseModel):
@@ -1648,7 +1656,7 @@ class MinimaxVideoGenerationRequest(BaseModel):
         None,
         description='URL or base64 encoding of the first frame image. Required when model is I2V-01, I2V-01-Director, or I2V-01-live.',
     )
-    model: Model = Field(
+    model: MiniMaxModel = Field(
         ...,
         description='Required. ID of model. Options: T2V-01-Director, I2V-01-Director, S2V-01, I2V-01, I2V-01-live, T2V-01',
     )
@@ -1664,6 +1672,14 @@ class MinimaxVideoGenerationRequest(BaseModel):
     subject_reference: Optional[List[SubjectReferenceItem]] = Field(
         None,
         description='Only available when model is S2V-01. The model will generate a video based on the subject uploaded through this parameter.',
+    )
+    duration: Optional[int] = Field(
+        None,
+        description="The length of the output video in seconds."
+    )
+    resolution: Optional[str] = Field(
+        None,
+        description="The dimensions of the video display. 1080p corresponds to 1920 x 1080 pixels, 768p corresponds to 1366 x 768 pixels."
     )
 
 
@@ -2664,7 +2680,7 @@ class ReleaseNote(BaseModel):
 
 
 class RenderingSpeed(str, Enum):
-    BALANCED = 'BALANCED'
+    DEFAULT = 'DEFAULT'
     TURBO = 'TURBO'
     QUALITY = 'QUALITY'
 
@@ -4906,6 +4922,14 @@ class IdeogramV3EditRequest(BaseModel):
         None,
         description='A set of images to use as style references (maximum total size 10MB across all style references). The images should be in JPEG, PNG or WebP format.',
     )
+    character_reference_images: Optional[List[str]] = Field(
+        None,
+        description='Generations with character reference are subject to the character reference pricing. A set of images to use as character references (maximum total size 10MB across all character references), currently only supports 1 character reference image. The images should be in JPEG, PNG or WebP format.'
+    )
+    character_reference_images_mask: Optional[List[str]] = Field(
+        None,
+        description='Optional masks for character reference images. When provided, must match the number of character_reference_images. Each mask should be a grayscale image of the same dimensions as the corresponding character reference image. The images should be in JPEG, PNG or WebP format.'
+    )
 
 
 class IdeogramV3Request(BaseModel):
@@ -4938,6 +4962,14 @@ class IdeogramV3Request(BaseModel):
     )
     style_type: Optional[StyleType1] = Field(
         None, description='The type of style to apply'
+    )
+    character_reference_images: Optional[List[str]] = Field(
+        None,
+        description='Generations with character reference are subject to the character reference pricing. A set of images to use as character references (maximum total size 10MB across all character references), currently only supports 1 character reference image. The images should be in JPEG, PNG or WebP format.'
+    )
+    character_reference_images_mask: Optional[List[str]] = Field(
+        None,
+        description='Optional masks for character reference images. When provided, must match the number of character_reference_images. Each mask should be a grayscale image of the same dimensions as the corresponding character reference image. The images should be in JPEG, PNG or WebP format.'
     )
 
 
