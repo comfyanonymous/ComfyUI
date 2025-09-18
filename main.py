@@ -26,6 +26,7 @@ setup_logger(log_level=args.verbose, use_stdout=args.log_stdout)
 
 def handle_comfyui_manager_unavailable():
     logging.warning(f"\n\nYou appear to be running comfyui-manager from source, this is not recommended. Please install comfyui-manager using the following command:\ncommand:\n\t{sys.executable} -m pip install --pre comfyui_manager\n")
+    args.enable_manager = False
 
 
 if args.enable_manager:
