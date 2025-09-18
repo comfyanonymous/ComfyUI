@@ -1095,10 +1095,6 @@ class WanHuMoImageToVideo(io.ComfyNode):
             audio_emb = torch.stack([feat0, feat1, feat2, feat3, feat4], dim=2)[0]  # [T, 5, 1280]
             audio_emb, _ = get_audio_emb_window(audio_emb, length, frame0_idx=0)
 
-            # pad for ref latent
-            zero_audio_pad = torch.zeros(ref_latent.shape[2], *audio_emb.shape[1:], device=audio_emb.device, dtype=audio_emb.dtype)
-            audio_emb = torch.cat([audio_emb, zero_audio_pad], dim=0)
-
             audio_emb = audio_emb.unsqueeze(0)
             audio_emb_neg = torch.zeros_like(audio_emb)
             positive = node_helpers.conditioning_set_values(positive, {"audio_embed": audio_emb})
