@@ -1355,7 +1355,7 @@ def supports_fp8_compute(device=None):
     if SUPPORT_FP8_OPS:
         return True
 
-    if not is_nvidia():
+    if not (is_nvidia() or is_amd()):
         return False
 
     props = torch.cuda.get_device_properties(device)
