@@ -36,16 +36,16 @@ jobs:
           export UV_BREAK_SYSTEM_PACKAGES=true
           export UV_SYSTEM_PYTHON=true
           uv pip freeze | grep numpy > numpy_override.txt
-          uv pip install ".[dev]" --inexact --override numpy_override.txt
-      - name: Run tests
-        run: |
-          nvidia-smi
-          export OTEL_METRICS_EXPORTER=none
-          pytest -v tests/unit
+          uv pip install --torch-backend=auto ".[dev]" --inexact --override numpy_override.txt
       - name: Lint for errors
         run: |
-          pylint --rcfile=.pylintrc comfy/
-          pylint --rcfile=.pylintrc comfy_extras/
+          pylint --rcfile=.pylintrc comfy/ comfy_extras/ comfy_api/ comfy_api_nodes/
+      - name: Run unit tests
+        run: |
+          pytest -v tests/unit
+      - name: Run inference tests
+        run: |
+          pytest -v tests/inference
   build_and_execute_macos:
     environment: "Testing"
     name: Installation Test for macOS
