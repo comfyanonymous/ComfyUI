@@ -278,13 +278,13 @@ def cleanup_temp():
     if os.path.exists(temp_dir):
         shutil.rmtree(temp_dir, ignore_errors=True)
 
-def setup_database():
-    try:
-        from app.database.db import init_db, dependencies_available
-        if dependencies_available():
-            init_db()
-    except Exception as e:
-        logging.error(f"Failed to initialize database. Please ensure you have installed the latest requirements. If the error persists, please report this as in future the database will be required: {e}")
+async def setup_database():
+    from app import init_db_engine, sync_seed_assets
+
+    await init_db_engine()
+    if not args.disable_assets_autoscan:
+        await sync_seed_assets(["models"])
+
 
 def start_comfyui(asyncio_loop=None):
     """
@@ -309,6 +309,8 @@ def start_comfyui(asyncio_loop=None):
         asyncio.set_event_loop(asyncio_loop)
     prompt_server = server.PromptServer(asyncio_loop)
 
+    asyncio_loop.run_until_complete(setup_database())
+
     hook_breaker_ac10a0.save_functions()
     asyncio_loop.run_until_complete(nodes.init_extra_nodes(
         init_custom_nodes=(not args.disable_all_custom_nodes) or len(args.whitelist_custom_nodes) > 0,
@@ -317,7 +319,6 @@ def start_comfyui(asyncio_loop=None):
     hook_breaker_ac10a0.restore_functions()
 
     cuda_malloc_warning()
-    setup_database()
 
     prompt_server.add_routes()
     hijack_progress(prompt_server)
