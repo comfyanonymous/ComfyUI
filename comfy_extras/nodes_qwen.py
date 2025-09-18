@@ -39,7 +39,7 @@ class TextEncodeQwenImageEdit:
         tokens = clip.tokenize(prompt, images=images)
         conditioning = clip.encode_from_tokens_scheduled(tokens)
         if ref_latent is not None:
-            conditioning = node_helpers.conditioning_set_values(conditioning, {"reference_latents": [ref_latent]}, append=True)
+            conditioning = node_helpers.conditioning_set_values(conditioning, {"reference_latents": [ref_latent]}, append=False)
         return (conditioning, )
 
 
