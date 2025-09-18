@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Protocol, List, Dict, Optional, NamedTuple, Callable, Literal, Any, TypeAlias, Union
+from typing import Protocol, List, Dict, Optional, NamedTuple, Callable, Literal, Any, TypeAlias, Union, runtime_checkable
 import torch
 
 PatchOffset = tuple[int, int, int]
@@ -31,6 +31,7 @@ class PatchTuple(NamedTuple):
 ModelPatchesDictValue: TypeAlias = list[Union[PatchTuple, PatchWeightTuple]]
 
 
+@runtime_checkable
 class PatchSupport(Protocol):
     """
     Defines the interface for a model that supports LoRA patching.

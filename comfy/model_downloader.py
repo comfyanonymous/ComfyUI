@@ -45,7 +45,7 @@ def get_filename_list_with_downloadable(folder_name: str, known_files: Optional[
         known_files = _get_known_models_for_folder_name(folder_name)
 
     existing = folder_paths.get_filename_list(folder_name)
-    
+
     downloadable_files = []
     if not args.disable_known_models:
         downloadable_files = known_files
@@ -725,15 +725,15 @@ def get_huggingface_repo_list(*extra_cache_dirs: str) -> List[str]:
         return list(existing_repo_ids | existing_local_dir_repos | known_repo_ids)
 
 
-def get_or_download_huggingface_repo(repo_id: str, cache_dirs: Optional[list] = None, local_dirs: Optional[list] = None) -> Optional[str]:
+def get_or_download_huggingface_repo(repo_id: str, cache_dirs: Optional[list] = None, local_dirs: Optional[list] = None, force: bool = False, subset: bool = False) -> Optional[str]:
     with comfy_tqdm():
-        return _get_or_download_huggingface_repo(repo_id, cache_dirs, local_dirs)
+        return _get_or_download_huggingface_repo(repo_id, cache_dirs, local_dirs, force=force, subset=subset)
 
 
-def _get_or_download_huggingface_repo(repo_id: str, cache_dirs: Optional[list] = None, local_dirs: Optional[list] = None) -> Optional[str]:
+def _get_or_download_huggingface_repo(repo_id: str, cache_dirs: Optional[list] = None, local_dirs: Optional[list] = None, force: bool = False, subset: bool = False) -> Optional[str]:
     cache_dirs = cache_dirs or folder_paths.get_folder_paths("huggingface_cache")
     local_dirs = local_dirs or folder_paths.get_folder_paths("huggingface")
-    cache_dirs_snapshots, local_dirs_snapshots = _get_cache_hits(cache_dirs, local_dirs, repo_id)
+    cache_dirs_snapshots, local_dirs_snapshots = _get_cache_hits(cache_dirs, local_dirs, repo_id, subset=subset)
 
     local_dirs_cache_hit = len(local_dirs_snapshots) > 0
     cache_dirs_cache_hit = len(cache_dirs_snapshots) > 0
@@ -742,25 +742,25 @@ def _get_or_download_huggingface_repo(repo_id: str, cache_dirs: Optional[list] =
     # if we're in forced local directory mode, only use the local dir snapshots, and otherwise, download
     if args.force_hf_local_dir_mode:
         # todo: we still have to figure out a way to download things to the right places by default
-        if len(local_dirs_snapshots) > 0:
+        if len(local_dirs_snapshots) > 0 and not force:
             return local_dirs_snapshots[0]
         elif not args.disable_known_models:
             destination = os.path.join(local_dirs[0], repo_id)
             logger.debug(f"downloading repo_id={repo_id}, local_dir={destination}")
-            return snapshot_download(repo_id, local_dir=destination)
+            return snapshot_download(repo_id, local_dir=destination, force_download=force)
 
     snapshots = local_dirs_snapshots + cache_dirs_snapshots
-    if len(snapshots) > 0:
+    if len(snapshots) > 0 and not force:
         return snapshots[0]
     elif not args.disable_known_models:
         logger.debug(f"downloading repo_id={repo_id}")
-        return snapshot_download(repo_id)
+        return snapshot_download(repo_id, force_download=force)
 
     # this repo was not found
     return None
 
 
-def _get_cache_hits(cache_dirs: Sequence[str], local_dirs: Sequence[str], repo_id):
+def _get_cache_hits(cache_dirs: Sequence[str], local_dirs: Sequence[str], repo_id, subset=False):
     local_dirs_snapshots = []
     cache_dirs_snapshots = []
     # find all the pre-existing downloads for this repo_id
@@ -772,13 +772,12 @@ def _get_cache_hits(cache_dirs: Sequence[str], local_dirs: Sequence[str], repo_i
     if len(repo_files) > 0:
         for local_dir in local_dirs:
             local_path = Path(local_dir) / repo_id
-            local_files = set(f"{repo_id}/{f.relative_to(local_path)}" for f in local_path.rglob("*") if f.is_file())
+            local_files = frozenset(f"{repo_id}/{f.relative_to(local_path)}" for f in local_path.rglob("*") if f.is_file())
             # fix path representation
-            local_files = set(f.replace("\\", "/") for f in local_files)
+            local_files = frozenset(f.replace("\\", "/") for f in local_files)
             # remove .huggingface
-            local_files = set(f for f in local_files if not f.startswith(f"{repo_id}/.huggingface") and not f.startswith(f"{repo_id}/.cache"))
-            # local_files.issubsetof(repo_files)
-            if len(local_files) > 0 and local_files.issubset(repo_files):
+            local_files = frozenset(f for f in local_files if not f.startswith(f"{repo_id}/.huggingface") and not f.startswith(f"{repo_id}/.cache"))
+            if len(local_files) > 0 and ((subset and local_files.issubset(repo_files)) or (not subset and repo_files.issubset(local_files))):
                 local_dirs_snapshots.append(str(local_path))
     else:
         # an empty repository or unknown repository info, trust that if the directory exists, it matches

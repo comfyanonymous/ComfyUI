@@ -182,7 +182,7 @@ async def test_huggingface_alternate_filenames_in_combo():
     )
 
     # 3. Get the list of files as the UI would
-    filename_list = get_filename_list_with_downloadable("checkpoints", known_files=[known_file])
+    filename_list = get_filename_list_with_downloadable("__xxx___", known_files=[known_file])
 
     # 4. Assert that both the main and alternate filenames are present
     assert main_filename in filename_list

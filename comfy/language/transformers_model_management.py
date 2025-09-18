@@ -12,9 +12,12 @@ from typing import Optional, Any, Callable
 
 import torch
 import transformers
+from huggingface_hub.errors import EntryNotFoundError
 from transformers import PreTrainedModel, PreTrainedTokenizerBase, ProcessorMixin, AutoProcessor, AutoTokenizer, \
     BatchFeature, AutoModelForVision2Seq, AutoModelForSeq2SeqLM, AutoModelForCausalLM, AutoModel, \
     PretrainedConfig, TextStreamer, LogitsProcessor
+from huggingface_hub import hf_api
+from huggingface_hub.file_download import hf_hub_download
 from transformers.models.auto.modeling_auto import MODEL_FOR_VISION_2_SEQ_MAPPING_NAMES, \
     MODEL_FOR_SEQ_TO_SEQ_CAUSAL_LM_MAPPING_NAMES, MODEL_FOR_CAUSAL_LM_MAPPING_NAMES
 
@@ -25,7 +28,7 @@ from .. import model_management
 from ..component_model.tensor_types import RGBImageBatch
 from ..model_downloader import get_or_download_huggingface_repo
 from ..model_management import unet_offload_device, get_torch_device, unet_dtype, load_models_gpu
-from ..model_management_types import ModelManageable
+from ..model_management_types import ModelManageableStub
 from ..utils import comfy_tqdm, ProgressBar, comfy_progress, seed_for_block
 
 logger = logging.getLogger(__name__)
@@ -37,7 +40,7 @@ _OVERRIDDEN_MODEL_FOR_CAUSAL_LM_MAPPING_NAMES = list(MODEL_FOR_CAUSAL_LM_MAPPING
 _DO_NOT_SKIP_SPECIAL_TOKENS = {'florence2', 'paligemma'}
 
 
-class TransformersManagedModel(ModelManageable, LanguageModel):
+class TransformersManagedModel(ModelManageableStub, LanguageModel):
     def __init__(
             self,
             repo_id: str,
@@ -69,7 +72,20 @@ class TransformersManagedModel(ModelManageable, LanguageModel):
             hub_kwargs["subfolder"] = subfolder
         repo_id = ckpt_name
         with comfy_tqdm():
-            ckpt_name = get_or_download_huggingface_repo(ckpt_name)
+            ckpt_name = get_or_download_huggingface_repo(repo_id)
+
+            if config_dict is None:
+                config_dict, _ = PretrainedConfig.get_config_dict(ckpt_name, **hub_kwargs)
+            elif isinstance(config_dict, PretrainedConfig):
+                config_dict: dict = config_dict.to_dict()
+            else:
+                config_dict = {}
+
+            try:
+                model_type = config_dict["model_type"]
+            except KeyError:
+                logger.debug(f"Configuration was missing for repo_id={repo_id}")
+                model_type = ""
 
             from_pretrained_kwargs = {
                 "pretrained_model_name_or_path": ckpt_name,
@@ -77,19 +93,8 @@ class TransformersManagedModel(ModelManageable, LanguageModel):
                 **hub_kwargs
             }
 
-            # compute bitsandbytes configuration
-            try:
-                import bitsandbytes
-            except ImportError:
-                pass
-
-            if config_dict is None:
-                config_dict, _ = PretrainedConfig.get_config_dict(ckpt_name, **hub_kwargs)
-            elif isinstance(config_dict, PretrainedConfig):
-                config_dict: dict = config_dict.to_dict()
-            model_type = config_dict["model_type"]
             # language models prefer to use bfloat16 over float16
-            kwargs_to_try = ({"torch_dtype": unet_dtype(supported_dtypes=(torch.bfloat16, torch.float16, torch.float32)),
+            kwargs_to_try = ({"dtype": unet_dtype(supported_dtypes=(torch.bfloat16, torch.float16, torch.float32)),
                               "low_cpu_mem_usage": True,
                               "device_map": str(unet_offload_device()), }, {})
 

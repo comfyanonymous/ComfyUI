@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+import copy
 import dataclasses
 from abc import ABCMeta, abstractmethod
-from typing import Protocol, Optional, TypeVar, runtime_checkable, Callable, Any, NamedTuple, override
+from typing import Protocol, Optional, TypeVar, runtime_checkable, Callable, Any, NamedTuple, override, TYPE_CHECKING
 
 import torch
 import torch.nn
@@ -11,22 +12,48 @@ from typing_extensions import TypedDict, NotRequired
 from .comfy_types import UnetWrapperFunction
 from .latent_formats import LatentFormat
 
+if TYPE_CHECKING:
+    from .hooks import EnumHookMode
+
 ModelManageableT = TypeVar('ModelManageableT', bound='ModelManageable')
 LatentFormatT = TypeVar('LatentFormatT', bound=LatentFormat)
 
 
 @runtime_checkable
 class DeviceSettable(Protocol):
-    @property
-    def device(self) -> torch.device:
-        ...
-
-    @device.setter
-    def device(self, value: torch.device):
-        ...
+    device: torch.device
 
 
-class HooksSupport(Protocol, metaclass=ABCMeta):
+@runtime_checkable
+class HooksSupport(Protocol):
+    wrappers: dict[str, dict[str, list[Callable]]]
+    callbacks: dict[str, dict[str, list[Callable]]]
+    hook_mode: "EnumHookMode"
+
+    def prepare_hook_patches_current_keyframe(self, t, hook_group, model_options): ...
+
+    def model_patches_models(self) -> list[ModelManageableT]: ...
+
+    def restore_hook_patches(self): ...
+
+    def cleanup(self): ...
+
+    def pre_run(self): ...
+
+    def prepare_state(self, *args, **kwargs): ...
+
+    def register_all_hook_patches(self, a, b, c, d): ...
+
+    def get_nested_additional_models(self): ...
+
+    def apply_hooks(self, *args, **kwargs): ...
+
+    def add_wrapper(self, wrapper_type: str, wrapper: Callable): ...
+
+    def add_wrapper_with_key(self, wrapper_type: str, key: str, wrapper: Callable): ...
+
+
+class HooksSupportStub(HooksSupport, metaclass=ABCMeta):
     def prepare_hook_patches_current_keyframe(self, t, hook_group, model_options):
         return
 
@@ -82,6 +109,8 @@ class HooksSupport(Protocol, metaclass=ABCMeta):
             if isinstance(model, BaseModel) or hasattr(model, "current_patcher") and isinstance(self, ModelManageable):
                 model.current_patcher = self
 
+
+
     def prepare_state(self, *args, **kwargs):
         pass
 
@@ -94,8 +123,22 @@ class HooksSupport(Protocol, metaclass=ABCMeta):
     def apply_hooks(self, *args, **kwargs):
         return {}
 
+    def add_wrapper(self, wrapper_type: str, wrapper: Callable):
+        self.add_wrapper_with_key(wrapper_type, None, wrapper)
 
-class TrainingSupport(Protocol, metaclass=ABCMeta):
+    def add_wrapper_with_key(self, wrapper_type: str, key: str, wrapper: Callable):
+        w = self.wrappers.setdefault(wrapper_type, {}).setdefault(key, [])
+        w.append(wrapper)
+
+
+@runtime_checkable
+class TrainingSupport(Protocol):
+    def set_model_compute_dtype(self, dtype: torch.dtype): ...
+
+    def add_weight_wrapper(self, name, function): ...
+
+
+class TrainingSupportStub(TrainingSupport, metaclass=ABCMeta):
     def set_model_compute_dtype(self, dtype: torch.dtype):
         return
 
@@ -103,13 +146,68 @@ class TrainingSupport(Protocol, metaclass=ABCMeta):
         return
 
 
-class ModelManageableExtras(Protocol, metaclass=ABCMeta):
+@runtime_checkable
+class ModelManageable(HooksSupport, TrainingSupport, Protocol):
+    """
+    Objects which implement this protocol can be managed by
+
+    >>> from comfy.model_management import load_models_gpu
+    >>> class ModelWrapper(ModelManageable):
+    >>>     ...
+    >>>
+    >>> some_model = ModelWrapper()
+    >>> load_models_gpu([some_model])
+
+    The minimum required
+    """
+    load_device: torch.device
+    offload_device: torch.device
+    model: torch.nn.Module
+
     @property
-    def current_device(self) -> torch.device:
-        return torch.device("cpu")
+    def current_device(self) -> torch.device: ...
+
+    def is_clone(self, other: ModelManageableT) -> bool: ...
+
+    def clone_has_same_weights(self, clone: ModelManageableT) -> bool: ...
+
+    def model_size(self) -> int: ...
+
+    def model_patches_to(self, arg: torch.device | torch.dtype): ...
+
+    def model_dtype(self) -> torch.dtype: ...
+
+    def lowvram_patch_counter(self) -> int: ...
+
+    def partially_load(self, device_to: torch.device, extra_memory: int = 0, force_patch_weights: bool = False) -> int:  ...
+
+    def partially_unload(self, device_to: torch.device, memory_to_free: int = 0) -> int: ...
+
+    def memory_required(self, input_shape: torch.Size) -> int: ...
+
+    def loaded_size(self) -> int: ...
+
+    def current_loaded_device(self) -> torch.device: ...
+
+    def get_model_object(self, name: str) -> torch.nn.Module: ...
+
+    @property
+    def model_options(self) -> ModelOptions: ...
+
+    @model_options.setter
+    def model_options(self, value): ...
+
+    def __del__(self): ...
+
+    @property
+    def parent(self) -> ModelManageableT | None: ...
+
+    def detach(self, unpatch_all: bool = True): ...
+
+    def clone(self) -> ModelManageableT: ...
 
 
-class ModelManageableRequired(Protocol, metaclass=ABCMeta):
+class ModelManageableStub(HooksSupportStub, TrainingSupportStub, ModelManageable, metaclass=ABCMeta):
     """
     The bare minimum that must be implemented to support model management when inheriting from ModelManageable
 
@@ -120,12 +218,11 @@ class ModelManageableRequired(Protocol, metaclass=ABCMeta):
     :see: ModelManageable
     :see: PatchSupport
     """
-    load_device: torch.device
-    offload_device: torch.device
-    model: torch.nn.Module
+
 
     @abstractmethod
-    def patch_model(self, device_to: torch.device | None = None, lowvram_model_memory: int = 0, load_weights: bool = True, force_patch_weights: bool = False) -> torch.nn.Module:
+    def patch_model(self, device_to: torch.device | None = None, lowvram_model_memory: int = 0, load_weights: bool = True,
+                    force_patch_weights: bool = False) -> torch.nn.Module:
         """
         Called by ModelManageable
 
@@ -154,25 +251,6 @@ class ModelManageableRequired(Protocol, metaclass=ABCMeta):
         :return:
         """
         ...
-
-
-@runtime_checkable
-class ModelManageable(ModelManageableRequired, ModelManageableExtras, Protocol, metaclass=ABCMeta):
-    """
-    Objects which implement this protocol can be managed by
-
-    >>> from comfy.model_management import load_models_gpu
-    >>> class ModelWrapper(ModelManageable):
-    >>>     ...
-    >>>
-    >>> some_model = ModelWrapper()
-    >>> load_models_gpu([some_model])
-
-    The minimum required
-    """
-    load_device: torch.device
-    offload_device: torch.device
-    model: torch.nn.Module
 
     @property
     @override
@@ -264,6 +342,9 @@ class ModelManageable(ModelManageableRequired, ModelManageableExtras, Protocol, 
         """
         self.unpatch_model(self.offload_device, unpatch_weights=unpatch_all)
         return self.model
+
+    def clone(self) -> ModelManageableT:
+        return copy.copy(self)
 
 
 @dataclasses.dataclass

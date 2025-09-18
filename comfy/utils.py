@@ -27,6 +27,7 @@ import os
 import random
 import struct
 import sys
+import threading
 import warnings
 from contextlib import contextmanager
 from pathlib import Path
@@ -57,6 +58,9 @@ DISABLE_MMAP = args.disable_mmap
 logger = logging.getLogger(__name__)
 
 ALWAYS_SAFE_LOAD = False
+
+_lock = threading.RLock()
+
 if hasattr(torch.serialization, "add_safe_globals"):  # TODO: this was added in pytorch 2.4, the unsafe path should be removed once earlier versions are deprecated
     class ModelCheckpoint:
         pass
@@ -1178,7 +1182,9 @@ class ProgressBar:
     def update_absolute(self, value, total=None, preview_image_or_output=None):
         if total is not None:
             self.total = total
-        if value > self.total:
+        if value is None:
+            return
+        if self.total is not None and value > self.total:
             value = self.total
         self.current = value
         _progress_bar_update(self.current, self.total, preview_image_or_output, server=self.server, node_id=self.node_id)
@@ -1198,31 +1204,39 @@ def comfy_tqdm() -> Generator[TqdmWatcher, None, None]:
     Monkey patches child calls to tqdm, sends progress to the UI,
     and yields a watcher object for stall detection.
     """
+    with _lock:
+        if hasattr(tqdm, "__patched_by_comfyui__"):
+            yield getattr(tqdm, "__patched_by_comfyui__")
+            return
+
+        watcher = TqdmWatcher()
+        setattr(tqdm, "__patched_by_comfyui__", watcher)
+
     _original_init = tqdm.__init__
     _original_call = tqdm.__call__
     _original_update = tqdm.update
 
     # Create the watcher instance that the patched methods will update
     # and that will be yielded to the caller.
-    watcher = TqdmWatcher()
     context = contextvars.copy_context()
 
     try:
+
         # These inner functions are closures; they capture the `watcher` variable
         # from the enclosing scope.
         def __init(self, *args, **kwargs):
-            context.run(lambda: _original_init(self, *args, **kwargs))
+            _original_init(self, *args, **kwargs)
             self._progress_bar = context.run(lambda: ProgressBar(self.total))
             watcher.tick()  # Signal progress on initialization
 
         def __update(self, n=1):
             assert self._progress_bar is not None
-            context.run(lambda: _original_update(self, n))
+            _original_update(self, n)
             context.run(lambda: self._progress_bar.update(n))
             watcher.tick()  # Signal progress on update
 
         def __call(self, *args, **kwargs):
-            instance = context.run(lambda: _original_call(self, *args, **kwargs))
+            instance = _original_call(self, *args, **kwargs)
             return instance
 
         tqdm.__init__ = __init
@@ -1236,10 +1250,11 @@ def comfy_tqdm() -> Generator[TqdmWatcher, None, None]:
         tqdm.__init__ = _original_init
         tqdm.__call__ = _original_call
         tqdm.update = _original_update
+        delattr(tqdm, "__patched_by_comfyui__")
 
 
 @contextmanager
-def comfy_progress(total: float) -> ProgressBar:
+def comfy_progress(total: float) -> Generator[ProgressBar, Any, None]:
     ctx = current_execution_context()
     if ctx.server.receive_all_progress_notifications:
         yield ProgressBar(total)

@@ -765,7 +765,7 @@ class DualCFGGuider:
     FUNCTION = "get_guider"
     CATEGORY = "sampling/custom_sampling/guiders"
 
-    def get_guider(self, model, cond1, cond2, negative, cfg_conds, cfg_cond2_negative, style):
+    def get_guider(self, model, cond1, cond2, negative, cfg_conds, cfg_cond2_negative, style="regular"):
         guider = Guider_DualCFG(model)
         guider.set_conds(cond1, cond2, negative)
         guider.set_cfg(cfg_conds, cfg_cond2_negative, nested=(style == "nested"))

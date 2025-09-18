@@ -230,7 +230,7 @@ class GGUFQuantization:
     patch_on_device: bool = False
 
 
-class ModelPatcher(ModelManageable, TrainingSupport, HooksSupport, PatchSupport):
+class ModelPatcher(ModelManageable, PatchSupport):
     def __init__(self, model: BaseModel | torch.nn.Module, load_device: torch.device, offload_device: torch.device, size=0, weight_inplace_update=False, ckpt_name: Optional[str] = None):
         self.size = size
         self.model: BaseModel | torch.nn.Module = model

@@ -2,7 +2,9 @@ import torch
 from diffusers import HookRegistry
 from diffusers.hooks import apply_group_offloading, apply_layerwise_casting, ModelHook
 
+from comfy.language.transformers_model_management import TransformersManagedModel
 from comfy.model_management import vram_state, VRAMState
+from comfy.model_management_types import HooksSupport, ModelManageable
 from comfy.model_patcher import ModelPatcher
 from comfy.node_helpers import export_custom_nodes
 from comfy.nodes.package_typing import CustomNode
@@ -117,9 +119,21 @@ class GroupOffload(CustomNode):
     RETURN_TYPES = ("MODEL",)
     FUNCTION = "execute"
 
-    def execute(self, model: ModelPatcher) -> tuple[ModelPatcher,]:
-        model = model.clone()
-        model.add_wrapper(WrappersMP.PREPARE_SAMPLING, prepare_group_offloading_factory(model.load_device, model.offload_device))
+    def execute(self, model: ModelManageable | HooksSupport | TransformersManagedModel) -> tuple[ModelPatcher,]:
+        if isinstance(model, ModelManageable):
+            model = model.clone()
+        if isinstance(model, TransformersManagedModel):
+            apply_group_offloading(
+                model.model,
+                model.load_device,
+                model.offload_device,
+                use_stream=True,
+                record_stream=True,
+                low_cpu_mem_usage=vram_state in (VRAMState.LOW_VRAM,),
+                num_blocks_per_group=1
+            )
+        elif isinstance(model, HooksSupport) and isinstance(model, ModelManageable):
+            model.add_wrapper(WrappersMP.PREPARE_SAMPLING, prepare_group_offloading_factory(model.load_device, model.offload_device))
         return model,
 
 

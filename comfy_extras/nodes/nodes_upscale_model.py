@@ -9,7 +9,7 @@ from comfy import utils
 from comfy.component_model.tensor_types import RGBImageBatch
 from comfy.model_downloader import get_filename_list_with_downloadable, KNOWN_UPSCALERS, get_or_download
 from comfy.model_management import load_models_gpu
-from comfy.model_management_types import ModelManageable
+from comfy.model_management_types import ModelManageableStub
 
 logger = logging.getLogger(__name__)
 try:
@@ -22,7 +22,7 @@ except:
     pass
 
 
-class UpscaleModelManageable(ModelManageable):
+class UpscaleModelManageable(ModelManageableStub):
     def __init__(self, model_descriptor: ImageModelDescriptor, ckpt_name: str):
         self.ckpt_name = ckpt_name
         self.model_descriptor = model_descriptor

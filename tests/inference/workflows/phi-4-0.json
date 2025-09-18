@@ -1,7 +1,7 @@
 {
   "1": {
     "inputs": {
-      "ckpt_name": "microsoft/Phi-3-mini-4k-instruct",
+      "ckpt_name": "microsoft/Phi-4-mini-instruct",
       "subfolder": ""
     },
     "class_type": "TransformersLoader",
@@ -33,7 +33,7 @@
   "4": {
     "inputs": {
       "prompt": "What comes after apple?",
-      "chat_template": "phi-3",
+      "chat_template": "default",
       "model": [
         "1",
         0
