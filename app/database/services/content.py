@@ -642,10 +642,9 @@ async def touch_asset_infos_by_fs_path(
     file_path: str,
     ts: Optional[datetime] = None,
     only_if_newer: bool = True,
-) -> int:
+) -> None:
     locator = os.path.abspath(file_path)
     ts = ts or utcnow()
-
     stmt = sa.update(AssetInfo).where(
         sa.exists(
             sa.select(sa.literal(1))
@@ -656,7 +655,6 @@ async def touch_asset_infos_by_fs_path(
             )
         )
     )
-
     if only_if_newer:
         stmt = stmt.where(
             sa.or_(
@@ -664,11 +662,7 @@ async def touch_asset_infos_by_fs_path(
                 AssetInfo.last_access_time < ts,
             )
         )
-
-    stmt = stmt.values(last_access_time=ts)
-
-    res = await session.execute(stmt)
-    return int(res.rowcount or 0)
+    await session.execute(stmt.values(last_access_time=ts))
 
 
 async def list_cache_states_with_asset_under_prefixes(

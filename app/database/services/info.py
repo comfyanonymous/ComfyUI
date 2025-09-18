@@ -373,17 +373,14 @@ async def touch_asset_info_by_id(
     asset_info_id: str,
     ts: Optional[datetime] = None,
     only_if_newer: bool = True,
-) -> bool:
+) -> None:
     ts = ts or utcnow()
     stmt = sa.update(AssetInfo).where(AssetInfo.id == asset_info_id)
     if only_if_newer:
         stmt = stmt.where(
             sa.or_(AssetInfo.last_access_time.is_(None), AssetInfo.last_access_time < ts)
         )
-    stmt = stmt.values(last_access_time=ts)
-    if session.bind.dialect.name == "postgresql":
-        return (await session.execute(stmt.returning(AssetInfo.id))).scalar_one_or_none() is not None
-    return int((await session.execute(stmt)).rowcount or 0) > 0
+    await session.execute(stmt.values(last_access_time=ts))
 
 
 async def delete_asset_info_by_id(session: AsyncSession, *, asset_info_id: str, owner_id: str) -> bool:
@@ -391,8 +388,6 @@ async def delete_asset_info_by_id(session: AsyncSession, *, asset_info_id: str, 
         AssetInfo.id == asset_info_id,
         visible_owner_clause(owner_id),
     )
-    if session.bind.dialect.name == "postgresql":
-        return (await session.execute(stmt.returning(AssetInfo.id))).scalar_one_or_none() is not None
     return int((await session.execute(stmt)).rowcount or 0) > 0
 
 

@@ -10,7 +10,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ..models import Asset, AssetCacheState, AssetInfo, AssetInfoMeta, AssetInfoTag
 from ..timeutil import utcnow
 
-
 MAX_BIND_PARAMS = 800
 
 
