@@ -103,23 +103,18 @@ def execute_prestartup_script():
 apply_custom_paths()
 execute_prestartup_script()
 
-if 'torch' in sys.modules:
-    logging.warning("WARNING: Potential Error in code: Torch already imported, torch should never be imported before this point.")
 
 # Main code
 import asyncio
 import shutil
 import threading
 import gc
-import comfy.model_management
+
 
 if os.name == "nt":
     os.environ['MIMALLOC_PURGE_DELAY'] = '0'
 
 if __name__ == "__main__":
-    device = comfy.model_management.get_torch_device()
-    device_name = comfy.model_management.get_torch_device_name(device)
-
     if args.default_device is not None:
         default_dev = args.default_device
         devices = list(range(32))
@@ -130,13 +125,10 @@ if __name__ == "__main__":
         os.environ['HIP_VISIBLE_DEVICES'] = str(devices)
 
     if args.cuda_device is not None:
-        if device_name != 'npu':
-            os.environ['CUDA_VISIBLE_DEVICES'] = str(args.cuda_device)
-            os.environ['HIP_VISIBLE_DEVICES'] = str(args.cuda_device)
-            logging.info("Set cuda device to: {}".format(args.cuda_device))
-        else:
-            os.environ["ASCEND_RT_VISIBLE_DEVICES"] = str(args.cuda_device)
-            logging.info("Set npu device to: {}".format(args.cuda_device))
+        os.environ['CUDA_VISIBLE_DEVICES'] = str(args.cuda_device)
+        os.environ['HIP_VISIBLE_DEVICES'] = str(args.cuda_device)
+        os.environ["ASCEND_RT_VISIBLE_DEVICES"] = str(args.cuda_device)
+        logging.info("Set cuda device to: {}".format(args.cuda_device))
 
     if args.oneapi_device_selector is not None:
         os.environ['ONEAPI_DEVICE_SELECTOR'] = args.oneapi_device_selector
@@ -148,7 +140,8 @@ if __name__ == "__main__":
 
     import cuda_malloc
 
-
+if 'torch' in sys.modules:
+    logging.warning("WARNING: Potential Error in code: Torch already imported, torch should never be imported before this point.")
 
 import comfy.utils
 
@@ -156,6 +149,7 @@ import execution
 import server
 from protocol import BinaryEventTypes
 import nodes
+import comfy.model_management
 import comfyui_version
 import app.logger
 import hook_breaker_ac10a0
