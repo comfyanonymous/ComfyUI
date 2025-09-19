@@ -83,6 +83,14 @@ class FsSpecComfyMetadata(TypedDict, total=True):
     batch_number_str: str
 
 
+# for keys that are missing
+_PNGINFO_TO_EXIF_KEY_MAP = {
+    "CreationDate": "DateTimeOriginal",
+    "Title": "DocumentName",
+    "Description": "ImageDescription",
+}
+
+
 class SaveNodeResultWithName(SaveNodeResult):
     name: str
 
@@ -121,11 +129,13 @@ def create_exif_from_pnginfo(metadata: Dict[str, Any]) -> Exif:
         if key.startswith('GPS'):
             continue
 
+        exif_key = _PNGINFO_TO_EXIF_KEY_MAP.get(key, key)
+
         try:
-            tag = getattr(ExifTags.Base, key)
+            tag = getattr(ExifTags.Base, exif_key)
             exif[tag] = value
-        except AttributeError:
-            pass
+        except (AttributeError, ValueError):
+            continue
 
     return exif
 

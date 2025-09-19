@@ -470,11 +470,12 @@ def test_basic_exif(format, bits, supports_16bit, use_temporary_output_directory
     node = SaveImagesResponse()
     filename = f"test_exif_{bits}bit.{format}"
 
-    # Create EXIF data with common tags
+    # Create EXIF data with common tags, including Title and Description to test mapping
     exif = ExifContainer({
         "Artist": "Test Artist",
         "Copyright": "Test Copyright",
-        "ImageDescription": "Test Description",
+        "Title": "Test Title",
+        "Description": "Test Description",
         "Make": "Test Camera",
         "Model": "Test Model",
         "Software": "Test Software",
@@ -509,7 +510,8 @@ def test_basic_exif(format, bits, supports_16bit, use_temporary_output_directory
             info = img.info
             assert info.get("Artist") == "Test Artist"
             assert info.get("Copyright") == "Test Copyright"
-            assert info.get("ImageDescription") == "Test Description"
+            assert info.get("Title") == "Test Title"
+            assert info.get("Description") == "Test Description"
             assert info.get("Make") == "Test Camera"
             assert info.get("Model") == "Test Model"
             assert info.get("Software") == "Test Software"
@@ -521,7 +523,10 @@ def test_basic_exif(format, bits, supports_16bit, use_temporary_output_directory
             checked_tags = {
                 "Artist": "Test Artist",
                 "Copyright": "Test Copyright",
-                "ImageDescription": "Test Description",
+                # For formats that use full EXIF (like 16-bit PNG, JPEG, TIFF),
+                # check that semantic names are mapped to standard EXIF tags.
+                "DocumentName": "Test Title",  # Mapped from "Title"
+                "ImageDescription": "Test Description",  # Mapped from "Description"
                 "Make": "Test Camera",
                 "Model": "Test Model",
                 "Software": "Test Software",
@@ -576,11 +581,17 @@ def test_gps_exif(format, use_temporary_output_directory):
                 assert float(gps_info.get(ExifTags.GPS.GPSAltitude, "0")) == pytest.approx(43.2, rel=0.1)
 
 
-@pytest.mark.parametrize("format", ["png", "tiff", "jpeg", "webp"])
-def test_datetime_exif(format, use_temporary_output_directory):
+@pytest.mark.parametrize("format,bits", [
+    ("png", 8),
+    ("png", 16),
+    ("tiff", 8),
+    ("jpeg", 8),
+    ("webp", 8),
+])
+def test_datetime_exif(format, bits, use_temporary_output_directory):
     """Test DateTime EXIF tags are correctly saved and loaded"""
     node = SaveImagesResponse()
-    filename = f"test_datetime.{format}"
+    filename = f"test_datetime_{bits}bit.{format}"
 
     # Fixed datetime string in EXIF format
     now = "2024:01:14 12:34:56"
@@ -588,7 +599,7 @@ def test_datetime_exif(format, use_temporary_output_directory):
     # Create EXIF data with datetime tags
     exif = ExifContainer({
         "DateTime": now,
-        "DateTimeOriginal": now,
+        "CreationDate": now,  # This should be mapped to DateTimeOriginal for EXIF formats
         "DateTimeDigitized": now,
     })
 
@@ -597,25 +608,31 @@ def test_datetime_exif(format, use_temporary_output_directory):
         images=_image_1x1,
         uris=[filename],
         exif=[exif],
-        pil_save_format=format
+        pil_save_format=format,
+        bits=bits
     )
 
     # Load and verify datetime EXIF data
     filepath = os.path.join(folder_paths.get_output_directory(), filename)
     with Image.open(filepath) as img:
-        if format == "png":
+        if format == "png" and bits == 8:
+            # For 8-bit PNG, keys are saved as-is in text chunks
             assert img.info["DateTime"] == now
+            assert img.info["CreationDate"] == now
+            assert img.info["DateTimeDigitized"] == now
         else:
             exif_data = img.getexif()
+            assert exif_data is not None, f"EXIF data is missing for {format} {bits}-bit."
+            # For EXIF formats (including 16-bit PNG), CreationDate is mapped to DateTimeOriginal
             for tag_name in ["DateTime", "DateTimeOriginal", "DateTimeDigitized"]:
                 tag_id = None
                 for key, name in ExifTags.TAGS.items():
                     if name == tag_name:
                         tag_id = key
                         break
-                assert tag_id is not None
-                if tag_id in exif_data:
-                    assert exif_data[tag_id] == now
+                assert tag_id is not None, f"Tag name '{tag_name}' is not a valid EXIF tag."
+                assert tag_id in exif_data, f"Tag '{tag_name}' not found in EXIF for {format} {bits}-bit"
+                assert exif_data[tag_id] == now
 
 
 @pytest.mark.parametrize("format", ["tiff", "jpeg", "webp"])
