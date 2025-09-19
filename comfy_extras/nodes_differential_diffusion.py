@@ -8,10 +8,13 @@ class DifferentialDiffusion():
         return {
             "required": {
                 "model": ("MODEL", ),
+            },
+            "optional": {
                 "strength": ("FLOAT", {
                     "default": 1.0,
                     "min": 0.0,
-                    "max": 1.0
+                    "max": 1.0,
+                    "step": 0.01,
                 }),
             }
         }
