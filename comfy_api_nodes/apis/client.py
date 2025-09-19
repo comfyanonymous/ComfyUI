@@ -683,7 +683,7 @@ class SynchronousOperation(Generic[T, R]):
         auth_token: Optional[str] = None,
         comfy_api_key: Optional[str] = None,
         auth_kwargs: Optional[Dict[str, str]] = None,
-        timeout: float = 604800.0,
+        timeout: float = 7200.0,
         verify_ssl: bool = True,
         content_type: str = "application/json",
         multipart_parser: Callable | None = None,
