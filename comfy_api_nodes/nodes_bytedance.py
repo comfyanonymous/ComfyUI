@@ -567,6 +567,12 @@ class ByteDanceSeedreamNode(comfy_io.ComfyNode):
                     tooltip="Whether to add an \"AI generated\" watermark to the image.",
                     optional=True,
                 ),
+                comfy_io.Boolean.Input(
+                    "fail_on_partial",
+                    default=True,
+                    tooltip="If enabled, abort execution if any requested images are missing or return an error.",
+                    optional=True,
+                ),
             ],
             outputs=[
                 comfy_io.Image.Output(),
@@ -592,6 +598,7 @@ class ByteDanceSeedreamNode(comfy_io.ComfyNode):
         max_images: int = 1,
         seed: int = 0,
         watermark: bool = True,
+        fail_on_partial: bool = True,
     ) -> comfy_io.NodeOutput:
         validate_string(prompt, strip_whitespace=True, min_length=1)
         w = h = None
@@ -651,9 +658,10 @@ class ByteDanceSeedreamNode(comfy_io.ComfyNode):
 
         if len(response.data) == 1:
             return comfy_io.NodeOutput(await download_url_to_image_tensor(get_image_url_from_response(response)))
-        return comfy_io.NodeOutput(
-            torch.cat([await download_url_to_image_tensor(str(i["url"])) for i in response.data])
-        )
+        urls = [str(d["url"]) for d in response.data if isinstance(d, dict) and "url" in d]
+        if fail_on_partial and len(urls) < len(response.data):
+            raise RuntimeError(f"Only {len(urls)} of {len(response.data)} images were generated before error.")
+        return comfy_io.NodeOutput(torch.cat([await download_url_to_image_tensor(i) for i in urls]))
 
 
 class ByteDanceTextToVideoNode(comfy_io.ComfyNode):
@@ -1171,7 +1179,7 @@ async def process_video_task(
     payload: Union[Text2VideoTaskCreationRequest, Image2VideoTaskCreationRequest],
     auth_kwargs: dict,
     node_id: str,
-    estimated_duration: int | None,
+    estimated_duration: Optional[int],
 ) -> comfy_io.NodeOutput:
     initial_response = await SynchronousOperation(
         endpoint=ApiEndpoint(
