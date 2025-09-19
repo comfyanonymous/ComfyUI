@@ -101,6 +101,8 @@ parser.add_argument("--preview-method", type=LatentPreviewMethod, default=Latent
 
 parser.add_argument("--preview-size", type=int, default=512, help="Sets the maximum preview size for sampler nodes.")
 
+parser.add_argument("--preview-stream", action="store_true", help="Use a CUDA Stream to reduce performance cost of previews.")
+
 cache_group = parser.add_mutually_exclusive_group()
 cache_group.add_argument("--cache-classic", action="store_true", help="Use the old style (aggressive) caching.")
 cache_group.add_argument("--cache-lru", type=int, default=0, help="Use LRU caching with a maximum of N node results cached. May use more RAM/VRAM.")
