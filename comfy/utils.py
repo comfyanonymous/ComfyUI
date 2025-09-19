@@ -101,7 +101,7 @@ def load_torch_file(ckpt: str, safe_load=False, device=None, return_metadata=Fal
     if device is None:
         device = torch.device("cpu")
     if ckpt is None:
-        raise FileNotFoundError("the checkpoint was not found")
+        raise FileNotFoundError("The checkpoint was not found")
     metadata: Optional[dict[str, str]] = None
     sd: dict[str, torch.Tensor] = None
     if ckpt.lower().endswith(".safetensors") or ckpt.lower().endswith(".sft"):

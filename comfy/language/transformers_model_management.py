@@ -89,61 +89,71 @@ class TransformersManagedModel(ModelManageableStub, LanguageModel):
 
             from_pretrained_kwargs = {
                 "pretrained_model_name_or_path": ckpt_name,
-                "trust_remote_code": True,
                 **hub_kwargs
             }
 
             # language models prefer to use bfloat16 over float16
-            kwargs_to_try = ({"dtype": unet_dtype(supported_dtypes=(torch.bfloat16, torch.float16, torch.float32)),
-                              "low_cpu_mem_usage": True,
-                              "device_map": str(unet_offload_device()), }, {})
+            default_kwargs = {
+                "dtype": unet_dtype(supported_dtypes=(torch.bfloat16, torch.float16, torch.float32)),
+                "low_cpu_mem_usage": True,
+                "device_map": str(unet_offload_device()),
+                # transformers usually has a better upstream implementation than whatever is put into the author's repos
+                "trust_remote_code": False,
+            }
+
+            default_kwargs_trust_remote = {
+                **default_kwargs,
+                "trust_remote_code": True
+            }
+
+            kwargses_to_try = (default_kwargs, default_kwargs_trust_remote, {})
 
             # if we have flash-attn installed, try to use it
             try:
                 if model_management.flash_attn_enabled():
                     attn_override_kwargs = {
                         "attn_implementation": "flash_attention_2",
-                        **kwargs_to_try[0]
+                        **kwargses_to_try[0]
                     }
-                    kwargs_to_try = (attn_override_kwargs, *kwargs_to_try)
+                    kwargses_to_try = (attn_override_kwargs, *kwargses_to_try)
                     logger.debug(f"while loading model {ckpt_name}, flash_attn was installed, so the flash_attention_2 implementation will be tried")
             except ImportError:
                 pass
-            for i, props in enumerate(kwargs_to_try):
+            for i, kwargs_to_try in enumerate(kwargses_to_try):
                 try:
                     if model_type in MODEL_FOR_VISION_2_SEQ_MAPPING_NAMES:
-                        model = AutoModelForVision2Seq.from_pretrained(**from_pretrained_kwargs, **props)
+                        model = AutoModelForVision2Seq.from_pretrained(**from_pretrained_kwargs, **kwargs_to_try)
                     elif model_type in MODEL_FOR_SEQ_TO_SEQ_CAUSAL_LM_MAPPING_NAMES:
-                        model = AutoModelForSeq2SeqLM.from_pretrained(**from_pretrained_kwargs, **props)
+                        model = AutoModelForSeq2SeqLM.from_pretrained(**from_pretrained_kwargs, **kwargs_to_try)
                     elif model_type in _OVERRIDDEN_MODEL_FOR_CAUSAL_LM_MAPPING_NAMES:
-                        model = AutoModelForCausalLM.from_pretrained(**from_pretrained_kwargs, **props)
+                        model = AutoModelForCausalLM.from_pretrained(**from_pretrained_kwargs, **kwargs_to_try)
                     else:
-                        model = AutoModel.from_pretrained(**from_pretrained_kwargs, **props)
+                        model = AutoModel.from_pretrained(**from_pretrained_kwargs, **kwargs_to_try)
                     if model is not None:
                         break
                 except Exception as exc_info:
-                    if i == len(kwargs_to_try) - 1:
+                    if i == len(kwargses_to_try) - 1:
                         raise exc_info
                     else:
-                        logger.warning(f"tried to import transformers model {ckpt_name} but got exception when trying additional import args {props}", exc_info=exc_info)
+                        logger.warning(f"tried to import transformers model {ckpt_name} but got exception when trying additional import args {kwargs_to_try}", exc_info=exc_info)
                 finally:
                     torch.set_default_dtype(torch.float32)
 
-            for i, props in enumerate(kwargs_to_try):
+            for i, kwargs_to_try in enumerate(kwargses_to_try):
                 try:
                     try:
-                        processor = AutoProcessor.from_pretrained(**from_pretrained_kwargs, **props)
+                        processor = AutoProcessor.from_pretrained(**from_pretrained_kwargs, **kwargs_to_try)
                     except:
                         processor = None
                     if isinstance(processor, PreTrainedTokenizerBase):
                         tokenizer = processor
                         processor = None
                     else:
-                        tokenizer = getattr(processor, "tokenizer") if processor is not None and hasattr(processor, "tokenizer") else AutoTokenizer.from_pretrained(ckpt_name, **hub_kwargs, **props)
+                        tokenizer = getattr(processor, "tokenizer") if processor is not None and hasattr(processor, "tokenizer") else AutoTokenizer.from_pretrained(ckpt_name, **hub_kwargs, **kwargs_to_try)
                     if tokenizer is not None or processor is not None:
                         break
                 except Exception as exc_info:
-                    if i == len(kwargs_to_try) - 1:
+                    if i == len(kwargses_to_try) - 1:
                         raise exc_info
                 finally:
                     torch.set_default_dtype(torch.float32)

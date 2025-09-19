@@ -53,8 +53,8 @@ def get_filename_list_with_downloadable(folder_name: str, known_files: Optional[
     return DownloadableFileList(existing, downloadable_files)
 
 
-def get_full_path_or_raise(folder_name: str, filename: str) -> str:
-    res = get_or_download(folder_name, filename)
+def get_full_path_or_raise(folder_name: str, filename: str, known_files: Optional[List[Downloadable] | KnownDownloadables] = None) -> str:
+    res = get_or_download(folder_name, filename, known_files=known_files)
     if res is None:
         raise FileNotFoundError(f"{folder_name} does not contain {filename}")
     return res
@@ -214,7 +214,7 @@ def get_or_download(folder_name: str, filename: str, known_files: Optional[List[
                     elif isinstance(known_file, UrlFile):
                         url = known_file.url
                     else:
-                        raise RuntimeError("unknown file type")
+                        raise RuntimeError("Unknown file type")
 
                     if url is None:
                         logger.warning(f"Could not retrieve file {str(known_file)}")
@@ -245,8 +245,6 @@ Visit the repository, accept the terms, and then do one of the following:
  - Login to Hugging Face in your terminal using `huggingface-cli login`
 """)
             raise exc_info
-    if path is None:
-        raise FileNotFoundError(f"Model in folder '{folder_name}' with filename '{filename}' not found, and no download candidates matched for the filename.")
     return path
 
 

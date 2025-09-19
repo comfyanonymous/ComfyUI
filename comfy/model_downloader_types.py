@@ -11,6 +11,7 @@ from can_ada import parse, URL  # pylint: disable=no-name-in-module
 from typing_extensions import TypedDict, NotRequired
 
 from .component_model.executor_types import ValidationView
+from .component_model.files import canonicalize_path
 
 
 @dataclasses.dataclass(frozen=True)
@@ -107,13 +108,13 @@ class DownloadableFileList(ValidationView, list[str]):
 
         for f in downloadable_files:
             main_name = str(f)
-            self._validation_view.add(main_name)
-            self._validation_view.update(f.alternate_filenames)
+            self._validation_view.add(canonicalize_path(main_name))
+            self._validation_view.update(map(canonicalize_path, f.alternate_filenames))
 
             if getattr(f, 'show_in_ui', True):
                 ui_view.add(main_name)
 
-        self.extend(sorted(list(ui_view)))
+        self.extend(sorted(list(map(canonicalize_path, ui_view))))
 
     def view_for_validation(self) -> Iterable[str]:
         return self._validation_view

@@ -32,7 +32,7 @@ from ..execution_context import current_execution_context
 from ..images import open_image
 from ..interruption import interrupt_current_processing
 from ..ldm.flux.weight_dtypes import FLUX_WEIGHT_DTYPES
-from ..model_downloader import get_filename_list_with_downloadable, get_or_download, KNOWN_CHECKPOINTS, \
+from ..model_downloader import get_filename_list_with_downloadable, get_full_path_or_raise, KNOWN_CHECKPOINTS, \
     KNOWN_CLIP_VISION_MODELS, KNOWN_GLIGEN_MODELS, KNOWN_UNCLIP_CHECKPOINTS, KNOWN_LORAS, KNOWN_CONTROLNETS, \
     KNOWN_DIFF_CONTROLNETS, KNOWN_VAES, KNOWN_APPROX_VAES, get_huggingface_repo_list, KNOWN_CLIP_MODELS, \
     KNOWN_UNET_MODELS
@@ -571,7 +571,7 @@ class CheckpointLoader:
 
     def load_checkpoint(self, config_name, ckpt_name):
         config_path = folder_paths.get_full_path("configs", config_name)
-        ckpt_path = get_or_download("checkpoints", ckpt_name, KNOWN_CHECKPOINTS)
+        ckpt_path = get_full_path_or_raise("checkpoints", ckpt_name, KNOWN_CHECKPOINTS)
         return sd.load_checkpoint(config_path, ckpt_path, output_vae=True, output_clip=True, embedding_directory=folder_paths.get_folder_paths("embeddings"))
 
 
@@ -594,7 +594,7 @@ class CheckpointLoaderSimple:
     DESCRIPTION = "Loads a diffusion model checkpoint, diffusion models are used to denoise latents."
 
     def load_checkpoint(self, ckpt_name):
-        ckpt_path = get_or_download("checkpoints", ckpt_name, KNOWN_CHECKPOINTS)
+        ckpt_path = get_full_path_or_raise("checkpoints", ckpt_name, KNOWN_CHECKPOINTS)
         out = sd.load_checkpoint_guess_config(ckpt_path, output_vae=True, output_clip=True, embedding_directory=folder_paths.get_folder_paths("embeddings"))
         return out[:3]
 
@@ -647,7 +647,7 @@ class unCLIPCheckpointLoader:
     CATEGORY = "loaders"
 
     def load_checkpoint(self, ckpt_name, output_vae=True, output_clip=True):
-        ckpt_path = get_or_download("checkpoints", ckpt_name, KNOWN_UNCLIP_CHECKPOINTS)
+        ckpt_path = get_full_path_or_raise("checkpoints", ckpt_name, KNOWN_UNCLIP_CHECKPOINTS)
         out = sd.load_checkpoint_guess_config(ckpt_path, output_vae=True, output_clip=True, output_clipvision=True, embedding_directory=folder_paths.get_folder_paths("embeddings"))
         return out
 
@@ -697,7 +697,7 @@ class LoraLoader:
         if strength_model == 0 and strength_clip == 0:
             return (model, clip)
 
-        lora_path = get_or_download("loras", lora_name, KNOWN_LORAS)
+        lora_path = get_full_path_or_raise("loras", lora_name, KNOWN_LORAS)
         lora = None
         if self.loaded_lora is not None:
             if self.loaded_lora[0] == lora_path:
@@ -814,7 +814,7 @@ class VAELoader:
             sd_ = self.load_taesd(vae_name)
             metadata = {}
         else:
-            vae_path = get_or_download("vae", vae_name, KNOWN_VAES)
+            vae_path = get_full_path_or_raise("vae", vae_name, KNOWN_VAES)
             sd_, metadata = utils.load_torch_file(vae_path, return_metadata=True)
         vae = sd.VAE(sd=sd_, metadata=metadata, ckpt_name=vae_name)
         vae.throw_exception_if_invalid()
@@ -832,7 +832,7 @@ class ControlNetLoader:
     CATEGORY = "loaders"
 
     def load_controlnet(self, control_net_name):
-        controlnet_path = get_or_download("controlnet", control_net_name, KNOWN_CONTROLNETS)
+        controlnet_path = get_full_path_or_raise("controlnet", control_net_name, KNOWN_CONTROLNETS)
         controlnet_ = controlnet.load_controlnet(controlnet_path)
         if controlnet is None:
             raise RuntimeError("ERROR: controlnet file is invalid and does not contain a valid controlnet model.")
@@ -855,7 +855,7 @@ class ControlNetLoaderWeights:
     CATEGORY = "loaders"
 
     def load_controlnet(self, control_net_name, weight_dtype):
-        controlnet_path = get_or_download("controlnet", control_net_name, KNOWN_CONTROLNETS)
+        controlnet_path = get_full_path_or_raise("controlnet", control_net_name, KNOWN_CONTROLNETS)
         model_options = get_model_options_for_dtype(weight_dtype)
 
         controlnet_ = controlnet.load_controlnet(controlnet_path, model_options=model_options)
@@ -874,7 +874,7 @@ class DiffControlNetLoader:
     CATEGORY = "loaders"
 
     def load_controlnet(self, model, control_net_name):
-        controlnet_path = get_or_download("controlnet", control_net_name, KNOWN_DIFF_CONTROLNETS)
+        controlnet_path = get_full_path_or_raise("controlnet", control_net_name, KNOWN_DIFF_CONTROLNETS)
         controlnet_ = controlnet.load_controlnet(controlnet_path, model)
         return (controlnet_,)
 
@@ -987,7 +987,7 @@ class UNETLoader:
 
     def load_unet(self, unet_name, weight_dtype="default"):
         model_options = get_model_options_for_dtype(weight_dtype)
-        unet_path = get_or_download("diffusion_models", unet_name, KNOWN_UNET_MODELS)
+        unet_path = get_full_path_or_raise("diffusion_models", unet_name, KNOWN_UNET_MODELS)
         model = sd.load_diffusion_model(unet_path, model_options=model_options)
         return (model,)
 
@@ -1016,7 +1016,7 @@ class CLIPLoader:
         if device == "cpu":
             model_options["load_device"] = model_options["offload_device"] = torch.device("cpu")
 
-        clip_path = get_or_download("text_encoders", clip_name, KNOWN_CLIP_MODELS)
+        clip_path = get_full_path_or_raise("text_encoders", clip_name, KNOWN_CLIP_MODELS)
         clip = sd.load_clip(ckpt_paths=[clip_path], embedding_directory=folder_paths.get_folder_paths("embeddings"), clip_type=clip_type, model_options=model_options)
         return (clip,)
 
@@ -1041,8 +1041,8 @@ class DualCLIPLoader:
 
     def load_clip(self, clip_name1, clip_name2, type, device="default"):
         clip_type = getattr(sd.CLIPType, type.upper(), sd.CLIPType.STABLE_DIFFUSION)
-        clip_path1 = get_or_download("text_encoders", clip_name1)
-        clip_path2 = get_or_download("text_encoders", clip_name2)
+        clip_path1 = get_full_path_or_raise("text_encoders", clip_name1)
+        clip_path2 = get_full_path_or_raise("text_encoders", clip_name2)
 
         model_options = {}
         if device == "cpu":
@@ -1064,7 +1064,7 @@ class CLIPVisionLoader:
     CATEGORY = "loaders"
 
     def load_clip(self, clip_name):
-        clip_path = get_or_download("clip_vision", clip_name, KNOWN_CLIP_VISION_MODELS)
+        clip_path = get_full_path_or_raise("clip_vision", clip_name, KNOWN_CLIP_VISION_MODELS)
         clip_vision = clip_vision_module.load(clip_path)
         if clip_vision is None:
             raise RuntimeError("ERROR: clip vision file is invalid and does not contain a valid vision model.")
@@ -1105,7 +1105,7 @@ class StyleModelLoader:
     CATEGORY = "loaders"
 
     def load_style_model(self, style_model_name):
-        style_model_path = get_or_download("style_models", style_model_name)
+        style_model_path = get_full_path_or_raise("style_models", style_model_name)
         style_model = sd.load_style_model(style_model_path)
         return (style_model,)
 
@@ -1208,7 +1208,7 @@ class GLIGENLoader:
     CATEGORY = "loaders"
 
     def load_gligen(self, gligen_name):
-        gligen_path = get_or_download("gligen", gligen_name, KNOWN_GLIGEN_MODELS)
+        gligen_path = get_full_path_or_raise("gligen", gligen_name, KNOWN_GLIGEN_MODELS)
         gligen = sd.load_gligen(gligen_path)
         return (gligen,)
 
