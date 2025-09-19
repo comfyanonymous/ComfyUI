@@ -451,7 +451,7 @@ class AnimateWanModel(WanModel):
     def after_patch_embedding(self, x, pose_latents, face_pixel_values):
         if pose_latents is not None:
             pose_latents = self.pose_patch_embedding(pose_latents)
-            x[:, :, 1:] += pose_latents
+            x[:, :, 1:pose_latents.shape[2] + 1] += pose_latents[:, :, :x.shape[2] - 1]
 
         if face_pixel_values is None:
             return x, None
