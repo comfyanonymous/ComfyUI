@@ -1364,7 +1364,7 @@ class AudioCrossAttentionWrapper(nn.Module):
     def __init__(self, dim, kv_dim, num_heads, qk_norm=True, eps=1e-6, operation_settings={}):
         super().__init__()
 
-        self.audio_cross_attn = WanT2VCrossAttentionGather(dim, num_heads, qk_norm, kv_dim, eps, operation_settings=operation_settings)
+        self.audio_cross_attn = WanT2VCrossAttentionGather(dim, num_heads, qk_norm=qk_norm, kv_dim=kv_dim, eps=eps, operation_settings=operation_settings)
         self.norm1_audio = operation_settings.get("operations").LayerNorm(dim, eps, elementwise_affine=True, device=operation_settings.get("device"), dtype=operation_settings.get("dtype"))
 
     def forward(self, x, audio, transformer_options={}):
@@ -1551,6 +1551,9 @@ class HumoWanModel(WanModel):
         context_img_len = None
 
         if audio_embed is not None:
+            if reference_latent is not None:
+                zero_audio_pad = torch.zeros(audio_embed.shape[0], reference_latent.shape[-3], *audio_embed.shape[2:], device=audio_embed.device, dtype=audio_embed.dtype)
+                audio_embed = torch.cat([audio_embed, zero_audio_pad], dim=1)
             audio = self.audio_proj(audio_embed).permute(0, 3, 1, 2).flatten(2).transpose(1, 2)
         else:
             audio = None
