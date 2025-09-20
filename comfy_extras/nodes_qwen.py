@@ -1,4 +1,4 @@
-import node_helpers
+﻿import node_helpers
 import comfy.utils
 import math
 
@@ -13,13 +13,15 @@ class TextEncodeQwenImageEdit:
             "optional": {"vae": ("VAE", ),
                          "image": ("IMAGE", ),}}
 
-    RETURN_TYPES = ("CONDITIONING",)
+    RETURN_TYPES = ("CONDITIONING", "IMAGE", "LATENT")
     FUNCTION = "encode"
 
     CATEGORY = "advanced/conditioning"
 
     def encode(self, clip, prompt, vae=None, image=None):
         ref_latent = None
+        output_image = None
+        
         if image is None:
             images = []
         else:
@@ -27,12 +29,23 @@ class TextEncodeQwenImageEdit:
             total = int(1024 * 1024)
 
             scale_by = math.sqrt(total / (samples.shape[3] * samples.shape[2]))
-            width = round(samples.shape[3] * scale_by)
-            height = round(samples.shape[2] * scale_by)
 
-            s = comfy.utils.common_upscale(samples, width, height, "area", "disabled")
+            width = math.floor(samples.shape[3] * scale_by / 8) * 8
+            height = math.floor(samples.shape[2] * scale_by / 8) * 8
+
+            original_width = samples.shape[3]
+            original_height = samples.shape[2]
+            
+            if width < original_width or height < original_height:
+                upscale_method = "area"
+            else:
+                upscale_method = "lanczos"
+            
+            s = comfy.utils.common_upscale(samples, width, height, upscale_method, "disabled")
             image = s.movedim(1, -1)
             images = [image[:, :, :, :3]]
+            output_image = image[:, :, :, :3]
+            
             if vae is not None:
                 ref_latent = vae.encode(image[:, :, :, :3])
 
@@ -40,7 +53,10 @@ class TextEncodeQwenImageEdit:
         conditioning = clip.encode_from_tokens_scheduled(tokens)
         if ref_latent is not None:
             conditioning = node_helpers.conditioning_set_values(conditioning, {"reference_latents": [ref_latent]}, append=True)
-        return (conditioning, )
+        
+        latent_output = {"samples": ref_latent} if ref_latent is not None else None
+        
+        return (conditioning, output_image, latent_output)
 
 
 NODE_CLASS_MAPPINGS = {
