@@ -39,6 +39,7 @@ import comfy.ldm.cosmos.model
 import comfy.ldm.cosmos.predict2
 import comfy.ldm.lumina.model
 import comfy.ldm.wan.model
+import comfy.ldm.wan.model_animate
 import comfy.ldm.hunyuan3d.model
 import comfy.ldm.hidream.model
 import comfy.ldm.chroma.model
@@ -1211,6 +1212,63 @@ class WAN21_Camera(WAN21):
         camera_conditions = kwargs.get("camera_conditions", None)
         if camera_conditions is not None:
             out['camera_conditions'] = comfy.conds.CONDRegular(camera_conditions)
+        return out
+
+class WAN21_HuMo(WAN21):
+    def __init__(self, model_config, model_type=ModelType.FLOW, image_to_video=False, device=None):
+        super(WAN21, self).__init__(model_config, model_type, device=device, unet_model=comfy.ldm.wan.model.HumoWanModel)
+        self.image_to_video = image_to_video
+
+    def extra_conds(self, **kwargs):
+        out = super().extra_conds(**kwargs)
+        noise = kwargs.get("noise", None)
+
+        audio_embed = kwargs.get("audio_embed", None)
+        if audio_embed is not None:
+            out['audio_embed'] = comfy.conds.CONDRegular(audio_embed)
+
+        if "c_concat" not in out:  # 1.7B model
+            reference_latents = kwargs.get("reference_latents", None)
+            if reference_latents is not None:
+                out['reference_latent'] = comfy.conds.CONDRegular(self.process_latent_in(reference_latents[-1]))
+        else:
+            noise_shape = list(noise.shape)
+            noise_shape[1] += 4
+            concat_latent = torch.zeros(noise_shape, device=noise.device, dtype=noise.dtype)
+            zero_vae_values_first = torch.tensor([0.8660, -0.4326, -0.0017, -0.4884, -0.5283, 0.9207, -0.9896, 0.4433, -0.5543, -0.0113, 0.5753, -0.6000, -0.8346, -0.3497, -0.1926, -0.6938]).view(1, 16, 1, 1, 1)
+            zero_vae_values_second = torch.tensor([1.0869, -1.2370, 0.0206, -0.4357, -0.6411, 2.0307, -1.5972, 1.2659, -0.8595, -0.4654, 0.9638, -1.6330, -1.4310, -0.1098, -0.3856, -1.4583]).view(1, 16, 1, 1, 1)
+            zero_vae_values = torch.tensor([0.8642, -1.8583, 0.1577, 0.1350, -0.3641, 2.5863, -1.9670, 1.6065, -1.0475, -0.8678, 1.1734, -1.8138, -1.5933, -0.7721, -0.3289, -1.3745]).view(1, 16, 1, 1, 1)
+            concat_latent[:, 4:] = zero_vae_values
+            concat_latent[:, 4:, :1] = zero_vae_values_first
+            concat_latent[:, 4:, 1:2] = zero_vae_values_second
+            out['c_concat'] = comfy.conds.CONDNoiseShape(concat_latent)
+            reference_latents = kwargs.get("reference_latents", None)
+            if reference_latents is not None:
+                ref_latent = self.process_latent_in(reference_latents[-1])
+                ref_latent_shape = list(ref_latent.shape)
+                ref_latent_shape[1] += 4 + ref_latent_shape[1]
+                ref_latent_full = torch.zeros(ref_latent_shape, device=ref_latent.device, dtype=ref_latent.dtype)
+                ref_latent_full[:, 20:] = ref_latent
+                ref_latent_full[:, 16:20] = 1.0
+                out['reference_latent'] = comfy.conds.CONDRegular(ref_latent_full)
+
+        return out
+
+class WAN22_Animate(WAN21):
+    def __init__(self, model_config, model_type=ModelType.FLOW, image_to_video=False, device=None):
+        super(WAN21, self).__init__(model_config, model_type, device=device, unet_model=comfy.ldm.wan.model_animate.AnimateWanModel)
+        self.image_to_video = image_to_video
+
+    def extra_conds(self, **kwargs):
+        out = super().extra_conds(**kwargs)
+
+        face_video_pixels = kwargs.get("face_video_pixels", None)
+        if face_video_pixels is not None:
+            out['face_pixel_values'] = comfy.conds.CONDRegular(face_video_pixels)
+
+        pose_latents = kwargs.get("pose_video_latent", None)
+        if pose_latents is not None:
+            out['pose_latents'] = comfy.conds.CONDRegular(self.process_latent_in(pose_latents))
         return out
 
 class WAN22_S2V(WAN21):
