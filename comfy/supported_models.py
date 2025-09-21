@@ -995,7 +995,7 @@ class WAN21_T2V(supported_models_base.BASE):
     unet_extra_config = {}
     latent_format = latent_formats.Wan21
 
-    memory_usage_factor = 1.0
+    memory_usage_factor = 0.9
 
     supported_inference_dtypes = [torch.float16, torch.bfloat16, torch.float32]
 
