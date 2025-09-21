@@ -91,8 +91,10 @@ git fetch >NUL
 for /f "delims=" %%L in ('git rev-parse @') do set LOCAL=%%L
 for /f "delims=" %%R in ('git rev-parse @{u}') do set REMOTE=%%R
 if NOT "%LOCAL%"=="%REMOTE%" (
+    echo.
     echo [INFO] Update available. New commits:
     git log --oneline %LOCAL%..%REMOTE%
+    echo.
     echo [INFO] Pulling updates...
     git pull
 ) else (
