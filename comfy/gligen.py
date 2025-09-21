@@ -3,7 +3,7 @@ import torch
 from torch import nn
 from .ldm.modules.attention import CrossAttention, FeedForward
 import comfy.ops
-ops = comfy.ops.manual_cast
+ops = comfy.ops.operator_factory(comfy_cast_weights=True)
 
 
 class GatedCrossAttentionDense(nn.Module):
