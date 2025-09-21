@@ -89,8 +89,8 @@ class LoKrAdapter(WeightAdapterBase):
         in_dim = weight.shape[1:].numel()
         out1, out2 = factorization(out_dim, rank)
         in1, in2 = factorization(in_dim, rank)
-        mat1 = torch.empty(out1, in1, device=weight.device, dtype=weight.dtype)
-        mat2 = torch.empty(out2, in2, device=weight.device, dtype=weight.dtype)
+        mat1 = torch.empty(out1, in1, device=weight.device, dtype=torch.float32)
+        mat2 = torch.empty(out2, in2, device=weight.device, dtype=torch.float32)
         torch.nn.init.kaiming_uniform_(mat2, a=5**0.5)
         torch.nn.init.constant_(mat1, 0.0)
         return LokrDiff(
