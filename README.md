@@ -229,6 +229,8 @@ This is the command to install the Pytorch xpu nightly which might have some per
 
 Nvidia users should install stable pytorch using this command:
 
+> **NOTE**: The --index-url depends on your CUDA version. 
+
 ```pip install torch torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/cu129```
 
 This is the command to install pytorch nightly instead which might have performance improvements.
