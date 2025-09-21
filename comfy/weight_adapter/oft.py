@@ -68,7 +68,7 @@ class OFTAdapter(WeightAdapterBase):
     def create_train(cls, weight, rank=1, alpha=1.0):
         out_dim = weight.shape[0]
         block_size, block_num = factorization(out_dim, rank)
-        block = torch.zeros(block_num, block_size, block_size, device=weight.device, dtype=weight.dtype)
+        block = torch.zeros(block_num, block_size, block_size, device=weight.device, dtype=torch.float32)
         return OFTDiff(
             (block, None, alpha, None)
         )
