@@ -287,7 +287,6 @@ class WanVaceToVideo(io.ComfyNode):
         return io.Schema(
             node_id="WanVaceToVideo",
             category="conditioning/video_models",
-            is_experimental=True,
             inputs=[
                 io.Conditioning.Input("positive"),
                 io.Conditioning.Input("negative"),
@@ -375,7 +374,6 @@ class TrimVideoLatent(io.ComfyNode):
         return io.Schema(
             node_id="TrimVideoLatent",
             category="latent/video",
-            is_experimental=True,
             inputs=[
                 io.Latent.Input("samples"),
                 io.Int.Input("trim_amount", default=0, min=0, max=99999),
@@ -969,7 +967,6 @@ class WanSoundImageToVideo(io.ComfyNode):
                 io.Conditioning.Output(display_name="negative"),
                 io.Latent.Output(display_name="latent"),
             ],
-            is_experimental=True,
         )
 
     @classmethod
@@ -1000,7 +997,6 @@ class WanSoundImageToVideoExtend(io.ComfyNode):
                 io.Conditioning.Output(display_name="negative"),
                 io.Latent.Output(display_name="latent"),
             ],
-            is_experimental=True,
         )
 
     @classmethod
