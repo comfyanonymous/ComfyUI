@@ -5,7 +5,7 @@ from aiohttp import web
 from aiohttp.test_utils import make_mocked_request
 from typing import Dict, Any
 
-from middleware.cache_middleware import cache_control, ONE_HOUR, ONE_DAY, IMG_EXTENSIONS
+from comfy.middleware.cache_middleware import cache_control, ONE_HOUR, ONE_DAY, IMG_EXTENSIONS
 
 pytestmark = pytest.mark.asyncio  # Apply asyncio mark to all tests
 
