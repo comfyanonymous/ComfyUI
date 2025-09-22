@@ -4,9 +4,9 @@ from typing import Callable
 import torch
 
 import comfy.model_management
+from comfy.nodes.common import MAX_RESOLUTION
 from comfy_api.latest import ComfyExtension, io
 
-import nodes
 
 class EmptyChromaRadianceLatentImage(io.ComfyNode):
     @classmethod
@@ -15,17 +15,17 @@ class EmptyChromaRadianceLatentImage(io.ComfyNode):
             node_id="EmptyChromaRadianceLatentImage",
             category="latent/chroma_radiance",
             inputs=[
-                io.Int.Input(id="width", default=1024, min=16, max=nodes.MAX_RESOLUTION, step=16),
-                io.Int.Input(id="height", default=1024, min=16, max=nodes.MAX_RESOLUTION, step=16),
+                io.Int.Input(id="width", default=1024, min=16, max=MAX_RESOLUTION, step=16),
+                io.Int.Input(id="height", default=1024, min=16, max=MAX_RESOLUTION, step=16),
                 io.Int.Input(id="batch_size", default=1, min=1, max=4096),
             ],
             outputs=[io.Latent().Output()],
         )
 
     @classmethod
-    def execute(cls, *, width: int, height: int, batch_size: int=1) -> io.NodeOutput:
+    def execute(cls, *, width: int, height: int, batch_size: int = 1) -> io.NodeOutput:
         latent = torch.zeros((batch_size, 3, height, width), device=comfy.model_management.intermediate_device())
-        return io.NodeOutput({"samples":latent})
+        return io.NodeOutput({"samples": latent})
 
 
 class ChromaRadianceOptions(io.ComfyNode):
@@ -68,13 +68,13 @@ class ChromaRadianceOptions(io.ComfyNode):
 
     @classmethod
     def execute(
-        cls,
-        *,
-        model: io.Model.Type,
-        preserve_wrapper: bool,
-        start_sigma: float,
-        end_sigma: float,
-        nerf_tile_size: int,
+            cls,
+            *,
+            model: io.Model.Type,
+            preserve_wrapper: bool,
+            start_sigma: float,
+            end_sigma: float,
+            nerf_tile_size: int,
     ) -> io.NodeOutput:
         radiance_options = {}
         if nerf_tile_size >= 0:

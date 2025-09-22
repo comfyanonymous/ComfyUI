@@ -121,4 +121,5 @@ __all__ = [
     "InputImpl",
     "Types",
     "ComfyExtension",
+    "io",
 ]
