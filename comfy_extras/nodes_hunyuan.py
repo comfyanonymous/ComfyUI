@@ -122,12 +122,12 @@ class HunyuanMixModeAPG:
                 "general_eta": ("FLOAT", {"default": 0.0, "min": -10.0, "max": 10.0, "step": 0.01}),
                 "general_norm_threshold": ("FLOAT", {"default": 10.0, "min": 0.0, "max": 50.0, "step": 0.1}),
                 "general_momentum": ("FLOAT", {"default": -0.5, "min": -5.0, "max": 1.0, "step": 0.01}),
-                "general_start_step": ("INT", {"default": 5, "min": -1, "max": 1000}),
+                "general_start_percent": ("FLOAT", {"default": 0.10, "min": 0.0, "max": 1.0, "step": 0.01, "tooltip": "The relative sampling step to begin use of general APG."}),
 
                 "ocr_eta": ("FLOAT", {"default": 0.0, "min": -10.0, "max": 10.0, "step": 0.01}),
                 "ocr_norm_threshold": ("FLOAT", {"default": 10.0, "min": 0.0, "max": 50.0, "step": 0.1}),
                 "ocr_momentum": ("FLOAT", {"default": -0.5, "min": -5.0, "max": 1.0, "step": 0.01}),
-                "ocr_start_step": ("INT", {"default": 38, "min": -1, "max": 1000}),
+                "ocr_start_percent": ("FLOAT", {"default": 0.75, "min": 0.0, "max": 1.0, "step": 0.01, "tooltip": "The relative sampling step to begin use of OCR APG."}),
 
             }
         }
@@ -137,8 +137,8 @@ class HunyuanMixModeAPG:
     CATEGORY = "sampling/custom_sampling/hunyuan"
 
 
-    def apply_mix_mode_apg(self, model,  has_quoted_text, guidance_scale, general_eta, general_norm_threshold, general_momentum, general_start_step,
-                          ocr_eta, ocr_norm_threshold, ocr_momentum, ocr_start_step):
+    def apply_mix_mode_apg(self, model,  has_quoted_text, guidance_scale, general_eta, general_norm_threshold, general_momentum, general_start_percent,
+                          ocr_eta, ocr_norm_threshold, ocr_momentum, ocr_start_percent):
 
         general_apg = AdaptiveProjectedGuidance(
             guidance_scale=guidance_scale,
@@ -154,15 +154,21 @@ class HunyuanMixModeAPG:
         )
 
         m = model.clone()
+
+
+        model_sampling = m.model.model_sampling
+        general_start_t = model_sampling.percent_to_sigma(general_start_percent)
+        ocr_start_t = model_sampling.percent_to_sigma(ocr_start_percent)
+
         step_tracker = {"step": 0}
 
         def hunyuan_apg_outer_sample_wrapper(executor, *args, **kwargs):
             step_tracker['step'] = 0
             return executor(*args, **kwargs)
 
-
         def cfg_function(args):
             sigma = args["sigma"].to(torch.float32)
+            sigma = sigma[:, None, None, None]
             cond = args["cond"]
             uncond = args["uncond"]
             cond_scale = args["cond_scale"]
@@ -171,7 +177,7 @@ class HunyuanMixModeAPG:
             step_tracker['step'] += 1
 
             if not has_quoted_text:
-                if step >= general_start_step:
+                if sigma[0] <= general_start_t:
                     modified_cond = general_apg(cond / sigma, uncond / sigma, step)
                     return modified_cond * sigma
                 else:
@@ -179,7 +185,7 @@ class HunyuanMixModeAPG:
                         _ = general_apg(cond / sigma, uncond / sigma, step) # track momentum
                         return uncond + (cond - uncond) * cond_scale
             else:
-                if step >= ocr_start_step:
+                if sigma[0] <= ocr_start_t:
                     modified_cond = ocr_apg(cond / sigma, uncond / sigma, step)
                     return modified_cond * sigma
                 else:
