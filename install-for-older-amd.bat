@@ -71,7 +71,3 @@ echo *** Starting the Comfyui-ZLUDA for the first time, please be patient...
 echo.
 .\zluda\zluda.exe -- python main.py --auto-launch --use-quad-cross-attention
 
-
-
-
-
