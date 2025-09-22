@@ -67,6 +67,9 @@ class HeuristicPath(NamedTuple):
     abs_path: str
 
 
+# Import cache control middleware
+from middleware.cache_middleware import cache_control
+
 async def send_socket_catch_exception(function, message):
     try:
         await function(message)
@@ -76,14 +79,6 @@ async def send_socket_catch_exception(function, message):
 
 def get_comfyui_version():
     return __version__
-
-
-@web.middleware
-async def cache_control(request: web.Request, handler):
-    response: web.Response = await handler(request)
-    if request.path.endswith('.js') or request.path.endswith('.css') or request.path.endswith('index.json'):
-        response.headers.setdefault('Cache-Control', 'no-cache')
-    return response
 
 
 @web.middleware

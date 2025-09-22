@@ -21,8 +21,10 @@ import gc
 import logging
 import platform
 import sys
+import importlib.util
 import warnings
 import weakref
+
 from enum import Enum
 from threading import RLock
 from typing import List, Sequence, Final, Optional
@@ -107,7 +109,7 @@ except:
 
 lowvram_available = True
 if args.deterministic:
-    logger.info("Using deterministic algorithms for pytorch")
+    logger.debug("Using deterministic algorithms for pytorch")
     torch.use_deterministic_algorithms(True, warn_only=True)
 
 directml_device = None
@@ -119,7 +121,7 @@ if args.directml is not None:
         directml_device = torch_directml.device()
     else:
         directml_device = torch_directml.device(device_index)
-    logger.info("Using directml with device: {}".format(torch_directml.device_name(device_index)))
+    logger.debug("Using directml with device: {}".format(torch_directml.device_name(device_index)))
     # torch_directml.disable_tiled_resources(True)
     lowvram_available = False  # TODO: need to find a way to get free memory in directml before this can be enabled by default.
 
@@ -187,6 +189,7 @@ def is_mlu():
     if mlu_available:
         return True
     return False
+
 
 def is_ixuca():
     global ixuca_available
@@ -271,7 +274,7 @@ def mac_version():
 
 # we're required to call get_device_name early on to initialize the methods get_total_memory will call
 if torch.cuda.is_available() and hasattr(torch.version, "hip") and torch.version.hip is not None:
-    logger.info(f"Detected HIP device: {torch.cuda.get_device_name(torch.cuda.current_device())}")
+    logger.debug(f"Detected HIP device: {torch.cuda.get_device_name(torch.cuda.current_device())}")
 total_vram = get_total_memory(get_torch_device()) / (1024 * 1024)
 total_ram = psutil.virtual_memory().total / (1024 * 1024)
 logger.debug("Total VRAM {:0.0f} MB, total RAM {:0.0f} MB".format(total_vram, total_ram))
@@ -337,6 +340,25 @@ def is_amd():
     return False
 
 
+def amd_min_version(device=None, min_rdna_version=0):
+    if not is_amd():
+        return False
+
+    if is_device_cpu(device):
+        return False
+
+    arch = torch.cuda.get_device_properties(device).gcnArchName
+    if arch.startswith('gfx') and len(arch) == 7:
+        try:
+            cmp_rdna_version = int(arch[4]) + 2
+        except:
+            cmp_rdna_version = 0
+        if cmp_rdna_version >= min_rdna_version:
+            return True
+
+    return False
+
+
 MIN_WEIGHT_MEMORY_RATIO = 0.4
 if is_nvidia():
     MIN_WEIGHT_MEMORY_RATIO = 0.0
@@ -365,17 +387,18 @@ try:
         except:
             rocm_version = (6, -1)
         arch = torch.cuda.get_device_properties(get_torch_device()).gcnArchName
-        logger.info("AMD arch: {}".format(arch))
-        logging.info("ROCm version: {}".format(rocm_version))
+        logger.debug("AMD arch: {}".format(arch))
+        logger.debug("ROCm version: {}".format(rocm_version))
         if args.use_split_cross_attention == False and args.use_quad_cross_attention == False:
-            if torch_version_numeric >= (2, 7):  # works on 2.6 but doesn't actually seem to improve much
-                if any((a in arch) for a in ["gfx90a", "gfx942", "gfx1100", "gfx1101", "gfx1151"]):  # TODO: more arches, TODO: gfx950
-                    ENABLE_PYTORCH_ATTENTION = True
-#            if torch_version_numeric >= (2, 8):
-#                if any((a in arch) for a in ["gfx1201"]):
-#                    ENABLE_PYTORCH_ATTENTION = True
+            if importlib.util.find_spec('triton') is not None:  # AMD efficient attention implementation depends on triton. TODO: better way of detecting if it's compiled in or not.
+                if torch_version_numeric >= (2, 7):  # works on 2.6 but doesn't actually seem to improve much
+                    if any((a in arch) for a in ["gfx90a", "gfx942", "gfx1100", "gfx1101", "gfx1151"]):  # TODO: more arches, TODO: gfx950
+                        ENABLE_PYTORCH_ATTENTION = True
+        #                if torch_version_numeric >= (2, 8):
+        #                    if any((a in arch) for a in ["gfx1201"]):
+        #                        ENABLE_PYTORCH_ATTENTION = True
         if torch_version_numeric >= (2, 7) and rocm_version >= (6, 4):
-            if any((a in arch) for a in ["gfx1201", "gfx942", "gfx950"]):  # TODO: more arches
+            if any((a in arch) for a in ["gfx1200", "gfx1201", "gfx942", "gfx950"]):  # TODO: more arches
                 SUPPORT_FP8_OPS = True
 
 except:
@@ -1014,7 +1037,9 @@ def vae_dtype(device=None, allowed_dtypes=[]):
 
         # NOTE: bfloat16 seems to work on AMD for the VAE but is extremely slow in some cases compared to fp32
         # slowness still a problem on pytorch nightly 2.9.0.dev20250720+rocm6.4 tested on RDNA3
-        if d == torch.bfloat16 and (not is_amd()) and should_use_bf16(device):
+        # also a problem on RDNA4 except fp32 is also slow there.
+        # This is due to large bf16 convolutions being extremely slow.
+        if d == torch.bfloat16 and ((not is_amd()) or amd_min_version(device, min_rdna_version=4)) and should_use_bf16(device):
             return d
 
     return torch.float32
@@ -1075,7 +1100,7 @@ def device_supports_non_blocking(device):
         return True
     if is_device_mps(device):
         return False  # pytorch bug? mps doesn't support non blocking
-    if is_intel_xpu(): #xpu does support non blocking but it is slower on iGPUs for some reason so disable by default until situation changes
+    if is_intel_xpu():  # xpu does support non blocking but it is slower on iGPUs for some reason so disable by default until situation changes
         return False
     if args.deterministic:  # TODO: figure out why deterministic breaks non blocking from gpu to cpu (previews)
         return False
@@ -1103,7 +1128,7 @@ STREAMS = {}
 NUM_STREAMS = 1
 if args.async_offload:
     NUM_STREAMS = 2
-    logging.info("Using async weight offloading with {} streams".format(NUM_STREAMS))
+    logger.debug("Using async weight offloading with {} streams".format(NUM_STREAMS))
 
 stream_counters = {}
 
@@ -1338,8 +1363,10 @@ def is_device_cpu(device):
 def is_device_mps(device):
     return is_device_type(device, 'mps')
 
+
 def is_device_xpu(device):
     return is_device_type(device, 'xpu')
+
 
 def is_device_cuda(device):
     return is_device_type(device, 'cuda')

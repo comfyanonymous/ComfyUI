@@ -18,6 +18,7 @@
 from __future__ import annotations
 
 import logging
+from typing import Union
 
 import torch
 
@@ -309,6 +310,12 @@ def model_lora_keys_unet(model, key_map=None):
                 key_lora = k[len("diffusion_model."):-len(".weight")]
                 key_map["{}".format(key_lora)] = k
 
+    if isinstance(model, model_base.Omnigen2):
+        for k in sdk:
+            if k.startswith("diffusion_model.") and k.endswith(".weight"):
+                key_lora = k[len("diffusion_model."):-len(".weight")]
+                key_map["{}".format(key_lora)] = k
+
     if isinstance(model, model_base.QwenImage):
         for k in sdk:
             if k.startswith("diffusion_model.") and k.endswith(".weight"):  # QwenImage lora format
@@ -322,7 +329,7 @@ def model_lora_keys_unet(model, key_map=None):
     return key_map
 
 
-def pad_tensor_to_shape(tensor: torch.Tensor, new_shape: list[int]) -> torch.Tensor:
+def pad_tensor_to_shape(tensor: torch.Tensor, new_shape: Union[list[int], torch.Size]) -> torch.Tensor:
     """
     Pad a tensor to a new shape with zeros.
 

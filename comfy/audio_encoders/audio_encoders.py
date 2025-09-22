@@ -1,17 +1,32 @@
+import logging
 from .wav2vec2 import Wav2Vec2Model
+from .whisper import WhisperLargeV3
+
 from ..model_management import text_encoder_offload_device, text_encoder_device, load_model_gpu, text_encoder_dtype
 from ..model_patcher import ModelPatcher
 from ..ops import manual_cast
 from ..utils import state_dict_prefix_replace
 
-import logging
+logger = logging.getLogger(__name__)
 
-class AudioEncoderModel():
+
+class AudioEncoderModel:
     def __init__(self, config):
         self.load_device = text_encoder_device()
         offload_device = text_encoder_offload_device()
         self.dtype = text_encoder_dtype(self.load_device)
-        self.model = Wav2Vec2Model(dtype=self.dtype, device=offload_device, operations=manual_cast)
+        model_type = config.pop("model_type")
+        model_config = dict(config)
+        model_config.update({
+            "dtype": self.dtype,
+            "device": offload_device,
+            "operations": manual_cast
+        })
+
+        if model_type == "wav2vec2":
+            self.model = Wav2Vec2Model(**model_config)
+        elif model_type == "whisper3":
+            self.model = WhisperLargeV3(**model_config)
         self.model.eval()
         self.patcher = ModelPatcher(self.model, load_device=self.load_device, offload_device=offload_device)
         self.model_sample_rate = 16000
@@ -31,14 +46,51 @@ class AudioEncoderModel():
         outputs = {}
         outputs["encoded_audio"] = out
         outputs["encoded_audio_all_layers"] = all_layers
+        outputs["audio_samples"] = audio.shape[2]
         return outputs
 
 
 def load_audio_encoder_from_sd(sd, prefix=""):
-    audio_encoder = AudioEncoderModel(None)
     sd = state_dict_prefix_replace(sd, {"wav2vec2.": ""})
+    if "encoder.layer_norm.bias" in sd:  # wav2vec2
+        embed_dim = sd["encoder.layer_norm.bias"].shape[0]
+        if embed_dim == 1024:  # large
+            config = {
+                "model_type": "wav2vec2",
+                "embed_dim": 1024,
+                "num_heads": 16,
+                "num_layers": 24,
+                "conv_norm": True,
+                "conv_bias": True,
+                "do_normalize": True,
+                "do_stable_layer_norm": True
+            }
+        elif embed_dim == 768:  # base
+            config = {
+                "model_type": "wav2vec2",
+                "embed_dim": 768,
+                "num_heads": 12,
+                "num_layers": 12,
+                "conv_norm": False,
+                "conv_bias": False,
+                "do_normalize": False,  # chinese-wav2vec2-base has this False
+                "do_stable_layer_norm": False
+            }
+        else:
+            raise RuntimeError("ERROR: audio encoder file is invalid or unsupported embed_dim: {}".format(embed_dim))
+    elif "model.encoder.embed_positions.weight" in sd:
+        sd = state_dict_prefix_replace(sd, {"model.": ""})
+        config = {
+            "model_type": "whisper3",
+        }
+    else:
+        raise RuntimeError("ERROR: audio encoder not supported.")
+
+    audio_encoder = AudioEncoderModel(config)
     m, u = audio_encoder.load_sd(sd)
     if len(m) > 0:
-        logging.warning("missing audio encoder: {}".format(m))
+        logger.warning("missing audio encoder: {}".format(m))
+    if len(u) > 0:
+        logger.warning("unexpected audio encoder: {}".format(u))
 
     return audio_encoder

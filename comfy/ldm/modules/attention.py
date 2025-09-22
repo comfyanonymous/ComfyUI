@@ -1,7 +1,8 @@
 import logging
 import math
+import functools
 from functools import wraps
-from typing import Optional
+from typing import Optional, Any, Callable, Union
 
 import torch
 import torch.nn.functional as F
@@ -19,24 +20,49 @@ if model_management.xformers_enabled():
     import xformers  # pylint: disable=import-error
     import xformers.ops  # pylint: disable=import-error
 
-sageattn = None
-if model_management.sage_attention_enabled():
-    try:
-        from .sage_attention_dispatcher import sageattn
-    except ModuleNotFoundError as e:
-        if e.name == "sageattention":
-            logger.error(f"To use the `--use-sage-attention` feature, the `sageattention` package must be installed first.")
-        else:
-            raise e
-        sageattn = torch.nn.functional.scaled_dot_product_attention
-else:
+sageattn = torch.nn.functional.scaled_dot_product_attention
+SAGE_ATTENTION_IS_AVAILABLE = False
+try:
+    from .sage_attention_dispatcher import sageattn
+
+    SAGE_ATTENTION_IS_AVAILABLE = True
+except (ImportError, ModuleNotFoundError) as e:
+    if e.name == "sageattention":
+        logger.error(f"To use the `--use-sage-attention` feature, the `sageattention` package must be installed first.")
     sageattn = torch.nn.functional.scaled_dot_product_attention
 
-flash_attn_func = None
-if model_management.flash_attention_enabled():
+flash_attn_func = torch.nn.functional.scaled_dot_product_attention
+FLASH_ATTENTION_IS_AVAILABLE = False
+try:
     from flash_attn import flash_attn_func  # pylint: disable=import-error
-else:
+
+    FLASH_ATTENTION_IS_AVAILABLE = True
+except (ImportError, ModuleNotFoundError):
+    if model_management.flash_attention_enabled():
+        logging.error(f"\n\nTo use the `--use-flash-attention` feature, the `flash-attn` package must be installed first.")
     flash_attn_func = torch.nn.functional.scaled_dot_product_attention
+
+REGISTERED_ATTENTION_FUNCTIONS = {}
+
+
+def register_attention_function(name: str, func: Callable):
+    # avoid replacing existing functions
+    if name not in REGISTERED_ATTENTION_FUNCTIONS:
+        REGISTERED_ATTENTION_FUNCTIONS[name] = func
+    else:
+        logging.warning(f"Attention function {name} already registered, skipping registration.")
+
+
+def get_attention_function(name: str, default: Any = ...) -> Union[Callable, None]:
+    if name == "optimized":
+        return optimized_attention
+    elif name not in REGISTERED_ATTENTION_FUNCTIONS:
+        if default is ...:
+            raise KeyError(f"Attention function {name} not found.")
+        else:
+            return default
+    return REGISTERED_ATTENTION_FUNCTIONS[name]
+
 
 from ...cli_args import args
 from ... import ops
@@ -104,7 +130,28 @@ def Normalize(in_channels, dtype=None, device=None):
     return torch.nn.GroupNorm(num_groups=32, num_channels=in_channels, eps=1e-6, affine=True, dtype=dtype, device=device)
 
 
-def attention_basic(q, k, v, heads, mask=None, attn_precision=None, skip_reshape=False, skip_output_reshape=False):
+def wrap_attn(func):
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        remove_attn_wrapper_key = False
+        try:
+            if "_inside_attn_wrapper" not in kwargs:
+                transformer_options = kwargs.get("transformer_options", None)
+                remove_attn_wrapper_key = True
+                kwargs["_inside_attn_wrapper"] = True
+                if transformer_options is not None:
+                    if "optimized_attention_override" in transformer_options:
+                        return transformer_options["optimized_attention_override"](func, *args, **kwargs)
+            return func(*args, **kwargs)
+        finally:
+            if remove_attn_wrapper_key:
+                del kwargs["_inside_attn_wrapper"]
+
+    return wrapper
+
+
+@wrap_attn
+def attention_basic(q, k, v, heads, mask=None, attn_precision=None, skip_reshape=False, skip_output_reshape=False, **kwargs):
     attn_precision = get_attn_precision(attn_precision, q.dtype)
 
     if skip_reshape:
@@ -173,7 +220,8 @@ def attention_basic(q, k, v, heads, mask=None, attn_precision=None, skip_reshape
     return out
 
 
-def attention_sub_quad(query, key, value, heads, mask=None, attn_precision=None, skip_reshape=False, skip_output_reshape=False):
+@wrap_attn
+def attention_sub_quad(query, key, value, heads, mask=None, attn_precision=None, skip_reshape=False, skip_output_reshape=False, **kwargs):
     attn_precision = get_attn_precision(attn_precision, query.dtype)
 
     if skip_reshape:
@@ -243,7 +291,8 @@ def attention_sub_quad(query, key, value, heads, mask=None, attn_precision=None,
     return hidden_states
 
 
-def attention_split(q, k, v, heads, mask=None, attn_precision=None, skip_reshape=False, skip_output_reshape=False):
+@wrap_attn
+def attention_split(q, k, v, heads, mask=None, attn_precision=None, skip_reshape=False, skip_output_reshape=False, **kwargs):
     attn_precision = get_attn_precision(attn_precision, q.dtype)
 
     if skip_reshape:
@@ -364,7 +413,8 @@ def attention_split(q, k, v, heads, mask=None, attn_precision=None, skip_reshape
     return r1
 
 
-def attention_xformers(q, k, v, heads, mask=None, attn_precision=None, skip_reshape=False, skip_output_reshape=False):
+@wrap_attn
+def attention_xformers(q, k, v, heads, mask=None, attn_precision=None, skip_reshape=False, skip_output_reshape=False, **kwargs):
     b = q.shape[0]
     dim_head = q.shape[-1]
     # check to make sure xformers isn't broken
@@ -375,7 +425,7 @@ def attention_xformers(q, k, v, heads, mask=None, attn_precision=None, skip_resh
             disabled_xformers = True
 
     if disabled_xformers:
-        return attention_pytorch(q, k, v, heads, mask, skip_reshape=skip_reshape)
+        return attention_pytorch(q, k, v, heads, mask, skip_reshape=skip_reshape, **kwargs)
 
     if skip_reshape:
         # b h k d -> b k h d
@@ -463,7 +513,8 @@ def pytorch_style_decl(func):
     return wrapper
 
 
-def attention_pytorch(q, k, v, heads, mask=None, attn_precision=None, skip_reshape=False, skip_output_reshape=False):
+@wrap_attn
+def attention_pytorch(q, k, v, heads, mask=None, attn_precision=None, skip_reshape=False, skip_output_reshape=False, **kwargs):
     if skip_reshape:
         b, _, _, dim_head = q.shape
     else:
@@ -506,7 +557,8 @@ def attention_pytorch(q, k, v, heads, mask=None, attn_precision=None, skip_resha
     return out
 
 
-def attention_sage(q, k, v, heads, mask=None, attn_precision=None, skip_reshape=False, skip_output_reshape=False):
+@wrap_attn
+def attention_sage(q, k, v, heads, mask=None, attn_precision=None, skip_reshape=False, skip_output_reshape=False, **kwargs):
     if skip_reshape:
         b, _, _, dim_head = q.shape
         tensor_layout = "HND"
@@ -536,7 +588,7 @@ def attention_sage(q, k, v, heads, mask=None, attn_precision=None, skip_reshape=
                 lambda t: t.transpose(1, 2),
                 (q, k, v),
             )
-        return attention_pytorch(q, k, v, heads, mask=mask, skip_reshape=True, skip_output_reshape=skip_output_reshape)
+        return attention_pytorch(q, k, v, heads, mask=mask, skip_reshape=True, skip_output_reshape=skip_output_reshape, **kwargs)
 
     if tensor_layout == "HND":
         if not skip_output_reshape:
@@ -571,7 +623,8 @@ except AttributeError as error:
         assert False, f"Could not define flash_attn_wrapper: {FLASH_ATTN_ERROR}"
 
 
-def attention_flash(q, k, v, heads, mask=None, attn_precision=None, skip_reshape=False, skip_output_reshape=False):
+@wrap_attn
+def attention_flash(q, k, v, heads, mask=None, attn_precision=None, skip_reshape=False, skip_output_reshape=False, **kwargs):
     if skip_reshape:
         b, _, _, dim_head = q.shape
     else:
@@ -591,7 +644,8 @@ def attention_flash(q, k, v, heads, mask=None, attn_precision=None, skip_reshape
             mask = mask.unsqueeze(1)
 
     try:
-        assert mask is None
+        if mask is not None:
+            raise RuntimeError("Mask must not be set for Flash attention")
         out = flash_attn_wrapper(
             q.transpose(1, 2),
             k.transpose(1, 2),
@@ -636,6 +690,17 @@ else:
 optimized_attention_masked = optimized_attention
 optimized_attention_no_sage_masked = optimized_attention_no_sage
 
+# register core-supported attention functions
+if SAGE_ATTENTION_IS_AVAILABLE:
+    register_attention_function("sage", attention_sage)
+if FLASH_ATTENTION_IS_AVAILABLE:
+    register_attention_function("flash", attention_flash)
+if model_management.xformers_enabled():
+    register_attention_function("xformers", attention_xformers)
+register_attention_function("pytorch", attention_pytorch)
+register_attention_function("sub_quad", attention_sub_quad)
+register_attention_function("split", attention_split)
+
 
 def optimized_attention_for_device(device, mask=False, small_input=False):
     if small_input:
@@ -669,7 +734,7 @@ class CrossAttention(nn.Module):
 
         self.to_out = nn.Sequential(operations.Linear(inner_dim, query_dim, dtype=dtype, device=device), nn.Dropout(dropout))
 
-    def forward(self, x, context=None, value=None, mask=None):
+    def forward(self, x, context=None, value=None, mask=None, transformer_options={}):
         q = self.to_q(x)
         context = default(context, x)
         k = self.to_k(context)
@@ -680,9 +745,9 @@ class CrossAttention(nn.Module):
             v = self.to_v(context)
 
         if mask is None:
-            out = optimized_attention(q, k, v, self.heads, attn_precision=self.attn_precision)
+            out = optimized_attention(q, k, v, self.heads, attn_precision=self.attn_precision, transformer_options=transformer_options)
         else:
-            out = optimized_attention_masked(q, k, v, self.heads, mask, attn_precision=self.attn_precision)
+            out = optimized_attention_masked(q, k, v, self.heads, mask, attn_precision=self.attn_precision, transformer_options=transformer_options)
         return self.to_out(out)
 
 
@@ -786,7 +851,7 @@ class BasicTransformerBlock(nn.Module):
             n = attn1_replace_patch[block_attn1](n, context_attn1, value_attn1, extra_options)
             n = self.attn1.to_out(n)
         else:
-            n = self.attn1(n, context=context_attn1, value=value_attn1)
+            n = self.attn1(n, context=context_attn1, value=value_attn1, transformer_options=transformer_options)
 
         if "attn1_output_patch" in transformer_patches:
             patch = transformer_patches["attn1_output_patch"]
@@ -826,7 +891,7 @@ class BasicTransformerBlock(nn.Module):
                 n = attn2_replace_patch[block_attn2](n, context_attn2, value_attn2, extra_options)
                 n = self.attn2.to_out(n)
             else:
-                n = self.attn2(n, context=context_attn2, value=value_attn2)
+                n = self.attn2(n, context=context_attn2, value=value_attn2, transformer_options=transformer_options)
 
         if "attn2_output_patch" in transformer_patches:
             patch = transformer_patches["attn2_output_patch"]
@@ -1058,7 +1123,7 @@ class SpatialVideoTransformer(SpatialTransformer):
 
             B, S, C = x_mix.shape
             x_mix = rearrange(x_mix, "(b t) s c -> (b s) t c", t=timesteps)
-            x_mix = mix_block(x_mix, context=time_context)  # TODO: transformer_options
+            x_mix = mix_block(x_mix, context=time_context, transformer_options=transformer_options)
             x_mix = rearrange(
                 x_mix, "(b s) t c -> (b t) s c", s=S, b=B // timesteps, c=C, t=timesteps
             )

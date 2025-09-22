@@ -101,10 +101,12 @@ class Flux(nn.Module):
             y: Tensor,
             guidance: Tensor = None,
             control=None,
-            transformer_options={},
+            transformer_options=None,
             attn_mask: Tensor = None,
     ) -> Tensor:
 
+        if transformer_options is None:
+            transformer_options = {}
         if y is None:
             y = torch.zeros((img.shape[0], self.params.vec_in_dim), device=img.device, dtype=img.dtype)
 
@@ -146,14 +148,16 @@ class Flux(nn.Module):
                                                    txt=args["txt"],
                                                    vec=args["vec"],
                                                    pe=args["pe"],
-                                                   attn_mask=args.get("attn_mask"))
+                                                   attn_mask=args.get("attn_mask"),
+                                                   transformer_options=args.get("transformer_options"))
                     return out
 
                 out = blocks_replace[("double_block", i)]({"img": img,
                                                            "txt": txt,
                                                            "vec": vec,
                                                            "pe": pe,
-                                                           "attn_mask": attn_mask},
+                                                           "attn_mask": attn_mask,
+                                                           "transformer_options": transformer_options},
                                                           {"original_block": block_wrap_1})
                 txt = out["txt"]
                 img = out["img"]
@@ -162,7 +166,8 @@ class Flux(nn.Module):
                                  txt=txt,
                                  vec=vec,
                                  pe=pe,
-                                 attn_mask=attn_mask)
+                                 attn_mask=attn_mask,
+                                 transformer_options=transformer_options)
 
             if control is not None:  # Controlnet
                 control_i = control.get("input")
@@ -183,17 +188,19 @@ class Flux(nn.Module):
                     out["img"] = block(args["img"],
                                        vec=args["vec"],
                                        pe=args["pe"],
-                                       attn_mask=args.get("attn_mask"))
+                                       attn_mask=args.get("attn_mask"),
+                                       transformer_options=args.get("transformer_options"))
                     return out
 
                 out = blocks_replace[("single_block", i)]({"img": img,
                                                            "vec": vec,
                                                            "pe": pe,
-                                                           "attn_mask": attn_mask},
+                                                           "attn_mask": attn_mask,
+                                                           "transformer_options": transformer_options},
                                                           {"original_block": block_wrap_2})
                 img = out["img"]
             else:
-                img = block(img, vec=vec, pe=pe, attn_mask=attn_mask)
+                img = block(img, vec=vec, pe=pe, attn_mask=attn_mask, transformer_options=transformer_options)
 
             if control is not None:  # Controlnet
                 control_o = control.get("output")
@@ -225,14 +232,18 @@ class Flux(nn.Module):
         img_ids[:, :, 2] = img_ids[:, :, 2] + torch.linspace(w_offset, w_len - 1 + w_offset, steps=w_len, device=x.device, dtype=x.dtype).unsqueeze(0)
         return img, repeat(img_ids, "h w c -> b (h w) c", b=bs)
 
-    def forward(self, x, timestep, context, y=None, guidance=None, ref_latents=None, control=None, transformer_options={}, **kwargs):
+    def forward(self, x, timestep, context, y=None, guidance=None, ref_latents=None, control=None, transformer_options=None, **kwargs):
+        if transformer_options is None:
+            transformer_options = {}
         return WrapperExecutor.new_class_executor(
             self._forward,
             self,
             get_all_wrappers(WrappersMP.DIFFUSION_MODEL, transformer_options)
         ).execute(x, timestep, context, y, guidance, ref_latents, control, transformer_options, **kwargs)
 
-    def _forward(self, x, timestep, context, y=None, guidance=None, ref_latents=None, control=None, transformer_options={}, **kwargs):
+    def _forward(self, x, timestep, context, y=None, guidance=None, ref_latents=None, control=None, transformer_options=None, **kwargs):
+        if transformer_options is None:
+            transformer_options = {}
         bs, c, h_orig, w_orig = x.shape
         patch_size = self.patch_size
 

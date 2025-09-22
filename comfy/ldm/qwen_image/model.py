@@ -11,6 +11,7 @@ from ..lightricks.model import TimestepEmbedding, Timesteps
 from ..modules.attention import optimized_attention_masked
 from ...patcher_extension import WrapperExecutor, get_all_wrappers, WrappersMP
 
+
 class GELU(nn.Module):
     def __init__(self, dim_in: int, dim_out: int, approximate: str = "none", bias: bool = True, dtype=None, device=None, operations=None):
         super().__init__()
@@ -132,7 +133,10 @@ class Attention(nn.Module):
             encoder_hidden_states_mask: torch.FloatTensor = None,
             attention_mask: Optional[torch.FloatTensor] = None,
             image_rotary_emb: Optional[torch.Tensor] = None,
+            transformer_options=None,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
+        if transformer_options is None:
+            transformer_options = {}
         seq_txt = encoder_hidden_states.shape[1]
 
         img_query = self.to_q(hidden_states).unflatten(-1, (self.heads, -1))
@@ -159,7 +163,7 @@ class Attention(nn.Module):
         joint_key = joint_key.flatten(start_dim=2)
         joint_value = joint_value.flatten(start_dim=2)
 
-        joint_hidden_states = optimized_attention_masked(joint_query, joint_key, joint_value, self.heads, attention_mask)
+        joint_hidden_states = optimized_attention_masked(joint_query, joint_key, joint_value, self.heads, attention_mask, transformer_options=transformer_options)
 
         txt_attn_output = joint_hidden_states[:, :seq_txt, :]
         img_attn_output = joint_hidden_states[:, seq_txt:, :]
@@ -226,7 +230,10 @@ class QwenImageTransformerBlock(nn.Module):
             encoder_hidden_states_mask: torch.Tensor,
             temb: torch.Tensor,
             image_rotary_emb: Optional[Tuple[torch.Tensor, torch.Tensor]] = None,
+            transformer_options=None,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
+        if transformer_options is None:
+            transformer_options = {}
         img_mod_params = self.img_mod(temb)
         txt_mod_params = self.txt_mod(temb)
         img_mod1, img_mod2 = img_mod_params.chunk(2, dim=-1)
@@ -242,6 +249,7 @@ class QwenImageTransformerBlock(nn.Module):
             encoder_hidden_states=txt_modulated,
             encoder_hidden_states_mask=encoder_hidden_states_mask,
             image_rotary_emb=image_rotary_emb,
+            transformer_options=transformer_options,
         )
 
         hidden_states = hidden_states + img_gate1 * img_attn_output
@@ -355,7 +363,9 @@ class QwenImageTransformer2DModel(nn.Module):
         img_ids[:, :, 2] = img_ids[:, :, 2] + torch.linspace(w_offset, w_len - 1 + w_offset, steps=w_len, device=x.device, dtype=x.dtype).unsqueeze(0) - (w_len // 2)
         return hidden_states, repeat(img_ids, "h w c -> b (h w) c", b=bs), orig_shape
 
-    def forward(self, x, timestep, context, attention_mask=None, guidance=None, ref_latents=None, transformer_options={}, **kwargs):
+    def forward(self, x, timestep, context, attention_mask=None, guidance=None, ref_latents=None, transformer_options=None, **kwargs):
+        if transformer_options is None:
+            transformer_options = {}
         return WrapperExecutor.new_class_executor(
             self._forward,
             self,
@@ -370,10 +380,12 @@ class QwenImageTransformer2DModel(nn.Module):
             attention_mask=None,
             guidance: torch.Tensor = None,
             ref_latents=None,
-            transformer_options={},
+            transformer_options=None,
             control=None,
             **kwargs
     ):
+        if transformer_options is None:
+            transformer_options = {}
         timestep = timesteps
         encoder_hidden_states = context
         encoder_hidden_states_mask = attention_mask
@@ -433,10 +445,10 @@ class QwenImageTransformer2DModel(nn.Module):
             if ("double_block", i) in blocks_replace:
                 def block_wrap(args):
                     out = {}
-                    out["txt"], out["img"] = block(hidden_states=args["img"], encoder_hidden_states=args["txt"], encoder_hidden_states_mask=encoder_hidden_states_mask, temb=args["vec"], image_rotary_emb=args["pe"])
+                    out["txt"], out["img"] = block(hidden_states=args["img"], encoder_hidden_states=args["txt"], encoder_hidden_states_mask=encoder_hidden_states_mask, temb=args["vec"], image_rotary_emb=args["pe"], transformer_options=args["transformer_options"])
                     return out
 
-                out = blocks_replace[("double_block", i)]({"img": hidden_states, "txt": encoder_hidden_states, "vec": temb, "pe": image_rotary_emb}, {"original_block": block_wrap})
+                out = blocks_replace[("double_block", i)]({"img": hidden_states, "txt": encoder_hidden_states, "vec": temb, "pe": image_rotary_emb, "transformer_options": transformer_options}, {"original_block": block_wrap})
                 hidden_states = out["img"]
                 encoder_hidden_states = out["txt"]
             else:
@@ -446,11 +458,12 @@ class QwenImageTransformer2DModel(nn.Module):
                     encoder_hidden_states_mask=encoder_hidden_states_mask,
                     temb=temb,
                     image_rotary_emb=image_rotary_emb,
+                    transformer_options=transformer_options,
                 )
 
             if "double_block" in patches:
                 for p in patches["double_block"]:
-                    out = p({"img": hidden_states, "txt": encoder_hidden_states, "x": x, "block_index": i})
+                    out = p({"img": hidden_states, "txt": encoder_hidden_states, "x": x, "block_index": i, "transformer_options": transformer_options})
                     hidden_states = out["img"]
                     encoder_hidden_states = out["txt"]
 

@@ -170,6 +170,12 @@ def comfy_background_server_from_config(configuration):
     torch.cuda.empty_cache()
 
 
+@pytest.fixture(scope="session")
+def skip_timing_checks(pytestconfig):
+    """Fixture that returns whether timing checks should be skipped."""
+    return pytestconfig.getoption("--skip-timing-checks")
+
+
 def pytest_collection_modifyitems(items):
     # Modifies items so tests run in the correct order
 

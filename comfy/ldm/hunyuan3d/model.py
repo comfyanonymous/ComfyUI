@@ -6,20 +6,20 @@ from ...patcher_extension import WrapperExecutor, get_all_wrappers, WrappersMP
 
 class Hunyuan3Dv2(nn.Module):
     def __init__(
-        self,
-        in_channels=64,
-        context_in_dim=1536,
-        hidden_size=1024,
-        mlp_ratio=4.0,
-        num_heads=16,
-        depth=16,
-        depth_single_blocks=32,
-        qkv_bias=True,
-        guidance_embed=False,
-        image_model=None,
-        dtype=None,
-        device=None,
-        operations=None
+            self,
+            in_channels=64,
+            context_in_dim=1536,
+            hidden_size=1024,
+            mlp_ratio=4.0,
+            num_heads=16,
+            depth=16,
+            depth_single_blocks=32,
+            qkv_bias=True,
+            guidance_embed=False,
+            image_model=None,
+            dtype=None,
+            device=None,
+            operations=None
     ):
         super().__init__()
         self.dtype = dtype
@@ -61,14 +61,18 @@ class Hunyuan3Dv2(nn.Module):
         )
         self.final_layer = LastLayer(hidden_size, 1, in_channels, dtype=dtype, device=device, operations=operations)
 
-    def forward(self, x, timestep, context, guidance=None, transformer_options={}, **kwargs):
+    def forward(self, x, timestep, context, guidance=None, transformer_options=None, **kwargs):
+        if transformer_options is None:
+            transformer_options = {}
         return WrapperExecutor.new_class_executor(
             self._forward,
             self,
             get_all_wrappers(WrappersMP.DIFFUSION_MODEL, transformer_options)
         ).execute(x, timestep, context, guidance, transformer_options, **kwargs)
 
-    def _forward(self, x, timestep, context, guidance=None, transformer_options={}, **kwargs):
+    def _forward(self, x, timestep, context, guidance=None, transformer_options=None, **kwargs):
+        if transformer_options is None:
+            transformer_options = {}
         x = x.movedim(-1, -2)
         timestep = 1.0 - timestep
         txt = context
@@ -93,14 +97,16 @@ class Hunyuan3Dv2(nn.Module):
                                                    txt=args["txt"],
                                                    vec=args["vec"],
                                                    pe=args["pe"],
-                                                   attn_mask=args.get("attn_mask"))
+                                                   attn_mask=args.get("attn_mask"),
+                                                   transformer_options=args["transformer_options"])
                     return out
 
                 out = blocks_replace[("double_block", i)]({"img": img,
                                                            "txt": txt,
                                                            "vec": vec,
                                                            "pe": pe,
-                                                           "attn_mask": attn_mask},
+                                                           "attn_mask": attn_mask,
+                                                           "transformer_options": transformer_options},
                                                           {"original_block": block_wrap1})
                 txt = out["txt"]
                 img = out["img"]
@@ -109,7 +115,8 @@ class Hunyuan3Dv2(nn.Module):
                                  txt=txt,
                                  vec=vec,
                                  pe=pe,
-                                 attn_mask=attn_mask)
+                                 attn_mask=attn_mask,
+                                 transformer_options=transformer_options)
 
         img = torch.cat((txt, img), 1)
 
@@ -120,17 +127,19 @@ class Hunyuan3Dv2(nn.Module):
                     out["img"] = block(args["img"],
                                        vec=args["vec"],
                                        pe=args["pe"],
-                                       attn_mask=args.get("attn_mask"))
+                                       attn_mask=args.get("attn_mask"),
+                                       transformer_options=args["transformer_options"])
                     return out
 
                 out = blocks_replace[("single_block", i)]({"img": img,
                                                            "vec": vec,
                                                            "pe": pe,
-                                                           "attn_mask": attn_mask},
+                                                           "attn_mask": attn_mask,
+                                                           "transformer_options": transformer_options},
                                                           {"original_block": block_wrap})
                 img = out["img"]
             else:
-                img = block(img, vec=vec, pe=pe, attn_mask=attn_mask)
+                img = block(img, vec=vec, pe=pe, attn_mask=attn_mask, transformer_options=transformer_options)
 
         img = img[:, txt.shape[1]:, ...]
         img = self.final_layer(img, vec)

@@ -12,12 +12,12 @@ from ...patcher_extension import WrapperExecutor, get_all_wrappers, WrappersMP
 
 
 def get_timestep_embedding(
-    timesteps: torch.Tensor,
-    embedding_dim: int,
-    flip_sin_to_cos: bool = False,
-    downscale_freq_shift: float = 1,
-    scale: float = 1,
-    max_period: int = 10000,
+        timesteps: torch.Tensor,
+        embedding_dim: int,
+        flip_sin_to_cos: bool = False,
+        downscale_freq_shift: float = 1,
+        scale: float = 1,
+        max_period: int = 10000,
 ):
     """
     This matches the implementation in Denoising Diffusion Probabilistic Models: Create sinusoidal timestep embeddings.
@@ -67,15 +67,15 @@ def get_timestep_embedding(
 
 class TimestepEmbedding(nn.Module):
     def __init__(
-        self,
-        in_channels: int,
-        time_embed_dim: int,
-        act_fn: str = "silu",
-        out_dim: int = None,
-        post_act_fn: Optional[str] = None,
-        cond_proj_dim=None,
-        sample_proj_bias=True,
-        dtype=None, device=None, operations=None,
+            self,
+            in_channels: int,
+            time_embed_dim: int,
+            act_fn: str = "silu",
+            out_dim: int = None,
+            post_act_fn: Optional[str] = None,
+            cond_proj_dim=None,
+            sample_proj_bias=True,
+            dtype=None, device=None, operations=None,
     ):
         super().__init__()
 
@@ -176,16 +176,17 @@ class AdaLayerNormSingle(nn.Module):
         self.linear = operations.Linear(embedding_dim, 6 * embedding_dim, bias=True, dtype=dtype, device=device)
 
     def forward(
-        self,
-        timestep: torch.Tensor,
-        added_cond_kwargs: Optional[Dict[str, torch.Tensor]] = None,
-        batch_size: Optional[int] = None,
-        hidden_dtype: Optional[torch.dtype] = None,
+            self,
+            timestep: torch.Tensor,
+            added_cond_kwargs: Optional[Dict[str, torch.Tensor]] = None,
+            batch_size: Optional[int] = None,
+            hidden_dtype: Optional[torch.dtype] = None,
     ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         # No modulation happening here.
         added_cond_kwargs = added_cond_kwargs or {"resolution": None, "aspect_ratio": None}
         embedded_timestep = self.emb(timestep, **added_cond_kwargs, batch_size=batch_size, hidden_dtype=hidden_dtype)
         return self.linear(self.silu(embedded_timestep)), embedded_timestep
+
 
 class PixArtAlphaTextProjection(nn.Module):
     """
@@ -239,7 +240,7 @@ class FeedForward(nn.Module):
         return self.net(x)
 
 
-def apply_rotary_emb(input_tensor, freqs_cis): #TODO: remove duplicate funcs and pick the best/fastest one
+def apply_rotary_emb(input_tensor, freqs_cis):  # TODO: remove duplicate funcs and pick the best/fastest one
     cos_freqs = freqs_cis[0]
     sin_freqs = freqs_cis[1]
 
@@ -272,7 +273,9 @@ class CrossAttention(nn.Module):
 
         self.to_out = nn.Sequential(operations.Linear(inner_dim, query_dim, dtype=dtype, device=device), nn.Dropout(dropout))
 
-    def forward(self, x, context=None, mask=None, pe=None):
+    def forward(self, x, context=None, mask=None, pe=None, transformer_options=None):
+        if transformer_options is None:
+            transformer_options = {}
         q = self.to_q(x)
         context = x if context is None else context
         k = self.to_k(context)
@@ -286,9 +289,9 @@ class CrossAttention(nn.Module):
             k = apply_rotary_emb(k, pe)
 
         if mask is None:
-            out = optimized_attention(q, k, v, self.heads, attn_precision=self.attn_precision)
+            out = optimized_attention(q, k, v, self.heads, attn_precision=self.attn_precision, transformer_options=transformer_options)
         else:
-            out = optimized_attention_masked(q, k, v, self.heads, mask, attn_precision=self.attn_precision)
+            out = optimized_attention_masked(q, k, v, self.heads, mask, attn_precision=self.attn_precision, transformer_options=transformer_options)
         return self.to_out(out)
 
 
@@ -304,17 +307,20 @@ class BasicTransformerBlock(nn.Module):
 
         self.scale_shift_table = nn.Parameter(torch.empty(6, dim, device=device, dtype=dtype))
 
-    def forward(self, x, context=None, attention_mask=None, timestep=None, pe=None):
+    def forward(self, x, context=None, attention_mask=None, timestep=None, pe=None, transformer_options=None):
+        if transformer_options is None:
+            transformer_options = {}
         shift_msa, scale_msa, gate_msa, shift_mlp, scale_mlp, gate_mlp = (self.scale_shift_table[None, None].to(device=x.device, dtype=x.dtype) + timestep.reshape(x.shape[0], timestep.shape[1], self.scale_shift_table.shape[0], -1)).unbind(dim=2)
 
-        x += self.attn1(rms_norm(x) * (1 + scale_msa) + shift_msa, pe=pe) * gate_msa
+        x += self.attn1(rms_norm(x) * (1 + scale_msa) + shift_msa, pe=pe, transformer_options=transformer_options) * gate_msa
 
-        x += self.attn2(x, context=context, mask=attention_mask)
+        x += self.attn2(x, context=context, mask=attention_mask, transformer_options=transformer_options)
 
         y = rms_norm(x) * (1 + scale_mlp) + shift_mlp
         x += self.ff(y) * gate_mlp
 
         return x
+
 
 def get_fractional_positions(indices_grid, max_pos):
     fractional_positions = torch.stack(
@@ -327,8 +333,10 @@ def get_fractional_positions(indices_grid, max_pos):
     return fractional_positions
 
 
-def precompute_freqs_cis(indices_grid, dim, out_dtype, theta=10000.0, max_pos=[20, 2048, 2048]):
-    dtype = torch.float32 #self.dtype
+def precompute_freqs_cis(indices_grid, dim, out_dtype, theta=10000.0, max_pos=None):
+    if max_pos is None:
+        max_pos = [20, 2048, 2048]
+    dtype = torch.float32  # self.dtype
 
     fractional_positions = get_fractional_positions(indices_grid, max_pos)
 
@@ -375,13 +383,14 @@ class LTXVModel(torch.nn.Module):
                  caption_channels=4096,
                  num_layers=28,
 
-
                  positional_embedding_theta=10000.0,
-                 positional_embedding_max_pos=[20, 2048, 2048],
+                 positional_embedding_max_pos=None,
                  causal_temporal_positioning=False,
                  vae_scale_factors=(8, 32, 32),
                  dtype=None, device=None, operations=None, **kwargs):
         super().__init__()
+        if positional_embedding_max_pos is None:
+            positional_embedding_max_pos = [20, 2048, 2048]
         self.generator = None
         self.vae_scale_factors = vae_scale_factors
         self.dtype = dtype
@@ -421,14 +430,18 @@ class LTXVModel(torch.nn.Module):
 
         self.patchifier = SymmetricPatchifier(1)
 
-    def forward(self, x, timestep, context, attention_mask, frame_rate=25, transformer_options={}, keyframe_idxs=None, **kwargs):
+    def forward(self, x, timestep, context, attention_mask, frame_rate=25, transformer_options=None, keyframe_idxs=None, **kwargs):
+        if transformer_options is None:
+            transformer_options = {}
         return WrapperExecutor.new_class_executor(
             self._forward,
             self,
             get_all_wrappers(WrappersMP.DIFFUSION_MODEL, transformer_options)
         ).execute(x, timestep, context, attention_mask, frame_rate, transformer_options, keyframe_idxs, **kwargs)
 
-    def _forward(self, x, timestep, context, attention_mask, frame_rate=25, transformer_options={}, keyframe_idxs=None, **kwargs):
+    def _forward(self, x, timestep, context, attention_mask, frame_rate=25, transformer_options=None, keyframe_idxs=None, **kwargs):
+        if transformer_options is None:
+            transformer_options = {}
         patches_replace = transformer_options.get("patches_replace", {})
 
         orig_shape = list(x.shape)
@@ -480,10 +493,10 @@ class LTXVModel(torch.nn.Module):
             if ("double_block", i) in blocks_replace:
                 def block_wrap(args):
                     out = {}
-                    out["img"] = block(args["img"], context=args["txt"], attention_mask=args["attention_mask"], timestep=args["vec"], pe=args["pe"])
+                    out["img"] = block(args["img"], context=args["txt"], attention_mask=args["attention_mask"], timestep=args["vec"], pe=args["pe"], transformer_options=args["transformer_options"])
                     return out
 
-                out = blocks_replace[("double_block", i)]({"img": x, "txt": context, "attention_mask": attention_mask, "vec": timestep, "pe": pe}, {"original_block": block_wrap})
+                out = blocks_replace[("double_block", i)]({"img": x, "txt": context, "attention_mask": attention_mask, "vec": timestep, "pe": pe, "transformer_options": transformer_options}, {"original_block": block_wrap})
                 x = out["img"]
             else:
                 x = block(
@@ -491,12 +504,13 @@ class LTXVModel(torch.nn.Module):
                     context=context,
                     attention_mask=attention_mask,
                     timestep=timestep,
-                    pe=pe
+                    pe=pe,
+                    transformer_options=transformer_options,
                 )
 
         # 3. Output
         scale_shift_values = (
-            self.scale_shift_table[None, None].to(device=x.device, dtype=x.dtype) + embedded_timestep[:, :, None]
+                self.scale_shift_table[None, None].to(device=x.device, dtype=x.dtype) + embedded_timestep[:, :, None]
         )
         shift, scale = scale_shift_values[:, :, 0], scale_shift_values[:, :, 1]
         x = self.norm_out(x)

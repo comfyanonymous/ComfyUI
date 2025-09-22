@@ -153,8 +153,12 @@ def load_clipvision_from_sd(sd, prefix="", convert_keys=False) -> Optional[ClipV
                 json_config = files.get_path_as_dict(None, "clip_vision_config_vitl_336.json")
         else:
             json_config = files.get_path_as_dict(None, "clip_vision_config_vitl.json")
-    elif "embeddings.patch_embeddings.projection.weight" in sd:
+
+    # Dinov2
+    elif 'encoder.layer.39.layer_scale2.lambda1' in sd:
         json_config = files.get_path_as_dict(None, "dino2_giant.json", package="comfy.image_encoders")
+    elif 'encoder.layer.23.layer_scale2.lambda1' in sd:
+        json_config = files.get_path_as_dict(None, "dino2_large.json", package="comfy.image_encoders")
     else:
         return None
 
