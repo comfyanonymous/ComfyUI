@@ -68,7 +68,7 @@ class HeuristicPath(NamedTuple):
 
 
 # Import cache control middleware
-from middleware.cache_middleware import cache_control
+from ..middleware.cache_middleware import cache_control
 
 async def send_socket_catch_exception(function, message):
     try:
