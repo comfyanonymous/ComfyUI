@@ -1229,7 +1229,7 @@ class WanAnimateToVideo(io.ComfyNode):
                     character_mask = character_mask.unsqueeze(1)
                 character_mask = comfy.utils.common_upscale(character_mask[:, :, :length], concat_latent_image.shape[-1], concat_latent_image.shape[-2], "nearest-exact", "center")
                 if character_mask.shape[2] > ref_images_num:
-                    mask_refmotion[:, :, ref_images_num:character_mask.shape[2] + ref_images_num] = character_mask[:, :, ref_images_num:]
+                    mask_refmotion[:, :, ref_images_num:character_mask.shape[2]] = character_mask[:, :, ref_images_num:]
 
         concat_latent_image = torch.cat((concat_latent_image, vae.encode(image[:, :, :, :3])), dim=2)
 
