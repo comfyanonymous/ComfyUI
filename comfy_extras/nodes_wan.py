@@ -1210,7 +1210,7 @@ class WanAnimateToVideo(io.ComfyNode):
                 background_video = background_video[video_frame_offset:]
                 background_video = comfy.utils.common_upscale(background_video[:length].movedim(-1, 1), width, height, "area", "center").movedim(1, -1)
                 if background_video.shape[0] > ref_images_num:
-                    image[ref_images_num:background_video.shape[0] - ref_images_num] = background_video[ref_images_num:]
+                    image[ref_images_num:background_video.shape[0]] = background_video[ref_images_num:]
 
         mask_refmotion = torch.ones((1, 1, latent_length * 4, concat_latent_image.shape[-2], concat_latent_image.shape[-1]), device=mask.device, dtype=mask.dtype)
         if continue_motion is not None:
@@ -1229,7 +1229,7 @@ class WanAnimateToVideo(io.ComfyNode):
                     character_mask = character_mask.unsqueeze(1)
                 character_mask = comfy.utils.common_upscale(character_mask[:, :, :length], concat_latent_image.shape[-1], concat_latent_image.shape[-2], "nearest-exact", "center")
                 if character_mask.shape[2] > ref_images_num:
-                    mask_refmotion[:, :, ref_images_num:character_mask.shape[2] + ref_images_num] = character_mask[:, :, ref_images_num:]
+                    mask_refmotion[:, :, ref_images_num:character_mask.shape[2]] = character_mask[:, :, ref_images_num:]
 
         concat_latent_image = torch.cat((concat_latent_image, vae.encode(image[:, :, :, :3])), dim=2)
 
