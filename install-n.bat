@@ -153,11 +153,3 @@ set MIOPEN_FIND_MODE=2
 set MIOPEN_LOG_LEVEL=3
 .\zluda\zluda.exe -- python main.py --auto-launch --use-quad-cross-attention
 
-
-
-
-
-
-
-
-
