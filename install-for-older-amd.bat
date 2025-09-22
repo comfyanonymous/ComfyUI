@@ -44,8 +44,6 @@ xcopy /E /I /Y "cfz\nodes" "custom_nodes" >NUL
 echo  ::  %time:~0,8%  ::  - Installing Comfyui Manager
 cd custom_nodes
 git clone https://github.com/ltdrdata/ComfyUI-Manager.git --quiet
-echo  ::  %time:~0,8%  ::  - Installing ComfyUI-deepcache
-git clone https://github.com/styler00dollar/ComfyUI-deepcache.git --quiet
 cd ..
 echo. 
 echo  ::  %time:~0,8%  ::  - Patching ZLUDA (Zluda 3.9.5 for HIP SDK 5.7.1)
@@ -72,7 +70,4 @@ echo.
 echo *** Starting the Comfyui-ZLUDA for the first time, please be patient...
 echo.
 .\zluda\zluda.exe -- python main.py --auto-launch --use-quad-cross-attention
-
-
-
 
