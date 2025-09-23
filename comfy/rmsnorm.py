@@ -6,7 +6,7 @@ import logging
 RMSNorm = None
 
 try:
-    rms_norm_torch = torch.nn.functional.rms_norm
+    rms_norm_torch = torch.nn.functional.rms_norm  # pylint: disable=no-member
     RMSNorm = torch.nn.RMSNorm
 except:
     rms_norm_torch = None

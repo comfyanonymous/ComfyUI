@@ -45,19 +45,25 @@ def disable_comfyui_weight_casting_hook(module: torch.nn.Module):
 
 
 def disable_comfyui_weight_casting(module: torch.nn.Module):
-    if isinstance(module, (
-            torch.nn.Linear,
-            torch.nn.Conv1d,
-            torch.nn.Conv2d,
-            torch.nn.Conv3d,
-            torch.nn.GroupNorm,
-            torch.nn.LayerNorm,
-            torch.nn.RMSNorm,
-            RMSNorm,
-            torch.nn.ConvTranspose2d,
-            torch.nn.ConvTranspose1d,
-            torch.nn.Embedding
-    )):
+    types = [
+        torch.nn.Linear,
+        torch.nn.Conv1d,
+        torch.nn.Conv2d,
+        torch.nn.Conv3d,
+        torch.nn.GroupNorm,
+        torch.nn.LayerNorm,
+        RMSNorm,
+        torch.nn.ConvTranspose2d,
+        torch.nn.ConvTranspose1d,
+        torch.nn.Embedding
+    ]
+    try:
+        from torch.nn import RMSNorm as TorchRMSNorm  # pylint: disable=no-member
+        types.append(TorchRMSNorm)
+    except (ImportError, ModuleNotFoundError):
+        pass
+
+    if isinstance(module, tuple(types)):
         disable_comfyui_weight_casting_hook(module)
         return
 

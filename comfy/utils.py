@@ -68,9 +68,15 @@ if hasattr(torch.serialization, "add_safe_globals"):  # TODO: this was added in 
 
     ModelCheckpoint.__module__ = "pytorch_lightning.callbacks.model_checkpoint"
 
-    from numpy.core.multiarray import scalar  # pylint: disable=no-name-in-module
+    try:
+        from numpy.core.multiarray import scalar  # pylint: disable=no-name-in-module
+    except (ImportError, ModuleNotFoundError):
+        from numpy import generic as scalar
     from numpy import dtype
-    from numpy.dtypes import Float64DType  # pylint: disable=no-name-in-module
+    try:
+        from numpy.dtypes import Float64DType  # pylint: disable=no-name-in-module,import-error
+    except (ImportError, ModuleNotFoundError):
+        Float64DType = np.float64
     from _codecs import encode
 
     torch.serialization.add_safe_globals([ModelCheckpoint, scalar, dtype, Float64DType, encode])

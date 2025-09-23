@@ -1,4 +1,4 @@
-FROM rocm/pytorch:rocm6.4.1_ubuntu24.04_py3.12_pytorch_release_2.7.1
+FROM rocm/pytorch:rocm7.0_ubuntu24.04_py3.12_pytorch_release_2.7.1
 
 ENV TZ="Etc/UTC"
 
@@ -13,7 +13,10 @@ ENV DEBIAN_FRONTEND=noninteractive
 ENV LANG=C.UTF-8
 ENV LC_ALL=C.UTF-8
 
-RUN pip freeze | grep numpy > numpy-override.txt
+RUN pip freeze | grep nvidia >> /overrides.txt; pip freeze | grep torch >> /overrides.txt; pip freeze | grep opencv >> /overrides.txt; pip freeze | grep numpy >> /overrides.txt; echo "sentry-sdk; python_version < '0'" >> /overrides.txt
+
+ENV UV_OVERRIDE=/overrides.txt
+ENV UV_TORCH_BACKEND=auto
 
 # mitigates AttributeError: module 'cv2.dnn' has no attribute 'DictValue' \
 # see https://github.com/facebookresearch/nougat/issues/40
@@ -23,7 +26,18 @@ RUN apt-get update && \
     apt-get purge -y && \
     rm -rf /var/lib/apt/lists/*
 
-RUN uv pip install --overrides=numpy-override.txt "comfyui[attention,comfyui_manager]@git+https://github.com/hiddenswitch/ComfyUI.git"
+# torchaudio
+RUN uv pip install --no-deps https://repo.radeon.com/rocm/manylinux/rocm-rel-7.0/torchaudio-2.7.1%2Brocm7.0.0.git95c61b41-cp312-cp312-linux_x86_64.whl
+
+# sources for building this dockerfile
+# use these lines to build from the local fs
+ADD . /src
+ARG SOURCES="comfyui[rocm,comfyui_manager]@/src"
+# this builds from github
+# useful if you are copying and pasted in order to customize this
+# ARG SOURCES="comfyui[attention,comfyui_manager]@git+https://github.com/hiddenswitch/ComfyUI.git"
+ENV SOURCES=$SOURCES
+RUN uv pip install $SOURCES
 
 WORKDIR /workspace
 # addresses https://github.com/pytorch/pytorch/issues/104801

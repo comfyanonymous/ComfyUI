@@ -19,9 +19,7 @@ import torch
 import torchvision
 from torch import nn
 
-import comfy.ops
-
-ops = comfy.ops.disable_weight_init
+from ...ops import disable_weight_init as ops
 
 # EfficientNet
 class EfficientNetEncoder(nn.Module):

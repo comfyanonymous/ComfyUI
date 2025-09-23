@@ -19,9 +19,7 @@
 import torch
 from torch import nn
 from torch.autograd import Function
-import comfy.ops
-
-ops = comfy.ops.disable_weight_init
+from ...ops import disable_weight_init as ops
 
 
 class vector_quantize(Function):
@@ -68,7 +66,7 @@ class VectorQuantize(nn.Module):
         super(VectorQuantize, self).__init__()
 
         self.codebook = nn.Embedding(k, embedding_size)
-        self.codebook.weight.data.uniform_(-1./k, 1./k)
+        self.codebook.weight.data.uniform_(-1. / k, 1. / k)
         self.vq = vector_quantize.apply
 
         self.ema_decay = ema_decay
@@ -88,10 +86,10 @@ class VectorQuantize(nn.Module):
             weight_sum = torch.mm(mask.t(), z_e_x)
 
             self.register_buffer('ema_element_count', self._laplace_smoothing(
-                (self.ema_decay * self.ema_element_count) + ((1-self.ema_decay) * elem_count), 
+                (self.ema_decay * self.ema_element_count) + ((1 - self.ema_decay) * elem_count),
                 1e-5)
-            )
-            self.register_buffer('ema_weight_sum', (self.ema_decay * self.ema_weight_sum) + ((1-self.ema_decay) * weight_sum))
+                                 )
+            self.register_buffer('ema_weight_sum', (self.ema_decay * self.ema_weight_sum) + ((1 - self.ema_decay) * weight_sum))
 
             self.codebook.weight.data = self.ema_weight_sum / self.ema_element_count.unsqueeze(-1)
 
@@ -159,7 +157,7 @@ class ResBlock(nn.Module):
         x_temp = self._norm(x, self.norm1) * (1 + mods[0]) + mods[1]
         try:
             x = x + self.depthwise(x_temp) * mods[2]
-        except: #operation not implemented for bf16
+        except:  # operation not implemented for bf16
             x_temp = self.depthwise[0](x_temp.float()).to(x.dtype)
             x = x + self.depthwise[1](x_temp) * mods[2]
 
@@ -207,7 +205,7 @@ class StageA(nn.Module):
             if i < levels - 1:
                 up_blocks.append(
                     ops.ConvTranspose2d(c_levels[levels - 1 - i], c_levels[levels - 2 - i], kernel_size=4, stride=2,
-                                       padding=1))
+                                        padding=1))
         self.up_blocks = nn.Sequential(*up_blocks)
         self.out_block = nn.Sequential(
             ops.Conv2d(c_levels[0], 3 * 4, kernel_size=1),

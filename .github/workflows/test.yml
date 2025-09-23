@@ -9,9 +9,9 @@ name: Backend Tests
 on: [ push ]
 
 jobs:
-  build_and_execute_linux:
+  build_and_execute_nvidia:
     environment: "Testing"
-    name: Installation, Unit and Workflow Tests for Linux (${{ matrix.runner.friendly_name }})
+    name: ${{ matrix.runner.friendly_name }}
     runs-on: ${{ matrix.runner.labels }}
     container: ${{ matrix.runner.container }}
     strategy:
@@ -47,6 +47,47 @@ jobs:
           export UV_SYSTEM_PYTHON=true
           uv pip freeze | grep numpy > numpy_override.txt
           uv pip install --torch-backend=auto ".[dev]" --inexact --override numpy_override.txt
+      - name: Lint for errors
+        run: |
+          pylint --rcfile=.pylintrc comfy/ comfy_extras/ comfy_api/ comfy_api_nodes/
+      - name: Run unit tests
+        run: |
+          pytest -v tests/unit
+  build_and_execute_amd:
+    environment: "Testing"
+    name: ${{ matrix.runner.friendly_name }}
+    runs-on: ${{ matrix.runner.labels }}
+    container: ${{ matrix.runner.container }}
+    strategy:
+      fail-fast: false
+      matrix:
+        runner:
+          - labels: [self-hosted, Linux, X64, rocm-7600-8gb]
+            friendly_name: "Python 3.12 ROCm 7.0 Torch 2.7.1"
+            container: "rocm7.0_ubuntu24.04_py3.12_pytorch_release_2.7.1"
+    steps:
+      - run: |
+          apt-get update
+          # required for opencv
+          apt-get install --no-install-recommends -y ffmpeg libsm6 libxext6
+        name: Prepare Python
+      - run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+        name: Install uv
+      - uses: actions/checkout@v4
+        name: Checkout git repo
+      - name: Install ComfyUI
+        run: |
+          export UV_BREAK_SYSTEM_PACKAGES=true
+          export UV_SYSTEM_PYTHON=true
+          uv pip freeze | grep nvidia >> overrides.txt; uv pip freeze | grep torch >> overrides.txt; uv pip freeze | grep opencv >> overrides.txt; uv pip freeze | grep numpy >> overrides.txt; echo "sentry-sdk; python_version < '0'" >> overrides.txt
+          export UV_OVERRIDE=overrides.txt
+          export UV_TORCH_BACKEND=auto
+          
+          # our testing infrastructure uses RX 7600, this includes express support for gfx1102
+          uv pip install --no-deps --index-url https://rocm.nightlies.amd.com/v2/gfx110X-dgpu/ "rocm[libraries,devel]"
+          
+          uv pip install --torch-backend=auto ".[rocm]"
       - name: Lint for errors
         run: |
           pylint --rcfile=.pylintrc comfy/ comfy_extras/ comfy_api/ comfy_api_nodes/

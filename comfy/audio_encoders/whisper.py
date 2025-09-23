@@ -1,10 +1,13 @@
+import logging
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import torchaudio
 from typing import Optional
 from ..ldm.modules.attention import optimized_attention_masked
 from .. import ops
+
+logger = logging.getLogger(__name__)
 
 
 class WhisperFeatureExtractor(nn.Module):
@@ -16,6 +19,12 @@ class WhisperFeatureExtractor(nn.Module):
         self.n_mels = n_mels
         self.chunk_length = 30
         self.n_samples = 480000
+
+        try:
+            import torchaudio  # pylint: disable=import-error
+        except (ImportError, ModuleNotFoundError) as exc_info:
+            logger.warning("could not load whisper because torchaudio not found")
+            raise exc_info
 
         self.mel_spectrogram = torchaudio.transforms.MelSpectrogram(
             sample_rate=self.sample_rate,

@@ -12,23 +12,24 @@ from typing import Optional
 
 import logging
 
-import comfy.ops
-ops = comfy.ops.disable_weight_init
+from ...ops import disable_weight_init as ops, scaled_dot_product_attention
+
+logger = logging.getLogger(__name__)
+
 
 def fps(src: torch.Tensor, batch: torch.Tensor, sampling_ratio: float, start_random: bool = True):
-
     # manually create the pointer vector
     assert src.size(0) == batch.numel()
 
     batch_size = int(batch.max()) + 1
-    deg = src.new_zeros(batch_size, dtype = torch.long)
+    deg = src.new_zeros(batch_size, dtype=torch.long)
 
     deg.scatter_add_(0, batch, torch.ones_like(batch))
 
     ptr_vec = deg.new_zeros(batch_size + 1)
     torch.cumsum(deg, 0, out=ptr_vec[1:])
 
-    #return fps_sampling(src, ptr_vec, ratio)
+    # return fps_sampling(src, ptr_vec, ratio)
     sampled_indicies = []
 
     for b in range(batch_size):
@@ -40,40 +41,42 @@ def fps(src: torch.Tensor, batch: torch.Tensor, sampling_ratio: float, start_ran
         num_points = points.size(0)
         num_samples = max(1, math.ceil(num_points * sampling_ratio))
 
-        selected = torch.zeros(num_samples, device = src.device, dtype = torch.long)
-        distances = torch.full((num_points,), float("inf"), device = src.device)
+        selected = torch.zeros(num_samples, device=src.device, dtype=torch.long)
+        distances = torch.full((num_points,), float("inf"), device=src.device)
 
         # select a random start point
         if start_random:
-            farthest = torch.randint(0, num_points, (1,), device = src.device)
+            farthest = torch.randint(0, num_points, (1,), device=src.device)
         else:
-            farthest = torch.tensor([0], device = src.device, dtype = torch.long)
+            farthest = torch.tensor([0], device=src.device, dtype=torch.long)
 
         for i in range(num_samples):
             selected[i] = farthest
             centroid = points[farthest].squeeze(0)
-            dist = torch.norm(points - centroid, dim = 1) # compute euclidean distance
+            dist = torch.norm(points - centroid, dim=1)  # compute euclidean distance
             distances = torch.minimum(distances, dist)
             farthest = torch.argmax(distances)
 
         sampled_indicies.append(torch.arange(start, end)[selected])
 
-    return torch.cat(sampled_indicies, dim = 0)
+    return torch.cat(sampled_indicies, dim=0)
+
+
 class PointCrossAttention(nn.Module):
     def __init__(self,
-        num_latents: int,
-        downsample_ratio: float,
-        pc_size: int,
-        pc_sharpedge_size: int,
-        point_feats: int,
-        width: int,
-        heads: int,
-        layers: int,
-        fourier_embedder,
-        normal_pe: bool = False,
-        qkv_bias: bool = False,
-        use_ln_post: bool = True,
-        qk_norm: bool = True):
+                 num_latents: int,
+                 downsample_ratio: float,
+                 pc_size: int,
+                 pc_sharpedge_size: int,
+                 point_feats: int,
+                 width: int,
+                 heads: int,
+                 layers: int,
+                 fourier_embedder,
+                 normal_pe: bool = False,
+                 qkv_bias: bool = False,
+                 use_ln_post: bool = True,
+                 qk_norm: bool = True):
 
         super().__init__()
 
@@ -89,20 +92,20 @@ class PointCrossAttention(nn.Module):
         self.input_proj = nn.Linear(self.fourier_embedder.out_dim + point_feats, width)
 
         self.cross_attn = ResidualCrossAttentionBlock(
-            width = width,
-            heads = heads,
-            qkv_bias = qkv_bias,
-            qk_norm = qk_norm
+            width=width,
+            heads=heads,
+            qkv_bias=qkv_bias,
+            qk_norm=qk_norm
         )
 
         self.self_attn = None
         if layers > 0:
             self.self_attn = Transformer(
-                width = width,
-                heads = heads,
-                qkv_bias = qkv_bias,
-                qk_norm = qk_norm,
-                layers = layers
+                width=width,
+                heads=heads,
+                qkv_bias=qkv_bias,
+                qk_norm=qk_norm,
+                layers=layers
             )
 
         if use_ln_post:
@@ -140,65 +143,65 @@ class PointCrossAttention(nn.Module):
 
         input_random_pc_size = int(num_random_query * self.downsample_ratio)
         random_query_pc, random_input_pc, random_idx_pc, random_idx_query = \
-            self.subsample(pc = random_pc, num_query = num_random_query, input_pc_size = input_random_pc_size)
+            self.subsample(pc=random_pc, num_query=num_random_query, input_pc_size=input_random_pc_size)
 
         input_sharpedge_pc_size = int(num_sharpedge_query * self.downsample_ratio)
 
         if input_sharpedge_pc_size == 0:
-            sharpedge_input_pc = torch.zeros(B, 0, D, dtype = random_input_pc.dtype).to(point_cloud.device)
-            sharpedge_query_pc = torch.zeros(B, 0, D, dtype= random_query_pc.dtype).to(point_cloud.device)
+            sharpedge_input_pc = torch.zeros(B, 0, D, dtype=random_input_pc.dtype).to(point_cloud.device)
+            sharpedge_query_pc = torch.zeros(B, 0, D, dtype=random_query_pc.dtype).to(point_cloud.device)
 
         else:
             sharpedge_query_pc, sharpedge_input_pc, sharpedge_idx_pc, sharpedge_idx_query = \
-            self.subsample(pc = sharpedge_pc, num_query = num_sharpedge_query, input_pc_size = input_sharpedge_pc_size)
+                self.subsample(pc=sharpedge_pc, num_query=num_sharpedge_query, input_pc_size=input_sharpedge_pc_size)
 
         # concat the random and sharpedges
-        query_pc = torch.cat([random_query_pc, sharpedge_query_pc], dim = 1)
-        input_pc = torch.cat([random_input_pc, sharpedge_input_pc], dim = 1)
+        query_pc = torch.cat([random_query_pc, sharpedge_query_pc], dim=1)
+        input_pc = torch.cat([random_input_pc, sharpedge_input_pc], dim=1)
 
         query = self.fourier_embedder(query_pc)
         data = self.fourier_embedder(input_pc)
 
         if self.point_feats > 0:
-            random_surface_features, sharpedge_surface_features = torch.split(features, [self.pc_size, self.pc_sharpedge_size], dim = 1)
+            random_surface_features, sharpedge_surface_features = torch.split(features, [self.pc_size, self.pc_sharpedge_size], dim=1)
 
             input_random_surface_features, query_random_features = \
-                self.handle_features(features = random_surface_features, idx_pc = random_idx_pc, batch_size = B,
-                                     input_pc_size = input_random_pc_size, idx_query = random_idx_query)
+                self.handle_features(features=random_surface_features, idx_pc=random_idx_pc, batch_size=B,
+                                     input_pc_size=input_random_pc_size, idx_query=random_idx_query)
 
             if input_sharpedge_pc_size == 0:
                 input_sharpedge_surface_features = torch.zeros(B, 0, self.point_feats,
-                                                               dtype = input_random_surface_features.dtype, device = point_cloud.device)
+                                                               dtype=input_random_surface_features.dtype, device=point_cloud.device)
 
                 query_sharpedge_features = torch.zeros(B, 0, self.point_feats,
-                                                       dtype = query_random_features.dtype, device = point_cloud.device)
+                                                       dtype=query_random_features.dtype, device=point_cloud.device)
             else:
 
                 input_sharpedge_surface_features, query_sharpedge_features = \
-                    self.handle_features(idx_pc = sharpedge_idx_pc, features = sharpedge_surface_features,
-                                         batch_size = B, idx_query = sharpedge_idx_query, input_pc_size = input_sharpedge_pc_size)
+                    self.handle_features(idx_pc=sharpedge_idx_pc, features=sharpedge_surface_features,
+                                         batch_size=B, idx_query=sharpedge_idx_query, input_pc_size=input_sharpedge_pc_size)
 
-            query_features = torch.cat([query_random_features, query_sharpedge_features], dim = 1)
-            input_features = torch.cat([input_random_surface_features, input_sharpedge_surface_features], dim = 1)
+            query_features = torch.cat([query_random_features, query_sharpedge_features], dim=1)
+            input_features = torch.cat([input_random_surface_features, input_sharpedge_surface_features], dim=1)
 
             if self.normal_pe:
                 # apply the fourier embeddings on the first 3 dims (xyz)
                 input_features_pe = self.fourier_embedder(input_features[..., :3])
                 query_features_pe = self.fourier_embedder(query_features[..., :3])
                 # replace the first 3 dims with the new PE ones
-                input_features = torch.cat([input_features_pe, input_features[..., :3]], dim = -1)
-                query_features = torch.cat([query_features_pe, query_features[..., :3]], dim = -1)
+                input_features = torch.cat([input_features_pe, input_features[..., :3]], dim=-1)
+                query_features = torch.cat([query_features_pe, query_features[..., :3]], dim=-1)
 
             # concat at the channels dim
-            query = torch.cat([query, query_features], dim = -1)
-            data = torch.cat([data, input_features], dim = -1)
+            query = torch.cat([query, query_features], dim=-1)
+            data = torch.cat([data, input_features], dim=-1)
 
         # don't return pc_info to avoid unnecessary memory usuage
         return query.view(B, -1, query.shape[-1]), data.view(B, -1, data.shape[-1])
 
     def forward(self, point_cloud: torch.Tensor, features: torch.Tensor):
 
-        query, data = self.sample_points_and_latents(point_cloud = point_cloud, features = features)
+        query, data = self.sample_points_and_latents(point_cloud=point_cloud, features=features)
 
         # apply projections
         query = self.input_proj(query)
@@ -215,7 +218,6 @@ class PointCrossAttention(nn.Module):
 
         return latents
 
-
     def subsample(self, pc, num_query, input_pc_size: int):
 
         """
@@ -227,7 +229,7 @@ class PointCrossAttention(nn.Module):
         query_ratio = num_query / input_pc_size
 
         # random subsampling of points inside the point cloud
-        idx_pc = torch.randperm(pc.shape[1], device = pc.device)[:input_pc_size]
+        idx_pc = torch.randperm(pc.shape[1], device=pc.device)[:input_pc_size]
         input_pc = pc[:, idx_pc, :]
 
         # flatten to allow applying fps across the whole batch
@@ -239,7 +241,7 @@ class PointCrossAttention(nn.Module):
         batch_down = torch.arange(B).to(pc.device)
         batch_down = torch.repeat_interleave(batch_down, N_down)
 
-        idx_query = fps(flattent_input_pc, batch_down, sampling_ratio = query_ratio)
+        idx_query = fps(flattent_input_pc, batch_down, sampling_ratio=query_ratio)
         query_pc = flattent_input_pc[idx_query].view(B, -1, D)
 
         return query_pc, input_pc, idx_pc, idx_query
@@ -255,7 +257,8 @@ class PointCrossAttention(nn.Module):
 
         return input_surface_features, query_features
 
-def normalize_mesh(mesh, scale = 0.9999):
+
+def normalize_mesh(mesh, scale=0.9999):
     """Normalize mesh to fit in [-scale, scale]. Translate mesh so its center is [0,0,0]"""
 
     bbox = mesh.bounds
@@ -267,12 +270,14 @@ def normalize_mesh(mesh, scale = 0.9999):
 
     return mesh
 
-def sample_pointcloud(mesh, num = 200000):
+
+def sample_pointcloud(mesh, num=200000):
     """ Uniformly sample points from the surface of the mesh """
 
-    points, face_idx = mesh.sample(num, return_index = True)
+    points, face_idx = mesh.sample(num, return_index=True)
     normals = mesh.face_normals[face_idx]
     return torch.from_numpy(points.astype(np.float32)), torch.from_numpy(normals.astype(np.float32))
+
 
 def detect_sharp_edges(mesh, threshold=0.985):
     """Return edge indices (a, b) that lie on sharp boundaries of the mesh."""
@@ -294,7 +299,7 @@ def detect_sharp_edges(mesh, threshold=0.985):
     return edge_a[sharp_edges], edge_b[sharp_edges]
 
 
-def sharp_sample_pointcloud(mesh, num = 16384):
+def sharp_sample_pointcloud(mesh, num=16384):
     """ Sample points preferentially from sharp edges in the mesh. """
 
     edge_a, edge_b = detect_sharp_edges(mesh)
@@ -314,10 +319,15 @@ def sharp_sample_pointcloud(mesh, num = 16384):
 
     return samples.astype(np.float32), normals.astype(np.float32)
 
-def load_surface_sharpedge(mesh, num_points=4096, num_sharp_points=4096, sharpedge_flag = True, device = "cuda"):
+
+def load_surface_sharpedge(mesh, num_points=4096, num_sharp_points=4096, sharpedge_flag=True, device="cuda"):
     """Load a surface with optional sharp-edge annotations from a trimesh mesh."""
 
-    import trimesh
+    try:
+        import trimesh  # pylint: disable=import-error
+    except (ImportError, ModuleNotFoundError) as exc_info:
+        logger.warn("trimesh not installed")
+        raise exc_info
 
     try:
         mesh_full = trimesh.util.concatenate(mesh.dump())
@@ -360,39 +370,40 @@ def load_surface_sharpedge(mesh, num_points=4096, num_sharp_points=4096, sharped
 
     surface = assemble_tensor(torch.cat([surf_pts.to(device), fill_pts.to(device)], dim=0),
                               torch.cat([surf_normals.to(device), fill_normals.to(device)], dim=0),
-                              label = 0 if sharpedge_flag else None)
+                              label=0 if sharpedge_flag else None)
 
     sharp_surface = assemble_tensor(torch.from_numpy(sharp_pts), torch.from_numpy(sharp_normals),
-                                    label = 1 if sharpedge_flag else None)
+                                    label=1 if sharpedge_flag else None)
 
     rng = np.random.default_rng()
 
-    surface = surface[rng.choice(surface.shape[0], num_points, replace = False)]
-    sharp_surface = sharp_surface[rng.choice(sharp_surface.shape[0], num_sharp_points, replace = False)]
+    surface = surface[rng.choice(surface.shape[0], num_points, replace=False)]
+    sharp_surface = sharp_surface[rng.choice(sharp_surface.shape[0], num_sharp_points, replace=False)]
 
-    full = torch.cat([surface, sharp_surface], dim = 0).unsqueeze(0)
+    full = torch.cat([surface, sharp_surface], dim=0).unsqueeze(0)
 
     return full
+
 
 class SharpEdgeSurfaceLoader:
     """ Load mesh surface and sharp edge samples. """
 
-    def __init__(self, num_uniform_points = 8192, num_sharp_points = 8192):
+    def __init__(self, num_uniform_points=8192, num_sharp_points=8192):
 
         self.num_uniform_points = num_uniform_points
         self.num_sharp_points = num_sharp_points
         self.total_points = num_uniform_points + num_sharp_points
 
-    def __call__(self, mesh_input, device = "cuda"):
+    def __call__(self, mesh_input, device="cuda"):
         mesh = self._load_mesh(mesh_input)
-        return load_surface_sharpedge(mesh, self.num_uniform_points, self.num_sharp_points, device = device)
+        return load_surface_sharpedge(mesh, self.num_uniform_points, self.num_sharp_points, device=device)
 
     @staticmethod
     def _load_mesh(mesh_input):
         import trimesh
 
         if isinstance(mesh_input, str):
-            mesh = trimesh.load(mesh_input, force="mesh", merge_primitives = True)
+            mesh = trimesh.load(mesh_input, force="mesh", merge_primitives=True)
         else:
             mesh = mesh_input
 
@@ -404,21 +415,21 @@ class SharpEdgeSurfaceLoader:
 
         return mesh
 
+
 class DiagonalGaussianDistribution:
     def __init__(self, params: torch.Tensor, feature_dim: int = -1):
-
         # divide quant channels (8) into mean and log variance
-        self.mean, self.logvar = torch.chunk(params, 2, dim = feature_dim)
+        self.mean, self.logvar = torch.chunk(params, 2, dim=feature_dim)
 
         self.logvar = torch.clamp(self.logvar, -30.0, 20.0)
         self.std = torch.exp(0.5 * self.logvar)
 
     def sample(self):
-
         eps = torch.randn_like(self.std)
         z = self.mean + eps * self.std
 
         return z
+
 
 ################################################
 # Volume Decoder
@@ -426,7 +437,7 @@ class DiagonalGaussianDistribution:
 
 class VanillaVolumeDecoder():
     @torch.no_grad()
-    def __call__(self, latents: torch.Tensor, geo_decoder: callable, octree_resolution: int, bounds = 1.01,
+    def __call__(self, latents: torch.Tensor, geo_decoder: callable, octree_resolution: int, bounds=1.01,
                  num_chunks: int = 10_000, enable_pbar: bool = True, **kwargs):
 
         if isinstance(bounds, float):
@@ -434,27 +445,27 @@ class VanillaVolumeDecoder():
 
         bbox_min, bbox_max = torch.tensor(bounds[:3]), torch.tensor(bounds[3:])
 
-        x = torch.linspace(bbox_min[0], bbox_max[0], int(octree_resolution) + 1, dtype = torch.float32)
-        y = torch.linspace(bbox_min[1], bbox_max[1], int(octree_resolution) + 1, dtype = torch.float32)
-        z = torch.linspace(bbox_min[2], bbox_max[2], int(octree_resolution) + 1, dtype = torch.float32)
+        x = torch.linspace(bbox_min[0], bbox_max[0], int(octree_resolution) + 1, dtype=torch.float32)
+        y = torch.linspace(bbox_min[1], bbox_max[1], int(octree_resolution) + 1, dtype=torch.float32)
+        z = torch.linspace(bbox_min[2], bbox_max[2], int(octree_resolution) + 1, dtype=torch.float32)
 
-        [xs, ys, zs] = torch.meshgrid(x, y, z, indexing = "ij")
-        xyz = torch.stack((xs, ys, zs), axis=-1).to(latents.device, dtype = latents.dtype).contiguous().reshape(-1, 3)
+        [xs, ys, zs] = torch.meshgrid(x, y, z, indexing="ij")
+        xyz = torch.stack((xs, ys, zs), axis=-1).to(latents.device, dtype=latents.dtype).contiguous().reshape(-1, 3)
         grid_size = [int(octree_resolution) + 1, int(octree_resolution) + 1, int(octree_resolution) + 1]
 
         batch_logits = []
         for start in tqdm(range(0, xyz.shape[0], num_chunks), desc="Volume Decoding",
                           disable=not enable_pbar):
-
             chunk_queries = xyz[start: start + num_chunks, :]
             chunk_queries = chunk_queries.unsqueeze(0).repeat(latents.shape[0], 1, 1)
-            logits = geo_decoder(queries = chunk_queries, latents = latents)
+            logits = geo_decoder(queries=chunk_queries, latents=latents)
             batch_logits.append(logits)
 
-        grid_logits = torch.cat(batch_logits, dim = 1)
+        grid_logits = torch.cat(batch_logits, dim=1)
         grid_logits = grid_logits.view((latents.shape[0], *grid_size)).float()
 
         return grid_logits
+
 
 class FourierEmbedder(nn.Module):
     """The sin/cosine positional embedding. Given an input tensor `x` of shape [n_batch, ..., c_dim], it converts
@@ -552,10 +563,12 @@ class FourierEmbedder(nn.Module):
         else:
             return x
 
+
 class CrossAttentionProcessor:
     def __call__(self, attn, q, k, v):
-        out = comfy.ops.scaled_dot_product_attention(q, k, v)
+        out = scaled_dot_product_attention(q, k, v)
         return out
+
 
 class DropPath(nn.Module):
     """Drop paths (Stochastic Depth) per sample  (when applied in main path of residual blocks).
@@ -591,11 +604,11 @@ class DropPath(nn.Module):
 
 class MLP(nn.Module):
     def __init__(
-        self, *,
-        width: int,
-        expand_ratio: int = 4,
-        output_width: int = None,
-        drop_path_rate: float = 0.0
+            self, *,
+            width: int,
+            expand_ratio: int = 4,
+            output_width: int = None,
+            drop_path_rate: float = 0.0
     ):
         super().__init__()
         self.width = width
@@ -607,14 +620,15 @@ class MLP(nn.Module):
     def forward(self, x):
         return self.drop_path(self.c_proj(self.gelu(self.c_fc(x))))
 
+
 class QKVMultiheadCrossAttention(nn.Module):
     def __init__(
-        self,
-        heads: int,
-        n_data = None,
-        width=None,
-        qk_norm=False,
-        norm_layer=ops.LayerNorm
+            self,
+            heads: int,
+            n_data=None,
+            width=None,
+            qk_norm=False,
+            norm_layer=ops.LayerNorm
     ):
         super().__init__()
         self.heads = heads
@@ -623,7 +637,6 @@ class QKVMultiheadCrossAttention(nn.Module):
         self.k_norm = norm_layer(width // heads, elementwise_affine=True, eps=1e-6) if qk_norm else nn.Identity()
 
     def forward(self, q, kv):
-
         _, n_ctx, _ = q.shape
         bs, n_data, width = kv.shape
 
@@ -643,17 +656,18 @@ class QKVMultiheadCrossAttention(nn.Module):
 
         return out
 
+
 class MultiheadCrossAttention(nn.Module):
     def __init__(
-        self,
-        *,
-        width: int,
-        heads: int,
-        qkv_bias: bool = True,
-        data_width: Optional[int] = None,
-        norm_layer=ops.LayerNorm,
-        qk_norm: bool = False,
-        kv_cache: bool = False,
+            self,
+            *,
+            width: int,
+            heads: int,
+            qkv_bias: bool = True,
+            data_width: Optional[int] = None,
+            norm_layer=ops.LayerNorm,
+            qk_norm: bool = False,
+            kv_cache: bool = False,
     ):
         super().__init__()
         self.width = width
@@ -684,17 +698,18 @@ class MultiheadCrossAttention(nn.Module):
         x = self.c_proj(x)
         return x
 
+
 class ResidualCrossAttentionBlock(nn.Module):
     def __init__(
-        self,
-        *,
-        width: int,
-        heads: int,
-        mlp_expand_ratio: int = 4,
-        data_width: Optional[int] = None,
-        qkv_bias: bool = True,
-        norm_layer=ops.LayerNorm,
-        qk_norm: bool = False
+            self,
+            *,
+            width: int,
+            heads: int,
+            mlp_expand_ratio: int = 4,
+            data_width: Optional[int] = None,
+            qkv_bias: bool = True,
+            norm_layer=ops.LayerNorm,
+            qk_norm: bool = False
     ):
         super().__init__()
 
@@ -722,12 +737,12 @@ class ResidualCrossAttentionBlock(nn.Module):
 
 class QKVMultiheadAttention(nn.Module):
     def __init__(
-        self,
-        *,
-        heads: int,
-        width=None,
-        qk_norm=False,
-        norm_layer=ops.LayerNorm
+            self,
+            *,
+            heads: int,
+            width=None,
+            qk_norm=False,
+            norm_layer=ops.LayerNorm
     ):
         super().__init__()
         self.heads = heads
@@ -750,14 +765,14 @@ class QKVMultiheadAttention(nn.Module):
 
 class MultiheadAttention(nn.Module):
     def __init__(
-        self,
-        *,
-        width: int,
-        heads: int,
-        qkv_bias: bool,
-        norm_layer=ops.LayerNorm,
-        qk_norm: bool = False,
-        drop_path_rate: float = 0.0
+            self,
+            *,
+            width: int,
+            heads: int,
+            qkv_bias: bool,
+            norm_layer=ops.LayerNorm,
+            qk_norm: bool = False,
+            drop_path_rate: float = 0.0
     ):
         super().__init__()
 
@@ -780,14 +795,14 @@ class MultiheadAttention(nn.Module):
 
 class ResidualAttentionBlock(nn.Module):
     def __init__(
-        self,
-        *,
-        width: int,
-        heads: int,
-        qkv_bias: bool = True,
-        norm_layer=ops.LayerNorm,
-        qk_norm: bool = False,
-        drop_path_rate: float = 0.0,
+            self,
+            *,
+            width: int,
+            heads: int,
+            qkv_bias: bool = True,
+            norm_layer=ops.LayerNorm,
+            qk_norm: bool = False,
+            drop_path_rate: float = 0.0,
     ):
         super().__init__()
         self.attn = MultiheadAttention(
@@ -810,15 +825,15 @@ class ResidualAttentionBlock(nn.Module):
 
 class Transformer(nn.Module):
     def __init__(
-        self,
-        *,
-        width: int,
-        layers: int,
-        heads: int,
-        qkv_bias: bool = True,
-        norm_layer=ops.LayerNorm,
-        qk_norm: bool = False,
-        drop_path_rate: float = 0.0
+            self,
+            *,
+            width: int,
+            layers: int,
+            heads: int,
+            qkv_bias: bool = True,
+            norm_layer=ops.LayerNorm,
+            qk_norm: bool = False,
+            drop_path_rate: float = 0.0
     ):
         super().__init__()
         self.width = width
@@ -846,18 +861,18 @@ class Transformer(nn.Module):
 class CrossAttentionDecoder(nn.Module):
 
     def __init__(
-        self,
-        *,
-        out_channels: int,
-        fourier_embedder: FourierEmbedder,
-        width: int,
-        heads: int,
-        mlp_expand_ratio: int = 4,
-        downsample_ratio: int = 1,
-        enable_ln_post: bool = True,
-        qkv_bias: bool = True,
-        qk_norm: bool = False,
-        label_type: str = "binary"
+            self,
+            *,
+            out_channels: int,
+            fourier_embedder: FourierEmbedder,
+            width: int,
+            heads: int,
+            mlp_expand_ratio: int = 4,
+            downsample_ratio: int = 1,
+            enable_ln_post: bool = True,
+            qkv_bias: bool = True,
+            qk_norm: bool = False,
+            label_type: str = "binary"
     ):
         super().__init__()
 
@@ -926,15 +941,15 @@ class ShapeVAE(nn.Module):
 
         self.fourier_embedder = FourierEmbedder(num_freqs=num_freqs, include_pi=include_pi)
 
-        self.encoder = PointCrossAttention(layers = num_encoder_layers,
-                                    num_latents = num_latents,
-                                    downsample_ratio = downsample_ratio,
-                                    heads = heads,
-                                    pc_size = pc_size,
-                                    width = width,
-                                    point_feats = point_feats,
-                                    fourier_embedder = self.fourier_embedder,
-                                    pc_sharpedge_size = pc_sharpedge_size)
+        self.encoder = PointCrossAttention(layers=num_encoder_layers,
+                                           num_latents=num_latents,
+                                           downsample_ratio=downsample_ratio,
+                                           heads=heads,
+                                           pc_size=pc_size,
+                                           width=width,
+                                           point_feats=point_feats,
+                                           fourier_embedder=self.fourier_embedder,
+                                           pc_sharpedge_size=pc_sharpedge_size)
 
         self.post_kl = ops.Linear(embed_dim, width)
 
@@ -976,12 +991,11 @@ class ShapeVAE(nn.Module):
         return grid_logits.movedim(-2, -1)
 
     def encode(self, surface):
-
         pc, feats = surface[:, :, :3], surface[:, :, 3:]
         latents = self.encoder(pc, feats)
 
         moments = self.pre_kl(latents)
-        posterior = DiagonalGaussianDistribution(moments, feature_dim = -1)
+        posterior = DiagonalGaussianDistribution(moments, feature_dim=-1)
 
         latents = posterior.sample()
 

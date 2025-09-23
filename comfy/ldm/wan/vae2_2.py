@@ -7,8 +7,7 @@ import torch.nn.functional as F
 from einops import rearrange
 from .vae import AttentionBlock, CausalConv3d, RMS_norm
 
-import comfy.ops
-ops = comfy.ops.disable_weight_init
+from ...ops import disable_weight_init as ops
 
 CACHE_T = 2
 

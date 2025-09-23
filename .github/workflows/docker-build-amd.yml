@@ -1,12 +1,13 @@
 name: Build and Publish Docker Image (AMD)
 on:
-  {}
+  push:
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: hiddenswitch/comfyui
 jobs:
   build:
     runs-on: "ubuntu-latest"
+    environment: Testing
     permissions:
       contents: read
       packages: write

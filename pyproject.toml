@@ -108,6 +108,7 @@ dependencies = [
     "alembic",
     "SQLAlchemy",
     "gguf",
+    "trimesh"
 ]
 
 [build-system]
@@ -221,7 +222,8 @@ explicit = true
 
 [[tool.uv.index]]
 name = "pytorch-rocm"
-url = "https://download.pytorch.org/whl/rocm6.3"
+url = "https://repo.radeon.com/rocm/manylinux/rocm-rel-7.0/"
+format = "flat"
 explicit = true
 
 [[tool.uv.index]]
