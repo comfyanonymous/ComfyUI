@@ -102,40 +102,32 @@ if NOT "%LOCAL%"=="%REMOTE%" (
 )
 copy comfy\customzluda\zluda.py comfy\zluda.py /y >NUL
 
-echo.
-:: Get driver version via WMIC
+:: Get AMD Software version via registry (stop on first match)
 setlocal enabledelayedexpansion
-for /f "tokens=2 delims==" %%D in ('wmic path win32_videocontroller get driverversion /value ^| find "="') do (
-    set "driverVer=%%D"
+for %%K in (
+  "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall"
+  "HKLM\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall"
+) do (
+  for /f "tokens=*" %%I in ('reg query %%K 2^>nul') do (
+    for /f "skip=2 tokens=2,*" %%A in ('reg query "%%I" /v DisplayName 2^>nul') do (
+      set "dispName=%%B"
+      echo !dispName! | findstr /i "AMD" >nul
+      if !errorlevel! == 0 (
+        echo !dispName! | findstr /i "Software" >nul
+        if !errorlevel! == 0 (
+          for /f "skip=2 tokens=2,*" %%V in ('reg query "%%I" /v DisplayVersion 2^>nul') do (
+            set "dispVer=%%W"
+            if defined dispVer (
+              echo [INFO] !dispName! version: !dispVer!
+			  goto :match
+            )
+          )
+        )
+      )
+    )
+  )
 )
-:: TEMP mapping driver to adrenalin, TODO registry detect or external list
-set "adrenalinVer=Unknown"
-if "%driverVer%"=="32.0.21025.15011" set "adrenalinVer=25.9.2" & goto :GotVer
-if "%driverVer%"=="32.0.21025.10016" set "adrenalinVer=25.9.1" & goto :GotVer
-if "%driverVer%"=="32.0.21025.1024" set "adrenalinVer=25.8.1" & goto :GotVer
-if "%driverVer%"=="31.0.21923.11000" set "adrenalinVer=25.8.1_GCN" & goto :GotVer
-if "%driverVer%"=="32.0.21013.9005" set "adrenalinVer=25.6.3" & goto :GotVer
-if "%driverVer%"=="32.0.21013.4013" set "adrenalinVer=25.6.2" & goto :GotVer
-if "%driverVer%"=="32.0.21013.1000" set "adrenalinVer=25.6.1" & goto :GotVer
-if "%driverVer%"=="32.0.21010.10" set "adrenalinVer=25.Q2" & goto :GotVer
-if "%driverVer%"=="32.0.21001.9024" set "adrenalinVer=25.5.1" & goto :GotVer
-if "%driverVer%"=="31.0.21923.1000" set "adrenalinVer=25.5.1_GCN" & goto :GotVer
-if "%driverVer%"=="32.0.13031.8021" set "adrenalinVer=25.4.1" & goto :GotVer
-if "%driverVer%"=="32.0.13031.4034" set "adrenalinVer=25.3.2" & goto :GotVer
-if "%driverVer%"=="32.0.13031.3015" set "adrenalinVer=25.3.1" & goto :GotVer
-if "%driverVer%"=="32.0.12033.5029" set "adrenalinVer=25.2.1" & goto :GotVer
-if "%driverVer%"=="32.0.12033.5010" set "adrenalinVer=25.1.1" & goto :GotVer
-if "%driverVer%"=="32.0.12033.1030" set "adrenalinVer=24.12.1" & goto :GotVer
-if "%driverVer%"=="32.0.12030.9" set "adrenalinVer=24.Q4" & goto :GotVer
-if "%driverVer%"=="32.0.12019.1028" set "adrenalinVer=24.10.1" & goto :GotVer
-if "%driverVer%"=="32.0.12011.1036" set "adrenalinVer=24.9.1" & goto :GotVer
-if "%driverVer%"=="31.0.21921.1000" set "adrenalinVer=24.9.1_GCN" & goto :GotVer
-:GotVer
-if "%adrenalinVer%"=="Unknown" (
-    echo [INFO] Driver version: %driverVer%
-) else (
-    echo [INFO] Driver version: %driverVer% [AMD Software: %adrenalinVer%]
-)
+:match
 endlocal
 
 :: Check for zluda.exe and nccl.dll inside the zluda folder, pull version info from exe and build info from nvcuda.dll (via py script)
