@@ -696,86 +696,67 @@ You can pass additional extra model path configurations with one or more copies 
 ### Command Line Arguments
 
 ```
-usage: comfyui.exe [-h] [-c CONFIG_FILE]
-                   [--write-out-config-file CONFIG_OUTPUT_PATH] [-w CWD]
-                   [--base-paths BASE_PATHS [BASE_PATHS ...]] [-H [IP]]
-                   [--port PORT] [--enable-cors-header [ORIGIN]]
-                   [--max-upload-size MAX_UPLOAD_SIZE]
-                   [--base-directory BASE_DIRECTORY]
-                   [--extra-model-paths-config PATH [PATH ...]]
-                   [--output-directory OUTPUT_DIRECTORY]
-                   [--temp-directory TEMP_DIRECTORY]
-                   [--input-directory INPUT_DIRECTORY] [--auto-launch]
-                   [--disable-auto-launch] [--cuda-device DEVICE_ID]
-                   [--cuda-malloc | --disable-cuda-malloc]
-                   [--force-fp32 | --force-fp16 | --force-bf16]
-                   [--fp32-unet | --fp64-unet | --bf16-unet | --fp16-unet | --fp8_e4m3fn-unet | --fp8_e5m2-unet | --fp8_e8m0fnu-unet]
-                   [--fp16-vae | --fp32-vae | --bf16-vae] [--cpu-vae]
-                   [--fp8_e4m3fn-text-enc | --fp8_e5m2-text-enc | --fp16-text-enc | --fp32-text-enc | --bf16-text-enc]
-                   [--directml [DIRECTML_DEVICE]]
-                   [--oneapi-device-selector SELECTOR_STRING]
-                   [--disable-ipex-optimize] [--supports-fp8-compute]
-                   [--preview-method [none,auto,latent2rgb,taesd]]
-                   [--preview-size PREVIEW_SIZE]
-                   [--cache-classic | --cache-lru CACHE_LRU | --cache-none]
-                   [--use-split-cross-attention | --use-quad-cross-attention | --use-pytorch-cross-attention | --use-sage-attention | --use-flash-attention]
-                   [--disable-xformers]
-                   [--force-upcast-attention | --dont-upcast-attention]
-                   [--gpu-only | --highvram | --normalvram | --lowvram | --novram | --cpu]
-                   [--reserve-vram RESERVE_VRAM] [--async-offload]
-                   [--default-hashing-function {md5,sha1,sha256,sha512}]
-                   [--disable-smart-memory] [--deterministic]
-                   [--fast [FAST ...]] [--mmap-torch-files] [--disable-mmap]
-                   [--dont-print-server] [--quick-test-for-ci]
-                   [--windows-standalone-build] [--disable-metadata]
-                   [--disable-all-custom-nodes]
-                   [--whitelist-custom-nodes WHITELIST_CUSTOM_NODES [WHITELIST_CUSTOM_NODES ...]]
-                   [--disable-api-nodes] [--multi-user] [--create-directories]
-                   [--log-stdout]
-                   [--plausible-analytics-base-url PLAUSIBLE_ANALYTICS_BASE_URL]
-                   [--plausible-analytics-domain PLAUSIBLE_ANALYTICS_DOMAIN]
-                   [--analytics-use-identity-provider]
-                   [--distributed-queue-connection-uri DISTRIBUTED_QUEUE_CONNECTION_URI]
-                   [--distributed-queue-worker] [--distributed-queue-frontend]
-                   [--distributed-queue-name DISTRIBUTED_QUEUE_NAME]
-                   [--external-address EXTERNAL_ADDRESS]
-                   [--logging-level {DEBUG,INFO,WARNING,ERROR,CRITICAL}]
-                   [--disable-known-models] [--max-queue-size MAX_QUEUE_SIZE]
-                   [--otel-service-name OTEL_SERVICE_NAME]
-                   [--otel-service-version OTEL_SERVICE_VERSION]
-                   [--otel-exporter-otlp-endpoint OTEL_EXPORTER_OTLP_ENDPOINT]
-                   [--force-channels-last] [--force-hf-local-dir-mode]
-                   [--front-end-version FRONT_END_VERSION]
-                   [--panic-when PANIC_WHEN] [--front-end-root FRONT_END_ROOT]
-                   [--executor-factory EXECUTOR_FACTORY]
-                   [--openai-api-key OPENAI_API_KEY]
-                   [--ideogram-api-key IDEOGRAM_API_KEY]
-                   [--anthropic-api-key ANTHROPIC_API_KEY]
-                   [--user-directory USER_DIRECTORY]
-                   [--enable-compress-response-body]
-                   [--comfy-api-base COMFY_API_BASE]
-                   [--database-url DATABASE_URL]
-                   [--workflows WORKFLOWS [WORKFLOWS ...]]
-                   [--blip-model-url BLIP_MODEL_URL]
-                   [--blip-model-vqa-url BLIP_MODEL_VQA_URL]
-                   [--sam-model-vith-url SAM_MODEL_VITH_URL]
-                   [--sam-model-vitl-url SAM_MODEL_VITL_URL]
-                   [--sam-model-vitb-url SAM_MODEL_VITB_URL]
-                   [--history-display-limit HISTORY_DISPLAY_LIMIT]
-                   [--ffmpeg-bin-path FFMPEG_BIN_PATH]
-                   [--ffmpeg-extra-codecs FFMPEG_EXTRA_CODECS]
-                   [--wildcards-path WILDCARDS_PATH]
-                   [--wildcard-api WILDCARD_API]
-                   [--photoprism-host PHOTOPRISM_HOST]
-                   [--immich-host IMMICH_HOST]
-                   [--ideogram-session-cookie IDEOGRAM_SESSION_COOKIE]
-                   [--use-symlinks] [--ort-providers ORT_PROVIDERS]
-                   [--vfi-ops-backend VFI_OPS_BACKEND]
-                   [--dependency-version DEPENDENCY_VERSION] [--mmdet-skip]
-                   [--sam-editor-cpu] [--sam-editor-model SAM_EDITOR_MODEL]
-                   [--custom-wildcards CUSTOM_WILDCARDS]
-                   [--disable-gpu-opencv]
-
+usage: comfyui [-h] [-c CONFIG_FILE]
+               [--write-out-config-file CONFIG_OUTPUT_PATH] [-w CWD]
+               [--base-paths BASE_PATHS [BASE_PATHS ...]] [-H [IP]]
+               [--port PORT] [--enable-cors-header [ORIGIN]]
+               [--max-upload-size MAX_UPLOAD_SIZE]
+               [--base-directory BASE_DIRECTORY]
+               [--extra-model-paths-config PATH [PATH ...]]
+               [--output-directory OUTPUT_DIRECTORY]
+               [--temp-directory TEMP_DIRECTORY]
+               [--input-directory INPUT_DIRECTORY] [--auto-launch]
+               [--disable-auto-launch] [--cuda-device DEVICE_ID]
+               [--default-device DEFAULT_DEVICE_ID]
+               [--cuda-malloc | --disable-cuda-malloc]
+               [--force-fp32 | --force-fp16 | --force-bf16]
+               [--fp32-unet | --fp64-unet | --bf16-unet | --fp16-unet | --fp8_e4m3fn-unet | --fp8_e5m2-unet | --fp8_e8m0fnu-unet]
+               [--fp16-vae | --fp32-vae | --bf16-vae] [--cpu-vae]
+               [--fp8_e4m3fn-text-enc | --fp8_e5m2-text-enc | --fp16-text-enc | --fp32-text-enc | --bf16-text-enc]
+               [--directml [DIRECTML_DEVICE]]
+               [--oneapi-device-selector SELECTOR_STRING]
+               [--disable-ipex-optimize] [--supports-fp8-compute]
+               [--preview-method [none,auto,latent2rgb,taesd]]
+               [--preview-size PREVIEW_SIZE]
+               [--cache-classic | --cache-lru CACHE_LRU | --cache-none]
+               [--use-split-cross-attention | --use-quad-cross-attention | --use-pytorch-cross-attention | --use-sage-attention | --use-flash-attention]
+               [--disable-xformers]
+               [--force-upcast-attention | --dont-upcast-attention]
+               [--gpu-only | --highvram | --normalvram | --lowvram | --novram | --cpu]
+               [--reserve-vram RESERVE_VRAM] [--async-offload]
+               [--force-non-blocking]
+               [--default-hashing-function {md5,sha1,sha256,sha512}]
+               [--disable-smart-memory] [--deterministic] [--fast [FAST ...]]
+               [--mmap-torch-files] [--disable-mmap] [--dont-print-server]
+               [--quick-test-for-ci] [--windows-standalone-build]
+               [--disable-metadata] [--disable-all-custom-nodes]
+               [--whitelist-custom-nodes WHITELIST_CUSTOM_NODES [WHITELIST_CUSTOM_NODES ...]]
+               [--blacklist-custom-nodes BLACKLIST_CUSTOM_NODES [BLACKLIST_CUSTOM_NODES ...]]
+               [--disable-api-nodes] [--multi-user] [--create-directories]
+               [--log-stdout]
+               [--plausible-analytics-base-url PLAUSIBLE_ANALYTICS_BASE_URL]
+               [--plausible-analytics-domain PLAUSIBLE_ANALYTICS_DOMAIN]
+               [--analytics-use-identity-provider]
+               [--distributed-queue-connection-uri DISTRIBUTED_QUEUE_CONNECTION_URI]
+               [--distributed-queue-worker] [--distributed-queue-frontend]
+               [--distributed-queue-name DISTRIBUTED_QUEUE_NAME]
+               [--external-address EXTERNAL_ADDRESS]
+               [--logging-level {DEBUG,INFO,WARNING,ERROR,CRITICAL}]
+               [--disable-known-models] [--max-queue-size MAX_QUEUE_SIZE]
+               [--otel-service-name OTEL_SERVICE_NAME]
+               [--otel-service-version OTEL_SERVICE_VERSION]
+               [--otel-exporter-otlp-endpoint OTEL_EXPORTER_OTLP_ENDPOINT]
+               [--force-channels-last] [--force-hf-local-dir-mode]
+               [--front-end-version FRONT_END_VERSION]
+               [--panic-when PANIC_WHEN] [--front-end-root FRONT_END_ROOT]
+               [--executor-factory EXECUTOR_FACTORY]
+               [--openai-api-key OPENAI_API_KEY]
+               [--ideogram-api-key IDEOGRAM_API_KEY]
+               [--anthropic-api-key ANTHROPIC_API_KEY]
+               [--user-directory USER_DIRECTORY]
+               [--enable-compress-response-body]
+               [--comfy-api-base COMFY_API_BASE] [--database-url DATABASE_URL]
+               [--workflows WORKFLOWS [WORKFLOWS ...]]
 options:
   -h, --help            show this help message and exit
   -c CONFIG_FILE, --config CONFIG_FILE
@@ -829,7 +810,11 @@ options:
                         COMFYUI_DISABLE_AUTO_LAUNCH]
   --cuda-device DEVICE_ID
                         Set the id of the cuda device this instance will use.
-                        [env var: COMFYUI_CUDA_DEVICE]
+                        All other devices will not be visible. [env var:
+                        COMFYUI_CUDA_DEVICE]
+  --default-device DEFAULT_DEVICE_ID
+                        Set the id of the default device, all other devices
+                        will stay visible. [env var: COMFYUI_DEFAULT_DEVICE]
   --cuda-malloc         Enable cudaMallocAsync (enabled by default for torch
                         2.0 and up). [env var: COMFYUI_CUDA_MALLOC]
   --disable-cuda-malloc
@@ -941,13 +926,17 @@ options:
                         COMFYUI_RESERVE_VRAM]
   --async-offload       Use async weight offloading. [env var:
                         COMFYUI_ASYNC_OFFLOAD]
+  --force-non-blocking  Force ComfyUI to use non-blocking operations for all
+                        applicable tensors. This may improve performance on
+                        some non-Nvidia systems but can cause issues with some
+                        workflows. [env var: COMFYUI_FORCE_NON_BLOCKING]
   --default-hashing-function {md5,sha1,sha256,sha512}
                         Allows you to choose the hash function to use for
                         duplicate filename / contents comparison. Default is
                         sha256. [env var: COMFYUI_DEFAULT_HASHING_FUNCTION]
   --disable-smart-memory
-                        Force ComfyUI to agressively offload to regular ram
-                        instead of keeping models in vram when it can. [env
+                        Force ComfyUI to aggressively offload to regular ram
+                        instead of keeping models in VRAM when it can. [env
                         var: COMFYUI_DISABLE_SMART_MEMORY]
   --deterministic       Make pytorch use slower deterministic algorithms when
                         it can. Note that this might not make images
@@ -957,7 +946,8 @@ options:
                         deteriorating optimizations. Pass a list specific
                         optimizations if you only want to enable specific
                         ones. Current valid optimizations: fp16_accumulation
-                        fp8_matrix_mult cublas_ops [env var: COMFYUI_FAST]
+                        fp8_matrix_mult cublas_ops autotune [env var:
+                        COMFYUI_FAST]
   --mmap-torch-files    Use mmap when loading ckpt/pt files. [env var:
                         COMFYUI_MMAP_TORCH_FILES]
   --disable-mmap        Don't use mmap when loading safetensors. [env var:
@@ -980,6 +970,10 @@ options:
                         Specify custom node folders to load even when
                         --disable-all-custom-nodes is enabled. [env var:
                         COMFYUI_WHITELIST_CUSTOM_NODES]
+  --blacklist-custom-nodes BLACKLIST_CUSTOM_NODES [BLACKLIST_CUSTOM_NODES ...]
+                        Specify custom node folders to never load. Accepts
+                        shell-style globs. [env var:
+                        COMFYUI_BLACKLIST_CUSTOM_NODES]
   --disable-api-nodes   Disable loading all api nodes. [env var:
                         COMFYUI_DISABLE_API_NODES]
   --multi-user          Enables per-user storage. [env var:
@@ -1119,10 +1113,10 @@ options:
                         standard in. [env var: COMFYUI_WORKFLOWS]
 
 Args that start with '--' can also be set in a config file (config.yaml or
-config.json or specified via -c). Config file syntax allows: key=value,
-flag=true, stuff=[a,b,c] (for details, see syntax at https://goo.gl/R74nmi).
-In general, command-line values override environment variables which override
-config file values which override defaults.
+config.json or config.cfg or config.ini or specified via -c). Config file
+syntax allows: key=value, flag=true, stuff=[a,b,c] (for details, see syntax at
+https://goo.gl/R74nmi). In general, command-line values override environment
+variables which override config file values which override defaults.
 
 ```
 

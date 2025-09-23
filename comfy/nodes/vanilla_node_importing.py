@@ -5,6 +5,7 @@ import importlib.util
 import logging
 import os
 import sys
+import fnmatch
 import time
 import types
 from contextlib import contextmanager
@@ -221,6 +222,9 @@ def _vanilla_load_custom_nodes_2(node_paths: Iterable[str]) -> ExportedNodes:
             if module_path.endswith(".disabled"): continue
             if args.disable_all_custom_nodes and possible_module not in args.whitelist_custom_nodes:
                 logger.info(f"Skipping {possible_module} due to disable_all_custom_nodes and whitelist_custom_nodes")
+                continue
+            if any(fnmatch.fnmatch(possible_module, pattern) for pattern in args.blacklist_custom_nodes):
+                logger.info(f"Skipping {possible_module} due to blacklist_custom_nodes")
                 continue
             time_before = time.perf_counter()
             possible_exported_nodes = _vanilla_load_custom_nodes_1(module_path, ignore=base_node_names)

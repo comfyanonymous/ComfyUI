@@ -166,6 +166,7 @@ class Configuration(dict):
         front_end_root (Optional[str]): The local filesystem path to the directory where the frontend is located. Overrides --front-end-version.
         comfy_api_base (str): Set the base URL for the ComfyUI API. (default: https://api.comfy.org)
         database_url (str): Specify the database URL, e.g. for an in-memory database you can use 'sqlite:///:memory:'.
+        blacklist_custom_nodes (list[str]): Specify custom node folders to never load. Accepts shell-style globs.
         whitelist_custom_nodes (list[str]): Specify custom node folders to load even when --disable-all-custom-nodes is enabled.
         default_device (Optional[int]): Set the id of the default device, all other devices will stay visible.
     """
@@ -234,6 +235,7 @@ class Configuration(dict):
         self.windows_standalone_build: bool = False
         self.disable_metadata: bool = False
         self.disable_all_custom_nodes: bool = False
+        self.blacklist_custom_nodes: list[str] = []
         self.whitelist_custom_nodes: list[str] = []
         self.multi_user: bool = False
         self.plausible_analytics_base_url: Optional[str] = None
