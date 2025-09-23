@@ -64,7 +64,7 @@ jobs:
         runner:
           - labels: [self-hosted, Linux, X64, rocm-7600-8gb]
             friendly_name: "Python 3.12 ROCm 7.0 Torch 2.7.1"
-            container: "rocm7.0_ubuntu24.04_py3.12_pytorch_release_2.7.1"
+            container: "rocm/pytorch:rocm7.0_ubuntu24.04_py3.12_pytorch_release_2.7.1"
     steps:
       - run: |
           apt-get update
