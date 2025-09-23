@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import concurrent.futures
 import copy
 import gc
 import json
@@ -23,7 +24,9 @@ from ..cli_args_types import Configuration
 from ..cmd.folder_paths import init_default_paths  # pylint: disable=import-error
 from ..component_model.executor_types import ExecutorToClientProgress
 from ..component_model.make_mutable import make_mutable
+from ..component_model.queue_types import QueueItem, ExecutionStatus, TaskInvocation
 from ..distributed.executors import ContextVarExecutor
+from ..distributed.history import History
 from ..distributed.process_pool_executor import ProcessPoolExecutor
 from ..distributed.server_stub import ServerStub
 from ..execution_context import current_execution_context
@@ -168,6 +171,7 @@ class Comfy:
         self._is_running = False
         self._task_count_lock = RLock()
         self._task_count = 0
+        self._history = History()
 
     @property
     def is_running(self) -> bool:
@@ -180,6 +184,10 @@ class Comfy:
     def __enter__(self):
         self._is_running = True
         return self
+
+    @property
+    def history(self) -> History:
+        return self._history
 
     def __exit__(self, *args):
         get_event_loop().run_in_executor(self._executor, _cleanup)
@@ -251,15 +259,19 @@ class Comfy:
         with self._task_count_lock:
             self._task_count += 1
         prompt_id = prompt_id or str(uuid.uuid4())
+        assert prompt_id is not None
         client_id = client_id or self._progress_handler.client_id or None
         span_context = context.get_current()
         carrier = {}
         propagate.inject(carrier, span_context)
+        # setup history
+        prompt = make_mutable(prompt)
+
         try:
-            return await get_event_loop().run_in_executor(
+            outputs = await get_event_loop().run_in_executor(
                 self._executor,
                 _execute_prompt,
-                make_mutable(prompt),
+                prompt,
                 prompt_id,
                 client_id,
                 carrier,
@@ -268,6 +280,16 @@ class Comfy:
                 self._configuration,
                 partial_execution_targets,
             )
+
+            fut = concurrent.futures.Future()
+            fut.set_result(TaskInvocation(prompt_id, copy.deepcopy(outputs), ExecutionStatus('success', True, [])))
+            self._history.put(QueueItem(queue_tuple=(float(self._task_count), prompt_id, prompt, {}, []), completed=fut), outputs, ExecutionStatus('success', True, []))
+            return outputs
+        except Exception as exc_info:
+            fut = concurrent.futures.Future()
+            fut.set_exception(exc_info)
+            self._history.put(QueueItem(queue_tuple=(float(self._task_count), prompt_id, prompt, {}, []), completed=fut), {}, ExecutionStatus('error', False, [str(exc_info)]))
+            raise exc_info
         finally:
             with self._task_count_lock:
                 self._task_count -= 1

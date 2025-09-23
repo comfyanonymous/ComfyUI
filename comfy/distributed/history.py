@@ -9,19 +9,20 @@ from ..component_model.queue_types import HistoryEntry, QueueItem, ExecutionStat
 
 
 class History:
-    def __init__(self):
+    def __init__(self, maximum_history_size=MAXIMUM_HISTORY_SIZE):
         self.history: typing.OrderedDict[str, HistoryEntry] = collections.OrderedDict()
+        self.maximum_history_size = maximum_history_size
 
     def put(self, queue_item: QueueItem, outputs: dict, status: ExecutionStatus):
         self.history[queue_item.prompt_id] = HistoryEntry(prompt=queue_item.queue_tuple,
                                                           outputs=outputs,
-                                                          status=ExecutionStatus(*status)._asdict())
+                                                          status=ExecutionStatus(*status).as_dict())
 
     def copy(self, prompt_id: typing.Optional[str | int] = None, max_items: typing.Optional[int] = None,
              offset: typing.Optional[int] = None) -> dict[str, HistoryEntry]:
         if offset is not None and offset < 0:
             offset = max(len(self.history) + offset, 0)
-        max_items = max_items or MAXIMUM_HISTORY_SIZE
+        max_items = max_items or self.maximum_history_size
         if prompt_id in self.history:
             return {prompt_id: copy.deepcopy(self.history[prompt_id])}
         else:

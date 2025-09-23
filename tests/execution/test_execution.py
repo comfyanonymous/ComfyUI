@@ -114,6 +114,9 @@ class ComfyClient:
                     image_objects.append(Image.open(image["abs_path"]))
         return result
 
+    def get_all_history(self, *args, **kwargs):
+        return self.embedded_client.history.copy(*args, **kwargs)
+
 
 # Loop through these variables
 @pytest.mark.execution
@@ -688,3 +691,93 @@ class TestExecution:
             assert False, "Should have raised an error for empty partial execution list"
         except Exception:
             pass  # Expected behavior
+
+    async def _create_history_item(self, client, builder):
+        g = GraphBuilder(prefix="offset_test")
+        input_node = g.node(
+            "StubImage", content="BLACK", height=32, width=32, batch_size=1
+        )
+        g.node("SaveImage", images=input_node.out(0))
+        return await client.run(g)
+
+    async def test_offset_returns_different_items_than_beginning_of_history(
+            self, client: ComfyClient, builder: GraphBuilder
+    ):
+        """Test that offset skips items at the beginning"""
+        for _ in range(5):
+            await self._create_history_item(client, builder)
+
+        first_two = client.get_all_history(max_items=2, offset=0)
+        next_two = client.get_all_history(max_items=2, offset=2)
+
+        assert set(first_two.keys()).isdisjoint(
+            set(next_two.keys())
+        ), "Offset should skip initial items"
+
+    async def test_offset_beyond_history_length_returns_empty(
+            self, client: ComfyClient, builder: GraphBuilder
+    ):
+        """Test offset larger than total history returns empty result"""
+        await self._create_history_item(client, builder)
+
+        result = client.get_all_history(offset=100)
+        assert len(result) == 0, "Large offset should return no items"
+
+    async def test_offset_at_exact_history_length_returns_empty(
+            self, client: ComfyClient, builder: GraphBuilder
+    ):
+        """Test offset equal to history length returns empty"""
+        for _ in range(3):
+            await self._create_history_item(client, builder)
+
+        all_history = client.get_all_history()
+        result = client.get_all_history(offset=len(all_history))
+        assert len(result) == 0, "Offset at history length should return empty"
+
+    async def test_offset_zero_equals_no_offset_parameter(
+            self, client: ComfyClient, builder: GraphBuilder
+    ):
+        """Test offset=0 behaves same as omitting offset"""
+        await self._create_history_item(client, builder)
+
+        with_zero = client.get_all_history(offset=0)
+        without_offset = client.get_all_history()
+
+        assert with_zero == without_offset, "offset=0 should equal no offset"
+
+    async def test_offset_without_max_items_skips_from_beginning(
+            self, client: ComfyClient, builder: GraphBuilder
+    ):
+        """Test offset alone (no max_items) returns remaining items"""
+        for _ in range(4):
+            await self._create_history_item(client, builder)
+
+        all_items = client.get_all_history()
+        offset_items = client.get_all_history(offset=2)
+
+        assert (
+                len(offset_items) == len(all_items) - 2
+        ), "Offset should skip specified number of items"
+
+    async def test_offset_with_max_items_returns_correct_window(
+            self, client: ComfyClient, builder: GraphBuilder
+    ):
+        """Test offset + max_items returns correct slice of history"""
+        for _ in range(6):
+            await self._create_history_item(client, builder)
+
+        window = client.get_all_history(max_items=2, offset=1)
+        assert len(window) <= 2, "Should respect max_items limit"
+
+    async def test_offset_near_end_returns_remaining_items_only(
+            self, client: ComfyClient, builder: GraphBuilder
+    ):
+        """Test offset near end of history returns only remaining items"""
+        for _ in range(3):
+            await self._create_history_item(client, builder)
+
+        all_history = client.get_all_history()
+        # Offset to near the end
+        result = client.get_all_history(max_items=5, offset=len(all_history) - 1)
+
+        assert len(result) <= 1, "Should return at most 1 item when offset is near end"
