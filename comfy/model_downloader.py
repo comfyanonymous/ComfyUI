@@ -40,17 +40,23 @@ def get_filename_list(folder_name: str) -> Sequence[str]:
     return get_filename_list_with_downloadable(folder_name)
 
 
-def get_filename_list_with_downloadable(folder_name: str, known_files: Optional[List[Downloadable] | KnownDownloadables] = None) -> DownloadableFileList:
+def get_filename_list_with_downloadable(folder_name: str, known_files: Optional[List[Downloadable] | KnownDownloadables] = None) -> DownloadableFileList | list[str]:
     if known_files is None:
         known_files = _get_known_models_for_folder_name(folder_name)
 
-    existing = folder_paths.get_filename_list(folder_name)
+    # workaround for lora loading issue, still needs to be investigated
+    if sys.platform == "nt":
+        existing = frozenset(folder_paths.get_filename_list(folder_name))
+        downloadable = frozenset() if args.disable_known_models else frozenset(str(f) for f in known_files)
+        return list(map(canonicalize_path, sorted(list(existing | downloadable))))
+    else:
+        existing = folder_paths.get_filename_list(folder_name)
 
-    downloadable_files = []
-    if not args.disable_known_models:
-        downloadable_files = known_files
+        downloadable_files = []
+        if not args.disable_known_models:
+            downloadable_files = known_files
 
-    return DownloadableFileList(existing, downloadable_files)
+        return DownloadableFileList(existing, downloadable_files)
 
 
 def get_full_path_or_raise(folder_name: str, filename: str, known_files: Optional[List[Downloadable] | KnownDownloadables] = None) -> str:
