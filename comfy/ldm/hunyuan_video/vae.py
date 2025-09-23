@@ -1,8 +1,7 @@
 import torch.nn as nn
 import torch.nn.functional as F
-from comfy.ldm.modules.diffusionmodules.model import ResnetBlock, AttnBlock
-import comfy.ops
-ops = comfy.ops.disable_weight_init
+from ..modules.diffusionmodules.model import ResnetBlock, AttnBlock
+from ...ops import disable_weight_init as ops
 
 
 class PixelShuffle2D(nn.Module):
@@ -52,7 +51,7 @@ class Encoder(nn.Module):
                                                      out_channels=tgt,
                                                      temb_channels=0,
                                                      conv_op=ops.Conv2d)
-                                        for j in range(num_res_blocks)])
+                                         for j in range(num_res_blocks)])
             ch = tgt
             if i < depth:
                 nxt = block_out_channels[i + 1] if i + 1 < len(block_out_channels) and downsample_match_channel else ch
@@ -112,7 +111,7 @@ class Decoder(nn.Module):
                                                      out_channels=tgt,
                                                      temb_channels=0,
                                                      conv_op=ops.Conv2d)
-                                        for j in range(num_res_blocks + 1)])
+                                         for j in range(num_res_blocks + 1)])
             ch = tgt
             if i < depth:
                 nxt = block_out_channels[i + 1] if i + 1 < len(block_out_channels) and upsample_match_channel else ch

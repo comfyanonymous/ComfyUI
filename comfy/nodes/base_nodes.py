@@ -811,12 +811,12 @@ class VAELoader:
 
     # TODO: scale factor?
     def load_vae(self, vae_name):
+        metadata = {}
         if vae_name == "pixel_space":
-            sd = {}
-            sd["pixel_space_vae"] = torch.tensor(1.0)
+            sd_ = {}
+            sd_["pixel_space_vae"] = torch.tensor(1.0)
         elif vae_name in ["taesd", "taesdxl", "taesd3", "taef1"]:
             sd_ = self.load_taesd(vae_name)
-            metadata = {}
         else:
             vae_path = get_full_path_or_raise("vae", vae_name, KNOWN_VAES)
             sd_, metadata = utils.load_torch_file(vae_path, return_metadata=True)

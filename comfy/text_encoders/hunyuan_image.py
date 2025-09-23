@@ -1,10 +1,11 @@
-from .. import sd1_clip
-from .llama import Qwen25_7BVLI
-from .qwen_image import QwenImageTokenizer, QwenImageTEModel
-from transformers import ByT5Tokenizer
-import os
 import re
 
+from transformers import ByT5Tokenizer
+
+from .llama import Qwen25_7BVLI
+from .qwen_image import QwenImageTokenizer, QwenImageTEModel
+from .t5 import T5
+from .. import sd1_clip
 from ..component_model import files
 
 
@@ -64,7 +65,7 @@ class ByT5SmallModel(sd1_clip.SDClipModel):
             model_options = {}
         textmodel_json_config = files.get_path_as_dict(textmodel_json_config, "byt5_config_small_glyph.json", package=__package__)
 
-        super().__init__(device=device, layer=layer, layer_idx=layer_idx, textmodel_json_config=textmodel_json_config, dtype=dtype, model_options=model_options, special_tokens={"end": 1, "pad": 0}, model_class=comfy.text_encoders.t5.T5, enable_attention_masks=True, zero_out_masked=True)
+        super().__init__(device=device, layer=layer, layer_idx=layer_idx, textmodel_json_config=textmodel_json_config, dtype=dtype, model_options=model_options, special_tokens={"end": 1, "pad": 0}, model_class=T5, enable_attention_masks=True, zero_out_masked=True)
 
 
 class HunyuanImageTEModel(QwenImageTEModel):

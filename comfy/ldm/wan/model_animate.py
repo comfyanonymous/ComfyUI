@@ -5,8 +5,9 @@ from einops import rearrange
 import torch.nn.functional as F
 import math
 from .model import WanModel, sinusoidal_embedding_1d
-from comfy.ldm.modules.attention import optimized_attention
-import comfy.model_management
+from ..modules.attention import optimized_attention
+from ...model_management import cast_to
+
 
 class CausalConv1d(nn.Module):
 
@@ -46,7 +47,6 @@ class FaceEncoder(nn.Module):
         self.padding_tokens = nn.Parameter(torch.empty(1, 1, 1, hidden_dim, **factory_kwargs))
 
     def forward(self, x):
-
         x = rearrange(x, "b t c -> b c t")
         b, c, t = x.shape
 
@@ -67,7 +67,7 @@ class FaceEncoder(nn.Module):
         x = self.act(x)
         x = self.out_proj(x)
         x = rearrange(x, "(b n) t c -> b t n c", b=b)
-        padding = comfy.model_management.cast_to(self.padding_tokens, dtype=x.dtype, device=x.device).repeat(b, x.shape[1], 1, 1)
+        padding = cast_to(self.padding_tokens, dtype=x.dtype, device=x.device).repeat(b, x.shape[1], 1, 1)
         x = torch.cat([x, padding], dim=-2)
         x_local = x.clone()
 
@@ -94,15 +94,14 @@ def get_norm_layer(norm_layer, operations=None):
 
 class FaceAdapter(nn.Module):
     def __init__(
-        self,
-        hidden_dim: int,
-        heads_num: int,
-        qk_norm: bool = True,
-        qk_norm_type: str = "rms",
-        num_adapter_layers: int = 1,
-        dtype=None, device=None, operations=None
+            self,
+            hidden_dim: int,
+            heads_num: int,
+            qk_norm: bool = True,
+            qk_norm_type: str = "rms",
+            num_adapter_layers: int = 1,
+            dtype=None, device=None, operations=None
     ):
-
         factory_kwargs = {"dtype": dtype, "device": device}
         super().__init__()
         self.hidden_size = hidden_dim
@@ -122,29 +121,27 @@ class FaceAdapter(nn.Module):
         )
 
     def forward(
-        self,
-        x: torch.Tensor,
-        motion_embed: torch.Tensor,
-        idx: int,
-        freqs_cis_q: Tuple[torch.Tensor, torch.Tensor] = None,
-        freqs_cis_k: Tuple[torch.Tensor, torch.Tensor] = None,
+            self,
+            x: torch.Tensor,
+            motion_embed: torch.Tensor,
+            idx: int,
+            freqs_cis_q: Tuple[torch.Tensor, torch.Tensor] = None,
+            freqs_cis_k: Tuple[torch.Tensor, torch.Tensor] = None,
     ) -> torch.Tensor:
-
         return self.fuser_blocks[idx](x, motion_embed, freqs_cis_q, freqs_cis_k)
-
 
 
 class FaceBlock(nn.Module):
     def __init__(
-        self,
-        hidden_size: int,
-        heads_num: int,
-        qk_norm: bool = True,
-        qk_norm_type: str = "rms",
-        qk_scale: float = None,
-        dtype: Optional[torch.dtype] = None,
-        device: Optional[torch.device] = None,
-        operations=None
+            self,
+            hidden_size: int,
+            heads_num: int,
+            qk_norm: bool = True,
+            qk_norm_type: str = "rms",
+            qk_scale: float = None,
+            dtype: Optional[torch.dtype] = None,
+            device: Optional[torch.device] = None,
+            operations=None
     ):
         factory_kwargs = {"device": device, "dtype": dtype}
         super().__init__()
@@ -153,7 +150,7 @@ class FaceBlock(nn.Module):
         self.hidden_size = hidden_size
         self.heads_num = heads_num
         head_dim = hidden_size // heads_num
-        self.scale = qk_scale or head_dim**-0.5
+        self.scale = qk_scale or head_dim ** -0.5
 
         self.linear1_kv = operations.Linear(hidden_size, hidden_size * 2, **factory_kwargs)
         self.linear1_q = operations.Linear(hidden_size, hidden_size, **factory_kwargs)
@@ -173,13 +170,12 @@ class FaceBlock(nn.Module):
         self.pre_norm_motion = operations.LayerNorm(hidden_size, elementwise_affine=False, eps=1e-6, **factory_kwargs)
 
     def forward(
-        self,
-        x: torch.Tensor,
-        motion_vec: torch.Tensor,
-        motion_mask: Optional[torch.Tensor] = None,
-        # use_context_parallel=False,
+            self,
+            x: torch.Tensor,
+            motion_vec: torch.Tensor,
+            motion_mask: Optional[torch.Tensor] = None,
+            # use_context_parallel=False,
     ) -> torch.Tensor:
-
         B, T, N, C = motion_vec.shape
         T_comp = T
 
@@ -212,6 +208,7 @@ class FaceBlock(nn.Module):
 
         return output
 
+
 # https://github.com/XPixelGroup/BasicSR/blob/8d56e3a045f9fb3e1d8872f92ee4a4f07f886b0a/basicsr/ops/upfirdn2d/upfirdn2d.py#L162
 def upfirdn2d_native(input, kernel, up_x, up_y, down_x, down_y, pad_x0, pad_x1, pad_y0, pad_y1):
     _, minor, in_h, in_w = input.shape
@@ -230,8 +227,10 @@ def upfirdn2d_native(input, kernel, up_x, up_y, down_x, down_y, pad_x0, pad_x1, 
     out = out.reshape(-1, minor, in_h * up_y + pad_y0 + pad_y1 - kernel_h + 1, in_w * up_x + pad_x0 + pad_x1 - kernel_w + 1)
     return out[:, :, ::down_y, ::down_x]
 
+
 def upfirdn2d(input, kernel, up=1, down=1, pad=(0, 0)):
     return upfirdn2d_native(input, kernel, up, up, down, down, pad[0], pad[1], pad[0], pad[1])
+
 
 # https://github.com/XPixelGroup/BasicSR/blob/8d56e3a045f9fb3e1d8872f92ee4a4f07f886b0a/basicsr/ops/fused_act/fused_act.py#L81
 class FusedLeakyReLU(torch.nn.Module):
@@ -242,10 +241,12 @@ class FusedLeakyReLU(torch.nn.Module):
         self.scale = scale
 
     def forward(self, input):
-        return fused_leaky_relu(input, comfy.model_management.cast_to(self.bias, device=input.device, dtype=input.dtype), self.negative_slope, self.scale)
+        return fused_leaky_relu(input, cast_to(self.bias, device=input.device, dtype=input.dtype), self.negative_slope, self.scale)
+
 
 def fused_leaky_relu(input, bias, negative_slope=0.2, scale=2 ** 0.5):
     return F.leaky_relu(input + bias, negative_slope) * scale
+
 
 class Blur(torch.nn.Module):
     def __init__(self, kernel, pad, dtype=None, device=None):
@@ -257,9 +258,10 @@ class Blur(torch.nn.Module):
         self.pad = pad
 
     def forward(self, input):
-        return upfirdn2d(input, comfy.model_management.cast_to(self.kernel, dtype=input.dtype, device=input.device), pad=self.pad)
+        return upfirdn2d(input, cast_to(self.kernel, dtype=input.dtype, device=input.device), pad=self.pad)
 
-#https://github.com/XPixelGroup/BasicSR/blob/8d56e3a045f9fb3e1d8872f92ee4a4f07f886b0a/basicsr/archs/stylegan2_arch.py#L590
+
+# https://github.com/XPixelGroup/BasicSR/blob/8d56e3a045f9fb3e1d8872f92ee4a4f07f886b0a/basicsr/archs/stylegan2_arch.py#L590
 class ScaledLeakyReLU(torch.nn.Module):
     def __init__(self, negative_slope=0.2):
         super().__init__()
@@ -267,6 +269,7 @@ class ScaledLeakyReLU(torch.nn.Module):
 
     def forward(self, input):
         return F.leaky_relu(input, negative_slope=self.negative_slope)
+
 
 # https://github.com/XPixelGroup/BasicSR/blob/8d56e3a045f9fb3e1d8872f92ee4a4f07f886b0a/basicsr/archs/stylegan2_arch.py#L605
 class EqualConv2d(torch.nn.Module):
@@ -282,9 +285,10 @@ class EqualConv2d(torch.nn.Module):
         if self.bias is None:
             bias = None
         else:
-            bias = comfy.model_management.cast_to(self.bias, device=input.device, dtype=input.dtype)
+            bias = cast_to(self.bias, device=input.device, dtype=input.dtype)
 
-        return F.conv2d(input, comfy.model_management.cast_to(self.weight, device=input.device, dtype=input.dtype) * self.scale, bias=bias, stride=self.stride, padding=self.padding)
+        return F.conv2d(input, cast_to(self.weight, device=input.device, dtype=input.dtype) * self.scale, bias=bias, stride=self.stride, padding=self.padding)
+
 
 # https://github.com/XPixelGroup/BasicSR/blob/8d56e3a045f9fb3e1d8872f92ee4a4f07f886b0a/basicsr/archs/stylegan2_arch.py#L134
 class EqualLinear(torch.nn.Module):
@@ -300,12 +304,13 @@ class EqualLinear(torch.nn.Module):
         if self.bias is None:
             bias = None
         else:
-            bias = comfy.model_management.cast_to(self.bias, device=input.device, dtype=input.dtype) * self.lr_mul
+            bias = cast_to(self.bias, device=input.device, dtype=input.dtype) * self.lr_mul
 
         if self.activation:
-            out = F.linear(input, comfy.model_management.cast_to(self.weight, device=input.device, dtype=input.dtype) * self.scale)
+            out = F.linear(input, cast_to(self.weight, device=input.device, dtype=input.dtype) * self.scale)
             return fused_leaky_relu(out, bias)
-        return F.linear(input, comfy.model_management.cast_to(self.weight, device=input.device, dtype=input.dtype) * self.scale, bias=bias)
+        return F.linear(input, cast_to(self.weight, device=input.device, dtype=input.dtype) * self.scale, bias=bias)
+
 
 # https://github.com/XPixelGroup/BasicSR/blob/8d56e3a045f9fb3e1d8872f92ee4a4f07f886b0a/basicsr/archs/stylegan2_arch.py#L654
 class ConvLayer(torch.nn.Sequential):
@@ -326,6 +331,7 @@ class ConvLayer(torch.nn.Sequential):
             layers.append(FusedLeakyReLU(out_channel) if bias else ScaledLeakyReLU(0.2))
 
         super().__init__(*layers)
+
 
 # https://github.com/XPixelGroup/BasicSR/blob/8d56e3a045f9fb3e1d8872f92ee4a4f07f886b0a/basicsr/archs/stylegan2_arch.py#L704
 class ResBlock(torch.nn.Module):
@@ -360,6 +366,7 @@ class EncoderApp(torch.nn.Module):
             h = conv(h)
         return h.squeeze(-1).squeeze(-1)
 
+
 class Encoder(torch.nn.Module):
     def __init__(self, dim=512, motion_dim=20, dtype=None, device=None, operations=None):
         super().__init__()
@@ -369,6 +376,7 @@ class Encoder(torch.nn.Module):
     def encode_motion(self, x):
         return self.fc(self.net_app(x))
 
+
 class Direction(torch.nn.Module):
     def __init__(self, motion_dim, dtype=None, device=None, operations=None):
         super().__init__()
@@ -376,16 +384,18 @@ class Direction(torch.nn.Module):
         self.motion_dim = motion_dim
 
     def forward(self, input):
-        stabilized_weight = comfy.model_management.cast_to(self.weight, device=input.device, dtype=input.dtype) + 1e-8 * torch.eye(512, self.motion_dim, device=input.device, dtype=input.dtype)
+        stabilized_weight = cast_to(self.weight, device=input.device, dtype=input.dtype) + 1e-8 * torch.eye(512, self.motion_dim, device=input.device, dtype=input.dtype)
         Q, _ = torch.linalg.qr(stabilized_weight.float())
         if input is None:
             return Q
         return torch.sum(input.unsqueeze(-1) * Q.T.to(input.dtype), dim=1)
 
+
 class Synthesis(torch.nn.Module):
     def __init__(self, motion_dim, dtype=None, device=None, operations=None):
         super().__init__()
         self.direction = Direction(motion_dim, dtype=dtype, device=device, operations=operations)
+
 
 class Generator(torch.nn.Module):
     def __init__(self, style_dim=512, motion_dim=20, dtype=None, device=None, operations=None):
@@ -396,6 +406,7 @@ class Generator(torch.nn.Module):
     def get_motion(self, img):
         motion_feat = self.enc.encode_motion(img)
         return self.dec.direction(motion_feat)
+
 
 class AnimateWanModel(WanModel):
     r"""
@@ -481,16 +492,16 @@ class AnimateWanModel(WanModel):
         return x, motion_vec
 
     def forward_orig(
-        self,
-        x,
-        t,
-        context,
-        clip_fea=None,
-        pose_latents=None,
-        face_pixel_values=None,
-        freqs=None,
-        transformer_options={},
-        **kwargs,
+            self,
+            x,
+            t,
+            context,
+            clip_fea=None,
+            pose_latents=None,
+            face_pixel_values=None,
+            freqs=None,
+            transformer_options={},
+            **kwargs,
     ):
         # embeddings
         x = self.patch_embedding(x.float()).to(x.dtype)
@@ -529,6 +540,7 @@ class AnimateWanModel(WanModel):
                     out = {}
                     out["img"] = block(args["img"], context=args["txt"], e=args["vec"], freqs=args["pe"], context_img_len=context_img_len, transformer_options=args["transformer_options"])
                     return out
+
                 out = blocks_replace[("double_block", i)]({"img": x, "txt": context, "vec": e0, "pe": freqs, "transformer_options": transformer_options}, {"original_block": block_wrap})
                 x = out["img"]
             else:

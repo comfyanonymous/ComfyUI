@@ -3,8 +3,9 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torchaudio
 from typing import Optional
-from comfy.ldm.modules.attention import optimized_attention_masked
-import comfy.ops
+from ..ldm.modules.attention import optimized_attention_masked
+from .. import ops
+
 
 class WhisperFeatureExtractor(nn.Module):
     def __init__(self, n_mels=128, device=None):
@@ -66,11 +67,11 @@ class MultiHeadAttention(nn.Module):
         self.out_proj = operations.Linear(d_model, d_model, dtype=dtype, device=device)
 
     def forward(
-        self,
-        query: torch.Tensor,
-        key: torch.Tensor,
-        value: torch.Tensor,
-        mask: Optional[torch.Tensor] = None,
+            self,
+            query: torch.Tensor,
+            key: torch.Tensor,
+            value: torch.Tensor,
+            mask: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
         batch_size, seq_len, _ = query.shape
 
@@ -96,9 +97,9 @@ class EncoderLayer(nn.Module):
         self.final_layer_norm = operations.LayerNorm(d_model, dtype=dtype, device=device)
 
     def forward(
-        self,
-        x: torch.Tensor,
-        attention_mask: Optional[torch.Tensor] = None
+            self,
+            x: torch.Tensor,
+            attention_mask: Optional[torch.Tensor] = None
     ) -> torch.Tensor:
         residual = x
         x = self.self_attn_layer_norm(x)
@@ -117,15 +118,15 @@ class EncoderLayer(nn.Module):
 
 class AudioEncoder(nn.Module):
     def __init__(
-        self,
-        n_mels: int = 128,
-        n_ctx: int = 1500,
-        n_state: int = 1280,
-        n_head: int = 20,
-        n_layer: int = 32,
-        dtype=None,
-        device=None,
-        operations=None
+            self,
+            n_mels: int = 128,
+            n_ctx: int = 1500,
+            n_state: int = 1280,
+            n_head: int = 20,
+            n_layer: int = 32,
+            dtype=None,
+            device=None,
+            operations=None
     ):
         super().__init__()
 
@@ -147,7 +148,7 @@ class AudioEncoder(nn.Module):
 
         x = x.transpose(1, 2)
 
-        x = x + comfy.ops.cast_to_input(self.embed_positions.weight[:, :x.shape[1]], x)
+        x = x + ops.cast_to_input(self.embed_positions.weight[:, :x.shape[1]], x)
 
         all_x = ()
         for layer in self.layers:
@@ -161,15 +162,15 @@ class AudioEncoder(nn.Module):
 
 class WhisperLargeV3(nn.Module):
     def __init__(
-        self,
-        n_mels: int = 128,
-        n_audio_ctx: int = 1500,
-        n_audio_state: int = 1280,
-        n_audio_head: int = 20,
-        n_audio_layer: int = 32,
-        dtype=None,
-        device=None,
-        operations=None
+            self,
+            n_mels: int = 128,
+            n_audio_ctx: int = 1500,
+            n_audio_state: int = 1280,
+            n_audio_head: int = 20,
+            n_audio_layer: int = 32,
+            dtype=None,
+            device=None,
+            operations=None
     ):
         super().__init__()
 

@@ -1,7 +1,7 @@
 # Credits:
 # Original Flux code can be found on: https://github.com/black-forest-labs/flux
 # Chroma Radiance adaption referenced from https://github.com/lodestone-rock/flow
-
+import dataclasses
 from dataclasses import dataclass
 from typing import Optional
 
@@ -66,6 +66,8 @@ class ChromaRadiance(Chroma):
         self.hidden_dim = params.hidden_dim
         self.n_layers = params.n_layers
         self.pe_embedder = EmbedND(dim=pe_dim, theta=params.theta, axes_dim=params.axes_dim)
+        # replaces the operation
+        self.img_in = self._img_in
         self.img_in_patch = operations.Conv2d(
             params.in_channels,
             params.hidden_size,
@@ -164,7 +166,7 @@ class ChromaRadiance(Chroma):
         # Impossible to get here as we raise an error on unexpected types on initialization.
         raise NotImplementedError
 
-    def img_in(self, img: Tensor) -> Tensor:
+    def _img_in(self, img: Tensor) -> Tensor:
         img = self.img_in_patch(img)  # -> [B, Hidden, H/P, W/P]
         # flatten into a sequence for the transformer.
         return img.flatten(2).transpose(1, 2)  # -> [B, NumPatches, Hidden]
@@ -263,7 +265,7 @@ class ChromaRadiance(Chroma):
         params = self.params
         if not overrides:
             return params
-        params_dict = {k: getattr(params, k) for k in params.__dataclass_fields__}
+        params_dict = dataclasses.asdict(params)
         nullable_keys = frozenset(("nerf_embedder_dtype",))
         bad_keys = tuple(k for k in overrides if k not in params_dict)
         if bad_keys:

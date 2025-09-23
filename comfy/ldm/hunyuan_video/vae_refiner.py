@@ -1,20 +1,21 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from comfy.ldm.modules.diffusionmodules.model import ResnetBlock, AttnBlock, VideoConv3d
-import comfy.ops
-import comfy.ldm.models.autoencoder
-ops = comfy.ops.disable_weight_init
+from ..modules.diffusionmodules.model import ResnetBlock, AttnBlock, VideoConv3d
+from ..models.autoencoder import DiagonalGaussianRegularizer
+from ...ops import disable_weight_init as ops
+
 
 class RMS_norm(nn.Module):
     def __init__(self, dim):
         super().__init__()
         shape = (dim, 1, 1, 1)
-        self.scale = dim**0.5
+        self.scale = dim ** 0.5
         self.gamma = nn.Parameter(torch.empty(shape))
 
     def forward(self, x):
         return F.normalize(x, dim=1) * self.scale * self.gamma
+
 
 class DnSmpl(nn.Module):
     def __init__(self, ic, oc, tds=True):
@@ -146,6 +147,7 @@ class UpSmpl(nn.Module):
 
         return h + sc
 
+
 class Encoder(nn.Module):
     def __init__(self, in_channels, z_channels, block_out_channels, num_res_blocks,
                  ffactor_spatial, ffactor_temporal, downsample_match_channel=True, **_):
@@ -166,7 +168,7 @@ class Encoder(nn.Module):
                                                      out_channels=tgt,
                                                      temb_channels=0,
                                                      conv_op=VideoConv3d, norm_op=RMS_norm)
-                                        for j in range(num_res_blocks)])
+                                         for j in range(num_res_blocks)])
             ch = tgt
             if i < depth:
                 nxt = block_out_channels[i + 1] if i + 1 < len(block_out_channels) and downsample_match_channel else ch
@@ -182,7 +184,7 @@ class Encoder(nn.Module):
         self.norm_out = RMS_norm(ch)
         self.conv_out = VideoConv3d(ch, z_channels << 1, 3, 1, 1)
 
-        self.regul = comfy.ldm.models.autoencoder.DiagonalGaussianRegularizer()
+        self.regul = DiagonalGaussianRegularizer()
 
     def forward(self, x):
         x = self.conv_in(x)
@@ -208,6 +210,7 @@ class Encoder(nn.Module):
         out = out.reshape(b, f_times_2 // 2, 2 * c, h, w)
         out = out.permute(0, 2, 1, 3, 4).contiguous()
         return out
+
 
 class Decoder(nn.Module):
     def __init__(self, z_channels, out_channels, block_out_channels, num_res_blocks,
@@ -236,7 +239,7 @@ class Decoder(nn.Module):
                                                      out_channels=tgt,
                                                      temb_channels=0,
                                                      conv_op=VideoConv3d, norm_op=RMS_norm)
-                                        for j in range(num_res_blocks + 1)])
+                                         for j in range(num_res_blocks + 1)])
             ch = tgt
             if i < depth:
                 nxt = block_out_channels[i + 1] if i + 1 < len(block_out_channels) and upsample_match_channel else ch
