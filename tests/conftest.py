@@ -173,7 +173,8 @@ def comfy_background_server_from_config(configuration):
 @pytest.fixture(scope="session")
 def skip_timing_checks(pytestconfig):
     """Fixture that returns whether timing checks should be skipped."""
-    return pytestconfig.getoption("--skip-timing-checks")
+    # todo: in the LTS, we don't need to skip timing checks, everything just works
+    return False
 
 
 def pytest_collection_modifyitems(items):

@@ -177,7 +177,7 @@ async def _start_comfyui(from_script_dir: Optional[Path] = None):
         pass
 
     if args.extra_model_paths_config:
-        for config_path in itertools.chain(*args.extra_model_paths_config):
+        for config_path in args.extra_model_paths_config:
             load_extra_path_config(config_path)
 
     if args.create_directories:

@@ -10,7 +10,7 @@ from comfy.client.embedded_comfy_client import Comfy
 from comfy.execution_context import context_add_custom_nodes
 from comfy.nodes.package_typing import ExportedNodes
 from comfy_execution.graph_utils import GraphBuilder
-from tests.execution.test_execution import run_warmup
+from .test_execution import run_warmup
 from .test_execution import ComfyClient, _ProgressHandler
 
 
@@ -23,7 +23,7 @@ class TestAsyncNodes:
         (100,),
     ])
     async def shared_client(self, request) -> AsyncGenerator[ComfyClient, Any]:
-        from .testing_pack import NODE_CLASS_MAPPINGS, NODE_DISPLAY_NAME_MAPPINGS
+        from ..inference.testing_pack import NODE_CLASS_MAPPINGS, NODE_DISPLAY_NAME_MAPPINGS
 
         lru_size, = request.param
         configuration = default_configuration()

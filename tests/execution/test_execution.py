@@ -1,5 +1,7 @@
+import json
 import logging
 import time
+import urllib.request
 import uuid
 from typing import Dict, Optional
 
@@ -16,7 +18,7 @@ from comfy.distributed.server_stub import ServerStub
 from comfy.execution_context import context_add_custom_nodes
 from comfy.nodes.package_typing import ExportedNodes
 from comfy_execution.graph_utils import GraphBuilder, Node
-from tests.conftest import current_test_name
+from ..conftest import current_test_name
 
 
 async def run_warmup(client, prefix="warmup"):
@@ -123,7 +125,7 @@ class TestExecution:
         (100,),
     ])
     async def client(self, request) -> ComfyClient:
-        from .testing_pack import NODE_CLASS_MAPPINGS, NODE_DISPLAY_NAME_MAPPINGS
+        from ..inference.testing_pack import NODE_CLASS_MAPPINGS, NODE_DISPLAY_NAME_MAPPINGS
 
         lru_size, = request.param
         configuration = default_configuration()
