@@ -380,6 +380,19 @@ KNOWN_LORAS: Final[KnownDownloadables] = KnownDownloadables([
     HuggingFile("black-forest-labs/FLUX.1-Canny-dev-lora", "flux1-canny-dev-lora.safetensors"),
     HuggingFile("black-forest-labs/FLUX.1-Depth-dev-lora", "flux1-depth-dev-lora.safetensors"),
     HuggingFile("latent-consistency/lcm-lora-sdxl", "pytorch_lora_weights.safetensors", save_with_filename="lcm_lora_sdxl.safetensors"),
+    HuggingFile("lightx2v/Qwen-Image-Lightning", "Qwen-Image-Lightning-4steps-V1.0.safetensors", show_in_ui=False),
+    HuggingFile("lightx2v/Qwen-Image-Lightning", "Qwen-Image-Lightning-4steps-V1.0-bf16.safetensors", show_in_ui=False),
+    HuggingFile("lightx2v/Qwen-Image-Lightning", "Qwen-Image-Lightning-4steps-V2.0.safetensors"),
+    HuggingFile("lightx2v/Qwen-Image-Lightning", "Qwen-Image-Lightning-4steps-V2.0-bf16.safetensors", show_in_ui=False),
+    HuggingFile("lightx2v/Qwen-Image-Lightning", "Qwen-Image-Lightning-8steps-V1.0.safetensors", show_in_ui=False),
+    HuggingFile("lightx2v/Qwen-Image-Lightning", "Qwen-Image-Lightning-8steps-V1.1.safetensors", show_in_ui=False),
+    HuggingFile("lightx2v/Qwen-Image-Lightning", "Qwen-Image-Lightning-8steps-V1.1-bf16.safetensors", show_in_ui=False),
+    HuggingFile("lightx2v/Qwen-Image-Lightning", "Qwen-Image-Lightning-8steps-V2.0.safetensors"),
+    HuggingFile("lightx2v/Qwen-Image-Lightning", "Qwen-Image-Lightning-8steps-V2.0-bf16.safetensors"),
+    HuggingFile("lightx2v/Qwen-Image-Lightning", "Qwen-Image-Edit-Lightning-4steps-V1.0.safetensors"),
+    HuggingFile("lightx2v/Qwen-Image-Lightning", "Qwen-Image-Edit-Lightning-4steps-V1.0-bf16.safetensors", show_in_ui=False),
+    HuggingFile("lightx2v/Qwen-Image-Lightning", "Qwen-Image-Edit-Lightning-8steps-V1.0.safetensors"),
+    HuggingFile("lightx2v/Qwen-Image-Lightning", "Qwen-Image-Edit-Lightning-8steps-V1.0-bf16.safetensors", show_in_ui=False),
 ], folder_name="loras")
 
 KNOWN_CONTROLNETS: Final[KnownDownloadables] = KnownDownloadables([
@@ -596,6 +609,10 @@ KNOWN_UNET_MODELS: Final[KnownDownloadables] = KnownDownloadables([
     HuggingFile("Comfy-Org/Qwen-Image_ComfyUI", "split_files/diffusion_models/qwen_image_fp8_e4m3fn.safetensors"),
     HuggingFile("Comfy-Org/Qwen-Image_ComfyUI", "non_official/diffusion_models/qwen_image_distill_full_bf16.safetensors"),
     HuggingFile("Comfy-Org/Qwen-Image_ComfyUI", "non_official/diffusion_models/qwen_image_distill_full_fp8_e4m3fn.safetensors"),
+    HuggingFile("Comfy-Org/Qwen-Image-Edit_ComfyUI", "split_files/diffusion_models/qwen_image_edit_2509_bf16.safetensors"),
+    HuggingFile("Comfy-Org/Qwen-Image-Edit_ComfyUI", "split_files/diffusion_models/qwen_image_edit_2509_fp8_e4m3fn.safetensors"),
+    HuggingFile("Comfy-Org/Qwen-Image-Edit_ComfyUI", "split_files/diffusion_models/qwen_image_edit_bf16.safetensors"),
+    HuggingFile("Comfy-Org/Qwen-Image-Edit_ComfyUI", "split_files/diffusion_models/qwen_image_edit_fp8_e4m3fn.safetensors"),
 ], folder_names=["diffusion_models", "unet"])
 
 KNOWN_CLIP_MODELS: Final[KnownDownloadables] = KnownDownloadables([
