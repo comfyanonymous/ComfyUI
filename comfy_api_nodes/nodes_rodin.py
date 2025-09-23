@@ -470,7 +470,7 @@ class Rodin3D_Sketch(Rodin3DAPI):
         model = await self.download_files(download_list)
 
         return (model,)
-    
+
 class Rodin3D_Gen2(Rodin3DAPI):
     @classmethod
     def INPUT_TYPES(s):
