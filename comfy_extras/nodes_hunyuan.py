@@ -115,7 +115,7 @@ class HunyuanMixModeAPG:
         return {
             "required": {
                 "model": ("MODEL", ),
-                "has_quoted_text": ("HAS_QUOTED_TEXT", ),
+                "has_quoted_text": ("BOOLEAN", ),
 
                 "guidance_scale": ("FLOAT", {"default": 10.0, "min": 1.0, "max": 30.0, "step": 0.1}),
 
@@ -208,7 +208,7 @@ class CLIPTextEncodeHunyuanDiTWithTextDetection:
             "text": ("STRING", {"multiline": True, "dynamicPrompts": True}),
             }}
 
-    RETURN_TYPES = ("CONDITIONING", "HAS_QUOTED_TEXT")
+    RETURN_TYPES = ("CONDITIONING", "BOOLEAN")
     RETURN_NAMES = ("conditioning", "has_quoted_text")
     FUNCTION = "encode"
 
@@ -239,13 +239,7 @@ class CLIPTextEncodeHunyuanDiTWithTextDetection:
 
         conditioning = clip.encode_from_tokens_scheduled(tokens)
 
-        c = []
-        for t in conditioning:
-            n = [t[0], t[1].copy()]
-            n[1]['has_quoted_text'] = has_quoted_text
-            c.append(n)
-
-        return (c, has_quoted_text)
+        return (conditioning, has_quoted_text)
 
 class EmptyHunyuanLatentVideo:
     @classmethod
