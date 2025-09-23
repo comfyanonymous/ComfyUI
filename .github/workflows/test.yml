@@ -32,21 +32,34 @@ jobs:
             container: "nvcr.io/nvidia/pytorch:23.12-py3"
     steps:
       - run: |
-          apt-get update
-          # required for opencv
-          apt-get install --no-install-recommends -y ffmpeg libsm6 libxext6
-        name: Prepare Python
-      - run: |
           curl -LsSf https://astral.sh/uv/install.sh | sh
         name: Install uv
       - uses: actions/checkout@v4
         name: Checkout git repo
+      - name: Update numpy
+        run: |
+          # jax requires >=1.26 and sometimes greater
+          # todo: we probably want to remove the dependency on jax since it's basically not compatible with old python
+          export UV_BREAK_SYSTEM_PACKAGES=true
+          export UV_SYSTEM_PYTHON=true
+          
+          ( [[ "$(uv pip freeze | awk -F'[=.]' '/^numpy==/ {print $3}')" -lt 2 ]] && echo "numpy<2" || echo "numpy>=2" ) >> numpy_override.txt
+          uv pip install -U $(cat numpy_override.txt)
+      - name: Update OpenCV
+        run: |
+          export UV_BREAK_SYSTEM_PACKAGES=true
+          export UV_SYSTEM_PYTHON=true
+          export UV_OVERRIDE=numpy_override.txt
+          
+          uv pip uninstall opencv
+          rm -rf /usr/local/lib/python3.10/dist-packages/cv2/ || rm -rf /usr/local/lib/python3.12/dist-packages/cv2/ || true
+          uv pip install -U --no-deps opencv-python-headless
       - name: Install ComfyUI
         run: |
           export UV_BREAK_SYSTEM_PACKAGES=true
           export UV_SYSTEM_PYTHON=true
-          uv pip freeze | grep numpy > numpy_override.txt
-          uv pip install --torch-backend=auto ".[dev]" --inexact --override numpy_override.txt
+          export UV_OVERRIDE=numpy_override.txt
+          uv pip install --torch-backend=auto ".[dev]" --inexact
       - name: Lint for errors
         run: |
           pylint --rcfile=.pylintrc comfy/ comfy_extras/ comfy_api/ comfy_api_nodes/
@@ -80,7 +93,7 @@ jobs:
         run: |
           export UV_BREAK_SYSTEM_PACKAGES=true
           export UV_SYSTEM_PYTHON=true
-          uv pip freeze | grep nvidia >> overrides.txt; uv pip freeze | grep torch >> overrides.txt; uv pip freeze | grep opencv >> overrides.txt; uv pip freeze | grep numpy >> overrides.txt; echo "sentry-sdk; python_version < '0'" >> overrides.txt
+          pip freeze | grep nvidia >> overrides.txt; pip freeze | grep torch >> overrides.txt; pip freeze | grep opencv >> overrides.txt; pip freeze | grep numpy >> overrides.txt; echo "sentry-sdk; python_version < '0'" >> overrides.txt
           export UV_OVERRIDE=overrides.txt
           export UV_TORCH_BACKEND=auto
           

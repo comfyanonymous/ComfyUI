@@ -108,7 +108,7 @@ dependencies = [
     "alembic",
     "SQLAlchemy",
     "gguf",
-    "trimesh"
+    "trimesh",
 ]
 
 [build-system]
