@@ -16,6 +16,8 @@ from .cli_args_types import LatentPreviewMethod, Configuration, ConfigurationExt
 # todo: move this
 DEFAULT_VERSION_STRING = "comfyanonymous/ComfyUI@latest"
 
+logger = logging.getLogger(__name__)
+
 
 def _create_parser() -> EnhancedConfigArgParser:
     parser = EnhancedConfigArgParser(default_config_files=['config.yaml', 'config.json', 'config.cfg', 'config.ini'],
@@ -282,7 +284,7 @@ def _create_parser() -> EnhancedConfigArgParser:
                 if parser_result is not None:
                     parser = parser_result
         except Exception as exc:
-            logging.error("Failed to load custom config plugin", exc_info=exc)
+            logger.error("Failed to load custom config plugin", exc_info=exc)
 
     return parser
 

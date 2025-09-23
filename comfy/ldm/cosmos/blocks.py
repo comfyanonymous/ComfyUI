@@ -25,6 +25,7 @@ from torch import nn
 
 from ..modules.attention import optimized_attention
 
+logger = logging.getLogger(__name__)
 
 def get_normalization(name: str, channels: int, weight_args={}, operations=None):
     if name == "I":
@@ -294,7 +295,7 @@ class Timesteps(nn.Module):
 class TimestepEmbedding(nn.Module):
     def __init__(self, in_features: int, out_features: int, use_adaln_lora: bool = False, weight_args={}, operations=None):
         super().__init__()
-        logging.debug(
+        logger.debug(
             f"Using AdaLN LoRA Flag:  {use_adaln_lora}. We enable bias if no AdaLN LoRA for backward compatibility."
         )
         self.linear_1 = operations.Linear(in_features, out_features, bias=not use_adaln_lora, **weight_args)

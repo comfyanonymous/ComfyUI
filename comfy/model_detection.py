@@ -9,6 +9,8 @@ from . import supported_models, utils
 from . import supported_models_base
 from .gguf import GGMLOps
 
+logger = logging.getLogger(__name__)
+
 
 def count_blocks(state_dict_keys, prefix_string):
     count = 0
@@ -202,7 +204,7 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
         dit_config["axes_dim"] = [16, 56, 56]
         dit_config["theta"] = 10000
         dit_config["qkv_bias"] = True
-        if '{}distilled_guidance_layer.0.norms.0.scale'.format(key_prefix) in state_dict_keys or '{}distilled_guidance_layer.norms.0.scale'.format(key_prefix) in state_dict_keys: #Chroma
+        if '{}distilled_guidance_layer.0.norms.0.scale'.format(key_prefix) in state_dict_keys or '{}distilled_guidance_layer.norms.0.scale'.format(key_prefix) in state_dict_keys:  # Chroma
             dit_config["image_model"] = "chroma"
             dit_config["in_channels"] = 64
             dit_config["out_channels"] = 64
@@ -210,7 +212,7 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
             dit_config["out_dim"] = 3072
             dit_config["hidden_dim"] = 5120
             dit_config["n_layers"] = 5
-            if f"{key_prefix}nerf_blocks.0.norm.scale" in state_dict_keys: #Chroma Radiance
+            if f"{key_prefix}nerf_blocks.0.norm.scale" in state_dict_keys:  # Chroma Radiance
                 dit_config["image_model"] = "chroma_radiance"
                 dit_config["in_channels"] = 3
                 dit_config["out_channels"] = 3
@@ -268,7 +270,7 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
             dit_config.update(json.loads(metadata["config"]).get("transformer", {}))
         return dit_config
 
-    if '{}genre_embedder.weight'.format(key_prefix) in state_dict_keys: #ACE-Step model
+    if '{}genre_embedder.weight'.format(key_prefix) in state_dict_keys:  # ACE-Step model
         dit_config = {}
         dit_config["audio_model"] = "ace"
         dit_config["attention_head_dim"] = 128
@@ -453,7 +455,7 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
         dit_config["num_heads"] = 16
         dit_config["depth"] = count_blocks(state_dict_keys, f"{key_prefix}blocks.{{}}")
         dit_config["qkv_bias"] = False
-        dit_config["guidance_cond_proj_dim"] = None#f"{key_prefix}t_embedder.cond_proj.weight" in state_dict_keys
+        dit_config["guidance_cond_proj_dim"] = None  # f"{key_prefix}t_embedder.cond_proj.weight" in state_dict_keys
         return dit_config
 
     if '{}caption_projection.0.linear.weight'.format(key_prefix) in state_dict_keys:  # HiDream
@@ -509,7 +511,7 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
             dit_config["rope_h_extrapolation_ratio"] = 4.0
             dit_config["rope_w_extrapolation_ratio"] = 4.0
             dit_config["rope_t_extrapolation_ratio"] = 1.0
-        elif dit_config["in_channels"] == 17: # img to video
+        elif dit_config["in_channels"] == 17:  # img to video
             if dit_config["model_channels"] == 2048:
                 dit_config["extra_per_block_abs_pos_emb"] = False
                 dit_config["rope_h_extrapolation_ratio"] = 3.0
@@ -685,11 +687,11 @@ def model_config_from_unet_config(unet_config, state_dict=None):
         if model_config.matches(unet_config, state_dict):
             return model_config(unet_config)
 
-    logging.error("no match {}".format(unet_config))
+    logger.error("no match {}".format(unet_config))
     return None
 
 
-def model_config_from_unet(state_dict, unet_key_prefix, use_base_if_no_match=False, metadata:Optional[dict]=None):
+def model_config_from_unet(state_dict, unet_key_prefix, use_base_if_no_match=False, metadata: Optional[dict] = None):
     unet_config = detect_unet_config(state_dict, unet_key_prefix, metadata=metadata)
     if unet_config is None:
         return None
@@ -906,10 +908,10 @@ def unet_config_from_diffusers_unet(state_dict, dtype=None):
                               'use_temporal_attention': False, 'use_temporal_resblock': False}
 
     LotusD = {'use_checkpoint': False, 'image_size': 32, 'out_channels': 4, 'use_spatial_transformer': True, 'legacy': False, 'adm_in_channels': 4,
-                'dtype': dtype, 'in_channels': 4, 'model_channels': 320, 'num_res_blocks': [2, 2, 2, 2], 'transformer_depth': [1, 1, 1, 1, 1, 1, 0, 0],
-                'channel_mult': [1, 2, 4, 4], 'transformer_depth_middle': 1, 'use_linear_in_transformer': True, 'context_dim': 1024, 'num_heads': 8,
-                'transformer_depth_output': [1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0],
-                'use_temporal_attention': False, 'use_temporal_resblock': False}
+              'dtype': dtype, 'in_channels': 4, 'model_channels': 320, 'num_res_blocks': [2, 2, 2, 2], 'transformer_depth': [1, 1, 1, 1, 1, 1, 0, 0],
+              'channel_mult': [1, 2, 4, 4], 'transformer_depth_middle': 1, 'use_linear_in_transformer': True, 'context_dim': 1024, 'num_heads': 8,
+              'transformer_depth_output': [1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0],
+              'use_temporal_attention': False, 'use_temporal_resblock': False}
 
     supported_models = [LotusD, SDXL, SDXL_refiner, SD21, SD15, SD21_uncliph, SD21_unclipl, SDXL_mid_cnet, SDXL_small_cnet, SDXL_diffusers_inpaint, SSD_1B, Segmind_Vega, KOALA_700M, KOALA_1B, SD09_XS, SD_XS, SDXL_diffusers_ip2p, SD15_diffusers_inpaint]
 

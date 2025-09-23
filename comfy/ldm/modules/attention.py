@@ -38,7 +38,7 @@ try:
     FLASH_ATTENTION_IS_AVAILABLE = True
 except (ImportError, ModuleNotFoundError):
     if model_management.flash_attention_enabled():
-        logging.debug(f"\n\nTo use the `--use-flash-attention` feature, the `flash-attn` package must be installed first.")
+        logger.debug(f"\n\nTo use the `--use-flash-attention` feature, the `flash-attn` package must be installed first.")
 
 REGISTERED_ATTENTION_FUNCTIONS = {}
 
@@ -48,7 +48,7 @@ def register_attention_function(name: str, func: Callable):
     if name not in REGISTERED_ATTENTION_FUNCTIONS:
         REGISTERED_ATTENTION_FUNCTIONS[name] = func
     else:
-        logging.warning(f"Attention function {name} already registered, skipping registration.")
+        logger.warning(f"Attention function {name} already registered, skipping registration.")
 
 
 def get_attention_function(name: str, default: Any = ...) -> Union[Callable, None]:

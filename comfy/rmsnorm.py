@@ -5,12 +5,14 @@ import logging
 
 RMSNorm = None
 
+logger = logging.getLogger(__name__)
+
 try:
     rms_norm_torch = torch.nn.functional.rms_norm  # pylint: disable=no-member
     RMSNorm = torch.nn.RMSNorm # pylint: disable=no-member
 except:
     rms_norm_torch = None
-    logging.warning("Please update pytorch to use native RMSNorm")
+    logger.debug("Please update pytorch to use native RMSNorm")
 
 
 def rms_norm(x, weight=None, eps=1e-6):

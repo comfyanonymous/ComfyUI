@@ -9,7 +9,7 @@ import logging
 from functools import lru_cache
 
 from ..json_util import merge_json_recursive
-
+logger = logging.getLogger(__name__)
 # Extra locale files to load into main.json
 EXTRA_LOCALE_FILES = [
     "nodeDefs.json",
@@ -26,7 +26,7 @@ def safe_load_json_file(file_path: str) -> dict:
         with open(file_path, "r", encoding="utf-8") as f:
             return json.load(f)
     except json.JSONDecodeError:
-        logging.error(f"Error loading {file_path}")
+        logger.error(f"Error loading {file_path}")
         return {}
 
 
@@ -135,7 +135,7 @@ class CustomNodeManager:
 
                 if os.path.exists(workflows_dir):
                     if folder_name != "example_workflows":
-                        logging.debug(
+                        logger.debug(
                             "Found example workflow folder '%s' for custom node '%s', consider renaming it to 'example_workflows'",
                             folder_name, module_name)
 

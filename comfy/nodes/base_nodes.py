@@ -41,6 +41,7 @@ from ..open_exr import load_exr
 from ..sd import VAE
 from ..utils import comfy_tqdm
 
+logger = logging.getLogger(__name__)
 
 @_deprecate_method(version="0.2.3", message="Use interrupt_current_processing from comfy.interruption")
 def interrupt_processing(value=True):
@@ -101,7 +102,7 @@ class ConditioningAverage:
         out = []
 
         if len(conditioning_from) > 1:
-            logging.warning("Warning: ConditioningAverage conditioning_from contains more than 1 cond, only the first one will actually be applied to conditioning_to.")
+            logger.warning("Warning: ConditioningAverage conditioning_from contains more than 1 cond, only the first one will actually be applied to conditioning_to.")
 
         cond_from = conditioning_from[0][0]
         pooled_output_from = conditioning_from[0][1].get("pooled_output", None)
@@ -142,7 +143,7 @@ class ConditioningConcat:
         out = []
 
         if len(conditioning_from) > 1:
-            logging.warning("Warning: ConditioningConcat conditioning_from contains more than 1 cond, only the first one will actually be applied to conditioning_to.")
+            logger.warning("Warning: ConditioningConcat conditioning_from contains more than 1 cond, only the first one will actually be applied to conditioning_to.")
 
         cond_from = conditioning_from[0][0]
 

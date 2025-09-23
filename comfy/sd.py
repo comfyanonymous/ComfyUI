@@ -1218,7 +1218,7 @@ def load_state_dict_guess_config(sd, output_vae=True, output_clip=True, output_c
 
     model_config = model_detection.model_config_from_unet(sd, diffusion_model_prefix, metadata=metadata)
     if model_config is None:
-        logging.warning("Warning, This is not a checkpoint file, trying to load it as a diffusion model only.")
+        logger.warning("Warning, This is not a checkpoint file, trying to load it as a diffusion model only.")
         diffusion_model = load_diffusion_model_state_dict(sd, model_options={})
         if diffusion_model is None:
             return None

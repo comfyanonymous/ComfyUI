@@ -13,7 +13,7 @@ from aiohttp import web
 
 from .. import utils
 from ..cmd import folder_paths
-
+logger = logging.getLogger(__name__)
 
 class ModelFileManager:
     def __init__(self) -> None:
@@ -144,7 +144,7 @@ class ModelFileManager:
                     result.append(file_info)
 
                 except Exception as e:
-                    logging.warning(f"Warning: Unable to access {file_name}. Error: {e}. Skipping this file.")
+                    logger.warning(f"Warning: Unable to access {file_name}. Error: {e}. Skipping this file.")
                     continue
 
             for d in subdirs:
@@ -152,7 +152,7 @@ class ModelFileManager:
                 try:
                     dirs[path] = os.path.getmtime(path)
                 except FileNotFoundError:
-                    logging.warning(f"Warning: Unable to access {path}. Skipping this path.")
+                    logger.warning(f"Warning: Unable to access {path}. Skipping this path.")
                     continue
 
         return result, dirs, time.perf_counter()

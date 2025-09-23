@@ -9,6 +9,8 @@ from .. import sd1_clip, model_management
 from .. import sdxl_clip
 from ..component_model import files
 
+logger = logging.getLogger(__name__)
+
 
 class T5XXLModel(sd1_clip.SDClipModel):
     def __init__(self, device="cpu", layer="last", layer_idx=None, dtype=None, attention_mask=False, textmodel_json_config=None, model_options=None):
@@ -96,7 +98,7 @@ class SD3ClipModel(torch.nn.Module):
         else:
             self.t5xxl = None
 
-        logging.debug("Created SD3 text encoder with: clip_l {}, clip_g {}, t5xxl {}:{}".format(clip_l, clip_g, t5, dtype_t5))
+        logger.debug("Created SD3 text encoder with: clip_l {}, clip_g {}, t5xxl {}:{}".format(clip_l, clip_g, t5, dtype_t5))
 
     def set_clip_options(self, options):
         if self.clip_l is not None:

@@ -10,6 +10,7 @@ logs = deque(maxlen=1000)
 stdout_interceptor = sys.stdout
 stderr_interceptor = sys.stderr
 
+logger = logging.getLogger(__name__)
 
 class LogInterceptor(io.TextIOWrapper):
     def __init__(self, stream, *args, **kwargs):
@@ -105,11 +106,11 @@ STARTUP_WARNINGS = []
 
 
 def log_startup_warning(msg):
-    logging.warning(msg)
+    logger.warning(msg)
     STARTUP_WARNINGS.append(msg)
 
 
 def print_startup_warnings():
     for s in STARTUP_WARNINGS:
-        logging.warning(s)
+        logger.warning(s)
     STARTUP_WARNINGS.clear()

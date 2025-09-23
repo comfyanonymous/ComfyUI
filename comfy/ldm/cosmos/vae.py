@@ -26,6 +26,7 @@ from .cosmos_tokenizer.layers3d import (
     CausalConv3d,
 )
 
+logger = logging.getLogger(__name__)
 
 class IdentityDistribution(torch.nn.Module):
     def __init__(self):
@@ -90,8 +91,8 @@ class CausalContinuousVideoTokenizer(nn.Module):
         self.distribution = IdentityDistribution()  # ContinuousFormulation[formulation_name].value()
 
         num_parameters = sum(param.numel() for param in self.parameters())
-        logging.debug(f"model={self.name}, num_parameters={num_parameters:,}")
-        logging.debug(
+        logger.debug(f"model={self.name}, num_parameters={num_parameters:,}")
+        logger.debug(
             f"z_channels={z_channels}, latent_channels={self.latent_channels}."
         )
 

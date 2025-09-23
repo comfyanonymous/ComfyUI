@@ -53,7 +53,7 @@ from .utils import (
 from ....ops import disable_weight_init as ops
 
 _LEGACY_NUM_GROUPS = 32
-
+logger = logging.getLogger(__name__)
 
 class CausalConv3d(nn.Module):
     def __init__(
@@ -630,7 +630,7 @@ class DecoderBase(nn.Module):
         block_in = channels * channels_mult[self.num_resolutions - 1]
         curr_res = (resolution // patch_size) // 2 ** (self.num_resolutions - 1)
         self.z_shape = (1, z_channels, curr_res, curr_res)
-        logging.debug(
+        logger.debug(
             "Working with z of shape {} = {} dimensions.".format(
                 self.z_shape, np.prod(self.z_shape)
             )
@@ -927,7 +927,7 @@ class DecoderFactorized(nn.Module):
         block_in = channels * channels_mult[self.num_resolutions - 1]
         curr_res = (resolution // patch_size) // 2 ** (self.num_resolutions - 1)
         self.z_shape = (1, z_channels, curr_res, curr_res)
-        logging.debug(
+        logger.debug(
             "Working with z of shape {} = {} dimensions.".format(
                 self.z_shape, np.prod(self.z_shape)
             )

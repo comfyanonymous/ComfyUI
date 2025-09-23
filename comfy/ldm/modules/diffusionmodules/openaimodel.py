@@ -14,10 +14,10 @@ from .util import (
 )
 from ..attention import SpatialTransformer, SpatialVideoTransformer, default
 from ...util import exists
-from .... import ops
+from ....ops import disable_weight_init as ops
 from .... import patcher_extension
 
-ops = ops.disable_weight_init
+logger = logging.getLogger(__name__)
 
 
 class TimestepBlock(nn.Module):
@@ -375,7 +375,7 @@ def apply_control(h, control, name):
             try:
                 h += ctrl
             except:
-                logging.warning("warning control could not be applied {} {}".format(h.shape, ctrl.shape))
+                logger.warning("warning control could not be applied {} {}".format(h.shape, ctrl.shape))
     return h
 
 
@@ -514,7 +514,7 @@ class UNetModel(nn.Module):
             if isinstance(self.num_classes, int):
                 self.label_emb = nn.Embedding(num_classes, time_embed_dim, dtype=self.dtype, device=device)
             elif self.num_classes == "continuous":
-                logging.debug("setting up linear c_adm embedding layer")
+                logger.debug("setting up linear c_adm embedding layer")
                 self.label_emb = nn.Linear(1, time_embed_dim)
             elif self.num_classes == "sequential":
                 assert adm_in_channels is not None

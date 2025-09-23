@@ -13,6 +13,8 @@ from .component_model import files
 from .model_management import load_models_gpu
 from .utils import load_torch_file, transformers_convert, state_dict_prefix_replace
 
+logger = logging.getLogger(__name__)
+
 
 class Output:
     def __getitem__(self, key):
@@ -165,7 +167,7 @@ def load_clipvision_from_sd(sd, prefix="", convert_keys=False) -> Optional[ClipV
     clip = ClipVisionModel(json_config)
     m, u = clip.load_sd(sd)
     if len(m) > 0:
-        logging.warning("missing clip vision: {}".format(m))
+        logger.warning("missing clip vision: {}".format(m))
     u = set(u)
     keys = list(sd.keys())
     for k in keys:

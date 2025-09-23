@@ -6,6 +6,7 @@ import logging
 
 from tqdm.auto import trange
 
+logger = logging.getLogger(__name__)
 
 class NoiseScheduleVP:
     def __init__(
@@ -477,7 +478,7 @@ class UniPC:
             return self.multistep_uni_pc_vary_update(x, model_prev_list, t_prev_list, t, order, **kwargs)
 
     def multistep_uni_pc_vary_update(self, x, model_prev_list, t_prev_list, t, order, use_corrector=True):
-        logging.info(f'using unified predictor-corrector with order {order} (solver type: vary coeff)')
+        logger.info(f'using unified predictor-corrector with order {order} (solver type: vary coeff)')
         ns = self.noise_schedule
         assert order <= len(model_prev_list)
 

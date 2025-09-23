@@ -18,7 +18,7 @@ from typing_extensions import NotRequired
 
 from ..cli_args import DEFAULT_VERSION_STRING
 from ..cmd.folder_paths import add_model_folder_path  # pylint: disable=import-error
-
+logger = logging.getLogger(__name__)
 REQUEST_TIMEOUT = 10  # seconds
 
 
@@ -154,7 +154,7 @@ class FrontendManager:
 
             return str(importlib.resources.files(comfyui_frontend_package) / "static")
         except ImportError:
-            logging.error(f"""comfyui-frontend-package is not installed.""".strip())
+            logger.error(f"""comfyui-frontend-package is not installed.""".strip())
             return ""
 
     @classmethod
@@ -166,7 +166,7 @@ class FrontendManager:
                 importlib.resources.files(comfyui_workflow_templates) / "templates"
             )
         except ImportError:
-            logging.error(
+            logger.error(
                 f"""
 ********** ERROR ***********
 
@@ -186,7 +186,7 @@ comfyui-workflow-templates is not installed.
                 importlib.resources.files(comfyui_embedded_docs) / "docs"
             )
         except ImportError:
-            logging.info("comfyui-embedded-docs package not found")
+            logger.info("comfyui-embedded-docs package not found")
             return None
 
     @classmethod
@@ -239,12 +239,12 @@ comfyui-workflow-templates is not installed.
                 / version.lstrip("v")
             )
             if os.path.exists(expected_path):
-                logging.info(
+                logger.info(
                     f"Using existing copy of specific frontend version tag: {repo_owner}/{repo_name}@{version}"
                 )
                 return expected_path
 
-        logging.info(
+        logger.info(
             f"Initializing frontend: {repo_owner}/{repo_name}@{version}, requesting version details from GitHub..."
         )
 
@@ -258,13 +258,13 @@ comfyui-workflow-templates is not installed.
         if not os.path.exists(web_root):
             try:
                 os.makedirs(web_root, exist_ok=True)
-                logging.info(
+                logger.info(
                     "Downloading frontend(%s) version(%s) to (%s)",
                     provider.folder_name,
                     semantic_version,
                     web_root,
                 )
-                logging.debug(release)
+                logger.debug(release)
                 download_release_asset_zip(release, destination_path=web_root)
             finally:
                 # Clean up the directory if it is empty, i.e. the download failed
@@ -287,7 +287,7 @@ comfyui-workflow-templates is not installed.
         try:
             return cls.init_frontend_unsafe(version_string)
         except Exception as e:
-            logging.error("Failed to initialize frontend: %s", e)
-            logging.info("Falling back to the default frontend.")
+            logger.error("Failed to initialize frontend: %s", e)
+            logger.info("Falling back to the default frontend.")
             check_frontend_version()
             return cls.default_frontend_path()

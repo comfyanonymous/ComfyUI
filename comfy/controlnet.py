@@ -42,6 +42,7 @@ from .ldm.qwen_image.controlnet import QwenImageControlNetModel
 
 if TYPE_CHECKING:
     from .hooks import HookGroup
+logger = logging.getLogger(__name__)
 
 
 def broadcast_image_to(tensor, target_batch_size, batched_number):
@@ -95,7 +96,7 @@ class ControlBase:
         self.timestep_percent_range = timestep_percent_range
         if self.latent_format is not None:
             if vae is None:
-                logging.warning("WARNING: no VAE provided to the controlnet apply node when this controlnet requires one.")
+                logger.warning("WARNING: no VAE provided to the controlnet apply node when this controlnet requires one.")
             self.vae = vae
         self.extra_concat_orig = extra_concat.copy()
         if self.concat_mask and len(self.extra_concat_orig) == 0:
@@ -448,10 +449,10 @@ def controlnet_load_state_dict(control_model, sd):
     missing, unexpected = control_model.load_state_dict(sd, strict=False)
 
     if len(missing) > 0:
-        logging.warning("missing controlnet keys: {}".format(missing))
+        logger.warning("missing controlnet keys: {}".format(missing))
 
     if len(unexpected) > 0:
-        logging.debug("unexpected controlnet keys: {}".format(unexpected))
+        logger.debug("unexpected controlnet keys: {}".format(unexpected))
     return control_model
 
 
@@ -743,7 +744,7 @@ def load_controlnet_state_dict(state_dict, model=None, model_options=None, ckpt_
 
         leftover_keys = controlnet_data.keys()
         if len(leftover_keys) > 0:
-            logging.warning("leftover keys: {}".format(leftover_keys))
+            logger.warning("leftover keys: {}".format(leftover_keys))
         controlnet_data = new_sd
     elif "controlnet_blocks.0.weight" in controlnet_data:
         if "double_blocks.0.img_attn.norm.key_norm.scale" in controlnet_data:
@@ -773,7 +774,7 @@ def load_controlnet_state_dict(state_dict, model=None, model_options=None, ckpt_
     else:
         net = load_t2i_adapter(controlnet_data, model_options=model_options)
         if net is None:
-            logging.error("error could not detect control model type.")
+            logger.error("error could not detect control model type.")
         return net
 
     if controlnet_config is None:
@@ -817,7 +818,7 @@ def load_controlnet_state_dict(state_dict, model=None, model_options=None, ckpt_
                             cd = controlnet_data[x]
                             cd += model_sd[sd_key].type(cd.dtype).to(cd.device)
             else:
-                logging.warning("WARNING: Loaded a diff controlnet without a model. It will very likely not work.")
+                logger.warning("WARNING: Loaded a diff controlnet without a model. It will very likely not work.")
 
         class WeightsLoader(torch.nn.Module):
             pass
@@ -829,10 +830,10 @@ def load_controlnet_state_dict(state_dict, model=None, model_options=None, ckpt_
         missing, unexpected = control_model.load_state_dict(controlnet_data, strict=False)
 
     if len(missing) > 0:
-        logging.warning("missing controlnet keys: {}".format(missing))
+        logger.warning("missing controlnet keys: {}".format(missing))
 
     if len(unexpected) > 0:
-        logging.debug("unexpected controlnet keys: {}".format(unexpected))
+        logger.debug("unexpected controlnet keys: {}".format(unexpected))
 
     filename = os.path.splitext(ckpt_name)[0]
     global_average_pooling = model_options.get("global_average_pooling", False)
@@ -852,7 +853,7 @@ def load_controlnet(ckpt_path, model=None, model_options=None):
 
     cnet = load_controlnet_state_dict(utils.load_torch_file(ckpt_path, safe_load=True), model=model, model_options=model_options, ckpt_name=ckpt_path)
     if cnet is None:
-        logging.error("error checkpoint does not contain controlnet or t2i adapter data {}".format(ckpt_path))
+        logger.error("error checkpoint does not contain controlnet or t2i adapter data {}".format(ckpt_path))
     return cnet
 
 
@@ -959,9 +960,9 @@ def load_t2i_adapter(t2i_data, model_options={}):  # TODO: model_options
 
     missing, unexpected = model_ad.load_state_dict(t2i_data)
     if len(missing) > 0:
-        logging.warning("t2i missing {}".format(missing))
+        logger.warning("t2i missing {}".format(missing))
 
     if len(unexpected) > 0:
-        logging.debug("t2i unexpected {}".format(unexpected))
+        logger.debug("t2i unexpected {}".format(unexpected))
 
     return T2IAdapter(model_ad, model_ad.input_channels, compression_ratio, upscale_algorithm)

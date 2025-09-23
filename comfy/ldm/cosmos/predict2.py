@@ -14,6 +14,8 @@ from torchvision import transforms
 from ...patcher_extension import WrapperExecutor, get_all_wrappers, WrappersMP
 from ..modules.attention import optimized_attention
 
+logger = logging.getLogger(__name__)
+
 def apply_rotary_pos_emb(
     t: torch.Tensor,
     freqs: torch.Tensor,
@@ -118,7 +120,7 @@ class Attention(nn.Module):
         operations=None,
     ) -> None:
         super().__init__()
-        logging.debug(
+        logger.debug(
             f"Setting up {self.__class__.__name__}. Query dim is {query_dim}, context_dim is {context_dim} and using "
             f"{n_heads} heads with a dimension of {head_dim}."
         )
@@ -225,7 +227,7 @@ class Timesteps(nn.Module):
 class TimestepEmbedding(nn.Module):
     def __init__(self, in_features: int, out_features: int, use_adaln_lora: bool = False, device=None, dtype=None, operations=None):
         super().__init__()
-        logging.debug(
+        logger.debug(
             f"Using AdaLN LoRA Flag:  {use_adaln_lora}. We enable bias if no AdaLN LoRA for backward compatibility."
         )
         self.in_dim = in_features
@@ -718,7 +720,7 @@ class MiniTrainDIT(nn.Module):
         else:
             raise ValueError(f"Unknown pos_emb_cls {self.pos_emb_cls}")
 
-        logging.debug(f"Building positional embedding with {self.pos_emb_cls} class, impl {cls_type}")
+        logger.debug(f"Building positional embedding with {self.pos_emb_cls} class, impl {cls_type}")
         kwargs = dict(
             model_channels=self.model_channels,
             len_h=self.max_img_h // self.patch_spatial,

@@ -39,6 +39,7 @@ from .blocks import (
 
 from .position_embedding import LearnablePosEmbAxis, VideoRopePosition3DEmb
 
+logger = logging.getLogger(__name__)
 
 class DataType(Enum):
     IMAGE = "image"
@@ -194,7 +195,7 @@ class GeneralDIT(nn.Module):
             )
 
         if self.affline_emb_norm:
-            logging.debug("Building affine embedding normalization layer")
+            logger.debug("Building affine embedding normalization layer")
             self.affline_norm = operations.RMSNorm(model_channels, elementwise_affine=True, eps=1e-6, device=device, dtype=dtype)
         else:
             self.affline_norm = nn.Identity()
@@ -216,7 +217,7 @@ class GeneralDIT(nn.Module):
         else:
             raise ValueError(f"Unknown pos_emb_cls {self.pos_emb_cls}")
 
-        logging.debug(f"Building positional embedding with {self.pos_emb_cls} class, impl {cls_type}")
+        logger.debug(f"Building positional embedding with {self.pos_emb_cls} class, impl {cls_type}")
         kwargs = dict(
             model_channels=self.model_channels,
             len_h=self.max_img_h // self.patch_spatial,

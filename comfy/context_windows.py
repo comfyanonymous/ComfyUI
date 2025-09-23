@@ -14,6 +14,8 @@ if TYPE_CHECKING:
     from .model_patcher import ModelPatcher
     from .controlnet import ControlBase
 
+logger = logging.getLogger(__name__)
+
 
 class ContextWindowABC(ABC):
     def __init__(self):
@@ -114,7 +116,7 @@ class IndexListContextHandler(ContextHandlerABC):
     def should_use_context(self, model: BaseModel, conds: list[list[dict]], x_in: torch.Tensor, timestep: torch.Tensor, model_options: dict[str]) -> bool:
         # for now, assume first dim is batch - should have stored on BaseModel in actual implementation
         if x_in.size(self.dim) > self.context_length:
-            logging.info(f"Using context windows {self.context_length} for {x_in.size(self.dim)} frames.")
+            logger.info(f"Using context windows {self.context_length} for {x_in.size(self.dim)} frames.")
             return True
         return False
 

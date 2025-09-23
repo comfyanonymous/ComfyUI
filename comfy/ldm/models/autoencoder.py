@@ -10,6 +10,7 @@ from ..modules.ema import LitEma
 from ..util import instantiate_from_config, get_obj_from_str
 from ... import ops
 
+logger = logging.getLogger(__name__)
 
 class DiagonalGaussianRegularizer(torch.nn.Module):
     def __init__(self, sample: bool = False):
@@ -57,7 +58,7 @@ class AbstractAutoencoder(torch.nn.Module):
 
         if self.use_ema:
             self.model_ema = LitEma(self, decay=ema_decay)
-            logging.info(f"Keeping EMAs of {len(list(self.model_ema.buffers()))}.")
+            logger.info(f"Keeping EMAs of {len(list(self.model_ema.buffers()))}.")
 
     def get_input(self, batch) -> Any:
         raise NotImplementedError()
@@ -73,14 +74,14 @@ class AbstractAutoencoder(torch.nn.Module):
             self.model_ema.store(self.parameters())
             self.model_ema.copy_to(self)
             if context is not None:
-                logging.info(f"{context}: Switched to EMA weights")
+                logger.info(f"{context}: Switched to EMA weights")
         try:
             yield None
         finally:
             if self.use_ema:
                 self.model_ema.restore(self.parameters())
                 if context is not None:
-                    logging.info(f"{context}: Restored training weights")
+                    logger.info(f"{context}: Restored training weights")
 
     def encode(self, *args, **kwargs) -> torch.Tensor:
         raise NotImplementedError("encode()-method of abstract base class called")
@@ -89,7 +90,7 @@ class AbstractAutoencoder(torch.nn.Module):
         raise NotImplementedError("decode()-method of abstract base class called")
 
     def instantiate_optimizer_from_config(self, params, lr, cfg):
-        logging.info(f"loading >>> {cfg['target']} <<< optimizer from config")
+        logger.info(f"loading >>> {cfg['target']} <<< optimizer from config")
         return get_obj_from_str(cfg["target"])(
             params, lr=lr, **cfg.get("params", dict())
         )

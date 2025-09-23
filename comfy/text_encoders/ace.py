@@ -12,6 +12,7 @@ from .t5 import T5
 from .. import sd1_clip
 from ..component_model.files import get_path_as_dict
 
+logger = logging.getLogger(__name__)
 SUPPORT_LANGUAGES = {
     "en": 259, "de": 260, "fr": 262, "es": 284, "it": 285,
     "pt": 286, "pl": 294, "tr": 295, "ru": 267, "cs": 293,
@@ -24,8 +25,6 @@ structure_pattern = re.compile(r"\[.*?\]")
 
 def get_vocab_file() -> str:
     return str(files(f"{__package__}.ace_lyrics_tokenizer") / "vocab.json")
-
-
 
 
 class VoiceBpeTokenizer:
@@ -88,7 +87,7 @@ class VoiceBpeTokenizer:
                     token_idx = self.encode(line, lang)
                 lyric_token_idx = lyric_token_idx + token_idx + [2]
             except Exception as e:
-                logging.warning("tokenize error {} for line {} major_language {}".format(e, line, lang))
+                logger.warning("tokenize error {} for line {} major_language {}".format(e, line, lang))
         return {"input_ids": lyric_token_idx}
 
     @staticmethod
@@ -103,7 +102,7 @@ class UMT5BaseModel(sd1_clip.SDClipModel):
     def __init__(self, device="cpu", layer="last", layer_idx=None, dtype=None, model_options=None, textmodel_json_config=None):
         if model_options is None:
             model_options = {}
-        textmodel_json_config = get_path_as_dict(textmodel_json_config,  "umt5_config_base.json", package=__package__)
+        textmodel_json_config = get_path_as_dict(textmodel_json_config, "umt5_config_base.json", package=__package__)
         super().__init__(device=device, layer=layer, layer_idx=layer_idx, textmodel_json_config=textmodel_json_config, dtype=dtype, special_tokens={"end": 1, "pad": 0}, model_class=T5, enable_attention_masks=True, zero_out_masked=False, model_options=model_options)
 
 

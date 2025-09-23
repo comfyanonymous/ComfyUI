@@ -690,7 +690,7 @@ class MultiheadCrossAttention(nn.Module):
         if self.kv_cache:
             if self.data is None:
                 self.data = self.c_kv(data)
-                logging.info('Save kv cache,this should be called only once for one mesh')
+                logger.info('Save kv cache,this should be called only once for one mesh')
             data = self.data
         else:
             data = self.c_kv(data)

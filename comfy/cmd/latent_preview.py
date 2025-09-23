@@ -17,7 +17,7 @@ from ..model_downloader import get_or_download, KNOWN_APPROX_VAES
 from ..taesd.taesd import TAESD
 
 MAX_PREVIEW_RESOLUTION = args.preview_size
-
+logger = logging.getLogger(__name__)
 
 def preview_to_image(latent_image) -> Image:
     latents_ubyte = (((latent_image + 1.0) / 2.0).clamp(0, 1)  # change scale from -1..1 to 0..1
@@ -94,7 +94,7 @@ def get_previewer(device, latent_format):
                 taesd = TAESD(None, taesd_decoder_path, latent_channels=latent_format.latent_channels).to(device)
                 previewer = TAESDPreviewerImpl(taesd)
             else:
-                logging.warning("Warning: TAESD previews enabled, but could not find models/vae_approx/{}".format(latent_format.taesd_decoder_name))
+                logger.warning("Warning: TAESD previews enabled, but could not find models/vae_approx/{}".format(latent_format.taesd_decoder_name))
 
         if previewer is None:
             if latent_format.latent_rgb_factors is not None:

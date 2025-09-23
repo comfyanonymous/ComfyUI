@@ -5,6 +5,8 @@ import torch
 from . import utils
 import logging
 
+logger = logging.getLogger(__name__)
+
 
 class CONDRegular:
     def __init__(self, cond):
@@ -20,7 +22,7 @@ class CONDRegular:
         if self.cond.shape != other.cond.shape:
             return False
         if self.cond.device != other.cond.device:
-            logging.warning("WARNING: conds not on same device, skipping concat.")
+            logger.warning("WARNING: conds not on same device, skipping concat.")
             return False
         return True
 
@@ -58,7 +60,7 @@ class CONDCrossAttn(CONDRegular):
             if diff > 4:  # arbitrary limit on the padding because it's probably going to impact performance negatively if it's too much
                 return False
         if self.cond.device != other.cond.device:
-            logging.warning("WARNING: conds not on same device: skipping concat.")
+            logger.warning("WARNING: conds not on same device: skipping concat.")
             return False
         return True
 

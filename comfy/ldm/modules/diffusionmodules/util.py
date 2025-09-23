@@ -17,6 +17,8 @@ from einops import repeat, rearrange
 
 from ...util import instantiate_from_config
 
+logger = logging.getLogger(__name__)
+
 class AlphaBlender(nn.Module):
     strategies = ["learned", "fixed", "learned_with_images"]
 
@@ -131,7 +133,7 @@ def make_ddim_timesteps(ddim_discr_method, num_ddim_timesteps, num_ddpm_timestep
     # add one to get the final alpha values right (the ones from first scale to data during sampling)
     steps_out = ddim_timesteps + 1
     if verbose:
-        logging.info(f'Selected timesteps for ddim sampler: {steps_out}')
+        logger.info(f'Selected timesteps for ddim sampler: {steps_out}')
     return steps_out
 
 
@@ -143,8 +145,8 @@ def make_ddim_sampling_parameters(alphacums, ddim_timesteps, eta, verbose=True):
     # according the the formula provided in https://arxiv.org/abs/2010.02502
     sigmas = eta * np.sqrt((1 - alphas_prev) / (1 - alphas) * (1 - alphas / alphas_prev))
     if verbose:
-        logging.info(f'Selected alphas for ddim sampler: a_t: {alphas}; a_(t-1): {alphas_prev}')
-        logging.info(f'For the chosen value of eta, which is {eta}, '
+        logger.info(f'Selected alphas for ddim sampler: a_t: {alphas}; a_(t-1): {alphas_prev}')
+        logger.info(f'For the chosen value of eta, which is {eta}, '
               f'this results in the following sigma_t schedule for ddim sampler {sigmas}')
     return sigmas, alphas, alphas_prev
 

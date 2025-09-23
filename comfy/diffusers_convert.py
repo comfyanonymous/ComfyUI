@@ -7,7 +7,7 @@ import logging
 # ================#
 # VAE Conversion #
 # ================#
-
+logger = logging.getLogger(__name__)
 vae_conversion_map = [
     # (stable-diffusion, HF Diffusers)
     ("nin_shortcut", "conv_shortcut"),
@@ -86,7 +86,7 @@ def convert_vae_state_dict(vae_state_dict):
     for k, v in new_state_dict.items():
         for weight_name in weights_to_convert:
             if f"mid.attn_1.{weight_name}.weight" in k:
-                logging.debug(f"Reshaping {k} for SD format")
+                logger.debug(f"Reshaping {k} for SD format")
                 new_state_dict[k] = reshape_weight_for_sd(v, conv3d=conv3d)
     return new_state_dict
 
