@@ -7,7 +7,7 @@ RMSNorm = None
 
 try:
     rms_norm_torch = torch.nn.functional.rms_norm  # pylint: disable=no-member
-    RMSNorm = torch.nn.RMSNorm
+    RMSNorm = torch.nn.RMSNorm # pylint: disable=no-member
 except:
     rms_norm_torch = None
     logging.warning("Please update pytorch to use native RMSNorm")

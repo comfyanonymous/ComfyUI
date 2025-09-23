@@ -326,7 +326,7 @@ def load_surface_sharpedge(mesh, num_points=4096, num_sharp_points=4096, sharped
     try:
         import trimesh  # pylint: disable=import-error
     except (ImportError, ModuleNotFoundError) as exc_info:
-        logger.warn("trimesh not installed")
+        logger.warning("trimesh not installed")
         raise exc_info
 
     try:
