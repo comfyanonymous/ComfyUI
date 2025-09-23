@@ -8,14 +8,8 @@ import os
 import re
 import traceback
 import zipfile
-import logging
 from pathlib import Path
-
-try:
-    from importlib.resources.abc import Traversable  # pylint: disable=no-name-in-module
-except ImportError:
-    from importlib.abc import Traversable  # pylint: disable=no-name-in-module
-from typing import Tuple, Sequence, TypeVar, Callable
+from typing import Tuple, Sequence, TypeVar, Callable, Optional, Union
 
 import torch
 from transformers import CLIPTokenizer, PreTrainedTokenizerBase
@@ -26,6 +20,11 @@ from . import ops
 from .component_model import files
 from .component_model.files import get_path_as_dict, get_package_as_path
 from .text_encoders.spiece_tokenizer import SPieceTokenizer
+
+try:
+    from importlib.resources.abc import Traversable  # pylint: disable=no-name-in-module
+except ImportError:
+    from importlib.abc import Traversable  # pylint: disable=no-name-in-module, deprecated-class
 
 logger = logging.getLogger(__name__)
 
@@ -547,7 +546,7 @@ SDTokenizerT = TypeVar('SDTokenizerT', bound='SDTokenizer')
 
 
 class SDTokenizer:
-    def __init__(self, tokenizer_path: torch.Tensor | bytes | bytearray | memoryview | str | Path | Traversable = None, max_length=77, pad_with_end=True, embedding_directory=None, embedding_size=768, embedding_key='clip_l', tokenizer_class=CLIPTokenizer, has_start_token=True, has_end_token=True, pad_to_max_length=True, min_length=None, pad_token=None, end_token=None, min_padding=None, tokenizer_data=None, tokenizer_args=None):
+    def __init__(self, tokenizer_path: Optional[Union[torch.Tensor, bytes, bytearray, memoryview, str, Path, Traversable]] = None, max_length=77, pad_with_end=True, embedding_directory=None, embedding_size=768, embedding_key='clip_l', tokenizer_class=CLIPTokenizer, has_start_token=True, has_end_token=True, pad_to_max_length=True, min_length=None, pad_token=None, end_token=None, min_padding=None, tokenizer_data=None, tokenizer_args=None):
         if tokenizer_data is None:
             tokenizer_data = dict()
         if tokenizer_args is None:

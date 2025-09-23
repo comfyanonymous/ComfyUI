@@ -600,7 +600,6 @@ disable=raw-checker-failed,
         preferred-module,
         misplaced-future,
         shadowed-import,
-        deprecated-module,
         missing-timeout,
         useless-with-lock,
         bare-except,
@@ -623,11 +622,6 @@ disable=raw-checker-failed,
         unspecified-encoding,
         forgotten-debug-statement,
         method-cache-max-size-none,
-        deprecated-method,
-        deprecated-argument,
-        deprecated-class,
-        deprecated-decorator,
-        deprecated-attribute,
         bad-format-string-key,
         unused-format-string-key,
         bad-format-string,
@@ -678,7 +672,12 @@ disable=raw-checker-failed,
 # either give multiple identifier separated by comma (,) or put this option
 # multiple time (only on the command line, not in the configuration file where
 # it should appear only once). See also the "--disable" option for examples.
-enable=
+enable=deprecated-module,
+       deprecated-method,
+       deprecated-argument,
+       deprecated-class,
+       deprecated-decorator,
+       deprecated-attribute
 
 [METHOD_ARGS]
 

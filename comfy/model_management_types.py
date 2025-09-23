@@ -3,11 +3,11 @@ from __future__ import annotations
 import copy
 import dataclasses
 from abc import ABCMeta, abstractmethod
-from typing import Protocol, Optional, TypeVar, runtime_checkable, Callable, Any, NamedTuple, override, TYPE_CHECKING
+from typing import Protocol, Optional, TypeVar, runtime_checkable, Callable, Any, NamedTuple, TYPE_CHECKING
 
 import torch
 import torch.nn
-from typing_extensions import TypedDict, NotRequired
+from typing_extensions import TypedDict, NotRequired, override
 
 from .comfy_types import UnetWrapperFunction
 from .latent_formats import LatentFormat
@@ -108,8 +108,6 @@ class HooksSupportStub(HooksSupport, metaclass=ABCMeta):
 
             if isinstance(model, BaseModel) or hasattr(model, "current_patcher") and isinstance(self, ModelManageable):
                 model.current_patcher = self
-
-
 
     def prepare_state(self, *args, **kwargs):
         pass
@@ -218,7 +216,6 @@ class ModelManageableStub(HooksSupportStub, TrainingSupportStub, ModelManageable
     :see: ModelManageable
     :see: PatchSupport
     """
-
 
     @abstractmethod
     def patch_model(self, device_to: torch.device | None = None, lowvram_model_memory: int = 0, load_weights: bool = True,

@@ -8,6 +8,7 @@ import comfy.model_patcher
 if TYPE_CHECKING:
     from uuid import UUID
 
+logger = logging.getLogger(__name__)
 
 def easycache_forward_wrapper(executor, *args, **kwargs):
     # get values from args
@@ -32,7 +33,7 @@ def easycache_forward_wrapper(executor, *args, **kwargs):
         # if first cond marked this step for skipping, skip it and use appropriate cached values
         if easycache.skip_current_step:
             if easycache.verbose:
-                logging.info(f"EasyCache [verbose] - was marked to skip this step by {easycache.first_cond_uuid}. Present uuids: {uuids}")
+                logger.info(f"EasyCache [verbose] - was marked to skip this step by {easycache.first_cond_uuid}. Present uuids: {uuids}")
             return easycache.apply_cache_diff(x, uuids)
         if easycache.initial_step:
             easycache.first_cond_uuid = uuids[0]
@@ -46,13 +47,13 @@ def easycache_forward_wrapper(executor, *args, **kwargs):
                 easycache.cumulative_change_rate += approx_output_change_rate
                 if easycache.cumulative_change_rate < easycache.reuse_threshold:
                     if easycache.verbose:
-                        logging.info(f"EasyCache [verbose] - skipping step; cumulative_change_rate: {easycache.cumulative_change_rate}, reuse_threshold: {easycache.reuse_threshold}")
+                        logger.info(f"EasyCache [verbose] - skipping step; cumulative_change_rate: {easycache.cumulative_change_rate}, reuse_threshold: {easycache.reuse_threshold}")
                     # other conds should also skip this step, and instead use their cached values
                     easycache.skip_current_step = True
                     return easycache.apply_cache_diff(x, uuids)
                 else:
                     if easycache.verbose:
-                        logging.info(f"EasyCache [verbose] - NOT skipping step; cumulative_change_rate: {easycache.cumulative_change_rate}, reuse_threshold: {easycache.reuse_threshold}")
+                        logger.info(f"EasyCache [verbose] - NOT skipping step; cumulative_change_rate: {easycache.cumulative_change_rate}, reuse_threshold: {easycache.reuse_threshold}")
                     easycache.cumulative_change_rate = 0.0
 
     output: torch.Tensor = executor(*args, **kwargs)
@@ -65,11 +66,11 @@ def easycache_forward_wrapper(executor, *args, **kwargs):
             approx_output_change_rate = (easycache.relative_transformation_rate * input_change) / easycache.output_prev_norm
             easycache.approx_output_change_rates.append(approx_output_change_rate.item())
             if easycache.verbose:
-                logging.info(f"EasyCache [verbose] - approx_output_change_rate: {approx_output_change_rate}")
+                logger.info(f"EasyCache [verbose] - approx_output_change_rate: {approx_output_change_rate}")
         if input_change is not None:
             easycache.relative_transformation_rate = output_change / input_change
         if easycache.verbose:
-            logging.info(f"EasyCache [verbose] - output_change_rate: {output_change_rate}")
+            logger.info(f"EasyCache [verbose] - output_change_rate: {output_change_rate}")
     # TODO: allow cache_diff to be offloaded
     easycache.update_cache_diff(output, next_x_prev, uuids)
     if has_first_cond_uuid:
@@ -77,7 +78,7 @@ def easycache_forward_wrapper(executor, *args, **kwargs):
         easycache.output_prev_subsampled = easycache.subsample(output, uuids)
         easycache.output_prev_norm = output.flatten().abs().mean()
         if easycache.verbose:
-            logging.info(f"EasyCache [verbose] - x_prev_subsampled: {easycache.x_prev_subsampled.shape}")
+            logger.info(f"EasyCache [verbose] - x_prev_subsampled: {easycache.x_prev_subsampled.shape}")
     return output
 
 def lazycache_predict_noise_wrapper(executor, *args, **kwargs):
@@ -102,13 +103,13 @@ def lazycache_predict_noise_wrapper(executor, *args, **kwargs):
                 easycache.cumulative_change_rate += approx_output_change_rate
                 if easycache.cumulative_change_rate < easycache.reuse_threshold:
                     if easycache.verbose:
-                        logging.info(f"LazyCache [verbose] - skipping step; cumulative_change_rate: {easycache.cumulative_change_rate}, reuse_threshold: {easycache.reuse_threshold}")
+                        logger.info(f"LazyCache [verbose] - skipping step; cumulative_change_rate: {easycache.cumulative_change_rate}, reuse_threshold: {easycache.reuse_threshold}")
                     # other conds should also skip this step, and instead use their cached values
                     easycache.skip_current_step = True
                     return easycache.apply_cache_diff(x)
                 else:
                     if easycache.verbose:
-                        logging.info(f"LazyCache [verbose] - NOT skipping step; cumulative_change_rate: {easycache.cumulative_change_rate}, reuse_threshold: {easycache.reuse_threshold}")
+                        logger.info(f"LazyCache [verbose] - NOT skipping step; cumulative_change_rate: {easycache.cumulative_change_rate}, reuse_threshold: {easycache.reuse_threshold}")
                     easycache.cumulative_change_rate = 0.0
     output: torch.Tensor = executor(*args, **kwargs)
     if easycache.has_output_prev_norm():
@@ -120,18 +121,18 @@ def lazycache_predict_noise_wrapper(executor, *args, **kwargs):
             approx_output_change_rate = (easycache.relative_transformation_rate * input_change) / easycache.output_prev_norm
             easycache.approx_output_change_rates.append(approx_output_change_rate.item())
             if easycache.verbose:
-                logging.info(f"LazyCache [verbose] - approx_output_change_rate: {approx_output_change_rate}")
+                logger.info(f"LazyCache [verbose] - approx_output_change_rate: {approx_output_change_rate}")
         if input_change is not None:
             easycache.relative_transformation_rate = output_change / input_change
         if easycache.verbose:
-            logging.info(f"LazyCache [verbose] - output_change_rate: {output_change_rate}")
+            logger.info(f"LazyCache [verbose] - output_change_rate: {output_change_rate}")
     # TODO: allow cache_diff to be offloaded
     easycache.update_cache_diff(output, next_x_prev)
     easycache.x_prev_subsampled = easycache.subsample(next_x_prev)
     easycache.output_prev_subsampled = easycache.subsample(output)
     easycache.output_prev_norm = output.flatten().abs().mean()
     if easycache.verbose:
-        logging.info(f"LazyCache [verbose] - x_prev_subsampled: {easycache.x_prev_subsampled.shape}")
+        logger.info(f"LazyCache [verbose] - x_prev_subsampled: {easycache.x_prev_subsampled.shape}")
     return output
 
 def easycache_calc_cond_batch_wrapper(executor, *args, **kwargs):
@@ -152,22 +153,22 @@ def easycache_sample_wrapper(executor, *args, **kwargs):
         # clone and prepare timesteps
         guider.model_options["transformer_options"]["easycache"] = guider.model_options["transformer_options"]["easycache"].clone().prepare_timesteps(guider.model_patcher.model.model_sampling)
         easycache: Union[EasyCacheHolder, LazyCacheHolder] = guider.model_options['transformer_options']['easycache']
-        logging.info(f"{easycache.name} enabled - threshold: {easycache.reuse_threshold}, start_percent: {easycache.start_percent}, end_percent: {easycache.end_percent}")
+        logger.info(f"{easycache.name} enabled - threshold: {easycache.reuse_threshold}, start_percent: {easycache.start_percent}, end_percent: {easycache.end_percent}")
         return executor(*args, **kwargs)
     finally:
         easycache = guider.model_options['transformer_options']['easycache']
         output_change_rates = easycache.output_change_rates
         approx_output_change_rates = easycache.approx_output_change_rates
         if easycache.verbose:
-            logging.info(f"{easycache.name} [verbose] - output_change_rates {len(output_change_rates)}: {output_change_rates}")
-            logging.info(f"{easycache.name} [verbose] - approx_output_change_rates {len(approx_output_change_rates)}: {approx_output_change_rates}")
+            logger.info(f"{easycache.name} [verbose] - output_change_rates {len(output_change_rates)}: {output_change_rates}")
+            logger.info(f"{easycache.name} [verbose] - approx_output_change_rates {len(approx_output_change_rates)}: {approx_output_change_rates}")
         total_steps = len(args[3])-1
         # catch division by zero for log statement; sucks to crash after all sampling is done
         try:
             speedup = total_steps/(total_steps-easycache.total_steps_skipped)
         except ZeroDivisionError:
             speedup = 1.0
-        logging.info(f"{easycache.name} - skipped {easycache.total_steps_skipped}/{total_steps} steps ({speedup:.2f}x speedup).")
+        logger.info(f"{easycache.name} - skipped {easycache.total_steps_skipped}/{total_steps} steps ({speedup:.2f}x speedup).")
         easycache.reset()
         guider.model_options = orig_model_options
 
@@ -298,7 +299,7 @@ class EasyCacheHolder:
             return True
         if metadata == self.state_metadata:
             return True
-        logging.warn(f"{self.name} - Tensor shape, dtype or device changed, resetting state")
+        logger.warning(f"{self.name} - Tensor shape, dtype or device changed, resetting state")
         self.reset()
         return False
 
@@ -432,7 +433,7 @@ class LazyCacheHolder:
             return True
         if metadata == self.state_metadata:
             return True
-        logging.warn(f"{self.name} - Tensor shape, dtype or device changed, resetting state")
+        logger.warning(f"{self.name} - Tensor shape, dtype or device changed, resetting state")
         self.reset()
         return False
 

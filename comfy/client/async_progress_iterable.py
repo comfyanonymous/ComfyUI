@@ -1,7 +1,8 @@
 import asyncio
 import uuid
 from asyncio import Task, Future
-from typing import override, NamedTuple, Optional, AsyncIterable
+from typing import NamedTuple, Optional, AsyncIterable
+from typing_extensions import override
 
 from .client_types import V1QueuePromptResponse, ProgressNotification
 from ..component_model.executor_types import ExecutorToClientProgress, SendSyncEvent, SendSyncData

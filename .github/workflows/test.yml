@@ -11,7 +11,7 @@ on: [ push ]
 jobs:
   build_and_execute_linux:
     environment: "Testing"
-    name: Installation, Unit and Workflow Tests for Linux
+    name: Installation, Unit and Workflow Tests for Linux (${{ matrix.runner.friendly_name }})
     runs-on: ${{ matrix.runner.labels }}
     container: ${{ matrix.runner.container }}
     strategy:
@@ -19,7 +19,17 @@ jobs:
       matrix:
         runner:
           - labels: [self-hosted, Linux, X64, cuda-3090-24gb]
+            friendly_name: "Python 3.12 CUDA 12.9.1 Torch-TensorRT 2.8.0a0"
+            container: "nvcr.io/nvidia/pytorch:25.06-py3"
+          - labels: [self-hosted, Linux, X64, cuda-3090-24gb]
+            friendly_name: "(LTS) Python 3.12 CUDA 12.8.1.012 Torch-TensorRT 2.7.0a0"
             container: "nvcr.io/nvidia/pytorch:25.03-py3"
+          - labels: [self-hosted, Linux, X64, cuda-3090-24gb]
+            friendly_name: "Python 3.10 CUDA 12.6.2 Torch-TensorRT 2.5.0a0"
+            container: "nvcr.io/nvidia/pytorch:24.10-py3"
+          - labels: [self-hosted, Linux, X64, cuda-3090-24gb]
+            friendly_name: "Python 3.10 CUDA 12.3.2 Torch-TensorRT 2.2.0a0"
+            container: "nvcr.io/nvidia/pytorch:23.12-py3"
     steps:
       - run: |
           apt-get update
