@@ -87,7 +87,7 @@ class UnrecoverableError(Exception):
     pass
 
 
-class TestExceptionNode(CustomNode):
+class ThrowsExceptionNode(CustomNode):
     """Node that raises a specific exception for testing"""
 
     @classmethod
@@ -113,7 +113,7 @@ class TestExceptionNode(CustomNode):
 
 # Export the node mappings
 TEST_NODE_CLASS_MAPPINGS = {
-    "TestExceptionNode": TestExceptionNode,
+    "TestExceptionNode": ThrowsExceptionNode,
 }
 
 TEST_NODE_DISPLAY_NAME_MAPPINGS = {

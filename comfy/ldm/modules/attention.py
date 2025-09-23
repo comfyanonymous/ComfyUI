@@ -27,9 +27,8 @@ try:
 
     SAGE_ATTENTION_IS_AVAILABLE = True
 except (ImportError, ModuleNotFoundError) as e:
-    if e.name == "sageattention":
-        logger.error(f"To use the `--use-sage-attention` feature, the `sageattention` package must be installed first.")
-    sageattn = torch.nn.functional.scaled_dot_product_attention
+    if e.name == "sageattention" and model_management.sage_attention_enabled():
+        logger.debug(f"To use the `--use-sage-attention` feature, the `sageattention` package must be installed first.")
 
 flash_attn_func = torch.nn.functional.scaled_dot_product_attention
 FLASH_ATTENTION_IS_AVAILABLE = False
@@ -39,8 +38,7 @@ try:
     FLASH_ATTENTION_IS_AVAILABLE = True
 except (ImportError, ModuleNotFoundError):
     if model_management.flash_attention_enabled():
-        logging.error(f"\n\nTo use the `--use-flash-attention` feature, the `flash-attn` package must be installed first.")
-    flash_attn_func = torch.nn.functional.scaled_dot_product_attention
+        logging.debug(f"\n\nTo use the `--use-flash-attention` feature, the `flash-attn` package must be installed first.")
 
 REGISTERED_ATTENTION_FUNCTIONS = {}
 
