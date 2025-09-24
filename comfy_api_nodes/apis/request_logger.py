@@ -5,6 +5,7 @@ import datetime
 import json
 import logging
 import folder_paths
+import re
 
 # Get the logger instance
 logger = logging.getLogger(__name__)
@@ -55,7 +56,8 @@ def log_request_response(
     """
     log_dir = get_log_directory()
     timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S_%f")
-    filename = f"{timestamp}_{operation_id.replace('/', '_').replace(':', '_')}.log"
+    safe_operation_id = re.sub(r'[^A-Za-z0-9._-]', '_', operation_id)
+    filename = f"{timestamp}_{safe_operation_id}"[:220]+".log"
     filepath = os.path.join(log_dir, filename)
 
     log_content = []
