@@ -229,8 +229,8 @@ class Rodin3DAPI:
 
         return mesh_mode, quality
 
-    async def download_files(self, url_list):
-        save_path = os.path.join(comfy_paths.get_output_directory(), "Rodin3D", datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S"))
+    async def download_files(self, url_list, task_uuid):
+        save_path = os.path.join(comfy_paths.get_output_directory(), f"Rodin3D_{task_uuid}")
         os.makedirs(save_path, exist_ok=True)
         model_file_path = None
         async with aiohttp.ClientSession() as session:
@@ -306,7 +306,7 @@ class Rodin3D_Regular(Rodin3DAPI):
                                                                 **kwargs)
         await self.poll_for_task_status(subscription_key, **kwargs)
         download_list = await self.get_rodin_download_list(task_uuid, **kwargs)
-        model = await self.download_files(download_list)
+        model = await self.download_files(download_list, task_uuid)
 
         return (model,)
 
@@ -352,7 +352,7 @@ class Rodin3D_Detail(Rodin3DAPI):
                                                                 **kwargs)
         await self.poll_for_task_status(subscription_key, **kwargs)
         download_list = await self.get_rodin_download_list(task_uuid, **kwargs)
-        model = await self.download_files(download_list)
+        model = await self.download_files(download_list, task_uuid)
 
         return (model,)
 
@@ -398,7 +398,7 @@ class Rodin3D_Smooth(Rodin3DAPI):
                                                                 **kwargs)
         await self.poll_for_task_status(subscription_key, **kwargs)
         download_list = await self.get_rodin_download_list(task_uuid, **kwargs)
-        model = await self.download_files(download_list)
+        model = await self.download_files(download_list, task_uuid)
 
         return (model,)
 
@@ -453,7 +453,7 @@ class Rodin3D_Sketch(Rodin3DAPI):
         )
         await self.poll_for_task_status(subscription_key, **kwargs)
         download_list = await self.get_rodin_download_list(task_uuid, **kwargs)
-        model = await self.download_files(download_list)
+        model = await self.download_files(download_list, task_uuid)
 
         return (model,)
 
