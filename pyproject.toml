@@ -27,7 +27,7 @@ dependencies = [
     "torchsde>=0.2.6",
     "einops>=0.6.0",
     "open-clip-torch>=2.24.0",
-    "transformers!=4.53.0,!=4.53.1,!=4.53.2",
+    "transformers>=4.46.0,!=4.53.0,!=4.53.1,!=4.53.2",
     "tokenizers>=0.13.3",
     "sentencepiece",
     "peft>=0.10.0",
@@ -161,7 +161,8 @@ cu128 = [
 rocm = [
     "torch",
     "torchvision",
-    "pytorch-triton-rocm"
+    "pytorch-triton-rocm",
+    "rocm[libraries,devel]",
 ]
 
 mps = [
@@ -204,6 +205,7 @@ no-build-isolation-package = [
     "sage-attention",
     "flash_attn",
 ]
+prerelease = "allow"
 
 [[tool.uv.index]]
 name = "pytorch-cpu"
@@ -224,7 +226,7 @@ explicit = true
 name = "pytorch-rocm"
 url = "https://repo.radeon.com/rocm/manylinux/rocm-rel-7.0/"
 format = "flat"
-explicit = true
+explicit = false
 
 [[tool.uv.index]]
 name = "pytorch-nightly-cpu"

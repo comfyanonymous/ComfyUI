@@ -4,8 +4,6 @@ ENV TZ="Etc/UTC"
 
 ENV UV_COMPILE_BYTECODE=1
 ENV UV_NO_CACHE=1
-ENV UV_SYSTEM_PYTHON=1
-ENV UV_BREAK_SYSTEM_PACKAGES=1
 ENV PIP_DISABLE_PIP_VERSION_CHECK=1
 ENV PIP_NO_CACHE_DIR=1
 ENV DEBIAN_FRONTEND=noninteractive
@@ -13,15 +11,15 @@ ENV DEBIAN_FRONTEND=noninteractive
 ENV LANG=C.UTF-8
 ENV LC_ALL=C.UTF-8
 
-RUN pip freeze | grep nvidia >> /overrides.txt; pip freeze | grep torch >> /overrides.txt; pip freeze | grep opencv >> /overrides.txt; pip freeze | grep numpy >> /overrides.txt; echo "sentry-sdk; python_version < '0'" >> /overrides.txt
+RUN uv pip freeze | grep torch >> /overrides.txt; uv pip freeze | grep opencv >> /overrides.txt; uv pip freeze | grep numpy >> /overrides.txt; uv pip freeze | grep rocm >> /overrides.txt; echo "sentry-sdk; python_version < '0'" >> /overrides.txt
 
 ENV UV_OVERRIDE=/overrides.txt
-ENV UV_TORCH_BACKEND=auto
+env UV_PRERELEASE=allow
 
 # mitigates AttributeError: module 'cv2.dnn' has no attribute 'DictValue' \
 # see https://github.com/facebookresearch/nougat/issues/40
 RUN apt-get update && \
-    apt-get install --no-install-recommends -y ffmpeg libsm6 libxext6 && \
+    apt-get install --no-install-recommends -y ffmpeg libsm6 libxext6 libsndfile1 && \
     pip install uv && uv --version && \
     apt-get purge -y && \
     rm -rf /var/lib/apt/lists/*
@@ -42,7 +40,7 @@ RUN uv pip install $SOURCES
 WORKDIR /workspace
 # addresses https://github.com/pytorch/pytorch/issues/104801
 # and issues reported by importing nodes_canny
-RUN comfyui --quick-test-for-ci --cpu --cwd /workspace
+RUN python -c "import torch; import transformers; from transformers import AutoProcessor, BatchFeature; import torchaudio; import cv2" && comfyui --quick-test-for-ci --cpu --cwd /workspace
 
 EXPOSE 8188
 CMD ["python", "-m", "comfy.cmd.main", "--listen"]

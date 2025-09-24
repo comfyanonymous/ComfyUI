@@ -80,32 +80,38 @@ jobs:
             container: "rocm/pytorch:rocm7.0_ubuntu24.04_py3.12_pytorch_release_2.7.1"
     steps:
       - run: |
-          apt-get update
-          # required for opencv
-          apt-get install --no-install-recommends -y ffmpeg libsm6 libxext6
-        name: Prepare Python
-      - run: |
           curl -LsSf https://astral.sh/uv/install.sh | sh
         name: Install uv
+      - name: Align ROCm to Image
+        run: |
+          # our testing infrastructure uses RX 7XXX GPUs, this includes express support for gfx1102, gfx1101 which will resolve crashes
+          export UV_PRERELEASE=allow
+          uv pip install --index-url https://rocm.nightlies.amd.com/v2/gfx110X-dgpu/ "rocm[libraries]<7.9" "torch==2.7.1+rocm7.0.0rc20250922" "torchaudio==2.7.1a0+rocm7.0.0rc20250922" "torchvision==0.22.1+rocm7.0.0rc20250922" "pytorch_triton_rocm" --pre
       - uses: actions/checkout@v4
         name: Checkout git repo
+        with:
+          path: src
+      - run: |
+          apt install libsndfile1 -y --no-install-recommends
+        name: sndfile Dependency
+      - name: Write Overrides
+        run: |
+          echo ${GITHUB_WORKSPACE}
+          touch overrides.txt
+          uv pip freeze | grep -E 'torch|rocm|numpy|opencv' >> overrides.txt
+          echo "sentry-sdk; python_version < '0'" >> overrides.txt
       - name: Install ComfyUI
         run: |
-          export UV_BREAK_SYSTEM_PACKAGES=true
-          export UV_SYSTEM_PYTHON=true
-          pip freeze | grep nvidia >> overrides.txt; pip freeze | grep torch >> overrides.txt; pip freeze | grep opencv >> overrides.txt; pip freeze | grep numpy >> overrides.txt; echo "sentry-sdk; python_version < '0'" >> overrides.txt
+          export UV_PRERELEASE=allow
           export UV_OVERRIDE=overrides.txt
-          export UV_TORCH_BACKEND=auto
-          
-          # our testing infrastructure uses RX 7600, this includes express support for gfx1102
-          uv pip install --no-deps --index-url https://rocm.nightlies.amd.com/v2/gfx110X-dgpu/ "rocm[libraries,devel]"
-          
-          uv pip install --torch-backend=auto ".[rocm]"
+          uv pip install "comfyui[rocm,dev]@${GITHUB_WORKSPACE}/src"
       - name: Lint for errors
         run: |
+          cd ${GITHUB_WORKSPACE}/src
           pylint --rcfile=.pylintrc comfy/ comfy_extras/ comfy_api/ comfy_api_nodes/
       - name: Run unit tests
         run: |
+          cd ${GITHUB_WORKSPACE}/src
           pytest -v tests/unit
   build_and_execute_macos:
     environment: "Testing"
