@@ -53,9 +53,7 @@ class TrainSampler(comfy.samplers.Sampler):
         cond = model_wrap.conds["positive"]
         dataset_size = sigmas.size(0)
         torch.cuda.empty_cache()
-        pbar_gui = comfy.utils.ProgressBar(self.total_steps)
         for i in (pbar:=tqdm.trange(self.total_steps, desc="Training LoRA", smoothing=0.01, disable=not comfy.utils.PROGRESS_BAR_ENABLED)):
-            pbar_gui.update(1)
             noisegen = comfy_extras.nodes_custom_sampler.Noise_RandomNoise(self.seed + i * 1000)
             indicies = torch.randperm(dataset_size)[:self.batch_size].tolist()
 
