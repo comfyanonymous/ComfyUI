@@ -124,7 +124,7 @@ class Rodin3DAPI:
     async def create_generate_task(self, images=None, seed=1, material="PBR", quality_override=18000, tier="Regular", mesh_mode="Quad", TAPose = False, **kwargs):
         if images is None:
             raise Exception("Rodin 3D generate requires at least 1 image.")
-        if len(images) >= 5:
+        if len(images) > 5:
             raise Exception("Rodin 3D generate requires up to 5 image.")
 
         path = "/proxy/rodin/api/v2/rodin"
