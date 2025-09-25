@@ -1355,7 +1355,7 @@ class WanT2VCrossAttentionGather(WanSelfAttention):
 
         x = optimized_attention(q, k, v, heads=self.num_heads, skip_reshape=True, skip_output_reshape=True, transformer_options=transformer_options)
 
-        x = x.transpose(1, 2).view(b, -1, n, d).flatten(2)
+        x = x.transpose(1, 2).reshape(b, -1, n * d)
         x = self.o(x)
         return x
 
