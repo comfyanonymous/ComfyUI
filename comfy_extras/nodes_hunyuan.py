@@ -1,3 +1,4 @@
+import math
 import nodes
 import node_helpers
 import torch
@@ -91,9 +92,9 @@ class AdaptiveProjectedGuidance:
         self.use_original_formulation = use_original_formulation
         self.momentum_buffer = None
 
-    def __call__(self, pred_cond: torch.Tensor, pred_uncond=None, step=None) -> torch.Tensor:
+    def __call__(self, pred_cond: torch.Tensor, pred_uncond=None, is_first_step=False) -> torch.Tensor:
 
-        if step == 0 and self.adaptive_projected_guidance_momentum is not None:
+        if is_first_step and self.adaptive_projected_guidance_momentum is not None:
             self.momentum_buffer = MomentumBuffer(self.adaptive_projected_guidance_momentum)
 
         pred = normalized_guidance_apg(
@@ -160,42 +161,36 @@ class HunyuanMixModeAPG:
         general_start_t = model_sampling.percent_to_sigma(general_start_percent)
         ocr_start_t = model_sampling.percent_to_sigma(ocr_start_percent)
 
-        step_tracker = {"step": 0}
-
-        def hunyuan_apg_outer_sample_wrapper(executor, *args, **kwargs):
-            step_tracker['step'] = 0
-            return executor(*args, **kwargs)
 
         def cfg_function(args):
             sigma = args["sigma"].to(torch.float32)
-            sigma = sigma[:, None, None, None]
+            is_first_step = math.isclose(sigma.item(), args['model_options']['transformer_options']['sample_sigmas'][0].item())
             cond = args["cond"]
             uncond = args["uncond"]
             cond_scale = args["cond_scale"]
 
-            step = step_tracker['step']
-            step_tracker['step'] += 1
+            sigma = sigma[:, None, None, None]
+
 
             if not has_quoted_text:
                 if sigma[0] <= general_start_t:
-                    modified_cond = general_apg(cond / sigma, uncond / sigma, step)
+                    modified_cond = general_apg(cond / sigma, uncond / sigma, is_first_step=is_first_step)
                     return modified_cond * sigma
                 else:
                     if cond_scale > 1:
-                        _ = general_apg(cond / sigma, uncond / sigma, step) # track momentum
+                        _ = general_apg(cond / sigma, uncond / sigma, is_first_step=is_first_step) # track momentum
                         return uncond + (cond - uncond) * cond_scale
             else:
                 if sigma[0] <= ocr_start_t:
-                    modified_cond = ocr_apg(cond / sigma, uncond / sigma, step)
+                    modified_cond = ocr_apg(cond / sigma, uncond / sigma, is_first_step=is_first_step)
                     return modified_cond * sigma
                 else:
                     if cond_scale > 1:
-                        _ = ocr_apg(cond / sigma, uncond / sigma, step) # track momentum
+                        _ = ocr_apg(cond / sigma, uncond / sigma, is_first_step=is_first_step) # track momentum
                         return uncond + (cond - uncond) * cond_scale
 
             return cond
 
-        m.add_wrapper_with_key(comfy.patcher_extension.WrappersMP.OUTER_SAMPLE, "hunyuan_apg", hunyuan_apg_outer_sample_wrapper)
         m.set_model_sampler_cfg_function(cfg_function, disable_cfg1_optimization=True)
         return (m,)
 
