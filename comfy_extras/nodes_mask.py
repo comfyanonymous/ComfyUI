@@ -40,7 +40,6 @@ def composite(destination, source, x, y, mask = None, multiplier = 8, resize_sou
 
     inverse_mask = torch.ones_like(mask) - mask
 
-    print(mask.shape, source.shape, source[..., :visible_height, :visible_width].shape)
     source_portion = mask * source[..., :visible_height, :visible_width]
     destination_portion = inverse_mask  * destination[..., top:bottom, left:right]
 
