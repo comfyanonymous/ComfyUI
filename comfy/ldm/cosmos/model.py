@@ -520,6 +520,7 @@ class GeneralDIT(nn.Module):
                 x.shape == extra_pos_emb_B_T_H_W_D_or_T_H_W_B_D.shape
             ), f"{x.shape} != {extra_pos_emb_B_T_H_W_D_or_T_H_W_B_D.shape} {original_shape}"
 
+        transformer_options = kwargs.get("transformer_options", {})
         for _, block in self.blocks.items():
             assert (
                 self.blocks["block0"].x_format == block.x_format
@@ -534,6 +535,7 @@ class GeneralDIT(nn.Module):
                 crossattn_mask,
                 rope_emb_L_1_1_D=rope_emb_L_1_1_D,
                 adaln_lora_B_3D=adaln_lora_B_3D,
+                transformer_options=transformer_options,
             )
 
         x_B_T_H_W_D = rearrange(x, "T H W B D -> B T H W D")
