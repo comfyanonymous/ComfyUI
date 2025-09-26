@@ -64,7 +64,6 @@ class HunyuanImageTEModel(QwenImageTEModel):
 
     def encode_token_weights(self, token_weight_pairs):
         tok_pairs = token_weight_pairs["qwen25_7b"][0]
-        count_im_start = 0
         template_end = -1
         if tok_pairs[0][0] == 27:
             if len(tok_pairs) > 36:  # refiner prompt uses a fixed 36 template_end
