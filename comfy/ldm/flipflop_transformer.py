@@ -278,13 +278,14 @@ class QwenImage:
                                                                          encoder_hidden_states=kwargs["encoder_hidden_states"],
                                                                          encoder_hidden_states_mask=kwargs["encoder_hidden_states_mask"],
                                                                          temb=kwargs["temb"],
-                                                                         image_rotary_emb=kwargs["image_rotary_emb"])
+                                                                         image_rotary_emb=kwargs["image_rotary_emb"],
+                                                                         transformer_options=kwargs["transformer_options"])
         return kwargs
 
     blocks_config = FlipFlopConfig(block_name="transformer_blocks",
                                    block_wrap_fn=qwen_blocks_wrap,
                                    out_names=("encoder_hidden_states", "hidden_states"),
-                                   overwrite_forward="block_fwd",
+                                   overwrite_forward="blocks_fwd",
                                    pinned_staging=False)
 
 
