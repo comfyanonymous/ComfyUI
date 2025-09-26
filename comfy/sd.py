@@ -836,7 +836,7 @@ class CLIPType(Enum):
     OMNIGEN2 = 17
     QWEN_IMAGE = 18
     HUNYUAN_IMAGE = 19
-
+    HUNYUAN_IMAGE_REFINER = 20
 
 def load_clip(ckpt_paths, embedding_directory=None, clip_type=CLIPType.STABLE_DIFFUSION, model_options={}):
     clip_data = []
@@ -995,6 +995,9 @@ def load_text_encoder_state_dicts(state_dicts=[], embedding_directory=None, clip
             if clip_type == CLIPType.HUNYUAN_IMAGE:
                 clip_target.clip = comfy.text_encoders.hunyuan_image.te(byt5=False, **llama_detect(clip_data))
                 clip_target.tokenizer = comfy.text_encoders.hunyuan_image.HunyuanImageTokenizer
+            elif clip_type == CLIPType.HUNYUAN_IMAGE_REFINER:
+                clip_target.clip = comfy.text_encoders.hunyuan_image.te(byt5=False, refiner=True, **llama_detect(clip_data))
+                clip_target.tokenizer = comfy.text_encoders.hunyuan_image.HunyuanImageRefinerTokenizer
             else:
                 clip_target.clip = comfy.text_encoders.qwen_image.te(**llama_detect(clip_data))
                 clip_target.tokenizer = comfy.text_encoders.qwen_image.QwenImageTokenizer
