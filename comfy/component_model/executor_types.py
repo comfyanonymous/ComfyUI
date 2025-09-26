@@ -291,6 +291,6 @@ ExecutePromptArgs = tuple[dict, str, str, dict, ExecutorToClientProgress | None,
 
 
 @runtime_checkable
-class ValidationView(Protocol):
-    def view_for_validation(self) -> Iterable[str]:
+class ComboOptions(Protocol):
+    def view_for_validation(self) -> list[str]:
         ...

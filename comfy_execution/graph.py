@@ -2,12 +2,13 @@ from __future__ import annotations
 
 import asyncio
 import inspect
-from typing import Optional, Type, Literal
+from typing import Optional, Type, Literal, Union, NamedTuple
 
+from comfy.nodes.package_typing import CustomNode, InputTypes
 from comfy_execution.graph_utils import is_link, ExecutionBlocker
 from comfy.comfy_types.node_typing import ComfyNodeABC, InputTypeDict, InputTypeOptions
 from comfy.component_model.executor_types import DependencyCycleError, NodeInputError, NodeNotFoundError, \
-    DependencyExecutionErrorMessage
+    DependencyExecutionErrorMessage, ComboOptions
 from comfy.nodes_context import get_nodes
 from .graph_utils import is_link
 
@@ -59,11 +60,21 @@ class DynamicPrompt:
         return self.original_prompt
 
 
+class InputInfoTuple(NamedTuple):
+    # the input types can be a name or a combobox
+    input_type: str | list[int] | ComboOptions
+    input_category: Literal["required", "optional", "hidden"]
+    extra_info: InputTypeOptions
+
+
+GetInputInfoResponse = InputInfoTuple | tuple[None, None, None]
+
+
 def get_input_info(
-        class_def: Type[ComfyNodeABC],
+        class_def: Union[Type[ComfyNodeABC], CustomNode],
         input_name: str,
-        valid_inputs: InputTypeDict | None = None
-) -> tuple[str, Literal["required", "optional", "hidden"], InputTypeOptions] | tuple[None, None, None]:
+        valid_inputs: Union[InputTypeDict, InputTypes] = None
+) -> GetInputInfoResponse:
     """Get the input type, category, and extra info for a given input name.
 
     Arguments:

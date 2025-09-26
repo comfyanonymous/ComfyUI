@@ -772,7 +772,7 @@ class VAELoader:
         return vaes
 
     @staticmethod
-    def load_taesd(name):
+    def load_taesd(name: str):
         sd_ = {}
         approx_vaes = folder_paths.get_filename_list("vae_approx")
 

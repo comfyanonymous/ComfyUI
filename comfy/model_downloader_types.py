@@ -10,7 +10,7 @@ from typing import Optional, List, Sequence, Union, Iterable
 from can_ada import parse, URL  # pylint: disable=no-name-in-module
 from typing_extensions import TypedDict, NotRequired
 
-from .component_model.executor_types import ValidationView
+from .component_model.executor_types import ComboOptions
 from .component_model.files import canonicalize_path
 
 
@@ -18,6 +18,7 @@ from .component_model.files import canonicalize_path
 class UrlFile:
     _url: str
     _save_with_filename: Optional[str] = None
+    show_in_ui: Optional[bool] = True
 
     def __str__(self):
         return self.save_with_filename
@@ -58,6 +59,7 @@ class CivitFile:
     model_version_id: int
     filename: str
     trigger_words: Optional[Sequence[str]] = dataclasses.field(default_factory=tuple)
+    show_in_ui: Optional[bool] = True
 
     def __str__(self):
         return self.filename
@@ -95,7 +97,7 @@ class HuggingFile:
         return self.save_with_filename or split(self.filename)[-1]
 
 
-class DownloadableFileList(ValidationView, list[str]):
+class DownloadableFileList(ComboOptions, list[str]):
     """
     A list of downloadable files that can be validated differently than it will be serialized to JSON
     """
@@ -116,8 +118,8 @@ class DownloadableFileList(ValidationView, list[str]):
 
         self.extend(sorted(list(map(canonicalize_path, ui_view))))
 
-    def view_for_validation(self) -> Iterable[str]:
-        return self._validation_view
+    def view_for_validation(self) -> list[str]:
+        return sorted(list(frozenset(self._validation_view) | frozenset(self)))
 
 
 class CivitStats(TypedDict):
