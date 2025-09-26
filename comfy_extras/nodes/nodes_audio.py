@@ -514,6 +514,7 @@ class AudioConcat:
 
         waveform_1, waveform_2, output_sample_rate = match_audio_sample_rates(waveform_1, sample_rate_1, waveform_2, sample_rate_2)
 
+        concatenated_audio: torch.Tensor = waveform_1
         if direction == 'after':
             concatenated_audio = torch.cat((waveform_1, waveform_2), dim=2)
         elif direction == 'before':
