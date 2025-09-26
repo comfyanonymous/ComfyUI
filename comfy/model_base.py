@@ -1227,7 +1227,7 @@ class WAN21_HuMo(WAN21):
         if audio_embed is not None:
             out['audio_embed'] = comfy.conds.CONDRegular(audio_embed)
 
-        if "c_concat" not in out:  # 1.7B model
+        if "c_concat" not in out or "concat_latent_image" in kwargs:  # 1.7B model OR I2V mode
             reference_latents = kwargs.get("reference_latents", None)
             if reference_latents is not None:
                 out['reference_latent'] = comfy.conds.CONDRegular(self.process_latent_in(reference_latents[-1]))
