@@ -39,19 +39,14 @@ from typing import Optional, Union
 from api_server.routes.internal.internal_routes import InternalRoutes
 from protocol import BinaryEventTypes
 
+# Import cache control middleware
+from middleware.cache_middleware import cache_control
+
 async def send_socket_catch_exception(function, message):
     try:
         await function(message)
     except (aiohttp.ClientError, aiohttp.ClientPayloadError, ConnectionResetError, BrokenPipeError, ConnectionError) as err:
         logging.warning("send error: {}".format(err))
-
-@web.middleware
-async def cache_control(request: web.Request, handler):
-    response: web.Response = await handler(request)
-    if request.path.endswith('.js') or request.path.endswith('.css') or request.path.endswith('index.json'):
-        response.headers.setdefault('Cache-Control', 'no-cache')
-    return response
-
 
 @web.middleware
 async def compress_body(request: web.Request, handler):
@@ -650,7 +645,14 @@ class PromptServer():
             max_items = request.rel_url.query.get("max_items", None)
             if max_items is not None:
                 max_items = int(max_items)
-            return web.json_response(self.prompt_queue.get_history(max_items=max_items))
+
+            offset = request.rel_url.query.get("offset", None)
+            if offset is not None:
+                offset = int(offset)
+            else:
+                offset = -1
+
+            return web.json_response(self.prompt_queue.get_history(max_items=max_items, offset=offset))
 
         @routes.get("/history/{prompt_id}")
         async def get_history_prompt_id(request):

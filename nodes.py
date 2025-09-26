@@ -730,6 +730,7 @@ class VAELoader:
             vaes.append("taesd3")
         if f1_taesd_dec and f1_taesd_enc:
             vaes.append("taef1")
+        vaes.append("pixel_space")
         return vaes
 
     @staticmethod
@@ -772,7 +773,10 @@ class VAELoader:
 
     #TODO: scale factor?
     def load_vae(self, vae_name):
-        if vae_name in ["taesd", "taesdxl", "taesd3", "taef1"]:
+        if vae_name == "pixel_space":
+            sd = {}
+            sd["pixel_space_vae"] = torch.tensor(1.0)
+        elif vae_name in ["taesd", "taesdxl", "taesd3", "taef1"]:
             sd = self.load_taesd(vae_name)
         else:
             vae_path = folder_paths.get_full_path_or_raise("vae", vae_name)
@@ -925,7 +929,7 @@ class CLIPLoader:
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "clip_name": (folder_paths.get_filename_list("text_encoders"), ),
-                              "type": (["stable_diffusion", "stable_cascade", "sd3", "stable_audio", "mochi", "ltxv", "pixart", "cosmos", "lumina2", "wan", "hidream", "chroma", "ace", "omnigen2", "qwen_image"], ),
+                              "type": (["stable_diffusion", "stable_cascade", "sd3", "stable_audio", "mochi", "ltxv", "pixart", "cosmos", "lumina2", "wan", "hidream", "chroma", "ace", "omnigen2", "qwen_image", "hunyuan_image"], ),
                               },
                 "optional": {
                               "device": (["default", "cpu"], {"advanced": True}),
@@ -953,7 +957,7 @@ class DualCLIPLoader:
     def INPUT_TYPES(s):
         return {"required": { "clip_name1": (folder_paths.get_filename_list("text_encoders"), ),
                               "clip_name2": (folder_paths.get_filename_list("text_encoders"), ),
-                              "type": (["sdxl", "sd3", "flux", "hunyuan_video", "hidream"], ),
+                              "type": (["sdxl", "sd3", "flux", "hunyuan_video", "hidream", "hunyuan_image"], ),
                               },
                 "optional": {
                               "device": (["default", "cpu"], {"advanced": True}),
@@ -963,7 +967,7 @@ class DualCLIPLoader:
 
     CATEGORY = "advanced/loaders"
 
-    DESCRIPTION = "[Recipes]\n\nsdxl: clip-l, clip-g\nsd3: clip-l, clip-g / clip-l, t5 / clip-g, t5\nflux: clip-l, t5\nhidream: at least one of t5 or llama, recommended t5 and llama"
+    DESCRIPTION = "[Recipes]\n\nsdxl: clip-l, clip-g\nsd3: clip-l, clip-g / clip-l, t5 / clip-g, t5\nflux: clip-l, t5\nhidream: at least one of t5 or llama, recommended t5 and llama\nhunyuan_image: qwen2.5vl 7b and byt5 small"
 
     def load_clip(self, clip_name1, clip_name2, type, device="default"):
         clip_type = getattr(comfy.sd.CLIPType, type.upper(), comfy.sd.CLIPType.STABLE_DIFFUSION)
@@ -2322,6 +2326,7 @@ async def init_builtin_extra_nodes():
         "nodes_tcfg.py",
         "nodes_context_windows.py",
         "nodes_qwen.py",
+        "nodes_chroma_radiance.py",
         "nodes_model_patch.py",
         "nodes_easycache.py",
         "nodes_audio_encoder.py",
@@ -2344,6 +2349,7 @@ async def init_builtin_api_nodes():
         "nodes_veo2.py",
         "nodes_kling.py",
         "nodes_bfl.py",
+        "nodes_bytedance.py",
         "nodes_luma.py",
         "nodes_recraft.py",
         "nodes_pixverse.py",
@@ -2355,6 +2361,7 @@ async def init_builtin_api_nodes():
         "nodes_rodin.py",
         "nodes_gemini.py",
         "nodes_vidu.py",
+        "nodes_wan.py",
     ]
 
     if not await load_custom_node(os.path.join(api_nodes_dir, "canary.py"), module_parent="comfy_api_nodes"):
