@@ -34,7 +34,7 @@
 ![ComfyUI Screenshot](https://github.com/user-attachments/assets/7ccaf2c1-9b72-41ae-9a89-5688c94b7abe)
 </div>
 
-ComfyUI lets you design and execute advanced stable diffusion pipelines using a graph/nodes/flowchart based interface. Available on Windows, Linux, and macOS.
+ComfyUI lets you design and execute advanced Stable Diffusion pipelines using a graph/nodes/flowchart-based interface. Available on Windows, Linux, and macOS.
 
 ## Get Started
 
@@ -84,7 +84,7 @@ See what ComfyUI can do with the [example workflows](https://comfyanonymous.gith
    - [ACE Step](https://comfyanonymous.github.io/ComfyUI_examples/audio/)
 - 3D Models
    - [Hunyuan3D 2.0](https://docs.comfy.org/tutorials/3d/hunyuan3D-2)
-- Asynchronous Queue system
+- Asynchronous queue system
 - Many optimizations: Only re-executes the parts of the workflow that changes between executions.
 - Smart memory management: can automatically run large models on GPUs with as low as 1GB vram with smart offloading.
 - Works even if you don't have a GPU with: ```--cpu``` (slow)
@@ -168,7 +168,7 @@ ComfyUI follows a weekly release cycle targeting Friday but this regularly chang
 
 ## Windows Portable
 
-There is a portable standalone build for Windows that should work for running on Nvidia GPUs or for running on your CPU only on the [releases page](https://github.com/comfyanonymous/ComfyUI/releases).
+There is a portable standalone build for Windows that should work for running on NVIDIA GPUs or for running on your CPU only on the [releases page](https://github.com/comfyanonymous/ComfyUI/releases).
 
 ### [Direct link to download](https://github.com/comfyanonymous/ComfyUI/releases/latest/download/ComfyUI_windows_portable_nvidia.7z)
 
@@ -201,7 +201,7 @@ Put your VAE in: models/vae
 
 
 ### AMD GPUs (Linux only)
-AMD users can install rocm and pytorch with pip if you don't have it already installed, this is the command to install the stable version:
+AMD users can install ROCm and PyTorch with pip if you don't have it already installed. This is the command to install the stable version:
 
 ```pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/rocm6.4```
 
@@ -217,21 +217,21 @@ This is the command to install the nightly with ROCm 6.4 which might have some p
 
 ```pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/xpu```
 
-This is the command to install the Pytorch xpu nightly which might have some performance improvements:
+This is the command to install the PyTorch XPU nightly which might have some performance improvements:
 
 ```pip install --pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/nightly/xpu```
 
 (Option 2) Alternatively, Intel GPUs supported by Intel Extension for PyTorch (IPEX) can leverage IPEX for improved performance.
 
-1. visit [Installation](https://intel.github.io/intel-extension-for-pytorch/index.html#installation?platform=gpu) for more information.
+1. Visit [Installation](https://intel.github.io/intel-extension-for-pytorch/index.html#installation?platform=gpu) for more information.
 
 ### NVIDIA
 
-Nvidia users should install stable pytorch using this command:
+NVIDIA users should install stable PyTorch using this command:
 
 ```pip install torch torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/cu129```
 
-This is the command to install pytorch nightly instead which might have performance improvements.
+This is the command to install PyTorch nightly instead which might have performance improvements.
 
 ```pip install --pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/nightly/cu129```
 
@@ -255,9 +255,9 @@ After this you should have everything installed and can proceed to running Comfy
 
 #### Apple Mac silicon
 
-You can install ComfyUI in Apple Mac silicon (M1 or M2) with any recent macOS version.
+You can install ComfyUI on Apple silicon (M1 or M2) with any recent macOS version.
 
-1. Install pytorch nightly. For instructions, read the [Accelerated PyTorch training on Mac](https://developer.apple.com/metal/pytorch/) Apple Developer guide (make sure to install the latest pytorch nightly).
+1. Install PyTorch nightly. For instructions, read the [Accelerated PyTorch training on Mac](https://developer.apple.com/metal/pytorch/) Apple Developer guide (make sure to install the latest PyTorch nightly).
 1. Follow the [ComfyUI manual installation](#manual-install-windows-linux) instructions for Windows and Linux.
 1. Install the ComfyUI [dependencies](#dependencies). If you have another Stable Diffusion UI [you might be able to reuse the dependencies](#i-already-have-another-ui-for-stable-diffusion-installed-do-i-really-have-to-install-all-of-these-dependencies).
 1. Launch ComfyUI by running `python main.py`
@@ -266,7 +266,7 @@ You can install ComfyUI in Apple Mac silicon (M1 or M2) with any recent macOS ve
 
 #### DirectML (AMD Cards on Windows)
 
-This is very badly supported and is not recommended. There are some unofficial builds of pytorch ROCm on windows that exist that will give you a much better experience than this. This readme will be updated once official pytorch ROCm builds for windows come out.
+This is very badly supported and is not recommended. There are some unofficial builds of PyTorch ROCm on Windows that exist that will give you a much better experience than this. This README will be updated once official PyTorch ROCm builds for Windows come out.
 
 ```pip install torch-directml``` Then you can launch ComfyUI with: ```python main.py --directml```
 
@@ -308,11 +308,11 @@ For AMD 7600 and maybe other RDNA3 cards: ```HSA_OVERRIDE_GFX_VERSION=11.0.0 pyt
 
 ### AMD ROCm Tips
 
-You can enable experimental memory efficient attention on recent pytorch in ComfyUI on some AMD GPUs using this command, it should already be enabled by default on RDNA3. If this improves speed for you on latest pytorch on your GPU please report it so that I can enable it by default.
+You can enable experimental memory-efficient attention on recent PyTorch in ComfyUI on some AMD GPUs using this command; it should already be enabled by default on RDNA3. If this improves speed for you on the latest PyTorch on your GPU, please report it so that I can enable it by default.
 
 ```TORCH_ROCM_AOTRITON_ENABLE_EXPERIMENTAL=1 python main.py --use-pytorch-cross-attention```
 
-You can also try setting this env variable `PYTORCH_TUNABLEOP_ENABLED=1` which might speed things up at the cost of a very slow initial run.
+You can also try setting this environment variable `PYTORCH_TUNABLEOP_ENABLED=1`, which might speed things up at the cost of a very slow initial run.
 
 # Notes
 
@@ -328,7 +328,7 @@ You can use {day|night}, for wildcard/dynamic prompts. With this syntax "{wild|c
 
 Dynamic prompts also support C-style comments, like `// comment` or `/* comment */`.
 
-To use a textual inversion concepts/embeddings in a text prompt put them in the models/embeddings directory and use them in the CLIPTextEncode node like this (you can omit the .pt extension):
+To use textual inversion concepts/embeddings in a text prompt, put them in the models/embeddings directory and use them in the CLIPTextEncode node like this (you can omit the .pt extension):
 
 ```embedding:embedding_filename.pt```
 
@@ -351,7 +351,7 @@ Use `--tls-keyfile key.pem --tls-certfile cert.pem` to enable TLS/SSL, the app w
 
 [Discord](https://comfy.org/discord): Try the #help or #feedback channels.
 
-[Matrix space: #comfyui_space:matrix.org](https://app.element.io/#/room/%23comfyui_space%3Amatrix.org) (it's like discord but open source).
+[Matrix space: #comfyui_space:matrix.org](https://app.element.io/#/room/%23comfyui_space%3Amatrix.org) (it's like Discord but open-source).
 
 See also: [https://www.comfy.org/](https://www.comfy.org/)
 
