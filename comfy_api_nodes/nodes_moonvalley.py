@@ -746,6 +746,7 @@ class MoonvalleyTxt2VideoNode(comfy_io.ComfyNode):
                     max=4294967295,
                     step=1,
                     display_mode=comfy_io.NumberDisplay.number,
+                    control_after_generate=False,
                     tooltip="Random seed value",
                 ),
                 comfy_io.Int.Input(
