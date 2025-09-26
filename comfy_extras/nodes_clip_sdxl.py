@@ -1,43 +1,52 @@
-from nodes import MAX_RESOLUTION
+from typing_extensions import override
 
-class CLIPTextEncodeSDXLRefiner:
+import nodes
+from comfy_api.latest import ComfyExtension, io
+
+
+class CLIPTextEncodeSDXLRefiner(io.ComfyNode):
     @classmethod
-    def INPUT_TYPES(s):
-        return {"required": {
-            "ascore": ("FLOAT", {"default": 6.0, "min": 0.0, "max": 1000.0, "step": 0.01}),
-            "width": ("INT", {"default": 1024.0, "min": 0, "max": MAX_RESOLUTION}),
-            "height": ("INT", {"default": 1024.0, "min": 0, "max": MAX_RESOLUTION}),
-            "text": ("STRING", {"multiline": True, "dynamicPrompts": True}), "clip": ("CLIP", ),
-            }}
-    RETURN_TYPES = ("CONDITIONING",)
-    FUNCTION = "encode"
+    def define_schema(cls):
+        return io.Schema(
+            node_id="CLIPTextEncodeSDXLRefiner",
+            category="advanced/conditioning",
+            inputs=[
+                io.Float.Input("ascore", default=6.0, min=0.0, max=1000.0, step=0.01),
+                io.Int.Input("width", default=1024, min=0, max=nodes.MAX_RESOLUTION),
+                io.Int.Input("height", default=1024, min=0, max=nodes.MAX_RESOLUTION),
+                io.String.Input("text", multiline=True, dynamic_prompts=True),
+                io.Clip.Input("clip"),
+            ],
+            outputs=[io.Conditioning.Output()],
+        )
 
-    CATEGORY = "advanced/conditioning"
-
-    def encode(self, clip, ascore, width, height, text):
+    @classmethod
+    def execute(cls, clip, ascore, width, height, text) -> io.NodeOutput:
         tokens = clip.tokenize(text)
-        return (clip.encode_from_tokens_scheduled(tokens, add_dict={"aesthetic_score": ascore, "width": width, "height": height}), )
+        return io.NodeOutput(clip.encode_from_tokens_scheduled(tokens, add_dict={"aesthetic_score": ascore, "width": width, "height": height}))
 
-class CLIPTextEncodeSDXL:
+class CLIPTextEncodeSDXL(io.ComfyNode):
     @classmethod
-    def INPUT_TYPES(s):
-        return {"required": {
-            "clip": ("CLIP", ),
-            "width": ("INT", {"default": 1024.0, "min": 0, "max": MAX_RESOLUTION}),
-            "height": ("INT", {"default": 1024.0, "min": 0, "max": MAX_RESOLUTION}),
-            "crop_w": ("INT", {"default": 0, "min": 0, "max": MAX_RESOLUTION}),
-            "crop_h": ("INT", {"default": 0, "min": 0, "max": MAX_RESOLUTION}),
-            "target_width": ("INT", {"default": 1024.0, "min": 0, "max": MAX_RESOLUTION}),
-            "target_height": ("INT", {"default": 1024.0, "min": 0, "max": MAX_RESOLUTION}),
-            "text_g": ("STRING", {"multiline": True, "dynamicPrompts": True}),
-            "text_l": ("STRING", {"multiline": True, "dynamicPrompts": True}),
-            }}
-    RETURN_TYPES = ("CONDITIONING",)
-    FUNCTION = "encode"
+    def define_schema(cls):
+        return io.Schema(
+            node_id="CLIPTextEncodeSDXL",
+            category="advanced/conditioning",
+            inputs=[
+                io.Clip.Input("clip"),
+                io.Int.Input("width", default=1024, min=0, max=nodes.MAX_RESOLUTION),
+                io.Int.Input("height", default=1024, min=0, max=nodes.MAX_RESOLUTION),
+                io.Int.Input("crop_w", default=0, min=0, max=nodes.MAX_RESOLUTION),
+                io.Int.Input("crop_h", default=0, min=0, max=nodes.MAX_RESOLUTION),
+                io.Int.Input("target_width", default=1024, min=0, max=nodes.MAX_RESOLUTION),
+                io.Int.Input("target_height", default=1024, min=0, max=nodes.MAX_RESOLUTION),
+                io.String.Input("text_g", multiline=True, dynamic_prompts=True),
+                io.String.Input("text_l", multiline=True, dynamic_prompts=True),
+            ],
+            outputs=[io.Conditioning.Output()],
+        )
 
-    CATEGORY = "advanced/conditioning"
-
-    def encode(self, clip, width, height, crop_w, crop_h, target_width, target_height, text_g, text_l):
+    @classmethod
+    def execute(cls, clip, width, height, crop_w, crop_h, target_width, target_height, text_g, text_l) -> io.NodeOutput:
         tokens = clip.tokenize(text_g)
         tokens["l"] = clip.tokenize(text_l)["l"]
         if len(tokens["l"]) != len(tokens["g"]):
@@ -46,9 +55,17 @@ class CLIPTextEncodeSDXL:
                 tokens["l"] += empty["l"]
             while len(tokens["l"]) > len(tokens["g"]):
                 tokens["g"] += empty["g"]
-        return (clip.encode_from_tokens_scheduled(tokens, add_dict={"width": width, "height": height, "crop_w": crop_w, "crop_h": crop_h, "target_width": target_width, "target_height": target_height}), )
+        return io.NodeOutput(clip.encode_from_tokens_scheduled(tokens, add_dict={"width": width, "height": height, "crop_w": crop_w, "crop_h": crop_h, "target_width": target_width, "target_height": target_height}))
 
-NODE_CLASS_MAPPINGS = {
-    "CLIPTextEncodeSDXLRefiner": CLIPTextEncodeSDXLRefiner,
-    "CLIPTextEncodeSDXL": CLIPTextEncodeSDXL,
-}
+
+class ClipSdxlExtension(ComfyExtension):
+    @override
+    async def get_node_list(self) -> list[type[io.ComfyNode]]:
+        return [
+            CLIPTextEncodeSDXLRefiner,
+            CLIPTextEncodeSDXL,
+        ]
+
+
+async def comfy_entrypoint() -> ClipSdxlExtension:
+    return ClipSdxlExtension()
