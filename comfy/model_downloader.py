@@ -183,6 +183,7 @@ def get_or_download(folder_name: str, filename: str, known_files: Optional[List[
                         logger.info(f"Converted {path} to 16 bit, size is {os.stat(path, follow_symlinks=True).st_size}")
 
                     link_successful = True
+                    exc_info_link = {}
                     if path is not None:
                         destination_link = os.path.join(this_model_directory, linked_filename)
                         if Path(destination_link).is_file():
@@ -191,7 +192,11 @@ def get_or_download(folder_name: str, filename: str, known_files: Optional[List[
                             try:
                                 os.makedirs(this_model_directory, exist_ok=True)
                                 os.symlink(path, destination_link)
+                            except FileExistsError:
+                                # the download was resumed
+                                pass
                             except Exception as exc_info:
+                                exc_info_link = exc_info
                                 logger.error("error while symbolic linking", exc_info=exc_info)
                                 try:
                                     os.link(path, destination_link)
@@ -200,9 +205,10 @@ def get_or_download(folder_name: str, filename: str, known_files: Optional[List[
                                     if cache_hit:
                                         shutil.copyfile(path, destination_link)
                                     link_successful = False
+                                    exc_info_link = (exc_info, hard_link_exc)
 
                     if not link_successful:
-                        logger.error(f"Failed to link file with alternative download save name in a way that is compatible with Hugging Face caching {repr(known_file)}. If cache_hit={cache_hit} is True, the file was copied into the destination.", exc_info=exc_info)
+                        logger.error(f"Failed to link file with alternative download save name in a way that is compatible with Hugging Face caching {repr(known_file)}. If cache_hit={cache_hit} is True, the file was copied into the destination. exc_info={exc_info_link}")
                 else:
                     url: Optional[str] = None
                     save_filename = known_file.save_with_filename or known_file.filename
