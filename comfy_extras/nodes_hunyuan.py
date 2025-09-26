@@ -203,8 +203,8 @@ class CLIPTextEncodeHunyuanDiTWithTextDetection:
             "text": ("STRING", {"multiline": True, "dynamicPrompts": True}),
             }}
 
-    RETURN_TYPES = ("CONDITIONING", "BOOLEAN")
-    RETURN_NAMES = ("conditioning", "has_quoted_text")
+    RETURN_TYPES = ("CONDITIONING", "BOOLEAN", "STRING")
+    RETURN_NAMES = ("conditioning", "has_quoted_text", "text")
     FUNCTION = "encode"
 
     CATEGORY = "advanced/conditioning/hunyuan"
@@ -234,7 +234,40 @@ class CLIPTextEncodeHunyuanDiTWithTextDetection:
 
         conditioning = clip.encode_from_tokens_scheduled(tokens)
 
-        return (conditioning, has_quoted_text)
+        c = []
+        for t in conditioning:
+            n = [t[0], t[1].copy()]
+            n[1]['has_quoted_text'] = has_quoted_text
+            c.append(n)
+
+        return (conditioning, has_quoted_text, text)
+
+
+class CLIPTextEncodeHunyuanImageRefiner:
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {"required": {
+            "clip": ("CLIP", ),
+            "text": ("STRING", ),
+            }}
+    RETURN_TYPES = ("CONDITIONING",)
+    RETURN_NAMES = ("conditioning",)
+    FUNCTION = "encode"
+
+    CATEGORY = "advanced/conditioning/hunyuan"
+
+
+    def encode(self, clip, text):
+        tokens = clip.tokenize(text)
+
+        conditioning = clip.encode_from_tokens_scheduled(tokens)
+
+        c = []
+        for t in conditioning:
+            n = [t[0], t[1].copy()]
+            c.append(n)
+
+        return (c, )
 
 class EmptyHunyuanLatentVideo:
     @classmethod
@@ -367,13 +400,13 @@ class HunyuanRefinerLatent:
 
 NODE_DISPLAY_NAME_MAPPINGS = {
     "HunyuanMixModeAPG": "Hunyuan Mix Mode APG",
-    "HunyuanStepBasedAPG": "Hunyuan Step Based APG",
 }
 
 NODE_CLASS_MAPPINGS = {
     "HunyuanMixModeAPG": HunyuanMixModeAPG,
     "CLIPTextEncodeHunyuanDiT": CLIPTextEncodeHunyuanDiT,
     "CLIPTextEncodeHunyuanDiTWithTextDetection": CLIPTextEncodeHunyuanDiTWithTextDetection,
+    "CLIPTextEncodeHunyuanImageRefiner": CLIPTextEncodeHunyuanImageRefiner,
     "TextEncodeHunyuanVideo_ImageToVideo": TextEncodeHunyuanVideo_ImageToVideo,
     "EmptyHunyuanLatentVideo": EmptyHunyuanLatentVideo,
     "HunyuanImageToVideo": HunyuanImageToVideo,
