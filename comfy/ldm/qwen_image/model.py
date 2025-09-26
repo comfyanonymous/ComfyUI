@@ -5,6 +5,7 @@ import torch.nn.functional as F
 from typing import Optional, Tuple
 from einops import repeat
 
+from comfy.ldm.flipflop_transformer import FlipFlopHolder
 from comfy.ldm.lightricks.model import TimestepEmbedding, Timesteps
 from comfy.ldm.modules.attention import optimized_attention_masked
 from comfy.ldm.flux.layers import EmbedND
@@ -335,9 +336,17 @@ class QwenImageTransformer2DModel(nn.Module):
             for _ in range(num_layers)
         ])
 
+        self.flipflop_holders: dict[str, FlipFlopHolder] = {}
+
         if final_layer:
             self.norm_out = LastLayer(self.inner_dim, self.inner_dim, dtype=dtype, device=device, operations=operations)
             self.proj_out = operations.Linear(self.inner_dim, patch_size * patch_size * self.out_channels, bias=True, dtype=dtype, device=device)
+
+    def setup_flipflop_holders(self, block_percentage: float):
+        # We hackily move any flipflopped blocks into holder so that our model management system does not see them.
+        num_blocks = int(len(self.transformer_blocks) * block_percentage)
+        self.flipflop_holders["blocks_fwd"] = FlipFlopHolder(self.transformer_blocks[num_blocks:])
+        self.transformer_blocks = nn.ModuleList(self.transformer_blocks[:num_blocks])
 
     def process_img(self, x, index=0, h_offset=0, w_offset=0):
         bs, c, t, h, w = x.shape
@@ -403,6 +412,12 @@ class QwenImageTransformer2DModel(nn.Module):
     def blocks_fwd(self, hidden_states, encoder_hidden_states, encoder_hidden_states_mask, temb, image_rotary_emb, patches, control, blocks_replace, x, transformer_options):
         for i, block in enumerate(self.transformer_blocks):
             encoder_hidden_states, hidden_states = self.indiv_block_fwd(i, block, hidden_states, encoder_hidden_states, encoder_hidden_states_mask, temb, image_rotary_emb, patches, control, blocks_replace, x, transformer_options)
+        if "blocks_fwd" in self.flipflop_holders:
+            holder = self.flipflop_holders["blocks_fwd"]
+            with holder.context() as ctx:
+                for i, block in enumerate(holder.transformer_blocks):
+                    encoder_hidden_states, hidden_states = ctx(self.indiv_block_fwd, i, block, hidden_states, encoder_hidden_states, encoder_hidden_states_mask, temb, image_rotary_emb, patches, control, blocks_replace, x, transformer_options)
+
         return encoder_hidden_states, hidden_states
 
     def _forward(

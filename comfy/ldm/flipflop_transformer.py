@@ -1,3 +1,4 @@
+from __future__ import annotations
 import torch
 import torch.cuda as cuda
 import copy
@@ -36,6 +37,102 @@ def patch_model_from_config(model, config: FlipFlopConfig):
     setattr(model, config.block_name, flip_flop_transformer)
     setattr(model, config.overwrite_forward, flip_flop_transformer.__call__)
 
+
+class FlipFlopContext:
+    def __init__(self, holder: FlipFlopHolder):
+        self.holder = holder
+        self.reset()
+
+    def reset(self):
+        self.num_blocks = len(self.holder.transformer_blocks)
+        self.first_flip = True
+        self.first_flop = True
+        self.last_flip = False
+        self.last_flop = False
+
+    def __enter__(self):
+        self.reset()
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        self.holder.compute_stream.record_event(self.holder.cpy_end_event)
+
+    def do_flip(self, func, i: int, _, *args, **kwargs):
+        # flip
+        self.holder.compute_stream.wait_event(self.holder.cpy_end_event)
+        with torch.cuda.stream(self.holder.compute_stream):
+            out = func(i, self.holder.flip, *args, **kwargs)
+        self.holder.event_flip.record(self.holder.compute_stream)
+        # while flip executes, queue flop to copy to its next block
+        next_flop_i = i + 1
+        if next_flop_i >= self.num_blocks:
+            next_flop_i = next_flop_i - self.num_blocks
+            self.last_flip = True
+        if not self.first_flip:
+            self.holder._copy_state_dict(self.holder.flop.state_dict(), self.holder.transformer_blocks[next_flop_i].state_dict(), self.holder.event_flop, self.holder.cpy_end_event)
+        if self.last_flip:
+            self.holder._copy_state_dict(self.holder.flip.state_dict(), self.holder.transformer_blocks[0].state_dict(), cpy_start_event=self.holder.event_flip)
+        self.first_flip = False
+        return out
+
+    def do_flop(self, func, i: int, _, *args, **kwargs):
+        # flop
+        if not self.first_flop:
+            self.holder.compute_stream.wait_event(self.holder.cpy_end_event)
+        with torch.cuda.stream(self.holder.compute_stream):
+            out = func(i, self.holder.flop, *args, **kwargs)
+        self.holder.event_flop.record(self.holder.compute_stream)
+        # while flop executes, queue flip to copy to its next block
+        next_flip_i = i + 1
+        if next_flip_i >= self.num_blocks:
+            next_flip_i = next_flip_i - self.num_blocks
+            self.last_flop = True
+        self.holder._copy_state_dict(self.holder.flip.state_dict(), self.holder.transformer_blocks[next_flip_i].state_dict(), self.holder.event_flip, self.holder.cpy_end_event)
+        if self.last_flop:
+            self.holder._copy_state_dict(self.holder.flop.state_dict(), self.holder.transformer_blocks[1].state_dict(), cpy_start_event=self.holder.event_flop)
+        self.first_flop = False
+        return out
+
+    @torch.no_grad()
+    def __call__(self, func, i: int, block: torch.nn.Module, *args, **kwargs):
+        # flips are even indexes, flops are odd indexes
+        if i % 2 == 0:
+            return self.do_flip(func, i, block, *args, **kwargs)
+        else:
+            return self.do_flop(func, i, block, *args, **kwargs)
+
+
+
+class FlipFlopHolder:
+    def __init__(self, transformer_blocks: List[torch.nn.Module], inference_device="cuda", offloading_device="cpu"):
+        self.inference_device = torch.device(inference_device)
+        self.offloading_device = torch.device(offloading_device)
+        self.transformer_blocks = transformer_blocks
+
+        self.flip = copy.deepcopy(self.transformer_blocks[0]).to(device=self.inference_device)
+        self.flop = copy.deepcopy(self.transformer_blocks[1]).to(device=self.inference_device)
+
+        self.compute_stream = cuda.default_stream(self.inference_device)
+        self.cpy_stream = cuda.Stream(self.inference_device)
+
+        self.event_flip = torch.cuda.Event(enable_timing=False)
+        self.event_flop = torch.cuda.Event(enable_timing=False)
+        self.cpy_end_event = torch.cuda.Event(enable_timing=False)
+        # INIT - is this actually needed?
+        self.compute_stream.record_event(self.cpy_end_event)
+
+    def _copy_state_dict(self, dst, src, cpy_start_event: torch.cuda.Event=None, cpy_end_event: torch.cuda.Event=None):
+        if cpy_start_event:
+            self.cpy_stream.wait_event(cpy_start_event)
+
+        with torch.cuda.stream(self.cpy_stream):
+            for k, v in src.items():
+                dst[k].copy_(v, non_blocking=True)
+        if cpy_end_event:
+            cpy_end_event.record(self.cpy_stream)
+
+    def context(self):
+        return FlipFlopContext(self)
 
 class FlipFlopTransformer:
     def __init__(self, transformer_blocks: List[torch.nn.Module], block_wrap_fn, out_names: Tuple[str], pinned_staging: bool = False, inference_device="cuda", offloading_device="cpu"):
@@ -114,6 +211,7 @@ class FlipFlopTransformer:
         Flip accounts for even blocks (0 is first block), flop accounts for odd blocks.
         '''
         # separated flip flop refactor
+        num_blocks = len(self.transformer_blocks)
         first_flip = True
         first_flop = True
         last_flip = False
@@ -128,8 +226,8 @@ class FlipFlopTransformer:
                 self.event_flip.record(self.compute_stream)
                 # while flip executes, queue flop to copy to its next block
                 next_flop_i = i + 1
-                if next_flop_i >= self.num_blocks:
-                    next_flop_i = next_flop_i - self.num_blocks
+                if next_flop_i >= num_blocks:
+                    next_flop_i = next_flop_i - num_blocks
                     last_flip = True
                 if not first_flip:
                     self._copy_state_dict(self.flop.state_dict(), self.transformer_blocks[next_flop_i].state_dict(), self.event_flop, self.cpy_end_event)
@@ -145,8 +243,8 @@ class FlipFlopTransformer:
                 self.event_flop.record(self.compute_stream)
                 # while flop executes, queue flip to copy to its next block
                 next_flip_i = i + 1
-                if next_flip_i >= self.num_blocks:
-                    next_flip_i = next_flip_i - self.num_blocks
+                if next_flip_i >= num_blocks:
+                    next_flip_i = next_flip_i - num_blocks
                     last_flop = True
                 self._copy_state_dict(self.flip.state_dict(), self.transformer_blocks[next_flip_i].state_dict(), self.event_flip, self.cpy_end_event)
                 if last_flop:
