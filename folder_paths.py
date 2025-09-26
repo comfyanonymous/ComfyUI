@@ -160,6 +160,7 @@ def filter_files_content_types(files: list[str], content_types: List[Literal["im
         extension = file.split('.')[-1]
         if extension not in extension_mimetypes_cache:
             mime_type, _ = mimetypes.guess_type(file, strict=False)
+            print(file, mime_type)
             if not mime_type:
                 continue
             content_type = mime_type.split('/')[0]
@@ -169,6 +170,7 @@ def filter_files_content_types(files: list[str], content_types: List[Literal["im
 
         if content_type in content_types:
             result.append(file)
+    print("res", result, files)
     return result
 
 # determine base_dir rely on annotation if name is 'filename.ext [annotation]' format
