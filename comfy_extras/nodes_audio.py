@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import av
-import re
 import torchaudio
 import torch
 import comfy.model_management
@@ -11,257 +10,9 @@ import io
 import json
 import random
 import hashlib
-import numpy as np
 import node_helpers
 from comfy.cli_args import args
-from comfy.comfy_types import IO
 from comfy.comfy_types import FileLocator
-from dataclasses import  asdict
-from comfy.ldm.higgsv2.loudness import loudness
-from comfy.ldm.higgsv2.preprocess import (
-    prepare_chatml_sample, Message, ChatMLSample, ChatMLDatasetSample, AudioContent, transcript_normalize
-)
-
-
-MULTISPEAKER_DEFAULT_SYSTEM_MESSAGE = """You are an AI assistant designed to convert text into speech.
-If the user's message includes a [SPEAKER*] tag, do not read out the tag and generate speech for the following text, using the specified voice.
-If no speaker tag is present, select a suitable voice on your own."""
-
-class LoudnessNormalization:
-
-    CATEGORY = "audio"
-    RETURN_TYPES = ("AUDIO",)
-    FUNCTION = "normalize"
-
-    @classmethod
-    def INPUT_TYPES(s):
-        return {"required": {"audio": ("AUDIO", ),
-                             "block_size": ("FLOAT", {"default": 0.400, "min": 0.1, "max": 1.0, "step": 0.05}),
-                             "loudness_threshold": ("FLOAT", {"default": -23.0, "min": -70.0, "max": 0.0, "step": 0.5,
-                                                              "tooltip": "Target loudness in LUFS. Common values are -23.0 (broadcast), -14.0 (streaming)."})}}
-
-    def normalize(self, audio, loudness_threshold, block_size):
-        sampling_rate = audio["sample_rate"]
-        waveform = audio["waveform"]
-        return {"waveform": loudness(waveform, sampling_rate, target_loudness = loudness_threshold, block_size = block_size), "sample_rate": sampling_rate}
-
-def prepare_chatml_input(
-    clip,
-    input_tokens,
-    audio_contents,
-    sampling_rate,
-    postfix_str: str = "",
-):
-    if hasattr(clip, "postfix"):
-        postfix_str = clip.postfix
-
-    if postfix_str:
-        postfix = clip.tokenizer.encode(postfix_str, add_special_tokens=False)
-        input_tokens.extend(postfix)
-
-    audio_ids_l = []
-    if audio_contents is not None:
-
-        if not hasattr(clip, "audio_tokenizer"):
-            raise ValueError("This model does not have an audio tokenizer. The chosen model may not support ChatML Format")
-
-        for audio_content in audio_contents:
-            audio_content.raw_audio = audio_content.raw_audio.squeeze(0)
-            if audio_content.raw_audio.shape[0] == 2:
-                audio_content.raw_audio = audio_content.raw_audio.mean(dim = 0, keepdim = True)
-
-            if audio_content.raw_audio.device != next(clip.audio_tokenizer.parameters()).device:
-                audio_content.raw_audio = audio_content.raw_audio.to(next(clip.audio_tokenizer.parameters()).device)
-
-            audio_ids = clip.audio_tokenizer.encode(audio_content.raw_audio, sampling_rate)
-            audio_ids_l.append(audio_ids.squeeze(0))
-
-    if len(audio_ids_l) > 0:
-        audio_ids_start = torch.tensor(
-            np.cumsum(np.array([0] + [audio_ids.shape[1] for audio_ids in audio_ids_l])),
-            dtype=torch.long,
-            device=audio_contents[0].raw_audio.device,
-        ).to("cpu")[0:-1]
-        audio_ids_concat = torch.cat(audio_ids_l, dim=1).to("cpu")
-    else:
-        audio_ids_start = None
-        audio_ids_concat = None
-
-    sample = ChatMLDatasetSample(
-        input_ids=torch.LongTensor(input_tokens),
-        label_ids=None,
-        audio_ids_concat=audio_ids_concat,
-        audio_ids_start=audio_ids_start,
-        audio_waveforms_concat=None,
-        audio_waveforms_start=None,
-        audio_sample_rate=None,
-        audio_speaker_indices=None,
-    )
-
-    if hasattr(clip, "collator"):
-        sample.input_ids = sample.input_ids.cpu()
-        sample = clip.collator([sample])
-
-    inputs = asdict(sample)
-    for k, v in inputs.items():
-        if isinstance(v, torch.Tensor):
-            inputs[k] = v.to(clip.device)
-
-    return inputs
-
-def postprocess_chatml(text: str) -> str:
-    speakers = set(re.findall(r'\[SPEAKER\d+\]', text))
-    skip_recon = True
-
-    if len(speakers) > 1:
-        parts = text.split('<|eot_id|>')
-
-        # keep the first <|eot_id|> and the last one
-        first_eot = parts[0] + '<|eot_id|>'
-        middle_parts = ''.join(parts[1:-1])
-        last_eot = '<|eot_id|>' + parts[-1]
-
-        text = first_eot + middle_parts + last_eot
-        skip_recon = False
-
-    return text, skip_recon
-
-class CreateChatMLSample:
-    def __init__(self):
-        self.device = comfy.model_management.intermediate_device()
-    @classmethod
-    def INPUT_TYPES(cls):
-        return {
-            "required": {
-                "text": (IO.STRING, {
-                    "default": "SYSTEM: " + MULTISPEAKER_DEFAULT_SYSTEM_MESSAGE + "\n\n<|scene_desc_start|>\nSPEAKER0:masculine\nSPEAKER1:feminine\n<|scene_desc_end|>",
-                    "multiline": True,
-                    "dynamicPrompts": True,
-                    "tooltip": (
-                        "The conversations to be encoded. "
-                        "To register a conversation start with SPEAKER-0: some text. "
-                        "To add a system prompt start with system:"
-                    ),
-                }),
-                "clip": (IO.CLIP, {"tooltip": "The CLIP model used for tokenizing the text."}),
-            },
-            "optional": {
-                "audio": (IO.AUDIO, {
-                    "tooltip": "An audio clip to be inserted into the conversation. To register add [audio]",
-                })
-            }
-        }
-
-    RETURN_TYPES = ("TOKENS",)
-    OUTPUT_TOOLTIPS = ("Turns text and audio into a ChatML Format.",)
-
-    FUNCTION = "convert_to_ml_format"
-    CATEGORY = "conditioning"
-
-    def convert_to_ml_format(self, clip, text, audio=None):
-
-        if audio is not None:
-            clip.load_model()
-
-        if hasattr(clip, "cond_stage_model"):
-            clip = clip.cond_stage_model
-
-        text = transcript_normalize(text)
-
-        messages = []
-        lines = text.splitlines()
-        sampling_rate = False
-        current_role = None
-        collecting_system = False
-        system_buffer = []
-
-        for line in lines:
-            line = line.strip()
-            if not line:
-                continue
-
-            # system start
-            if line.lower().startswith("system:"):
-                collecting_system = True
-                system_buffer.append(line[len("system:"):].strip())
-                continue
-
-            # while collecting system prompt
-            if collecting_system:
-                system_buffer.append(line)
-                if "<|scene_desc_end|>" in line or "SPEAKER-" in line:
-                    system_prompt = "\n".join(system_buffer)# + "\n<|scene_desc_end|>"
-                    messages.append(Message(role="system", content=system_prompt))
-                    system_buffer = []
-                    collecting_system = False
-                continue
-
-            # speaker lines SPEAKER-0: text
-            match = re.match(r"SPEAKER-(\d+):\s*(.*)", line, re.IGNORECASE)
-            if match:
-                speaker_id = match.group(1)
-                content = match.group(2)
-                current_role = f"[SPEAKER{speaker_id}] "
-                messages.append(Message(role = "user", content = current_role + content.strip()))
-            else:
-                # continuation line goes to last speaker or instruction
-                if current_role is not None and messages:
-                    messages[-1].content += "\n" + line
-
-        # return normal input_ids
-        if not (len(messages) >= 1):
-            return (clip.tokenizer(text),)
-
-        all_text = "".join(msg.content for msg in messages if msg.role == "user")
-
-        # postprocess to allow multi-user speech
-        all_text, skip_recon = postprocess_chatml(all_text)
-        if not skip_recon:
-            lines = all_text.splitlines()
-            messages = [messages[0]] if messages[0].role == "system" else []
-            current_role = None
-
-            for line in lines:
-                line = line.strip()
-                if not line:
-                    continue
-
-                match = re.match(r'(\[SPEAKER\d+\])\s*(.*)', line)
-                if match:
-                    current_role = match.group(1)
-                    content = match.group(2).strip()  # only take the text after the tag
-                    messages.append(Message(role="user", content=f"{current_role} {content}" if content else current_role))
-                else:
-                    if current_role and messages:
-                        messages[-1].content += "\n" + line
-
-            # dedepulicate the messages
-            for idx, m in enumerate(messages):
-                double_eot = "<|eot_id|><|eot_id|>"
-                if double_eot in m.content:
-                    cut_index = m.content.index(double_eot)
-                    messages[idx].content = m.content[:cut_index + (len(double_eot) // 2)]
-                    break
-
-        if audio is not None:
-            # for audio cloning, the first message is a transcript, second is the audio,
-            # third is the request of what the model should say
-            waveform = audio["waveform"]
-            sampling_rate = audio["sample_rate"]
-            messages.insert(1, Message(
-                role = "assistant",
-                content = AudioContent(raw_audio = waveform, audio_url = "placeholder")
-            ))
-        chat_ml_sample = ChatMLSample(messages)
-        input_tokens, audio_contents, _ = prepare_chatml_sample(
-            chat_ml_sample,
-            clip.tokenizer,
-        )
-
-        if audio is None:
-            audio_contents = None
-        out = prepare_chatml_input(clip, input_tokens, audio_contents, sampling_rate = sampling_rate)
-        return (out,)
 
 class EmptyLatentAudio:
     def __init__(self):
@@ -623,8 +374,6 @@ NODE_CLASS_MAPPINGS = {
     "LoadAudio": LoadAudio,
     "PreviewAudio": PreviewAudio,
     "ConditioningStableAudio": ConditioningStableAudio,
-    "LoudnessNormalization": LoudnessNormalization,
-    "CreateChatMLSample": CreateChatMLSample,
     "RecordAudio": RecordAudio,
 }
 
@@ -637,7 +386,5 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SaveAudio": "Save Audio (FLAC)",
     "SaveAudioMP3": "Save Audio (MP3)",
     "SaveAudioOpus": "Save Audio (Opus)",
-    "LoudnessNormalization": "Loudness Normalization",
-    "CreateChatMLSample": "Create ChatML Sample",
     "RecordAudio": "Record Audio",
 }
