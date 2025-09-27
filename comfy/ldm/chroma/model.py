@@ -151,8 +151,6 @@ class Chroma(nn.Module):
         attn_mask: Tensor = None,
     ) -> Tensor:
         patches_replace = transformer_options.get("patches_replace", {})
-        if img.ndim != 3 or txt.ndim != 3:
-            raise ValueError("Input img and txt tensors must have 3 dimensions.")
 
         # running on sequences img
         img = self.img_in(img)
@@ -193,14 +191,16 @@ class Chroma(nn.Module):
                                                        txt=args["txt"],
                                                        vec=args["vec"],
                                                        pe=args["pe"],
-                                                       attn_mask=args.get("attn_mask"))
+                                                       attn_mask=args.get("attn_mask"),
+                                                       transformer_options=args.get("transformer_options"))
                         return out
 
                     out = blocks_replace[("double_block", i)]({"img": img,
                                                                "txt": txt,
                                                                "vec": double_mod,
                                                                "pe": pe,
-                                                               "attn_mask": attn_mask},
+                                                               "attn_mask": attn_mask,
+                                                               "transformer_options": transformer_options},
                                                               {"original_block": block_wrap})
                     txt = out["txt"]
                     img = out["img"]
@@ -209,7 +209,8 @@ class Chroma(nn.Module):
                                      txt=txt,
                                      vec=double_mod,
                                      pe=pe,
-                                     attn_mask=attn_mask)
+                                     attn_mask=attn_mask,
+                                     transformer_options=transformer_options)
 
                 if control is not None: # Controlnet
                     control_i = control.get("input")
@@ -229,17 +230,19 @@ class Chroma(nn.Module):
                         out["img"] = block(args["img"],
                                            vec=args["vec"],
                                            pe=args["pe"],
-                                           attn_mask=args.get("attn_mask"))
+                                           attn_mask=args.get("attn_mask"),
+                                           transformer_options=args.get("transformer_options"))
                         return out
 
                     out = blocks_replace[("single_block", i)]({"img": img,
                                                                "vec": single_mod,
                                                                "pe": pe,
-                                                               "attn_mask": attn_mask},
+                                                               "attn_mask": attn_mask,
+                                                               "transformer_options": transformer_options},
                                                               {"original_block": block_wrap})
                     img = out["img"]
                 else:
-                    img = block(img, vec=single_mod, pe=pe, attn_mask=attn_mask)
+                    img = block(img, vec=single_mod, pe=pe, attn_mask=attn_mask, transformer_options=transformer_options)
 
                 if control is not None: # Controlnet
                     control_o = control.get("output")
@@ -249,8 +252,9 @@ class Chroma(nn.Module):
                             img[:, txt.shape[1] :, ...] += add
 
         img = img[:, txt.shape[1] :, ...]
-        final_mod = self.get_modulations(mod_vectors, "final")
-        img = self.final_layer(img, vec=final_mod)  # (N, T, patch_size ** 2 * out_channels)
+        if hasattr(self, "final_layer"):
+            final_mod = self.get_modulations(mod_vectors, "final")
+            img = self.final_layer(img, vec=final_mod)  # (N, T, patch_size ** 2 * out_channels)
         return img
 
     def forward(self, x, timestep, context, guidance, control=None, transformer_options={}, **kwargs):
@@ -265,6 +269,9 @@ class Chroma(nn.Module):
         x = comfy.ldm.common_dit.pad_to_patch_size(x, (self.patch_size, self.patch_size))
 
         img = rearrange(x, "b c (h ph) (w pw) -> b (h w) (c ph pw)", ph=self.patch_size, pw=self.patch_size)
+
+        if img.ndim != 3 or context.ndim != 3:
+            raise ValueError("Input img and txt tensors must have 3 dimensions.")
 
         h_len = ((h + (self.patch_size // 2)) // self.patch_size)
         w_len = ((w + (self.patch_size // 2)) // self.patch_size)
