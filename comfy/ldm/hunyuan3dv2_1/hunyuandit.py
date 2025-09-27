@@ -426,7 +426,7 @@ class HunYuanDiTBlock(nn.Module):
         text_states_dim=1024,
         qk_norm=False,
         norm_layer=nn.LayerNorm,
-        qk_norm_layer=nn.RMSNorm,
+        qk_norm_layer=True,
         qkv_bias=True,
         skip_connection=True,
         timested_modulate=False,
