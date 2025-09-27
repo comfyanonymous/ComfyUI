@@ -35,7 +35,7 @@ from comfy_api.internal import _ComfyNodeInternal
 from app.user_manager import UserManager
 from app.model_manager import ModelFileManager
 from app.custom_node_manager import CustomNodeManager
-# from app.model_downloader import model_downloader, ModelType
+from app.simple_downloader import simple_downloader
 from typing import Optional, Union
 from api_server.routes.internal.internal_routes import InternalRoutes
 from protocol import BinaryEventTypes
@@ -792,18 +792,49 @@ class PromptServer():
 
         @routes.post("/models/download")
         async def start_model_download(request):
-            """Start a new model download - placeholder."""
-            return web.json_response({"error": "Model download functionality not available"}, status=501)
+            """Start a new model download."""
+            try:
+                json_data = await request.json()
+                url = json_data.get("url")
+                model_type = json_data.get("model_type", "checkpoints")
+                filename = json_data.get("filename")
+
+                if not url:
+                    return web.json_response({"error": "URL is required"}, status=400)
+
+                if not filename:
+                    # Extract filename from URL
+                    filename = url.split('/')[-1].split('?')[0]
+                    if not filename:
+                        filename = "model.safetensors"
+
+                # Create download task
+                task_id = simple_downloader.create_download(url, model_type, filename)
+
+                # Return task ID and initial status
+                status = simple_downloader.get_status(task_id)
+                return web.json_response(status)
+
+            except Exception as e:
+                logging.error(f"Error starting download: {e}")
+                return web.json_response({"error": str(e)}, status=500)
 
         @routes.get("/models/download/{task_id}")
         async def get_download_status(request):
-            """Get status of a specific download - placeholder."""
-            return web.json_response({"error": "Model download functionality not available"}, status=501)
+            """Get status of a specific download."""
+            task_id = request.match_info.get("task_id")
+            status = simple_downloader.get_status(task_id)
+
+            if status is None:
+                return web.json_response({"error": "Download task not found"}, status=404)
+
+            return web.json_response(status)
 
         @routes.get("/models/downloads")
         async def get_all_downloads(request):
-            """Get status of all downloads - placeholder."""
-            return web.json_response([])
+            """Get status of all downloads."""
+            downloads = simple_downloader.get_all_downloads()
+            return web.json_response(downloads)
 
         @routes.post("/models/download/{task_id}/pause")
         async def pause_download(request):
@@ -817,8 +848,14 @@ class PromptServer():
 
         @routes.post("/models/download/{task_id}/cancel")
         async def cancel_download(request):
-            """Cancel a download - placeholder."""
-            return web.json_response({"error": "Model download functionality not available"}, status=501)
+            """Cancel a download."""
+            task_id = request.match_info.get("task_id")
+            success = simple_downloader.cancel_download(task_id)
+
+            if not success:
+                return web.json_response({"error": "Failed to cancel download"}, status=400)
+
+            return web.json_response({"success": True})
 
         @routes.get("/models/download/history")
         async def get_download_history(request):
