@@ -89,7 +89,7 @@ class VideoFromFile(VideoInput):
                     return stream.width, stream.height
         raise ValueError(f"No video stream found in file '{self.__file}'")
 
-    def get_duration(self) -> float:
+    def get_duration(self, retrun_frames = False) -> float:
         """
         Returns the duration of the video in seconds.
 
@@ -100,14 +100,16 @@ class VideoFromFile(VideoInput):
             self.__file.seek(0)
         with av.open(self.__file, mode="r") as container:
             if container.duration is not None:
-                return float(container.duration / av.time_base)
+                return float(container.duration / av.time_base) if not retrun_frames\
+                       else float(container.duration / av.time_base), float(container.duration)
 
             # Fallback: calculate from frame count and frame rate
             video_stream = next(
                 (s for s in container.streams if s.type == "video"), None
             )
             if video_stream and video_stream.frames and video_stream.average_rate:
-                return float(video_stream.frames / video_stream.average_rate)
+                return float(video_stream.frames / video_stream.average_rate) if not retrun_frames\
+                       else float(video_stream.frames / video_stream.average_rate), float(video_stream.frames)
 
             # Last resort: decode frames to count them
             if video_stream and video_stream.average_rate:
@@ -117,7 +119,8 @@ class VideoFromFile(VideoInput):
                     for _ in packet.decode():
                         frame_count += 1
                 if frame_count > 0:
-                    return float(frame_count / video_stream.average_rate)
+                    return float(frame_count / video_stream.average_rate) if not retrun_frames\
+                           else float(frame_count / video_stream.average_rate), float(frame_count)
 
         raise ValueError(f"Could not determine duration for file '{self.__file}'")
 

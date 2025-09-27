@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import os
+import io
 import av
 import torch
 import folder_paths
 import json
+import numpy as np
 from typing import Optional
 from typing_extensions import override
 from fractions import Fraction
@@ -13,6 +15,116 @@ from comfy_api.input_impl import VideoFromComponents, VideoFromFile
 from comfy_api.util import VideoCodec, VideoComponents, VideoContainer
 from comfy_api.latest import ComfyExtension, io, ui
 from comfy.cli_args import args
+
+class EncodeVideo(io.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return io.Schema(
+            node_id="EncodeVideo",
+            display_name="Encode Video",
+            category="image/video",
+            description="Encode a video using an image encoder.",
+            inputs=[
+                io.Video.Input("video", tooltip="The video to be encoded."),
+                io.Int.Input(
+                    "processing_batch_size", default=-1, min=-1,
+                    tooltip=(
+                        "Number of frames/segments to process at a time during encoding.\n"
+                        "-1 means process all at once. Smaller values reduce GPU memory usage."
+                    ),
+                ),
+                io.Int.Input("step_size", default=8, min=1, max=32,
+                    tooltip=(
+                        "Stride (in frames) between the start of consecutive segments.\n"
+                        "Smaller step = more overlap and smoother temporal coverage "
+                        "but higher compute cost. Larger step = faster but may miss detail."
+                    ),
+                ),
+                io.Vae.Input("vae", optional=True),
+                io.ClipVision.Input("clip_vision", optional=True),
+            ],
+            outputs=[
+                io.Conditioning.Output(display_name="encoded_video"),
+            ],
+        )
+    
+    @classmethod
+    def execute(cls, video, processing_batch_size, step_size, vae = None, clip_vision = None):
+        b, t, c, h, w = video.shape
+        batch_size = b * t
+
+        if vae is None and clip_vision is None:
+            raise ValueError("Must either have vae or clip_vision.")
+        vae = vae if vae is not None else clip_vision
+
+        if hasattr(vae.first_stage_model, "video_encoding"):
+            data, num_segments, output_fn = vae.video_encoding(video, step_size)
+            batch_size = b * num_segments
+        else:
+            data = video.view(batch_size, c, h, w)
+            output_fn = lambda x: x.view(b, t, -1)
+
+        if processing_batch_size != -1:
+            batch_size = processing_batch_size
+
+        outputs = []
+        total = data.shape[0]
+        for i in range(0, total, batch_size):
+            chunk = data[i : i + batch_size]
+            out = vae.encode(chunk)
+            outputs.append(out)
+
+        output = torch.cat(outputs)
+
+        return output_fn(output)
+
+class ResampleVideo(io.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return io.Schema(
+            node_id="ResampleVideo",
+            display_name="Resample Video",
+            category="image/video",
+            inputs = [
+                io.Video.Input("video"),
+                io.Int.Input("target_fps")
+            ],
+            outputs=[io.Image.Output(display_name="images")]
+        )
+    @classmethod
+    def execute(cls, container: av.container.InputContainer, target_fps: int):
+        # doesn't support upsampling 
+        
+        stream = container.streams.video[0]
+        frames = []
+
+        src_rate = stream.average_rate or stream.guessed_rate
+        src_fps = float(src_rate) if src_rate else None
+
+        # yield original frames if asked for upsampling or src is unknown
+        if src_fps is None or target_fps > src_fps:
+            for packet in container.demux(stream):
+                for frame in packet.decode():
+                    arr = torch.from_numpy(frame.to_ndarray(format="rgb24")).float() / 255.0
+                    frames.append(arr)
+            return torch.stack(frames)
+
+        stream.thread_type = "AUTO"
+
+        next_time = 0.0
+        step = 1.0 / target_fps
+
+        for packet in container.demux(stream):
+            for frame in packet.decode():
+                if frame.time is None:
+                    continue
+                t = frame.time
+                while t >= next_time:
+                    arr = torch.from_numpy(frame.to_ndarray(format="rgb24")).float() / 255.0
+                    frames.append(arr)
+                    next_time += step
+
+        return torch.stack(frames)
 
 class SaveWEBM(io.ComfyNode):
     @classmethod
@@ -212,6 +324,8 @@ class VideoExtension(ComfyExtension):
             CreateVideo,
             GetVideoComponents,
             LoadVideo,
+            EncodeVideo,
+            ResampleVideo
         ]
 
 async def comfy_entrypoint() -> VideoExtension:

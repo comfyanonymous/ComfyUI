@@ -4,6 +4,7 @@ from . import utils
 
 from . import sd1_clip
 from . import sdxl_clip
+import comfy.clap_model
 import comfy.text_encoders.sd2_clip
 import comfy.text_encoders.sd3_clip
 import comfy.text_encoders.sa_t5
@@ -1266,6 +1267,21 @@ class Omnigen2(supported_models_base.BASE):
         pref = self.text_encoder_key_prefix[0]
         hunyuan_detect = comfy.text_encoders.hunyuan_video.llama_detect(state_dict, "{}qwen25_3b.transformer.".format(pref))
         return supported_models_base.ClipTarget(comfy.text_encoders.omnigen2.Omnigen2Tokenizer, comfy.text_encoders.omnigen2.te(**hunyuan_detect))
+    
+class HunyuanFoley(supported_models_base.BASE):
+    unet_config = {
+        "image_model": "hunyuan_foley",
+    }
+
+    latent_format = latent_formats.HunyuanFoley
+    supported_inference_dtypes = [torch.bfloat16, torch.float32]
+    vae_key_prefix = ["dac."]
+    text_encoder_key_prefix = ["clap."]
+
+    def get_model(self, state_dict, prefix="", device=None):
+        return model_base.HunyuanFoley(self, device=device)
+    def clip_target(self, state_dict={}):
+        return supported_models_base.ClipTarget(comfy.clap_model.ClapLargeTokenizer, comfy.clap_model.ClapTextEncoderModel)
 
 class QwenImage(supported_models_base.BASE):
     unet_config = {

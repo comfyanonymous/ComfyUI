@@ -17,6 +17,7 @@ import comfy.ldm.wan.vae
 import comfy.ldm.wan.vae2_2
 import comfy.ldm.hunyuan3d.vae
 import comfy.ldm.ace.vae.music_dcae_pipeline
+import comfy.ldm.hunyuan_foley.vae
 import yaml
 import math
 import os
@@ -468,6 +469,12 @@ class VAE:
                 self.first_stage_model = comfy.ldm.hunyuan3d.vae.ShapeVAE()
                 self.working_dtypes = [torch.float16, torch.bfloat16, torch.float32]
 
+            # Hunyuan Foley
+            elif "syncformer.afeat_extractor.ast.encoder.layer.11.attention.attention.key.weight" in sd:
+                self.latent_dim = 128
+                self.first_stage_model = comfy.ldm.hunyuan_foley.vae.FoleyVae()
+                # TODO
+                self.memory_used_encode = lambda shape, dtype: shape[0] * model_management.dtype_size(dtype)
 
             elif "vocoder.backbone.channel_layers.0.0.bias" in sd: #Ace Step Audio
                 self.first_stage_model = comfy.ldm.ace.vae.music_dcae_pipeline.MusicDCAE(source_sample_rate=44100)

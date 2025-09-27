@@ -46,6 +46,7 @@ import comfy.ldm.ace.model
 import comfy.ldm.omnigen.omnigen2
 import comfy.ldm.higgsv2.model
 import comfy.ldm.qwen_image.model
+import comfy.ldm.hunyuan_foley.model
 
 import comfy.model_management
 import comfy.patcher_extension
@@ -1350,6 +1351,10 @@ class ACEStep(BaseModel):
         out['speaker_embeds'] = comfy.conds.CONDRegular(torch.zeros(noise.shape[0], 512, device=noise.device, dtype=noise.dtype))
         out['lyrics_strength'] = comfy.conds.CONDConstant(kwargs.get("lyrics_strength", 1.0))
         return out
+    
+class HunyuanFoley(BaseModel):
+    def __init__(self, model_config, model_type=ModelType.FLOW, device=None, unet_model=comfy.ldm.hunyuan_foley.model.HunyuanVideoFoley):
+        super().__init__(model_config, model_type, device, unet_model)
 
 class Omnigen2(BaseModel):
     def __init__(self, model_config, model_type=ModelType.FLOW, device=None):

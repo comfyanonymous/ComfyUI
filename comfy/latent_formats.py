@@ -551,3 +551,7 @@ class Hunyuan3Dv2mini(LatentFormat):
 class ACEAudio(LatentFormat):
     latent_channels = 8
     latent_dimensions = 2
+
+class HunyuanFoley(LatentFormat):
+    latent_dimensions = 128
+    latent_channels = 1024

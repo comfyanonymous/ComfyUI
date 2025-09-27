@@ -2,6 +2,7 @@ import math
 import sys
 
 import torch
+from torch import Tensor
 import torch.nn.functional as F
 from torch import nn, einsum
 from einops import rearrange, repeat
@@ -1032,4 +1033,162 @@ class SpatialVideoTransformer(SpatialTransformer):
         out = x + x_in
         return out
 
+# comfyui implementation of nn.MultiheadAttention
+class MultiheadAttentionComfyv(nn.Module):
+    def __init__(
+            self,
+            embed_dim,
+            num_heads,
+            bias=True,
+            batch_first=False,
+            device=None,
+            dtype=None,
+            operations = None
+        ):
+        super().__init__()
 
+        factory_kwargs = {"device": device, "dtype": dtype}
+
+        # to avoid pytorch checkpoint registeration
+        object.__setattr__(self, "_q_proj", operations.Linear(embed_dim, embed_dim, **factory_kwargs))
+        object.__setattr__(self, "_k_proj", operations.Linear(embed_dim, embed_dim, **factory_kwargs))
+        object.__setattr__(self, "_v_proj", operations.Linear(embed_dim, embed_dim, **factory_kwargs))
+
+        self.out_proj = operations.Linear(
+            embed_dim, embed_dim, bias=bias, **factory_kwargs
+        )
+
+        self.num_heads = num_heads
+        self.batch_first = batch_first
+        self.head_dim = embed_dim // num_heads
+        self.embed_dim = embed_dim
+    
+    # overwriting state dict loading to convert in_proj_weight/bias -> self._q_proj/_k_proj/_v_proj
+    def _load_from_state_dict(
+        self,
+        state_dict,
+        prefix,
+        local_metadata,
+        strict,
+        missing_keys,
+        unexpected_keys,
+        error_msgs,
+    ):
+        def pop_key(k):
+            return state_dict.pop(k) if k in state_dict else None
+
+        in_proj_w_key = prefix + "in_proj_weight"
+        in_proj_b_key = prefix + "in_proj_bias"
+
+        weight = pop_key(in_proj_w_key)
+        if weight is not None:
+            q_w, k_w, v_w = torch.chunk(weight, 3)
+            self._q_proj.weight.data.copy_(q_w.to(self._q_proj.weight.device, dtype=self._q_proj.weight.dtype))
+            self._k_proj.weight.data.copy_(k_w.to(self._k_proj.weight.device, dtype=self._k_proj.weight.dtype))
+            self._v_proj.weight.data.copy_(v_w.to(self._v_proj.weight.device, dtype=self._v_proj.weight.dtype))
+
+        bias = pop_key(in_proj_b_key)
+        if bias is not None:
+            q_b, k_b, v_b = torch.chunk(bias, 3)
+            if getattr(self._q_proj, "bias", None) is not None:
+                self._q_proj.bias.data.copy_(q_b.to(self._q_proj.bias.device, dtype=self._q_proj.bias.dtype))
+                self._k_proj.bias.data.copy_(k_b.to(self._k_proj.bias.device, dtype=self._k_proj.bias.dtype))
+                self._v_proj.bias.data.copy_(v_b.to(self._v_proj.bias.device, dtype=self._v_proj.bias.dtype))
+
+        super()._load_from_state_dict(
+            state_dict,
+            prefix,
+            local_metadata,
+            strict,
+            missing_keys,
+            unexpected_keys,
+            error_msgs,
+        )
+
+    def forward(self, src, attn_mask = None, key_padding_mask = None):
+
+        q = self._q_proj(src)
+        k = self._k_proj(src)
+        v = self._v_proj(src)
+
+        output = optimized_attention(q, k, v, self.num_heads, mask = attn_mask)
+        return self.out_proj(output)
+
+# comfyui implementation of nn.TransformerEncoderLayer
+class TransformerEncoderComfyv(nn.Module):
+    def __init__(self,
+                d_model, nhead, dim_feedforward,
+                norm_first = False,
+                layer_norm_eps: float = 1e-5,
+                bias: bool = True,
+                activation = F.relu,
+                device = None,
+                dtype = None, operations = None, **kwargs):
+        super().__init__()
+        factory_kwargs = {"device": device, "dtype": dtype}
+        self.linear1 = operations.Linear(d_model, dim_feedforward, **factory_kwargs)
+        self.linear2 = operations.Linear(dim_feedforward, d_model, bias=bias, **factory_kwargs)
+
+        self.norm_first = norm_first
+        self.norm1 = operations.LayerNorm(d_model, eps=layer_norm_eps, bias=bias, **factory_kwargs)
+        self.norm2 = operations.LayerNorm(d_model, eps=layer_norm_eps, bias=bias, **factory_kwargs)
+
+        self.activation = activation
+
+        self.self_attn = MultiheadAttentionComfyv(
+            embed_dim = d_model,
+            num_heads = nhead,
+            bias = bias,
+            operations = operations,
+            **factory_kwargs
+        )
+
+    def forward(self, src, src_key_padding_mask = None, src_mask = None):
+        src_key_padding_mask = F._canonical_mask(
+            mask=src_key_padding_mask,
+            mask_name="src_key_padding_mask",
+            other_type=F._none_or_dtype(src_mask),
+            other_name="src_mask",
+            target_type=src.dtype,
+        )
+
+        src_mask = F._canonical_mask(
+            mask=src_mask,
+            mask_name="src_mask",
+            other_type=None,
+            other_name="",
+            target_type=src.dtype,
+            check_other=False,
+        )
+
+        x = src
+        if self.norm_first:
+            x = x + self._sa_block(
+                self.norm1(x), src_mask, src_key_padding_mask
+            )
+            x = x + self._ff_block(self.norm2(x))
+        else:
+            x = self.norm1(
+                x
+                + self._sa_block(x, src_mask, src_key_padding_mask)
+            )
+            x = self.norm2(x + self._ff_block(x))
+
+        return x
+
+    def _sa_block(
+        self,
+        x: Tensor,
+        attn_mask: Optional[Tensor],
+        key_padding_mask: Optional[Tensor],
+    ) -> Tensor:
+        x = self.self_attn(
+            x,
+            attn_mask=attn_mask,
+            key_padding_mask=key_padding_mask,
+        )
+        return x
+
+    # feed forward block
+    def _ff_block(self, x: Tensor) -> Tensor:
+        return self.linear2(self.activation(self.linear1(x)))
