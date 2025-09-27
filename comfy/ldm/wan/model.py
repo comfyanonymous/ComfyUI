@@ -237,6 +237,7 @@ class WanAttentionBlock(nn.Module):
             freqs, transformer_options=transformer_options)
 
         x = torch.addcmul(x, y, repeat_e(e[2], x))
+        del y
 
         # cross-attention & ffn
         x = x + self.cross_attn(self.norm3(x), context, context_img_len=context_img_len, transformer_options=transformer_options)
