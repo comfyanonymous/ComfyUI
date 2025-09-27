@@ -269,6 +269,9 @@ You can install ComfyUI in Apple Mac silicon (M1 or M2) with any recent macOS ve
 This is very badly supported and is not recommended. There are some unofficial builds of pytorch ROCm on windows that exist that will give you a much better experience than this. This readme will be updated once official pytorch ROCm builds for windows come out.
 
 ```pip install torch-directml``` Then you can launch ComfyUI with: ```python main.py --directml```
+#### ZLUDA (AMD Cards on Windows)
+If your AMD GPU are 7000 series or a newer one and you have problems using direcml,ZLUDA would be more effective when generating content.
+ To know the detailed usage, follow the instructions [here](https://github.com/vosen/ZLUDA)
 
 #### Ascend NPUs
 
