@@ -35,6 +35,7 @@ from comfy_api.internal import _ComfyNodeInternal
 from app.user_manager import UserManager
 from app.model_manager import ModelFileManager
 from app.custom_node_manager import CustomNodeManager
+from app.model_downloader import model_downloader, ModelType
 from typing import Optional, Union
 from api_server.routes.internal.internal_routes import InternalRoutes
 from protocol import BinaryEventTypes
@@ -788,6 +789,102 @@ class PromptServer():
                     self.prompt_queue.delete_history_item(id_to_delete)
 
             return web.Response(status=200)
+
+        @routes.post("/models/download")
+        async def start_model_download(request):
+            """Start a new model download."""
+            try:
+                json_data = await request.json()
+                url = json_data.get("url")
+                model_type = json_data.get("model_type")
+                filename = json_data.get("filename")
+                metadata = json_data.get("metadata", {})
+
+                if not url:
+                    return web.json_response({"error": "URL is required"}, status=400)
+
+                # Parse model type if provided as string
+                if model_type and isinstance(model_type, str):
+                    try:
+                        model_type = ModelType[model_type.upper()]
+                    except KeyError:
+                        model_type = None
+
+                # Create download task
+                task_id = model_downloader.create_download_task(
+                    url=url,
+                    model_type=model_type,
+                    filename=filename,
+                    metadata=metadata
+                )
+
+                # Start download
+                model_downloader.start_download(task_id)
+
+                # Return task ID and initial status
+                status = model_downloader.get_download_status(task_id)
+                return web.json_response(status)
+
+            except ValueError as e:
+                return web.json_response({"error": str(e)}, status=400)
+            except Exception as e:
+                logging.error(f"Error starting download: {e}")
+                return web.json_response({"error": "Failed to start download"}, status=500)
+
+        @routes.get("/models/download/{task_id}")
+        async def get_download_status(request):
+            """Get status of a specific download."""
+            task_id = request.match_info.get("task_id")
+            status = model_downloader.get_download_status(task_id)
+
+            if status is None:
+                return web.json_response({"error": "Download task not found"}, status=404)
+
+            return web.json_response(status)
+
+        @routes.get("/models/downloads")
+        async def get_all_downloads(request):
+            """Get status of all downloads."""
+            downloads = model_downloader.get_all_downloads()
+            return web.json_response(downloads)
+
+        @routes.post("/models/download/{task_id}/pause")
+        async def pause_download(request):
+            """Pause a download."""
+            task_id = request.match_info.get("task_id")
+            success = model_downloader.pause_download(task_id)
+
+            if not success:
+                return web.json_response({"error": "Failed to pause download"}, status=400)
+
+            return web.json_response({"success": True})
+
+        @routes.post("/models/download/{task_id}/resume")
+        async def resume_download(request):
+            """Resume a paused download."""
+            task_id = request.match_info.get("task_id")
+            success = model_downloader.resume_download(task_id)
+
+            if not success:
+                return web.json_response({"error": "Failed to resume download"}, status=400)
+
+            return web.json_response({"success": True})
+
+        @routes.post("/models/download/{task_id}/cancel")
+        async def cancel_download(request):
+            """Cancel a download."""
+            task_id = request.match_info.get("task_id")
+            success = model_downloader.cancel_download(task_id)
+
+            if not success:
+                return web.json_response({"error": "Failed to cancel download"}, status=400)
+
+            return web.json_response({"success": True})
+
+        @routes.get("/models/download/history")
+        async def get_download_history(request):
+            """Get download history."""
+            return web.json_response(model_downloader.download_history)
 
     async def setup(self):
         timeout = aiohttp.ClientTimeout(total=None) # no timeout
