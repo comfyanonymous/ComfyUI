@@ -22,6 +22,32 @@ class SimpleDownloader:
         """Create a new download task."""
         task_id = str(uuid.uuid4())
 
+        # SECURITY: Validate and sanitize inputs to prevent path traversal
+        # Sanitize model_type to prevent directory traversal
+        model_type = os.path.basename(model_type).replace('..', '').replace('/', '').replace('\\', '')
+
+        # Sanitize filename to prevent path traversal
+        filename = os.path.basename(filename).replace('..', '')
+
+        # Validate filename has allowed extension
+        allowed_extensions = ['.safetensors', '.ckpt', '.pt', '.pth', '.bin', '.sft']
+        if not any(filename.lower().endswith(ext) for ext in allowed_extensions):
+            raise ValueError(f"Invalid file extension. Allowed extensions: {allowed_extensions}")
+
+        # Whitelist of allowed model types
+        allowed_types = ['checkpoints', 'vae', 'loras', 'controlnet', 'clip', 'unet',
+                        'upscale_models', 'text_encoders', 'diffusion_models', 'embeddings']
+
+        # Map alternative names
+        type_mapping = {
+            'text_encoders': 'clip',
+            'diffusion_models': 'unet'
+        }
+        model_type = type_mapping.get(model_type, model_type)
+
+        if model_type not in allowed_types:
+            raise ValueError(f"Invalid model type. Allowed types: {allowed_types}")
+
         # Determine destination folder
         folder_map = {
             'checkpoints': folder_paths.get_folder_paths('checkpoints')[0],
@@ -31,24 +57,25 @@ class SimpleDownloader:
             'clip': folder_paths.get_folder_paths('clip')[0],
             'unet': folder_paths.get_folder_paths('diffusion_models')[0],
             'upscale_models': folder_paths.get_folder_paths('upscale_models')[0],
+            'embeddings': folder_paths.get_folder_paths('embeddings')[0] if folder_paths.get_folder_paths('embeddings') else os.path.join(folder_paths.models_dir, 'embeddings')
         }
 
         dest_folder = folder_map.get(model_type)
         if not dest_folder:
-            # Try to find the folder
-            try:
-                paths = folder_paths.get_folder_paths(model_type)
-                if paths:
-                    dest_folder = paths[0]
-                else:
-                    # Default to models folder
-                    dest_folder = os.path.join(folder_paths.models_dir, model_type)
-                    os.makedirs(dest_folder, exist_ok=True)
-            except:
+            # Only allow creating folders for whitelisted types
+            if model_type in allowed_types:
                 dest_folder = os.path.join(folder_paths.models_dir, model_type)
                 os.makedirs(dest_folder, exist_ok=True)
+            else:
+                raise ValueError(f"Cannot find or create folder for model type: {model_type}")
 
-        dest_path = os.path.join(dest_folder, filename)
+        # Use safe path joining and verify result
+        dest_path = os.path.abspath(os.path.join(dest_folder, filename))
+
+        # SECURITY: Ensure destination path is within the models directory
+        models_base = os.path.abspath(folder_paths.models_dir)
+        if not dest_path.startswith(models_base):
+            raise ValueError("Invalid destination path - outside models directory")
 
         with self.lock:
             self.downloads[task_id] = {
@@ -86,6 +113,24 @@ class SimpleDownloader:
             dest_path = task['dest_path']
 
         try:
+            # SECURITY: Validate URL before downloading
+            from urllib.parse import urlparse
+            parsed = urlparse(url)
+
+            # Only allow HTTPS for security
+            if parsed.scheme != 'https':
+                raise ValueError("Only HTTPS URLs are allowed for security")
+
+            # Prevent SSRF attacks - block local/private IPs
+            import socket
+            try:
+                ip = socket.gethostbyname(parsed.hostname)
+                # Block private/local IPs
+                if ip.startswith(('127.', '10.', '192.168.', '172.')):
+                    raise ValueError("Downloads from local/private networks are not allowed")
+            except socket.gaierror:
+                pass  # Domain name resolution failed, continue
+
             # Create request with headers
             req = urllib.request.Request(url)
             req.add_header('User-Agent', 'ComfyUI/1.0')

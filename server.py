@@ -802,22 +802,45 @@ class PromptServer():
                 if not url:
                     return web.json_response({"error": "URL is required"}, status=400)
 
+                # SECURITY: Validate URL format
+                from urllib.parse import urlparse
+                try:
+                    parsed_url = urlparse(url)
+                    if parsed_url.scheme not in ['https']:
+                        return web.json_response({"error": "Only HTTPS URLs are allowed"}, status=400)
+                except Exception:
+                    return web.json_response({"error": "Invalid URL format"}, status=400)
+
+                # SECURITY: Sanitize model_type
+                import re
+                if not re.match(r'^[a-zA-Z0-9_-]+$', model_type):
+                    return web.json_response({"error": "Invalid model type format"}, status=400)
+
                 if not filename:
                     # Extract filename from URL
                     filename = url.split('/')[-1].split('?')[0]
                     if not filename:
                         filename = "model.safetensors"
 
-                # Create download task
+                # SECURITY: Sanitize filename
+                import os
+                filename = os.path.basename(filename)
+                if not re.match(r'^[a-zA-Z0-9_.-]+$', filename):
+                    return web.json_response({"error": "Invalid filename format"}, status=400)
+
+                # Create download task (simple_downloader now has additional validation)
                 task_id = simple_downloader.create_download(url, model_type, filename)
 
                 # Return task ID and initial status
                 status = simple_downloader.get_status(task_id)
                 return web.json_response(status)
 
+            except ValueError as e:
+                # Return validation errors from simple_downloader
+                return web.json_response({"error": str(e)}, status=400)
             except Exception as e:
                 logging.error(f"Error starting download: {e}")
-                return web.json_response({"error": str(e)}, status=500)
+                return web.json_response({"error": "Internal server error"}, status=500)
 
         @routes.get("/models/download/{task_id}")
         async def get_download_status(request):
