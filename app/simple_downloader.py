@@ -23,11 +23,15 @@ class SimpleDownloader:
         task_id = str(uuid.uuid4())
 
         # SECURITY: Validate and sanitize inputs to prevent path traversal
-        # Sanitize model_type to prevent directory traversal
-        model_type = os.path.basename(model_type).replace('..', '').replace('/', '').replace('\\', '')
+        # Sanitize model_type - remove dangerous characters but keep underscores
+        import re
+        model_type = re.sub(r'[./\\]', '', model_type)
+        model_type = model_type.replace('..', '')
 
-        # Sanitize filename to prevent path traversal
-        filename = os.path.basename(filename).replace('..', '')
+        # Sanitize filename - use os.path.basename and remove traversal attempts
+        filename = os.path.basename(filename)
+        if '..' in filename or filename.startswith('.'):
+            raise ValueError("Invalid filename - no hidden files or path traversal")
 
         # Validate filename has allowed extension
         allowed_extensions = ['.safetensors', '.ckpt', '.pt', '.pth', '.bin', '.sft']

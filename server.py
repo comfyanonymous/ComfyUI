@@ -822,10 +822,11 @@ class PromptServer():
                     if not filename:
                         filename = "model.safetensors"
 
-                # SECURITY: Sanitize filename
+                # SECURITY: Sanitize filename - allow more characters but still safe
                 import os
                 filename = os.path.basename(filename)
-                if not re.match(r'^[a-zA-Z0-9_.-]+$', filename):
+                # Block path traversal attempts but allow spaces, parens, brackets, etc
+                if '..' in filename or '/' in filename or '\\' in filename or filename.startswith('.'):
                     return web.json_response({"error": "Invalid filename format"}, status=400)
 
                 # Create download task (simple_downloader now has additional validation)
