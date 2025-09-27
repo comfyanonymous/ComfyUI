@@ -103,7 +103,7 @@ def load_torch_file(ckpt, safe_load=False, device=None, return_metadata=False):
             else:
                 sd = pl_sd
 
-    populate_db_with_asset(ckpt)
+    # populate_db_with_asset(ckpt) # surprise tool that can help us later - performs hashing on model file
     return (sd, metadata) if return_metadata else sd
 
 def save_torch_file(sd, ckpt, metadata=None):
