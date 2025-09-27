@@ -117,23 +117,27 @@ class SimpleDownloader:
             dest_path = task['dest_path']
 
         try:
-            # SECURITY: Validate URL before downloading
+            # SECURITY: Basic URL validation
             from urllib.parse import urlparse
             parsed = urlparse(url)
 
-            # Only allow HTTPS for security
-            if parsed.scheme != 'https':
-                raise ValueError("Only HTTPS URLs are allowed for security")
+            # Allow both HTTP and HTTPS (many model URLs use HTTP redirects)
+            if parsed.scheme not in ['http', 'https']:
+                raise ValueError("Only HTTP/HTTPS URLs are allowed")
 
-            # Prevent SSRF attacks - block local/private IPs
-            import socket
-            try:
-                ip = socket.gethostbyname(parsed.hostname)
-                # Block private/local IPs
-                if ip.startswith(('127.', '10.', '192.168.', '172.')):
-                    raise ValueError("Downloads from local/private networks are not allowed")
-            except socket.gaierror:
-                pass  # Domain name resolution failed, continue
+            # Basic hostname check - only block obvious local addresses
+            if parsed.hostname:
+                hostname_lower = parsed.hostname.lower()
+                # Block obvious local hostnames
+                if hostname_lower in ['localhost', '127.0.0.1', '0.0.0.0', '::1']:
+                    raise ValueError("Downloads from localhost are not allowed")
+                # Block local IP ranges by pattern (not DNS lookup which can fail)
+                if hostname_lower.startswith(('127.', '10.', '192.168.', '172.16.', '172.17.',
+                                             '172.18.', '172.19.', '172.20.', '172.21.',
+                                             '172.22.', '172.23.', '172.24.', '172.25.',
+                                             '172.26.', '172.27.', '172.28.', '172.29.',
+                                             '172.30.', '172.31.')):
+                    raise ValueError("Downloads from private IP ranges are not allowed")
 
             # Create request with headers
             req = urllib.request.Request(url)

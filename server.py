@@ -806,8 +806,8 @@ class PromptServer():
                 from urllib.parse import urlparse
                 try:
                     parsed_url = urlparse(url)
-                    if parsed_url.scheme not in ['https']:
-                        return web.json_response({"error": "Only HTTPS URLs are allowed"}, status=400)
+                    if parsed_url.scheme not in ['http', 'https']:
+                        return web.json_response({"error": "Only HTTP/HTTPS URLs are allowed"}, status=400)
                 except Exception:
                     return web.json_response({"error": "Invalid URL format"}, status=400)
 
