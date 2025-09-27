@@ -29,7 +29,6 @@ import itertools
 from torch.nn.functional import interpolate
 from einops import rearrange
 from comfy.cli_args import args
-from app.assets_manager import populate_db_with_asset
 
 MMAP_TORCH_FILES = args.mmap_torch_files
 DISABLE_MMAP = args.disable_mmap
