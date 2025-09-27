@@ -1080,7 +1080,7 @@ class WAN21_HuMo(WAN21_T2V):
     }
 
     def get_model(self, state_dict, prefix="", device=None):
-        out = model_base.WAN21_HuMo(self, image_to_video=True, device=device)
+        out = model_base.WAN21_HuMo(self, image_to_video=False, device=device)
         return out
 
 class WAN22_S2V(WAN21_T2V):
