@@ -19,6 +19,7 @@ a111:
     embeddings: embeddings
     hypernetworks: models/hypernetworks
     controlnet: models/ControlNet
+    clip_vision: models/clip_vision/
 
 #config for comfyui
 #your base path should be either an existing comfy install or a central folder where you store all of your models, loras, etc.
