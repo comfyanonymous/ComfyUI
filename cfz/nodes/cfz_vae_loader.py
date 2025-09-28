@@ -15,7 +15,7 @@ class CFZVAELoader:
     
     RETURN_TYPES = ("VAE",)
     FUNCTION = "load_vae"
-    CATEGORY = "loaders"
+    CATEGORY = "CFZ/loaders"
     TITLE = "CFZ VAE Loader"
 
     def load_vae(self, vae_name, precision):
