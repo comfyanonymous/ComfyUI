@@ -247,7 +247,7 @@ class CheckpointLoaderQuantized2:
 
     RETURN_TYPES = ("MODEL", "CLIP", "VAE")
     FUNCTION = "load_quantized"
-    CATEGORY = "Loaders (Quantized)"
+    CATEGORY = "CFZ/loaders"
     OUTPUT_NODE = False
 
     def load_quantized(self, ckpt_name, enable_quant, use_asymmetric, quant_dtype, 
@@ -302,7 +302,7 @@ class ModelQuantizationPatcher:
 
     RETURN_TYPES = ("MODEL",)
     FUNCTION = "patch_model"
-    CATEGORY = "Model Patching"
+    CATEGORY = "CFZ/model patches"
     OUTPUT_NODE = False
 
     def patch_model(self, model, use_asymmetric, quant_dtype, use_int8_matmul):
@@ -347,7 +347,7 @@ class UNetQuantizationPatcher:
 
     RETURN_TYPES = ("MODEL",)
     FUNCTION = "patch_unet"
-    CATEGORY = "Model Patching"
+    CATEGORY = "CFZ/model patches"
     OUTPUT_NODE = False
 
     def get_model_memory_usage(self, model, force_calculation=False):
