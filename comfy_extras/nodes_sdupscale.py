@@ -1,23 +1,31 @@
+from typing_extensions import override
+
 import torch
 import comfy.utils
+from comfy_api.latest import ComfyExtension, io
 
-class SD_4XUpscale_Conditioning:
+class SD_4XUpscale_Conditioning(io.ComfyNode):
     @classmethod
-    def INPUT_TYPES(s):
-        return {"required": { "images": ("IMAGE",),
-                              "positive": ("CONDITIONING",),
-                              "negative": ("CONDITIONING",),
-                              "scale_ratio": ("FLOAT", {"default": 4.0, "min": 0.0, "max": 10.0, "step": 0.01}),
-                              "noise_augmentation": ("FLOAT", {"default": 0.0, "min": 0.0, "max": 1.0, "step": 0.001}),
-                             }}
-    RETURN_TYPES = ("CONDITIONING", "CONDITIONING", "LATENT")
-    RETURN_NAMES = ("positive", "negative", "latent")
+    def define_schema(cls):
+        return io.Schema(
+            node_id="SD_4XUpscale_Conditioning",
+            category="conditioning/upscale_diffusion",
+            inputs=[
+                io.Image.Input("images"),
+                io.Conditioning.Input("positive"),
+                io.Conditioning.Input("negative"),
+                io.Float.Input("scale_ratio", default=4.0, min=0.0, max=10.0, step=0.01),
+                io.Float.Input("noise_augmentation", default=0.0, min=0.0, max=1.0, step=0.001),
+            ],
+            outputs=[
+                io.Conditioning.Output(display_name="positive"),
+                io.Conditioning.Output(display_name="negative"),
+                io.Latent.Output(display_name="latent"),
+            ],
+        )
 
-    FUNCTION = "encode"
-
-    CATEGORY = "conditioning/upscale_diffusion"
-
-    def encode(self, images, positive, negative, scale_ratio, noise_augmentation):
+    @classmethod
+    def execute(cls, images, positive, negative, scale_ratio, noise_augmentation):
         width = max(1, round(images.shape[-2] * scale_ratio))
         height = max(1, round(images.shape[-3] * scale_ratio))
 
@@ -39,8 +47,16 @@ class SD_4XUpscale_Conditioning:
             out_cn.append(n)
 
         latent = torch.zeros([images.shape[0], 4, height // 4, width // 4])
-        return (out_cp, out_cn, {"samples":latent})
+        return io.NodeOutput(out_cp, out_cn, {"samples":latent})
 
-NODE_CLASS_MAPPINGS = {
-    "SD_4XUpscale_Conditioning": SD_4XUpscale_Conditioning,
-}
+
+class SdUpscaleExtension(ComfyExtension):
+    @override
+    async def get_node_list(self) -> list[type[io.ComfyNode]]:
+        return [
+            SD_4XUpscale_Conditioning,
+        ]
+
+
+async def comfy_entrypoint() -> SdUpscaleExtension:
+    return SdUpscaleExtension()

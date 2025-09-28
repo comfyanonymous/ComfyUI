@@ -41,6 +41,7 @@ class AudioEncoderModel():
         outputs = {}
         outputs["encoded_audio"] = out
         outputs["encoded_audio_all_layers"] = all_layers
+        outputs["audio_samples"] = audio.shape[2]
         return outputs
 
 

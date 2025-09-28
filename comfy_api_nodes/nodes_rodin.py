@@ -121,10 +121,10 @@ class Rodin3DAPI:
         else:
             return "Generating"
 
-    async def create_generate_task(self, images=None, seed=1, material="PBR", quality="medium", tier="Regular", mesh_mode="Quad", **kwargs):
+    async def create_generate_task(self, images=None, seed=1, material="PBR", quality_override=18000, tier="Regular", mesh_mode="Quad", TAPose = False, **kwargs):
         if images is None:
             raise Exception("Rodin 3D generate requires at least 1 image.")
-        if len(images) >= 5:
+        if len(images) > 5:
             raise Exception("Rodin 3D generate requires up to 5 image.")
 
         path = "/proxy/rodin/api/v2/rodin"
@@ -139,8 +139,9 @@ class Rodin3DAPI:
                 seed=seed,
                 tier=tier,
                 material=material,
-                quality=quality,
-                mesh_mode=mesh_mode
+                quality_override=quality_override,
+                mesh_mode=mesh_mode,
+                TAPose=TAPose,
             ),
             files=[
                 (
@@ -211,23 +212,36 @@ class Rodin3DAPI:
         return await operation.execute()
 
     def get_quality_mode(self, poly_count):
-        if poly_count == "200K-Triangle":
+        polycount = poly_count.split("-")
+        poly = polycount[1]
+        count = polycount[0]
+        if poly == "Triangle":
             mesh_mode = "Raw"
-            quality = "medium"
+        elif poly == "Quad":
+            mesh_mode = "Quad"
         else:
             mesh_mode = "Quad"
-            if poly_count == "4K-Quad":
-                quality = "extra-low"
-            elif poly_count == "8K-Quad":
-                quality = "low"
-            elif poly_count == "18K-Quad":
-                quality = "medium"
-            elif poly_count == "50K-Quad":
-                quality = "high"
-            else:
-                quality = "medium"
 
-        return mesh_mode, quality
+        if count == "4K":
+            quality_override = 4000
+        elif count == "8K":
+            quality_override = 8000
+        elif count == "18K":
+            quality_override = 18000
+        elif count == "50K":
+            quality_override = 50000
+        elif count == "2K":
+            quality_override = 2000
+        elif count == "20K":
+            quality_override = 20000
+        elif count == "150K":
+            quality_override = 150000
+        elif count == "500K":
+            quality_override = 500000
+        else:
+            quality_override = 18000
+
+        return mesh_mode, quality_override
 
     async def download_files(self, url_list):
         save_path = os.path.join(comfy_paths.get_output_directory(), "Rodin3D", datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S"))
@@ -300,9 +314,9 @@ class Rodin3D_Regular(Rodin3DAPI):
         m_images = []
         for i in range(num_images):
             m_images.append(Images[i])
-        mesh_mode, quality = self.get_quality_mode(Polygon_count)
+        mesh_mode, quality_override = self.get_quality_mode(Polygon_count)
         task_uuid, subscription_key = await self.create_generate_task(images=m_images, seed=Seed, material=Material_Type,
-                                                                quality=quality, tier=tier, mesh_mode=mesh_mode,
+                                                                quality_override=quality_override, tier=tier, mesh_mode=mesh_mode,
                                                                 **kwargs)
         await self.poll_for_task_status(subscription_key, **kwargs)
         download_list = await self.get_rodin_download_list(task_uuid, **kwargs)
@@ -346,9 +360,9 @@ class Rodin3D_Detail(Rodin3DAPI):
         m_images = []
         for i in range(num_images):
             m_images.append(Images[i])
-        mesh_mode, quality = self.get_quality_mode(Polygon_count)
+        mesh_mode, quality_override = self.get_quality_mode(Polygon_count)
         task_uuid, subscription_key = await self.create_generate_task(images=m_images, seed=Seed, material=Material_Type,
-                                                                quality=quality, tier=tier, mesh_mode=mesh_mode,
+                                                                quality_override=quality_override, tier=tier, mesh_mode=mesh_mode,
                                                                 **kwargs)
         await self.poll_for_task_status(subscription_key, **kwargs)
         download_list = await self.get_rodin_download_list(task_uuid, **kwargs)
@@ -392,9 +406,9 @@ class Rodin3D_Smooth(Rodin3DAPI):
         m_images = []
         for i in range(num_images):
             m_images.append(Images[i])
-        mesh_mode, quality = self.get_quality_mode(Polygon_count)
+        mesh_mode, quality_override = self.get_quality_mode(Polygon_count)
         task_uuid, subscription_key = await self.create_generate_task(images=m_images, seed=Seed, material=Material_Type,
-                                                                quality=quality, tier=tier, mesh_mode=mesh_mode,
+                                                                quality_override=quality_override, tier=tier, mesh_mode=mesh_mode,
                                                                 **kwargs)
         await self.poll_for_task_status(subscription_key, **kwargs)
         download_list = await self.get_rodin_download_list(task_uuid, **kwargs)
@@ -446,11 +460,85 @@ class Rodin3D_Sketch(Rodin3DAPI):
         for i in range(num_images):
             m_images.append(Images[i])
         material_type = "PBR"
-        quality = "medium"
+        quality_override = 18000
         mesh_mode = "Quad"
         task_uuid, subscription_key = await self.create_generate_task(
-            images=m_images, seed=Seed, material=material_type, quality=quality, tier=tier, mesh_mode=mesh_mode, **kwargs
+            images=m_images, seed=Seed, material=material_type, quality_override=quality_override, tier=tier, mesh_mode=mesh_mode, **kwargs
         )
+        await self.poll_for_task_status(subscription_key, **kwargs)
+        download_list = await self.get_rodin_download_list(task_uuid, **kwargs)
+        model = await self.download_files(download_list)
+
+        return (model,)
+
+class Rodin3D_Gen2(Rodin3DAPI):
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "Images":
+                (
+                    IO.IMAGE,
+                    {
+                        "forceInput":True,
+                    }
+                )
+            },
+            "optional": {
+                "Seed": (
+                    IO.INT,
+                    {
+                        "default":0,
+                        "min":0,
+                        "max":65535,
+                        "display":"number"
+                    }
+                ),
+                "Material_Type": (
+                    IO.COMBO,
+                    {
+                        "options": ["PBR", "Shaded"],
+                        "default": "PBR"
+                    }
+                ),
+                "Polygon_count": (
+                    IO.COMBO,
+                    {
+                        "options": ["4K-Quad", "8K-Quad", "18K-Quad", "50K-Quad", "2K-Triangle", "20K-Triangle", "150K-Triangle", "500K-Triangle"],
+                        "default": "500K-Triangle"
+                    }
+                ),
+                "TAPose": (
+                    IO.BOOLEAN,
+                    {
+                        "default": False,
+                    }
+                )
+            },
+            "hidden": {
+                "auth_token": "AUTH_TOKEN_COMFY_ORG",
+                "comfy_api_key": "API_KEY_COMFY_ORG",
+            },
+        }
+
+    async def api_call(
+        self,
+        Images,
+        Seed,
+        Material_Type,
+        Polygon_count,
+        TAPose,
+        **kwargs
+    ):
+        tier = "Gen-2"
+        num_images = Images.shape[0]
+        m_images = []
+        for i in range(num_images):
+            m_images.append(Images[i])
+        mesh_mode, quality_override = self.get_quality_mode(Polygon_count)
+        task_uuid, subscription_key = await self.create_generate_task(images=m_images, seed=Seed, material=Material_Type,
+                                                                quality_override=quality_override, tier=tier, mesh_mode=mesh_mode, TAPose=TAPose,
+                                                                **kwargs)
         await self.poll_for_task_status(subscription_key, **kwargs)
         download_list = await self.get_rodin_download_list(task_uuid, **kwargs)
         model = await self.download_files(download_list)
@@ -464,6 +552,7 @@ NODE_CLASS_MAPPINGS = {
     "Rodin3D_Detail": Rodin3D_Detail,
     "Rodin3D_Smooth": Rodin3D_Smooth,
     "Rodin3D_Sketch": Rodin3D_Sketch,
+    "Rodin3D_Gen2": Rodin3D_Gen2,
 }
 
 # A dictionary that contains the friendly/humanly readable titles for the nodes
@@ -472,4 +561,5 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "Rodin3D_Detail": "Rodin 3D Generate - Detail Generate",
     "Rodin3D_Smooth": "Rodin 3D Generate - Smooth Generate",
     "Rodin3D_Sketch": "Rodin 3D Generate - Sketch Generate",
+    "Rodin3D_Gen2": "Rodin 3D Generate - Gen-2 Generate",
 }

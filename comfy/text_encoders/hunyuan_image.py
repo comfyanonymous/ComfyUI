@@ -63,7 +63,13 @@ class HunyuanImageTEModel(QwenImageTEModel):
             self.byt5_small = None
 
     def encode_token_weights(self, token_weight_pairs):
-        cond, p, extra = super().encode_token_weights(token_weight_pairs)
+        tok_pairs = token_weight_pairs["qwen25_7b"][0]
+        template_end = -1
+        if tok_pairs[0][0] == 27:
+            if len(tok_pairs) > 36:  # refiner prompt uses a fixed 36 template_end
+                template_end = 36
+
+        cond, p, extra = super().encode_token_weights(token_weight_pairs, template_end=template_end)
         if self.byt5_small is not None and "byt5" in token_weight_pairs:
             out = self.byt5_small.encode_token_weights(token_weight_pairs["byt5"])
             extra["conditioning_byt5small"] = out[0]
