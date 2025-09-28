@@ -4,7 +4,7 @@ from . import utils
 
 from . import sd1_clip
 from . import sdxl_clip
-import comfy.clap_model
+import comfy.text_encoders.clap_model
 import comfy.text_encoders.sd2_clip
 import comfy.text_encoders.sd3_clip
 import comfy.text_encoders.sa_t5
@@ -1317,7 +1317,7 @@ class HunyuanFoley(supported_models_base.BASE):
     def get_model(self, state_dict, prefix="", device=None):
         return model_base.HunyuanFoley(self, device=device)
     def clip_target(self, state_dict={}):
-        return supported_models_base.ClipTarget(comfy.clap_model.ClapLargeTokenizer, comfy.clap_model.ClapTextEncoderModel)
+        return supported_models_base.ClipTarget(comfy.text_encoders.clap_model.ClapLargeTokenizer, comfy.text_encoders.clap_model.ClapTextEncoderModel)
 
 class QwenImage(supported_models_base.BASE):
     unet_config = {
