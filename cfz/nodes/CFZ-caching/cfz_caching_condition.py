@@ -37,7 +37,7 @@ class save_conditioning:
     def INPUT_TYPES(cls):
         return {
             "required": {
-                "conditioning": ("CONDITIONING",),  # Removed lazy_options
+                "conditioning": ("CONDITIONING",),
                 "cache_name": ("STRING", {"default": "my_conditioning"}),
             }
         }
@@ -48,48 +48,70 @@ class save_conditioning:
     CATEGORY     = "CFZ Save-Load Conditioning"
 
     def save_conditioning(self, conditioning, cache_name):
-        """Save conditioning to cache with custom name"""
-        
-        os.makedirs(CACHE_DIR, exist_ok=True)
+        """Save conditioning to cache with custom name, supporting subdirectories"""
         
         if not cache_name.strip():
             raise ValueError("Cache name cannot be empty")
         
-        sanitized_name = self.sanitize_filename(cache_name)
-        file_path = os.path.join(CACHE_DIR, f"{sanitized_name}.pt")
-        file_path = self._resolve_path(file_path)
+        # Normalize path separators (handle both \ and /)
+        cache_name = cache_name.replace('\\', os.sep).replace('/', os.sep)
+        
+        # Split into directory and filename
+        path_parts = cache_name.split(os.sep)
+        sanitized_parts = [self.sanitize_filename(part) for part in path_parts]
+        
+        # Reconstruct the relative path
+        relative_path = os.path.join(*sanitized_parts)
+        
+        # Create full file path
+        full_path = os.path.join(CACHE_DIR, relative_path)
+        
+        # Extract directory and ensure it exists
+        directory = os.path.dirname(full_path)
+        if directory:
+            os.makedirs(directory, exist_ok=True)
+            print(f"[CFZ Save] Created/verified directory: {directory}")
+        else:
+            os.makedirs(CACHE_DIR, exist_ok=True)
+        
+        # Add .pt extension if not present
+        if not full_path.endswith('.pt'):
+            full_path += '.pt'
+        
+        file_path = self._resolve_path(full_path)
 
         print(f"[CFZ Save] Processed info:")
-        print(f"  - sanitized name: '{sanitized_name}'")
-        print(f"  - file path: {file_path}")
+        print(f"  - original name: '{cache_name}'")
+        print(f"  - sanitized path: '{relative_path}'")
+        print(f"  - full file path: {file_path}")
 
         # Check if conditioning is provided
         if conditioning is None:
             print("[CFZ Save] ❌ ERROR: Conditioning is None!")
             print("[CFZ Save] This suggests the CLIP Text Encode node is not connected properly")
             print("[CFZ Save] Or there's an issue with the node execution order")
-            raise ValueError(f"No conditioning input provided for cache '{sanitized_name}'. Please connect conditioning input.")
+            raise ValueError(f"No conditioning input provided for cache '{cache_name}'. Please connect conditioning input.")
 
         try:
             print(f"[CFZ Save] Attempting to save conditioning...")
             torch.save(conditioning, file_path)
-            print(f"[CFZ Save] ✅ Successfully saved: {sanitized_name}.pt")
+            print(f"[CFZ Save] ✅ Successfully saved: {relative_path}.pt")
         except Exception as e:
             print(f"[CFZ Save] ❌ Error saving: {e}")
-            raise ValueError(f"Failed to save conditioning '{sanitized_name}': {str(e)}")
+            raise ValueError(f"Failed to save conditioning '{cache_name}': {str(e)}")
         
         return (conditioning,)
 
     def sanitize_filename(self, filename):
-        """Remove invalid characters from filename"""
-        invalid_chars = '<>:"/\\|?*'
+        """Remove invalid characters from filename/directory name"""
+        invalid_chars = '<>:"|?*'  # Removed / and \ to allow path separators
         for char in invalid_chars:
             filename = filename.replace(char, '_')
         
         filename = filename.strip(' .')
         
         if not filename:
-            filename = "unnamed_conditioning"
+            filename = "unnamed"
             
         return filename
 
@@ -130,7 +152,7 @@ class load_conditioning:
 
     @classmethod
     def get_cached_files(cls):
-        """Get list of available cached conditioning files"""
+        """Get list of available cached conditioning files, including subdirectories"""
         try:
             os.makedirs(CACHE_DIR, exist_ok=True)
             cache_files = []
@@ -139,15 +161,26 @@ class load_conditioning:
                 print(f"[CFZ Load] Cache directory doesn't exist: {CACHE_DIR}")
                 return ["no_cache_directory"]
             
-            for filename in os.listdir(CACHE_DIR):
-                if filename.endswith('.pt'):
-                    cache_name = filename[:-3]
-                    cache_files.append(cache_name)
+            # Walk through all subdirectories
+            for root, dirs, files in os.walk(CACHE_DIR):
+                for filename in files:
+                    if filename.endswith('.pt'):
+                        # Get relative path from CACHE_DIR
+                        full_path = os.path.join(root, filename)
+                        relative_path = os.path.relpath(full_path, CACHE_DIR)
+                        
+                        # Remove .pt extension
+                        cache_name = relative_path[:-3]
+                        
+                        # Normalize path separators for display
+                        cache_name = cache_name.replace(os.sep, '/')
+                        
+                        cache_files.append(cache_name)
             
             cache_files.sort()
             
             if cache_files:
-                # print(f"[CFZ Load] Found {len(cache_files)} cached files")
+                print(f"[CFZ Load] Found {len(cache_files)} cached files")
                 return cache_files
             else:
                 print("[CFZ Load] No cache files found")
@@ -158,18 +191,24 @@ class load_conditioning:
             return ["error_reading_cache"]
 
     def load_conditioning(self, cache_name):
-        """Load conditioning from selected cached file"""
-        # print(f"[CFZ Load] Loading conditioning:")
-        # print(f"  - cache_name: '{cache_name}'")
+        """Load conditioning from selected cached file, supporting subdirectories"""
         
         if cache_name in ["no_cache_files_found", "error_reading_cache", "no_cache_directory", ""]:
             raise ValueError("No valid cached conditioning file selected")
         
-        file_path = os.path.join(CACHE_DIR, f"{cache_name}.pt")
+        # Normalize path separators
+        cache_name = cache_name.replace('/', os.sep).replace('\\', os.sep)
+        
+        # Build full path
+        file_path = os.path.join(CACHE_DIR, cache_name)
+        
+        # Add .pt extension if not present
+        if not file_path.endswith('.pt'):
+            file_path += '.pt'
+        
         file_path = self._resolve_path(file_path)
         
-        # print(f"  - file path: {file_path}")
-        # print(f"  - file exists: {os.path.exists(file_path)}")
+        print(f"[CFZ Load] Loading conditioning from: {cache_name}")
         
         if not os.path.exists(file_path):
             raise ValueError(f"Cached conditioning not found: {cache_name}.pt")
@@ -199,7 +238,13 @@ class load_conditioning:
         if cache_name in ["no_cache_files_found", "error_reading_cache", "no_cache_directory", ""]:
             return "No cached conditioning files available"
         
-        cache_path = os.path.join(CACHE_DIR, f"{cache_name}.pt")
+        # Normalize path
+        cache_name_normalized = cache_name.replace('/', os.sep).replace('\\', os.sep)
+        cache_path = os.path.join(CACHE_DIR, cache_name_normalized)
+        
+        if not cache_path.endswith('.pt'):
+            cache_path += '.pt'
+        
         if not os.path.exists(cache_path):
             return f"Selected cache file does not exist: {cache_name}.pt"
         
@@ -222,7 +267,7 @@ class CFZ_PrintMarker:
             "hidden": {"unique_id": "UNIQUE_ID", "extra_pnginfo": "EXTRA_PNGINFO"}
         }
 
-    RETURN_TYPES = (any_type,)  # Pass through whatever was received
+    RETURN_TYPES = (any_type,)
     RETURN_NAMES = ("output",)
     OUTPUT_NODE = True
     FUNCTION = "run"
