@@ -107,8 +107,7 @@ class VideoFromFile(VideoInput):
                 (s for s in container.streams if s.type == "video"), None
             )
             if video_stream and video_stream.frames and video_stream.average_rate:
-                length = float(video_stream.frames / video_stream.average_rate)
-                return length
+                return float(video_stream.frames / video_stream.average_rate)
 
             # Last resort: decode frames to count them
             if video_stream and video_stream.average_rate:
@@ -118,8 +117,7 @@ class VideoFromFile(VideoInput):
                     for _ in packet.decode():
                         frame_count += 1
                 if frame_count > 0:
-                    length = float(frame_count / video_stream.average_rate)
-                    return length
+                    return float(frame_count / video_stream.average_rate)
 
         raise ValueError(f"Could not determine duration for file '{self.__file}'")
 
