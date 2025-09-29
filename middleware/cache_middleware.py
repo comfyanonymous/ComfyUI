@@ -26,11 +26,12 @@ async def cache_control(
     """Cache control middleware that sets appropriate cache headers based on file type and response status"""
     response: web.Response = await handler(request)
 
-    if (
-        request.path.endswith(".js")
-        or request.path.endswith(".css")
-        or request.path.endswith("index.json")
-    ):
+    path_filename = request.path.rsplit("/", 1)[-1]
+    is_entry_point = path_filename.startswith("index") and path_filename.endswith(
+        ".json"
+    )
+
+    if request.path.endswith(".js") or request.path.endswith(".css") or is_entry_point:
         response.headers.setdefault("Cache-Control", "no-cache")
         return response
 
