@@ -28,6 +28,12 @@ class Text2ImageInputField(BaseModel):
     negative_prompt: Optional[str] = Field(None)
 
 
+class Image2ImageInputField(BaseModel):
+    prompt: str = Field(...)
+    negative_prompt: Optional[str] = Field(None)
+    images: list[str] = Field(..., min_length=1, max_length=2)
+
+
 class Text2VideoInputField(BaseModel):
     prompt: str = Field(...)
     negative_prompt: Optional[str] = Field(None)
@@ -46,6 +52,13 @@ class Txt2ImageParametersField(BaseModel):
     n: int = Field(1, description="Number of images to generate.")  # we support only value=1
     seed: int = Field(..., ge=0, le=2147483647)
     prompt_extend: bool = Field(True)
+    watermark: bool = Field(True)
+
+
+class Image2ImageParametersField(BaseModel):
+    size: Optional[str] = Field(None)
+    n: int = Field(1, description="Number of images to generate.")  # we support only value=1
+    seed: int = Field(..., ge=0, le=2147483647)
     watermark: bool = Field(True)
 
 
@@ -71,6 +84,12 @@ class Text2ImageTaskCreationRequest(BaseModel):
     model: str = Field(...)
     input: Text2ImageInputField = Field(...)
     parameters: Txt2ImageParametersField = Field(...)
+
+
+class Image2ImageTaskCreationRequest(BaseModel):
+    model: str = Field(...)
+    input: Image2ImageInputField = Field(...)
+    parameters: Image2ImageParametersField = Field(...)
 
 
 class Text2VideoTaskCreationRequest(BaseModel):
@@ -135,7 +154,12 @@ async def process_task(
     url: str,
     request_model: Type[T],
     response_model: Type[R],
-    payload: Union[Text2ImageTaskCreationRequest, Text2VideoTaskCreationRequest, Image2VideoTaskCreationRequest],
+    payload: Union[
+        Text2ImageTaskCreationRequest,
+        Image2ImageTaskCreationRequest,
+        Text2VideoTaskCreationRequest,
+        Image2VideoTaskCreationRequest,
+    ],
     node_id: str,
     estimated_duration: int,
     poll_interval: int,
@@ -283,6 +307,128 @@ class WanTextToImageApi(comfy_io.ComfyNode):
             payload=payload,
             node_id=cls.hidden.unique_id,
             estimated_duration=9,
+            poll_interval=3,
+        )
+        return comfy_io.NodeOutput(await download_url_to_image_tensor(str(response.output.results[0].url)))
+
+
+class WanImageToImageApi(comfy_io.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return comfy_io.Schema(
+            node_id="WanImageToImageApi",
+            display_name="Wan Image to Image",
+            category="api node/image/Wan",
+            description="Generates an image from one or two input images and a text prompt. "
+                        "The output image is currently fixed at 1.6 MP; its aspect ratio matches the input image(s).",
+            inputs=[
+                comfy_io.Combo.Input(
+                    "model",
+                    options=["wan2.5-i2i-preview"],
+                    default="wan2.5-i2i-preview",
+                    tooltip="Model to use.",
+                ),
+                comfy_io.Image.Input(
+                    "image",
+                    tooltip="Single-image editing or multi-image fusion, maximum 2 images.",
+                ),
+                comfy_io.String.Input(
+                    "prompt",
+                    multiline=True,
+                    default="",
+                    tooltip="Prompt used to describe the elements and visual features, supports English/Chinese.",
+                ),
+                comfy_io.String.Input(
+                    "negative_prompt",
+                    multiline=True,
+                    default="",
+                    tooltip="Negative text prompt to guide what to avoid.",
+                    optional=True,
+                ),
+                # redo this later as an optional combo of recommended resolutions
+                # comfy_io.Int.Input(
+                #     "width",
+                #     default=1280,
+                #     min=384,
+                #     max=1440,
+                #     step=16,
+                #     optional=True,
+                # ),
+                # comfy_io.Int.Input(
+                #     "height",
+                #     default=1280,
+                #     min=384,
+                #     max=1440,
+                #     step=16,
+                #     optional=True,
+                # ),
+                comfy_io.Int.Input(
+                    "seed",
+                    default=0,
+                    min=0,
+                    max=2147483647,
+                    step=1,
+                    display_mode=comfy_io.NumberDisplay.number,
+                    control_after_generate=True,
+                    tooltip="Seed to use for generation.",
+                    optional=True,
+                ),
+                comfy_io.Boolean.Input(
+                    "watermark",
+                    default=True,
+                    tooltip="Whether to add an \"AI generated\" watermark to the result.",
+                    optional=True,
+                ),
+            ],
+            outputs=[
+                comfy_io.Image.Output(),
+            ],
+            hidden=[
+                comfy_io.Hidden.auth_token_comfy_org,
+                comfy_io.Hidden.api_key_comfy_org,
+                comfy_io.Hidden.unique_id,
+            ],
+            is_api_node=True,
+        )
+
+    @classmethod
+    async def execute(
+        cls,
+        model: str,
+        image: torch.Tensor,
+        prompt: str,
+        negative_prompt: str = "",
+        # width: int = 1024,
+        # height: int = 1024,
+        seed: int = 0,
+        watermark: bool = True,
+    ):
+        n_images = get_number_of_images(image)
+        if n_images not in (1, 2):
+            raise ValueError(f"Expected 1 or 2 input images, got {n_images}.")
+        images = []
+        for i in image:
+            images.append("data:image/png;base64," + tensor_to_base64_string(i, total_pixels=4096*4096))
+        payload = Image2ImageTaskCreationRequest(
+            model=model,
+            input=Image2ImageInputField(prompt=prompt, negative_prompt=negative_prompt, images=images),
+            parameters=Image2ImageParametersField(
+                # size=f"{width}*{height}",
+                seed=seed,
+                watermark=watermark,
+            ),
+        )
+        response = await process_task(
+            {
+                "auth_token": cls.hidden.auth_token_comfy_org,
+                "comfy_api_key": cls.hidden.api_key_comfy_org,
+            },
+            "/proxy/wan/api/v1/services/aigc/image2image/image-synthesis",
+            request_model=Image2ImageTaskCreationRequest,
+            response_model=ImageTaskStatusResponse,
+            payload=payload,
+            node_id=cls.hidden.unique_id,
+            estimated_duration=42,
             poll_interval=3,
         )
         return comfy_io.NodeOutput(await download_url_to_image_tensor(str(response.output.results[0].url)))
@@ -593,6 +739,7 @@ class WanApiExtension(ComfyExtension):
     async def get_node_list(self) -> list[type[comfy_io.ComfyNode]]:
         return [
             WanTextToImageApi,
+            WanImageToImageApi,
             WanTextToVideoApi,
             WanImageToVideoApi,
         ]
