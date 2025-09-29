@@ -68,7 +68,7 @@ jobs:
 
             mkdir update
             cp -r ComfyUI/.ci/update_windows/* ./update/
-            cp -r ComfyUI/.ci/windows_base_files/* ./
+            cp -r ComfyUI/.ci/windows_nvidia_base_files/* ./
             cp -r ComfyUI/.ci/windows_nightly_base_files/* ./
 
             echo "call update_comfyui.bat nopause
