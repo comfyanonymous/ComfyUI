@@ -30,7 +30,7 @@ class CUDNNToggleAutoPassthrough:
     RETURN_TYPES = ("MODEL", "CONDITIONING", "LATENT", "AUDIO", "IMAGE", "WANVIDEOMODEL", anyType, "BOOLEAN", "BOOLEAN")
     RETURN_NAMES = ("model", "conditioning", "latent", "audio", "image", "wan_model", "any_output", "prev_cudnn", "prev_benchmark")
     FUNCTION = "toggle"
-    CATEGORY = "utils"
+    CATEGORY = "CFZ/utils"
 
     def toggle(self, enable_cudnn, cudnn_benchmark, any_input=None, wan_model=None, model=None, conditioning=None, latent=None, audio=None, image=None):
         prev_cudnn = torch.backends.cudnn.enabled

@@ -45,7 +45,7 @@ class save_conditioning:
     RETURN_TYPES = ("CONDITIONING",)
     RETURN_NAMES = ("conditioning",)
     FUNCTION     = "save_conditioning"
-    CATEGORY     = "CFZ Save-Load Conditioning"
+    CATEGORY     = "CFZ/conditioning"
 
     def save_conditioning(self, conditioning, cache_name):
         """Save conditioning to cache with custom name, supporting subdirectories"""
@@ -148,7 +148,7 @@ class load_conditioning:
     RETURN_TYPES = ("CONDITIONING",)
     RETURN_NAMES = ("conditioning",)
     FUNCTION     = "load_conditioning"
-    CATEGORY     = "CFZ Save-Load Conditioning"
+    CATEGORY     = "CFZ/conditioning"
 
     @classmethod
     def get_cached_files(cls):
@@ -271,7 +271,7 @@ class CFZ_PrintMarker:
     RETURN_NAMES = ("output",)
     OUTPUT_NODE = True
     FUNCTION = "run"
-    CATEGORY = "CFZ Utils/Debug"
+    CATEGORY = "CFZ/utils/debug"
 
     def run(self, message, timer_name="workflow_timer", is_start_point=False, is_end_point=False, 
             show_current_time=True, trigger=None, unique_id=None, extra_pnginfo=None):
