@@ -28,6 +28,11 @@ on:
         required: true
         type: string
         default: "nvidia"
+      test_release:
+        description: 'Test Release'
+        required: true
+        type: boolean
+        default: true
 
 jobs:
   package_comfy_windows:
@@ -104,6 +109,10 @@ jobs:
           "C:\Program Files\7-Zip\7z.exe" a -t7z -m0=lzma2 -mx=9 -mfb=128 -md=768m -ms=on -mf=BCJ2 ComfyUI_windows_portable.7z ComfyUI_windows_portable
           mv ComfyUI_windows_portable.7z ComfyUI/ComfyUI_windows_portable_${{ inputs.rel_name }}.7z
 
+      - shell: bash
+        if: ${{ inputs.test_release }}
+        run: |
+          cd ..
           cd ComfyUI_windows_portable
           python_embeded/python.exe -s ComfyUI/main.py --quick-test-for-ci --cpu
 
