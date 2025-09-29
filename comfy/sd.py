@@ -508,7 +508,10 @@ class VAE:
                 self.latent_dim = 128
                 self.first_stage_model = comfy.ldm.hunyuan_foley.vae.FoleyVae()
                 # TODO
-                self.memory_used_encode = lambda shape, dtype: shape[0] * model_management.dtype_size(dtype)
+                encode_layers = 25
+                decode_layers = 4
+                self.memory_used_encode = lambda shape, dtype: torch.prod(shape) * model_management.dtype_size(dtype) * encode_layers
+                self.memory_used_decode = lambda shape, dtype: torch.prod(shape) * model_management.dtype_size(dtype) * decode_layers
 
             elif "vocoder.backbone.channel_layers.0.0.bias" in sd: #Ace Step Audio
                 self.first_stage_model = comfy.ldm.ace.vae.music_dcae_pipeline.MusicDCAE(source_sample_rate=44100)

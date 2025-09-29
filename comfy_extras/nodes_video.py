@@ -6,7 +6,6 @@ import av
 import torch
 import folder_paths
 import json
-import numpy as np
 from typing import Optional
 from typing_extensions import override
 from fractions import Fraction
@@ -50,15 +49,18 @@ class EncodeVideo(io.ComfyNode):
     
     @classmethod
     def execute(cls, video, processing_batch_size, step_size, vae = None, clip_vision = None):
-        b, t, c, h, w = video.shape
+        t, c, h, w = video.shape
+        b = 1
         batch_size = b * t
 
-        if vae is None and clip_vision is None:
+        if vae is not None and clip_vision is not None:
             raise ValueError("Must either have vae or clip_vision.")
+        elif vae is None and clip_vision is None:
+            raise ValueError("Can't have VAE and Clip Vision passed at the same time!")
         vae = vae if vae is not None else clip_vision
 
         if hasattr(vae.first_stage_model, "video_encoding"):
-            data, num_segments, output_fn = vae.video_encoding(video, step_size)
+            data, num_segments, output_fn = vae.first_stage_model.video_encoding(video, step_size)
             batch_size = b * num_segments
         else:
             data = video.view(batch_size, c, h, w)
@@ -76,7 +78,7 @@ class EncodeVideo(io.ComfyNode):
 
         output = torch.cat(outputs)
 
-        return output_fn(output)
+        return io.NodeOutput(output_fn(output))
 
 class ResampleVideo(io.ComfyNode):
     @classmethod
@@ -87,44 +89,62 @@ class ResampleVideo(io.ComfyNode):
             category="image/video",
             inputs = [
                 io.Video.Input("video"),
-                io.Int.Input("target_fps")
+                io.Int.Input("target_fps", min=1, default=25)
             ],
-            outputs=[io.Image.Output(display_name="images")]
+            outputs=[io.Video.Output(display_name="video")]
         )
     @classmethod
-    def execute(cls, container: av.container.InputContainer, target_fps: int):
+    def execute(cls, video, target_fps: int):
         # doesn't support upsampling 
-        
-        stream = container.streams.video[0]
-        frames = []
+        with av.open(video.get_stream_source(), mode="r") as container:
+            stream = container.streams.video[0]
+            frames = []
 
-        src_rate = stream.average_rate or stream.guessed_rate
-        src_fps = float(src_rate) if src_rate else None
+            src_rate = stream.average_rate or stream.guessed_rate
+            src_fps = float(src_rate) if src_rate else None
 
-        # yield original frames if asked for upsampling or src is unknown
-        if src_fps is None or target_fps > src_fps:
+            # yield original frames if asked for upsampling or src is unknown
+            if src_fps is None or target_fps > src_fps:
+                for packet in container.demux(stream):
+                    for frame in packet.decode():
+                        arr = torch.from_numpy(frame.to_ndarray(format="rgb24")).float() / 255.0
+                        frames.append(arr)
+                return torch.stack(frames)
+
+            stream.thread_type = "AUTO"
+
+            next_time = 0.0
+            step = 1.0 / target_fps
+
             for packet in container.demux(stream):
                 for frame in packet.decode():
-                    arr = torch.from_numpy(frame.to_ndarray(format="rgb24")).float() / 255.0
-                    frames.append(arr)
-            return torch.stack(frames)
+                    if frame.time is None:
+                        continue
+                    t = frame.time
+                    while t >= next_time:
+                        arr = torch.from_numpy(frame.to_ndarray(format="rgb24")).float() / 255.0
+                        frames.append(arr)
+                        next_time += step
 
-        stream.thread_type = "AUTO"
+            return io.NodeOutput(torch.stack(frames))
 
-        next_time = 0.0
-        step = 1.0 / target_fps
+class VideoToImage(io.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return io.Schema(
+            node_id="VideoToImage",
+            category="image/video",
+            display_name = "Video To Images",
+            inputs=[io.Video.Input("video")],
+            outputs=[io.Image.Output("images")]
+        )
+    @classmethod
+    def execute(cls, video):
+        with av.open(video.get_stream_source(), mode="r") as container:
+            components = video.get_components_internal(container)
 
-        for packet in container.demux(stream):
-            for frame in packet.decode():
-                if frame.time is None:
-                    continue
-                t = frame.time
-                while t >= next_time:
-                    arr = torch.from_numpy(frame.to_ndarray(format="rgb24")).float() / 255.0
-                    frames.append(arr)
-                    next_time += step
-
-        return torch.stack(frames)
+        images = components.images
+        return io.NodeOutput(images)
 
 class SaveWEBM(io.ComfyNode):
     @classmethod
@@ -325,7 +345,8 @@ class VideoExtension(ComfyExtension):
             GetVideoComponents,
             LoadVideo,
             EncodeVideo,
-            ResampleVideo
+            ResampleVideo,
+            VideoToImage
         ]
 
 async def comfy_entrypoint() -> VideoExtension:

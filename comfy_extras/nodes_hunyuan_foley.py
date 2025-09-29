@@ -1,53 +1,60 @@
 import torch
 import comfy.model_management
+from typing_extensions import override
+from comfy_api.latest import ComfyExtension, io
 
-class EmptyLatentHunyuanFoley:
+class EmptyLatentHunyuanFoley(io.ComfyNode):
     @classmethod
-    def INPUT_TYPES(s):
-        return {
-            "required": {
-                "length": ("INT", {"default": 12, "min": 1, "max": 15, "tooltip": "The length of the audio. The same length as the video."}),
-                "batch_size": ("INT", {"default": 1, "min": 1, "max": 4096, "tooltip": "The number of latent audios in the batch."}),
-            },
-            "optional": {"video": ("VIDEO")}
-        }
-
-    RETURN_TYPES = ("LATENT",)
-    FUNCTION = "generate"
-
-    CATEGORY = "latent/audio"
-
-    def generate(self, length, batch_size, video = None):
+    def define_schema(cls):
+        return io.Schema(
+            node_id="EmptyLatentHunyuanFoley",
+            display_name="EmptyLatentHunyuanFoley",
+            category="audio/latent",
+            inputs = [
+                io.Int.Input("length", min = 1, max = 15, default = 12),
+                io.Int.Input("batch_size", min = 1, max = 48_000, default = 1),
+                io.Video.Input("video", optional=True),
+            ],
+            outputs=[io.Latent.Output(display_name="latent")]
+        )
+    @classmethod
+    def execute(cls, length, batch_size, video = None):
         if video is not None:
-            _, length = video.get_duration(return_frames = True)
+            length = video.size(0)
             length /= 25
         shape = (batch_size, 128, int(50 * length))
         latent = torch.randn(shape, device=comfy.model_management.intermediate_device())
-        return ({"samples": latent, "type": "hunyuan_foley"}, )
+        return io.NodeOutput({"samples": latent, "type": "hunyuan_foley"}, )
 
-class HunyuanFoleyConditioning:
+class HunyuanFoleyConditioning(io.ComfyNode):
     @classmethod
-    def INPUT_TYPES(s):
-        return {"required": {"video_encoding_siglip": ("CONDITIONING",),
-                             "video_encoding_synchformer": ("CONDITIONING",),
-                             "text_encoding": ("CONDITIONING",)
-                },
-            }
+    def define_schema(cls):
+        return io.Schema(
+            node_id="HunyuanFoleyConditioning",
+            display_name="HunyuanFoleyConditioning",
+            category="conditioning/video_models",
+            inputs = [
+                io.Conditioning.Input("video_encoding_1"),
+                io.Conditioning.Input("video_encoding_2"),
+                io.Conditioning.Input("text_encoding"),
+            ],
+            outputs=[io.Conditioning.Output(display_name= "positive"), io.Conditioning.Output(display_name="negative")]
+        )
 
-    RETURN_TYPES = ("CONDITIONING", "CONDITIONING")
-    RETURN_NAMES = ("positive", "negative")
-
-    FUNCTION = "encode"
-
-    CATEGORY = "conditioning/video_models"
-
-    def encode(self, video_encoding_1, video_encoding_2, text_encoding):
+    @classmethod
+    def execute(cls, video_encoding_1, video_encoding_2, text_encoding):
         embeds = torch.cat([video_encoding_1, video_encoding_2, text_encoding], dim = 0)
         positive = [[embeds, {}]]
         negative = [[torch.zeros_like(embeds), {}]]
-        return (positive, negative)
+        return io.NodeOutput(positive, negative)
 
-NODE_CLASS_MAPPINGS = {
-    "HunyuanFoleyConditioning": HunyuanFoleyConditioning,
-    "EmptyLatentHunyuanFoley": EmptyLatentHunyuanFoley,
-}
+class FoleyExtension(ComfyExtension):
+    @override
+    async def get_node_list(self) -> list[type[io.ComfyNode]]:
+        return [
+            HunyuanFoleyConditioning,
+            EmptyLatentHunyuanFoley
+        ]
+
+async def comfy_entrypoint() -> FoleyExtension:
+    return FoleyExtension()

@@ -850,8 +850,8 @@ class GlobalTransformer(torch.nn.Module):
         self.vis_in_lnorm = operations.LayerNorm(n_embd, **factory_kwargs)
         self.aud_in_lnorm = operations.LayerNorm(n_embd, **factory_kwargs)
         # aux tokens
-        self.OFF_tok = operations.Parameter(torch.randn(1, 1, n_embd, **factory_kwargs))
-        self.MOD_tok = operations.Parameter(torch.randn(1, 1, n_embd, **factory_kwargs))
+        self.OFF_tok = nn.Parameter(torch.randn(1, 1, n_embd, **factory_kwargs))
+        self.MOD_tok = nn.Parameter(torch.randn(1, 1, n_embd, **factory_kwargs))
         # whole token dropout
         self.tok_pdrop = tok_pdrop
         self.tok_drop_vis = torch.nn.Dropout1d(tok_pdrop)
@@ -863,7 +863,7 @@ class GlobalTransformer(torch.nn.Module):
         )
         # the stem
         self.drop = torch.nn.Dropout(embd_pdrop)
-        self.blocks = operations.Sequential(*[Block(self.config, operations=operations, **factory_kwargs) for _ in range(n_layer)])
+        self.blocks = nn.Sequential(*[Block(self.config, operations=operations, **factory_kwargs) for _ in range(n_layer)])
         # pre-output norm
         self.ln_f = operations.LayerNorm(n_embd)
         # maybe add a head

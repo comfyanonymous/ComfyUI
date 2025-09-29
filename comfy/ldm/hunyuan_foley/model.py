@@ -1,4 +1,4 @@
-from typing import List, Tuple, Optional, Union, Dict
+from typing import List, Tuple, Optional, Union
 from functools import partial
 
 import math
@@ -638,17 +638,19 @@ class SingleStreamBlock(nn.Module):
 class HunyuanVideoFoley(nn.Module):
     def __init__(
         self,
-        model_args,
         dtype: Optional[torch.dtype] = None,
         device: Optional[torch.device] = None,
-        operations = None
+        operations = None,
+        **kwargs
     ):
 
         factory_kwargs = {"device": device, "dtype": dtype}
         super().__init__()
+        self.dtype = dtype
 
         self.depth_triple_blocks = 18
         self.depth_single_blocks = 36
+        model_args = {}
 
         self.interleaved_audio_visual_rope = model_args.get("interleaved_audio_visual_rope", True)
 

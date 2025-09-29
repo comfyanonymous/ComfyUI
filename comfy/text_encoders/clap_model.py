@@ -66,7 +66,6 @@ class ClapTextEmbeddings(nn.Module):
             "token_type_ids", torch.zeros(self.position_ids.size(), dtype=torch.long, device=device), persistent=True
         )
 
-        # End copy
         self.padding_idx = pad_token_id
         self.position_embeddings = operations.Embedding(
             max_position_embeddings, hidden_size, padding_idx=self.padding_idx, device=device, dtype=dtype
@@ -145,6 +144,7 @@ class ClapTextSelfAttention(nn.Module):
         value_states = self.value(hidden_states).view(hidden_shape).transpose(1, 2)
 
         query_states, key_states, value_states = [t.contiguous() for t in (query_states, key_states, value_states)]
+        attention_mask = attention_mask.to(query_states.dtype)
         attn_output = optimized_attention(query_states, key_states, value_states, self.num_attention_heads, mask = attention_mask, skip_output_reshape=True, skip_reshape=True)
         attn_output = attn_output.transpose(1, 2).contiguous()
         return attn_output.reshape(*input_shape, -1).contiguous()
@@ -271,16 +271,16 @@ class ClapTextModel(nn.Module):
         attention_mask: Optional[torch.Tensor] = None,
         token_type_ids: Optional[torch.Tensor] = None,
         position_ids: Optional[torch.Tensor] = None,
-        inputs_embeds: Optional[torch.Tensor] = None,
+        embeds: Optional[torch.Tensor] = None,
     ):
 
         if input_ids is not None:
             input_shape = input_ids.size()
-        elif inputs_embeds is not None:
-            input_shape = inputs_embeds.size()[:-1]
+        elif embeds is not None:
+            input_shape = embeds.size()[:-1]
 
         batch_size, seq_length = input_shape
-        device = input_ids.device if input_ids is not None else inputs_embeds.device
+        device = input_ids.device if input_ids is not None else embeds.device
 
         if token_type_ids is None:
             if hasattr(self.embeddings, "token_type_ids"):
@@ -294,7 +294,7 @@ class ClapTextModel(nn.Module):
             input_ids=input_ids,
             position_ids=position_ids,
             token_type_ids=token_type_ids,
-            inputs_embeds=inputs_embeds,
+            inputs_embeds=embeds,
         )
         encoder_outputs = self.encoder(
             embedding_output,
@@ -308,6 +308,10 @@ class ClapTextModel(nn.Module):
 class ClapTextModelWithProjection(nn.Module):
     def __init__(
         self,
+        config,
+        dtype=None,
+        device=None,
+        operations=None,
         hidden_size: int = 768,
         intermediate_size: int = 3072,
         layer_norm_eps: float = 1e-12,
@@ -318,26 +322,30 @@ class ClapTextModelWithProjection(nn.Module):
         type_vocab_size: int = 1,
         vocab_size: int = 50265,
         pad_token_id: int = 1,
-        device=None,
-        dtype=None,
-        operations=None
     ):
         super().__init__()
+        self.num_layers = num_hidden_layers
         self.text_model = ClapTextModel(num_attention_heads, vocab_size, hidden_size, intermediate_size, pad_token_id, max_position_embeddings,
                                         type_vocab_size, layer_norm_eps, num_hidden_layers, device=device, dtype=dtype, operations=operations)
         self.text_projection = ClapProjectionLayer(hidden_size, projection_dim, device=device, dtype=dtype, operations=operations,)
+
+    def get_input_embeddings(self):
+        return self.text_model.embeddings.word_embeddings
 
     def forward(
         self,
         input_ids: Optional[torch.Tensor] = None,
         attention_mask: Optional[torch.Tensor] = None,
         position_ids: Optional[torch.Tensor] = None,
+        embeds = None,
+        **kwargs
     ):
 
         text_outputs = self.text_model(
             input_ids=input_ids,
             attention_mask=attention_mask,
             position_ids=position_ids,
+            embeds=embeds
         )
 
         pooled_output = text_outputs[1]
@@ -347,9 +355,10 @@ class ClapTextModelWithProjection(nn.Module):
 
 class ClapTextEncoderModel(sd1_clip.SDClipModel):
     def __init__(self, device="cpu", layer="last", layer_idx=None, dtype=None, attention_mask=True, model_options={}):
+        self.dtypes = set([dtype])
         super().__init__(device=device, layer=layer, layer_idx=layer_idx, textmodel_json_config={}, dtype=dtype, special_tokens={"pad": 1}, layer_norm_hidden_state=False, model_class=ClapTextModelWithProjection, enable_attention_masks=attention_mask, return_attention_masks=attention_mask, model_options=model_options)
 
 class ClapLargeTokenizer(sd1_clip.SDTokenizer):
     def __init__(self, embedding_directory=None, tokenizer_data={}):
         tokenizer_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "clap_tokenizer")
-        super().__init__(tokenizer_path, pad_with_end=False, embedding_size=2048, embedding_key='clap_l', tokenizer_class=AutoTokenizer, has_start_token=False, has_end_token=False, pad_to_max_length=False, max_length=99999999, min_length=1, pad_token=151643, tokenizer_data=tokenizer_data)
+        super().__init__(tokenizer_path, pad_with_end=False, embedding_size=2048, embedding_key='clap_l', tokenizer_class=AutoTokenizer, has_start_token=False, has_end_token=False, pad_to_max_length=False, max_length=99999999, min_length=1, pad_token=1, tokenizer_data=tokenizer_data)

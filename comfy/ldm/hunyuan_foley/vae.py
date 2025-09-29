@@ -5,7 +5,7 @@ from typing import List
 import torch.nn as nn
 from einops import rearrange
 from torchvision.transforms import v2
-from torch.nn.utils.parametrizations import weight_norm
+from torch.nn.utils import weight_norm
 
 from comfy.ldm.hunyuan_foley.syncformer import Synchformer
 
@@ -154,6 +154,7 @@ class DACDecoder(nn.Module):
         layers += [
             Snake1d(output_dim, device = device, dtype = dtype),
             WNConv1d(output_dim, d_out, kernel_size=7, padding=3, device = device, dtype = dtype, operations = operations),
+            nn.Tanh(),
         ]
 
         self.model = nn.Sequential(*layers)
@@ -164,11 +165,11 @@ class DACDecoder(nn.Module):
 class DAC(torch.nn.Module):
     def __init__(
         self,
-        encoder_dim: int = 64,
-        encoder_rates: List[int] = [2, 4, 8, 8],
-        latent_dim: int = None,
-        decoder_dim: int = 1536,
-        decoder_rates: List[int] = [8, 8, 4, 2],
+        encoder_dim: int = 128,
+        encoder_rates: List[int] = [2, 3, 4, 5],
+        latent_dim: int = 128,
+        decoder_dim: int = 2048,
+        decoder_rates: List[int] = [8, 5, 4, 3],
         sample_rate: int = 44100,
     ):
         super().__init__()
@@ -204,6 +205,7 @@ class DAC(torch.nn.Module):
 
 class FoleyVae(torch.nn.Module):
     def __init__(self):
+        super().__init__()
         self.dac = DAC()
         self.syncformer = Synchformer(None, None, operations = ops)
         self.syncformer_preprocess = v2.Compose(
