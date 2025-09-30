@@ -50,10 +50,11 @@ class GeminiModel(str, Enum):
     Gemini Model Names allowed by comfy-api
     """
 
-    gemini_2_5_pro_preview_05_06 = "gemini-2.5-pro-preview-05-06"
-    gemini_2_5_flash_preview_04_17 = "gemini-2.5-flash-preview-04-17"
+    gemini_2_5_flash_preview_09_25 = "gemini-2.5-flash-preview-09-2025"
+    gemini_2_5_flash_lite_preview_09_25 = "gemini-2.5-flash-lite-preview-09-2025"
     gemini_2_5_pro = "gemini-2.5-pro"
     gemini_2_5_flash = "gemini-2.5-flash"
+    gemini_2_5_flash_lite = "gemini-2.5-flash-lite"
 
 
 class GeminiImageModel(str, Enum):
@@ -293,7 +294,7 @@ class GeminiNode(ComfyNodeABC):
             },
         }
 
-    DESCRIPTION = "Generate text responses with Google's Gemini AI model. You can provide multiple types of inputs (text, images, audio, video) as context for generating more relevant and meaningful responses."
+    DESCRIPTION = "Generate text responses with Google Gemini AI model. You can provide multiple types of inputs (text, images, audio, video) as context for generating more relevant and meaningful responses."
     RETURN_TYPES = ("STRING",)
     FUNCTION = "api_call"
     CATEGORY = "api node/text/Gemini"
