@@ -604,6 +604,9 @@ class ModelPatcher:
         else:
             set_func(out_weight, inplace_update=inplace_update, seed=string_to_seed(key))
 
+    def supports_flipflop(self):
+        return hasattr(self.model.diffusion_model, "flipflop")
+
     def _load_list(self):
         loading = []
         for n, m in self.model.named_modules():

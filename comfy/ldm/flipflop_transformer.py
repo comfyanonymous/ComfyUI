@@ -5,6 +5,8 @@ import copy
 from typing import List, Tuple
 from dataclasses import dataclass
 
+import comfy.model_management
+
 FLIPFLOP_REGISTRY = {}
 
 def register(name):
@@ -105,15 +107,21 @@ class FlipFlopContext:
 
 class FlipFlopHolder:
     def __init__(self, transformer_blocks: List[torch.nn.Module], inference_device="cuda", offloading_device="cpu"):
-        self.inference_device = torch.device(inference_device)
-        self.offloading_device = torch.device(offloading_device)
+        self.load_device = torch.device(inference_device)
+        self.offload_device = torch.device(offloading_device)
         self.transformer_blocks = transformer_blocks
 
-        self.flip = copy.deepcopy(self.transformer_blocks[0]).to(device=self.inference_device)
-        self.flop = copy.deepcopy(self.transformer_blocks[1]).to(device=self.inference_device)
+        self.block_module_size = 0
+        if len(self.transformer_blocks) > 0:
+            self.block_module_size = comfy.model_management.module_size(self.transformer_blocks[0])
 
-        self.compute_stream = cuda.default_stream(self.inference_device)
-        self.cpy_stream = cuda.Stream(self.inference_device)
+        self.flip: torch.nn.Module = None
+        self.flop: torch.nn.Module = None
+        # TODO: make initialization happen in model management code/model patcher, not here
+        self.initialize_flipflop_blocks(self.load_device)
+
+        self.compute_stream = cuda.default_stream(self.load_device)
+        self.cpy_stream = cuda.Stream(self.load_device)
 
         self.event_flip = torch.cuda.Event(enable_timing=False)
         self.event_flop = torch.cuda.Event(enable_timing=False)
@@ -133,6 +141,10 @@ class FlipFlopHolder:
 
     def context(self):
         return FlipFlopContext(self)
+
+    def initialize_flipflop_blocks(self, load_device: torch.device):
+        self.flip = copy.deepcopy(self.transformer_blocks[0]).to(device=load_device)
+        self.flop = copy.deepcopy(self.transformer_blocks[1]).to(device=load_device)
 
 class FlipFlopTransformer:
     def __init__(self, transformer_blocks: List[torch.nn.Module], block_wrap_fn, out_names: Tuple[str], pinned_staging: bool = False, inference_device="cuda", offloading_device="cpu"):
