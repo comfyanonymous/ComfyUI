@@ -920,7 +920,7 @@ class ByteDanceFirstLastFrameNode(comfy_io.ComfyNode):
             inputs=[
                 comfy_io.Combo.Input(
                     "model",
-                    options=[Image2VideoModelName.seedance_1_lite.value],
+                    options=[model.value for model in Image2VideoModelName],
                     default=Image2VideoModelName.seedance_1_lite.value,
                     tooltip="Model name",
                 ),
