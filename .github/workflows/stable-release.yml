@@ -2,6 +2,42 @@
 name: "Release Stable Version"
 
 on:
+  workflow_call:
+    inputs:
+      git_tag:
+        description: 'Git tag'
+        required: true
+        type: string
+      cache_tag:
+        description: 'Cached dependencies tag'
+        required: true
+        type: string
+        default: "cu129"
+      python_minor:
+        description: 'Python minor version'
+        required: true
+        type: string
+        default: "13"
+      python_patch:
+        description: 'Python patch version'
+        required: true
+        type: string
+        default: "6"
+      rel_name:
+        description: 'Release name'
+        required: true
+        type: string
+        default: "nvidia"
+      rel_extra_name:
+        description: 'Release extra name'
+        required: false
+        type: string
+        default: ""
+      test_release:
+        description: 'Test Release'
+        required: true
+        type: boolean
+        default: true
   workflow_dispatch:
     inputs:
       git_tag:
@@ -28,6 +64,16 @@ on:
         required: true
         type: string
         default: "nvidia"
+      rel_extra_name:
+        description: 'Release extra name'
+        required: false
+        type: string
+        default: ""
+      test_release:
+        description: 'Test Release'
+        required: true
+        type: boolean
+        default: true
 
 jobs:
   package_comfy_windows:
@@ -96,14 +142,18 @@ jobs:
 
           mkdir update
           cp -r ComfyUI/.ci/update_windows/* ./update/
-          cp -r ComfyUI/.ci/windows_base_files/* ./
+          cp -r ComfyUI/.ci/windows_${{ inputs.rel_name }}_base_files/* ./
           cp ../update_comfyui_and_python_dependencies.bat ./update/
 
           cd ..
 
           "C:\Program Files\7-Zip\7z.exe" a -t7z -m0=lzma2 -mx=9 -mfb=128 -md=768m -ms=on -mf=BCJ2 ComfyUI_windows_portable.7z ComfyUI_windows_portable
-          mv ComfyUI_windows_portable.7z ComfyUI/ComfyUI_windows_portable_${{ inputs.rel_name }}.7z
+          mv ComfyUI_windows_portable.7z ComfyUI/ComfyUI_windows_portable_${{ inputs.rel_name }}${{ inputs.rel_extra_name }}.7z
 
+      - shell: bash
+        if: ${{ inputs.test_release }}
+        run: |
+          cd ..
           cd ComfyUI_windows_portable
           python_embeded/python.exe -s ComfyUI/main.py --quick-test-for-ci --cpu
 
@@ -114,7 +164,7 @@ jobs:
       - name: Upload binaries to release
         uses: softprops/action-gh-release@v2
         with:
-          files: ComfyUI_windows_portable_${{ inputs.rel_name }}.7z
+          files: ComfyUI_windows_portable_${{ inputs.rel_name }}${{ inputs.rel_extra_name }}.7z
           tag_name: ${{ inputs.git_tag }}
           draft: true
           overwrite_files: true
