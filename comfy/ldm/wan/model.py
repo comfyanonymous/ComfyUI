@@ -87,7 +87,7 @@ class WanSelfAttention(nn.Module):
         )
 
         x = self.o(x)
-        return x
+        return x, q, k
 
 
 class WanT2VCrossAttention(WanSelfAttention):
@@ -178,7 +178,8 @@ class WanAttentionBlock(nn.Module):
                  window_size=(-1, -1),
                  qk_norm=True,
                  cross_attn_norm=False,
-                 eps=1e-6, operation_settings={}):
+                 eps=1e-6, operation_settings={},
+                 block_idx=None):
         super().__init__()
         self.dim = dim
         self.ffn_dim = ffn_dim
@@ -187,6 +188,7 @@ class WanAttentionBlock(nn.Module):
         self.qk_norm = qk_norm
         self.cross_attn_norm = cross_attn_norm
         self.eps = eps
+        self.block_idx = block_idx
 
         # layers
         self.norm1 = operation_settings.get("operations").LayerNorm(dim, eps, elementwise_affine=False, device=operation_settings.get("device"), dtype=operation_settings.get("dtype"))
@@ -225,6 +227,8 @@ class WanAttentionBlock(nn.Module):
         """
         # assert e.dtype == torch.float32
 
+        patches = transformer_options.get("patches", {})
+
         if e.ndim < 4:
             e = (comfy.model_management.cast_to(self.modulation, dtype=x.dtype, device=x.device) + e).chunk(6, dim=1)
         else:
@@ -232,7 +236,7 @@ class WanAttentionBlock(nn.Module):
         # assert e[0].dtype == torch.float32
 
         # self-attention
-        y = self.self_attn(
+        y, q, k = self.self_attn(
             torch.addcmul(repeat_e(e[0], x), self.norm1(x), 1 + repeat_e(e[1], x)),
             freqs, transformer_options=transformer_options)
 
@@ -241,6 +245,11 @@ class WanAttentionBlock(nn.Module):
 
         # cross-attention & ffn
         x = x + self.cross_attn(self.norm3(x), context, context_img_len=context_img_len, transformer_options=transformer_options)
+
+        if "cross_attn" in patches:
+            for p in patches["cross_attn"]:
+                x = x + p({"x": x, "q": q, "k": k, "block_idx": self.block_idx, "transformer_options": transformer_options})
+
         y = self.ffn(torch.addcmul(repeat_e(e[3], x), self.norm2(x), 1 + repeat_e(e[4], x)))
         x = torch.addcmul(x, y, repeat_e(e[5], x))
         return x
@@ -262,6 +271,7 @@ class VaceWanAttentionBlock(WanAttentionBlock):
     ):
         super().__init__(cross_attn_type, dim, ffn_dim, num_heads, window_size, qk_norm, cross_attn_norm, eps, operation_settings=operation_settings)
         self.block_id = block_id
+        self.block_idx = None
         if block_id == 0:
             self.before_proj = operation_settings.get("operations").Linear(self.dim, self.dim, device=operation_settings.get("device"), dtype=operation_settings.get("dtype"))
         self.after_proj = operation_settings.get("operations").Linear(self.dim, self.dim, device=operation_settings.get("device"), dtype=operation_settings.get("dtype"))
@@ -486,8 +496,8 @@ class WanModel(torch.nn.Module):
         cross_attn_type = 't2v_cross_attn' if model_type == 't2v' else 'i2v_cross_attn'
         self.blocks = nn.ModuleList([
             wan_attn_block_class(cross_attn_type, dim, ffn_dim, num_heads,
-                                 window_size, qk_norm, cross_attn_norm, eps, operation_settings=operation_settings)
-            for _ in range(num_layers)
+                                 window_size, qk_norm, cross_attn_norm, eps, operation_settings=operation_settings, block_idx=i)
+            for i in range(num_layers)
         ])
 
         # head
@@ -540,6 +550,7 @@ class WanModel(torch.nn.Module):
         # embeddings
         x = self.patch_embedding(x.float()).to(x.dtype)
         grid_sizes = x.shape[2:]
+        transformer_options["grid_sizes"] = grid_sizes
         x = x.flatten(2).transpose(1, 2)
 
         # time embeddings
@@ -722,6 +733,7 @@ class VaceWanModel(WanModel):
         # embeddings
         x = self.patch_embedding(x.float()).to(x.dtype)
         grid_sizes = x.shape[2:]
+        transformer_options["grid_sizes"] = grid_sizes
         x = x.flatten(2).transpose(1, 2)
 
         # time embeddings
