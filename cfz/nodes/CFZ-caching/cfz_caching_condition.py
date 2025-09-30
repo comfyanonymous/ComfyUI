@@ -180,7 +180,7 @@ class load_conditioning:
             cache_files.sort()
             
             if cache_files:
-                print(f"[CFZ Load] Found {len(cache_files)} cached files")
+                # print(f"[CFZ Load] Found {len(cache_files)} cached files")
                 return cache_files
             else:
                 print("[CFZ Load] No cache files found")
