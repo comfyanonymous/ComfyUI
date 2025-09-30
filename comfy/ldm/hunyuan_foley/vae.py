@@ -5,7 +5,7 @@ from typing import List
 import torch.nn as nn
 from einops import rearrange
 from torchvision.transforms import v2
-from torch.nn.utils import weight_norm
+from torch.nn.utils.parametrizations import weight_norm
 
 from comfy.ldm.hunyuan_foley.syncformer import Synchformer
 
@@ -96,12 +96,6 @@ class DACEncoder(nn.Module):
             d_model *= 2
             self.block += [DACEncoderBlock(d_model, stride=stride, device = device, dtype = dtype, operations = operations)]
 
-        # Create last convolution
-        self.block += [
-            Snake1d(d_model),
-            WNConv1d(d_model, d_latent, kernel_size=3, padding=1, device = device, dtype = dtype, operations = operations),
-        ]
-
         # Wrap black into nn.Sequential
         self.block = nn.Sequential(*self.block)
         self.enc_dim = d_model
@@ -150,12 +144,6 @@ class DACDecoder(nn.Module):
             input_dim = channels // 2**i
             output_dim = channels // 2 ** (i + 1)
             layers += [DACDecoderBlock(input_dim, output_dim, stride, device = device, dtype = dtype, operations = operations)]
-
-        layers += [
-            Snake1d(output_dim, device = device, dtype = dtype),
-            WNConv1d(output_dim, d_out, kernel_size=7, padding=3, device = device, dtype = dtype, operations = operations),
-            nn.Tanh(),
-        ]
 
         self.model = nn.Sequential(*layers)
 

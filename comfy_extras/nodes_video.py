@@ -14,6 +14,7 @@ from comfy_api.input_impl import VideoFromComponents, VideoFromFile
 from comfy_api.util import VideoCodec, VideoComponents, VideoContainer
 from comfy_api.latest import ComfyExtension, io, ui
 from comfy.cli_args import args
+import comfy.utils
 
 class EncodeVideo(io.ComfyNode):
     @classmethod
@@ -49,6 +50,7 @@ class EncodeVideo(io.ComfyNode):
     
     @classmethod
     def execute(cls, video, processing_batch_size, step_size, vae = None, clip_vision = None):
+
         t, c, h, w = video.shape
         b = 1
         batch_size = b * t
@@ -71,10 +73,15 @@ class EncodeVideo(io.ComfyNode):
 
         outputs = []
         total = data.shape[0]
-        for i in range(0, total, batch_size):
-            chunk = data[i : i + batch_size]
-            out = vae.encode(chunk)
-            outputs.append(out)
+        pbar = comfy.utils.ProgressBar(total/batch_size)
+        with torch.inference_mode(): 
+            for i in range(0, total, batch_size):
+                chunk = data[i : i + batch_size]
+                out = vae.encode(chunk)
+                outputs.append(out)
+                del out, chunk
+                torch.cuda.empty_cache()
+                pbar.update(1)
 
         output = torch.cat(outputs)
 
@@ -109,7 +116,7 @@ class ResampleVideo(io.ComfyNode):
                     for frame in packet.decode():
                         arr = torch.from_numpy(frame.to_ndarray(format="rgb24")).float() / 255.0
                         frames.append(arr)
-                return torch.stack(frames)
+                return io.NodeOutput(torch.stack(frames))
 
             stream.thread_type = "AUTO"
 

@@ -34,8 +34,8 @@ class HunyuanFoleyConditioning(io.ComfyNode):
             display_name="HunyuanFoleyConditioning",
             category="conditioning/video_models",
             inputs = [
-                io.Conditioning.Input("video_encoding_1"),
-                io.Conditioning.Input("video_encoding_2"),
+                io.Conditioning.Input("siglip_encoding_1"),
+                io.Conditioning.Input("synchformer_encoding_2"),
                 io.Conditioning.Input("text_encoding"),
             ],
             outputs=[io.Conditioning.Output(display_name= "positive"), io.Conditioning.Output(display_name="negative")]

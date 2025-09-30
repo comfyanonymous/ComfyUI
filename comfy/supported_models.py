@@ -1318,6 +1318,10 @@ class HunyuanFoley(supported_models_base.BASE):
         return model_base.HunyuanFoley(self, device=device)
     def clip_target(self, state_dict={}):
         return supported_models_base.ClipTarget(comfy.text_encoders.clap_model.ClapLargeTokenizer, comfy.text_encoders.clap_model.ClapTextEncoderModel)
+    
+    def process_clip_state_dict(self, state_dict):
+        state_dict = utils.state_dict_prefix_replace(state_dict, {k: "transformer." for k in self.text_encoder_key_prefix}, filter_keys=True)
+        return state_dict
 
 class QwenImage(supported_models_base.BASE):
     unet_config = {
