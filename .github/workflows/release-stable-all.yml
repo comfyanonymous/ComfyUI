@@ -10,6 +10,10 @@ on:
 
 jobs:
   release_nvidia_default:
+    permissions:
+      contents: "write"
+      packages: "write"
+      pull-requests: "read"
     name: "Release NVIDIA Default (cu129)"
     uses: ./.github/workflows/stable-release.yml
     with:
@@ -23,6 +27,10 @@ jobs:
     secrets: inherit
 
   release_nvidia_cu128:
+    permissions:
+      contents: "write"
+      packages: "write"
+      pull-requests: "read"
     name: "Release NVIDIA cu128"
     uses: ./.github/workflows/stable-release.yml
     with:
@@ -36,6 +44,10 @@ jobs:
     secrets: inherit
 
   release_amd_rocm:
+    permissions:
+      contents: "write"
+      packages: "write"
+      pull-requests: "read"
     name: "Release AMD ROCm 6.4.4"
     uses: ./.github/workflows/stable-release.yml
     with:
