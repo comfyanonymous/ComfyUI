@@ -1,11 +1,9 @@
-import torch
-
 class EpsilonScaling:
     """
-    Implements the Epsilon Scaling method from 'Elucidating the Exposure Bias in Diffusion Models' 
+    Implements the Epsilon Scaling method from 'Elucidating the Exposure Bias in Diffusion Models'
     (https://arxiv.org/abs/2308.15321v6).
 
-    This method mitigates exposure bias by scaling the predicted noise during sampling, 
+    This method mitigates exposure bias by scaling the predicted noise during sampling,
     which can significantly improve sample quality. This implementation uses the "uniform schedule"
     recommended by the paper for its practicality and effectiveness.
     """
