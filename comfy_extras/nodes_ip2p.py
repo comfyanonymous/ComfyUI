@@ -1,21 +1,30 @@
 import torch
 
-class InstructPixToPixConditioning:
+from typing_extensions import override
+from comfy_api.latest import ComfyExtension, io
+
+
+class InstructPixToPixConditioning(io.ComfyNode):
     @classmethod
-    def INPUT_TYPES(s):
-        return {"required": {"positive": ("CONDITIONING", ),
-                             "negative": ("CONDITIONING", ),
-                             "vae": ("VAE", ),
-                             "pixels": ("IMAGE", ),
-                             }}
+    def define_schema(cls):
+        return io.Schema(
+            node_id="InstructPixToPixConditioning",
+            category="conditioning/instructpix2pix",
+            inputs=[
+                io.Conditioning.Input("positive"),
+                io.Conditioning.Input("negative"),
+                io.Vae.Input("vae"),
+                io.Image.Input("pixels"),
+            ],
+            outputs=[
+                io.Conditioning.Output(display_name="positive"),
+                io.Conditioning.Output(display_name="negative"),
+                io.Latent.Output(display_name="latent"),
+            ],
+        )
 
-    RETURN_TYPES = ("CONDITIONING","CONDITIONING","LATENT")
-    RETURN_NAMES = ("positive", "negative", "latent")
-    FUNCTION = "encode"
-
-    CATEGORY = "conditioning/instructpix2pix"
-
-    def encode(self, positive, negative, pixels, vae):
+    @classmethod
+    def execute(cls, positive, negative, pixels, vae) -> io.NodeOutput:
         x = (pixels.shape[1] // 8) * 8
         y = (pixels.shape[2] // 8) * 8
 
@@ -38,8 +47,17 @@ class InstructPixToPixConditioning:
                 n = [t[0], d]
                 c.append(n)
             out.append(c)
-        return (out[0], out[1], out_latent)
+        return io.NodeOutput(out[0], out[1], out_latent)
 
-NODE_CLASS_MAPPINGS = {
-    "InstructPixToPixConditioning": InstructPixToPixConditioning,
-}
+
+class InstructPix2PixExtension(ComfyExtension):
+    @override
+    async def get_node_list(self) -> list[type[io.ComfyNode]]:
+        return [
+            InstructPixToPixConditioning,
+        ]
+
+
+async def comfy_entrypoint() -> InstructPix2PixExtension:
+    return InstructPix2PixExtension()
+
