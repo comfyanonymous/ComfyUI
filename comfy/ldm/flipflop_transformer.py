@@ -3,41 +3,8 @@ import torch
 import torch.cuda as cuda
 import copy
 from typing import List, Tuple
-from dataclasses import dataclass
 
 import comfy.model_management
-
-FLIPFLOP_REGISTRY = {}
-
-def register(name):
-    def decorator(cls):
-        FLIPFLOP_REGISTRY[name] = cls
-        return cls
-    return decorator
-
-
-@dataclass
-class FlipFlopConfig:
-    block_name: str
-    block_wrap_fn: callable
-    out_names: Tuple[str]
-    overwrite_forward: str
-    pinned_staging: bool = False
-    inference_device: str = "cuda"
-    offloading_device: str = "cpu"
-
-
-def patch_model_from_config(model, config: FlipFlopConfig):
-    block_list = getattr(model, config.block_name)
-    flip_flop_transformer = FlipFlopTransformer(block_list,
-                                                block_wrap_fn=config.block_wrap_fn,
-                                                out_names=config.out_names,
-                                                offloading_device=config.offloading_device,
-                                                inference_device=config.inference_device,
-                                                pinned_staging=config.pinned_staging)
-    delattr(model, config.block_name)
-    setattr(model, config.block_name, flip_flop_transformer)
-    setattr(model, config.overwrite_forward, flip_flop_transformer.__call__)
 
 
 class FlipFlopContext:
@@ -46,11 +13,12 @@ class FlipFlopContext:
         self.reset()
 
     def reset(self):
-        self.num_blocks = len(self.holder.transformer_blocks)
+        self.num_blocks = len(self.holder.blocks)
         self.first_flip = True
         self.first_flop = True
         self.last_flip = False
         self.last_flop = False
+        # TODO: the 'i' that's passed into func needs to be properly offset to do patches correctly
 
     def __enter__(self):
         self.reset()
@@ -71,9 +39,9 @@ class FlipFlopContext:
             next_flop_i = next_flop_i - self.num_blocks
             self.last_flip = True
         if not self.first_flip:
-            self.holder._copy_state_dict(self.holder.flop.state_dict(), self.holder.transformer_blocks[next_flop_i].state_dict(), self.holder.event_flop, self.holder.cpy_end_event)
+            self.holder._copy_state_dict(self.holder.flop.state_dict(), self.holder.blocks[next_flop_i].state_dict(), self.holder.event_flop, self.holder.cpy_end_event)
         if self.last_flip:
-            self.holder._copy_state_dict(self.holder.flip.state_dict(), self.holder.transformer_blocks[0].state_dict(), cpy_start_event=self.holder.event_flip)
+            self.holder._copy_state_dict(self.holder.flip.state_dict(), self.holder.blocks[0].state_dict(), cpy_start_event=self.holder.event_flip)
         self.first_flip = False
         return out
 
@@ -89,9 +57,9 @@ class FlipFlopContext:
         if next_flip_i >= self.num_blocks:
             next_flip_i = next_flip_i - self.num_blocks
             self.last_flop = True
-        self.holder._copy_state_dict(self.holder.flip.state_dict(), self.holder.transformer_blocks[next_flip_i].state_dict(), self.holder.event_flip, self.holder.cpy_end_event)
+        self.holder._copy_state_dict(self.holder.flip.state_dict(), self.holder.blocks[next_flip_i].state_dict(), self.holder.event_flip, self.holder.cpy_end_event)
         if self.last_flop:
-            self.holder._copy_state_dict(self.holder.flop.state_dict(), self.holder.transformer_blocks[1].state_dict(), cpy_start_event=self.holder.event_flop)
+            self.holder._copy_state_dict(self.holder.flop.state_dict(), self.holder.blocks[1].state_dict(), cpy_start_event=self.holder.event_flop)
         self.first_flop = False
         return out
 
@@ -106,19 +74,20 @@ class FlipFlopContext:
 
 
 class FlipFlopHolder:
-    def __init__(self, transformer_blocks: List[torch.nn.Module], inference_device="cuda", offloading_device="cpu"):
-        self.load_device = torch.device(inference_device)
-        self.offload_device = torch.device(offloading_device)
-        self.transformer_blocks = transformer_blocks
+    def __init__(self, blocks: List[torch.nn.Module], flip_amount: int, load_device="cuda", offload_device="cpu"):
+        self.load_device = torch.device(load_device)
+        self.offload_device = torch.device(offload_device)
+        self.blocks = blocks
+        self.flip_amount = flip_amount
 
         self.block_module_size = 0
-        if len(self.transformer_blocks) > 0:
-            self.block_module_size = comfy.model_management.module_size(self.transformer_blocks[0])
+        if len(self.blocks) > 0:
+            self.block_module_size = comfy.model_management.module_size(self.blocks[0])
 
         self.flip: torch.nn.Module = None
         self.flop: torch.nn.Module = None
         # TODO: make initialization happen in model management code/model patcher, not here
-        self.initialize_flipflop_blocks(self.load_device)
+        self.init_flipflop_blocks(self.load_device)
 
         self.compute_stream = cuda.default_stream(self.load_device)
         self.cpy_stream = cuda.Stream(self.load_device)
@@ -142,10 +111,57 @@ class FlipFlopHolder:
     def context(self):
         return FlipFlopContext(self)
 
-    def initialize_flipflop_blocks(self, load_device: torch.device):
-        self.flip = copy.deepcopy(self.transformer_blocks[0]).to(device=load_device)
-        self.flop = copy.deepcopy(self.transformer_blocks[1]).to(device=load_device)
+    def init_flipflop_blocks(self, load_device: torch.device):
+        self.flip = copy.deepcopy(self.blocks[0]).to(device=load_device)
+        self.flop = copy.deepcopy(self.blocks[1]).to(device=load_device)
 
+    def clean_flipflop_blocks(self):
+        del self.flip
+        del self.flop
+        self.flip = None
+        self.flop = None
+
+
+class FlopFlopModule(torch.nn.Module):
+    def __init__(self, block_types: tuple[str, ...]):
+        super().__init__()
+        self.block_types = block_types
+        self.flipflop: dict[str, FlipFlopHolder] = {}
+
+    def setup_flipflop_holders(self, block_percentage: float):
+        for block_type in self.block_types:
+            if block_type in self.flipflop:
+                continue
+            num_blocks = int(len(self.transformer_blocks) * (1.0-block_percentage))
+            self.flipflop["transformer_blocks"] = FlipFlopHolder(self.transformer_blocks[num_blocks:], num_blocks)
+
+    def clean_flipflop_holders(self):
+        for block_type in self.flipflop.keys():
+            self.flipflop[block_type].clean_flipflop_blocks()
+            del self.flipflop[block_type]
+
+    def get_blocks(self, block_type: str) -> torch.nn.ModuleList:
+        if block_type not in self.block_types:
+            raise ValueError(f"Block type {block_type} not found in {self.block_types}")
+        if block_type in self.flipflop:
+            return getattr(self, block_type)[:self.flipflop[block_type].flip_amount]
+        return getattr(self, block_type)
+
+    def get_all_block_module_sizes(self, sort_by_size: bool = False) -> list[tuple[str, int]]:
+        '''
+        Returns a list of (block_type, size).
+        If sort_by_size is True, the list is sorted by size.
+        '''
+        sizes = [(block_type, self.get_block_module_size(block_type)) for block_type in self.block_types]
+        if sort_by_size:
+            sizes.sort(key=lambda x: x[1])
+        return sizes
+
+    def get_block_module_size(self, block_type: str) -> int:
+        return comfy.model_management.module_size(getattr(self, block_type)[0])
+
+
+# Below is the implementation from contentis' prototype flip flop
 class FlipFlopTransformer:
     def __init__(self, transformer_blocks: List[torch.nn.Module], block_wrap_fn, out_names: Tuple[str], pinned_staging: bool = False, inference_device="cuda", offloading_device="cpu"):
         self.transformer_blocks = transformer_blocks
@@ -379,28 +395,26 @@ class FlipFlopTransformer:
 #         patch_model_from_config(model, Wan.blocks_config)
 #         return model
 
+# @register("QwenImageTransformer2DModel")
+# class QwenImage:
+#     @staticmethod
+#     def qwen_blocks_wrap(block, **kwargs):
+#         kwargs["encoder_hidden_states"], kwargs["hidden_states"] = block(hidden_states=kwargs["hidden_states"],
+#                                                                          encoder_hidden_states=kwargs["encoder_hidden_states"],
+#                                                                          encoder_hidden_states_mask=kwargs["encoder_hidden_states_mask"],
+#                                                                          temb=kwargs["temb"],
+#                                                                          image_rotary_emb=kwargs["image_rotary_emb"],
+#                                                                          transformer_options=kwargs["transformer_options"])
+#         return kwargs
 
-@register("QwenImageTransformer2DModel")
-class QwenImage:
-    @staticmethod
-    def qwen_blocks_wrap(block, **kwargs):
-        kwargs["encoder_hidden_states"], kwargs["hidden_states"] = block(hidden_states=kwargs["hidden_states"],
-                                                                         encoder_hidden_states=kwargs["encoder_hidden_states"],
-                                                                         encoder_hidden_states_mask=kwargs["encoder_hidden_states_mask"],
-                                                                         temb=kwargs["temb"],
-                                                                         image_rotary_emb=kwargs["image_rotary_emb"],
-                                                                         transformer_options=kwargs["transformer_options"])
-        return kwargs
-
-    blocks_config = FlipFlopConfig(block_name="transformer_blocks",
-                                   block_wrap_fn=qwen_blocks_wrap,
-                                   out_names=("encoder_hidden_states", "hidden_states"),
-                                   overwrite_forward="blocks_fwd",
-                                   pinned_staging=False)
+#     blocks_config = FlipFlopConfig(block_name="transformer_blocks",
+#                                    block_wrap_fn=qwen_blocks_wrap,
+#                                    out_names=("encoder_hidden_states", "hidden_states"),
+#                                    overwrite_forward="blocks_fwd",
+#                                    pinned_staging=False)
 
 
-    @staticmethod
-    def patch(model):
-        patch_model_from_config(model, QwenImage.blocks_config)
-        return model
-
+#     @staticmethod
+#     def patch(model):
+#         patch_model_from_config(model, QwenImage.blocks_config)
+#         return model

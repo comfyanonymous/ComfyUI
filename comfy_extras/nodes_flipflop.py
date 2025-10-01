@@ -3,33 +3,6 @@ from typing_extensions import override
 
 from comfy_api.latest import ComfyExtension, io
 
-from comfy.ldm.flipflop_transformer import FLIPFLOP_REGISTRY
-
-class FlipFlopOld(io.ComfyNode):
-    @classmethod
-    def define_schema(cls) -> io.Schema:
-        return io.Schema(
-            node_id="FlipFlop",
-            display_name="FlipFlop (Old)",
-            category="_for_testing",
-            inputs=[
-                io.Model.Input(id="model")
-            ],
-            outputs=[
-                io.Model.Output()
-            ],
-            description="Apply FlipFlop transformation to model using registry-based patching"
-        )
-
-    @classmethod
-    def execute(cls, model) -> io.NodeOutput:
-        patch_cls = FLIPFLOP_REGISTRY.get(model.model.diffusion_model.__class__.__name__, None)
-        if patch_cls is None:
-            raise ValueError(f"Model {model.model.diffusion_model.__class__.__name__} not supported")
-
-        model.model.diffusion_model = patch_cls.patch(model.model.diffusion_model)
-
-        return io.NodeOutput(model)
 
 class FlipFlop(io.ComfyNode):
     @classmethod
@@ -62,7 +35,6 @@ class FlipFlopExtension(ComfyExtension):
     @override
     async def get_node_list(self) -> list[type[io.ComfyNode]]:
         return [
-            FlipFlopOld,
             FlipFlop,
         ]
 

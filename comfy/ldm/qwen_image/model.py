@@ -343,10 +343,35 @@ class QwenImageTransformer2DModel(nn.Module):
             self.proj_out = operations.Linear(self.inner_dim, patch_size * patch_size * self.out_channels, bias=True, dtype=dtype, device=device)
 
     def setup_flipflop_holders(self, block_percentage: float):
+        if "transformer_blocks" in self.flipflop:
+            return
+        import comfy.model_management
         # We hackily move any flipflopped blocks into holder so that our model management system does not see them.
         num_blocks = int(len(self.transformer_blocks) * (1.0-block_percentage))
-        self.flipflop["blocks_fwd"] = FlipFlopHolder(self.transformer_blocks[num_blocks:])
+        loading = []
+        for n, m in self.named_modules():
+            params = []
+            skip = False
+            for name, param in m.named_parameters(recurse=False):
+                params.append(name)
+            for name, param in m.named_parameters(recurse=True):
+                if name not in params:
+                    skip = True # skip random weights in non leaf modules
+                    break
+            if not skip and (hasattr(m, "comfy_cast_weights") or len(params) > 0):
+                loading.append((comfy.model_management.module_size(m), n, m, params))
+        self.flipflop["transformer_blocks"] = FlipFlopHolder(self.transformer_blocks[num_blocks:], num_blocks)
         self.transformer_blocks = nn.ModuleList(self.transformer_blocks[:num_blocks])
+
+    def clean_flipflop_holders(self):
+        if "transformer_blocks" in self.flipflop:
+            self.flipflop["transformer_blocks"].clean_flipflop_blocks()
+            del self.flipflop["transformer_blocks"]
+
+    def get_transformer_blocks(self):
+        if "transformer_blocks" in self.flipflop:
+            return self.transformer_blocks[:self.flipflop["transformer_blocks"].flip_amount]
+        return self.transformer_blocks
 
     def process_img(self, x, index=0, h_offset=0, w_offset=0):
         bs, c, t, h, w = x.shape
@@ -406,17 +431,6 @@ class QwenImageTransformer2DModel(nn.Module):
                 add = control_i[i]
                 if add is not None:
                     hidden_states[:, :add.shape[1]] += add
-
-        return encoder_hidden_states, hidden_states
-
-    def blocks_fwd(self, hidden_states, encoder_hidden_states, encoder_hidden_states_mask, temb, image_rotary_emb, patches, control, blocks_replace, x, transformer_options):
-        for i, block in enumerate(self.transformer_blocks):
-            encoder_hidden_states, hidden_states = self.indiv_block_fwd(i, block, hidden_states, encoder_hidden_states, encoder_hidden_states_mask, temb, image_rotary_emb, patches, control, blocks_replace, x, transformer_options)
-        if "blocks_fwd" in self.flipflop:
-            holder = self.flipflop["blocks_fwd"]
-            with holder.context() as ctx:
-                for i, block in enumerate(holder.transformer_blocks):
-                    encoder_hidden_states, hidden_states = ctx(self.indiv_block_fwd, i, block, hidden_states, encoder_hidden_states, encoder_hidden_states_mask, temb, image_rotary_emb, patches, control, blocks_replace, x, transformer_options)
 
         return encoder_hidden_states, hidden_states
 
@@ -487,12 +501,14 @@ class QwenImageTransformer2DModel(nn.Module):
         patches = transformer_options.get("patches", {})
         blocks_replace = patches_replace.get("dit", {})
 
-        encoder_hidden_states, hidden_states = self.blocks_fwd(hidden_states=hidden_states,
-                                                              encoder_hidden_states=encoder_hidden_states,
-                                                              encoder_hidden_states_mask=encoder_hidden_states_mask,
-                                                              temb=temb, image_rotary_emb=image_rotary_emb,
-                                                              patches=patches, control=control, blocks_replace=blocks_replace, x=x,
-                                                              transformer_options=transformer_options)
+        for i, block in enumerate(self.get_transformer_blocks()):
+            encoder_hidden_states, hidden_states = self.indiv_block_fwd(i, block, hidden_states, encoder_hidden_states, encoder_hidden_states_mask, temb, image_rotary_emb, patches, control, blocks_replace, x, transformer_options)
+        if "transformer_blocks" in self.flipflop:
+            holder = self.flipflop["transformer_blocks"]
+            with holder.context() as ctx:
+                for i, block in enumerate(holder.blocks):
+                    encoder_hidden_states, hidden_states = ctx(self.indiv_block_fwd, i, block, hidden_states, encoder_hidden_states, encoder_hidden_states_mask, temb, image_rotary_emb, patches, control, blocks_replace, x, transformer_options)
+
 
         hidden_states = self.norm_out(hidden_states, temb)
         hidden_states = self.proj_out(hidden_states)
