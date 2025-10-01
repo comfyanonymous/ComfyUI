@@ -636,6 +636,7 @@ class VAE:
     def decode(self, samples_in, vae_options={}):
         self.throw_exception_if_invalid()
         pixel_samples = None
+        do_tile = False
         try:
             memory_used = self.memory_used_decode(samples_in.shape, self.vae_dtype)
             model_management.load_models_gpu([self.patcher], memory_required=memory_used, force_full_load=self.disable_offload)
@@ -651,6 +652,13 @@ class VAE:
                 pixel_samples[x:x+batch_number] = out
         except model_management.OOM_EXCEPTION:
             logging.warning("Warning: Ran out of memory when regular VAE decoding, retrying with tiled VAE decoding.")
+            #NOTE: We don't know what tensors were allocated to stack variables at the time of the
+            #exception and the exception itself refs them all until we get out of this except block.
+            #So we just set a flag for tiler fallback so that tensor gc can happen once the
+            #exception is fully off the books.
+            do_tile = True
+
+        if do_tile:
             dims = samples_in.ndim - 2
             if dims == 1 or self.extra_1d_channel is not None:
                 pixel_samples = self.decode_tiled_1d(samples_in)
@@ -697,6 +705,7 @@ class VAE:
         self.throw_exception_if_invalid()
         pixel_samples = self.vae_encode_crop_pixels(pixel_samples)
         pixel_samples = pixel_samples.movedim(-1, 1)
+        do_tile = False
         if self.latent_dim == 3 and pixel_samples.ndim < 5:
             if not self.not_video:
                 pixel_samples = pixel_samples.movedim(1, 0).unsqueeze(0)
@@ -718,6 +727,13 @@ class VAE:
 
         except model_management.OOM_EXCEPTION:
             logging.warning("Warning: Ran out of memory when regular VAE encoding, retrying with tiled VAE encoding.")
+            #NOTE: We don't know what tensors were allocated to stack variables at the time of the
+            #exception and the exception itself refs them all until we get out of this except block.
+            #So we just set a flag for tiler fallback so that tensor gc can happen once the
+            #exception is fully off the books.
+            do_tile = True
+
+        if do_tile:
             if self.latent_dim == 3:
                 tile = 256
                 overlap = tile // 4
