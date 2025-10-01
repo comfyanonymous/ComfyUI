@@ -53,11 +53,7 @@ class EpsilonScaling:
         # Clone the model patcher to avoid modifying the original model in place
         model_clone = model.clone()
 
-        # Apply the patch using set_model_sampler_post_cfg_function.
-        # disable_cfg1_optimization=True is crucial. This patch needs the outputs of both the
-        # conditional and unconditional models to correctly calculate the guided noise, even when 
-        # the CFG scale is 1.0. Disabling the optimization ensures both are always computed.
-        model_clone.set_model_sampler_post_cfg_function(epsilon_scaling_function, disable_cfg1_optimization=True)
+        model_clone.set_model_sampler_post_cfg_function(epsilon_scaling_function)
 
         return (model_clone,)
 
