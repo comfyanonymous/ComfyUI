@@ -173,7 +173,7 @@ def is_valid_image_response(response: KlingVirtualTryOnResponse) -> bool:
 
 
 def validate_prompts(prompt: str, negative_prompt: str, max_length: int) -> bool:
-    """Verifies that the positive prompt is not empty and that neither promt is too long."""
+    """Verifies that the positive prompt is not empty and that neither prompt is too long."""
     if not prompt:
         raise ValueError("Positive prompt is empty")
     if len(prompt) > max_length:

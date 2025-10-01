@@ -136,11 +136,11 @@ class ConvolutionModule(nn.Module):
 class PositionwiseFeedForward(torch.nn.Module):
     """Positionwise feed forward layer.
 
-    FeedForward are appied on each position of the sequence.
+    FeedForward are applied on each position of the sequence.
     The output dim is same with the input dim.
 
     Args:
-        idim (int): Input dimenstion.
+        idim (int): Input dimension.
         hidden_units (int): The number of hidden units.
         dropout_rate (float): Dropout rate.
         activation (torch.nn.Module): Activation function
@@ -758,7 +758,7 @@ class EspnetRelPositionalEncoding(torch.nn.Module):
                 if self.pe.dtype != x.dtype or self.pe.device != x.device:
                     self.pe = self.pe.to(dtype=x.dtype, device=x.device)
                 return
-        # Suppose `i` means to the position of query vecotr and `j` means the
+        # Suppose `i` means to the position of query vector and `j` means the
         # position of key vector. We use position relative positions when keys
         # are to the left (i>j) and negative relative positions otherwise (i<j).
         pe_positive = torch.zeros(x.size(1), self.d_model)

@@ -24,7 +24,7 @@ class LogInterceptor(io.TextIOWrapper):
         with self._lock:
             self._logs_since_flush.append(entry)
 
-            # Simple handling for cr to overwrite the last output if it isnt a full line
+            # Simple handling for cr to overwrite the last output if it isn't a full line
             # else logs just get full of progress messages
             if isinstance(data, str) and data.startswith("\r") and not logs[-1]["m"].endswith("\n"):
                 logs.pop()

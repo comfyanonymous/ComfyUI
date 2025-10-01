@@ -527,7 +527,7 @@ class VAE:
                 self.latent_dim = 2
                 self.output_channels = 3
             else:
-                logging.warning("WARNING: No VAE weights detected, VAE not initalized.")
+                logging.warning("WARNING: No VAE weights detected, VAE not initialized.")
                 self.first_stage_model = None
                 return
         else:

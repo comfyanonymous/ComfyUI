@@ -60,7 +60,7 @@ class VectorQuantize(nn.Module):
     def __init__(self, embedding_size, k, ema_decay=0.99, ema_loss=False):
         """
         Takes an input of variable size (as long as the last dimension matches the embedding size).
-        Returns one tensor containing the nearest neigbour embeddings to each of the inputs,
+        Returns one tensor containing the nearest neighbour embeddings to each of the inputs,
         with the same size as the input, vq and commitment components for the loss as a touple
         in the second output and the indices of the quantized vectors in the third:
         quantized, (vq_loss, commit_loss), indices

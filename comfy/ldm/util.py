@@ -24,7 +24,7 @@ def log_txt_as_img(wh, xc, size=10):
         try:
             draw.text((0, 0), lines, fill="black", font=font)
         except UnicodeEncodeError:
-            logging.warning("Cant encode string for logging. Skipping.")
+            logging.warning("Can't encode string for logging. Skipping.")
 
         txt = np.array(txt).transpose(2, 0, 1) / 127.5 - 1.0
         txts.append(txt)

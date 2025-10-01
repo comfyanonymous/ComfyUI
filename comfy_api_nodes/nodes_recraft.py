@@ -89,7 +89,7 @@ def recraft_multipart_parser(data, parent_key=None, formatter: callable=None, co
 
     The OpenAI client that Recraft uses has a bizarre way of serializing lists:
 
-    It does NOT keep track of indeces of each list, so for background_color, that must be serialized as:
+    It does NOT keep track of indices of each list, so for background_color, that must be serialized as:
         'background_color[rgb][]' = [0, 0, 255]
     where the array is assigned to a key that has '[]' at the end, to signal it's an array.
 
