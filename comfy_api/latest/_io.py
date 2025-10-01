@@ -1605,6 +1605,7 @@ class _IO:
     Model = Model
     ClipVision = ClipVision
     ClipVisionOutput = ClipVisionOutput
+    AudioEncoder = AudioEncoder
     AudioEncoderOutput = AudioEncoderOutput
     StyleModel = StyleModel
     Gligen = Gligen

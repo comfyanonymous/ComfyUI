@@ -540,7 +540,7 @@ class Rodin3D_Gen2(Rodin3DAPI):
                                                                 **kwargs)
         await self.poll_for_task_status(subscription_key, **kwargs)
         download_list = await self.get_rodin_download_list(task_uuid, **kwargs)
-        model = await self.download_files(download_list)
+        model = await self.download_files(download_list, task_uuid)
 
         return (model,)
 
