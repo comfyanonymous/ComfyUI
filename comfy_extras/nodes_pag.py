@@ -3,25 +3,30 @@
 
 #My modified one here is more basic but has less chances of breaking with ComfyUI updates.
 
+from typing_extensions import override
+
 import comfy.model_patcher
 import comfy.samplers
+from comfy_api.latest import ComfyExtension, io
 
-class PerturbedAttentionGuidance:
+
+class PerturbedAttentionGuidance(io.ComfyNode):
     @classmethod
-    def INPUT_TYPES(s):
-        return {
-            "required": {
-                "model": ("MODEL",),
-                "scale": ("FLOAT", {"default": 3.0, "min": 0.0, "max": 100.0, "step": 0.01, "round": 0.01}),
-            }
-        }
+    def define_schema(cls):
+        return io.Schema(
+            node_id="PerturbedAttentionGuidance",
+            category="model_patches/unet",
+            inputs=[
+                io.Model.Input("model"),
+                io.Float.Input("scale", default=3.0, min=0.0, max=100.0, step=0.01, round=0.01),
+            ],
+            outputs=[
+                io.Model.Output(),
+            ],
+        )
 
-    RETURN_TYPES = ("MODEL",)
-    FUNCTION = "patch"
-
-    CATEGORY = "model_patches/unet"
-
-    def patch(self, model, scale):
+    @classmethod
+    def execute(cls, model, scale) -> io.NodeOutput:
         unet_block = "middle"
         unet_block_id = 0
         m = model.clone()
@@ -49,8 +54,16 @@ class PerturbedAttentionGuidance:
 
         m.set_model_sampler_post_cfg_function(post_cfg_function)
 
-        return (m,)
+        return io.NodeOutput(m)
 
-NODE_CLASS_MAPPINGS = {
-    "PerturbedAttentionGuidance": PerturbedAttentionGuidance,
-}
+
+class PAGExtension(ComfyExtension):
+    @override
+    async def get_node_list(self) -> list[type[io.ComfyNode]]:
+        return [
+            PerturbedAttentionGuidance,
+        ]
+
+
+async def comfy_entrypoint() -> PAGExtension:
+    return PAGExtension()
