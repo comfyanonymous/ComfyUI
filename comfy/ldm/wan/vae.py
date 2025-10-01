@@ -468,55 +468,46 @@ class WanVAE(nn.Module):
                                  attn_scales, self.temperal_upsample, dropout)
 
     def encode(self, x):
-        self.clear_cache()
+        conv_idx = [0]
+        feat_map = [None] * count_conv3d(self.decoder)
         ## cache
         t = x.shape[2]
         iter_ = 1 + (t - 1) // 4
         ## 对encode输入的x，按时间拆分为1、4、4、4....
         for i in range(iter_):
-            self._enc_conv_idx = [0]
+            conv_idx = [0]
             if i == 0:
                 out = self.encoder(
                     x[:, :, :1, :, :],
-                    feat_cache=self._enc_feat_map,
-                    feat_idx=self._enc_conv_idx)
+                    feat_cache=feat_map,
+                    feat_idx=conv_idx)
             else:
                 out_ = self.encoder(
                     x[:, :, 1 + 4 * (i - 1):1 + 4 * i, :, :],
-                    feat_cache=self._enc_feat_map,
-                    feat_idx=self._enc_conv_idx)
+                    feat_cache=feat_map,
+                    feat_idx=conv_idx)
                 out = torch.cat([out, out_], 2)
         mu, log_var = self.conv1(out).chunk(2, dim=1)
-        self.clear_cache()
         return mu
 
     def decode(self, z):
-        self.clear_cache()
+        conv_idx = [0]
+        feat_map = [None] * count_conv3d(self.decoder)
         # z: [b,c,t,h,w]
 
         iter_ = z.shape[2]
         x = self.conv2(z)
         for i in range(iter_):
-            self._conv_idx = [0]
+            conv_idx = [0]
             if i == 0:
                 out = self.decoder(
                     x[:, :, i:i + 1, :, :],
-                    feat_cache=self._feat_map,
-                    feat_idx=self._conv_idx)
+                    feat_cache=feat_map,
+                    feat_idx=conv_idx)
             else:
                 out_ = self.decoder(
                     x[:, :, i:i + 1, :, :],
-                    feat_cache=self._feat_map,
-                    feat_idx=self._conv_idx)
+                    feat_cache=feat_map,
+                    feat_idx=conv_idx)
                 out = torch.cat([out, out_], 2)
-        self.clear_cache()
         return out
-
-    def clear_cache(self):
-        self._conv_num = count_conv3d(self.decoder)
-        self._conv_idx = [0]
-        self._feat_map = [None] * self._conv_num
-        #cache encode
-        self._enc_conv_num = count_conv3d(self.encoder)
-        self._enc_conv_idx = [0]
-        self._enc_feat_map = [None] * self._enc_conv_num
