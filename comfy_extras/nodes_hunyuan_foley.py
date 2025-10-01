@@ -42,8 +42,12 @@ class HunyuanFoleyConditioning(io.ComfyNode):
         )
 
     @classmethod
-    def execute(cls, video_encoding_1, video_encoding_2, text_encoding):
-        embeds = torch.cat([video_encoding_1, video_encoding_2, text_encoding], dim = 0)
+    def execute(cls, siglip_encoding_1, synchformer_encoding_2, text_encoding):
+
+        if isinstance(text_encoding, list):
+            text_encoding = text_encoding[0]
+
+        embeds = torch.cat([siglip_encoding_1, synchformer_encoding_2, text_encoding], dim = 0)
         positive = [[embeds, {}]]
         negative = [[torch.zeros_like(embeds), {}]]
         return io.NodeOutput(positive, negative)

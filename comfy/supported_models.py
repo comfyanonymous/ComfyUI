@@ -1321,6 +1321,7 @@ class HunyuanFoley(supported_models_base.BASE):
     
     def process_clip_state_dict(self, state_dict):
         state_dict = utils.state_dict_prefix_replace(state_dict, {k: "transformer." for k in self.text_encoder_key_prefix}, filter_keys=True)
+        state_dict["logit_scale"] = torch.tensor(1.0)
         return state_dict
 
 class QwenImage(supported_models_base.BASE):
