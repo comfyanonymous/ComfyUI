@@ -8,6 +8,29 @@ set "COMMANDLINE_ARGS=--auto-launch --use-quad-cross-attention --reserve-vram 0.
 
 set "ZLUDA_COMGR_LOG_LEVEL=1"
 
+:: echo Checking HIP environment variables...
+if defined HIP_PATH (
+    echo HIP_PATH = %HIP_PATH%
+) else (
+    echo HIP_PATH = Not set
+)
+if defined HIP_PATH_57 (
+    echo HIP_PATH_57 = %HIP_PATH_57%
+)
+if defined HIP_PATH_61 (
+    echo HIP_PATH_61 = %HIP_PATH_61%
+)
+if defined HIP_PATH_62 (
+    echo HIP_PATH_62 = %HIP_PATH_62%
+)
+if defined HIP_PATH_64 (
+    echo HIP_PATH_64 = %HIP_PATH_64%
+)
+if defined HIP_PATH_70 (
+    echo HIP_PATH_70 = %HIP_PATH_70%
+)
+echo.
+
 :: Check Git version
 where git >NUL 2>&1
 if errorlevel 1 (
@@ -73,6 +96,7 @@ if NOT "%LOCAL%"=="%REMOTE%" (
     echo [INFO] Already up to date.
 )
 copy comfy\customzluda\zluda-default.py comfy\zluda.py /y >NUL
+echo.
 
 :: Get AMD Software version via registry (stop on first match)
 setlocal enabledelayedexpansion
