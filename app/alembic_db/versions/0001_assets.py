@@ -26,16 +26,7 @@ def upgrade() -> None:
         sa.Column("created_at", sa.DateTime(timezone=False), nullable=False),
         sa.CheckConstraint("size_bytes >= 0", name="ck_assets_size_nonneg"),
     )
-    if op.get_bind().dialect.name == "postgresql":
-        op.create_index(
-            "uq_assets_hash_not_null",
-            "assets",
-            ["hash"],
-            unique=True,
-            postgresql_where=sa.text("hash IS NOT NULL"),
-        )
-    else:
-        op.create_index("uq_assets_hash", "assets", ["hash"], unique=True)
+    op.create_index("uq_assets_hash", "assets", ["hash"], unique=True)
     op.create_index("ix_assets_mime_type", "assets", ["mime_type"])
 
     # ASSETS_INFO: user-visible references
@@ -179,9 +170,6 @@ def downgrade() -> None:
     op.drop_index("ix_assets_info_owner_id", table_name="assets_info")
     op.drop_table("assets_info")
 
-    if op.get_bind().dialect.name == "postgresql":
-        op.drop_index("uq_assets_hash_not_null", table_name="assets")
-    else:
-        op.drop_index("uq_assets_hash", table_name="assets")
+    op.drop_index("uq_assets_hash", table_name="assets")
     op.drop_index("ix_assets_mime_type", table_name="assets")
     op.drop_table("assets")
