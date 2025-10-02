@@ -3,10 +3,13 @@ https://www.amd.com/en/resources/support-articles/release-notes/RN-AMDGPU-WINDOW
 
 HOW TO RUN:
 
-if you have a AMD gpu:
+If you have a AMD gpu:
 
 run_amd_gpu.bat
 
+If you have memory issues you can try disabling the smart memory management by running comfyui with:
+
+run_amd_gpu_disable_smart_memory.bat
 
 IF YOU GET A RED ERROR IN THE UI MAKE SURE YOU HAVE A MODEL/CHECKPOINT IN: ComfyUI\models\checkpoints
 
