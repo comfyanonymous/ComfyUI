@@ -616,19 +616,62 @@ class ModelPatcher:
             return False
         return True
 
-    def init_flipflop(self):
+    def setup_flipflop(self, flipflop_blocks_per_type: dict[str, tuple[int, int]]):
         if not self.supports_flipflop():
             return
-        # figure out how many b
-        self.model.diffusion_model.setup_flipflop_holders(self.model_options["flipflop_block_percentage"])
+        self.model.diffusion_model.setup_flipflop_holders(flipflop_blocks_per_type, self.load_device, self.offload_device)
+
+    def init_flipflop_block_copies(self):
+        if not self.supports_flipflop():
+            return
+        self.model.diffusion_model.init_flipflop_block_copies(self.load_device)
 
     def clean_flipflop(self):
         if not self.supports_flipflop():
             return
         self.model.diffusion_model.clean_flipflop_holders()
 
-    def _load_list(self):
+    def _calc_flipflop_prefixes(self, lowvram_model_memory=0, prepare_flipflop=False):
+        flipflop_prefixes = []
+        flipflop_blocks_per_type: dict[str, tuple[int, int]] = {}
+        if lowvram_model_memory > 0 and self.supports_flipflop():
+            block_buffer = 3
+            valid_block_types = []
+            # for each block type, check if have enough room to flipflop
+            for block_info in self.model.diffusion_model.get_all_block_module_sizes():
+                block_size: int = block_info[1]
+                if block_size * block_buffer < lowvram_model_memory:
+                    valid_block_types.append(block_info)
+            # if have candidates for flipping, see how many of each type we have can flipflop
+            if len(valid_block_types) > 0:
+                leftover_memory = lowvram_model_memory
+                for block_info in valid_block_types:
+                    block_type: str = block_info[0]
+                    block_size: int = block_info[1]
+                    total_blocks = len(self.model.diffusion_model.get_all_blocks(block_type))
+                    n_fit_in_memory = int(leftover_memory // block_size)
+                    # if all (or more) of this block type would fit in memory, no need to flipflop with it
+                    if n_fit_in_memory >= total_blocks:
+                        continue
+                    # if the amount of this block that would fit in memory is less than buffer, skip this block type
+                    if n_fit_in_memory < block_buffer:
+                        continue
+                    # 2 blocks worth of VRAM may be needed for flipflop, so make sure to account for them.
+                    flipflop_blocks = min((total_blocks - n_fit_in_memory) + 2, total_blocks)
+                    flipflop_blocks_per_type[block_type] = (flipflop_blocks, total_blocks)
+                    leftover_memory -= (total_blocks - flipflop_blocks + 2) * block_size
+                # if there are blocks to flipflop, need to mark their keys
+                for block_type, (flipflop_blocks, total_blocks) in flipflop_blocks_per_type.items():
+                    # blocks to flipflop are at the end
+                    for i in range(total_blocks-flipflop_blocks, total_blocks):
+                        flipflop_prefixes.append(f"diffusion_model.{block_type}.{i}")
+        if prepare_flipflop and len(flipflop_blocks_per_type) > 0:
+            self.setup_flipflop(flipflop_blocks_per_type)
+        return flipflop_prefixes
+
+    def _load_list(self, lowvram_model_memory=0, prepare_flipflop=False):
         loading = []
+        flipflop_prefixes = self._calc_flipflop_prefixes(lowvram_model_memory, prepare_flipflop)
         for n, m in self.model.named_modules():
             params = []
             skip = False
@@ -639,7 +682,12 @@ class ModelPatcher:
                     skip = True # skip random weights in non leaf modules
                     break
             if not skip and (hasattr(m, "comfy_cast_weights") or len(params) > 0):
-                loading.append((comfy.model_management.module_size(m), n, m, params))
+                flipflop = False
+                for prefix in flipflop_prefixes:
+                    if n.startswith(prefix):
+                        flipflop = True
+                        break
+                loading.append((comfy.model_management.module_size(m), n, m, params, flipflop))
         return loading
 
     def load(self, device_to=None, lowvram_model_memory=0, force_patch_weights=False, full_load=False):
@@ -649,16 +697,18 @@ class ModelPatcher:
             patch_counter = 0
             lowvram_counter = 0
             lowvram_mem_counter = 0
-            if self.supports_flipflop():
-                ...
-            loading = self._load_list()
+            flipflop_counter = 0
+            flipflop_mem_counter = 0
+            loading = self._load_list(lowvram_model_memory, prepare_flipflop=True)
 
             load_completely = []
+            load_flipflop = []
             loading.sort(reverse=True)
             for x in loading:
                 n = x[1]
                 m = x[2]
                 params = x[3]
+                flipflop: bool = x[4]
                 module_mem = x[0]
 
                 lowvram_weight = False
@@ -666,7 +716,7 @@ class ModelPatcher:
                 weight_key = "{}.weight".format(n)
                 bias_key = "{}.bias".format(n)
 
-                if not full_load and hasattr(m, "comfy_cast_weights"):
+                if not full_load and hasattr(m, "comfy_cast_weights") and not flipflop:
                     if mem_counter + module_mem >= lowvram_model_memory:
                         lowvram_weight = True
                         lowvram_counter += 1
@@ -698,7 +748,11 @@ class ModelPatcher:
                     if hasattr(m, "comfy_cast_weights"):
                         wipe_lowvram_weight(m)
 
-                    if full_load or mem_counter + module_mem < lowvram_model_memory:
+                    if flipflop:
+                        flipflop_counter += 1
+                        flipflop_mem_counter += module_mem
+                        load_flipflop.append((module_mem, n, m, params))
+                    elif full_load or mem_counter + module_mem < lowvram_model_memory:
                         mem_counter += module_mem
                         load_completely.append((module_mem, n, m, params))
 
@@ -714,6 +768,7 @@ class ModelPatcher:
 
                 mem_counter += move_weight_functions(m, device_to)
 
+            # handle load completely
             load_completely.sort(reverse=True)
             for x in load_completely:
                 n = x[1]
@@ -732,11 +787,30 @@ class ModelPatcher:
             for x in load_completely:
                 x[2].to(device_to)
 
-            if lowvram_counter > 0:
-                logging.info(f"loaded partially; {lowvram_model_memory / (1024 * 1024):.2f} MB usable memory, {mem_counter / (1024 * 1024):.2f} MB loaded, {lowvram_mem_counter / (1024 * 1024):.2f} MB offloaded, lowvram patches: {patch_counter}")
+            # handle flipflop
+            if len(load_flipflop) > 0:
+                load_flipflop.sort(reverse=True)
+                for x in load_flipflop:
+                    n = x[1]
+                    m = x[2]
+                    params = x[3]
+                    if hasattr(m, "comfy_patched_weights"):
+                        if m.comfy_patched_weights == True:
+                            continue
+                    for param in params:
+                        self.patch_weight_to_device("{}.{}".format(n, param), device_to=self.offload_device)
+
+                    logging.debug("lowvram: loaded module for flipflop {} {}".format(n, m))
+                self.init_flipflop_block_copies()
+
+            if lowvram_counter > 0 or flipflop_counter > 0:
+                if flipflop_counter > 0:
+                    logging.info(f"loaded partially; {lowvram_model_memory / (1024 * 1024):.2f} MB usable, {mem_counter / (1024 * 1024):.2f} MB loaded, {flipflop_mem_counter / (1024 * 1024):.2f} MB to flipflop, {lowvram_mem_counter / (1024 * 1024):.2f} MB offloaded, lowvram patches: {patch_counter}")
+                else:
+                    logging.info(f"loaded partially; {lowvram_model_memory / (1024 * 1024):.2f} MB usable, {mem_counter / (1024 * 1024):.2f} MB loaded, {lowvram_mem_counter / (1024 * 1024):.2f} MB offloaded, lowvram patches: {patch_counter}")
                 self.model.model_lowvram = True
             else:
-                logging.info(f"loaded completely; {lowvram_model_memory / (1024 * 1024):.2f} MB usable memory, {mem_counter / (1024 * 1024):.2f} MB loaded, full load: {full_load}")
+                logging.info(f"loaded completely; {lowvram_model_memory / (1024 * 1024):.2f} MB usable, {mem_counter / (1024 * 1024):.2f} MB loaded, full load: {full_load}")
                 self.model.model_lowvram = False
                 if full_load:
                     self.model.to(device_to)
@@ -773,6 +847,7 @@ class ModelPatcher:
         self.eject_model()
         if unpatch_weights:
             self.unpatch_hooks()
+            self.clean_flipflop()
             if self.model.model_lowvram:
                 for m in self.model.modules():
                     move_weight_functions(m, device_to)

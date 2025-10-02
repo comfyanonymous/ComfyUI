@@ -5,12 +5,13 @@ import torch.nn.functional as F
 from typing import Optional, Tuple
 from einops import repeat
 
-from comfy.ldm.flipflop_transformer import FlipFlopHolder
+from comfy.ldm.flipflop_transformer import FlipFlopModule
 from comfy.ldm.lightricks.model import TimestepEmbedding, Timesteps
 from comfy.ldm.modules.attention import optimized_attention_masked
 from comfy.ldm.flux.layers import EmbedND
 import comfy.ldm.common_dit
 import comfy.patcher_extension
+import comfy.ops
 
 class GELU(nn.Module):
     def __init__(self, dim_in: int, dim_out: int, approximate: str = "none", bias: bool = True, dtype=None, device=None, operations=None):
@@ -284,7 +285,7 @@ class LastLayer(nn.Module):
         return x
 
 
-class QwenImageTransformer2DModel(nn.Module):
+class QwenImageTransformer2DModel(FlipFlopModule):
     def __init__(
         self,
         patch_size: int = 2,
@@ -301,9 +302,9 @@ class QwenImageTransformer2DModel(nn.Module):
         final_layer=True,
         dtype=None,
         device=None,
-        operations=None,
+        operations: comfy.ops.disable_weight_init=None,
     ):
-        super().__init__()
+        super().__init__(block_types=("transformer_blocks",))
         self.dtype = dtype
         self.patch_size = patch_size
         self.in_channels = in_channels
@@ -336,42 +337,9 @@ class QwenImageTransformer2DModel(nn.Module):
             for _ in range(num_layers)
         ])
 
-        self.flipflop: dict[str, FlipFlopHolder] = {}
-
         if final_layer:
             self.norm_out = LastLayer(self.inner_dim, self.inner_dim, dtype=dtype, device=device, operations=operations)
             self.proj_out = operations.Linear(self.inner_dim, patch_size * patch_size * self.out_channels, bias=True, dtype=dtype, device=device)
-
-    def setup_flipflop_holders(self, block_percentage: float):
-        if "transformer_blocks" in self.flipflop:
-            return
-        import comfy.model_management
-        # We hackily move any flipflopped blocks into holder so that our model management system does not see them.
-        num_blocks = int(len(self.transformer_blocks) * (1.0-block_percentage))
-        loading = []
-        for n, m in self.named_modules():
-            params = []
-            skip = False
-            for name, param in m.named_parameters(recurse=False):
-                params.append(name)
-            for name, param in m.named_parameters(recurse=True):
-                if name not in params:
-                    skip = True # skip random weights in non leaf modules
-                    break
-            if not skip and (hasattr(m, "comfy_cast_weights") or len(params) > 0):
-                loading.append((comfy.model_management.module_size(m), n, m, params))
-        self.flipflop["transformer_blocks"] = FlipFlopHolder(self.transformer_blocks[num_blocks:], num_blocks)
-        self.transformer_blocks = nn.ModuleList(self.transformer_blocks[:num_blocks])
-
-    def clean_flipflop_holders(self):
-        if "transformer_blocks" in self.flipflop:
-            self.flipflop["transformer_blocks"].clean_flipflop_blocks()
-            del self.flipflop["transformer_blocks"]
-
-    def get_transformer_blocks(self):
-        if "transformer_blocks" in self.flipflop:
-            return self.transformer_blocks[:self.flipflop["transformer_blocks"].flip_amount]
-        return self.transformer_blocks
 
     def process_img(self, x, index=0, h_offset=0, w_offset=0):
         bs, c, t, h, w = x.shape
@@ -501,7 +469,7 @@ class QwenImageTransformer2DModel(nn.Module):
         patches = transformer_options.get("patches", {})
         blocks_replace = patches_replace.get("dit", {})
 
-        for i, block in enumerate(self.get_transformer_blocks()):
+        for i, block in enumerate(self.get_blocks("transformer_blocks")):
             encoder_hidden_states, hidden_states = self.indiv_block_fwd(i, block, hidden_states, encoder_hidden_states, encoder_hidden_states_mask, temb, image_rotary_emb, patches, control, blocks_replace, x, transformer_options)
         if "transformer_blocks" in self.flipflop:
             holder = self.flipflop["transformer_blocks"]
