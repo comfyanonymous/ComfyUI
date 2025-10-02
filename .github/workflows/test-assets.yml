@@ -4,7 +4,6 @@ on:
   push:
     paths:
       - 'app/**'
-      - 'alembic_db/**'
       - 'tests-assets/**'
       - '.github/workflows/test-assets.yml'
       - 'requirements.txt'
