@@ -1320,6 +1320,7 @@ class KlingTextToVideoModelName(str, Enum):
     kling_v1 = 'kling-v1'
     kling_v1_6 = 'kling-v1-6'
     kling_v2_1_master = 'kling-v2-1-master'
+    kling_v2_5_turbo = 'kling-v2-5-turbo'
 
 
 class KlingVideoGenAspectRatio(str, Enum):
@@ -1354,6 +1355,7 @@ class KlingVideoGenModelName(str, Enum):
     kling_v2_master = 'kling-v2-master'
     kling_v2_1 = 'kling-v2-1'
     kling_v2_1_master = 'kling-v2-1-master'
+    kling_v2_5_turbo = 'kling-v2-5-turbo'
 
 
 class KlingVideoResult(BaseModel):
