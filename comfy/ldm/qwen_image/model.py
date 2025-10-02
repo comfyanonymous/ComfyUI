@@ -400,7 +400,7 @@ class QwenImageTransformer2DModel(FlipFlopModule):
                 if add is not None:
                     hidden_states[:, :add.shape[1]] += add
 
-        return encoder_hidden_states, hidden_states
+        return hidden_states, encoder_hidden_states
 
     def _forward(
         self,
@@ -469,14 +469,8 @@ class QwenImageTransformer2DModel(FlipFlopModule):
         patches = transformer_options.get("patches", {})
         blocks_replace = patches_replace.get("dit", {})
 
-        for i, block in enumerate(self.get_blocks("transformer_blocks")):
-            encoder_hidden_states, hidden_states = self.indiv_block_fwd(i, block, hidden_states, encoder_hidden_states, encoder_hidden_states_mask, temb, image_rotary_emb, patches, control, blocks_replace, x, transformer_options)
-        if "transformer_blocks" in self.flipflop:
-            holder = self.flipflop["transformer_blocks"]
-            with holder.context() as ctx:
-                for i, block in enumerate(holder.blocks):
-                    encoder_hidden_states, hidden_states = ctx(self.indiv_block_fwd, i, block, hidden_states, encoder_hidden_states, encoder_hidden_states_mask, temb, image_rotary_emb, patches, control, blocks_replace, x, transformer_options)
-
+        out = (hidden_states, encoder_hidden_states)
+        hidden_states, encoder_hidden_states = self.execute_blocks("transformer_blocks", self.indiv_block_fwd, out, encoder_hidden_states_mask, temb, image_rotary_emb, patches, control, blocks_replace, x, transformer_options)
 
         hidden_states = self.norm_out(hidden_states, temb)
         hidden_states = self.proj_out(hidden_states)

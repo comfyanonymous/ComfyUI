@@ -48,6 +48,25 @@ class FlipFlopModule(torch.nn.Module):
     def get_block_module_size(self, block_type: str) -> int:
         return comfy.model_management.module_size(getattr(self, block_type)[0])
 
+    def execute_blocks(self, block_type: str, func, out: torch.Tensor | tuple[torch.Tensor,...], *args, **kwargs):
+        # execute blocks, supporting both single and double (or higher) block types
+        if isinstance(out, torch.Tensor):
+            out = (out,)
+        for i, block in enumerate(self.get_blocks(block_type)):
+            out = func(i, block, *out, *args, **kwargs)
+            if isinstance(out, torch.Tensor):
+                out = (out,)
+        if "transformer_blocks" in self.flipflop:
+            holder = self.flipflop["transformer_blocks"]
+            with holder.context() as ctx:
+                for i, block in enumerate(holder.blocks):
+                    out = ctx(func, i, block, *out, *args, **kwargs)
+                    if isinstance(out, torch.Tensor):
+                        out = (out,)
+        if len(out) == 1:
+            out = out[0]
+        return out
+
 
 class FlipFlopContext:
     def __init__(self, holder: FlipFlopHolder):
