@@ -33,7 +33,7 @@ class FlipFlopModule(torch.nn.Module):
         if block_type not in self.block_types:
             raise ValueError(f"Block type {block_type} not found in {self.block_types}")
         if block_type in self.flipflop:
-            return getattr(self, block_type)[:self.flipflop[block_type].flip_amount]
+            return getattr(self, block_type)[:self.flipflop[block_type].i_offset]
         return getattr(self, block_type)
 
     def get_all_block_module_sizes(self, reverse_sort_by_size: bool = False) -> list[tuple[str, int]]:

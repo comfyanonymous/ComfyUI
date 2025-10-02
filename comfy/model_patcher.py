@@ -619,6 +619,7 @@ class ModelPatcher:
     def setup_flipflop(self, flipflop_blocks_per_type: dict[str, tuple[int, int]]):
         if not self.supports_flipflop():
             return
+        logging.info(f"setting up flipflop with {flipflop_blocks_per_type}")
         self.model.diffusion_model.setup_flipflop_holders(flipflop_blocks_per_type, self.load_device, self.offload_device)
 
     def init_flipflop_block_copies(self):
