@@ -56,8 +56,8 @@ class FlipFlopModule(torch.nn.Module):
             out = func(i, block, *out, *args, **kwargs)
             if isinstance(out, torch.Tensor):
                 out = (out,)
-        if "transformer_blocks" in self.flipflop:
-            holder = self.flipflop["transformer_blocks"]
+        if block_type in self.flipflop:
+            holder = self.flipflop[block_type]
             with holder.context() as ctx:
                 for i, block in enumerate(holder.blocks):
                     out = ctx(func, i, block, *out, *args, **kwargs)
