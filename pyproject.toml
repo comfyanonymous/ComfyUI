@@ -65,7 +65,6 @@ messages_control.disable = [
   "unnecessary-pass",
   "unidiomatic-typecheck",
   "unnecessary-lambda-assignment",
-  "bad-indentation",
   "no-else-return",
   "no-else-raise",
   "invalid-overridden-method",
@@ -73,6 +72,5 @@ messages_control.disable = [
   "pointless-string-statement",
   "inconsistent-return-statements",
   "import-outside-toplevel",
-  "reimported",
   "redefined-outer-name",
 ]
