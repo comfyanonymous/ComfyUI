@@ -1,26 +1,38 @@
 import node_helpers
+from typing_extensions import override
+from comfy_api.latest import ComfyExtension, io
 
 
-class ReferenceLatent:
+class ReferenceLatent(io.ComfyNode):
     @classmethod
-    def INPUT_TYPES(s):
-        return {"required": {"conditioning": ("CONDITIONING", ),
-                            },
-                "optional": {"latent": ("LATENT", ),}
-               }
+    def define_schema(cls):
+        return io.Schema(
+            node_id="ReferenceLatent",
+            category="advanced/conditioning/edit_models",
+            description="This node sets the guiding latent for an edit model. If the model supports it you can chain multiple to set multiple reference images.",
+            inputs=[
+                io.Conditioning.Input("conditioning"),
+                io.Latent.Input("latent", optional=True),
+            ],
+            outputs=[
+                io.Conditioning.Output(),
+            ]
+        )
 
-    RETURN_TYPES = ("CONDITIONING",)
-    FUNCTION = "append"
-
-    CATEGORY = "advanced/conditioning/edit_models"
-    DESCRIPTION = "This node sets the guiding latent for an edit model. If the model supports it you can chain multiple to set multiple reference images."
-
-    def append(self, conditioning, latent=None):
+    @classmethod
+    def execute(cls, conditioning, latent=None) -> io.NodeOutput:
         if latent is not None:
             conditioning = node_helpers.conditioning_set_values(conditioning, {"reference_latents": [latent["samples"]]}, append=True)
-        return (conditioning, )
+        return io.NodeOutput(conditioning)
 
 
-NODE_CLASS_MAPPINGS = {
-    "ReferenceLatent": ReferenceLatent,
-}
+class EditModelExtension(ComfyExtension):
+    @override
+    async def get_node_list(self) -> list[type[io.ComfyNode]]:
+        return [
+            ReferenceLatent,
+        ]
+
+
+def comfy_entrypoint() -> EditModelExtension:
+    return EditModelExtension()
