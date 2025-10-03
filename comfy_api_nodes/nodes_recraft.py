@@ -38,48 +38,48 @@ from PIL import UnidentifiedImageError
 
 
 async def handle_recraft_file_request(
-        image: torch.Tensor,
-        path: str,
-        mask: torch.Tensor=None,
-        total_pixels=4096*4096,
-        timeout=1024,
-        request=None,
-        auth_kwargs: dict[str,str] = None,
-    ) -> list[BytesIO]:
-        """
-        Handle sending common Recraft file-only request to get back file bytes.
-        """
-        if request is None:
-            request = EmptyRequest()
+    image: torch.Tensor,
+    path: str,
+    mask: torch.Tensor=None,
+    total_pixels=4096*4096,
+    timeout=1024,
+    request=None,
+    auth_kwargs: dict[str,str] = None,
+) -> list[BytesIO]:
+    """
+    Handle sending common Recraft file-only request to get back file bytes.
+    """
+    if request is None:
+        request = EmptyRequest()
 
-        files = {
-            'image': tensor_to_bytesio(image, total_pixels=total_pixels).read()
-        }
-        if mask is not None:
-            files['mask'] = tensor_to_bytesio(mask, total_pixels=total_pixels).read()
+    files = {
+        'image': tensor_to_bytesio(image, total_pixels=total_pixels).read()
+    }
+    if mask is not None:
+        files['mask'] = tensor_to_bytesio(mask, total_pixels=total_pixels).read()
 
-        operation = SynchronousOperation(
-            endpoint=ApiEndpoint(
-                path=path,
-                method=HttpMethod.POST,
-                request_model=type(request),
-                response_model=RecraftImageGenerationResponse,
-            ),
-            request=request,
-            files=files,
-            content_type="multipart/form-data",
-            auth_kwargs=auth_kwargs,
-            multipart_parser=recraft_multipart_parser,
-        )
-        response: RecraftImageGenerationResponse = await operation.execute()
-        all_bytesio = []
-        if response.image is not None:
-            all_bytesio.append(await download_url_to_bytesio(response.image.url, timeout=timeout))
-        else:
-            for data in response.data:
-                all_bytesio.append(await download_url_to_bytesio(data.url, timeout=timeout))
+    operation = SynchronousOperation(
+        endpoint=ApiEndpoint(
+            path=path,
+            method=HttpMethod.POST,
+            request_model=type(request),
+            response_model=RecraftImageGenerationResponse,
+        ),
+        request=request,
+        files=files,
+        content_type="multipart/form-data",
+        auth_kwargs=auth_kwargs,
+        multipart_parser=recraft_multipart_parser,
+    )
+    response: RecraftImageGenerationResponse = await operation.execute()
+    all_bytesio = []
+    if response.image is not None:
+        all_bytesio.append(await download_url_to_bytesio(response.image.url, timeout=timeout))
+    else:
+        for data in response.data:
+            all_bytesio.append(await download_url_to_bytesio(data.url, timeout=timeout))
 
-        return all_bytesio
+    return all_bytesio
 
 
 def recraft_multipart_parser(data, parent_key=None, formatter: callable=None, converted_to_check: list[list]=None, is_list=False) -> dict:
