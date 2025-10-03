@@ -351,7 +351,7 @@ class ClapTextModelWithProjection(nn.Module):
         pooled_output = text_outputs[1]
         text_embeds = self.text_projection(pooled_output)
 
-        return text_embeds, text_outputs[0]
+        return text_outputs[0], torch.tensor([]), text_embeds
 
 class ClapTextEncoderModel(sd1_clip.SDClipModel):
     def __init__(self, device="cpu", layer="last", layer_idx=None, dtype=None, attention_mask=True, model_options={}):

@@ -635,6 +635,24 @@ class SingleStreamBlock(nn.Module):
 
         return x
 
+def trim_repeats(expanded):
+    _, L, D = expanded.shape
+    seq = expanded[0]
+
+    repeat_len = L
+    for k in range(1, L // 2 + 1):
+        if torch.equal(seq[:k], seq[k:2*k]):
+            repeat_len = k
+            break
+
+    repeat_dim = D
+    for k in range(1, D // 2 + 1):
+        if torch.equal(seq[:, :k], seq[:, k:2*k]):
+            repeat_dim = k
+            break
+
+    return expanded[:, :repeat_len, :repeat_dim]
+
 class HunyuanVideoFoley(nn.Module):
     def __init__(
         self,
@@ -810,18 +828,30 @@ class HunyuanVideoFoley(nn.Module):
         self,
         x: torch.Tensor,
         t: torch.Tensor,
-        full_cond: torch.Tensor,
+        context: torch.Tensor,
+        control = None,
         transformer_options = {},
         drop_visual: Optional[List[bool]] = None,
     ):
+        device = x.device
         audio = x
         bs, _, ol = x.shape
         tl = ol // self.patch_size
 
-        condition, uncondition = torch.chunk(2, full_cond)
-        uncond_1, uncond_2, uncond_3 = torch.chunk(3, uncondition)
-        clip_feat, sync_feat, cond = torch.chunk(3, condition)
-        clip_feat, sync_feat, cond = torch.cat([uncond_1, clip_feat]), torch.cat([uncond_2, sync_feat]), torch.cat([uncond_3, cond])
+        condition, uncondition = torch.chunk(context, 2)
+
+        condition = condition.view(3, context.size(1) // 3, -1)
+        uncondition = uncondition.view(3, context.size(1) // 3, -1)
+
+        uncond_1, uncond_2, cond_neg = torch.chunk(uncondition, 3)
+        clip_feat, sync_feat, cond_pos = torch.chunk(condition, 3)
+        cond_pos, cond_neg = trim_repeats(cond_pos), trim_repeats(cond_neg)
+        
+        uncond_1, clip_feat = uncond_1.to(device, non_blocking = True), clip_feat.to(device, non_blocking=True)
+        uncond_2, sync_feat = uncond_2.to(device, non_blocking = True), sync_feat.to(device, non_blocking=True)
+        cond_neg, cond_pos = cond_neg.to(device, non_blocking = True), cond_pos.to(device, non_blocking=True)
+
+        clip_feat, sync_feat, cond = torch.cat([uncond_1, clip_feat]), torch.cat([uncond_2, sync_feat]), torch.cat([cond_neg, cond_pos])
 
         if drop_visual is not None:
             clip_feat[drop_visual] = self.get_empty_clip_sequence().to(dtype=clip_feat.dtype)

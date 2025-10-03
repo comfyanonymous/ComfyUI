@@ -59,10 +59,11 @@ class EncodeVideo(io.ComfyNode):
             raise ValueError("Must either have vae or clip_vision.")
         elif vae is None and clip_vision is None:
             raise ValueError("Can't have VAE and Clip Vision passed at the same time!")
+        model = vae.first_stage_model if vae is not None else clip_vision.model
         vae = vae if vae is not None else clip_vision
 
-        if hasattr(vae.first_stage_model, "video_encoding"):
-            data, num_segments, output_fn = vae.first_stage_model.video_encoding(video, step_size)
+        if hasattr(model, "video_encoding"):
+            data, num_segments, output_fn = model.video_encoding(video, step_size)
             batch_size = b * num_segments
         else:
             data = video.view(batch_size, c, h, w)
@@ -77,7 +78,11 @@ class EncodeVideo(io.ComfyNode):
         with torch.inference_mode(): 
             for i in range(0, total, batch_size):
                 chunk = data[i : i + batch_size]
-                out = vae.encode(chunk)
+                if hasattr(vae, "encode"):
+                    out = vae.encode(chunk)
+                else:
+                    out = vae.encode_image(chunk)
+                    out = out["image_embeds"]
                 outputs.append(out)
                 del out, chunk
                 torch.cuda.empty_cache()
