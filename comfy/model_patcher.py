@@ -639,7 +639,7 @@ class ModelPatcher:
             block_buffer = 3
             valid_block_types = []
             # for each block type, check if have enough room to flipflop
-            for block_info in self.model.diffusion_model.get_all_block_module_sizes(reverse_sort_by_size=False):
+            for block_info in self.model.diffusion_model.get_all_block_module_sizes(reverse_sort_by_size=True):
                 block_size: int = block_info[1]
                 if block_size * block_buffer < lowvram_model_memory:
                     valid_block_types.append(block_info)
