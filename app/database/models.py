@@ -77,6 +77,7 @@ class Asset(Base):
     )
 
     __table_args__ = (
+        Index("uq_assets_hash", "hash", unique=True),
         Index("ix_assets_mime_type", "mime_type"),
         CheckConstraint("size_bytes >= 0", name="ck_assets_size_nonneg"),
     )

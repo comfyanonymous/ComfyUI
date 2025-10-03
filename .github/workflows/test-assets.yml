@@ -99,7 +99,7 @@ jobs:
       fail-fast: false
       matrix:
         python: ['3.9', '3.12']
-        pgsql: ['14', '16']
+        pgsql: ['16', '18']
 
     services:
       postgres:
