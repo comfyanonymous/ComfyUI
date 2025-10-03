@@ -37,7 +37,7 @@ from app.model_manager import ModelFileManager
 from app.custom_node_manager import CustomNodeManager
 from typing import Optional, Union
 from api_server.routes.internal.internal_routes import InternalRoutes
-from app import sync_seed_assets, register_assets_system
+from app.assets import sync_seed_assets, register_assets_system
 from protocol import BinaryEventTypes
 
 # Import cache control middleware

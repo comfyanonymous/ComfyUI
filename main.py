@@ -279,7 +279,8 @@ def cleanup_temp():
         shutil.rmtree(temp_dir, ignore_errors=True)
 
 async def setup_database():
-    from app import init_db_engine, sync_seed_assets
+    from app.assets import sync_seed_assets
+    from app.db import init_db_engine
 
     await init_db_engine()
     if not args.disable_assets_autoscan:

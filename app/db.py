@@ -27,8 +27,8 @@ SESSION: Optional[async_sessionmaker] = None
 def _root_paths():
     """Resolve alembic.ini and migrations script folder."""
     root_path = os.path.abspath(os.path.dirname(__file__))
-    config_path = os.path.abspath(os.path.join(root_path, "../../alembic.ini"))
-    scripts_path = os.path.abspath(os.path.join(root_path, "../alembic_db"))
+    config_path = os.path.abspath(os.path.join(root_path, "../alembic.ini"))
+    scripts_path = os.path.abspath(os.path.join(root_path, "alembic_db"))
     return config_path, scripts_path
 
 
