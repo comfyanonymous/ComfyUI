@@ -660,6 +660,12 @@ class ModelPatcher:
                         continue
                     # 2 blocks worth of VRAM may be needed for flipflop, so make sure to account for them.
                     flipflop_blocks = min((total_blocks - n_fit_in_memory) + 2, total_blocks)
+                    # for now, work around odd number issue by making it even
+                    if flipflop_blocks % 2 != 0:
+                        if flipflop_blocks == total_blocks:
+                            flipflop_blocks -= 1
+                        else:
+                            flipflop_blocks += 1
                     flipflop_blocks_per_type[block_type] = (flipflop_blocks, total_blocks)
                     leftover_memory -= (total_blocks - flipflop_blocks + 2) * block_size
                 # if there are blocks to flipflop, need to mark their keys
