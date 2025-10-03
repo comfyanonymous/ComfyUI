@@ -535,7 +535,7 @@ class ApiClient:
                     request_method="PUT",
                     request_url=upload_url,
                     response_status_code=e.status if hasattr(e, "status") else None,
-                    response_headers=dict(e.headers) if getattr(e, "headers") else None,
+                    response_headers=dict(e.headers) if hasattr(e, "headers") else None,
                     response_content=None,
                     error_message=f"{type(e).__name__}: {str(e)}",
                 )
