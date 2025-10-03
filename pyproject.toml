@@ -73,6 +73,5 @@ messages_control.disable = [
   "pointless-string-statement",
   "inconsistent-return-statements",
   "import-outside-toplevel",
-  "reimported",
   "redefined-outer-name",
 ]
