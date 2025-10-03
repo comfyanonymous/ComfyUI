@@ -502,7 +502,7 @@ class InfiniteTalkOuterSampleLoopingWrapper:
 
         # outer loop start for multiple frame windows
         for i in range(estimated_iterations):
-            
+
             # first frame to InfinityTalk always has to be noise free encoded image
             # if no previous samples provided, try to get I2V cond latent from positive cond
 
