@@ -6,9 +6,10 @@ import comfy.model_management
 
 
 class FlipFlopModule(torch.nn.Module):
-    def __init__(self, block_types: tuple[str, ...]):
+    def __init__(self, block_types: tuple[str, ...], enable_flipflop: bool = True):
         super().__init__()
         self.block_types = block_types
+        self.enable_flipflop = enable_flipflop
         self.flipflop: dict[str, FlipFlopHolder] = {}
 
     def setup_flipflop_holders(self, block_info: dict[str, tuple[int, int]], load_device: torch.device, offload_device: torch.device):

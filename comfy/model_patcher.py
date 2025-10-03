@@ -25,7 +25,7 @@ import logging
 import math
 import uuid
 from typing import Callable, Optional
-
+import time # TODO remove
 import torch
 
 import comfy.float
@@ -577,7 +577,7 @@ class ModelPatcher:
                         sd.pop(k)
             return sd
 
-    def patch_weight_to_device(self, key, device_to=None, inplace_update=False):
+    def patch_weight_to_device(self, key, device_to=None, inplace_update=False, device_final=None):
         if key not in self.patches:
             return
 
@@ -597,18 +597,22 @@ class ModelPatcher:
         out_weight = comfy.lora.calculate_weight(self.patches[key], temp_weight, key)
         if set_func is None:
             out_weight = comfy.float.stochastic_rounding(out_weight, weight.dtype, seed=string_to_seed(key))
+            if device_final is not None:
+                out_weight = out_weight.to(device_final)
             if inplace_update:
                 comfy.utils.copy_to_param(self.model, key, out_weight)
             else:
                 comfy.utils.set_attr_param(self.model, key, out_weight)
         else:
+            if device_final is not None:
+                out_weight = out_weight.to(device_final)
             set_func(out_weight, inplace_update=inplace_update, seed=string_to_seed(key))
 
     def supports_flipflop(self):
         # flipflop requires diffusion_model, explicit flipflop support, NVIDIA CUDA streams, and loading/offloading VRAM
         if not hasattr(self.model, "diffusion_model"):
             return False
-        if not hasattr(self.model.diffusion_model, "flipflop"):
+        if not getattr(self.model.diffusion_model, "enable_flipflop", False):
             return False
         if not comfy.model_management.is_nvidia():
             return False
@@ -797,6 +801,7 @@ class ModelPatcher:
 
             # handle flipflop
             if len(load_flipflop) > 0:
+                start_time = time.perf_counter()
                 load_flipflop.sort(reverse=True)
                 for x in load_flipflop:
                     n = x[1]
@@ -806,10 +811,15 @@ class ModelPatcher:
                         if m.comfy_patched_weights == True:
                             continue
                     for param in params:
-                        self.patch_weight_to_device("{}.{}".format(n, param), device_to=self.offload_device)
+                        self.patch_weight_to_device("{}.{}".format(n, param), device_to=device_to, device_final=self.offload_device)
 
                     logging.debug("lowvram: loaded module for flipflop {} {}".format(n, m))
+                end_time = time.perf_counter()
+                logging.info(f"flipflop load time: {end_time - start_time:.2f} seconds")
+                start_time = time.perf_counter()
                 self.init_flipflop_block_copies()
+                end_time = time.perf_counter()
+                logging.info(f"flipflop block init time: {end_time - start_time:.2f} seconds")
 
             if lowvram_counter > 0 or flipflop_counter > 0:
                 if flipflop_counter > 0:
