@@ -12,7 +12,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import noload
 
-from ..._assets_helpers import compute_relative_filename
+from ..._helpers import compute_relative_filename
 from ...storage import hashing as hashing_mod
 from ..helpers import (
     ensure_tags_exist,

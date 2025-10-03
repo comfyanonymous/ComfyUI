@@ -5,7 +5,7 @@ from sqlalchemy.dialects import postgresql as d_pg
 from sqlalchemy.dialects import sqlite as d_sqlite
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..._assets_helpers import normalize_tags
+from ..._helpers import normalize_tags
 from ..models import AssetInfo, AssetInfoTag, Tag
 from ..timeutil import utcnow
 

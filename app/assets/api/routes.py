@@ -10,7 +10,8 @@ from pydantic import ValidationError
 
 import folder_paths
 
-from .. import assets_manager, assets_scanner, user_manager
+from ... import user_manager
+from .. import manager, scanner
 from . import schemas_in, schemas_out
 
 ROUTES = web.RouteTableDef()
@@ -29,7 +30,7 @@ async def head_asset_by_hash(request: web.Request) -> web.Response:
     algo, digest = hash_str.split(":", 1)
     if algo != "blake3" or not digest or any(c for c in digest if c not in "0123456789abcdef"):
         return _error_response(400, "INVALID_HASH", "hash must be like 'blake3:<hex>'")
-    exists = await assets_manager.asset_exists(asset_hash=hash_str)
+    exists = await manager.asset_exists(asset_hash=hash_str)
     return web.Response(status=200 if exists else 404)
 
 
@@ -51,7 +52,7 @@ async def list_assets(request: web.Request) -> web.Response:
     except ValidationError as ve:
         return _validation_error_response("INVALID_QUERY", ve)
 
-    payload = await assets_manager.list_assets(
+    payload = await manager.list_assets(
         include_tags=q.include_tags,
         exclude_tags=q.exclude_tags,
         name_contains=q.name_contains,
@@ -72,7 +73,7 @@ async def download_asset_content(request: web.Request) -> web.Response:
         disposition = "attachment"
 
     try:
-        abs_path, content_type, filename = await assets_manager.resolve_asset_content_for_download(
+        abs_path, content_type, filename = await manager.resolve_asset_content_for_download(
             asset_info_id=str(uuid.UUID(request.match_info["id"])),
             owner_id=USER_MANAGER.get_request_user_id(request),
         )
@@ -102,7 +103,7 @@ async def create_asset_from_hash(request: web.Request) -> web.Response:
     except Exception:
         return _error_response(400, "INVALID_JSON", "Request body must be valid JSON.")
 
-    result = await assets_manager.create_asset_from_hash(
+    result = await manager.create_asset_from_hash(
         hash_str=body.hash,
         name=body.name,
         tags=body.tags,
@@ -154,7 +155,7 @@ async def upload_asset(request: web.Request) -> web.Response:
                     return _error_response(400, "INVALID_HASH", "hash must be like 'blake3:<hex>'")
                 provided_hash = f"{algo}:{digest}"
                 try:
-                    provided_hash_exists = await assets_manager.asset_exists(asset_hash=provided_hash)
+                    provided_hash_exists = await manager.asset_exists(asset_hash=provided_hash)
                 except Exception:
                     provided_hash_exists = None  # do not fail the whole request here
 
@@ -241,7 +242,7 @@ async def upload_asset(request: web.Request) -> web.Response:
     # Fast path: if a valid provided hash exists, create AssetInfo without writing anything
     if spec.hash and provided_hash_exists is True:
         try:
-            result = await assets_manager.create_asset_from_hash(
+            result = await manager.create_asset_from_hash(
                 hash_str=spec.hash,
                 name=spec.name or (spec.hash.split(":", 1)[1]),
                 tags=spec.tags,
@@ -269,7 +270,7 @@ async def upload_asset(request: web.Request) -> web.Response:
         return _error_response(404, "ASSET_NOT_FOUND", "Provided hash not found and no file uploaded.")
 
     try:
-        created = await assets_manager.upload_asset_from_temp_path(
+        created = await manager.upload_asset_from_temp_path(
             spec,
             temp_path=tmp_path,
             client_filename=file_client_name,
@@ -300,7 +301,7 @@ async def upload_asset(request: web.Request) -> web.Response:
 async def get_asset(request: web.Request) -> web.Response:
     asset_info_id = str(uuid.UUID(request.match_info["id"]))
     try:
-        result = await assets_manager.get_asset(
+        result = await manager.get_asset(
             asset_info_id=asset_info_id,
             owner_id=USER_MANAGER.get_request_user_id(request),
         )
@@ -327,7 +328,7 @@ async def update_asset(request: web.Request) -> web.Response:
         return _error_response(400, "INVALID_JSON", "Request body must be valid JSON.")
 
     try:
-        result = await assets_manager.update_asset(
+        result = await manager.update_asset(
             asset_info_id=asset_info_id,
             name=body.name,
             tags=body.tags,
@@ -357,7 +358,7 @@ async def set_asset_preview(request: web.Request) -> web.Response:
         return _error_response(400, "INVALID_JSON", "Request body must be valid JSON.")
 
     try:
-        result = await assets_manager.set_asset_preview(
+        result = await manager.set_asset_preview(
             asset_info_id=asset_info_id,
             preview_asset_id=body.preview_id,
             owner_id=USER_MANAGER.get_request_user_id(request),
@@ -381,7 +382,7 @@ async def delete_asset(request: web.Request) -> web.Response:
     delete_content = True if delete_content is None else delete_content.lower() not in {"0", "false", "no"}
 
     try:
-        deleted = await assets_manager.delete_asset_reference(
+        deleted = await manager.delete_asset_reference(
             asset_info_id=asset_info_id,
             owner_id=USER_MANAGER.get_request_user_id(request),
             delete_content_if_orphan=delete_content,
@@ -411,7 +412,7 @@ async def get_tags(request: web.Request) -> web.Response:
             status=400,
         )
 
-    result = await assets_manager.list_tags(
+    result = await manager.list_tags(
         prefix=query.prefix,
         limit=query.limit,
         offset=query.offset,
@@ -434,7 +435,7 @@ async def add_asset_tags(request: web.Request) -> web.Response:
         return _error_response(400, "INVALID_JSON", "Request body must be valid JSON.")
 
     try:
-        result = await assets_manager.add_tags_to_asset(
+        result = await manager.add_tags_to_asset(
             asset_info_id=asset_info_id,
             tags=data.tags,
             origin="manual",
@@ -465,7 +466,7 @@ async def delete_asset_tags(request: web.Request) -> web.Response:
         return _error_response(400, "INVALID_JSON", "Request body must be valid JSON.")
 
     try:
-        result = await assets_manager.remove_tags_from_asset(
+        result = await manager.remove_tags_from_asset(
             asset_info_id=asset_info_id,
             tags=data.tags,
             owner_id=USER_MANAGER.get_request_user_id(request),
@@ -496,7 +497,7 @@ async def seed_assets(request: web.Request) -> web.Response:
         return _validation_error_response("INVALID_BODY", ve)
 
     try:
-        await assets_scanner.sync_seed_assets(body.roots)
+        await scanner.sync_seed_assets(body.roots)
     except Exception:
         LOGGER.exception("sync_seed_assets failed for roots=%s", body.roots)
         return _error_response(500, "INTERNAL", "Unexpected server error.")
@@ -515,14 +516,14 @@ async def schedule_asset_scan(request: web.Request) -> web.Response:
     except ValidationError as ve:
         return _validation_error_response("INVALID_BODY", ve)
 
-    states = await assets_scanner.schedule_scans(body.roots)
+    states = await scanner.schedule_scans(body.roots)
     return web.json_response(states.model_dump(mode="json"), status=202)
 
 
 @ROUTES.get("/api/assets/scan")
 async def get_asset_scan_status(request: web.Request) -> web.Response:
     root = request.query.get("root", "").strip().lower()
-    states = assets_scanner.current_statuses()
+    states = scanner.current_statuses()
     if root in {"models", "input", "output"}:
         states = [s for s in states.scans if s.root == root]  # type: ignore
         states = schemas_out.AssetScanStatusResponse(scans=states)

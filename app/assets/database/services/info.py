@@ -8,7 +8,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import contains_eager, noload
 
-from ..._assets_helpers import compute_relative_filename, normalize_tags
+from ..._helpers import compute_relative_filename, normalize_tags
 from ..helpers import (
     apply_metadata_filter,
     apply_tag_filters,

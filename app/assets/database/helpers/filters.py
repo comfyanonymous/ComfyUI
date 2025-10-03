@@ -3,7 +3,7 @@ from typing import Optional, Sequence
 import sqlalchemy as sa
 from sqlalchemy import exists
 
-from ..._assets_helpers import normalize_tags
+from ..._helpers import normalize_tags
 from ..models import AssetInfo, AssetInfoMeta, AssetInfoTag
 
 

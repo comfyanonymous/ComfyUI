@@ -10,7 +10,8 @@ import sqlalchemy as sa
 
 import folder_paths
 
-from ._assets_helpers import (
+from ..db import create_session
+from ._helpers import (
     collect_models_files,
     compute_relative_filename,
     get_comfy_models_folders,
@@ -21,7 +22,6 @@ from ._assets_helpers import (
     ts_to_iso,
 )
 from .api import schemas_in, schemas_out
-from .database.db import create_session
 from .database.helpers import (
     add_missing_tag_for_asset_id,
     ensure_tags_exist,
