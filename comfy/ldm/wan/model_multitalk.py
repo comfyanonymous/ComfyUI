@@ -470,7 +470,8 @@ class InfiniteTalkOuterSampleLoopingWrapper:
 
         # when extending from previous frames
         if self.init_previous_frames is not None:
-            previous_frames = self.init_previous_frames
+            decoded_results.append(self.init_previous_frames.unsqueeze(0))
+            previous_frames = self.init_previous_frames # should we grow the results here or rely on using batch image nodes in the workflow?
             if previous_frames.shape[0] < self.motion_frame_count:
                 previous_frames = torch.cat([previous_frames[:1].repeat(self.motion_frame_count - previous_frames.shape[0], 1, 1, 1), previous_frames], dim=0)
             motion_frames = previous_frames[-self.motion_frame_count:]
