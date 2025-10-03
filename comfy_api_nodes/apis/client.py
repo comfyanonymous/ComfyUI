@@ -95,6 +95,7 @@ import aiohttp
 import asyncio
 import logging
 import io
+import os
 import socket
 from aiohttp.client_exceptions import ClientError, ClientResponseError
 from typing import Dict, Type, Optional, Any, TypeVar, Generic, Callable, Tuple
@@ -499,7 +500,9 @@ class ApiClient:
         else:
             raise ValueError("File must be BytesIO or str path")
 
-        operation_id = f"upload_{upload_url.split('/')[-1]}_{uuid.uuid4().hex[:8]}"
+        parsed = urlparse(upload_url)
+        basename = os.path.basename(parsed.path) or parsed.netloc or "upload"
+        operation_id = f"upload_{basename}_{uuid.uuid4().hex[:8]}"
         request_logger.log_request_response(
             operation_id=operation_id,
             request_method="PUT",
@@ -532,7 +535,7 @@ class ApiClient:
                     request_method="PUT",
                     request_url=upload_url,
                     response_status_code=e.status if hasattr(e, "status") else None,
-                    response_headers=dict(e.headers) if getattr(e, "headers") else None,
+                    response_headers=dict(e.headers) if hasattr(e, "headers") else None,
                     response_content=None,
                     error_message=f"{type(e).__name__}: {str(e)}",
                 )
