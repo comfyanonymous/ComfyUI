@@ -552,8 +552,8 @@ class InfiniteTalkOuterSampleLoopingWrapper:
                     noise = torch.cat([noise, new_noise_frames], dim=2)
                 noise = noise[:, :, latent_start_idx:latent_end_idx]
                 latent_image = latent_image[:, :, latent_start_idx:latent_end_idx]
-                if denoise_mask is not None: # todo: check if denoise mask needs adjustment for latent_image changes
-                    print("Using denoise mask with shape", denoise_mask.shape)
+                #if denoise_mask is not None: # todo: check if denoise mask needs adjustment for latent_image changes
+
 
             # run the sampling process
             result = executor(noise, latent_image, sampler, sigmas, denoise_mask=denoise_mask, callback=custom_callback, disable_pbar=False, seed=seed, **kwargs)
