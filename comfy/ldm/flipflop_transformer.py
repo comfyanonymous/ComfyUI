@@ -11,21 +11,31 @@ class FlipFlopModule(torch.nn.Module):
         self.block_types = block_types
         self.enable_flipflop = enable_flipflop
         self.flipflop: dict[str, FlipFlopHolder] = {}
+        self.block_info: dict[str, tuple[int, int]] = {}
+        self.flipflop_prefixes: list[str] = []
 
-    def setup_flipflop_holders(self, block_info: dict[str, tuple[int, int]], load_device: torch.device, offload_device: torch.device):
+    def setup_flipflop_holders(self, block_info: dict[str, tuple[int, int]], flipflop_prefixes: list[str], load_device: torch.device, offload_device: torch.device):
         for block_type, (flipflop_blocks, total_blocks) in block_info.items():
             if block_type in self.flipflop:
                 continue
             self.flipflop[block_type] = FlipFlopHolder(getattr(self, block_type)[total_blocks-flipflop_blocks:], flipflop_blocks, total_blocks, load_device, offload_device)
+            self.block_info[block_type] = (flipflop_blocks, total_blocks)
+        self.flipflop_prefixes = flipflop_prefixes.copy()
 
-    def init_flipflop_block_copies(self, device: torch.device):
+    def init_flipflop_block_copies(self, device: torch.device) -> int:
+        memory_freed = 0
         for holder in self.flipflop.values():
-            holder.init_flipflop_block_copies(device)
+            memory_freed += holder.init_flipflop_block_copies(device)
+        return memory_freed
 
     def clean_flipflop_holders(self):
+        memory_freed = 0
         for block_type in list(self.flipflop.keys()):
-            self.flipflop[block_type].clean_flipflop_blocks()
+            memory_freed += self.flipflop[block_type].clean_flipflop_blocks()
             del self.flipflop[block_type]
+        self.block_info = {}
+        self.flipflop_prefixes = []
+        return memory_freed
 
     def get_all_blocks(self, block_type: str) -> list[torch.nn.Module]:
         return getattr(self, block_type)
@@ -71,6 +81,8 @@ class FlipFlopModule(torch.nn.Module):
 
 class FlipFlopContext:
     def __init__(self, holder: FlipFlopHolder):
+        # NOTE: there is a bug when there are an odd number of blocks to flipflop.
+        # Worked around right now by always making sure it will be even, but need to resolve.
         self.holder = holder
         self.reset()
 
@@ -172,12 +184,17 @@ class FlipFlopHolder:
     def context(self):
         return FlipFlopContext(self)
 
-    def init_flipflop_block_copies(self, load_device: torch.device):
+    def init_flipflop_block_copies(self, load_device: torch.device) -> int:
         self.flip = copy.deepcopy(self.blocks[0]).to(device=load_device)
         self.flop = copy.deepcopy(self.blocks[1]).to(device=load_device)
+        return comfy.model_management.module_size(self.flip) + comfy.model_management.module_size(self.flop)
 
-    def clean_flipflop_blocks(self):
+    def clean_flipflop_blocks(self) -> int:
+        memory_freed = 0
+        memory_freed += comfy.model_management.module_size(self.flip)
+        memory_freed += comfy.model_management.module_size(self.flop)
         del self.flip
         del self.flop
         self.flip = None
         self.flop = None
+        return memory_freed

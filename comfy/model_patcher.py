@@ -620,21 +620,26 @@ class ModelPatcher:
             return False
         return True
 
-    def setup_flipflop(self, flipflop_blocks_per_type: dict[str, tuple[int, int]]):
+    def setup_flipflop(self, flipflop_blocks_per_type: dict[str, tuple[int, int]], flipflop_prefixes: list[str]):
         if not self.supports_flipflop():
             return
         logging.info(f"setting up flipflop with {flipflop_blocks_per_type}")
-        self.model.diffusion_model.setup_flipflop_holders(flipflop_blocks_per_type, self.load_device, self.offload_device)
+        self.model.diffusion_model.setup_flipflop_holders(flipflop_blocks_per_type, flipflop_prefixes, self.load_device, self.offload_device)
 
-    def init_flipflop_block_copies(self):
+    def init_flipflop_block_copies(self) -> int:
         if not self.supports_flipflop():
-            return
-        self.model.diffusion_model.init_flipflop_block_copies(self.load_device)
+            return 0
+        return self.model.diffusion_model.init_flipflop_block_copies(self.load_device)
 
-    def clean_flipflop(self):
+    def clean_flipflop(self) -> int:
         if not self.supports_flipflop():
-            return
-        self.model.diffusion_model.clean_flipflop_holders()
+            return 0
+        return self.model.diffusion_model.clean_flipflop_holders()
+
+    def _get_existing_flipflop_prefixes(self):
+        if self.supports_flipflop():
+            return self.model.diffusion_model.flipflop_prefixes
+        return []
 
     def _calc_flipflop_prefixes(self, lowvram_model_memory=0, prepare_flipflop=False):
         flipflop_prefixes = []
@@ -678,12 +683,15 @@ class ModelPatcher:
                     for i in range(total_blocks-flipflop_blocks, total_blocks):
                         flipflop_prefixes.append(f"diffusion_model.{block_type}.{i}")
         if prepare_flipflop and len(flipflop_blocks_per_type) > 0:
-            self.setup_flipflop(flipflop_blocks_per_type)
+            self.setup_flipflop(flipflop_blocks_per_type, flipflop_prefixes)
         return flipflop_prefixes
 
-    def _load_list(self, lowvram_model_memory=0, prepare_flipflop=False):
+    def _load_list(self, lowvram_model_memory=0, prepare_flipflop=False, get_existing_flipflop=False):
         loading = []
-        flipflop_prefixes = self._calc_flipflop_prefixes(lowvram_model_memory, prepare_flipflop)
+        if get_existing_flipflop:
+            flipflop_prefixes = self._get_existing_flipflop_prefixes()
+        else:
+            flipflop_prefixes = self._calc_flipflop_prefixes(lowvram_model_memory, prepare_flipflop)
         for n, m in self.model.named_modules():
             params = []
             skip = False
@@ -817,7 +825,7 @@ class ModelPatcher:
                 end_time = time.perf_counter()
                 logging.info(f"flipflop load time: {end_time - start_time:.2f} seconds")
                 start_time = time.perf_counter()
-                self.init_flipflop_block_copies()
+                mem_counter += self.init_flipflop_block_copies()
                 end_time = time.perf_counter()
                 logging.info(f"flipflop block init time: {end_time - start_time:.2f} seconds")
 
@@ -905,8 +913,9 @@ class ModelPatcher:
         with self.use_ejected():
             hooks_unpatched = False
             memory_freed = 0
+            memory_freed += self.clean_flipflop()
             patch_counter = 0
-            unload_list = self._load_list()
+            unload_list = self._load_list(get_existing_flipflop=True)
             unload_list.sort()
             for unload in unload_list:
                 if memory_to_free < memory_freed:
@@ -915,7 +924,10 @@ class ModelPatcher:
                 n = unload[1]
                 m = unload[2]
                 params = unload[3]
+                flipflop: bool = unload[4]
 
+                if flipflop:
+                    continue
                 lowvram_possible = hasattr(m, "comfy_cast_weights")
                 if hasattr(m, "comfy_patched_weights") and m.comfy_patched_weights == True:
                     move_weight = True
