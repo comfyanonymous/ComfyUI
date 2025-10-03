@@ -903,7 +903,7 @@ class MotionEncoder_tc(nn.Module):
     def __init__(self,
                  in_dim: int,
                  hidden_dim: int,
-                 num_heads=int,
+                 num_heads: int,
                  need_global=True,
                  dtype=None,
                  device=None,
