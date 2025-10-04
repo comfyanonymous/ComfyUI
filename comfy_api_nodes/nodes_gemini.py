@@ -39,6 +39,7 @@ from comfy_api_nodes.apinode_utils import (
     tensor_to_base64_string,
     bytesio_to_image_tensor,
 )
+from comfy_api.util import VideoContainer, VideoCodec
 
 
 GEMINI_BASE_ENDPOINT = "/proxy/vertexai/gemini"
@@ -310,7 +311,7 @@ class GeminiNode(ComfyNodeABC):
         Returns:
             List of GeminiPart objects containing the encoded video.
         """
-        from comfy_api.util import VideoContainer, VideoCodec
+
         base_64_string = video_to_base64_string(
             video_input,
             container_format=VideoContainer.MP4,
