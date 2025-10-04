@@ -735,7 +735,7 @@ class AnyType(ComfyTypeIO):
     Type = Any
 
 @comfytype(io_type="MODEL_PATCH")
-class MODEL_PATCH(ComfyTypeIO):
+class ModelPatch(ComfyTypeIO):
     Type = Any
 
 @comfytype(io_type="AUDIO_ENCODER")
@@ -1603,6 +1603,7 @@ class _IO:
     ControlNet = ControlNet
     Vae = Vae
     Model = Model
+    ModelPatch = ModelPatch
     ClipVision = ClipVision
     ClipVisionOutput = ClipVisionOutput
     AudioEncoder = AudioEncoder
