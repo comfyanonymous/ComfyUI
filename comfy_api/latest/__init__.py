@@ -80,7 +80,7 @@ class ComfyExtension(ABC):
     async def on_load(self) -> None:
         """
         Called when an extension is loaded.
-        This should be used to initialize any global resources neeeded by the extension.
+        This should be used to initialize any global resources needed by the extension.
         """
 
     @abstractmethod

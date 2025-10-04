@@ -118,7 +118,7 @@ class PointCrossAttention(nn.Module):
         take the fourier embeddings for both input and query pc
 
         Mental Note: FPS-sampled points (query_pc) act as latent tokens that attend to and learn from the broader context in input_pc.
-        Goal: get a smaller represenation (query_pc) to represent the entire scence structure by learning from a broader subset (input_pc).
+        Goal: get a smaller representation (query_pc) to represent the entire scence structure by learning from a broader subset (input_pc).
         More computationally efficient.
 
         Features are additional information for each point in the cloud
@@ -193,7 +193,7 @@ class PointCrossAttention(nn.Module):
             query = torch.cat([query, query_features], dim = -1)
             data = torch.cat([data, input_features], dim = -1)
 
-        # don't return pc_info to avoid unnecessary memory usuage
+        # don't return pc_info to avoid unnecessary memory usage
         return query.view(B, -1, query.shape[-1]), data.view(B, -1, data.shape[-1])
 
     def forward(self, point_cloud: torch.Tensor, features: torch.Tensor):

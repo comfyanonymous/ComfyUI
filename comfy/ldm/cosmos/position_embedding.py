@@ -178,7 +178,7 @@ class LearnablePosEmbAxis(VideoPositionEmb):
     ):
         """
         Args:
-            interpolation (str): we curretly only support "crop", ideally when we need extrapolation capacity, we should adjust frequency or other more advanced methods. they are not implemented yet.
+            interpolation (str): we currently only support "crop", ideally when we need extrapolation capacity, we should adjust frequency or other more advanced methods. they are not implemented yet.
         """
         del kwargs  # unused
         super().__init__()
