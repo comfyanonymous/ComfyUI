@@ -7,6 +7,8 @@ Windows-only version of ComfyUI which uses ZLUDA to get better performance with 
 
 </div>
 
+*** Comfyui added partial AMD support with the official torch's , at the moment the supported GPU's on windows start from 7000 series and up. For more information about that go to the official comfyui github page. (https://github.com/comfyanonymous/ComfyUI). This fork is still the best solution for older gpu models and even with the official support, most of the cards performance numbers are near what is achieved with zluda AT THE MOMENT. (it would hopefully change as AMD make the official pytorch builds better). ***
+
 <details>
 <summary><strong>FOR THOSE THAT ARE GETTING TROJAN DETECTIONS IN NCCL.DLL IN ZLUDA FOLDER</strong></summary>
 
