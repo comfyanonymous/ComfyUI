@@ -146,7 +146,7 @@ class PixverseTextToVideoNode(comfy_io.ComfyNode):
                 comfy_io.String.Input(
                     "negative_prompt",
                     default="",
-                    force_input=True,
+                    multiline=True,
                     tooltip="An optional text description of undesired elements on an image.",
                     optional=True,
                 ),
@@ -284,7 +284,7 @@ class PixverseImageToVideoNode(comfy_io.ComfyNode):
                 comfy_io.String.Input(
                     "negative_prompt",
                     default="",
-                    force_input=True,
+                    multiline=True,
                     tooltip="An optional text description of undesired elements on an image.",
                     optional=True,
                 ),
@@ -425,7 +425,7 @@ class PixverseTransitionVideoNode(comfy_io.ComfyNode):
                 comfy_io.String.Input(
                     "negative_prompt",
                     default="",
-                    force_input=True,
+                    multiline=True,
                     tooltip="An optional text description of undesired elements on an image.",
                     optional=True,
                 ),
