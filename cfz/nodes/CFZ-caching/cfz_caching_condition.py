@@ -45,7 +45,7 @@ class save_conditioning:
     RETURN_TYPES = ("CONDITIONING",)
     RETURN_NAMES = ("conditioning",)
     FUNCTION     = "save_conditioning"
-    CATEGORY     = "CFZ/conditioning"
+    CATEGORY     = "CFZ Save-Load Conditioning"
 
     def save_conditioning(self, conditioning, cache_name):
         """Save conditioning to cache with custom name, supporting subdirectories"""
@@ -148,7 +148,7 @@ class load_conditioning:
     RETURN_TYPES = ("CONDITIONING",)
     RETURN_NAMES = ("conditioning",)
     FUNCTION     = "load_conditioning"
-    CATEGORY     = "CFZ/conditioning"
+    CATEGORY     = "CFZ Save-Load Conditioning"
 
     @classmethod
     def get_cached_files(cls):
@@ -208,7 +208,7 @@ class load_conditioning:
         
         file_path = self._resolve_path(file_path)
         
-        print(f"[CFZ Load] Loading conditioning from: {cache_name}")
+        # print(f"[CFZ Load] Loading conditioning from: {cache_name}")
         
         if not os.path.exists(file_path):
             raise ValueError(f"Cached conditioning not found: {cache_name}.pt")
@@ -260,6 +260,7 @@ class CFZ_PrintMarker:
                 "is_start_point": ("BOOLEAN", {"default": False}),
                 "is_end_point": ("BOOLEAN", {"default": False}),
                 "show_current_time": ("BOOLEAN", {"default": True}),
+                "clear_terminal": ("BOOLEAN", {"default": False}),
             },
             "optional": {
                 "trigger": (any_type, {}),
@@ -271,10 +272,14 @@ class CFZ_PrintMarker:
     RETURN_NAMES = ("output",)
     OUTPUT_NODE = True
     FUNCTION = "run"
-    CATEGORY = "CFZ/utils/debug"
+    CATEGORY = "CFZ Utils/Debug"
 
     def run(self, message, timer_name="workflow_timer", is_start_point=False, is_end_point=False, 
-            show_current_time=True, trigger=None, unique_id=None, extra_pnginfo=None):
+            show_current_time=True, clear_terminal=False, trigger=None, unique_id=None, extra_pnginfo=None):
+        
+        # Clear terminal if requested (before any output)
+        if clear_terminal:
+            os.system('cls' if os.name == 'nt' else 'clear')
         
         current_time = time.time()
         current_timestamp = datetime.fromtimestamp(current_time).strftime("%H:%M:%S.%f")[:-3]
