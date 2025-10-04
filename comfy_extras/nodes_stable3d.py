@@ -1,6 +1,8 @@
 import torch
 import nodes
 import comfy.utils
+from typing_extensions import override
+from comfy_api.latest import ComfyExtension, io
 
 def camera_embeddings(elevation, azimuth):
     elevation = torch.as_tensor([elevation])
@@ -20,26 +22,31 @@ def camera_embeddings(elevation, azimuth):
     return embeddings
 
 
-class StableZero123_Conditioning:
+class StableZero123_Conditioning(io.ComfyNode):
     @classmethod
-    def INPUT_TYPES(s):
-        return {"required": { "clip_vision": ("CLIP_VISION",),
-                              "init_image": ("IMAGE",),
-                              "vae": ("VAE",),
-                              "width": ("INT", {"default": 256, "min": 16, "max": nodes.MAX_RESOLUTION, "step": 8}),
-                              "height": ("INT", {"default": 256, "min": 16, "max": nodes.MAX_RESOLUTION, "step": 8}),
-                              "batch_size": ("INT", {"default": 1, "min": 1, "max": 4096}),
-                              "elevation": ("FLOAT", {"default": 0.0, "min": -180.0, "max": 180.0, "step": 0.1, "round": False}),
-                              "azimuth": ("FLOAT", {"default": 0.0, "min": -180.0, "max": 180.0, "step": 0.1, "round": False}),
-                             }}
-    RETURN_TYPES = ("CONDITIONING", "CONDITIONING", "LATENT")
-    RETURN_NAMES = ("positive", "negative", "latent")
+    def define_schema(cls):
+        return io.Schema(
+            node_id="StableZero123_Conditioning",
+            category="conditioning/3d_models",
+            inputs=[
+                io.ClipVision.Input("clip_vision"),
+                io.Image.Input("init_image"),
+                io.Vae.Input("vae"),
+                io.Int.Input("width", default=256, min=16, max=nodes.MAX_RESOLUTION, step=8),
+                io.Int.Input("height", default=256, min=16, max=nodes.MAX_RESOLUTION, step=8),
+                io.Int.Input("batch_size", default=1, min=1, max=4096),
+                io.Float.Input("elevation", default=0.0, min=-180.0, max=180.0, step=0.1, round=False),
+                io.Float.Input("azimuth", default=0.0, min=-180.0, max=180.0, step=0.1, round=False)
+            ],
+            outputs=[
+                io.Conditioning.Output(display_name="positive"),
+                io.Conditioning.Output(display_name="negative"),
+                io.Latent.Output(display_name="latent")
+            ]
+        )
 
-    FUNCTION = "encode"
-
-    CATEGORY = "conditioning/3d_models"
-
-    def encode(self, clip_vision, init_image, vae, width, height, batch_size, elevation, azimuth):
+    @classmethod
+    def execute(cls, clip_vision, init_image, vae, width, height, batch_size, elevation, azimuth) -> io.NodeOutput:
         output = clip_vision.encode_image(init_image)
         pooled = output.image_embeds.unsqueeze(0)
         pixels = comfy.utils.common_upscale(init_image.movedim(-1,1), width, height, "bilinear", "center").movedim(1,-1)
@@ -51,30 +58,35 @@ class StableZero123_Conditioning:
         positive = [[cond, {"concat_latent_image": t}]]
         negative = [[torch.zeros_like(pooled), {"concat_latent_image": torch.zeros_like(t)}]]
         latent = torch.zeros([batch_size, 4, height // 8, width // 8])
-        return (positive, negative, {"samples":latent})
+        return io.NodeOutput(positive, negative, {"samples":latent})
 
-class StableZero123_Conditioning_Batched:
+class StableZero123_Conditioning_Batched(io.ComfyNode):
     @classmethod
-    def INPUT_TYPES(s):
-        return {"required": { "clip_vision": ("CLIP_VISION",),
-                              "init_image": ("IMAGE",),
-                              "vae": ("VAE",),
-                              "width": ("INT", {"default": 256, "min": 16, "max": nodes.MAX_RESOLUTION, "step": 8}),
-                              "height": ("INT", {"default": 256, "min": 16, "max": nodes.MAX_RESOLUTION, "step": 8}),
-                              "batch_size": ("INT", {"default": 1, "min": 1, "max": 4096}),
-                              "elevation": ("FLOAT", {"default": 0.0, "min": -180.0, "max": 180.0, "step": 0.1, "round": False}),
-                              "azimuth": ("FLOAT", {"default": 0.0, "min": -180.0, "max": 180.0, "step": 0.1, "round": False}),
-                              "elevation_batch_increment": ("FLOAT", {"default": 0.0, "min": -180.0, "max": 180.0, "step": 0.1, "round": False}),
-                              "azimuth_batch_increment": ("FLOAT", {"default": 0.0, "min": -180.0, "max": 180.0, "step": 0.1, "round": False}),
-                             }}
-    RETURN_TYPES = ("CONDITIONING", "CONDITIONING", "LATENT")
-    RETURN_NAMES = ("positive", "negative", "latent")
+    def define_schema(cls):
+        return io.Schema(
+            node_id="StableZero123_Conditioning_Batched",
+            category="conditioning/3d_models",
+            inputs=[
+                io.ClipVision.Input("clip_vision"),
+                io.Image.Input("init_image"),
+                io.Vae.Input("vae"),
+                io.Int.Input("width", default=256, min=16, max=nodes.MAX_RESOLUTION, step=8),
+                io.Int.Input("height", default=256, min=16, max=nodes.MAX_RESOLUTION, step=8),
+                io.Int.Input("batch_size", default=1, min=1, max=4096),
+                io.Float.Input("elevation", default=0.0, min=-180.0, max=180.0, step=0.1, round=False),
+                io.Float.Input("azimuth", default=0.0, min=-180.0, max=180.0, step=0.1, round=False),
+                io.Float.Input("elevation_batch_increment", default=0.0, min=-180.0, max=180.0, step=0.1, round=False),
+                io.Float.Input("azimuth_batch_increment", default=0.0, min=-180.0, max=180.0, step=0.1, round=False)
+            ],
+            outputs=[
+                io.Conditioning.Output(display_name="positive"),
+                io.Conditioning.Output(display_name="negative"),
+                io.Latent.Output(display_name="latent")
+            ]
+        )
 
-    FUNCTION = "encode"
-
-    CATEGORY = "conditioning/3d_models"
-
-    def encode(self, clip_vision, init_image, vae, width, height, batch_size, elevation, azimuth, elevation_batch_increment, azimuth_batch_increment):
+    @classmethod
+    def execute(cls, clip_vision, init_image, vae, width, height, batch_size, elevation, azimuth, elevation_batch_increment, azimuth_batch_increment) -> io.NodeOutput:
         output = clip_vision.encode_image(init_image)
         pooled = output.image_embeds.unsqueeze(0)
         pixels = comfy.utils.common_upscale(init_image.movedim(-1,1), width, height, "bilinear", "center").movedim(1,-1)
@@ -93,27 +105,32 @@ class StableZero123_Conditioning_Batched:
         positive = [[cond, {"concat_latent_image": t}]]
         negative = [[torch.zeros_like(pooled), {"concat_latent_image": torch.zeros_like(t)}]]
         latent = torch.zeros([batch_size, 4, height // 8, width // 8])
-        return (positive, negative, {"samples":latent, "batch_index": [0] * batch_size})
+        return io.NodeOutput(positive, negative, {"samples":latent, "batch_index": [0] * batch_size})
 
-class SV3D_Conditioning:
+class SV3D_Conditioning(io.ComfyNode):
     @classmethod
-    def INPUT_TYPES(s):
-        return {"required": { "clip_vision": ("CLIP_VISION",),
-                              "init_image": ("IMAGE",),
-                              "vae": ("VAE",),
-                              "width": ("INT", {"default": 576, "min": 16, "max": nodes.MAX_RESOLUTION, "step": 8}),
-                              "height": ("INT", {"default": 576, "min": 16, "max": nodes.MAX_RESOLUTION, "step": 8}),
-                              "video_frames": ("INT", {"default": 21, "min": 1, "max": 4096}),
-                              "elevation": ("FLOAT", {"default": 0.0, "min": -90.0, "max": 90.0, "step": 0.1, "round": False}),
-                             }}
-    RETURN_TYPES = ("CONDITIONING", "CONDITIONING", "LATENT")
-    RETURN_NAMES = ("positive", "negative", "latent")
+    def define_schema(cls):
+        return io.Schema(
+            node_id="SV3D_Conditioning",
+            category="conditioning/3d_models",
+            inputs=[
+                io.ClipVision.Input("clip_vision"),
+                io.Image.Input("init_image"),
+                io.Vae.Input("vae"),
+                io.Int.Input("width", default=576, min=16, max=nodes.MAX_RESOLUTION, step=8),
+                io.Int.Input("height", default=576, min=16, max=nodes.MAX_RESOLUTION, step=8),
+                io.Int.Input("video_frames", default=21, min=1, max=4096),
+                io.Float.Input("elevation", default=0.0, min=-90.0, max=90.0, step=0.1, round=False)
+            ],
+            outputs=[
+                io.Conditioning.Output(display_name="positive"),
+                io.Conditioning.Output(display_name="negative"),
+                io.Latent.Output(display_name="latent")
+            ]
+        )
 
-    FUNCTION = "encode"
-
-    CATEGORY = "conditioning/3d_models"
-
-    def encode(self, clip_vision, init_image, vae, width, height, video_frames, elevation):
+    @classmethod
+    def execute(cls, clip_vision, init_image, vae, width, height, video_frames, elevation) -> io.NodeOutput:
         output = clip_vision.encode_image(init_image)
         pooled = output.image_embeds.unsqueeze(0)
         pixels = comfy.utils.common_upscale(init_image.movedim(-1,1), width, height, "bilinear", "center").movedim(1,-1)
@@ -133,11 +150,17 @@ class SV3D_Conditioning:
         positive = [[pooled, {"concat_latent_image": t, "elevation": elevations, "azimuth": azimuths}]]
         negative = [[torch.zeros_like(pooled), {"concat_latent_image": torch.zeros_like(t), "elevation": elevations, "azimuth": azimuths}]]
         latent = torch.zeros([video_frames, 4, height // 8, width // 8])
-        return (positive, negative, {"samples":latent})
+        return io.NodeOutput(positive, negative, {"samples":latent})
 
 
-NODE_CLASS_MAPPINGS = {
-    "StableZero123_Conditioning": StableZero123_Conditioning,
-    "StableZero123_Conditioning_Batched": StableZero123_Conditioning_Batched,
-    "SV3D_Conditioning": SV3D_Conditioning,
-}
+class Stable3DExtension(ComfyExtension):
+    @override
+    async def get_node_list(self) -> list[type[io.ComfyNode]]:
+        return [
+            StableZero123_Conditioning,
+            StableZero123_Conditioning_Batched,
+            SV3D_Conditioning,
+        ]
+
+async def comfy_entrypoint() -> Stable3DExtension:
+    return Stable3DExtension()
