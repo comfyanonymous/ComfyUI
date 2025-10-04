@@ -20,7 +20,9 @@ tqdm
 psutil
 alembic
 SQLAlchemy
+aiosqlite
 av>=14.2.0
+blake3
 
 #non essential dependencies:
 kornia>=0.7.1
