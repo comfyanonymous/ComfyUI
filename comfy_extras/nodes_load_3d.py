@@ -7,6 +7,10 @@ from comfy_api.input_impl import VideoFromFile
 
 from pathlib import Path
 
+from PIL import Image
+import numpy as np
+
+import uuid
 
 def normalize_path(path):
     return path.replace('\\', '/')
@@ -68,7 +72,8 @@ class Preview3D():
             "model_file": ("STRING", {"default": "", "multiline": False}),
         },
         "optional": {
-            "camera_info": ("LOAD3D_CAMERA", {})
+            "camera_info": ("LOAD3D_CAMERA", {}),
+            "bg_image": ("IMAGE", {})
         }}
 
     OUTPUT_NODE = True
@@ -81,10 +86,24 @@ class Preview3D():
 
     def process(self, model_file, **kwargs):
         camera_info = kwargs.get("camera_info", None)
+        bg_image = kwargs.get("bg_image", None)
+
+        bg_image_path = None
+        if bg_image is not None:
+
+            img_array = (bg_image[0].cpu().numpy() * 255).astype(np.uint8)
+            img = Image.fromarray(img_array)
+
+            temp_dir = folder_paths.get_temp_directory()
+            filename = f"bg_{uuid.uuid4().hex}.png"
+            bg_image_path = os.path.join(temp_dir, filename)
+            img.save(bg_image_path, compress_level=1)
+
+            bg_image_path = f"temp/{filename}"
 
         return {
             "ui": {
-                "result": [model_file, camera_info]
+                "result": [model_file, camera_info, bg_image_path]
             }
         }
 
