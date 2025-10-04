@@ -26,6 +26,7 @@ import mimetypes
 from comfy.cli_args import args
 import comfy.utils
 import comfy.model_management
+from comfy.samplers import SAMPLER_NAMES
 from comfy_api import feature_flags
 import node_helpers
 from comfyui_version import __version__
@@ -286,6 +287,10 @@ class PromptServer():
 
             return web.json_response(extensions)
 
+        @routes.get("/samplers")
+        def get_samplers(request):
+            return web.json_response(sorted(SAMPLER_NAMES))
+
         def get_dir_by_type(dir_type):
             if dir_type is None:
                 dir_type = "input"
@@ -365,7 +370,6 @@ class PromptServer():
         async def upload_image(request):
             post = await request.post()
             return image_upload(post)
-
 
         @routes.post("/upload/mask")
         async def upload_mask(request):
