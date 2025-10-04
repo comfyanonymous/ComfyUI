@@ -88,10 +88,10 @@ for /f "delims=" %%R in ('git rev-parse @{u}') do set REMOTE=%%R
 if NOT "%LOCAL%"=="%REMOTE%" (
     echo.
     echo [INFO] Update available. New commits:
-    git log --oneline %LOCAL%..%REMOTE%
+    git --no-pager log --oneline %LOCAL%..%REMOTE%
     echo.
     echo [INFO] Pulling updates...
-    git pull
+    git --no-pager pull
 ) else (
     echo [INFO] Already up to date.
 )
