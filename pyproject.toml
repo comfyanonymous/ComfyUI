@@ -70,7 +70,5 @@ messages_control.disable = [
   "invalid-overridden-method",
   "unused-variable",
   "pointless-string-statement",
-  "inconsistent-return-statements",
-  "import-outside-toplevel",
   "redefined-outer-name",
 ]

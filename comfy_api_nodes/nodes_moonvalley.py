@@ -2,11 +2,7 @@ import logging
 from typing import Any, Callable, Optional, TypeVar
 import torch
 from typing_extensions import override
-from comfy_api_nodes.util.validation_utils import (
-    get_image_dimensions,
-    validate_image_dimensions,
-)
-
+from comfy_api_nodes.util.validation_utils import validate_image_dimensions
 
 from comfy_api_nodes.apis import (
     MoonvalleyTextToVideoRequest,
@@ -130,47 +126,6 @@ def validate_prompts(
             f"Negative prompt is too long: {len(negative_prompt)} characters"
         )
     return True
-
-
-def validate_input_media(width, height, with_frame_conditioning, num_frames_in=None):
-    # inference validation
-    # T = num_frames
-    # in all cases, the following must be true: T divisible by 16 and H,W by 8. in addition...
-    # with image conditioning: H*W must be divisible by 8192
-    # without image conditioning: T divisible by 32
-    if num_frames_in and not num_frames_in % 16 == 0:
-        return False, ("The input video total frame count must be divisible by 16!")
-
-    if height % 8 != 0 or width % 8 != 0:
-        return False, (
-            f"Height ({height}) and width ({width}) must be " "divisible by 8"
-        )
-
-    if with_frame_conditioning:
-        if (height * width) % 8192 != 0:
-            return False, (
-                f"Height * width ({height * width}) must be "
-                "divisible by 8192 for frame conditioning"
-            )
-    else:
-        if num_frames_in and not num_frames_in % 32 == 0:
-            return False, ("The input video total frame count must be divisible by 32!")
-
-
-def validate_input_image(
-    image: torch.Tensor, with_frame_conditioning: bool = False
-) -> None:
-    """
-    Validates the input image adheres to the expectations of the API:
-    - The image resolution should not be less than 300*300px
-    - The aspect ratio of the image should be between 1:2.5 ~ 2.5:1
-
-    """
-    height, width = get_image_dimensions(image)
-    validate_input_media(width, height, with_frame_conditioning)
-    validate_image_dimensions(
-        image, min_width=300, min_height=300, max_height=MAX_HEIGHT, max_width=MAX_WIDTH
-    )
 
 
 def validate_video_to_video_input(video: VideoInput) -> VideoInput:
@@ -499,7 +454,7 @@ class MoonvalleyImg2VideoNode(comfy_io.ComfyNode):
         seed: int,
         steps: int,
     ) -> comfy_io.NodeOutput:
-        validate_input_image(image, True)
+        validate_image_dimensions(image, min_width=300, min_height=300, max_height=MAX_HEIGHT, max_width=MAX_WIDTH)
         validate_prompts(prompt, negative_prompt, MOONVALLEY_MAREY_MAX_PROMPT_LENGTH)
         width_height = parse_width_height_from_res(resolution)
 
