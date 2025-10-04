@@ -52,6 +52,7 @@ class EncodeVideo(io.ComfyNode):
     def execute(cls, video, processing_batch_size, step_size, vae = None, clip_vision = None):
 
         t, c, h, w = video.shape
+        device = video.device
         b = 1
         batch_size = b * t
 
@@ -62,6 +63,8 @@ class EncodeVideo(io.ComfyNode):
         model = vae.first_stage_model if vae is not None else clip_vision.model
         vae = vae if vae is not None else clip_vision
 
+        # should be the offload device
+        video = video.cpu()
         if hasattr(model, "video_encoding"):
             data, num_segments, output_fn = model.video_encoding(video, step_size)
             batch_size = b * num_segments
@@ -72,25 +75,31 @@ class EncodeVideo(io.ComfyNode):
         if processing_batch_size != -1:
             batch_size = processing_batch_size
 
-        outputs = []
+        outputs = None
         total = data.shape[0]
         pbar = comfy.utils.ProgressBar(total/batch_size)
         with torch.inference_mode(): 
             for i in range(0, total, batch_size):
-                chunk = data[i : i + batch_size]
+                chunk = data[i : i + batch_size].to(device, non_blocking = True)
                 if hasattr(vae, "encode"):
                     out = vae.encode(chunk)
                 else:
                     out = vae.encode_image(chunk)
                     out = out["image_embeds"]
-                outputs.append(out)
-                del out, chunk
+
+                out_cpu = out.cpu()
+                if outputs is None:
+                    full_shape = (total, *out_cpu.shape[1:])
+                    outputs = torch.empty(full_shape, dtype=out_cpu.dtype, pin_memory=True)
+
+                chunk_len = out_cpu.shape[0]
+                outputs[i : i + chunk_len].copy_(out_cpu)
+
+                del out, chunk, out_cpu
                 torch.cuda.empty_cache()
                 pbar.update(1)
 
-        output = torch.cat(outputs)
-
-        return io.NodeOutput(output_fn(output))
+        return io.NodeOutput(output_fn(outputs))
 
 class ResampleVideo(io.ComfyNode):
     @classmethod

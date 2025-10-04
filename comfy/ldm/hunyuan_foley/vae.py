@@ -211,16 +211,24 @@ class FoleyVae(torch.nn.Module):
         return self.syncformer(x)
     
     def video_encoding(self, video, step: int):
+        t, h, w, c = video.shape
 
         if not isinstance(video, torch.Tensor):
-            video = torch.from_numpy(video).permute(0, 3, 1, 2)
+            video = torch.from_numpy(video)
 
-        video = self.syncformer_preprocess(video).unsqueeze(0)
+        video = video.permute(0, 3, 1, 2)
+
+        video = torch.stack([self.syncformer_preprocess(t) for t in video]).unsqueeze(0)
         seg_len = 16
-        t = video.size(1)
+        t = video.size(0)
         nseg = max(0, (t - seg_len) // step + 1)
-        clips = [video[:, i*step:i*step + seg_len] for i in range(nseg)]
-        data = torch.stack(clips, dim=1)
+        stride_t, stride_c, stride_h, stride_w = video.stride()
+
+        # no copies 
+        data = video.as_strided(
+            size=(nseg, seg_len, c, h, w),
+            stride=(stride_t * step, stride_t, stride_c, stride_h, stride_w),
+        )
         data = rearrange(data, "b s t c h w -> (b s) 1 t c h w")
 
         return data, nseg, lambda x: rearrange(x, "(b s) 1 t d -> b (s t) d", b=video.size(0))

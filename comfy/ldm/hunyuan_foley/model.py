@@ -635,23 +635,45 @@ class SingleStreamBlock(nn.Module):
 
         return x
 
+def _ceil_div(a, b):
+    return (a + b - 1) // b
+
+def find_period_by_first_row(mat):
+
+    L, _ = mat.shape
+
+    first = mat[0:1]
+    matches = (mat[1:] == first).all(dim=1)
+    candidate_positions = (torch.nonzero(matches).squeeze(-1) + 1).tolist()
+    if isinstance(candidate_positions, int):
+        candidate_positions = [candidate_positions]
+    if not candidate_positions:
+        return L
+
+    for p in sorted(candidate_positions):
+        base = mat[:p]
+        reps = _ceil_div(L, p)
+        tiled = base.repeat(reps, 1)[:L]
+        if torch.equal(tiled, mat):
+            return p
+
+    for p in range(1, L + 1):
+        base = mat[:p]
+        reps = _ceil_div(L, p)
+        tiled = base.repeat(reps, 1)[:L]
+        if torch.equal(tiled, mat):
+            return p
+
+    return L
+
 def trim_repeats(expanded):
-    _, L, D = expanded.shape
     seq = expanded[0]
+    p_len = find_period_by_first_row(seq)
 
-    repeat_len = L
-    for k in range(1, L // 2 + 1):
-        if torch.equal(seq[:k], seq[k:2*k]):
-            repeat_len = k
-            break
+    seq_T = seq.transpose(0, 1)
+    p_dim = find_period_by_first_row(seq_T)
 
-    repeat_dim = D
-    for k in range(1, D // 2 + 1):
-        if torch.equal(seq[:, :k], seq[:, k:2*k]):
-            repeat_dim = k
-            break
-
-    return expanded[:, :repeat_len, :repeat_dim]
+    return expanded[:, :p_len, :p_dim]
 
 class HunyuanVideoFoley(nn.Module):
     def __init__(
@@ -845,11 +867,12 @@ class HunyuanVideoFoley(nn.Module):
 
         uncond_1, uncond_2, cond_neg = torch.chunk(uncondition, 3)
         clip_feat, sync_feat, cond_pos = torch.chunk(condition, 3)
-        cond_pos, cond_neg = trim_repeats(cond_pos), trim_repeats(cond_neg)
+        cond_neg, clip_feat, sync_feat, cond_pos = [trim_repeats(t) for t in (cond_neg, clip_feat, sync_feat, cond_pos)]
+
+        uncond_1 = uncond_1[:, :clip_feat.size(1), :clip_feat.size(2)]
+        uncond_2 = uncond_2[:, :sync_feat.size(1), :sync_feat.size(2)]
         
-        uncond_1, clip_feat = uncond_1.to(device, non_blocking = True), clip_feat.to(device, non_blocking=True)
-        uncond_2, sync_feat = uncond_2.to(device, non_blocking = True), sync_feat.to(device, non_blocking=True)
-        cond_neg, cond_pos = cond_neg.to(device, non_blocking = True), cond_pos.to(device, non_blocking=True)
+        uncond_1, uncond_2, cond_neg, clip_feat, sync_feat, cond_pos = [t.to(device, allow_gpu=True) for t in (uncond_1, uncond_2, cond_neg, clip_feat, sync_feat, cond_pos)]
 
         clip_feat, sync_feat, cond = torch.cat([uncond_1, clip_feat]), torch.cat([uncond_2, sync_feat]), torch.cat([cond_neg, cond_pos])
 
