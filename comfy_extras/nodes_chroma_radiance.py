@@ -19,13 +19,17 @@ class EmptyChromaRadianceLatentImage(io.ComfyNode):
                 io.Int.Input(id="height", default=1024, min=16, max=nodes.MAX_RESOLUTION, step=16),
                 io.Int.Input(id="batch_size", default=1, min=1, max=4096),
             ],
-            outputs=[io.Latent().Output()],
+            outputs=[
+                io.Latent().Output(),
+                io.Int.Output(display_name="width"),
+                io.Int.Output(display_name="height"),
+            ],
         )
 
     @classmethod
     def execute(cls, *, width: int, height: int, batch_size: int=1) -> io.NodeOutput:
         latent = torch.zeros((batch_size, 3, height, width), device=comfy.model_management.intermediate_device())
-        return io.NodeOutput({"samples":latent})
+        return io.NodeOutput({"samples":latent}, width, height)
 
 
 class ChromaRadianceOptions(io.ComfyNode):

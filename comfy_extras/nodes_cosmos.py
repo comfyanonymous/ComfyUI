@@ -20,13 +20,17 @@ class EmptyCosmosLatentVideo(io.ComfyNode):
                 io.Int.Input("length", default=121, min=1, max=nodes.MAX_RESOLUTION, step=8),
                 io.Int.Input("batch_size", default=1, min=1, max=4096),
             ],
-            outputs=[io.Latent.Output()],
+            outputs=[
+                io.Latent.Output(),
+                io.Int.Output(display_name="width"),
+                io.Int.Output(display_name="height"),
+            ],
         )
 
     @classmethod
     def execute(cls, width, height, length, batch_size=1) -> io.NodeOutput:
         latent = torch.zeros([batch_size, 16, ((length - 1) // 8) + 1, height // 8, width // 8], device=comfy.model_management.intermediate_device())
-        return io.NodeOutput({"samples": latent})
+        return io.NodeOutput({"samples": latent}, width, height)
 
 
 def vae_encode_with_padding(vae, image, width, height, length, padding=0):

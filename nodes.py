@@ -1174,8 +1174,9 @@ class EmptyLatentImage:
                 "batch_size": ("INT", {"default": 1, "min": 1, "max": 4096, "tooltip": "The number of latent images in the batch."})
             }
         }
-    RETURN_TYPES = ("LATENT",)
-    OUTPUT_TOOLTIPS = ("The empty latent image batch.",)
+    RETURN_TYPES = ("LATENT", "INT", "INT")
+    RETURN_NAMES = ("LATENT", "width", "height")
+    OUTPUT_TOOLTIPS = ("The empty latent image batch.", "The width of the latent images.", "The height of the latent images.")
     FUNCTION = "generate"
 
     CATEGORY = "latent"
@@ -1183,7 +1184,7 @@ class EmptyLatentImage:
 
     def generate(self, width, height, batch_size=1):
         latent = torch.zeros([batch_size, 4, height // 8, width // 8], device=self.device)
-        return ({"samples":latent}, )
+        return ({"samples":latent}, width, height)
 
 
 class LatentFromBatch:

@@ -39,6 +39,8 @@ class StableCascade_EmptyLatentImage(io.ComfyNode):
             outputs=[
                 io.Latent.Output(display_name="stage_c"),
                 io.Latent.Output(display_name="stage_b"),
+                io.Int.Output(display_name="width"),
+                io.Int.Output(display_name="height"),
             ],
         )
 
@@ -50,7 +52,9 @@ class StableCascade_EmptyLatentImage(io.ComfyNode):
             "samples": c_latent,
         }, {
             "samples": b_latent,
-        })
+        },
+        width,
+        height)
 
 
 class StableCascade_StageC_VAEEncode(io.ComfyNode):
