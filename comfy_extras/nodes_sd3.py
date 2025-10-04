@@ -35,14 +35,16 @@ class EmptySD3LatentImage:
         return {"required": { "width": ("INT", {"default": 1024, "min": 16, "max": nodes.MAX_RESOLUTION, "step": 16}),
                               "height": ("INT", {"default": 1024, "min": 16, "max": nodes.MAX_RESOLUTION, "step": 16}),
                               "batch_size": ("INT", {"default": 1, "min": 1, "max": 4096})}}
-    RETURN_TYPES = ("LATENT",)
+    RETURN_TYPES = ("LATENT", "INT", "INT")
+    RETURN_NAMES = ("LATENT", "width", "height")
+    OUTPUT_TOOLTIPS = ("The empty latent image batch.", "The width of the latent images.", "The height of the latent images.")
     FUNCTION = "generate"
 
     CATEGORY = "latent/sd3"
 
     def generate(self, width, height, batch_size=1):
         latent = torch.zeros([batch_size, 16, height // 8, width // 8], device=self.device)
-        return ({"samples":latent}, )
+        return ({"samples":latent}, width, height)
 
 
 class CLIPTextEncodeSD3:
