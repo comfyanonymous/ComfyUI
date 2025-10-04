@@ -26,13 +26,15 @@ class EmptyLTXVLatentVideo(io.ComfyNode):
             ],
             outputs=[
                 io.Latent.Output(),
+                io.Int.Output(display_name="width"),
+                io.Int.Output(display_name="height"),
             ],
         )
 
     @classmethod
     def execute(cls, width, height, length, batch_size=1) -> io.NodeOutput:
         latent = torch.zeros([batch_size, 128, ((length - 1) // 8) + 1, height // 32, width // 32], device=comfy.model_management.intermediate_device())
-        return io.NodeOutput({"samples": latent})
+        return io.NodeOutput({"samples": latent}, width, height)
 
 
 class LTXVImgToVideo(io.ComfyNode):
