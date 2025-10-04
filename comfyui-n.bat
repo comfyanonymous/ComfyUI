@@ -42,7 +42,7 @@ if defined HIP_PATH_70 (
 )
 echo.
 
-:: Check for Build Tools via vswhere.exe (assuming default path)
+:: Check for Build Tools and Components via vswhere.exe (assuming default path)
 setlocal enabledelayedexpansion
 set "VSWHERE=%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe"
 if not exist "%VSWHERE%" (
@@ -54,37 +54,38 @@ for /f "tokens=*" %%v in ('"%VSWHERE%" -products * -requires Microsoft.VisualStu
 if defined VSVer (
     echo [INFO] Detected Visual Studio Build Tools version: !VSVer!
 ) else (
-    echo [ERROR] Visual Studio Build Tools with MSVC not found.
-	echo         Please install from https://aka.ms/vs/17/release/vs_BuildTools.exe and ensure it's added to your PATH.
+    echo [ERROR] Visual Studio Build Tools not found.
+    echo         Please install from https://aka.ms/vs/17/release/vs_BuildTools.exe
+    echo         Make sure to select "Desktop development with C++" with optional components:
+    echo         CMake tools for Windows, Clang compiler for Windows, MSVC x64/x86 build tools, and Windows 10/11 SDK.
 )
-endlocal
-
-:: Check for MSVC Tools inside PATH (assuming default path)
-setlocal enabledelayedexpansion
-set "msvc_suffix=\BuildTools\VC\Tools\MSVC\"
-set "msvc_prefix=\bin\Hostx64\x64"
-set "msvc_vs_ver=2015 2017 2019 2022 2026"
-set "drives=C D E F G"
-for %%D in (%drives%) do (
-    set "pf1=%%D:\Program Files"
-    set "pf2=%%D:\Program Files (x86)"
-    for %%P in ("!pf1!" "!pf2!") do (
-        for %%V in (%msvc_vs_ver%) do (
-            set "vs_path=%%~P\Microsoft Visual Studio\%%V"
-            set "full_prefix=!vs_path!!msvc_suffix!"
-            echo !PATH! | find /I "!full_prefix!" >nul
-            if errorlevel 1 (
-                rem pass
-            ) else (
-                echo !PATH! | find /I "!msvc_prefix!" >nul
-                if errorlevel 1 (
-                    echo [INFO] No MSVC Tools found in PATH.
-                ) else (
-                    echo [INFO] MSVC Tools for Visual Studio %%V found in PATH.
-                )
-            )
-        )
+set componentsA=^
+Microsoft.VisualStudio.Component.VC.Tools.x86.x64^
+ Microsoft.VisualStudio.Component.VC.CMake.Project^
+ Microsoft.VisualStudio.Component.VC.Llvm.Clang^
+ Microsoft.VisualStudio.ComponentGroup.NativeDesktop.Llvm.Clang
+for %%C in (%componentsA%) do (
+    "%VSWHERE%" -all -requires %%C >nul 2>&1
+    if errorlevel 1 (
+        echo [MISSING] Component "%%C" is NOT installed.
     )
+)
+set "foundSDK=0"
+set componentsB=^
+Microsoft.VisualStudio.Component.Windows10SDK.18362^
+ Microsoft.VisualStudio.Component.Windows10SDK.19041^
+ Microsoft.VisualStudio.Component.Windows10SDK.20348^
+ Microsoft.VisualStudio.Component.Windows11SDK.22000^
+ Microsoft.VisualStudio.Component.Windows11SDK.22621^
+ Microsoft.VisualStudio.Component.Windows11SDK.26100
+for %%C in (%componentsB%) do (
+    "%VSWHERE%" -all -requires %%C >nul 2>&1
+    if errorlevel 0 (
+        set "foundSDK=1"
+    )
+)
+if "!foundSDK!"=="0" (
+    echo [MISSING] No Windows SDK component is installed.
 )
 endlocal
 
@@ -145,10 +146,10 @@ for /f "delims=" %%R in ('git rev-parse @{u}') do set REMOTE=%%R
 if NOT "%LOCAL%"=="%REMOTE%" (
     echo.
     echo [INFO] Update available. New commits:
-    git log --oneline %LOCAL%..%REMOTE%
+    git --no-pager log --oneline %LOCAL%..%REMOTE%
     echo.
     echo [INFO] Pulling updates...
-    git pull
+    git --no-pager pull
 ) else (
     echo [INFO] Already up to date.
 )
