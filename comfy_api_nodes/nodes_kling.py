@@ -423,6 +423,8 @@ class KlingTextToVideoNode(KlingNodeBase):
             "standard mode / 10s duration / kling-v2-master": ("std", "10", "kling-v2-master"),
             "pro mode / 5s duration / kling-v2-1-master": ("pro", "5", "kling-v2-1-master"),
             "pro mode / 10s duration / kling-v2-1-master": ("pro", "10", "kling-v2-1-master"),
+            "pro mode / 5s duration / kling-v2-5-turbo": ("pro", "5", "kling-v2-5-turbo"),
+            "pro mode / 10s duration / kling-v2-5-turbo": ("pro", "10", "kling-v2-5-turbo"),
         }
 
     @classmethod
@@ -710,6 +712,9 @@ class KlingImage2VideoNode(KlingNodeBase):
             # Camera control type for image 2 video is always `simple`
             camera_control.type = KlingCameraControlType.simple
 
+        if mode == "std" and model_name == KlingVideoGenModelName.kling_v2_5_turbo.value:
+            mode = "pro"  # October 5: currently "std" mode is not supported for this model
+
         initial_operation = SynchronousOperation(
             endpoint=ApiEndpoint(
                 path=PATH_IMAGE_TO_VIDEO,
@@ -846,6 +851,8 @@ class KlingStartEndFrameNode(KlingImage2VideoNode):
             "pro mode / 10s duration / kling-v1-5": ("pro", "10", "kling-v1-5"),
             "pro mode / 5s duration / kling-v1-6": ("pro", "5", "kling-v1-6"),
             "pro mode / 10s duration / kling-v1-6": ("pro", "10", "kling-v1-6"),
+            "pro mode / 5s duration / kling-v2-1": ("pro", "5", "kling-v2-1"),
+            "pro mode / 10s duration / kling-v2-1": ("pro", "10", "kling-v2-1"),
         }
 
     @classmethod

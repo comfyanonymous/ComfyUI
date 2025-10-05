@@ -9,8 +9,9 @@ class Rodin3DGenerateRequest(BaseModel):
     seed: int = Field(..., description="seed_")
     tier: str = Field(..., description="Tier of generation.")
     material: str = Field(..., description="The material type.")
-    quality: str = Field(..., description="The generation quality of the mesh.")
+    quality_override: int = Field(..., description="The poly count of the mesh.")
     mesh_mode: str = Field(..., description="It controls the type of faces of generated models.")
+    TAPose: Optional[bool] = Field(None, description="")
 
 class GenerateJobsData(BaseModel):
     uuids: List[str] = Field(..., description="str LIST")
@@ -51,7 +52,3 @@ class RodinResourceItem(BaseModel):
 
 class Rodin3DDownloadResponse(BaseModel):
     list: List[RodinResourceItem] = Field(..., description="Source List")
-
-
-
-

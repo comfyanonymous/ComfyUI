@@ -348,7 +348,7 @@ try:
 #                    if any((a in arch) for a in ["gfx1201"]):
 #                        ENABLE_PYTORCH_ATTENTION = True
         if torch_version_numeric >= (2, 7) and rocm_version >= (6, 4):
-            if any((a in arch) for a in ["gfx1201", "gfx942", "gfx950"]):  # TODO: more arches
+            if any((a in arch) for a in ["gfx1200", "gfx1201", "gfx942", "gfx950"]):  # TODO: more arches
                 SUPPORT_FP8_OPS = True
 
 except:
@@ -645,7 +645,9 @@ def load_models_gpu(models, memory_required=0, force_patch_weights=False, minimu
             if loaded_model.model.is_clone(current_loaded_models[i].model):
                 to_unload = [i] + to_unload
         for i in to_unload:
-            current_loaded_models.pop(i).model.detach(unpatch_all=False)
+            model_to_unload = current_loaded_models.pop(i)
+            model_to_unload.model.detach(unpatch_all=False)
+            model_to_unload.model_finalizer.detach()
 
     total_memory_required = {}
     for loaded_model in models_to_load:

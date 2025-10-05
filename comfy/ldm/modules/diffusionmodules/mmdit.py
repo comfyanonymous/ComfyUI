@@ -606,7 +606,7 @@ def block_mixing(*args, use_checkpoint=True, **kwargs):
         return _block_mixing(*args, **kwargs)
 
 
-def _block_mixing(context, x, context_block, x_block, c):
+def _block_mixing(context, x, context_block, x_block, c, transformer_options={}):
     context_qkv, context_intermediates = context_block.pre_attention(context, c)
 
     if x_block.x_block_self_attn:
@@ -622,6 +622,7 @@ def _block_mixing(context, x, context_block, x_block, c):
     attn = optimized_attention(
         qkv[0], qkv[1], qkv[2],
         heads=x_block.attn.num_heads,
+        transformer_options=transformer_options,
     )
     context_attn, x_attn = (
         attn[:, : context_qkv[0].shape[1]],
@@ -637,6 +638,7 @@ def _block_mixing(context, x, context_block, x_block, c):
         attn2 = optimized_attention(
                 x_qkv2[0], x_qkv2[1], x_qkv2[2],
                 heads=x_block.attn2.num_heads,
+                transformer_options=transformer_options,
             )
         x = x_block.post_attention_x(x_attn, attn2, *x_intermediates)
     else:
@@ -958,10 +960,10 @@ class MMDiT(nn.Module):
             if ("double_block", i) in blocks_replace:
                 def block_wrap(args):
                     out = {}
-                    out["txt"], out["img"] = self.joint_blocks[i](args["txt"], args["img"], c=args["vec"])
+                    out["txt"], out["img"] = self.joint_blocks[i](args["txt"], args["img"], c=args["vec"], transformer_options=args["transformer_options"])
                     return out
 
-                out = blocks_replace[("double_block", i)]({"img": x, "txt": context, "vec": c_mod}, {"original_block": block_wrap})
+                out = blocks_replace[("double_block", i)]({"img": x, "txt": context, "vec": c_mod, "transformer_options": transformer_options}, {"original_block": block_wrap})
                 context = out["txt"]
                 x = out["img"]
             else:
@@ -970,6 +972,7 @@ class MMDiT(nn.Module):
                     x,
                     c=c_mod,
                     use_checkpoint=self.use_checkpoint,
+                    transformer_options=transformer_options,
                 )
             if control is not None:
                 control_o = control.get("output")
