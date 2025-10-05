@@ -37,49 +37,49 @@ from io import BytesIO
 from PIL import UnidentifiedImageError
 
 
-def handle_recraft_file_request(
-        image: torch.Tensor,
-        path: str,
-        mask: torch.Tensor=None,
-        total_pixels=4096*4096,
-        timeout=1024,
-        request=None,
-        auth_kwargs: dict[str,str] = None,
-    ) -> list[BytesIO]:
-        """
-        Handle sending common Recraft file-only request to get back file bytes.
-        """
-        if request is None:
-            request = EmptyRequest()
+async def handle_recraft_file_request(
+    image: torch.Tensor,
+    path: str,
+    mask: torch.Tensor=None,
+    total_pixels=4096*4096,
+    timeout=1024,
+    request=None,
+    auth_kwargs: dict[str,str] = None,
+) -> list[BytesIO]:
+    """
+    Handle sending common Recraft file-only request to get back file bytes.
+    """
+    if request is None:
+        request = EmptyRequest()
 
-        files = {
-            'image': tensor_to_bytesio(image, total_pixels=total_pixels).read()
-        }
-        if mask is not None:
-            files['mask'] = tensor_to_bytesio(mask, total_pixels=total_pixels).read()
+    files = {
+        'image': tensor_to_bytesio(image, total_pixels=total_pixels).read()
+    }
+    if mask is not None:
+        files['mask'] = tensor_to_bytesio(mask, total_pixels=total_pixels).read()
 
-        operation = SynchronousOperation(
-            endpoint=ApiEndpoint(
-                path=path,
-                method=HttpMethod.POST,
-                request_model=type(request),
-                response_model=RecraftImageGenerationResponse,
-            ),
-            request=request,
-            files=files,
-            content_type="multipart/form-data",
-            auth_kwargs=auth_kwargs,
-            multipart_parser=recraft_multipart_parser,
-        )
-        response: RecraftImageGenerationResponse = operation.execute()
-        all_bytesio = []
-        if response.image is not None:
-            all_bytesio.append(download_url_to_bytesio(response.image.url, timeout=timeout))
-        else:
-            for data in response.data:
-                all_bytesio.append(download_url_to_bytesio(data.url, timeout=timeout))
+    operation = SynchronousOperation(
+        endpoint=ApiEndpoint(
+            path=path,
+            method=HttpMethod.POST,
+            request_model=type(request),
+            response_model=RecraftImageGenerationResponse,
+        ),
+        request=request,
+        files=files,
+        content_type="multipart/form-data",
+        auth_kwargs=auth_kwargs,
+        multipart_parser=recraft_multipart_parser,
+    )
+    response: RecraftImageGenerationResponse = await operation.execute()
+    all_bytesio = []
+    if response.image is not None:
+        all_bytesio.append(await download_url_to_bytesio(response.image.url, timeout=timeout))
+    else:
+        for data in response.data:
+            all_bytesio.append(await download_url_to_bytesio(data.url, timeout=timeout))
 
-        return all_bytesio
+    return all_bytesio
 
 
 def recraft_multipart_parser(data, parent_key=None, formatter: callable=None, converted_to_check: list[list]=None, is_list=False) -> dict:
@@ -395,7 +395,7 @@ class RecraftTextToImageNode:
             },
         }
 
-    def api_call(
+    async def api_call(
         self,
         prompt: str,
         size: str,
@@ -439,7 +439,7 @@ class RecraftTextToImageNode:
             ),
             auth_kwargs=kwargs,
         )
-        response: RecraftImageGenerationResponse = operation.execute()
+        response: RecraftImageGenerationResponse = await operation.execute()
         images = []
         urls = []
         for data in response.data:
@@ -451,7 +451,7 @@ class RecraftTextToImageNode:
                         f"Result URL: {urls_string}", unique_id
                     )
                 image = bytesio_to_image_tensor(
-                    download_url_to_bytesio(data.url, timeout=1024)
+                    await download_url_to_bytesio(data.url, timeout=1024)
                 )
             if len(image.shape) < 4:
                 image = image.unsqueeze(0)
@@ -538,7 +538,7 @@ class RecraftImageToImageNode:
             },
         }
 
-    def api_call(
+    async def api_call(
         self,
         image: torch.Tensor,
         prompt: str,
@@ -578,7 +578,7 @@ class RecraftImageToImageNode:
         total = image.shape[0]
         pbar = ProgressBar(total)
         for i in range(total):
-            sub_bytes = handle_recraft_file_request(
+            sub_bytes = await handle_recraft_file_request(
                 image=image[i],
                 path="/proxy/recraft/images/imageToImage",
                 request=request,
@@ -654,7 +654,7 @@ class RecraftImageInpaintingNode:
             },
         }
 
-    def api_call(
+    async def api_call(
         self,
         image: torch.Tensor,
         mask: torch.Tensor,
@@ -690,7 +690,7 @@ class RecraftImageInpaintingNode:
         total = image.shape[0]
         pbar = ProgressBar(total)
         for i in range(total):
-            sub_bytes = handle_recraft_file_request(
+            sub_bytes = await handle_recraft_file_request(
                 image=image[i],
                 mask=mask[i:i+1],
                 path="/proxy/recraft/images/inpaint",
@@ -779,7 +779,7 @@ class RecraftTextToVectorNode:
             },
         }
 
-    def api_call(
+    async def api_call(
         self,
         prompt: str,
         substyle: str,
@@ -821,7 +821,7 @@ class RecraftTextToVectorNode:
             ),
             auth_kwargs=kwargs,
         )
-        response: RecraftImageGenerationResponse = operation.execute()
+        response: RecraftImageGenerationResponse = await operation.execute()
         svg_data = []
         urls = []
         for data in response.data:
@@ -831,7 +831,7 @@ class RecraftTextToVectorNode:
                 PromptServer.instance.send_progress_text(
                     f"Result URL: {' '.join(urls)}", unique_id
                 )
-            svg_data.append(download_url_to_bytesio(data.url, timeout=1024))
+            svg_data.append(await download_url_to_bytesio(data.url, timeout=1024))
 
         return (SVG(svg_data),)
 
@@ -861,7 +861,7 @@ class RecraftVectorizeImageNode:
             },
         }
 
-    def api_call(
+    async def api_call(
         self,
         image: torch.Tensor,
         **kwargs,
@@ -870,7 +870,7 @@ class RecraftVectorizeImageNode:
         total = image.shape[0]
         pbar = ProgressBar(total)
         for i in range(total):
-            sub_bytes = handle_recraft_file_request(
+            sub_bytes = await handle_recraft_file_request(
                 image=image[i],
                 path="/proxy/recraft/images/vectorize",
                 auth_kwargs=kwargs,
@@ -942,7 +942,7 @@ class RecraftReplaceBackgroundNode:
             },
         }
 
-    def api_call(
+    async def api_call(
         self,
         image: torch.Tensor,
         prompt: str,
@@ -973,7 +973,7 @@ class RecraftReplaceBackgroundNode:
         total = image.shape[0]
         pbar = ProgressBar(total)
         for i in range(total):
-            sub_bytes = handle_recraft_file_request(
+            sub_bytes = await handle_recraft_file_request(
                 image=image[i],
                 path="/proxy/recraft/images/replaceBackground",
                 request=request,
@@ -1011,7 +1011,7 @@ class RecraftRemoveBackgroundNode:
             },
         }
 
-    def api_call(
+    async def api_call(
         self,
         image: torch.Tensor,
         **kwargs,
@@ -1020,7 +1020,7 @@ class RecraftRemoveBackgroundNode:
         total = image.shape[0]
         pbar = ProgressBar(total)
         for i in range(total):
-            sub_bytes = handle_recraft_file_request(
+            sub_bytes = await handle_recraft_file_request(
                 image=image[i],
                 path="/proxy/recraft/images/removeBackground",
                 auth_kwargs=kwargs,
@@ -1062,7 +1062,7 @@ class RecraftCrispUpscaleNode:
             },
         }
 
-    def api_call(
+    async def api_call(
         self,
         image: torch.Tensor,
         **kwargs,
@@ -1071,7 +1071,7 @@ class RecraftCrispUpscaleNode:
         total = image.shape[0]
         pbar = ProgressBar(total)
         for i in range(total):
-            sub_bytes = handle_recraft_file_request(
+            sub_bytes = await handle_recraft_file_request(
                 image=image[i],
                 path=self.RECRAFT_PATH,
                 auth_kwargs=kwargs,

@@ -30,6 +30,7 @@ from comfy_api import feature_flags
 import node_helpers
 from comfyui_version import __version__
 from app.frontend_management import FrontendManager
+from comfy_api.internal import _ComfyNodeInternal
 
 from app.user_manager import UserManager
 from app.model_manager import ModelFileManager
@@ -38,19 +39,14 @@ from typing import Optional, Union
 from api_server.routes.internal.internal_routes import InternalRoutes
 from protocol import BinaryEventTypes
 
+# Import cache control middleware
+from middleware.cache_middleware import cache_control
+
 async def send_socket_catch_exception(function, message):
     try:
         await function(message)
     except (aiohttp.ClientError, aiohttp.ClientPayloadError, ConnectionResetError, BrokenPipeError, ConnectionError) as err:
         logging.warning("send error: {}".format(err))
-
-@web.middleware
-async def cache_control(request: web.Request, handler):
-    response: web.Response = await handler(request)
-    if request.path.endswith('.js') or request.path.endswith('.css') or request.path.endswith('index.json'):
-        response.headers.setdefault('Cache-Control', 'no-cache')
-    return response
-
 
 @web.middleware
 async def compress_body(request: web.Request, handler):
@@ -234,7 +230,7 @@ class PromptServer():
                                     sid,
                                 )
 
-                                logging.info(
+                                logging.debug(
                                     f"Feature flags negotiated for client {sid}: {client_flags}"
                                 )
                             first_message = False
@@ -554,6 +550,8 @@ class PromptServer():
             vram_total, torch_vram_total = comfy.model_management.get_total_memory(device, torch_total_too=True)
             vram_free, torch_vram_free = comfy.model_management.get_free_memory(device, torch_free_too=True)
             required_frontend_version = FrontendManager.get_required_frontend_version()
+            installed_templates_version = FrontendManager.get_installed_templates_version()
+            required_templates_version = FrontendManager.get_required_templates_version()
 
             system_stats = {
                 "system": {
@@ -562,6 +560,8 @@ class PromptServer():
                     "ram_free": ram_free,
                     "comfyui_version": __version__,
                     "required_frontend_version": required_frontend_version,
+                    "installed_templates_version": installed_templates_version,
+                    "required_templates_version": required_templates_version,
                     "python_version": sys.version,
                     "pytorch_version": comfy.model_management.torch_version,
                     "embedded_python": os.path.split(os.path.split(sys.executable)[0])[1] == "python_embeded",
@@ -591,6 +591,8 @@ class PromptServer():
 
         def node_info(node_class):
             obj_class = nodes.NODE_CLASS_MAPPINGS[node_class]
+            if issubclass(obj_class, _ComfyNodeInternal):
+                return obj_class.GET_NODE_INFO_V1()
             info = {}
             info['input'] = obj_class.INPUT_TYPES()
             info['input_order'] = {key: list(value.keys()) for (key, value) in obj_class.INPUT_TYPES().items()}
@@ -647,7 +649,14 @@ class PromptServer():
             max_items = request.rel_url.query.get("max_items", None)
             if max_items is not None:
                 max_items = int(max_items)
-            return web.json_response(self.prompt_queue.get_history(max_items=max_items))
+
+            offset = request.rel_url.query.get("offset", None)
+            if offset is not None:
+                offset = int(offset)
+            else:
+                offset = -1
+
+            return web.json_response(self.prompt_queue.get_history(max_items=max_items, offset=offset))
 
         @routes.get("/history/{prompt_id}")
         async def get_history_prompt_id(request):
@@ -681,7 +690,12 @@ class PromptServer():
             if "prompt" in json_data:
                 prompt = json_data["prompt"]
                 prompt_id = str(json_data.get("prompt_id", uuid.uuid4()))
-                valid = await execution.validate_prompt(prompt_id, prompt)
+
+                partial_execution_targets = None
+                if "partial_execution_targets" in json_data:
+                    partial_execution_targets = json_data["partial_execution_targets"]
+
+                valid = await execution.validate_prompt(prompt_id, prompt, partial_execution_targets)
                 extra_data = {}
                 if "extra_data" in json_data:
                     extra_data = json_data["extra_data"]
@@ -721,7 +735,34 @@ class PromptServer():
 
         @routes.post("/interrupt")
         async def post_interrupt(request):
-            nodes.interrupt_processing()
+            try:
+                json_data = await request.json()
+            except json.JSONDecodeError:
+                json_data = {}
+
+            # Check if a specific prompt_id was provided for targeted interruption
+            prompt_id = json_data.get('prompt_id')
+            if prompt_id:
+                currently_running, _ = self.prompt_queue.get_current_queue()
+
+                # Check if the prompt_id matches any currently running prompt
+                should_interrupt = False
+                for item in currently_running:
+                    # item structure: (number, prompt_id, prompt, extra_data, outputs_to_execute)
+                    if item[1] == prompt_id:
+                        logging.info(f"Interrupting prompt {prompt_id}")
+                        should_interrupt = True
+                        break
+
+                if should_interrupt:
+                    nodes.interrupt_processing()
+                else:
+                    logging.info(f"Prompt {prompt_id} is not currently running, skipping interrupt")
+            else:
+                # No prompt_id provided, do a global interrupt
+                logging.info("Global interrupt (no prompt_id specified)")
+                nodes.interrupt_processing()
+
             return web.Response(status=200)
 
         @routes.post("/free")

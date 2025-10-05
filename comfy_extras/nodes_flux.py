@@ -100,9 +100,30 @@ class FluxKontextImageScale:
         return (image, )
 
 
+class FluxKontextMultiReferenceLatentMethod:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": {
+            "conditioning": ("CONDITIONING", ),
+            "reference_latents_method": (("offset", "index", "uxo/uno"), ),
+            }}
+
+    RETURN_TYPES = ("CONDITIONING",)
+    FUNCTION = "append"
+    EXPERIMENTAL = True
+
+    CATEGORY = "advanced/conditioning/flux"
+
+    def append(self, conditioning, reference_latents_method):
+        if "uxo" in reference_latents_method or "uso" in reference_latents_method:
+            reference_latents_method = "uxo"
+        c = node_helpers.conditioning_set_values(conditioning, {"reference_latents_method": reference_latents_method})
+        return (c, )
+
 NODE_CLASS_MAPPINGS = {
     "CLIPTextEncodeFlux": CLIPTextEncodeFlux,
     "FluxGuidance": FluxGuidance,
     "FluxDisableGuidance": FluxDisableGuidance,
     "FluxKontextImageScale": FluxKontextImageScale,
+    "FluxKontextMultiReferenceLatentMethod": FluxKontextMultiReferenceLatentMethod,
 }

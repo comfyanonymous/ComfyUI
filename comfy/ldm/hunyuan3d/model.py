@@ -7,6 +7,7 @@ from comfy.ldm.flux.layers import (
     SingleStreamBlock,
     timestep_embedding,
 )
+import comfy.patcher_extension
 
 
 class Hunyuan3Dv2(nn.Module):
@@ -67,6 +68,13 @@ class Hunyuan3Dv2(nn.Module):
         self.final_layer = LastLayer(hidden_size, 1, in_channels, dtype=dtype, device=device, operations=operations)
 
     def forward(self, x, timestep, context, guidance=None, transformer_options={}, **kwargs):
+        return comfy.patcher_extension.WrapperExecutor.new_class_executor(
+            self._forward,
+            self,
+            comfy.patcher_extension.get_all_wrappers(comfy.patcher_extension.WrappersMP.DIFFUSION_MODEL, transformer_options)
+        ).execute(x, timestep, context, guidance, transformer_options, **kwargs)
+
+    def _forward(self, x, timestep, context, guidance=None, transformer_options={}, **kwargs):
         x = x.movedim(-1, -2)
         timestep = 1.0 - timestep
         txt = context
@@ -91,14 +99,16 @@ class Hunyuan3Dv2(nn.Module):
                                                    txt=args["txt"],
                                                    vec=args["vec"],
                                                    pe=args["pe"],
-                                                   attn_mask=args.get("attn_mask"))
+                                                   attn_mask=args.get("attn_mask"),
+                                                   transformer_options=args["transformer_options"])
                     return out
 
                 out = blocks_replace[("double_block", i)]({"img": img,
                                                            "txt": txt,
                                                            "vec": vec,
                                                            "pe": pe,
-                                                           "attn_mask": attn_mask},
+                                                           "attn_mask": attn_mask,
+                                                           "transformer_options": transformer_options},
                                                           {"original_block": block_wrap})
                 txt = out["txt"]
                 img = out["img"]
@@ -107,7 +117,8 @@ class Hunyuan3Dv2(nn.Module):
                                  txt=txt,
                                  vec=vec,
                                  pe=pe,
-                                 attn_mask=attn_mask)
+                                 attn_mask=attn_mask,
+                                 transformer_options=transformer_options)
 
         img = torch.cat((txt, img), 1)
 
@@ -118,17 +129,19 @@ class Hunyuan3Dv2(nn.Module):
                     out["img"] = block(args["img"],
                                        vec=args["vec"],
                                        pe=args["pe"],
-                                       attn_mask=args.get("attn_mask"))
+                                       attn_mask=args.get("attn_mask"),
+                                       transformer_options=args["transformer_options"])
                     return out
 
                 out = blocks_replace[("single_block", i)]({"img": img,
                                                            "vec": vec,
                                                            "pe": pe,
-                                                           "attn_mask": attn_mask},
+                                                           "attn_mask": attn_mask,
+                                                           "transformer_options": transformer_options},
                                                           {"original_block": block_wrap})
                 img = out["img"]
             else:
-                img = block(img, vec=vec, pe=pe, attn_mask=attn_mask)
+                img = block(img, vec=vec, pe=pe, attn_mask=attn_mask, transformer_options=transformer_options)
 
         img = img[:, txt.shape[1]:, ...]
         img = self.final_layer(img, vec)

@@ -39,7 +39,7 @@ ComfyUI lets you design and execute advanced stable diffusion pipelines using a 
 ## Get Started
 
 #### [Desktop Application](https://www.comfy.org/download)
-- The easiest way to get started. 
+- The easiest way to get started.
 - Available on Windows & macOS.
 
 #### [Windows Portable Package](#installing)
@@ -65,17 +65,18 @@ See what ComfyUI can do with the [example workflows](https://comfyanonymous.gith
    - [Flux](https://comfyanonymous.github.io/ComfyUI_examples/flux/)
    - [Lumina Image 2.0](https://comfyanonymous.github.io/ComfyUI_examples/lumina2/)
    - [HiDream](https://comfyanonymous.github.io/ComfyUI_examples/hidream/)
-   - [Cosmos Predict2](https://comfyanonymous.github.io/ComfyUI_examples/cosmos_predict2/)
+   - [Qwen Image](https://comfyanonymous.github.io/ComfyUI_examples/qwen_image/)
+   - [Hunyuan Image 2.1](https://comfyanonymous.github.io/ComfyUI_examples/hunyuan_image/)
 - Image Editing Models
    - [Omnigen 2](https://comfyanonymous.github.io/ComfyUI_examples/omnigen/)
    - [Flux Kontext](https://comfyanonymous.github.io/ComfyUI_examples/flux/#flux-kontext-image-editing-model)
    - [HiDream E1.1](https://comfyanonymous.github.io/ComfyUI_examples/hidream/#hidream-e11)
+   - [Qwen Image Edit](https://comfyanonymous.github.io/ComfyUI_examples/qwen_image/#edit-model)
 - Video Models
    - [Stable Video Diffusion](https://comfyanonymous.github.io/ComfyUI_examples/video/)
    - [Mochi](https://comfyanonymous.github.io/ComfyUI_examples/mochi/)
    - [LTX-Video](https://comfyanonymous.github.io/ComfyUI_examples/ltxv/)
    - [Hunyuan Video](https://comfyanonymous.github.io/ComfyUI_examples/hunyuan_video/)
-   - [Nvidia Cosmos](https://comfyanonymous.github.io/ComfyUI_examples/cosmos/) and [Cosmos Predict2](https://comfyanonymous.github.io/ComfyUI_examples/cosmos_predict2/)
    - [Wan 2.1](https://comfyanonymous.github.io/ComfyUI_examples/wan/)
    - [Wan 2.2](https://comfyanonymous.github.io/ComfyUI_examples/wan22/)
 - Audio Models
@@ -111,7 +112,7 @@ Workflow examples can be found on the [Examples page](https://comfyanonymous.git
 
 ## Release Process
 
-ComfyUI follows a weekly release cycle every Friday, with three interconnected repositories:
+ComfyUI follows a weekly release cycle targeting Friday but this regularly changes because of model releases or large changes to the codebase. There are three interconnected repositories:
 
 1. **[ComfyUI Core](https://github.com/comfyanonymous/ComfyUI)**
    - Releases a new stable version (e.g., v0.7.0)
@@ -175,6 +176,12 @@ Simply download, extract with [7-Zip](https://7-zip.org) and run. Make sure you 
 
 If you have trouble extracting it, right click the file -> properties -> unblock
 
+#### Alternative Downloads:
+
+[Experimental portable for AMD GPUs](https://github.com/comfyanonymous/ComfyUI/releases/latest/download/ComfyUI_windows_portable_amd.7z)
+
+[Portable with pytorch cuda 12.8 and python 3.12](https://github.com/comfyanonymous/ComfyUI/releases/latest/download/ComfyUI_windows_portable_nvidia_cu128.7z) (Supports Nvidia 10 series and older GPUs).
+
 #### How do I share models between another UI and ComfyUI?
 
 See the [Config file](extra_model_paths.yaml.example) to set the search paths for models. In the standalone windows build you can find this file in the ComfyUI directory. Rename this file to extra_model_paths.yaml and edit it with your favorite text editor.
@@ -190,7 +197,7 @@ comfy install
 
 ## Manual Install (Windows, Linux)
 
-python 3.13 is supported but using 3.12 is recommended because some custom nodes and their dependencies might not support it yet.
+Python 3.13 is very well supported. If you have trouble with some custom node dependencies you can try 3.12
 
 Git clone this repo.
 
@@ -199,48 +206,58 @@ Put your SD checkpoints (the huge ckpt/safetensors files) in: models/checkpoints
 Put your VAE in: models/vae
 
 
-### AMD GPUs (Linux only)
+### AMD GPUs (Linux)
+
 AMD users can install rocm and pytorch with pip if you don't have it already installed, this is the command to install the stable version:
 
-```pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/rocm6.3```
+```pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/rocm6.4```
 
-This is the command to install the nightly with ROCm 6.4 which might have some performance improvements:
+This is the command to install the nightly with ROCm 7.0 which might have some performance improvements:
 
-```pip install --pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/nightly/rocm6.4```
+```pip install --pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/nightly/rocm7.0```
+
+
+### AMD GPUs (Experimental: Windows and Linux), RDNA 3, 3.5 and 4 only.
+
+These have less hardware support than the builds above but they work on windows. You also need to install the pytorch version specific to your hardware.
+
+RDNA 3 (RX 7000 series):
+
+```pip install --pre torch torchvision torchaudio --index-url https://rocm.nightlies.amd.com/v2/gfx110X-dgpu/```
+
+RDNA 3.5 (Strix halo/Ryzen AI Max+ 365):
+
+```pip install --pre torch torchvision torchaudio --index-url https://rocm.nightlies.amd.com/v2/gfx1151/```
+
+RDNA 4 (RX 9000 series):
+
+```pip install --pre torch torchvision torchaudio --index-url https://rocm.nightlies.amd.com/v2/gfx120X-all/```
 
 ### Intel GPUs (Windows and Linux)
 
-(Option 1) Intel Arc GPU users can install native PyTorch with torch.xpu support using pip (currently available in PyTorch nightly builds). More information can be found [here](https://pytorch.org/docs/main/notes/get_start_xpu.html)
-  
-1. To install PyTorch nightly, use the following command:
+(Option 1) Intel Arc GPU users can install native PyTorch with torch.xpu support using pip. More information can be found [here](https://pytorch.org/docs/main/notes/get_start_xpu.html)
+
+1. To install PyTorch xpu, use the following command:
+
+```pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/xpu```
+
+This is the command to install the Pytorch xpu nightly which might have some performance improvements:
 
 ```pip install --pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/nightly/xpu```
 
-2. Launch ComfyUI by running `python main.py`
-
-
 (Option 2) Alternatively, Intel GPUs supported by Intel Extension for PyTorch (IPEX) can leverage IPEX for improved performance.
 
-1. For Intel® Arc™ A-Series Graphics utilizing IPEX, create a conda environment and use the commands below:
-
-```
-conda install libuv
-pip install torch==2.3.1.post0+cxx11.abi torchvision==0.18.1.post0+cxx11.abi torchaudio==2.3.1.post0+cxx11.abi intel-extension-for-pytorch==2.3.110.post0+xpu --extra-index-url https://pytorch-extension.intel.com/release-whl/stable/xpu/us/ --extra-index-url https://pytorch-extension.intel.com/release-whl/stable/xpu/cn/
-```
-
-For other supported Intel GPUs with IPEX, visit [Installation](https://intel.github.io/intel-extension-for-pytorch/index.html#installation?platform=gpu) for more information.
-
-Additional discussion and help can be found [here](https://github.com/comfyanonymous/ComfyUI/discussions/476).
+1. visit [Installation](https://intel.github.io/intel-extension-for-pytorch/index.html#installation?platform=gpu) for more information.
 
 ### NVIDIA
 
 Nvidia users should install stable pytorch using this command:
 
-```pip install torch torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/cu128```
+```pip install torch torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/cu129```
 
 This is the command to install pytorch nightly instead which might have performance improvements.
 
-```pip install --pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/nightly/cu129```
+```pip install --pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/nightly/cu130```
 
 #### Troubleshooting
 
@@ -270,12 +287,6 @@ You can install ComfyUI in Apple Mac silicon (M1 or M2) with any recent macOS ve
 1. Launch ComfyUI by running `python main.py`
 
 > **Note**: Remember to add your models, VAE, LoRAs etc. to the corresponding Comfy folders, as discussed in [ComfyUI manual installation](#manual-install-windows-linux).
-
-#### DirectML (AMD Cards on Windows)
-
-This is very badly supported and is not recommended. There are some unofficial builds of pytorch ROCm on windows that exist that will give you a much better experience than this. This readme will be updated once official pytorch ROCm builds for windows come out.
-
-```pip install torch-directml``` Then you can launch ComfyUI with: ```python main.py --directml```
 
 #### Ascend NPUs
 
@@ -351,7 +362,7 @@ Generate a self-signed certificate (not appropriate for shared/production use) a
 
 Use `--tls-keyfile key.pem --tls-certfile cert.pem` to enable TLS/SSL, the app will now be accessible with `https://...` instead of `http://...`.
 
-> Note: Windows users can use [alexisrolland/docker-openssl](https://github.com/alexisrolland/docker-openssl) or one of the [3rd party binary distributions](https://wiki.openssl.org/index.php/Binaries) to run the command example above. 
+> Note: Windows users can use [alexisrolland/docker-openssl](https://github.com/alexisrolland/docker-openssl) or one of the [3rd party binary distributions](https://wiki.openssl.org/index.php/Binaries) to run the command example above.
 <br/><br/>If you use a container, note that the volume mount `-v` can be a relative path so `... -v ".\:/openssl-certs" ...` would create the key & cert files in the current directory of your command prompt or powershell terminal.
 
 ## Support and dev channel

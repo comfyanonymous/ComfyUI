@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from abc import ABC, abstractmethod
 from typing import Type, TYPE_CHECKING
 from comfy_api.internal import ComfyAPIBase
 from comfy_api.internal.singleton import ProxiedSingleton
@@ -7,6 +8,9 @@ from comfy_api.internal.async_to_sync import create_sync_class
 from comfy_api.latest._input import ImageInput, AudioInput, MaskInput, LatentInput, VideoInput
 from comfy_api.latest._input_impl import VideoFromFile, VideoFromComponents
 from comfy_api.latest._util import VideoCodec, VideoContainer, VideoComponents
+from comfy_api.latest._io import _IO as io  #noqa: F401
+from comfy_api.latest._ui import _UI as ui  #noqa: F401
+# from comfy_api.latest._resources import _RESOURCES as resources  #noqa: F401
 from comfy_execution.utils import get_executing_context
 from comfy_execution.progress import get_progress_state, PreviewImageTuple
 from PIL import Image
@@ -72,6 +76,19 @@ class ComfyAPI_latest(ComfyAPIBase):
 
     execution: Execution
 
+class ComfyExtension(ABC):
+    async def on_load(self) -> None:
+        """
+        Called when an extension is loaded.
+        This should be used to initialize any global resources neeeded by the extension.
+        """
+
+    @abstractmethod
+    async def get_node_list(self) -> list[type[io.ComfyNode]]:
+        """
+        Returns a list of nodes that this extension provides.
+        """
+
 class Input:
     Image = ImageInput
     Audio = AudioInput
@@ -103,4 +120,5 @@ __all__ = [
     "Input",
     "InputImpl",
     "Types",
+    "ComfyExtension",
 ]

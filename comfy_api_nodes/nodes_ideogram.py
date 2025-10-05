@@ -1,8 +1,8 @@
-from comfy.comfy_types.node_typing import IO, ComfyNodeABC, InputTypeDict
-from inspect import cleandoc
+from io import BytesIO
+from typing_extensions import override
+from comfy_api.latest import ComfyExtension, io as comfy_io
 from PIL import Image
 import numpy as np
-import io
 import torch
 from comfy_api_nodes.apis import (
     IdeogramGenerateRequest,
@@ -212,7 +212,7 @@ V3_RESOLUTIONS= [
     "1536x640"
 ]
 
-def download_and_process_images(image_urls):
+async def download_and_process_images(image_urls):
     """Helper function to download and process multiple images from URLs"""
 
     # Initialize list to store image tensors
@@ -220,7 +220,7 @@ def download_and_process_images(image_urls):
 
     for image_url in image_urls:
         # Using functions from apinode_utils.py to handle downloading and processing
-        image_bytesio = download_url_to_bytesio(image_url)  # Download image content to BytesIO
+        image_bytesio = await download_url_to_bytesio(image_url)  # Download image content to BytesIO
         img_tensor = bytesio_to_image_tensor(image_bytesio, mode="RGB")  # Convert to torch.Tensor with RGB mode
         image_tensors.append(img_tensor)
 
@@ -246,90 +246,82 @@ def display_image_urls_on_node(image_urls, node_id):
             PromptServer.instance.send_progress_text(urls_text, node_id)
 
 
-class IdeogramV1(ComfyNodeABC):
-    """
-    Generates images using the Ideogram V1 model.
-    """
-
-    def __init__(self):
-        pass
+class IdeogramV1(comfy_io.ComfyNode):
 
     @classmethod
-    def INPUT_TYPES(cls) -> InputTypeDict:
-        return {
-            "required": {
-                "prompt": (
-                    IO.STRING,
-                    {
-                        "multiline": True,
-                        "default": "",
-                        "tooltip": "Prompt for the image generation",
-                    },
+    def define_schema(cls):
+        return comfy_io.Schema(
+            node_id="IdeogramV1",
+            display_name="Ideogram V1",
+            category="api node/image/Ideogram",
+            description="Generates images using the Ideogram V1 model.",
+            is_api_node=True,
+            inputs=[
+                comfy_io.String.Input(
+                    "prompt",
+                    multiline=True,
+                    default="",
+                    tooltip="Prompt for the image generation",
                 ),
-                "turbo": (
-                    IO.BOOLEAN,
-                    {
-                        "default": False,
-                        "tooltip": "Whether to use turbo mode (faster generation, potentially lower quality)",
-                    }
+                comfy_io.Boolean.Input(
+                    "turbo",
+                    default=False,
+                    tooltip="Whether to use turbo mode (faster generation, potentially lower quality)",
                 ),
-            },
-            "optional": {
-                "aspect_ratio": (
-                    IO.COMBO,
-                    {
-                        "options": list(V1_V2_RATIO_MAP.keys()),
-                        "default": "1:1",
-                        "tooltip": "The aspect ratio for image generation.",
-                    },
+                comfy_io.Combo.Input(
+                    "aspect_ratio",
+                    options=list(V1_V2_RATIO_MAP.keys()),
+                    default="1:1",
+                    tooltip="The aspect ratio for image generation.",
+                    optional=True,
                 ),
-                "magic_prompt_option": (
-                    IO.COMBO,
-                    {
-                        "options": ["AUTO", "ON", "OFF"],
-                        "default": "AUTO",
-                        "tooltip": "Determine if MagicPrompt should be used in generation",
-                    },
+                comfy_io.Combo.Input(
+                    "magic_prompt_option",
+                    options=["AUTO", "ON", "OFF"],
+                    default="AUTO",
+                    tooltip="Determine if MagicPrompt should be used in generation",
+                    optional=True,
                 ),
-                "seed": (
-                    IO.INT,
-                    {
-                        "default": 0,
-                        "min": 0,
-                        "max": 2147483647,
-                        "step": 1,
-                        "control_after_generate": True,
-                        "display": "number",
-                    },
+                comfy_io.Int.Input(
+                    "seed",
+                    default=0,
+                    min=0,
+                    max=2147483647,
+                    step=1,
+                    control_after_generate=True,
+                    display_mode=comfy_io.NumberDisplay.number,
+                    optional=True,
                 ),
-                "negative_prompt": (
-                    IO.STRING,
-                    {
-                        "multiline": True,
-                        "default": "",
-                        "tooltip": "Description of what to exclude from the image",
-                    },
+                comfy_io.String.Input(
+                    "negative_prompt",
+                    multiline=True,
+                    default="",
+                    tooltip="Description of what to exclude from the image",
+                    optional=True,
                 ),
-                "num_images": (
-                    IO.INT,
-                    {"default": 1, "min": 1, "max": 8, "step": 1, "display": "number"},
+                comfy_io.Int.Input(
+                    "num_images",
+                    default=1,
+                    min=1,
+                    max=8,
+                    step=1,
+                    display_mode=comfy_io.NumberDisplay.number,
+                    optional=True,
                 ),
-            },
-            "hidden": {
-                "auth_token": "AUTH_TOKEN_COMFY_ORG",
-                "comfy_api_key": "API_KEY_COMFY_ORG",
-                "unique_id": "UNIQUE_ID",
-            },
-        }
+            ],
+            outputs=[
+                comfy_io.Image.Output(),
+            ],
+            hidden=[
+                comfy_io.Hidden.auth_token_comfy_org,
+                comfy_io.Hidden.api_key_comfy_org,
+                comfy_io.Hidden.unique_id,
+            ],
+        )
 
-    RETURN_TYPES = (IO.IMAGE,)
-    FUNCTION = "api_call"
-    CATEGORY = "api node/image/Ideogram"
-    DESCRIPTION = cleandoc(__doc__ or "")
-    API_NODE = True
-
-    def api_call(
-        self,
+    @classmethod
+    async def execute(
+        cls,
         prompt,
         turbo=False,
         aspect_ratio="1:1",
@@ -337,13 +329,15 @@ class IdeogramV1(ComfyNodeABC):
         seed=0,
         negative_prompt="",
         num_images=1,
-        unique_id=None,
-        **kwargs,
     ):
         # Determine the model based on turbo setting
         aspect_ratio = V1_V2_RATIO_MAP.get(aspect_ratio, None)
         model = "V_1_TURBO" if turbo else "V_1"
 
+        auth = {
+            "auth_token": cls.hidden.auth_token_comfy_org,
+            "comfy_api_key": cls.hidden.api_key_comfy_org,
+        }
         operation = SynchronousOperation(
             endpoint=ApiEndpoint(
                 path="/proxy/ideogram/generate",
@@ -364,10 +358,10 @@ class IdeogramV1(ComfyNodeABC):
                     negative_prompt=negative_prompt if negative_prompt else None,
                 )
             ),
-            auth_kwargs=kwargs,
+            auth_kwargs=auth,
         )
 
-        response = operation.execute()
+        response = await operation.execute()
 
         if not response.data or len(response.data) == 0:
             raise Exception("No images were generated in the response")
@@ -377,93 +371,86 @@ class IdeogramV1(ComfyNodeABC):
         if not image_urls:
             raise Exception("No image URLs were generated in the response")
 
-        display_image_urls_on_node(image_urls, unique_id)
-        return (download_and_process_images(image_urls),)
+        display_image_urls_on_node(image_urls, cls.hidden.unique_id)
+        return comfy_io.NodeOutput(await download_and_process_images(image_urls))
 
 
-class IdeogramV2(ComfyNodeABC):
-    """
-    Generates images using the Ideogram V2 model.
-    """
-
-    def __init__(self):
-        pass
+class IdeogramV2(comfy_io.ComfyNode):
 
     @classmethod
-    def INPUT_TYPES(cls) -> InputTypeDict:
-        return {
-            "required": {
-                "prompt": (
-                    IO.STRING,
-                    {
-                        "multiline": True,
-                        "default": "",
-                        "tooltip": "Prompt for the image generation",
-                    },
+    def define_schema(cls):
+        return comfy_io.Schema(
+            node_id="IdeogramV2",
+            display_name="Ideogram V2",
+            category="api node/image/Ideogram",
+            description="Generates images using the Ideogram V2 model.",
+            is_api_node=True,
+            inputs=[
+                comfy_io.String.Input(
+                    "prompt",
+                    multiline=True,
+                    default="",
+                    tooltip="Prompt for the image generation",
                 ),
-                "turbo": (
-                    IO.BOOLEAN,
-                    {
-                        "default": False,
-                        "tooltip": "Whether to use turbo mode (faster generation, potentially lower quality)",
-                    }
+                comfy_io.Boolean.Input(
+                    "turbo",
+                    default=False,
+                    tooltip="Whether to use turbo mode (faster generation, potentially lower quality)",
                 ),
-            },
-            "optional": {
-                "aspect_ratio": (
-                    IO.COMBO,
-                    {
-                        "options": list(V1_V2_RATIO_MAP.keys()),
-                        "default": "1:1",
-                        "tooltip": "The aspect ratio for image generation. Ignored if resolution is not set to AUTO.",
-                    },
+                comfy_io.Combo.Input(
+                    "aspect_ratio",
+                    options=list(V1_V2_RATIO_MAP.keys()),
+                    default="1:1",
+                    tooltip="The aspect ratio for image generation. Ignored if resolution is not set to AUTO.",
+                    optional=True,
                 ),
-                "resolution": (
-                    IO.COMBO,
-                    {
-                        "options": list(V1_V1_RES_MAP.keys()),
-                        "default": "Auto",
-                        "tooltip": "The resolution for image generation. If not set to AUTO, this overrides the aspect_ratio setting.",
-                    },
+                comfy_io.Combo.Input(
+                    "resolution",
+                    options=list(V1_V1_RES_MAP.keys()),
+                    default="Auto",
+                    tooltip="The resolution for image generation. "
+                            "If not set to AUTO, this overrides the aspect_ratio setting.",
+                    optional=True,
                 ),
-                "magic_prompt_option": (
-                    IO.COMBO,
-                    {
-                        "options": ["AUTO", "ON", "OFF"],
-                        "default": "AUTO",
-                        "tooltip": "Determine if MagicPrompt should be used in generation",
-                    },
+                comfy_io.Combo.Input(
+                    "magic_prompt_option",
+                    options=["AUTO", "ON", "OFF"],
+                    default="AUTO",
+                    tooltip="Determine if MagicPrompt should be used in generation",
+                    optional=True,
                 ),
-                "seed": (
-                    IO.INT,
-                    {
-                        "default": 0,
-                        "min": 0,
-                        "max": 2147483647,
-                        "step": 1,
-                        "control_after_generate": True,
-                        "display": "number",
-                    },
+                comfy_io.Int.Input(
+                    "seed",
+                    default=0,
+                    min=0,
+                    max=2147483647,
+                    step=1,
+                    control_after_generate=True,
+                    display_mode=comfy_io.NumberDisplay.number,
+                    optional=True,
                 ),
-                "style_type": (
-                    IO.COMBO,
-                    {
-                        "options": ["AUTO", "GENERAL", "REALISTIC", "DESIGN", "RENDER_3D", "ANIME"],
-                        "default": "NONE",
-                        "tooltip": "Style type for generation (V2 only)",
-                    },
+                comfy_io.Combo.Input(
+                    "style_type",
+                    options=["AUTO", "GENERAL", "REALISTIC", "DESIGN", "RENDER_3D", "ANIME"],
+                    default="NONE",
+                    tooltip="Style type for generation (V2 only)",
+                    optional=True,
                 ),
-                "negative_prompt": (
-                    IO.STRING,
-                    {
-                        "multiline": True,
-                        "default": "",
-                        "tooltip": "Description of what to exclude from the image",
-                    },
+                comfy_io.String.Input(
+                    "negative_prompt",
+                    multiline=True,
+                    default="",
+                    tooltip="Description of what to exclude from the image",
+                    optional=True,
                 ),
-                "num_images": (
-                    IO.INT,
-                    {"default": 1, "min": 1, "max": 8, "step": 1, "display": "number"},
+                comfy_io.Int.Input(
+                    "num_images",
+                    default=1,
+                    min=1,
+                    max=8,
+                    step=1,
+                    display_mode=comfy_io.NumberDisplay.number,
+                    optional=True,
                 ),
                 #"color_palette": (
                 #    IO.STRING,
@@ -473,22 +460,20 @@ class IdeogramV2(ComfyNodeABC):
                 #        "tooltip": "Color palette preset name or hex colors with weights",
                 #    },
                 #),
-            },
-            "hidden": {
-                "auth_token": "AUTH_TOKEN_COMFY_ORG",
-                "comfy_api_key": "API_KEY_COMFY_ORG",
-                "unique_id": "UNIQUE_ID",
-            },
-        }
+            ],
+            outputs=[
+                comfy_io.Image.Output(),
+            ],
+            hidden=[
+                comfy_io.Hidden.auth_token_comfy_org,
+                comfy_io.Hidden.api_key_comfy_org,
+                comfy_io.Hidden.unique_id,
+            ],
+        )
 
-    RETURN_TYPES = (IO.IMAGE,)
-    FUNCTION = "api_call"
-    CATEGORY = "api node/image/Ideogram"
-    DESCRIPTION = cleandoc(__doc__ or "")
-    API_NODE = True
-
-    def api_call(
-        self,
+    @classmethod
+    async def execute(
+        cls,
         prompt,
         turbo=False,
         aspect_ratio="1:1",
@@ -499,8 +484,6 @@ class IdeogramV2(ComfyNodeABC):
         negative_prompt="",
         num_images=1,
         color_palette="",
-        unique_id=None,
-        **kwargs,
     ):
         aspect_ratio = V1_V2_RATIO_MAP.get(aspect_ratio, None)
         resolution = V1_V1_RES_MAP.get(resolution, None)
@@ -517,6 +500,10 @@ class IdeogramV2(ComfyNodeABC):
         else:
             final_aspect_ratio = aspect_ratio if aspect_ratio != "ASPECT_1_1" else None
 
+        auth = {
+            "auth_token": cls.hidden.auth_token_comfy_org,
+            "comfy_api_key": cls.hidden.api_key_comfy_org,
+        }
         operation = SynchronousOperation(
             endpoint=ApiEndpoint(
                 path="/proxy/ideogram/generate",
@@ -540,10 +527,10 @@ class IdeogramV2(ComfyNodeABC):
                     color_palette=color_palette if color_palette else None,
                 )
             ),
-            auth_kwargs=kwargs,
+            auth_kwargs=auth,
         )
 
-        response = operation.execute()
+        response = await operation.execute()
 
         if not response.data or len(response.data) == 0:
             raise Exception("No images were generated in the response")
@@ -553,108 +540,110 @@ class IdeogramV2(ComfyNodeABC):
         if not image_urls:
             raise Exception("No image URLs were generated in the response")
 
-        display_image_urls_on_node(image_urls, unique_id)
-        return (download_and_process_images(image_urls),)
+        display_image_urls_on_node(image_urls, cls.hidden.unique_id)
+        return comfy_io.NodeOutput(await download_and_process_images(image_urls))
 
-class IdeogramV3(ComfyNodeABC):
-    """
-    Generates images using the Ideogram V3 model. Supports both regular image generation from text prompts and image editing with mask.
-    """
 
-    def __init__(self):
-        pass
+class IdeogramV3(comfy_io.ComfyNode):
 
     @classmethod
-    def INPUT_TYPES(cls) -> InputTypeDict:
-        return {
-            "required": {
-                "prompt": (
-                    IO.STRING,
-                    {
-                        "multiline": True,
-                        "default": "",
-                        "tooltip": "Prompt for the image generation or editing",
-                    },
+    def define_schema(cls):
+        return comfy_io.Schema(
+            node_id="IdeogramV3",
+            display_name="Ideogram V3",
+            category="api node/image/Ideogram",
+            description="Generates images using the Ideogram V3 model. "
+                        "Supports both regular image generation from text prompts and image editing with mask.",
+            is_api_node=True,
+            inputs=[
+                comfy_io.String.Input(
+                    "prompt",
+                    multiline=True,
+                    default="",
+                    tooltip="Prompt for the image generation or editing",
                 ),
-            },
-            "optional": {
-                "image": (
-                    IO.IMAGE,
-                    {
-                        "default": None,
-                        "tooltip": "Optional reference image for image editing.",
-                    },
+                comfy_io.Image.Input(
+                    "image",
+                    tooltip="Optional reference image for image editing.",
+                    optional=True,
                 ),
-                "mask": (
-                    IO.MASK,
-                    {
-                        "default": None,
-                        "tooltip": "Optional mask for inpainting (white areas will be replaced)",
-                    },
+                comfy_io.Mask.Input(
+                    "mask",
+                    tooltip="Optional mask for inpainting (white areas will be replaced)",
+                    optional=True,
                 ),
-                "aspect_ratio": (
-                    IO.COMBO,
-                    {
-                        "options": list(V3_RATIO_MAP.keys()),
-                        "default": "1:1",
-                        "tooltip": "The aspect ratio for image generation. Ignored if resolution is not set to Auto.",
-                    },
+                comfy_io.Combo.Input(
+                    "aspect_ratio",
+                    options=list(V3_RATIO_MAP.keys()),
+                    default="1:1",
+                    tooltip="The aspect ratio for image generation. Ignored if resolution is not set to Auto.",
+                    optional=True,
                 ),
-                "resolution": (
-                    IO.COMBO,
-                    {
-                        "options": V3_RESOLUTIONS,
-                        "default": "Auto",
-                        "tooltip": "The resolution for image generation. If not set to Auto, this overrides the aspect_ratio setting.",
-                    },
+                comfy_io.Combo.Input(
+                    "resolution",
+                    options=V3_RESOLUTIONS,
+                    default="Auto",
+                    tooltip="The resolution for image generation. "
+                            "If not set to Auto, this overrides the aspect_ratio setting.",
+                    optional=True,
                 ),
-                "magic_prompt_option": (
-                    IO.COMBO,
-                    {
-                        "options": ["AUTO", "ON", "OFF"],
-                        "default": "AUTO",
-                        "tooltip": "Determine if MagicPrompt should be used in generation",
-                    },
+                comfy_io.Combo.Input(
+                    "magic_prompt_option",
+                    options=["AUTO", "ON", "OFF"],
+                    default="AUTO",
+                    tooltip="Determine if MagicPrompt should be used in generation",
+                    optional=True,
                 ),
-                "seed": (
-                    IO.INT,
-                    {
-                        "default": 0,
-                        "min": 0,
-                        "max": 2147483647,
-                        "step": 1,
-                        "control_after_generate": True,
-                        "display": "number",
-                    },
+                comfy_io.Int.Input(
+                    "seed",
+                    default=0,
+                    min=0,
+                    max=2147483647,
+                    step=1,
+                    control_after_generate=True,
+                    display_mode=comfy_io.NumberDisplay.number,
+                    optional=True,
                 ),
-                "num_images": (
-                    IO.INT,
-                    {"default": 1, "min": 1, "max": 8, "step": 1, "display": "number"},
+                comfy_io.Int.Input(
+                    "num_images",
+                    default=1,
+                    min=1,
+                    max=8,
+                    step=1,
+                    display_mode=comfy_io.NumberDisplay.number,
+                    optional=True,
                 ),
-                "rendering_speed": (
-                    IO.COMBO,
-                    {
-                        "options": ["BALANCED", "TURBO", "QUALITY"],
-                        "default": "BALANCED",
-                        "tooltip": "Controls the trade-off between generation speed and quality",
-                    },
+                comfy_io.Combo.Input(
+                    "rendering_speed",
+                    options=["DEFAULT", "TURBO", "QUALITY"],
+                    default="DEFAULT",
+                    tooltip="Controls the trade-off between generation speed and quality",
+                    optional=True,
                 ),
-            },
-            "hidden": {
-                "auth_token": "AUTH_TOKEN_COMFY_ORG",
-                "comfy_api_key": "API_KEY_COMFY_ORG",
-                "unique_id": "UNIQUE_ID",
-            },
-        }
+                comfy_io.Image.Input(
+                    "character_image",
+                    tooltip="Image to use as character reference.",
+                    optional=True,
+                ),
+                comfy_io.Mask.Input(
+                    "character_mask",
+                    tooltip="Optional mask for character reference image.",
+                    optional=True,
+                ),
+            ],
+            outputs=[
+                comfy_io.Image.Output(),
+            ],
+            hidden=[
+                comfy_io.Hidden.auth_token_comfy_org,
+                comfy_io.Hidden.api_key_comfy_org,
+                comfy_io.Hidden.unique_id,
+            ],
+        )
 
-    RETURN_TYPES = (IO.IMAGE,)
-    FUNCTION = "api_call"
-    CATEGORY = "api node/image/Ideogram"
-    DESCRIPTION = cleandoc(__doc__ or "")
-    API_NODE = True
-
-    def api_call(
-        self,
+    @classmethod
+    async def execute(
+        cls,
         prompt,
         image=None,
         mask=None,
@@ -663,10 +652,46 @@ class IdeogramV3(ComfyNodeABC):
         magic_prompt_option="AUTO",
         seed=0,
         num_images=1,
-        rendering_speed="BALANCED",
-        unique_id=None,
-        **kwargs,
+        rendering_speed="DEFAULT",
+        character_image=None,
+        character_mask=None,
     ):
+        auth = {
+            "auth_token": cls.hidden.auth_token_comfy_org,
+            "comfy_api_key": cls.hidden.api_key_comfy_org,
+        }
+        if rendering_speed == "BALANCED":  # for backward compatibility
+            rendering_speed = "DEFAULT"
+
+        character_img_binary = None
+        character_mask_binary = None
+
+        if character_image is not None:
+            input_tensor = character_image.squeeze().cpu()
+            if character_mask is not None:
+                character_mask = resize_mask_to_image(character_mask, character_image, allow_gradient=False)
+                character_mask = 1.0 - character_mask
+                if character_mask.shape[1:] != character_image.shape[1:-1]:
+                    raise Exception("Character mask and image must be the same size")
+
+                mask_np = (character_mask.squeeze().cpu().numpy() * 255).astype(np.uint8)
+                mask_img = Image.fromarray(mask_np)
+                mask_byte_arr = BytesIO()
+                mask_img.save(mask_byte_arr, format="PNG")
+                mask_byte_arr.seek(0)
+                character_mask_binary = mask_byte_arr
+                character_mask_binary.name = "mask.png"
+
+            img_np = (input_tensor.numpy() * 255).astype(np.uint8)
+            img = Image.fromarray(img_np)
+            img_byte_arr = BytesIO()
+            img.save(img_byte_arr, format="PNG")
+            img_byte_arr.seek(0)
+            character_img_binary = img_byte_arr
+            character_img_binary.name = "image.png"
+        elif character_mask is not None:
+            raise Exception("Character mask requires character image to be present")
+
         # Check if both image and mask are provided for editing mode
         if image is not None and mask is not None:
             # Edit mode
@@ -686,7 +711,7 @@ class IdeogramV3(ComfyNodeABC):
             # Process image
             img_np = (input_tensor.numpy() * 255).astype(np.uint8)
             img = Image.fromarray(img_np)
-            img_byte_arr = io.BytesIO()
+            img_byte_arr = BytesIO()
             img.save(img_byte_arr, format="PNG")
             img_byte_arr.seek(0)
             img_binary = img_byte_arr
@@ -695,7 +720,7 @@ class IdeogramV3(ComfyNodeABC):
             # Process mask - white areas will be replaced
             mask_np = (mask.squeeze().cpu().numpy() * 255).astype(np.uint8)
             mask_img = Image.fromarray(mask_np)
-            mask_byte_arr = io.BytesIO()
+            mask_byte_arr = BytesIO()
             mask_img.save(mask_byte_arr, format="PNG")
             mask_byte_arr.seek(0)
             mask_binary = mask_byte_arr
@@ -715,6 +740,15 @@ class IdeogramV3(ComfyNodeABC):
             if num_images > 1:
                 edit_request.num_images = num_images
 
+            files = {
+                "image": img_binary,
+                "mask": mask_binary,
+            }
+            if character_img_binary:
+                files["character_reference_images"] = character_img_binary
+            if character_mask_binary:
+                files["character_mask_binary"] = character_mask_binary
+
             # Execute the operation for edit mode
             operation = SynchronousOperation(
                 endpoint=ApiEndpoint(
@@ -724,12 +758,9 @@ class IdeogramV3(ComfyNodeABC):
                     response_model=IdeogramGenerateResponse,
                 ),
                 request=edit_request,
-                files={
-                    "image": img_binary,
-                    "mask": mask_binary,
-                },
+                files=files,
                 content_type="multipart/form-data",
-                auth_kwargs=kwargs,
+                auth_kwargs=auth,
             )
 
         elif image is not None or mask is not None:
@@ -761,6 +792,14 @@ class IdeogramV3(ComfyNodeABC):
             if num_images > 1:
                 gen_request.num_images = num_images
 
+            files = {}
+            if character_img_binary:
+                files["character_reference_images"] = character_img_binary
+            if character_mask_binary:
+                files["character_mask_binary"] = character_mask_binary
+            if files:
+                gen_request.style_type = "AUTO"
+
             # Execute the operation for generation mode
             operation = SynchronousOperation(
                 endpoint=ApiEndpoint(
@@ -770,11 +809,13 @@ class IdeogramV3(ComfyNodeABC):
                     response_model=IdeogramGenerateResponse,
                 ),
                 request=gen_request,
-                auth_kwargs=kwargs,
+                files=files if files else None,
+                content_type="multipart/form-data",
+                auth_kwargs=auth,
             )
 
         # Execute the operation and process response
-        response = operation.execute()
+        response = await operation.execute()
 
         if not response.data or len(response.data) == 0:
             raise Exception("No images were generated in the response")
@@ -784,18 +825,18 @@ class IdeogramV3(ComfyNodeABC):
         if not image_urls:
             raise Exception("No image URLs were generated in the response")
 
-        display_image_urls_on_node(image_urls, unique_id)
-        return (download_and_process_images(image_urls),)
+        display_image_urls_on_node(image_urls, cls.hidden.unique_id)
+        return comfy_io.NodeOutput(await download_and_process_images(image_urls))
 
 
-NODE_CLASS_MAPPINGS = {
-    "IdeogramV1": IdeogramV1,
-    "IdeogramV2": IdeogramV2,
-    "IdeogramV3": IdeogramV3,
-}
+class IdeogramExtension(ComfyExtension):
+    @override
+    async def get_node_list(self) -> list[type[comfy_io.ComfyNode]]:
+        return [
+            IdeogramV1,
+            IdeogramV2,
+            IdeogramV3,
+        ]
 
-NODE_DISPLAY_NAME_MAPPINGS = {
-    "IdeogramV1": "Ideogram V1",
-    "IdeogramV2": "Ideogram V2",
-    "IdeogramV3": "Ideogram V3",
-}
+async def comfy_entrypoint() -> IdeogramExtension:
+    return IdeogramExtension()
