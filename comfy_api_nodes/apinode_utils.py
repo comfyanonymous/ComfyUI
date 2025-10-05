@@ -152,7 +152,7 @@ def validate_aspect_ratio(
             raise TypeError(
                 f"Aspect ratio cannot reduce to any less than {minimum_ratio_str} ({minimum_ratio}), but was {aspect_ratio} ({calculated_ratio})."
             )
-        elif calculated_ratio > maximum_ratio:
+        if calculated_ratio > maximum_ratio:
             raise TypeError(
                 f"Aspect ratio cannot reduce to any greater than {maximum_ratio_str} ({maximum_ratio}), but was {aspect_ratio} ({calculated_ratio})."
             )
