@@ -712,6 +712,9 @@ class KlingImage2VideoNode(KlingNodeBase):
             # Camera control type for image 2 video is always `simple`
             camera_control.type = KlingCameraControlType.simple
 
+        if mode == "std" and model_name == KlingVideoGenModelName.kling_v2_5_turbo.value:
+            mode = "pro"  # October 5: currently "std" mode is not supported for this model
+
         initial_operation = SynchronousOperation(
             endpoint=ApiEndpoint(
                 path=PATH_IMAGE_TO_VIDEO,

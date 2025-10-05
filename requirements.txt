@@ -25,6 +25,5 @@ av>=14.2.0
 #non essential dependencies:
 kornia>=0.7.1
 spandrel
-soundfile
 pydantic~=2.0
 pydantic-settings~=2.0
