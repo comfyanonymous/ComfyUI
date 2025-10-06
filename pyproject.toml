@@ -149,6 +149,7 @@ cu126 = [
     "torchvision",
     "triton ; sys_platform == 'Linux'",
     "triton-windows ; sys_platform == 'win32'",
+#    "torchaudio",
 ]
 
 cu128 = [
@@ -156,11 +157,13 @@ cu128 = [
     "torchvision",
     "triton ; sys_platform == 'Linux'",
     "triton-windows ; sys_platform == 'win32'",
+#    "torchaudio",
 ]
 
 rocm = [
     "torch",
     "torchvision",
+#    "torchaudio",
     "pytorch-triton-rocm",
 ]
 
@@ -173,6 +176,7 @@ rocm = [
 mps = [
     "torch",
     "torchvision",
+#    "torchaudio",
 ]
 
 attention = [
@@ -255,17 +259,14 @@ torchvision = [
 ]
 torchaudio = [
     { index = "pytorch-cpu", extra = "cpu" },
-    { index = "pytorch-cu126", extra = "cu126", marker = "sys_platform == 'Linux' or sys_platform == 'win32'" },
-    { index = "pytorch-cu128", extra = "cu128", marker = "sys_platform == 'Linux' or sys_platform == 'win32'" },
-    { index = "pytorch-rocm", extra = "rocm", marker = "sys_platform == 'Linux'" },
-    { index = "pytorch-nightly-cpu", extra = "mps", marker = "sys_platform == 'darwin'" },
+#    { index = "pytorch-cu126", extra = "cu126", marker = "sys_platform == 'Linux' or sys_platform == 'win32'" },
+#    { index = "pytorch-cu128", extra = "cu128", marker = "sys_platform == 'Linux' or sys_platform == 'win32'" },
+#    { index = "pytorch-rocm", extra = "rocm", marker = "sys_platform == 'Linux'" },
+#    { index = "pytorch-nightly-cpu", extra = "mps", marker = "sys_platform == 'darwin'" },
 ]
 sageattention = [
     { git = "https://github.com/thu-ml/SageAttention.git", marker = "sys_platform == 'Linux'", extra = "attention" },
     { url = "https://github.com/woct0rdho/SageAttention/releases/download/v2.2.0-windows.post1/sageattention-2.2.0+cu128torch2.7.1.post1-cp39-abi3-win_amd64.whl", marker = "sys_platform == 'win32'", extra = "attention" },
-]
-audiocraft = [
-    { git = "https://github.com/hiddenswitch/audiocraft-installable.git", extra = "music"}
 ]
 
 [[tool.uv.dependency-metadata]]
