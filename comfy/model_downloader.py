@@ -185,12 +185,16 @@ def get_or_download(folder_name: str, filename: str, known_files: Optional[List[
                     link_successful = True
                     exc_info_link = {}
                     if path is not None:
-                        destination_link = os.path.join(this_model_directory, linked_filename)
-                        if Path(destination_link).is_file():
+                        if Path(linked_filename).is_absolute():
+                            raise ValueError(f"{known_file.repo_id}/{known_file.filename} surprisingly was trying to link to an absolute path {linked_filename}, failing")
+
+                        destination_link = Path(this_model_directory) / linked_filename
+                        if destination_link.is_file():
                             logger.warning(f"{known_file.repo_id}/{known_file.filename} could not link to {destination_link} because the path already exists, which is unexpected")
                         else:
                             try:
-                                os.makedirs(this_model_directory, exist_ok=True)
+                                # sometimes, linked filename has a path in it, on purpose, such as with controlnet_aux nodes
+                                Path(destination_link).parent.mkdir(parents=True, exist_ok=True)
                                 os.symlink(path, destination_link)
                             except FileExistsError:
                                 # the download was resumed
@@ -520,7 +524,7 @@ KNOWN_DIFF_CONTROLNETS: Final[KnownDownloadables] = KnownDownloadables([
     HuggingFile("kohya-ss/ControlNet-diff-modules", "diff_control_sd15_openpose_fp16.safetensors"),
     HuggingFile("kohya-ss/ControlNet-diff-modules", "diff_control_sd15_scribble_fp16.safetensors"),
     HuggingFile("kohya-ss/ControlNet-diff-modules", "diff_control_sd15_seg_fp16.safetensors"),
-], folder_name="controlnet")
+], folder_name="diff_controlnet")
 
 KNOWN_APPROX_VAES: Final[KnownDownloadables] = KnownDownloadables([
     HuggingFile("madebyollin/taesd", "taesd_decoder.safetensors", show_in_ui=False),

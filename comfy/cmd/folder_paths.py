@@ -101,7 +101,7 @@ def init_default_paths(folder_names_and_paths: FolderNames, configuration: Optio
         ModelPaths(["embeddings"], supported_extensions=set(supported_pt_extensions)),
         ModelPaths(["diffusers"], supported_extensions=set()),
         ModelPaths(["vae_approx"], supported_extensions=set(supported_pt_extensions)),
-        ModelPaths(folder_names=["controlnet", "t2i_adapter"], supported_extensions=set(supported_pt_extensions), folder_names_are_relative_directory_paths_too=True),
+        ModelPaths(folder_names=["controlnet", "t2i_adapter", "diff_controlnet"], supported_extensions=set(supported_pt_extensions), folder_names_are_relative_directory_paths_too=True),
         ModelPaths(["gligen"], supported_extensions=set(supported_pt_extensions)),
         ModelPaths(["upscale_models"], supported_extensions=set(supported_pt_extensions)),
         ModelPaths(["custom_nodes"], folder_name_base_path_subdir=construct_path(""), supported_extensions=set()),

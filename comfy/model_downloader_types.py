@@ -5,13 +5,15 @@ import dataclasses
 import functools
 from os.path import split
 from pathlib import PurePosixPath
-from typing import Optional, List, Sequence, Union, Iterable
+from typing import Optional, List, Sequence, Union, Iterable, Protocol
 
 from can_ada import parse, URL  # pylint: disable=no-name-in-module
-from typing_extensions import TypedDict, NotRequired
+from typing_extensions import TypedDict, NotRequired, runtime_checkable
 
 from .component_model.executor_types import ComboOptions
 from .component_model.files import canonicalize_path
+
+
 
 
 @dataclasses.dataclass(frozen=True)
@@ -112,7 +114,8 @@ class DownloadableFileList(ComboOptions, list[str]):
             main_name = str(f)
             self._validation_view.add(canonicalize_path(main_name))
             self._validation_view.update(map(canonicalize_path, f.alternate_filenames))
-
+            if f.save_with_filename is not None:
+                self._validation_view.add(canonicalize_path(f.save_with_filename))
             if getattr(f, 'show_in_ui', True):
                 ui_view.add(main_name)
 

@@ -31,3 +31,6 @@ class ServerStub(ExecutorToClientProgress):
     @property
     def receive_all_progress_notifications(self) -> bool:
         return False
+
+    def add_on_prompt_handler(self, handler):
+        pass

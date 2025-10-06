@@ -43,10 +43,14 @@ class StreamToLogger:
         pass
 
 
-class _PromptServerStub():
+class _PromptServerStub:
     def __init__(self):
         self.routes = prompt_server_instance_routes
+        self.on_prompt_handlers = []
 
+    def add_on_prompt_handler(self, handler):
+        # todo: these need to be added to a real prompt server if the loading order is behaving in a complex way
+        self.on_prompt_handlers.append(handler)
 
 def _vanilla_load_importing_execute_prestartup_script(node_paths: Iterable[str]) -> None:
     def execute_script(script_path):
