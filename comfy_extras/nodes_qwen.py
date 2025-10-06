@@ -87,12 +87,12 @@ class TextEncodeQwenImageEditPlus(io.ComfyNode):
                 s = comfy.utils.common_upscale(samples, width, height, "area", "disabled")
                 images_vl.append(s.movedim(1, -1))
                 if vae is not None:
-                    total = int(1024 * 1024)
-                    scale_by = math.sqrt(total / (samples.shape[3] * samples.shape[2]))
-                    width = round(samples.shape[3] * scale_by / 8.0) * 8
-                    height = round(samples.shape[2] * scale_by / 8.0) * 8
+                    #total = int(1024 * 1024)
+                    #scale_by = math.sqrt(total / (samples.shape[3] * samples.shape[2]))
+                    #width = round(samples.shape[3] * scale_by / 8.0) * 8
+                    #height = round(samples.shape[2] * scale_by / 8.0) * 8
 
-                    s = comfy.utils.common_upscale(samples, width, height, "area", "disabled")
+                    #s = comfy.utils.common_upscale(samples, width, height, "area", "disabled")
                     ref_latents.append(vae.encode(s.movedim(1, -1)[:, :, :, :3]))
 
                 image_prompt += "Picture {}: <|vision_start|><|image_pad|><|vision_end|>".format(i + 1)
