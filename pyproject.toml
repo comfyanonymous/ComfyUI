@@ -57,18 +57,14 @@ messages_control.disable = [
   "redefined-builtin",
   "unnecessary-lambda",
   "dangerous-default-value",
+  "invalid-overridden-method",
   # next warnings should be fixed in future
   "bad-classmethod-argument",  # Class method should have 'cls' as first argument
   "wrong-import-order",  # Standard imports should be placed before third party imports
   "logging-fstring-interpolation", # Use lazy % formatting in logging functions
   "ungrouped-imports",
   "unnecessary-pass",
-  "unidiomatic-typecheck",
   "unnecessary-lambda-assignment",
   "no-else-return",
-  "no-else-raise",
-  "invalid-overridden-method",
   "unused-variable",
-  "pointless-string-statement",
-  "redefined-outer-name",
 ]

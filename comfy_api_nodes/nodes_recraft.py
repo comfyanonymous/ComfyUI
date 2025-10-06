@@ -107,7 +107,7 @@ def recraft_multipart_parser(data, parent_key=None, formatter: callable=None, co
         # if list already exists exists, just extend list with data
         for check_list in lists_to_check:
             for conv_tuple in check_list:
-                if conv_tuple[0] == parent_key and type(conv_tuple[1]) is list:
+                if conv_tuple[0] == parent_key and isinstance(conv_tuple[1], list):
                     conv_tuple[1].append(formatter(data))
                     return True
         return False
@@ -119,7 +119,7 @@ def recraft_multipart_parser(data, parent_key=None, formatter: callable=None, co
     if formatter is None:
         formatter = lambda v: v  # Multipart representation of value
 
-    if type(data) is not dict:
+    if not isinstance(data, dict):
         # if list already exists exists, just extend list with data
         added = handle_converted_lists(data, parent_key, converted_to_check)
         if added:
@@ -136,9 +136,9 @@ def recraft_multipart_parser(data, parent_key=None, formatter: callable=None, co
 
     for key, value in data.items():
         current_key = key if parent_key is None else f"{parent_key}[{key}]"
-        if type(value) is dict:
+        if isinstance(value, dict):
             converted.extend(recraft_multipart_parser(value, current_key, formatter, next_check).items())
-        elif type(value) is list:
+        elif isinstance(value, list):
             for ind, list_value in enumerate(value):
                 iter_key = f"{current_key}[]"
                 converted.extend(recraft_multipart_parser(list_value, iter_key, formatter, next_check, is_list=True).items())

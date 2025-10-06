@@ -473,7 +473,7 @@ class MoonvalleyImg2VideoNode(comfy_io.ComfyNode):
             height=width_height["height"],
             use_negative_prompts=True,
         )
-        """Upload image to comfy backend to have a URL available for further processing"""
+
         # Get MIME type from tensor - assuming PNG format for image tensors
         mime_type = "image/png"
 
@@ -591,7 +591,6 @@ class MoonvalleyVideo2VideoNode(comfy_io.ComfyNode):
         validated_video = validate_video_to_video_input(video)
         video_url = await upload_video_to_comfyapi(validated_video, auth_kwargs=auth)
 
-        """Validate prompts and inference input"""
         validate_prompts(prompt, negative_prompt)
 
         # Only include motion_intensity for Motion Transfer
