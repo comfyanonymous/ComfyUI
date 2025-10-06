@@ -1166,6 +1166,7 @@ class MultiheadAttentionComfyv(nn.Module):
 
     def forward(self, src, attn_mask = None, key_padding_mask = None):
 
+        self._q_proj, self._k_proj, self._v_proj = [t.to(src.device).to(src.dtype) for t in (self._q_proj, self._k_proj, self._v_proj)]
         q = self._q_proj(src)
         k = self._k_proj(src)
         v = self._v_proj(src)

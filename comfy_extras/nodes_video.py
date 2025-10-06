@@ -51,6 +51,15 @@ class EncodeVideo(io.ComfyNode):
     @classmethod
     def execute(cls, video, processing_batch_size, step_size, vae = None, clip_vision = None):
 
+        if not isinstance(video, torch.Tensor):
+            video = torch.from_numpy(video)
+
+        t, *rest = video.shape
+
+        # channel last
+        if rest[-1] in (1, 3, 4) and rest[0] not in (1, 3, 4):
+            video = video.permute(0, 3, 1, 2)
+
         t, c, h, w = video.shape
         device = video.device
         b = 1
@@ -77,14 +86,16 @@ class EncodeVideo(io.ComfyNode):
         outputs = None
         total = data.shape[0]
         pbar = comfy.utils.ProgressBar(total/batch_size)
-        with torch.inference_mode(): 
+        model_dtype = next(model.parameters()).dtype
+        with torch.inference_mode():
             for i in range(0, total, batch_size):
                 chunk = data[i : i + batch_size].to(device, non_blocking = True)
+                chunk = chunk.to(model_dtype)
                 if hasattr(vae, "encode"):
                     try:
                         out = vae.encode(chunk)
                     except:
-                        out = model(chunk.to(next(model.parameters()).device))
+                        out = model(chunk)
                 else:
                     out = vae.encode_image(chunk)
                     out = out["image_embeds"]

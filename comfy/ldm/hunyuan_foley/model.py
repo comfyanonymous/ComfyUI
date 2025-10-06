@@ -635,9 +635,6 @@ class SingleStreamBlock(nn.Module):
 
         return x
 
-def _ceil_div(a, b):
-    return (a + b - 1) // b
-
 def find_period_by_first_row(mat):
 
     L, _ = mat.shape
@@ -650,21 +647,7 @@ def find_period_by_first_row(mat):
     if not candidate_positions:
         return L
 
-    for p in sorted(candidate_positions):
-        base = mat[:p]
-        reps = _ceil_div(L, p)
-        tiled = base.repeat(reps, 1)[:L]
-        if torch.equal(tiled, mat):
-            return p
-
-    for p in range(1, L + 1):
-        base = mat[:p]
-        reps = _ceil_div(L, p)
-        tiled = base.repeat(reps, 1)[:L]
-        if torch.equal(tiled, mat):
-            return p
-
-    return L
+    return len(mat[:candidate_positions[0]])
 
 def trim_repeats(expanded):
     seq = expanded[0]
@@ -674,6 +657,14 @@ def trim_repeats(expanded):
     p_dim = find_period_by_first_row(seq_T)
 
     return expanded[:, :p_len, :p_dim]
+
+def unlock_cpu_tensor(t, device=None):
+    if isinstance(t, torch.Tensor):
+        base = t.as_subclass(torch.Tensor).detach().clone()
+        if device is not None:
+            base = base.to(device)
+        return base
+    return t
 
 class HunyuanVideoFoley(nn.Module):
     def __init__(
@@ -860,7 +851,7 @@ class HunyuanVideoFoley(nn.Module):
         bs, _, ol = x.shape
         tl = ol // self.patch_size
 
-        condition, uncondition = torch.chunk(context, 2)
+        uncondition, condition = torch.chunk(context, 2)
 
         condition = condition.view(3, context.size(1) // 3, -1)
         uncondition = uncondition.view(3, context.size(1) // 3, -1)
@@ -872,7 +863,7 @@ class HunyuanVideoFoley(nn.Module):
         uncond_1 = uncond_1[:, :clip_feat.size(1), :clip_feat.size(2)]
         uncond_2 = uncond_2[:, :sync_feat.size(1), :sync_feat.size(2)]
         
-        uncond_1, uncond_2, cond_neg, clip_feat, sync_feat, cond_pos = [t.to(device, allow_gpu=True) for t in (uncond_1, uncond_2, cond_neg, clip_feat, sync_feat, cond_pos)]
+        uncond_1, uncond_2, cond_neg, clip_feat, sync_feat, cond_pos = [unlock_cpu_tensor(t, device) for t in (uncond_1, uncond_2, cond_neg, clip_feat, sync_feat, cond_pos)]
 
         clip_feat, sync_feat, cond = torch.cat([uncond_1, clip_feat]), torch.cat([uncond_2, sync_feat]), torch.cat([cond_neg, cond_pos])
 

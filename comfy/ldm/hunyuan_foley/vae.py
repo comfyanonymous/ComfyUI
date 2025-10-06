@@ -211,17 +211,16 @@ class FoleyVae(torch.nn.Module):
         return self.synchformer(x)
 
     def forward(self, x):
-        return self.encode(x)
+        try:
+            return self.encode(x)
+        except:
+            x = x.to(next(self.parameters()).device)
+            return self.encode(x)
     
     def video_encoding(self, video, step):
-        t, h, w, c = video.shape
-
-        if not isinstance(video, torch.Tensor):
-            video = torch.from_numpy(video)
-
-        video = video.permute(0, 3, 1, 2)
-
         video = torch.stack([self.syncformer_preprocess(t) for t in video])
+        
+        t, c, h, w = video.shape
         seg_len = 16
         t = video.size(0)
         nseg = max(0, (t - seg_len) // step + 1)
