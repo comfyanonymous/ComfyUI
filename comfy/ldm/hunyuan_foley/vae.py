@@ -195,7 +195,7 @@ class FoleyVae(torch.nn.Module):
     def __init__(self):
         super().__init__()
         self.dac = DAC()
-        self.syncformer = Synchformer(None, None, operations = ops)
+        self.synchformer = Synchformer(None, None, operations = ops)
         self.syncformer_preprocess = v2.Compose(
             [
                 v2.Resize(224, interpolation=v2.InterpolationMode.BICUBIC),
@@ -208,9 +208,12 @@ class FoleyVae(torch.nn.Module):
     def decode(self, x, vae_options = {}):
         return self.dac.decode(x)
     def encode(self, x):
-        return self.syncformer(x)
+        return self.synchformer(x)
+
+    def forward(self, x):
+        return self.encode(x)
     
-    def video_encoding(self, video, step: int):
+    def video_encoding(self, video, step):
         t, h, w, c = video.shape
 
         if not isinstance(video, torch.Tensor):
@@ -218,10 +221,12 @@ class FoleyVae(torch.nn.Module):
 
         video = video.permute(0, 3, 1, 2)
 
-        video = torch.stack([self.syncformer_preprocess(t) for t in video]).unsqueeze(0)
+        video = torch.stack([self.syncformer_preprocess(t) for t in video])
         seg_len = 16
         t = video.size(0)
         nseg = max(0, (t - seg_len) // step + 1)
+
+        video = video.contiguous()
         stride_t, stride_c, stride_h, stride_w = video.stride()
 
         # no copies 
@@ -229,6 +234,7 @@ class FoleyVae(torch.nn.Module):
             size=(nseg, seg_len, c, h, w),
             stride=(stride_t * step, stride_t, stride_c, stride_h, stride_w),
         )
+        data = data.unsqueeze(0) # b
         data = rearrange(data, "b s t c h w -> (b s) 1 t c h w")
 
-        return data, nseg, lambda x: rearrange(x, "(b s) 1 t d -> b (s t) d", b=video.size(0))
+        return data, nseg, lambda x: rearrange(x, "(b s) 1 t d -> b (s t) d", b=1)

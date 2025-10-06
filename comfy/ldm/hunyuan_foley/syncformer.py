@@ -65,39 +65,32 @@ class PatchEmbed3D(nn.Module):
             x = x.flatten(2).transpose(1, 2)
         return x
 
-def qkv_attn(q, k, v, heads):
-    bh, seq_q, dim_head = q.shape
-    b = bh // heads
-
-    # (b*heads, seq, dim) -> (b, heads, seq, dim)
-    q2 = q.view(b, heads, seq_q, dim_head)
-    k2 = k.view(b, heads, k.shape[1], dim_head)
-    v2 = v.view(b, heads, v.shape[1], dim_head)
-
-    out = optimized_attention(q2, k2, v2, heads=heads, skip_reshape=True)
-
-    out = out.permute(0, 2, 1, 3).contiguous().view(b * heads, seq_q, dim_head)
-
+def qkv_attn(q, k, v):
+    sim = torch.einsum("b i d, b j d -> b i j", q, k)
+    attn = sim.softmax(dim=-1)
+    out = torch.einsum("b i j, b j d -> b i d", attn, v)
     return out
-
 
 class DividedAttention(nn.Module):
 
-    def __init__(self, dim, num_heads=8, qkv_bias=False, device=None, dtype=None, operations=None):
+    def __init__(self, dim, num_heads=8, qkv_bias=False, device=None, dtype=None, operations=nn, **kwargs):
         super().__init__()
         self.num_heads = num_heads
         self.qkv = operations.Linear(dim, dim * 3, bias=qkv_bias, device=device, dtype=dtype)
         self.proj = operations.Linear(dim, dim, device=device, dtype=dtype)
+        head_dim = dim // num_heads
+        self.scale = head_dim**-0.5
 
     def forward(self, x, einops_from, einops_to, tok_mask: torch.Tensor = None, **einops_dims):
         h = self.num_heads
 
         q, k, v = self.qkv(x).chunk(3, dim=-1)
         q, k, v = map(lambda t: rearrange(t, "b n (h d) -> (b h) n d", h=h), (q, k, v))
+        q *= self.scale
 
         (cls_q, q_), (cls_k, k_), (cls_v, v_) = map(lambda t: (t[:, 0:1], t[:, 1:]), (q, k, v))
 
-        cls_out = qkv_attn(cls_q, k, v, self.num_heads)
+        cls_out = qkv_attn(cls_q, k, v)
 
         q_, k_, v_ = map(lambda t: rearrange(t, f"{einops_from} -> {einops_to}", **einops_dims), (q_, k_, v_))
 
@@ -107,7 +100,7 @@ class DividedAttention(nn.Module):
         k_ = torch.cat((cls_k, k_), dim=1)
         v_ = torch.cat((cls_v, v_), dim=1)
 
-        out = qkv_attn(q_, k_, v_, self.num_heads)
+        out = qkv_attn(q_, k_, v_)
         out = rearrange(out, f"{einops_to} -> {einops_from}", **einops_dims)
 
         out = torch.cat((cls_out, out), dim=1)

@@ -64,7 +64,6 @@ class EncodeVideo(io.ComfyNode):
         vae = vae if vae is not None else clip_vision
 
         # should be the offload device
-        video = video.cpu()
         if hasattr(model, "video_encoding"):
             data, num_segments, output_fn = model.video_encoding(video, step_size)
             batch_size = b * num_segments
@@ -82,7 +81,10 @@ class EncodeVideo(io.ComfyNode):
             for i in range(0, total, batch_size):
                 chunk = data[i : i + batch_size].to(device, non_blocking = True)
                 if hasattr(vae, "encode"):
-                    out = vae.encode(chunk)
+                    try:
+                        out = vae.encode(chunk)
+                    except:
+                        out = model(chunk.to(next(model.parameters()).device))
                 else:
                     out = vae.encode_image(chunk)
                     out = out["image_embeds"]
