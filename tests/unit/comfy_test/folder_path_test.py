@@ -173,9 +173,10 @@ def test_base_path_change_clears_old(set_base_dir_t):
             "hypernetworks",
             "photomaker",
             "classifiers",
+            "controlnet",
         ]
         for name in single_model_paths:
             assert len(folder_paths.get_folder_paths(name)) == 1
 
-        for name in ["controlnet", "diffusion_models", "text_encoders", "configs"]:
+        for name in ["diffusion_models", "text_encoders", "configs"]:
             assert len(folder_paths.get_folder_paths(name)) == 2
