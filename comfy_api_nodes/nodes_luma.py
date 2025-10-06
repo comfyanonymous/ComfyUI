@@ -181,11 +181,11 @@ class LumaImageGenerationNode(comfy_io.ComfyNode):
                 ),
                 comfy_io.Combo.Input(
                     "model",
-                    options=[model.value for model in LumaImageModel],
+                    options=LumaImageModel,
                 ),
                 comfy_io.Combo.Input(
                     "aspect_ratio",
-                    options=[ratio.value for ratio in LumaAspectRatio],
+                    options=LumaAspectRatio,
                     default=LumaAspectRatio.ratio_16_9,
                 ),
                 comfy_io.Int.Input(
@@ -366,7 +366,7 @@ class LumaImageModifyNode(comfy_io.ComfyNode):
                 ),
                 comfy_io.Combo.Input(
                     "model",
-                    options=[model.value for model in LumaImageModel],
+                    options=LumaImageModel,
                 ),
                 comfy_io.Int.Input(
                     "seed",
@@ -466,21 +466,21 @@ class LumaTextToVideoGenerationNode(comfy_io.ComfyNode):
                 ),
                 comfy_io.Combo.Input(
                     "model",
-                    options=[model.value for model in LumaVideoModel],
+                    options=LumaVideoModel,
                 ),
                 comfy_io.Combo.Input(
                     "aspect_ratio",
-                    options=[ratio.value for ratio in LumaAspectRatio],
+                    options=LumaAspectRatio,
                     default=LumaAspectRatio.ratio_16_9,
                 ),
                 comfy_io.Combo.Input(
                     "resolution",
-                    options=[resolution.value for resolution in LumaVideoOutputResolution],
+                    options=LumaVideoOutputResolution,
                     default=LumaVideoOutputResolution.res_540p,
                 ),
                 comfy_io.Combo.Input(
                     "duration",
-                    options=[dur.value for dur in LumaVideoModelOutputDuration],
+                    options=LumaVideoModelOutputDuration,
                 ),
                 comfy_io.Boolean.Input(
                     "loop",
@@ -595,7 +595,7 @@ class LumaImageToVideoGenerationNode(comfy_io.ComfyNode):
                 ),
                 comfy_io.Combo.Input(
                     "model",
-                    options=[model.value for model in LumaVideoModel],
+                    options=LumaVideoModel,
                 ),
                 # comfy_io.Combo.Input(
                 #     "aspect_ratio",
@@ -604,7 +604,7 @@ class LumaImageToVideoGenerationNode(comfy_io.ComfyNode):
                 # ),
                 comfy_io.Combo.Input(
                     "resolution",
-                    options=[resolution.value for resolution in LumaVideoOutputResolution],
+                    options=LumaVideoOutputResolution,
                     default=LumaVideoOutputResolution.res_540p,
                 ),
                 comfy_io.Combo.Input(
