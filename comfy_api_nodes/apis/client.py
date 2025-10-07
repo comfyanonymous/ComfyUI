@@ -220,13 +220,16 @@ class ApiClient:
         if multipart_parser and data:
             data = multipart_parser(data)
 
-        form = aiohttp.FormData(default_to_multipart=True)
-        if data:  # regular text fields
-            for k, v in data.items():
-                if v is None:
-                    continue  # aiohttp fails to serialize "None" values
-                # aiohttp expects strings or bytes; convert enums etc.
-                form.add_field(k, str(v) if not isinstance(v, (bytes, bytearray)) else v)
+        if isinstance(data, aiohttp.FormData):
+            form = data  # If the parser already returned a FormData, pass it through
+        else:
+            form = aiohttp.FormData(default_to_multipart=True)
+            if data:  # regular text fields
+                for k, v in data.items():
+                    if v is None:
+                        continue  # aiohttp fails to serialize "None" values
+                    # aiohttp expects strings or bytes; convert enums etc.
+                    form.add_field(k, str(v) if not isinstance(v, (bytes, bytearray)) else v)
 
         if files:
             file_iter = files if isinstance(files, list) else files.items()
