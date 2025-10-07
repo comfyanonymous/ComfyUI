@@ -890,6 +890,7 @@ class TEModel(Enum):
     QWEN25_3B = 10
     QWEN25_7B = 11
     BYT5_SMALL_GLYPH = 12
+    GEMMA_3_4B = 13
 
 def detect_te_model(sd):
     if "text_model.encoder.layers.30.mlp.fc1.weight" in sd:
@@ -912,6 +913,8 @@ def detect_te_model(sd):
             return TEModel.BYT5_SMALL_GLYPH
         return TEModel.T5_BASE
     if 'model.layers.0.post_feedforward_layernorm.weight' in sd:
+        if 'model.layers.0.self_attn.q_norm.weight' in sd:
+            return TEModel.GEMMA_3_4B
         return TEModel.GEMMA_2_2B
     if 'model.layers.0.self_attn.k_proj.bias' in sd:
         weight = sd['model.layers.0.self_attn.k_proj.bias']
@@ -1015,6 +1018,10 @@ def load_text_encoder_state_dicts(state_dicts=[], embedding_directory=None, clip
         elif te_model == TEModel.GEMMA_2_2B:
             clip_target.clip = comfy.text_encoders.lumina2.te(**llama_detect(clip_data))
             clip_target.tokenizer = comfy.text_encoders.lumina2.LuminaTokenizer
+            tokenizer_data["spiece_model"] = clip_data[0].get("spiece_model", None)
+        elif te_model == TEModel.GEMMA_3_4B:
+            clip_target.clip = comfy.text_encoders.lumina2.te(**llama_detect(clip_data), model_type="gemma3_4b")
+            clip_target.tokenizer = comfy.text_encoders.lumina2.NTokenizer
             tokenizer_data["spiece_model"] = clip_data[0].get("spiece_model", None)
         elif te_model == TEModel.LLAMA3_8:
             clip_target.clip = comfy.text_encoders.hidream.hidream_clip(**llama_detect(clip_data),
