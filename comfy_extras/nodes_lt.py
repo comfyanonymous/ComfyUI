@@ -34,6 +34,7 @@ class EmptyLTXVLatentVideo(io.ComfyNode):
         latent = torch.zeros([batch_size, 128, ((length - 1) // 8) + 1, height // 32, width // 32], device=comfy.model_management.intermediate_device())
         return io.NodeOutput({"samples": latent})
 
+    generate = execute  # TODO: remove
 
 class LTXVImgToVideo(io.ComfyNode):
     @classmethod
@@ -76,6 +77,8 @@ class LTXVImgToVideo(io.ComfyNode):
         conditioning_latent_frames_mask[:, :, :t.shape[2]] = 1.0 - strength
 
         return io.NodeOutput(positive, negative, {"samples": latent, "noise_mask": conditioning_latent_frames_mask})
+
+    generate = execute  # TODO: remove
 
 
 def conditioning_get_any_value(conditioning, key, default=None):
@@ -264,6 +267,8 @@ class LTXVAddGuide(io.ComfyNode):
 
         return io.NodeOutput(positive, negative, {"samples": latent_image, "noise_mask": noise_mask})
 
+    generate = execute  # TODO: remove
+
 
 class LTXVCropGuides(io.ComfyNode):
     @classmethod
@@ -299,6 +304,8 @@ class LTXVCropGuides(io.ComfyNode):
         negative = node_helpers.conditioning_set_values(negative, {"keyframe_idxs": None})
 
         return io.NodeOutput(positive, negative, {"samples": latent_image, "noise_mask": noise_mask})
+
+    crop = execute  # TODO: remove
 
 
 class LTXVConditioning(io.ComfyNode):
@@ -498,6 +505,7 @@ class LTXVPreprocess(io.ComfyNode):
             output_images.append(preprocess(image[i], img_compression))
         return io.NodeOutput(torch.stack(output_images))
 
+    preprocess = execute  # TODO: remove
 
 class LtxvExtension(ComfyExtension):
     @override
