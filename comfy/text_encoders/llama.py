@@ -3,6 +3,7 @@ import torch.nn as nn
 from dataclasses import dataclass
 from typing import Optional, Any
 import math
+import logging
 
 from comfy.ldm.modules.attention import optimized_attention_for_device
 import comfy.model_management
@@ -315,7 +316,7 @@ class TransformerBlockGemma2(nn.Module):
         if self.transformer_type == 'gemma3':
             if self.sliding_attention:
                 if x.shape[1] > self.sliding_attention:
-                    print("Warning: sliding attention not implemented, results may be incorrect")
+                    logging.warning("Warning: sliding attention not implemented, results may be incorrect")
                 freqs_cis = freqs_cis[1]
             else:
                 freqs_cis = freqs_cis[0]
