@@ -356,10 +356,10 @@ class ApiClient:
         if params:
             params = {k: v for k, v in params.items() if v is not None}  # aiohttp fails to serialize None values
 
-        logging.debug(f"[DEBUG] Request Headers: {request_headers}")
-        logging.debug(f"[DEBUG] Files: {files}")
-        logging.debug(f"[DEBUG] Params: {params}")
-        logging.debug(f"[DEBUG] Data: {data}")
+        logging.debug("[DEBUG] Request Headers: %s", request_headers)
+        logging.debug("[DEBUG] Files: %s", files)
+        logging.debug("[DEBUG] Params: %s", params)
+        logging.debug("[DEBUG] Data: %s", data)
 
         if content_type == "application/x-www-form-urlencoded":
             payload_args = self._create_urlencoded_form_data_args(data or {}, request_headers)
@@ -589,9 +589,9 @@ class ApiClient:
             error_message=f"HTTP Error {exc.status}",
         )
 
-        logging.debug(f"[DEBUG] API Error: {user_friendly} (Status: {status_code})")
+        logging.debug("[DEBUG] API Error: %s (Status: %s)", user_friendly, status_code)
         if response_content:
-            logging.debug(f"[DEBUG] Response content: {response_content}")
+            logging.debug("[DEBUG] Response content: %s", response_content)
 
         # Retry if eligible
         if status_code in self.retry_status_codes and retry_count < self.max_retries:
@@ -735,11 +735,9 @@ class SynchronousOperation(Generic[T, R]):
                     if isinstance(v, Enum):
                         request_dict[k] = v.value
 
-            logging.debug(
-                f"[DEBUG] API Request: {self.endpoint.method.value} {self.endpoint.path}"
-            )
-            logging.debug(f"[DEBUG] Request Data: {json.dumps(request_dict, indent=2)}")
-            logging.debug(f"[DEBUG] Query Params: {self.endpoint.query_params}")
+            logging.debug("[DEBUG] API Request: %s %s", self.endpoint.method.value, self.endpoint.path)
+            logging.debug("[DEBUG] Request Data: %s", json.dumps(request_dict, indent=2))
+            logging.debug("[DEBUG] Query Params: %s", self.endpoint.query_params)
 
             response_json = await client.request(
                 self.endpoint.method.value,
@@ -754,11 +752,11 @@ class SynchronousOperation(Generic[T, R]):
             logging.debug("=" * 50)
             logging.debug("[DEBUG] RESPONSE DETAILS:")
             logging.debug("[DEBUG] Status Code: 200 (Success)")
-            logging.debug(f"[DEBUG] Response Body: {json.dumps(response_json, indent=2)}")
+            logging.debug("[DEBUG] Response Body: %s", json.dumps(response_json, indent=2))
             logging.debug("=" * 50)
 
             parsed_response = self.endpoint.response_model.model_validate(response_json)
-            logging.debug(f"[DEBUG] Parsed Response: {parsed_response}")
+            logging.debug("[DEBUG] Parsed Response: %s", parsed_response)
             return parsed_response
         finally:
             if owns_client:
@@ -874,7 +872,7 @@ class PollingOperation(Generic[T, R]):
         status = TaskStatus.PENDING
         for poll_count in range(1, self.max_poll_attempts + 1):
             try:
-                logging.debug(f"[DEBUG] Polling attempt #{poll_count}")
+                logging.debug("[DEBUG] Polling attempt #%s", poll_count)
 
                 request_dict = (
                     None if self.request is None else self.request.model_dump(exclude_none=True)
@@ -882,10 +880,13 @@ class PollingOperation(Generic[T, R]):
 
                 if poll_count == 1:
                     logging.debug(
-                        f"[DEBUG] Poll Request: {self.poll_endpoint.method.value} {self.poll_endpoint.path}"
+                        "[DEBUG] Poll Request: %s %s",
+                        self.poll_endpoint.method.value,
+                        self.poll_endpoint.path,
                     )
                     logging.debug(
-                        f"[DEBUG] Poll Request Data: {json.dumps(request_dict, indent=2) if request_dict else 'None'}"
+                        "[DEBUG] Poll Request Data: %s",
+                        json.dumps(request_dict, indent=2) if request_dict else "None",
                     )
 
                 # Query task status
@@ -900,7 +901,7 @@ class PollingOperation(Generic[T, R]):
 
                 # Check if task is complete
                 status = self._check_task_status(response_obj)
-                logging.debug(f"[DEBUG] Task Status: {status}")
+                logging.debug("[DEBUG] Task Status: %s", status)
 
                 # If progress extractor is provided, extract progress
                 if self.progress_extractor:
@@ -914,7 +915,7 @@ class PollingOperation(Generic[T, R]):
                         result_url = self.result_url_extractor(response_obj)
                         if result_url:
                             message = f"Result URL: {result_url}"
-                    logging.debug(f"[DEBUG] {message}")
+                    logging.debug("[DEBUG] %s", message)
                     self._display_text_on_node(message)
                     self.final_response = response_obj
                     if self.progress_extractor:
@@ -922,7 +923,7 @@ class PollingOperation(Generic[T, R]):
                     return self.final_response
                 if status == TaskStatus.FAILED:
                     message = f"Task failed: {json.dumps(resp)}"
-                    logging.error(f"[DEBUG] {message}")
+                    logging.error("[DEBUG] %s", message)
                     raise Exception(message)
                 logging.debug("[DEBUG] Task still pending, continuing to poll...")
                 # Task pending – wait
@@ -936,7 +937,12 @@ class PollingOperation(Generic[T, R]):
                     raise Exception(
                         f"Polling aborted after {consecutive_errors} network errors: {str(e)}"
                     ) from e
-                logging.warning("Network error (%s/%s): %s", consecutive_errors, max_consecutive_errors, str(e))
+                logging.warning(
+                    "Network error (%s/%s): %s",
+                    consecutive_errors,
+                    max_consecutive_errors,
+                    str(e),
+                )
                 await asyncio.sleep(self.poll_interval)
             except Exception as e:
                 # For other errors, increment count and potentially abort
@@ -946,10 +952,13 @@ class PollingOperation(Generic[T, R]):
                         f"Polling aborted after {consecutive_errors} consecutive errors: {str(e)}"
                     ) from e
 
-                logging.error(f"[DEBUG] Polling error: {str(e)}")
+                logging.error("[DEBUG] Polling error: %s", str(e))
                 logging.warning(
-                    f"Error during polling (attempt {poll_count}/{self.max_poll_attempts}): {str(e)}. "
-                    f"Will retry in {self.poll_interval} seconds."
+                    "Error during polling (attempt %s/%s): %s. Will retry in %s seconds.",
+                    poll_count,
+                    self.max_poll_attempts,
+                    str(e),
+                    self.poll_interval,
                 )
                 await asyncio.sleep(self.poll_interval)
 
