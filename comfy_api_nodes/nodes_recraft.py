@@ -35,6 +35,7 @@ from server import PromptServer
 import torch
 from io import BytesIO
 from PIL import UnidentifiedImageError
+import aiohttp
 
 
 async def handle_recraft_file_request(
@@ -82,10 +83,16 @@ async def handle_recraft_file_request(
     return all_bytesio
 
 
-def recraft_multipart_parser(data, parent_key=None, formatter: callable=None, converted_to_check: list[list]=None, is_list=False) -> dict:
+def recraft_multipart_parser(
+    data,
+    parent_key=None,
+    formatter: callable = None,
+    converted_to_check: list[list] = None,
+    is_list: bool = False,
+    return_mode: str = "formdata"  # "dict" | "formdata"
+) -> dict | aiohttp.FormData:
     """
-    Formats data such that multipart/form-data will work with requests library
-    when both files and data are present.
+    Formats data such that multipart/form-data will work with aiohttp library when both files and data are present.
 
     The OpenAI client that Recraft uses has a bizarre way of serializing lists:
 
@@ -103,19 +110,19 @@ def recraft_multipart_parser(data, parent_key=None, formatter: callable=None, co
     # Modification of a function that handled a different type of multipart parsing, big ups:
     # https://gist.github.com/kazqvaizer/4cebebe5db654a414132809f9f88067b
 
-    def handle_converted_lists(data, parent_key, lists_to_check=tuple[list]):
+    def handle_converted_lists(item, parent_key, lists_to_check=tuple[list]):
         # if list already exists exists, just extend list with data
         for check_list in lists_to_check:
             for conv_tuple in check_list:
                 if conv_tuple[0] == parent_key and isinstance(conv_tuple[1], list):
-                    conv_tuple[1].append(formatter(data))
+                    conv_tuple[1].append(formatter(item))
                     return True
         return False
 
     if converted_to_check is None:
         converted_to_check = []
 
-
+    effective_mode = return_mode if parent_key is None else "dict"
     if formatter is None:
         formatter = lambda v: v  # Multipart representation of value
 
@@ -145,6 +152,15 @@ def recraft_multipart_parser(data, parent_key=None, formatter: callable=None, co
         else:
             converted.append((current_key, formatter(value)))
 
+    if effective_mode == "formdata":
+        fd = aiohttp.FormData()
+        for k, v in dict(converted).items():
+            if isinstance(v, list):
+                for item in v:
+                    fd.add_field(k, str(item))
+            else:
+                fd.add_field(k, str(v))
+        return fd
     return dict(converted)
 
 
