@@ -183,8 +183,10 @@ def get_1d_rotary_pos_embed(dim: int, pos: Union[np.ndarray, int], theta: float 
 
     if freq_scaling != 1.0:
         freqs *= freq_scaling
-        
-    t = torch.from_numpy(pos).to(freqs.device)  # type: ignore  # [S]
+    if not isinstance(pos, torch.Tensor):
+        t = torch.from_numpy(pos).to(freqs.device)  # type: ignore  # [S]
+    else:
+        t = pos.to(freqs.device)
     freqs = torch.outer(t, freqs).float()  # type: ignore   # [S, D/2]
     if use_real:
         freqs_cos = freqs.cos().repeat_interleave(2, dim=1)  # [S, D]
