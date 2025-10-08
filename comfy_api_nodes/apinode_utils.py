@@ -269,7 +269,7 @@ def tensor_to_bytesio(
         mime_type: Target image MIME type (e.g., 'image/png', 'image/jpeg', 'image/webp', 'video/mp4').
 
     Returns:
-        Named BytesIO object containing the image data.
+        Named BytesIO object containing the image data, with pointer set to the start of buffer.
     """
     if not mime_type:
         mime_type = "image/png"
