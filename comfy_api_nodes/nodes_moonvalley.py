@@ -636,6 +636,8 @@ class MoonvalleyVideo2VideoNode(comfy_io.ComfyNode):
         video: Optional[VideoInput] = None,
         control_type: str = "Motion Transfer",
         motion_intensity: Optional[int] = 100,
+        steps=33,
+        prompt_adherence=4.5,
     ) -> comfy_io.NodeOutput:
         auth = {
             "auth_token": cls.hidden.auth_token_comfy_org,
@@ -657,8 +659,8 @@ class MoonvalleyVideo2VideoNode(comfy_io.ComfyNode):
             negative_prompt=negative_prompt,
             seed=seed,
             control_params=control_params,
-            steps=kwargs.get("steps"),
-            guidance_scale=kwargs.get("prompt_adherence"),
+            steps=steps,
+            guidance_scale=prompt_adherence,
         )
 
         control = parse_control_parameter(control_type)
@@ -667,7 +669,6 @@ class MoonvalleyVideo2VideoNode(comfy_io.ComfyNode):
             control_type=control,
             video_url=video_url,
             prompt_text=prompt,
-            image_url=image_url,
             inference_params=inference_params,
         )
 
