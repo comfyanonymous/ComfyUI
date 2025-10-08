@@ -1,38 +1,30 @@
-name: "Windows Release dependencies"
+name: "Windows Release dependencies Manual"
 
 on:
   workflow_dispatch:
     inputs:
-      xformers:
-        description: 'xformers version'
+      torch_dependencies:
+        description: 'torch dependencies'
         required: false
         type: string
-        default: ""
-      extra_dependencies:
-        description: 'extra dependencies'
-        required: false
-        type: string
-        default: ""
-      cu:
-        description: 'cuda version'
+        default: "torch torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/cu128"
+      cache_tag:
+        description: 'Cached dependencies tag'
         required: true
         type: string
-        default: "129"
+        default: "cu128"
 
       python_minor:
         description: 'python minor version'
         required: true
         type: string
-        default: "13"
+        default: "12"
 
       python_patch:
         description: 'python patch version'
         required: true
         type: string
-        default: "6"
-#  push:
-#    branches:
-#      - master
+        default: "10"
 
 jobs:
   build_dependencies:
@@ -53,20 +45,20 @@ jobs:
             echo If you just want to update normally, close this and run update_comfyui.bat instead.
             echo -
             pause
-            ..\python_embeded\python.exe -s -m pip install --upgrade torch torchvision torchaudio ${{ inputs.xformers }} --extra-index-url https://download.pytorch.org/whl/cu${{ inputs.cu }} -r ../ComfyUI/requirements.txt pygit2
+            ..\python_embeded\python.exe -s -m pip install --upgrade ${{ inputs.torch_dependencies }} -r ../ComfyUI/requirements.txt pygit2
             pause" > update_comfyui_and_python_dependencies.bat
 
             grep -v comfyui requirements.txt > requirements_nocomfyui.txt
-            python -m pip wheel --no-cache-dir torch torchvision torchaudio ${{ inputs.xformers }} ${{ inputs.extra_dependencies }} --extra-index-url https://download.pytorch.org/whl/cu${{ inputs.cu }} -r requirements_nocomfyui.txt pygit2 -w ./temp_wheel_dir
+            python -m pip wheel --no-cache-dir ${{ inputs.torch_dependencies }} -r requirements_nocomfyui.txt pygit2 -w ./temp_wheel_dir
             python -m pip install --no-cache-dir ./temp_wheel_dir/*
             echo installed basic
             ls -lah temp_wheel_dir
-            mv temp_wheel_dir cu${{ inputs.cu }}_python_deps
-            tar cf cu${{ inputs.cu }}_python_deps.tar cu${{ inputs.cu }}_python_deps
+            mv temp_wheel_dir ${{ inputs.cache_tag }}_python_deps
+            tar cf ${{ inputs.cache_tag }}_python_deps.tar ${{ inputs.cache_tag }}_python_deps
 
         - uses: actions/cache/save@v4
           with:
             path: |
-              cu${{ inputs.cu }}_python_deps.tar
+              ${{ inputs.cache_tag }}_python_deps.tar
               update_comfyui_and_python_dependencies.bat
-            key: ${{ runner.os }}-build-cu${{ inputs.cu }}-${{ inputs.python_minor }}
+            key: ${{ runner.os }}-build-${{ inputs.cache_tag }}-${{ inputs.python_minor }}

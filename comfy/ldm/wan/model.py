@@ -237,6 +237,7 @@ class WanAttentionBlock(nn.Module):
             freqs, transformer_options=transformer_options)
 
         x = torch.addcmul(x, y, repeat_e(e[2], x))
+        del y
 
         # cross-attention & ffn
         x = x + self.cross_attn(self.norm3(x), context, context_img_len=context_img_len, transformer_options=transformer_options)
@@ -902,7 +903,7 @@ class MotionEncoder_tc(nn.Module):
     def __init__(self,
                  in_dim: int,
                  hidden_dim: int,
-                 num_heads=int,
+                 num_heads: int,
                  need_global=True,
                  dtype=None,
                  device=None,
@@ -1355,7 +1356,7 @@ class WanT2VCrossAttentionGather(WanSelfAttention):
 
         x = optimized_attention(q, k, v, heads=self.num_heads, skip_reshape=True, skip_output_reshape=True, transformer_options=transformer_options)
 
-        x = x.transpose(1, 2).view(b, -1, n, d).flatten(2)
+        x = x.transpose(1, 2).reshape(b, -1, n * d)
         x = self.o(x)
         return x
 

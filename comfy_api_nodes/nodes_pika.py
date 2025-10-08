@@ -5,14 +5,16 @@ Pika API docs: https://pika-827374fb.mintlify.app/api-reference
 """
 from __future__ import annotations
 
-import io
+from io import BytesIO
 import logging
 from typing import Optional, TypeVar
+from enum import Enum
 
 import numpy as np
 import torch
 
-from comfy.comfy_types.node_typing import IO, ComfyNodeABC, InputTypeOptions
+from typing_extensions import override
+from comfy_api.latest import ComfyExtension, io as comfy_io
 from comfy_api.input_impl import VideoFromFile
 from comfy_api.input_impl.video_types import VideoCodec, VideoContainer, VideoInput
 from comfy_api_nodes.apinode_utils import (
@@ -20,7 +22,6 @@ from comfy_api_nodes.apinode_utils import (
     tensor_to_bytesio,
 )
 from comfy_api_nodes.apis import (
-    IngredientsMode,
     PikaBodyGenerate22C2vGenerate22PikascenesPost,
     PikaBodyGenerate22I2vGenerate22I2vPost,
     PikaBodyGenerate22KeyframeGenerate22PikaframesPost,
@@ -28,10 +29,7 @@ from comfy_api_nodes.apis import (
     PikaBodyGeneratePikadditionsGeneratePikadditionsPost,
     PikaBodyGeneratePikaffectsGeneratePikaffectsPost,
     PikaBodyGeneratePikaswapsGeneratePikaswapsPost,
-    PikaDurationEnum,
-    Pikaffect,
     PikaGenerateResponse,
-    PikaResolutionEnum,
     PikaVideoResponse,
 )
 from comfy_api_nodes.apis.client import (
@@ -41,7 +39,6 @@ from comfy_api_nodes.apis.client import (
     PollingOperation,
     SynchronousOperation,
 )
-from comfy_api_nodes.mapper_utils import model_field_to_node_input
 
 R = TypeVar("R")
 
@@ -56,6 +53,35 @@ PATH_PIKAFRAMES = f"/proxy/pika/generate/{PIKA_API_VERSION}/pikaframes"
 PATH_PIKASCENES = f"/proxy/pika/generate/{PIKA_API_VERSION}/pikascenes"
 
 PATH_VIDEO_GET = "/proxy/pika/videos"
+
+
+class PikaDurationEnum(int, Enum):
+    integer_5 = 5
+    integer_10 = 10
+
+
+class PikaResolutionEnum(str, Enum):
+    field_1080p = "1080p"
+    field_720p = "720p"
+
+
+class Pikaffect(str, Enum):
+    Cake_ify = "Cake-ify"
+    Crumble = "Crumble"
+    Crush = "Crush"
+    Decapitate = "Decapitate"
+    Deflate = "Deflate"
+    Dissolve = "Dissolve"
+    Explode = "Explode"
+    Eye_pop = "Eye-pop"
+    Inflate = "Inflate"
+    Levitate = "Levitate"
+    Melt = "Melt"
+    Peel = "Peel"
+    Poke = "Poke"
+    Squish = "Squish"
+    Ta_da = "Ta-da"
+    Tear = "Tear"
 
 
 class PikaApiError(Exception):
@@ -74,155 +100,121 @@ def is_valid_initial_response(response: PikaGenerateResponse) -> bool:
     return hasattr(response, "video_id") and response.video_id is not None
 
 
-class PikaNodeBase(ComfyNodeABC):
-    """Base class for Pika nodes."""
+async def poll_for_task_status(
+    task_id: str,
+    auth_kwargs: Optional[dict[str, str]] = None,
+    node_id: Optional[str] = None,
+) -> PikaGenerateResponse:
+    polling_operation = PollingOperation(
+        poll_endpoint=ApiEndpoint(
+            path=f"{PATH_VIDEO_GET}/{task_id}",
+            method=HttpMethod.GET,
+            request_model=EmptyRequest,
+            response_model=PikaVideoResponse,
+        ),
+        completed_statuses=[
+            "finished",
+        ],
+        failed_statuses=["failed", "cancelled"],
+        status_extractor=lambda response: (
+            response.status.value if response.status else None
+        ),
+        progress_extractor=lambda response: (
+            response.progress if hasattr(response, "progress") else None
+        ),
+        auth_kwargs=auth_kwargs,
+        result_url_extractor=lambda response: (
+            response.url if hasattr(response, "url") else None
+        ),
+        node_id=node_id,
+        estimated_duration=60
+    )
+    return await polling_operation.execute()
 
-    @classmethod
-    def get_base_inputs_types(
-        cls, request_model
-    ) -> dict[str, tuple[IO, InputTypeOptions]]:
-        """Get the base required inputs types common to all Pika nodes."""
-        return {
-            "prompt_text": model_field_to_node_input(
-                IO.STRING,
-                request_model,
-                "promptText",
-                multiline=True,
-            ),
-            "negative_prompt": model_field_to_node_input(
-                IO.STRING,
-                request_model,
-                "negativePrompt",
-                multiline=True,
-            ),
-            "seed": model_field_to_node_input(
-                IO.INT,
-                request_model,
-                "seed",
-                min=0,
-                max=0xFFFFFFFF,
-                control_after_generate=True,
-            ),
-            "resolution": model_field_to_node_input(
-                IO.COMBO,
-                request_model,
-                "resolution",
-                enum_type=PikaResolutionEnum,
-            ),
-            "duration": model_field_to_node_input(
-                IO.COMBO,
-                request_model,
-                "duration",
-                enum_type=PikaDurationEnum,
-            ),
-        }
 
-    CATEGORY = "api node/video/Pika"
-    API_NODE = True
-    FUNCTION = "api_call"
-    RETURN_TYPES = ("VIDEO",)
+async def execute_task(
+    initial_operation: SynchronousOperation[R, PikaGenerateResponse],
+    auth_kwargs: Optional[dict[str, str]] = None,
+    node_id: Optional[str] = None,
+) -> tuple[VideoFromFile]:
+    """Executes the initial operation then polls for the task status until it is completed.
 
-    async def poll_for_task_status(
-        self,
-        task_id: str,
-        auth_kwargs: Optional[dict[str, str]] = None,
-        node_id: Optional[str] = None,
-    ) -> PikaGenerateResponse:
-        polling_operation = PollingOperation(
-            poll_endpoint=ApiEndpoint(
-                path=f"{PATH_VIDEO_GET}/{task_id}",
-                method=HttpMethod.GET,
-                request_model=EmptyRequest,
-                response_model=PikaVideoResponse,
-            ),
-            completed_statuses=[
-                "finished",
-            ],
-            failed_statuses=["failed", "cancelled"],
-            status_extractor=lambda response: (
-                response.status.value if response.status else None
-            ),
-            progress_extractor=lambda response: (
-                response.progress if hasattr(response, "progress") else None
-            ),
-            auth_kwargs=auth_kwargs,
-            result_url_extractor=lambda response: (
-                response.url if hasattr(response, "url") else None
-            ),
-            node_id=node_id,
-            estimated_duration=60
+    Args:
+        initial_operation: The initial operation to execute.
+        auth_kwargs: The authentication token(s) to use for the API call.
+
+    Returns:
+        A tuple containing the video file as a VIDEO output.
+    """
+    initial_response = await initial_operation.execute()
+    if not is_valid_initial_response(initial_response):
+        error_msg = f"Pika initial request failed. Code: {initial_response.code}, Message: {initial_response.message}, Data: {initial_response.data}"
+        logging.error(error_msg)
+        raise PikaApiError(error_msg)
+
+    task_id = initial_response.video_id
+    final_response = await poll_for_task_status(task_id, auth_kwargs, node_id=node_id)
+    if not is_valid_video_response(final_response):
+        error_msg = (
+            f"Pika task {task_id} succeeded but no video data found in response."
         )
-        return await polling_operation.execute()
+        logging.error(error_msg)
+        raise PikaApiError(error_msg)
 
-    async def execute_task(
-        self,
-        initial_operation: SynchronousOperation[R, PikaGenerateResponse],
-        auth_kwargs: Optional[dict[str, str]] = None,
-        node_id: Optional[str] = None,
-    ) -> tuple[VideoFromFile]:
-        """Executes the initial operation then polls for the task status until it is completed.
+    video_url = str(final_response.url)
+    logging.info("Pika task %s succeeded. Video URL: %s", task_id, video_url)
 
-        Args:
-            initial_operation: The initial operation to execute.
-            auth_kwargs: The authentication token(s) to use for the API call.
-
-        Returns:
-            A tuple containing the video file as a VIDEO output.
-        """
-        initial_response = await initial_operation.execute()
-        if not is_valid_initial_response(initial_response):
-            error_msg = f"Pika initial request failed. Code: {initial_response.code}, Message: {initial_response.message}, Data: {initial_response.data}"
-            logging.error(error_msg)
-            raise PikaApiError(error_msg)
-
-        task_id = initial_response.video_id
-        final_response = await self.poll_for_task_status(task_id, auth_kwargs)
-        if not is_valid_video_response(final_response):
-            error_msg = (
-                f"Pika task {task_id} succeeded but no video data found in response."
-            )
-            logging.error(error_msg)
-            raise PikaApiError(error_msg)
-
-        video_url = str(final_response.url)
-        logging.info("Pika task %s succeeded. Video URL: %s", task_id, video_url)
-
-        return (await download_url_to_video_output(video_url),)
+    return (await download_url_to_video_output(video_url),)
 
 
-class PikaImageToVideoV2_2(PikaNodeBase):
+def get_base_inputs_types() -> list[comfy_io.Input]:
+    """Get the base required inputs types common to all Pika nodes."""
+    return [
+        comfy_io.String.Input("prompt_text", multiline=True),
+        comfy_io.String.Input("negative_prompt", multiline=True),
+        comfy_io.Int.Input("seed", min=0, max=0xFFFFFFFF, control_after_generate=True),
+        comfy_io.Combo.Input(
+            "resolution", options=PikaResolutionEnum, default=PikaResolutionEnum.field_1080p
+        ),
+        comfy_io.Combo.Input(
+            "duration", options=PikaDurationEnum, default=PikaDurationEnum.integer_5
+        ),
+    ]
+
+
+class PikaImageToVideoV2_2(comfy_io.ComfyNode):
     """Pika 2.2 Image to Video Node."""
 
     @classmethod
-    def INPUT_TYPES(cls):
-        return {
-            "required": {
-                "image": (
-                    IO.IMAGE,
-                    {"tooltip": "The image to convert to video"},
-                ),
-                **cls.get_base_inputs_types(PikaBodyGenerate22I2vGenerate22I2vPost),
-            },
-            "hidden": {
-                "auth_token": "AUTH_TOKEN_COMFY_ORG",
-                "comfy_api_key": "API_KEY_COMFY_ORG",
-                "unique_id": "UNIQUE_ID",
-            },
-        }
+    def define_schema(cls) -> comfy_io.Schema:
+        return comfy_io.Schema(
+            node_id="PikaImageToVideoNode2_2",
+            display_name="Pika Image to Video",
+            description="Sends an image and prompt to the Pika API v2.2 to generate a video.",
+            category="api node/video/Pika",
+            inputs=[
+                comfy_io.Image.Input("image", tooltip="The image to convert to video"),
+                *get_base_inputs_types(),
+            ],
+            outputs=[comfy_io.Video.Output()],
+            hidden=[
+                comfy_io.Hidden.auth_token_comfy_org,
+                comfy_io.Hidden.api_key_comfy_org,
+                comfy_io.Hidden.unique_id,
+            ],
+            is_api_node=True,
+        )
 
-    DESCRIPTION = "Sends an image and prompt to the Pika API v2.2 to generate a video."
-
-    async def api_call(
-        self,
+    @classmethod
+    async def execute(
+        cls,
         image: torch.Tensor,
         prompt_text: str,
         negative_prompt: str,
         seed: int,
         resolution: str,
         duration: int,
-        unique_id: str,
-        **kwargs,
-    ) -> tuple[VideoFromFile]:
+    ) -> comfy_io.NodeOutput:
         # Convert image to BytesIO
         image_bytes_io = tensor_to_bytesio(image)
         image_bytes_io.seek(0)
@@ -237,7 +229,10 @@ class PikaImageToVideoV2_2(PikaNodeBase):
             resolution=resolution,
             duration=duration,
         )
-
+        auth = {
+            "auth_token": cls.hidden.auth_token_comfy_org,
+            "comfy_api_key": cls.hidden.api_key_comfy_org,
+        }
         initial_operation = SynchronousOperation(
             endpoint=ApiEndpoint(
                 path=PATH_IMAGE_TO_VIDEO,
@@ -248,50 +243,55 @@ class PikaImageToVideoV2_2(PikaNodeBase):
             request=pika_request_data,
             files=pika_files,
             content_type="multipart/form-data",
-            auth_kwargs=kwargs,
+            auth_kwargs=auth,
         )
+        return await execute_task(initial_operation, auth_kwargs=auth, node_id=cls.hidden.unique_id)
 
-        return await self.execute_task(initial_operation, auth_kwargs=kwargs, node_id=unique_id)
 
-
-class PikaTextToVideoNodeV2_2(PikaNodeBase):
+class PikaTextToVideoNodeV2_2(comfy_io.ComfyNode):
     """Pika Text2Video v2.2 Node."""
 
     @classmethod
-    def INPUT_TYPES(cls):
-        return {
-            "required": {
-                **cls.get_base_inputs_types(PikaBodyGenerate22T2vGenerate22T2vPost),
-                "aspect_ratio": model_field_to_node_input(
-                    IO.FLOAT,
-                    PikaBodyGenerate22T2vGenerate22T2vPost,
-                    "aspectRatio",
+    def define_schema(cls) -> comfy_io.Schema:
+        return comfy_io.Schema(
+            node_id="PikaTextToVideoNode2_2",
+            display_name="Pika Text to Video",
+            description="Sends a text prompt to the Pika API v2.2 to generate a video.",
+            category="api node/video/Pika",
+            inputs=[
+                *get_base_inputs_types(),
+                comfy_io.Float.Input(
+                    "aspect_ratio",
                     step=0.001,
                     min=0.4,
                     max=2.5,
                     default=1.7777777777777777,
-                ),
-            },
-            "hidden": {
-                "auth_token": "AUTH_TOKEN_COMFY_ORG",
-                "comfy_api_key": "API_KEY_COMFY_ORG",
-                "unique_id": "UNIQUE_ID",
-            },
-        }
+                    tooltip="Aspect ratio (width / height)",
+                )
+            ],
+            outputs=[comfy_io.Video.Output()],
+            hidden=[
+                comfy_io.Hidden.auth_token_comfy_org,
+                comfy_io.Hidden.api_key_comfy_org,
+                comfy_io.Hidden.unique_id,
+            ],
+            is_api_node=True,
+        )
 
-    DESCRIPTION = "Sends a text prompt to the Pika API v2.2 to generate a video."
-
-    async def api_call(
-        self,
+    @classmethod
+    async def execute(
+        cls,
         prompt_text: str,
         negative_prompt: str,
         seed: int,
         resolution: str,
         duration: int,
         aspect_ratio: float,
-        unique_id: str,
-        **kwargs,
-    ) -> tuple[VideoFromFile]:
+    ) -> comfy_io.NodeOutput:
+        auth = {
+            "auth_token": cls.hidden.auth_token_comfy_org,
+            "comfy_api_key": cls.hidden.api_key_comfy_org,
+        }
         initial_operation = SynchronousOperation(
             endpoint=ApiEndpoint(
                 path=PATH_TEXT_TO_VIDEO,
@@ -307,62 +307,75 @@ class PikaTextToVideoNodeV2_2(PikaNodeBase):
                 duration=duration,
                 aspectRatio=aspect_ratio,
             ),
-            auth_kwargs=kwargs,
+            auth_kwargs=auth,
             content_type="application/x-www-form-urlencoded",
         )
+        return await execute_task(initial_operation, auth_kwargs=auth, node_id=cls.hidden.unique_id)
 
-        return await self.execute_task(initial_operation, auth_kwargs=kwargs, node_id=unique_id)
 
-
-class PikaScenesV2_2(PikaNodeBase):
+class PikaScenesV2_2(comfy_io.ComfyNode):
     """PikaScenes v2.2 Node."""
 
     @classmethod
-    def INPUT_TYPES(cls):
-        image_ingredient_input = (
-            IO.IMAGE,
-            {"tooltip": "Image that will be used as ingredient to create a video."},
-        )
-        return {
-            "required": {
-                **cls.get_base_inputs_types(
-                    PikaBodyGenerate22C2vGenerate22PikascenesPost,
-                ),
-                "ingredients_mode": model_field_to_node_input(
-                    IO.COMBO,
-                    PikaBodyGenerate22C2vGenerate22PikascenesPost,
-                    "ingredientsMode",
-                    enum_type=IngredientsMode,
+    def define_schema(cls) -> comfy_io.Schema:
+        return comfy_io.Schema(
+            node_id="PikaScenesV2_2",
+            display_name="Pika Scenes (Video Image Composition)",
+            description="Combine your images to create a video with the objects in them. Upload multiple images as ingredients and generate a high-quality video that incorporates all of them.",
+            category="api node/video/Pika",
+            inputs=[
+                *get_base_inputs_types(),
+                comfy_io.Combo.Input(
+                    "ingredients_mode",
+                    options=["creative", "precise"],
                     default="creative",
                 ),
-                "aspect_ratio": model_field_to_node_input(
-                    IO.FLOAT,
-                    PikaBodyGenerate22C2vGenerate22PikascenesPost,
-                    "aspectRatio",
+                comfy_io.Float.Input(
+                    "aspect_ratio",
                     step=0.001,
                     min=0.4,
                     max=2.5,
                     default=1.7777777777777777,
+                    tooltip="Aspect ratio (width / height)",
                 ),
-            },
-            "optional": {
-                "image_ingredient_1": image_ingredient_input,
-                "image_ingredient_2": image_ingredient_input,
-                "image_ingredient_3": image_ingredient_input,
-                "image_ingredient_4": image_ingredient_input,
-                "image_ingredient_5": image_ingredient_input,
-            },
-            "hidden": {
-                "auth_token": "AUTH_TOKEN_COMFY_ORG",
-                "comfy_api_key": "API_KEY_COMFY_ORG",
-                "unique_id": "UNIQUE_ID",
-            },
-        }
+                comfy_io.Image.Input(
+                    "image_ingredient_1",
+                    optional=True,
+                    tooltip="Image that will be used as ingredient to create a video.",
+                ),
+                comfy_io.Image.Input(
+                    "image_ingredient_2",
+                    optional=True,
+                    tooltip="Image that will be used as ingredient to create a video.",
+                ),
+                comfy_io.Image.Input(
+                    "image_ingredient_3",
+                    optional=True,
+                    tooltip="Image that will be used as ingredient to create a video.",
+                ),
+                comfy_io.Image.Input(
+                    "image_ingredient_4",
+                    optional=True,
+                    tooltip="Image that will be used as ingredient to create a video.",
+                ),
+                comfy_io.Image.Input(
+                    "image_ingredient_5",
+                    optional=True,
+                    tooltip="Image that will be used as ingredient to create a video.",
+                ),
+            ],
+            outputs=[comfy_io.Video.Output()],
+            hidden=[
+                comfy_io.Hidden.auth_token_comfy_org,
+                comfy_io.Hidden.api_key_comfy_org,
+                comfy_io.Hidden.unique_id,
+            ],
+            is_api_node=True,
+        )
 
-    DESCRIPTION = "Combine your images to create a video with the objects in them. Upload multiple images as ingredients and generate a high-quality video that incorporates all of them."
-
-    async def api_call(
-        self,
+    @classmethod
+    async def execute(
+        cls,
         prompt_text: str,
         negative_prompt: str,
         seed: int,
@@ -370,14 +383,12 @@ class PikaScenesV2_2(PikaNodeBase):
         duration: int,
         ingredients_mode: str,
         aspect_ratio: float,
-        unique_id: str,
         image_ingredient_1: Optional[torch.Tensor] = None,
         image_ingredient_2: Optional[torch.Tensor] = None,
         image_ingredient_3: Optional[torch.Tensor] = None,
         image_ingredient_4: Optional[torch.Tensor] = None,
         image_ingredient_5: Optional[torch.Tensor] = None,
-        **kwargs,
-    ) -> tuple[VideoFromFile]:
+    ) -> comfy_io.NodeOutput:
         # Convert all passed images to BytesIO
         all_image_bytes_io = []
         for image in [
@@ -406,7 +417,10 @@ class PikaScenesV2_2(PikaNodeBase):
             duration=duration,
             aspectRatio=aspect_ratio,
         )
-
+        auth = {
+            "auth_token": cls.hidden.auth_token_comfy_org,
+            "comfy_api_key": cls.hidden.api_key_comfy_org,
+        }
         initial_operation = SynchronousOperation(
             endpoint=ApiEndpoint(
                 path=PATH_PIKASCENES,
@@ -417,63 +431,54 @@ class PikaScenesV2_2(PikaNodeBase):
             request=pika_request_data,
             files=pika_files,
             content_type="multipart/form-data",
-            auth_kwargs=kwargs,
+            auth_kwargs=auth,
         )
 
-        return await self.execute_task(initial_operation, auth_kwargs=kwargs, node_id=unique_id)
+        return await execute_task(initial_operation, auth_kwargs=auth, node_id=cls.hidden.unique_id)
 
 
-class PikAdditionsNode(PikaNodeBase):
+class PikAdditionsNode(comfy_io.ComfyNode):
     """Pika Pikadditions Node. Add an image into a video."""
 
     @classmethod
-    def INPUT_TYPES(cls):
-        return {
-            "required": {
-                "video": (IO.VIDEO, {"tooltip": "The video to add an image to."}),
-                "image": (IO.IMAGE, {"tooltip": "The image to add to the video."}),
-                "prompt_text": model_field_to_node_input(
-                    IO.STRING,
-                    PikaBodyGeneratePikadditionsGeneratePikadditionsPost,
-                    "promptText",
-                    multiline=True,
-                ),
-                "negative_prompt": model_field_to_node_input(
-                    IO.STRING,
-                    PikaBodyGeneratePikadditionsGeneratePikadditionsPost,
-                    "negativePrompt",
-                    multiline=True,
-                ),
-                "seed": model_field_to_node_input(
-                    IO.INT,
-                    PikaBodyGeneratePikadditionsGeneratePikadditionsPost,
+    def define_schema(cls) -> comfy_io.Schema:
+        return comfy_io.Schema(
+            node_id="Pikadditions",
+            display_name="Pikadditions (Video Object Insertion)",
+            description="Add any object or image into your video. Upload a video and specify what you'd like to add to create a seamlessly integrated result.",
+            category="api node/video/Pika",
+            inputs=[
+                comfy_io.Video.Input("video", tooltip="The video to add an image to."),
+                comfy_io.Image.Input("image", tooltip="The image to add to the video."),
+                comfy_io.String.Input("prompt_text", multiline=True),
+                comfy_io.String.Input("negative_prompt", multiline=True),
+                comfy_io.Int.Input(
                     "seed",
                     min=0,
                     max=0xFFFFFFFF,
                     control_after_generate=True,
                 ),
-            },
-            "hidden": {
-                "auth_token": "AUTH_TOKEN_COMFY_ORG",
-                "comfy_api_key": "API_KEY_COMFY_ORG",
-                "unique_id": "UNIQUE_ID",
-            },
-        }
+            ],
+            outputs=[comfy_io.Video.Output()],
+            hidden=[
+                comfy_io.Hidden.auth_token_comfy_org,
+                comfy_io.Hidden.api_key_comfy_org,
+                comfy_io.Hidden.unique_id,
+            ],
+            is_api_node=True,
+        )
 
-    DESCRIPTION = "Add any object or image into your video. Upload a video and specify what you'd like to add to create a seamlessly integrated result."
-
-    async def api_call(
-        self,
+    @classmethod
+    async def execute(
+        cls,
         video: VideoInput,
         image: torch.Tensor,
         prompt_text: str,
         negative_prompt: str,
         seed: int,
-        unique_id: str,
-        **kwargs,
-    ) -> tuple[VideoFromFile]:
+    ) -> comfy_io.NodeOutput:
         # Convert video to BytesIO
-        video_bytes_io = io.BytesIO()
+        video_bytes_io = BytesIO()
         video.save_to(video_bytes_io, format=VideoContainer.MP4, codec=VideoCodec.H264)
         video_bytes_io.seek(0)
 
@@ -492,7 +497,10 @@ class PikAdditionsNode(PikaNodeBase):
             negativePrompt=negative_prompt,
             seed=seed,
         )
-
+        auth = {
+            "auth_token": cls.hidden.auth_token_comfy_org,
+            "comfy_api_key": cls.hidden.api_key_comfy_org,
+        }
         initial_operation = SynchronousOperation(
             endpoint=ApiEndpoint(
                 path=PATH_PIKADDITIONS,
@@ -503,74 +511,51 @@ class PikAdditionsNode(PikaNodeBase):
             request=pika_request_data,
             files=pika_files,
             content_type="multipart/form-data",
-            auth_kwargs=kwargs,
+            auth_kwargs=auth,
         )
 
-        return await self.execute_task(initial_operation, auth_kwargs=kwargs, node_id=unique_id)
+        return await execute_task(initial_operation, auth_kwargs=auth, node_id=cls.hidden.unique_id)
 
 
-class PikaSwapsNode(PikaNodeBase):
+class PikaSwapsNode(comfy_io.ComfyNode):
     """Pika Pikaswaps Node."""
 
     @classmethod
-    def INPUT_TYPES(cls):
-        return {
-            "required": {
-                "video": (IO.VIDEO, {"tooltip": "The video to swap an object in."}),
-                "image": (
-                    IO.IMAGE,
-                    {
-                        "tooltip": "The image used to replace the masked object in the video."
-                    },
-                ),
-                "mask": (
-                    IO.MASK,
-                    {"tooltip": "Use the mask to define areas in the video to replace"},
-                ),
-                "prompt_text": model_field_to_node_input(
-                    IO.STRING,
-                    PikaBodyGeneratePikaswapsGeneratePikaswapsPost,
-                    "promptText",
-                    multiline=True,
-                ),
-                "negative_prompt": model_field_to_node_input(
-                    IO.STRING,
-                    PikaBodyGeneratePikaswapsGeneratePikaswapsPost,
-                    "negativePrompt",
-                    multiline=True,
-                ),
-                "seed": model_field_to_node_input(
-                    IO.INT,
-                    PikaBodyGeneratePikaswapsGeneratePikaswapsPost,
-                    "seed",
-                    min=0,
-                    max=0xFFFFFFFF,
-                    control_after_generate=True,
-                ),
-            },
-            "hidden": {
-                "auth_token": "AUTH_TOKEN_COMFY_ORG",
-                "comfy_api_key": "API_KEY_COMFY_ORG",
-                "unique_id": "UNIQUE_ID",
-            },
-        }
+    def define_schema(cls) -> comfy_io.Schema:
+        return comfy_io.Schema(
+            node_id="Pikaswaps",
+            display_name="Pika Swaps (Video Object Replacement)",
+            description="Swap out any object or region of your video with a new image or object. Define areas to replace either with a mask or coordinates.",
+            category="api node/video/Pika",
+            inputs=[
+                comfy_io.Video.Input("video", tooltip="The video to swap an object in."),
+                comfy_io.Image.Input("image", tooltip="The image used to replace the masked object in the video."),
+                comfy_io.Mask.Input("mask", tooltip="Use the mask to define areas in the video to replace"),
+                comfy_io.String.Input("prompt_text", multiline=True),
+                comfy_io.String.Input("negative_prompt", multiline=True),
+                comfy_io.Int.Input("seed", min=0, max=0xFFFFFFFF, control_after_generate=True),
+            ],
+            outputs=[comfy_io.Video.Output()],
+            hidden=[
+                comfy_io.Hidden.auth_token_comfy_org,
+                comfy_io.Hidden.api_key_comfy_org,
+                comfy_io.Hidden.unique_id,
+            ],
+            is_api_node=True,
+        )
 
-    DESCRIPTION = "Swap out any object or region of your video with a new image or object. Define areas to replace either with a mask or coordinates."
-    RETURN_TYPES = ("VIDEO",)
-
-    async def api_call(
-        self,
+    @classmethod
+    async def execute(
+        cls,
         video: VideoInput,
         image: torch.Tensor,
         mask: torch.Tensor,
         prompt_text: str,
         negative_prompt: str,
         seed: int,
-        unique_id: str,
-        **kwargs,
-    ) -> tuple[VideoFromFile]:
+    ) -> comfy_io.NodeOutput:
         # Convert video to BytesIO
-        video_bytes_io = io.BytesIO()
+        video_bytes_io = BytesIO()
         video.save_to(video_bytes_io, format=VideoContainer.MP4, codec=VideoCodec.H264)
         video_bytes_io.seek(0)
 
@@ -579,7 +564,7 @@ class PikaSwapsNode(PikaNodeBase):
         mask = mask.repeat(1, 3, 1, 1)
 
         # Convert 3-channel binary mask to BytesIO
-        mask_bytes_io = io.BytesIO()
+        mask_bytes_io = BytesIO()
         mask_bytes_io.write(mask.numpy().astype(np.uint8))
         mask_bytes_io.seek(0)
 
@@ -599,7 +584,10 @@ class PikaSwapsNode(PikaNodeBase):
             negativePrompt=negative_prompt,
             seed=seed,
         )
-
+        auth = {
+            "auth_token": cls.hidden.auth_token_comfy_org,
+            "comfy_api_key": cls.hidden.api_key_comfy_org,
+        }
         initial_operation = SynchronousOperation(
             endpoint=ApiEndpoint(
                 path=PATH_PIKADDITIONS,
@@ -610,71 +598,52 @@ class PikaSwapsNode(PikaNodeBase):
             request=pika_request_data,
             files=pika_files,
             content_type="multipart/form-data",
-            auth_kwargs=kwargs,
+            auth_kwargs=auth,
         )
+        return await execute_task(initial_operation, auth_kwargs=auth, node_id=cls.hidden.unique_id)
 
-        return await self.execute_task(initial_operation, auth_kwargs=kwargs, node_id=unique_id)
 
-
-class PikaffectsNode(PikaNodeBase):
+class PikaffectsNode(comfy_io.ComfyNode):
     """Pika Pikaffects Node."""
 
     @classmethod
-    def INPUT_TYPES(cls):
-        return {
-            "required": {
-                "image": (
-                    IO.IMAGE,
-                    {"tooltip": "The reference image to apply the Pikaffect to."},
+    def define_schema(cls) -> comfy_io.Schema:
+        return comfy_io.Schema(
+            node_id="Pikaffects",
+            display_name="Pikaffects (Video Effects)",
+            description="Generate a video with a specific Pikaffect. Supported Pikaffects: Cake-ify, Crumble, Crush, Decapitate, Deflate, Dissolve, Explode, Eye-pop, Inflate, Levitate, Melt, Peel, Poke, Squish, Ta-da, Tear",
+            category="api node/video/Pika",
+            inputs=[
+                comfy_io.Image.Input("image", tooltip="The reference image to apply the Pikaffect to."),
+                comfy_io.Combo.Input(
+                    "pikaffect", options=Pikaffect, default="Cake-ify"
                 ),
-                "pikaffect": model_field_to_node_input(
-                    IO.COMBO,
-                    PikaBodyGeneratePikaffectsGeneratePikaffectsPost,
-                    "pikaffect",
-                    enum_type=Pikaffect,
-                    default="Cake-ify",
-                ),
-                "prompt_text": model_field_to_node_input(
-                    IO.STRING,
-                    PikaBodyGeneratePikaffectsGeneratePikaffectsPost,
-                    "promptText",
-                    multiline=True,
-                ),
-                "negative_prompt": model_field_to_node_input(
-                    IO.STRING,
-                    PikaBodyGeneratePikaffectsGeneratePikaffectsPost,
-                    "negativePrompt",
-                    multiline=True,
-                ),
-                "seed": model_field_to_node_input(
-                    IO.INT,
-                    PikaBodyGeneratePikaffectsGeneratePikaffectsPost,
-                    "seed",
-                    min=0,
-                    max=0xFFFFFFFF,
-                    control_after_generate=True,
-                ),
-            },
-            "hidden": {
-                "auth_token": "AUTH_TOKEN_COMFY_ORG",
-                "comfy_api_key": "API_KEY_COMFY_ORG",
-                "unique_id": "UNIQUE_ID",
-            },
-        }
+                comfy_io.String.Input("prompt_text", multiline=True),
+                comfy_io.String.Input("negative_prompt", multiline=True),
+                comfy_io.Int.Input("seed", min=0, max=0xFFFFFFFF, control_after_generate=True),
+            ],
+            outputs=[comfy_io.Video.Output()],
+            hidden=[
+                comfy_io.Hidden.auth_token_comfy_org,
+                comfy_io.Hidden.api_key_comfy_org,
+                comfy_io.Hidden.unique_id,
+            ],
+            is_api_node=True,
+        )
 
-    DESCRIPTION = "Generate a video with a specific Pikaffect. Supported Pikaffects: Cake-ify, Crumble, Crush, Decapitate, Deflate, Dissolve, Explode, Eye-pop, Inflate, Levitate, Melt, Peel, Poke, Squish, Ta-da, Tear"
-
-    async def api_call(
-        self,
+    @classmethod
+    async def execute(
+        cls,
         image: torch.Tensor,
         pikaffect: str,
         prompt_text: str,
         negative_prompt: str,
         seed: int,
-        unique_id: str,
-        **kwargs,
-    ) -> tuple[VideoFromFile]:
-
+    ) -> comfy_io.NodeOutput:
+        auth = {
+            "auth_token": cls.hidden.auth_token_comfy_org,
+            "comfy_api_key": cls.hidden.api_key_comfy_org,
+        }
         initial_operation = SynchronousOperation(
             endpoint=ApiEndpoint(
                 path=PATH_PIKAFFECTS,
@@ -690,36 +659,38 @@ class PikaffectsNode(PikaNodeBase):
             ),
             files={"image": ("image.png", tensor_to_bytesio(image), "image/png")},
             content_type="multipart/form-data",
-            auth_kwargs=kwargs,
+            auth_kwargs=auth,
         )
+        return await execute_task(initial_operation, auth_kwargs=auth, node_id=cls.hidden.unique_id)
 
-        return await self.execute_task(initial_operation, auth_kwargs=kwargs, node_id=unique_id)
 
-
-class PikaStartEndFrameNode2_2(PikaNodeBase):
+class PikaStartEndFrameNode2_2(comfy_io.ComfyNode):
     """PikaFrames v2.2 Node."""
 
     @classmethod
-    def INPUT_TYPES(cls):
-        return {
-            "required": {
-                "image_start": (IO.IMAGE, {"tooltip": "The first image to combine."}),
-                "image_end": (IO.IMAGE, {"tooltip": "The last image to combine."}),
-                **cls.get_base_inputs_types(
-                    PikaBodyGenerate22KeyframeGenerate22PikaframesPost
-                ),
-            },
-            "hidden": {
-                "auth_token": "AUTH_TOKEN_COMFY_ORG",
-                "comfy_api_key": "API_KEY_COMFY_ORG",
-                "unique_id": "UNIQUE_ID",
-            },
-        }
+    def define_schema(cls) -> comfy_io.Schema:
+        return comfy_io.Schema(
+            node_id="PikaStartEndFrameNode2_2",
+            display_name="Pika Start and End Frame to Video",
+            description="Generate a video by combining your first and last frame. Upload two images to define the start and end points, and let the AI create a smooth transition between them.",
+            category="api node/video/Pika",
+            inputs=[
+                comfy_io.Image.Input("image_start", tooltip="The first image to combine."),
+                comfy_io.Image.Input("image_end", tooltip="The last image to combine."),
+                *get_base_inputs_types(),
+            ],
+            outputs=[comfy_io.Video.Output()],
+            hidden=[
+                comfy_io.Hidden.auth_token_comfy_org,
+                comfy_io.Hidden.api_key_comfy_org,
+                comfy_io.Hidden.unique_id,
+            ],
+            is_api_node=True,
+        )
 
-    DESCRIPTION = "Generate a video by combining your first and last frame. Upload two images to define the start and end points, and let the AI create a smooth transition between them."
-
-    async def api_call(
-        self,
+    @classmethod
+    async def execute(
+        cls,
         image_start: torch.Tensor,
         image_end: torch.Tensor,
         prompt_text: str,
@@ -727,15 +698,15 @@ class PikaStartEndFrameNode2_2(PikaNodeBase):
         seed: int,
         resolution: str,
         duration: int,
-        unique_id: str,
-        **kwargs,
-    ) -> tuple[VideoFromFile]:
-
+    ) -> comfy_io.NodeOutput:
         pika_files = [
             ("keyFrames", ("image_start.png", tensor_to_bytesio(image_start), "image/png")),
             ("keyFrames", ("image_end.png", tensor_to_bytesio(image_end), "image/png")),
         ]
-
+        auth = {
+            "auth_token": cls.hidden.auth_token_comfy_org,
+            "comfy_api_key": cls.hidden.api_key_comfy_org,
+        }
         initial_operation = SynchronousOperation(
             endpoint=ApiEndpoint(
                 path=PATH_PIKAFRAMES,
@@ -752,28 +723,24 @@ class PikaStartEndFrameNode2_2(PikaNodeBase):
             ),
             files=pika_files,
             content_type="multipart/form-data",
-            auth_kwargs=kwargs,
+            auth_kwargs=auth,
         )
+        return await execute_task(initial_operation, auth_kwargs=auth, node_id=cls.hidden.unique_id)
 
-        return await self.execute_task(initial_operation, auth_kwargs=kwargs, node_id=unique_id)
+
+class PikaApiNodesExtension(ComfyExtension):
+    @override
+    async def get_node_list(self) -> list[type[comfy_io.ComfyNode]]:
+        return [
+            PikaImageToVideoV2_2,
+            PikaTextToVideoNodeV2_2,
+            PikaScenesV2_2,
+            PikAdditionsNode,
+            PikaSwapsNode,
+            PikaffectsNode,
+            PikaStartEndFrameNode2_2,
+        ]
 
 
-NODE_CLASS_MAPPINGS = {
-    "PikaImageToVideoNode2_2": PikaImageToVideoV2_2,
-    "PikaTextToVideoNode2_2": PikaTextToVideoNodeV2_2,
-    "PikaScenesV2_2": PikaScenesV2_2,
-    "Pikadditions": PikAdditionsNode,
-    "Pikaswaps": PikaSwapsNode,
-    "Pikaffects": PikaffectsNode,
-    "PikaStartEndFrameNode2_2": PikaStartEndFrameNode2_2,
-}
-
-NODE_DISPLAY_NAME_MAPPINGS = {
-    "PikaImageToVideoNode2_2": "Pika Image to Video",
-    "PikaTextToVideoNode2_2": "Pika Text to Video",
-    "PikaScenesV2_2": "Pika Scenes (Video Image Composition)",
-    "Pikadditions": "Pikadditions (Video Object Insertion)",
-    "Pikaswaps": "Pika Swaps (Video Object Replacement)",
-    "Pikaffects": "Pikaffects (Video Effects)",
-    "PikaStartEndFrameNode2_2": "Pika Start and End Frame to Video",
-}
+async def comfy_entrypoint() -> PikaApiNodesExtension:
+    return PikaApiNodesExtension()

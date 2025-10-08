@@ -336,11 +336,25 @@ class Combo(ComfyTypeIO):
     class Input(WidgetInput):
         """Combo input (dropdown)."""
         Type = str
-        def __init__(self, id: str, options: list[str]=None, display_name: str=None, optional=False, tooltip: str=None, lazy: bool=None,
-                    default: str=None, control_after_generate: bool=None,
-                    upload: UploadType=None, image_folder: FolderType=None,
-                    remote: RemoteOptions=None,
-                    socketless: bool=None):
+        def __init__(
+            self,
+            id: str,
+            options: list[str] | list[int] | type[Enum] = None,
+            display_name: str=None,
+            optional=False,
+            tooltip: str=None,
+            lazy: bool=None,
+            default: str | int | Enum = None,
+            control_after_generate: bool=None,
+            upload: UploadType=None,
+            image_folder: FolderType=None,
+            remote: RemoteOptions=None,
+            socketless: bool=None,
+        ):
+            if isinstance(options, type) and issubclass(options, Enum):
+                options = [v.value for v in options]
+            if isinstance(default, Enum):
+                default = default.value
             super().__init__(id, display_name, optional, tooltip, lazy, default, socketless)
             self.multiselect = False
             self.options = options
@@ -1605,6 +1619,7 @@ class _IO:
     Model = Model
     ClipVision = ClipVision
     ClipVisionOutput = ClipVisionOutput
+    AudioEncoder = AudioEncoder
     AudioEncoderOutput = AudioEncoderOutput
     StyleModel = StyleModel
     Gligen = Gligen

@@ -2350,6 +2350,7 @@ async def init_builtin_extra_nodes():
         "nodes_gits.py",
         "nodes_controlnet.py",
         "nodes_hunyuan.py",
+        "nodes_eps.py",
         "nodes_flux.py",
         "nodes_lora_extract.py",
         "nodes_torch_compile.py",
@@ -2409,11 +2410,13 @@ async def init_builtin_api_nodes():
         "nodes_stability.py",
         "nodes_pika.py",
         "nodes_runway.py",
+        "nodes_sora.py",
         "nodes_tripo.py",
         "nodes_moonvalley.py",
         "nodes_rodin.py",
         "nodes_gemini.py",
         "nodes_vidu.py",
+        "nodes_wan.py",
     ]
 
     if not await load_custom_node(os.path.join(api_nodes_dir, "canary.py"), module_parent="comfy_api_nodes"):

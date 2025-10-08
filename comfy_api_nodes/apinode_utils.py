@@ -18,7 +18,7 @@ from comfy_api_nodes.apis.client import (
     UploadResponse,
 )
 from server import PromptServer
-
+from comfy.cli_args import args
 
 import numpy as np
 from PIL import Image
@@ -30,7 +30,9 @@ from io import BytesIO
 import av
 
 
-async def download_url_to_video_output(video_url: str, timeout: int = None) -> VideoFromFile:
+async def download_url_to_video_output(
+    video_url: str, timeout: int = None, auth_kwargs: Optional[dict[str, str]] = None
+) -> VideoFromFile:
     """Downloads a video from a URL and returns a `VIDEO` output.
 
     Args:
@@ -39,7 +41,7 @@ async def download_url_to_video_output(video_url: str, timeout: int = None) -> V
     Returns:
         A Comfy node `VIDEO` output.
     """
-    video_io = await download_url_to_bytesio(video_url, timeout)
+    video_io = await download_url_to_bytesio(video_url, timeout, auth_kwargs=auth_kwargs)
     if video_io is None:
         error_msg = f"Failed to download video from {video_url}"
         logging.error(error_msg)
@@ -152,7 +154,7 @@ def validate_aspect_ratio(
             raise TypeError(
                 f"Aspect ratio cannot reduce to any less than {minimum_ratio_str} ({minimum_ratio}), but was {aspect_ratio} ({calculated_ratio})."
             )
-        elif calculated_ratio > maximum_ratio:
+        if calculated_ratio > maximum_ratio:
             raise TypeError(
                 f"Aspect ratio cannot reduce to any greater than {maximum_ratio_str} ({maximum_ratio}), but was {aspect_ratio} ({calculated_ratio})."
             )
@@ -164,7 +166,9 @@ def mimetype_to_extension(mime_type: str) -> str:
     return mime_type.split("/")[-1].lower()
 
 
-async def download_url_to_bytesio(url: str, timeout: int = None) -> BytesIO:
+async def download_url_to_bytesio(
+    url: str, timeout: int = None, auth_kwargs: Optional[dict[str, str]] = None
+) -> BytesIO:
     """Downloads content from a URL using requests and returns it as BytesIO.
 
     Args:
@@ -174,9 +178,18 @@ async def download_url_to_bytesio(url: str, timeout: int = None) -> BytesIO:
     Returns:
         BytesIO object containing the downloaded content.
     """
+    headers = {}
+    if url.startswith("/proxy/"):
+        url = str(args.comfy_api_base).rstrip("/") + url
+        auth_token = auth_kwargs.get("auth_token")
+        comfy_api_key = auth_kwargs.get("comfy_api_key")
+        if auth_token:
+            headers["Authorization"] = f"Bearer {auth_token}"
+        elif comfy_api_key:
+            headers["X-API-KEY"] = comfy_api_key
     timeout_cfg = aiohttp.ClientTimeout(total=timeout) if timeout else None
     async with aiohttp.ClientSession(timeout=timeout_cfg) as session:
-        async with session.get(url) as resp:
+        async with session.get(url, headers=headers) as resp:
             resp.raise_for_status()  # Raises HTTPError for bad responses (4XX or 5XX)
             return BytesIO(await resp.read())
 
