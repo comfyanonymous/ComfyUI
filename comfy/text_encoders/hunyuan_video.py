@@ -21,36 +21,41 @@ def llama_detect(state_dict, prefix=""):
 
 
 class LLAMA3Tokenizer(sd1_clip.SDTokenizer):
-    def __init__(self, embedding_directory=None, tokenizer_data={}, min_length=256):
+    def __init__(self, embedding_directory=None, tokenizer_data={}, min_length=256, pad_token=128258):
         tokenizer_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "llama_tokenizer")
-        super().__init__(tokenizer_path, embedding_directory=embedding_directory, pad_with_end=False, embedding_size=4096, embedding_key='llama', tokenizer_class=LlamaTokenizerFast, has_start_token=True, has_end_token=False, pad_to_max_length=False, max_length=99999999, pad_token=128258, min_length=min_length)
+        super().__init__(tokenizer_path, embedding_directory=embedding_directory, pad_with_end=False, embedding_size=4096, embedding_key='llama', tokenizer_class=LlamaTokenizerFast, has_start_token=True, has_end_token=False, pad_to_max_length=False, max_length=99999999, pad_token=pad_token, min_length=min_length, tokenizer_data=tokenizer_data)
 
 class LLAMAModel(sd1_clip.SDClipModel):
-    def __init__(self, device="cpu", layer="hidden", layer_idx=-3, dtype=None, attention_mask=True, model_options={}):
+    def __init__(self, device="cpu", layer="hidden", layer_idx=-3, dtype=None, attention_mask=True, model_options={}, special_tokens={"start": 128000, "pad": 128258}):
         llama_scaled_fp8 = model_options.get("llama_scaled_fp8", None)
         if llama_scaled_fp8 is not None:
             model_options = model_options.copy()
             model_options["scaled_fp8"] = llama_scaled_fp8
 
-        super().__init__(device=device, layer=layer, layer_idx=layer_idx, textmodel_json_config={}, dtype=dtype, special_tokens={"start": 128000, "pad": 128258}, layer_norm_hidden_state=False, model_class=comfy.text_encoders.llama.Llama2, enable_attention_masks=attention_mask, return_attention_masks=attention_mask, model_options=model_options)
+        textmodel_json_config = {}
+        vocab_size = model_options.get("vocab_size", None)
+        if vocab_size is not None:
+            textmodel_json_config["vocab_size"] = vocab_size
+
+        model_options = {**model_options, "model_name": "llama"}
+        super().__init__(device=device, layer=layer, layer_idx=layer_idx, textmodel_json_config=textmodel_json_config, dtype=dtype, special_tokens=special_tokens, layer_norm_hidden_state=False, model_class=comfy.text_encoders.llama.Llama2, enable_attention_masks=attention_mask, return_attention_masks=attention_mask, model_options=model_options)
 
 
 class HunyuanVideoTokenizer:
     def __init__(self, embedding_directory=None, tokenizer_data={}):
-        clip_l_tokenizer_class = tokenizer_data.get("clip_l_tokenizer_class", sd1_clip.SDTokenizer)
-        self.clip_l = clip_l_tokenizer_class(embedding_directory=embedding_directory)
+        self.clip_l = sd1_clip.SDTokenizer(embedding_directory=embedding_directory, tokenizer_data=tokenizer_data)
         self.llama_template = """<|start_header_id|>system<|end_header_id|>\n\nDescribe the video by detailing the following aspects: 1. The main content and theme of the video.2. The color, shape, size, texture, quantity, text, and spatial relationships of the objects.3. Actions, events, behaviors temporal relationships, physical movement changes of the objects.4. background environment, light, style and atmosphere.5. camera angles, movements, and transitions used in the video:<|eot_id|><|start_header_id|>user<|end_header_id|>\n\n{}<|eot_id|>"""  # 95 tokens
-        self.llama = LLAMA3Tokenizer(embedding_directory=embedding_directory, min_length=1)
+        self.llama = LLAMA3Tokenizer(embedding_directory=embedding_directory, min_length=1, tokenizer_data=tokenizer_data)
 
     def tokenize_with_weights(self, text, return_word_ids=False, llama_template=None, image_embeds=None, image_interleave=1, **kwargs):
         out = {}
-        out["l"] = self.clip_l.tokenize_with_weights(text, return_word_ids)
+        out["l"] = self.clip_l.tokenize_with_weights(text, return_word_ids, **kwargs)
 
         if llama_template is None:
             llama_text = self.llama_template.format(text)
         else:
             llama_text = llama_template.format(text)
-        llama_text_tokens = self.llama.tokenize_with_weights(llama_text, return_word_ids)
+        llama_text_tokens = self.llama.tokenize_with_weights(llama_text, return_word_ids, **kwargs)
         embed_count = 0
         for r in llama_text_tokens:
             for i in range(len(r)):
@@ -72,8 +77,7 @@ class HunyuanVideoClipModel(torch.nn.Module):
     def __init__(self, dtype_llama=None, device="cpu", dtype=None, model_options={}):
         super().__init__()
         dtype_llama = comfy.model_management.pick_weight_dtype(dtype_llama, dtype, device)
-        clip_l_class = model_options.get("clip_l_class", sd1_clip.SDClipModel)
-        self.clip_l = clip_l_class(device=device, dtype=dtype, return_projected_pooled=False, model_options=model_options)
+        self.clip_l = sd1_clip.SDClipModel(device=device, dtype=dtype, return_projected_pooled=False, model_options=model_options)
         self.llama = LLAMAModel(device=device, dtype=dtype_llama, model_options=model_options)
         self.dtypes = set([dtype, dtype_llama])
 

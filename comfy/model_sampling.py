@@ -69,6 +69,34 @@ class CONST:
         sigma = sigma.view(sigma.shape[:1] + (1,) * (latent.ndim - 1))
         return latent / (1.0 - sigma)
 
+class X0(EPS):
+    def calculate_denoised(self, sigma, model_output, model_input):
+        return model_output
+
+class IMG_TO_IMG(X0):
+    def calculate_input(self, sigma, noise):
+        return noise
+
+class COSMOS_RFLOW:
+    def calculate_input(self, sigma, noise):
+        sigma = (sigma / (sigma + 1))
+        sigma = sigma.view(sigma.shape[:1] + (1,) * (noise.ndim - 1))
+        return noise * (1.0 - sigma)
+
+    def calculate_denoised(self, sigma, model_output, model_input):
+        sigma = (sigma / (sigma + 1))
+        sigma = sigma.view(sigma.shape[:1] + (1,) * (model_output.ndim - 1))
+        return model_input * (1.0 - sigma) - model_output * sigma
+
+    def noise_scaling(self, sigma, noise, latent_image, max_denoise=False):
+        sigma = sigma.view(sigma.shape[:1] + (1,) * (noise.ndim - 1))
+        noise = noise * sigma
+        noise += latent_image
+        return noise
+
+    def inverse_noise_scaling(self, sigma, latent):
+        return latent
+
 class ModelSamplingDiscrete(torch.nn.Module):
     def __init__(self, model_config=None, zsnr=None):
         super().__init__()
@@ -102,13 +130,14 @@ class ModelSamplingDiscrete(torch.nn.Module):
         self.num_timesteps = int(timesteps)
         self.linear_start = linear_start
         self.linear_end = linear_end
+        self.zsnr = zsnr
 
         # self.register_buffer('betas', torch.tensor(betas, dtype=torch.float32))
         # self.register_buffer('alphas_cumprod', torch.tensor(alphas_cumprod, dtype=torch.float32))
         # self.register_buffer('alphas_cumprod_prev', torch.tensor(alphas_cumprod_prev, dtype=torch.float32))
 
         sigmas = ((1 - alphas_cumprod) / alphas_cumprod) ** 0.5
-        if zsnr:
+        if self.zsnr:
             sigmas = rescale_zero_terminal_snr_sigmas(sigmas)
 
         self.set_sigmas(sigmas)
@@ -340,3 +369,15 @@ class ModelSamplingFlux(torch.nn.Module):
         if percent >= 1.0:
             return 0.0
         return flux_time_shift(self.shift, 1.0, 1.0 - percent)
+
+
+class ModelSamplingCosmosRFlow(ModelSamplingContinuousEDM):
+    def timestep(self, sigma):
+        return sigma / (sigma + 1)
+
+    def sigma(self, timestep):
+        sigma_max = self.sigma_max
+        if timestep >= (sigma_max / (sigma_max + 1)):
+            return sigma_max
+
+        return timestep / (1 - timestep)

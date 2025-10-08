@@ -48,7 +48,9 @@ def get_all_callbacks(call_type: str, transformer_options: dict, is_model_option
 
 class WrappersMP:
     OUTER_SAMPLE = "outer_sample"
+    PREPARE_SAMPLING = "prepare_sampling"
     SAMPLER_SAMPLE = "sampler_sample"
+    PREDICT_NOISE = "predict_noise"
     CALC_COND_BATCH = "calc_cond_batch"
     APPLY_MODEL = "apply_model"
     DIFFUSION_MODEL = "diffusion_model"

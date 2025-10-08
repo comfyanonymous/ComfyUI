@@ -9,19 +9,18 @@ import os
 class T5XXLTokenizer(sd1_clip.SDTokenizer):
     def __init__(self, embedding_directory=None, tokenizer_data={}):
         tokenizer_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "t5_tokenizer")
-        super().__init__(tokenizer_path, embedding_directory=embedding_directory, pad_with_end=False, embedding_size=4096, embedding_key='t5xxl', tokenizer_class=T5TokenizerFast, has_start_token=False, pad_to_max_length=False, max_length=99999999, min_length=256)
+        super().__init__(tokenizer_path, embedding_directory=embedding_directory, pad_with_end=False, embedding_size=4096, embedding_key='t5xxl', tokenizer_class=T5TokenizerFast, has_start_token=False, pad_to_max_length=False, max_length=99999999, min_length=256, tokenizer_data=tokenizer_data)
 
 
 class FluxTokenizer:
     def __init__(self, embedding_directory=None, tokenizer_data={}):
-        clip_l_tokenizer_class = tokenizer_data.get("clip_l_tokenizer_class", sd1_clip.SDTokenizer)
-        self.clip_l = clip_l_tokenizer_class(embedding_directory=embedding_directory)
-        self.t5xxl = T5XXLTokenizer(embedding_directory=embedding_directory)
+        self.clip_l = sd1_clip.SDTokenizer(embedding_directory=embedding_directory, tokenizer_data=tokenizer_data)
+        self.t5xxl = T5XXLTokenizer(embedding_directory=embedding_directory, tokenizer_data=tokenizer_data)
 
     def tokenize_with_weights(self, text:str, return_word_ids=False, **kwargs):
         out = {}
-        out["l"] = self.clip_l.tokenize_with_weights(text, return_word_ids)
-        out["t5xxl"] = self.t5xxl.tokenize_with_weights(text, return_word_ids)
+        out["l"] = self.clip_l.tokenize_with_weights(text, return_word_ids, **kwargs)
+        out["t5xxl"] = self.t5xxl.tokenize_with_weights(text, return_word_ids, **kwargs)
         return out
 
     def untokenize(self, token_weight_pair):
@@ -35,8 +34,7 @@ class FluxClipModel(torch.nn.Module):
     def __init__(self, dtype_t5=None, device="cpu", dtype=None, model_options={}):
         super().__init__()
         dtype_t5 = comfy.model_management.pick_weight_dtype(dtype_t5, dtype, device)
-        clip_l_class = model_options.get("clip_l_class", sd1_clip.SDClipModel)
-        self.clip_l = clip_l_class(device=device, dtype=dtype, return_projected_pooled=False, model_options=model_options)
+        self.clip_l = sd1_clip.SDClipModel(device=device, dtype=dtype, return_projected_pooled=False, model_options=model_options)
         self.t5xxl = comfy.text_encoders.sd3_clip.T5XXLModel(device=device, dtype=dtype_t5, model_options=model_options)
         self.dtypes = set([dtype, dtype_t5])
 
