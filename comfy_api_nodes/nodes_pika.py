@@ -590,9 +590,9 @@ class PikaSwapsNode(comfy_io.ComfyNode):
         }
         initial_operation = SynchronousOperation(
             endpoint=ApiEndpoint(
-                path=PATH_PIKADDITIONS,
+                path=PATH_PIKASWAPS,
                 method=HttpMethod.POST,
-                request_model=PikaBodyGeneratePikadditionsGeneratePikadditionsPost,
+                request_model=PikaBodyGeneratePikaswapsGeneratePikaswapsPost,
                 response_model=PikaGenerateResponse,
             ),
             request=pika_request_data,
