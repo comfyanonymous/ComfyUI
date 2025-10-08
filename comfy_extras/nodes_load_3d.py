@@ -31,20 +31,13 @@ class Load3D():
             if file_path.suffix.lower() in {'.gltf', '.glb', '.obj', '.fbx', '.stl'}
         ]
 
-        return {
-            "required": {
-                "model_file": (sorted(files), {"file_upload": True}),
-                "image": ("LOAD_3D", {}),
-                "width": ("INT", {"default": 1024, "min": 1, "max": 4096, "step": 1}),
-                "height": ("INT", {"default": 1024, "min": 1, "max": 4096, "step": 1}),
-            },
-            "optional": {
-                "camera_info": ("LOAD3D_CAMERA", {}),
-                "bg_image": ("IMAGE", {})
-            }
-        }
+        return {"required": {
+            "model_file": (sorted(files), {"file_upload": True}),
+            "image": ("LOAD_3D", {}),
+            "width": ("INT", {"default": 1024, "min": 1, "max": 4096, "step": 1}),
+            "height": ("INT", {"default": 1024, "min": 1, "max": 4096, "step": 1}),
+        }}
 
-    OUTPUT_NODE = True
     RETURN_TYPES = ("IMAGE", "MASK", "STRING", "IMAGE", "LOAD3D_CAMERA", IO.VIDEO)
     RETURN_NAMES = ("image", "mask", "mesh_path", "normal", "camera_info", "recording_video")
 
@@ -70,31 +63,7 @@ class Load3D():
 
             video = VideoFromFile(recording_video_path)
 
-        camera_info = kwargs.get("camera_info", None)
-        bg_image = kwargs.get("bg_image", None)
-
-        bg_image_path = None
-        if bg_image is not None:
-            img_array = (bg_image[0].cpu().numpy() * 255).astype(np.uint8)
-            img = Image.fromarray(img_array)
-
-            temp_dir = folder_paths.get_temp_directory()
-            filename = f"bg_{uuid.uuid4().hex}.png"
-            bg_image_path = os.path.join(temp_dir, filename)
-            img.save(bg_image_path, compress_level=1)
-
-            bg_image_path = f"temp/{filename}"
-
-        ui_data = {
-            "model_file": [model_file],
-            "camera_info": [camera_info] if camera_info else [],
-            "bg_image_path": [bg_image_path] if bg_image_path else []
-        }
-
-        return {
-            "ui": ui_data,
-            "result": (output_image, output_mask, model_file, normal_image, image['camera_info'], video)
-        }
+        return output_image, output_mask, model_file, normal_image, image['camera_info'], video
 
 class Preview3D():
     @classmethod
