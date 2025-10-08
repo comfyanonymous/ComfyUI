@@ -22,3 +22,41 @@ kornia>=0.7.1
 spandrel
 soundfile
 av
+
+# gguf
+gguf>=0.13.0
+# optional - tokenizer
+sentencepiece
+protobuf
+
+# gguf-node
+gguf-node
+
+# comfuui-manager
+GitPython
+PyGithub
+matrix-client==0.4.0
+transformers
+huggingface-hub>0.20
+typer
+rich
+typing-extensions
+toml
+uv
+chardet
+comfy-cli
+
+# pip
+pip
+opencv-python
+imageio-ffmpeg
+
+diffusers
+accelerate
+clip_interrogator>=0.6.0
+lark
+onnxruntime
+sentencepiece
+#spandrel
+matplotlib
+peft
