@@ -586,7 +586,7 @@ class MoonvalleyVideo2VideoNode(comfy_io.ComfyNode):
                     step=1,
                     display_mode=comfy_io.NumberDisplay.number,
                     tooltip="Random seed value",
-                    control_after_generate=True,
+                    control_after_generate=False,
                 ),
                 comfy_io.Video.Input(
                     "video",
