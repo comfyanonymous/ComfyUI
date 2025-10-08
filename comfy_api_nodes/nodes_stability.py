@@ -82,8 +82,8 @@ class StabilityStableImageUltraNode(comfy_io.ComfyNode):
                 ),
                 comfy_io.Combo.Input(
                     "aspect_ratio",
-                    options=[x.value for x in StabilityAspectRatio],
-                    default=StabilityAspectRatio.ratio_1_1.value,
+                    options=StabilityAspectRatio,
+                    default=StabilityAspectRatio.ratio_1_1,
                     tooltip="Aspect ratio of generated image.",
                 ),
                 comfy_io.Combo.Input(
@@ -217,12 +217,12 @@ class StabilityStableImageSD_3_5Node(comfy_io.ComfyNode):
                 ),
                 comfy_io.Combo.Input(
                     "model",
-                    options=[x.value for x in Stability_SD3_5_Model],
+                    options=Stability_SD3_5_Model,
                 ),
                 comfy_io.Combo.Input(
                     "aspect_ratio",
-                    options=[x.value for x in StabilityAspectRatio],
-                    default=StabilityAspectRatio.ratio_1_1.value,
+                    options=StabilityAspectRatio,
+                    default=StabilityAspectRatio.ratio_1_1,
                     tooltip="Aspect ratio of generated image.",
                 ),
                 comfy_io.Combo.Input(

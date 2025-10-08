@@ -173,8 +173,8 @@ class ViduTextToVideoNode(comfy_io.ComfyNode):
             inputs=[
                 comfy_io.Combo.Input(
                     "model",
-                    options=[model.value for model in VideoModelName],
-                    default=VideoModelName.vidu_q1.value,
+                    options=VideoModelName,
+                    default=VideoModelName.vidu_q1,
                     tooltip="Model name",
                 ),
                 comfy_io.String.Input(
@@ -205,22 +205,22 @@ class ViduTextToVideoNode(comfy_io.ComfyNode):
                 ),
                 comfy_io.Combo.Input(
                     "aspect_ratio",
-                    options=[model.value for model in AspectRatio],
-                    default=AspectRatio.r_16_9.value,
+                    options=AspectRatio,
+                    default=AspectRatio.r_16_9,
                     tooltip="The aspect ratio of the output video",
                     optional=True,
                 ),
                 comfy_io.Combo.Input(
                     "resolution",
-                    options=[model.value for model in Resolution],
-                    default=Resolution.r_1080p.value,
+                    options=Resolution,
+                    default=Resolution.r_1080p,
                     tooltip="Supported values may vary by model & duration",
                     optional=True,
                 ),
                 comfy_io.Combo.Input(
                     "movement_amplitude",
-                    options=[model.value for model in MovementAmplitude],
-                    default=MovementAmplitude.auto.value,
+                    options=MovementAmplitude,
+                    default=MovementAmplitude.auto,
                     tooltip="The movement amplitude of objects in the frame",
                     optional=True,
                 ),
@@ -278,8 +278,8 @@ class ViduImageToVideoNode(comfy_io.ComfyNode):
             inputs=[
                 comfy_io.Combo.Input(
                     "model",
-                    options=[model.value for model in VideoModelName],
-                    default=VideoModelName.vidu_q1.value,
+                    options=VideoModelName,
+                    default=VideoModelName.vidu_q1,
                     tooltip="Model name",
                 ),
                 comfy_io.Image.Input(
@@ -316,14 +316,14 @@ class ViduImageToVideoNode(comfy_io.ComfyNode):
                 ),
                 comfy_io.Combo.Input(
                     "resolution",
-                    options=[model.value for model in Resolution],
-                    default=Resolution.r_1080p.value,
+                    options=Resolution,
+                    default=Resolution.r_1080p,
                     tooltip="Supported values may vary by model & duration",
                     optional=True,
                 ),
                 comfy_io.Combo.Input(
                     "movement_amplitude",
-                    options=[model.value for model in MovementAmplitude],
+                    options=MovementAmplitude,
                     default=MovementAmplitude.auto.value,
                     tooltip="The movement amplitude of objects in the frame",
                     optional=True,
@@ -388,8 +388,8 @@ class ViduReferenceVideoNode(comfy_io.ComfyNode):
             inputs=[
                 comfy_io.Combo.Input(
                     "model",
-                    options=[model.value for model in VideoModelName],
-                    default=VideoModelName.vidu_q1.value,
+                    options=VideoModelName,
+                    default=VideoModelName.vidu_q1,
                     tooltip="Model name",
                 ),
                 comfy_io.Image.Input(
@@ -424,8 +424,8 @@ class ViduReferenceVideoNode(comfy_io.ComfyNode):
                 ),
                 comfy_io.Combo.Input(
                     "aspect_ratio",
-                    options=[model.value for model in AspectRatio],
-                    default=AspectRatio.r_16_9.value,
+                    options=AspectRatio,
+                    default=AspectRatio.r_16_9,
                     tooltip="The aspect ratio of the output video",
                     optional=True,
                 ),
