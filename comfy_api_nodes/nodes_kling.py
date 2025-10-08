@@ -647,7 +647,7 @@ class KlingCameraControls(comfy_io.ComfyNode):
             category="api node/video/Kling",
             description="Allows specifying configuration options for Kling Camera Controls and motion control effects.",
             inputs=[
-                comfy_io.Combo.Input("camera_control_type", options=[i.value for i in KlingCameraControlType]),
+                comfy_io.Combo.Input("camera_control_type", options=KlingCameraControlType),
                 comfy_io.Float.Input(
                     "horizontal_movement",
                     default=0.0,
@@ -772,7 +772,7 @@ class KlingTextToVideoNode(comfy_io.ComfyNode):
                 comfy_io.Float.Input("cfg_scale", default=1.0, min=0.0, max=1.0),
                 comfy_io.Combo.Input(
                     "aspect_ratio",
-                    options=[i.value for i in KlingVideoGenAspectRatio],
+                    options=KlingVideoGenAspectRatio,
                     default="16:9",
                 ),
                 comfy_io.Combo.Input(
@@ -840,7 +840,7 @@ class KlingCameraControlT2VNode(comfy_io.ComfyNode):
                 comfy_io.Float.Input("cfg_scale", default=0.75, min=0.0, max=1.0),
                 comfy_io.Combo.Input(
                     "aspect_ratio",
-                    options=[i.value for i in KlingVideoGenAspectRatio],
+                    options=KlingVideoGenAspectRatio,
                     default="16:9",
                 ),
                 comfy_io.Custom("CAMERA_CONTROL").Input(
@@ -903,17 +903,17 @@ class KlingImage2VideoNode(comfy_io.ComfyNode):
                 comfy_io.String.Input("negative_prompt", multiline=True, tooltip="Negative text prompt"),
                 comfy_io.Combo.Input(
                     "model_name",
-                    options=[i.value for i in KlingVideoGenModelName],
+                    options=KlingVideoGenModelName,
                     default="kling-v2-master",
                 ),
                 comfy_io.Float.Input("cfg_scale", default=0.8, min=0.0, max=1.0),
-                comfy_io.Combo.Input("mode", options=[i.value for i in KlingVideoGenMode], default="std"),
+                comfy_io.Combo.Input("mode", options=KlingVideoGenMode, default=KlingVideoGenMode.std),
                 comfy_io.Combo.Input(
                     "aspect_ratio",
-                    options=[i.value for i in KlingVideoGenAspectRatio],
-                    default="16:9",
+                    options=KlingVideoGenAspectRatio,
+                    default=KlingVideoGenAspectRatio.field_16_9,
                 ),
-                comfy_io.Combo.Input("duration", options=[i.value for i in KlingVideoGenDuration], default="5"),
+                comfy_io.Combo.Input("duration", options=KlingVideoGenDuration, default=KlingVideoGenDuration.field_5),
             ],
             outputs=[
                 comfy_io.Video.Output(),
@@ -984,8 +984,8 @@ class KlingCameraControlI2VNode(comfy_io.ComfyNode):
                 comfy_io.Float.Input("cfg_scale", default=0.75, min=0.0, max=1.0),
                 comfy_io.Combo.Input(
                     "aspect_ratio",
-                    options=[i.value for i in KlingVideoGenAspectRatio],
-                    default="16:9",
+                    options=KlingVideoGenAspectRatio,
+                    default=KlingVideoGenAspectRatio.field_16_9,
                 ),
                 comfy_io.Custom("CAMERA_CONTROL").Input(
                     "camera_control",

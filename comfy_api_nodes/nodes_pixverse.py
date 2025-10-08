@@ -85,7 +85,7 @@ class PixverseTemplateNode(comfy_io.ComfyNode):
             display_name="PixVerse Template",
             category="api node/video/PixVerse",
             inputs=[
-                comfy_io.Combo.Input("template", options=[list(pixverse_templates.keys())]),
+                comfy_io.Combo.Input("template", options=list(pixverse_templates.keys())),
             ],
             outputs=[comfy_io.Custom(PixverseIO.TEMPLATE).Output(display_name="pixverse_template")],
         )
@@ -120,20 +120,20 @@ class PixverseTextToVideoNode(comfy_io.ComfyNode):
                 ),
                 comfy_io.Combo.Input(
                     "aspect_ratio",
-                    options=[ratio.value for ratio in PixverseAspectRatio],
+                    options=PixverseAspectRatio,
                 ),
                 comfy_io.Combo.Input(
                     "quality",
-                    options=[resolution.value for resolution in PixverseQuality],
+                    options=PixverseQuality,
                     default=PixverseQuality.res_540p,
                 ),
                 comfy_io.Combo.Input(
                     "duration_seconds",
-                    options=[dur.value for dur in PixverseDuration],
+                    options=PixverseDuration,
                 ),
                 comfy_io.Combo.Input(
                     "motion_mode",
-                    options=[mode.value for mode in PixverseMotionMode],
+                    options=PixverseMotionMode,
                 ),
                 comfy_io.Int.Input(
                     "seed",
@@ -262,16 +262,16 @@ class PixverseImageToVideoNode(comfy_io.ComfyNode):
                 ),
                 comfy_io.Combo.Input(
                     "quality",
-                    options=[resolution.value for resolution in PixverseQuality],
+                    options=PixverseQuality,
                     default=PixverseQuality.res_540p,
                 ),
                 comfy_io.Combo.Input(
                     "duration_seconds",
-                    options=[dur.value for dur in PixverseDuration],
+                    options=PixverseDuration,
                 ),
                 comfy_io.Combo.Input(
                     "motion_mode",
-                    options=[mode.value for mode in PixverseMotionMode],
+                    options=PixverseMotionMode,
                 ),
                 comfy_io.Int.Input(
                     "seed",
@@ -403,16 +403,16 @@ class PixverseTransitionVideoNode(comfy_io.ComfyNode):
                 ),
                 comfy_io.Combo.Input(
                     "quality",
-                    options=[resolution.value for resolution in PixverseQuality],
+                    options=PixverseQuality,
                     default=PixverseQuality.res_540p,
                 ),
                 comfy_io.Combo.Input(
                     "duration_seconds",
-                    options=[dur.value for dur in PixverseDuration],
+                    options=PixverseDuration,
                 ),
                 comfy_io.Combo.Input(
                     "motion_mode",
-                    options=[mode.value for mode in PixverseMotionMode],
+                    options=PixverseMotionMode,
                 ),
                 comfy_io.Int.Input(
                     "seed",
