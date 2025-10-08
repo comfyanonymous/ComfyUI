@@ -469,7 +469,7 @@ class MoonvalleyImg2VideoNode(comfy_io.ComfyNode):
                     step=1,
                     display_mode=comfy_io.NumberDisplay.number,
                     tooltip="Random seed value",
-                    control_after_generate=False,
+                    control_after_generate=True,
                 ),
                 comfy_io.Int.Input(
                     "steps",
@@ -586,7 +586,7 @@ class MoonvalleyVideo2VideoNode(comfy_io.ComfyNode):
                     step=1,
                     display_mode=comfy_io.NumberDisplay.number,
                     tooltip="Random seed value",
-                    control_after_generate=False,
+                    control_after_generate=True,
                 ),
                 comfy_io.Video.Input(
                     "video",
@@ -747,7 +747,7 @@ class MoonvalleyTxt2VideoNode(comfy_io.ComfyNode):
                     max=4294967295,
                     step=1,
                     display_mode=comfy_io.NumberDisplay.number,
-                    control_after_generate=False,
+                    control_after_generate=True,
                     tooltip="Random seed value",
                 ),
                 comfy_io.Int.Input(
