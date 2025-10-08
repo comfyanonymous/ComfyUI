@@ -455,7 +455,7 @@ class MoonvalleyImg2VideoNode(comfy_io.ComfyNode):
                 ),
                 comfy_io.Float.Input(
                     "prompt_adherence",
-                    default=10.0,
+                    default=4.5,
                     min=1.0,
                     max=20.0,
                     step=1.0,
@@ -473,7 +473,7 @@ class MoonvalleyImg2VideoNode(comfy_io.ComfyNode):
                 ),
                 comfy_io.Int.Input(
                     "steps",
-                    default=100,
+                    default=33,
                     min=1,
                     max=100,
                     step=1,
@@ -610,7 +610,7 @@ class MoonvalleyVideo2VideoNode(comfy_io.ComfyNode):
                 ),
                 comfy_io.Int.Input(
                     "steps",
-                    default=100,
+                    default=33,
                     min=1,
                     max=100,
                     step=1,
@@ -733,7 +733,7 @@ class MoonvalleyTxt2VideoNode(comfy_io.ComfyNode):
                 ),
                 comfy_io.Float.Input(
                     "prompt_adherence",
-                    default=10.0,
+                    default=4.0,
                     min=1.0,
                     max=20.0,
                     step=1.0,
@@ -751,7 +751,7 @@ class MoonvalleyTxt2VideoNode(comfy_io.ComfyNode):
                 ),
                 comfy_io.Int.Input(
                     "steps",
-                    default=100,
+                    default=33,
                     min=1,
                     max=100,
                     step=1,
