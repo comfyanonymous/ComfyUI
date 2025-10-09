@@ -98,7 +98,7 @@ import io
 import os
 import socket
 from aiohttp.client_exceptions import ClientError, ClientResponseError
-from typing import Dict, Type, Optional, Any, TypeVar, Generic, Callable, Tuple
+from typing import Type, Optional, Any, TypeVar, Generic, Callable
 from enum import Enum
 import json
 from urllib.parse import urljoin, urlparse
@@ -175,7 +175,7 @@ class ApiClient:
         max_retries: int = 3,
         retry_delay: float = 1.0,
         retry_backoff_factor: float = 2.0,
-        retry_status_codes: Optional[Tuple[int, ...]] = None,
+        retry_status_codes: Optional[tuple[int, ...]] = None,
         session: Optional[aiohttp.ClientSession] = None,
     ):
         self.base_url = base_url
@@ -199,9 +199,9 @@ class ApiClient:
 
     @staticmethod
     def _create_json_payload_args(
-        data: Optional[Dict[str, Any]] = None,
-        headers: Optional[Dict[str, str]] = None,
-    ) -> Dict[str, Any]:
+        data: Optional[dict[str, Any]] = None,
+        headers: Optional[dict[str, str]] = None,
+    ) -> dict[str, Any]:
         return {
             "json": data,
             "headers": headers,
@@ -209,11 +209,11 @@ class ApiClient:
 
     def _create_form_data_args(
         self,
-        data: Dict[str, Any] | None,
-        files: Dict[str, Any] | None,
-        headers: Optional[Dict[str, str]] = None,
+        data: dict[str, Any] | None,
+        files: dict[str, Any] | None,
+        headers: Optional[dict[str, str]] = None,
         multipart_parser: Callable | None = None,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         if headers and "Content-Type" in headers:
             del headers["Content-Type"]
 
@@ -254,9 +254,9 @@ class ApiClient:
 
     @staticmethod
     def _create_urlencoded_form_data_args(
-        data: Dict[str, Any],
-        headers: Optional[Dict[str, str]] = None,
-    ) -> Dict[str, Any]:
+        data: dict[str, Any],
+        headers: Optional[dict[str, str]] = None,
+    ) -> dict[str, Any]:
         headers = headers or {}
         headers["Content-Type"] = "application/x-www-form-urlencoded"
         return {
@@ -264,7 +264,7 @@ class ApiClient:
             "headers": headers,
         }
 
-    def get_headers(self) -> Dict[str, str]:
+    def get_headers(self) -> dict[str, str]:
         """Get headers for API requests, including authentication if available"""
         headers = {"Content-Type": "application/json", "Accept": "application/json"}
 
@@ -275,7 +275,7 @@ class ApiClient:
 
         return headers
 
-    async def _check_connectivity(self, target_url: str) -> Dict[str, bool]:
+    async def _check_connectivity(self, target_url: str) -> dict[str, bool]:
         """
         Check connectivity to determine if network issues are local or server-related.
 
@@ -316,14 +316,14 @@ class ApiClient:
         self,
         method: str,
         path: str,
-        params: Optional[Dict[str, Any]] = None,
-        data: Optional[Dict[str, Any]] = None,
-        files: Optional[Dict[str, Any] | list[tuple[str, Any]]] = None,
-        headers: Optional[Dict[str, str]] = None,
+        params: Optional[dict[str, Any]] = None,
+        data: Optional[dict[str, Any]] = None,
+        files: Optional[dict[str, Any] | list[tuple[str, Any]]] = None,
+        headers: Optional[dict[str, str]] = None,
         content_type: str = "application/json",
         multipart_parser: Callable | None = None,
         retry_count: int = 0,  # Used internally for tracking retries
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Make an HTTP request to the API with automatic retries for transient errors.
 
@@ -485,7 +485,7 @@ class ApiClient:
             retry_delay: Initial delay between retries in seconds
             retry_backoff_factor: Multiplier for the delay after each retry
         """
-        headers: Dict[str, str] = {}
+        headers: dict[str, str] = {}
         skip_auto_headers: set[str] = set()
         if content_type:
             headers["Content-Type"] = content_type
@@ -558,7 +558,7 @@ class ApiClient:
         *req_meta,
         retry_count: int,
         response_content: dict | str = "",
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         status_code = exc.status
         if status_code == 401:
             user_friendly = "Unauthorized: Please login first to use this node."
@@ -659,7 +659,7 @@ class ApiEndpoint(Generic[T, R]):
         method: HttpMethod,
         request_model: Type[T],
         response_model: Type[R],
-        query_params: Optional[Dict[str, Any]] = None,
+        query_params: Optional[dict[str, Any]] = None,
     ):
         """Initialize an API endpoint definition.
 
@@ -684,11 +684,11 @@ class SynchronousOperation(Generic[T, R]):
         self,
         endpoint: ApiEndpoint[T, R],
         request: T,
-        files: Optional[Dict[str, Any] | list[tuple[str, Any]]] = None,
+        files: Optional[dict[str, Any] | list[tuple[str, Any]]] = None,
         api_base: str | None = None,
         auth_token: Optional[str] = None,
         comfy_api_key: Optional[str] = None,
-        auth_kwargs: Optional[Dict[str, str]] = None,
+        auth_kwargs: Optional[dict[str, str]] = None,
         timeout: float = 7200.0,
         verify_ssl: bool = True,
         content_type: str = "application/json",
@@ -729,7 +729,7 @@ class SynchronousOperation(Generic[T, R]):
             )
 
         try:
-            request_dict: Optional[Dict[str, Any]]
+            request_dict: Optional[dict[str, Any]]
             if isinstance(self.request, EmptyRequest):
                 request_dict = None
             else:
@@ -782,14 +782,14 @@ class PollingOperation(Generic[T, R]):
         poll_endpoint: ApiEndpoint[EmptyRequest, R],
         completed_statuses: list[str],
         failed_statuses: list[str],
-        status_extractor: Callable[[R], str],
-        progress_extractor: Callable[[R], float] | None = None,
-        result_url_extractor: Callable[[R], str] | None = None,
+        status_extractor: Callable[[R], Optional[str]],
+        progress_extractor: Callable[[R], Optional[float]] | None = None,
+        result_url_extractor: Callable[[R], Optional[str]] | None = None,
         request: Optional[T] = None,
         api_base: str | None = None,
         auth_token: Optional[str] = None,
         comfy_api_key: Optional[str] = None,
-        auth_kwargs: Optional[Dict[str, str]] = None,
+        auth_kwargs: Optional[dict[str, str]] = None,
         poll_interval: float = 5.0,
         max_poll_attempts: int = 120,  # Default max polling attempts (10 minutes with 5s interval)
         max_retries: int = 3,  # Max retries per individual API call
