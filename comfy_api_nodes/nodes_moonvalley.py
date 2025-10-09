@@ -237,7 +237,7 @@ def trim_video(video: VideoInput, duration_sec: float) -> VideoInput:
         audio_stream = None
 
         for stream in input_container.streams:
-            logging.info(f"Found stream: type={stream.type}, class={type(stream)}")
+            logging.info("Found stream: type=%s, class=%s", stream.type, type(stream))
             if isinstance(stream, av.VideoStream):
                 # Create output video stream with same parameters
                 video_stream = output_container.add_stream(
@@ -247,7 +247,7 @@ def trim_video(video: VideoInput, duration_sec: float) -> VideoInput:
                 video_stream.height = stream.height
                 video_stream.pix_fmt = "yuv420p"
                 logging.info(
-                    f"Added video stream: {stream.width}x{stream.height} @ {stream.average_rate}fps"
+                    "Added video stream: %sx%s @ %sfps", stream.width, stream.height, stream.average_rate
                 )
             elif isinstance(stream, av.AudioStream):
                 # Create output audio stream with same parameters
@@ -256,9 +256,7 @@ def trim_video(video: VideoInput, duration_sec: float) -> VideoInput:
                 )
                 audio_stream.sample_rate = stream.sample_rate
                 audio_stream.layout = stream.layout
-                logging.info(
-                    f"Added audio stream: {stream.sample_rate}Hz, {stream.channels} channels"
-                )
+                logging.info("Added audio stream: %sHz, %s channels", stream.sample_rate, stream.channels)
 
         # Calculate target frame count that's divisible by 16
         fps = input_container.streams.video[0].average_rate
@@ -288,9 +286,7 @@ def trim_video(video: VideoInput, duration_sec: float) -> VideoInput:
             for packet in video_stream.encode():
                 output_container.mux(packet)
 
-            logging.info(
-                f"Encoded {frame_count} video frames (target: {target_frames})"
-            )
+            logging.info("Encoded %s video frames (target: %s)", frame_count, target_frames)
 
         # Decode and re-encode audio frames
         if audio_stream:
@@ -308,7 +304,7 @@ def trim_video(video: VideoInput, duration_sec: float) -> VideoInput:
             for packet in audio_stream.encode():
                 output_container.mux(packet)
 
-            logging.info(f"Encoded {audio_frame_count} audio frames")
+            logging.info("Encoded %s audio frames", audio_frame_count)
 
         # Close containers
         output_container.close()
@@ -335,7 +331,7 @@ def parse_width_height_from_res(resolution: str):
         "1:1 (1152 x 1152)": {"width": 1152, "height": 1152},
         "4:3 (1536 x 1152)": {"width": 1536, "height": 1152},
         "3:4 (1152 x 1536)": {"width": 1152, "height": 1536},
-        "21:9 (2560 x 1080)": {"width": 2560, "height": 1080},
+        # "21:9 (2560 x 1080)": {"width": 2560, "height": 1080},
     }
     return res_map.get(resolution, {"width": 1920, "height": 1080})
 
@@ -388,11 +384,11 @@ class MoonvalleyImg2VideoNode(comfy_io.ComfyNode):
                     "negative_prompt",
                     multiline=True,
                     default="<synthetic> <scene cut> gopro, bright, contrast, static, overexposed, vignette, "
-                            "artifacts, still, noise, texture, scanlines, videogame, 360 camera, VR, transition, "
-                            "flare, saturation, distorted, warped, wide angle, saturated, vibrant, glowing, "
-                            "cross dissolve, cheesy, ugly hands, mutated hands, mutant, disfigured, extra fingers, "
-                            "blown out, horrible, blurry, worst quality, bad, dissolve, melt, fade in, fade out, "
-                            "wobbly, weird, low quality, plastic, stock footage, video camera, boring",
+                    "artifacts, still, noise, texture, scanlines, videogame, 360 camera, VR, transition, "
+                    "flare, saturation, distorted, warped, wide angle, saturated, vibrant, glowing, "
+                    "cross dissolve, cheesy, ugly hands, mutated hands, mutant, disfigured, extra fingers, "
+                    "blown out, horrible, blurry, worst quality, bad, dissolve, melt, fade in, fade out, "
+                    "wobbly, weird, low quality, plastic, stock footage, video camera, boring",
                     tooltip="Negative prompt text",
                 ),
                 comfy_io.Combo.Input(
@@ -403,14 +399,14 @@ class MoonvalleyImg2VideoNode(comfy_io.ComfyNode):
                         "1:1 (1152 x 1152)",
                         "4:3 (1536 x 1152)",
                         "3:4 (1152 x 1536)",
-                        "21:9 (2560 x 1080)",
+                        # "21:9 (2560 x 1080)",
                     ],
                     default="16:9 (1920 x 1080)",
                     tooltip="Resolution of the output video",
                 ),
                 comfy_io.Float.Input(
                     "prompt_adherence",
-                    default=10.0,
+                    default=4.5,
                     min=1.0,
                     max=20.0,
                     step=1.0,
@@ -424,10 +420,11 @@ class MoonvalleyImg2VideoNode(comfy_io.ComfyNode):
                     step=1,
                     display_mode=comfy_io.NumberDisplay.number,
                     tooltip="Random seed value",
+                    control_after_generate=True,
                 ),
                 comfy_io.Int.Input(
                     "steps",
-                    default=100,
+                    default=33,
                     min=1,
                     max=100,
                     step=1,
@@ -468,7 +465,6 @@ class MoonvalleyImg2VideoNode(comfy_io.ComfyNode):
             steps=steps,
             seed=seed,
             guidance_scale=prompt_adherence,
-            num_frames=128,
             width=width_height["width"],
             height=width_height["height"],
             use_negative_prompts=True,
@@ -526,11 +522,11 @@ class MoonvalleyVideo2VideoNode(comfy_io.ComfyNode):
                     "negative_prompt",
                     multiline=True,
                     default="<synthetic> <scene cut> gopro, bright, contrast, static, overexposed, vignette, "
-                            "artifacts, still, noise, texture, scanlines, videogame, 360 camera, VR, transition, "
-                            "flare, saturation, distorted, warped, wide angle, saturated, vibrant, glowing, "
-                            "cross dissolve, cheesy, ugly hands, mutated hands, mutant, disfigured, extra fingers, "
-                            "blown out, horrible, blurry, worst quality, bad, dissolve, melt, fade in, fade out, "
-                            "wobbly, weird, low quality, plastic, stock footage, video camera, boring",
+                    "artifacts, still, noise, texture, scanlines, videogame, 360 camera, VR, transition, "
+                    "flare, saturation, distorted, warped, wide angle, saturated, vibrant, glowing, "
+                    "cross dissolve, cheesy, ugly hands, mutated hands, mutant, disfigured, extra fingers, "
+                    "blown out, horrible, blurry, worst quality, bad, dissolve, melt, fade in, fade out, "
+                    "wobbly, weird, low quality, plastic, stock footage, video camera, boring",
                     tooltip="Negative prompt text",
                 ),
                 comfy_io.Int.Input(
@@ -546,7 +542,7 @@ class MoonvalleyVideo2VideoNode(comfy_io.ComfyNode):
                 comfy_io.Video.Input(
                     "video",
                     tooltip="The reference video used to generate the output video. Must be at least 5 seconds long. "
-                            "Videos longer than 5s will be automatically trimmed. Only MP4 format supported.",
+                    "Videos longer than 5s will be automatically trimmed. Only MP4 format supported.",
                 ),
                 comfy_io.Combo.Input(
                     "control_type",
@@ -562,6 +558,15 @@ class MoonvalleyVideo2VideoNode(comfy_io.ComfyNode):
                     step=1,
                     tooltip="Only used if control_type is 'Motion Transfer'",
                     optional=True,
+                ),
+                comfy_io.Int.Input(
+                    "steps",
+                    default=33,
+                    min=1,
+                    max=100,
+                    step=1,
+                    display_mode=comfy_io.NumberDisplay.number,
+                    tooltip="Number of inference steps",
                 ),
             ],
             outputs=[comfy_io.Video.Output()],
@@ -582,6 +587,8 @@ class MoonvalleyVideo2VideoNode(comfy_io.ComfyNode):
         video: Optional[VideoInput] = None,
         control_type: str = "Motion Transfer",
         motion_intensity: Optional[int] = 100,
+        steps=33,
+        prompt_adherence=4.5,
     ) -> comfy_io.NodeOutput:
         auth = {
             "auth_token": cls.hidden.auth_token_comfy_org,
@@ -602,6 +609,8 @@ class MoonvalleyVideo2VideoNode(comfy_io.ComfyNode):
             negative_prompt=negative_prompt,
             seed=seed,
             control_params=control_params,
+            steps=steps,
+            guidance_scale=prompt_adherence,
         )
 
         control = parse_control_parameter(control_type)
@@ -653,11 +662,11 @@ class MoonvalleyTxt2VideoNode(comfy_io.ComfyNode):
                     "negative_prompt",
                     multiline=True,
                     default="<synthetic> <scene cut> gopro, bright, contrast, static, overexposed, vignette, "
-                            "artifacts, still, noise, texture, scanlines, videogame, 360 camera, VR, transition, "
-                            "flare, saturation, distorted, warped, wide angle, saturated, vibrant, glowing, "
-                            "cross dissolve, cheesy, ugly hands, mutated hands, mutant, disfigured, extra fingers, "
-                            "blown out, horrible, blurry, worst quality, bad, dissolve, melt, fade in, fade out, "
-                            "wobbly, weird, low quality, plastic, stock footage, video camera, boring",
+                    "artifacts, still, noise, texture, scanlines, videogame, 360 camera, VR, transition, "
+                    "flare, saturation, distorted, warped, wide angle, saturated, vibrant, glowing, "
+                    "cross dissolve, cheesy, ugly hands, mutated hands, mutant, disfigured, extra fingers, "
+                    "blown out, horrible, blurry, worst quality, bad, dissolve, melt, fade in, fade out, "
+                    "wobbly, weird, low quality, plastic, stock footage, video camera, boring",
                     tooltip="Negative prompt text",
                 ),
                 comfy_io.Combo.Input(
@@ -675,7 +684,7 @@ class MoonvalleyTxt2VideoNode(comfy_io.ComfyNode):
                 ),
                 comfy_io.Float.Input(
                     "prompt_adherence",
-                    default=10.0,
+                    default=4.0,
                     min=1.0,
                     max=20.0,
                     step=1.0,
@@ -688,11 +697,12 @@ class MoonvalleyTxt2VideoNode(comfy_io.ComfyNode):
                     max=4294967295,
                     step=1,
                     display_mode=comfy_io.NumberDisplay.number,
+                    control_after_generate=True,
                     tooltip="Random seed value",
                 ),
                 comfy_io.Int.Input(
                     "steps",
-                    default=100,
+                    default=33,
                     min=1,
                     max=100,
                     step=1,
