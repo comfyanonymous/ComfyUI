@@ -500,7 +500,7 @@ class MinimaxHailuoVideoNode(comfy_io.ComfyNode):
             raise Exception(
                 f"No video was found in the response. Full response: {file_result.model_dump()}"
             )
-        logging.info(f"Generated video URL: {file_url}")
+        logging.info("Generated video URL: %s", file_url)
         if cls.hidden.unique_id:
             if hasattr(file_result.file, "backup_download_url"):
                 message = f"Result URL: {file_url}\nBackup URL: {file_result.file.backup_download_url}"

@@ -172,16 +172,16 @@ async def create_generate_task(
     logging.info("[ Rodin3D API - Submit Jobs ] Submit Generate Task Success!")
     subscription_key = response.jobs.subscription_key
     task_uuid = response.uuid
-    logging.info(f"[ Rodin3D API - Submit Jobs ] UUID: {task_uuid}")
+    logging.info("[ Rodin3D API - Submit Jobs ] UUID: %s", task_uuid)
     return task_uuid, subscription_key
 
 
 def check_rodin_status(response: Rodin3DCheckStatusResponse) -> str:
     all_done = all(job.status == JobStatus.Done for job in response.jobs)
     status_list = [str(job.status) for job in response.jobs]
-    logging.info(f"[ Rodin3D API - CheckStatus ] Generate Status: {status_list}")
+    logging.info("[ Rodin3D API - CheckStatus ] Generate Status: %s", status_list)
     if any(job.status == JobStatus.Failed for job in response.jobs):
-        logging.error(f"[ Rodin3D API - CheckStatus ] Generate Failed: {status_list}, Please try again.")
+        logging.error("[ Rodin3D API - CheckStatus ] Generate Failed: %s, Please try again.", status_list)
         raise Exception("[ Rodin3D API ] Generate Failed, Please Try again.")
     if all_done:
         return "DONE"
@@ -235,7 +235,7 @@ async def download_files(url_list, task_uuid):
             file_path = os.path.join(save_path, file_name)
             if file_path.endswith(".glb"):
                 model_file_path = file_path
-            logging.info(f"[ Rodin3D API - download_files ] Downloading file: {file_path}")
+            logging.info("[ Rodin3D API - download_files ] Downloading file: %s", file_path)
             max_retries = 5
             for attempt in range(max_retries):
                 try:
@@ -246,7 +246,7 @@ async def download_files(url_list, task_uuid):
                                 f.write(chunk)
                     break
                 except Exception as e:
-                    logging.info(f"[ Rodin3D API - download_files ] Error downloading {file_path}:{e}")
+                    logging.info("[ Rodin3D API - download_files ] Error downloading %s:%s", file_path, str(e))
                     if attempt < max_retries - 1:
                         logging.info("Retrying...")
                         await asyncio.sleep(2)

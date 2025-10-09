@@ -61,7 +61,6 @@ messages_control.disable = [
   # next warnings should be fixed in future
   "bad-classmethod-argument",  # Class method should have 'cls' as first argument
   "wrong-import-order",  # Standard imports should be placed before third party imports
-  "logging-fstring-interpolation", # Use lazy % formatting in logging functions
   "ungrouped-imports",
   "unnecessary-pass",
   "unnecessary-lambda-assignment",

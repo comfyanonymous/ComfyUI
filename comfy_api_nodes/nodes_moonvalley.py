@@ -237,7 +237,7 @@ def trim_video(video: VideoInput, duration_sec: float) -> VideoInput:
         audio_stream = None
 
         for stream in input_container.streams:
-            logging.info(f"Found stream: type={stream.type}, class={type(stream)}")
+            logging.info("Found stream: type=%s, class=%s", stream.type, type(stream))
             if isinstance(stream, av.VideoStream):
                 # Create output video stream with same parameters
                 video_stream = output_container.add_stream(
@@ -247,7 +247,7 @@ def trim_video(video: VideoInput, duration_sec: float) -> VideoInput:
                 video_stream.height = stream.height
                 video_stream.pix_fmt = "yuv420p"
                 logging.info(
-                    f"Added video stream: {stream.width}x{stream.height} @ {stream.average_rate}fps"
+                    "Added video stream: %sx%s @ %sfps", stream.width, stream.height, stream.average_rate
                 )
             elif isinstance(stream, av.AudioStream):
                 # Create output audio stream with same parameters
@@ -256,9 +256,7 @@ def trim_video(video: VideoInput, duration_sec: float) -> VideoInput:
                 )
                 audio_stream.sample_rate = stream.sample_rate
                 audio_stream.layout = stream.layout
-                logging.info(
-                    f"Added audio stream: {stream.sample_rate}Hz, {stream.channels} channels"
-                )
+                logging.info("Added audio stream: %sHz, %s channels", stream.sample_rate, stream.channels)
 
         # Calculate target frame count that's divisible by 16
         fps = input_container.streams.video[0].average_rate
@@ -288,9 +286,7 @@ def trim_video(video: VideoInput, duration_sec: float) -> VideoInput:
             for packet in video_stream.encode():
                 output_container.mux(packet)
 
-            logging.info(
-                f"Encoded {frame_count} video frames (target: {target_frames})"
-            )
+            logging.info("Encoded %s video frames (target: %s)", frame_count, target_frames)
 
         # Decode and re-encode audio frames
         if audio_stream:
@@ -308,7 +304,7 @@ def trim_video(video: VideoInput, duration_sec: float) -> VideoInput:
             for packet in audio_stream.encode():
                 output_container.mux(packet)
 
-            logging.info(f"Encoded {audio_frame_count} audio frames")
+            logging.info("Encoded %s audio frames", audio_frame_count)
 
         # Close containers
         output_container.close()
