@@ -174,10 +174,10 @@ def get_base_inputs_types() -> list[comfy_io.Input]:
         comfy_io.String.Input("negative_prompt", multiline=True),
         comfy_io.Int.Input("seed", min=0, max=0xFFFFFFFF, control_after_generate=True),
         comfy_io.Combo.Input(
-            "resolution", options=[resolution.value for resolution in PikaResolutionEnum], default="1080p"
+            "resolution", options=PikaResolutionEnum, default=PikaResolutionEnum.field_1080p
         ),
         comfy_io.Combo.Input(
-            "duration", options=[duration.value for duration in PikaDurationEnum], default=5
+            "duration", options=PikaDurationEnum, default=PikaDurationEnum.integer_5
         ),
     ]
 
@@ -616,7 +616,7 @@ class PikaffectsNode(comfy_io.ComfyNode):
             inputs=[
                 comfy_io.Image.Input("image", tooltip="The reference image to apply the Pikaffect to."),
                 comfy_io.Combo.Input(
-                    "pikaffect", options=[pikaffect.value for pikaffect in Pikaffect], default="Cake-ify"
+                    "pikaffect", options=Pikaffect, default="Cake-ify"
                 ),
                 comfy_io.String.Input("prompt_text", multiline=True),
                 comfy_io.String.Input("negative_prompt", multiline=True),
