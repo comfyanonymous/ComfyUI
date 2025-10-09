@@ -215,7 +215,7 @@ class VeoVideoGenerationNode(comfy_io.ComfyNode):
         initial_response = await initial_operation.execute()
         operation_name = initial_response.name
 
-        logging.info(f"Veo generation started with operation name: {operation_name}")
+        logging.info("Veo generation started with operation name: %s", operation_name)
 
         # Define status extractor function
         def status_extractor(response):
