@@ -1,6 +1,9 @@
 @echo off
-title ComfyUI-Zluda Update Utility v0.4
+title ComfyUI-Zluda Update Utility v0.5
 setlocal enabledelayedexpansion
+
+set "LOG_FILE=cfz_update_utility_log.txt"
+set "ENABLE_LOGGING=1"
 
 set "DEFAULT_BRANCH=master"
 
@@ -20,17 +23,37 @@ if ERRORLEVEL 1 (
     pause
     exit /b
 )
+
+for /f "tokens=2,3 delims= " %%a in ("%date% %time%") do (
+    set "LOG_DATE=%%a"
+    set "LOG_TIME=%%b"
+)
+set "LOG_TIME=!LOG_TIME:~0,8!"
+
+>> "%LOG_FILE%" (
+    echo.
+    echo [START] ComfyUI-Zluda Update Utility Log
+    echo [DATE]  !LOG_DATE! !LOG_TIME!
+    echo ========================================================
+)
+
 goto show_menu
 
 :manual_git
 cls
 echo :manual_git=====================================================================
-echo [INFO] Type any git command below, e.g.:
+call :log Entered manual_git
+echo [INFO] Type any git command below, without "git" prefix, e.g.:
 echo         --version
 echo         --help
 echo         status
 echo.
-set /p gitcmd=git 
+
+set /p gitcmd=Enter git command: 
+
+if /i "%gitcmd:~0,4%"=="git " (
+    set "gitcmd=%gitcmd:~4%"
+)
 
 if "%gitcmd%"=="" (
     echo [INFO] No command entered.
@@ -38,7 +61,6 @@ if "%gitcmd%"=="" (
     goto manual_git
 )
 
-echo.
 echo %gitcmd% | findstr /R /I "\<reset\> \<clean\> \<rebase\>" >nul
 if %errorlevel%==0 (
     echo [WARN] Destructive commands are not allowed here.
@@ -46,17 +68,34 @@ if %errorlevel%==0 (
     goto show_menu
 )
 
+set "CHECK_HELP=%gitcmd:--help=%"
+if not "%CHECK_HELP%"=="%gitcmd%" (
+    echo [WARN] 'git --help' may open a separate window or fail to display in this console.
+)
+
 echo.
 set /p confirm=Run this command? (Y/N): 
+call :log User confirmation for git command: %confirm%
 if /I not "%confirm%"=="Y" (
     echo [INFO] Command canceled.
+	call :log User canceled the command
     call :pausefix
     goto show_menu
 )
 
-echo [EXEC] git %gitcmd%
+set "fullgitcmd=git %gitcmd%"
+echo [EXEC] %fullgitcmd%
 echo --------------------------------------------------------------------------------
-git %gitcmd%
+set "TMP_FILE=%TEMP%\git_output.tmp"
+%fullgitcmd% > "%TMP_FILE%" 2>&1
+if exist "%TMP_FILE%" (
+    type "%TMP_FILE%"
+    type "%TMP_FILE%" >> "%LOG_FILE%"
+    del "%TMP_FILE%"
+) else (
+    echo [WARN] Output file not found. Git may have launched an external viewer.
+)
+call :log Ran manual git command: %fullgitcmd%
 echo --------------------------------------------------------------------------------
 call :pausefix
 goto show_menu
@@ -91,6 +130,19 @@ if %errorlevel%==0 (
 )
 exit /b
 
+:log
+if "%ENABLE_LOGGING%"=="1" (
+    setlocal enabledelayedexpansion
+    for /f "tokens=2,3 delims= " %%a in ("%date% %time%") do (
+        set "LOG_DATE=%%a"
+        set "LOG_TIME=%%b"
+    )
+    set "LOG_TIME=!LOG_TIME:~0,8!"
+    echo [!LOG_DATE! !LOG_TIME!] %* >> "%LOG_FILE%"
+    endlocal
+)
+exit /b
+
 :show_menu
 call :get_local_version_info
 call :get_remote_version_info
@@ -99,8 +151,9 @@ goto menu
 :menu
 cls
 echo :menu===========================================================================
-echo              ComfyUI-Zluda Update Utility v0.4                   branch: !BRANCH!
+echo              ComfyUI-Zluda Update Utility v0.5                   branch: !BRANCH!
 echo ================================================================================
+call :log Entered menu
 echo  1. Show Updates         [Safe] - git fetch, git log
 echo  2. Download Updates     [Safe] - git fetch, git log, git pull
 echo  3. Fix Broken Update    [WARN] - git fetch, git reset             [Destructive]
@@ -142,22 +195,27 @@ goto show_menu
 :switch_branch
 cls
 echo :switch_branch==================================================================
+call :log Entered switch_branch
 echo [INFO] Available branches:
 git branch -a
 echo.
 set /p target_branch=Enter branch name to switch to: 
+call :log User selected branch: %target_branch%
 if "%target_branch%"=="" (
     echo [INFO] No branch entered.
+	call :log User did not enter a branch to switch to
     call :pausefix
     goto show_menu
 )
 git checkout "%target_branch%"
+call :log Switched to branch: %target_branch%
 call :pausefix
 goto show_menu
 
 :view_commits
 cls
 echo :view_commits===================================================================
+call :log Entered view_commits
 echo [INFO] Last 50 commits:
 git --no-pager log --oneline -n 50
 call :pausefix
@@ -169,7 +227,7 @@ echo :status====================================================================
 echo LOCAL:  !COMMIT_DATE! !COMMIT_TIME! hash: !COMMIT:~0,8!
 echo REMOTE: !REMOTE_COMMIT_DATE! !REMOTE_COMMIT_TIME! hash: !REMOTE_COMMIT:~0,8!
 echo --------------------------------------------------------------------------------
-
+call :log Entered status
 git rev-parse --abbrev-ref --symbolic-full-name @{u} >nul 2>&1
 if errorlevel 1 (
     echo [WARN] No upstream tracking branch set.
@@ -203,6 +261,7 @@ goto show_menu
 :check_update
 cls
 echo :check_update===================================================================
+call :log Entered check_update
 echo [INFO] Checking for available updates...
 git fetch >NUL
 for /f "delims=" %%L in ('git rev-parse @') do set LOCAL=%%L
@@ -227,22 +286,30 @@ for /f %%s in ('git status --porcelain') do (
 :regular_update
 cls
 echo :regular_update=================================================================
+call :log Entered regular_update
 echo [INFO] Checking and updating to a new version if possible...
 copy comfy\customzluda\zluda-default.py comfy\zluda.py /y >NUL
+call :log Copied zluda-default.py to zluda.py
 git fetch >NUL
+call :log Starting regular update
 for /f "delims=" %%L in ('git rev-parse @') do set LOCAL=%%L
 for /f "delims=" %%R in ('git rev-parse @{u}') do set REMOTE=%%R
 if NOT "%LOCAL%"=="%REMOTE%" (
 	echo.
 	echo [INFO] Update available. New commits:
 	git --no-pager log --oneline %LOCAL%..%REMOTE%
+	git --no-pager log --oneline %LOCAL%..%REMOTE% >> "%LOG_FILE%" 2>&1
+    call :log New commits between %LOCAL% and %REMOTE%
 	echo.
 	echo [INFO] Pulling updates...
-    git --no-pager pull
+    git --no-pager pull >> "%LOG_FILE%" 2>&1
+    call :log Pulled updates
 	echo.
 	echo [DONE] Update complete.
+	call :log Update process completed
 ) else (
 	echo [INFO] Already up to date.
+	call :log No update necessary
 )
 call :pausefix
 goto show_menu
@@ -250,18 +317,23 @@ goto show_menu
 :fix_update
 cls
 echo :fix_update=====================================================================
+call :log Entered fix_update
 echo [INFO] Fixing broken Git state...
 echo.
-git fetch --all
-git reset --hard origin/%DEFAULT_BRANCH%
+git fetch --all >> "%LOG_FILE%" 2>&1
+call :log Ran git fetch --all
+git reset --hard origin/%DEFAULT_BRANCH% >> "%LOG_FILE%" 2>&1
+call :log Ran git reset --hard origin/%DEFAULT_BRANCH%
 echo.
 echo [INFO] If you see a successful update now, it is done.
+call :log fix_update complete
 call :pausefix
 goto show_menu
 
 :force_reset
 cls
 echo :force_reset====================================================================
+call :log Entered force_reset
 echo.
 echo           WARNING: This will completely reset all changes
 echo.
@@ -275,17 +347,27 @@ git clean -n -f -d -x
 echo --------------------------------------------------------------------------------
 echo.
 set /p confirm=Are you sure? Type YES to proceed with full reset: 
-if /I not "%confirm%"=="YES" goto show_menu
+
+if /I not "%confirm%"=="YES" (
+    call :log User canceled force reset with input: %confirm%
+    goto show_menu
+)
+
+call :log User confirmed force reset: %confirm%
 echo.
 echo [INFO] Proceeding with force reset...
-git fetch --all
-git reset --hard origin/%DEFAULT_BRANCH%
-git clean -fdx
+git fetch --all >> "%LOG_FILE%" 2>&1
+call :log Ran git fetch --all
+git reset --hard origin/%DEFAULT_BRANCH% >> "%LOG_FILE%" 2>&1
+call :log Ran git reset --hard origin/%DEFAULT_BRANCH%
+git clean -fdx >> "%LOG_FILE%" 2>&1
+call :log Ran git clean -fdx
 echo.
 echo [INFO] Full force reset complete.
 call :pausefix
 goto show_menu
 
 :end
+call :log Exiting...
 endlocal
 exit
