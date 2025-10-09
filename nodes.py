@@ -2030,7 +2030,6 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "DiffControlNetLoader": "Load ControlNet Model (diff)",
     "StyleModelLoader": "Load Style Model",
     "CLIPVisionLoader": "Load CLIP Vision",
-    "UpscaleModelLoader": "Load Upscale Model",
     "UNETLoader": "Load Diffusion Model",
     # Conditioning
     "CLIPVisionEncode": "CLIP Vision Encode",
@@ -2068,7 +2067,6 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "LoadImageOutput": "Load Image (from Outputs)",
     "ImageScale": "Upscale Image",
     "ImageScaleBy": "Upscale Image By",
-    "ImageUpscaleWithModel": "Upscale Image (using Model)",
     "ImageInvert": "Invert Image",
     "ImagePadForOutpaint": "Pad Image for Outpainting",
     "ImageBatch": "Batch Images",
