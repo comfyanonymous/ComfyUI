@@ -1,33 +1,40 @@
 import comfy.model_patcher
 import comfy.samplers
 import re
+from typing_extensions import override
+from comfy_api.latest import ComfyExtension, io
 
 
-class SkipLayerGuidanceDiT:
+class SkipLayerGuidanceDiT(io.ComfyNode):
     '''
     Enhance guidance towards detailed dtructure by having another set of CFG negative with skipped layers.
     Inspired by Perturbed Attention Guidance (https://arxiv.org/abs/2403.17377)
     Original experimental implementation for SD3 by Dango233@StabilityAI.
     '''
+
     @classmethod
-    def INPUT_TYPES(s):
-        return {"required": {"model": ("MODEL", ),
-                             "double_layers": ("STRING", {"default": "7, 8, 9", "multiline": False}),
-                             "single_layers": ("STRING", {"default": "7, 8, 9", "multiline": False}),
-                             "scale": ("FLOAT", {"default": 3.0, "min": 0.0, "max": 10.0, "step": 0.1}),
-                             "start_percent": ("FLOAT", {"default": 0.01, "min": 0.0, "max": 1.0, "step": 0.001}),
-                             "end_percent": ("FLOAT", {"default": 0.15, "min": 0.0, "max": 1.0, "step": 0.001}),
-                             "rescaling_scale": ("FLOAT", {"default": 0.0, "min": 0.0, "max": 10.0, "step": 0.01}),
-                                }}
-    RETURN_TYPES = ("MODEL",)
-    FUNCTION = "skip_guidance"
-    EXPERIMENTAL = True
+    def define_schema(cls):
+        return io.Schema(
+            node_id="SkipLayerGuidanceDiT",
+            category="advanced/guidance",
+            description="Generic version of SkipLayerGuidance node that can be used on every DiT model.",
+            is_experimental=True,
+            inputs=[
+                io.Model.Input("model"),
+                io.String.Input("double_layers", default="7, 8, 9"),
+                io.String.Input("single_layers", default="7, 8, 9"),
+                io.Float.Input("scale", default=3.0, min=0.0, max=10.0, step=0.1),
+                io.Float.Input("start_percent", default=0.01, min=0.0, max=1.0, step=0.001),
+                io.Float.Input("end_percent", default=0.15, min=0.0, max=1.0, step=0.001),
+                io.Float.Input("rescaling_scale", default=0.0, min=0.0, max=10.0, step=0.01),
+            ],
+            outputs=[
+                io.Model.Output(),
+            ],
+        )
 
-    DESCRIPTION = "Generic version of SkipLayerGuidance node that can be used on every DiT model."
-
-    CATEGORY = "advanced/guidance"
-
-    def skip_guidance(self, model, scale, start_percent, end_percent, double_layers="", single_layers="", rescaling_scale=0):
+    @classmethod
+    def execute(cls, model, scale, start_percent, end_percent, double_layers="", single_layers="", rescaling_scale=0) -> io.NodeOutput:
         # check if layer is comma separated integers
         def skip(args, extra_args):
             return args
@@ -43,7 +50,7 @@ class SkipLayerGuidanceDiT:
         single_layers = [int(i) for i in single_layers]
 
         if len(double_layers) == 0 and len(single_layers) == 0:
-            return (model, )
+            return io.NodeOutput(model)
 
         def post_cfg_function(args):
             model = args["model"]
@@ -76,29 +83,36 @@ class SkipLayerGuidanceDiT:
         m = model.clone()
         m.set_model_sampler_post_cfg_function(post_cfg_function)
 
-        return (m, )
+        return io.NodeOutput(m)
 
-class SkipLayerGuidanceDiTSimple:
+    skip_guidance = execute  # TODO: remove
+
+
+class SkipLayerGuidanceDiTSimple(io.ComfyNode):
     '''
     Simple version of the SkipLayerGuidanceDiT node that only modifies the uncond pass.
     '''
     @classmethod
-    def INPUT_TYPES(s):
-        return {"required": {"model": ("MODEL", ),
-                             "double_layers": ("STRING", {"default": "7, 8, 9", "multiline": False}),
-                             "single_layers": ("STRING", {"default": "7, 8, 9", "multiline": False}),
-                             "start_percent": ("FLOAT", {"default": 0.0, "min": 0.0, "max": 1.0, "step": 0.001}),
-                             "end_percent": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 1.0, "step": 0.001}),
-                                }}
-    RETURN_TYPES = ("MODEL",)
-    FUNCTION = "skip_guidance"
-    EXPERIMENTAL = True
+    def define_schema(cls):
+        return io.Schema(
+            node_id="SkipLayerGuidanceDiTSimple",
+            category="advanced/guidance",
+            description="Simple version of the SkipLayerGuidanceDiT node that only modifies the uncond pass.",
+            is_experimental=True,
+            inputs=[
+                io.Model.Input("model"),
+                io.String.Input("double_layers", default="7, 8, 9"),
+                io.String.Input("single_layers", default="7, 8, 9"),
+                io.Float.Input("start_percent", default=0.0, min=0.0, max=1.0, step=0.001),
+                io.Float.Input("end_percent", default=1.0, min=0.0, max=1.0, step=0.001),
+            ],
+            outputs=[
+                io.Model.Output(),
+            ],
+        )
 
-    DESCRIPTION = "Simple version of the SkipLayerGuidanceDiT node that only modifies the uncond pass."
-
-    CATEGORY = "advanced/guidance"
-
-    def skip_guidance(self, model, start_percent, end_percent, double_layers="", single_layers=""):
+    @classmethod
+    def execute(cls, model, start_percent, end_percent, double_layers="", single_layers="") -> io.NodeOutput:
         def skip(args, extra_args):
             return args
 
@@ -113,7 +127,7 @@ class SkipLayerGuidanceDiTSimple:
         single_layers = [int(i) for i in single_layers]
 
         if len(double_layers) == 0 and len(single_layers) == 0:
-            return (model, )
+            return io.NodeOutput(model)
 
         def calc_cond_batch_function(args):
             x = args["input"]
@@ -144,9 +158,19 @@ class SkipLayerGuidanceDiTSimple:
         m = model.clone()
         m.set_model_sampler_calc_cond_batch_function(calc_cond_batch_function)
 
-        return (m, )
+        return io.NodeOutput(m)
 
-NODE_CLASS_MAPPINGS = {
-    "SkipLayerGuidanceDiT": SkipLayerGuidanceDiT,
-    "SkipLayerGuidanceDiTSimple": SkipLayerGuidanceDiTSimple,
-}
+    skip_guidance = execute  # TODO: remove
+
+
+class SkipLayerGuidanceExtension(ComfyExtension):
+    @override
+    async def get_node_list(self) -> list[type[io.ComfyNode]]:
+        return [
+            SkipLayerGuidanceDiT,
+            SkipLayerGuidanceDiTSimple,
+        ]
+
+
+async def comfy_entrypoint() -> SkipLayerGuidanceExtension:
+    return SkipLayerGuidanceExtension()
