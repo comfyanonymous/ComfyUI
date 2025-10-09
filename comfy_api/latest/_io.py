@@ -1582,78 +1582,78 @@ class _UIOutput(ABC):
         ...
 
 
-class _IO:
-    FolderType = FolderType
-    UploadType = UploadType
-    RemoteOptions = RemoteOptions
-    NumberDisplay = NumberDisplay
+__all__ = [
+    "FolderType",
+    "UploadType",
+    "RemoteOptions",
+    "NumberDisplay",
 
-    comfytype = staticmethod(comfytype)
-    Custom = staticmethod(Custom)
-    Input = Input
-    WidgetInput = WidgetInput
-    Output = Output
-    ComfyTypeI = ComfyTypeI
-    ComfyTypeIO = ComfyTypeIO
-    #---------------------------------
+    "comfytype",
+    "Custom",
+    "Input",
+    "WidgetInput",
+    "Output",
+    "ComfyTypeI",
+    "ComfyTypeIO",
     # Supported Types
-    Boolean = Boolean
-    Int = Int
-    Float = Float
-    String = String
-    Combo = Combo
-    MultiCombo = MultiCombo
-    Image = Image
-    WanCameraEmbedding = WanCameraEmbedding
-    Webcam = Webcam
-    Mask = Mask
-    Latent = Latent
-    Conditioning = Conditioning
-    Sampler = Sampler
-    Sigmas = Sigmas
-    Noise = Noise
-    Guider = Guider
-    Clip = Clip
-    ControlNet = ControlNet
-    Vae = Vae
-    Model = Model
-    ClipVision = ClipVision
-    ClipVisionOutput = ClipVisionOutput
-    AudioEncoder = AudioEncoder
-    AudioEncoderOutput = AudioEncoderOutput
-    StyleModel = StyleModel
-    Gligen = Gligen
-    UpscaleModel = UpscaleModel
-    Audio = Audio
-    Video = Video
-    SVG = SVG
-    LoraModel = LoraModel
-    LossMap = LossMap
-    Voxel = Voxel
-    Mesh = Mesh
-    Hooks = Hooks
-    HookKeyframes = HookKeyframes
-    TimestepsRange = TimestepsRange
-    LatentOperation = LatentOperation
-    FlowControl = FlowControl
-    Accumulation = Accumulation
-    Load3DCamera = Load3DCamera
-    Load3D = Load3D
-    Load3DAnimation = Load3DAnimation
-    Photomaker = Photomaker
-    Point = Point
-    FaceAnalysis = FaceAnalysis
-    BBOX = BBOX
-    SEGS = SEGS
-    AnyType = AnyType
-    MultiType = MultiType
-    #---------------------------------
-    HiddenHolder = HiddenHolder
-    Hidden = Hidden
-    NodeInfoV1 = NodeInfoV1
-    NodeInfoV3 = NodeInfoV3
-    Schema = Schema
-    ComfyNode = ComfyNode
-    NodeOutput = NodeOutput
-    add_to_dict_v1 = staticmethod(add_to_dict_v1)
-    add_to_dict_v3 = staticmethod(add_to_dict_v3)
+    "Boolean",
+    "Int",
+    "Float",
+    "String",
+    "Combo",
+    "MultiCombo",
+    "Image",
+    "WanCameraEmbedding",
+    "Webcam",
+    "Mask",
+    "Latent",
+    "Conditioning",
+    "Sampler",
+    "Sigmas",
+    "Noise",
+    "Guider",
+    "Clip",
+    "ControlNet",
+    "Vae",
+    "Model",
+    "ClipVision",
+    "ClipVisionOutput",
+    "AudioEncoder",
+    "AudioEncoderOutput",
+    "StyleModel",
+    "Gligen",
+    "UpscaleModel",
+    "Audio",
+    "Video",
+    "SVG",
+    "LoraModel",
+    "LossMap",
+    "Voxel",
+    "Mesh",
+    "Hooks",
+    "HookKeyframes",
+    "TimestepsRange",
+    "LatentOperation",
+    "FlowControl",
+    "Accumulation",
+    "Load3DCamera",
+    "Load3D",
+    "Load3DAnimation",
+    "Photomaker",
+    "Point",
+    "FaceAnalysis",
+    "BBOX",
+    "SEGS",
+    "AnyType",
+    "MultiType",
+    # Other classes
+    "HiddenHolder",
+    "Hidden",
+    "NodeInfoV1",
+    "NodeInfoV3",
+    "Schema",
+    "ComfyNode",
+    "NodeOutput",
+    "add_to_dict_v1",
+    "add_to_dict_v3",
+]

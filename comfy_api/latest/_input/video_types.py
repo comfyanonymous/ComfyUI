@@ -1,6 +1,6 @@
 from __future__ import annotations
 from abc import ABC, abstractmethod
-from typing import Optional, Union
+from typing import Optional, Union, IO
 import io
 import av
 from comfy_api.util import VideoContainer, VideoCodec, VideoComponents
@@ -23,7 +23,7 @@ class VideoInput(ABC):
     @abstractmethod
     def save_to(
         self,
-        path: str,
+        path: Union[str, IO[bytes]],
         format: VideoContainer = VideoContainer.AUTO,
         codec: VideoCodec = VideoCodec.AUTO,
         metadata: Optional[dict] = None
