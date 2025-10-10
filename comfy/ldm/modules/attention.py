@@ -1164,12 +1164,14 @@ class MultiheadAttentionComfyv(nn.Module):
             error_msgs,
         )
 
-    def forward(self, src, attn_mask = None, key_padding_mask = None):
+    def forward(self, src, k = None, v = None, attn_mask = None, key_padding_mask = None):
 
         self._q_proj, self._k_proj, self._v_proj = [t.to(src.device).to(src.dtype) for t in (self._q_proj, self._k_proj, self._v_proj)]
         q = self._q_proj(src)
-        k = self._k_proj(src)
-        v = self._v_proj(src)
+        if k is None:
+            k = self._k_proj(src)
+        if v is None:
+            v = self._v_proj(src)
 
         output = optimized_attention(q, k, v, self.num_heads, mask = attn_mask)
         return self.out_proj(output)

@@ -97,7 +97,7 @@ class EncodeVideo(io.ComfyNode):
                     except:
                         out = model.encode(chunk)
                 else:
-                    out = vae.encode_image(chunk)
+                    out = vae.encode_image(chunk, crop=False)
                     out = out["image_embeds"]
 
                 out_cpu = out.cpu()
