@@ -488,16 +488,8 @@ class InfiniteTalkOuterSampleLoopingWrapper:
         logging.info(f"InfiniteTalk estimated loop iterations: {estimated_iterations}, Total steps: {total_steps}")
 
         # custom previewer callback for full loop progress bar
-        x0_output = {}
-        previewer = latent_preview.get_previewer(model_patcher.load_device, model_patcher.model.latent_format)
         pbar = comfy.utils.ProgressBar(total_steps)
         def custom_callback(step, x0, x, total_steps):
-            if x0_output is not None:
-                x0_output["x0"] = x0
-
-            preview_bytes = None
-            if previewer:
-                preview_bytes = previewer.decode_latent_to_preview_image("JPEG", x0)
             pbar.update(1)
 
         # outer loop start for multiple frame windows
