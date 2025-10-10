@@ -1,6 +1,5 @@
 import math
 import torch
-import numpy as np
 from typing import List
 import torch.nn as nn
 from einops import rearrange
@@ -88,15 +87,17 @@ class DACEncoder(nn.Module):
         device = None, dtype = None, operations = None
     ):
         super().__init__()
-        # Create first convolution
         self.block = [WNConv1d(1, d_model, kernel_size=7, padding=3, device = device, dtype = dtype, operations = operations)]
 
-        # Create EncoderBlocks that double channels as they downsample by `stride`
         for stride in strides:
             d_model *= 2
             self.block += [DACEncoderBlock(d_model, stride=stride, device = device, dtype = dtype, operations = operations)]
 
-        # Wrap black into nn.Sequential
+        self.block += [
+            Snake1d(d_model, device=device, dtype=dtype),
+            WNConv1d(d_model, d_latent, kernel_size=3, padding=1, device=device, dtype=dtype, operations = operations),
+        ]
+
         self.block = nn.Sequential(*self.block)
         self.enc_dim = d_model
 
@@ -145,6 +146,12 @@ class DACDecoder(nn.Module):
             output_dim = channels // 2 ** (i + 1)
             layers += [DACDecoderBlock(input_dim, output_dim, stride, device = device, dtype = dtype, operations = operations)]
 
+        layers += [
+            Snake1d(output_dim, device=device, dtype=dtype),
+            WNConv1d(output_dim, d_out, kernel_size=7, padding=3, device=device, dtype=dtype, operations = operations),
+            nn.Tanh(),
+        ]
+
         self.model = nn.Sequential(*layers)
 
     def forward(self, x):
@@ -154,11 +161,11 @@ class DAC(torch.nn.Module):
     def __init__(
         self,
         encoder_dim: int = 128,
-        encoder_rates: List[int] = [2, 3, 4, 5],
+        encoder_rates: List[int] = [2, 3, 4, 5, 8],
         latent_dim: int = 128,
         decoder_dim: int = 2048,
-        decoder_rates: List[int] = [8, 5, 4, 3],
-        sample_rate: int = 44100,
+        decoder_rates: List[int] = [8, 5, 4, 3, 2],
+        sample_rate: int = 48000,
     ):
         super().__init__()
 
@@ -173,7 +180,6 @@ class DAC(torch.nn.Module):
 
         self.latent_dim = latent_dim
 
-        self.hop_length = np.prod(encoder_rates)
         self.encoder = DACEncoder(encoder_dim, encoder_rates, latent_dim, operations = ops)
 
         self.decoder = DACDecoder(
@@ -184,8 +190,10 @@ class DAC(torch.nn.Module):
         )
         self.sample_rate = sample_rate
 
+        self.post_quant_conv = ops.Conv1d(latent_dim, latent_dim, 1)
 
     def decode(self, z: torch.Tensor):
+        z = self.post_quant_conv(z)
         return self.decoder(z)
 
     def forward(self):
@@ -205,17 +213,14 @@ class FoleyVae(torch.nn.Module):
                 v2.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5]),
             ]
         )
+        self.decode_sample_rate = self.dac.sample_rate
+
     def decode(self, x, vae_options = {}):
         return self.dac.decode(x)
-    def encode(self, x):
-        return self.synchformer(x)
 
-    def forward(self, x):
-        try:
-            return self.encode(x)
-        except:
-            x = x.to(next(self.parameters()).device)
-            return self.encode(x)
+    def encode(self, x):
+        x = x.to(next(self.parameters()).device)
+        return self.synchformer(x)
     
     def video_encoding(self, video, step):
         video = torch.stack([self.syncformer_preprocess(t) for t in video])

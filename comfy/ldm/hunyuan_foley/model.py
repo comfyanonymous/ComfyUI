@@ -780,6 +780,8 @@ class HunyuanVideoFoley(nn.Module):
         self.empty_clip_feat = nn.Parameter(torch.zeros(1, self.visual_in_channels, **factory_kwargs), requires_grad = False)
         self.empty_sync_feat = nn.Parameter(torch.zeros(1, self.sync_feat_dim, **factory_kwargs), requires_grad = False)
 
+        self.conditions = None
+
     def get_empty_clip_sequence(self, bs=None, len=None) -> torch.Tensor:
         len = len if len is not None else self.clip_len
         if bs is None:
@@ -858,28 +860,33 @@ class HunyuanVideoFoley(nn.Module):
         bs, _, ol = x.shape
         tl = ol // self.patch_size
 
-        uncondition, condition = torch.chunk(context, 2)
+        if self.conditions is None:
 
-        condition = condition.view(3, context.size(1) // 3, -1)
-        uncondition = uncondition.view(3, context.size(1) // 3, -1)
+            uncondition, condition = torch.chunk(context, 2)
 
-        uncond_1, uncond_2, cond_neg = torch.chunk(uncondition, 3)
-        clip_feat, sync_feat, cond_pos = torch.chunk(condition, 3)
-        cond_neg, clip_feat, sync_feat, cond_pos = [trim_repeats(t) for t in (cond_neg, clip_feat, sync_feat, cond_pos)]
+            condition = condition.view(3, context.size(1) // 3, -1)
+            uncondition = uncondition.view(3, context.size(1) // 3, -1)
 
-        uncond_1 = uncond_1[:, :clip_feat.size(1), :clip_feat.size(2)]
-        uncond_2 = uncond_2[:, :sync_feat.size(1), :sync_feat.size(2)]
-        
-        uncond_1, uncond_2, cond_neg, clip_feat, sync_feat, cond_pos = [unlock_cpu_tensor(t, device) for t in (uncond_1, uncond_2, cond_neg, clip_feat, sync_feat, cond_pos)]
+            uncond_1, uncond_2, cond_neg = torch.chunk(uncondition, 3)
+            clip_feat, sync_feat, cond_pos = torch.chunk(condition, 3)
+            cond_neg, clip_feat, sync_feat, cond_pos = [trim_repeats(t) for t in (cond_neg, clip_feat, sync_feat, cond_pos)]
 
-        diff = cond_pos.shape[1] - cond_neg.shape[1]
-        if cond_neg.shape[1] < cond_pos.shape[1]:
-            cond_neg = torch.nn.functional.pad(cond_neg, (0, 0, 0, diff))
-        elif diff < 0:
-            cond_pos = torch.nn.functional.pad(cond_pos, (0, 0, 0, torch.abs(diff)))
+            uncond_1 = uncond_1[:, :clip_feat.size(1), :clip_feat.size(2)]
+            uncond_2 = uncond_2[:, :sync_feat.size(1), :sync_feat.size(2)]
+            
+            uncond_1, uncond_2, cond_neg, clip_feat, sync_feat, cond_pos = [unlock_cpu_tensor(t, device) for t in (uncond_1, uncond_2, cond_neg, clip_feat, sync_feat, cond_pos)]
 
-        clip_feat, sync_feat, cond = torch.cat([uncond_1, clip_feat]), torch.cat([uncond_2, sync_feat]), torch.cat([cond_neg, cond_pos])
-        clip_feat = clip_feat.view(2, -1, 768)
+            diff = cond_pos.shape[1] - cond_neg.shape[1]
+            if cond_neg.shape[1] < cond_pos.shape[1]:
+                cond_neg = torch.nn.functional.pad(cond_neg, (0, 0, 0, diff))
+            elif diff < 0:
+                cond_pos = torch.nn.functional.pad(cond_pos, (0, 0, 0, torch.abs(diff)))
+
+            clip_feat, sync_feat, cond = torch.cat([uncond_1, clip_feat]), torch.cat([uncond_2, sync_feat]), torch.cat([cond_neg, cond_pos])
+            clip_feat = clip_feat.view(2, -1, 768)
+
+        else:
+            clip_feat, sync_feat, cond = self.conditions
 
         if drop_visual is not None:
             clip_feat[drop_visual] = self.get_empty_clip_sequence().to(dtype=clip_feat.dtype)

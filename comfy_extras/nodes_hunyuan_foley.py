@@ -11,7 +11,7 @@ class EmptyLatentHunyuanFoley(io.ComfyNode):
             display_name="EmptyLatentHunyuanFoley",
             category="audio/latent",
             inputs = [
-                io.Int.Input("length", min = 1, max = 15, default = 12),
+                io.Float.Input("length", min = 1.0, max = 15.0, default = 12.0),
                 io.Int.Input("batch_size", min = 1, max = 48_000, default = 1),
                 io.Video.Input("video", optional=True),
             ],

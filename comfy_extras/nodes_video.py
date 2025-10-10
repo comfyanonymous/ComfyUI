@@ -72,7 +72,7 @@ class EncodeVideo(io.ComfyNode):
         model = vae.first_stage_model if vae is not None else clip_vision.model
         vae = vae if vae is not None else clip_vision
 
-        # should be the offload device
+
         if hasattr(model, "video_encoding"):
             data, num_segments, output_fn = model.video_encoding(video, step_size)
             batch_size = b * num_segments
@@ -95,7 +95,7 @@ class EncodeVideo(io.ComfyNode):
                     try:
                         out = vae.encode(chunk)
                     except:
-                        out = model(chunk)
+                        out = model.encode(chunk)
                 else:
                     out = vae.encode_image(chunk)
                     out = out["image_embeds"]
@@ -103,6 +103,7 @@ class EncodeVideo(io.ComfyNode):
                 out_cpu = out.cpu()
                 if outputs is None:
                     full_shape = (total, *out_cpu.shape[1:])
+                    # should be the offload device
                     outputs = torch.empty(full_shape, dtype=out_cpu.dtype, pin_memory=True)
 
                 chunk_len = out_cpu.shape[0]
@@ -141,7 +142,7 @@ class ResampleVideo(io.ComfyNode):
             if src_fps is None or target_fps > src_fps:
                 for packet in container.demux(stream):
                     for frame in packet.decode():
-                        arr = torch.from_numpy(frame.to_ndarray(format="rgb24")).float() / 255.0
+                        arr = torch.from_numpy(frame.to_ndarray(format="rgb24")).float()
                         frames.append(arr)
                 return io.NodeOutput(torch.stack(frames))
 
@@ -156,7 +157,7 @@ class ResampleVideo(io.ComfyNode):
                         continue
                     t = frame.time
                     while t >= next_time:
-                        arr = torch.from_numpy(frame.to_ndarray(format="rgb24")).float() / 255.0
+                        arr = torch.from_numpy(frame.to_ndarray(format="rgb24")).float()
                         frames.append(arr)
                         next_time += step
 

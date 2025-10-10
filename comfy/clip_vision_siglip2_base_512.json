@@ -10,5 +10,6 @@
     "num_hidden_layers": 12,
     "patch_size": 16,
     "image_mean": [0.5, 0.5, 0.5],
-    "image_std": [0.5, 0.5, 0.5]
+    "image_std": [0.5, 0.5, 0.5],
+    "use_head": true
   }

@@ -88,7 +88,8 @@ class VAEDecodeAudio:
         std = torch.std(audio, dim=[1,2], keepdim=True) * 5.0
         std[std < 1.0] = 1.0
         audio /= std
-        return ({"waveform": audio, "sample_rate": 44100}, )
+        sample_rate = vae.first_stage_model.decode_sample_rate or 44100
+        return ({"waveform": audio, "sample_rate": sample_rate}, )
 
 
 def save_audio(self, audio, filename_prefix="ComfyUI", format="flac", prompt=None, extra_pnginfo=None, quality="128k"):
