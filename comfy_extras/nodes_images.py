@@ -106,7 +106,7 @@ class SaveAnimatedWEBP:
     def INPUT_TYPES(s):
         return {"required":
                     {"images": ("IMAGE", ),
-                     "filename_prefix": ("STRING", {"default": "ComfyUI"}),
+                     "filename_prefix": ("STRING", {"default": "%date:yyyy-MM-dd%/ComfyUI"}),
                      "fps": ("FLOAT", {"default": 6.0, "min": 0.01, "max": 1000.0, "step": 0.01}),
                      "lossless": ("BOOLEAN", {"default": True}),
                      "quality": ("INT", {"default": 80, "min": 0, "max": 100}),
@@ -171,7 +171,7 @@ class SaveAnimatedPNG:
     def INPUT_TYPES(s):
         return {"required":
                     {"images": ("IMAGE", ),
-                     "filename_prefix": ("STRING", {"default": "ComfyUI"}),
+                     "filename_prefix": ("STRING", {"default": "%date:yyyy-MM-dd%/ComfyUI"}),
                      "fps": ("FLOAT", {"default": 6.0, "min": 0.01, "max": 1000.0, "step": 0.01}),
                      "compress_level": ("INT", {"default": 4, "min": 0, "max": 9})
                      },
