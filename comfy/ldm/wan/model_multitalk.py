@@ -3,7 +3,6 @@ from einops import rearrange, repeat
 import math
 import comfy
 from comfy.ldm.modules.attention import optimized_attention
-import latent_preview
 import logging
 
 
