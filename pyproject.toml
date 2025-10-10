@@ -1,6 +1,6 @@
 [project]
 name = "ComfyUI"
-version = "0.3.62"
+version = "0.3.64"
 readme = "README.md"
 license = { file = "LICENSE" }
 requires-python = ">=3.9"
@@ -57,22 +57,13 @@ messages_control.disable = [
   "redefined-builtin",
   "unnecessary-lambda",
   "dangerous-default-value",
+  "invalid-overridden-method",
   # next warnings should be fixed in future
   "bad-classmethod-argument",  # Class method should have 'cls' as first argument
   "wrong-import-order",  # Standard imports should be placed before third party imports
-  "logging-fstring-interpolation", # Use lazy % formatting in logging functions
   "ungrouped-imports",
   "unnecessary-pass",
-  "unidiomatic-typecheck",
   "unnecessary-lambda-assignment",
-  "bad-indentation",
   "no-else-return",
-  "no-else-raise",
-  "invalid-overridden-method",
   "unused-variable",
-  "pointless-string-statement",
-  "inconsistent-return-statements",
-  "import-outside-toplevel",
-  "reimported",
-  "redefined-outer-name",
 ]
