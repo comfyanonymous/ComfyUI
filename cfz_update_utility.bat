@@ -297,12 +297,17 @@ for /f "delims=" %%R in ('git rev-parse @{u}') do set REMOTE=%%R
 if NOT "%LOCAL%"=="%REMOTE%" (
 	echo.
 	echo [INFO] Update available. New commits:
-	git --no-pager log --oneline %LOCAL%..%REMOTE%
-	git --no-pager log --oneline %LOCAL%..%REMOTE% >> "%LOG_FILE%" 2>&1
+	git --no-pager log --oneline %LOCAL%..%REMOTE% > temp_log_output.txt 2>&1
+	type temp_log_output.txt
+	type temp_log_output.txt >> "%LOG_FILE%"
+	del temp_log_output.txt
     call :log New commits between %LOCAL% and %REMOTE%
 	echo.
 	echo [INFO] Pulling updates...
-    git --no-pager pull >> "%LOG_FILE%" 2>&1
+    git --no-pager pull > temp_pull_output.txt 2>&1
+    type temp_pull_output.txt
+    type temp_pull_output.txt >> "%LOG_FILE%"
+    del temp_pull_output.txt
     call :log Pulled updates
 	echo.
 	echo [DONE] Update complete.
