@@ -27,10 +27,3 @@ kornia>=0.7.1
 spandrel
 pydantic~=2.0
 pydantic-settings~=2.0
-
-# for GDS
-cupy-cuda12x>=12.0.0
-pynvml>=11.4.1
-cudf>=23.0.0
-numba>=0.57.0
-nvidia-ml-py>=12.0.0
