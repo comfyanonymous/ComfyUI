@@ -73,6 +73,7 @@ from comfy_api_nodes.util.validation_utils import (
     validate_video_dimensions,
     validate_video_duration,
 )
+from comfy_api.input_impl import VideoFromFile
 from comfy_api.input.basic_types import AudioInput
 from comfy_api.input.video_types import VideoInput
 from comfy_api.latest import ComfyExtension, io as comfy_io
@@ -511,7 +512,7 @@ async def execute_video_effect(
     image_1: torch.Tensor,
     image_2: Optional[torch.Tensor] = None,
     model_mode: Optional[KlingVideoGenMode] = None,
-) -> comfy_io.NodeOutput:
+) -> tuple[VideoFromFile, str, str]:
     if dual_character:
         request_input_field = KlingDualCharacterEffectInput(
             model_name=model_name,
@@ -562,7 +563,7 @@ async def execute_video_effect(
     validate_video_result_response(final_response)
 
     video = get_video_from_response(final_response)
-    return comfy_io.NodeOutput(await download_url_to_video_output(str(video.url)), str(video.id), str(video.duration))
+    return await download_url_to_video_output(str(video.url)), str(video.id), str(video.duration)
 
 
 async def execute_lipsync(
@@ -1271,7 +1272,7 @@ class KlingDualCharacterVideoEffectNode(comfy_io.ComfyNode):
             image_1=image_left,
             image_2=image_right,
         )
-        return video, duration
+        return comfy_io.NodeOutput(video, duration)
 
 
 class KlingSingleImageVideoEffectNode(comfy_io.ComfyNode):
@@ -1320,17 +1321,21 @@ class KlingSingleImageVideoEffectNode(comfy_io.ComfyNode):
         model_name: KlingSingleImageEffectModelName,
         duration: KlingVideoGenDuration,
     ) -> comfy_io.NodeOutput:
-        return await execute_video_effect(
-            auth_kwargs={
-                "auth_token": cls.hidden.auth_token_comfy_org,
-                "comfy_api_key": cls.hidden.api_key_comfy_org,
-            },
-            node_id=cls.hidden.unique_id,
-            dual_character=False,
-            effect_scene=effect_scene,
-            model_name=model_name,
-            duration=duration,
-            image_1=image,
+        return comfy_io.NodeOutput(
+            *(
+                await execute_video_effect(
+                    auth_kwargs={
+                        "auth_token": cls.hidden.auth_token_comfy_org,
+                        "comfy_api_key": cls.hidden.api_key_comfy_org,
+                    },
+                    node_id=cls.hidden.unique_id,
+                    dual_character=False,
+                    effect_scene=effect_scene,
+                    model_name=model_name,
+                    duration=duration,
+                    image_1=image,
+                )
+            )
         )
 
 

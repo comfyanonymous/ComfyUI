@@ -17,6 +17,7 @@ from comfy_api.input_impl.video_types import VideoCodec, VideoContainer, VideoIn
 from comfy_api_nodes.apinode_utils import (
     download_url_to_video_output,
     tensor_to_bytesio,
+    validate_string,
 )
 from comfy_api_nodes.apis import pika_defs
 from comfy_api_nodes.apis.client import (
@@ -590,6 +591,7 @@ class PikaStartEndFrameNode(comfy_io.ComfyNode):
         resolution: str,
         duration: int,
     ) -> comfy_io.NodeOutput:
+        validate_string(prompt_text, field_name="prompt_text", min_length=1)
         pika_files = [
             ("keyFrames", ("image_start.png", tensor_to_bytesio(image_start), "image/png")),
             ("keyFrames", ("image_end.png", tensor_to_bytesio(image_end), "image/png")),
