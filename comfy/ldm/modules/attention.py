@@ -1172,6 +1172,16 @@ class MultiheadAttentionComfyv(nn.Module):
             k = self._k_proj(src)
         if v is None:
             v = self._v_proj(src)
+        k, v = k.to(src.device).to(src.dtype), v.to(src.device).to(src.dtype)
+
+        if k is v:
+            if q is k:
+                q = k = v = q.transpose(1, 0)
+            else:
+                q, k = (x.transpose(1, 0) for x in (q, k))
+                v = k
+        else:
+            q, k, v = (x.transpose(1, 0) for x in (q, k, v))
 
         output = optimized_attention(q, k, v, self.num_heads, mask = attn_mask)
         return self.out_proj(output)

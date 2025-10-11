@@ -6,6 +6,7 @@ import av
 import torch
 import folder_paths
 import json
+import logging
 from typing import Optional
 from typing_extensions import override
 from fractions import Fraction
@@ -93,11 +94,13 @@ class EncodeVideo(io.ComfyNode):
                 chunk = chunk.to(model_dtype)
                 if hasattr(vae, "encode"):
                     try:
+                        chunk = chunk.movedim(1, -1)
                         out = vae.encode(chunk)
                     except:
                         out = model.encode(chunk)
                 else:
-                    out = vae.encode_image(chunk, crop=False)
+                    chunk = chunk.movedim(1, -1)
+                    out = vae.encode_image(chunk, crop=False, resize_mode="bilinear")
                     out = out["image_embeds"]
 
                 out_cpu = out.cpu()
@@ -137,9 +140,12 @@ class ResampleVideo(io.ComfyNode):
 
             src_rate = stream.average_rate or stream.guessed_rate
             src_fps = float(src_rate) if src_rate else None
+            
+            if src_fps is None:
+                logging.warning("src_fps for video resampling is None.")
 
-            # yield original frames if asked for upsampling or src is unknown
-            if src_fps is None or target_fps > src_fps:
+            # yield original frames if asked for upsampling
+            if target_fps > src_fps:
                 for packet in container.demux(stream):
                     for frame in packet.decode():
                         arr = torch.from_numpy(frame.to_ndarray(format="rgb24")).float()

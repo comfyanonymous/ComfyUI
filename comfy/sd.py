@@ -510,7 +510,9 @@ class VAE:
                 # TODO
                 encode_layers = 25
                 decode_layers = 4
-                self.not_video = True
+                self.downscale_ratio = 1
+                self.upscale_ratio = 1
+
                 self.memory_used_encode = lambda shape, dtype: math.prod(shape) * model_management.dtype_size(dtype) * encode_layers
                 self.memory_used_decode = lambda shape, dtype: math.prod(shape) * model_management.dtype_size(dtype) * decode_layers
 

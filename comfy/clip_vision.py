@@ -17,7 +17,7 @@ class Output:
     def __setitem__(self, key, item):
         setattr(self, key, item)
 
-def clip_preprocess(image, size=224, mean=[0.48145466, 0.4578275, 0.40821073], std=[0.26862954, 0.26130258, 0.27577711], crop=True):
+def clip_preprocess(image, size=224, mean=[0.48145466, 0.4578275, 0.40821073], std=[0.26862954, 0.26130258, 0.27577711], crop=True, resize_mode="bicubic"):
     image = image[:, :, :, :3] if image.shape[3] > 3 else image
     mean = torch.tensor(mean, device=image.device, dtype=image.dtype)
     std = torch.tensor(std, device=image.device, dtype=image.dtype)
@@ -29,7 +29,7 @@ def clip_preprocess(image, size=224, mean=[0.48145466, 0.4578275, 0.40821073], s
         else:
             scale_size = (size, size)
 
-        image = torch.nn.functional.interpolate(image, size=scale_size, mode="bicubic", antialias=True)
+        image = torch.nn.functional.interpolate(image, size=scale_size, mode=resize_mode, antialias=True)
         h = (image.shape[2] - size)//2
         w = (image.shape[3] - size)//2
         image = image[:,:,h:h+size,w:w+size]
@@ -71,9 +71,9 @@ class ClipVisionModel():
     def get_sd(self):
         return self.model.state_dict()
 
-    def encode_image(self, image, crop=True):
+    def encode_image(self, image, crop=True, resize_mode = "bicubic"):
         comfy.model_management.load_model_gpu(self.patcher)
-        pixel_values = clip_preprocess(image.to(self.load_device), size=self.image_size, mean=self.image_mean, std=self.image_std, crop=crop).float()
+        pixel_values = clip_preprocess(image.to(self.load_device), size=self.image_size, mean=self.image_mean, std=self.image_std, crop=crop, resize_mode=resize_mode).float()
         out = self.model(pixel_values=pixel_values, intermediate_output='all' if self.return_all_hidden_states else -2)
 
         outputs = Output()
