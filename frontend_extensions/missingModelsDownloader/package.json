@@ -1,0 +1,11 @@
+{
+  "name": "comfyui-missing-models-downloader",
+  "version": "1.0.0",
+  "description": "Adds download buttons to the Missing Models dialog in ComfyUI",
+  "main": "missingModelsDownloader.js",
+  "author": "ComfyUI",
+  "license": "MIT",
+  "comfyui": {
+    "extension_type": "web"
+  }
+}
