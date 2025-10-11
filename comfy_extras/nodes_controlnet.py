@@ -1,20 +1,26 @@
 from comfy.cldm.control_types import UNION_CONTROLNET_TYPES
 import nodes
 import comfy.utils
+from typing_extensions import override
+from comfy_api.latest import ComfyExtension, io
 
-class SetUnionControlNetType:
+class SetUnionControlNetType(io.ComfyNode):
     @classmethod
-    def INPUT_TYPES(s):
-        return {"required": {"control_net": ("CONTROL_NET", ),
-                             "type": (["auto"] + list(UNION_CONTROLNET_TYPES.keys()),)
-                             }}
+    def define_schema(cls):
+        return io.Schema(
+            node_id="SetUnionControlNetType",
+            category="conditioning/controlnet",
+            inputs=[
+                io.ControlNet.Input("control_net"),
+                io.Combo.Input("type", options=["auto"] + list(UNION_CONTROLNET_TYPES.keys())),
+            ],
+            outputs=[
+                io.ControlNet.Output(),
+            ],
+        )
 
-    CATEGORY = "conditioning/controlnet"
-    RETURN_TYPES = ("CONTROL_NET",)
-
-    FUNCTION = "set_controlnet_type"
-
-    def set_controlnet_type(self, control_net, type):
+    @classmethod
+    def execute(cls, control_net, type) -> io.NodeOutput:
         control_net = control_net.copy()
         type_number = UNION_CONTROLNET_TYPES.get(type, -1)
         if type_number >= 0:
@@ -22,27 +28,36 @@ class SetUnionControlNetType:
         else:
             control_net.set_extra_arg("control_type", [])
 
-        return (control_net,)
+        return io.NodeOutput(control_net)
 
-class ControlNetInpaintingAliMamaApply(nodes.ControlNetApplyAdvanced):
+    set_controlnet_type = execute  # TODO: remove
+
+
+class ControlNetInpaintingAliMamaApply(io.ComfyNode):
     @classmethod
-    def INPUT_TYPES(s):
-        return {"required": {"positive": ("CONDITIONING", ),
-                             "negative": ("CONDITIONING", ),
-                             "control_net": ("CONTROL_NET", ),
-                             "vae": ("VAE", ),
-                             "image": ("IMAGE", ),
-                             "mask": ("MASK", ),
-                             "strength": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 10.0, "step": 0.01}),
-                             "start_percent": ("FLOAT", {"default": 0.0, "min": 0.0, "max": 1.0, "step": 0.001}),
-                             "end_percent": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 1.0, "step": 0.001})
-                             }}
+    def define_schema(cls):
+        return io.Schema(
+            node_id="ControlNetInpaintingAliMamaApply",
+            category="conditioning/controlnet",
+            inputs=[
+                io.Conditioning.Input("positive"),
+                io.Conditioning.Input("negative"),
+                io.ControlNet.Input("control_net"),
+                io.Vae.Input("vae"),
+                io.Image.Input("image"),
+                io.Mask.Input("mask"),
+                io.Float.Input("strength", default=1.0, min=0.0, max=10.0, step=0.01),
+                io.Float.Input("start_percent", default=0.0, min=0.0, max=1.0, step=0.001),
+                io.Float.Input("end_percent", default=1.0, min=0.0, max=1.0, step=0.001),
+            ],
+            outputs=[
+                io.Conditioning.Output(display_name="positive"),
+                io.Conditioning.Output(display_name="negative"),
+            ],
+        )
 
-    FUNCTION = "apply_inpaint_controlnet"
-
-    CATEGORY = "conditioning/controlnet"
-
-    def apply_inpaint_controlnet(self, positive, negative, control_net, vae, image, mask, strength, start_percent, end_percent):
+    @classmethod
+    def execute(cls, positive, negative, control_net, vae, image, mask, strength, start_percent, end_percent) -> io.NodeOutput:
         extra_concat = []
         if control_net.concat_mask:
             mask = 1.0 - mask.reshape((-1, 1, mask.shape[-2], mask.shape[-1]))
@@ -50,11 +65,20 @@ class ControlNetInpaintingAliMamaApply(nodes.ControlNetApplyAdvanced):
             image = image * mask_apply.movedim(1, -1).repeat(1, 1, 1, image.shape[3])
             extra_concat = [mask]
 
-        return self.apply_controlnet(positive, negative, control_net, image, strength, start_percent, end_percent, vae=vae, extra_concat=extra_concat)
+        result = nodes.ControlNetApplyAdvanced().apply_controlnet(positive, negative, control_net, image, strength, start_percent, end_percent, vae=vae, extra_concat=extra_concat)
+        return io.NodeOutput(result[0], result[1])
+
+    apply_inpaint_controlnet = execute  # TODO: remove
 
 
+class ControlNetExtension(ComfyExtension):
+    @override
+    async def get_node_list(self) -> list[type[io.ComfyNode]]:
+        return [
+            SetUnionControlNetType,
+            ControlNetInpaintingAliMamaApply,
+        ]
 
-NODE_CLASS_MAPPINGS = {
-    "SetUnionControlNetType": SetUnionControlNetType,
-    "ControlNetInpaintingAliMamaApply": ControlNetInpaintingAliMamaApply,
-}
+
+async def comfy_entrypoint() -> ControlNetExtension:
+    return ControlNetExtension()
