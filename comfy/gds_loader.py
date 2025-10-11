@@ -54,6 +54,7 @@ class GDSConfig:
     compression_aware: bool = True
     max_concurrent_streams: int = 4
     fallback_to_cpu: bool = True
+    show_stats: bool = False     # Whether to show stats on exit
 
 
 class GDSError(Exception):
@@ -459,3 +460,35 @@ def configure_gds(config: GDSConfig):
     """Configure GDS settings"""
     global _gds_instance
     _gds_instance = GPUDirectStorage(config)
+
+
+def init_gds(config: GDSConfig):
+    """
+    Initialize GPUDirect Storage with the provided configuration
+    
+    Args:
+        config: GDSConfig object with initialization parameters
+    """
+    try:
+        # Configure GDS
+        configure_gds(config)
+        logging.info(f"GDS initialized: enabled={config.enabled}, min_size={config.min_file_size_mb}MB, streams={config.max_concurrent_streams}")
+        
+        # Set up exit handler for stats if requested
+        if hasattr(config, 'show_stats') and config.show_stats:
+            import atexit
+            def print_gds_stats():
+                stats = get_gds_stats()
+                logging.info("=== GDS Statistics ===")
+                logging.info(f"Total loads: {stats['total_loads']}")
+                logging.info(f"GDS loads: {stats['gds_loads']} ({stats['gds_usage_percent']:.1f}%)")
+                logging.info(f"Fallback loads: {stats['fallback_loads']}")
+                logging.info(f"Total bytes via GDS: {stats['total_bytes_gds'] / (1024**3):.2f} GB")
+                logging.info(f"Average bandwidth: {stats['avg_bandwidth_gbps']:.2f} GB/s")
+                logging.info("===================")
+            atexit.register(print_gds_stats)
+            
+    except ImportError as e:
+        logging.warning(f"GDS initialization failed - missing dependencies: {e}")
+    except Exception as e:
+        logging.error(f"GDS initialization failed: {e}")
