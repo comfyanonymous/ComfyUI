@@ -5,18 +5,6 @@ import torch
 from typing_extensions import override
 from comfy_api.latest import ComfyExtension, io
 
-def calculate_dimensions(target_area: float, ratio: float) -> tuple[int, int]:
-    if ratio <= 0:
-        # fallback to square
-        width = height = math.sqrt(target_area)
-    else:
-        width = math.sqrt(target_area * ratio)
-        height = width / ratio
-
-    width = max(1, round(width / 32) * 32)
-    height = max(1, round(height / 32) * 32)
-
-    return int(width), int(height)
 
 class TextEncodeQwenImageEdit(io.ComfyNode):
     @classmethod
@@ -89,14 +77,23 @@ class QwenImageInpaintConditioning(io.ComfyNode):
         )
 
     @classmethod
-    def execute(cls, positive, negative, vae, image, mask, use_noise_mask=True) -> io.NodeOutput:
+    def execute(
+        cls,
+        positive,
+        negative,
+        vae,
+        image,
+        mask,
+        use_noise_mask=True,
+    ) -> io.NodeOutput:
         if image.ndim != 4:
             raise ValueError("Expected image tensor with shape [B, H, W, C].")
 
         image = image[:, :, :, :3]
         batch, height, width, _ = image.shape
 
-        target_width, target_height = calculate_dimensions(1024 * 1024, width / height if height > 0 else 1.0)
+        requested_width = float(width)
+        requested_height = float(height)
 
         spacial_scale = vae.spacial_compression_encode()
         if isinstance(spacial_scale, tuple):
@@ -104,8 +101,14 @@ class QwenImageInpaintConditioning(io.ComfyNode):
         spacial_scale = int(spacial_scale)
         align_multiple = max(1, spacial_scale * 2)
 
-        target_width = max(align_multiple, round(target_width / align_multiple) * align_multiple)
-        target_height = max(align_multiple, round(target_height / align_multiple) * align_multiple)
+        target_width = max(
+            align_multiple,
+            round(requested_width / align_multiple) * align_multiple,
+        )
+        target_height = max(
+            align_multiple,
+            round(requested_height / align_multiple) * align_multiple,
+        )
 
         samples = image.movedim(-1, 1)
         resized = comfy.utils.common_upscale(samples, target_width, target_height, "area", "disabled")
