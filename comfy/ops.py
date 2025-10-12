@@ -24,6 +24,8 @@ import comfy.float
 import comfy.rmsnorm
 import contextlib
 
+def run_every_op():
+    comfy.model_management.throw_exception_if_processing_interrupted()
 
 def scaled_dot_product_attention(q, k, v, *args, **kwargs):
     return torch.nn.functional.scaled_dot_product_attention(q, k, v, *args, **kwargs)
@@ -109,6 +111,7 @@ class disable_weight_init:
             return torch.nn.functional.linear(input, weight, bias)
 
         def forward(self, *args, **kwargs):
+            run_every_op()
             if self.comfy_cast_weights or len(self.weight_function) > 0 or len(self.bias_function) > 0:
                 return self.forward_comfy_cast_weights(*args, **kwargs)
             else:
@@ -123,6 +126,7 @@ class disable_weight_init:
             return self._conv_forward(input, weight, bias)
 
         def forward(self, *args, **kwargs):
+            run_every_op()
             if self.comfy_cast_weights or len(self.weight_function) > 0 or len(self.bias_function) > 0:
                 return self.forward_comfy_cast_weights(*args, **kwargs)
             else:
@@ -137,6 +141,7 @@ class disable_weight_init:
             return self._conv_forward(input, weight, bias)
 
         def forward(self, *args, **kwargs):
+            run_every_op()
             if self.comfy_cast_weights or len(self.weight_function) > 0 or len(self.bias_function) > 0:
                 return self.forward_comfy_cast_weights(*args, **kwargs)
             else:
@@ -151,6 +156,7 @@ class disable_weight_init:
             return self._conv_forward(input, weight, bias)
 
         def forward(self, *args, **kwargs):
+            run_every_op()
             if self.comfy_cast_weights or len(self.weight_function) > 0 or len(self.bias_function) > 0:
                 return self.forward_comfy_cast_weights(*args, **kwargs)
             else:
@@ -165,6 +171,7 @@ class disable_weight_init:
             return torch.nn.functional.group_norm(input, self.num_groups, weight, bias, self.eps)
 
         def forward(self, *args, **kwargs):
+            run_every_op()
             if self.comfy_cast_weights or len(self.weight_function) > 0 or len(self.bias_function) > 0:
                 return self.forward_comfy_cast_weights(*args, **kwargs)
             else:
@@ -183,6 +190,7 @@ class disable_weight_init:
             return torch.nn.functional.layer_norm(input, self.normalized_shape, weight, bias, self.eps)
 
         def forward(self, *args, **kwargs):
+            run_every_op()
             if self.comfy_cast_weights or len(self.weight_function) > 0 or len(self.bias_function) > 0:
                 return self.forward_comfy_cast_weights(*args, **kwargs)
             else:
@@ -202,6 +210,7 @@ class disable_weight_init:
             # return torch.nn.functional.rms_norm(input, self.normalized_shape, weight, self.eps)
 
         def forward(self, *args, **kwargs):
+            run_every_op()
             if self.comfy_cast_weights or len(self.weight_function) > 0 or len(self.bias_function) > 0:
                 return self.forward_comfy_cast_weights(*args, **kwargs)
             else:
@@ -223,6 +232,7 @@ class disable_weight_init:
                 output_padding, self.groups, self.dilation)
 
         def forward(self, *args, **kwargs):
+            run_every_op()
             if self.comfy_cast_weights or len(self.weight_function) > 0 or len(self.bias_function) > 0:
                 return self.forward_comfy_cast_weights(*args, **kwargs)
             else:
@@ -244,6 +254,7 @@ class disable_weight_init:
                 output_padding, self.groups, self.dilation)
 
         def forward(self, *args, **kwargs):
+            run_every_op()
             if self.comfy_cast_weights or len(self.weight_function) > 0 or len(self.bias_function) > 0:
                 return self.forward_comfy_cast_weights(*args, **kwargs)
             else:
@@ -262,6 +273,7 @@ class disable_weight_init:
             return torch.nn.functional.embedding(input, weight, self.padding_idx, self.max_norm, self.norm_type, self.scale_grad_by_freq, self.sparse).to(dtype=output_dtype)
 
         def forward(self, *args, **kwargs):
+            run_every_op()
             if self.comfy_cast_weights or len(self.weight_function) > 0 or len(self.bias_function) > 0:
                 return self.forward_comfy_cast_weights(*args, **kwargs)
             else:
