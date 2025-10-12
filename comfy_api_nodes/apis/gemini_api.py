@@ -1,19 +1,22 @@
-from __future__ import annotations
-
-from typing import List, Optional
+from typing import Optional
 
 from comfy_api_nodes.apis import GeminiGenerationConfig, GeminiContent, GeminiSafetySetting, GeminiSystemInstructionContent, GeminiTool, GeminiVideoMetadata
 from pydantic import BaseModel
 
 
+class GeminiImageConfig(BaseModel):
+    aspectRatio: Optional[str] = None
+
+
 class GeminiImageGenerationConfig(GeminiGenerationConfig):
-    responseModalities: Optional[List[str]] = None
+    responseModalities: Optional[list[str]] = None
+    imageConfig: Optional[GeminiImageConfig] = None
 
 
 class GeminiImageGenerateContentRequest(BaseModel):
-    contents: List[GeminiContent]
+    contents: list[GeminiContent]
     generationConfig: Optional[GeminiImageGenerationConfig] = None
-    safetySettings: Optional[List[GeminiSafetySetting]] = None
+    safetySettings: Optional[list[GeminiSafetySetting]] = None
     systemInstruction: Optional[GeminiSystemInstructionContent] = None
-    tools: Optional[List[GeminiTool]] = None
+    tools: Optional[list[GeminiTool]] = None
     videoMetadata: Optional[GeminiVideoMetadata] = None
