@@ -1,9 +1,22 @@
 import node_helpers
 import comfy.utils
 import math
+import torch
 from typing_extensions import override
 from comfy_api.latest import ComfyExtension, io
 
+def calculate_dimensions(target_area: float, ratio: float) -> tuple[int, int]:
+    if ratio <= 0:
+        # fallback to square
+        width = height = math.sqrt(target_area)
+    else:
+        width = math.sqrt(target_area * ratio)
+        height = width / ratio
+
+    width = max(1, round(width / 32) * 32)
+    height = max(1, round(height / 32) * 32)
+
+    return int(width), int(height)
 
 class TextEncodeQwenImageEdit(io.ComfyNode):
     @classmethod
@@ -47,6 +60,82 @@ class TextEncodeQwenImageEdit(io.ComfyNode):
             conditioning = node_helpers.conditioning_set_values(conditioning, {"reference_latents": [ref_latent]}, append=True)
         return io.NodeOutput(conditioning)
 
+class QwenImageInpaintConditioning(io.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return io.Schema(
+            node_id="QwenImageInpaintConditioning",
+            category="advanced/conditioning",
+            description=(
+                "Prepares conditioning and latents for Qwen Image Edit inpainting."
+            ),
+            inputs=[
+                io.Conditioning.Input("positive"),
+                io.Conditioning.Input("negative"),
+                io.Vae.Input("vae"),
+                io.Image.Input("image"),
+                io.Mask.Input("mask"),
+                io.Boolean.Input(
+                    "use_noise_mask",
+                    default=True,
+                    tooltip="When enabled, provide the resized mask as noise mask so sampling only affects the painted region.",
+                ),
+            ],
+            outputs=[
+                io.Conditioning.Output(display_name="positive"),
+                io.Conditioning.Output(display_name="negative"),
+                io.Latent.Output(display_name="latent"),
+            ],
+        )
+
+    @classmethod
+    def execute(cls, positive, negative, vae, image, mask, use_noise_mask=True) -> io.NodeOutput:
+        if image.ndim != 4:
+            raise ValueError("Expected image tensor with shape [B, H, W, C].")
+
+        image = image[:, :, :, :3]
+        batch, height, width, _ = image.shape
+
+        target_width, target_height = calculate_dimensions(1024 * 1024, width / height if height > 0 else 1.0)
+
+        spacial_scale = vae.spacial_compression_encode()
+        if isinstance(spacial_scale, tuple):
+            spacial_scale = spacial_scale[-1]
+        spacial_scale = int(spacial_scale)
+        align_multiple = max(1, spacial_scale * 2)
+
+        target_width = max(align_multiple, round(target_width / align_multiple) * align_multiple)
+        target_height = max(align_multiple, round(target_height / align_multiple) * align_multiple)
+
+        samples = image.movedim(-1, 1)
+        resized = comfy.utils.common_upscale(samples, target_width, target_height, "area", "disabled")
+        resized = resized.movedim(1, -1)
+
+        mask_tensor = mask.reshape((-1, 1, mask.shape[-2], mask.shape[-1]))
+        mask_tensor = torch.nn.functional.interpolate(mask_tensor, size=(target_height, target_width), mode="bilinear")
+        mask_tensor = mask_tensor.clamp(0.0, 1.0)
+        mask_tensor = mask_tensor.to(resized.dtype)
+        mask_tensor = comfy.utils.resize_to_batch_size(mask_tensor, batch)
+
+        masked_pixels = resized.clone()
+        keep_region = (1.0 - mask_tensor.round()).squeeze(1)
+        masked_pixels[:, :, :, :3] = (masked_pixels[:, :, :, :3] - 0.5) * keep_region.unsqueeze(-1) + 0.5
+
+        concat_latent = vae.encode(masked_pixels)
+        orig_latent = vae.encode(resized)
+
+        out_latent: dict[str, torch.Tensor] = {"samples": orig_latent}
+        if use_noise_mask:
+            out_latent["noise_mask"] = mask_tensor
+
+        positive = node_helpers.conditioning_set_values(
+            positive, {"concat_latent_image": concat_latent, "concat_mask": mask_tensor}
+        )
+        negative = node_helpers.conditioning_set_values(
+            negative, {"concat_latent_image": concat_latent, "concat_mask": mask_tensor}
+        )
+
+        return io.NodeOutput(positive, negative, out_latent)
 
 class TextEncodeQwenImageEditPlus(io.ComfyNode):
     @classmethod
@@ -109,6 +198,7 @@ class QwenExtension(ComfyExtension):
     async def get_node_list(self) -> list[type[io.ComfyNode]]:
         return [
             TextEncodeQwenImageEdit,
+            QwenImageInpaintConditioning,
             TextEncodeQwenImageEditPlus,
         ]
 
