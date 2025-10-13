@@ -12,8 +12,6 @@ from comfy.ldm.modules.attention import optimized_attention as attention
 from comfy.ldm.aura.mmdit import TimestepEmbedder as TimestepEmbedderParent
 from comfy.ldm.hydit.posemb_layers import get_1d_rotary_pos_embed
 
-from typing import Union, Tuple
-
 # to get exact matching results
 # only difference is the upscale to float32
 class RMSNorm(nn.Module):

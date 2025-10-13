@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import os
-import io
 import av
 import torch
 import folder_paths
