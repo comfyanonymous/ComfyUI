@@ -28,7 +28,9 @@ a111:
 #     # You can use is_default to mark that these folders should be listed first, and used as the default dirs for eg downloads
 #     #is_default: true
 #     checkpoints: models/checkpoints/
-#     clip: models/clip/
+#     text_encoders: |
+#          models/text_encoders/
+#          models/clip/  # legacy location still supported
 #     clip_vision: models/clip_vision/
 #     configs: models/configs/
 #     controlnet: models/controlnet/
@@ -39,6 +41,9 @@ a111:
 #     loras: models/loras/
 #     upscale_models: models/upscale_models/
 #     vae: models/vae/
+
+# For a full list of supported keys (style_models, vae_approx, hypernetworks, photomaker,
+# model_patches, audio_encoders, classifiers, etc.) see folder_paths.py.
 
 #other_ui:
 #    base_path: path/to/ui
