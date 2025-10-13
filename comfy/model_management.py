@@ -345,9 +345,9 @@ try:
                 if torch_version_numeric >= (2, 7):  # works on 2.6 but doesn't actually seem to improve much
                     if any((a in arch) for a in ["gfx90a", "gfx942", "gfx1100", "gfx1101", "gfx1151"]):  # TODO: more arches, TODO: gfx950
                         ENABLE_PYTORCH_ATTENTION = True
-#                if torch_version_numeric >= (2, 8):
-#                    if any((a in arch) for a in ["gfx1201"]):
-#                        ENABLE_PYTORCH_ATTENTION = True
+                if torch_version_numeric >= (2, 8):
+                    if any((a in arch) for a in ["gfx1200", "gfx1201"]):
+                        ENABLE_PYTORCH_ATTENTION = True
         if torch_version_numeric >= (2, 7) and rocm_version >= (6, 4):
             if any((a in arch) for a in ["gfx1200", "gfx1201", "gfx942", "gfx950"]):  # TODO: more arches
                 SUPPORT_FP8_OPS = True
@@ -1109,11 +1109,6 @@ def xformers_enabled_vae():
 def pytorch_attention_enabled():
     global ENABLE_PYTORCH_ATTENTION
     return ENABLE_PYTORCH_ATTENTION
-
-def pytorch_attention_enabled_vae():
-    if is_amd():
-        return False  # enabling pytorch attention on AMD currently causes crash when doing high res
-    return pytorch_attention_enabled()
 
 def pytorch_attention_flash_attention():
     global ENABLE_PYTORCH_ATTENTION
