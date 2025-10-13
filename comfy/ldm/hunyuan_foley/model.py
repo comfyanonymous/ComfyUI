@@ -55,7 +55,7 @@ class TimestepEmbedder(TimestepEmbedderParent):
     def forward(self, t):
         t_freq = timestep_embedding(t, self.frequency_embedding_size).type(self.mlp[0].weight.dtype)
         t_emb = self.mlp(t_freq)
-        return t_emb 
+        return t_emb
 
 class SwiGLU(nn.Module):
     def __init__(self, dim: int, hidden_dim: int, device, dtype, operations):
@@ -150,9 +150,9 @@ class ChannelLastConv1d(nn.Module):
             self.register_parameter("bias", underlying.bias)
         else:
             self.register_parameter("bias", None)
-        
+
         object.__setattr__(self, "_underlying", underlying)
-    
+
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         self._underlying = self._underlying.to(x.dtype)
         x = self._underlying(x.permute(0, 2, 1))
@@ -204,7 +204,7 @@ class ModulateDiT(nn.Module):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         return self.linear(self.act(x))
-    
+
 class FinalLayer1D(nn.Module):
     def __init__(self, hidden_size, patch_size, out_channels, device=None, dtype=None, operations = None):
         factory_kwargs = {"device": device, "dtype": dtype}
@@ -223,7 +223,7 @@ class FinalLayer1D(nn.Module):
         self.linear = self.linear.to(x.dtype)
         x = self.linear(x)
         return x
-    
+
 class MLP(nn.Module):
     def __init__(
         self,
@@ -254,7 +254,7 @@ class MLP(nn.Module):
         self.drop2 = nn.Dropout(drop_probs[1])
 
     def forward(self, x):
-        return self.drop2(self.fc2(self.norm(self.drop1(self.act(self.fc1(x)))))) 
+        return self.drop2(self.fc2(self.norm(self.drop1(self.act(self.fc1(x))))))
 
 
 def _to_tuple(x, dim=2):
@@ -297,7 +297,7 @@ def get_meshgrid_nd(start, *args, dim=2):
 def get_nd_rotary_pos_embed(
     rope_dim_list, start, *args, theta=10000.0, use_real=False, theta_rescale_factor=1.0, freq_scaling=1.0
 ):
-    
+
     grid = get_meshgrid_nd(start, *args, dim=len(rope_dim_list))
 
     embs = []
@@ -411,14 +411,14 @@ class TwoStreamCABlock(nn.Module):
 
         self.max_text_len = 100
         self.rope_dim_list = None
-        
+
         self.audio_norm2 = operations.LayerNorm(hidden_size, elementwise_affine=False, eps=1e-6, **factory_kwargs)
         self.v_cond_norm2 = operations.LayerNorm(hidden_size, elementwise_affine=False, eps=1e-6, **factory_kwargs)
 
         self.audio_cross_q = operations.Linear(hidden_size, hidden_size, bias=qkv_bias, **factory_kwargs)
         self.v_cond_cross_q = operations.Linear(hidden_size, hidden_size, bias=qkv_bias, **factory_kwargs)
         self.text_cross_kv = operations.Linear(hidden_size, hidden_size * 2, bias=qkv_bias, **factory_kwargs)
-        
+
         self.audio_cross_proj = operations.Linear(hidden_size, hidden_size, bias=qkv_bias, **factory_kwargs)
         self.v_cond_cross_proj = operations.Linear(hidden_size, hidden_size, bias=qkv_bias, **factory_kwargs)
 
@@ -435,11 +435,11 @@ class TwoStreamCABlock(nn.Module):
     def build_rope_for_text(self, text_len, head_dim, rope_dim_list=None):
         target_ndim = 1  # n-d RoPE
         rope_sizes = [text_len]
-        
+
         if rope_dim_list is None:
             rope_dim_list = [head_dim // target_ndim for _ in range(target_ndim)]
         assert sum(rope_dim_list) == head_dim, "sum(rope_dim_list) should equal to head_dim of attention layer"
-        
+
         text_freqs_cos, text_freqs_sin = get_nd_rotary_pos_embed(
             rope_dim_list=rope_dim_list,
             start=rope_sizes,
@@ -461,7 +461,7 @@ class TwoStreamCABlock(nn.Module):
         sync_vec: torch.Tensor = None,
     ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
 
-        (audio_mod1_shift, audio_mod1_scale, audio_mod1_gate, 
+        (audio_mod1_shift, audio_mod1_scale, audio_mod1_gate,
              audio_mod2_shift, audio_mod2_scale, audio_mod2_gate,
              audio_mod3_shift, audio_mod3_scale, audio_mod3_gate,
         ) = self.audio_mod(sync_vec if sync_vec is not None else vec).chunk(9, dim=-1)
@@ -477,19 +477,19 @@ class TwoStreamCABlock(nn.Module):
             v_cond_mod3_scale,
             v_cond_mod3_gate,
         ) = self.v_cond_mod(vec).chunk(9, dim=-1)
-        
+
         audio_q, audio_k, audio_v = prepare_self_attn_qkv(
-            audio, self.audio_norm1, self.audio_self_attn_qkv, 
+            audio, self.audio_norm1, self.audio_self_attn_qkv,
             self.audio_self_q_norm, self.audio_self_k_norm,
             audio_mod1_shift, audio_mod1_scale, self.num_heads
         )
 
         v_cond_q, v_cond_k, v_cond_v = prepare_self_attn_qkv(
-            v_cond, self.v_cond_norm1, self.v_cond_attn_qkv, 
+            v_cond, self.v_cond_norm1, self.v_cond_attn_qkv,
             self.v_cond_attn_q_norm, self.v_cond_attn_k_norm,
             v_cond_mod1_shift, v_cond_mod1_scale, self.num_heads
         )
-        
+
         # Apply RoPE if needed for audio and visual
         if freqs_cis is not None:
             if not self.interleaved_audio_visual_rope:
@@ -515,18 +515,18 @@ class TwoStreamCABlock(nn.Module):
         if v_freqs_cis is not None and not self.interleaved_audio_visual_rope:
             v_cond_qq, v_cond_kk = apply_rotary_emb(v_cond_q, v_cond_k, v_freqs_cis, head_first=False)
             v_cond_q, v_cond_k = v_cond_qq, v_cond_kk
-        
+
         q = torch.cat((v_cond_q, audio_q), dim=1)
         k = torch.cat((v_cond_k, audio_k), dim=1)
         v = torch.cat((v_cond_v, audio_v), dim=1)
-        
+
         # TODO: look further into here
         if attention.__name__ == "attention_pytorch":
             q, k, v = [t.transpose(1, 2) for t in (q, k, v)]
-        
+
         attn = attention(q, k, v, heads = self.num_heads, mask=attn_mask, skip_reshape=True)
         v_cond_attn, audio_attn = torch.split(attn, [v_cond.shape[1], audio.shape[1]], dim=1)
-        
+
         audio = audio + apply_gate(self.audio_self_proj(audio_attn), gate=audio_mod1_gate)
         v_cond = v_cond + apply_gate(self.v_cond_self_proj(v_cond_attn), gate=v_cond_mod1_gate)
         head_dim = self.hidden_size // self.num_heads
@@ -544,12 +544,12 @@ class TwoStreamCABlock(nn.Module):
         text_k = self.text_cross_k_norm(text_k).to(text_v)
 
         text_len = text_k.shape[1]
-        
-        text_freqs_cos, text_freqs_sin = self.build_rope_for_text(text_len, head_dim, 
+
+        text_freqs_cos, text_freqs_sin = self.build_rope_for_text(text_len, head_dim,
                                                                  rope_dim_list=self.rope_dim_list)
         text_freqs_cis = (text_freqs_cos.to(text_k.device), text_freqs_sin.to(text_k.device))
         text_k = apply_rotary_emb(text_k, text_k, text_freqs_cis, head_first=False)[1]
-        
+
         v_cond_audio_q = torch.cat([v_cond_q, audio_q], dim=1)
 
         if attention.__name__ == "attention_pytorch":
@@ -557,7 +557,7 @@ class TwoStreamCABlock(nn.Module):
 
         cross_attn = attention(v_cond_audio_q, text_k, text_v, self.num_heads, skip_reshape = True)
         v_cond_cross_attn, audio_cross_attn = torch.split(cross_attn, [v_cond.shape[1], audio.shape[1]], dim=1)
-        
+
         audio = audio + apply_gate(self.audio_cross_proj(audio_cross_attn), gate=audio_mod2_gate)
         v_cond = v_cond + apply_gate(self.v_cond_cross_proj(v_cond_cross_attn), gate=v_cond_mod2_gate)
 
@@ -565,7 +565,7 @@ class TwoStreamCABlock(nn.Module):
         v_cond = apply_modulated_block(v_cond, self.v_cond_norm3, v_cond_mod3_shift, v_cond_mod3_scale, self.v_cond_mlp, v_cond_mod3_gate)
 
         return audio, cond, v_cond
-    
+
     def prepare_modulated_query(self, x, norm_layer, q_layer, q_norm_layer, shift, scale, num_heads, rope_dim_list):
 
         x_mod = modulate(norm_layer(x), shift=shift, scale=scale)
@@ -577,9 +577,9 @@ class TwoStreamCABlock(nn.Module):
         head_dim = q.shape[-1]
         freqs_cos, freqs_sin = self.build_rope_for_text(q.shape[1], head_dim, rope_dim_list)
         freqs_cis = (freqs_cos.to(q.device), freqs_sin.to(q.device))
-        
+
         q = apply_rotary_emb(q, q, freqs_cis, head_first=False)[0]
-        
+
         return q
 
 class SingleStreamBlock(nn.Module):
@@ -697,7 +697,7 @@ class HunyuanVideoFoley(nn.Module):
         self.patch_size = model_args.get("patch_size", 1)
         self.visual_in_channels = model_args.get("clip_dim", 768)
         self.audio_vae_latent_dim = model_args.get("audio_vae_latent_dim", 128)
-        self.out_channels = self.audio_vae_latent_dim 
+        self.out_channels = self.audio_vae_latent_dim
         self.unpatchify_channels = self.out_channels
 
         self.num_heads = model_args.get("num_heads", 12)
@@ -873,7 +873,7 @@ class HunyuanVideoFoley(nn.Module):
 
             uncond_1 = uncond_1[:, :clip_feat.size(1), :clip_feat.size(2)]
             uncond_2 = uncond_2[:, :sync_feat.size(1), :sync_feat.size(2)]
-            
+
             uncond_1, uncond_2, cond_neg, clip_feat, sync_feat, cond_pos = [unlock_cpu_tensor(t, device) for t in (uncond_1, uncond_2, cond_neg, clip_feat, sync_feat, cond_pos)]
 
             diff = cond_pos.shape[1] - cond_neg.shape[1]
@@ -884,6 +884,8 @@ class HunyuanVideoFoley(nn.Module):
 
             clip_feat, sync_feat, cond = torch.cat([uncond_1, clip_feat]), torch.cat([uncond_2, sync_feat]), torch.cat([cond_neg, cond_pos])
             clip_feat = clip_feat.view(2, -1, 768)
+
+            self.conditions = (clip_feat, sync_feat, cond)
 
         else:
             clip_feat, sync_feat, cond = self.conditions
@@ -944,7 +946,7 @@ class HunyuanVideoFoley(nn.Module):
             else:
                 audio, cond, v_cond = block(*triple_block_args)
 
-        x = audio 
+        x = audio
         if sync_vec is not None:
             vec = vec.unsqueeze(1).repeat(1, cond_seq_len + v_cond_seq_len, 1)
             vec = torch.cat((vec, sync_vec), dim=1)

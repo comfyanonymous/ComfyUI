@@ -19,6 +19,8 @@ class Output:
 
 def clip_preprocess(image, size=224, mean=[0.48145466, 0.4578275, 0.40821073], std=[0.26862954, 0.26130258, 0.27577711], crop=True, resize_mode="bicubic"):
     image = image[:, :, :, :3] if image.shape[3] > 3 else image
+    if image.dtype == torch.uint8:
+        image = image.float() / 255.0
     mean = torch.tensor(mean, device=image.device, dtype=image.dtype)
     std = torch.tensor(std, device=image.device, dtype=image.dtype)
     image = image.movedim(-1, 1)

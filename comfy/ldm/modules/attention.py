@@ -1121,7 +1121,7 @@ class MultiheadAttentionComfyv(nn.Module):
         self.batch_first = batch_first
         self.head_dim = embed_dim // num_heads
         self.embed_dim = embed_dim
-    
+
     # overwriting state dict loading to convert in_proj_weight/bias -> self._q_proj/_k_proj/_v_proj
     def _load_from_state_dict(
         self,
@@ -1164,26 +1164,17 @@ class MultiheadAttentionComfyv(nn.Module):
             error_msgs,
         )
 
-    def forward(self, src, k = None, v = None, attn_mask = None, key_padding_mask = None):
+    def forward(self, src, k=None, v=None, attn_mask=None, key_padding_mask=None):
+        self._q_proj, self._k_proj, self._v_proj = [
+            t.to(src.device).to(src.dtype)
+            for t in (self._q_proj, self._k_proj, self._v_proj)
+        ]
 
-        self._q_proj, self._k_proj, self._v_proj = [t.to(src.device).to(src.dtype) for t in (self._q_proj, self._k_proj, self._v_proj)]
         q = self._q_proj(src)
-        if k is None:
-            k = self._k_proj(src)
-        if v is None:
-            v = self._v_proj(src)
-        k, v = k.to(src.device).to(src.dtype), v.to(src.device).to(src.dtype)
+        k = self._k_proj(src if k is None else k.to(src.device).to(src.dtype))
+        v = self._v_proj(src if v is None else v.to(src.device).to(src.dtype))
 
-        if k is v:
-            if q is k:
-                q = k = v = q.transpose(1, 0)
-            else:
-                q, k = (x.transpose(1, 0) for x in (q, k))
-                v = k
-        else:
-            q, k, v = (x.transpose(1, 0) for x in (q, k, v))
-
-        output = optimized_attention(q, k, v, self.num_heads, mask = attn_mask)
+        output = optimized_attention(q, k, v, self.num_heads, mask=attn_mask)
         return self.out_proj(output)
 
 # comfyui implementation of nn.TransformerEncoderLayer

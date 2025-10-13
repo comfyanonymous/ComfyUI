@@ -92,7 +92,7 @@ class HunyuanFoleyConditioning(io.ComfyNode):
 
     @classmethod
     def execute(cls, siglip_encoding_1, synchformer_encoding_2, text_encoding_positive, text_encoding_negative):
-        
+
         text_encoding_positive = text_encoding_positive[0][0]
         text_encoding_negative = text_encoding_negative[0][0]
         all_ = (siglip_encoding_1, synchformer_encoding_2, text_encoding_positive, text_encoding_negative)
@@ -108,7 +108,7 @@ class HunyuanFoleyConditioning(io.ComfyNode):
             # temporary repeat values on the cpu
             factor_pos, remainder = divmod(max_value, input.shape[dim])
 
-            positions = [1] * input.ndim 
+            positions = [1] * input.ndim
             positions[dim] = factor_pos
             input = input.cpu().repeat(*positions)
 
@@ -120,7 +120,7 @@ class HunyuanFoleyConditioning(io.ComfyNode):
                 input = torch.cat([input, pad], dim = dim)
 
             return input
-        
+
         siglip_encoding_1, synchformer_encoding_2, text_encoding_positive, text_encoding_negative = [repeat_shapes(max_l, t) for t in all_]
         siglip_encoding_1, synchformer_encoding_2, text_encoding_positive, text_encoding_negative = [repeat_shapes(max_d, t, dim = 2) for t in
                                                                                                     (siglip_encoding_1, synchformer_encoding_2, text_encoding_positive, text_encoding_negative)]

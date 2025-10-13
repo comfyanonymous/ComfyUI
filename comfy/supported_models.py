@@ -1303,7 +1303,7 @@ class Omnigen2(supported_models_base.BASE):
         pref = self.text_encoder_key_prefix[0]
         hunyuan_detect = comfy.text_encoders.hunyuan_video.llama_detect(state_dict, "{}qwen25_3b.transformer.".format(pref))
         return supported_models_base.ClipTarget(comfy.text_encoders.omnigen2.Omnigen2Tokenizer, comfy.text_encoders.omnigen2.te(**hunyuan_detect))
-    
+
 class HunyuanFoley(supported_models_base.BASE):
     unet_config = {
         "image_model": "hunyuan_foley",
@@ -1318,7 +1318,7 @@ class HunyuanFoley(supported_models_base.BASE):
         return model_base.HunyuanFoley(self, device=device)
     def clip_target(self, state_dict={}):
         return supported_models_base.ClipTarget(comfy.text_encoders.clap_model.ClapLargeTokenizer, comfy.text_encoders.clap_model.ClapTextEncoderModel)
-    
+
     def process_clip_state_dict(self, state_dict):
         state_dict = utils.state_dict_prefix_replace(state_dict, {k: "transformer." for k in self.text_encoder_key_prefix}, filter_keys=True)
         state_dict["logit_scale"] = torch.tensor(1.0)

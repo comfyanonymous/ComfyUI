@@ -420,7 +420,7 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
             dit_config["in_dim_ref_conv"] = ref_conv_weight.shape[1]
 
         return dit_config
-    
+
     if '{}triple_blocks.17.audio_cross_q.weight'.format(key_prefix) in state_dict_keys: # Hunyuan Foley
         dit_config =  {}
         dit_config["image_model"] = "hunyuan_foley"

@@ -48,7 +48,7 @@ class EncodeVideo(io.ComfyNode):
                 io.Conditioning.Output(display_name="encoded_video"),
             ],
         )
-    
+
     @classmethod
     def execute(cls, video, processing_batch_size, step_size, vae = None, clip_vision = None):
 
@@ -94,13 +94,15 @@ class EncodeVideo(io.ComfyNode):
                 chunk = chunk.to(model_dtype)
                 if hasattr(vae, "encode"):
                     try:
+                        if chunk.ndim > 5:
+                            raise ValueError("chunk.ndim > 5")
                         chunk = chunk.movedim(1, -1)
                         out = vae.encode(chunk)
-                    except:
+                    except Exception:
                         out = model.encode(chunk)
                 else:
                     chunk = chunk.movedim(1, -1)
-                    out = vae.encode_image(chunk, crop=False, resize_mode="bilinear")
+                    out = vae.encode_image(chunk.to(torch.uint8), crop=False, resize_mode="bilinear")
                     out = out["image_embeds"]
 
                 out_cpu = out.cpu()
@@ -133,14 +135,14 @@ class ResampleVideo(io.ComfyNode):
         )
     @classmethod
     def execute(cls, video, target_fps: int):
-        # doesn't support upsampling 
+        # doesn't support upsampling
         with av.open(video.get_stream_source(), mode="r") as container:
             stream = container.streams.video[0]
             frames = []
 
             src_rate = stream.average_rate or stream.guessed_rate
             src_fps = float(src_rate) if src_rate else None
-            
+
             if src_fps is None:
                 logging.warning("src_fps for video resampling is None.")
 

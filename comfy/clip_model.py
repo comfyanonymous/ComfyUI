@@ -246,7 +246,7 @@ class CLIPVision(torch.nn.Module):
             x = self.post_layernorm(x)
             if self.use_head:
                 pooled_output = self.head(x)
-            else:   
+            else:
                 pooled_output = x
         else:
             pooled_output = self.post_layernorm(x[:, 0, :])

@@ -160,7 +160,7 @@ class MotionFormer(nn.Module):
     def __init__(self, device = None, dtype = None, operations = None):
         super().__init__()
         self.APPROX_ATTN_TYPE = "none"
-        self.APPROX_ATTN_DIM = 64 
+        self.APPROX_ATTN_DIM = 64
         self.img_size = 224
         self.patch_size = 16
         self.in_chans = 3
@@ -224,7 +224,7 @@ class MotionFormer(nn.Module):
         self.norm = norm_layer(self.embed_dim)
 
         self.pre_logits = nn.Identity()
-        
+
         transf_enc_layer_kwargs = dict(
             d_model=self.embed_dim,
             nhead=self.num_heads,
@@ -273,7 +273,7 @@ class MotionFormer(nn.Module):
             )
 
         return x, tok_mask
-    
+
     def forward(self, x):
         B, S, C, T, H, W = x.shape
 
@@ -322,7 +322,7 @@ class BaseEncoderLayer(TransformerEncoderComfyv):
         device = None,
         dtype = None, operations = None,
         *args, **kwargs
-    ):  
+    ):
         factory_kwargs = {"device": device, "dtype": dtype}
         super().__init__(operations = operations, *args, **kwargs, **factory_kwargs)
 
@@ -382,7 +382,7 @@ class SpatialTransformerEncoderLayer(BaseEncoderLayer):
         x = rearrange(x, "(BS t) D -> BS t D", BS=BS, t=t)
 
         return x
-    
+
 class AST(torch.nn.Module):
     def __init__(
         self,
@@ -391,7 +391,7 @@ class AST(torch.nn.Module):
         max_segments: int = None,
         device = None, dtype = None, operations = None
     ) -> None:
-        
+
         super().__init__()
         factory_kwargs = {"device": device, "dtype": dtype}
         self.extract_features = True
@@ -518,7 +518,7 @@ class FrequencyTransformerEncoderLayer(BaseEncoderLayer):
         x = x.view(BS, t, D)
 
         return x
-    
+
 class ASTEmbeddings(nn.Module):
 
     def __init__(self, config: ASTConfig, device = None, dtype = None, operations = None) -> None:
@@ -789,7 +789,7 @@ class ASTModel(nn.Module):
             ),
             tok_mask,
         )
-    
+
 class ASTMLPHead(nn.Module):
     def __init__(self, config: ASTConfig, device, dtype, operations):
         super().__init__()
@@ -957,6 +957,7 @@ class Synchformer(nn.Module):
         )
 
     def forward(self, vis):
+        vis = vis.to(next(self.parameters()).dtype)
         vis = vis.permute(0, 1, 3, 2, 4, 5)  # (B, S, C, Tv, H, W)
         vis = self.vfeat_extractor(vis)
         return vis
