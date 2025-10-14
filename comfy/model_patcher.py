@@ -624,6 +624,8 @@ class ModelPatcher:
 
     def supports_flipflop(self):
         # flipflop requires diffusion_model, explicit flipflop support, NVIDIA CUDA streams, and loading/offloading VRAM
+        if not comfy.model_management.flipflop_enabled():
+            return False
         if not hasattr(self.model, "diffusion_model"):
             return False
         if not getattr(self.model.diffusion_model, "enable_flipflop", False):

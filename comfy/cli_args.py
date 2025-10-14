@@ -132,6 +132,8 @@ parser.add_argument("--reserve-vram", type=float, default=None, help="Set the am
 
 parser.add_argument("--async-offload", action="store_true", help="Use async weight offloading.")
 
+parser.add_argument("--flipflop-offload", action="store_true", help="Use async flipflop weight offloading for supported DiT models.")
+
 parser.add_argument("--force-non-blocking", action="store_true", help="Force ComfyUI to use non-blocking operations for all applicable tensors. This may improve performance on some non-Nvidia systems but can cause issues with some workflows.")
 
 parser.add_argument("--default-hashing-function", type=str, choices=['md5', 'sha1', 'sha256', 'sha512'], default='sha256', help="Allows you to choose the hash function to use for duplicate filename / contents comparison. Default is sha256.")
