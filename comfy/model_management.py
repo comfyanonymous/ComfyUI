@@ -345,9 +345,9 @@ try:
                 if torch_version_numeric >= (2, 7):  # works on 2.6 but doesn't actually seem to improve much
                     if any((a in arch) for a in ["gfx90a", "gfx942", "gfx1100", "gfx1101", "gfx1151"]):  # TODO: more arches, TODO: gfx950
                         ENABLE_PYTORCH_ATTENTION = True
-#                if torch_version_numeric >= (2, 8):
-#                    if any((a in arch) for a in ["gfx1201"]):
-#                        ENABLE_PYTORCH_ATTENTION = True
+                if rocm_version >= (7, 0):
+                   if any((a in arch) for a in ["gfx1201"]):
+                       ENABLE_PYTORCH_ATTENTION = True
         if torch_version_numeric >= (2, 7) and rocm_version >= (6, 4):
             if any((a in arch) for a in ["gfx1200", "gfx1201", "gfx942", "gfx950"]):  # TODO: more arches
                 SUPPORT_FP8_OPS = True
