@@ -4,7 +4,7 @@ from typing_extensions import override
 
 import torch
 from pydantic import BaseModel, Field
-from comfy_api.latest import ComfyExtension, Input, io as comfy_io
+from comfy_api.latest import ComfyExtension, Input, IO
 from comfy_api_nodes.apis.client import (
     ApiEndpoint,
     HttpMethod,
@@ -195,35 +195,35 @@ async def process_task(
     ).execute()
 
 
-class WanTextToImageApi(comfy_io.ComfyNode):
+class WanTextToImageApi(IO.ComfyNode):
     @classmethod
     def define_schema(cls):
-        return comfy_io.Schema(
+        return IO.Schema(
             node_id="WanTextToImageApi",
             display_name="Wan Text to Image",
             category="api node/image/Wan",
             description="Generates image based on text prompt.",
             inputs=[
-                comfy_io.Combo.Input(
+                IO.Combo.Input(
                     "model",
                     options=["wan2.5-t2i-preview"],
                     default="wan2.5-t2i-preview",
                     tooltip="Model to use.",
                 ),
-                comfy_io.String.Input(
+                IO.String.Input(
                     "prompt",
                     multiline=True,
                     default="",
                     tooltip="Prompt used to describe the elements and visual features, supports English/Chinese.",
                 ),
-                comfy_io.String.Input(
+                IO.String.Input(
                     "negative_prompt",
                     multiline=True,
                     default="",
                     tooltip="Negative text prompt to guide what to avoid.",
                     optional=True,
                 ),
-                comfy_io.Int.Input(
+                IO.Int.Input(
                     "width",
                     default=1024,
                     min=768,
@@ -231,7 +231,7 @@ class WanTextToImageApi(comfy_io.ComfyNode):
                     step=32,
                     optional=True,
                 ),
-                comfy_io.Int.Input(
+                IO.Int.Input(
                     "height",
                     default=1024,
                     min=768,
@@ -239,24 +239,24 @@ class WanTextToImageApi(comfy_io.ComfyNode):
                     step=32,
                     optional=True,
                 ),
-                comfy_io.Int.Input(
+                IO.Int.Input(
                     "seed",
                     default=0,
                     min=0,
                     max=2147483647,
                     step=1,
-                    display_mode=comfy_io.NumberDisplay.number,
+                    display_mode=IO.NumberDisplay.number,
                     control_after_generate=True,
                     tooltip="Seed to use for generation.",
                     optional=True,
                 ),
-                comfy_io.Boolean.Input(
+                IO.Boolean.Input(
                     "prompt_extend",
                     default=True,
                     tooltip="Whether to enhance the prompt with AI assistance.",
                     optional=True,
                 ),
-                comfy_io.Boolean.Input(
+                IO.Boolean.Input(
                     "watermark",
                     default=True,
                     tooltip="Whether to add an \"AI generated\" watermark to the result.",
@@ -264,12 +264,12 @@ class WanTextToImageApi(comfy_io.ComfyNode):
                 ),
             ],
             outputs=[
-                comfy_io.Image.Output(),
+                IO.Image.Output(),
             ],
             hidden=[
-                comfy_io.Hidden.auth_token_comfy_org,
-                comfy_io.Hidden.api_key_comfy_org,
-                comfy_io.Hidden.unique_id,
+                IO.Hidden.auth_token_comfy_org,
+                IO.Hidden.api_key_comfy_org,
+                IO.Hidden.unique_id,
             ],
             is_api_node=True,
         )
@@ -309,36 +309,36 @@ class WanTextToImageApi(comfy_io.ComfyNode):
             estimated_duration=9,
             poll_interval=3,
         )
-        return comfy_io.NodeOutput(await download_url_to_image_tensor(str(response.output.results[0].url)))
+        return IO.NodeOutput(await download_url_to_image_tensor(str(response.output.results[0].url)))
 
 
-class WanImageToImageApi(comfy_io.ComfyNode):
+class WanImageToImageApi(IO.ComfyNode):
     @classmethod
     def define_schema(cls):
-        return comfy_io.Schema(
+        return IO.Schema(
             node_id="WanImageToImageApi",
             display_name="Wan Image to Image",
             category="api node/image/Wan",
             description="Generates an image from one or two input images and a text prompt. "
                         "The output image is currently fixed at 1.6 MP; its aspect ratio matches the input image(s).",
             inputs=[
-                comfy_io.Combo.Input(
+                IO.Combo.Input(
                     "model",
                     options=["wan2.5-i2i-preview"],
                     default="wan2.5-i2i-preview",
                     tooltip="Model to use.",
                 ),
-                comfy_io.Image.Input(
+                IO.Image.Input(
                     "image",
                     tooltip="Single-image editing or multi-image fusion, maximum 2 images.",
                 ),
-                comfy_io.String.Input(
+                IO.String.Input(
                     "prompt",
                     multiline=True,
                     default="",
                     tooltip="Prompt used to describe the elements and visual features, supports English/Chinese.",
                 ),
-                comfy_io.String.Input(
+                IO.String.Input(
                     "negative_prompt",
                     multiline=True,
                     default="",
@@ -346,7 +346,7 @@ class WanImageToImageApi(comfy_io.ComfyNode):
                     optional=True,
                 ),
                 # redo this later as an optional combo of recommended resolutions
-                # comfy_io.Int.Input(
+                # IO.Int.Input(
                 #     "width",
                 #     default=1280,
                 #     min=384,
@@ -354,7 +354,7 @@ class WanImageToImageApi(comfy_io.ComfyNode):
                 #     step=16,
                 #     optional=True,
                 # ),
-                # comfy_io.Int.Input(
+                # IO.Int.Input(
                 #     "height",
                 #     default=1280,
                 #     min=384,
@@ -362,18 +362,18 @@ class WanImageToImageApi(comfy_io.ComfyNode):
                 #     step=16,
                 #     optional=True,
                 # ),
-                comfy_io.Int.Input(
+                IO.Int.Input(
                     "seed",
                     default=0,
                     min=0,
                     max=2147483647,
                     step=1,
-                    display_mode=comfy_io.NumberDisplay.number,
+                    display_mode=IO.NumberDisplay.number,
                     control_after_generate=True,
                     tooltip="Seed to use for generation.",
                     optional=True,
                 ),
-                comfy_io.Boolean.Input(
+                IO.Boolean.Input(
                     "watermark",
                     default=True,
                     tooltip="Whether to add an \"AI generated\" watermark to the result.",
@@ -381,12 +381,12 @@ class WanImageToImageApi(comfy_io.ComfyNode):
                 ),
             ],
             outputs=[
-                comfy_io.Image.Output(),
+                IO.Image.Output(),
             ],
             hidden=[
-                comfy_io.Hidden.auth_token_comfy_org,
-                comfy_io.Hidden.api_key_comfy_org,
-                comfy_io.Hidden.unique_id,
+                IO.Hidden.auth_token_comfy_org,
+                IO.Hidden.api_key_comfy_org,
+                IO.Hidden.unique_id,
             ],
             is_api_node=True,
         )
@@ -431,38 +431,38 @@ class WanImageToImageApi(comfy_io.ComfyNode):
             estimated_duration=42,
             poll_interval=3,
         )
-        return comfy_io.NodeOutput(await download_url_to_image_tensor(str(response.output.results[0].url)))
+        return IO.NodeOutput(await download_url_to_image_tensor(str(response.output.results[0].url)))
 
 
-class WanTextToVideoApi(comfy_io.ComfyNode):
+class WanTextToVideoApi(IO.ComfyNode):
     @classmethod
     def define_schema(cls):
-        return comfy_io.Schema(
+        return IO.Schema(
             node_id="WanTextToVideoApi",
             display_name="Wan Text to Video",
             category="api node/video/Wan",
             description="Generates video based on text prompt.",
             inputs=[
-                comfy_io.Combo.Input(
+                IO.Combo.Input(
                     "model",
                     options=["wan2.5-t2v-preview"],
                     default="wan2.5-t2v-preview",
                     tooltip="Model to use.",
                 ),
-                comfy_io.String.Input(
+                IO.String.Input(
                     "prompt",
                     multiline=True,
                     default="",
                     tooltip="Prompt used to describe the elements and visual features, supports English/Chinese.",
                 ),
-                comfy_io.String.Input(
+                IO.String.Input(
                     "negative_prompt",
                     multiline=True,
                     default="",
                     tooltip="Negative text prompt to guide what to avoid.",
                     optional=True,
                 ),
-                comfy_io.Combo.Input(
+                IO.Combo.Input(
                     "size",
                     options=[
                         "480p: 1:1 (624x624)",
@@ -482,45 +482,45 @@ class WanTextToVideoApi(comfy_io.ComfyNode):
                     default="480p: 1:1 (624x624)",
                     optional=True,
                 ),
-                comfy_io.Int.Input(
+                IO.Int.Input(
                     "duration",
                     default=5,
                     min=5,
                     max=10,
                     step=5,
-                    display_mode=comfy_io.NumberDisplay.number,
+                    display_mode=IO.NumberDisplay.number,
                     tooltip="Available durations: 5 and 10 seconds",
                     optional=True,
                 ),
-                comfy_io.Audio.Input(
+                IO.Audio.Input(
                     "audio",
                     optional=True,
                     tooltip="Audio must contain a clear, loud voice, without extraneous noise, background music.",
                 ),
-                comfy_io.Int.Input(
+                IO.Int.Input(
                     "seed",
                     default=0,
                     min=0,
                     max=2147483647,
                     step=1,
-                    display_mode=comfy_io.NumberDisplay.number,
+                    display_mode=IO.NumberDisplay.number,
                     control_after_generate=True,
                     tooltip="Seed to use for generation.",
                     optional=True,
                 ),
-                comfy_io.Boolean.Input(
+                IO.Boolean.Input(
                     "generate_audio",
                     default=False,
                     optional=True,
                     tooltip="If there is no audio input, generate audio automatically.",
                 ),
-                comfy_io.Boolean.Input(
+                IO.Boolean.Input(
                     "prompt_extend",
                     default=True,
                     tooltip="Whether to enhance the prompt with AI assistance.",
                     optional=True,
                 ),
-                comfy_io.Boolean.Input(
+                IO.Boolean.Input(
                     "watermark",
                     default=True,
                     tooltip="Whether to add an \"AI generated\" watermark to the result.",
@@ -528,12 +528,12 @@ class WanTextToVideoApi(comfy_io.ComfyNode):
                 ),
             ],
             outputs=[
-                comfy_io.Video.Output(),
+                IO.Video.Output(),
             ],
             hidden=[
-                comfy_io.Hidden.auth_token_comfy_org,
-                comfy_io.Hidden.api_key_comfy_org,
-                comfy_io.Hidden.unique_id,
+                IO.Hidden.auth_token_comfy_org,
+                IO.Hidden.api_key_comfy_org,
+                IO.Hidden.unique_id,
             ],
             is_api_node=True,
         )
@@ -582,41 +582,41 @@ class WanTextToVideoApi(comfy_io.ComfyNode):
             estimated_duration=120 * int(duration / 5),
             poll_interval=6,
         )
-        return comfy_io.NodeOutput(await download_url_to_video_output(response.output.video_url))
+        return IO.NodeOutput(await download_url_to_video_output(response.output.video_url))
 
 
-class WanImageToVideoApi(comfy_io.ComfyNode):
+class WanImageToVideoApi(IO.ComfyNode):
     @classmethod
     def define_schema(cls):
-        return comfy_io.Schema(
+        return IO.Schema(
             node_id="WanImageToVideoApi",
             display_name="Wan Image to Video",
             category="api node/video/Wan",
             description="Generates video based on the first frame and text prompt.",
             inputs=[
-                comfy_io.Combo.Input(
+                IO.Combo.Input(
                     "model",
                     options=["wan2.5-i2v-preview"],
                     default="wan2.5-i2v-preview",
                     tooltip="Model to use.",
                 ),
-                comfy_io.Image.Input(
+                IO.Image.Input(
                     "image",
                 ),
-                comfy_io.String.Input(
+                IO.String.Input(
                     "prompt",
                     multiline=True,
                     default="",
                     tooltip="Prompt used to describe the elements and visual features, supports English/Chinese.",
                 ),
-                comfy_io.String.Input(
+                IO.String.Input(
                     "negative_prompt",
                     multiline=True,
                     default="",
                     tooltip="Negative text prompt to guide what to avoid.",
                     optional=True,
                 ),
-                comfy_io.Combo.Input(
+                IO.Combo.Input(
                     "resolution",
                     options=[
                         "480P",
@@ -626,45 +626,45 @@ class WanImageToVideoApi(comfy_io.ComfyNode):
                     default="480P",
                     optional=True,
                 ),
-                comfy_io.Int.Input(
+                IO.Int.Input(
                     "duration",
                     default=5,
                     min=5,
                     max=10,
                     step=5,
-                    display_mode=comfy_io.NumberDisplay.number,
+                    display_mode=IO.NumberDisplay.number,
                     tooltip="Available durations: 5 and 10 seconds",
                     optional=True,
                 ),
-                comfy_io.Audio.Input(
+                IO.Audio.Input(
                     "audio",
                     optional=True,
                     tooltip="Audio must contain a clear, loud voice, without extraneous noise, background music.",
                 ),
-                comfy_io.Int.Input(
+                IO.Int.Input(
                     "seed",
                     default=0,
                     min=0,
                     max=2147483647,
                     step=1,
-                    display_mode=comfy_io.NumberDisplay.number,
+                    display_mode=IO.NumberDisplay.number,
                     control_after_generate=True,
                     tooltip="Seed to use for generation.",
                     optional=True,
                 ),
-                comfy_io.Boolean.Input(
+                IO.Boolean.Input(
                     "generate_audio",
                     default=False,
                     optional=True,
                     tooltip="If there is no audio input, generate audio automatically.",
                 ),
-                comfy_io.Boolean.Input(
+                IO.Boolean.Input(
                     "prompt_extend",
                     default=True,
                     tooltip="Whether to enhance the prompt with AI assistance.",
                     optional=True,
                 ),
-                comfy_io.Boolean.Input(
+                IO.Boolean.Input(
                     "watermark",
                     default=True,
                     tooltip="Whether to add an \"AI generated\" watermark to the result.",
@@ -672,12 +672,12 @@ class WanImageToVideoApi(comfy_io.ComfyNode):
                 ),
             ],
             outputs=[
-                comfy_io.Video.Output(),
+                IO.Video.Output(),
             ],
             hidden=[
-                comfy_io.Hidden.auth_token_comfy_org,
-                comfy_io.Hidden.api_key_comfy_org,
-                comfy_io.Hidden.unique_id,
+                IO.Hidden.auth_token_comfy_org,
+                IO.Hidden.api_key_comfy_org,
+                IO.Hidden.unique_id,
             ],
             is_api_node=True,
         )
@@ -731,12 +731,12 @@ class WanImageToVideoApi(comfy_io.ComfyNode):
             estimated_duration=120 * int(duration / 5),
             poll_interval=6,
         )
-        return comfy_io.NodeOutput(await download_url_to_video_output(response.output.video_url))
+        return IO.NodeOutput(await download_url_to_video_output(response.output.video_url))
 
 
 class WanApiExtension(ComfyExtension):
     @override
-    async def get_node_list(self) -> list[type[comfy_io.ComfyNode]]:
+    async def get_node_list(self) -> list[type[IO.ComfyNode]]:
         return [
             WanTextToImageApi,
             WanImageToImageApi,

@@ -3,6 +3,7 @@ import aiohttp
 import io
 import logging
 import mimetypes
+import os
 from typing import Optional, Union
 from comfy.utils import common_upscale
 from comfy_api.input_impl import VideoFromFile
@@ -702,3 +703,16 @@ def image_tensor_pair_to_batch(
             "center",
         ).movedim(1, -1)
     return torch.cat((image1, image2), dim=0)
+
+
+def get_size(path_or_object: Union[str, io.BytesIO]) -> int:
+    if isinstance(path_or_object, str):
+        return os.path.getsize(path_or_object)
+    return len(path_or_object.getvalue())
+
+
+def validate_container_format_is_mp4(video: VideoInput) -> None:
+    """Validates video container format is MP4."""
+    container_format = video.get_container_format()
+    if container_format not in ["mp4", "mov,mp4,m4a,3gp,3g2,mj2"]:
+        raise ValueError(f"Only MP4 container format supported. Got: {container_format}")
