@@ -200,11 +200,11 @@ class RunwayImageToVideoNodeGen3a(comfy_io.ComfyNode):
                 ),
                 comfy_io.Combo.Input(
                     "duration",
-                    options=[model.value for model in Duration],
+                    options=Duration,
                 ),
                 comfy_io.Combo.Input(
                     "ratio",
-                    options=[model.value for model in RunwayGen3aAspectRatio],
+                    options=RunwayGen3aAspectRatio,
                 ),
                 comfy_io.Int.Input(
                     "seed",
@@ -300,11 +300,11 @@ class RunwayImageToVideoNodeGen4(comfy_io.ComfyNode):
                 ),
                 comfy_io.Combo.Input(
                     "duration",
-                    options=[model.value for model in Duration],
+                    options=Duration,
                 ),
                 comfy_io.Combo.Input(
                     "ratio",
-                    options=[model.value for model in RunwayGen4TurboAspectRatio],
+                    options=RunwayGen4TurboAspectRatio,
                 ),
                 comfy_io.Int.Input(
                     "seed",
@@ -408,11 +408,11 @@ class RunwayFirstLastFrameNode(comfy_io.ComfyNode):
                 ),
                 comfy_io.Combo.Input(
                     "duration",
-                    options=[model.value for model in Duration],
+                    options=Duration,
                 ),
                 comfy_io.Combo.Input(
                     "ratio",
-                    options=[model.value for model in RunwayGen3aAspectRatio],
+                    options=RunwayGen3aAspectRatio,
                 ),
                 comfy_io.Int.Input(
                     "seed",

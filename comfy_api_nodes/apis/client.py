@@ -95,9 +95,10 @@ import aiohttp
 import asyncio
 import logging
 import io
+import os
 import socket
 from aiohttp.client_exceptions import ClientError, ClientResponseError
-from typing import Dict, Type, Optional, Any, TypeVar, Generic, Callable, Tuple
+from typing import Type, Optional, Any, TypeVar, Generic, Callable
 from enum import Enum
 import json
 from urllib.parse import urljoin, urlparse
@@ -174,7 +175,7 @@ class ApiClient:
         max_retries: int = 3,
         retry_delay: float = 1.0,
         retry_backoff_factor: float = 2.0,
-        retry_status_codes: Optional[Tuple[int, ...]] = None,
+        retry_status_codes: Optional[tuple[int, ...]] = None,
         session: Optional[aiohttp.ClientSession] = None,
     ):
         self.base_url = base_url
@@ -198,9 +199,9 @@ class ApiClient:
 
     @staticmethod
     def _create_json_payload_args(
-        data: Optional[Dict[str, Any]] = None,
-        headers: Optional[Dict[str, str]] = None,
-    ) -> Dict[str, Any]:
+        data: Optional[dict[str, Any]] = None,
+        headers: Optional[dict[str, str]] = None,
+    ) -> dict[str, Any]:
         return {
             "json": data,
             "headers": headers,
@@ -208,24 +209,27 @@ class ApiClient:
 
     def _create_form_data_args(
         self,
-        data: Dict[str, Any] | None,
-        files: Dict[str, Any] | None,
-        headers: Optional[Dict[str, str]] = None,
+        data: dict[str, Any] | None,
+        files: dict[str, Any] | None,
+        headers: Optional[dict[str, str]] = None,
         multipart_parser: Callable | None = None,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         if headers and "Content-Type" in headers:
             del headers["Content-Type"]
 
         if multipart_parser and data:
             data = multipart_parser(data)
 
-        form = aiohttp.FormData(default_to_multipart=True)
-        if data:  # regular text fields
-            for k, v in data.items():
-                if v is None:
-                    continue  # aiohttp fails to serialize "None" values
-                # aiohttp expects strings or bytes; convert enums etc.
-                form.add_field(k, str(v) if not isinstance(v, (bytes, bytearray)) else v)
+        if isinstance(data, aiohttp.FormData):
+            form = data  # If the parser already returned a FormData, pass it through
+        else:
+            form = aiohttp.FormData(default_to_multipart=True)
+            if data:  # regular text fields
+                for k, v in data.items():
+                    if v is None:
+                        continue  # aiohttp fails to serialize "None" values
+                    # aiohttp expects strings or bytes; convert enums etc.
+                    form.add_field(k, str(v) if not isinstance(v, (bytes, bytearray)) else v)
 
         if files:
             file_iter = files if isinstance(files, list) else files.items()
@@ -250,9 +254,9 @@ class ApiClient:
 
     @staticmethod
     def _create_urlencoded_form_data_args(
-        data: Dict[str, Any],
-        headers: Optional[Dict[str, str]] = None,
-    ) -> Dict[str, Any]:
+        data: dict[str, Any],
+        headers: Optional[dict[str, str]] = None,
+    ) -> dict[str, Any]:
         headers = headers or {}
         headers["Content-Type"] = "application/x-www-form-urlencoded"
         return {
@@ -260,7 +264,7 @@ class ApiClient:
             "headers": headers,
         }
 
-    def get_headers(self) -> Dict[str, str]:
+    def get_headers(self) -> dict[str, str]:
         """Get headers for API requests, including authentication if available"""
         headers = {"Content-Type": "application/json", "Accept": "application/json"}
 
@@ -271,7 +275,7 @@ class ApiClient:
 
         return headers
 
-    async def _check_connectivity(self, target_url: str) -> Dict[str, bool]:
+    async def _check_connectivity(self, target_url: str) -> dict[str, bool]:
         """
         Check connectivity to determine if network issues are local or server-related.
 
@@ -312,14 +316,14 @@ class ApiClient:
         self,
         method: str,
         path: str,
-        params: Optional[Dict[str, Any]] = None,
-        data: Optional[Dict[str, Any]] = None,
-        files: Optional[Dict[str, Any] | list[tuple[str, Any]]] = None,
-        headers: Optional[Dict[str, str]] = None,
+        params: Optional[dict[str, Any]] = None,
+        data: Optional[dict[str, Any]] = None,
+        files: Optional[dict[str, Any] | list[tuple[str, Any]]] = None,
+        headers: Optional[dict[str, str]] = None,
         content_type: str = "application/json",
         multipart_parser: Callable | None = None,
         retry_count: int = 0,  # Used internally for tracking retries
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Make an HTTP request to the API with automatic retries for transient errors.
 
@@ -355,10 +359,10 @@ class ApiClient:
         if params:
             params = {k: v for k, v in params.items() if v is not None}  # aiohttp fails to serialize None values
 
-        logging.debug(f"[DEBUG] Request Headers: {request_headers}")
-        logging.debug(f"[DEBUG] Files: {files}")
-        logging.debug(f"[DEBUG] Params: {params}")
-        logging.debug(f"[DEBUG] Data: {data}")
+        logging.debug("[DEBUG] Request Headers: %s", request_headers)
+        logging.debug("[DEBUG] Files: %s", files)
+        logging.debug("[DEBUG] Params: %s", params)
+        logging.debug("[DEBUG] Data: %s", data)
 
         if content_type == "application/x-www-form-urlencoded":
             payload_args = self._create_urlencoded_form_data_args(data or {}, request_headers)
@@ -481,7 +485,7 @@ class ApiClient:
             retry_delay: Initial delay between retries in seconds
             retry_backoff_factor: Multiplier for the delay after each retry
         """
-        headers: Dict[str, str] = {}
+        headers: dict[str, str] = {}
         skip_auto_headers: set[str] = set()
         if content_type:
             headers["Content-Type"] = content_type
@@ -499,7 +503,9 @@ class ApiClient:
         else:
             raise ValueError("File must be BytesIO or str path")
 
-        operation_id = f"upload_{upload_url.split('/')[-1]}_{uuid.uuid4().hex[:8]}"
+        parsed = urlparse(upload_url)
+        basename = os.path.basename(parsed.path) or parsed.netloc or "upload"
+        operation_id = f"upload_{basename}_{uuid.uuid4().hex[:8]}"
         request_logger.log_request_response(
             operation_id=operation_id,
             request_method="PUT",
@@ -532,7 +538,7 @@ class ApiClient:
                     request_method="PUT",
                     request_url=upload_url,
                     response_status_code=e.status if hasattr(e, "status") else None,
-                    response_headers=dict(e.headers) if getattr(e, "headers") else None,
+                    response_headers=dict(e.headers) if hasattr(e, "headers") else None,
                     response_content=None,
                     error_message=f"{type(e).__name__}: {str(e)}",
                 )
@@ -552,7 +558,7 @@ class ApiClient:
         *req_meta,
         retry_count: int,
         response_content: dict | str = "",
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         status_code = exc.status
         if status_code == 401:
             user_friendly = "Unauthorized: Please login first to use this node."
@@ -586,9 +592,9 @@ class ApiClient:
             error_message=f"HTTP Error {exc.status}",
         )
 
-        logging.debug(f"[DEBUG] API Error: {user_friendly} (Status: {status_code})")
+        logging.debug("[DEBUG] API Error: %s (Status: %s)", user_friendly, status_code)
         if response_content:
-            logging.debug(f"[DEBUG] Response content: {response_content}")
+            logging.debug("[DEBUG] Response content: %s", response_content)
 
         # Retry if eligible
         if status_code in self.retry_status_codes and retry_count < self.max_retries:
@@ -653,7 +659,7 @@ class ApiEndpoint(Generic[T, R]):
         method: HttpMethod,
         request_model: Type[T],
         response_model: Type[R],
-        query_params: Optional[Dict[str, Any]] = None,
+        query_params: Optional[dict[str, Any]] = None,
     ):
         """Initialize an API endpoint definition.
 
@@ -678,11 +684,11 @@ class SynchronousOperation(Generic[T, R]):
         self,
         endpoint: ApiEndpoint[T, R],
         request: T,
-        files: Optional[Dict[str, Any] | list[tuple[str, Any]]] = None,
+        files: Optional[dict[str, Any] | list[tuple[str, Any]]] = None,
         api_base: str | None = None,
         auth_token: Optional[str] = None,
         comfy_api_key: Optional[str] = None,
-        auth_kwargs: Optional[Dict[str, str]] = None,
+        auth_kwargs: Optional[dict[str, str]] = None,
         timeout: float = 7200.0,
         verify_ssl: bool = True,
         content_type: str = "application/json",
@@ -723,7 +729,7 @@ class SynchronousOperation(Generic[T, R]):
             )
 
         try:
-            request_dict: Optional[Dict[str, Any]]
+            request_dict: Optional[dict[str, Any]]
             if isinstance(self.request, EmptyRequest):
                 request_dict = None
             else:
@@ -732,11 +738,9 @@ class SynchronousOperation(Generic[T, R]):
                     if isinstance(v, Enum):
                         request_dict[k] = v.value
 
-            logging.debug(
-                f"[DEBUG] API Request: {self.endpoint.method.value} {self.endpoint.path}"
-            )
-            logging.debug(f"[DEBUG] Request Data: {json.dumps(request_dict, indent=2)}")
-            logging.debug(f"[DEBUG] Query Params: {self.endpoint.query_params}")
+            logging.debug("[DEBUG] API Request: %s %s", self.endpoint.method.value, self.endpoint.path)
+            logging.debug("[DEBUG] Request Data: %s", json.dumps(request_dict, indent=2))
+            logging.debug("[DEBUG] Query Params: %s", self.endpoint.query_params)
 
             response_json = await client.request(
                 self.endpoint.method.value,
@@ -751,11 +755,11 @@ class SynchronousOperation(Generic[T, R]):
             logging.debug("=" * 50)
             logging.debug("[DEBUG] RESPONSE DETAILS:")
             logging.debug("[DEBUG] Status Code: 200 (Success)")
-            logging.debug(f"[DEBUG] Response Body: {json.dumps(response_json, indent=2)}")
+            logging.debug("[DEBUG] Response Body: %s", json.dumps(response_json, indent=2))
             logging.debug("=" * 50)
 
             parsed_response = self.endpoint.response_model.model_validate(response_json)
-            logging.debug(f"[DEBUG] Parsed Response: {parsed_response}")
+            logging.debug("[DEBUG] Parsed Response: %s", parsed_response)
             return parsed_response
         finally:
             if owns_client:
@@ -778,14 +782,16 @@ class PollingOperation(Generic[T, R]):
         poll_endpoint: ApiEndpoint[EmptyRequest, R],
         completed_statuses: list[str],
         failed_statuses: list[str],
-        status_extractor: Callable[[R], str],
-        progress_extractor: Callable[[R], float] | None = None,
-        result_url_extractor: Callable[[R], str] | None = None,
+        *,
+        status_extractor: Callable[[R], Optional[str]],
+        progress_extractor: Callable[[R], Optional[float]] | None = None,
+        result_url_extractor: Callable[[R], Optional[str]] | None = None,
+        price_extractor: Callable[[R], Optional[float]] | None = None,
         request: Optional[T] = None,
         api_base: str | None = None,
         auth_token: Optional[str] = None,
         comfy_api_key: Optional[str] = None,
-        auth_kwargs: Optional[Dict[str, str]] = None,
+        auth_kwargs: Optional[dict[str, str]] = None,
         poll_interval: float = 5.0,
         max_poll_attempts: int = 120,  # Default max polling attempts (10 minutes with 5s interval)
         max_retries: int = 3,  # Max retries per individual API call
@@ -811,10 +817,12 @@ class PollingOperation(Generic[T, R]):
         self.status_extractor = status_extractor or (lambda x: getattr(x, "status", None))
         self.progress_extractor = progress_extractor
         self.result_url_extractor = result_url_extractor
+        self.price_extractor = price_extractor
         self.node_id = node_id
         self.completed_statuses = completed_statuses
         self.failed_statuses = failed_statuses
         self.final_response: Optional[R] = None
+        self.extracted_price: Optional[float] = None
 
     async def execute(self, client: Optional[ApiClient] = None) -> R:
         owns_client = client is None
@@ -836,6 +844,8 @@ class PollingOperation(Generic[T, R]):
     def _display_text_on_node(self, text: str):
         if not self.node_id:
             return
+        if self.extracted_price is not None:
+            text = f"Price: {self.extracted_price}$\n{text}"
         PromptServer.instance.send_progress_text(text, self.node_id)
 
     def _display_time_progress_on_node(self, time_completed: int | float):
@@ -871,18 +881,19 @@ class PollingOperation(Generic[T, R]):
         status = TaskStatus.PENDING
         for poll_count in range(1, self.max_poll_attempts + 1):
             try:
-                logging.debug(f"[DEBUG] Polling attempt #{poll_count}")
+                logging.debug("[DEBUG] Polling attempt #%s", poll_count)
 
-                request_dict = (
-                    None if self.request is None else self.request.model_dump(exclude_none=True)
-                )
+                request_dict = None if self.request is None else self.request.model_dump(exclude_none=True)
 
                 if poll_count == 1:
                     logging.debug(
-                        f"[DEBUG] Poll Request: {self.poll_endpoint.method.value} {self.poll_endpoint.path}"
+                        "[DEBUG] Poll Request: %s %s",
+                        self.poll_endpoint.method.value,
+                        self.poll_endpoint.path,
                     )
                     logging.debug(
-                        f"[DEBUG] Poll Request Data: {json.dumps(request_dict, indent=2) if request_dict else 'None'}"
+                        "[DEBUG] Poll Request Data: %s",
+                        json.dumps(request_dict, indent=2) if request_dict else "None",
                     )
 
                 # Query task status
@@ -897,7 +908,7 @@ class PollingOperation(Generic[T, R]):
 
                 # Check if task is complete
                 status = self._check_task_status(response_obj)
-                logging.debug(f"[DEBUG] Task Status: {status}")
+                logging.debug("[DEBUG] Task Status: %s", status)
 
                 # If progress extractor is provided, extract progress
                 if self.progress_extractor:
@@ -905,13 +916,18 @@ class PollingOperation(Generic[T, R]):
                     if new_progress is not None:
                         progress.update_absolute(new_progress, total=PROGRESS_BAR_MAX)
 
+                if self.price_extractor:
+                    price = self.price_extractor(response_obj)
+                    if price is not None:
+                        self.extracted_price = price
+
                 if status == TaskStatus.COMPLETED:
                     message = "Task completed successfully"
                     if self.result_url_extractor:
                         result_url = self.result_url_extractor(response_obj)
                         if result_url:
                             message = f"Result URL: {result_url}"
-                    logging.debug(f"[DEBUG] {message}")
+                    logging.debug("[DEBUG] %s", message)
                     self._display_text_on_node(message)
                     self.final_response = response_obj
                     if self.progress_extractor:
@@ -919,7 +935,7 @@ class PollingOperation(Generic[T, R]):
                     return self.final_response
                 if status == TaskStatus.FAILED:
                     message = f"Task failed: {json.dumps(resp)}"
-                    logging.error(f"[DEBUG] {message}")
+                    logging.error("[DEBUG] %s", message)
                     raise Exception(message)
                 logging.debug("[DEBUG] Task still pending, continuing to poll...")
                 # Task pending – wait
@@ -933,7 +949,12 @@ class PollingOperation(Generic[T, R]):
                     raise Exception(
                         f"Polling aborted after {consecutive_errors} network errors: {str(e)}"
                     ) from e
-                logging.warning("Network error (%s/%s): %s", consecutive_errors, max_consecutive_errors, str(e))
+                logging.warning(
+                    "Network error (%s/%s): %s",
+                    consecutive_errors,
+                    max_consecutive_errors,
+                    str(e),
+                )
                 await asyncio.sleep(self.poll_interval)
             except Exception as e:
                 # For other errors, increment count and potentially abort
@@ -943,10 +964,13 @@ class PollingOperation(Generic[T, R]):
                         f"Polling aborted after {consecutive_errors} consecutive errors: {str(e)}"
                     ) from e
 
-                logging.error(f"[DEBUG] Polling error: {str(e)}")
+                logging.error("[DEBUG] Polling error: %s", str(e))
                 logging.warning(
-                    f"Error during polling (attempt {poll_count}/{self.max_poll_attempts}): {str(e)}. "
-                    f"Will retry in {self.poll_interval} seconds."
+                    "Error during polling (attempt %s/%s): %s. Will retry in %s seconds.",
+                    poll_count,
+                    self.max_poll_attempts,
+                    str(e),
+                    self.poll_interval,
                 )
                 await asyncio.sleep(self.poll_interval)
 

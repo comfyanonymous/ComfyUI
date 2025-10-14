@@ -35,57 +35,64 @@ from server import PromptServer
 import torch
 from io import BytesIO
 from PIL import UnidentifiedImageError
+import aiohttp
 
 
 async def handle_recraft_file_request(
-        image: torch.Tensor,
-        path: str,
-        mask: torch.Tensor=None,
-        total_pixels=4096*4096,
-        timeout=1024,
-        request=None,
-        auth_kwargs: dict[str,str] = None,
-    ) -> list[BytesIO]:
-        """
-        Handle sending common Recraft file-only request to get back file bytes.
-        """
-        if request is None:
-            request = EmptyRequest()
-
-        files = {
-            'image': tensor_to_bytesio(image, total_pixels=total_pixels).read()
-        }
-        if mask is not None:
-            files['mask'] = tensor_to_bytesio(mask, total_pixels=total_pixels).read()
-
-        operation = SynchronousOperation(
-            endpoint=ApiEndpoint(
-                path=path,
-                method=HttpMethod.POST,
-                request_model=type(request),
-                response_model=RecraftImageGenerationResponse,
-            ),
-            request=request,
-            files=files,
-            content_type="multipart/form-data",
-            auth_kwargs=auth_kwargs,
-            multipart_parser=recraft_multipart_parser,
-        )
-        response: RecraftImageGenerationResponse = await operation.execute()
-        all_bytesio = []
-        if response.image is not None:
-            all_bytesio.append(await download_url_to_bytesio(response.image.url, timeout=timeout))
-        else:
-            for data in response.data:
-                all_bytesio.append(await download_url_to_bytesio(data.url, timeout=timeout))
-
-        return all_bytesio
-
-
-def recraft_multipart_parser(data, parent_key=None, formatter: callable=None, converted_to_check: list[list]=None, is_list=False) -> dict:
+    image: torch.Tensor,
+    path: str,
+    mask: torch.Tensor=None,
+    total_pixels=4096*4096,
+    timeout=1024,
+    request=None,
+    auth_kwargs: dict[str,str] = None,
+) -> list[BytesIO]:
     """
-    Formats data such that multipart/form-data will work with requests library
-    when both files and data are present.
+    Handle sending common Recraft file-only request to get back file bytes.
+    """
+    if request is None:
+        request = EmptyRequest()
+
+    files = {
+        'image': tensor_to_bytesio(image, total_pixels=total_pixels).read()
+    }
+    if mask is not None:
+        files['mask'] = tensor_to_bytesio(mask, total_pixels=total_pixels).read()
+
+    operation = SynchronousOperation(
+        endpoint=ApiEndpoint(
+            path=path,
+            method=HttpMethod.POST,
+            request_model=type(request),
+            response_model=RecraftImageGenerationResponse,
+        ),
+        request=request,
+        files=files,
+        content_type="multipart/form-data",
+        auth_kwargs=auth_kwargs,
+        multipart_parser=recraft_multipart_parser,
+    )
+    response: RecraftImageGenerationResponse = await operation.execute()
+    all_bytesio = []
+    if response.image is not None:
+        all_bytesio.append(await download_url_to_bytesio(response.image.url, timeout=timeout))
+    else:
+        for data in response.data:
+            all_bytesio.append(await download_url_to_bytesio(data.url, timeout=timeout))
+
+    return all_bytesio
+
+
+def recraft_multipart_parser(
+    data,
+    parent_key=None,
+    formatter: callable = None,
+    converted_to_check: list[list] = None,
+    is_list: bool = False,
+    return_mode: str = "formdata"  # "dict" | "formdata"
+) -> dict | aiohttp.FormData:
+    """
+    Formats data such that multipart/form-data will work with aiohttp library when both files and data are present.
 
     The OpenAI client that Recraft uses has a bizarre way of serializing lists:
 
@@ -103,23 +110,23 @@ def recraft_multipart_parser(data, parent_key=None, formatter: callable=None, co
     # Modification of a function that handled a different type of multipart parsing, big ups:
     # https://gist.github.com/kazqvaizer/4cebebe5db654a414132809f9f88067b
 
-    def handle_converted_lists(data, parent_key, lists_to_check=tuple[list]):
+    def handle_converted_lists(item, parent_key, lists_to_check=tuple[list]):
         # if list already exists exists, just extend list with data
         for check_list in lists_to_check:
             for conv_tuple in check_list:
-                if conv_tuple[0] == parent_key and type(conv_tuple[1]) is list:
-                    conv_tuple[1].append(formatter(data))
+                if conv_tuple[0] == parent_key and isinstance(conv_tuple[1], list):
+                    conv_tuple[1].append(formatter(item))
                     return True
         return False
 
     if converted_to_check is None:
         converted_to_check = []
 
-
+    effective_mode = return_mode if parent_key is None else "dict"
     if formatter is None:
         formatter = lambda v: v  # Multipart representation of value
 
-    if type(data) is not dict:
+    if not isinstance(data, dict):
         # if list already exists exists, just extend list with data
         added = handle_converted_lists(data, parent_key, converted_to_check)
         if added:
@@ -136,15 +143,24 @@ def recraft_multipart_parser(data, parent_key=None, formatter: callable=None, co
 
     for key, value in data.items():
         current_key = key if parent_key is None else f"{parent_key}[{key}]"
-        if type(value) is dict:
+        if isinstance(value, dict):
             converted.extend(recraft_multipart_parser(value, current_key, formatter, next_check).items())
-        elif type(value) is list:
+        elif isinstance(value, list):
             for ind, list_value in enumerate(value):
                 iter_key = f"{current_key}[]"
                 converted.extend(recraft_multipart_parser(list_value, iter_key, formatter, next_check, is_list=True).items())
         else:
             converted.append((current_key, formatter(value)))
 
+    if effective_mode == "formdata":
+        fd = aiohttp.FormData()
+        for k, v in dict(converted).items():
+            if isinstance(v, list):
+                for item in v:
+                    fd.add_field(k, str(item))
+            else:
+                fd.add_field(k, str(v))
+        return fd
     return dict(converted)
 
 

@@ -1,6 +1,6 @@
-comfyui-frontend-package==1.26.13
-comfyui-workflow-templates==0.1.86
-comfyui-embedded-docs==0.2.6
+comfyui-frontend-package==1.27.10
+comfyui-workflow-templates==0.1.95
+comfyui-embedded-docs==0.3.0
 torch
 torchsde
 torchvision
@@ -25,6 +25,5 @@ av>=14.2.0
 #non essential dependencies:
 kornia>=0.7.1
 spandrel
-soundfile
 pydantic~=2.0
 pydantic-settings~=2.0

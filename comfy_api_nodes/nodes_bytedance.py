@@ -249,8 +249,8 @@ class ByteDanceImageNode(comfy_io.ComfyNode):
             inputs=[
                 comfy_io.Combo.Input(
                     "model",
-                    options=[model.value for model in Text2ImageModelName],
-                    default=Text2ImageModelName.seedream_3.value,
+                    options=Text2ImageModelName,
+                    default=Text2ImageModelName.seedream_3,
                     tooltip="Model name",
                 ),
                 comfy_io.String.Input(
@@ -382,8 +382,8 @@ class ByteDanceImageEditNode(comfy_io.ComfyNode):
             inputs=[
                 comfy_io.Combo.Input(
                     "model",
-                    options=[model.value for model in Image2ImageModelName],
-                    default=Image2ImageModelName.seededit_3.value,
+                    options=Image2ImageModelName,
+                    default=Image2ImageModelName.seededit_3,
                     tooltip="Model name",
                 ),
                 comfy_io.Image.Input(
@@ -676,8 +676,8 @@ class ByteDanceTextToVideoNode(comfy_io.ComfyNode):
             inputs=[
                 comfy_io.Combo.Input(
                     "model",
-                    options=[model.value for model in Text2VideoModelName],
-                    default=Text2VideoModelName.seedance_1_pro.value,
+                    options=Text2VideoModelName,
+                    default=Text2VideoModelName.seedance_1_pro,
                     tooltip="Model name",
                 ),
                 comfy_io.String.Input(
@@ -793,8 +793,8 @@ class ByteDanceImageToVideoNode(comfy_io.ComfyNode):
             inputs=[
                 comfy_io.Combo.Input(
                     "model",
-                    options=[model.value for model in Image2VideoModelName],
-                    default=Image2VideoModelName.seedance_1_pro.value,
+                    options=Image2VideoModelName,
+                    default=Image2VideoModelName.seedance_1_pro,
                     tooltip="Model name",
                 ),
                 comfy_io.String.Input(
@@ -920,7 +920,7 @@ class ByteDanceFirstLastFrameNode(comfy_io.ComfyNode):
             inputs=[
                 comfy_io.Combo.Input(
                     "model",
-                    options=[Image2VideoModelName.seedance_1_lite.value],
+                    options=[model.value for model in Image2VideoModelName],
                     default=Image2VideoModelName.seedance_1_lite.value,
                     tooltip="Model name",
                 ),
