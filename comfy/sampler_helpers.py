@@ -12,7 +12,6 @@ import comfy.patcher_extension
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from comfy.model_patcher import ModelPatcher
-    from comfy.model_base import BaseModel
     from comfy.controlnet import ControlBase
 
 def prepare_mask(noise_mask, shape, device):
