@@ -18,6 +18,7 @@ import comfy.ldm.wan.vae2_2
 import comfy.ldm.hunyuan3d.vae
 import comfy.ldm.ace.vae.music_dcae_pipeline
 import comfy.ldm.hunyuan_video.vae
+import comfy.ldm.mmaudio.vae.autoencoder
 import comfy.pixel_space_convert
 import yaml
 import math
@@ -275,8 +276,13 @@ class VAE:
         if 'decoder.up_blocks.0.resnets.0.norm1.weight' in sd.keys(): #diffusers format
             sd = diffusers_convert.convert_vae_state_dict(sd)
 
-        self.memory_used_encode = lambda shape, dtype: (1767 * shape[2] * shape[3]) * model_management.dtype_size(dtype) #These are for AutoencoderKL and need tweaking (should be lower)
-        self.memory_used_decode = lambda shape, dtype: (2178 * shape[2] * shape[3] * 64) * model_management.dtype_size(dtype)
+        if model_management.is_amd():
+            VAE_KL_MEM_RATIO = 2.73
+        else:
+            VAE_KL_MEM_RATIO = 1.0
+
+        self.memory_used_encode = lambda shape, dtype: (1767 * shape[2] * shape[3]) * model_management.dtype_size(dtype) * VAE_KL_MEM_RATIO #These are for AutoencoderKL and need tweaking (should be lower)
+        self.memory_used_decode = lambda shape, dtype: (2178 * shape[2] * shape[3] * 64) * model_management.dtype_size(dtype) * VAE_KL_MEM_RATIO
         self.downscale_ratio = 8
         self.upscale_ratio = 8
         self.latent_channels = 4
@@ -291,6 +297,7 @@ class VAE:
         self.downscale_index_formula = None
         self.upscale_index_formula = None
         self.extra_1d_channel = None
+        self.crop_input = True
 
         if config is None:
             if "decoder.mid.block_1.mix_factor" in sd:
@@ -542,6 +549,25 @@ class VAE:
                 self.latent_channels = 3
                 self.latent_dim = 2
                 self.output_channels = 3
+            elif "vocoder.activation_post.downsample.lowpass.filter" in sd: #MMAudio VAE
+                sample_rate = 16000
+                if sample_rate == 16000:
+                    mode = '16k'
+                else:
+                    mode = '44k'
+
+                self.first_stage_model = comfy.ldm.mmaudio.vae.autoencoder.AudioAutoencoder(mode=mode)
+                self.memory_used_encode = lambda shape, dtype: (30 * shape[2]) * model_management.dtype_size(dtype)
+                self.memory_used_decode = lambda shape, dtype: (90 * shape[2] * 1411.2) * model_management.dtype_size(dtype)
+                self.latent_channels = 20
+                self.output_channels = 2
+                self.upscale_ratio = 512 * (44100 / sample_rate)
+                self.downscale_ratio = 512 * (44100 / sample_rate)
+                self.latent_dim = 1
+                self.process_output = lambda audio: audio
+                self.process_input = lambda audio: audio
+                self.working_dtypes = [torch.float32]
+                self.crop_input = False
             else:
                 logging.warning("WARNING: No VAE weights detected, VAE not initalized.")
                 self.first_stage_model = None
@@ -575,6 +601,9 @@ class VAE:
             raise RuntimeError("ERROR: VAE is invalid: None\n\nIf the VAE is from a checkpoint loader node your checkpoint does not contain a valid VAE.")
 
     def vae_encode_crop_pixels(self, pixels):
+        if not self.crop_input:
+            return pixels
+
         downscale_ratio = self.spacial_compression_encode()
 
         dims = pixels.shape[1:-1]
@@ -890,6 +919,7 @@ class TEModel(Enum):
     QWEN25_3B = 10
     QWEN25_7B = 11
     BYT5_SMALL_GLYPH = 12
+    GEMMA_3_4B = 13
 
 def detect_te_model(sd):
     if "text_model.encoder.layers.30.mlp.fc1.weight" in sd:
@@ -912,6 +942,8 @@ def detect_te_model(sd):
             return TEModel.BYT5_SMALL_GLYPH
         return TEModel.T5_BASE
     if 'model.layers.0.post_feedforward_layernorm.weight' in sd:
+        if 'model.layers.0.self_attn.q_norm.weight' in sd:
+            return TEModel.GEMMA_3_4B
         return TEModel.GEMMA_2_2B
     if 'model.layers.0.self_attn.k_proj.bias' in sd:
         weight = sd['model.layers.0.self_attn.k_proj.bias']
@@ -1015,6 +1047,10 @@ def load_text_encoder_state_dicts(state_dicts=[], embedding_directory=None, clip
         elif te_model == TEModel.GEMMA_2_2B:
             clip_target.clip = comfy.text_encoders.lumina2.te(**llama_detect(clip_data))
             clip_target.tokenizer = comfy.text_encoders.lumina2.LuminaTokenizer
+            tokenizer_data["spiece_model"] = clip_data[0].get("spiece_model", None)
+        elif te_model == TEModel.GEMMA_3_4B:
+            clip_target.clip = comfy.text_encoders.lumina2.te(**llama_detect(clip_data), model_type="gemma3_4b")
+            clip_target.tokenizer = comfy.text_encoders.lumina2.NTokenizer
             tokenizer_data["spiece_model"] = clip_data[0].get("spiece_model", None)
         elif te_model == TEModel.LLAMA3_8:
             clip_target.clip = comfy.text_encoders.hidream.hidream_clip(**llama_detect(clip_data),
