@@ -3,7 +3,7 @@ import io
 from inspect import cleandoc
 from typing import Union, Optional
 from typing_extensions import override
-from comfy_api.latest import ComfyExtension, io as comfy_io
+from comfy_api.latest import ComfyExtension, IO
 from comfy_api_nodes.apis.bfl_api import (
     BFLStatus,
     BFLFluxExpandImageRequest,
@@ -131,7 +131,7 @@ def convert_image_to_base64(image: torch.Tensor):
     return base64.b64encode(img_byte_arr.getvalue()).decode()
 
 
-class FluxProUltraImageNode(comfy_io.ComfyNode):
+class FluxProUltraImageNode(IO.ComfyNode):
     """
     Generates images using Flux Pro 1.1 Ultra via api based on prompt and resolution.
     """
@@ -142,25 +142,25 @@ class FluxProUltraImageNode(comfy_io.ComfyNode):
     MAXIMUM_RATIO_STR = "4:1"
 
     @classmethod
-    def define_schema(cls) -> comfy_io.Schema:
-        return comfy_io.Schema(
+    def define_schema(cls) -> IO.Schema:
+        return IO.Schema(
             node_id="FluxProUltraImageNode",
             display_name="Flux 1.1 [pro] Ultra Image",
             category="api node/image/BFL",
             description=cleandoc(cls.__doc__ or ""),
             inputs=[
-                comfy_io.String.Input(
+                IO.String.Input(
                     "prompt",
                     multiline=True,
                     default="",
                     tooltip="Prompt for the image generation",
                 ),
-                comfy_io.Boolean.Input(
+                IO.Boolean.Input(
                     "prompt_upsampling",
                     default=False,
                     tooltip="Whether to perform upsampling on the prompt. If active, automatically modifies the prompt for more creative generation, but results are nondeterministic (same seed will not produce exactly the same result).",
                 ),
-                comfy_io.Int.Input(
+                IO.Int.Input(
                     "seed",
                     default=0,
                     min=0,
@@ -168,21 +168,21 @@ class FluxProUltraImageNode(comfy_io.ComfyNode):
                     control_after_generate=True,
                     tooltip="The random seed used for creating the noise.",
                 ),
-                comfy_io.String.Input(
+                IO.String.Input(
                     "aspect_ratio",
                     default="16:9",
                     tooltip="Aspect ratio of image; must be between 1:4 and 4:1.",
                 ),
-                comfy_io.Boolean.Input(
+                IO.Boolean.Input(
                     "raw",
                     default=False,
                     tooltip="When True, generate less processed, more natural-looking images.",
                 ),
-                comfy_io.Image.Input(
+                IO.Image.Input(
                     "image_prompt",
                     optional=True,
                 ),
-                comfy_io.Float.Input(
+                IO.Float.Input(
                     "image_prompt_strength",
                     default=0.1,
                     min=0.0,
@@ -192,11 +192,11 @@ class FluxProUltraImageNode(comfy_io.ComfyNode):
                     optional=True,
                 ),
             ],
-            outputs=[comfy_io.Image.Output()],
+            outputs=[IO.Image.Output()],
             hidden=[
-                comfy_io.Hidden.auth_token_comfy_org,
-                comfy_io.Hidden.api_key_comfy_org,
-                comfy_io.Hidden.unique_id,
+                IO.Hidden.auth_token_comfy_org,
+                IO.Hidden.api_key_comfy_org,
+                IO.Hidden.unique_id,
             ],
             is_api_node=True,
         )
@@ -225,7 +225,7 @@ class FluxProUltraImageNode(comfy_io.ComfyNode):
         seed=0,
         image_prompt=None,
         image_prompt_strength=0.1,
-    ) -> comfy_io.NodeOutput:
+    ) -> IO.NodeOutput:
         if image_prompt is None:
             validate_string(prompt, strip_whitespace=False)
         operation = SynchronousOperation(
@@ -262,10 +262,10 @@ class FluxProUltraImageNode(comfy_io.ComfyNode):
             },
         )
         output_image = await handle_bfl_synchronous_operation(operation, node_id=cls.hidden.unique_id)
-        return comfy_io.NodeOutput(output_image)
+        return IO.NodeOutput(output_image)
 
 
-class FluxKontextProImageNode(comfy_io.ComfyNode):
+class FluxKontextProImageNode(IO.ComfyNode):
     """
     Edits images using Flux.1 Kontext [pro] via api based on prompt and aspect ratio.
     """
@@ -276,25 +276,25 @@ class FluxKontextProImageNode(comfy_io.ComfyNode):
     MAXIMUM_RATIO_STR = "4:1"
 
     @classmethod
-    def define_schema(cls) -> comfy_io.Schema:
-        return comfy_io.Schema(
+    def define_schema(cls) -> IO.Schema:
+        return IO.Schema(
             node_id=cls.NODE_ID,
             display_name=cls.DISPLAY_NAME,
             category="api node/image/BFL",
             description=cleandoc(cls.__doc__ or ""),
             inputs=[
-                comfy_io.String.Input(
+                IO.String.Input(
                     "prompt",
                     multiline=True,
                     default="",
                     tooltip="Prompt for the image generation - specify what and how to edit.",
                 ),
-                comfy_io.String.Input(
+                IO.String.Input(
                     "aspect_ratio",
                     default="16:9",
                     tooltip="Aspect ratio of image; must be between 1:4 and 4:1.",
                 ),
-                comfy_io.Float.Input(
+                IO.Float.Input(
                     "guidance",
                     default=3.0,
                     min=0.1,
@@ -302,14 +302,14 @@ class FluxKontextProImageNode(comfy_io.ComfyNode):
                     step=0.1,
                     tooltip="Guidance strength for the image generation process",
                 ),
-                comfy_io.Int.Input(
+                IO.Int.Input(
                     "steps",
                     default=50,
                     min=1,
                     max=150,
                     tooltip="Number of steps for the image generation process",
                 ),
-                comfy_io.Int.Input(
+                IO.Int.Input(
                     "seed",
                     default=1234,
                     min=0,
@@ -317,21 +317,21 @@ class FluxKontextProImageNode(comfy_io.ComfyNode):
                     control_after_generate=True,
                     tooltip="The random seed used for creating the noise.",
                 ),
-                comfy_io.Boolean.Input(
+                IO.Boolean.Input(
                     "prompt_upsampling",
                     default=False,
                     tooltip="Whether to perform upsampling on the prompt. If active, automatically modifies the prompt for more creative generation, but results are nondeterministic (same seed will not produce exactly the same result).",
                 ),
-                comfy_io.Image.Input(
+                IO.Image.Input(
                     "input_image",
                     optional=True,
                 ),
             ],
-            outputs=[comfy_io.Image.Output()],
+            outputs=[IO.Image.Output()],
             hidden=[
-                comfy_io.Hidden.auth_token_comfy_org,
-                comfy_io.Hidden.api_key_comfy_org,
-                comfy_io.Hidden.unique_id,
+                IO.Hidden.auth_token_comfy_org,
+                IO.Hidden.api_key_comfy_org,
+                IO.Hidden.unique_id,
             ],
             is_api_node=True,
         )
@@ -350,7 +350,7 @@ class FluxKontextProImageNode(comfy_io.ComfyNode):
         input_image: Optional[torch.Tensor]=None,
         seed=0,
         prompt_upsampling=False,
-    ) -> comfy_io.NodeOutput:
+    ) -> IO.NodeOutput:
         aspect_ratio = validate_aspect_ratio(
             aspect_ratio,
             minimum_ratio=cls.MINIMUM_RATIO,
@@ -386,7 +386,7 @@ class FluxKontextProImageNode(comfy_io.ComfyNode):
             },
         )
         output_image = await handle_bfl_synchronous_operation(operation, node_id=cls.hidden.unique_id)
-        return comfy_io.NodeOutput(output_image)
+        return IO.NodeOutput(output_image)
 
 
 class FluxKontextMaxImageNode(FluxKontextProImageNode):
@@ -400,45 +400,45 @@ class FluxKontextMaxImageNode(FluxKontextProImageNode):
     DISPLAY_NAME = "Flux.1 Kontext [max] Image"
 
 
-class FluxProImageNode(comfy_io.ComfyNode):
+class FluxProImageNode(IO.ComfyNode):
     """
     Generates images synchronously based on prompt and resolution.
     """
 
     @classmethod
-    def define_schema(cls) -> comfy_io.Schema:
-        return comfy_io.Schema(
+    def define_schema(cls) -> IO.Schema:
+        return IO.Schema(
             node_id="FluxProImageNode",
             display_name="Flux 1.1 [pro] Image",
             category="api node/image/BFL",
             description=cleandoc(cls.__doc__ or ""),
             inputs=[
-                comfy_io.String.Input(
+                IO.String.Input(
                     "prompt",
                     multiline=True,
                     default="",
                     tooltip="Prompt for the image generation",
                 ),
-                comfy_io.Boolean.Input(
+                IO.Boolean.Input(
                     "prompt_upsampling",
                     default=False,
                     tooltip="Whether to perform upsampling on the prompt. If active, automatically modifies the prompt for more creative generation, but results are nondeterministic (same seed will not produce exactly the same result).",
                 ),
-                comfy_io.Int.Input(
+                IO.Int.Input(
                     "width",
                     default=1024,
                     min=256,
                     max=1440,
                     step=32,
                 ),
-                comfy_io.Int.Input(
+                IO.Int.Input(
                     "height",
                     default=768,
                     min=256,
                     max=1440,
                     step=32,
                 ),
-                comfy_io.Int.Input(
+                IO.Int.Input(
                     "seed",
                     default=0,
                     min=0,
@@ -446,7 +446,7 @@ class FluxProImageNode(comfy_io.ComfyNode):
                     control_after_generate=True,
                     tooltip="The random seed used for creating the noise.",
                 ),
-                comfy_io.Image.Input(
+                IO.Image.Input(
                     "image_prompt",
                     optional=True,
                 ),
@@ -461,11 +461,11 @@ class FluxProImageNode(comfy_io.ComfyNode):
                 #     },
                 # ),
             ],
-            outputs=[comfy_io.Image.Output()],
+            outputs=[IO.Image.Output()],
             hidden=[
-                comfy_io.Hidden.auth_token_comfy_org,
-                comfy_io.Hidden.api_key_comfy_org,
-                comfy_io.Hidden.unique_id,
+                IO.Hidden.auth_token_comfy_org,
+                IO.Hidden.api_key_comfy_org,
+                IO.Hidden.unique_id,
             ],
             is_api_node=True,
         )
@@ -480,7 +480,7 @@ class FluxProImageNode(comfy_io.ComfyNode):
         seed=0,
         image_prompt=None,
         # image_prompt_strength=0.1,
-    ) -> comfy_io.NodeOutput:
+    ) -> IO.NodeOutput:
         image_prompt = (
                     image_prompt
                     if image_prompt is None
@@ -508,77 +508,77 @@ class FluxProImageNode(comfy_io.ComfyNode):
             },
         )
         output_image = await handle_bfl_synchronous_operation(operation, node_id=cls.hidden.unique_id)
-        return comfy_io.NodeOutput(output_image)
+        return IO.NodeOutput(output_image)
 
 
-class FluxProExpandNode(comfy_io.ComfyNode):
+class FluxProExpandNode(IO.ComfyNode):
     """
     Outpaints image based on prompt.
     """
 
     @classmethod
-    def define_schema(cls) -> comfy_io.Schema:
-        return comfy_io.Schema(
+    def define_schema(cls) -> IO.Schema:
+        return IO.Schema(
             node_id="FluxProExpandNode",
             display_name="Flux.1 Expand Image",
             category="api node/image/BFL",
             description=cleandoc(cls.__doc__ or ""),
             inputs=[
-                comfy_io.Image.Input("image"),
-                comfy_io.String.Input(
+                IO.Image.Input("image"),
+                IO.String.Input(
                     "prompt",
                     multiline=True,
                     default="",
                     tooltip="Prompt for the image generation",
                 ),
-                comfy_io.Boolean.Input(
+                IO.Boolean.Input(
                     "prompt_upsampling",
                     default=False,
                     tooltip="Whether to perform upsampling on the prompt. If active, automatically modifies the prompt for more creative generation, but results are nondeterministic (same seed will not produce exactly the same result).",
                 ),
-                comfy_io.Int.Input(
+                IO.Int.Input(
                     "top",
                     default=0,
                     min=0,
                     max=2048,
                     tooltip="Number of pixels to expand at the top of the image",
                 ),
-                comfy_io.Int.Input(
+                IO.Int.Input(
                     "bottom",
                     default=0,
                     min=0,
                     max=2048,
                     tooltip="Number of pixels to expand at the bottom of the image",
                 ),
-                comfy_io.Int.Input(
+                IO.Int.Input(
                     "left",
                     default=0,
                     min=0,
                     max=2048,
                     tooltip="Number of pixels to expand at the left of the image",
                 ),
-                comfy_io.Int.Input(
+                IO.Int.Input(
                     "right",
                     default=0,
                     min=0,
                     max=2048,
                     tooltip="Number of pixels to expand at the right of the image",
                 ),
-                comfy_io.Float.Input(
+                IO.Float.Input(
                     "guidance",
                     default=60,
                     min=1.5,
                     max=100,
                     tooltip="Guidance strength for the image generation process",
                 ),
-                comfy_io.Int.Input(
+                IO.Int.Input(
                     "steps",
                     default=50,
                     min=15,
                     max=50,
                     tooltip="Number of steps for the image generation process",
                 ),
-                comfy_io.Int.Input(
+                IO.Int.Input(
                     "seed",
                     default=0,
                     min=0,
@@ -587,11 +587,11 @@ class FluxProExpandNode(comfy_io.ComfyNode):
                     tooltip="The random seed used for creating the noise.",
                 ),
             ],
-            outputs=[comfy_io.Image.Output()],
+            outputs=[IO.Image.Output()],
             hidden=[
-                comfy_io.Hidden.auth_token_comfy_org,
-                comfy_io.Hidden.api_key_comfy_org,
-                comfy_io.Hidden.unique_id,
+                IO.Hidden.auth_token_comfy_org,
+                IO.Hidden.api_key_comfy_org,
+                IO.Hidden.unique_id,
             ],
             is_api_node=True,
         )
@@ -609,7 +609,7 @@ class FluxProExpandNode(comfy_io.ComfyNode):
         steps: int,
         guidance: float,
         seed=0,
-    ) -> comfy_io.NodeOutput:
+    ) -> IO.NodeOutput:
         image = convert_image_to_base64(image)
 
         operation = SynchronousOperation(
@@ -637,51 +637,51 @@ class FluxProExpandNode(comfy_io.ComfyNode):
             },
         )
         output_image = await handle_bfl_synchronous_operation(operation, node_id=cls.hidden.unique_id)
-        return comfy_io.NodeOutput(output_image)
+        return IO.NodeOutput(output_image)
 
 
 
-class FluxProFillNode(comfy_io.ComfyNode):
+class FluxProFillNode(IO.ComfyNode):
     """
     Inpaints image based on mask and prompt.
     """
 
     @classmethod
-    def define_schema(cls) -> comfy_io.Schema:
-        return comfy_io.Schema(
+    def define_schema(cls) -> IO.Schema:
+        return IO.Schema(
             node_id="FluxProFillNode",
             display_name="Flux.1 Fill Image",
             category="api node/image/BFL",
             description=cleandoc(cls.__doc__ or ""),
             inputs=[
-                comfy_io.Image.Input("image"),
-                comfy_io.Mask.Input("mask"),
-                comfy_io.String.Input(
+                IO.Image.Input("image"),
+                IO.Mask.Input("mask"),
+                IO.String.Input(
                     "prompt",
                     multiline=True,
                     default="",
                     tooltip="Prompt for the image generation",
                 ),
-                comfy_io.Boolean.Input(
+                IO.Boolean.Input(
                     "prompt_upsampling",
                     default=False,
                     tooltip="Whether to perform upsampling on the prompt. If active, automatically modifies the prompt for more creative generation, but results are nondeterministic (same seed will not produce exactly the same result).",
                 ),
-                comfy_io.Float.Input(
+                IO.Float.Input(
                     "guidance",
                     default=60,
                     min=1.5,
                     max=100,
                     tooltip="Guidance strength for the image generation process",
                 ),
-                comfy_io.Int.Input(
+                IO.Int.Input(
                     "steps",
                     default=50,
                     min=15,
                     max=50,
                     tooltip="Number of steps for the image generation process",
                 ),
-                comfy_io.Int.Input(
+                IO.Int.Input(
                     "seed",
                     default=0,
                     min=0,
@@ -690,11 +690,11 @@ class FluxProFillNode(comfy_io.ComfyNode):
                     tooltip="The random seed used for creating the noise.",
                 ),
             ],
-            outputs=[comfy_io.Image.Output()],
+            outputs=[IO.Image.Output()],
             hidden=[
-                comfy_io.Hidden.auth_token_comfy_org,
-                comfy_io.Hidden.api_key_comfy_org,
-                comfy_io.Hidden.unique_id,
+                IO.Hidden.auth_token_comfy_org,
+                IO.Hidden.api_key_comfy_org,
+                IO.Hidden.unique_id,
             ],
             is_api_node=True,
         )
@@ -709,7 +709,7 @@ class FluxProFillNode(comfy_io.ComfyNode):
         steps: int,
         guidance: float,
         seed=0,
-    ) -> comfy_io.NodeOutput:
+    ) -> IO.NodeOutput:
         # prepare mask
         mask = resize_mask_to_image(mask, image)
         mask = convert_image_to_base64(convert_mask_to_image(mask))
@@ -738,35 +738,35 @@ class FluxProFillNode(comfy_io.ComfyNode):
             },
         )
         output_image = await handle_bfl_synchronous_operation(operation, node_id=cls.hidden.unique_id)
-        return comfy_io.NodeOutput(output_image)
+        return IO.NodeOutput(output_image)
 
 
-class FluxProCannyNode(comfy_io.ComfyNode):
+class FluxProCannyNode(IO.ComfyNode):
     """
     Generate image using a control image (canny).
     """
 
     @classmethod
-    def define_schema(cls) -> comfy_io.Schema:
-        return comfy_io.Schema(
+    def define_schema(cls) -> IO.Schema:
+        return IO.Schema(
             node_id="FluxProCannyNode",
             display_name="Flux.1 Canny Control Image",
             category="api node/image/BFL",
             description=cleandoc(cls.__doc__ or ""),
             inputs=[
-                comfy_io.Image.Input("control_image"),
-                comfy_io.String.Input(
+                IO.Image.Input("control_image"),
+                IO.String.Input(
                     "prompt",
                     multiline=True,
                     default="",
                     tooltip="Prompt for the image generation",
                 ),
-                comfy_io.Boolean.Input(
+                IO.Boolean.Input(
                     "prompt_upsampling",
                     default=False,
                     tooltip="Whether to perform upsampling on the prompt. If active, automatically modifies the prompt for more creative generation, but results are nondeterministic (same seed will not produce exactly the same result).",
                 ),
-                comfy_io.Float.Input(
+                IO.Float.Input(
                     "canny_low_threshold",
                     default=0.1,
                     min=0.01,
@@ -774,7 +774,7 @@ class FluxProCannyNode(comfy_io.ComfyNode):
                     step=0.01,
                     tooltip="Low threshold for Canny edge detection; ignored if skip_processing is True",
                 ),
-                comfy_io.Float.Input(
+                IO.Float.Input(
                     "canny_high_threshold",
                     default=0.4,
                     min=0.01,
@@ -782,26 +782,26 @@ class FluxProCannyNode(comfy_io.ComfyNode):
                     step=0.01,
                     tooltip="High threshold for Canny edge detection; ignored if skip_processing is True",
                 ),
-                comfy_io.Boolean.Input(
+                IO.Boolean.Input(
                     "skip_preprocessing",
                     default=False,
                     tooltip="Whether to skip preprocessing; set to True if control_image already is canny-fied, False if it is a raw image.",
                 ),
-                comfy_io.Float.Input(
+                IO.Float.Input(
                     "guidance",
                     default=30,
                     min=1,
                     max=100,
                     tooltip="Guidance strength for the image generation process",
                 ),
-                comfy_io.Int.Input(
+                IO.Int.Input(
                     "steps",
                     default=50,
                     min=15,
                     max=50,
                     tooltip="Number of steps for the image generation process",
                 ),
-                comfy_io.Int.Input(
+                IO.Int.Input(
                     "seed",
                     default=0,
                     min=0,
@@ -810,11 +810,11 @@ class FluxProCannyNode(comfy_io.ComfyNode):
                     tooltip="The random seed used for creating the noise.",
                 ),
             ],
-            outputs=[comfy_io.Image.Output()],
+            outputs=[IO.Image.Output()],
             hidden=[
-                comfy_io.Hidden.auth_token_comfy_org,
-                comfy_io.Hidden.api_key_comfy_org,
-                comfy_io.Hidden.unique_id,
+                IO.Hidden.auth_token_comfy_org,
+                IO.Hidden.api_key_comfy_org,
+                IO.Hidden.unique_id,
             ],
             is_api_node=True,
         )
@@ -831,7 +831,7 @@ class FluxProCannyNode(comfy_io.ComfyNode):
         steps: int,
         guidance: float,
         seed=0,
-    ) -> comfy_io.NodeOutput:
+    ) -> IO.NodeOutput:
         control_image = convert_image_to_base64(control_image[:, :, :, :3])
         preprocessed_image = None
 
@@ -872,54 +872,54 @@ class FluxProCannyNode(comfy_io.ComfyNode):
             },
         )
         output_image = await handle_bfl_synchronous_operation(operation, node_id=cls.hidden.unique_id)
-        return comfy_io.NodeOutput(output_image)
+        return IO.NodeOutput(output_image)
 
 
-class FluxProDepthNode(comfy_io.ComfyNode):
+class FluxProDepthNode(IO.ComfyNode):
     """
     Generate image using a control image (depth).
     """
 
     @classmethod
-    def define_schema(cls) -> comfy_io.Schema:
-        return comfy_io.Schema(
+    def define_schema(cls) -> IO.Schema:
+        return IO.Schema(
             node_id="FluxProDepthNode",
             display_name="Flux.1 Depth Control Image",
             category="api node/image/BFL",
             description=cleandoc(cls.__doc__ or ""),
             inputs=[
-                comfy_io.Image.Input("control_image"),
-                comfy_io.String.Input(
+                IO.Image.Input("control_image"),
+                IO.String.Input(
                     "prompt",
                     multiline=True,
                     default="",
                     tooltip="Prompt for the image generation",
                 ),
-                comfy_io.Boolean.Input(
+                IO.Boolean.Input(
                     "prompt_upsampling",
                     default=False,
                     tooltip="Whether to perform upsampling on the prompt. If active, automatically modifies the prompt for more creative generation, but results are nondeterministic (same seed will not produce exactly the same result).",
                 ),
-                comfy_io.Boolean.Input(
+                IO.Boolean.Input(
                     "skip_preprocessing",
                     default=False,
                     tooltip="Whether to skip preprocessing; set to True if control_image already is depth-ified, False if it is a raw image.",
                 ),
-                comfy_io.Float.Input(
+                IO.Float.Input(
                     "guidance",
                     default=15,
                     min=1,
                     max=100,
                     tooltip="Guidance strength for the image generation process",
                 ),
-                comfy_io.Int.Input(
+                IO.Int.Input(
                     "steps",
                     default=50,
                     min=15,
                     max=50,
                     tooltip="Number of steps for the image generation process",
                 ),
-                comfy_io.Int.Input(
+                IO.Int.Input(
                     "seed",
                     default=0,
                     min=0,
@@ -928,11 +928,11 @@ class FluxProDepthNode(comfy_io.ComfyNode):
                     tooltip="The random seed used for creating the noise.",
                 ),
             ],
-            outputs=[comfy_io.Image.Output()],
+            outputs=[IO.Image.Output()],
             hidden=[
-                comfy_io.Hidden.auth_token_comfy_org,
-                comfy_io.Hidden.api_key_comfy_org,
-                comfy_io.Hidden.unique_id,
+                IO.Hidden.auth_token_comfy_org,
+                IO.Hidden.api_key_comfy_org,
+                IO.Hidden.unique_id,
             ],
             is_api_node=True,
         )
@@ -947,7 +947,7 @@ class FluxProDepthNode(comfy_io.ComfyNode):
         steps: int,
         guidance: float,
         seed=0,
-    ) -> comfy_io.NodeOutput:
+    ) -> IO.NodeOutput:
         control_image = convert_image_to_base64(control_image[:,:,:,:3])
         preprocessed_image = None
 
@@ -977,12 +977,12 @@ class FluxProDepthNode(comfy_io.ComfyNode):
             },
         )
         output_image = await handle_bfl_synchronous_operation(operation, node_id=cls.hidden.unique_id)
-        return comfy_io.NodeOutput(output_image)
+        return IO.NodeOutput(output_image)
 
 
 class BFLExtension(ComfyExtension):
     @override
-    async def get_node_list(self) -> list[type[comfy_io.ComfyNode]]:
+    async def get_node_list(self) -> list[type[IO.ComfyNode]]:
         return [
             FluxProUltraImageNode,
             # FluxProImageNode,

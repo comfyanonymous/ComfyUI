@@ -4,7 +4,7 @@ import logging
 import torch
 
 from typing_extensions import override
-from comfy_api.latest import ComfyExtension, io as comfy_io
+from comfy_api.latest import ComfyExtension, IO
 from comfy_api.input_impl.video_types import VideoFromFile
 from comfy_api_nodes.apis import (
     MinimaxVideoGenerationRequest,
@@ -43,7 +43,7 @@ async def _generate_mm_video(
     image: Optional[torch.Tensor] = None,   # used for ImageToVideo
     subject: Optional[torch.Tensor] = None, # used for SubjectToVideo
     average_duration: Optional[int] = None,
-) -> comfy_io.NodeOutput:
+) -> IO.NodeOutput:
     if image is None:
         validate_string(prompt_text, field_name="prompt_text")
     # upload image, if passed in
@@ -133,35 +133,35 @@ async def _generate_mm_video(
         error_msg = f"Failed to download video from {file_url}"
         logging.error(error_msg)
         raise Exception(error_msg)
-    return comfy_io.NodeOutput(VideoFromFile(video_io))
+    return IO.NodeOutput(VideoFromFile(video_io))
 
 
-class MinimaxTextToVideoNode(comfy_io.ComfyNode):
+class MinimaxTextToVideoNode(IO.ComfyNode):
     """
     Generates videos synchronously based on a prompt, and optional parameters using MiniMax's API.
     """
 
     @classmethod
-    def define_schema(cls) -> comfy_io.Schema:
-        return comfy_io.Schema(
+    def define_schema(cls) -> IO.Schema:
+        return IO.Schema(
             node_id="MinimaxTextToVideoNode",
             display_name="MiniMax Text to Video",
             category="api node/video/MiniMax",
             description=cleandoc(cls.__doc__ or ""),
             inputs=[
-                comfy_io.String.Input(
+                IO.String.Input(
                     "prompt_text",
                     multiline=True,
                     default="",
                     tooltip="Text prompt to guide the video generation",
                 ),
-                comfy_io.Combo.Input(
+                IO.Combo.Input(
                     "model",
                     options=["T2V-01", "T2V-01-Director"],
                     default="T2V-01",
                     tooltip="Model to use for video generation",
                 ),
-                comfy_io.Int.Input(
+                IO.Int.Input(
                     "seed",
                     default=0,
                     min=0,
@@ -172,11 +172,11 @@ class MinimaxTextToVideoNode(comfy_io.ComfyNode):
                     optional=True,
                 ),
             ],
-            outputs=[comfy_io.Video.Output()],
+            outputs=[IO.Video.Output()],
             hidden=[
-                comfy_io.Hidden.auth_token_comfy_org,
-                comfy_io.Hidden.api_key_comfy_org,
-                comfy_io.Hidden.unique_id,
+                IO.Hidden.auth_token_comfy_org,
+                IO.Hidden.api_key_comfy_org,
+                IO.Hidden.unique_id,
             ],
             is_api_node=True,
         )
@@ -187,7 +187,7 @@ class MinimaxTextToVideoNode(comfy_io.ComfyNode):
         prompt_text: str,
         model: str = "T2V-01",
         seed: int = 0,
-    ) -> comfy_io.NodeOutput:
+    ) -> IO.NodeOutput:
         return await _generate_mm_video(
             auth={
                 "auth_token": cls.hidden.auth_token_comfy_org,
@@ -203,36 +203,36 @@ class MinimaxTextToVideoNode(comfy_io.ComfyNode):
         )
 
 
-class MinimaxImageToVideoNode(comfy_io.ComfyNode):
+class MinimaxImageToVideoNode(IO.ComfyNode):
     """
     Generates videos synchronously based on an image and prompt, and optional parameters using MiniMax's API.
     """
 
     @classmethod
-    def define_schema(cls) -> comfy_io.Schema:
-        return comfy_io.Schema(
+    def define_schema(cls) -> IO.Schema:
+        return IO.Schema(
             node_id="MinimaxImageToVideoNode",
             display_name="MiniMax Image to Video",
             category="api node/video/MiniMax",
             description=cleandoc(cls.__doc__ or ""),
             inputs=[
-                comfy_io.Image.Input(
+                IO.Image.Input(
                     "image",
                     tooltip="Image to use as first frame of video generation",
                 ),
-                comfy_io.String.Input(
+                IO.String.Input(
                     "prompt_text",
                     multiline=True,
                     default="",
                     tooltip="Text prompt to guide the video generation",
                 ),
-                comfy_io.Combo.Input(
+                IO.Combo.Input(
                     "model",
                     options=["I2V-01-Director", "I2V-01", "I2V-01-live"],
                     default="I2V-01",
                     tooltip="Model to use for video generation",
                 ),
-                comfy_io.Int.Input(
+                IO.Int.Input(
                     "seed",
                     default=0,
                     min=0,
@@ -243,11 +243,11 @@ class MinimaxImageToVideoNode(comfy_io.ComfyNode):
                     optional=True,
                 ),
             ],
-            outputs=[comfy_io.Video.Output()],
+            outputs=[IO.Video.Output()],
             hidden=[
-                comfy_io.Hidden.auth_token_comfy_org,
-                comfy_io.Hidden.api_key_comfy_org,
-                comfy_io.Hidden.unique_id,
+                IO.Hidden.auth_token_comfy_org,
+                IO.Hidden.api_key_comfy_org,
+                IO.Hidden.unique_id,
             ],
             is_api_node=True,
         )
@@ -259,7 +259,7 @@ class MinimaxImageToVideoNode(comfy_io.ComfyNode):
         prompt_text: str,
         model: str = "I2V-01",
         seed: int = 0,
-    ) -> comfy_io.NodeOutput:
+    ) -> IO.NodeOutput:
         return await _generate_mm_video(
             auth={
                 "auth_token": cls.hidden.auth_token_comfy_org,
@@ -275,36 +275,36 @@ class MinimaxImageToVideoNode(comfy_io.ComfyNode):
         )
 
 
-class MinimaxSubjectToVideoNode(comfy_io.ComfyNode):
+class MinimaxSubjectToVideoNode(IO.ComfyNode):
     """
     Generates videos synchronously based on an image and prompt, and optional parameters using MiniMax's API.
     """
 
     @classmethod
-    def define_schema(cls) -> comfy_io.Schema:
-        return comfy_io.Schema(
+    def define_schema(cls) -> IO.Schema:
+        return IO.Schema(
             node_id="MinimaxSubjectToVideoNode",
             display_name="MiniMax Subject to Video",
             category="api node/video/MiniMax",
             description=cleandoc(cls.__doc__ or ""),
             inputs=[
-                comfy_io.Image.Input(
+                IO.Image.Input(
                     "subject",
                     tooltip="Image of subject to reference for video generation",
                 ),
-                comfy_io.String.Input(
+                IO.String.Input(
                     "prompt_text",
                     multiline=True,
                     default="",
                     tooltip="Text prompt to guide the video generation",
                 ),
-                comfy_io.Combo.Input(
+                IO.Combo.Input(
                     "model",
                     options=["S2V-01"],
                     default="S2V-01",
                     tooltip="Model to use for video generation",
                 ),
-                comfy_io.Int.Input(
+                IO.Int.Input(
                     "seed",
                     default=0,
                     min=0,
@@ -315,11 +315,11 @@ class MinimaxSubjectToVideoNode(comfy_io.ComfyNode):
                     optional=True,
                 ),
             ],
-            outputs=[comfy_io.Video.Output()],
+            outputs=[IO.Video.Output()],
             hidden=[
-                comfy_io.Hidden.auth_token_comfy_org,
-                comfy_io.Hidden.api_key_comfy_org,
-                comfy_io.Hidden.unique_id,
+                IO.Hidden.auth_token_comfy_org,
+                IO.Hidden.api_key_comfy_org,
+                IO.Hidden.unique_id,
             ],
             is_api_node=True,
         )
@@ -331,7 +331,7 @@ class MinimaxSubjectToVideoNode(comfy_io.ComfyNode):
         prompt_text: str,
         model: str = "S2V-01",
         seed: int = 0,
-    ) -> comfy_io.NodeOutput:
+    ) -> IO.NodeOutput:
         return await _generate_mm_video(
             auth={
                 "auth_token": cls.hidden.auth_token_comfy_org,
@@ -347,24 +347,24 @@ class MinimaxSubjectToVideoNode(comfy_io.ComfyNode):
         )
 
 
-class MinimaxHailuoVideoNode(comfy_io.ComfyNode):
+class MinimaxHailuoVideoNode(IO.ComfyNode):
     """Generates videos from prompt, with optional start frame using the new MiniMax Hailuo-02 model."""
 
     @classmethod
-    def define_schema(cls) -> comfy_io.Schema:
-        return comfy_io.Schema(
+    def define_schema(cls) -> IO.Schema:
+        return IO.Schema(
             node_id="MinimaxHailuoVideoNode",
             display_name="MiniMax Hailuo Video",
             category="api node/video/MiniMax",
             description=cleandoc(cls.__doc__ or ""),
             inputs=[
-                comfy_io.String.Input(
+                IO.String.Input(
                     "prompt_text",
                     multiline=True,
                     default="",
                     tooltip="Text prompt to guide the video generation.",
                 ),
-                comfy_io.Int.Input(
+                IO.Int.Input(
                     "seed",
                     default=0,
                     min=0,
@@ -374,25 +374,25 @@ class MinimaxHailuoVideoNode(comfy_io.ComfyNode):
                     tooltip="The random seed used for creating the noise.",
                     optional=True,
                 ),
-                comfy_io.Image.Input(
+                IO.Image.Input(
                     "first_frame_image",
                     tooltip="Optional image to use as the first frame to generate a video.",
                     optional=True,
                 ),
-                comfy_io.Boolean.Input(
+                IO.Boolean.Input(
                     "prompt_optimizer",
                     default=True,
                     tooltip="Optimize prompt to improve generation quality when needed.",
                     optional=True,
                 ),
-                comfy_io.Combo.Input(
+                IO.Combo.Input(
                     "duration",
                     options=[6, 10],
                     default=6,
                     tooltip="The length of the output video in seconds.",
                     optional=True,
                 ),
-                comfy_io.Combo.Input(
+                IO.Combo.Input(
                     "resolution",
                     options=["768P", "1080P"],
                     default="768P",
@@ -400,11 +400,11 @@ class MinimaxHailuoVideoNode(comfy_io.ComfyNode):
                     optional=True,
                 ),
             ],
-            outputs=[comfy_io.Video.Output()],
+            outputs=[IO.Video.Output()],
             hidden=[
-                comfy_io.Hidden.auth_token_comfy_org,
-                comfy_io.Hidden.api_key_comfy_org,
-                comfy_io.Hidden.unique_id,
+                IO.Hidden.auth_token_comfy_org,
+                IO.Hidden.api_key_comfy_org,
+                IO.Hidden.unique_id,
             ],
             is_api_node=True,
         )
@@ -419,7 +419,7 @@ class MinimaxHailuoVideoNode(comfy_io.ComfyNode):
         duration: int = 6,
         resolution: str = "768P",
         model: str = "MiniMax-Hailuo-02",
-    ) -> comfy_io.NodeOutput:
+    ) -> IO.NodeOutput:
         auth = {
             "auth_token": cls.hidden.auth_token_comfy_org,
             "comfy_api_key": cls.hidden.api_key_comfy_org,
@@ -513,12 +513,12 @@ class MinimaxHailuoVideoNode(comfy_io.ComfyNode):
             error_msg = f"Failed to download video from {file_url}"
             logging.error(error_msg)
             raise Exception(error_msg)
-        return comfy_io.NodeOutput(VideoFromFile(video_io))
+        return IO.NodeOutput(VideoFromFile(video_io))
 
 
 class MinimaxExtension(ComfyExtension):
     @override
-    async def get_node_list(self) -> list[type[comfy_io.ComfyNode]]:
+    async def get_node_list(self) -> list[type[IO.ComfyNode]]:
         return [
             MinimaxTextToVideoNode,
             MinimaxImageToVideoNode,

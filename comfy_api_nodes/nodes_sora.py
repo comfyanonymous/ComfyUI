@@ -3,7 +3,7 @@ from typing_extensions import override
 
 import torch
 from pydantic import BaseModel, Field
-from comfy_api.latest import ComfyExtension, io as comfy_io
+from comfy_api.latest import ComfyExtension, IO
 from comfy_api_nodes.apis.client import (
     ApiEndpoint,
     HttpMethod,
@@ -31,27 +31,27 @@ class Sora2GenerationResponse(BaseModel):
     status: Optional[str] = Field(None)
 
 
-class OpenAIVideoSora2(comfy_io.ComfyNode):
+class OpenAIVideoSora2(IO.ComfyNode):
     @classmethod
     def define_schema(cls):
-        return comfy_io.Schema(
+        return IO.Schema(
             node_id="OpenAIVideoSora2",
             display_name="OpenAI Sora - Video",
             category="api node/video/Sora",
             description="OpenAI video and audio generation.",
             inputs=[
-                comfy_io.Combo.Input(
+                IO.Combo.Input(
                     "model",
                     options=["sora-2", "sora-2-pro"],
                     default="sora-2",
                 ),
-                comfy_io.String.Input(
+                IO.String.Input(
                     "prompt",
                     multiline=True,
                     default="",
                     tooltip="Guiding text; may be empty if an input image is present.",
                 ),
-                comfy_io.Combo.Input(
+                IO.Combo.Input(
                     "size",
                     options=[
                         "720x1280",
@@ -61,22 +61,22 @@ class OpenAIVideoSora2(comfy_io.ComfyNode):
                     ],
                     default="1280x720",
                 ),
-                comfy_io.Combo.Input(
+                IO.Combo.Input(
                     "duration",
                     options=[4, 8, 12],
                     default=8,
                 ),
-                comfy_io.Image.Input(
+                IO.Image.Input(
                     "image",
                     optional=True,
                 ),
-                comfy_io.Int.Input(
+                IO.Int.Input(
                     "seed",
                     default=0,
                     min=0,
                     max=2147483647,
                     step=1,
-                    display_mode=comfy_io.NumberDisplay.number,
+                    display_mode=IO.NumberDisplay.number,
                     control_after_generate=True,
                     optional=True,
                     tooltip="Seed to determine if node should re-run; "
@@ -84,12 +84,12 @@ class OpenAIVideoSora2(comfy_io.ComfyNode):
                 ),
             ],
             outputs=[
-                comfy_io.Video.Output(),
+                IO.Video.Output(),
             ],
             hidden=[
-                comfy_io.Hidden.auth_token_comfy_org,
-                comfy_io.Hidden.api_key_comfy_org,
-                comfy_io.Hidden.unique_id,
+                IO.Hidden.auth_token_comfy_org,
+                IO.Hidden.api_key_comfy_org,
+                IO.Hidden.unique_id,
             ],
             is_api_node=True,
         )
@@ -155,7 +155,7 @@ class OpenAIVideoSora2(comfy_io.ComfyNode):
             estimated_duration=45 * (duration / 4) * model_time_multiplier,
         )
         await poll_operation.execute()
-        return comfy_io.NodeOutput(
+        return IO.NodeOutput(
             await download_url_to_video_output(
                 f"/proxy/openai/v1/videos/{initial_response.id}/content",
                 auth_kwargs=auth,
@@ -165,7 +165,7 @@ class OpenAIVideoSora2(comfy_io.ComfyNode):
 
 class OpenAISoraExtension(ComfyExtension):
     @override
-    async def get_node_list(self) -> list[type[comfy_io.ComfyNode]]:
+    async def get_node_list(self) -> list[type[IO.ComfyNode]]:
         return [
             OpenAIVideoSora2,
         ]

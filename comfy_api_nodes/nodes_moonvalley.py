@@ -22,10 +22,11 @@ from comfy_api_nodes.apinode_utils import (
     download_url_to_video_output,
     upload_images_to_comfyapi,
     upload_video_to_comfyapi,
+    validate_container_format_is_mp4,
 )
 
 from comfy_api.input import VideoInput
-from comfy_api.latest import ComfyExtension, InputImpl, io as comfy_io
+from comfy_api.latest import ComfyExtension, InputImpl, IO
 import av
 import io
 
@@ -144,7 +145,7 @@ def validate_video_to_video_input(video: VideoInput) -> VideoInput:
     """
     width, height = _get_video_dimensions(video)
     _validate_video_dimensions(width, height)
-    _validate_container_format(video)
+    validate_container_format_is_mp4(video)
 
     return _validate_and_trim_duration(video)
 
@@ -174,15 +175,6 @@ def _validate_video_dimensions(width: int, height: int) -> None:
         )
         raise ValueError(
             f"Resolution {width}x{height} not supported. Supported: {supported_list}"
-        )
-
-
-def _validate_container_format(video: VideoInput) -> None:
-    """Validates video container format is MP4."""
-    container_format = video.get_container_format()
-    if container_format not in ["mp4", "mov,mp4,m4a,3gp,3g2,mj2"]:
-        raise ValueError(
-            f"Only MP4 container format supported. Got: {container_format}"
         )
 
 
@@ -362,25 +354,25 @@ async def get_response(
     )
 
 
-class MoonvalleyImg2VideoNode(comfy_io.ComfyNode):
+class MoonvalleyImg2VideoNode(IO.ComfyNode):
 
     @classmethod
-    def define_schema(cls) -> comfy_io.Schema:
-        return comfy_io.Schema(
+    def define_schema(cls) -> IO.Schema:
+        return IO.Schema(
             node_id="MoonvalleyImg2VideoNode",
             display_name="Moonvalley Marey Image to Video",
             category="api node/video/Moonvalley Marey",
             description="Moonvalley Marey Image to Video Node",
             inputs=[
-                comfy_io.Image.Input(
+                IO.Image.Input(
                     "image",
                     tooltip="The reference image used to generate the video",
                 ),
-                comfy_io.String.Input(
+                IO.String.Input(
                     "prompt",
                     multiline=True,
                 ),
-                comfy_io.String.Input(
+                IO.String.Input(
                     "negative_prompt",
                     multiline=True,
                     default="<synthetic> <scene cut> gopro, bright, contrast, static, overexposed, vignette, "
@@ -391,7 +383,7 @@ class MoonvalleyImg2VideoNode(comfy_io.ComfyNode):
                     "wobbly, weird, low quality, plastic, stock footage, video camera, boring",
                     tooltip="Negative prompt text",
                 ),
-                comfy_io.Combo.Input(
+                IO.Combo.Input(
                     "resolution",
                     options=[
                         "16:9 (1920 x 1080)",
@@ -404,7 +396,7 @@ class MoonvalleyImg2VideoNode(comfy_io.ComfyNode):
                     default="16:9 (1920 x 1080)",
                     tooltip="Resolution of the output video",
                 ),
-                comfy_io.Float.Input(
+                IO.Float.Input(
                     "prompt_adherence",
                     default=4.5,
                     min=1.0,
@@ -412,17 +404,17 @@ class MoonvalleyImg2VideoNode(comfy_io.ComfyNode):
                     step=1.0,
                     tooltip="Guidance scale for generation control",
                 ),
-                comfy_io.Int.Input(
+                IO.Int.Input(
                     "seed",
                     default=9,
                     min=0,
                     max=4294967295,
                     step=1,
-                    display_mode=comfy_io.NumberDisplay.number,
+                    display_mode=IO.NumberDisplay.number,
                     tooltip="Random seed value",
                     control_after_generate=True,
                 ),
-                comfy_io.Int.Input(
+                IO.Int.Input(
                     "steps",
                     default=33,
                     min=1,
@@ -431,11 +423,11 @@ class MoonvalleyImg2VideoNode(comfy_io.ComfyNode):
                     tooltip="Number of denoising steps",
                 ),
             ],
-            outputs=[comfy_io.Video.Output()],
+            outputs=[IO.Video.Output()],
             hidden=[
-                comfy_io.Hidden.auth_token_comfy_org,
-                comfy_io.Hidden.api_key_comfy_org,
-                comfy_io.Hidden.unique_id,
+                IO.Hidden.auth_token_comfy_org,
+                IO.Hidden.api_key_comfy_org,
+                IO.Hidden.unique_id,
             ],
             is_api_node=True,
         )
@@ -450,7 +442,7 @@ class MoonvalleyImg2VideoNode(comfy_io.ComfyNode):
         prompt_adherence: float,
         seed: int,
         steps: int,
-    ) -> comfy_io.NodeOutput:
+    ) -> IO.NodeOutput:
         validate_image_dimensions(image, min_width=300, min_height=300, max_height=MAX_HEIGHT, max_width=MAX_WIDTH)
         validate_prompts(prompt, negative_prompt, MOONVALLEY_MAREY_MAX_PROMPT_LENGTH)
         width_height = parse_width_height_from_res(resolution)
@@ -500,25 +492,25 @@ class MoonvalleyImg2VideoNode(comfy_io.ComfyNode):
             task_id, auth_kwargs=auth, node_id=cls.hidden.unique_id
         )
         video = await download_url_to_video_output(final_response.output_url)
-        return comfy_io.NodeOutput(video)
+        return IO.NodeOutput(video)
 
 
-class MoonvalleyVideo2VideoNode(comfy_io.ComfyNode):
+class MoonvalleyVideo2VideoNode(IO.ComfyNode):
 
     @classmethod
-    def define_schema(cls) -> comfy_io.Schema:
-        return comfy_io.Schema(
+    def define_schema(cls) -> IO.Schema:
+        return IO.Schema(
             node_id="MoonvalleyVideo2VideoNode",
             display_name="Moonvalley Marey Video to Video",
             category="api node/video/Moonvalley Marey",
             description="",
             inputs=[
-                comfy_io.String.Input(
+                IO.String.Input(
                     "prompt",
                     multiline=True,
                     tooltip="Describes the video to generate",
                 ),
-                comfy_io.String.Input(
+                IO.String.Input(
                     "negative_prompt",
                     multiline=True,
                     default="<synthetic> <scene cut> gopro, bright, contrast, static, overexposed, vignette, "
@@ -529,28 +521,28 @@ class MoonvalleyVideo2VideoNode(comfy_io.ComfyNode):
                     "wobbly, weird, low quality, plastic, stock footage, video camera, boring",
                     tooltip="Negative prompt text",
                 ),
-                comfy_io.Int.Input(
+                IO.Int.Input(
                     "seed",
                     default=9,
                     min=0,
                     max=4294967295,
                     step=1,
-                    display_mode=comfy_io.NumberDisplay.number,
+                    display_mode=IO.NumberDisplay.number,
                     tooltip="Random seed value",
                     control_after_generate=False,
                 ),
-                comfy_io.Video.Input(
+                IO.Video.Input(
                     "video",
                     tooltip="The reference video used to generate the output video. Must be at least 5 seconds long. "
                     "Videos longer than 5s will be automatically trimmed. Only MP4 format supported.",
                 ),
-                comfy_io.Combo.Input(
+                IO.Combo.Input(
                     "control_type",
                     options=["Motion Transfer", "Pose Transfer"],
                     default="Motion Transfer",
                     optional=True,
                 ),
-                comfy_io.Int.Input(
+                IO.Int.Input(
                     "motion_intensity",
                     default=100,
                     min=0,
@@ -559,21 +551,21 @@ class MoonvalleyVideo2VideoNode(comfy_io.ComfyNode):
                     tooltip="Only used if control_type is 'Motion Transfer'",
                     optional=True,
                 ),
-                comfy_io.Int.Input(
+                IO.Int.Input(
                     "steps",
                     default=33,
                     min=1,
                     max=100,
                     step=1,
-                    display_mode=comfy_io.NumberDisplay.number,
+                    display_mode=IO.NumberDisplay.number,
                     tooltip="Number of inference steps",
                 ),
             ],
-            outputs=[comfy_io.Video.Output()],
+            outputs=[IO.Video.Output()],
             hidden=[
-                comfy_io.Hidden.auth_token_comfy_org,
-                comfy_io.Hidden.api_key_comfy_org,
-                comfy_io.Hidden.unique_id,
+                IO.Hidden.auth_token_comfy_org,
+                IO.Hidden.api_key_comfy_org,
+                IO.Hidden.unique_id,
             ],
             is_api_node=True,
         )
@@ -589,7 +581,7 @@ class MoonvalleyVideo2VideoNode(comfy_io.ComfyNode):
         motion_intensity: Optional[int] = 100,
         steps=33,
         prompt_adherence=4.5,
-    ) -> comfy_io.NodeOutput:
+    ) -> IO.NodeOutput:
         auth = {
             "auth_token": cls.hidden.auth_token_comfy_org,
             "comfy_api_key": cls.hidden.api_key_comfy_org,
@@ -641,24 +633,24 @@ class MoonvalleyVideo2VideoNode(comfy_io.ComfyNode):
         )
 
         video = await download_url_to_video_output(final_response.output_url)
-        return comfy_io.NodeOutput(video)
+        return IO.NodeOutput(video)
 
 
-class MoonvalleyTxt2VideoNode(comfy_io.ComfyNode):
+class MoonvalleyTxt2VideoNode(IO.ComfyNode):
 
     @classmethod
-    def define_schema(cls) -> comfy_io.Schema:
-        return comfy_io.Schema(
+    def define_schema(cls) -> IO.Schema:
+        return IO.Schema(
             node_id="MoonvalleyTxt2VideoNode",
             display_name="Moonvalley Marey Text to Video",
             category="api node/video/Moonvalley Marey",
             description="",
             inputs=[
-                comfy_io.String.Input(
+                IO.String.Input(
                     "prompt",
                     multiline=True,
                 ),
-                comfy_io.String.Input(
+                IO.String.Input(
                     "negative_prompt",
                     multiline=True,
                     default="<synthetic> <scene cut> gopro, bright, contrast, static, overexposed, vignette, "
@@ -669,7 +661,7 @@ class MoonvalleyTxt2VideoNode(comfy_io.ComfyNode):
                     "wobbly, weird, low quality, plastic, stock footage, video camera, boring",
                     tooltip="Negative prompt text",
                 ),
-                comfy_io.Combo.Input(
+                IO.Combo.Input(
                     "resolution",
                     options=[
                         "16:9 (1920 x 1080)",
@@ -682,7 +674,7 @@ class MoonvalleyTxt2VideoNode(comfy_io.ComfyNode):
                     default="16:9 (1920 x 1080)",
                     tooltip="Resolution of the output video",
                 ),
-                comfy_io.Float.Input(
+                IO.Float.Input(
                     "prompt_adherence",
                     default=4.0,
                     min=1.0,
@@ -690,17 +682,17 @@ class MoonvalleyTxt2VideoNode(comfy_io.ComfyNode):
                     step=1.0,
                     tooltip="Guidance scale for generation control",
                 ),
-                comfy_io.Int.Input(
+                IO.Int.Input(
                     "seed",
                     default=9,
                     min=0,
                     max=4294967295,
                     step=1,
-                    display_mode=comfy_io.NumberDisplay.number,
+                    display_mode=IO.NumberDisplay.number,
                     control_after_generate=True,
                     tooltip="Random seed value",
                 ),
-                comfy_io.Int.Input(
+                IO.Int.Input(
                     "steps",
                     default=33,
                     min=1,
@@ -709,11 +701,11 @@ class MoonvalleyTxt2VideoNode(comfy_io.ComfyNode):
                     tooltip="Inference steps",
                 ),
             ],
-            outputs=[comfy_io.Video.Output()],
+            outputs=[IO.Video.Output()],
             hidden=[
-                comfy_io.Hidden.auth_token_comfy_org,
-                comfy_io.Hidden.api_key_comfy_org,
-                comfy_io.Hidden.unique_id,
+                IO.Hidden.auth_token_comfy_org,
+                IO.Hidden.api_key_comfy_org,
+                IO.Hidden.unique_id,
             ],
             is_api_node=True,
         )
@@ -727,7 +719,7 @@ class MoonvalleyTxt2VideoNode(comfy_io.ComfyNode):
         prompt_adherence: float,
         seed: int,
         steps: int,
-    ) -> comfy_io.NodeOutput:
+    ) -> IO.NodeOutput:
         validate_prompts(prompt, negative_prompt, MOONVALLEY_MAREY_MAX_PROMPT_LENGTH)
         width_height = parse_width_height_from_res(resolution)
 
@@ -768,12 +760,12 @@ class MoonvalleyTxt2VideoNode(comfy_io.ComfyNode):
         )
 
         video = await download_url_to_video_output(final_response.output_url)
-        return comfy_io.NodeOutput(video)
+        return IO.NodeOutput(video)
 
 
 class MoonvalleyExtension(ComfyExtension):
     @override
-    async def get_node_list(self) -> list[type[comfy_io.ComfyNode]]:
+    async def get_node_list(self) -> list[type[IO.ComfyNode]]:
         return [
             MoonvalleyImg2VideoNode,
             MoonvalleyTxt2VideoNode,
