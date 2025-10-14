@@ -1,7 +1,7 @@
 import logging
 import math
 from enum import Enum
-from typing import Literal, Optional, Type, Union
+from typing import Literal, Optional, Union
 from typing_extensions import override
 
 import torch
@@ -13,18 +13,15 @@ from comfy_api_nodes.util.validation_utils import (
     get_number_of_images,
     validate_image_dimensions,
 )
-from comfy_api_nodes.apis.client import (
+from comfy_api_nodes.util import (
     ApiEndpoint,
-    EmptyRequest,
-    HttpMethod,
-    SynchronousOperation,
-    PollingOperation,
-    T,
+    sync_op_pydantic,
+    poll_op_pydantic,
+    upload_images_to_comfyapi,
 )
 from comfy_api_nodes.apinode_utils import (
     download_url_to_image_tensor,
     download_url_to_video_output,
-    upload_images_to_comfyapi,
     validate_string,
     image_tensor_pair_to_batch,
 )
@@ -208,35 +205,6 @@ def get_video_url_from_task_status(response: TaskStatusResponse) -> Union[str, N
     return None
 
 
-async def poll_until_finished(
-    auth_kwargs: dict[str, str],
-    task_id: str,
-    estimated_duration: Optional[int] = None,
-    node_id: Optional[str] = None,
-) -> TaskStatusResponse:
-    """Polls the ByteDance API endpoint until the task reaches a terminal state, then returns the response."""
-    return await PollingOperation(
-        poll_endpoint=ApiEndpoint(
-            path=f"{BYTEPLUS_TASK_STATUS_ENDPOINT}/{task_id}",
-            method=HttpMethod.GET,
-            request_model=EmptyRequest,
-            response_model=TaskStatusResponse,
-        ),
-        completed_statuses=[
-            "succeeded",
-        ],
-        failed_statuses=[
-            "cancelled",
-            "failed",
-        ],
-        status_extractor=lambda response: response.status,
-        auth_kwargs=auth_kwargs,
-        result_url_extractor=get_video_url_from_task_status,
-        estimated_duration=estimated_duration,
-        node_id=node_id,
-    ).execute()
-
-
 class ByteDanceImageNode(IO.ComfyNode):
 
     @classmethod
@@ -353,20 +321,12 @@ class ByteDanceImageNode(IO.ComfyNode):
             guidance_scale=guidance_scale,
             watermark=watermark,
         )
-        auth_kwargs = {
-            "auth_token": cls.hidden.auth_token_comfy_org,
-            "comfy_api_key": cls.hidden.api_key_comfy_org,
-        }
-        response = await SynchronousOperation(
-            endpoint=ApiEndpoint(
-                path=BYTEPLUS_IMAGE_ENDPOINT,
-                method=HttpMethod.POST,
-                request_model=Text2ImageTaskCreationRequest,
-                response_model=ImageTaskCreationResponse,
-            ),
-            request=payload,
-            auth_kwargs=auth_kwargs,
-        ).execute()
+        response = await sync_op_pydantic(
+            cls,
+            endpoint=ApiEndpoint(path=BYTEPLUS_IMAGE_ENDPOINT, method="POST"),
+            data=payload,
+            response_model=ImageTaskCreationResponse,
+        )
         return IO.NodeOutput(await download_url_to_image_tensor(get_image_url_from_response(response)))
 
 
@@ -449,16 +409,7 @@ class ByteDanceImageEditNode(IO.ComfyNode):
         if get_number_of_images(image) != 1:
             raise ValueError("Exactly one input image is required.")
         validate_image_aspect_ratio_range(image, (1, 3), (3, 1))
-        auth_kwargs = {
-            "auth_token": cls.hidden.auth_token_comfy_org,
-            "comfy_api_key": cls.hidden.api_key_comfy_org,
-        }
-        source_url = (await upload_images_to_comfyapi(
-            image,
-            max_images=1,
-            mime_type="image/png",
-            auth_kwargs=auth_kwargs,
-        ))[0]
+        source_url = (await upload_images_to_comfyapi(cls, image, max_images=1, mime_type="image/png"))[0]
         payload = Image2ImageTaskCreationRequest(
             model=model,
             prompt=prompt,
@@ -467,16 +418,12 @@ class ByteDanceImageEditNode(IO.ComfyNode):
             guidance_scale=guidance_scale,
             watermark=watermark,
         )
-        response = await SynchronousOperation(
-            endpoint=ApiEndpoint(
-                path=BYTEPLUS_IMAGE_ENDPOINT,
-                method=HttpMethod.POST,
-                request_model=Image2ImageTaskCreationRequest,
-                response_model=ImageTaskCreationResponse,
-            ),
-            request=payload,
-            auth_kwargs=auth_kwargs,
-        ).execute()
+        response = await sync_op_pydantic(
+            cls,
+            endpoint=ApiEndpoint(path=BYTEPLUS_IMAGE_ENDPOINT, method="POST"),
+            data=payload,
+            response_model=ImageTaskCreationResponse,
+        )
         return IO.NodeOutput(await download_url_to_image_tensor(get_image_url_from_response(response)))
 
 
@@ -621,41 +568,31 @@ class ByteDanceSeedreamNode(IO.ComfyNode):
             raise ValueError(
                 "The maximum number of generated images plus the number of reference images cannot exceed 15."
             )
-        auth_kwargs = {
-            "auth_token": cls.hidden.auth_token_comfy_org,
-            "comfy_api_key": cls.hidden.api_key_comfy_org,
-        }
         reference_images_urls = []
         if n_input_images:
             for i in image:
                 validate_image_aspect_ratio_range(i, (1, 3), (3, 1))
-            reference_images_urls = (await upload_images_to_comfyapi(
+            reference_images_urls = await upload_images_to_comfyapi(
+                cls,
                 image,
                 max_images=n_input_images,
                 mime_type="image/png",
-                auth_kwargs=auth_kwargs,
-            ))
-        payload = Seedream4TaskCreationRequest(
-            model=model,
-            prompt=prompt,
-            image=reference_images_urls,
-            size=f"{w}x{h}",
-            seed=seed,
-            sequential_image_generation=sequential_image_generation,
-            sequential_image_generation_options=Seedream4Options(max_images=max_images),
-            watermark=watermark,
-        )
-        response = await SynchronousOperation(
-            endpoint=ApiEndpoint(
-                path=BYTEPLUS_IMAGE_ENDPOINT,
-                method=HttpMethod.POST,
-                request_model=Seedream4TaskCreationRequest,
-                response_model=ImageTaskCreationResponse,
+            )
+        response = await sync_op_pydantic(
+            cls,
+            endpoint=ApiEndpoint(path=BYTEPLUS_IMAGE_ENDPOINT, method="POST"),
+            response_model=ImageTaskCreationResponse,
+            data=Seedream4TaskCreationRequest(
+                model=model,
+                prompt=prompt,
+                image=reference_images_urls,
+                size=f"{w}x{h}",
+                seed=seed,
+                sequential_image_generation=sequential_image_generation,
+                sequential_image_generation_options=Seedream4Options(max_images=max_images),
+                watermark=watermark,
             ),
-            request=payload,
-            auth_kwargs=auth_kwargs,
-        ).execute()
-
+        )
         if len(response.data) == 1:
             return IO.NodeOutput(await download_url_to_image_tensor(get_image_url_from_response(response)))
         urls = [str(d["url"]) for d in response.data if isinstance(d, dict) and "url" in d]
@@ -764,19 +701,9 @@ class ByteDanceTextToVideoNode(IO.ComfyNode):
             f"--camerafixed {str(camera_fixed).lower()} "
             f"--watermark {str(watermark).lower()}"
         )
-
-        auth_kwargs = {
-            "auth_token": cls.hidden.auth_token_comfy_org,
-            "comfy_api_key": cls.hidden.api_key_comfy_org,
-        }
         return await process_video_task(
-            request_model=Text2VideoTaskCreationRequest,
-            payload=Text2VideoTaskCreationRequest(
-                model=model,
-                content=[TaskTextContent(text=prompt)],
-            ),
-            auth_kwargs=auth_kwargs,
-            node_id=cls.hidden.unique_id,
+            cls,
+            payload=Text2VideoTaskCreationRequest(model=model, content=[TaskTextContent(text=prompt)]),
             estimated_duration=max(1, math.ceil(VIDEO_TASKS_EXECUTION_TIME[model][resolution] * (duration / 10.0))),
         )
 
@@ -879,13 +806,7 @@ class ByteDanceImageToVideoNode(IO.ComfyNode):
         validate_image_dimensions(image, min_width=300, min_height=300, max_width=6000, max_height=6000)
         validate_image_aspect_ratio_range(image, (2, 5), (5, 2), strict=False)  # 0.4 to 2.5
 
-        auth_kwargs = {
-            "auth_token": cls.hidden.auth_token_comfy_org,
-            "comfy_api_key": cls.hidden.api_key_comfy_org,
-        }
-
-        image_url = (await upload_images_to_comfyapi(image, max_images=1, auth_kwargs=auth_kwargs))[0]
-
+        image_url = (await upload_images_to_comfyapi(cls, image, max_images=1))[0]
         prompt = (
             f"{prompt} "
             f"--resolution {resolution} "
@@ -897,13 +818,11 @@ class ByteDanceImageToVideoNode(IO.ComfyNode):
         )
 
         return await process_video_task(
-            request_model=Image2VideoTaskCreationRequest,
+            cls,
             payload=Image2VideoTaskCreationRequest(
                 model=model,
                 content=[TaskTextContent(text=prompt), TaskImageContent(image_url=TaskImageContentUrl(url=image_url))],
             ),
-            auth_kwargs=auth_kwargs,
-            node_id=cls.hidden.unique_id,
             estimated_duration=max(1, math.ceil(VIDEO_TASKS_EXECUTION_TIME[model][resolution] * (duration / 10.0))),
         )
 
@@ -1012,16 +931,11 @@ class ByteDanceFirstLastFrameNode(IO.ComfyNode):
             validate_image_dimensions(i, min_width=300, min_height=300, max_width=6000, max_height=6000)
             validate_image_aspect_ratio_range(i, (2, 5), (5, 2), strict=False)  # 0.4 to 2.5
 
-        auth_kwargs = {
-            "auth_token": cls.hidden.auth_token_comfy_org,
-            "comfy_api_key": cls.hidden.api_key_comfy_org,
-        }
-
         download_urls = await upload_images_to_comfyapi(
+            cls,
             image_tensor_pair_to_batch(first_frame, last_frame),
             max_images=2,
             mime_type="image/png",
-            auth_kwargs=auth_kwargs,
         )
 
         prompt = (
@@ -1035,7 +949,7 @@ class ByteDanceFirstLastFrameNode(IO.ComfyNode):
         )
 
         return await process_video_task(
-            request_model=Image2VideoTaskCreationRequest,
+            cls,
             payload=Image2VideoTaskCreationRequest(
                 model=model,
                 content=[
@@ -1044,8 +958,6 @@ class ByteDanceFirstLastFrameNode(IO.ComfyNode):
                     TaskImageContent(image_url=TaskImageContentUrl(url=str(download_urls[1])), role="last_frame"),
                 ],
             ),
-            auth_kwargs=auth_kwargs,
-            node_id=cls.hidden.unique_id,
             estimated_duration=max(1, math.ceil(VIDEO_TASKS_EXECUTION_TIME[model][resolution] * (duration / 10.0))),
         )
 
@@ -1141,15 +1053,7 @@ class ByteDanceImageReferenceNode(IO.ComfyNode):
             validate_image_dimensions(image, min_width=300, min_height=300, max_width=6000, max_height=6000)
             validate_image_aspect_ratio_range(image, (2, 5), (5, 2), strict=False)  # 0.4 to 2.5
 
-        auth_kwargs = {
-            "auth_token": cls.hidden.auth_token_comfy_org,
-            "comfy_api_key": cls.hidden.api_key_comfy_org,
-        }
-
-        image_urls = await upload_images_to_comfyapi(
-            images, max_images=4, mime_type="image/png", auth_kwargs=auth_kwargs
-        )
-
+        image_urls = await upload_images_to_comfyapi(cls, images, max_images=4, mime_type="image/png")
         prompt = (
             f"{prompt} "
             f"--resolution {resolution} "
@@ -1163,39 +1067,32 @@ class ByteDanceImageReferenceNode(IO.ComfyNode):
             *[TaskImageContent(image_url=TaskImageContentUrl(url=str(i)), role="reference_image") for i in image_urls]
         ]
         return await process_video_task(
-            request_model=Image2VideoTaskCreationRequest,
-            payload=Image2VideoTaskCreationRequest(
-                model=model,
-                content=x,
-            ),
-            auth_kwargs=auth_kwargs,
-            node_id=cls.hidden.unique_id,
+            cls,
+            payload=Image2VideoTaskCreationRequest(model=model, content=x),
             estimated_duration=max(1, math.ceil(VIDEO_TASKS_EXECUTION_TIME[model][resolution] * (duration / 10.0))),
         )
 
 
 async def process_video_task(
-    request_model: Type[T],
+    cls: type[IO.ComfyNode],
     payload: Union[Text2VideoTaskCreationRequest, Image2VideoTaskCreationRequest],
-    auth_kwargs: dict,
-    node_id: str,
     estimated_duration: Optional[int],
 ) -> IO.NodeOutput:
-    initial_response = await SynchronousOperation(
-        endpoint=ApiEndpoint(
-            path=BYTEPLUS_TASK_ENDPOINT,
-            method=HttpMethod.POST,
-            request_model=request_model,
-            response_model=TaskCreationResponse,
-        ),
-        request=payload,
-        auth_kwargs=auth_kwargs,
-    ).execute()
-    response = await poll_until_finished(
-        auth_kwargs,
-        initial_response.id,
+    initial_response = await sync_op_pydantic(
+        cls,
+        endpoint=ApiEndpoint(path=BYTEPLUS_TASK_ENDPOINT, method="POST"),
+        data=payload,
+        response_model=TaskCreationResponse,
+    )
+    response = await poll_op_pydantic(
+        cls,
+        poll_endpoint=ApiEndpoint(path=f"{BYTEPLUS_TASK_STATUS_ENDPOINT}/{initial_response.id}"),
+        completed_statuses=["succeeded"],
+        failed_statuses=["cancelled", "failed"],
+        queued_states=["queued"],
+        status_extractor=lambda r: r.status,
         estimated_duration=estimated_duration,
-        node_id=node_id,
+        response_model=TaskStatusResponse,
     )
     return IO.NodeOutput(await download_url_to_video_output(get_video_url_from_task_status(response)))
 
