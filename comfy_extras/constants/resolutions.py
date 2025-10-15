@@ -114,6 +114,16 @@ KONTEXT_RESOLUTIONS = [
     (1568, 672),
 ]
 
+QWEN_IMAGE_RESOLUTIONS = [
+    (1328, 1328),
+    (1664, 928),
+    (928, 1664),
+    (1472, 1104),
+    (1104, 1472),
+    (1584, 1056),
+    (1056, 1584),
+]
+
 RESOLUTION_MAP = {
     "SDXL/SD3/Flux": SDXL_SD3_FLUX_RESOLUTIONS,
     "SD1.5": SD_RESOLUTIONS,
@@ -126,8 +136,8 @@ RESOLUTION_MAP = {
     "WAN 14b with extras": WAN_VIDEO_14B_EXTENDED_RESOLUTIONS,
     "HiDream 1 Edit": HIDREAM_1_EDIT_RESOLUTIONS,
     "Kontext": KONTEXT_RESOLUTIONS,
-    "Unknown": []
+    "Unknown": [],
+    "Qwen Image": QWEN_IMAGE_RESOLUTIONS,
 }
-
 
 RESOLUTION_NAMES = list(RESOLUTION_MAP.keys())
