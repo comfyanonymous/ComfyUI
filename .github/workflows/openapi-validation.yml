@@ -1,0 +1,33 @@
+name: Validate OpenAPI
+
+on:
+  push:
+    branches: [ master ]
+    paths:
+      - 'openapi.yaml'
+      - 'tests-api/openapi.yaml'
+  pull_request:
+    branches: [ master ]
+    paths:
+      - 'openapi.yaml'
+      - 'tests-api/openapi.yaml'
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install test dependencies
+        run: |
+          pip install -r tests-api/requirements.txt
+
+      - name: Run OpenAPI spec validation tests
+        run: |
+          pytest tests-api/test_spec_validation.py -v
