@@ -27,6 +27,13 @@ from comfy_api_nodes.apinode_utils import (
 )
 
 AVERAGE_DURATION_VIDEO_GEN = 32
+MODELS_MAP = {
+    "veo-2.0-generate-001": "veo-2.0-generate-001",
+    "veo-3.1-generate": "veo-3.1-generate-preview",
+    "veo-3.1-fast-generate": "veo-3.1-fast-generate-preview",
+    "veo-3.0-generate-001": "veo-3.0-generate-001",
+    "veo-3.0-fast-generate-001": "veo-3.0-fast-generate-001",
+}
 
 def convert_image_to_base64(image: torch.Tensor):
     if image is None:
@@ -158,6 +165,7 @@ class VeoVideoGenerationNode(IO.ComfyNode):
         model="veo-2.0-generate-001",
         generate_audio=False,
     ):
+        model = MODELS_MAP[model]
         # Prepare the instances for the request
         instances = []
 
@@ -385,7 +393,7 @@ class Veo3VideoGenerationNode(VeoVideoGenerationNode):
                 ),
                 IO.Combo.Input(
                     "model",
-                    options=["veo-3.0-generate-001", "veo-3.0-fast-generate-001"],
+                    options=list(MODELS_MAP.keys()),
                     default="veo-3.0-generate-001",
                     tooltip="Veo 3 model to use for video generation",
                     optional=True,
