@@ -29,7 +29,7 @@ from comfy_api_nodes.apinode_utils import (
     validate_string,
 )
 from comfy_api.input_impl import VideoFromFile
-from comfy_api.latest import ComfyExtension, io as comfy_io
+from comfy_api.latest import ComfyExtension, IO
 
 import torch
 import aiohttp
@@ -73,69 +73,69 @@ async def upload_image_to_pixverse(image: torch.Tensor, auth_kwargs=None):
     return response_upload.Resp.img_id
 
 
-class PixverseTemplateNode(comfy_io.ComfyNode):
+class PixverseTemplateNode(IO.ComfyNode):
     """
     Select template for PixVerse Video generation.
     """
 
     @classmethod
-    def define_schema(cls) -> comfy_io.Schema:
-        return comfy_io.Schema(
+    def define_schema(cls) -> IO.Schema:
+        return IO.Schema(
             node_id="PixverseTemplateNode",
             display_name="PixVerse Template",
             category="api node/video/PixVerse",
             inputs=[
-                comfy_io.Combo.Input("template", options=list(pixverse_templates.keys())),
+                IO.Combo.Input("template", options=list(pixverse_templates.keys())),
             ],
-            outputs=[comfy_io.Custom(PixverseIO.TEMPLATE).Output(display_name="pixverse_template")],
+            outputs=[IO.Custom(PixverseIO.TEMPLATE).Output(display_name="pixverse_template")],
         )
 
     @classmethod
-    def execute(cls, template: str) -> comfy_io.NodeOutput:
+    def execute(cls, template: str) -> IO.NodeOutput:
         template_id = pixverse_templates.get(template, None)
         if template_id is None:
             raise Exception(f"Template '{template}' is not recognized.")
         # just return the integer
-        return comfy_io.NodeOutput(template_id)
+        return IO.NodeOutput(template_id)
 
 
-class PixverseTextToVideoNode(comfy_io.ComfyNode):
+class PixverseTextToVideoNode(IO.ComfyNode):
     """
     Generates videos based on prompt and output_size.
     """
 
     @classmethod
-    def define_schema(cls) -> comfy_io.Schema:
-        return comfy_io.Schema(
+    def define_schema(cls) -> IO.Schema:
+        return IO.Schema(
             node_id="PixverseTextToVideoNode",
             display_name="PixVerse Text to Video",
             category="api node/video/PixVerse",
             description=cleandoc(cls.__doc__ or ""),
             inputs=[
-                comfy_io.String.Input(
+                IO.String.Input(
                     "prompt",
                     multiline=True,
                     default="",
                     tooltip="Prompt for the video generation",
                 ),
-                comfy_io.Combo.Input(
+                IO.Combo.Input(
                     "aspect_ratio",
                     options=PixverseAspectRatio,
                 ),
-                comfy_io.Combo.Input(
+                IO.Combo.Input(
                     "quality",
                     options=PixverseQuality,
                     default=PixverseQuality.res_540p,
                 ),
-                comfy_io.Combo.Input(
+                IO.Combo.Input(
                     "duration_seconds",
                     options=PixverseDuration,
                 ),
-                comfy_io.Combo.Input(
+                IO.Combo.Input(
                     "motion_mode",
                     options=PixverseMotionMode,
                 ),
-                comfy_io.Int.Input(
+                IO.Int.Input(
                     "seed",
                     default=0,
                     min=0,
@@ -143,24 +143,24 @@ class PixverseTextToVideoNode(comfy_io.ComfyNode):
                     control_after_generate=True,
                     tooltip="Seed for video generation.",
                 ),
-                comfy_io.String.Input(
+                IO.String.Input(
                     "negative_prompt",
                     default="",
                     multiline=True,
                     tooltip="An optional text description of undesired elements on an image.",
                     optional=True,
                 ),
-                comfy_io.Custom(PixverseIO.TEMPLATE).Input(
+                IO.Custom(PixverseIO.TEMPLATE).Input(
                     "pixverse_template",
                     tooltip="An optional template to influence style of generation, created by the PixVerse Template node.",
                     optional=True,
                 ),
             ],
-            outputs=[comfy_io.Video.Output()],
+            outputs=[IO.Video.Output()],
             hidden=[
-                comfy_io.Hidden.auth_token_comfy_org,
-                comfy_io.Hidden.api_key_comfy_org,
-                comfy_io.Hidden.unique_id,
+                IO.Hidden.auth_token_comfy_org,
+                IO.Hidden.api_key_comfy_org,
+                IO.Hidden.unique_id,
             ],
             is_api_node=True,
         )
@@ -176,7 +176,7 @@ class PixverseTextToVideoNode(comfy_io.ComfyNode):
         seed,
         negative_prompt: str = None,
         pixverse_template: int = None,
-    ) -> comfy_io.NodeOutput:
+    ) -> IO.NodeOutput:
         validate_string(prompt, strip_whitespace=False)
         # 1080p is limited to 5 seconds duration
         # only normal motion_mode supported for 1080p or for non-5 second duration
@@ -237,43 +237,43 @@ class PixverseTextToVideoNode(comfy_io.ComfyNode):
 
         async with aiohttp.ClientSession() as session:
             async with session.get(response_poll.Resp.url) as vid_response:
-                return comfy_io.NodeOutput(VideoFromFile(BytesIO(await vid_response.content.read())))
+                return IO.NodeOutput(VideoFromFile(BytesIO(await vid_response.content.read())))
 
 
-class PixverseImageToVideoNode(comfy_io.ComfyNode):
+class PixverseImageToVideoNode(IO.ComfyNode):
     """
     Generates videos based on prompt and output_size.
     """
 
     @classmethod
-    def define_schema(cls) -> comfy_io.Schema:
-        return comfy_io.Schema(
+    def define_schema(cls) -> IO.Schema:
+        return IO.Schema(
             node_id="PixverseImageToVideoNode",
             display_name="PixVerse Image to Video",
             category="api node/video/PixVerse",
             description=cleandoc(cls.__doc__ or ""),
             inputs=[
-                comfy_io.Image.Input("image"),
-                comfy_io.String.Input(
+                IO.Image.Input("image"),
+                IO.String.Input(
                     "prompt",
                     multiline=True,
                     default="",
                     tooltip="Prompt for the video generation",
                 ),
-                comfy_io.Combo.Input(
+                IO.Combo.Input(
                     "quality",
                     options=PixverseQuality,
                     default=PixverseQuality.res_540p,
                 ),
-                comfy_io.Combo.Input(
+                IO.Combo.Input(
                     "duration_seconds",
                     options=PixverseDuration,
                 ),
-                comfy_io.Combo.Input(
+                IO.Combo.Input(
                     "motion_mode",
                     options=PixverseMotionMode,
                 ),
-                comfy_io.Int.Input(
+                IO.Int.Input(
                     "seed",
                     default=0,
                     min=0,
@@ -281,24 +281,24 @@ class PixverseImageToVideoNode(comfy_io.ComfyNode):
                     control_after_generate=True,
                     tooltip="Seed for video generation.",
                 ),
-                comfy_io.String.Input(
+                IO.String.Input(
                     "negative_prompt",
                     default="",
                     multiline=True,
                     tooltip="An optional text description of undesired elements on an image.",
                     optional=True,
                 ),
-                comfy_io.Custom(PixverseIO.TEMPLATE).Input(
+                IO.Custom(PixverseIO.TEMPLATE).Input(
                     "pixverse_template",
                     tooltip="An optional template to influence style of generation, created by the PixVerse Template node.",
                     optional=True,
                 ),
             ],
-            outputs=[comfy_io.Video.Output()],
+            outputs=[IO.Video.Output()],
             hidden=[
-                comfy_io.Hidden.auth_token_comfy_org,
-                comfy_io.Hidden.api_key_comfy_org,
-                comfy_io.Hidden.unique_id,
+                IO.Hidden.auth_token_comfy_org,
+                IO.Hidden.api_key_comfy_org,
+                IO.Hidden.unique_id,
             ],
             is_api_node=True,
         )
@@ -314,7 +314,7 @@ class PixverseImageToVideoNode(comfy_io.ComfyNode):
         seed,
         negative_prompt: str = None,
         pixverse_template: int = None,
-    ) -> comfy_io.NodeOutput:
+    ) -> IO.NodeOutput:
         validate_string(prompt, strip_whitespace=False)
         auth = {
             "auth_token": cls.hidden.auth_token_comfy_org,
@@ -377,44 +377,44 @@ class PixverseImageToVideoNode(comfy_io.ComfyNode):
 
         async with aiohttp.ClientSession() as session:
             async with session.get(response_poll.Resp.url) as vid_response:
-                return comfy_io.NodeOutput(VideoFromFile(BytesIO(await vid_response.content.read())))
+                return IO.NodeOutput(VideoFromFile(BytesIO(await vid_response.content.read())))
 
 
-class PixverseTransitionVideoNode(comfy_io.ComfyNode):
+class PixverseTransitionVideoNode(IO.ComfyNode):
     """
     Generates videos based on prompt and output_size.
     """
 
     @classmethod
-    def define_schema(cls) -> comfy_io.Schema:
-        return comfy_io.Schema(
+    def define_schema(cls) -> IO.Schema:
+        return IO.Schema(
             node_id="PixverseTransitionVideoNode",
             display_name="PixVerse Transition Video",
             category="api node/video/PixVerse",
             description=cleandoc(cls.__doc__ or ""),
             inputs=[
-                comfy_io.Image.Input("first_frame"),
-                comfy_io.Image.Input("last_frame"),
-                comfy_io.String.Input(
+                IO.Image.Input("first_frame"),
+                IO.Image.Input("last_frame"),
+                IO.String.Input(
                     "prompt",
                     multiline=True,
                     default="",
                     tooltip="Prompt for the video generation",
                 ),
-                comfy_io.Combo.Input(
+                IO.Combo.Input(
                     "quality",
                     options=PixverseQuality,
                     default=PixverseQuality.res_540p,
                 ),
-                comfy_io.Combo.Input(
+                IO.Combo.Input(
                     "duration_seconds",
                     options=PixverseDuration,
                 ),
-                comfy_io.Combo.Input(
+                IO.Combo.Input(
                     "motion_mode",
                     options=PixverseMotionMode,
                 ),
-                comfy_io.Int.Input(
+                IO.Int.Input(
                     "seed",
                     default=0,
                     min=0,
@@ -422,7 +422,7 @@ class PixverseTransitionVideoNode(comfy_io.ComfyNode):
                     control_after_generate=True,
                     tooltip="Seed for video generation.",
                 ),
-                comfy_io.String.Input(
+                IO.String.Input(
                     "negative_prompt",
                     default="",
                     multiline=True,
@@ -430,11 +430,11 @@ class PixverseTransitionVideoNode(comfy_io.ComfyNode):
                     optional=True,
                 ),
             ],
-            outputs=[comfy_io.Video.Output()],
+            outputs=[IO.Video.Output()],
             hidden=[
-                comfy_io.Hidden.auth_token_comfy_org,
-                comfy_io.Hidden.api_key_comfy_org,
-                comfy_io.Hidden.unique_id,
+                IO.Hidden.auth_token_comfy_org,
+                IO.Hidden.api_key_comfy_org,
+                IO.Hidden.unique_id,
             ],
             is_api_node=True,
         )
@@ -450,7 +450,7 @@ class PixverseTransitionVideoNode(comfy_io.ComfyNode):
         motion_mode: str,
         seed,
         negative_prompt: str = None,
-    ) -> comfy_io.NodeOutput:
+    ) -> IO.NodeOutput:
         validate_string(prompt, strip_whitespace=False)
         auth = {
             "auth_token": cls.hidden.auth_token_comfy_org,
@@ -514,12 +514,12 @@ class PixverseTransitionVideoNode(comfy_io.ComfyNode):
 
         async with aiohttp.ClientSession() as session:
             async with session.get(response_poll.Resp.url) as vid_response:
-                return comfy_io.NodeOutput(VideoFromFile(BytesIO(await vid_response.content.read())))
+                return IO.NodeOutput(VideoFromFile(BytesIO(await vid_response.content.read())))
 
 
 class PixVerseExtension(ComfyExtension):
     @override
-    async def get_node_list(self) -> list[type[comfy_io.ComfyNode]]:
+    async def get_node_list(self) -> list[type[IO.ComfyNode]]:
         return [
             PixverseTextToVideoNode,
             PixverseImageToVideoNode,

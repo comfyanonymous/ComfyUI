@@ -39,7 +39,11 @@ if hasattr(torch.serialization, "add_safe_globals"):  # TODO: this was added in 
         pass
     ModelCheckpoint.__module__ = "pytorch_lightning.callbacks.model_checkpoint"
 
-    from numpy.core.multiarray import scalar
+    def scalar(*args, **kwargs):
+        from numpy.core.multiarray import scalar as sc
+        return sc(*args, **kwargs)
+    scalar.__module__ = "numpy.core.multiarray"
+
     from numpy import dtype
     from numpy.dtypes import Float64DType
     from _codecs import encode
