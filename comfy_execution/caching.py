@@ -418,8 +418,11 @@ class DependencyAwareCache(BasicCache):
             The subcache object for the node.
         """
         subcache = await super()._ensure_subcache(node_id, children_ids)
+        await self.cache_key_set.add_keys(children_ids)
         for child_id in children_ids:
             self.descendants[node_id].add(child_id)
+            if child_id not in self.ancestors:
+                self.ancestors[child_id] = set()
             self.ancestors[child_id].add(node_id)
         return subcache
 
