@@ -420,6 +420,8 @@ class DependencyAwareCache(BasicCache):
         subcache = await super()._ensure_subcache(node_id, children_ids)
         await self.cache_key_set.add_keys(children_ids)
         for child_id in children_ids:
+            if child_id not in self.descendants:
+                self.descendants[child_id] = set()
             self.descendants[node_id].add(child_id)
             if child_id not in self.ancestors:
                 self.ancestors[child_id] = set()
