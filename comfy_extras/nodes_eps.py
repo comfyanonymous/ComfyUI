@@ -90,7 +90,7 @@ class TemporalScoreRescaling(io.ComfyNode):
                     "tsr_k",
                     tooltip=(
                         "Controls the rescaling strength.\n"
-                        "Lower k produces more detailed results; higher k produces smoother results. Setting k = 1 disables rescaling."
+                        "Lower k produces more detailed results; higher k produces smoother results in image generation. Setting k = 1 disables rescaling."
                     ),
                     default=0.95,
                     min=0.01,
