@@ -15,9 +15,6 @@ import inspect
 from comfy_execution.graph_utils import is_link, ExecutionBlocker
 from comfy.comfy_types.node_typing import ComfyNodeABC, InputTypeDict, InputTypeOptions
 
-# Optional debug flag: set `MAGIX_DEBUG=1` in your env to see batch picks.
-_ENABLE_MAGIX_LOGS = os.getenv("MAGIX_DEBUG", "0") == "1"
-
 # NOTE: ExecutionBlocker code lives in graph_utils.py to prevent torch import during tests
 ExecutionBlocker = ExecutionBlocker
 
@@ -283,13 +280,6 @@ class ExecutionList(TopologicalSort):
         )
         if not has_current:
             self._current_group_class = self._pick_largest_group(available)
-
-            if _ENABLE_MAGIX_LOGS:
-                ready_cnt = sum(
-                    1 for nid in available
-                    if self.dynprompt.get_node(nid)["class_type"] == self._current_group_class
-                )
-                print(f"[Magix] 🎯 Switched batch → '{self._current_group_class}' ({ready_cnt} ready)")
 
         # Restrict to nodes of the current batch
         candidates = self._filter_by_group(available, self._current_group_class)
