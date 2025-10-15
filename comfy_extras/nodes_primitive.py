@@ -40,6 +40,24 @@ class StringMultiline(io.ComfyNode):
         return io.NodeOutput(value)
 
 
+class RandInt(io.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return io.Schema(
+            node_id="PrimitiveRandomInt",
+            display_name="RandomInt",
+            category="utils/primitive",
+            inputs=[
+                io.Int.Input("value", min=-sys.maxsize, max=sys.maxsize, control_after_generate=True),
+            ],
+            outputs=[io.Int.Output()],
+        )
+
+    @classmethod
+    def execute(cls, value: int) -> io.NodeOutput:
+        return io.NodeOutput(value)
+
+
 class Int(io.ComfyNode):
     @classmethod
     def define_schema(cls):
@@ -48,7 +66,7 @@ class Int(io.ComfyNode):
             display_name="Int",
             category="utils/primitive",
             inputs=[
-                io.Int.Input("value", min=-sys.maxsize, max=sys.maxsize, control_after_generate=True),
+                io.Int.Input("value", min=-sys.maxsize, max=sys.maxsize),
             ],
             outputs=[io.Int.Output()],
         )
@@ -100,6 +118,7 @@ class PrimitivesExtension(ComfyExtension):
         return [
             String,
             StringMultiline,
+            RandInt,
             Int,
             Float,
             Boolean,
