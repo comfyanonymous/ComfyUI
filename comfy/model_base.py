@@ -291,6 +291,7 @@ class BaseModel(torch.nn.Module):
         return out
 
     def load_model_weights(self, sd, unet_prefix=""):
+        import pdb; pdb.set_trace()
         to_load = {}
         keys = list(sd.keys())
         for k in keys:
