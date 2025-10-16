@@ -409,7 +409,7 @@ class ByteDanceImageEditNode(IO.ComfyNode):
         if get_number_of_images(image) != 1:
             raise ValueError("Exactly one input image is required.")
         validate_image_aspect_ratio_range(image, (1, 3), (3, 1))
-        source_url = (await upload_images_to_comfyapi(cls, image, max_images=1, mime_type="image/png",))[0]
+        source_url = (await upload_images_to_comfyapi(cls, image, max_images=1, mime_type="image/png"))[0]
         payload = Image2ImageTaskCreationRequest(
             model=model,
             prompt=prompt,
