@@ -393,7 +393,9 @@ class Veo3VideoGenerationNode(VeoVideoGenerationNode):
                 ),
                 IO.Combo.Input(
                     "model",
-                    options=list(MODELS_MAP.keys()),
+                    options=[
+                        "veo-3.1-generate", "veo-3.1-fast-generate", "veo-3.0-generate-001", "veo-3.0-fast-generate-001"
+                    ],
                     default="veo-3.0-generate-001",
                     tooltip="Veo 3 model to use for video generation",
                     optional=True,
