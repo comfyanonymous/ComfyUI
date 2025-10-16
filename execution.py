@@ -652,7 +652,6 @@ class PromptExecutor:
         asyncio.run(self.execute_async(prompt, prompt_id, extra_data, execute_outputs))
 
     async def execute_async(self, prompt, prompt_id, extra_data={}, execute_outputs=[]):
-        logging.info(f"🚀 Workflow execution START: prompt_id={prompt_id}, nodes_count={len(prompt)}")
         nodes.interrupt_processing(False)
 
         if "client_id" in extra_data:
@@ -676,9 +675,6 @@ class PromptExecutor:
             for node_id in prompt:
                 if self.caches.outputs.get(node_id) is not None:
                     cached_nodes.append(node_id)
-            
-            if len(cached_nodes) > 0:
-                logging.info(f"💾 Workflow has {len(cached_nodes)} cached nodes: {cached_nodes}")
 
             comfy.model_management.cleanup_models_gc()
             self.add_message("execution_cached",
@@ -691,8 +687,6 @@ class PromptExecutor:
             current_outputs = self.caches.outputs.all_node_ids()
             for node_id in list(execute_outputs):
                 execution_list.add_node(node_id)
-            
-            logging.info(f"📋 Workflow execution list prepared, executing {len(execute_outputs)} output nodes")
 
             while not execution_list.is_empty():
                 node_id, error, ex = await execution_list.stage_node_execution()
@@ -704,7 +698,6 @@ class PromptExecutor:
                 result, error, ex = await execute(self.server, dynamic_prompt, self.caches, node_id, extra_data, executed, prompt_id, execution_list, pending_subgraph_results, pending_async_nodes)
                 self.success = result != ExecutionResult.FAILURE
                 if result == ExecutionResult.FAILURE:
-                    logging.error(f"💥 Workflow execution FAILED at node {node_id}")
                     self.handle_execution_error(prompt_id, dynamic_prompt.original_prompt, current_outputs, executed, error, ex)
                     break
                 elif result == ExecutionResult.PENDING:
@@ -713,7 +706,6 @@ class PromptExecutor:
                     execution_list.complete_node_execution()
             else:
                 # Only execute when the while-loop ends without break
-                logging.info(f"🎉 Workflow execution SUCCESS: prompt_id={prompt_id}, executed_nodes={len(executed)}")
                 self.add_message("execution_success", { "prompt_id": prompt_id }, broadcast=False)
 
             ui_outputs = {}
@@ -730,10 +722,7 @@ class PromptExecutor:
             }
             self.server.last_node_id = None
             if comfy.model_management.DISABLE_SMART_MEMORY:
-                logging.info("🧹 Unloading all models (DISABLE_SMART_MEMORY is enabled)")
                 comfy.model_management.unload_all_models()
-            
-            logging.info(f"✨ Workflow execution COMPLETED: prompt_id={prompt_id}")
 
 
 async def validate_inputs(prompt_id, prompt, item, validated):
