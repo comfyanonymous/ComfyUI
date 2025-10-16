@@ -306,17 +306,10 @@ def _calc_cond_batch(model: BaseModel, conds: list[list[dict]], x_in: torch.Tens
                                                                                  copy_dict1=False)
 
             if patches is not None:
-                # TODO: replace with merge_nested_dicts function
-                if "patches" in transformer_options:
-                    cur_patches = transformer_options["patches"].copy()
-                    for p in patches:
-                        if p in cur_patches:
-                            cur_patches[p] = cur_patches[p] + patches[p]
-                        else:
-                            cur_patches[p] = patches[p]
-                    transformer_options["patches"] = cur_patches
-                else:
-                    transformer_options["patches"] = patches
+                transformer_options["patches"] = comfy.patcher_extension.merge_nested_dicts(
+                    transformer_options.get("patches", {}),
+                    patches
+                )
 
             transformer_options["cond_or_uncond"] = cond_or_uncond[:]
             transformer_options["uuids"] = uuids[:]
