@@ -69,3 +69,12 @@ messages_control.disable = [
   "no-else-return",
   "unused-variable",
 ]
+
+
+[tool.black]
+line-length = 120
+preview = true
+
+
+[tool.isort]
+profile = "black"

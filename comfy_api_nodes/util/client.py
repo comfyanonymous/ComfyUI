@@ -8,26 +8,26 @@ import uuid
 from dataclasses import dataclass
 from enum import Enum
 from io import BytesIO
-from typing import Any, Callable, Optional, Union, Type, TypeVar, Literal
+from typing import Any, Callable, Literal, Optional, Type, TypeVar, Union
+from urllib.parse import urljoin, urlparse
 
 import aiohttp
 from aiohttp.client_exceptions import ClientError, ContentTypeError
-from comfy_api.latest import IO
-from comfy import utils
 from pydantic import BaseModel
-from server import PromptServer
-from urllib.parse import urljoin, urlparse
 
+from comfy import utils
+from comfy_api.latest import IO
 from comfy_api_nodes.apis import request_logger
-from .common_exceptions import ProcessingInterrupted, LocalNetworkError, ApiServerError
-from ._helpers import (
-    _is_processing_interrupted,
-    _get_node_id,
-    _get_auth_header,
-    _default_base_url,
-    _sleep_with_interrupt,
-)
+from server import PromptServer
 
+from ._helpers import (
+    default_base_url,
+    get_auth_header,
+    get_node_id,
+    is_processing_interrupted,
+    sleep_with_interrupt,
+)
+from .common_exceptions import ApiServerError, LocalNetworkError, ProcessingInterrupted
 
 M = TypeVar("M", bound=BaseModel)
 
@@ -78,9 +78,12 @@ class _PollUIState:
 
 
 _RETRY_STATUS = {408, 429, 500, 502, 503, 504}
+COMPLETED_STATUSES = ["succeeded", "succeed", "success", "completed"]
+FAILED_STATUSES = ["cancelled", "failed", "error"]
+QUEUED_STATUSES = ["created", "queued", "queueing", "submitted"]
 
 
-async def sync_op_pydantic(
+async def sync_op(
     cls: type[IO.ComfyNode],
     endpoint: ApiEndpoint,
     *,
@@ -99,7 +102,7 @@ async def sync_op_pydantic(
     progress_origin_ts: Optional[float] = None,
     monitor_progress: bool = True,
 ) -> M:
-    raw = await sync_op(
+    raw = await sync_op_raw(
         cls,
         endpoint,
         data=data,
@@ -122,17 +125,17 @@ async def sync_op_pydantic(
     return _validate_or_raise(response_model, raw)
 
 
-async def poll_op_pydantic(
+async def poll_op(
     cls: type[IO.ComfyNode],
-    *,
     poll_endpoint: ApiEndpoint,
+    *,
     response_model: Type[M],
     status_extractor: Callable[[M], Optional[str]],
     progress_extractor: Optional[Callable[[M], Optional[int]]] = None,
     price_extractor: Optional[Callable[[M], Optional[float]]] = None,
-    completed_statuses: list[str],
-    failed_statuses: list[str],
-    queued_states: Optional[list[str]] = None,
+    completed_statuses: Optional[list[Union[str, int]]] = None,
+    failed_statuses: Optional[list[Union[str, int]]] = None,
+    queued_statuses: Optional[list[Union[str, int]]] = None,
     poll_interval: float = 5.0,
     max_poll_attempts: int = 120,
     timeout_per_poll: float = 120.0,
@@ -143,7 +146,7 @@ async def poll_op_pydantic(
     cancel_endpoint: Optional[ApiEndpoint] = None,
     cancel_timeout: float = 10.0,
 ) -> M:
-    raw = await poll_op(
+    raw = await poll_op_raw(
         cls,
         poll_endpoint=poll_endpoint,
         status_extractor=_wrap_model_extractor(response_model, status_extractor),
@@ -151,7 +154,7 @@ async def poll_op_pydantic(
         price_extractor=_wrap_model_extractor(response_model, price_extractor),
         completed_statuses=completed_statuses,
         failed_statuses=failed_statuses,
-        queued_states=queued_states,
+        queued_statuses=queued_statuses,
         poll_interval=poll_interval,
         max_poll_attempts=max_poll_attempts,
         timeout_per_poll=timeout_per_poll,
@@ -167,7 +170,7 @@ async def poll_op_pydantic(
     return _validate_or_raise(response_model, raw)
 
 
-async def sync_op(
+async def sync_op_raw(
     cls: type[IO.ComfyNode],
     endpoint: ApiEndpoint,
     *,
@@ -216,16 +219,16 @@ async def sync_op(
     return await _request_base(cfg, expect_binary=as_binary)
 
 
-async def poll_op(
+async def poll_op_raw(
     cls: type[IO.ComfyNode],
-    *,
     poll_endpoint: ApiEndpoint,
+    *,
     status_extractor: Callable[[dict[str, Any]], Optional[str]],
     progress_extractor: Optional[Callable[[dict[str, Any]], Optional[int]]] = None,
     price_extractor: Optional[Callable[[dict[str, Any]], Optional[float]]] = None,
-    completed_statuses: list[str],
-    failed_statuses: list[str],
-    queued_states: Optional[list[str]] = None,
+    completed_statuses: Optional[list[Union[str, int]]] = None,
+    failed_statuses: Optional[list[Union[str, int]]] = None,
+    queued_statuses: Optional[list[Union[str, int]]] = None,
     poll_interval: float = 5.0,
     max_poll_attempts: int = 120,
     timeout_per_poll: float = 120.0,
@@ -239,9 +242,14 @@ async def poll_op(
     """
     Polls an endpoint until the task reaches a terminal state. Displays time while queued/processing,
     checks interruption every second, and calls Cancel endpoint (if provided) on interruption.
+
+    Uses default complete, failed and queued states assumption.
+
     Returns the final JSON response from the poll endpoint.
     """
-    queued_states = queued_states or []
+    completed_states = COMPLETED_STATUSES if completed_statuses is None else completed_statuses
+    failed_states = FAILED_STATUSES if failed_statuses is None else failed_statuses
+    queued_states = QUEUED_STATUSES if queued_statuses is None else queued_statuses
     started = time.monotonic()
     consumed_attempts = 0  # counts only non-queued polls
 
@@ -255,7 +263,7 @@ async def poll_op(
         """Emit a UI update every second while polling is in progress."""
         try:
             while not stop_ticker.is_set():
-                if _is_processing_interrupted():
+                if is_processing_interrupted():
                     break
                 now = time.monotonic()
                 proc_elapsed = state.base_processing_elapsed + (
@@ -278,7 +286,7 @@ async def poll_op(
     try:
         while consumed_attempts < max_poll_attempts:
             try:
-                resp_json = await sync_op(
+                resp_json = await sync_op_raw(
                     cls,
                     poll_endpoint,
                     timeout=timeout_per_poll,
@@ -296,7 +304,7 @@ async def poll_op(
             except ProcessingInterrupted:
                 if cancel_endpoint:
                     with contextlib.suppress(Exception):
-                        await sync_op(
+                        await sync_op_raw(
                             cls,
                             cancel_endpoint,
                             timeout=cancel_timeout,
@@ -331,7 +339,7 @@ async def poll_op(
 
             if is_queued:
                 if state.active_since is not None:  # If we just moved from active -> queued, close the active interval
-                    state.base_processing_elapsed += (now_ts - state.active_since)
+                    state.base_processing_elapsed += now_ts - state.active_since
                     state.active_since = None
             else:
                 if state.active_since is None:  # If we just moved from queued -> active, open a new active interval
@@ -339,9 +347,9 @@ async def poll_op(
 
             state.is_queued = is_queued
             state.status_label = status or ("Queued" if is_queued else "Processing")
-            if status in completed_statuses:
+            if status in completed_states:
                 if state.active_since is not None:
-                    state.base_processing_elapsed += (now_ts - state.active_since)
+                    state.base_processing_elapsed += now_ts - state.active_since
                     state.active_since = None
                 stop_ticker.set()
                 with contextlib.suppress(Exception):
@@ -361,17 +369,17 @@ async def poll_op(
                 )
                 return resp_json
 
-            if status in failed_statuses:
+            if status in failed_states:
                 msg = f"Task failed: {json.dumps(resp_json)}"
                 logging.error(msg)
                 raise Exception(msg)
 
             try:
-                await _sleep_with_interrupt(poll_interval, cls, None, None, None)
+                await sleep_with_interrupt(poll_interval, cls, None, None, None)
             except ProcessingInterrupted:
                 if cancel_endpoint:
                     with contextlib.suppress(Exception):
-                        await sync_op(
+                        await sync_op_raw(
                             cls,
                             cancel_endpoint,
                             timeout=cancel_timeout,
@@ -417,7 +425,7 @@ def _display_text(
     if text is not None:
         display_lines.append(text)
     if display_lines:
-        PromptServer.instance.send_progress_text("\n".join(display_lines), _get_node_id(node_cls))
+        PromptServer.instance.send_progress_text("\n".join(display_lines), get_node_id(node_cls))
 
 
 def _display_time_progress(
@@ -456,7 +464,7 @@ async def _diagnose_connectivity() -> dict[str, bool]:
             results["is_local_issue"] = True
             return results
 
-        parsed = urlparse(_default_base_url())
+        parsed = urlparse(default_base_url())
         health_url = f"{parsed.scheme}://{parsed.netloc}/health"
         with contextlib.suppress(ClientError, asyncio.TimeoutError):
             async with session.get(health_url) as resp:
@@ -480,7 +488,7 @@ def _join_url(base_url: str, path: str) -> str:
 
 def _merge_headers(node_cls: type[IO.ComfyNode], endpoint_headers: dict[str, str]) -> dict[str, str]:
     headers = {"Accept": "*/*"}
-    headers.update(_get_auth_header(node_cls))
+    headers.update(get_auth_header(node_cls))
     if endpoint_headers:
         headers.update(endpoint_headers)
     return headers
@@ -558,7 +566,7 @@ def _snapshot_request_body_for_logging(
 
 async def _request_base(cfg: _RequestConfig, expect_binary: bool):
     """Core request with retries, per-second interruption monitoring, true cancellation, and friendly errors."""
-    url = _join_url(_default_base_url(), cfg.endpoint.path)
+    url = _join_url(default_base_url(), cfg.endpoint.path)
     method = cfg.endpoint.method
     params = _merge_params(cfg.endpoint.query_params, method, cfg.data if method == "GET" else None)
 
@@ -566,7 +574,7 @@ async def _request_base(cfg: _RequestConfig, expect_binary: bool):
         """Every second: update elapsed time and signal interruption."""
         try:
             while not stop_evt.is_set():
-                if _is_processing_interrupted():
+                if is_processing_interrupted():
                     return
                 if cfg.monitor_progress:
                     _display_time_progress(
@@ -700,7 +708,7 @@ async def _request_base(cfg: _RequestConfig, expect_binary: bool):
                         except Exception as _log_e:
                             logging.debug("[DEBUG] response logging failed: %s", _log_e)
 
-                        await _sleep_with_interrupt(
+                        await sleep_with_interrupt(
                             delay,
                             cfg.node_cls,
                             cfg.wait_label if cfg.monitor_progress else None,
@@ -735,7 +743,7 @@ async def _request_base(cfg: _RequestConfig, expect_binary: bool):
                         now = time.monotonic()
                         if now - last_tick >= 1.0:
                             last_tick = now
-                            if _is_processing_interrupted():
+                            if is_processing_interrupted():
                                 raise ProcessingInterrupted("Task cancelled")
                             if cfg.monitor_progress:
                                 _display_time_progress(
@@ -790,7 +798,12 @@ async def _request_base(cfg: _RequestConfig, expect_binary: bool):
             if attempt <= cfg.max_retries:
                 logging.warning(
                     "Connection error calling %s %s. Retrying in %.2fs (%d/%d): %s",
-                    method, url, delay, attempt, cfg.max_retries, str(e)
+                    method,
+                    url,
+                    delay,
+                    attempt,
+                    cfg.max_retries,
+                    str(e),
                 )
                 try:
                     request_logger.log_request_response(
@@ -804,7 +817,7 @@ async def _request_base(cfg: _RequestConfig, expect_binary: bool):
                     )
                 except Exception as _log_e:
                     logging.debug("[DEBUG] request error logging failed: %s", _log_e)
-                await _sleep_with_interrupt(
+                await sleep_with_interrupt(
                     delay,
                     cfg.node_cls,
                     cfg.wait_label if cfg.monitor_progress else None,
@@ -845,7 +858,7 @@ async def _request_base(cfg: _RequestConfig, expect_binary: bool):
             except Exception as _log_e:
                 logging.debug("[DEBUG] final error logging failed: %s", _log_e)
             raise ApiServerError(
-                f"The API server at {_default_base_url()} is currently unreachable. "
+                f"The API server at {default_base_url()} is currently unreachable. "
                 f"The service may be experiencing issues."
             ) from e
         finally:

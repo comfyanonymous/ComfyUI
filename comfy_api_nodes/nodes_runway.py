@@ -11,7 +11,7 @@ User Guides:
 
 """
 
-from typing import Union, Optional, Any
+from typing import Union, Optional
 from typing_extensions import override
 from enum import Enum
 
@@ -33,23 +33,9 @@ from comfy_api_nodes.apis import (
     ReferenceImage,
     RunwayTextToImageAspectRatioEnum,
 )
-from comfy_api_nodes.apis.client import (
-    ApiEndpoint,
-    HttpMethod,
-    SynchronousOperation,
-    PollingOperation,
-    EmptyRequest,
-)
-from comfy_api_nodes.apinode_utils import (
-    upload_images_to_comfyapi,
-    download_url_to_video_output,
-    image_tensor_pair_to_batch,
-    validate_string,
-    download_url_to_image_tensor,
-)
+from comfy_api_nodes.util import image_tensor_pair_to_batch, validate_string, validate_image_dimensions, validate_image_aspect_ratio, upload_images_to_comfyapi, download_url_to_video_output, download_url_to_image_tensor, ApiEndpoint, sync_op, poll_op
 from comfy_api.input_impl import VideoFromFile
 from comfy_api.latest import ComfyExtension, IO
-from comfy_api_nodes.util.validation_utils import validate_image_dimensions, validate_image_aspect_ratio
 
 PATH_IMAGE_TO_VIDEO = "/proxy/runway/image_to_video"
 PATH_TEXT_TO_IMAGE = "/proxy/runway/text_to_image"
@@ -91,31 +77,6 @@ def get_video_url_from_task_status(response: TaskStatusResponse) -> Union[str, N
     return None
 
 
-async def poll_until_finished(
-    auth_kwargs: dict[str, str],
-    api_endpoint: ApiEndpoint[Any, TaskStatusResponse],
-    estimated_duration: Optional[int] = None,
-    node_id: Optional[str] = None,
-) -> TaskStatusResponse:
-    """Polls the Runway API endpoint until the task reaches a terminal state, then returns the response."""
-    return await PollingOperation(
-        poll_endpoint=api_endpoint,
-        completed_statuses=[
-            TaskStatus.SUCCEEDED.value,
-        ],
-        failed_statuses=[
-            TaskStatus.FAILED.value,
-            TaskStatus.CANCELLED.value,
-        ],
-        status_extractor=lambda response: response.status.value,
-        auth_kwargs=auth_kwargs,
-        result_url_extractor=get_video_url_from_task_status,
-        estimated_duration=estimated_duration,
-        node_id=node_id,
-        progress_extractor=extract_progress_from_task_status,
-    ).execute()
-
-
 def extract_progress_from_task_status(
     response: TaskStatusResponse,
 ) -> Union[float, None]:
@@ -132,42 +93,40 @@ def get_image_url_from_task_status(response: TaskStatusResponse) -> Union[str, N
 
 
 async def get_response(
-    task_id: str, auth_kwargs: dict[str, str], node_id: Optional[str] = None, estimated_duration: Optional[int] = None
+        cls: type[IO.ComfyNode],
+    task_id: str, estimated_duration: Optional[int] = None
 ) -> TaskStatusResponse:
     """Poll the task status until it is finished then get the response."""
-    return await poll_until_finished(
-        auth_kwargs,
-        ApiEndpoint(
-            path=f"{PATH_GET_TASK_STATUS}/{task_id}",
-            method=HttpMethod.GET,
-            request_model=EmptyRequest,
-            response_model=TaskStatusResponse,
-        ),
+    return await poll_op(
+        cls,
+        ApiEndpoint(path=f"{PATH_GET_TASK_STATUS}/{task_id}"),
+        completed_statuses=[
+            TaskStatus.SUCCEEDED.value,
+        ],
+        failed_statuses=[
+            TaskStatus.FAILED.value,
+            TaskStatus.CANCELLED.value,
+        ],
+        response_model=TaskStatusResponse,
+        status_extractor=lambda r: r.status.value,
         estimated_duration=estimated_duration,
-        node_id=node_id,
+        progress_extractor=extract_progress_from_task_status,
     )
 
 
 async def generate_video(
+    cls: type[IO.ComfyNode],
     request: RunwayImageToVideoRequest,
-    auth_kwargs: dict[str, str],
-    node_id: Optional[str] = None,
     estimated_duration: Optional[int] = None,
 ) -> VideoFromFile:
-    initial_operation = SynchronousOperation(
-        endpoint=ApiEndpoint(
-            path=PATH_IMAGE_TO_VIDEO,
-            method=HttpMethod.POST,
-            request_model=RunwayImageToVideoRequest,
-            response_model=RunwayImageToVideoResponse,
-        ),
-        request=request,
-        auth_kwargs=auth_kwargs,
+    initial_response = await sync_op(
+        cls,
+        endpoint=ApiEndpoint(path=PATH_IMAGE_TO_VIDEO, method="POST"),
+        response_model=RunwayImageToVideoResponse,
+        data=request,
     )
 
-    initial_response = await initial_operation.execute()
-
-    final_response = await get_response(initial_response.id, auth_kwargs, node_id, estimated_duration)
+    final_response = await get_response(cls, initial_response.id, estimated_duration)
     if not final_response.output:
         raise RunwayApiError("Runway task succeeded but no video data found in response.")
 
@@ -241,20 +200,16 @@ class RunwayImageToVideoNodeGen3a(IO.ComfyNode):
         validate_image_dimensions(start_frame, max_width=7999, max_height=7999)
         validate_image_aspect_ratio(start_frame, min_aspect_ratio=0.5, max_aspect_ratio=2.0)
 
-        auth_kwargs = {
-            "auth_token": cls.hidden.auth_token_comfy_org,
-            "comfy_api_key": cls.hidden.api_key_comfy_org,
-        }
-
         download_urls = await upload_images_to_comfyapi(
+            cls,
             start_frame,
             max_images=1,
             mime_type="image/png",
-            auth_kwargs=auth_kwargs,
         )
 
         return IO.NodeOutput(
             await generate_video(
+                cls,
                 RunwayImageToVideoRequest(
                     promptText=prompt,
                     seed=seed,
@@ -269,8 +224,6 @@ class RunwayImageToVideoNodeGen3a(IO.ComfyNode):
                         ]
                     ),
                 ),
-                auth_kwargs=auth_kwargs,
-                node_id=cls.hidden.unique_id,
             )
         )
 
@@ -341,20 +294,16 @@ class RunwayImageToVideoNodeGen4(IO.ComfyNode):
         validate_image_dimensions(start_frame, max_width=7999, max_height=7999)
         validate_image_aspect_ratio(start_frame, min_aspect_ratio=0.5, max_aspect_ratio=2.0)
 
-        auth_kwargs = {
-            "auth_token": cls.hidden.auth_token_comfy_org,
-            "comfy_api_key": cls.hidden.api_key_comfy_org,
-        }
-
         download_urls = await upload_images_to_comfyapi(
+            cls,
             start_frame,
             max_images=1,
             mime_type="image/png",
-            auth_kwargs=auth_kwargs,
         )
 
         return IO.NodeOutput(
             await generate_video(
+                cls,
                 RunwayImageToVideoRequest(
                     promptText=prompt,
                     seed=seed,
@@ -369,8 +318,6 @@ class RunwayImageToVideoNodeGen4(IO.ComfyNode):
                         ]
                     ),
                 ),
-                auth_kwargs=auth_kwargs,
-                node_id=cls.hidden.unique_id,
                 estimated_duration=AVERAGE_DURATION_FLF_SECONDS,
             )
         )
@@ -452,23 +399,19 @@ class RunwayFirstLastFrameNode(IO.ComfyNode):
         validate_image_aspect_ratio(start_frame, min_aspect_ratio=0.5, max_aspect_ratio=2.0)
         validate_image_aspect_ratio(end_frame, min_aspect_ratio=0.5, max_aspect_ratio=2.0)
 
-        auth_kwargs = {
-            "auth_token": cls.hidden.auth_token_comfy_org,
-            "comfy_api_key": cls.hidden.api_key_comfy_org,
-        }
-
         stacked_input_images = image_tensor_pair_to_batch(start_frame, end_frame)
         download_urls = await upload_images_to_comfyapi(
+            cls,
             stacked_input_images,
             max_images=2,
             mime_type="image/png",
-            auth_kwargs=auth_kwargs,
         )
         if len(download_urls) != 2:
             raise RunwayApiError("Failed to upload one or more images to comfy api.")
 
         return IO.NodeOutput(
             await generate_video(
+                cls,
                 RunwayImageToVideoRequest(
                     promptText=prompt,
                     seed=seed,
@@ -486,8 +429,6 @@ class RunwayFirstLastFrameNode(IO.ComfyNode):
                         ]
                     ),
                 ),
-                auth_kwargs=auth_kwargs,
-                node_id=cls.hidden.unique_id,
                 estimated_duration=AVERAGE_DURATION_FLF_SECONDS,
             )
         )
@@ -540,49 +481,34 @@ class RunwayTextToImageNode(IO.ComfyNode):
     ) -> IO.NodeOutput:
         validate_string(prompt, min_length=1)
 
-        auth_kwargs = {
-            "auth_token": cls.hidden.auth_token_comfy_org,
-            "comfy_api_key": cls.hidden.api_key_comfy_org,
-        }
-
         # Prepare reference images if provided
         reference_images = None
         if reference_image is not None:
             validate_image_dimensions(reference_image, max_width=7999, max_height=7999)
             validate_image_aspect_ratio(reference_image, min_aspect_ratio=0.5, max_aspect_ratio=2.0)
             download_urls = await upload_images_to_comfyapi(
+                cls,
                 reference_image,
                 max_images=1,
                 mime_type="image/png",
-                auth_kwargs=auth_kwargs,
             )
             reference_images = [ReferenceImage(uri=str(download_urls[0]))]
 
-        request = RunwayTextToImageRequest(
-            promptText=prompt,
-            model=Model4.gen4_image,
-            ratio=ratio,
-            referenceImages=reference_images,
-        )
-
-        initial_operation = SynchronousOperation(
-            endpoint=ApiEndpoint(
-                path=PATH_TEXT_TO_IMAGE,
-                method=HttpMethod.POST,
-                request_model=RunwayTextToImageRequest,
-                response_model=RunwayTextToImageResponse,
+        initial_response = await sync_op(
+            cls,
+            endpoint=ApiEndpoint(path=PATH_TEXT_TO_IMAGE, method="POST"),
+            response_model=RunwayTextToImageResponse,
+            data=RunwayTextToImageRequest(
+                promptText=prompt,
+                model=Model4.gen4_image,
+                ratio=ratio,
+                referenceImages=reference_images,
             ),
-            request=request,
-            auth_kwargs=auth_kwargs,
         )
 
-        initial_response = await initial_operation.execute()
-
-        # Poll for completion
         final_response = await get_response(
+            cls,
             initial_response.id,
-            auth_kwargs=auth_kwargs,
-            node_id=cls.hidden.unique_id,
             estimated_duration=AVERAGE_DURATION_T2I_SECONDS,
         )
         if not final_response.output:

@@ -21,10 +21,7 @@ from comfy_api_nodes.apis.client import (
     PollingOperation,
 )
 
-from comfy_api_nodes.apinode_utils import (
-    downscale_image_tensor,
-    tensor_to_base64_string,
-)
+from comfy_api_nodes.util import downscale_image_tensor, tensor_to_base64_string
 
 AVERAGE_DURATION_VIDEO_GEN = 32
 MODELS_MAP = {

@@ -14,14 +14,8 @@ from comfy_api_nodes.apis.client import (
     R,
     T,
 )
-from comfy_api_nodes.util.validation_utils import get_number_of_images, validate_audio_duration
+from comfy_api_nodes.util import get_number_of_images, validate_audio_duration, tensor_to_base64_string, audio_to_base64_string, download_url_to_video_output, download_url_to_image_tensor
 
-from comfy_api_nodes.apinode_utils import (
-    download_url_to_image_tensor,
-    download_url_to_video_output,
-    tensor_to_base64_string,
-    audio_to_base64_string,
-)
 
 class Text2ImageInputField(BaseModel):
     prompt: str = Field(...)

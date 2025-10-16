@@ -2,6 +2,8 @@ import logging
 from typing import Optional
 
 import torch
+
+from comfy_api.input.video_types import VideoInput
 from comfy_api.latest import Input
 
 
@@ -28,9 +30,7 @@ def validate_image_dimensions(
     if max_width is not None and width > max_width:
         raise ValueError(f"Image width must be at most {max_width}px, got {width}px")
     if min_height is not None and height < min_height:
-        raise ValueError(
-            f"Image height must be at least {min_height}px, got {height}px"
-        )
+        raise ValueError(f"Image height must be at least {min_height}px, got {height}px")
     if max_height is not None and height > max_height:
         raise ValueError(f"Image height must be at most {max_height}px, got {height}px")
 
@@ -44,13 +44,9 @@ def validate_image_aspect_ratio(
     aspect_ratio = width / height
 
     if min_aspect_ratio is not None and aspect_ratio < min_aspect_ratio:
-        raise ValueError(
-            f"Image aspect ratio must be at least {min_aspect_ratio}, got {aspect_ratio}"
-        )
+        raise ValueError(f"Image aspect ratio must be at least {min_aspect_ratio}, got {aspect_ratio}")
     if max_aspect_ratio is not None and aspect_ratio > max_aspect_ratio:
-        raise ValueError(
-            f"Image aspect ratio must be at most {max_aspect_ratio}, got {aspect_ratio}"
-        )
+        raise ValueError(f"Image aspect ratio must be at most {max_aspect_ratio}, got {aspect_ratio}")
 
 
 def validate_image_aspect_ratio_range(
@@ -58,7 +54,7 @@ def validate_image_aspect_ratio_range(
     min_ratio: tuple[float, float],  # e.g. (1, 4)
     max_ratio: tuple[float, float],  # e.g. (4, 1)
     *,
-    strict: bool = True,             # True -> (min, max); False -> [min, max]
+    strict: bool = True,  # True -> (min, max); False -> [min, max]
 ) -> float:
     a1, b1 = min_ratio
     a2, b2 = max_ratio
@@ -85,7 +81,7 @@ def validate_aspect_ratio_closeness(
     min_rel: float,
     max_rel: float,
     *,
-    strict: bool = False,   # True => exclusive, False => inclusive
+    strict: bool = False,  # True => exclusive, False => inclusive
 ) -> None:
     w1, h1 = get_image_dimensions(start_img)
     w2, h2 = get_image_dimensions(end_img)
@@ -118,9 +114,7 @@ def validate_video_dimensions(
     if max_width is not None and width > max_width:
         raise ValueError(f"Video width must be at most {max_width}px, got {width}px")
     if min_height is not None and height < min_height:
-        raise ValueError(
-            f"Video height must be at least {min_height}px, got {height}px"
-        )
+        raise ValueError(f"Video height must be at least {min_height}px, got {height}px")
     if max_height is not None and height > max_height:
         raise ValueError(f"Video height must be at most {max_height}px, got {height}px")
 
@@ -138,13 +132,9 @@ def validate_video_duration(
 
     epsilon = 0.0001
     if min_duration is not None and min_duration - epsilon > duration:
-        raise ValueError(
-            f"Video duration must be at least {min_duration}s, got {duration}s"
-        )
+        raise ValueError(f"Video duration must be at least {min_duration}s, got {duration}s")
     if max_duration is not None and duration > max_duration + epsilon:
-        raise ValueError(
-            f"Video duration must be at most {max_duration}s, got {duration}s"
-        )
+        raise ValueError(f"Video duration must be at most {max_duration}s, got {duration}s")
 
 
 def get_number_of_images(images):
@@ -165,3 +155,31 @@ def validate_audio_duration(
         raise ValueError(f"Audio duration must be at least {min_duration}s, got {dur + eps:.2f}s")
     if max_duration is not None and dur - eps > max_duration:
         raise ValueError(f"Audio duration must be at most {max_duration}s, got {dur - eps:.2f}s")
+
+
+def validate_string(
+    string: str,
+    strip_whitespace=True,
+    field_name="prompt",
+    min_length=None,
+    max_length=None,
+):
+    if string is None:
+        raise Exception(f"Field '{field_name}' cannot be empty.")
+    if strip_whitespace:
+        string = string.strip()
+    if min_length and len(string) < min_length:
+        raise Exception(
+            f"Field '{field_name}' cannot be shorter than {min_length} characters; was {len(string)} characters long."
+        )
+    if max_length and len(string) > max_length:
+        raise Exception(
+            f" Field '{field_name} cannot be longer than {max_length} characters; was {len(string)} characters long."
+        )
+
+
+def validate_container_format_is_mp4(video: VideoInput) -> None:
+    """Validates video container format is MP4."""
+    container_format = video.get_container_format()
+    if container_format not in ["mp4", "mov,mp4,m4a,3gp,3g2,mj2"]:
+        raise ValueError(f"Only MP4 container format supported. Got: {container_format}")

@@ -1,28 +1,35 @@
-import uuid
 import asyncio
 import contextlib
-from io import BytesIO
 import logging
 import time
+import uuid
+from io import BytesIO
 from typing import Optional, Union
+from urllib.parse import urlparse
 
 import aiohttp
 import torch
 from pydantic import BaseModel, Field
 
+from comfy_api.input.basic_types import AudioInput
+from comfy_api.input.video_types import VideoInput
 from comfy_api.latest import IO
-from urllib.parse import urlparse
-from .api_client import (
-    ApiEndpoint,
-    sync_op_pydantic,
-    _display_time_progress,
-    _diagnose_connectivity,
-)
-
+from comfy_api.util import VideoCodec, VideoContainer
 from comfy_api_nodes.apis import request_logger
-from comfy_api_nodes.apinode_utils import tensor_to_bytesio
-from ._helpers import _sleep_with_interrupt, _is_processing_interrupted
-from .common_exceptions import ProcessingInterrupted, LocalNetworkError, ApiServerError
+
+from ._helpers import is_processing_interrupted, sleep_with_interrupt
+from .client import (
+    ApiEndpoint,
+    _diagnose_connectivity,
+    _display_time_progress,
+    sync_op,
+)
+from .common_exceptions import ApiServerError, LocalNetworkError, ProcessingInterrupted
+from .conversions import (
+    audio_ndarray_to_bytesio,
+    audio_tensor_to_contiguous_ndarray,
+    tensor_to_bytesio,
+)
 
 
 class UploadRequest(BaseModel):
@@ -63,6 +70,60 @@ async def upload_images_to_comfyapi(
     return download_urls
 
 
+async def upload_audio_to_comfyapi(
+    cls: type[IO.ComfyNode],
+    audio: AudioInput,
+    *,
+    container_format: str = "mp4",
+    codec_name: str = "aac",
+    mime_type: str = "audio/mp4",
+    filename: str = "uploaded_audio.mp4",
+) -> str:
+    """
+    Uploads a single audio input to ComfyUI API and returns its download URL.
+    Encodes the raw waveform into the specified format before uploading.
+    """
+    sample_rate: int = audio["sample_rate"]
+    waveform: torch.Tensor = audio["waveform"]
+    audio_data_np = audio_tensor_to_contiguous_ndarray(waveform)
+    audio_bytes_io = audio_ndarray_to_bytesio(audio_data_np, sample_rate, container_format, codec_name)
+    return await upload_file_to_comfyapi(cls, audio_bytes_io, filename, mime_type)
+
+
+async def upload_video_to_comfyapi(
+    cls: type[IO.ComfyNode],
+    video: VideoInput,
+    *,
+    container: VideoContainer = VideoContainer.MP4,
+    codec: VideoCodec = VideoCodec.H264,
+    max_duration: Optional[int] = None,
+) -> str:
+    """
+    Uploads a single video to ComfyUI API and returns its download URL.
+    Uses the specified container and codec for saving the video before upload.
+    """
+    if max_duration is not None:
+        try:
+            actual_duration = video.duration_seconds
+            if actual_duration is not None and actual_duration > max_duration:
+                raise ValueError(
+                    f"Video duration ({actual_duration:.2f}s) exceeds the maximum allowed ({max_duration}s)."
+                )
+        except Exception as e:
+            logging.error("Error getting video duration: %s", str(e))
+            raise ValueError(f"Could not verify video duration from source: {e}") from e
+
+    upload_mime_type = f"video/{container.value.lower()}"
+    filename = f"uploaded_video.{container.value.lower()}"
+
+    # Convert VideoInput to BytesIO using specified container/codec
+    video_bytes_io = BytesIO()
+    video.save_to(video_bytes_io, format=container, codec=codec)
+    video_bytes_io.seek(0)
+
+    return await upload_file_to_comfyapi(cls, video_bytes_io, filename, upload_mime_type)
+
+
 async def upload_file_to_comfyapi(
     cls: type[IO.ComfyNode],
     file_bytes_io: BytesIO,
@@ -75,7 +136,7 @@ async def upload_file_to_comfyapi(
         request_object = UploadRequest(file_name=filename)
     else:
         request_object = UploadRequest(file_name=filename, content_type=upload_mime_type)
-    create_resp = await sync_op_pydantic(
+    create_resp = await sync_op(
         cls,
         endpoint=ApiEndpoint(path="/customers/storage", method="POST"),
         data=request_object,
@@ -84,7 +145,8 @@ async def upload_file_to_comfyapi(
         monitor_progress=False,
     )
     await upload_file(
-        cls, create_resp.upload_url,
+        cls,
+        create_resp.upload_url,
         file_bytes_io,
         content_type=upload_mime_type,
         wait_label=wait_label,
@@ -149,7 +211,7 @@ async def upload_file(
         async def _monitor():
             try:
                 while not stop_evt.is_set():
-                    if _is_processing_interrupted():
+                    if is_processing_interrupted():
                         return
                     if wait_label:
                         _display_time_progress(cls, wait_label, int(time.monotonic() - start_ts), None)
@@ -201,7 +263,7 @@ async def upload_file(
                             error_message=msg,
                         )
                     if resp.status in {408, 429, 500, 502, 503, 504} and attempt <= max_retries:
-                        await _sleep_with_interrupt(
+                        await sleep_with_interrupt(
                             delay,
                             cls,
                             wait_label,
@@ -235,7 +297,7 @@ async def upload_file(
                         request_data=f"[File data {len(data)} bytes]",
                         error_message=f"{type(e).__name__}: {str(e)} (will retry)",
                     )
-                await _sleep_with_interrupt(
+                await sleep_with_interrupt(
                     delay,
                     cls,
                     wait_label,

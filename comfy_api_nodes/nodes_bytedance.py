@@ -2,30 +2,25 @@ import logging
 import math
 from enum import Enum
 from typing import Literal, Optional, Union
-from typing_extensions import override
 
 import torch
 from pydantic import BaseModel, Field
+from typing_extensions import override
 
-from comfy_api.latest import ComfyExtension, IO
-from comfy_api_nodes.util.validation_utils import (
-    validate_image_aspect_ratio_range,
-    get_number_of_images,
-    validate_image_dimensions,
-)
+from comfy_api.latest import IO, ComfyExtension
 from comfy_api_nodes.util import (
     ApiEndpoint,
-    sync_op_pydantic,
-    poll_op_pydantic,
-    upload_images_to_comfyapi,
-)
-from comfy_api_nodes.apinode_utils import (
     download_url_to_image_tensor,
     download_url_to_video_output,
-    validate_string,
+    get_number_of_images,
     image_tensor_pair_to_batch,
+    poll_op,
+    sync_op,
+    upload_images_to_comfyapi,
+    validate_image_aspect_ratio_range,
+    validate_image_dimensions,
+    validate_string,
 )
-
 
 BYTEPLUS_IMAGE_ENDPOINT = "/proxy/byteplus/api/v3/images/generations"
 
@@ -43,13 +38,14 @@ class Image2ImageModelName(str, Enum):
 
 
 class Text2VideoModelName(str, Enum):
-    seedance_1_pro  = "seedance-1-0-pro-250528"
+    seedance_1_pro = "seedance-1-0-pro-250528"
     seedance_1_lite = "seedance-1-0-lite-t2v-250428"
 
 
 class Image2VideoModelName(str, Enum):
     """note(August 31): Pro model only supports FirstFrame: https://docs.byteplus.com/en/docs/ModelArk/1520757"""
-    seedance_1_pro  = "seedance-1-0-pro-250528"
+
+    seedance_1_pro = "seedance-1-0-pro-250528"
     seedance_1_lite = "seedance-1-0-lite-i2v-250428"
 
 
@@ -271,7 +267,7 @@ class ByteDanceImageNode(IO.ComfyNode):
                 IO.Boolean.Input(
                     "watermark",
                     default=True,
-                    tooltip="Whether to add an \"AI generated\" watermark to the image",
+                    tooltip='Whether to add an "AI generated" watermark to the image',
                     optional=True,
                 ),
             ],
@@ -309,8 +305,7 @@ class ByteDanceImageNode(IO.ComfyNode):
             w, h = width, height
             if not (512 <= w <= 2048) or not (512 <= h <= 2048):
                 raise ValueError(
-                    f"Custom size out of range: {w}x{h}. "
-                    "Both width and height must be between 512 and 2048 pixels."
+                    f"Custom size out of range: {w}x{h}. " "Both width and height must be between 512 and 2048 pixels."
                 )
 
         payload = Text2ImageTaskCreationRequest(
@@ -321,9 +316,9 @@ class ByteDanceImageNode(IO.ComfyNode):
             guidance_scale=guidance_scale,
             watermark=watermark,
         )
-        response = await sync_op_pydantic(
+        response = await sync_op(
             cls,
-            endpoint=ApiEndpoint(path=BYTEPLUS_IMAGE_ENDPOINT, method="POST"),
+            ApiEndpoint(path=BYTEPLUS_IMAGE_ENDPOINT, method="POST"),
             data=payload,
             response_model=ImageTaskCreationResponse,
         )
@@ -380,7 +375,7 @@ class ByteDanceImageEditNode(IO.ComfyNode):
                 IO.Boolean.Input(
                     "watermark",
                     default=True,
-                    tooltip="Whether to add an \"AI generated\" watermark to the image",
+                    tooltip='Whether to add an "AI generated" watermark to the image',
                     optional=True,
                 ),
             ],
@@ -418,9 +413,9 @@ class ByteDanceImageEditNode(IO.ComfyNode):
             guidance_scale=guidance_scale,
             watermark=watermark,
         )
-        response = await sync_op_pydantic(
+        response = await sync_op(
             cls,
-            endpoint=ApiEndpoint(path=BYTEPLUS_IMAGE_ENDPOINT, method="POST"),
+            ApiEndpoint(path=BYTEPLUS_IMAGE_ENDPOINT, method="POST"),
             data=payload,
             response_model=ImageTaskCreationResponse,
         )
@@ -451,7 +446,7 @@ class ByteDanceSeedreamNode(IO.ComfyNode):
                 IO.Image.Input(
                     "image",
                     tooltip="Input image(s) for image-to-image generation. "
-                            "List of 1-10 images for single or multi-reference generation.",
+                    "List of 1-10 images for single or multi-reference generation.",
                     optional=True,
                 ),
                 IO.Combo.Input(
@@ -481,9 +476,9 @@ class ByteDanceSeedreamNode(IO.ComfyNode):
                     "sequential_image_generation",
                     options=["disabled", "auto"],
                     tooltip="Group image generation mode. "
-                            "'disabled' generates a single image. "
-                            "'auto' lets the model decide whether to generate multiple related images "
-                            "(e.g., story scenes, character variations).",
+                    "'disabled' generates a single image. "
+                    "'auto' lets the model decide whether to generate multiple related images "
+                    "(e.g., story scenes, character variations).",
                     optional=True,
                 ),
                 IO.Int.Input(
@@ -494,7 +489,7 @@ class ByteDanceSeedreamNode(IO.ComfyNode):
                     step=1,
                     display_mode=IO.NumberDisplay.number,
                     tooltip="Maximum number of images to generate when sequential_image_generation='auto'. "
-                            "Total images (input + generated) cannot exceed 15.",
+                    "Total images (input + generated) cannot exceed 15.",
                     optional=True,
                 ),
                 IO.Int.Input(
@@ -511,7 +506,7 @@ class ByteDanceSeedreamNode(IO.ComfyNode):
                 IO.Boolean.Input(
                     "watermark",
                     default=True,
-                    tooltip="Whether to add an \"AI generated\" watermark to the image.",
+                    tooltip='Whether to add an "AI generated" watermark to the image.',
                     optional=True,
                 ),
                 IO.Boolean.Input(
@@ -558,8 +553,7 @@ class ByteDanceSeedreamNode(IO.ComfyNode):
             w, h = width, height
             if not (1024 <= w <= 4096) or not (1024 <= h <= 4096):
                 raise ValueError(
-                    f"Custom size out of range: {w}x{h}. "
-                    "Both width and height must be between 1024 and 4096 pixels."
+                    f"Custom size out of range: {w}x{h}. " "Both width and height must be between 1024 and 4096 pixels."
                 )
         n_input_images = get_number_of_images(image) if image is not None else 0
         if n_input_images > 10:
@@ -578,9 +572,9 @@ class ByteDanceSeedreamNode(IO.ComfyNode):
                 max_images=n_input_images,
                 mime_type="image/png",
             )
-        response = await sync_op_pydantic(
+        response = await sync_op(
             cls,
-            endpoint=ApiEndpoint(path=BYTEPLUS_IMAGE_ENDPOINT, method="POST"),
+            ApiEndpoint(path=BYTEPLUS_IMAGE_ENDPOINT, method="POST"),
             response_model=ImageTaskCreationResponse,
             data=Seedream4TaskCreationRequest(
                 model=model,
@@ -656,13 +650,13 @@ class ByteDanceTextToVideoNode(IO.ComfyNode):
                     "camera_fixed",
                     default=False,
                     tooltip="Specifies whether to fix the camera. The platform appends an instruction "
-                            "to fix the camera to your prompt, but does not guarantee the actual effect.",
+                    "to fix the camera to your prompt, but does not guarantee the actual effect.",
                     optional=True,
                 ),
                 IO.Boolean.Input(
                     "watermark",
                     default=True,
-                    tooltip="Whether to add an \"AI generated\" watermark to the video.",
+                    tooltip='Whether to add an "AI generated" watermark to the video.',
                     optional=True,
                 ),
             ],
@@ -767,13 +761,13 @@ class ByteDanceImageToVideoNode(IO.ComfyNode):
                     "camera_fixed",
                     default=False,
                     tooltip="Specifies whether to fix the camera. The platform appends an instruction "
-                            "to fix the camera to your prompt, but does not guarantee the actual effect.",
+                    "to fix the camera to your prompt, but does not guarantee the actual effect.",
                     optional=True,
                 ),
                 IO.Boolean.Input(
                     "watermark",
                     default=True,
-                    tooltip="Whether to add an \"AI generated\" watermark to the video.",
+                    tooltip='Whether to add an "AI generated" watermark to the video.',
                     optional=True,
                 ),
             ],
@@ -890,13 +884,13 @@ class ByteDanceFirstLastFrameNode(IO.ComfyNode):
                     "camera_fixed",
                     default=False,
                     tooltip="Specifies whether to fix the camera. The platform appends an instruction "
-                            "to fix the camera to your prompt, but does not guarantee the actual effect.",
+                    "to fix the camera to your prompt, but does not guarantee the actual effect.",
                     optional=True,
                 ),
                 IO.Boolean.Input(
                     "watermark",
                     default=True,
-                    tooltip="Whether to add an \"AI generated\" watermark to the video.",
+                    tooltip='Whether to add an "AI generated" watermark to the video.',
                     optional=True,
                 ),
             ],
@@ -1020,7 +1014,7 @@ class ByteDanceImageReferenceNode(IO.ComfyNode):
                 IO.Boolean.Input(
                     "watermark",
                     default=True,
-                    tooltip="Whether to add an \"AI generated\" watermark to the video.",
+                    tooltip='Whether to add an "AI generated" watermark to the video.',
                     optional=True,
                 ),
             ],
@@ -1064,7 +1058,7 @@ class ByteDanceImageReferenceNode(IO.ComfyNode):
         )
         x = [
             TaskTextContent(text=prompt),
-            *[TaskImageContent(image_url=TaskImageContentUrl(url=str(i)), role="reference_image") for i in image_urls]
+            *[TaskImageContent(image_url=TaskImageContentUrl(url=str(i)), role="reference_image") for i in image_urls],
         ]
         return await process_video_task(
             cls,
@@ -1078,18 +1072,15 @@ async def process_video_task(
     payload: Union[Text2VideoTaskCreationRequest, Image2VideoTaskCreationRequest],
     estimated_duration: Optional[int],
 ) -> IO.NodeOutput:
-    initial_response = await sync_op_pydantic(
+    initial_response = await sync_op(
         cls,
-        endpoint=ApiEndpoint(path=BYTEPLUS_TASK_ENDPOINT, method="POST"),
+        ApiEndpoint(path=BYTEPLUS_TASK_ENDPOINT, method="POST"),
         data=payload,
         response_model=TaskCreationResponse,
     )
-    response = await poll_op_pydantic(
+    response = await poll_op(
         cls,
-        poll_endpoint=ApiEndpoint(path=f"{BYTEPLUS_TASK_STATUS_ENDPOINT}/{initial_response.id}"),
-        completed_statuses=["succeeded"],
-        failed_statuses=["cancelled", "failed"],
-        queued_states=["queued"],
+        ApiEndpoint(path=f"{BYTEPLUS_TASK_STATUS_ENDPOINT}/{initial_response.id}"),
         status_extractor=lambda r: r.status,
         estimated_duration=estimated_duration,
         response_model=TaskStatusResponse,
@@ -1117,6 +1108,7 @@ class ByteDanceExtension(ComfyExtension):
             ByteDanceFirstLastFrameNode,
             ByteDanceImageReferenceNode,
         ]
+
 
 async def comfy_entrypoint() -> ByteDanceExtension:
     return ByteDanceExtension()
