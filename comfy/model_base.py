@@ -300,6 +300,7 @@ class BaseModel(torch.nn.Module):
 
         free_cpu_memory = get_free_memory(torch.device("cpu"))
         logging.info(f"load model weights start, free cpu memory size {free_cpu_memory/(1024*1024*1024)} GB")
+        logging.info(f"model destination device {next(self.diffusion_model.parameters()).device}")
         to_load = self.model_config.process_unet_state_dict(to_load)
         logging.info(f"load model {self.model_config} weights process end")
         m, u = self.diffusion_model.load_state_dict(to_load, strict=False)
