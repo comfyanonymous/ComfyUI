@@ -6,6 +6,125 @@ import math
 import logging
 import torch
 
+
+# ==============================================================================
+# Quantization Detection Functions
+# ==============================================================================
+
+def normalize_layer_name(full_key, known_prefixes):
+    """
+    Strip model prefix and parameter suffix from a state dict key.
+    
+    Args:
+        full_key: Full state dict key (e.g., "model.diffusion_model.layer1.weight")
+        known_prefixes: List of known model prefixes to strip
+        
+    Returns:
+        Normalized layer name (e.g., "layer1")
+    """
+    name = full_key
+    
+    # Strip model prefix
+    for prefix in known_prefixes:
+        if name.startswith(prefix):
+            name = name[len(prefix):]
+            break
+    
+    # Remove parameter suffix
+    for suffix in [".weight", ".bias", ".scale_weight", ".scale_input"]:
+        if name.endswith(suffix):
+            name = name[:-len(suffix)]
+            break
+    
+    return name
+
+
+def detect_layer_quantization(state_dict, prefix="model.diffusion_model."):
+    """
+    Detect per-layer quantization configuration from state dict.
+    
+    Detection priority:
+    1. Check for _quantization_metadata key (new format)
+    2. Check for scaled_fp8 key (legacy format - return None)
+    3. Check for per-layer scale_weight patterns (mixed detection)
+    4. No quantization detected (return None)
+    
+    Args:
+        state_dict: Model state dictionary
+        prefix: Key prefix for model layers
+        
+    Returns:
+        Dict mapping layer names to quantization configs, or None for legacy/no quantization.
+        
+    Example return value:
+        {
+            "input_blocks.5.1.transformer_blocks.0.attn1.to_q": {
+                "format": "fp8_e4m3fn_scaled",
+                "params": {"use_fp8_matmul": True}
+            },
+            "middle_block.1.transformer_blocks.0.attn2.to_k": {
+                "format": "fp8_e5m2_scaled",
+                "params": {"use_fp8_matmul": True}
+            }
+        }
+    """
+    
+    # 1. Check for new metadata format
+    metadata_key = f"{prefix}_quantization_metadata"
+    if metadata_key in state_dict:
+        try:
+            metadata = state_dict.pop(metadata_key)
+            if isinstance(metadata, dict) and "layers" in metadata:
+                logging.info(f"Found quantization metadata (version {metadata.get('format_version', 'unknown')})")
+                return metadata["layers"]
+            else:
+                logging.warning(f"Invalid quantization metadata format, ignoring")
+        except Exception as e:
+            logging.error(f"Failed to parse quantization metadata: {e}")
+            return None
+    
+    # 2. Check for legacy scaled_fp8 marker
+    # If present, return None to use legacy code path
+    scaled_fp8_key = f"{prefix}scaled_fp8"
+    if scaled_fp8_key in state_dict:
+        logging.debug("Detected legacy scaled_fp8 format, using legacy code path")
+        return None
+    
+    # 3. Check for per-layer scale patterns (mixed precision without metadata)
+    # Look for layers that have scale_weight but not all layers have it
+    known_prefixes = [prefix]
+    layer_configs = {}
+    layers_with_scale = set()
+    layers_with_weight = set()
+    
+    for key in state_dict.keys():
+        if key.startswith(prefix):
+            if key.endswith(".scale_weight"):
+                layer_name = normalize_layer_name(key, known_prefixes)
+                layers_with_scale.add(layer_name)
+                # Detect format based on weight dtype
+                weight_key = f"{prefix}{layer_name}.weight"
+                if weight_key in state_dict:
+                    weight_dtype = state_dict[weight_key].dtype
+                    if weight_dtype in [torch.float8_e4m3fn, torch.float8_e5m2]:
+                        format_name = "fp8_e4m3fn_scaled" if weight_dtype == torch.float8_e4m3fn else "fp8_e5m2_scaled"
+                        layer_configs[layer_name] = {
+                            "format": format_name,
+                            "params": {"use_fp8_matmul": True}
+                        }
+            elif key.endswith(".weight") and not key.endswith(".scale_weight"):
+                layer_name = normalize_layer_name(key, known_prefixes)
+                layers_with_weight.add(layer_name)
+    
+    # If we found scale_weight on some but not all layers, it's mixed precision
+    if layer_configs and len(layers_with_scale) < len(layers_with_weight):
+        logging.info(f"Detected mixed precision via scale patterns: {len(layers_with_scale)} quantized layers, {len(layers_with_weight)} total layers")
+        return layer_configs
+    
+    # 4. No quantization detected
+    return None
+
+
 def count_blocks(state_dict_keys, prefix_string):
     count = 0
     while True:
@@ -700,6 +819,12 @@ def model_config_from_unet(state_dict, unet_key_prefix, use_base_if_no_match=Fal
             model_config.optimizations["fp8"] = False
         else:
             model_config.optimizations["fp8"] = True
+
+    # Detect per-layer quantization (mixed precision)
+    layer_quant_config = detect_layer_quantization(state_dict, unet_key_prefix)
+    if layer_quant_config:
+        model_config.layer_quant_config = layer_quant_config
+        logging.info(f"Detected mixed precision quantization: {len(layer_quant_config)} layers quantized")
 
     return model_config
 
