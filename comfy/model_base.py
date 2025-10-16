@@ -297,8 +297,11 @@ class BaseModel(torch.nn.Module):
             if k.startswith(unet_prefix):
                 to_load[k[len(unet_prefix):]] = sd.pop(k)
 
+        logging.info(f"load model weights start, keys {keys}")
         to_load = self.model_config.process_unet_state_dict(to_load)
+        logging.info(f"load model {self.model_config} weights process end, keys {keys}")
         m, u = self.diffusion_model.load_state_dict(to_load, strict=False)
+        logging.info(f"load model {self.model_config} weights end, keys {keys}")
         if len(m) > 0:
             logging.warning("unet missing: {}".format(m))
 
