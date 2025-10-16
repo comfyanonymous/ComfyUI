@@ -401,11 +401,8 @@ async def execute(server, dynprompt, caches, current_item, extra_data, executed,
     class_type = dynprompt.get_node(unique_id)['class_type']
     class_def = nodes.NODE_CLASS_MAPPINGS[class_type]
     
-    # Log node execution start
-    logging.info(f"📍 Node [{display_node_id}] START: {class_type}")
     
     if caches.outputs.get(unique_id) is not None:
-        logging.info(f"✅ Node [{display_node_id}] CACHED: {class_type} (using cached output)")
         if server.client_id is not None:
             cached_output = caches.ui.get(unique_id) or {}
             server.send_sync("executed", { "node": unique_id, "display_node": display_node_id, "output": cached_output.get("output",None), "prompt_id": prompt_id }, server.client_id)
@@ -451,20 +448,15 @@ async def execute(server, dynprompt, caches, current_item, extra_data, executed,
             has_subgraph = False
         else:
             get_progress_state().start_progress(unique_id)
-            logging.info(f"🔍 Node [{display_node_id}] Getting input data for {class_type}")
             input_data_all, missing_keys, hidden_inputs = get_input_data(inputs, class_def, unique_id, caches.outputs, dynprompt, extra_data)
-            logging.info(f"📥 Node [{display_node_id}] Input data ready, keys: {list(input_data_all.keys())}")
             if server.client_id is not None:
                 server.last_node_id = display_node_id
                 server.send_sync("executing", { "node": unique_id, "display_node": display_node_id, "prompt_id": prompt_id }, server.client_id)
 
             obj = caches.objects.get(unique_id)
             if obj is None:
-                logging.info(f"🏗️  Node [{display_node_id}] Creating new instance of {class_type}")
                 obj = class_def()
                 caches.objects.set(unique_id, obj)
-            else:
-                logging.info(f"♻️  Node [{display_node_id}] Reusing cached instance of {class_type}")
 
             if issubclass(class_def, _ComfyNodeInternal):
                 lazy_status_present = first_real_override(class_def, "check_lazy_status") is not None
@@ -503,9 +495,7 @@ async def execute(server, dynprompt, caches, current_item, extra_data, executed,
             def pre_execute_cb(call_index):
                 # TODO - How to handle this with async functions without contextvars (which requires Python 3.12)?
                 GraphBuilder.set_default_prefix(unique_id, call_index, 0)
-            logging.info(f"⚙️  Node [{display_node_id}] Executing {class_type}")
             output_data, output_ui, has_subgraph, has_pending_tasks = await get_output_data(prompt_id, unique_id, obj, input_data_all, execution_block_cb=execution_block_cb, pre_execute_cb=pre_execute_cb, hidden_inputs=hidden_inputs)
-            logging.info(f"📤 Node [{display_node_id}] Execution completed, has_subgraph: {has_subgraph}, has_pending: {has_pending_tasks}")
             if has_pending_tasks:
                 pending_async_nodes[unique_id] = output_data
                 unblock = execution_list.add_external_block(unique_id)
@@ -584,7 +574,6 @@ async def execute(server, dynprompt, caches, current_item, extra_data, executed,
             for name, inputs in input_data_all.items():
                 input_data_formatted[name] = [format_value(x) for x in inputs]
 
-        logging.error(f"❌ Node [{display_node_id}] FAILED: {class_type}")
         logging.error(f"!!! Exception during processing !!! {ex}")
         logging.error(traceback.format_exc())
         tips = ""
@@ -607,7 +596,6 @@ async def execute(server, dynprompt, caches, current_item, extra_data, executed,
     get_progress_state().finish_progress(unique_id)
     executed.add(unique_id)
     
-    logging.info(f"✅ Node [{display_node_id}] SUCCESS: {class_type} completed")
 
     return (ExecutionResult.SUCCESS, None, None)
 
