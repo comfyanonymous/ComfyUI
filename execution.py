@@ -18,7 +18,7 @@ from comfy_execution.caching import (
     BasicCache,
     CacheKeySetID,
     CacheKeySetInputSignature,
-    DependencyAwareCache,
+    NullCache,
     HierarchicalCache,
     LRUCache,
 )
@@ -91,13 +91,13 @@ class IsChangedCache:
 class CacheType(Enum):
     CLASSIC = 0
     LRU = 1
-    DEPENDENCY_AWARE = 2
+    NONE = 2
 
 
 class CacheSet:
     def __init__(self, cache_type=None, cache_size=None):
-        if cache_type == CacheType.DEPENDENCY_AWARE:
-            self.init_dependency_aware_cache()
+        if cache_type == CacheType.NONE:
+            self.init_null_cache()
             logging.info("Disabling intermediate node cache.")
         elif cache_type == CacheType.LRU:
             if cache_size is None:
@@ -120,11 +120,12 @@ class CacheSet:
         self.ui = LRUCache(CacheKeySetInputSignature, max_size=cache_size)
         self.objects = HierarchicalCache(CacheKeySetID)
 
-    # only hold cached items while the decendents have not executed
-    def init_dependency_aware_cache(self):
-        self.outputs = DependencyAwareCache(CacheKeySetInputSignature)
-        self.ui = DependencyAwareCache(CacheKeySetInputSignature)
-        self.objects = DependencyAwareCache(CacheKeySetID)
+    def init_null_cache(self):
+        self.outputs = NullCache()
+        #The UI cache is expected to be iterable at the end of each workflow
+        #so it must cache at least a full workflow. Use Heirachical
+        self.ui = HierarchicalCache(CacheKeySetInputSignature)
+        self.objects = NullCache()
 
     def recursive_debug_dump(self):
         result = {
