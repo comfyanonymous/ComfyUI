@@ -1,7 +1,5 @@
 import asyncio
 import contextlib
-import logging
-import time
 import uuid
 from io import BytesIO
 from pathlib import Path
@@ -13,10 +11,15 @@ import torch
 from aiohttp.client_exceptions import ClientError, ContentTypeError
 
 from comfy_api.input_impl import VideoFromFile
-from comfy_api.latest import IO as ComfyIO
+from comfy_api.latest import IO as COMFY_IO
 from comfy_api_nodes.apis import request_logger
 
-from ._helpers import default_base_url, get_auth_header, is_processing_interrupted
+from ._helpers import (
+    default_base_url,
+    get_auth_header,
+    is_processing_interrupted,
+    sleep_with_interrupt,
+)
 from .client import _diagnose_connectivity
 from .common_exceptions import ApiServerError, LocalNetworkError, ProcessingInterrupted
 from .conversions import bytesio_to_image_tensor
@@ -32,7 +35,7 @@ async def download_url_to_bytesio(
     max_retries: int = 3,
     retry_delay: float = 1.0,
     retry_backoff: float = 2.0,
-    cls: type[ComfyIO.ComfyNode] = None,
+    cls: type[COMFY_IO.ComfyNode] = None,
 ) -> None:
     """Stream-download a URL to `dest`.
 
@@ -52,7 +55,8 @@ async def download_url_to_bytesio(
 
     attempt = 0
     delay = retry_delay
-    headers = {}
+    headers: dict[str, str] = {}
+
     if url.startswith("/proxy/"):
         if cls is None:
             raise ValueError("For relative 'cloud' paths, the `cls` parameter is required.")
@@ -66,69 +70,112 @@ async def download_url_to_bytesio(
 
         is_path_sink = isinstance(dest, (str, Path))
         fhandle = None
+        session: Optional[aiohttp.ClientSession] = None
+        stop_evt: Optional[asyncio.Event] = None
+        monitor_task: Optional[asyncio.Task] = None
+        req_task: Optional[asyncio.Task] = None
+
         try:
             with contextlib.suppress(Exception):
                 request_logger.log_request_response(operation_id=op_id, request_method="GET", request_url=url)
 
-            async with aiohttp.ClientSession(timeout=timeout_cfg) as session:
-                async with session.get(url, headers=headers) as resp:
-                    if resp.status >= 400:
-                        with contextlib.suppress(Exception):
-                            try:
-                                body = await resp.json()
-                            except (ContentTypeError, ValueError):
-                                text = await resp.text()
-                                body = text if len(text) <= 4096 else f"[text {len(text)} bytes]"
-                            request_logger.log_request_response(
-                                operation_id=op_id,
-                                request_method="GET",
-                                request_url=url,
-                                response_status_code=resp.status,
-                                response_headers=dict(resp.headers),
-                                response_content=body,
-                                error_message=f"HTTP {resp.status}",
-                            )
+            session = aiohttp.ClientSession(timeout=timeout_cfg)
+            stop_evt = asyncio.Event()
 
-                        if resp.status in _RETRY_STATUS and attempt <= max_retries:
-                            await _sleep_with_cancel(delay)
-                            delay *= retry_backoff
-                            continue
-                        raise Exception(f"Failed to download (HTTP {resp.status}).")
-
-                    if is_path_sink:
-                        p = Path(str(dest))
-                        with contextlib.suppress(Exception):
-                            p.parent.mkdir(parents=True, exist_ok=True)
-                        fhandle = open(p, "wb")
-                        sink = fhandle
-                    else:
-                        sink = dest  # BytesIO or file-like
-
-                    written = 0
-                    async for chunk in resp.content.iter_chunked(1024 * 1024):
-                        sink.write(chunk)
-                        written += len(chunk)
+            async def _monitor():
+                try:
+                    while not stop_evt.is_set():
                         if is_processing_interrupted():
-                            raise ProcessingInterrupted("Task cancelled")
+                            return
+                        await asyncio.sleep(1.0)
+                except asyncio.CancelledError:
+                    return
 
-                    if isinstance(dest, BytesIO):
-                        with contextlib.suppress(Exception):
-                            dest.seek(0)
+            monitor_task = asyncio.create_task(_monitor())
 
+            req_task = asyncio.create_task(session.get(url, headers=headers))
+            done, pending = await asyncio.wait({req_task, monitor_task}, return_when=asyncio.FIRST_COMPLETED)
+
+            if monitor_task in done and req_task in pending:
+                req_task.cancel()
+                with contextlib.suppress(Exception):
+                    await req_task
+                raise ProcessingInterrupted("Task cancelled")
+
+            try:
+                resp = await req_task
+            except asyncio.CancelledError:
+                raise ProcessingInterrupted("Task cancelled") from None
+
+            async with resp:
+                if resp.status >= 400:
                     with contextlib.suppress(Exception):
+                        try:
+                            body = await resp.json()
+                        except (ContentTypeError, ValueError):
+                            text = await resp.text()
+                            body = text if len(text) <= 4096 else f"[text {len(text)} bytes]"
                         request_logger.log_request_response(
                             operation_id=op_id,
                             request_method="GET",
                             request_url=url,
                             response_status_code=resp.status,
                             response_headers=dict(resp.headers),
-                            response_content=f"[streamed {written} bytes to dest]",
+                            response_content=body,
+                            error_message=f"HTTP {resp.status}",
                         )
-                    return
 
-        except ProcessingInterrupted:
-            logging.debug("Download was interrupted by user")
-            raise
+                    if resp.status in _RETRY_STATUS and attempt <= max_retries:
+                        await sleep_with_interrupt(delay, cls, None, None, None)
+                        delay *= retry_backoff
+                        continue
+                    raise Exception(f"Failed to download (HTTP {resp.status}).")
+
+                if is_path_sink:
+                    p = Path(str(dest))
+                    with contextlib.suppress(Exception):
+                        p.parent.mkdir(parents=True, exist_ok=True)
+                    fhandle = open(p, "wb")
+                    sink = fhandle
+                else:
+                    sink = dest  # BytesIO or file-like
+
+                written = 0
+                while True:
+                    try:
+                        chunk = await asyncio.wait_for(resp.content.read(1024 * 1024), timeout=1.0)
+                    except asyncio.TimeoutError:
+                        chunk = b""
+                    except asyncio.CancelledError:
+                        raise ProcessingInterrupted("Task cancelled") from None
+
+                    if is_processing_interrupted():
+                        raise ProcessingInterrupted("Task cancelled")
+
+                    if not chunk:
+                        if resp.content.at_eof():
+                            break
+                        continue
+
+                    sink.write(chunk)
+                    written += len(chunk)
+
+                if isinstance(dest, BytesIO):
+                    with contextlib.suppress(Exception):
+                        dest.seek(0)
+
+                with contextlib.suppress(Exception):
+                    request_logger.log_request_response(
+                        operation_id=op_id,
+                        request_method="GET",
+                        request_url=url,
+                        response_status_code=resp.status,
+                        response_headers=dict(resp.headers),
+                        response_content=f"[streamed {written} bytes to dest]",
+                    )
+                return
+        except asyncio.CancelledError:
+            raise ProcessingInterrupted("Task cancelled") from None
         except (ClientError, asyncio.TimeoutError) as e:
             if attempt <= max_retries:
                 with contextlib.suppress(Exception):
@@ -138,7 +185,7 @@ async def download_url_to_bytesio(
                         request_url=url,
                         error_message=f"{type(e).__name__}: {str(e)} (will retry)",
                     )
-                await _sleep_with_cancel(delay)
+                await sleep_with_interrupt(delay, cls, None, None, None)
                 delay *= retry_backoff
                 continue
 
@@ -149,8 +196,21 @@ async def download_url_to_bytesio(
                 ) from e
             raise ApiServerError("The remote service appears unreachable at this time.") from e
         finally:
-            with contextlib.suppress(Exception):
-                if fhandle:
+            if stop_evt is not None:
+                stop_evt.set()
+            if monitor_task:
+                monitor_task.cancel()
+                with contextlib.suppress(Exception):
+                    await monitor_task
+            if req_task and not req_task.done():
+                req_task.cancel()
+                with contextlib.suppress(Exception):
+                    await req_task
+            if session:
+                with contextlib.suppress(Exception):
+                    await session.close()
+            if fhandle:
+                with contextlib.suppress(Exception):
                     fhandle.flush()
                     fhandle.close()
 
@@ -159,7 +219,7 @@ async def download_url_to_image_tensor(
     url: str,
     *,
     timeout: float = None,
-    cls: type[ComfyIO.ComfyNode] = None,
+    cls: type[COMFY_IO.ComfyNode] = None,
 ) -> torch.Tensor:
     """Downloads an image from a URL and returns a [B, H, W, C] tensor."""
     result = BytesIO()
@@ -171,7 +231,7 @@ async def download_url_to_video_output(
     video_url: str,
     *,
     timeout: float = None,
-    cls: type[ComfyIO.ComfyNode] = None,
+    cls: type[COMFY_IO.ComfyNode] = None,
 ) -> VideoFromFile:
     """Downloads a video from a URL and returns a `VIDEO` output."""
     result = BytesIO()
@@ -186,15 +246,3 @@ def _generate_operation_id(method: str, url: str, attempt: int) -> str:
     except Exception:
         slug = "download"
     return f"{method}_{slug}_try{attempt}_{uuid.uuid4().hex[:8]}"
-
-
-async def _sleep_with_cancel(seconds: float) -> None:
-    """Sleep in 1s slices while checking for interruption."""
-    end = time.monotonic() + seconds
-    while True:
-        if is_processing_interrupted():
-            raise ProcessingInterrupted("Task cancelled")
-        now = time.monotonic()
-        if now >= end:
-            return
-        await asyncio.sleep(min(1.0, end - now))

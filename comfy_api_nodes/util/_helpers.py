@@ -35,7 +35,7 @@ def default_base_url() -> str:
 
 async def sleep_with_interrupt(
     seconds: float,
-    node_cls: type[IO.ComfyNode],
+    node_cls: Optional[type[IO.ComfyNode]],
     label: Optional[str] = None,
     start_ts: Optional[float] = None,
     estimated_total: Optional[int] = None,

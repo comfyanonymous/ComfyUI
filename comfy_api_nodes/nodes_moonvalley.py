@@ -1,31 +1,30 @@
 import logging
 from typing import Optional
+
 import torch
 from typing_extensions import override
 
+from comfy_api.input import VideoInput
+from comfy_api.latest import IO, ComfyExtension
 from comfy_api_nodes.apis import (
-    MoonvalleyTextToVideoRequest,
+    MoonvalleyPromptResponse,
     MoonvalleyTextToVideoInferenceParams,
+    MoonvalleyTextToVideoRequest,
     MoonvalleyVideoToVideoInferenceParams,
     MoonvalleyVideoToVideoRequest,
-    MoonvalleyPromptResponse,
 )
 from comfy_api_nodes.util import (
+    ApiEndpoint,
+    download_url_to_video_output,
+    poll_op,
+    sync_op,
+    trim_video,
+    upload_images_to_comfyapi,
+    upload_video_to_comfyapi,
     validate_container_format_is_mp4,
     validate_image_dimensions,
-    download_url_to_video_output,
-    upload_video_to_comfyapi,
-    upload_images_to_comfyapi,
-    sync_op,
-    ApiEndpoint,
-    poll_op,
     validate_string,
-    trim_video,
 )
-
-from comfy_api.input import VideoInput
-from comfy_api.latest import ComfyExtension, IO
-
 
 API_UPLOADS_ENDPOINT = "/proxy/moonvalley/uploads"
 API_PROMPTS_ENDPOINT = "/proxy/moonvalley/prompts"
@@ -103,12 +102,8 @@ def _validate_video_dimensions(width: int, height: int) -> None:
     }
 
     if (width, height) not in supported_resolutions:
-        supported_list = ", ".join(
-            [f"{w}x{h}" for w, h in sorted(supported_resolutions)]
-        )
-        raise ValueError(
-            f"Resolution {width}x{height} not supported. Supported: {supported_list}"
-        )
+        supported_list = ", ".join([f"{w}x{h}" for w, h in sorted(supported_resolutions)])
+        raise ValueError(f"Resolution {width}x{height} not supported. Supported: {supported_list}")
 
 
 def _validate_and_trim_duration(video: VideoInput) -> VideoInput:
@@ -160,6 +155,8 @@ async def get_response(cls: type[IO.ComfyNode], task_id: str) -> MoonvalleyPromp
         ApiEndpoint(path=f"{API_PROMPTS_ENDPOINT}/{task_id}"),
         response_model=MoonvalleyPromptResponse,
         status_extractor=lambda r: (r.status if r and r.status else None),
+        poll_interval=16.0,
+        max_poll_attempts=240,
     )
 
 
@@ -269,7 +266,7 @@ class MoonvalleyImg2VideoNode(IO.ComfyNode):
 
         # Get MIME type from tensor - assuming PNG format for image tensors
         mime_type = "image/png"
-        image_url = (await upload_images_to_comfyapi(cls, image, max_images=1,  mime_type=mime_type))[0]
+        image_url = (await upload_images_to_comfyapi(cls, image, max_images=1, mime_type=mime_type))[0]
         task_creation_response = await sync_op(
             cls,
             endpoint=ApiEndpoint(path=API_IMG2VIDEO_ENDPOINT, method="POST"),

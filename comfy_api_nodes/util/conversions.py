@@ -11,9 +11,7 @@ import torch
 from PIL import Image
 
 from comfy.utils import common_upscale
-from comfy_api.input import VideoInput
-from comfy_api.input.basic_types import AudioInput
-from comfy_api.latest import InputImpl
+from comfy_api.latest import Input, InputImpl
 
 from ._helpers import mimetype_to_extension
 
@@ -165,7 +163,7 @@ def tensor_to_data_uri(
     return f"data:{mime_type};base64,{base64_string}"
 
 
-def audio_to_base64_string(audio: AudioInput, container_format: str = "mp4", codec_name: str = "aac") -> str:
+def audio_to_base64_string(audio: Input.Audio, container_format: str = "mp4", codec_name: str = "aac") -> str:
     """Converts an audio input to a base64 string."""
     sample_rate: int = audio["sample_rate"]
     waveform: torch.Tensor = audio["waveform"]
@@ -232,7 +230,7 @@ def audio_tensor_to_contiguous_ndarray(waveform: torch.Tensor) -> np.ndarray:
     return audio_data_np
 
 
-def audio_input_to_mp3(audio: AudioInput) -> BytesIO:
+def audio_input_to_mp3(audio: Input.Audio) -> BytesIO:
     waveform = audio["waveform"].cpu()
 
     output_buffer = BytesIO()
@@ -255,7 +253,7 @@ def audio_input_to_mp3(audio: AudioInput) -> BytesIO:
     return output_buffer
 
 
-def trim_video(video: VideoInput, duration_sec: float) -> VideoInput:
+def trim_video(video: Input.Video, duration_sec: float) -> Input.Video:
     """
     Returns a new VideoInput object trimmed from the beginning to the specified duration,
     using av to avoid loading entire video into memory.

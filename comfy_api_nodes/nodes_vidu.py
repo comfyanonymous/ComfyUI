@@ -1,24 +1,23 @@
 import logging
 from enum import Enum
-from typing import Optional, Literal, TypeVar
-from typing_extensions import override
+from typing import Literal, Optional, TypeVar
 
 import torch
 from pydantic import BaseModel, Field
+from typing_extensions import override
 
-from comfy_api.latest import ComfyExtension, IO
+from comfy_api.latest import IO, ComfyExtension
 from comfy_api_nodes.util import (
-    validate_aspect_ratio_closeness,
-    validate_image_dimensions,
-    validate_image_aspect_ratio_range,
-    get_number_of_images,
-    download_url_to_video_output,
-    upload_images_to_comfyapi,
     ApiEndpoint,
-    sync_op,
+    download_url_to_video_output,
+    get_number_of_images,
     poll_op,
+    sync_op,
+    upload_images_to_comfyapi,
+    validate_aspect_ratio_closeness,
+    validate_image_aspect_ratio_range,
+    validate_image_dimensions,
 )
-
 
 VIDU_TEXT_TO_VIDEO = "/proxy/vidu/text2video"
 VIDU_IMAGE_TO_VIDEO = "/proxy/vidu/img2video"
@@ -28,8 +27,9 @@ VIDU_GET_GENERATION_STATUS = "/proxy/vidu/tasks/%s/creations"
 
 R = TypeVar("R")
 
+
 class VideoModelName(str, Enum):
-    vidu_q1 = 'viduq1'
+    vidu_q1 = "viduq1"
 
 
 class AspectRatio(str, Enum):
@@ -102,7 +102,7 @@ async def execute_task(
 ) -> R:
     response = await sync_op(
         cls,
-        endpoint=ApiEndpoint(path=vidu_endpoint,method="POST"),
+        endpoint=ApiEndpoint(path=vidu_endpoint, method="POST"),
         response_model=TaskCreationResponse,
         data=payload,
     )
@@ -559,6 +559,7 @@ class ViduExtension(ComfyExtension):
             ViduReferenceVideoNode,
             ViduStartEndToVideoNode,
         ]
+
 
 async def comfy_entrypoint() -> ViduExtension:
     return ViduExtension()

@@ -21,7 +21,6 @@ from comfy_api_nodes.apis import (
     RunwayImageToVideoRequest,
     RunwayImageToVideoResponse,
     RunwayTaskStatusResponse as TaskStatusResponse,
-    RunwayTaskStatusEnum as TaskStatus,
     RunwayModelEnum as Model,
     RunwayDurationEnum as Duration,
     RunwayAspectRatioEnum as AspectRatio,
@@ -33,7 +32,18 @@ from comfy_api_nodes.apis import (
     ReferenceImage,
     RunwayTextToImageAspectRatioEnum,
 )
-from comfy_api_nodes.util import image_tensor_pair_to_batch, validate_string, validate_image_dimensions, validate_image_aspect_ratio, upload_images_to_comfyapi, download_url_to_video_output, download_url_to_image_tensor, ApiEndpoint, sync_op, poll_op
+from comfy_api_nodes.util import (
+    image_tensor_pair_to_batch,
+    validate_string,
+    validate_image_dimensions,
+    validate_image_aspect_ratio,
+    upload_images_to_comfyapi,
+    download_url_to_video_output,
+    download_url_to_image_tensor,
+    ApiEndpoint,
+    sync_op,
+    poll_op,
+)
 from comfy_api.input_impl import VideoFromFile
 from comfy_api.latest import ComfyExtension, IO
 
@@ -93,20 +103,12 @@ def get_image_url_from_task_status(response: TaskStatusResponse) -> Union[str, N
 
 
 async def get_response(
-        cls: type[IO.ComfyNode],
-    task_id: str, estimated_duration: Optional[int] = None
+    cls: type[IO.ComfyNode], task_id: str, estimated_duration: Optional[int] = None
 ) -> TaskStatusResponse:
     """Poll the task status until it is finished then get the response."""
     return await poll_op(
         cls,
         ApiEndpoint(path=f"{PATH_GET_TASK_STATUS}/{task_id}"),
-        completed_statuses=[
-            TaskStatus.SUCCEEDED.value,
-        ],
-        failed_statuses=[
-            TaskStatus.FAILED.value,
-            TaskStatus.CANCELLED.value,
-        ],
         response_model=TaskStatusResponse,
         status_extractor=lambda r: r.status.value,
         estimated_duration=estimated_duration,
@@ -143,9 +145,9 @@ class RunwayImageToVideoNodeGen3a(IO.ComfyNode):
             display_name="Runway Image to Video (Gen3a Turbo)",
             category="api node/video/Runway",
             description="Generate a video from a single starting frame using Gen3a Turbo model. "
-                        "Before diving in, review these best practices to ensure that "
-                        "your input selections will set your generation up for success: "
-                        "https://help.runwayml.com/hc/en-us/articles/33927968552339-Creating-with-Act-One-on-Gen-3-Alpha-and-Turbo.",
+            "Before diving in, review these best practices to ensure that "
+            "your input selections will set your generation up for success: "
+            "https://help.runwayml.com/hc/en-us/articles/33927968552339-Creating-with-Act-One-on-Gen-3-Alpha-and-Turbo.",
             inputs=[
                 IO.String.Input(
                     "prompt",
@@ -217,11 +219,7 @@ class RunwayImageToVideoNodeGen3a(IO.ComfyNode):
                     duration=Duration(duration),
                     ratio=AspectRatio(ratio),
                     promptImage=RunwayPromptImageObject(
-                        root=[
-                            RunwayPromptImageDetailedObject(
-                                uri=str(download_urls[0]), position="first"
-                            )
-                        ]
+                        root=[RunwayPromptImageDetailedObject(uri=str(download_urls[0]), position="first")]
                     ),
                 ),
             )
@@ -237,9 +235,9 @@ class RunwayImageToVideoNodeGen4(IO.ComfyNode):
             display_name="Runway Image to Video (Gen4 Turbo)",
             category="api node/video/Runway",
             description="Generate a video from a single starting frame using Gen4 Turbo model. "
-                        "Before diving in, review these best practices to ensure that "
-                        "your input selections will set your generation up for success: "
-                        "https://help.runwayml.com/hc/en-us/articles/37327109429011-Creating-with-Gen-4-Video.",
+            "Before diving in, review these best practices to ensure that "
+            "your input selections will set your generation up for success: "
+            "https://help.runwayml.com/hc/en-us/articles/37327109429011-Creating-with-Gen-4-Video.",
             inputs=[
                 IO.String.Input(
                     "prompt",
@@ -311,11 +309,7 @@ class RunwayImageToVideoNodeGen4(IO.ComfyNode):
                     duration=Duration(duration),
                     ratio=AspectRatio(ratio),
                     promptImage=RunwayPromptImageObject(
-                        root=[
-                            RunwayPromptImageDetailedObject(
-                                uri=str(download_urls[0]), position="first"
-                            )
-                        ]
+                        root=[RunwayPromptImageDetailedObject(uri=str(download_urls[0]), position="first")]
                     ),
                 ),
                 estimated_duration=AVERAGE_DURATION_FLF_SECONDS,
@@ -332,12 +326,12 @@ class RunwayFirstLastFrameNode(IO.ComfyNode):
             display_name="Runway First-Last-Frame to Video",
             category="api node/video/Runway",
             description="Upload first and last keyframes, draft a prompt, and generate a video. "
-                        "More complex transitions, such as cases where the Last frame is completely different "
-                        "from the First frame, may benefit from the longer 10s duration. "
-                        "This would give the generation more time to smoothly transition between the two inputs. "
-                        "Before diving in, review these best practices to ensure that your input selections "
-                        "will set your generation up for success: "
-                        "https://help.runwayml.com/hc/en-us/articles/34170748696595-Creating-with-Keyframes-on-Gen-3.",
+            "More complex transitions, such as cases where the Last frame is completely different "
+            "from the First frame, may benefit from the longer 10s duration. "
+            "This would give the generation more time to smoothly transition between the two inputs. "
+            "Before diving in, review these best practices to ensure that your input selections "
+            "will set your generation up for success: "
+            "https://help.runwayml.com/hc/en-us/articles/34170748696595-Creating-with-Keyframes-on-Gen-3.",
             inputs=[
                 IO.String.Input(
                     "prompt",
@@ -420,12 +414,8 @@ class RunwayFirstLastFrameNode(IO.ComfyNode):
                     ratio=AspectRatio(ratio),
                     promptImage=RunwayPromptImageObject(
                         root=[
-                            RunwayPromptImageDetailedObject(
-                                uri=str(download_urls[0]), position="first"
-                            ),
-                            RunwayPromptImageDetailedObject(
-                                uri=str(download_urls[1]), position="last"
-                            ),
+                            RunwayPromptImageDetailedObject(uri=str(download_urls[0]), position="first"),
+                            RunwayPromptImageDetailedObject(uri=str(download_urls[1]), position="last"),
                         ]
                     ),
                 ),
@@ -443,7 +433,7 @@ class RunwayTextToImageNode(IO.ComfyNode):
             display_name="Runway Text to Image",
             category="api node/image/Runway",
             description="Generate an image from a text prompt using Runway's Gen 4 model. "
-                        "You can also include reference image to guide the generation.",
+            "You can also include reference image to guide the generation.",
             inputs=[
                 IO.String.Input(
                     "prompt",
@@ -526,6 +516,7 @@ class RunwayExtension(ComfyExtension):
             RunwayImageToVideoNodeGen4,
             RunwayTextToImageNode,
         ]
+
 
 async def comfy_entrypoint() -> RunwayExtension:
     return RunwayExtension()

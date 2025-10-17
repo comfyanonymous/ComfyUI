@@ -8,7 +8,7 @@ import uuid
 from dataclasses import dataclass
 from enum import Enum
 from io import BytesIO
-from typing import Any, Callable, Literal, Optional, Type, TypeVar, Union
+from typing import Any, Callable, Iterable, Literal, Optional, Type, TypeVar, Union
 from urllib.parse import urljoin, urlparse
 
 import aiohttp
@@ -79,7 +79,7 @@ class _PollUIState:
 
 _RETRY_STATUS = {408, 429, 500, 502, 503, 504}
 COMPLETED_STATUSES = ["succeeded", "succeed", "success", "completed"]
-FAILED_STATUSES = ["cancelled", "failed", "error"]
+FAILED_STATUSES = ["cancelled", "canceled", "failed", "error"]
 QUEUED_STATUSES = ["created", "queued", "queueing", "submitted"]
 
 
@@ -97,7 +97,7 @@ async def sync_op(
     retry_delay: float = 1.0,
     retry_backoff: float = 2.0,
     wait_label: str = "Waiting for server",
-    estimated_total: Optional[int] = None,
+    estimated_duration: Optional[int] = None,
     final_label_on_success: Optional[str] = "Completed",
     progress_origin_ts: Optional[float] = None,
     monitor_progress: bool = True,
@@ -114,7 +114,7 @@ async def sync_op(
         retry_delay=retry_delay,
         retry_backoff=retry_backoff,
         wait_label=wait_label,
-        estimated_total=estimated_total,
+        estimated_duration=estimated_duration,
         as_binary=False,
         final_label_on_success=final_label_on_success,
         progress_origin_ts=progress_origin_ts,
@@ -130,7 +130,7 @@ async def poll_op(
     poll_endpoint: ApiEndpoint,
     *,
     response_model: Type[M],
-    status_extractor: Callable[[M], Optional[str]],
+    status_extractor: Callable[[M], Optional[Union[str, int]]],
     progress_extractor: Optional[Callable[[M], Optional[int]]] = None,
     price_extractor: Optional[Callable[[M], Optional[float]]] = None,
     completed_statuses: Optional[list[Union[str, int]]] = None,
@@ -183,7 +183,7 @@ async def sync_op_raw(
     retry_delay: float = 1.0,
     retry_backoff: float = 2.0,
     wait_label: str = "Waiting for server",
-    estimated_total: Optional[int] = None,
+    estimated_duration: Optional[int] = None,
     as_binary: bool = False,
     final_label_on_success: Optional[str] = "Completed",
     progress_origin_ts: Optional[float] = None,
@@ -212,7 +212,7 @@ async def sync_op_raw(
         retry_backoff=retry_backoff,
         wait_label=wait_label,
         monitor_progress=monitor_progress,
-        estimated_total=estimated_total,
+        estimated_total=estimated_duration,
         final_label_on_success=final_label_on_success,
         progress_origin_ts=progress_origin_ts,
     )
@@ -223,7 +223,7 @@ async def poll_op_raw(
     cls: type[IO.ComfyNode],
     poll_endpoint: ApiEndpoint,
     *,
-    status_extractor: Callable[[dict[str, Any]], Optional[str]],
+    status_extractor: Callable[[dict[str, Any]], Optional[Union[str, int]]],
     progress_extractor: Optional[Callable[[dict[str, Any]], Optional[int]]] = None,
     price_extractor: Optional[Callable[[dict[str, Any]], Optional[float]]] = None,
     completed_statuses: Optional[list[Union[str, int]]] = None,
@@ -247,9 +247,9 @@ async def poll_op_raw(
 
     Returns the final JSON response from the poll endpoint.
     """
-    completed_states = COMPLETED_STATUSES if completed_statuses is None else completed_statuses
-    failed_states = FAILED_STATUSES if failed_statuses is None else failed_statuses
-    queued_states = QUEUED_STATUSES if queued_statuses is None else queued_statuses
+    completed_states = _normalize_statuses(COMPLETED_STATUSES if completed_statuses is None else completed_statuses)
+    failed_states = _normalize_statuses(FAILED_STATUSES if failed_statuses is None else failed_statuses)
+    queued_states = _normalize_statuses(QUEUED_STATUSES if queued_statuses is None else queued_statuses)
     started = time.monotonic()
     consumed_attempts = 0  # counts only non-queued polls
 
@@ -271,7 +271,7 @@ async def poll_op_raw(
                 )
                 _display_time_progress(
                     cls,
-                    label=state.status_label,
+                    status=state.status_label,
                     elapsed_seconds=int(now - state.started),
                     estimated_total=state.estimated_duration,
                     price=state.price,
@@ -294,7 +294,7 @@ async def poll_op_raw(
                     retry_delay=retry_delay_per_poll,
                     retry_backoff=retry_backoff_per_poll,
                     wait_label="Checking",
-                    estimated_total=None,
+                    estimated_duration=None,
                     as_binary=False,
                     final_label_on_success=None,
                     monitor_progress=False,
@@ -310,7 +310,7 @@ async def poll_op_raw(
                             timeout=cancel_timeout,
                             max_retries=0,
                             wait_label="Cancelling task",
-                            estimated_total=None,
+                            estimated_duration=None,
                             as_binary=False,
                             final_label_on_success=None,
                             monitor_progress=False,
@@ -318,7 +318,7 @@ async def poll_op_raw(
                 raise
 
             try:
-                status = status_extractor(resp_json)
+                status = _normalize_status_value(status_extractor(resp_json))
             except Exception as e:
                 logging.error("Status extraction failed: %s", e)
                 status = None
@@ -360,7 +360,7 @@ async def poll_op_raw(
 
                 _display_time_progress(
                     cls,
-                    label=status if status else "Completed",
+                    status=status if status else "Completed",
                     elapsed_seconds=int(now_ts - started),
                     estimated_total=estimated_duration,
                     price=state.price,
@@ -385,7 +385,7 @@ async def poll_op_raw(
                             timeout=cancel_timeout,
                             max_retries=0,
                             wait_label="Cancelling task",
-                            estimated_total=None,
+                            estimated_duration=None,
                             as_binary=False,
                             final_label_on_success=None,
                             monitor_progress=False,
@@ -414,12 +414,12 @@ def _display_text(
     node_cls: type[IO.ComfyNode],
     text: Optional[str],
     *,
-    status: Optional[str] = None,
+    status: Optional[Union[str, int]] = None,
     price: Optional[float] = None,
 ) -> None:
     display_lines: list[str] = []
     if status:
-        display_lines.append(f"Status: {status.capitalize()}")
+        display_lines.append(f"Status: {status.capitalize() if isinstance(status, str) else status}")
     if price is not None:
         display_lines.append(f"Price: ${float(price):,.4f}")
     if text is not None:
@@ -430,7 +430,7 @@ def _display_text(
 
 def _display_time_progress(
     node_cls: type[IO.ComfyNode],
-    label: str,
+    status: Optional[Union[str, int]],
     elapsed_seconds: int,
     estimated_total: Optional[int] = None,
     *,
@@ -444,7 +444,7 @@ def _display_time_progress(
         time_line = f"Time elapsed: {int(elapsed_seconds)}s (~{remaining}s remaining)"
     else:
         time_line = f"Time elapsed: {int(elapsed_seconds)}s"
-    _display_text(node_cls, time_line, status=label, price=price)
+    _display_text(node_cls, time_line, status=status, price=price)
 
 
 async def _diagnose_connectivity() -> dict[str, bool]:
@@ -640,7 +640,7 @@ async def _request_base(cfg: _RequestConfig, expect_binary: bool):
                             with contextlib.suppress(Exception):
                                 file_value.seek(0)
                         form.add_field(field_name, file_value, filename=filename, content_type=content_type)
-                payload_kw["data"] = form  # do not send body on GET
+                payload_kw["data"] = form
             elif cfg.content_type == "application/x-www-form-urlencoded" and method != "GET":
                 payload_headers["Content-Type"] = "application/x-www-form-urlencoded"
                 payload_kw["data"] = cfg.data or {}
@@ -660,7 +660,6 @@ async def _request_base(cfg: _RequestConfig, expect_binary: bool):
             except Exception as _log_e:
                 logging.debug("[DEBUG] request logging failed: %s", _log_e)
 
-            # Compose the HTTP request coroutine
             req_coro = sess.request(method, url, params=params, **payload_kw)
             req_task = asyncio.create_task(req_coro)
 
@@ -684,7 +683,6 @@ async def _request_base(cfg: _RequestConfig, expect_binary: bool):
                         body = await resp.json()
                     except (ContentTypeError, json.JSONDecodeError):
                         body = await resp.text()
-                    # Retryable?
                     if resp.status in _RETRY_STATUS and attempt <= cfg.max_retries:
                         logging.warning(
                             "HTTP %s %s -> %s. Retrying in %.2fs (retry %d of %d).",
@@ -733,9 +731,7 @@ async def _request_base(cfg: _RequestConfig, expect_binary: bool):
                         logging.debug("[DEBUG] response logging failed: %s", _log_e)
                     raise Exception(msg)
 
-                # Success
                 if expect_binary:
-                    # Read stream in chunks so that cancellation is fast when user interrupts
                     buff = bytearray()
                     last_tick = time.monotonic()
                     async for chunk in resp.content.iter_chunked(64 * 1024):
@@ -794,7 +790,6 @@ async def _request_base(cfg: _RequestConfig, expect_binary: bool):
             logging.debug("Polling was interrupted by user")
             raise
         except (ClientError, asyncio.TimeoutError, socket.gaierror) as e:
-            # Retry transient connection issues
             if attempt <= cfg.max_retries:
                 logging.warning(
                     "Connection error calling %s %s. Retrying in %.2fs (%d/%d): %s",
@@ -873,7 +868,7 @@ async def _request_base(cfg: _RequestConfig, expect_binary: bool):
             if operation_succeeded and cfg.monitor_progress and cfg.final_label_on_success:
                 _display_time_progress(
                     cfg.node_cls,
-                    label=cfg.final_label_on_success,
+                    status=cfg.final_label_on_success,
                     elapsed_seconds=(
                         final_elapsed_seconds
                         if final_elapsed_seconds is not None
@@ -926,3 +921,20 @@ def _wrap_model_extractor(
             raise
 
     return _wrapped
+
+
+def _normalize_statuses(values: Optional[Iterable[Union[str, int]]]) -> set[Union[str, int]]:
+    if not values:
+        return set()
+    out: set[Union[str, int]] = set()
+    for v in values:
+        nv = _normalize_status_value(v)
+        if nv is not None:
+            out.add(nv)
+    return out
+
+
+def _normalize_status_value(val: Union[str, int, None]) -> Union[str, int, None]:
+    if isinstance(val, str):
+        return val.strip().lower()
+    return val

@@ -11,9 +11,7 @@ import aiohttp
 import torch
 from pydantic import BaseModel, Field
 
-from comfy_api.input.basic_types import AudioInput
-from comfy_api.input.video_types import VideoInput
-from comfy_api.latest import IO
+from comfy_api.latest import IO, Input
 from comfy_api.util import VideoCodec, VideoContainer
 from comfy_api_nodes.apis import request_logger
 
@@ -72,7 +70,7 @@ async def upload_images_to_comfyapi(
 
 async def upload_audio_to_comfyapi(
     cls: type[IO.ComfyNode],
-    audio: AudioInput,
+    audio: Input.Audio,
     *,
     container_format: str = "mp4",
     codec_name: str = "aac",
@@ -92,7 +90,7 @@ async def upload_audio_to_comfyapi(
 
 async def upload_video_to_comfyapi(
     cls: type[IO.ComfyNode],
-    video: VideoInput,
+    video: Input.Video,
     *,
     container: VideoContainer = VideoContainer.MP4,
     codec: VideoCodec = VideoCodec.H264,
@@ -104,8 +102,8 @@ async def upload_video_to_comfyapi(
     """
     if max_duration is not None:
         try:
-            actual_duration = video.duration_seconds
-            if actual_duration is not None and actual_duration > max_duration:
+            actual_duration = video.get_duration()
+            if actual_duration > max_duration:
                 raise ValueError(
                     f"Video duration ({actual_duration:.2f}s) exceeds the maximum allowed ({max_duration}s)."
                 )
@@ -244,7 +242,11 @@ async def upload_file(
                 req_task.cancel()
                 raise ProcessingInterrupted("Upload cancelled")
 
-            resp = await req_task
+            try:
+                resp = await req_task
+            except asyncio.CancelledError:
+                raise ProcessingInterrupted("Upload cancelled") from None
+
             async with resp:
                 if resp.status >= 400:
                     with contextlib.suppress(Exception):
@@ -286,6 +288,8 @@ async def upload_file(
                 except Exception as e:
                     logging.debug("[DEBUG] upload response logging failed: %s", e)
                 return
+        except asyncio.CancelledError:
+            raise ProcessingInterrupted("Task cancelled") from None
         except (aiohttp.ClientError, asyncio.TimeoutError) as e:
             if attempt <= max_retries:
                 with contextlib.suppress(Exception):
