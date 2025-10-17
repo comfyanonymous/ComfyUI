@@ -297,7 +297,7 @@ class TestDynamicDependencyCycle:
         mix1 = g.node("TestLazyMixImages", image1=input1, mask=mask.out(0))
         mix2 = g.node("TestLazyMixImages", image1=mix1.out(0), image2=input2, mask=mask.out(0))
 
-        # Create the cyle
+        # Create the cycle
         mix1.set_input("image2", mix2.out(0))
 
         return {
