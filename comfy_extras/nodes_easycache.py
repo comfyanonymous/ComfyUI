@@ -244,6 +244,8 @@ class EasyCacheHolder:
             self.total_steps_skipped += 1
         batch_offset = x.shape[0] // len(uuids)
         for i, uuid in enumerate(uuids):
+            # slice out only what is relevant to this cond
+            batch_slice = [slice(i*batch_offset,(i+1)*batch_offset)]
             # if cached dims don't match x dims, cut off excess and hope for the best (cosmos world2video)
             if x.shape[1:] != self.uuid_cache_diffs[uuid].shape[1:]:
                 if not self.allow_mismatch:
@@ -261,9 +263,8 @@ class EasyCacheHolder:
                             slicing.append(slice(None, dim_u))
                     else:
                         slicing.append(slice(None))
-                slicing = [slice(i*batch_offset,(i+1)*batch_offset)] + slicing
-                x = x[slicing]
-            x += self.uuid_cache_diffs[uuid].to(x.device)
+                batch_slice = batch_slice + slicing
+            x[batch_slice] += self.uuid_cache_diffs[uuid].to(x.device)
         return x
 
     def update_cache_diff(self, output: torch.Tensor, x: torch.Tensor, uuids: list[UUID]):
