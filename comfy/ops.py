@@ -25,6 +25,9 @@ import comfy.rmsnorm
 import contextlib
 
 def run_every_op():
+    if torch.compiler.is_compiling():
+        return
+
     comfy.model_management.throw_exception_if_processing_interrupted()
 
 def scaled_dot_product_attention(q, k, v, *args, **kwargs):
