@@ -197,7 +197,7 @@ comfy install
 
 ## Manual Install (Windows, Linux)
 
-Python 3.14 will work if you comment out the `kornia` dependency in the requirements.txt file (breaks the canny node) and install pytorch nightly but it is not recommended.
+Python 3.14 will work if you comment out the `kornia` dependency in the requirements.txt file (breaks the canny node) but it is not recommended.
 
 Python 3.13 is very well supported. If you have trouble with some custom node dependencies on 3.13 you can try 3.12
 
