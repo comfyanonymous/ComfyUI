@@ -153,8 +153,9 @@ class TopologicalSort:
                         continue
                     _, _, input_info = self.get_input_info(unique_id, input_name)
                     is_lazy = input_info is not None and "lazy" in input_info and input_info["lazy"]
-                    if (include_lazy or not is_lazy) and not self.is_cached(from_node_id):
-                        node_ids.append(from_node_id)
+                    if (include_lazy or not is_lazy):
+                        if not self.is_cached(from_node_id):
+                            node_ids.append(from_node_id)
                         links.append((from_node_id, from_socket, unique_id))
 
         for link in links:
@@ -194,9 +195,33 @@ class ExecutionList(TopologicalSort):
         super().__init__(dynprompt)
         self.output_cache = output_cache
         self.staged_node_id = None
+        self.execution_cache = {}
+        self.execution_cache_listeners = {}
 
     def is_cached(self, node_id):
         return self.output_cache.get(node_id) is not None
+
+    def cache_link(self, from_node_id, to_node_id):
+        if not to_node_id in self.execution_cache:
+            self.execution_cache[to_node_id] = {}
+        self.execution_cache[to_node_id][from_node_id] = self.output_cache.get(from_node_id)
+        if not from_node_id in self.execution_cache_listeners:
+            self.execution_cache_listeners[from_node_id] = set()
+        self.execution_cache_listeners[from_node_id].add(to_node_id)
+
+    def get_output_cache(self, from_node_id, to_node_id):
+        if not to_node_id in self.execution_cache:
+            return None
+        return self.execution_cache[to_node_id].get(from_node_id)
+
+    def cache_update(self, node_id, value):
+        if node_id in self.execution_cache_listeners:
+            for to_node_id in self.execution_cache_listeners[node_id]:
+                self.execution_cache[to_node_id][node_id] = value
+
+    def add_strong_link(self, from_node_id, from_socket, to_node_id):
+        super().add_strong_link(from_node_id, from_socket, to_node_id)
+        self.cache_link(from_node_id, to_node_id)
 
     async def stage_node_execution(self):
         assert self.staged_node_id is None
@@ -277,6 +302,8 @@ class ExecutionList(TopologicalSort):
     def complete_node_execution(self):
         node_id = self.staged_node_id
         self.pop_node(node_id)
+        self.execution_cache.pop(node_id, None)
+        self.execution_cache_listeners.pop(node_id, None)
         self.staged_node_id = None
 
     def get_nodes_in_cycle(self):
