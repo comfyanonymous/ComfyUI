@@ -305,6 +305,8 @@ class BaseModel(torch.nn.Module):
         logging.info(f"load model {self.model_config} weights process end")
         # TODO(sf): to mmap
         # diffusion_model is UNetModel
+        import pdb; pdb.set_trace()
+        # TODO(sf): here needs to avoid load mmap into cpu mem
         m, u = self.diffusion_model.load_state_dict(to_load, strict=False)
         free_cpu_memory = get_free_memory(torch.device("cpu"))
         logging.info(f"load model {self.model_config} weights end, free cpu memory size {free_cpu_memory/(1024*1024*1024)} GB")

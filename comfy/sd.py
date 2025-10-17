@@ -1338,6 +1338,7 @@ def load_diffusion_model_state_dict(sd, model_options={}):
         model_config.optimizations["fp8"] = True
 
     model = model_config.get_model(new_sd, "")
+    import pdb; pdb.set_trace()
     model = model.to(offload_device)
     model.load_model_weights(new_sd, "")
     left_over = sd.keys()
@@ -1347,10 +1348,13 @@ def load_diffusion_model_state_dict(sd, model_options={}):
 
 
 def load_diffusion_model(unet_path, model_options={}):
+    # TODO(sf): here load file into mem
     sd = comfy.utils.load_torch_file(unet_path)
     logging.info(f"load model start, path {unet_path}")
+    import pdb; pdb.set_trace()
     model = load_diffusion_model_state_dict(sd, model_options=model_options)
     logging.info(f"load model end, path {unet_path}")
+    import pdb; pdb.set_trace()
     if model is None:
         logging.error("ERROR UNSUPPORTED DIFFUSION MODEL {}".format(unet_path))
         raise RuntimeError("ERROR: Could not detect model type of: {}\n{}".format(unet_path, model_detection_error_hint(unet_path, sd)))
