@@ -70,6 +70,7 @@ if torch.cuda.is_available() and torch.backends.cudnn.is_available() and Perform
 def cast_to_input(weight, input, non_blocking=False, copy=True):
     return comfy.model_management.cast_to(weight, input.dtype, input.device, non_blocking=non_blocking, copy=copy)
 
+@torch.compiler.disable()
 def cast_bias_weight(s, input=None, dtype=None, device=None, bias_dtype=None):
     if input is not None:
         if dtype is None:
