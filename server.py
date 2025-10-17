@@ -48,6 +48,28 @@ async def send_socket_catch_exception(function, message):
     except (aiohttp.ClientError, aiohttp.ClientPayloadError, ConnectionResetError, BrokenPipeError, ConnectionError) as err:
         logging.warning("send error: {}".format(err))
 
+# Track deprecated paths that have been warned about to only warn once per file
+_deprecated_paths_warned = set()
+
+@web.middleware
+async def deprecation_warning(request: web.Request, handler):
+    """Middleware to warn about deprecated frontend API paths"""
+    path = request.path
+
+    if (path.startswith('/scripts/') or path.startswith('/extensions/core/')):
+        # Only warn once per unique file path
+        if path not in _deprecated_paths_warned:
+            _deprecated_paths_warned.add(path)
+            logging.warning(
+                f"[DEPRECATION WARNING] Detected import of deprecated legacy API: {path}. "
+                f"This is likely caused by a custom node extension using outdated APIs. "
+                f"Please update your extensions or contact the extension author for an updated version."
+            )
+
+    response: web.Response = await handler(request)
+    return response
+
+
 @web.middleware
 async def compress_body(request: web.Request, handler):
     accept_encoding = request.headers.get("Accept-Encoding", "")
@@ -159,7 +181,7 @@ class PromptServer():
         self.client_session:Optional[aiohttp.ClientSession] = None
         self.number = 0
 
-        middlewares = [cache_control]
+        middlewares = [cache_control, deprecation_warning]
         if args.enable_compress_response_body:
             middlewares.append(compress_body)
 
