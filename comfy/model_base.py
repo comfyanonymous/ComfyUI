@@ -303,6 +303,8 @@ class BaseModel(torch.nn.Module):
         logging.info(f"model destination device {next(self.diffusion_model.parameters()).device}")
         to_load = self.model_config.process_unet_state_dict(to_load)
         logging.info(f"load model {self.model_config} weights process end")
+        # TODO(sf): to mmap
+        # diffusion_model is UNetModel
         m, u = self.diffusion_model.load_state_dict(to_load, strict=False)
         free_cpu_memory = get_free_memory(torch.device("cpu"))
         logging.info(f"load model {self.model_config} weights end, free cpu memory size {free_cpu_memory/(1024*1024*1024)} GB")
@@ -384,6 +386,21 @@ class BaseModel(torch.nn.Module):
             #TODO: this formula might be too aggressive since I tweaked the sub-quad and split algorithms to use less memory.
             area = sum(map(lambda input_shape: input_shape[0] * math.prod(input_shape[2:]), input_shapes))
             return (area * 0.15 * self.memory_usage_factor) * (1024 * 1024)
+    
+    def to(self, *args, **kwargs):
+        """Override to() to add custom device management logic"""
+        old_device = self.device if hasattr(self, 'device') else None
+        
+        result = super().to(*args, **kwargs)
+        
+        if len(args) > 0:
+            if isinstance(args[0], (torch.device, str)):
+                new_device = torch.device(args[0]) if isinstance(args[0], str) else args[0]
+        if 'device' in kwargs:
+            new_device = kwargs['device']
+        
+        logging.info(f"BaseModel moved from {old_device} to {new_device}")
+        return result
 
     def extra_conds_shapes(self, **kwargs):
         return {}

@@ -486,6 +486,7 @@ class ModelPatcher:
                 return comfy.utils.get_attr(self.model, name)
 
     def model_patches_to(self, device):
+        # TODO(sf): to mmap
         to = self.model_options["transformer_options"]
         if "patches" in to:
             patches = to["patches"]
@@ -783,6 +784,8 @@ class ModelPatcher:
             self.backup.clear()
 
             if device_to is not None:
+                # TODO(sf): to mmap
+                # self.model is what module?
                 self.model.to(device_to)
                 self.model.device = device_to
             self.model.model_loaded_weight_memory = 0
@@ -837,6 +840,8 @@ class ModelPatcher:
                     bias_key = "{}.bias".format(n)
                     if move_weight:
                         cast_weight = self.force_cast_weights
+                        # TODO(sf): to mmap
+                        # m is what module?
                         m.to(device_to)
                         module_mem += move_weight_functions(m, device_to)
                         if lowvram_possible:

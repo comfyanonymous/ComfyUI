@@ -911,3 +911,15 @@ class UNetModel(nn.Module):
             return self.id_predictor(h)
         else:
             return self.out(h)
+    
+
+    def load_state_dict(self, state_dict, strict=True):
+        """Override load_state_dict() to add logging"""
+        logging.info(f"UNetModel load_state_dict start, strict={strict}, state_dict keys count={len(state_dict)}")
+        
+        # Call parent's load_state_dict method
+        result = super().load_state_dict(state_dict, strict=strict)
+        
+        logging.info(f"UNetModel load_state_dict end, strict={strict}, state_dict keys count={len(state_dict)}")
+        
+        return result
