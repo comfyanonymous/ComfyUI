@@ -83,6 +83,12 @@ class ComfyExtension(ABC):
         This should be used to initialize any global resources neeeded by the extension.
         """
 
+    async def get_subgraphs_dir(self) -> str | None:
+        """
+        Returns the directory containing the published subgraphs for this extension.
+        """
+        return None
+
     @abstractmethod
     async def get_node_list(self) -> list[type[io.ComfyNode]]:
         """
