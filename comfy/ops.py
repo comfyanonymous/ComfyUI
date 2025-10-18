@@ -68,7 +68,10 @@ except:
 cast_to = comfy.model_management.cast_to #TODO: remove once no more references
 
 if torch.cuda.is_available() and torch.backends.cudnn.is_available() and PerformanceFeature.AutoTune in args.fast:
-    torch.backends.cudnn.benchmark = True
+    import sys
+    # Skip CUDNN benchmark on Python 3.12 due to VRAM allocation issues with model wrappers
+    if sys.version_info[:2] != (3, 12):
+        torch.backends.cudnn.benchmark = True
 
 def cast_to_input(weight, input, non_blocking=False, copy=True):
     return comfy.model_management.cast_to(weight, input.dtype, input.device, non_blocking=non_blocking, copy=copy)
