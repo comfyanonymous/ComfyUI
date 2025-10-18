@@ -43,13 +43,11 @@ from comfy_api_nodes.apis.client import (
 )
 
 from comfy_api_nodes.apinode_utils import (
-    downscale_image_tensor,
     validate_and_cast_response,
-    validate_string,
-    tensor_to_base64_string,
     text_filepath_to_data_uri,
 )
 from comfy_api_nodes.mapper_utils import model_field_to_node_input
+from comfy_api_nodes.util import downscale_image_tensor, validate_string, tensor_to_base64_string
 
 
 RESPONSES_ENDPOINT = "/proxy/openai/v1/responses"

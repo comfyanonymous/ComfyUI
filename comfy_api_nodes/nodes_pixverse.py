@@ -24,10 +24,7 @@ from comfy_api_nodes.apis.client import (
     PollingOperation,
     EmptyRequest,
 )
-from comfy_api_nodes.apinode_utils import (
-    tensor_to_bytesio,
-    validate_string,
-)
+from comfy_api_nodes.util import validate_string, tensor_to_bytesio
 from comfy_api.input_impl import VideoFromFile
 from comfy_api.latest import ComfyExtension, IO
 
@@ -50,7 +47,6 @@ def get_video_url_from_response(
 
 async def upload_image_to_pixverse(image: torch.Tensor, auth_kwargs=None):
     # first, upload image to Pixverse and get image id to use in actual generation call
-    files = {"image": tensor_to_bytesio(image)}
     operation = SynchronousOperation(
         endpoint=ApiEndpoint(
             path="/proxy/pixverse/image/upload",
@@ -59,16 +55,14 @@ async def upload_image_to_pixverse(image: torch.Tensor, auth_kwargs=None):
             response_model=PixverseImageUploadResponse,
         ),
         request=EmptyRequest(),
-        files=files,
+        files={"image": tensor_to_bytesio(image)},
         content_type="multipart/form-data",
         auth_kwargs=auth_kwargs,
     )
     response_upload: PixverseImageUploadResponse = await operation.execute()
 
     if response_upload.Resp is None:
-        raise Exception(
-            f"PixVerse image upload request failed: '{response_upload.ErrMsg}'"
-        )
+        raise Exception(f"PixVerse image upload request failed: '{response_upload.ErrMsg}'")
 
     return response_upload.Resp.img_id
 
@@ -95,7 +89,6 @@ class PixverseTemplateNode(IO.ComfyNode):
         template_id = pixverse_templates.get(template, None)
         if template_id is None:
             raise Exception(f"Template '{template}' is not recognized.")
-        # just return the integer
         return IO.NodeOutput(template_id)
 
 

@@ -21,12 +21,11 @@ from comfy_api_nodes.apis.client import (
     SynchronousOperation,
 )
 from comfy_api_nodes.apinode_utils import (
-    downscale_image_tensor,
     validate_aspect_ratio,
     process_image_response,
     resize_mask_to_image,
-    validate_string,
 )
+from comfy_api_nodes.util import validate_string, downscale_image_tensor
 
 import numpy as np
 from PIL import Image

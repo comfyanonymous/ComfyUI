@@ -14,11 +14,6 @@ import torch
 from typing_extensions import override
 from comfy_api.latest import ComfyExtension, IO
 from comfy_api.input_impl.video_types import VideoCodec, VideoContainer, VideoInput
-from comfy_api_nodes.apinode_utils import (
-    download_url_to_video_output,
-    tensor_to_bytesio,
-    validate_string,
-)
 from comfy_api_nodes.apis import pika_defs
 from comfy_api_nodes.apis.client import (
     ApiEndpoint,
@@ -27,6 +22,7 @@ from comfy_api_nodes.apis.client import (
     PollingOperation,
     SynchronousOperation,
 )
+from comfy_api_nodes.util import validate_string, download_url_to_video_output, tensor_to_bytesio
 
 R = TypeVar("R")
 

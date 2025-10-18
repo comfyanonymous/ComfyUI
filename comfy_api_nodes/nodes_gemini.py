@@ -33,12 +33,9 @@ from comfy_api_nodes.apis.client import (
     SynchronousOperation,
 )
 from comfy_api_nodes.apinode_utils import (
-    validate_string,
-    audio_to_base64_string,
     video_to_base64_string,
-    tensor_to_base64_string,
-    bytesio_to_image_tensor,
 )
+from comfy_api_nodes.util import validate_string, tensor_to_base64_string, bytesio_to_image_tensor, audio_to_base64_string
 from comfy_api.util import VideoContainer, VideoCodec
 
 

@@ -1,27 +1,23 @@
 import logging
 from enum import Enum
-from typing import Any, Callable, Optional, Literal, TypeVar
-from typing_extensions import override
+from typing import Literal, Optional, TypeVar
 
 import torch
 from pydantic import BaseModel, Field
+from typing_extensions import override
 
-from comfy_api.latest import ComfyExtension, IO
-from comfy_api_nodes.util.validation_utils import (
-    validate_aspect_ratio_closeness,
-    validate_image_dimensions,
-    validate_image_aspect_ratio_range,
-    get_number_of_images,
-)
-from comfy_api_nodes.apis.client import (
+from comfy_api.latest import IO, ComfyExtension
+from comfy_api_nodes.util import (
     ApiEndpoint,
-    HttpMethod,
-    SynchronousOperation,
-    PollingOperation,
-    EmptyRequest,
+    download_url_to_video_output,
+    get_number_of_images,
+    poll_op,
+    sync_op,
+    upload_images_to_comfyapi,
+    validate_aspect_ratio_closeness,
+    validate_image_aspect_ratio_range,
+    validate_image_dimensions,
 )
-from comfy_api_nodes.apinode_utils import download_url_to_video_output, upload_images_to_comfyapi
-
 
 VIDU_TEXT_TO_VIDEO = "/proxy/vidu/text2video"
 VIDU_IMAGE_TO_VIDEO = "/proxy/vidu/img2video"
@@ -31,8 +27,9 @@ VIDU_GET_GENERATION_STATUS = "/proxy/vidu/tasks/%s/creations"
 
 R = TypeVar("R")
 
+
 class VideoModelName(str, Enum):
-    vidu_q1 = 'viduq1'
+    vidu_q1 = "viduq1"
 
 
 class AspectRatio(str, Enum):
@@ -63,17 +60,9 @@ class TaskCreationRequest(BaseModel):
     images: Optional[list[str]] = Field(None, description="Base64 encoded string or image URL")
 
 
-class TaskStatus(str, Enum):
-    created = "created"
-    queueing = "queueing"
-    processing = "processing"
-    success = "success"
-    failed = "failed"
-
-
 class TaskCreationResponse(BaseModel):
     task_id: str = Field(...)
-    state: TaskStatus = Field(...)
+    state: str = Field(...)
     created_at: str = Field(...)
     code: Optional[int] = Field(None, description="Error code")
 
@@ -85,30 +74,9 @@ class TaskResult(BaseModel):
 
 
 class TaskStatusResponse(BaseModel):
-    state: TaskStatus = Field(...)
+    state: str = Field(...)
     err_code: Optional[str] = Field(None)
     creations: list[TaskResult] = Field(..., description="Generated results")
-
-
-async def poll_until_finished(
-    auth_kwargs: dict[str, str],
-    api_endpoint: ApiEndpoint[Any, R],
-    result_url_extractor: Optional[Callable[[R], str]] = None,
-    estimated_duration: Optional[int] = None,
-    node_id: Optional[str] = None,
-) -> R:
-    return await PollingOperation(
-        poll_endpoint=api_endpoint,
-        completed_statuses=[TaskStatus.success.value],
-        failed_statuses=[TaskStatus.failed.value],
-        status_extractor=lambda response: response.state.value,
-        auth_kwargs=auth_kwargs,
-        result_url_extractor=result_url_extractor,
-        estimated_duration=estimated_duration,
-        node_id=node_id,
-        poll_interval=16.0,
-        max_poll_attempts=256,
-    ).execute()
 
 
 def get_video_url_from_response(response) -> Optional[str]:
@@ -127,37 +95,27 @@ def get_video_from_response(response) -> TaskResult:
 
 
 async def execute_task(
+    cls: type[IO.ComfyNode],
     vidu_endpoint: str,
-    auth_kwargs: Optional[dict[str, str]],
     payload: TaskCreationRequest,
     estimated_duration: int,
-    node_id: str,
 ) -> R:
-    response = await SynchronousOperation(
-        endpoint=ApiEndpoint(
-            path=vidu_endpoint,
-            method=HttpMethod.POST,
-            request_model=TaskCreationRequest,
-            response_model=TaskCreationResponse,
-        ),
-        request=payload,
-        auth_kwargs=auth_kwargs,
-    ).execute()
-    if response.state == TaskStatus.failed:
+    response = await sync_op(
+        cls,
+        endpoint=ApiEndpoint(path=vidu_endpoint, method="POST"),
+        response_model=TaskCreationResponse,
+        data=payload,
+    )
+    if response.state == "failed":
         error_msg = f"Vidu request failed. Code: {response.code}"
         logging.error(error_msg)
         raise RuntimeError(error_msg)
-    return await poll_until_finished(
-        auth_kwargs,
-        ApiEndpoint(
-            path=VIDU_GET_GENERATION_STATUS % response.task_id,
-            method=HttpMethod.GET,
-            request_model=EmptyRequest,
-            response_model=TaskStatusResponse,
-        ),
-        result_url_extractor=get_video_url_from_response,
+    return await poll_op(
+        cls,
+        ApiEndpoint(path=VIDU_GET_GENERATION_STATUS % response.task_id),
+        response_model=TaskStatusResponse,
+        status_extractor=lambda r: r.state.value,
         estimated_duration=estimated_duration,
-        node_id=node_id,
     )
 
 
@@ -258,11 +216,7 @@ class ViduTextToVideoNode(IO.ComfyNode):
             resolution=resolution,
             movement_amplitude=movement_amplitude,
         )
-        auth = {
-            "auth_token": cls.hidden.auth_token_comfy_org,
-            "comfy_api_key": cls.hidden.api_key_comfy_org,
-        }
-        results = await execute_task(VIDU_TEXT_TO_VIDEO, auth, payload, 320, cls.hidden.unique_id)
+        results = await execute_task(cls, VIDU_TEXT_TO_VIDEO, payload, 320)
         return IO.NodeOutput(await download_url_to_video_output(get_video_from_response(results).url))
 
 
@@ -362,17 +316,13 @@ class ViduImageToVideoNode(IO.ComfyNode):
             resolution=resolution,
             movement_amplitude=movement_amplitude,
         )
-        auth = {
-            "auth_token": cls.hidden.auth_token_comfy_org,
-            "comfy_api_key": cls.hidden.api_key_comfy_org,
-        }
         payload.images = await upload_images_to_comfyapi(
+            cls,
             image,
             max_images=1,
             mime_type="image/png",
-            auth_kwargs=auth,
         )
-        results = await execute_task(VIDU_IMAGE_TO_VIDEO, auth, payload, 120, cls.hidden.unique_id)
+        results = await execute_task(cls, VIDU_IMAGE_TO_VIDEO, payload, 120)
         return IO.NodeOutput(await download_url_to_video_output(get_video_from_response(results).url))
 
 
@@ -484,17 +434,13 @@ class ViduReferenceVideoNode(IO.ComfyNode):
             resolution=resolution,
             movement_amplitude=movement_amplitude,
         )
-        auth = {
-            "auth_token": cls.hidden.auth_token_comfy_org,
-            "comfy_api_key": cls.hidden.api_key_comfy_org,
-        }
         payload.images = await upload_images_to_comfyapi(
+            cls,
             images,
             max_images=7,
             mime_type="image/png",
-            auth_kwargs=auth,
         )
-        results = await execute_task(VIDU_REFERENCE_VIDEO, auth, payload, 120, cls.hidden.unique_id)
+        results = await execute_task(cls, VIDU_REFERENCE_VIDEO, payload, 120)
         return IO.NodeOutput(await download_url_to_video_output(get_video_from_response(results).url))
 
 
@@ -596,15 +542,11 @@ class ViduStartEndToVideoNode(IO.ComfyNode):
             resolution=resolution,
             movement_amplitude=movement_amplitude,
         )
-        auth = {
-            "auth_token": cls.hidden.auth_token_comfy_org,
-            "comfy_api_key": cls.hidden.api_key_comfy_org,
-        }
         payload.images = [
-            (await upload_images_to_comfyapi(frame, max_images=1, mime_type="image/png", auth_kwargs=auth))[0]
+            (await upload_images_to_comfyapi(cls, frame, max_images=1, mime_type="image/png"))[0]
             for frame in (first_frame, end_frame)
         ]
-        results = await execute_task(VIDU_START_END_VIDEO, auth, payload, 96, cls.hidden.unique_id)
+        results = await execute_task(cls, VIDU_START_END_VIDEO, payload, 96)
         return IO.NodeOutput(await download_url_to_video_output(get_video_from_response(results).url))
 
 
@@ -617,6 +559,7 @@ class ViduExtension(ComfyExtension):
             ViduReferenceVideoNode,
             ViduStartEndToVideoNode,
         ]
+
 
 async def comfy_entrypoint() -> ViduExtension:
     return ViduExtension()

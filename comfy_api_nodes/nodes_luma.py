@@ -35,9 +35,9 @@ from comfy_api_nodes.apis.client import (
 from comfy_api_nodes.apinode_utils import (
     upload_images_to_comfyapi,
     process_image_response,
-    validate_string,
 )
 from server import PromptServer
+from comfy_api_nodes.util import validate_string
 
 import aiohttp
 import torch

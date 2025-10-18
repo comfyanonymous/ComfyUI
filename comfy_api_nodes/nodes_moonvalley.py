@@ -1,34 +1,30 @@
 import logging
-from typing import Any, Callable, Optional, TypeVar
+from typing import Optional
+
 import torch
 from typing_extensions import override
-from comfy_api_nodes.util.validation_utils import validate_image_dimensions
 
+from comfy_api.input import VideoInput
+from comfy_api.latest import IO, ComfyExtension
 from comfy_api_nodes.apis import (
-    MoonvalleyTextToVideoRequest,
+    MoonvalleyPromptResponse,
     MoonvalleyTextToVideoInferenceParams,
+    MoonvalleyTextToVideoRequest,
     MoonvalleyVideoToVideoInferenceParams,
     MoonvalleyVideoToVideoRequest,
-    MoonvalleyPromptResponse,
 )
-from comfy_api_nodes.apis.client import (
+from comfy_api_nodes.util import (
     ApiEndpoint,
-    HttpMethod,
-    SynchronousOperation,
-    PollingOperation,
-    EmptyRequest,
-)
-from comfy_api_nodes.apinode_utils import (
     download_url_to_video_output,
+    poll_op,
+    sync_op,
+    trim_video,
     upload_images_to_comfyapi,
     upload_video_to_comfyapi,
     validate_container_format_is_mp4,
+    validate_image_dimensions,
+    validate_string,
 )
-
-from comfy_api.input import VideoInput
-from comfy_api.latest import ComfyExtension, InputImpl, IO
-import av
-import io
 
 API_UPLOADS_ENDPOINT = "/proxy/moonvalley/uploads"
 API_PROMPTS_ENDPOINT = "/proxy/moonvalley/prompts"
@@ -51,13 +47,6 @@ MAX_VID_HEIGHT = 10000
 MAX_VIDEO_SIZE = 1024 * 1024 * 1024  # 1 GB max for in-memory video processing
 
 MOONVALLEY_MAREY_MAX_PROMPT_LENGTH = 5000
-R = TypeVar("R")
-
-
-class MoonvalleyApiError(Exception):
-    """Base exception for Moonvalley API errors."""
-
-    pass
 
 
 def is_valid_task_creation_response(response: MoonvalleyPromptResponse) -> bool:
@@ -69,64 +58,7 @@ def validate_task_creation_response(response) -> None:
     if not is_valid_task_creation_response(response):
         error_msg = f"Moonvalley Marey API: Initial request failed. Code: {response.code}, Message: {response.message}, Data: {response}"
         logging.error(error_msg)
-        raise MoonvalleyApiError(error_msg)
-
-
-def get_video_from_response(response):
-    video = response.output_url
-    logging.info(
-        "Moonvalley Marey API: Task %s succeeded. Video URL: %s", response.id, video
-    )
-    return video
-
-
-def get_video_url_from_response(response) -> Optional[str]:
-    """Returns the first video url from the Moonvalley video generation task result.
-    Will not raise an error if the response is not valid.
-    """
-    if response:
-        return str(get_video_from_response(response))
-    else:
-        return None
-
-
-async def poll_until_finished(
-    auth_kwargs: dict[str, str],
-    api_endpoint: ApiEndpoint[Any, R],
-    result_url_extractor: Optional[Callable[[R], str]] = None,
-    node_id: Optional[str] = None,
-) -> R:
-    """Polls the Moonvalley API endpoint until the task reaches a terminal state, then returns the response."""
-    return await PollingOperation(
-        poll_endpoint=api_endpoint,
-        completed_statuses=[
-            "completed",
-        ],
-        max_poll_attempts=240,  # 64 minutes with 16s interval
-        poll_interval=16.0,
-        failed_statuses=["error"],
-        status_extractor=lambda response: (
-            response.status if response and response.status else None
-        ),
-        auth_kwargs=auth_kwargs,
-        result_url_extractor=result_url_extractor,
-        node_id=node_id,
-    ).execute()
-
-
-def validate_prompts(
-    prompt: str, negative_prompt: str, max_length=MOONVALLEY_MAREY_MAX_PROMPT_LENGTH
-):
-    """Verifies that the prompt isn't empty and that neither prompt is too long."""
-    if not prompt:
-        raise ValueError("Positive prompt is empty")
-    if len(prompt) > max_length:
-        raise ValueError(f"Positive prompt is too long: {len(prompt)} characters")
-    if negative_prompt and len(negative_prompt) > max_length:
-        raise ValueError(
-            f"Negative prompt is too long: {len(negative_prompt)} characters"
-        )
-    return True
+        raise RuntimeError(error_msg)
 
 
 def validate_video_to_video_input(video: VideoInput) -> VideoInput:
@@ -170,12 +102,8 @@ def _validate_video_dimensions(width: int, height: int) -> None:
     }
 
     if (width, height) not in supported_resolutions:
-        supported_list = ", ".join(
-            [f"{w}x{h}" for w, h in sorted(supported_resolutions)]
-        )
-        raise ValueError(
-            f"Resolution {width}x{height} not supported. Supported: {supported_list}"
-        )
+        supported_list = ", ".join([f"{w}x{h}" for w, h in sorted(supported_resolutions)])
+        raise ValueError(f"Resolution {width}x{height} not supported. Supported: {supported_list}")
 
 
 def _validate_and_trim_duration(video: VideoInput) -> VideoInput:
@@ -188,7 +116,7 @@ def _validate_and_trim_duration(video: VideoInput) -> VideoInput:
 def _validate_minimum_duration(duration: float) -> None:
     """Ensures video is at least 5 seconds long."""
     if duration < 5:
-        raise MoonvalleyApiError("Input video must be at least 5 seconds long.")
+        raise ValueError("Input video must be at least 5 seconds long.")
 
 
 def _trim_if_too_long(video: VideoInput, duration: float) -> VideoInput:
@@ -196,123 +124,6 @@ def _trim_if_too_long(video: VideoInput, duration: float) -> VideoInput:
     if duration > 5:
         return trim_video(video, 5)
     return video
-
-
-def trim_video(video: VideoInput, duration_sec: float) -> VideoInput:
-    """
-    Returns a new VideoInput object trimmed from the beginning to the specified duration,
-    using av to avoid loading entire video into memory.
-
-    Args:
-        video: Input video to trim
-        duration_sec: Duration in seconds to keep from the beginning
-
-    Returns:
-        VideoFromFile object that owns the output buffer
-    """
-    output_buffer = io.BytesIO()
-
-    input_container = None
-    output_container = None
-
-    try:
-        # Get the stream source - this avoids loading entire video into memory
-        # when the source is already a file path
-        input_source = video.get_stream_source()
-
-        # Open containers
-        input_container = av.open(input_source, mode="r")
-        output_container = av.open(output_buffer, mode="w", format="mp4")
-
-        # Set up output streams for re-encoding
-        video_stream = None
-        audio_stream = None
-
-        for stream in input_container.streams:
-            logging.info("Found stream: type=%s, class=%s", stream.type, type(stream))
-            if isinstance(stream, av.VideoStream):
-                # Create output video stream with same parameters
-                video_stream = output_container.add_stream(
-                    "h264", rate=stream.average_rate
-                )
-                video_stream.width = stream.width
-                video_stream.height = stream.height
-                video_stream.pix_fmt = "yuv420p"
-                logging.info(
-                    "Added video stream: %sx%s @ %sfps", stream.width, stream.height, stream.average_rate
-                )
-            elif isinstance(stream, av.AudioStream):
-                # Create output audio stream with same parameters
-                audio_stream = output_container.add_stream(
-                    "aac", rate=stream.sample_rate
-                )
-                audio_stream.sample_rate = stream.sample_rate
-                audio_stream.layout = stream.layout
-                logging.info("Added audio stream: %sHz, %s channels", stream.sample_rate, stream.channels)
-
-        # Calculate target frame count that's divisible by 16
-        fps = input_container.streams.video[0].average_rate
-        estimated_frames = int(duration_sec * fps)
-        target_frames = (
-            estimated_frames // 16
-        ) * 16  # Round down to nearest multiple of 16
-
-        if target_frames == 0:
-            raise ValueError("Video too short: need at least 16 frames for Moonvalley")
-
-        frame_count = 0
-        audio_frame_count = 0
-
-        # Decode and re-encode video frames
-        if video_stream:
-            for frame in input_container.decode(video=0):
-                if frame_count >= target_frames:
-                    break
-
-                # Re-encode frame
-                for packet in video_stream.encode(frame):
-                    output_container.mux(packet)
-                frame_count += 1
-
-            # Flush encoder
-            for packet in video_stream.encode():
-                output_container.mux(packet)
-
-            logging.info("Encoded %s video frames (target: %s)", frame_count, target_frames)
-
-        # Decode and re-encode audio frames
-        if audio_stream:
-            input_container.seek(0)  # Reset to beginning for audio
-            for frame in input_container.decode(audio=0):
-                if frame.time >= duration_sec:
-                    break
-
-                # Re-encode frame
-                for packet in audio_stream.encode(frame):
-                    output_container.mux(packet)
-                audio_frame_count += 1
-
-            # Flush encoder
-            for packet in audio_stream.encode():
-                output_container.mux(packet)
-
-            logging.info("Encoded %s audio frames", audio_frame_count)
-
-        # Close containers
-        output_container.close()
-        input_container.close()
-
-        # Return as VideoFromFile using the buffer
-        output_buffer.seek(0)
-        return InputImpl.VideoFromFile(output_buffer)
-
-    except Exception as e:
-        # Clean up on error
-        if input_container is not None:
-            input_container.close()
-        if output_container is not None:
-            output_container.close()
-        raise RuntimeError(f"Failed to trim video: {str(e)}") from e
 
 
 def parse_width_height_from_res(resolution: str):
@@ -338,19 +149,14 @@ def parse_control_parameter(value):
     return control_map.get(value, control_map["Motion Transfer"])
 
 
-async def get_response(
-    task_id: str, auth_kwargs: dict[str, str], node_id: Optional[str] = None
-) -> MoonvalleyPromptResponse:
-    return await poll_until_finished(
-        auth_kwargs,
-        ApiEndpoint(
-            path=f"{API_PROMPTS_ENDPOINT}/{task_id}",
-            method=HttpMethod.GET,
-            request_model=EmptyRequest,
-            response_model=MoonvalleyPromptResponse,
-        ),
-        result_url_extractor=get_video_url_from_response,
-        node_id=node_id,
+async def get_response(cls: type[IO.ComfyNode], task_id: str) -> MoonvalleyPromptResponse:
+    return await poll_op(
+        cls,
+        ApiEndpoint(path=f"{API_PROMPTS_ENDPOINT}/{task_id}"),
+        response_model=MoonvalleyPromptResponse,
+        status_extractor=lambda r: (r.status if r and r.status else None),
+        poll_interval=16.0,
+        max_poll_attempts=240,
     )
 
 
@@ -444,13 +250,9 @@ class MoonvalleyImg2VideoNode(IO.ComfyNode):
         steps: int,
     ) -> IO.NodeOutput:
         validate_image_dimensions(image, min_width=300, min_height=300, max_height=MAX_HEIGHT, max_width=MAX_WIDTH)
-        validate_prompts(prompt, negative_prompt, MOONVALLEY_MAREY_MAX_PROMPT_LENGTH)
+        validate_string(prompt, min_length=1, max_length=MOONVALLEY_MAREY_MAX_PROMPT_LENGTH)
+        validate_string(negative_prompt, field_name="negative_prompt", max_length=MOONVALLEY_MAREY_MAX_PROMPT_LENGTH)
         width_height = parse_width_height_from_res(resolution)
-
-        auth = {
-            "auth_token": cls.hidden.auth_token_comfy_org,
-            "comfy_api_key": cls.hidden.api_key_comfy_org,
-        }
 
         inference_params = MoonvalleyTextToVideoInferenceParams(
             negative_prompt=negative_prompt,
@@ -464,33 +266,17 @@ class MoonvalleyImg2VideoNode(IO.ComfyNode):
 
         # Get MIME type from tensor - assuming PNG format for image tensors
         mime_type = "image/png"
-
-        image_url = (
-            await upload_images_to_comfyapi(
-                image, max_images=1, auth_kwargs=auth, mime_type=mime_type
-            )
-        )[0]
-
-        request = MoonvalleyTextToVideoRequest(
-            image_url=image_url, prompt_text=prompt, inference_params=inference_params
-        )
-        initial_operation = SynchronousOperation(
-            endpoint=ApiEndpoint(
-                path=API_IMG2VIDEO_ENDPOINT,
-                method=HttpMethod.POST,
-                request_model=MoonvalleyTextToVideoRequest,
-                response_model=MoonvalleyPromptResponse,
+        image_url = (await upload_images_to_comfyapi(cls, image, max_images=1, mime_type=mime_type))[0]
+        task_creation_response = await sync_op(
+            cls,
+            endpoint=ApiEndpoint(path=API_IMG2VIDEO_ENDPOINT, method="POST"),
+            response_model=MoonvalleyPromptResponse,
+            data=MoonvalleyTextToVideoRequest(
+                image_url=image_url, prompt_text=prompt, inference_params=inference_params
             ),
-            request=request,
-            auth_kwargs=auth,
         )
-        task_creation_response = await initial_operation.execute()
         validate_task_creation_response(task_creation_response)
-        task_id = task_creation_response.id
-
-        final_response = await get_response(
-            task_id, auth_kwargs=auth, node_id=cls.hidden.unique_id
-        )
+        final_response = await get_response(cls, task_creation_response.id)
         video = await download_url_to_video_output(final_response.output_url)
         return IO.NodeOutput(video)
 
@@ -582,15 +368,10 @@ class MoonvalleyVideo2VideoNode(IO.ComfyNode):
         steps=33,
         prompt_adherence=4.5,
     ) -> IO.NodeOutput:
-        auth = {
-            "auth_token": cls.hidden.auth_token_comfy_org,
-            "comfy_api_key": cls.hidden.api_key_comfy_org,
-        }
-
         validated_video = validate_video_to_video_input(video)
-        video_url = await upload_video_to_comfyapi(validated_video, auth_kwargs=auth)
-
-        validate_prompts(prompt, negative_prompt)
+        video_url = await upload_video_to_comfyapi(cls, validated_video)
+        validate_string(prompt, min_length=1, max_length=MOONVALLEY_MAREY_MAX_PROMPT_LENGTH)
+        validate_string(negative_prompt, field_name="negative_prompt", max_length=MOONVALLEY_MAREY_MAX_PROMPT_LENGTH)
 
         # Only include motion_intensity for Motion Transfer
         control_params = {}
@@ -605,35 +386,20 @@ class MoonvalleyVideo2VideoNode(IO.ComfyNode):
             guidance_scale=prompt_adherence,
         )
 
-        control = parse_control_parameter(control_type)
-
-        request = MoonvalleyVideoToVideoRequest(
-            control_type=control,
-            video_url=video_url,
-            prompt_text=prompt,
-            inference_params=inference_params,
-        )
-
-        initial_operation = SynchronousOperation(
-            endpoint=ApiEndpoint(
-                path=API_VIDEO2VIDEO_ENDPOINT,
-                method=HttpMethod.POST,
-                request_model=MoonvalleyVideoToVideoRequest,
-                response_model=MoonvalleyPromptResponse,
+        task_creation_response = await sync_op(
+            cls,
+            endpoint=ApiEndpoint(path=API_VIDEO2VIDEO_ENDPOINT, method="POST"),
+            response_model=MoonvalleyPromptResponse,
+            data=MoonvalleyVideoToVideoRequest(
+                control_type=parse_control_parameter(control_type),
+                video_url=video_url,
+                prompt_text=prompt,
+                inference_params=inference_params,
             ),
-            request=request,
-            auth_kwargs=auth,
         )
-        task_creation_response = await initial_operation.execute()
         validate_task_creation_response(task_creation_response)
-        task_id = task_creation_response.id
-
-        final_response = await get_response(
-            task_id, auth_kwargs=auth, node_id=cls.hidden.unique_id
-        )
-
-        video = await download_url_to_video_output(final_response.output_url)
-        return IO.NodeOutput(video)
+        final_response = await get_response(cls, task_creation_response.id)
+        return IO.NodeOutput(await download_url_to_video_output(final_response.output_url))
 
 
 class MoonvalleyTxt2VideoNode(IO.ComfyNode):
@@ -720,13 +486,9 @@ class MoonvalleyTxt2VideoNode(IO.ComfyNode):
         seed: int,
         steps: int,
     ) -> IO.NodeOutput:
-        validate_prompts(prompt, negative_prompt, MOONVALLEY_MAREY_MAX_PROMPT_LENGTH)
+        validate_string(prompt, min_length=1, max_length=MOONVALLEY_MAREY_MAX_PROMPT_LENGTH)
+        validate_string(negative_prompt, field_name="negative_prompt", max_length=MOONVALLEY_MAREY_MAX_PROMPT_LENGTH)
         width_height = parse_width_height_from_res(resolution)
-
-        auth = {
-            "auth_token": cls.hidden.auth_token_comfy_org,
-            "comfy_api_key": cls.hidden.api_key_comfy_org,
-        }
 
         inference_params = MoonvalleyTextToVideoInferenceParams(
             negative_prompt=negative_prompt,
@@ -737,30 +499,16 @@ class MoonvalleyTxt2VideoNode(IO.ComfyNode):
             width=width_height["width"],
             height=width_height["height"],
         )
-        request = MoonvalleyTextToVideoRequest(
-            prompt_text=prompt, inference_params=inference_params
-        )
 
-        init_op = SynchronousOperation(
-            endpoint=ApiEndpoint(
-                path=API_TXT2VIDEO_ENDPOINT,
-                method=HttpMethod.POST,
-                request_model=MoonvalleyTextToVideoRequest,
-                response_model=MoonvalleyPromptResponse,
-            ),
-            request=request,
-            auth_kwargs=auth,
+        task_creation_response = await sync_op(
+            cls,
+            endpoint=ApiEndpoint(path=API_TXT2VIDEO_ENDPOINT, method="POST"),
+            response_model=MoonvalleyPromptResponse,
+            data=MoonvalleyTextToVideoRequest(prompt_text=prompt, inference_params=inference_params),
         )
-        task_creation_response = await init_op.execute()
         validate_task_creation_response(task_creation_response)
-        task_id = task_creation_response.id
-
-        final_response = await get_response(
-            task_id, auth_kwargs=auth, node_id=cls.hidden.unique_id
-        )
-
-        video = await download_url_to_video_output(final_response.output_url)
-        return IO.NodeOutput(video)
+        final_response = await get_response(cls, task_creation_response.id)
+        return IO.NodeOutput(await download_url_to_video_output(final_response.output_url))
 
 
 class MoonvalleyExtension(ComfyExtension):
