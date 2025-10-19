@@ -56,7 +56,7 @@ async def deprecation_warning(request: web.Request, handler):
     """Middleware to warn about deprecated frontend API paths"""
     path = request.path
 
-    if (path.startswith('/scripts/') or path.startswith('/extensions/core/')):
+    if path.startswith("/scripts/ui") or path.startswith("/extensions/core/"):
         # Only warn once per unique file path
         if path not in _deprecated_paths_warned:
             _deprecated_paths_warned.add(path)
