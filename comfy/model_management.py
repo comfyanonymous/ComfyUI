@@ -371,6 +371,9 @@ try:
 except:
     pass
 
+if torch.cuda.is_available() and torch.backends.cudnn.is_available() and PerformanceFeature.AutoTune in args.fast:
+    torch.backends.cudnn.benchmark = True
+
 try:
     if torch_version_numeric >= (2, 5):
         torch.backends.cuda.allow_fp16_bf16_reduction_math_sdp(True)
