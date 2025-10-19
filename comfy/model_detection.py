@@ -213,7 +213,7 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
                 dit_config["nerf_mlp_ratio"] = 4
                 dit_config["nerf_depth"] = 4
                 dit_config["nerf_max_freqs"] = 8
-                dit_config["nerf_tile_size"] = 32
+                dit_config["nerf_tile_size"] = 512
                 dit_config["nerf_final_head_type"] = "conv" if f"{key_prefix}nerf_final_layer_conv.norm.scale" in state_dict_keys else "linear"
                 dit_config["nerf_embedder_dtype"] = torch.float32
         else:
