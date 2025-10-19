@@ -87,10 +87,15 @@ class TextEncodeQwenImageEditPlus(io.ComfyNode):
                 s = comfy.utils.common_upscale(samples, width, height, "area", "disabled")
                 images_vl.append(s.movedim(1, -1))
                 if vae is not None:
+                    # compute optimal scale factor to get as close to 1024x1024 as possible while keeping dimensions multiples of 8
                     total = int(1024 * 1024)
-                    scale_by = math.sqrt(total / (samples.shape[3] * samples.shape[2]))
-                    width = round(samples.shape[3] * scale_by / 8.0) * 8
-                    height = round(samples.shape[2] * scale_by / 8.0) * 8
+                    s_ideal = math.sqrt(total / (samples.shape[3] * samples.shape[2]))
+                    common_divisor = math.gcd(samples.shape[3], samples.shape[2])
+                    p = samples.shape[3] // common_divisor
+                    lcm = abs(p * 8) // math.gcd(p, 8)
+                    s_optimal = (round(s_ideal * samples.shape[3] / lcm) * lcm) / samples.shape[3]
+                    width = int(s_optimal * samples.shape[3])
+                    height = int(s_optimal * samples.shape[2])
 
                     s = comfy.utils.common_upscale(samples, width, height, "area", "disabled")
                     ref_latents.append(vae.encode(s.movedim(1, -1)[:, :, :, :3]))
