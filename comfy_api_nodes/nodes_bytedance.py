@@ -7,7 +7,7 @@ from typing_extensions import override
 import torch
 from pydantic import BaseModel, Field
 
-from comfy_api.latest import ComfyExtension, io as comfy_io
+from comfy_api.latest import ComfyExtension, IO
 from comfy_api_nodes.util.validation_utils import (
     validate_image_aspect_ratio_range,
     get_number_of_images,
@@ -237,33 +237,33 @@ async def poll_until_finished(
     ).execute()
 
 
-class ByteDanceImageNode(comfy_io.ComfyNode):
+class ByteDanceImageNode(IO.ComfyNode):
 
     @classmethod
     def define_schema(cls):
-        return comfy_io.Schema(
+        return IO.Schema(
             node_id="ByteDanceImageNode",
             display_name="ByteDance Image",
             category="api node/image/ByteDance",
             description="Generate images using ByteDance models via api based on prompt",
             inputs=[
-                comfy_io.Combo.Input(
+                IO.Combo.Input(
                     "model",
                     options=Text2ImageModelName,
                     default=Text2ImageModelName.seedream_3,
                     tooltip="Model name",
                 ),
-                comfy_io.String.Input(
+                IO.String.Input(
                     "prompt",
                     multiline=True,
                     tooltip="The text prompt used to generate the image",
                 ),
-                comfy_io.Combo.Input(
+                IO.Combo.Input(
                     "size_preset",
                     options=[label for label, _, _ in RECOMMENDED_PRESETS],
                     tooltip="Pick a recommended size. Select Custom to use the width and height below",
                 ),
-                comfy_io.Int.Input(
+                IO.Int.Input(
                     "width",
                     default=1024,
                     min=512,
@@ -271,7 +271,7 @@ class ByteDanceImageNode(comfy_io.ComfyNode):
                     step=64,
                     tooltip="Custom width for image. Value is working only if `size_preset` is set to `Custom`",
                 ),
-                comfy_io.Int.Input(
+                IO.Int.Input(
                     "height",
                     default=1024,
                     min=512,
@@ -279,28 +279,28 @@ class ByteDanceImageNode(comfy_io.ComfyNode):
                     step=64,
                     tooltip="Custom height for image. Value is working only if `size_preset` is set to `Custom`",
                 ),
-                comfy_io.Int.Input(
+                IO.Int.Input(
                     "seed",
                     default=0,
                     min=0,
                     max=2147483647,
                     step=1,
-                    display_mode=comfy_io.NumberDisplay.number,
+                    display_mode=IO.NumberDisplay.number,
                     control_after_generate=True,
                     tooltip="Seed to use for generation",
                     optional=True,
                 ),
-                comfy_io.Float.Input(
+                IO.Float.Input(
                     "guidance_scale",
                     default=2.5,
                     min=1.0,
                     max=10.0,
                     step=0.01,
-                    display_mode=comfy_io.NumberDisplay.number,
+                    display_mode=IO.NumberDisplay.number,
                     tooltip="Higher value makes the image follow the prompt more closely",
                     optional=True,
                 ),
-                comfy_io.Boolean.Input(
+                IO.Boolean.Input(
                     "watermark",
                     default=True,
                     tooltip="Whether to add an \"AI generated\" watermark to the image",
@@ -308,12 +308,12 @@ class ByteDanceImageNode(comfy_io.ComfyNode):
                 ),
             ],
             outputs=[
-                comfy_io.Image.Output(),
+                IO.Image.Output(),
             ],
             hidden=[
-                comfy_io.Hidden.auth_token_comfy_org,
-                comfy_io.Hidden.api_key_comfy_org,
-                comfy_io.Hidden.unique_id,
+                IO.Hidden.auth_token_comfy_org,
+                IO.Hidden.api_key_comfy_org,
+                IO.Hidden.unique_id,
             ],
             is_api_node=True,
         )
@@ -329,7 +329,7 @@ class ByteDanceImageNode(comfy_io.ComfyNode):
         seed: int,
         guidance_scale: float,
         watermark: bool,
-    ) -> comfy_io.NodeOutput:
+    ) -> IO.NodeOutput:
         validate_string(prompt, strip_whitespace=True, min_length=1)
         w = h = None
         for label, tw, th in RECOMMENDED_PRESETS:
@@ -367,57 +367,57 @@ class ByteDanceImageNode(comfy_io.ComfyNode):
             request=payload,
             auth_kwargs=auth_kwargs,
         ).execute()
-        return comfy_io.NodeOutput(await download_url_to_image_tensor(get_image_url_from_response(response)))
+        return IO.NodeOutput(await download_url_to_image_tensor(get_image_url_from_response(response)))
 
 
-class ByteDanceImageEditNode(comfy_io.ComfyNode):
+class ByteDanceImageEditNode(IO.ComfyNode):
 
     @classmethod
     def define_schema(cls):
-        return comfy_io.Schema(
+        return IO.Schema(
             node_id="ByteDanceImageEditNode",
             display_name="ByteDance Image Edit",
             category="api node/image/ByteDance",
             description="Edit images using ByteDance models via api based on prompt",
             inputs=[
-                comfy_io.Combo.Input(
+                IO.Combo.Input(
                     "model",
                     options=Image2ImageModelName,
                     default=Image2ImageModelName.seededit_3,
                     tooltip="Model name",
                 ),
-                comfy_io.Image.Input(
+                IO.Image.Input(
                     "image",
                     tooltip="The base image to edit",
                 ),
-                comfy_io.String.Input(
+                IO.String.Input(
                     "prompt",
                     multiline=True,
                     default="",
                     tooltip="Instruction to edit image",
                 ),
-                comfy_io.Int.Input(
+                IO.Int.Input(
                     "seed",
                     default=0,
                     min=0,
                     max=2147483647,
                     step=1,
-                    display_mode=comfy_io.NumberDisplay.number,
+                    display_mode=IO.NumberDisplay.number,
                     control_after_generate=True,
                     tooltip="Seed to use for generation",
                     optional=True,
                 ),
-                comfy_io.Float.Input(
+                IO.Float.Input(
                     "guidance_scale",
                     default=5.5,
                     min=1.0,
                     max=10.0,
                     step=0.01,
-                    display_mode=comfy_io.NumberDisplay.number,
+                    display_mode=IO.NumberDisplay.number,
                     tooltip="Higher value makes the image follow the prompt more closely",
                     optional=True,
                 ),
-                comfy_io.Boolean.Input(
+                IO.Boolean.Input(
                     "watermark",
                     default=True,
                     tooltip="Whether to add an \"AI generated\" watermark to the image",
@@ -425,12 +425,12 @@ class ByteDanceImageEditNode(comfy_io.ComfyNode):
                 ),
             ],
             outputs=[
-                comfy_io.Image.Output(),
+                IO.Image.Output(),
             ],
             hidden=[
-                comfy_io.Hidden.auth_token_comfy_org,
-                comfy_io.Hidden.api_key_comfy_org,
-                comfy_io.Hidden.unique_id,
+                IO.Hidden.auth_token_comfy_org,
+                IO.Hidden.api_key_comfy_org,
+                IO.Hidden.unique_id,
             ],
             is_api_node=True,
         )
@@ -444,7 +444,7 @@ class ByteDanceImageEditNode(comfy_io.ComfyNode):
         seed: int,
         guidance_scale: float,
         watermark: bool,
-    ) -> comfy_io.NodeOutput:
+    ) -> IO.NodeOutput:
         validate_string(prompt, strip_whitespace=True, min_length=1)
         if get_number_of_images(image) != 1:
             raise ValueError("Exactly one input image is required.")
@@ -477,42 +477,42 @@ class ByteDanceImageEditNode(comfy_io.ComfyNode):
             request=payload,
             auth_kwargs=auth_kwargs,
         ).execute()
-        return comfy_io.NodeOutput(await download_url_to_image_tensor(get_image_url_from_response(response)))
+        return IO.NodeOutput(await download_url_to_image_tensor(get_image_url_from_response(response)))
 
 
-class ByteDanceSeedreamNode(comfy_io.ComfyNode):
+class ByteDanceSeedreamNode(IO.ComfyNode):
 
     @classmethod
     def define_schema(cls):
-        return comfy_io.Schema(
+        return IO.Schema(
             node_id="ByteDanceSeedreamNode",
             display_name="ByteDance Seedream 4",
             category="api node/image/ByteDance",
             description="Unified text-to-image generation and precise single-sentence editing at up to 4K resolution.",
             inputs=[
-                comfy_io.Combo.Input(
+                IO.Combo.Input(
                     "model",
                     options=["seedream-4-0-250828"],
                     tooltip="Model name",
                 ),
-                comfy_io.String.Input(
+                IO.String.Input(
                     "prompt",
                     multiline=True,
                     default="",
                     tooltip="Text prompt for creating or editing an image.",
                 ),
-                comfy_io.Image.Input(
+                IO.Image.Input(
                     "image",
                     tooltip="Input image(s) for image-to-image generation. "
                             "List of 1-10 images for single or multi-reference generation.",
                     optional=True,
                 ),
-                comfy_io.Combo.Input(
+                IO.Combo.Input(
                     "size_preset",
                     options=[label for label, _, _ in RECOMMENDED_PRESETS_SEEDREAM_4],
                     tooltip="Pick a recommended size. Select Custom to use the width and height below.",
                 ),
-                comfy_io.Int.Input(
+                IO.Int.Input(
                     "width",
                     default=2048,
                     min=1024,
@@ -521,7 +521,7 @@ class ByteDanceSeedreamNode(comfy_io.ComfyNode):
                     tooltip="Custom width for image. Value is working only if `size_preset` is set to `Custom`",
                     optional=True,
                 ),
-                comfy_io.Int.Input(
+                IO.Int.Input(
                     "height",
                     default=2048,
                     min=1024,
@@ -530,7 +530,7 @@ class ByteDanceSeedreamNode(comfy_io.ComfyNode):
                     tooltip="Custom height for image. Value is working only if `size_preset` is set to `Custom`",
                     optional=True,
                 ),
-                comfy_io.Combo.Input(
+                IO.Combo.Input(
                     "sequential_image_generation",
                     options=["disabled", "auto"],
                     tooltip="Group image generation mode. "
@@ -539,35 +539,35 @@ class ByteDanceSeedreamNode(comfy_io.ComfyNode):
                             "(e.g., story scenes, character variations).",
                     optional=True,
                 ),
-                comfy_io.Int.Input(
+                IO.Int.Input(
                     "max_images",
                     default=1,
                     min=1,
                     max=15,
                     step=1,
-                    display_mode=comfy_io.NumberDisplay.number,
+                    display_mode=IO.NumberDisplay.number,
                     tooltip="Maximum number of images to generate when sequential_image_generation='auto'. "
                             "Total images (input + generated) cannot exceed 15.",
                     optional=True,
                 ),
-                comfy_io.Int.Input(
+                IO.Int.Input(
                     "seed",
                     default=0,
                     min=0,
                     max=2147483647,
                     step=1,
-                    display_mode=comfy_io.NumberDisplay.number,
+                    display_mode=IO.NumberDisplay.number,
                     control_after_generate=True,
                     tooltip="Seed to use for generation.",
                     optional=True,
                 ),
-                comfy_io.Boolean.Input(
+                IO.Boolean.Input(
                     "watermark",
                     default=True,
                     tooltip="Whether to add an \"AI generated\" watermark to the image.",
                     optional=True,
                 ),
-                comfy_io.Boolean.Input(
+                IO.Boolean.Input(
                     "fail_on_partial",
                     default=True,
                     tooltip="If enabled, abort execution if any requested images are missing or return an error.",
@@ -575,12 +575,12 @@ class ByteDanceSeedreamNode(comfy_io.ComfyNode):
                 ),
             ],
             outputs=[
-                comfy_io.Image.Output(),
+                IO.Image.Output(),
             ],
             hidden=[
-                comfy_io.Hidden.auth_token_comfy_org,
-                comfy_io.Hidden.api_key_comfy_org,
-                comfy_io.Hidden.unique_id,
+                IO.Hidden.auth_token_comfy_org,
+                IO.Hidden.api_key_comfy_org,
+                IO.Hidden.unique_id,
             ],
             is_api_node=True,
         )
@@ -599,7 +599,7 @@ class ByteDanceSeedreamNode(comfy_io.ComfyNode):
         seed: int = 0,
         watermark: bool = True,
         fail_on_partial: bool = True,
-    ) -> comfy_io.NodeOutput:
+    ) -> IO.NodeOutput:
         validate_string(prompt, strip_whitespace=True, min_length=1)
         w = h = None
         for label, tw, th in RECOMMENDED_PRESETS_SEEDREAM_4:
@@ -657,72 +657,72 @@ class ByteDanceSeedreamNode(comfy_io.ComfyNode):
         ).execute()
 
         if len(response.data) == 1:
-            return comfy_io.NodeOutput(await download_url_to_image_tensor(get_image_url_from_response(response)))
+            return IO.NodeOutput(await download_url_to_image_tensor(get_image_url_from_response(response)))
         urls = [str(d["url"]) for d in response.data if isinstance(d, dict) and "url" in d]
         if fail_on_partial and len(urls) < len(response.data):
             raise RuntimeError(f"Only {len(urls)} of {len(response.data)} images were generated before error.")
-        return comfy_io.NodeOutput(torch.cat([await download_url_to_image_tensor(i) for i in urls]))
+        return IO.NodeOutput(torch.cat([await download_url_to_image_tensor(i) for i in urls]))
 
 
-class ByteDanceTextToVideoNode(comfy_io.ComfyNode):
+class ByteDanceTextToVideoNode(IO.ComfyNode):
 
     @classmethod
     def define_schema(cls):
-        return comfy_io.Schema(
+        return IO.Schema(
             node_id="ByteDanceTextToVideoNode",
             display_name="ByteDance Text to Video",
             category="api node/video/ByteDance",
             description="Generate video using ByteDance models via api based on prompt",
             inputs=[
-                comfy_io.Combo.Input(
+                IO.Combo.Input(
                     "model",
                     options=Text2VideoModelName,
                     default=Text2VideoModelName.seedance_1_pro,
                     tooltip="Model name",
                 ),
-                comfy_io.String.Input(
+                IO.String.Input(
                     "prompt",
                     multiline=True,
                     tooltip="The text prompt used to generate the video.",
                 ),
-                comfy_io.Combo.Input(
+                IO.Combo.Input(
                     "resolution",
                     options=["480p", "720p", "1080p"],
                     tooltip="The resolution of the output video.",
                 ),
-                comfy_io.Combo.Input(
+                IO.Combo.Input(
                     "aspect_ratio",
                     options=["16:9", "4:3", "1:1", "3:4", "9:16", "21:9"],
                     tooltip="The aspect ratio of the output video.",
                 ),
-                comfy_io.Int.Input(
+                IO.Int.Input(
                     "duration",
                     default=5,
                     min=3,
                     max=12,
                     step=1,
                     tooltip="The duration of the output video in seconds.",
-                    display_mode=comfy_io.NumberDisplay.slider,
+                    display_mode=IO.NumberDisplay.slider,
                 ),
-                comfy_io.Int.Input(
+                IO.Int.Input(
                     "seed",
                     default=0,
                     min=0,
                     max=2147483647,
                     step=1,
-                    display_mode=comfy_io.NumberDisplay.number,
+                    display_mode=IO.NumberDisplay.number,
                     control_after_generate=True,
                     tooltip="Seed to use for generation.",
                     optional=True,
                 ),
-                comfy_io.Boolean.Input(
+                IO.Boolean.Input(
                     "camera_fixed",
                     default=False,
                     tooltip="Specifies whether to fix the camera. The platform appends an instruction "
                             "to fix the camera to your prompt, but does not guarantee the actual effect.",
                     optional=True,
                 ),
-                comfy_io.Boolean.Input(
+                IO.Boolean.Input(
                     "watermark",
                     default=True,
                     tooltip="Whether to add an \"AI generated\" watermark to the video.",
@@ -730,12 +730,12 @@ class ByteDanceTextToVideoNode(comfy_io.ComfyNode):
                 ),
             ],
             outputs=[
-                comfy_io.Video.Output(),
+                IO.Video.Output(),
             ],
             hidden=[
-                comfy_io.Hidden.auth_token_comfy_org,
-                comfy_io.Hidden.api_key_comfy_org,
-                comfy_io.Hidden.unique_id,
+                IO.Hidden.auth_token_comfy_org,
+                IO.Hidden.api_key_comfy_org,
+                IO.Hidden.unique_id,
             ],
             is_api_node=True,
         )
@@ -751,7 +751,7 @@ class ByteDanceTextToVideoNode(comfy_io.ComfyNode):
         seed: int,
         camera_fixed: bool,
         watermark: bool,
-    ) -> comfy_io.NodeOutput:
+    ) -> IO.NodeOutput:
         validate_string(prompt, strip_whitespace=True, min_length=1)
         raise_if_text_params(prompt, ["resolution", "ratio", "duration", "seed", "camerafixed", "watermark"])
 
@@ -781,69 +781,69 @@ class ByteDanceTextToVideoNode(comfy_io.ComfyNode):
         )
 
 
-class ByteDanceImageToVideoNode(comfy_io.ComfyNode):
+class ByteDanceImageToVideoNode(IO.ComfyNode):
 
     @classmethod
     def define_schema(cls):
-        return comfy_io.Schema(
+        return IO.Schema(
             node_id="ByteDanceImageToVideoNode",
             display_name="ByteDance Image to Video",
             category="api node/video/ByteDance",
             description="Generate video using ByteDance models via api based on image and prompt",
             inputs=[
-                comfy_io.Combo.Input(
+                IO.Combo.Input(
                     "model",
                     options=Image2VideoModelName,
                     default=Image2VideoModelName.seedance_1_pro,
                     tooltip="Model name",
                 ),
-                comfy_io.String.Input(
+                IO.String.Input(
                     "prompt",
                     multiline=True,
                     tooltip="The text prompt used to generate the video.",
                 ),
-                comfy_io.Image.Input(
+                IO.Image.Input(
                     "image",
                     tooltip="First frame to be used for the video.",
                 ),
-                comfy_io.Combo.Input(
+                IO.Combo.Input(
                     "resolution",
                     options=["480p", "720p", "1080p"],
                     tooltip="The resolution of the output video.",
                 ),
-                comfy_io.Combo.Input(
+                IO.Combo.Input(
                     "aspect_ratio",
                     options=["adaptive", "16:9", "4:3", "1:1", "3:4", "9:16", "21:9"],
                     tooltip="The aspect ratio of the output video.",
                 ),
-                comfy_io.Int.Input(
+                IO.Int.Input(
                     "duration",
                     default=5,
                     min=3,
                     max=12,
                     step=1,
                     tooltip="The duration of the output video in seconds.",
-                    display_mode=comfy_io.NumberDisplay.slider,
+                    display_mode=IO.NumberDisplay.slider,
                 ),
-                comfy_io.Int.Input(
+                IO.Int.Input(
                     "seed",
                     default=0,
                     min=0,
                     max=2147483647,
                     step=1,
-                    display_mode=comfy_io.NumberDisplay.number,
+                    display_mode=IO.NumberDisplay.number,
                     control_after_generate=True,
                     tooltip="Seed to use for generation.",
                     optional=True,
                 ),
-                comfy_io.Boolean.Input(
+                IO.Boolean.Input(
                     "camera_fixed",
                     default=False,
                     tooltip="Specifies whether to fix the camera. The platform appends an instruction "
                             "to fix the camera to your prompt, but does not guarantee the actual effect.",
                     optional=True,
                 ),
-                comfy_io.Boolean.Input(
+                IO.Boolean.Input(
                     "watermark",
                     default=True,
                     tooltip="Whether to add an \"AI generated\" watermark to the video.",
@@ -851,12 +851,12 @@ class ByteDanceImageToVideoNode(comfy_io.ComfyNode):
                 ),
             ],
             outputs=[
-                comfy_io.Video.Output(),
+                IO.Video.Output(),
             ],
             hidden=[
-                comfy_io.Hidden.auth_token_comfy_org,
-                comfy_io.Hidden.api_key_comfy_org,
-                comfy_io.Hidden.unique_id,
+                IO.Hidden.auth_token_comfy_org,
+                IO.Hidden.api_key_comfy_org,
+                IO.Hidden.unique_id,
             ],
             is_api_node=True,
         )
@@ -873,7 +873,7 @@ class ByteDanceImageToVideoNode(comfy_io.ComfyNode):
         seed: int,
         camera_fixed: bool,
         watermark: bool,
-    ) -> comfy_io.NodeOutput:
+    ) -> IO.NodeOutput:
         validate_string(prompt, strip_whitespace=True, min_length=1)
         raise_if_text_params(prompt, ["resolution", "ratio", "duration", "seed", "camerafixed", "watermark"])
         validate_image_dimensions(image, min_width=300, min_height=300, max_width=6000, max_height=6000)
@@ -908,73 +908,73 @@ class ByteDanceImageToVideoNode(comfy_io.ComfyNode):
         )
 
 
-class ByteDanceFirstLastFrameNode(comfy_io.ComfyNode):
+class ByteDanceFirstLastFrameNode(IO.ComfyNode):
 
     @classmethod
     def define_schema(cls):
-        return comfy_io.Schema(
+        return IO.Schema(
             node_id="ByteDanceFirstLastFrameNode",
             display_name="ByteDance First-Last-Frame to Video",
             category="api node/video/ByteDance",
             description="Generate video using prompt and first and last frames.",
             inputs=[
-                comfy_io.Combo.Input(
+                IO.Combo.Input(
                     "model",
                     options=[model.value for model in Image2VideoModelName],
                     default=Image2VideoModelName.seedance_1_lite.value,
                     tooltip="Model name",
                 ),
-                comfy_io.String.Input(
+                IO.String.Input(
                     "prompt",
                     multiline=True,
                     tooltip="The text prompt used to generate the video.",
                 ),
-                comfy_io.Image.Input(
+                IO.Image.Input(
                     "first_frame",
                     tooltip="First frame to be used for the video.",
                 ),
-                comfy_io.Image.Input(
+                IO.Image.Input(
                     "last_frame",
                     tooltip="Last frame to be used for the video.",
                 ),
-                comfy_io.Combo.Input(
+                IO.Combo.Input(
                     "resolution",
                     options=["480p", "720p", "1080p"],
                     tooltip="The resolution of the output video.",
                 ),
-                comfy_io.Combo.Input(
+                IO.Combo.Input(
                     "aspect_ratio",
                     options=["adaptive", "16:9", "4:3", "1:1", "3:4", "9:16", "21:9"],
                     tooltip="The aspect ratio of the output video.",
                 ),
-                comfy_io.Int.Input(
+                IO.Int.Input(
                     "duration",
                     default=5,
                     min=3,
                     max=12,
                     step=1,
                     tooltip="The duration of the output video in seconds.",
-                    display_mode=comfy_io.NumberDisplay.slider,
+                    display_mode=IO.NumberDisplay.slider,
                 ),
-                comfy_io.Int.Input(
+                IO.Int.Input(
                     "seed",
                     default=0,
                     min=0,
                     max=2147483647,
                     step=1,
-                    display_mode=comfy_io.NumberDisplay.number,
+                    display_mode=IO.NumberDisplay.number,
                     control_after_generate=True,
                     tooltip="Seed to use for generation.",
                     optional=True,
                 ),
-                comfy_io.Boolean.Input(
+                IO.Boolean.Input(
                     "camera_fixed",
                     default=False,
                     tooltip="Specifies whether to fix the camera. The platform appends an instruction "
                             "to fix the camera to your prompt, but does not guarantee the actual effect.",
                     optional=True,
                 ),
-                comfy_io.Boolean.Input(
+                IO.Boolean.Input(
                     "watermark",
                     default=True,
                     tooltip="Whether to add an \"AI generated\" watermark to the video.",
@@ -982,12 +982,12 @@ class ByteDanceFirstLastFrameNode(comfy_io.ComfyNode):
                 ),
             ],
             outputs=[
-                comfy_io.Video.Output(),
+                IO.Video.Output(),
             ],
             hidden=[
-                comfy_io.Hidden.auth_token_comfy_org,
-                comfy_io.Hidden.api_key_comfy_org,
-                comfy_io.Hidden.unique_id,
+                IO.Hidden.auth_token_comfy_org,
+                IO.Hidden.api_key_comfy_org,
+                IO.Hidden.unique_id,
             ],
             is_api_node=True,
         )
@@ -1005,7 +1005,7 @@ class ByteDanceFirstLastFrameNode(comfy_io.ComfyNode):
         seed: int,
         camera_fixed: bool,
         watermark: bool,
-    ) -> comfy_io.NodeOutput:
+    ) -> IO.NodeOutput:
         validate_string(prompt, strip_whitespace=True, min_length=1)
         raise_if_text_params(prompt, ["resolution", "ratio", "duration", "seed", "camerafixed", "watermark"])
         for i in (first_frame, last_frame):
@@ -1050,62 +1050,62 @@ class ByteDanceFirstLastFrameNode(comfy_io.ComfyNode):
         )
 
 
-class ByteDanceImageReferenceNode(comfy_io.ComfyNode):
+class ByteDanceImageReferenceNode(IO.ComfyNode):
 
     @classmethod
     def define_schema(cls):
-        return comfy_io.Schema(
+        return IO.Schema(
             node_id="ByteDanceImageReferenceNode",
             display_name="ByteDance Reference Images to Video",
             category="api node/video/ByteDance",
             description="Generate video using prompt and reference images.",
             inputs=[
-                comfy_io.Combo.Input(
+                IO.Combo.Input(
                     "model",
                     options=[Image2VideoModelName.seedance_1_lite.value],
                     default=Image2VideoModelName.seedance_1_lite.value,
                     tooltip="Model name",
                 ),
-                comfy_io.String.Input(
+                IO.String.Input(
                     "prompt",
                     multiline=True,
                     tooltip="The text prompt used to generate the video.",
                 ),
-                comfy_io.Image.Input(
+                IO.Image.Input(
                     "images",
                     tooltip="One to four images.",
                 ),
-                comfy_io.Combo.Input(
+                IO.Combo.Input(
                     "resolution",
                     options=["480p", "720p"],
                     tooltip="The resolution of the output video.",
                 ),
-                comfy_io.Combo.Input(
+                IO.Combo.Input(
                     "aspect_ratio",
                     options=["adaptive", "16:9", "4:3", "1:1", "3:4", "9:16", "21:9"],
                     tooltip="The aspect ratio of the output video.",
                 ),
-                comfy_io.Int.Input(
+                IO.Int.Input(
                     "duration",
                     default=5,
                     min=3,
                     max=12,
                     step=1,
                     tooltip="The duration of the output video in seconds.",
-                    display_mode=comfy_io.NumberDisplay.slider,
+                    display_mode=IO.NumberDisplay.slider,
                 ),
-                comfy_io.Int.Input(
+                IO.Int.Input(
                     "seed",
                     default=0,
                     min=0,
                     max=2147483647,
                     step=1,
-                    display_mode=comfy_io.NumberDisplay.number,
+                    display_mode=IO.NumberDisplay.number,
                     control_after_generate=True,
                     tooltip="Seed to use for generation.",
                     optional=True,
                 ),
-                comfy_io.Boolean.Input(
+                IO.Boolean.Input(
                     "watermark",
                     default=True,
                     tooltip="Whether to add an \"AI generated\" watermark to the video.",
@@ -1113,12 +1113,12 @@ class ByteDanceImageReferenceNode(comfy_io.ComfyNode):
                 ),
             ],
             outputs=[
-                comfy_io.Video.Output(),
+                IO.Video.Output(),
             ],
             hidden=[
-                comfy_io.Hidden.auth_token_comfy_org,
-                comfy_io.Hidden.api_key_comfy_org,
-                comfy_io.Hidden.unique_id,
+                IO.Hidden.auth_token_comfy_org,
+                IO.Hidden.api_key_comfy_org,
+                IO.Hidden.unique_id,
             ],
             is_api_node=True,
         )
@@ -1134,7 +1134,7 @@ class ByteDanceImageReferenceNode(comfy_io.ComfyNode):
         duration: int,
         seed: int,
         watermark: bool,
-    ) -> comfy_io.NodeOutput:
+    ) -> IO.NodeOutput:
         validate_string(prompt, strip_whitespace=True, min_length=1)
         raise_if_text_params(prompt, ["resolution", "ratio", "duration", "seed", "watermark"])
         for image in images:
@@ -1180,7 +1180,7 @@ async def process_video_task(
     auth_kwargs: dict,
     node_id: str,
     estimated_duration: Optional[int],
-) -> comfy_io.NodeOutput:
+) -> IO.NodeOutput:
     initial_response = await SynchronousOperation(
         endpoint=ApiEndpoint(
             path=BYTEPLUS_TASK_ENDPOINT,
@@ -1197,7 +1197,7 @@ async def process_video_task(
         estimated_duration=estimated_duration,
         node_id=node_id,
     )
-    return comfy_io.NodeOutput(await download_url_to_video_output(get_video_url_from_task_status(response)))
+    return IO.NodeOutput(await download_url_to_video_output(get_video_url_from_task_status(response)))
 
 
 def raise_if_text_params(prompt: str, text_params: list[str]) -> None:
@@ -1210,7 +1210,7 @@ def raise_if_text_params(prompt: str, text_params: list[str]) -> None:
 
 class ByteDanceExtension(ComfyExtension):
     @override
-    async def get_node_list(self) -> list[type[comfy_io.ComfyNode]]:
+    async def get_node_list(self) -> list[type[IO.ComfyNode]]:
         return [
             ByteDanceImageNode,
             ByteDanceImageEditNode,
