@@ -797,7 +797,7 @@ class ModelPatcher:
                     tensors to memory-mapped format instead.
                     """
                     import pdb; pdb.set_trace()
-                    logging.info(f"model {self.model.__class__.__name__} is calling to_mmap method")
+                    logging.info(f"model {self.__class__.__name__} is calling to_mmap method")
                     def convert_fn(t):
                         if isinstance(t, torch.Tensor) and not isinstance(t, torch.nn.Parameter):
                             return to_mmap(t)
