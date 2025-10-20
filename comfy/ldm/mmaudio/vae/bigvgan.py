@@ -9,11 +9,12 @@ import torch.nn as nn
 from types import SimpleNamespace
 from . import activations
 from .alias_free_torch import Activation1d
-import comfy.ops
-ops = comfy.ops.disable_weight_init
+from ....ops import disable_weight_init as ops
+
 
 def get_padding(kernel_size, dilation=1):
     return int((kernel_size * dilation - dilation) / 2)
+
 
 class AMPBlock1(torch.nn.Module):
 
@@ -22,19 +23,19 @@ class AMPBlock1(torch.nn.Module):
         self.h = h
 
         self.convs1 = nn.ModuleList([
-                ops.Conv1d(channels,
+            ops.Conv1d(channels,
                        channels,
                        kernel_size,
                        1,
                        dilation=dilation[0],
                        padding=get_padding(kernel_size, dilation[0])),
-                ops.Conv1d(channels,
+            ops.Conv1d(channels,
                        channels,
                        kernel_size,
                        1,
                        dilation=dilation[1],
                        padding=get_padding(kernel_size, dilation[1])),
-                ops.Conv1d(channels,
+            ops.Conv1d(channels,
                        channels,
                        kernel_size,
                        1,
@@ -43,19 +44,19 @@ class AMPBlock1(torch.nn.Module):
         ])
 
         self.convs2 = nn.ModuleList([
-                ops.Conv1d(channels,
+            ops.Conv1d(channels,
                        channels,
                        kernel_size,
                        1,
                        dilation=1,
                        padding=get_padding(kernel_size, 1)),
-                ops.Conv1d(channels,
+            ops.Conv1d(channels,
                        channels,
                        kernel_size,
                        1,
                        dilation=1,
                        padding=get_padding(kernel_size, 1)),
-                ops.Conv1d(channels,
+            ops.Conv1d(channels,
                        channels,
                        kernel_size,
                        1,
@@ -101,13 +102,13 @@ class AMPBlock2(torch.nn.Module):
         self.h = h
 
         self.convs = nn.ModuleList([
-                ops.Conv1d(channels,
+            ops.Conv1d(channels,
                        channels,
                        kernel_size,
                        1,
                        dilation=dilation[0],
                        padding=get_padding(kernel_size, dilation[0])),
-                ops.Conv1d(channels,
+            ops.Conv1d(channels,
                        channels,
                        kernel_size,
                        1,
@@ -165,8 +166,8 @@ class BigVGANVocoder(torch.nn.Module):
         for i, (u, k) in enumerate(zip(h.upsample_rates, h.upsample_kernel_sizes)):
             self.ups.append(
                 nn.ModuleList([
-                        ops.ConvTranspose1d(h.upsample_initial_channel // (2**i),
-                                        h.upsample_initial_channel // (2**(i + 1)),
+                    ops.ConvTranspose1d(h.upsample_initial_channel // (2 ** i),
+                                        h.upsample_initial_channel // (2 ** (i + 1)),
                                         k,
                                         u,
                                         padding=(k - u) // 2)
@@ -175,7 +176,7 @@ class BigVGANVocoder(torch.nn.Module):
         # residual blocks using anti-aliased multi-periodicity composition modules (AMP)
         self.resblocks = nn.ModuleList()
         for i in range(len(self.ups)):
-            ch = h.upsample_initial_channel // (2**(i + 1))
+            ch = h.upsample_initial_channel // (2 ** (i + 1))
             for j, (k, d) in enumerate(zip(h.resblock_kernel_sizes, h.resblock_dilation_sizes)):
                 self.resblocks.append(resblock(h, ch, k, d, activation=h.activation))
 
@@ -192,7 +193,6 @@ class BigVGANVocoder(torch.nn.Module):
             )
 
         self.conv_post = ops.Conv1d(ch, 1, 7, 1, padding=3)
-
 
     def forward(self, x):
         # pre conv

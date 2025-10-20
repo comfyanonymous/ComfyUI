@@ -4,7 +4,8 @@
 import torch
 from torch import nn, sin, pow
 from torch.nn import Parameter
-import comfy.model_management
+from ....model_management import cast_to
+
 
 class Snake(nn.Module):
     '''
@@ -22,6 +23,7 @@ class Snake(nn.Module):
         >>> x = torch.randn(256)
         >>> x = a1(x)
     '''
+
     def __init__(self, in_features, alpha=1.0, alpha_trainable=True, alpha_logscale=False):
         '''
         Initialization.
@@ -51,7 +53,7 @@ class Snake(nn.Module):
         Applies the function to the input elementwise.
         Snake ∶= x + 1/a * sin^2 (xa)
         '''
-        alpha = comfy.model_management.cast_to(self.alpha, dtype=x.dtype, device=x.device).unsqueeze(0).unsqueeze(-1) # line up with x to [B, C, T]
+        alpha = cast_to(self.alpha, dtype=x.dtype, device=x.device).unsqueeze(0).unsqueeze(-1)  # line up with x to [B, C, T]
         if self.alpha_logscale:
             alpha = torch.exp(alpha)
         x = x + (1.0 / (alpha + self.no_div_by_zero)) * pow(sin(x * alpha), 2)
@@ -76,6 +78,7 @@ class SnakeBeta(nn.Module):
         >>> x = torch.randn(256)
         >>> x = a1(x)
     '''
+
     def __init__(self, in_features, alpha=1.0, alpha_trainable=True, alpha_logscale=False):
         '''
         Initialization.
@@ -110,8 +113,8 @@ class SnakeBeta(nn.Module):
         Applies the function to the input elementwise.
         SnakeBeta ∶= x + 1/b * sin^2 (xa)
         '''
-        alpha = comfy.model_management.cast_to(self.alpha, dtype=x.dtype, device=x.device).unsqueeze(0).unsqueeze(-1) # line up with x to [B, C, T]
-        beta = comfy.model_management.cast_to(self.beta, dtype=x.dtype, device=x.device).unsqueeze(0).unsqueeze(-1)
+        alpha = cast_to(self.alpha, dtype=x.dtype, device=x.device).unsqueeze(0).unsqueeze(-1)  # line up with x to [B, C, T]
+        beta = cast_to(self.beta, dtype=x.dtype, device=x.device).unsqueeze(0).unsqueeze(-1)
         if self.alpha_logscale:
             alpha = torch.exp(alpha)
             beta = torch.exp(beta)

@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import math
-import comfy.model_management
+from ....model_management import cast_to
 
 if 'sinc' in dir(torch):
     sinc = torch.sinc
@@ -23,17 +23,17 @@ else:
 # This code is adopted from adefossez's julius.lowpass.LowPassFilters under the MIT License
 # https://adefossez.github.io/julius/julius/lowpass.html
 #   LICENSE is in incl_licenses directory.
-def kaiser_sinc_filter1d(cutoff, half_width, kernel_size): # return filter [1,1,kernel_size]
+def kaiser_sinc_filter1d(cutoff, half_width, kernel_size):  # return filter [1,1,kernel_size]
     even = (kernel_size % 2 == 0)
     half_size = kernel_size // 2
 
-    #For kaiser window
+    # For kaiser window
     delta_f = 4 * half_width
     A = 2.285 * (half_size - 1) * math.pi * delta_f + 7.95
     if A > 50.:
         beta = 0.1102 * (A - 8.7)
     elif A >= 21.:
-        beta = 0.5842 * (A - 21)**0.4 + 0.07886 * (A - 21.)
+        beta = 0.5842 * (A - 21) ** 0.4 + 0.07886 * (A - 21.)
     else:
         beta = 0.
     window = torch.kaiser_window(kernel_size, beta=beta, periodic=False)
@@ -80,14 +80,14 @@ class LowPassFilter1d(nn.Module):
         filter = kaiser_sinc_filter1d(cutoff, half_width, kernel_size)
         self.register_buffer("filter", filter)
 
-    #input [B, C, T]
+    # input [B, C, T]
     def forward(self, x):
         _, C, _ = x.shape
 
         if self.padding:
             x = F.pad(x, (self.pad_left, self.pad_right),
                       mode=self.padding_mode)
-        out = F.conv1d(x, comfy.model_management.cast_to(self.filter.expand(C, -1, -1), dtype=x.dtype, device=x.device),
+        out = F.conv1d(x, cast_to(self.filter.expand(C, -1, -1), dtype=x.dtype, device=x.device),
                        stride=self.stride, groups=C)
 
         return out
@@ -113,7 +113,7 @@ class UpSample1d(nn.Module):
 
         x = F.pad(x, (self.pad, self.pad), mode='replicate')
         x = self.ratio * F.conv_transpose1d(
-            x, comfy.model_management.cast_to(self.filter.expand(C, -1, -1), dtype=x.dtype, device=x.device), stride=self.stride, groups=C)
+            x, cast_to(self.filter.expand(C, -1, -1), dtype=x.dtype, device=x.device), stride=self.stride, groups=C)
         x = x[..., self.pad_left:-self.pad_right]
 
         return x
@@ -133,6 +133,7 @@ class DownSample1d(nn.Module):
         xx = self.lowpass(x)
 
         return xx
+
 
 class Activation1d(nn.Module):
     def __init__(self,

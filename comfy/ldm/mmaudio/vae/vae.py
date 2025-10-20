@@ -1,17 +1,14 @@
-import logging
 from typing import Optional
 
 import torch
 import torch.nn as nn
 
 from .vae_modules import (AttnBlock1D, Downsample1D, ResnetBlock1D,
-                                                 Upsample1D, nonlinearity)
+                          Upsample1D, nonlinearity)
 from .distributions import DiagonalGaussianDistribution
 
-import comfy.ops
-ops = comfy.ops.disable_weight_init
+from ....ops import disable_weight_init as ops
 
-log = logging.getLogger()
 
 DATA_MEAN_80D = [
     -1.6058, -1.3676, -1.2520, -1.2453, -1.2078, -1.2224, -1.2419, -1.2439, -1.2922, -1.2927,
@@ -68,11 +65,11 @@ DATA_STD_128D = [
 class VAE(nn.Module):
 
     def __init__(
-        self,
-        *,
-        data_dim: int,
-        embed_dim: int,
-        hidden_dim: int,
+            self,
+            *,
+            data_dim: int,
+            embed_dim: int,
+            hidden_dim: int,
     ):
         super().__init__()
 
@@ -135,12 +132,12 @@ class VAE(nn.Module):
         return x * comfy.model_management.cast_to(self.data_std, dtype=x.dtype, device=x.device) + comfy.model_management.cast_to(self.data_mean, dtype=x.dtype, device=x.device)
 
     def forward(
-        self,
-        x: torch.Tensor,
-        sample_posterior: bool = True,
-        rng: Optional[torch.Generator] = None,
-        normalize: bool = True,
-        unnormalize: bool = True,
+            self,
+            x: torch.Tensor,
+            sample_posterior: bool = True,
+            rng: Optional[torch.Generator] = None,
+            normalize: bool = True,
+            unnormalize: bool = True,
     ) -> tuple[torch.Tensor, DiagonalGaussianDistribution]:
 
         posterior = self.encode(x, normalize=normalize)
@@ -190,7 +187,7 @@ class Encoder1D(nn.Module):
         self.attn_layers = attn_layers
         self.conv_in = ops.Conv1d(in_dim, self.dim, kernel_size=kernel_size, padding=kernel_size // 2, bias=False)
 
-        in_ch_mult = (1, ) + tuple(ch_mult)
+        in_ch_mult = (1,) + tuple(ch_mult)
         self.in_ch_mult = in_ch_mult
         # downsampling
         self.down = nn.ModuleList()
@@ -229,8 +226,8 @@ class Encoder1D(nn.Module):
 
         # end
         self.conv_out = ops.Conv1d(block_in,
-                                 2 * embed_dim if double_z else embed_dim,
-                                 kernel_size=kernel_size, padding=kernel_size // 2, bias=False)
+                                   2 * embed_dim if double_z else embed_dim,
+                                   kernel_size=kernel_size, padding=kernel_size // 2, bias=False)
 
         self.learnable_gain = nn.Parameter(torch.zeros([]))
 
@@ -355,4 +352,3 @@ def get_my_vae(name: str, **kwargs) -> VAE:
     if name == '44k':
         return VAE_44k(**kwargs)
     raise ValueError(f'Unknown model: {name}')
-

@@ -8,10 +8,6 @@ from .vae import VAE_16k
 from .bigvgan import BigVGANVocoder
 import logging
 
-try:
-    import torchaudio
-except:
-    logging.warning("torchaudio missing, MMAudio VAE model will be broken")
 
 def dynamic_range_compression_torch(x, C=1, clip_val=1e-5, *, norm_fn):
     return norm_fn(torch.clamp(x, min=clip_val) * C)
@@ -21,19 +17,20 @@ def spectral_normalize_torch(magnitudes, norm_fn):
     output = dynamic_range_compression_torch(magnitudes, norm_fn=norm_fn)
     return output
 
+
 class MelConverter(nn.Module):
 
     def __init__(
-        self,
-        *,
-        sampling_rate: float,
-        n_fft: int,
-        num_mels: int,
-        hop_size: int,
-        win_size: int,
-        fmin: float,
-        fmax: float,
-        norm_fn,
+            self,
+            *,
+            sampling_rate: float,
+            n_fft: int,
+            num_mels: int,
+            hop_size: int,
+            win_size: int,
+            fmin: float,
+            fmax: float,
+            norm_fn,
     ):
         super().__init__()
         self.sampling_rate = sampling_rate
@@ -89,26 +86,27 @@ class MelConverter(nn.Module):
 
         return spec
 
+
 class AudioAutoencoder(nn.Module):
 
     def __init__(
-        self,
-        *,
-        # ckpt_path: str,
-        mode=Literal['16k', '44k'],
-        need_vae_encoder: bool = True,
+            self,
+            *,
+            # ckpt_path: str,
+            mode=Literal['16k', '44k'],
+            need_vae_encoder: bool = True,
     ):
         super().__init__()
 
         assert mode == "16k", "Only 16k mode is supported currently."
         self.mel_converter = MelConverter(sampling_rate=16_000,
-                            n_fft=1024,
-                            num_mels=80,
-                            hop_size=256,
-                            win_size=1024,
-                            fmin=0,
-                            fmax=8_000,
-                            norm_fn=torch.log10)
+                                          n_fft=1024,
+                                          num_mels=80,
+                                          hop_size=256,
+                                          win_size=1024,
+                                          fmin=0,
+                                          fmax=8_000,
+                                          norm_fn=torch.log10)
 
         self.vae = VAE_16k().eval()
 
@@ -145,11 +143,13 @@ class AudioAutoencoder(nn.Module):
         mel_decoded = self.vae.decode(z)
         audio = self.vocoder(mel_decoded)
 
+        import torchaudio
         audio = torchaudio.functional.resample(audio, 16000, 44100)
         return audio
 
     @torch.no_grad()
     def encode(self, audio):
+        import torchaudio
         audio = audio.mean(dim=1)
         audio = torchaudio.functional.resample(audio, 44100, 16000)
         dist = self.encode_audio(audio)

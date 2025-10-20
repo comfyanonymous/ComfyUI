@@ -1,17 +1,19 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from comfy.ldm.modules.diffusionmodules.model import vae_attention
+from ...modules.diffusionmodules.model import vae_attention
 import math
-import comfy.ops
-ops = comfy.ops.disable_weight_init
+from ....ops import disable_weight_init as ops
+
 
 def nonlinearity(x):
     # swish
     return torch.nn.functional.silu(x) / 0.596
 
+
 def mp_sum(a, b, t=0.5):
-    return a.lerp(b, t) / math.sqrt((1 - t)**2 + t**2)
+    return a.lerp(b, t) / math.sqrt((1 - t) ** 2 + t ** 2)
+
 
 def normalize(x, dim=None, eps=1e-4):
     if dim is None:
@@ -19,6 +21,7 @@ def normalize(x, dim=None, eps=1e-4):
     norm = torch.linalg.vector_norm(x, dim=dim, keepdim=True, dtype=torch.float32)
     norm = torch.add(eps, norm, alpha=math.sqrt(norm.numel() / x.numel()))
     return x / norm.to(x.dtype)
+
 
 class ResnetBlock1D(nn.Module):
 

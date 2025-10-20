@@ -14,6 +14,7 @@ class EpsilonScaling(io.ComfyNode):
     which can significantly improve sample quality. This implementation uses the "uniform schedule"
     recommended by the paper for its practicality and effectiveness.
     """
+
     @classmethod
     def define_schema(cls):
         return io.Schema(
@@ -66,7 +67,7 @@ class EpsilonScaling(io.ComfyNode):
 
 
 def compute_tsr_rescaling_factor(
-    snr: torch.Tensor, tsr_k: float, tsr_variance: float
+        snr: torch.Tensor, tsr_k: float, tsr_variance: float
 ) -> torch.Tensor:
     """Compute the rescaling score ratio in Temporal Score Rescaling.
 
@@ -74,7 +75,7 @@ def compute_tsr_rescaling_factor(
     """
     posinf_mask = torch.isposinf(snr)
     rescaling_factor = (snr * tsr_variance + 1) / (snr * tsr_variance / tsr_k + 1)
-    return torch.where(posinf_mask, tsr_k, rescaling_factor) # when snr → inf, r = tsr_k
+    return torch.where(posinf_mask, tsr_k, rescaling_factor)  # when snr → inf, r = tsr_k
 
 
 class TemporalScoreRescaling(io.ComfyNode):
@@ -125,7 +126,7 @@ class TemporalScoreRescaling(io.ComfyNode):
 
     @classmethod
     def execute(cls, model, tsr_k, tsr_sigma) -> io.NodeOutput:
-        tsr_variance = tsr_sigma**2
+        tsr_variance = tsr_sigma ** 2
 
         def temporal_score_rescaling(args):
             denoised = args["denoised"]
