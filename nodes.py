@@ -2081,7 +2081,6 @@ NODE_DISPLAY_NAME_MAPPINGS = {
 }
 
 EXTENSION_WEB_DIRS = {}
-PUBLISHED_SUBGRAPH_DIRS = {}
 
 # Dictionary of successfully loaded module names and associated directories.
 LOADED_MODULE_DIRS = {}
@@ -2180,11 +2179,6 @@ async def load_custom_node(module_path: str, ignore=set(), module_parent="custom
                 if not isinstance(extension, ComfyExtension):
                     logging.warning(f"comfy_entrypoint in {module_path} did not return a ComfyExtension, skipping.")
                     return False
-                subgraphs_dir = await extension.get_subgraphs_dir()
-                if subgraphs_dir is not None:
-                    subgraphs_dir = os.path.abspath(os.path.join(module_dir, subgraphs_dir))
-                    if os.path.isdir(subgraphs_dir):
-                        PUBLISHED_SUBGRAPH_DIRS[module_name] = subgraphs_dir
                 node_list = await extension.get_node_list()
                 if not isinstance(node_list, list):
                     logging.warning(f"comfy_entrypoint in {module_path} did not return a list of nodes, skipping.")
