@@ -76,7 +76,9 @@ class LTXVImgToVideo(io.ComfyNode):
         )
         conditioning_latent_frames_mask[:, :, :t.shape[2]] = 1.0 - strength
 
-        return io.NodeOutput(positive, negative, {"samples": latent, "noise_mask": conditioning_latent_frames_mask})generate = execute  # TODO: remove
+        return io.NodeOutput(positive, negative, {"samples": latent, "noise_mask": conditioning_latent_frames_mask})
+
+    generate = execute  # TODO: remove
 
 
 def conditioning_get_any_value(conditioning, key, default=None):
