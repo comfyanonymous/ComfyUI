@@ -29,7 +29,8 @@ class CLIPTextEncodeFlux(io.ComfyNode):
         tokens["t5xxl"] = clip.tokenize(t5xxl)["t5xxl"]
 
         return io.NodeOutput(clip.encode_from_tokens_scheduled(tokens, add_dict={"guidance": guidance}))
-        encode = execute  # TODO: remove
+
+    encode = execute  # TODO: remove
 
 
 class FluxGuidance(io.ComfyNode):
@@ -75,7 +76,8 @@ class FluxDisableGuidance(io.ComfyNode):
     def execute(cls, conditioning) -> io.NodeOutput:
         c = node_helpers.conditioning_set_values(conditioning, {"guidance": None})
         return io.NodeOutput(c)
-        append = execute  # TODO: remove
+
+    append = execute  # TODO: remove
 
 
 class FluxKontextImageScale(io.ComfyNode):

@@ -7,7 +7,7 @@ from skimage import exposure
 import comfy.utils
 from comfy.component_model.tensor_types import RGBImageBatch, ImageBatch, MaskBatch
 from comfy.nodes.package_typing import CustomNode
-
+from comfy_api.latest import io
 
 def resize_mask(mask, shape):
     return torch.nn.functional.interpolate(mask.reshape((-1, 1, mask.shape[-2], mask.shape[-1])), size=(shape[0], shape[1]), mode="bilinear").squeeze(1)

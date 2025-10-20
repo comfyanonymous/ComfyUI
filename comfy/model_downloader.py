@@ -40,6 +40,10 @@ def get_filename_list(folder_name: str) -> Sequence[str]:
     return get_filename_list_with_downloadable(folder_name)
 
 
+def get_folder_paths(*args, **kwargs):
+    return folder_paths.get_folder_paths(*args, **kwargs)
+
+
 def get_filename_list_with_downloadable(folder_name: str, known_files: Optional[List[Downloadable] | KnownDownloadables] = None) -> DownloadableFileList | list[str]:
     if known_files is None:
         known_files = _get_known_models_for_folder_name(folder_name)

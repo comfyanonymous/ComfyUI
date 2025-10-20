@@ -151,7 +151,7 @@ class FrontendManager:
     def get_installed_templates_version(cls) -> str:
         """Get the currently installed workflow templates package version."""
         try:
-            templates_version_str = version("comfyui-workflow-templates")
+            templates_version_str = importlib.metadata.version("comfyui-workflow-templates")
             return templates_version_str
         except Exception:
             return None

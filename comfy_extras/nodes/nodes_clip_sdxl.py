@@ -1,5 +1,5 @@
 from typing_extensions import override
-from comfy.common import MAX_RESOLUTION
+from comfy.nodes.common import MAX_RESOLUTION
 from comfy_api.latest import ComfyExtension, io
 
 

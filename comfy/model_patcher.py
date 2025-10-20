@@ -156,7 +156,7 @@ class LowVramPatch:
             intermediate_dtype = torch.float32
             out = lora.calculate_weight(self.patches[self.key], weight.to(intermediate_dtype), self.key, intermediate_dtype=intermediate_dtype)
             if self.set_func is None:
-                return float.stochastic_rounding(out, weight.dtype, seed=string_to_seed(self.key))
+                return stochastic_rounding(out, weight.dtype, seed=string_to_seed(self.key))
             else:
                 return self.set_func(out, seed=string_to_seed(self.key), return_weight=True)
 

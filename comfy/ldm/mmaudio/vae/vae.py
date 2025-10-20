@@ -9,6 +9,7 @@ from .distributions import DiagonalGaussianDistribution
 
 from ....ops import disable_weight_init as ops
 
+from ....model_management import cast_to
 
 DATA_MEAN_80D = [
     -1.6058, -1.3676, -1.2520, -1.2453, -1.2078, -1.2224, -1.2419, -1.2439, -1.2922, -1.2927,
@@ -126,10 +127,10 @@ class VAE(nn.Module):
         return dec
 
     def normalize(self, x: torch.Tensor) -> torch.Tensor:
-        return (x - comfy.model_management.cast_to(self.data_mean, dtype=x.dtype, device=x.device)) / comfy.model_management.cast_to(self.data_std, dtype=x.dtype, device=x.device)
+        return (x - cast_to(self.data_mean, dtype=x.dtype, device=x.device)) / cast_to(self.data_std, dtype=x.dtype, device=x.device)
 
     def unnormalize(self, x: torch.Tensor) -> torch.Tensor:
-        return x * comfy.model_management.cast_to(self.data_std, dtype=x.dtype, device=x.device) + comfy.model_management.cast_to(self.data_mean, dtype=x.dtype, device=x.device)
+        return x * cast_to(self.data_std, dtype=x.dtype, device=x.device) + cast_to(self.data_mean, dtype=x.dtype, device=x.device)
 
     def forward(
             self,
@@ -142,7 +143,9 @@ class VAE(nn.Module):
 
         posterior = self.encode(x, normalize=normalize)
         if sample_posterior:
-            z = posterior.sample(rng)
+            raise RuntimeError("error in implementation, posterior doesn't accept this arg")
+            # todo: fix this in upstream?
+            # z = posterior.sample(rng)
         else:
             z = posterior.mode()
         dec = self.decode(z, unnormalize=unnormalize)

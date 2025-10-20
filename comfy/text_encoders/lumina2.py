@@ -1,4 +1,4 @@
-from .llama import Gemma2_2B
+from .llama import Gemma2_2B, Gemma3_4B
 from .spiece_tokenizer import SPieceTokenizer
 from .. import sd1_clip
 
@@ -40,7 +40,7 @@ class Gemma2_2BModel(sd1_clip.SDClipModel):
 
 class Gemma3_4BModel(sd1_clip.SDClipModel):
     def __init__(self, device="cpu", layer="hidden", layer_idx=-2, dtype=None, attention_mask=True, model_options={}):
-        super().__init__(device=device, layer=layer, layer_idx=layer_idx, textmodel_json_config={}, dtype=dtype, special_tokens={"start": 2, "pad": 0}, layer_norm_hidden_state=False, model_class=comfy.text_encoders.llama.Gemma3_4B, enable_attention_masks=attention_mask, return_attention_masks=attention_mask, model_options=model_options)
+        super().__init__(device=device, layer=layer, layer_idx=layer_idx, textmodel_json_config={}, dtype=dtype, special_tokens={"start": 2, "pad": 0}, layer_norm_hidden_state=False, model_class=Gemma3_4B, enable_attention_masks=attention_mask, return_attention_masks=attention_mask, model_options=model_options)
 
 class LuminaModel(sd1_clip.SD1ClipModel):
     def __init__(self, device="cpu", dtype=None, model_options=None, name="gemma2_2b", clip_model=Gemma2_2BModel):
@@ -51,6 +51,7 @@ class LuminaModel(sd1_clip.SD1ClipModel):
 
 
 def te(dtype_llama=None, llama_scaled_fp8=None, model_type="gemma2_2b"):
+    model = None
     if model_type == "gemma2_2b":
         model = Gemma2_2BModel
     elif model_type == "gemma3_4b":

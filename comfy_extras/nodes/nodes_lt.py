@@ -4,6 +4,8 @@ import av
 import numpy as np
 import torch
 
+from io import BytesIO
+
 import comfy.model_management
 import comfy.model_sampling
 import comfy.utils
@@ -11,6 +13,7 @@ from comfy import node_helpers
 from comfy.ldm.lightricks.symmetric_patchifier import SymmetricPatchifier, latent_to_pixel_coords
 from comfy.nodes import base_nodes as nodes
 from comfy_api.latest import ComfyExtension, io
+from typing_extensions import override
 
 class EmptyLTXVLatentVideo(io.ComfyNode):
     @classmethod

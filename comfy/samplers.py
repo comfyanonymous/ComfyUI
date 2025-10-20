@@ -324,7 +324,7 @@ def _calc_cond_batch(model: BaseModel, conds, x_in: torch.Tensor, timestep: torc
                                                                            copy_dict1=False)
 
             if patches is not None:
-                transformer_options["patches"] = comfy.patcher_extension.merge_nested_dicts(
+                transformer_options["patches"] = patcher_extension.merge_nested_dicts(
                     transformer_options.get("patches", {}),
                     patches
                 )

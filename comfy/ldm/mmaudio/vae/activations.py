@@ -2,7 +2,8 @@
 #   LICENSE is in incl_licenses directory.
 
 import torch
-from torch import nn, sin, pow
+from torch import nn
+from torch import sin, pow  # pylint: disable=no-name-in-module
 from torch.nn import Parameter
 from ....model_management import cast_to
 
