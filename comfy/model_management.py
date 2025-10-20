@@ -333,6 +333,7 @@ SUPPORT_FP8_OPS = args.supports_fp8_compute
 try:
     if is_amd():
         torch.backends.cudnn.enabled = False  # Seems to improve things a lot on AMD
+        logging.info("Set: torch.backends.cudnn.enabled = False for better AMD performance.")
         try:
             rocm_version = tuple(map(int, str(torch.version.hip).split(".")[:2]))
         except:
