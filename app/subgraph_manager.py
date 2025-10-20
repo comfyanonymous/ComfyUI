@@ -29,6 +29,7 @@ class SubgraphEntry(TypedDict):
     """
     Additional info about subgraph; in the case of custom_nodes, will contain nodepack name
     """
+    data: str
 
 class CustomNodeSubgraphEntryInfo(TypedDict):
     node_pack: str
@@ -38,39 +39,49 @@ class SubgraphManager:
     def __init__(self):
         self.cached_custom_node_subgraphs: dict[SubgraphEntry] | None = None
 
-    async def get_custom_node_subgraphs(self, force_reload=False):
+    async def load_entry_data(self, entry: SubgraphEntry):
+        with open(entry['path'], 'r') as f:
+            entry['data'] = f.read()
+        return entry
+
+    async def get_custom_node_subgraphs(self, loadedModules, force_reload=False):
         # if not forced to reload and cached, return cache
         if not force_reload and self.cached_custom_node_subgraphs is not None:
             return self.cached_custom_node_subgraphs
         # Load subgraphs from custom nodes
         subfolder = "subgraphs"
         subgraphs_dict: dict[SubgraphEntry] = {}
-        
+
         for folder in folder_paths.get_folder_paths("custom_nodes"):
             pattern = os.path.join(folder, f"*/{subfolder}/*.json")
             matched_files = glob.glob(pattern)
             for file in matched_files:
+                # replace backslashes with forward slashes
+                file = file.replace('\\', '/')
                 info: CustomNodeSubgraphEntryInfo = {
-                    "node_pack": folder
+                    "node_pack": "custom_nodes." + file.split('/')[-3]
                 }
-                path = f"{folder}/{file.split(folder)[-1]}"
                 source = Source.custom_node
                 # hash source + path to make sure id will be as unique as possible, but
                 # reproducible across backend reloads
-                id = hashlib.sha256(f"{source}{path}".encode()).hexdigest()
+                id = hashlib.sha256(f"{source}{file}".encode()).hexdigest()
                 entry: SubgraphEntry = {
                     "source": Source.custom_node,
                     "name": os.path.splitext(os.path.basename(file))[0],
-                    "path": path,
-                    "info": info
+                    "path": file,
+                    "info": info,
                 }
+                await self.load_entry_data(entry)
                 subgraphs_dict[id] = entry
         self.cached_custom_node_subgraphs = subgraphs_dict
         return subgraphs_dict
-    
+
     async def get_custom_node_subgraph(self, id: str):
         subgraphs = await self.get_custom_node_subgraphs()
-        return subgraphs.get(id, None)
+        entry: SubgraphEntry = subgraphs.get(id, None)
+        if entry is not None:
+            await self.load_entry_data(entry)
+        return entry
 
     def add_routes(self, routes, loadedModules):
         @routes.get("/global_subgraphs")
@@ -79,7 +90,7 @@ class SubgraphManager:
             # NOTE: we may want to include other sources of global subgraphs such as templates in the future;
             # that's the reasoning for the current implementation
             return web.json_response(subgraphs_dict)
-    
+
         @routes.get("/global_subgraphs/{id}")
         async def get_global_subgraph(request):
             id = request.match_info.get("id", None)

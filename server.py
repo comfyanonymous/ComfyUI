@@ -821,7 +821,7 @@ class PromptServer():
         self.user_manager.add_routes(self.routes)
         self.model_file_manager.add_routes(self.routes)
         self.custom_node_manager.add_routes(self.routes, self.app, nodes.LOADED_MODULE_DIRS.items())
-        self.subgraph_manager.add_routes(self.routes)
+        self.subgraph_manager.add_routes(self.routes, nodes.LOADED_MODULE_DIRS.items())
         self.app.add_subapp('/internal', self.internal_routes.get_app())
 
         # Prefix every route with /api for easier matching for delegation.
