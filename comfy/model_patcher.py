@@ -42,6 +42,13 @@ from comfy.comfy_types import UnetWrapperFunction
 from comfy.patcher_extension import CallbacksMP, PatcherInjection, WrappersMP
 from comfy.model_management import get_free_memory
 
+def need_mmap() -> bool:
+    free_cpu_mem = get_free_memory(torch.device("cpu"))
+    mmap_mem_threshold_gb = int(os.environ.get("MMAP_MEM_THRESHOLD_GB", "1024"))
+    if free_cpu_mem < mmap_mem_threshold_gb * 1024 * 1024 * 1024:
+        logging.debug(f"Enabling mmap, current free cpu memory {free_cpu_mem/(1024*1024*1024)} GB < {mmap_mem_threshold_gb} GB")
+        return True
+    return False
 
 def to_mmap(t: torch.Tensor, filename: Optional[str] = None) -> torch.Tensor:
     """
@@ -905,8 +912,11 @@ class ModelPatcher:
 
                 
             if device_to is not None:
-                # offload to mmap
-                model_to_mmap(self.model)
+                if need_mmap():
+                    # offload to mmap
+                    model_to_mmap(self.model)
+                else:
+                    self.model.to(device_to)
                 self.model.device = device_to
             
             self.model.model_loaded_weight_memory = 0
@@ -961,9 +971,11 @@ class ModelPatcher:
                     bias_key = "{}.bias".format(n)
                     if move_weight:
                         cast_weight = self.force_cast_weights
-                        # offload to mmap
-                        # m.to(device_to)
-                        model_to_mmap(m)
+                        if need_mmap():
+                            # offload to mmap
+                            model_to_mmap(m)
+                        else:
+                            m.to(device_to)
                         module_mem += move_weight_functions(m, device_to)
                         if lowvram_possible:
                             if weight_key in self.patches:
