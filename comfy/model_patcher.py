@@ -27,7 +27,10 @@ import uuid
 from typing import Callable, Optional
 
 import torch
-import tensordict
+import os
+import tempfile
+import weakref
+import gc
 
 import comfy.float
 import comfy.hooks
@@ -39,8 +42,77 @@ from comfy.comfy_types import UnetWrapperFunction
 from comfy.patcher_extension import CallbacksMP, PatcherInjection, WrappersMP
 from comfy.model_management import get_free_memory
 
-def to_mmap(t: torch.Tensor) -> tensordict.MemoryMappedTensor:
-    return tensordict.MemoryMappedTensor.from_tensor(t)
+
+def to_mmap(t: torch.Tensor, filename: Optional[str] = None) -> torch.Tensor:
+    """
+    Convert a tensor to a memory-mapped CPU tensor using PyTorch's native mmap support.
+    """
+    # Move to CPU if needed
+    if t.is_cuda:
+        cpu_tensor = t.cpu()
+    else:
+        cpu_tensor = t
+    
+    # Create temporary file
+    if filename is None:
+        temp_file = tempfile.mktemp(suffix='.pt', prefix='comfy_mmap_')
+    else:
+        temp_file = filename
+    
+    # Save tensor to file
+    torch.save(cpu_tensor, temp_file)
+    
+    # If we created a CPU copy from CUDA, delete it to free memory
+    if t.is_cuda:
+        del cpu_tensor
+        gc.collect()
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+    
+    # Load with mmap - this doesn't load all data into RAM
+    mmap_tensor = torch.load(temp_file, map_location='cpu', mmap=True, weights_only=False)
+    
+    # Register cleanup callback
+    def _cleanup():
+        try:
+            if os.path.exists(temp_file):
+                os.remove(temp_file)
+                logging.debug(f"Cleaned up mmap file: {temp_file}")
+        except Exception:
+            pass
+    
+    weakref.finalize(mmap_tensor, _cleanup)
+    
+    # Save original 'to' method
+    original_to = mmap_tensor.to
+    
+    # Create custom 'to' method that cleans up file when moving to CUDA
+    def custom_to(*args, **kwargs):
+        # Determine target device
+        target_device = None
+        if len(args) > 0:
+            if isinstance(args[0], torch.device):
+                target_device = args[0]
+            elif isinstance(args[0], str):
+                target_device = torch.device(args[0])
+        if 'device' in kwargs:
+            target_device = kwargs['device']
+            if isinstance(target_device, str):
+                target_device = torch.device(target_device)
+        
+        # Call original 'to' method first to move data
+        result = original_to(*args, **kwargs)
+        
+        # If moved to CUDA, cleanup the mmap file after the move
+        if target_device is not None and target_device.type == 'cuda':
+            _cleanup()
+        
+        return result
+    
+    # Replace the 'to' method
+    mmap_tensor.to = custom_to
+    
+    return mmap_tensor
                 
 def model_to_mmap(model: torch.nn.Module):
     """Convert all parameters and buffers to memory-mapped tensors
