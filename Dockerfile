@@ -24,11 +24,11 @@ RUN echo "onnxruntime-gpu==1.22.0" >> /workspace/overrides.txt; pip freeze | gre
 # mitigates AttributeError: module 'cv2.dnn' has no attribute 'DictValue' \
 # see https://github.com/facebookresearch/nougat/issues/40
 RUN pip install uv && uv --version && \
-    apt-get update && apt-get install --no-install-recommends ffmpeg libsm6 libxext6 -y && \
+    apt-get update && apt-get install --no-install-recommends ffmpeg libsm6 libxext6 libcairo2-dev -y && \
     uv pip uninstall --system $(pip list --format=freeze | grep opencv) && \
     rm -rf /usr/local/lib/python3.12/dist-packages/cv2/ && \
     uv pip install wheel && \
-    uv pip install --no-build-isolation "opencv-contrib-python-headless!=4.11.0.86" && \
+    uv pip install --no-build-isolation "opencv-contrib-python-headless>=4.12.0.88" && \
     rm -rf /var/lib/apt/lists/*
 
 # install sageattention
