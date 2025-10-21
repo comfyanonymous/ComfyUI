@@ -383,7 +383,7 @@ SUPPORT_FP8_OPS = args.supports_fp8_compute
 try:
     if is_amd():
         torch.backends.cudnn.enabled = False  # Seems to improve things a lot on AMD
-        logging.info("Set: torch.backends.cudnn.enabled = False for better AMD performance.")
+        logger.info("Set: torch.backends.cudnn.enabled = False for better AMD performance.")
         try:
             rocm_version = tuple(map(int, str(torch.version.hip).split(".")[:2]))
         except:
@@ -394,7 +394,7 @@ try:
         if args.use_split_cross_attention == False and args.use_quad_cross_attention == False:
             if importlib.util.find_spec('triton') is not None:  # AMD efficient attention implementation depends on triton. TODO: better way of detecting if it's compiled in or not.
                 if torch_version_numeric >= (2, 7):  # works on 2.6 but doesn't actually seem to improve much
-                    if any((a in arch) for a in ["gfx90a", "gfx942", "gfx1100", "gfx1101", "gfx1151"]):  # TODO: more arches, TODO: gfx950
+                    if any((a in arch) for a in ["gfx90a", "gfx942", "gfx1100", "gfx1101", "gfx1102", "gfx1151"]):  # TODO: more arches, TODO: gfx950
                         ENABLE_PYTORCH_ATTENTION = True
                         if rocm_version >= (7, 0):
                             if any((a in arch) for a in ["gfx1201"]):
