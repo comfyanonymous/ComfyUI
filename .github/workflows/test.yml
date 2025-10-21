@@ -66,6 +66,9 @@ jobs:
       - name: Run unit tests
         run: |
           pytest -v tests/unit
+      - name: Run inference tests
+        run: |
+          pytest -v tests/inference
   build_and_execute_amd:
     environment: "Testing"
     name: ${{ matrix.runner.friendly_name }}
