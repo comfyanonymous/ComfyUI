@@ -922,9 +922,7 @@ class UNETLoader:
             model_options["dtype"] = torch.float8_e5m2
 
         unet_path = folder_paths.get_full_path_or_raise("diffusion_models", unet_name)
-        logging.info(f"load unet node start, path {unet_path}")
         model = comfy.sd.load_diffusion_model(unet_path, model_options=model_options)
-        logging.info(f"load unet node end, path {unet_path}")
         return (model,)
 
 class CLIPLoader:

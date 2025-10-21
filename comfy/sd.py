@@ -1321,7 +1321,7 @@ def load_diffusion_model_state_dict(sd, model_options={}):
                     logging.warning("{} {}".format(diffusers_keys[k], k))
 
     offload_device = model_management.unet_offload_device()
-    logging.info(f"loader load model to offload device: {offload_device}")
+    logging.debug(f"loader load model to offload device: {offload_device}")
     unet_weight_dtype = list(model_config.supported_inference_dtypes)
     if model_config.scaled_fp8 is not None:
         weight_dtype = None
@@ -1338,7 +1338,6 @@ def load_diffusion_model_state_dict(sd, model_options={}):
         model_config.optimizations["fp8"] = True
 
     model = model_config.get_model(new_sd, "")
-    # import pdb; pdb.set_trace()
     model = model.to(offload_device)
     model.load_model_weights(new_sd, "")
     left_over = sd.keys()
@@ -1348,13 +1347,8 @@ def load_diffusion_model_state_dict(sd, model_options={}):
 
 
 def load_diffusion_model(unet_path, model_options={}):
-    # TODO(sf): here load file into mem
     sd = comfy.utils.load_torch_file(unet_path)
-    logging.info(f"load model start, path {unet_path}")
-    # import pdb; pdb.set_trace()
     model = load_diffusion_model_state_dict(sd, model_options=model_options)
-    logging.info(f"load model end, path {unet_path}")
-    # import pdb; pdb.set_trace()
     if model is None:
         logging.error("ERROR UNSUPPORTED DIFFUSION MODEL {}".format(unet_path))
         raise RuntimeError("ERROR: Could not detect model type of: {}\n{}".format(unet_path, model_detection_error_hint(unet_path, sd)))

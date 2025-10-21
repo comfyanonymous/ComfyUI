@@ -55,15 +55,13 @@ else:
     logging.info("Warning, you are using an old pytorch version and some ckpt/pt files might be loaded unsafely. Upgrading to 2.4 or above is recommended.")
 
 def load_torch_file(ckpt, safe_load=False, device=None, return_metadata=False):
-    # TODO(sf): here load file into mmap
-    logging.info(f"load_torch_file start, ckpt={ckpt}, safe_load={safe_load}, device={device}, return_metadata={return_metadata}")
     if device is None:
         device = torch.device("cpu")
     metadata = None
     if ckpt.lower().endswith(".safetensors") or ckpt.lower().endswith(".sft"):
         try:
             if not DISABLE_MMAP:
-                logging.info(f"load_torch_file safetensors mmap True")
+                logging.debug(f"load_torch_file of safetensors into mmap True")
             with safetensors.safe_open(ckpt, framework="pt", device=device.type) as f:
                 sd = {}
                 for k in f.keys():
@@ -84,7 +82,7 @@ def load_torch_file(ckpt, safe_load=False, device=None, return_metadata=False):
     else:
         torch_args = {}
         if MMAP_TORCH_FILES:
-            logging.info(f"load_torch_file mmap True")
+            logging.debug(f"load_torch_file of torch state dict into mmap True")
             torch_args["mmap"] = True
 
         if safe_load or ALWAYS_SAFE_LOAD:
@@ -102,7 +100,6 @@ def load_torch_file(ckpt, safe_load=False, device=None, return_metadata=False):
                     sd = pl_sd
             else:
                 sd = pl_sd
-    # import pdb; pdb.set_trace()
     return (sd, metadata) if return_metadata else sd
 
 def save_torch_file(sd, ckpt, metadata=None):

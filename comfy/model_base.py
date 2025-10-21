@@ -299,14 +299,14 @@ class BaseModel(torch.nn.Module):
                 to_load[k[len(unet_prefix):]] = sd.pop(k)
 
         free_cpu_memory = get_free_memory(torch.device("cpu"))
-        logging.info(f"load model weights start, free cpu memory size {free_cpu_memory/(1024*1024*1024)} GB")
-        logging.info(f"model destination device {next(self.diffusion_model.parameters()).device}")
+        logging.debug(f"load model weights start, free cpu memory size {free_cpu_memory/(1024*1024*1024)} GB")
+        logging.debug(f"model destination device {next(self.diffusion_model.parameters()).device}")
         to_load = self.model_config.process_unet_state_dict(to_load)
-        logging.info(f"load model {self.model_config} weights process end")
+        logging.debug(f"load model {self.model_config} weights process end")
         # replace tensor with mmap tensor by assign
         m, u = self.diffusion_model.load_state_dict(to_load, strict=False, assign=True)
         free_cpu_memory = get_free_memory(torch.device("cpu"))
-        logging.info(f"load model {self.model_config} weights end, free cpu memory size {free_cpu_memory/(1024*1024*1024)} GB")
+        logging.debug(f"load model {self.model_config} weights end, free cpu memory size {free_cpu_memory/(1024*1024*1024)} GB")
         if len(m) > 0:
             logging.warning("unet missing: {}".format(m))
 
@@ -385,7 +385,7 @@ class BaseModel(torch.nn.Module):
             #TODO: this formula might be too aggressive since I tweaked the sub-quad and split algorithms to use less memory.
             area = sum(map(lambda input_shape: input_shape[0] * math.prod(input_shape[2:]), input_shapes))
             return (area * 0.15 * self.memory_usage_factor) * (1024 * 1024)
-    
+
     def extra_conds_shapes(self, **kwargs):
         return {}
 

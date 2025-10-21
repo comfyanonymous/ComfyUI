@@ -400,8 +400,6 @@ async def execute(server, dynprompt, caches, current_item, extra_data, executed,
     inputs = dynprompt.get_node(unique_id)['inputs']
     class_type = dynprompt.get_node(unique_id)['class_type']
     class_def = nodes.NODE_CLASS_MAPPINGS[class_type]
-    
-    
     if caches.outputs.get(unique_id) is not None:
         if server.client_id is not None:
             cached_output = caches.ui.get(unique_id) or {}
@@ -595,7 +593,6 @@ async def execute(server, dynprompt, caches, current_item, extra_data, executed,
 
     get_progress_state().finish_progress(unique_id)
     executed.add(unique_id)
-    
 
     return (ExecutionResult.SUCCESS, None, None)
 

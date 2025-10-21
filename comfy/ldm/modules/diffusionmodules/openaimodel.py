@@ -911,4 +911,3 @@ class UNetModel(nn.Module):
             return self.id_predictor(h)
         else:
             return self.out(h)
-    

@@ -61,7 +61,7 @@ def model_to_mmap(model: torch.nn.Module):
         The same model with all tensors converted to memory-mapped format
     """
     free_cpu_mem = get_free_memory(torch.device("cpu"))
-    logging.info(f"Converting model {model.__class__.__name__} to mmap, cpu memory: {free_cpu_mem/(1024*1024*1024)} GB")
+    logging.debug(f"Converting model {model.__class__.__name__} to mmap, current free cpu memory: {free_cpu_mem/(1024*1024*1024)} GB")
     
     def convert_fn(t):
         """Convert function for _apply()
@@ -81,7 +81,7 @@ def model_to_mmap(model: torch.nn.Module):
     
     new_model = model._apply(convert_fn)
     free_cpu_mem = get_free_memory(torch.device("cpu"))
-    logging.info(f"Model {model.__class__.__name__} converted to mmap, cpu memory: {free_cpu_mem/(1024*1024*1024)} GB")
+    logging.debug(f"Model {model.__class__.__name__} converted to mmap, current free cpu memory: {free_cpu_mem/(1024*1024*1024)} GB")
     return new_model
 
 

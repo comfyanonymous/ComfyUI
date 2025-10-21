@@ -509,16 +509,16 @@ class LoadedModel:
         return False
 
     def model_unload(self, memory_to_free=None, unpatch_weights=True):
-        logging.info(f"model_unload: {self.model.model.__class__.__name__}")
-        logging.info(f"memory_to_free: {memory_to_free/(1024*1024*1024)} GB")
-        logging.info(f"unpatch_weights: {unpatch_weights}")
-        logging.info(f"loaded_size: {self.model.loaded_size()/(1024*1024*1024)} GB")
-        logging.info(f"offload_device: {self.model.offload_device}")
+        logging.debug(f"model_unload: {self.model.model.__class__.__name__}")
+        logging.debug(f"memory_to_free: {memory_to_free/(1024*1024*1024)} GB")
+        logging.debug(f"unpatch_weights: {unpatch_weights}")
+        logging.debug(f"loaded_size: {self.model.loaded_size()/(1024*1024*1024)} GB")
+        logging.debug(f"offload_device: {self.model.offload_device}")
         available_memory = get_free_memory(self.model.offload_device)
-        logging.info(f"before unload, available_memory of offload device {self.model.offload_device}: {available_memory/(1024*1024*1024)} GB")
+        logging.debug(f"before unload, available_memory of offload device {self.model.offload_device}: {available_memory/(1024*1024*1024)} GB")
         reserved_memory = 1024*1024*1024  # 1GB reserved memory for other usage
         if available_memory < reserved_memory:
-            logging.error(f"Not enough cpu memory to unload. Available: {available_memory/(1024*1024*1024)} GB, Reserved: {reserved_memory/(1024*1024*1024)} GB")
+            logging.warning(f"Not enough cpu memory to unload. Available: {available_memory/(1024*1024*1024)} GB, Reserved: {reserved_memory/(1024*1024*1024)} GB")
             return False
         else:
             offload_memory = available_memory - reserved_memory
@@ -530,14 +530,14 @@ class LoadedModel:
         try:
             if memory_to_free is not None:
                 if memory_to_free < self.model.loaded_size():
-                    logging.info("Do partially unload")
+                    logging.debug("Do partially unload")
                     freed = self.model.partially_unload(self.model.offload_device, memory_to_free)
-                    logging.info(f"partially_unload freed: {freed/(1024*1024*1024)} GB")
+                    logging.debug(f"partially_unload freed vram: {freed/(1024*1024*1024)} GB")
                     if freed >= memory_to_free:
                         return False
-            logging.info("Do full unload")
+            logging.debug("Do full unload")
             self.model.detach(unpatch_weights)
-            logging.info("Do full unload done")
+            logging.debug("Do full unload done")
         except Exception as e:
             logging.error(f"Error in model_unload: {e}")
             available_memory = get_free_memory(self.model.offload_device)
@@ -595,7 +595,7 @@ def minimum_inference_memory():
     return (1024 * 1024 * 1024) * 0.8 + extra_reserved_memory()
 
 def free_memory(memory_required, device, keep_loaded=[]):
-    logging.info("start to free mem")
+    logging.debug("start to free mem")
     cleanup_models_gc()
     unloaded_model = []
     can_unload = []
@@ -616,7 +616,7 @@ def free_memory(memory_required, device, keep_loaded=[]):
             if free_mem > memory_required:
                 break
             memory_to_free = memory_required - free_mem
-        logging.info(f"Unloading {current_loaded_models[i].model.model.__class__.__name__}")
+        logging.debug(f"Unloading {current_loaded_models[i].model.model.__class__.__name__}")
         if current_loaded_models[i].model_unload(memory_to_free):
             unloaded_model.append(i)
 
@@ -633,7 +633,7 @@ def free_memory(memory_required, device, keep_loaded=[]):
     return unloaded_models
 
 def load_models_gpu(models, memory_required=0, force_patch_weights=False, minimum_memory_required=None, force_full_load=False):
-    logging.info(f"start to load models")
+    logging.debug(f"start to load models")
     cleanup_models_gc()
     global vram_state
 
@@ -655,7 +655,7 @@ def load_models_gpu(models, memory_required=0, force_patch_weights=False, minimu
     models_to_load = []
 
     for x in models:
-        logging.info(f"loading model: {x.model.__class__.__name__}")
+        logging.debug(f"start loading model to vram: {x.model.__class__.__name__}")
         loaded_model = LoadedModel(x)
         try:
             loaded_model_index = current_loaded_models.index(loaded_model)
