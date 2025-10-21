@@ -170,7 +170,7 @@ def test_to_mmap_cuda_cycle():
     3. GPU memory is freed when converting to mmap
     4. mmap tensor can be moved back to CUDA
     5. Data remains consistent throughout the cycle
-    6. mmap file is automatically cleaned up when moved to CUDA
+    6. mmap file is automatically cleaned up via garbage collection
     """
     
     # Check if CUDA is available
@@ -251,24 +251,26 @@ def test_to_mmap_cuda_cycle():
     print(f"   Difference: {sum_diff:.6f}")
     assert sum_diff < 0.01, f"Data should be consistent, but difference is {sum_diff:.6f}"
     
-    # Step 5: Verify file cleanup
+    # Step 5: Verify file cleanup (delayed until garbage collection)
     print("\n5. Verifying file cleanup...")
+    # Delete the mmap tensor reference to trigger garbage collection
+    del mmap_tensor
     gc.collect()
     import time
     time.sleep(0.1)  # Give OS time to clean up
     temp_files_after = len([f for f in os.listdir(tempfile.gettempdir()) if f.startswith('comfy_mmap_')])
-    print(f"   Temp mmap files after: {temp_files_after}")
-    # File should be cleaned up when moved to CUDA
-    assert temp_files_after <= temp_files_before, "mmap file should be cleaned up after moving to CUDA"
+    print(f"   Temp mmap files after GC: {temp_files_after}")
+    # File should be cleaned up after garbage collection
+    assert temp_files_after <= temp_files_before, "mmap file should be cleaned up after garbage collection"
     
     print("\n✓ Test passed!")
     print("  CUDA -> mmap -> CUDA cycle works correctly")
     print(f"  CPU memory increase: {cpu_increase:.2f} GB < 0.1 GB (mmap efficiency)")
     print("  Data consistency maintained")
-    print("  File cleanup successful")
+    print("  File cleanup successful (via garbage collection)")
     
     # Cleanup
-    del mmap_tensor, cuda_tensor
+    del cuda_tensor  # mmap_tensor already deleted in Step 5
     gc.collect()
     torch.cuda.empty_cache()
 

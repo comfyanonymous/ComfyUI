@@ -72,7 +72,7 @@ def to_mmap(t: torch.Tensor, filename: Optional[str] = None) -> torch.Tensor:
     # Load with mmap - this doesn't load all data into RAM
     mmap_tensor = torch.load(temp_file, map_location='cpu', mmap=True, weights_only=False)
     
-    # Register cleanup callback
+    # Register cleanup callback - will be called when tensor is garbage collected
     def _cleanup():
         try:
             if os.path.exists(temp_file):
@@ -83,34 +83,35 @@ def to_mmap(t: torch.Tensor, filename: Optional[str] = None) -> torch.Tensor:
     
     weakref.finalize(mmap_tensor, _cleanup)
     
-    # Save original 'to' method
-    original_to = mmap_tensor.to
+    # # Save original 'to' method
+    # original_to = mmap_tensor.to
     
-    # Create custom 'to' method that cleans up file when moving to CUDA
-    def custom_to(*args, **kwargs):
-        # Determine target device
-        target_device = None
-        if len(args) > 0:
-            if isinstance(args[0], torch.device):
-                target_device = args[0]
-            elif isinstance(args[0], str):
-                target_device = torch.device(args[0])
-        if 'device' in kwargs:
-            target_device = kwargs['device']
-            if isinstance(target_device, str):
-                target_device = torch.device(target_device)
-        
-        # Call original 'to' method first to move data
-        result = original_to(*args, **kwargs)
-        
-        # If moved to CUDA, cleanup the mmap file after the move
-        if target_device is not None and target_device.type == 'cuda':
-            _cleanup()
-        
-        return result
+    # # Create custom 'to' method that cleans up file when moving to CUDA
+    # def custom_to(*args, **kwargs):
+    #     # Determine target device
+    #     target_device = None
+    #     if len(args) > 0:
+    #         if isinstance(args[0], torch.device):
+    #             target_device = args[0]
+    #         elif isinstance(args[0], str):
+    #             target_device = torch.device(args[0])
+    #     if 'device' in kwargs:
+    #         target_device = kwargs['device']
+    #         if isinstance(target_device, str):
+    #             target_device = torch.device(target_device)
+    #     
+    #     # Call original 'to' method first to move data
+    #     result = original_to(*args, **kwargs)
+    #     
+    #     # NOTE: Cleanup disabled to avoid blocking model load performance
+    #     # If moved to CUDA, cleanup the mmap file after the move
+    #     if target_device is not None and target_device.type == 'cuda':
+    #         _cleanup()
+    #     
+    #     return result
     
-    # Replace the 'to' method
-    mmap_tensor.to = custom_to
+    # # Replace the 'to' method
+    # mmap_tensor.to = custom_to
     
     return mmap_tensor
                 
