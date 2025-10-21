@@ -1,9 +1,10 @@
 import torch
+import logging
 from diffusers import HookRegistry
 from diffusers.hooks import apply_group_offloading, apply_layerwise_casting, ModelHook
 
 from comfy.language.transformers_model_management import TransformersManagedModel
-from comfy.model_management import vram_state, VRAMState
+from comfy.model_management import vram_state, VRAMState, unload_all_models, get_free_memory, get_torch_device
 from comfy.model_management_types import HooksSupport, ModelManageable
 from comfy.model_patcher import ModelPatcher
 from comfy.node_helpers import export_custom_nodes
@@ -13,6 +14,8 @@ from comfy.patcher_extension import WrappersMP
 from comfy.rmsnorm import RMSNorm
 
 _DISABLE_COMFYUI_CASTING_HOOK = "disable_comfyui_casting_hook"
+
+logger = logging.getLogger(__name__)
 
 
 class DisableComfyWeightCast(ModelHook):
@@ -75,6 +78,10 @@ def prepare_group_offloading_factory(load_device: torch.device, offload_device: 
     def wrapper(executor, model: ModelPatcher, *args, **kwargs):
         # this model will now just be loaded to CPU, since diffusers will manage moving to gpu
         model.load_device = offload_device
+
+        # we'll have to unload everything to use pinning better, this includes trimming
+        unload_all_models()
+
         # loads the model, prepares everything
         inner_model, conds, models = executor(model, *args, **kwargs)
 
@@ -83,13 +90,23 @@ def prepare_group_offloading_factory(load_device: torch.device, offload_device: 
             raise ValueError("manual casting operations, where the model is loaded in different weights than inference will occur, is not supported")
 
         # weights are patched, ready to go, inner model will be correctly deleted at the end of sampling
+        model_size = model.model_size()
+
+        model_too_large = model_size * 2 > get_free_memory(torch.cpu)
+        low_vram_state = vram_state in (VRAMState.LOW_VRAM,)
+        is_cuda_device = load_device.type == 'cuda'
+
+        if model_too_large or low_vram_state:
+            logger.error(f"group offloading did not use memory pinning because model_too_large={model_too_large} low_vram_state={low_vram_state}")
+        if not is_cuda_device:
+            logger.error(f"group offloading did not use stream because load_device.type={load_device.type} != \"cuda\"")
         apply_group_offloading(
             inner_model.diffusion_model,
             load_device,
             offload_device,
-            use_stream=True,
-            record_stream=True,
-            low_cpu_mem_usage=vram_state in (VRAMState.LOW_VRAM,),
+            use_stream=is_cuda_device,
+            record_stream=is_cuda_device,
+            low_cpu_mem_usage=low_vram_state or model_too_large,
             num_blocks_per_group=1
         )
         # then the inputs will be ready on the correct device due to the wrapper factory
@@ -139,7 +156,7 @@ class GroupOffload(CustomNode):
                 num_blocks_per_group=1
             )
         elif isinstance(model, HooksSupport) and isinstance(model, ModelManageable):
-            model.add_wrapper(WrappersMP.PREPARE_SAMPLING, prepare_group_offloading_factory(model.load_device, model.offload_device))
+            model.add_wrapper_with_key(WrappersMP.PREPARE_SAMPLING, "group_offload", prepare_group_offloading_factory(model.load_device, model.offload_device))
         return model,
 
 

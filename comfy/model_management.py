@@ -398,7 +398,7 @@ try:
                         ENABLE_PYTORCH_ATTENTION = True
                         if rocm_version >= (7, 0):
                             if any((a in arch) for a in ["gfx1201"]):
-                               ENABLE_PYTORCH_ATTENTION = True
+                                ENABLE_PYTORCH_ATTENTION = True
         if torch_version_numeric >= (2, 7) and rocm_version >= (6, 4):
             if any((a in arch) for a in ["gfx1200", "gfx1201", "gfx950"]):  # TODO: more arches, "gfx942" gives error on pytorch nightly 2.10 1013 rocm7.0
                 SUPPORT_FP8_OPS = True
@@ -639,6 +639,42 @@ def extra_reserved_memory():
 
 def minimum_inference_memory():
     return (1024 * 1024 * 1024) * 0.8 + extra_reserved_memory()
+
+
+def trim_memory() -> bool:
+    """
+    Trims memory usage, returning reserved memory to the system
+
+    Only supported on Windows and Linux
+    :return:
+    """
+    try:
+        if sys.platform.startswith('linux'):
+            import ctypes
+            libc_path = ctypes.util.find_library('c')
+            if not libc_path:
+                return False
+
+            libc = ctypes.CDLL(libc_path)
+
+            if hasattr(libc, 'malloc_trim'):
+                return libc.malloc_trim(0) == 1
+            else:
+                return False
+        elif sys.platform == 'win32':
+            import ctypes.wintypes
+            kernel32 = ctypes.WinDLL("kernel32")
+            EmptyProcessWorkingSet = kernel32.EmptyProcessWorkingSet
+            EmptyProcessWorkingSet.argtypes = [ctypes.wintypes.HANDLE]
+            EmptyProcessWorkingSet.restype = ctypes.wintypes.BOOL
+            handle = -1
+            success = EmptyProcessWorkingSet(handle)
+            return bool(success)
+        else:
+            return False
+    except Exception as exc_info:
+        logger.warning("failed to trim", exc_info=exc_info)
+        return False
 
 
 @tracer.start_as_current_span("Free Memory")
@@ -1593,6 +1629,7 @@ def _soft_empty_cache(force=False):
 def unload_all_models():
     with model_management_lock:
         free_memory(1e30, get_torch_device())
+        trim_memory()
 
 
 @_deprecate_method(version="*", message="The comfy.model_management.resolve_lowvram_weight function will be removed soon, please stop using it.")
