@@ -174,10 +174,7 @@ class TestExecution:
         await client.run(g)
         result2 = await client.run(g)
         for node_id, node in g.nodes.items():
-            # if server["should_cache_results"]:
             assert not result2.did_run(node), f"Node {node_id} ran, but should have been cached"
-            # else:
-            #     assert result2.did_run(node), f"Node {node_id} was cached, but should have been run"
 
     async def test_partial_cache(self, client: ComfyClient, builder: GraphBuilder):
         g = builder
@@ -190,13 +187,9 @@ class TestExecution:
 
         await client.run(g)
         mask.inputs['value'] = 0.4
-        result2 = await client.run(g)
-        # if server["should_cache_results"]:
+        result2 = client.run(g)
         assert not result2.did_run(input1), "Input1 should have been cached"
         assert not result2.did_run(input2), "Input2 should have been cached"
-        # else:
-        #     assert result2.did_run(input1), "Input1 should have been rerun"
-        #     assert result2.did_run(input2), "Input2 should have been rerun"
 
     async def test_error(self, client: ComfyClient, builder: GraphBuilder):
         g = builder
@@ -336,10 +329,7 @@ class TestExecution:
         result3 = await client.run(g)
         result4 = await client.run(g)
         assert result1.did_run(is_changed), "is_changed should have been run"
-        # if server["should_cache_results"]:
         assert not result2.did_run(is_changed), "is_changed should have been cached"
-        # else:
-        #     assert result2.did_run(is_changed), "is_changed should have been re-run"
         assert result3.did_run(is_changed), "is_changed should have been re-run"
         assert result4.did_run(is_changed), "is_changed should not have been cached"
 
@@ -461,10 +451,7 @@ class TestExecution:
         images = result.get_images(output)
         assert len(images) == 1, "Should have 1 image"
         assert numpy.array(images[0]).min() == 63 and numpy.array(images[0]).max() == 63, "Image should have value 0.25"
-        # if server["should_cache_results"]:
         assert not result.did_run(test_node), "The execution should have been cached"
-        # else:
-        #     assert result.did_run(test_node), "The execution should have been re-run"
 
     async def test_parallel_sleep_nodes(self, client: ComfyClient, builder: GraphBuilder, skip_timing_checks):
         # Warmup execution to ensure server is fully initialized
