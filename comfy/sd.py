@@ -297,7 +297,8 @@ class VAE:
             VAE_KL_MEM_RATIO = 2.73
         else:
             VAE_KL_MEM_RATIO = 1.0
-            self.memory_used_encode = lambda shape, dtype: (1767 * shape[2] * shape[3]) * model_management.dtype_size(dtype) * VAE_KL_MEM_RATIO  # These are for AutoencoderKL and need tweaking (should be lower)
+
+        self.memory_used_encode = lambda shape, dtype: (1767 * shape[2] * shape[3]) * model_management.dtype_size(dtype) * VAE_KL_MEM_RATIO  # These are for AutoencoderKL and need tweaking (should be lower)
         self.memory_used_decode = lambda shape, dtype: (2178 * shape[2] * shape[3] * 64) * model_management.dtype_size(dtype) * VAE_KL_MEM_RATIO
         self.downscale_ratio = 8
         self.upscale_ratio = 8
