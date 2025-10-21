@@ -777,7 +777,7 @@ def gguf_sd_loader(path, handle_prefix="model.diffusion_model.", return_arch=Fal
         qtype_dict[tensor_type_str] = qtype_dict.get(tensor_type_str, 0) + 1
 
     # print loaded tensor type counts
-    logger.info("gguf qtypes: " + ", ".join(f"{k} ({v})" for k, v in qtype_dict.items()))
+    logger.debug("gguf qtypes: " + ", ".join(f"{k} ({v})" for k, v in qtype_dict.items()))
 
     # mark largest tensor for vram estimation
     qsd = {k: v for k, v in state_dict.items() if is_quantized(v)}
