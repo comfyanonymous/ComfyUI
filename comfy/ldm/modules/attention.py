@@ -493,7 +493,16 @@ def attention_pytorch(q, k, v, heads, mask=None, attn_precision=None, skip_resha
             mask = mask.unsqueeze(1)
 
     if SDP_BATCH_LIMIT >= b:
-        out = comfy.ops.scaled_dot_product_attention(q, k, v, attn_mask=mask, dropout_p=0.0, is_causal=False)
+        # out = comfy.ops.scaled_dot_product_attention(q, k, v, attn_mask=mask, dropout_p=0.0, is_causal=False)
+        if mask is None:
+            k = k.contiguous()
+            v = v.contiguous()
+            import sdpa_kernels
+            out = sdpa_kernels.sdp_xmx(q, k, v, 1 / math.sqrt(dim_head), 0)
+            # print("here:", out.isnan().count_nonzero(), out.isinf().count_nonzero())
+            # breakpoint()
+        else:
+            out = comfy.ops.scaled_dot_product_attention(q, k, v, attn_mask=mask, dropout_p=0.0, is_causal=False)
         if not skip_output_reshape:
             out = (
                 out.transpose(1, 2).reshape(b, -1, heads * dim_head)
