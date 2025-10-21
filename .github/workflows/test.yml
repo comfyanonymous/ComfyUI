@@ -112,6 +112,7 @@ jobs:
       - name: Run unit tests
         run: |
           # only use dGPU
+          cd ${GITHUB_WORKSPACE}/src
           export HIP_VISIBLE_DEVICES=1
           pytest -v tests/unit
   build_and_execute_macos:
