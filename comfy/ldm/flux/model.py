@@ -279,15 +279,3 @@ class Flux(nn.Module):
         out = self.forward_orig(img, img_ids, context, txt_ids, timestep, y, guidance, control, transformer_options, attn_mask=kwargs.get("attention_mask", None))
         out = out[:, :img_tokens]
         return rearrange(out, "b (h w) (c ph pw) -> b c (h ph) (w pw)", h=h_len, w=w_len, ph=2, pw=2)[:,:,:h_orig,:w_orig]
-
-    def load_state_dict(self, state_dict, strict=True, assign=False):
-        # import pdb; pdb.set_trace()
-        """Override load_state_dict() to add logging"""
-        logging.info(f"Flux load_state_dict start, strict={strict}, state_dict keys count={len(state_dict)}")
-        
-        # Call parent's load_state_dict method
-        result = super().load_state_dict(state_dict, strict=strict, assign=assign)
-        
-        logging.info(f"Flux load_state_dict end, strict={strict}, state_dict keys count={len(state_dict)}")
-        
-        return result

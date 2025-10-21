@@ -912,15 +912,3 @@ class UNetModel(nn.Module):
         else:
             return self.out(h)
     
-
-    def load_state_dict(self, state_dict, strict=True, assign=False):
-        # import pdb; pdb.set_trace()
-        """Override load_state_dict() to add logging"""
-        logging.info(f"UNetModel load_state_dict start, strict={strict}, state_dict keys count={len(state_dict)}")
-        
-        # Call parent's load_state_dict method
-        result = super().load_state_dict(state_dict, strict=strict, assign=assign)
-        
-        logging.info(f"UNetModel load_state_dict end, strict={strict}, state_dict keys count={len(state_dict)}")
-        
-        return result

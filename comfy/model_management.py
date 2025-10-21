@@ -596,7 +596,6 @@ def minimum_inference_memory():
 
 def free_memory(memory_required, device, keep_loaded=[]):
     logging.info("start to free mem")
-    import pdb; pdb.set_trace()
     cleanup_models_gc()
     unloaded_model = []
     can_unload = []

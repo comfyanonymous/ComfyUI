@@ -831,8 +831,11 @@ class ModelPatcher:
             self.backup.clear()
 
                 
-            model_to_mmap(self.model)
-            self.model.device = device_to
+            if device_to is not None:
+                # offload to mmap
+                model_to_mmap(self.model)
+                self.model.device = device_to
+            
             self.model.model_loaded_weight_memory = 0
 
             for m in self.model.modules():
@@ -885,8 +888,7 @@ class ModelPatcher:
                     bias_key = "{}.bias".format(n)
                     if move_weight:
                         cast_weight = self.force_cast_weights
-                        # TODO(sf): to mmap
-                        # m is what module?
+                        # offload to mmap
                         # m.to(device_to)
                         model_to_mmap(m)
                         module_mem += move_weight_functions(m, device_to)
