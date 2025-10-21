@@ -159,7 +159,7 @@ class FrontendManager:
     @classmethod
     def get_required_templates_version(cls) -> str:
         # returns a stub, since this isn't a helpful check in this environment
-        return "0.0.1"
+        return "0.1.95"
 
     @classmethod
     def default_frontend_path(cls) -> str:

@@ -12,7 +12,7 @@ from comfy_extras.nodes.nodes_audio import TorchAudioNotFoundError
 from . import workflows
 
 
-@pytest.fixture(scope="module", autouse=False)
+@pytest.fixture(scope="function", autouse=False)
 async def client(tmp_path_factory) -> Comfy:
     async with Comfy() as client:
         yield client

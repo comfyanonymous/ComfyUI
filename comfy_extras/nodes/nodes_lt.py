@@ -64,7 +64,7 @@ class LTXVImgToVideo(io.ComfyNode):
         )
 
     @classmethod
-    def execute(cls, positive, negative, image, vae, width, height, length, batch_size, strength) -> io.NodeOutput:
+    def execute(cls, positive, negative, image, vae, width, height, length, batch_size, strength=1.0) -> io.NodeOutput:
         pixels = comfy.utils.common_upscale(image.movedim(-1, 1), width, height, "bilinear", "center").movedim(1, -1)
         encode_pixels = pixels[:, :, :, :3]
         t = vae.encode(encode_pixels)

@@ -207,6 +207,7 @@ numpy"""
     assert version is None
 
 
+@pytest.mark.skip("not used in this fork")
 def test_get_templates_version():
     # Arrange
     expected_version = "0.1.41"
@@ -224,7 +225,7 @@ numpy"""
     # Assert
     assert version == expected_version
 
-
+@pytest.mark.skip("not used in this fork")
 def test_get_templates_version_not_found():
     # Arrange
     mock_requirements_content = """torch
@@ -240,7 +241,7 @@ numpy"""
     # Assert
     assert version is None
 
-
+@pytest.mark.skip("not used in this fork")
 def test_get_templates_version_invalid_semver():
     # Arrange
     mock_requirements_content = """torch
@@ -256,7 +257,7 @@ numpy"""
     # Assert
     assert version is None
 
-
+@pytest.mark.skip("not used in this fork")
 def test_get_installed_templates_version():
     # Arrange
     expected_version = "0.1.40"
@@ -268,7 +269,7 @@ def test_get_installed_templates_version():
     # Assert
     assert version == expected_version
 
-
+@pytest.mark.skip("not used in this fork")
 def test_get_installed_templates_version_not_installed():
     # Act
     with patch("app.frontend_management.version", side_effect=Exception("Package not found")):

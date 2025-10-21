@@ -155,8 +155,6 @@ SENSITIVE_EXTRA_DATA_KEYS = ("auth_token_comfy_org", "api_key_comfy_org")
 def get_input_data(inputs, class_def, unique_id, execution_list=None, dynprompt=None, extra_data=None):
     if extra_data is None:
         extra_data = {}
-    if outputs is None:
-        outputs = {}
     is_v3 = issubclass(class_def, _ComfyNodeInternal)
     if is_v3:
         valid_inputs, schema = class_def.INPUT_TYPES(include_hidden=False, return_schema=True)

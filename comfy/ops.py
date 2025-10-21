@@ -81,7 +81,7 @@ try:
         if torch.backends.cudnn.version() >= 91002 and model_management.torch_version_numeric >= (2, 9) and model_management.torch_version_numeric <= (2, 10):
             # TODO: change upper bound version once it's fixed'
             NVIDIA_MEMORY_CONV_BUG_WORKAROUND = True
-            logger.info("working around nvidia conv3d memory bug.")
+            logger.debug("working around nvidia conv3d memory bug.")
 except:
     pass
 
