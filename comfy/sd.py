@@ -35,6 +35,7 @@ from .ldm.genmo.vae import model as genmo_model
 from .ldm.hunyuan3d.vae import ShapeVAE
 from .ldm.lightricks.vae import causal_video_autoencoder as lightricks
 from .ldm.models.autoencoder import AutoencoderKL, AutoencodingEngine
+from .ldm.mmaudio.vae.autoencoder import AudioAutoencoder
 from .ldm.wan import vae as wan_vae
 from .ldm.wan import vae2_2 as wan_vae2_2
 from .lora import load_lora, model_lora_keys_unet, model_lora_keys_clip
@@ -292,8 +293,12 @@ class VAE:
         if 'decoder.up_blocks.0.resnets.0.norm1.weight' in sd.keys():  # diffusers format
             sd = diffusers_convert.convert_vae_state_dict(sd)
 
-        self.memory_used_encode = lambda shape, dtype: (1767 * shape[2] * shape[3]) * model_management.dtype_size(dtype)  # These are for AutoencoderKL and need tweaking (should be lower)
-        self.memory_used_decode = lambda shape, dtype: (2178 * shape[2] * shape[3] * 64) * model_management.dtype_size(dtype)
+        if model_management.is_amd():
+            VAE_KL_MEM_RATIO = 2.73
+        else:
+            VAE_KL_MEM_RATIO = 1.0
+            self.memory_used_encode = lambda shape, dtype: (1767 * shape[2] * shape[3]) * model_management.dtype_size(dtype) * VAE_KL_MEM_RATIO  # These are for AutoencoderKL and need tweaking (should be lower)
+        self.memory_used_decode = lambda shape, dtype: (2178 * shape[2] * shape[3] * 64) * model_management.dtype_size(dtype) * VAE_KL_MEM_RATIO
         self.downscale_ratio = 8
         self.upscale_ratio = 8
         self.latent_channels = 4
@@ -308,6 +313,7 @@ class VAE:
         self.downscale_index_formula = None
         self.upscale_index_formula = None
         self.extra_1d_channel = None
+        self.crop_input = True
 
         if config is None:
             if "decoder.mid.block_1.mix_factor" in sd:
@@ -349,35 +355,51 @@ class VAE:
                 self.first_stage_model = StageC_coder()
                 self.downscale_ratio = 32
                 self.latent_channels = 16
-            elif "decoder.conv_in.weight" in sd and sd['decoder.conv_in.weight'].shape[1] == 64:
-                ddconfig = {"block_out_channels": [128, 256, 512, 512, 1024, 1024], "in_channels": 3, "out_channels": 3, "num_res_blocks": 2, "ffactor_spatial": 32, "downsample_match_channel": True, "upsample_match_channel": True}
-                self.latent_channels = ddconfig['z_channels'] = sd["decoder.conv_in.weight"].shape[1]
-                self.downscale_ratio = 32
-                self.upscale_ratio = 32
-                self.working_dtypes = [torch.float16, torch.bfloat16, torch.float32]
-                self.first_stage_model = AutoencodingEngine(regularizer_config={'target': "comfy.ldm.models.autoencoder.DiagonalGaussianRegularizer"},
-                                                            encoder_config={'target': "comfy.ldm.hunyuan_video.vae.Encoder", 'params': ddconfig},
-                                                            decoder_config={'target': "comfy.ldm.hunyuan_video.vae.Decoder", 'params': ddconfig})
-
-                self.memory_used_encode = lambda shape, dtype: (700 * shape[2] * shape[3]) * model_management.dtype_size(dtype)
-                self.memory_used_decode = lambda shape, dtype: (700 * shape[2] * shape[3] * 32 * 32) * model_management.dtype_size(dtype)
-
             elif "decoder.conv_in.weight" in sd:
-                # default SD1.x/SD2.x VAE parameters
-                ddconfig = {'double_z': True, 'z_channels': 4, 'resolution': 256, 'in_channels': 3, 'out_ch': 3, 'ch': 128, 'ch_mult': [1, 2, 4, 4], 'num_res_blocks': 2, 'attn_resolutions': [], 'dropout': 0.0}
-
-                if 'encoder.down.2.downsample.conv.weight' not in sd and 'decoder.up.3.upsample.conv.weight' not in sd:  # Stable diffusion x4 upscaler VAE
-                    ddconfig['ch_mult'] = [1, 2, 4]
-                    self.downscale_ratio = 4
-                    self.upscale_ratio = 4
-
-                self.latent_channels = ddconfig['z_channels'] = sd["decoder.conv_in.weight"].shape[1]
-                if 'post_quant_conv.weight' in sd:
-                    self.first_stage_model = AutoencoderKL(ddconfig=ddconfig, embed_dim=sd['post_quant_conv.weight'].shape[1])
-                else:
+                if sd['decoder.conv_in.weight'].shape[1] == 64:
+                    ddconfig = {"block_out_channels": [128, 256, 512, 512, 1024, 1024], "in_channels": 3, "out_channels": 3, "num_res_blocks": 2, "ffactor_spatial": 32, "downsample_match_channel": True, "upsample_match_channel": True}
+                    self.latent_channels = ddconfig['z_channels'] = sd["decoder.conv_in.weight"].shape[1]
+                    self.downscale_ratio = 32
+                    self.upscale_ratio = 32
+                    self.working_dtypes = [torch.float16, torch.bfloat16, torch.float32]
                     self.first_stage_model = AutoencodingEngine(regularizer_config={'target': "comfy.ldm.models.autoencoder.DiagonalGaussianRegularizer"},
-                                                                encoder_config={'target': "comfy.ldm.modules.diffusionmodules.model.Encoder", 'params': ddconfig},
-                                                                decoder_config={'target': "comfy.ldm.modules.diffusionmodules.model.Decoder", 'params': ddconfig})
+                                                                encoder_config={'target': "comfy.ldm.hunyuan_video.vae.Encoder", 'params': ddconfig},
+                                                                decoder_config={'target': "comfy.ldm.hunyuan_video.vae.Decoder", 'params': ddconfig})
+
+                    self.memory_used_encode = lambda shape, dtype: (700 * shape[2] * shape[3]) * model_management.dtype_size(dtype)
+                    self.memory_used_decode = lambda shape, dtype: (700 * shape[2] * shape[3] * 32 * 32) * model_management.dtype_size(dtype)
+                elif sd['decoder.conv_in.weight'].shape[1] == 32:
+                    ddconfig = {"block_out_channels": [128, 256, 512, 1024, 1024], "in_channels": 3, "out_channels": 3, "num_res_blocks": 2, "ffactor_spatial": 16, "ffactor_temporal": 4, "downsample_match_channel": True, "upsample_match_channel": True, "refiner_vae": False}
+                    self.latent_channels = ddconfig['z_channels'] = sd["decoder.conv_in.weight"].shape[1]
+                    self.working_dtypes = [torch.float16, torch.bfloat16, torch.float32]
+                    self.upscale_ratio = (lambda a: max(0, a * 4 - 3), 16, 16)
+                    self.upscale_index_formula = (4, 16, 16)
+                    self.downscale_ratio = (lambda a: max(0, math.floor((a + 3) / 4)), 16, 16)
+                    self.downscale_index_formula = (4, 16, 16)
+                    self.latent_dim = 3
+                    self.not_video = True
+                    self.first_stage_model = AutoencodingEngine(regularizer_config={'target': "comfy.ldm.models.autoencoder.DiagonalGaussianRegularizer"},
+                                                                encoder_config={'target': "comfy.ldm.hunyuan_video.vae_refiner.Encoder", 'params': ddconfig},
+                                                                decoder_config={'target': "comfy.ldm.hunyuan_video.vae_refiner.Decoder", 'params': ddconfig})
+
+                    self.memory_used_encode = lambda shape, dtype: (2800 * shape[-2] * shape[-1]) * model_management.dtype_size(dtype)
+                    self.memory_used_decode = lambda shape, dtype: (2800 * shape[-3] * shape[-2] * shape[-1] * 16 * 16) * model_management.dtype_size(dtype)
+                else:
+                    # default SD1.x/SD2.x VAE parameters
+                    ddconfig = {'double_z': True, 'z_channels': 4, 'resolution': 256, 'in_channels': 3, 'out_ch': 3, 'ch': 128, 'ch_mult': [1, 2, 4, 4], 'num_res_blocks': 2, 'attn_resolutions': [], 'dropout': 0.0}
+
+                    if 'encoder.down.2.downsample.conv.weight' not in sd and 'decoder.up.3.upsample.conv.weight' not in sd:  # Stable diffusion x4 upscaler VAE
+                        ddconfig['ch_mult'] = [1, 2, 4]
+                        self.downscale_ratio = 4
+                        self.upscale_ratio = 4
+
+                    self.latent_channels = ddconfig['z_channels'] = sd["decoder.conv_in.weight"].shape[1]
+                    if 'post_quant_conv.weight' in sd:
+                        self.first_stage_model = AutoencoderKL(ddconfig=ddconfig, embed_dim=sd['post_quant_conv.weight'].shape[1])
+                    else:
+                        self.first_stage_model = AutoencodingEngine(regularizer_config={'target': "comfy.ldm.models.autoencoder.DiagonalGaussianRegularizer"},
+                                                                    encoder_config={'target': "comfy.ldm.modules.diffusionmodules.model.Encoder", 'params': ddconfig},
+                                                                    decoder_config={'target': "comfy.ldm.modules.diffusionmodules.model.Decoder", 'params': ddconfig})
             elif "decoder.layers.1.layers.0.beta" in sd:
                 self.first_stage_model = AudioOobleckVAE()
                 self.memory_used_encode = lambda shape, dtype: (1000 * shape[2]) * model_management.dtype_size(dtype)
@@ -551,6 +573,25 @@ class VAE:
                 self.latent_channels = 3
                 self.latent_dim = 2
                 self.output_channels = 3
+            elif "vocoder.activation_post.downsample.lowpass.filter" in sd:  # MMAudio VAE
+                sample_rate = 16000
+                if sample_rate == 16000:
+                    mode = '16k'
+                else:
+                    mode = '44k'
+
+                self.first_stage_model = AudioAutoencoder(mode=mode)
+                self.memory_used_encode = lambda shape, dtype: (30 * shape[2]) * model_management.dtype_size(dtype)
+                self.memory_used_decode = lambda shape, dtype: (90 * shape[2] * 1411.2) * model_management.dtype_size(dtype)
+                self.latent_channels = 20
+                self.output_channels = 2
+                self.upscale_ratio = 512 * (44100 / sample_rate)
+                self.downscale_ratio = 512 * (44100 / sample_rate)
+                self.latent_dim = 1
+                self.process_output = lambda audio: audio
+                self.process_input = lambda audio: audio
+                self.working_dtypes = [torch.float32]
+                self.crop_input = False
             else:
                 logger.warning("WARNING: No VAE weights detected, VAE not initalized.")
                 self.first_stage_model = None
@@ -607,6 +648,9 @@ class VAE:
             raise RuntimeError("ERROR: VAE is invalid: None\n\nIf the VAE is from a checkpoint loader node your checkpoint does not contain a valid VAE.")
 
     def vae_encode_crop_pixels(self, pixels):
+        if not self.crop_input:
+            return pixels
+
         downscale_ratio = self.spacial_compression_encode()
 
         dims = pixels.shape[1:-1]
@@ -684,6 +728,7 @@ class VAE:
     def decode(self, samples_in, vae_options={}):
         self.throw_exception_if_invalid()
         pixel_samples = None
+        do_tile = False
         try:
             memory_used = self.memory_used_decode(samples_in.shape, self.vae_dtype)
             model_management.load_models_gpu([self.patcher], memory_required=memory_used, force_full_load=self.disable_offload)
@@ -699,6 +744,13 @@ class VAE:
                 pixel_samples[x:x + batch_number] = out
         except model_management.OOM_EXCEPTION:
             logger.warning("Warning: Ran out of memory when regular VAE decoding, retrying with tiled VAE decoding.")
+            # NOTE: We don't know what tensors were allocated to stack variables at the time of the
+            # exception and the exception itself refs them all until we get out of this except block.
+            # So we just set a flag for tiler fallback so that tensor gc can happen once the
+            # exception is fully off the books.
+            do_tile = True
+
+        if do_tile:
             dims = samples_in.ndim - 2
             if dims == 1 or self.extra_1d_channel is not None:
                 pixel_samples = self.decode_tiled_1d(samples_in)
@@ -747,6 +799,7 @@ class VAE:
         self.throw_exception_if_invalid()
         pixel_samples = self.vae_encode_crop_pixels(pixel_samples)
         pixel_samples = pixel_samples.movedim(-1, 1)
+        do_tile = False
         if self.latent_dim == 3 and pixel_samples.ndim < 5:
             if not self.not_video:
                 pixel_samples = pixel_samples.movedim(1, 0).unsqueeze(0)
@@ -768,6 +821,13 @@ class VAE:
 
         except model_management.OOM_EXCEPTION:
             logger.warning("Warning: Ran out of memory when regular VAE encoding, retrying with tiled VAE encoding.")
+            # NOTE: We don't know what tensors were allocated to stack variables at the time of the
+            # exception and the exception itself refs them all until we get out of this except block.
+            # So we just set a flag for tiler fallback so that tensor gc can happen once the
+            # exception is fully off the books.
+            do_tile = True
+
+        if do_tile:
             if self.latent_dim == 3:
                 tile = 256
                 overlap = tile // 4
@@ -930,6 +990,7 @@ class TEModel(Enum):
     QWEN25_3B = 10
     QWEN25_7B = 11
     BYT5_SMALL_GLYPH = 12
+    GEMMA_3_4B = 13
 
 
 def detect_te_model(sd):
@@ -953,6 +1014,8 @@ def detect_te_model(sd):
             return TEModel.BYT5_SMALL_GLYPH
         return TEModel.T5_BASE
     if 'model.layers.0.post_feedforward_layernorm.weight' in sd:
+        if 'model.layers.0.self_attn.q_norm.weight' in sd:
+            return TEModel.GEMMA_3_4B
         return TEModel.GEMMA_2_2B
     if 'model.layers.0.self_attn.k_proj.bias' in sd:
         weight = sd['model.layers.0.self_attn.k_proj.bias']
@@ -1058,6 +1121,10 @@ def load_text_encoder_state_dicts(state_dicts=[], embedding_directory=None, clip
         elif te_model == TEModel.GEMMA_2_2B:
             clip_target.clip = lumina2.te(**llama_detect(clip_data))
             clip_target.tokenizer = lumina2.LuminaTokenizer
+            tokenizer_data["spiece_model"] = clip_data[0].get("spiece_model", None)
+        elif te_model == TEModel.GEMMA_3_4B:
+            clip_target.clip = lumina2.te(**llama_detect(clip_data), model_type="gemma3_4b")
+            clip_target.tokenizer = lumina2.NTokenizer
             tokenizer_data["spiece_model"] = clip_data[0].get("spiece_model", None)
         elif te_model == TEModel.LLAMA3_8:
             clip_target.clip = hidream.hidream_clip(**llama_detect(clip_data),

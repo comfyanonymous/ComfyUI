@@ -2,7 +2,8 @@ import asyncio
 import io
 from inspect import cleandoc
 from typing import Union, Optional
-from comfy.comfy_types.node_typing import IO, ComfyNodeABC
+from typing_extensions import override
+from comfy_api.latest import ComfyExtension, IO
 from comfy_api_nodes.apis.bfl_api import (
     BFLStatus,
     BFLFluxExpandImageRequest,
@@ -130,7 +131,7 @@ def convert_image_to_base64(image: torch.Tensor):
     return base64.b64encode(img_byte_arr.getvalue()).decode()
 
 
-class FluxProUltraImageNode(ComfyNodeABC):
+class FluxProUltraImageNode(IO.ComfyNode):
     """
     Generates images using Flux Pro 1.1 Ultra via api based on prompt and resolution.
     """
@@ -141,71 +142,67 @@ class FluxProUltraImageNode(ComfyNodeABC):
     MAXIMUM_RATIO_STR = "4:1"
 
     @classmethod
-    def INPUT_TYPES(s):
-        return {
-            "required": {
-                "prompt": (
-                    IO.STRING,
-                    {
-                        "multiline": True,
-                        "default": "",
-                        "tooltip": "Prompt for the image generation",
-                    },
+    def define_schema(cls) -> IO.Schema:
+        return IO.Schema(
+            node_id="FluxProUltraImageNode",
+            display_name="Flux 1.1 [pro] Ultra Image",
+            category="api node/image/BFL",
+            description=cleandoc(cls.__doc__ or ""),
+            inputs=[
+                IO.String.Input(
+                    "prompt",
+                    multiline=True,
+                    default="",
+                    tooltip="Prompt for the image generation",
                 ),
-                "prompt_upsampling": (
-                    IO.BOOLEAN,
-                    {
-                        "default": False,
-                        "tooltip": "Whether to perform upsampling on the prompt. If active, automatically modifies the prompt for more creative generation, but results are nondeterministic (same seed will not produce exactly the same result).",
-                    },
+                IO.Boolean.Input(
+                    "prompt_upsampling",
+                    default=False,
+                    tooltip="Whether to perform upsampling on the prompt. If active, automatically modifies the prompt for more creative generation, but results are nondeterministic (same seed will not produce exactly the same result).",
                 ),
-                "seed": (
-                    IO.INT,
-                    {
-                        "default": 0,
-                        "min": 0,
-                        "max": 0xFFFFFFFFFFFFFFFF,
-                        "control_after_generate": True,
-                        "tooltip": "The random seed used for creating the noise.",
-                    },
+                IO.Int.Input(
+                    "seed",
+                    default=0,
+                    min=0,
+                    max=0xFFFFFFFFFFFFFFFF,
+                    control_after_generate=True,
+                    tooltip="The random seed used for creating the noise.",
                 ),
-                "aspect_ratio": (
-                    IO.STRING,
-                    {
-                        "default": "16:9",
-                        "tooltip": "Aspect ratio of image; must be between 1:4 and 4:1.",
-                    },
+                IO.String.Input(
+                    "aspect_ratio",
+                    default="16:9",
+                    tooltip="Aspect ratio of image; must be between 1:4 and 4:1.",
                 ),
-                "raw": (
-                    IO.BOOLEAN,
-                    {
-                        "default": False,
-                        "tooltip": "When True, generate less processed, more natural-looking images.",
-                    },
+                IO.Boolean.Input(
+                    "raw",
+                    default=False,
+                    tooltip="When True, generate less processed, more natural-looking images.",
                 ),
-            },
-            "optional": {
-                "image_prompt": (IO.IMAGE,),
-                "image_prompt_strength": (
-                    IO.FLOAT,
-                    {
-                        "default": 0.1,
-                        "min": 0.0,
-                        "max": 1.0,
-                        "step": 0.01,
-                        "tooltip": "Blend between the prompt and the image prompt.",
-                    },
+                IO.Image.Input(
+                    "image_prompt",
+                    optional=True,
                 ),
-            },
-            "hidden": {
-                "auth_token": "AUTH_TOKEN_COMFY_ORG",
-                "comfy_api_key": "API_KEY_COMFY_ORG",
-                "unique_id": "UNIQUE_ID",
-            },
-        }
+                IO.Float.Input(
+                    "image_prompt_strength",
+                    default=0.1,
+                    min=0.0,
+                    max=1.0,
+                    step=0.01,
+                    tooltip="Blend between the prompt and the image prompt.",
+                    optional=True,
+                ),
+            ],
+            outputs=[IO.Image.Output()],
+            hidden=[
+                IO.Hidden.auth_token_comfy_org,
+                IO.Hidden.api_key_comfy_org,
+                IO.Hidden.unique_id,
+            ],
+            is_api_node=True,
+        )
 
     @classmethod
-    def VALIDATE_INPUTS(cls, aspect_ratio: str):
+    def validate_inputs(cls, aspect_ratio: str):
         try:
             validate_aspect_ratio(
                 aspect_ratio,
@@ -218,14 +215,9 @@ class FluxProUltraImageNode(ComfyNodeABC):
             return str(e)
         return True
 
-    RETURN_TYPES = (IO.IMAGE,)
-    DESCRIPTION = cleandoc(__doc__ or "")  # Handle potential None value
-    FUNCTION = "api_call"
-    API_NODE = True
-    CATEGORY = "api node/image/BFL"
-
-    async def api_call(
-        self,
+    @classmethod
+    async def execute(
+        cls,
         prompt: str,
         aspect_ratio: str,
         prompt_upsampling=False,
@@ -233,9 +225,7 @@ class FluxProUltraImageNode(ComfyNodeABC):
         seed=0,
         image_prompt=None,
         image_prompt_strength=0.1,
-        unique_id: Union[str, None] = None,
-        **kwargs,
-    ):
+    ) -> IO.NodeOutput:
         if image_prompt is None:
             validate_string(prompt, strip_whitespace=False)
         operation = SynchronousOperation(
@@ -251,10 +241,10 @@ class FluxProUltraImageNode(ComfyNodeABC):
                 seed=seed,
                 aspect_ratio=validate_aspect_ratio(
                     aspect_ratio,
-                    minimum_ratio=self.MINIMUM_RATIO,
-                    maximum_ratio=self.MAXIMUM_RATIO,
-                    minimum_ratio_str=self.MINIMUM_RATIO_STR,
-                    maximum_ratio_str=self.MAXIMUM_RATIO_STR,
+                    minimum_ratio=cls.MINIMUM_RATIO,
+                    maximum_ratio=cls.MAXIMUM_RATIO,
+                    minimum_ratio_str=cls.MINIMUM_RATIO_STR,
+                    maximum_ratio_str=cls.MAXIMUM_RATIO_STR,
                 ),
                 raw=raw,
                 image_prompt=(
@@ -266,13 +256,16 @@ class FluxProUltraImageNode(ComfyNodeABC):
                     None if image_prompt is None else round(image_prompt_strength, 2)
                 ),
             ),
-            auth_kwargs=kwargs,
+            auth_kwargs={
+                "auth_token": cls.hidden.auth_token_comfy_org,
+                "comfy_api_key": cls.hidden.api_key_comfy_org,
+            },
         )
-        output_image = await handle_bfl_synchronous_operation(operation, node_id=unique_id)
-        return (output_image,)
+        output_image = await handle_bfl_synchronous_operation(operation, node_id=cls.hidden.unique_id)
+        return IO.NodeOutput(output_image)
 
 
-class FluxKontextProImageNode(ComfyNodeABC):
+class FluxKontextProImageNode(IO.ComfyNode):
     """
     Edits images using Flux.1 Kontext [pro] via api based on prompt and aspect ratio.
     """
@@ -283,81 +276,73 @@ class FluxKontextProImageNode(ComfyNodeABC):
     MAXIMUM_RATIO_STR = "4:1"
 
     @classmethod
-    def INPUT_TYPES(s):
-        return {
-            "required": {
-                "prompt": (
-                    IO.STRING,
-                    {
-                        "multiline": True,
-                        "default": "",
-                        "tooltip": "Prompt for the image generation - specify what and how to edit.",
-                    },
+    def define_schema(cls) -> IO.Schema:
+        return IO.Schema(
+            node_id=cls.NODE_ID,
+            display_name=cls.DISPLAY_NAME,
+            category="api node/image/BFL",
+            description=cleandoc(cls.__doc__ or ""),
+            inputs=[
+                IO.String.Input(
+                    "prompt",
+                    multiline=True,
+                    default="",
+                    tooltip="Prompt for the image generation - specify what and how to edit.",
                 ),
-                "aspect_ratio": (
-                    IO.STRING,
-                    {
-                        "default": "16:9",
-                        "tooltip": "Aspect ratio of image; must be between 1:4 and 4:1.",
-                    },
+                IO.String.Input(
+                    "aspect_ratio",
+                    default="16:9",
+                    tooltip="Aspect ratio of image; must be between 1:4 and 4:1.",
                 ),
-                "guidance": (
-                    IO.FLOAT,
-                    {
-                        "default": 3.0,
-                        "min": 0.1,
-                        "max": 99.0,
-                        "step": 0.1,
-                        "tooltip": "Guidance strength for the image generation process"
-                    },
+                IO.Float.Input(
+                    "guidance",
+                    default=3.0,
+                    min=0.1,
+                    max=99.0,
+                    step=0.1,
+                    tooltip="Guidance strength for the image generation process",
                 ),
-                "steps": (
-                    IO.INT,
-                    {
-                        "default": 50,
-                        "min": 1,
-                        "max": 150,
-                        "tooltip": "Number of steps for the image generation process"
-                    },
+                IO.Int.Input(
+                    "steps",
+                    default=50,
+                    min=1,
+                    max=150,
+                    tooltip="Number of steps for the image generation process",
                 ),
-                "seed": (
-                    IO.INT,
-                    {
-                        "default": 1234,
-                        "min": 0,
-                        "max": 0xFFFFFFFFFFFFFFFF,
-                        "control_after_generate": True,
-                        "tooltip": "The random seed used for creating the noise.",
-                    },
+                IO.Int.Input(
+                    "seed",
+                    default=1234,
+                    min=0,
+                    max=0xFFFFFFFFFFFFFFFF,
+                    control_after_generate=True,
+                    tooltip="The random seed used for creating the noise.",
                 ),
-                "prompt_upsampling": (
-                    IO.BOOLEAN,
-                    {
-                        "default": False,
-                        "tooltip": "Whether to perform upsampling on the prompt. If active, automatically modifies the prompt for more creative generation, but results are nondeterministic (same seed will not produce exactly the same result).",
-                    },
+                IO.Boolean.Input(
+                    "prompt_upsampling",
+                    default=False,
+                    tooltip="Whether to perform upsampling on the prompt. If active, automatically modifies the prompt for more creative generation, but results are nondeterministic (same seed will not produce exactly the same result).",
                 ),
-            },
-            "optional": {
-                "input_image": (IO.IMAGE,),
-            },
-            "hidden": {
-                "auth_token": "AUTH_TOKEN_COMFY_ORG",
-                "comfy_api_key": "API_KEY_COMFY_ORG",
-                "unique_id": "UNIQUE_ID",
-            },
-        }
-
-    RETURN_TYPES = (IO.IMAGE,)
-    DESCRIPTION = cleandoc(__doc__ or "")  # Handle potential None value
-    FUNCTION = "api_call"
-    API_NODE = True
-    CATEGORY = "api node/image/BFL"
+                IO.Image.Input(
+                    "input_image",
+                    optional=True,
+                ),
+            ],
+            outputs=[IO.Image.Output()],
+            hidden=[
+                IO.Hidden.auth_token_comfy_org,
+                IO.Hidden.api_key_comfy_org,
+                IO.Hidden.unique_id,
+            ],
+            is_api_node=True,
+        )
 
     BFL_PATH = "/proxy/bfl/flux-kontext-pro/generate"
+    NODE_ID = "FluxKontextProImageNode"
+    DISPLAY_NAME = "Flux.1 Kontext [pro] Image"
 
-    async def api_call(
-        self,
+    @classmethod
+    async def execute(
+        cls,
         prompt: str,
         aspect_ratio: str,
         guidance: float,
@@ -365,21 +350,19 @@ class FluxKontextProImageNode(ComfyNodeABC):
         input_image: Optional[torch.Tensor]=None,
         seed=0,
         prompt_upsampling=False,
-        unique_id: Union[str, None] = None,
-        **kwargs,
-    ):
+    ) -> IO.NodeOutput:
         aspect_ratio = validate_aspect_ratio(
             aspect_ratio,
-            minimum_ratio=self.MINIMUM_RATIO,
-            maximum_ratio=self.MAXIMUM_RATIO,
-            minimum_ratio_str=self.MINIMUM_RATIO_STR,
-            maximum_ratio_str=self.MAXIMUM_RATIO_STR,
+            minimum_ratio=cls.MINIMUM_RATIO,
+            maximum_ratio=cls.MAXIMUM_RATIO,
+            minimum_ratio_str=cls.MINIMUM_RATIO_STR,
+            maximum_ratio_str=cls.MAXIMUM_RATIO_STR,
         )
         if input_image is None:
             validate_string(prompt, strip_whitespace=False)
         operation = SynchronousOperation(
             endpoint=ApiEndpoint(
-                path=self.BFL_PATH,
+                path=cls.BFL_PATH,
                 method=HttpMethod.POST,
                 request_model=BFLFluxKontextProGenerateRequest,
                 response_model=BFLFluxProGenerateResponse,
@@ -397,10 +380,13 @@ class FluxKontextProImageNode(ComfyNodeABC):
                     else convert_image_to_base64(input_image)
                 )
             ),
-            auth_kwargs=kwargs,
+            auth_kwargs={
+                "auth_token": cls.hidden.auth_token_comfy_org,
+                "comfy_api_key": cls.hidden.api_key_comfy_org,
+            },
         )
-        output_image = await handle_bfl_synchronous_operation(operation, node_id=unique_id)
-        return (output_image,)
+        output_image = await handle_bfl_synchronous_operation(operation, node_id=cls.hidden.unique_id)
+        return IO.NodeOutput(output_image)
 
 
 class FluxKontextMaxImageNode(FluxKontextProImageNode):
@@ -410,63 +396,60 @@ class FluxKontextMaxImageNode(FluxKontextProImageNode):
 
     DESCRIPTION = cleandoc(__doc__ or "")
     BFL_PATH = "/proxy/bfl/flux-kontext-max/generate"
+    NODE_ID = "FluxKontextMaxImageNode"
+    DISPLAY_NAME = "Flux.1 Kontext [max] Image"
 
 
-class FluxProImageNode(ComfyNodeABC):
+class FluxProImageNode(IO.ComfyNode):
     """
     Generates images synchronously based on prompt and resolution.
     """
 
     @classmethod
-    def INPUT_TYPES(s):
-        return {
-            "required": {
-                "prompt": (
-                    IO.STRING,
-                    {
-                        "multiline": True,
-                        "default": "",
-                        "tooltip": "Prompt for the image generation",
-                    },
+    def define_schema(cls) -> IO.Schema:
+        return IO.Schema(
+            node_id="FluxProImageNode",
+            display_name="Flux 1.1 [pro] Image",
+            category="api node/image/BFL",
+            description=cleandoc(cls.__doc__ or ""),
+            inputs=[
+                IO.String.Input(
+                    "prompt",
+                    multiline=True,
+                    default="",
+                    tooltip="Prompt for the image generation",
                 ),
-                "prompt_upsampling": (
-                    IO.BOOLEAN,
-                    {
-                        "default": False,
-                        "tooltip": "Whether to perform upsampling on the prompt. If active, automatically modifies the prompt for more creative generation, but results are nondeterministic (same seed will not produce exactly the same result).",
-                    },
+                IO.Boolean.Input(
+                    "prompt_upsampling",
+                    default=False,
+                    tooltip="Whether to perform upsampling on the prompt. If active, automatically modifies the prompt for more creative generation, but results are nondeterministic (same seed will not produce exactly the same result).",
                 ),
-                "width": (
-                    IO.INT,
-                    {
-                        "default": 1024,
-                        "min": 256,
-                        "max": 1440,
-                        "step": 32,
-                    },
+                IO.Int.Input(
+                    "width",
+                    default=1024,
+                    min=256,
+                    max=1440,
+                    step=32,
                 ),
-                "height": (
-                    IO.INT,
-                    {
-                        "default": 768,
-                        "min": 256,
-                        "max": 1440,
-                        "step": 32,
-                    },
+                IO.Int.Input(
+                    "height",
+                    default=768,
+                    min=256,
+                    max=1440,
+                    step=32,
                 ),
-                "seed": (
-                    IO.INT,
-                    {
-                        "default": 0,
-                        "min": 0,
-                        "max": 0xFFFFFFFFFFFFFFFF,
-                        "control_after_generate": True,
-                        "tooltip": "The random seed used for creating the noise.",
-                    },
+                IO.Int.Input(
+                    "seed",
+                    default=0,
+                    min=0,
+                    max=0xFFFFFFFFFFFFFFFF,
+                    control_after_generate=True,
+                    tooltip="The random seed used for creating the noise.",
                 ),
-            },
-            "optional": {
-                "image_prompt": (IO.IMAGE,),
+                IO.Image.Input(
+                    "image_prompt",
+                    optional=True,
+                ),
                 # "image_prompt_strength": (
                 #     IO.FLOAT,
                 #     {
@@ -477,22 +460,19 @@ class FluxProImageNode(ComfyNodeABC):
                 #         "tooltip": "Blend between the prompt and the image prompt.",
                 #     },
                 # ),
-            },
-            "hidden": {
-                "auth_token": "AUTH_TOKEN_COMFY_ORG",
-                "comfy_api_key": "API_KEY_COMFY_ORG",
-                "unique_id": "UNIQUE_ID",
-            },
-        }
+            ],
+            outputs=[IO.Image.Output()],
+            hidden=[
+                IO.Hidden.auth_token_comfy_org,
+                IO.Hidden.api_key_comfy_org,
+                IO.Hidden.unique_id,
+            ],
+            is_api_node=True,
+        )
 
-    RETURN_TYPES = (IO.IMAGE,)
-    DESCRIPTION = cleandoc(__doc__ or "")  # Handle potential None value
-    FUNCTION = "api_call"
-    API_NODE = True
-    CATEGORY = "api node/image/BFL"
-
-    async def api_call(
-        self,
+    @classmethod
+    async def execute(
+        cls,
         prompt: str,
         prompt_upsampling,
         width: int,
@@ -500,9 +480,7 @@ class FluxProImageNode(ComfyNodeABC):
         seed=0,
         image_prompt=None,
         # image_prompt_strength=0.1,
-        unique_id: Union[str, None] = None,
-        **kwargs,
-    ):
+    ) -> IO.NodeOutput:
         image_prompt = (
                     image_prompt
                     if image_prompt is None
@@ -524,118 +502,103 @@ class FluxProImageNode(ComfyNodeABC):
                 seed=seed,
                 image_prompt=image_prompt,
             ),
-            auth_kwargs=kwargs,
+            auth_kwargs={
+                "auth_token": cls.hidden.auth_token_comfy_org,
+                "comfy_api_key": cls.hidden.api_key_comfy_org,
+            },
         )
-        output_image = await handle_bfl_synchronous_operation(operation, node_id=unique_id)
-        return (output_image,)
+        output_image = await handle_bfl_synchronous_operation(operation, node_id=cls.hidden.unique_id)
+        return IO.NodeOutput(output_image)
 
 
-class FluxProExpandNode(ComfyNodeABC):
+class FluxProExpandNode(IO.ComfyNode):
     """
     Outpaints image based on prompt.
     """
 
     @classmethod
-    def INPUT_TYPES(s):
-        return {
-            "required": {
-                "image": (IO.IMAGE,),
-                "prompt": (
-                    IO.STRING,
-                    {
-                        "multiline": True,
-                        "default": "",
-                        "tooltip": "Prompt for the image generation",
-                    },
+    def define_schema(cls) -> IO.Schema:
+        return IO.Schema(
+            node_id="FluxProExpandNode",
+            display_name="Flux.1 Expand Image",
+            category="api node/image/BFL",
+            description=cleandoc(cls.__doc__ or ""),
+            inputs=[
+                IO.Image.Input("image"),
+                IO.String.Input(
+                    "prompt",
+                    multiline=True,
+                    default="",
+                    tooltip="Prompt for the image generation",
                 ),
-                "prompt_upsampling": (
-                    IO.BOOLEAN,
-                    {
-                        "default": False,
-                        "tooltip": "Whether to perform upsampling on the prompt. If active, automatically modifies the prompt for more creative generation, but results are nondeterministic (same seed will not produce exactly the same result).",
-                    },
+                IO.Boolean.Input(
+                    "prompt_upsampling",
+                    default=False,
+                    tooltip="Whether to perform upsampling on the prompt. If active, automatically modifies the prompt for more creative generation, but results are nondeterministic (same seed will not produce exactly the same result).",
                 ),
-                "top": (
-                    IO.INT,
-                    {
-                        "default": 0,
-                        "min": 0,
-                        "max": 2048,
-                        "tooltip": "Number of pixels to expand at the top of the image"
-                    },
+                IO.Int.Input(
+                    "top",
+                    default=0,
+                    min=0,
+                    max=2048,
+                    tooltip="Number of pixels to expand at the top of the image",
                 ),
-                "bottom": (
-                    IO.INT,
-                    {
-                        "default": 0,
-                        "min": 0,
-                        "max": 2048,
-                        "tooltip": "Number of pixels to expand at the bottom of the image"
-                    },
+                IO.Int.Input(
+                    "bottom",
+                    default=0,
+                    min=0,
+                    max=2048,
+                    tooltip="Number of pixels to expand at the bottom of the image",
                 ),
-                "left": (
-                    IO.INT,
-                    {
-                        "default": 0,
-                        "min": 0,
-                        "max": 2048,
-                        "tooltip": "Number of pixels to expand at the left side of the image"
-                    },
+                IO.Int.Input(
+                    "left",
+                    default=0,
+                    min=0,
+                    max=2048,
+                    tooltip="Number of pixels to expand at the left of the image",
                 ),
-                "right": (
-                    IO.INT,
-                    {
-                        "default": 0,
-                        "min": 0,
-                        "max": 2048,
-                        "tooltip": "Number of pixels to expand at the right side of the image"
-                    },
+                IO.Int.Input(
+                    "right",
+                    default=0,
+                    min=0,
+                    max=2048,
+                    tooltip="Number of pixels to expand at the right of the image",
                 ),
-                "guidance": (
-                    IO.FLOAT,
-                    {
-                        "default": 60,
-                        "min": 1.5,
-                        "max": 100,
-                        "tooltip": "Guidance strength for the image generation process"
-                    },
+                IO.Float.Input(
+                    "guidance",
+                    default=60,
+                    min=1.5,
+                    max=100,
+                    tooltip="Guidance strength for the image generation process",
                 ),
-                "steps": (
-                    IO.INT,
-                    {
-                        "default": 50,
-                        "min": 15,
-                        "max": 50,
-                        "tooltip": "Number of steps for the image generation process"
-                    },
+                IO.Int.Input(
+                    "steps",
+                    default=50,
+                    min=15,
+                    max=50,
+                    tooltip="Number of steps for the image generation process",
                 ),
-                "seed": (
-                    IO.INT,
-                    {
-                        "default": 0,
-                        "min": 0,
-                        "max": 0xFFFFFFFFFFFFFFFF,
-                        "control_after_generate": True,
-                        "tooltip": "The random seed used for creating the noise.",
-                    },
+                IO.Int.Input(
+                    "seed",
+                    default=0,
+                    min=0,
+                    max=0xFFFFFFFFFFFFFFFF,
+                    control_after_generate=True,
+                    tooltip="The random seed used for creating the noise.",
                 ),
-            },
-            "optional": {},
-            "hidden": {
-                "auth_token": "AUTH_TOKEN_COMFY_ORG",
-                "comfy_api_key": "API_KEY_COMFY_ORG",
-                "unique_id": "UNIQUE_ID",
-            },
-        }
+            ],
+            outputs=[IO.Image.Output()],
+            hidden=[
+                IO.Hidden.auth_token_comfy_org,
+                IO.Hidden.api_key_comfy_org,
+                IO.Hidden.unique_id,
+            ],
+            is_api_node=True,
+        )
 
-    RETURN_TYPES = (IO.IMAGE,)
-    DESCRIPTION = cleandoc(__doc__ or "")  # Handle potential None value
-    FUNCTION = "api_call"
-    API_NODE = True
-    CATEGORY = "api node/image/BFL"
-
-    async def api_call(
-        self,
+    @classmethod
+    async def execute(
+        cls,
         image: torch.Tensor,
         prompt: str,
         prompt_upsampling: bool,
@@ -646,9 +609,7 @@ class FluxProExpandNode(ComfyNodeABC):
         steps: int,
         guidance: float,
         seed=0,
-        unique_id: Union[str, None] = None,
-        **kwargs,
-    ):
+    ) -> IO.NodeOutput:
         image = convert_image_to_base64(image)
 
         operation = SynchronousOperation(
@@ -670,84 +631,77 @@ class FluxProExpandNode(ComfyNodeABC):
                 seed=seed,
                 image=image,
             ),
-            auth_kwargs=kwargs,
+            auth_kwargs={
+                "auth_token": cls.hidden.auth_token_comfy_org,
+                "comfy_api_key": cls.hidden.api_key_comfy_org,
+            },
         )
-        output_image = await handle_bfl_synchronous_operation(operation, node_id=unique_id)
-        return (output_image,)
+        output_image = await handle_bfl_synchronous_operation(operation, node_id=cls.hidden.unique_id)
+        return IO.NodeOutput(output_image)
 
 
 
-class FluxProFillNode(ComfyNodeABC):
+class FluxProFillNode(IO.ComfyNode):
     """
     Inpaints image based on mask and prompt.
     """
 
     @classmethod
-    def INPUT_TYPES(s):
-        return {
-            "required": {
-                "image": (IO.IMAGE,),
-                "mask": (IO.MASK,),
-                "prompt": (
-                    IO.STRING,
-                    {
-                        "multiline": True,
-                        "default": "",
-                        "tooltip": "Prompt for the image generation",
-                    },
+    def define_schema(cls) -> IO.Schema:
+        return IO.Schema(
+            node_id="FluxProFillNode",
+            display_name="Flux.1 Fill Image",
+            category="api node/image/BFL",
+            description=cleandoc(cls.__doc__ or ""),
+            inputs=[
+                IO.Image.Input("image"),
+                IO.Mask.Input("mask"),
+                IO.String.Input(
+                    "prompt",
+                    multiline=True,
+                    default="",
+                    tooltip="Prompt for the image generation",
                 ),
-                "prompt_upsampling": (
-                    IO.BOOLEAN,
-                    {
-                        "default": False,
-                        "tooltip": "Whether to perform upsampling on the prompt. If active, automatically modifies the prompt for more creative generation, but results are nondeterministic (same seed will not produce exactly the same result).",
-                    },
+                IO.Boolean.Input(
+                    "prompt_upsampling",
+                    default=False,
+                    tooltip="Whether to perform upsampling on the prompt. If active, automatically modifies the prompt for more creative generation, but results are nondeterministic (same seed will not produce exactly the same result).",
                 ),
-                "guidance": (
-                    IO.FLOAT,
-                    {
-                        "default": 60,
-                        "min": 1.5,
-                        "max": 100,
-                        "tooltip": "Guidance strength for the image generation process"
-                    },
+                IO.Float.Input(
+                    "guidance",
+                    default=60,
+                    min=1.5,
+                    max=100,
+                    tooltip="Guidance strength for the image generation process",
                 ),
-                "steps": (
-                    IO.INT,
-                    {
-                        "default": 50,
-                        "min": 15,
-                        "max": 50,
-                        "tooltip": "Number of steps for the image generation process"
-                    },
+                IO.Int.Input(
+                    "steps",
+                    default=50,
+                    min=15,
+                    max=50,
+                    tooltip="Number of steps for the image generation process",
                 ),
-                "seed": (
-                    IO.INT,
-                    {
-                        "default": 0,
-                        "min": 0,
-                        "max": 0xFFFFFFFFFFFFFFFF,
-                        "control_after_generate": True,
-                        "tooltip": "The random seed used for creating the noise.",
-                    },
+                IO.Int.Input(
+                    "seed",
+                    default=0,
+                    min=0,
+                    max=0xFFFFFFFFFFFFFFFF,
+                    control_after_generate=True,
+                    tooltip="The random seed used for creating the noise.",
                 ),
-            },
-            "optional": {},
-            "hidden": {
-                "auth_token": "AUTH_TOKEN_COMFY_ORG",
-                "comfy_api_key": "API_KEY_COMFY_ORG",
-                "unique_id": "UNIQUE_ID",
-            },
-        }
+            ],
+            outputs=[IO.Image.Output()],
+            hidden=[
+                IO.Hidden.auth_token_comfy_org,
+                IO.Hidden.api_key_comfy_org,
+                IO.Hidden.unique_id,
+            ],
+            is_api_node=True,
+        )
 
-    RETURN_TYPES = (IO.IMAGE,)
-    DESCRIPTION = cleandoc(__doc__ or "")  # Handle potential None value
-    FUNCTION = "api_call"
-    API_NODE = True
-    CATEGORY = "api node/image/BFL"
-
-    async def api_call(
-        self,
+    @classmethod
+    async def execute(
+        cls,
         image: torch.Tensor,
         mask: torch.Tensor,
         prompt: str,
@@ -755,9 +709,7 @@ class FluxProFillNode(ComfyNodeABC):
         steps: int,
         guidance: float,
         seed=0,
-        unique_id: Union[str, None] = None,
-        **kwargs,
-    ):
+    ) -> IO.NodeOutput:
         # prepare mask
         mask = resize_mask_to_image(mask, image)
         mask = convert_image_to_base64(convert_mask_to_image(mask))
@@ -780,109 +732,96 @@ class FluxProFillNode(ComfyNodeABC):
                 image=image,
                 mask=mask,
             ),
-            auth_kwargs=kwargs,
+            auth_kwargs={
+                "auth_token": cls.hidden.auth_token_comfy_org,
+                "comfy_api_key": cls.hidden.api_key_comfy_org,
+            },
         )
-        output_image = await handle_bfl_synchronous_operation(operation, node_id=unique_id)
-        return (output_image,)
+        output_image = await handle_bfl_synchronous_operation(operation, node_id=cls.hidden.unique_id)
+        return IO.NodeOutput(output_image)
 
 
-class FluxProCannyNode(ComfyNodeABC):
+class FluxProCannyNode(IO.ComfyNode):
     """
     Generate image using a control image (canny).
     """
 
     @classmethod
-    def INPUT_TYPES(s):
-        return {
-            "required": {
-                "control_image": (IO.IMAGE,),
-                "prompt": (
-                    IO.STRING,
-                    {
-                        "multiline": True,
-                        "default": "",
-                        "tooltip": "Prompt for the image generation",
-                    },
+    def define_schema(cls) -> IO.Schema:
+        return IO.Schema(
+            node_id="FluxProCannyNode",
+            display_name="Flux.1 Canny Control Image",
+            category="api node/image/BFL",
+            description=cleandoc(cls.__doc__ or ""),
+            inputs=[
+                IO.Image.Input("control_image"),
+                IO.String.Input(
+                    "prompt",
+                    multiline=True,
+                    default="",
+                    tooltip="Prompt for the image generation",
                 ),
-                "prompt_upsampling": (
-                    IO.BOOLEAN,
-                    {
-                        "default": False,
-                        "tooltip": "Whether to perform upsampling on the prompt. If active, automatically modifies the prompt for more creative generation, but results are nondeterministic (same seed will not produce exactly the same result).",
-                    },
+                IO.Boolean.Input(
+                    "prompt_upsampling",
+                    default=False,
+                    tooltip="Whether to perform upsampling on the prompt. If active, automatically modifies the prompt for more creative generation, but results are nondeterministic (same seed will not produce exactly the same result).",
                 ),
-                "canny_low_threshold": (
-                    IO.FLOAT,
-                    {
-                        "default": 0.1,
-                        "min": 0.01,
-                        "max": 0.99,
-                        "step": 0.01,
-                        "tooltip": "Low threshold for Canny edge detection; ignored if skip_processing is True"
-                    },
+                IO.Float.Input(
+                    "canny_low_threshold",
+                    default=0.1,
+                    min=0.01,
+                    max=0.99,
+                    step=0.01,
+                    tooltip="Low threshold for Canny edge detection; ignored if skip_processing is True",
                 ),
-                "canny_high_threshold": (
-                    IO.FLOAT,
-                    {
-                        "default": 0.4,
-                        "min": 0.01,
-                        "max": 0.99,
-                        "step": 0.01,
-                        "tooltip": "High threshold for Canny edge detection; ignored if skip_processing is True"
-                    },
+                IO.Float.Input(
+                    "canny_high_threshold",
+                    default=0.4,
+                    min=0.01,
+                    max=0.99,
+                    step=0.01,
+                    tooltip="High threshold for Canny edge detection; ignored if skip_processing is True",
                 ),
-                "skip_preprocessing": (
-                    IO.BOOLEAN,
-                    {
-                        "default": False,
-                        "tooltip": "Whether to skip preprocessing; set to True if control_image already is canny-fied, False if it is a raw image.",
-                    },
+                IO.Boolean.Input(
+                    "skip_preprocessing",
+                    default=False,
+                    tooltip="Whether to skip preprocessing; set to True if control_image already is canny-fied, False if it is a raw image.",
                 ),
-                "guidance": (
-                    IO.FLOAT,
-                    {
-                        "default": 30,
-                        "min": 1,
-                        "max": 100,
-                        "tooltip": "Guidance strength for the image generation process"
-                    },
+                IO.Float.Input(
+                    "guidance",
+                    default=30,
+                    min=1,
+                    max=100,
+                    tooltip="Guidance strength for the image generation process",
                 ),
-                "steps": (
-                    IO.INT,
-                    {
-                        "default": 50,
-                        "min": 15,
-                        "max": 50,
-                        "tooltip": "Number of steps for the image generation process"
-                    },
+                IO.Int.Input(
+                    "steps",
+                    default=50,
+                    min=15,
+                    max=50,
+                    tooltip="Number of steps for the image generation process",
                 ),
-                "seed": (
-                    IO.INT,
-                    {
-                        "default": 0,
-                        "min": 0,
-                        "max": 0xFFFFFFFFFFFFFFFF,
-                        "control_after_generate": True,
-                        "tooltip": "The random seed used for creating the noise.",
-                    },
+                IO.Int.Input(
+                    "seed",
+                    default=0,
+                    min=0,
+                    max=0xFFFFFFFFFFFFFFFF,
+                    control_after_generate=True,
+                    tooltip="The random seed used for creating the noise.",
                 ),
-            },
-            "optional": {},
-            "hidden": {
-                "auth_token": "AUTH_TOKEN_COMFY_ORG",
-                "comfy_api_key": "API_KEY_COMFY_ORG",
-                "unique_id": "UNIQUE_ID",
-            },
-        }
+            ],
+            outputs=[IO.Image.Output()],
+            hidden=[
+                IO.Hidden.auth_token_comfy_org,
+                IO.Hidden.api_key_comfy_org,
+                IO.Hidden.unique_id,
+            ],
+            is_api_node=True,
+        )
 
-    RETURN_TYPES = (IO.IMAGE,)
-    DESCRIPTION = cleandoc(__doc__ or "")  # Handle potential None value
-    FUNCTION = "api_call"
-    API_NODE = True
-    CATEGORY = "api node/image/BFL"
-
-    async def api_call(
-        self,
+    @classmethod
+    async def execute(
+        cls,
         control_image: torch.Tensor,
         prompt: str,
         prompt_upsampling: bool,
@@ -892,9 +831,7 @@ class FluxProCannyNode(ComfyNodeABC):
         steps: int,
         guidance: float,
         seed=0,
-        unique_id: Union[str, None] = None,
-        **kwargs,
-    ):
+    ) -> IO.NodeOutput:
         control_image = convert_image_to_base64(control_image[:, :, :, :3])
         preprocessed_image = None
 
@@ -929,89 +866,80 @@ class FluxProCannyNode(ComfyNodeABC):
                 canny_high_threshold=canny_high_threshold,
                 preprocessed_image=preprocessed_image,
             ),
-            auth_kwargs=kwargs,
+            auth_kwargs={
+                "auth_token": cls.hidden.auth_token_comfy_org,
+                "comfy_api_key": cls.hidden.api_key_comfy_org,
+            },
         )
-        output_image = await handle_bfl_synchronous_operation(operation, node_id=unique_id)
-        return (output_image,)
+        output_image = await handle_bfl_synchronous_operation(operation, node_id=cls.hidden.unique_id)
+        return IO.NodeOutput(output_image)
 
 
-class FluxProDepthNode(ComfyNodeABC):
+class FluxProDepthNode(IO.ComfyNode):
     """
     Generate image using a control image (depth).
     """
 
     @classmethod
-    def INPUT_TYPES(s):
-        return {
-            "required": {
-                "control_image": (IO.IMAGE,),
-                "prompt": (
-                    IO.STRING,
-                    {
-                        "multiline": True,
-                        "default": "",
-                        "tooltip": "Prompt for the image generation",
-                    },
+    def define_schema(cls) -> IO.Schema:
+        return IO.Schema(
+            node_id="FluxProDepthNode",
+            display_name="Flux.1 Depth Control Image",
+            category="api node/image/BFL",
+            description=cleandoc(cls.__doc__ or ""),
+            inputs=[
+                IO.Image.Input("control_image"),
+                IO.String.Input(
+                    "prompt",
+                    multiline=True,
+                    default="",
+                    tooltip="Prompt for the image generation",
                 ),
-                "prompt_upsampling": (
-                    IO.BOOLEAN,
-                    {
-                        "default": False,
-                        "tooltip": "Whether to perform upsampling on the prompt. If active, automatically modifies the prompt for more creative generation, but results are nondeterministic (same seed will not produce exactly the same result).",
-                    },
+                IO.Boolean.Input(
+                    "prompt_upsampling",
+                    default=False,
+                    tooltip="Whether to perform upsampling on the prompt. If active, automatically modifies the prompt for more creative generation, but results are nondeterministic (same seed will not produce exactly the same result).",
                 ),
-                "skip_preprocessing": (
-                    IO.BOOLEAN,
-                    {
-                        "default": False,
-                        "tooltip": "Whether to skip preprocessing; set to True if control_image already is depth-ified, False if it is a raw image.",
-                    },
+                IO.Boolean.Input(
+                    "skip_preprocessing",
+                    default=False,
+                    tooltip="Whether to skip preprocessing; set to True if control_image already is depth-ified, False if it is a raw image.",
                 ),
-                "guidance": (
-                    IO.FLOAT,
-                    {
-                        "default": 15,
-                        "min": 1,
-                        "max": 100,
-                        "tooltip": "Guidance strength for the image generation process"
-                    },
+                IO.Float.Input(
+                    "guidance",
+                    default=15,
+                    min=1,
+                    max=100,
+                    tooltip="Guidance strength for the image generation process",
                 ),
-                "steps": (
-                    IO.INT,
-                    {
-                        "default": 50,
-                        "min": 15,
-                        "max": 50,
-                        "tooltip": "Number of steps for the image generation process"
-                    },
+                IO.Int.Input(
+                    "steps",
+                    default=50,
+                    min=15,
+                    max=50,
+                    tooltip="Number of steps for the image generation process",
                 ),
-                "seed": (
-                    IO.INT,
-                    {
-                        "default": 0,
-                        "min": 0,
-                        "max": 0xFFFFFFFFFFFFFFFF,
-                        "control_after_generate": True,
-                        "tooltip": "The random seed used for creating the noise.",
-                    },
+                IO.Int.Input(
+                    "seed",
+                    default=0,
+                    min=0,
+                    max=0xFFFFFFFFFFFFFFFF,
+                    control_after_generate=True,
+                    tooltip="The random seed used for creating the noise.",
                 ),
-            },
-            "optional": {},
-            "hidden": {
-                "auth_token": "AUTH_TOKEN_COMFY_ORG",
-                "comfy_api_key": "API_KEY_COMFY_ORG",
-                "unique_id": "UNIQUE_ID",
-            },
-        }
+            ],
+            outputs=[IO.Image.Output()],
+            hidden=[
+                IO.Hidden.auth_token_comfy_org,
+                IO.Hidden.api_key_comfy_org,
+                IO.Hidden.unique_id,
+            ],
+            is_api_node=True,
+        )
 
-    RETURN_TYPES = (IO.IMAGE,)
-    DESCRIPTION = cleandoc(__doc__ or "")  # Handle potential None value
-    FUNCTION = "api_call"
-    API_NODE = True
-    CATEGORY = "api node/image/BFL"
-
-    async def api_call(
-        self,
+    @classmethod
+    async def execute(
+        cls,
         control_image: torch.Tensor,
         prompt: str,
         prompt_upsampling: bool,
@@ -1019,9 +947,7 @@ class FluxProDepthNode(ComfyNodeABC):
         steps: int,
         guidance: float,
         seed=0,
-        unique_id: Union[str, None] = None,
-        **kwargs,
-    ):
+    ) -> IO.NodeOutput:
         control_image = convert_image_to_base64(control_image[:,:,:,:3])
         preprocessed_image = None
 
@@ -1045,33 +971,29 @@ class FluxProDepthNode(ComfyNodeABC):
                 control_image=control_image,
                 preprocessed_image=preprocessed_image,
             ),
-            auth_kwargs=kwargs,
+            auth_kwargs={
+                "auth_token": cls.hidden.auth_token_comfy_org,
+                "comfy_api_key": cls.hidden.api_key_comfy_org,
+            },
         )
-        output_image = await handle_bfl_synchronous_operation(operation, node_id=unique_id)
-        return (output_image,)
+        output_image = await handle_bfl_synchronous_operation(operation, node_id=cls.hidden.unique_id)
+        return IO.NodeOutput(output_image)
 
 
-# A dictionary that contains all nodes you want to export with their names
-# NOTE: names should be globally unique
-NODE_CLASS_MAPPINGS = {
-    "FluxProUltraImageNode": FluxProUltraImageNode,
-    # "FluxProImageNode": FluxProImageNode,
-    "FluxKontextProImageNode": FluxKontextProImageNode,
-    "FluxKontextMaxImageNode": FluxKontextMaxImageNode,
-    "FluxProExpandNode": FluxProExpandNode,
-    "FluxProFillNode": FluxProFillNode,
-    "FluxProCannyNode": FluxProCannyNode,
-    "FluxProDepthNode": FluxProDepthNode,
-}
+class BFLExtension(ComfyExtension):
+    @override
+    async def get_node_list(self) -> list[type[IO.ComfyNode]]:
+        return [
+            FluxProUltraImageNode,
+            # FluxProImageNode,
+            FluxKontextProImageNode,
+            FluxKontextMaxImageNode,
+            FluxProExpandNode,
+            FluxProFillNode,
+            FluxProCannyNode,
+            FluxProDepthNode,
+        ]
 
-# A dictionary that contains the friendly/humanly readable titles for the nodes
-NODE_DISPLAY_NAME_MAPPINGS = {
-    "FluxProUltraImageNode": "Flux 1.1 [pro] Ultra Image",
-    # "FluxProImageNode": "Flux 1.1 [pro] Image",
-    "FluxKontextProImageNode": "Flux.1 Kontext [pro] Image",
-    "FluxKontextMaxImageNode": "Flux.1 Kontext [max] Image",
-    "FluxProExpandNode": "Flux.1 Expand Image",
-    "FluxProFillNode": "Flux.1 Fill Image",
-    "FluxProCannyNode": "Flux.1 Canny Control Image",
-    "FluxProDepthNode": "Flux.1 Depth Control Image",
-}
+
+async def comfy_entrypoint() -> BFLExtension:
+    return BFLExtension()

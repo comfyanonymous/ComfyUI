@@ -68,6 +68,12 @@ if hasattr(torch.serialization, "add_safe_globals"):  # TODO: this was added in 
 
     ModelCheckpoint.__module__ = "pytorch_lightning.callbacks.model_checkpoint"
 
+    # todo: upstream had a patch here for scalar, ours seems to work better, so i'm not sure
+    # def scalar(*args, **kwargs):
+    #     from numpy.core.multiarray import scalar as sc
+    #     return sc(*args, **kwargs)
+    # scalar.__module__ = "numpy.core.multiarray"
+
     try:
         from numpy.core.multiarray import scalar  # pylint: disable=no-name-in-module
     except (ImportError, ModuleNotFoundError):

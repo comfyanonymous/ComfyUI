@@ -1,74 +1,85 @@
-import torch
-
-import comfy.model_management
-import comfy.model_patcher
-import comfy.samplers
+from comfy import model_downloader as folder_paths
 import comfy.sd
-from comfy.cmd import folder_paths
-from comfy.model_downloader import get_or_download, get_filename_list_with_downloadable, KNOWN_CLIP_MODELS
+import comfy.model_management
 from comfy.nodes import base_nodes as nodes
-from . import nodes_slg
+import torch
+from typing_extensions import override
+from comfy_api.latest import ComfyExtension, io
+from .nodes_slg import SkipLayerGuidanceDiT
 
 
-class TripleCLIPLoader:
+class TripleCLIPLoader(io.ComfyNode):
     @classmethod
-    def INPUT_TYPES(s):
-        filename_list = get_filename_list_with_downloadable("text_encoders", KNOWN_CLIP_MODELS)
-        return {"required": {"clip_name1": (filename_list,), "clip_name2": (filename_list,), "clip_name3": (filename_list,)
-                             }}
+    def define_schema(cls):
+        return io.Schema(
+            node_id="TripleCLIPLoader",
+            category="advanced/loaders",
+            description="[Recipes]\n\nsd3: clip-l, clip-g, t5",
+            inputs=[
+                io.Combo.Input("clip_name1", options=folder_paths.get_filename_list("text_encoders")),
+                io.Combo.Input("clip_name2", options=folder_paths.get_filename_list("text_encoders")),
+                io.Combo.Input("clip_name3", options=folder_paths.get_filename_list("text_encoders")),
+            ],
+            outputs=[
+                io.Clip.Output(),
+            ],
+        )
 
-    RETURN_TYPES = ("CLIP",)
-    FUNCTION = "load_clip"
-
-    CATEGORY = "advanced/loaders"
-
-    DESCRIPTION = "[Recipes]\n\nsd3: clip-l, clip-g, t5"
-
-    def load_clip(self, clip_name1, clip_name2, clip_name3):
-        clip_path1 = get_or_download("text_encoders", clip_name1, KNOWN_CLIP_MODELS)
-        clip_path2 = get_or_download("text_encoders", clip_name2, KNOWN_CLIP_MODELS)
-        clip_path3 = get_or_download("text_encoders", clip_name3, KNOWN_CLIP_MODELS)
+    @classmethod
+    def execute(cls, clip_name1, clip_name2, clip_name3) -> io.NodeOutput:
+        clip_path1 = folder_paths.get_full_path_or_raise("text_encoders", clip_name1)
+        clip_path2 = folder_paths.get_full_path_or_raise("text_encoders", clip_name2)
+        clip_path3 = folder_paths.get_full_path_or_raise("text_encoders", clip_name3)
         clip = comfy.sd.load_clip(ckpt_paths=[clip_path1, clip_path2, clip_path3], embedding_directory=folder_paths.get_folder_paths("embeddings"))
-        return (clip,)
+        return io.NodeOutput(clip)
+
+    load_clip = execute  # TODO: remove
 
 
-class EmptySD3LatentImage:
-    def __init__(self):
-        self.device = comfy.model_management.intermediate_device()
+class EmptySD3LatentImage(io.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return io.Schema(
+            node_id="EmptySD3LatentImage",
+            category="latent/sd3",
+            inputs=[
+                io.Int.Input("width", default=1024, min=16, max=nodes.MAX_RESOLUTION, step=16),
+                io.Int.Input("height", default=1024, min=16, max=nodes.MAX_RESOLUTION, step=16),
+                io.Int.Input("batch_size", default=1, min=1, max=4096),
+            ],
+            outputs=[
+                io.Latent.Output(),
+            ],
+        )
 
     @classmethod
-    def INPUT_TYPES(s):
-        return {"required": {"width": ("INT", {"default": 1024, "min": 16, "max": nodes.MAX_RESOLUTION, "step": 16}),
-                             "height": ("INT", {"default": 1024, "min": 16, "max": nodes.MAX_RESOLUTION, "step": 16}),
-                             "batch_size": ("INT", {"default": 1, "min": 1, "max": 4096})}}
+    def execute(cls, width, height, batch_size=1) -> io.NodeOutput:
+        latent = torch.zeros([batch_size, 16, height // 8, width // 8], device=comfy.model_management.intermediate_device())
+        return io.NodeOutput({"samples": latent})
 
-    RETURN_TYPES = ("LATENT",)
-    FUNCTION = "generate"
-
-    CATEGORY = "latent/sd3"
-
-    def generate(self, width, height, batch_size=1):
-        latent = torch.zeros([batch_size, 16, height // 8, width // 8], device=self.device)
-        return ({"samples": latent},)
+    generate = execute  # TODO: remove
 
 
-class CLIPTextEncodeSD3:
+class CLIPTextEncodeSD3(io.ComfyNode):
     @classmethod
-    def INPUT_TYPES(s):
-        return {"required": {
-            "clip": ("CLIP",),
-            "clip_l": ("STRING", {"multiline": True, "dynamicPrompts": True}),
-            "clip_g": ("STRING", {"multiline": True, "dynamicPrompts": True}),
-            "t5xxl": ("STRING", {"multiline": True, "dynamicPrompts": True}),
-            "empty_padding": (["none", "empty_prompt"],)
-        }}
+    def define_schema(cls):
+        return io.Schema(
+            node_id="CLIPTextEncodeSD3",
+            category="advanced/conditioning",
+            inputs=[
+                io.Clip.Input("clip"),
+                io.String.Input("clip_l", multiline=True, dynamic_prompts=True),
+                io.String.Input("clip_g", multiline=True, dynamic_prompts=True),
+                io.String.Input("t5xxl", multiline=True, dynamic_prompts=True),
+                io.Combo.Input("empty_padding", options=["none", "empty_prompt"]),
+            ],
+            outputs=[
+                io.Conditioning.Output(),
+            ],
+        )
 
-    RETURN_TYPES = ("CONDITIONING",)
-    FUNCTION = "encode"
-
-    CATEGORY = "advanced/conditioning"
-
-    def encode(self, clip, clip_l, clip_g, t5xxl, empty_padding):
+    @classmethod
+    def execute(cls, clip, clip_l, clip_g, t5xxl, empty_padding) -> io.NodeOutput:
         no_padding = empty_padding == "none"
 
         tokens = clip.tokenize(clip_g)
@@ -90,27 +101,69 @@ class CLIPTextEncodeSD3:
                 tokens["l"] += empty["l"]
             while len(tokens["l"]) > len(tokens["g"]):
                 tokens["g"] += empty["g"]
-        return (clip.encode_from_tokens_scheduled(tokens),)
+        return io.NodeOutput(clip.encode_from_tokens_scheduled(tokens))
+
+    encode = execute  # TODO: remove
 
 
-class ControlNetApplySD3(nodes.ControlNetApplyAdvanced):
+class ControlNetApplySD3(io.ComfyNode):
     @classmethod
-    def INPUT_TYPES(s):
-        return {"required": {"positive": ("CONDITIONING",),
-                             "negative": ("CONDITIONING",),
-                             "control_net": ("CONTROL_NET",),
-                             "vae": ("VAE",),
-                             "image": ("IMAGE",),
-                             "strength": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 10.0, "step": 0.01}),
-                             "start_percent": ("FLOAT", {"default": 0.0, "min": 0.0, "max": 1.0, "step": 0.001}),
-                             "end_percent": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 1.0, "step": 0.001})
-                             }}
+    def define_schema(cls) -> io.Schema:
+        return io.Schema(
+            node_id="ControlNetApplySD3",
+            display_name="Apply Controlnet with VAE",
+            category="conditioning/controlnet",
+            inputs=[
+                io.Conditioning.Input("positive"),
+                io.Conditioning.Input("negative"),
+                io.ControlNet.Input("control_net"),
+                io.Vae.Input("vae"),
+                io.Image.Input("image"),
+                io.Float.Input("strength", default=1.0, min=0.0, max=10.0, step=0.01),
+                io.Float.Input("start_percent", default=0.0, min=0.0, max=1.0, step=0.001),
+                io.Float.Input("end_percent", default=1.0, min=0.0, max=1.0, step=0.001),
+            ],
+            outputs=[
+                io.Conditioning.Output(display_name="positive"),
+                io.Conditioning.Output(display_name="negative"),
+            ],
+            is_deprecated=True,
+        )
 
-    CATEGORY = "conditioning/controlnet"
-    DEPRECATED = True
+    @classmethod
+    def execute(cls, positive, negative, control_net, image, strength, start_percent, end_percent, vae=None) -> io.NodeOutput:
+        if strength == 0:
+            return io.NodeOutput(positive, negative)
+
+        control_hint = image.movedim(-1, 1)
+        cnets = {}
+
+        out = []
+        for conditioning in [positive, negative]:
+            c = []
+            for t in conditioning:
+                d = t[1].copy()
+
+                prev_cnet = d.get('control', None)
+                if prev_cnet in cnets:
+                    c_net = cnets[prev_cnet]
+                else:
+                    c_net = control_net.copy().set_cond_hint(control_hint, strength, (start_percent, end_percent),
+                                                             vae=vae, extra_concat=[])
+                    c_net.set_previous_controlnet(prev_cnet)
+                    cnets[prev_cnet] = c_net
+
+                d['control'] = c_net
+                d['control_apply_to_uncond'] = False
+                n = [t[0], d]
+                c.append(n)
+            out.append(c)
+        return io.NodeOutput(out[0], out[1])
+
+    apply_controlnet = execute  # TODO: remove
 
 
-class SkipLayerGuidanceSD3(nodes_slg.SkipLayerGuidanceDiT):
+class SkipLayerGuidanceSD3(io.ComfyNode):
     '''
     Enhance guidance towards detailed dtructure by having another set of CFG negative with skipped layers.
     Inspired by Perturbed Attention Guidance (https://arxiv.org/abs/2403.17377)
@@ -118,32 +171,42 @@ class SkipLayerGuidanceSD3(nodes_slg.SkipLayerGuidanceDiT):
     '''
 
     @classmethod
-    def INPUT_TYPES(s):
-        return {"required": {"model": ("MODEL",),
-                             "layers": ("STRING", {"default": "7, 8, 9", "multiline": False}),
-                             "scale": ("FLOAT", {"default": 3.0, "min": 0.0, "max": 10.0, "step": 0.1}),
-                             "start_percent": ("FLOAT", {"default": 0.01, "min": 0.0, "max": 1.0, "step": 0.001}),
-                             "end_percent": ("FLOAT", {"default": 0.15, "min": 0.0, "max": 1.0, "step": 0.001})
-                             }}
+    def define_schema(cls):
+        return io.Schema(
+            node_id="SkipLayerGuidanceSD3",
+            category="advanced/guidance",
+            description="Generic version of SkipLayerGuidance node that can be used on every DiT model.",
+            inputs=[
+                io.Model.Input("model"),
+                io.String.Input("layers", default="7, 8, 9", multiline=False),
+                io.Float.Input("scale", default=3.0, min=0.0, max=10.0, step=0.1),
+                io.Float.Input("start_percent", default=0.01, min=0.0, max=1.0, step=0.001),
+                io.Float.Input("end_percent", default=0.15, min=0.0, max=1.0, step=0.001),
+            ],
+            outputs=[
+                io.Model.Output(),
+            ],
+            is_experimental=True,
+        )
 
-    RETURN_TYPES = ("MODEL",)
-    FUNCTION = "skip_guidance_sd3"
+    @classmethod
+    def execute(cls, model, layers, scale, start_percent, end_percent) -> io.NodeOutput:
+        return SkipLayerGuidanceDiT().execute(model=model, scale=scale, start_percent=start_percent, end_percent=end_percent, double_layers=layers)
 
-    CATEGORY = "advanced/guidance"
-
-    def skip_guidance_sd3(self, model, layers, scale, start_percent, end_percent):
-        return self.skip_guidance(model=model, scale=scale, start_percent=start_percent, end_percent=end_percent, double_layers=layers)
+    skip_guidance_sd3 = execute  # TODO: remove
 
 
-NODE_CLASS_MAPPINGS = {
-    "TripleCLIPLoader": TripleCLIPLoader,
-    "EmptySD3LatentImage": EmptySD3LatentImage,
-    "CLIPTextEncodeSD3": CLIPTextEncodeSD3,
-    "ControlNetApplySD3": ControlNetApplySD3,
-    "SkipLayerGuidanceSD3": SkipLayerGuidanceSD3,
-}
+class SD3Extension(ComfyExtension):
+    @override
+    async def get_node_list(self) -> list[type[io.ComfyNode]]:
+        return [
+            TripleCLIPLoader,
+            EmptySD3LatentImage,
+            CLIPTextEncodeSD3,
+            ControlNetApplySD3,
+            SkipLayerGuidanceSD3,
+        ]
 
-NODE_DISPLAY_NAME_MAPPINGS = {
-    # Sampling
-    "ControlNetApplySD3": "Apply Controlnet with VAE",
-}
+
+async def comfy_entrypoint() -> SD3Extension:
+    return SD3Extension()

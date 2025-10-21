@@ -6,7 +6,7 @@ from typing_extensions import override
 import torch
 from pydantic import BaseModel, Field
 
-from comfy_api.latest import ComfyExtension, io as comfy_io
+from comfy_api.latest import ComfyExtension, IO
 from comfy_api_nodes.util.validation_utils import (
     validate_aspect_ratio_closeness,
     validate_image_dimensions,
@@ -161,77 +161,77 @@ async def execute_task(
     )
 
 
-class ViduTextToVideoNode(comfy_io.ComfyNode):
+class ViduTextToVideoNode(IO.ComfyNode):
 
     @classmethod
     def define_schema(cls):
-        return comfy_io.Schema(
+        return IO.Schema(
             node_id="ViduTextToVideoNode",
             display_name="Vidu Text To Video Generation",
             category="api node/video/Vidu",
             description="Generate video from text prompt",
             inputs=[
-                comfy_io.Combo.Input(
+                IO.Combo.Input(
                     "model",
-                    options=[model.value for model in VideoModelName],
-                    default=VideoModelName.vidu_q1.value,
+                    options=VideoModelName,
+                    default=VideoModelName.vidu_q1,
                     tooltip="Model name",
                 ),
-                comfy_io.String.Input(
+                IO.String.Input(
                     "prompt",
                     multiline=True,
                     tooltip="A textual description for video generation",
                 ),
-                comfy_io.Int.Input(
+                IO.Int.Input(
                     "duration",
                     default=5,
                     min=5,
                     max=5,
                     step=1,
-                    display_mode=comfy_io.NumberDisplay.number,
+                    display_mode=IO.NumberDisplay.number,
                     tooltip="Duration of the output video in seconds",
                     optional=True,
                 ),
-                comfy_io.Int.Input(
+                IO.Int.Input(
                     "seed",
                     default=0,
                     min=0,
                     max=2147483647,
                     step=1,
-                    display_mode=comfy_io.NumberDisplay.number,
+                    display_mode=IO.NumberDisplay.number,
                     control_after_generate=True,
                     tooltip="Seed for video generation (0 for random)",
                     optional=True,
                 ),
-                comfy_io.Combo.Input(
+                IO.Combo.Input(
                     "aspect_ratio",
-                    options=[model.value for model in AspectRatio],
-                    default=AspectRatio.r_16_9.value,
+                    options=AspectRatio,
+                    default=AspectRatio.r_16_9,
                     tooltip="The aspect ratio of the output video",
                     optional=True,
                 ),
-                comfy_io.Combo.Input(
+                IO.Combo.Input(
                     "resolution",
-                    options=[model.value for model in Resolution],
-                    default=Resolution.r_1080p.value,
+                    options=Resolution,
+                    default=Resolution.r_1080p,
                     tooltip="Supported values may vary by model & duration",
                     optional=True,
                 ),
-                comfy_io.Combo.Input(
+                IO.Combo.Input(
                     "movement_amplitude",
-                    options=[model.value for model in MovementAmplitude],
-                    default=MovementAmplitude.auto.value,
+                    options=MovementAmplitude,
+                    default=MovementAmplitude.auto,
                     tooltip="The movement amplitude of objects in the frame",
                     optional=True,
                 ),
             ],
             outputs=[
-                comfy_io.Video.Output(),
+                IO.Video.Output(),
             ],
             hidden=[
-                comfy_io.Hidden.auth_token_comfy_org,
-                comfy_io.Hidden.api_key_comfy_org,
-                comfy_io.Hidden.unique_id,
+                IO.Hidden.auth_token_comfy_org,
+                IO.Hidden.api_key_comfy_org,
+                IO.Hidden.unique_id,
             ],
             is_api_node=True,
         )
@@ -246,7 +246,7 @@ class ViduTextToVideoNode(comfy_io.ComfyNode):
         aspect_ratio: str,
         resolution: str,
         movement_amplitude: str,
-    ) -> comfy_io.NodeOutput:
+    ) -> IO.NodeOutput:
         if not prompt:
             raise ValueError("The prompt field is required and cannot be empty.")
         payload = TaskCreationRequest(
@@ -263,79 +263,79 @@ class ViduTextToVideoNode(comfy_io.ComfyNode):
             "comfy_api_key": cls.hidden.api_key_comfy_org,
         }
         results = await execute_task(VIDU_TEXT_TO_VIDEO, auth, payload, 320, cls.hidden.unique_id)
-        return comfy_io.NodeOutput(await download_url_to_video_output(get_video_from_response(results).url))
+        return IO.NodeOutput(await download_url_to_video_output(get_video_from_response(results).url))
 
 
-class ViduImageToVideoNode(comfy_io.ComfyNode):
+class ViduImageToVideoNode(IO.ComfyNode):
 
     @classmethod
     def define_schema(cls):
-        return comfy_io.Schema(
+        return IO.Schema(
             node_id="ViduImageToVideoNode",
             display_name="Vidu Image To Video Generation",
             category="api node/video/Vidu",
             description="Generate video from image and optional prompt",
             inputs=[
-                comfy_io.Combo.Input(
+                IO.Combo.Input(
                     "model",
-                    options=[model.value for model in VideoModelName],
-                    default=VideoModelName.vidu_q1.value,
+                    options=VideoModelName,
+                    default=VideoModelName.vidu_q1,
                     tooltip="Model name",
                 ),
-                comfy_io.Image.Input(
+                IO.Image.Input(
                     "image",
                     tooltip="An image to be used as the start frame of the generated video",
                 ),
-                comfy_io.String.Input(
+                IO.String.Input(
                     "prompt",
                     multiline=True,
                     default="",
                     tooltip="A textual description for video generation",
                     optional=True,
                 ),
-                comfy_io.Int.Input(
+                IO.Int.Input(
                     "duration",
                     default=5,
                     min=5,
                     max=5,
                     step=1,
-                    display_mode=comfy_io.NumberDisplay.number,
+                    display_mode=IO.NumberDisplay.number,
                     tooltip="Duration of the output video in seconds",
                     optional=True,
                 ),
-                comfy_io.Int.Input(
+                IO.Int.Input(
                     "seed",
                     default=0,
                     min=0,
                     max=2147483647,
                     step=1,
-                    display_mode=comfy_io.NumberDisplay.number,
+                    display_mode=IO.NumberDisplay.number,
                     control_after_generate=True,
                     tooltip="Seed for video generation (0 for random)",
                     optional=True,
                 ),
-                comfy_io.Combo.Input(
+                IO.Combo.Input(
                     "resolution",
-                    options=[model.value for model in Resolution],
-                    default=Resolution.r_1080p.value,
+                    options=Resolution,
+                    default=Resolution.r_1080p,
                     tooltip="Supported values may vary by model & duration",
                     optional=True,
                 ),
-                comfy_io.Combo.Input(
+                IO.Combo.Input(
                     "movement_amplitude",
-                    options=[model.value for model in MovementAmplitude],
+                    options=MovementAmplitude,
                     default=MovementAmplitude.auto.value,
                     tooltip="The movement amplitude of objects in the frame",
                     optional=True,
                 ),
             ],
             outputs=[
-                comfy_io.Video.Output(),
+                IO.Video.Output(),
             ],
             hidden=[
-                comfy_io.Hidden.auth_token_comfy_org,
-                comfy_io.Hidden.api_key_comfy_org,
-                comfy_io.Hidden.unique_id,
+                IO.Hidden.auth_token_comfy_org,
+                IO.Hidden.api_key_comfy_org,
+                IO.Hidden.unique_id,
             ],
             is_api_node=True,
         )
@@ -350,7 +350,7 @@ class ViduImageToVideoNode(comfy_io.ComfyNode):
         seed: int,
         resolution: str,
         movement_amplitude: str,
-    ) -> comfy_io.NodeOutput:
+    ) -> IO.NodeOutput:
         if get_number_of_images(image) > 1:
             raise ValueError("Only one input image is allowed.")
         validate_image_aspect_ratio_range(image, (1, 4), (4, 1))
@@ -373,70 +373,70 @@ class ViduImageToVideoNode(comfy_io.ComfyNode):
             auth_kwargs=auth,
         )
         results = await execute_task(VIDU_IMAGE_TO_VIDEO, auth, payload, 120, cls.hidden.unique_id)
-        return comfy_io.NodeOutput(await download_url_to_video_output(get_video_from_response(results).url))
+        return IO.NodeOutput(await download_url_to_video_output(get_video_from_response(results).url))
 
 
-class ViduReferenceVideoNode(comfy_io.ComfyNode):
+class ViduReferenceVideoNode(IO.ComfyNode):
 
     @classmethod
     def define_schema(cls):
-        return comfy_io.Schema(
+        return IO.Schema(
             node_id="ViduReferenceVideoNode",
             display_name="Vidu Reference To Video Generation",
             category="api node/video/Vidu",
             description="Generate video from multiple images and prompt",
             inputs=[
-                comfy_io.Combo.Input(
+                IO.Combo.Input(
                     "model",
-                    options=[model.value for model in VideoModelName],
-                    default=VideoModelName.vidu_q1.value,
+                    options=VideoModelName,
+                    default=VideoModelName.vidu_q1,
                     tooltip="Model name",
                 ),
-                comfy_io.Image.Input(
+                IO.Image.Input(
                     "images",
                     tooltip="Images to use as references to generate a video with consistent subjects (max 7 images).",
                 ),
-                comfy_io.String.Input(
+                IO.String.Input(
                     "prompt",
                     multiline=True,
                     tooltip="A textual description for video generation",
                 ),
-                comfy_io.Int.Input(
+                IO.Int.Input(
                     "duration",
                     default=5,
                     min=5,
                     max=5,
                     step=1,
-                    display_mode=comfy_io.NumberDisplay.number,
+                    display_mode=IO.NumberDisplay.number,
                     tooltip="Duration of the output video in seconds",
                     optional=True,
                 ),
-                comfy_io.Int.Input(
+                IO.Int.Input(
                     "seed",
                     default=0,
                     min=0,
                     max=2147483647,
                     step=1,
-                    display_mode=comfy_io.NumberDisplay.number,
+                    display_mode=IO.NumberDisplay.number,
                     control_after_generate=True,
                     tooltip="Seed for video generation (0 for random)",
                     optional=True,
                 ),
-                comfy_io.Combo.Input(
+                IO.Combo.Input(
                     "aspect_ratio",
-                    options=[model.value for model in AspectRatio],
-                    default=AspectRatio.r_16_9.value,
+                    options=AspectRatio,
+                    default=AspectRatio.r_16_9,
                     tooltip="The aspect ratio of the output video",
                     optional=True,
                 ),
-                comfy_io.Combo.Input(
+                IO.Combo.Input(
                     "resolution",
                     options=[model.value for model in Resolution],
                     default=Resolution.r_1080p.value,
                     tooltip="Supported values may vary by model & duration",
                     optional=True,
                 ),
-                comfy_io.Combo.Input(
+                IO.Combo.Input(
                     "movement_amplitude",
                     options=[model.value for model in MovementAmplitude],
                     default=MovementAmplitude.auto.value,
@@ -445,12 +445,12 @@ class ViduReferenceVideoNode(comfy_io.ComfyNode):
                 ),
             ],
             outputs=[
-                comfy_io.Video.Output(),
+                IO.Video.Output(),
             ],
             hidden=[
-                comfy_io.Hidden.auth_token_comfy_org,
-                comfy_io.Hidden.api_key_comfy_org,
-                comfy_io.Hidden.unique_id,
+                IO.Hidden.auth_token_comfy_org,
+                IO.Hidden.api_key_comfy_org,
+                IO.Hidden.unique_id,
             ],
             is_api_node=True,
         )
@@ -466,7 +466,7 @@ class ViduReferenceVideoNode(comfy_io.ComfyNode):
         aspect_ratio: str,
         resolution: str,
         movement_amplitude: str,
-    ) -> comfy_io.NodeOutput:
+    ) -> IO.NodeOutput:
         if not prompt:
             raise ValueError("The prompt field is required and cannot be empty.")
         a = get_number_of_images(images)
@@ -495,68 +495,68 @@ class ViduReferenceVideoNode(comfy_io.ComfyNode):
             auth_kwargs=auth,
         )
         results = await execute_task(VIDU_REFERENCE_VIDEO, auth, payload, 120, cls.hidden.unique_id)
-        return comfy_io.NodeOutput(await download_url_to_video_output(get_video_from_response(results).url))
+        return IO.NodeOutput(await download_url_to_video_output(get_video_from_response(results).url))
 
 
-class ViduStartEndToVideoNode(comfy_io.ComfyNode):
+class ViduStartEndToVideoNode(IO.ComfyNode):
 
     @classmethod
     def define_schema(cls):
-        return comfy_io.Schema(
+        return IO.Schema(
             node_id="ViduStartEndToVideoNode",
             display_name="Vidu Start End To Video Generation",
             category="api node/video/Vidu",
             description="Generate a video from start and end frames and a prompt",
             inputs=[
-                comfy_io.Combo.Input(
+                IO.Combo.Input(
                     "model",
                     options=[model.value for model in VideoModelName],
                     default=VideoModelName.vidu_q1.value,
                     tooltip="Model name",
                 ),
-                comfy_io.Image.Input(
+                IO.Image.Input(
                     "first_frame",
                     tooltip="Start frame",
                 ),
-                comfy_io.Image.Input(
+                IO.Image.Input(
                     "end_frame",
                     tooltip="End frame",
                 ),
-                comfy_io.String.Input(
+                IO.String.Input(
                     "prompt",
                     multiline=True,
                     tooltip="A textual description for video generation",
                     optional=True,
                 ),
-                comfy_io.Int.Input(
+                IO.Int.Input(
                     "duration",
                     default=5,
                     min=5,
                     max=5,
                     step=1,
-                    display_mode=comfy_io.NumberDisplay.number,
+                    display_mode=IO.NumberDisplay.number,
                     tooltip="Duration of the output video in seconds",
                     optional=True,
                 ),
-                comfy_io.Int.Input(
+                IO.Int.Input(
                     "seed",
                     default=0,
                     min=0,
                     max=2147483647,
                     step=1,
-                    display_mode=comfy_io.NumberDisplay.number,
+                    display_mode=IO.NumberDisplay.number,
                     control_after_generate=True,
                     tooltip="Seed for video generation (0 for random)",
                     optional=True,
                 ),
-                comfy_io.Combo.Input(
+                IO.Combo.Input(
                     "resolution",
                     options=[model.value for model in Resolution],
                     default=Resolution.r_1080p.value,
                     tooltip="Supported values may vary by model & duration",
                     optional=True,
                 ),
-                comfy_io.Combo.Input(
+                IO.Combo.Input(
                     "movement_amplitude",
                     options=[model.value for model in MovementAmplitude],
                     default=MovementAmplitude.auto.value,
@@ -565,12 +565,12 @@ class ViduStartEndToVideoNode(comfy_io.ComfyNode):
                 ),
             ],
             outputs=[
-                comfy_io.Video.Output(),
+                IO.Video.Output(),
             ],
             hidden=[
-                comfy_io.Hidden.auth_token_comfy_org,
-                comfy_io.Hidden.api_key_comfy_org,
-                comfy_io.Hidden.unique_id,
+                IO.Hidden.auth_token_comfy_org,
+                IO.Hidden.api_key_comfy_org,
+                IO.Hidden.unique_id,
             ],
             is_api_node=True,
         )
@@ -586,7 +586,7 @@ class ViduStartEndToVideoNode(comfy_io.ComfyNode):
         seed: int,
         resolution: str,
         movement_amplitude: str,
-    ) -> comfy_io.NodeOutput:
+    ) -> IO.NodeOutput:
         validate_aspect_ratio_closeness(first_frame, end_frame, min_rel=0.8, max_rel=1.25, strict=False)
         payload = TaskCreationRequest(
             model_name=model,
@@ -605,12 +605,12 @@ class ViduStartEndToVideoNode(comfy_io.ComfyNode):
             for frame in (first_frame, end_frame)
         ]
         results = await execute_task(VIDU_START_END_VIDEO, auth, payload, 96, cls.hidden.unique_id)
-        return comfy_io.NodeOutput(await download_url_to_video_output(get_video_from_response(results).url))
+        return IO.NodeOutput(await download_url_to_video_output(get_video_from_response(results).url))
 
 
 class ViduExtension(ComfyExtension):
     @override
-    async def get_node_list(self) -> list[type[comfy_io.ComfyNode]]:
+    async def get_node_list(self) -> list[type[IO.ComfyNode]]:
         return [
             ViduTextToVideoNode,
             ViduImageToVideoNode,

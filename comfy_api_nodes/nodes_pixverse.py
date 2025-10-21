@@ -1,5 +1,7 @@
 from inspect import cleandoc
 from typing import Optional
+from typing_extensions import override
+from io import BytesIO
 from comfy_api_nodes.apis.pixverse_api import (
     PixverseTextVideoRequest,
     PixverseImageVideoRequest,
@@ -26,12 +28,11 @@ from comfy_api_nodes.apinode_utils import (
     tensor_to_bytesio,
     validate_string,
 )
-from comfy.comfy_types.node_typing import IO, ComfyNodeABC
 from comfy_api.input_impl import VideoFromFile
+from comfy_api.latest import ComfyExtension, IO
 
 import torch
 import aiohttp
-from io import BytesIO
 
 
 AVERAGE_DURATION_T2V = 32
@@ -72,100 +73,101 @@ async def upload_image_to_pixverse(image: torch.Tensor, auth_kwargs=None):
     return response_upload.Resp.img_id
 
 
-class PixverseTemplateNode:
+class PixverseTemplateNode(IO.ComfyNode):
     """
     Select template for PixVerse Video generation.
     """
 
-    RETURN_TYPES = (PixverseIO.TEMPLATE,)
-    RETURN_NAMES = ("pixverse_template",)
-    FUNCTION = "create_template"
-    CATEGORY = "api node/video/PixVerse"
+    @classmethod
+    def define_schema(cls) -> IO.Schema:
+        return IO.Schema(
+            node_id="PixverseTemplateNode",
+            display_name="PixVerse Template",
+            category="api node/video/PixVerse",
+            inputs=[
+                IO.Combo.Input("template", options=list(pixverse_templates.keys())),
+            ],
+            outputs=[IO.Custom(PixverseIO.TEMPLATE).Output(display_name="pixverse_template")],
+        )
 
     @classmethod
-    def INPUT_TYPES(s):
-        return {
-            "required": {
-                "template": (list(pixverse_templates.keys()),),
-            }
-        }
-
-    def create_template(self, template: str):
+    def execute(cls, template: str) -> IO.NodeOutput:
         template_id = pixverse_templates.get(template, None)
         if template_id is None:
             raise Exception(f"Template '{template}' is not recognized.")
         # just return the integer
-        return (template_id,)
+        return IO.NodeOutput(template_id)
 
 
-class PixverseTextToVideoNode(ComfyNodeABC):
+class PixverseTextToVideoNode(IO.ComfyNode):
     """
     Generates videos based on prompt and output_size.
     """
 
-    RETURN_TYPES = (IO.VIDEO,)
-    DESCRIPTION = cleandoc(__doc__ or "")  # Handle potential None value
-    FUNCTION = "api_call"
-    API_NODE = True
-    CATEGORY = "api node/video/PixVerse"
+    @classmethod
+    def define_schema(cls) -> IO.Schema:
+        return IO.Schema(
+            node_id="PixverseTextToVideoNode",
+            display_name="PixVerse Text to Video",
+            category="api node/video/PixVerse",
+            description=cleandoc(cls.__doc__ or ""),
+            inputs=[
+                IO.String.Input(
+                    "prompt",
+                    multiline=True,
+                    default="",
+                    tooltip="Prompt for the video generation",
+                ),
+                IO.Combo.Input(
+                    "aspect_ratio",
+                    options=PixverseAspectRatio,
+                ),
+                IO.Combo.Input(
+                    "quality",
+                    options=PixverseQuality,
+                    default=PixverseQuality.res_540p,
+                ),
+                IO.Combo.Input(
+                    "duration_seconds",
+                    options=PixverseDuration,
+                ),
+                IO.Combo.Input(
+                    "motion_mode",
+                    options=PixverseMotionMode,
+                ),
+                IO.Int.Input(
+                    "seed",
+                    default=0,
+                    min=0,
+                    max=2147483647,
+                    control_after_generate=True,
+                    tooltip="Seed for video generation.",
+                ),
+                IO.String.Input(
+                    "negative_prompt",
+                    default="",
+                    multiline=True,
+                    tooltip="An optional text description of undesired elements on an image.",
+                    optional=True,
+                ),
+                IO.Custom(PixverseIO.TEMPLATE).Input(
+                    "pixverse_template",
+                    tooltip="An optional template to influence style of generation, created by the PixVerse Template node.",
+                    optional=True,
+                ),
+            ],
+            outputs=[IO.Video.Output()],
+            hidden=[
+                IO.Hidden.auth_token_comfy_org,
+                IO.Hidden.api_key_comfy_org,
+                IO.Hidden.unique_id,
+            ],
+            is_api_node=True,
+        )
 
     @classmethod
-    def INPUT_TYPES(s):
-        return {
-            "required": {
-                "prompt": (
-                    IO.STRING,
-                    {
-                        "multiline": True,
-                        "default": "",
-                        "tooltip": "Prompt for the video generation",
-                    },
-                ),
-                "aspect_ratio": ([ratio.value for ratio in PixverseAspectRatio],),
-                "quality": (
-                    [resolution.value for resolution in PixverseQuality],
-                    {
-                        "default": PixverseQuality.res_540p,
-                    },
-                ),
-                "duration_seconds": ([dur.value for dur in PixverseDuration],),
-                "motion_mode": ([mode.value for mode in PixverseMotionMode],),
-                "seed": (
-                    IO.INT,
-                    {
-                        "default": 0,
-                        "min": 0,
-                        "max": 2147483647,
-                        "control_after_generate": True,
-                        "tooltip": "Seed for video generation.",
-                    },
-                ),
-            },
-            "optional": {
-                "negative_prompt": (
-                    IO.STRING,
-                    {
-                        "default": "",
-                        "forceInput": True,
-                        "tooltip": "An optional text description of undesired elements on an image.",
-                    },
-                ),
-                "pixverse_template": (
-                    PixverseIO.TEMPLATE,
-                    {
-                        "tooltip": "An optional template to influence style of generation, created by the PixVerse Template node."
-                    },
-                ),
-            },
-            "hidden": {
-                "auth_token": "AUTH_TOKEN_COMFY_ORG",
-                "comfy_api_key": "API_KEY_COMFY_ORG",
-                "unique_id": "UNIQUE_ID",
-            },
-        }
-
-    async def api_call(
-        self,
+    async def execute(
+        cls,
         prompt: str,
         aspect_ratio: str,
         quality: str,
@@ -174,9 +176,7 @@ class PixverseTextToVideoNode(ComfyNodeABC):
         seed,
         negative_prompt: str = None,
         pixverse_template: int = None,
-        unique_id: Optional[str] = None,
-        **kwargs,
-    ):
+    ) -> IO.NodeOutput:
         validate_string(prompt, strip_whitespace=False)
         # 1080p is limited to 5 seconds duration
         # only normal motion_mode supported for 1080p or for non-5 second duration
@@ -186,6 +186,10 @@ class PixverseTextToVideoNode(ComfyNodeABC):
         elif duration_seconds != PixverseDuration.dur_5:
             motion_mode = PixverseMotionMode.normal
 
+        auth = {
+            "auth_token": cls.hidden.auth_token_comfy_org,
+            "comfy_api_key": cls.hidden.api_key_comfy_org,
+        }
         operation = SynchronousOperation(
             endpoint=ApiEndpoint(
                 path="/proxy/pixverse/video/text/generate",
@@ -203,7 +207,7 @@ class PixverseTextToVideoNode(ComfyNodeABC):
                 template_id=pixverse_template,
                 seed=seed,
             ),
-            auth_kwargs=kwargs,
+            auth_kwargs=auth,
         )
         response_api = await operation.execute()
 
@@ -224,8 +228,8 @@ class PixverseTextToVideoNode(ComfyNodeABC):
                 PixverseStatus.deleted,
             ],
             status_extractor=lambda x: x.Resp.status,
-            auth_kwargs=kwargs,
-            node_id=unique_id,
+            auth_kwargs=auth,
+            node_id=cls.hidden.unique_id,
             result_url_extractor=get_video_url_from_response,
             estimated_duration=AVERAGE_DURATION_T2V,
         )
@@ -233,77 +237,75 @@ class PixverseTextToVideoNode(ComfyNodeABC):
 
         async with aiohttp.ClientSession() as session:
             async with session.get(response_poll.Resp.url) as vid_response:
-                return (VideoFromFile(BytesIO(await vid_response.content.read())),)
+                return IO.NodeOutput(VideoFromFile(BytesIO(await vid_response.content.read())))
 
 
-class PixverseImageToVideoNode(ComfyNodeABC):
+class PixverseImageToVideoNode(IO.ComfyNode):
     """
     Generates videos based on prompt and output_size.
     """
 
-    RETURN_TYPES = (IO.VIDEO,)
-    DESCRIPTION = cleandoc(__doc__ or "")  # Handle potential None value
-    FUNCTION = "api_call"
-    API_NODE = True
-    CATEGORY = "api node/video/PixVerse"
+    @classmethod
+    def define_schema(cls) -> IO.Schema:
+        return IO.Schema(
+            node_id="PixverseImageToVideoNode",
+            display_name="PixVerse Image to Video",
+            category="api node/video/PixVerse",
+            description=cleandoc(cls.__doc__ or ""),
+            inputs=[
+                IO.Image.Input("image"),
+                IO.String.Input(
+                    "prompt",
+                    multiline=True,
+                    default="",
+                    tooltip="Prompt for the video generation",
+                ),
+                IO.Combo.Input(
+                    "quality",
+                    options=PixverseQuality,
+                    default=PixverseQuality.res_540p,
+                ),
+                IO.Combo.Input(
+                    "duration_seconds",
+                    options=PixverseDuration,
+                ),
+                IO.Combo.Input(
+                    "motion_mode",
+                    options=PixverseMotionMode,
+                ),
+                IO.Int.Input(
+                    "seed",
+                    default=0,
+                    min=0,
+                    max=2147483647,
+                    control_after_generate=True,
+                    tooltip="Seed for video generation.",
+                ),
+                IO.String.Input(
+                    "negative_prompt",
+                    default="",
+                    multiline=True,
+                    tooltip="An optional text description of undesired elements on an image.",
+                    optional=True,
+                ),
+                IO.Custom(PixverseIO.TEMPLATE).Input(
+                    "pixverse_template",
+                    tooltip="An optional template to influence style of generation, created by the PixVerse Template node.",
+                    optional=True,
+                ),
+            ],
+            outputs=[IO.Video.Output()],
+            hidden=[
+                IO.Hidden.auth_token_comfy_org,
+                IO.Hidden.api_key_comfy_org,
+                IO.Hidden.unique_id,
+            ],
+            is_api_node=True,
+        )
 
     @classmethod
-    def INPUT_TYPES(s):
-        return {
-            "required": {
-                "image": (IO.IMAGE,),
-                "prompt": (
-                    IO.STRING,
-                    {
-                        "multiline": True,
-                        "default": "",
-                        "tooltip": "Prompt for the video generation",
-                    },
-                ),
-                "quality": (
-                    [resolution.value for resolution in PixverseQuality],
-                    {
-                        "default": PixverseQuality.res_540p,
-                    },
-                ),
-                "duration_seconds": ([dur.value for dur in PixverseDuration],),
-                "motion_mode": ([mode.value for mode in PixverseMotionMode],),
-                "seed": (
-                    IO.INT,
-                    {
-                        "default": 0,
-                        "min": 0,
-                        "max": 2147483647,
-                        "control_after_generate": True,
-                        "tooltip": "Seed for video generation.",
-                    },
-                ),
-            },
-            "optional": {
-                "negative_prompt": (
-                    IO.STRING,
-                    {
-                        "default": "",
-                        "forceInput": True,
-                        "tooltip": "An optional text description of undesired elements on an image.",
-                    },
-                ),
-                "pixverse_template": (
-                    PixverseIO.TEMPLATE,
-                    {
-                        "tooltip": "An optional template to influence style of generation, created by the PixVerse Template node."
-                    },
-                ),
-            },
-            "hidden": {
-                "auth_token": "AUTH_TOKEN_COMFY_ORG",
-                "comfy_api_key": "API_KEY_COMFY_ORG",
-                "unique_id": "UNIQUE_ID",
-            },
-        }
-
-    async def api_call(
-        self,
+    async def execute(
+        cls,
         image: torch.Tensor,
         prompt: str,
         quality: str,
@@ -312,11 +314,13 @@ class PixverseImageToVideoNode(ComfyNodeABC):
         seed,
         negative_prompt: str = None,
         pixverse_template: int = None,
-        unique_id: Optional[str] = None,
-        **kwargs,
-    ):
+    ) -> IO.NodeOutput:
         validate_string(prompt, strip_whitespace=False)
-        img_id = await upload_image_to_pixverse(image, auth_kwargs=kwargs)
+        auth = {
+            "auth_token": cls.hidden.auth_token_comfy_org,
+            "comfy_api_key": cls.hidden.api_key_comfy_org,
+        }
+        img_id = await upload_image_to_pixverse(image, auth_kwargs=auth)
 
         # 1080p is limited to 5 seconds duration
         # only normal motion_mode supported for 1080p or for non-5 second duration
@@ -343,7 +347,7 @@ class PixverseImageToVideoNode(ComfyNodeABC):
                 template_id=pixverse_template,
                 seed=seed,
             ),
-            auth_kwargs=kwargs,
+            auth_kwargs=auth,
         )
         response_api = await operation.execute()
 
@@ -364,8 +368,8 @@ class PixverseImageToVideoNode(ComfyNodeABC):
                 PixverseStatus.deleted,
             ],
             status_extractor=lambda x: x.Resp.status,
-            auth_kwargs=kwargs,
-            node_id=unique_id,
+            auth_kwargs=auth,
+            node_id=cls.hidden.unique_id,
             result_url_extractor=get_video_url_from_response,
             estimated_duration=AVERAGE_DURATION_I2V,
         )
@@ -373,72 +377,71 @@ class PixverseImageToVideoNode(ComfyNodeABC):
 
         async with aiohttp.ClientSession() as session:
             async with session.get(response_poll.Resp.url) as vid_response:
-                return (VideoFromFile(BytesIO(await vid_response.content.read())),)
+                return IO.NodeOutput(VideoFromFile(BytesIO(await vid_response.content.read())))
 
 
-class PixverseTransitionVideoNode(ComfyNodeABC):
+class PixverseTransitionVideoNode(IO.ComfyNode):
     """
     Generates videos based on prompt and output_size.
     """
 
-    RETURN_TYPES = (IO.VIDEO,)
-    DESCRIPTION = cleandoc(__doc__ or "")  # Handle potential None value
-    FUNCTION = "api_call"
-    API_NODE = True
-    CATEGORY = "api node/video/PixVerse"
+    @classmethod
+    def define_schema(cls) -> IO.Schema:
+        return IO.Schema(
+            node_id="PixverseTransitionVideoNode",
+            display_name="PixVerse Transition Video",
+            category="api node/video/PixVerse",
+            description=cleandoc(cls.__doc__ or ""),
+            inputs=[
+                IO.Image.Input("first_frame"),
+                IO.Image.Input("last_frame"),
+                IO.String.Input(
+                    "prompt",
+                    multiline=True,
+                    default="",
+                    tooltip="Prompt for the video generation",
+                ),
+                IO.Combo.Input(
+                    "quality",
+                    options=PixverseQuality,
+                    default=PixverseQuality.res_540p,
+                ),
+                IO.Combo.Input(
+                    "duration_seconds",
+                    options=PixverseDuration,
+                ),
+                IO.Combo.Input(
+                    "motion_mode",
+                    options=PixverseMotionMode,
+                ),
+                IO.Int.Input(
+                    "seed",
+                    default=0,
+                    min=0,
+                    max=2147483647,
+                    control_after_generate=True,
+                    tooltip="Seed for video generation.",
+                ),
+                IO.String.Input(
+                    "negative_prompt",
+                    default="",
+                    multiline=True,
+                    tooltip="An optional text description of undesired elements on an image.",
+                    optional=True,
+                ),
+            ],
+            outputs=[IO.Video.Output()],
+            hidden=[
+                IO.Hidden.auth_token_comfy_org,
+                IO.Hidden.api_key_comfy_org,
+                IO.Hidden.unique_id,
+            ],
+            is_api_node=True,
+        )
 
     @classmethod
-    def INPUT_TYPES(s):
-        return {
-            "required": {
-                "first_frame": (IO.IMAGE,),
-                "last_frame": (IO.IMAGE,),
-                "prompt": (
-                    IO.STRING,
-                    {
-                        "multiline": True,
-                        "default": "",
-                        "tooltip": "Prompt for the video generation",
-                    },
-                ),
-                "quality": (
-                    [resolution.value for resolution in PixverseQuality],
-                    {
-                        "default": PixverseQuality.res_540p,
-                    },
-                ),
-                "duration_seconds": ([dur.value for dur in PixverseDuration],),
-                "motion_mode": ([mode.value for mode in PixverseMotionMode],),
-                "seed": (
-                    IO.INT,
-                    {
-                        "default": 0,
-                        "min": 0,
-                        "max": 2147483647,
-                        "control_after_generate": True,
-                        "tooltip": "Seed for video generation.",
-                    },
-                ),
-            },
-            "optional": {
-                "negative_prompt": (
-                    IO.STRING,
-                    {
-                        "default": "",
-                        "forceInput": True,
-                        "tooltip": "An optional text description of undesired elements on an image.",
-                    },
-                ),
-            },
-            "hidden": {
-                "auth_token": "AUTH_TOKEN_COMFY_ORG",
-                "comfy_api_key": "API_KEY_COMFY_ORG",
-                "unique_id": "UNIQUE_ID",
-            },
-        }
-
-    async def api_call(
-        self,
+    async def execute(
+        cls,
         first_frame: torch.Tensor,
         last_frame: torch.Tensor,
         prompt: str,
@@ -447,12 +450,14 @@ class PixverseTransitionVideoNode(ComfyNodeABC):
         motion_mode: str,
         seed,
         negative_prompt: str = None,
-        unique_id: Optional[str] = None,
-        **kwargs,
-    ):
+    ) -> IO.NodeOutput:
         validate_string(prompt, strip_whitespace=False)
-        first_frame_id = await upload_image_to_pixverse(first_frame, auth_kwargs=kwargs)
-        last_frame_id = await upload_image_to_pixverse(last_frame, auth_kwargs=kwargs)
+        auth = {
+            "auth_token": cls.hidden.auth_token_comfy_org,
+            "comfy_api_key": cls.hidden.api_key_comfy_org,
+        }
+        first_frame_id = await upload_image_to_pixverse(first_frame, auth_kwargs=auth)
+        last_frame_id = await upload_image_to_pixverse(last_frame, auth_kwargs=auth)
 
         # 1080p is limited to 5 seconds duration
         # only normal motion_mode supported for 1080p or for non-5 second duration
@@ -479,7 +484,7 @@ class PixverseTransitionVideoNode(ComfyNodeABC):
                 negative_prompt=negative_prompt if negative_prompt else None,
                 seed=seed,
             ),
-            auth_kwargs=kwargs,
+            auth_kwargs=auth,
         )
         response_api = await operation.execute()
 
@@ -500,8 +505,8 @@ class PixverseTransitionVideoNode(ComfyNodeABC):
                 PixverseStatus.deleted,
             ],
             status_extractor=lambda x: x.Resp.status,
-            auth_kwargs=kwargs,
-            node_id=unique_id,
+            auth_kwargs=auth,
+            node_id=cls.hidden.unique_id,
             result_url_extractor=get_video_url_from_response,
             estimated_duration=AVERAGE_DURATION_T2V,
         )
@@ -509,19 +514,19 @@ class PixverseTransitionVideoNode(ComfyNodeABC):
 
         async with aiohttp.ClientSession() as session:
             async with session.get(response_poll.Resp.url) as vid_response:
-                return (VideoFromFile(BytesIO(await vid_response.content.read())),)
+                return IO.NodeOutput(VideoFromFile(BytesIO(await vid_response.content.read())))
 
 
-NODE_CLASS_MAPPINGS = {
-    "PixverseTextToVideoNode": PixverseTextToVideoNode,
-    "PixverseImageToVideoNode": PixverseImageToVideoNode,
-    "PixverseTransitionVideoNode": PixverseTransitionVideoNode,
-    "PixverseTemplateNode": PixverseTemplateNode,
-}
+class PixVerseExtension(ComfyExtension):
+    @override
+    async def get_node_list(self) -> list[type[IO.ComfyNode]]:
+        return [
+            PixverseTextToVideoNode,
+            PixverseImageToVideoNode,
+            PixverseTransitionVideoNode,
+            PixverseTemplateNode,
+        ]
 
-NODE_DISPLAY_NAME_MAPPINGS = {
-    "PixverseTextToVideoNode": "PixVerse Text to Video",
-    "PixverseImageToVideoNode": "PixVerse Image to Video",
-    "PixverseTransitionVideoNode": "PixVerse Transition Video",
-    "PixverseTemplateNode": "PixVerse Template",
-}
+
+async def comfy_entrypoint() -> PixVerseExtension:
+    return PixVerseExtension()

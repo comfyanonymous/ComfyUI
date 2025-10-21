@@ -1,20 +1,29 @@
+from typing_extensions import override
 import torch
 import torch.nn.functional as F
 
+from comfy_api.latest import ComfyExtension, io
 
-class Mahiro:
+
+class Mahiro(io.ComfyNode):
     @classmethod
-    def INPUT_TYPES(s):
-        return {"required": {"model": ("MODEL",),
-                             }}
+    def define_schema(cls):
+        return io.Schema(
+            node_id="Mahiro",
+            display_name="Mahiro is so cute that she deserves a better guidance function!! (。・ω・。)",
+            category="_for_testing",
+            description="Modify the guidance to scale more on the 'direction' of the positive prompt rather than the difference between the negative prompt.",
+            inputs=[
+                io.Model.Input("model"),
+            ],
+            outputs=[
+                io.Model.Output(display_name="patched_model"),
+            ],
+            is_experimental=True,
+        )
 
-    RETURN_TYPES = ("MODEL",)
-    RETURN_NAMES = ("patched_model",)
-    FUNCTION = "patch"
-    CATEGORY = "_for_testing"
-    DESCRIPTION = "Modify the guidance to scale more on the 'direction' of the positive prompt rather than the difference between the negative prompt."
-
-    def patch(self, model):
+    @classmethod
+    def execute(cls, model) -> io.NodeOutput:
         m = model.clone()
 
         def mahiro_normd(args):
@@ -35,13 +44,16 @@ class Mahiro:
             return wm
 
         m.set_model_sampler_post_cfg_function(mahiro_normd)
-        return (m,)
+        return io.NodeOutput(m)
 
 
-NODE_CLASS_MAPPINGS = {
-    "Mahiro": Mahiro
-}
+class MahiroExtension(ComfyExtension):
+    @override
+    async def get_node_list(self) -> list[type[io.ComfyNode]]:
+        return [
+            Mahiro,
+        ]
 
-NODE_DISPLAY_NAME_MAPPINGS = {
-    "Mahiro": "Mahiro is so cute that she deserves a better guidance function!! (。・ω・。)",
-}
+
+async def comfy_entrypoint() -> MahiroExtension:
+    return MahiroExtension()

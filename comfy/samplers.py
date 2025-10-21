@@ -324,17 +324,10 @@ def _calc_cond_batch(model: BaseModel, conds, x_in: torch.Tensor, timestep: torc
                                                                            copy_dict1=False)
 
             if patches is not None:
-                # TODO: replace with merge_nested_dicts function
-                if "patches" in transformer_options:
-                    cur_patches = transformer_options["patches"].copy()
-                    for p in patches:
-                        if p in cur_patches:
-                            cur_patches[p] = cur_patches[p] + patches[p]
-                        else:
-                            cur_patches[p] = patches[p]
-                    transformer_options["patches"] = cur_patches
-                else:
-                    transformer_options["patches"] = patches
+                transformer_options["patches"] = comfy.patcher_extension.merge_nested_dicts(
+                    transformer_options.get("patches", {}),
+                    patches
+                )
 
             transformer_options["cond_or_uncond"] = cond_or_uncond[:]
             transformer_options["uuids"] = uuids[:]
@@ -382,7 +375,7 @@ def cfg_function(model, cond_pred, uncond_pred, cond_scale, x, timestep, model_o
         model_options = {}
     if "sampler_cfg_function" in model_options:
         args = {"cond": x - cond_pred, "uncond": x - uncond_pred, "cond_scale": cond_scale, "timestep": timestep, "input": x, "sigma": timestep,
-                "cond_denoised": cond_pred, "uncond_denoised": uncond_pred, "model": model, "model_options": model_options}
+                "cond_denoised": cond_pred, "uncond_denoised": uncond_pred, "model": model, "model_options": model_options, "input_cond": cond, "input_uncond": uncond}
         cfg_result = x - model_options["sampler_cfg_function"](args)
     else:
         cfg_result = uncond_pred + (cond_pred - uncond_pred) * cond_scale

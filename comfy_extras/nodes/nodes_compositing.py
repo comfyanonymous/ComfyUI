@@ -162,8 +162,7 @@ class PorterDuffImageCompositeV2:
             out_images.append(out_image)
             out_alphas.append(out_alpha.squeeze(2))
 
-        result = (torch.stack(out_images), torch.stack(out_alphas))
-        return result
+        return io.NodeOutput(torch.stack(out_images), torch.stack(out_alphas))
 
 
 class PorterDuffImageCompositeV1(PorterDuffImageCompositeV2):
@@ -188,41 +187,45 @@ class PorterDuffImageCompositeV1(PorterDuffImageCompositeV2):
         return super().composite(source, destination, mode, source_alpha, destination_alpha)
 
 
-class SplitImageWithAlpha:
+class SplitImageWithAlpha(io.ComfyNode):
     @classmethod
-    def INPUT_TYPES(s):
-        return {
-            "required": {
-                "image": ("IMAGE",),
-            }
-        }
+    def define_schema(cls):
+        return io.Schema(
+            node_id="SplitImageWithAlpha",
+            display_name="Split Image with Alpha",
+            category="mask/compositing",
+            inputs=[
+                io.Image.Input("image"),
+            ],
+            outputs=[
+                io.Image.Output(),
+                io.Mask.Output(),
+            ],
+        )
 
-    CATEGORY = "mask/compositing"
-    RETURN_TYPES = ("IMAGE", "MASK")
-    FUNCTION = "split_image_with_alpha"
-
-    def split_image_with_alpha(self, image: torch.Tensor):
+    @classmethod
+    def execute(cls, image: torch.Tensor) -> io.NodeOutput:
         out_images = [i[:, :, :3] for i in image]
         out_alphas = [i[:, :, 3] if i.shape[2] > 3 else torch.ones_like(i[:, :, 0]) for i in image]
-        result = (torch.stack(out_images), 1.0 - torch.stack(out_alphas))
-        return result
+        return io.NodeOutput(torch.stack(out_images), 1.0 - torch.stack(out_alphas))
 
 
-class JoinImageWithAlpha:
+class JoinImageWithAlpha(io.ComfyNode):
     @classmethod
-    def INPUT_TYPES(s):
-        return {
-            "required": {
-                "image": ("IMAGE",),
-                "alpha": ("MASK",),
-            }
-        }
+    def define_schema(cls):
+        return io.Schema(
+            node_id="JoinImageWithAlpha",
+            display_name="Join Image with Alpha",
+            category="mask/compositing",
+            inputs=[
+                io.Image.Input("image"),
+                io.Mask.Input("alpha"),
+            ],
+            outputs=[io.Image.Output()],
+        )
 
-    CATEGORY = "mask/compositing"
-    RETURN_TYPES = ("IMAGE",)
-    FUNCTION = "join_image_with_alpha"
-
-    def join_image_with_alpha(self, image: torch.Tensor, alpha: torch.Tensor):
+    @classmethod
+    def execute(cls, image: torch.Tensor, alpha: torch.Tensor) -> io.NodeOutput:
         batch_size = min(len(image), len(alpha))
         out_images = []
 
@@ -230,8 +233,7 @@ class JoinImageWithAlpha:
         for i in range(batch_size):
             out_images.append(torch.cat((image[i][:, :, :3], alpha[i].unsqueeze(2)), dim=2))
 
-        result = (torch.stack(out_images),)
-        return result
+        return io.NodeOutput(torch.stack(out_images))
 
 
 class Flatten(CustomNode):

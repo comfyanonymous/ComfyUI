@@ -26,7 +26,7 @@ from comfy_api_nodes.apis import (
     GeminiPart,
     GeminiMimeType,
 )
-from comfy_api_nodes.apis.gemini_api import GeminiImageGenerationConfig, GeminiImageGenerateContentRequest
+from comfy_api_nodes.apis.gemini_api import GeminiImageGenerationConfig, GeminiImageGenerateContentRequest, GeminiImageConfig
 from comfy_api_nodes.apis.client import (
     ApiEndpoint,
     HttpMethod,
@@ -39,6 +39,7 @@ from comfy_api_nodes.apinode_utils import (
     tensor_to_base64_string,
     bytesio_to_image_tensor,
 )
+from comfy_api.util import VideoContainer, VideoCodec
 
 
 GEMINI_BASE_ENDPOINT = "/proxy/vertexai/gemini"
@@ -62,6 +63,7 @@ class GeminiImageModel(str, Enum):
     """
 
     gemini_2_5_flash_image_preview = "gemini-2.5-flash-image-preview"
+    gemini_2_5_flash_image = "gemini-2.5-flash-image"
 
 
 def get_gemini_endpoint(
@@ -310,7 +312,7 @@ class GeminiNode(ComfyNodeABC):
         Returns:
             List of GeminiPart objects containing the encoded video.
         """
-        from comfy_api.util import VideoContainer, VideoCodec
+
         base_64_string = video_to_base64_string(
             video_input,
             container_format=VideoContainer.MP4,
@@ -490,7 +492,6 @@ class GeminiInputFiles(ComfyNodeABC):
         # Use base64 string directly, not the data URI
         with open(file_path, "rb") as f:
             file_content = f.read()
-        import base64
         base64_str = base64.b64encode(file_content).decode("utf-8")
 
         return GeminiPart(
@@ -538,7 +539,7 @@ class GeminiImage(ComfyNodeABC):
                     {
                         "tooltip": "The Gemini model to use for generating responses.",
                         "options": [model.value for model in GeminiImageModel],
-                        "default": GeminiImageModel.gemini_2_5_flash_image_preview.value,
+                        "default": GeminiImageModel.gemini_2_5_flash_image.value,
                     },
                 ),
                 "seed": (
@@ -579,6 +580,14 @@ class GeminiImage(ComfyNodeABC):
                 #         "tooltip": "How many images to generate",
                 #     },
                 # ),
+                "aspect_ratio": (
+                    IO.COMBO,
+                    {
+                        "tooltip": "Defaults to matching the output image size to that of your input image, or otherwise generates 1:1 squares.",
+                        "options": ["auto", "1:1", "2:3", "3:2", "3:4", "4:3", "4:5", "5:4", "9:16", "16:9", "21:9"],
+                        "default": "auto",
+                    },
+                ),
             },
             "hidden": {
                 "auth_token": "AUTH_TOKEN_COMFY_ORG",
@@ -600,15 +609,17 @@ class GeminiImage(ComfyNodeABC):
         images: Optional[IO.IMAGE] = None,
         files: Optional[list[GeminiPart]] = None,
         n=1,
+        aspect_ratio: str = "auto",
         unique_id: Optional[str] = None,
         **kwargs,
     ):
-        # Validate inputs
         validate_string(prompt, strip_whitespace=True, min_length=1)
-        # Create parts list with text prompt as the first part
         parts: list[GeminiPart] = [create_text_part(prompt)]
 
-        # Add other modal parts
+        if not aspect_ratio:
+            aspect_ratio = "auto"  # for backward compatability with old workflows; to-do remove this in December
+        image_config = GeminiImageConfig(aspectRatio=aspect_ratio)
+
         if images is not None:
             image_parts = create_image_parts(images)
             parts.extend(image_parts)
@@ -625,7 +636,8 @@ class GeminiImage(ComfyNodeABC):
                     ),
                 ],
                 generationConfig=GeminiImageGenerationConfig(
-                    responseModalities=["TEXT","IMAGE"]
+                    responseModalities=["TEXT","IMAGE"],
+                    imageConfig=None if aspect_ratio == "auto" else image_config,
                 )
             ),
             auth_kwargs=kwargs,

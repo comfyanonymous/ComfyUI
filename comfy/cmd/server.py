@@ -81,6 +81,28 @@ def get_comfyui_version():
     return __version__
 
 
+# Track deprecated paths that have been warned about to only warn once per file
+_deprecated_paths_warned = set()
+
+@web.middleware
+async def deprecation_warning(request: web.Request, handler):
+    """Middleware to warn about deprecated frontend API paths"""
+    path = request.path
+
+    if path.startswith("/scripts/ui") or path.startswith("/extensions/core/"):
+        # Only warn once per unique file path
+        if path not in _deprecated_paths_warned:
+            _deprecated_paths_warned.add(path)
+            logging.warning(
+                f"[DEPRECATION WARNING] Detected import of deprecated legacy API: {path}. "
+                f"This is likely caused by a custom node extension using outdated APIs. "
+                f"Please update your extensions or contact the extension author for an updated version."
+            )
+
+    response: web.Response = await handler(request)
+    return response
+
+
 @web.middleware
 async def compress_body(request: web.Request, handler):
     accept_encoding = request.headers.get("Accept-Encoding", "")
@@ -202,7 +224,7 @@ class PromptServer(ExecutorToClientProgress):
         self._external_address: Optional[str] = None
         self.background_tasks: dict[str, Task] = dict()
 
-        middlewares = [cache_control]
+        middlewares = [cache_control, deprecation_warning]
         if args.enable_compress_response_body:
             middlewares.append(compress_body)
 
@@ -589,6 +611,8 @@ class PromptServer(ExecutorToClientProgress):
             vram_total, torch_vram_total = get_total_memory(device, torch_total_too=True)
             vram_free, torch_vram_free = get_free_memory(device, torch_free_too=True)
             required_frontend_version = FrontendManager.get_required_frontend_version()
+            installed_templates_version = FrontendManager.get_installed_templates_version()
+            required_templates_version = FrontendManager.get_required_templates_version()
 
             system_stats = {
                 "system": {
@@ -597,6 +621,8 @@ class PromptServer(ExecutorToClientProgress):
                     "ram_free": ram_free,
                     "comfyui_version": __version__,
                     "required_frontend_version": required_frontend_version,
+                    "installed_templates_version": installed_templates_version,
+                    "required_templates_version": required_templates_version,
                     "python_version": sys.version,
                     "pytorch_version": torch_version,
                     "embedded_python": os.path.split(os.path.split(sys.executable)[0])[1] == "python_embeded",

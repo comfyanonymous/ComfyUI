@@ -148,13 +148,27 @@ class FrontendManager:
             return "1.23.4"
 
     @classmethod
+    def get_installed_templates_version(cls) -> str:
+        """Get the currently installed workflow templates package version."""
+        try:
+            templates_version_str = version("comfyui-workflow-templates")
+            return templates_version_str
+        except Exception:
+            return None
+
+    @classmethod
+    def get_required_templates_version(cls) -> str:
+        # returns a stub, since this isn't a helpful check in this environment
+        return "0.0.1"
+
+    @classmethod
     def default_frontend_path(cls) -> str:
         try:
             import comfyui_frontend_package
 
             return str(importlib.resources.files(comfyui_frontend_package) / "static")
         except ImportError:
-            logger.error(f"""comfyui-frontend-package is not installed.""".strip())
+            logger.error(f"comfyui-frontend-package is not installed.")
             return ""
 
     @classmethod
@@ -166,15 +180,9 @@ class FrontendManager:
                 importlib.resources.files(comfyui_workflow_templates) / "templates"
             )
         except ImportError:
-            logger.error(
-                f"""
-********** ERROR ***********
-
-comfyui-workflow-templates is not installed.
-
-********** ERROR ***********
-""".strip()
-            )
+            # we're not blind
+            logger.error("comfyui-workflow-templates is not installed.")
+            return ""
 
     @classmethod
     def embedded_docs_path(cls) -> str:

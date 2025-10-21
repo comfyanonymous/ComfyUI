@@ -17,6 +17,7 @@ import warnings
 from .. import options
 from ..app import logger
 
+os.environ['TORCH_ROCM_AOTRITON_ENABLE_EXPERIMENTAL'] = '1'
 os.environ["OPENCV_IO_ENABLE_OPENEXR"] = "1"
 os.environ["TORCHINDUCTOR_FX_GRAPH_CACHE"] = "1"
 os.environ["TORCHINDUCTOR_AUTOGRAD_CACHE"] = "1"
@@ -63,6 +64,7 @@ if args.default_device is not None:
 if args.cuda_device is not None:
     os.environ['CUDA_VISIBLE_DEVICES'] = str(args.cuda_device)
     os.environ['HIP_VISIBLE_DEVICES'] = str(args.cuda_device)
+    os.environ["ASCEND_RT_VISIBLE_DEVICES"] = str(args.cuda_device)
     this_logger.info("Set cuda device to: {}".format(args.cuda_device))
 
 if args.deterministic:

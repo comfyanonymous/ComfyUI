@@ -2,7 +2,7 @@ import importlib.util
 import os
 import subprocess
 
-from ..cli_args import args
+from ..cli_args import args, PerformanceFeature
 
 
 # Can't use pytorch to get the GPU names because the cuda malloc has to be set before the first import.
@@ -84,7 +84,8 @@ if not args.cuda_malloc:
                 version = module.__version__
 
         if int(version[0]) >= 2 and "+cu" in version:  # enable by default for torch version 2.0 and up only on cuda torch
-            args.cuda_malloc = cuda_malloc_supported()
+            if PerformanceFeature.AutoTune not in args.fast:  # Autotune has issues with cuda malloc
+                args.cuda_malloc = cuda_malloc_supported()
     except:
         pass
 
