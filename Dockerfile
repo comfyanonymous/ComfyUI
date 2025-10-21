@@ -3,7 +3,7 @@
 # managers.
 
 # Use the recommended Python version 3.12, as specified in the README.
-FROM python:3.12.11-bookworm AS comfyui-base
+FROM python:3.12.11-bookworm
 
 # Install cmake, which is an indirect installation dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends cmake
