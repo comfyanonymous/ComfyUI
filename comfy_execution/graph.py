@@ -212,7 +212,12 @@ class ExecutionList(TopologicalSort):
     def get_output_cache(self, from_node_id, to_node_id):
         if not to_node_id in self.execution_cache:
             return None
-        return self.execution_cache[to_node_id].get(from_node_id)
+        value = self.execution_cache[to_node_id].get(from_node_id)
+        if value is None:
+            return None
+        #Write back to the main cache on touch.
+        self.output_cache.set(from_node_id, value)
+        return value[0]
 
     def cache_update(self, node_id, value):
         if node_id in self.execution_cache_listeners:
