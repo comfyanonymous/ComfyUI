@@ -111,18 +111,8 @@ jobs:
           pylint --rcfile=.pylintrc comfy/ comfy_extras/ comfy_api/ comfy_api_nodes/
       - name: Run unit tests
         run: |
-          # always select dgpu
-          dgpu_ids=$(rocminfo | awk '/DeviceID:/ {id=$2} /Device Type:/ {if ($3 == "DISCRETE") print id}' | sort -n)
-          igpu_ids=$(rocminfo | awk '/DeviceID:/ {id=$2} /Device Type:/ {if ($3 == "INTEGRATED") print id}' | sort -n)
-          all_ids="$dgpu_ids $igpu_ids"
-          ordered_list=$(echo "${all_ids// /,} | sed 's/,$//'")
-          if [ -z "$ordered_list" ]; then
-            echo "Warning: No ROCm devices found."
-          else
-            export HIP_VISIBLE_DEVICES="$ordered_list"
-          fi
-          echo "HIP_VISIBLE_DEVICES set to: $HIP_VISIBLE_DEVICES"
-          cd ${GITHUB_WORKSPACE}/src
+          # only use dGPU
+          export HIP_VISIBLE_DEVICES=1
           pytest -v tests/unit
   build_and_execute_macos:
     environment: "Testing"
