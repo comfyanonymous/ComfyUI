@@ -107,10 +107,10 @@ def detect_layer_quantization(state_dict, prefix="model.diffusion_model."):
                 if weight_key in state_dict:
                     weight_dtype = state_dict[weight_key].dtype
                     if weight_dtype in [torch.float8_e4m3fn, torch.float8_e5m2]:
-                        format_name = "fp8_e4m3fn_scaled" if weight_dtype == torch.float8_e4m3fn else "fp8_e5m2_scaled"
+                        format_name = "fp8_e4m3fn" if weight_dtype == torch.float8_e4m3fn else "fp8_e5m2"
                         layer_configs[layer_name] = {
                             "format": format_name,
-                            "params": {"use_fp8_matmul": True}
+                            "params": {}
                         }
             elif key.endswith(".weight") and not key.endswith(".scale_weight"):
                 layer_name = normalize_layer_name(key, known_prefixes)
