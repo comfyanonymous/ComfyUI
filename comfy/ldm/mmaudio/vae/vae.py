@@ -74,12 +74,17 @@ class VAE(nn.Module):
     ):
         super().__init__()
 
+        data_mean = None
+        data_std = None
         if data_dim == 80:
             data_mean = torch.tensor(DATA_MEAN_80D, dtype=torch.float32)
             data_std = torch.tensor(DATA_STD_80D, dtype=torch.float32)
         elif data_dim == 128:
             data_mean = torch.tensor(DATA_MEAN_128D, dtype=torch.float32)
             data_std = torch.tensor(DATA_STD_128D, dtype=torch.float32)
+        else:
+            data_mean = torch.ones((1,))
+            data_std = torch.ones((1,))
 
         self.register_buffer('data_mean', data_mean.view(1, -1, 1))
         self.register_buffer('data_std', data_std.view(1, -1, 1))
