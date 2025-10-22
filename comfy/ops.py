@@ -29,10 +29,13 @@ from .float import stochastic_rounding
 
 logger = logging.getLogger(__name__)
 
+_RUN_EVERY_OP_ENABLED = model_management.torch_version_numeric >= (2, 5)
+
 
 def run_every_op():
-    # this is available on torch 2.3
-    if torch.compiler.is_compiling():  # pylint: disable=no-member
+    global _RUN_EVERY_OP_ENABLED
+    # this is not available on torch 2.3 by testing
+    if not _RUN_EVERY_OP_ENABLED or torch.compiler.is_compiling():  # pylint: disable=no-member
         return
 
     throw_exception_if_processing_interrupted()
