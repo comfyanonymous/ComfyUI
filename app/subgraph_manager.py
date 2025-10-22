@@ -44,7 +44,9 @@ class SubgraphManager:
             entry['data'] = f.read()
         return entry
 
-    async def sanitize_entry(self, entry: SubgraphEntry, remove_data=False) -> SubgraphEntry:
+    async def sanitize_entry(self, entry: SubgraphEntry | None, remove_data=False) -> SubgraphEntry | None:
+        if entry is None:
+            return None
         entry = entry.copy()
         entry.pop('path', None)
         if remove_data:
