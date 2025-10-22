@@ -390,19 +390,7 @@ def fp8_linear(self, input):
         
         # Wrap weight in QuantizedTensorFP8 - this enables unified dispatch
         quantized_weight = QuantizedTensorFP8(w, scale_weight, orig_dtype=input_dtype)
-        
-        # Handle input quantization and wrapping
-        if self.scale_input is None:
-            # Clamp input to FP8 range and quantize
-            input = torch.clamp(input, min=-448, max=448, out=input)
-            input_fp8 = input.reshape(-1, input_shape[2]).to(dtype).contiguous()
-        else:
-            # Apply inverse scale and quantize
-            input_fp8 = (input * (1.0 / scale_input).to(input_dtype)).reshape(-1, input_shape[2]).to(dtype).contiguous()
-        
-        # Wrap input in QuantizedTensorFP8
-        quantized_input = QuantizedTensorFP8(input_fp8, scale_input, orig_dtype=input_dtype)
-        
+        quantized_input = QuantizedTensorFP8.quantize(input.reshape(-1, input_shape[2]), scale_input, fp8_dtype=dtype)
         # Call F.linear - __torch_dispatch__ routes to handle_linear_fp8 in quant_ops.py!
         # This is the key unification: all FP8 computation goes through one path
         o = torch.nn.functional.linear(quantized_input, quantized_weight, bias)
