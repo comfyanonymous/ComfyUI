@@ -73,7 +73,6 @@ class Configuration(dict):
         temp_directory (Optional[str]): Temporary directory for processing.
         input_directory (Optional[str]): Directory for input files. When this is a relative path, it will be looked up relative to the cwd (current working directory) and all of the base_paths.
         auto_launch (bool): Auto-launch UI in the default browser. Defaults to False.
-        disable_auto_launch (bool): Disable auto-launching the browser.
         cuda_device (Optional[int]): CUDA device ID. None means default device.
         cuda_malloc (bool): Enable cudaMallocAsync. Defaults to True in applicable setups.
         disable_cuda_malloc (bool): Disable cudaMallocAsync.
@@ -188,7 +187,6 @@ class Configuration(dict):
         self.temp_directory: Optional[str] = None
         self.input_directory: Optional[str] = None
         self.auto_launch: bool = False
-        self.disable_auto_launch: bool = False
         self.cuda_device: Optional[int] = None
         self.cuda_malloc: bool = True
         self.disable_cuda_malloc: bool = True
@@ -352,7 +350,7 @@ class Configuration(dict):
 
 class EnumAction(argparse.Action):
     """
-    Argparse action for handling Enums
+    Argparse action for handling Enums in a case-insensitive manner.
     """
 
     def __init__(self, **kwargs):
@@ -362,23 +360,33 @@ class EnumAction(argparse.Action):
         # Ensure an Enum subclass is provided
         if enum_type is None:
             raise ValueError("type must be assigned an Enum when using EnumAction")
-        enum_type: Any
         if not issubclass(enum_type, enum.Enum):
             raise TypeError("type must be an Enum when using EnumAction")
 
-        # Generate choices from the Enum
-        choices = tuple(e.value for e in enum_type)
-        kwargs.setdefault("choices", choices)
-        kwargs.setdefault("metavar", f"[{','.join(list(choices))}]")
-
-        super(EnumAction, self).__init__(**kwargs)
-
         self._enum = enum_type
 
+        # Generate choices from the Enum for the help message
+        choices = tuple(e.value for e in enum_type)
+        kwargs.setdefault("metavar", f"[{','.join(list(choices))}]")
+
+        # We handle choices ourselves for case-insensitivity, so remove it before calling super.
+        if "choices" in kwargs:
+            del kwargs["choices"]
+
+        super(EnumAction, self).__init__(**kwargs)
+        self._choices = choices
+
     def __call__(self, parser, namespace, values, option_string=None):
-        # Convert value back into an Enum
-        value = self._enum(values)
-        setattr(namespace, self.dest, value)
+        # Convert value back into an Enum, case-insensitively
+        value_lower = values.lower()
+        for member in self._enum:
+            if member.value.lower() == value_lower:
+                setattr(namespace, self.dest, member)
+                return
+
+        # If no match found, raise an error
+        msg = f"invalid choice: {values!r} (choose from {', '.join(self._choices)})"
+        raise argparse.ArgumentError(self, msg)
 
 
 class ParsedArgs(NamedTuple):
@@ -401,3 +409,25 @@ class EnhancedConfigArgParser(configargparse.ArgParser):
 
         namespace, unknown_args = super().parse_known_args(args, namespace, **kwargs)
         return ParsedArgs(namespace, unknown_args, config_files)
+
+
+class FlattenAndAppendAction(argparse.Action):
+    """
+    Custom action to handle comma-separated values and multiple invocations
+    of the same argument, flattening them into a single list.
+    """
+    def __call__(self, parser, namespace, values, option_string=None):
+        items = getattr(namespace, self.dest, None)
+        if items is None:
+            items = []
+        else:
+            # Make a copy if it's not the first time, to avoid modifying the default.
+            items = items[:]
+
+        # 'values' will be a list of strings because of nargs='+'
+        for value in values:
+            # Split comma-separated strings and add them to the list
+            items.extend(item.strip() for item in value.split(','))
+
+        # Set the flattened list back to the namespace.
+        setattr(namespace, self.dest, items)

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import sys
+from comfy.cli_args_types import FlattenAndAppendAction
 from importlib.metadata import entry_points
 from types import ModuleType
 from typing import Optional
@@ -36,8 +37,8 @@ def _create_parser() -> EnhancedConfigArgParser:
                         help="Enable CORS (Cross-Origin Resource Sharing) with optional origin or allow all with default '*'.")
     parser.add_argument("--max-upload-size", type=float, default=100, help="Set the maximum upload size in MB.")
     parser.add_argument("--base-directory", type=str, default=None, help="Set the ComfyUI base directory for models, custom_nodes, input, output, temp, and user directories.")
-    parser.add_argument("--extra-model-paths-config", type=str, default=None, metavar="PATH", nargs='+',
-                        action='append', help="Load one or more extra_model_paths.yaml files.")
+    parser.add_argument("--extra-model-paths-config", type=str, default=[], metavar="PATH", nargs='+',
+                        action=FlattenAndAppendAction, help="Load one or more extra_model_paths.yaml files. Can be specified multiple times or as a comma-separated list.")
     parser.add_argument("--output-directory", type=str, default=None, help="Set the ComfyUI output directory. Overrides --base-directory.")
     parser.add_argument("--temp-directory", type=str, default=None,
                         help="Set the ComfyUI temp directory (default is in the ComfyUI directory). Overrides --base-directory.")
