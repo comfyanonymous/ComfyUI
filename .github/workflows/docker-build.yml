@@ -31,14 +31,23 @@ jobs:
           registry: nvcr.io
           username: "$oauthtoken"
           password: ${{ secrets.NVCR_NGC_TOKEN }}
+      - name: Docker meta
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=raw,value=latest-cuda,enable={{is_default_branch}}
+            type=sha,prefix=
+            type=sha,prefix=,suffix=-cuda
+            type=semver,pattern={{version}}
+            type=semver,pattern={{version}},suffix=-cuda
       - name: Build and push CUDA (NVIDIA) image
         uses: docker/build-push-action@v6
         with:
           context: .
           file: ./Dockerfile
           push: true
-          tags: |
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest-cuda
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}-cuda
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
