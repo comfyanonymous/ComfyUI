@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import logging
 import sys
-from comfy.cli_args_types import FlattenAndAppendAction
 from importlib.metadata import entry_points
 from types import ModuleType
 from typing import Optional
@@ -12,7 +11,7 @@ import configargparse as argparse
 from . import __version__
 from . import options
 from .cli_args_types import LatentPreviewMethod, Configuration, ConfigurationExtender, EnumAction, \
-    EnhancedConfigArgParser, PerformanceFeature, is_valid_directory, db_config
+    EnhancedConfigArgParser, PerformanceFeature, is_valid_directory, db_config, FlattenAndAppendAction
 
 # todo: move this
 DEFAULT_VERSION_STRING = "comfyanonymous/ComfyUI@latest"
