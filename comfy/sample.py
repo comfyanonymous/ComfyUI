@@ -5,12 +5,15 @@ import comfy.utils
 import numpy as np
 import logging
 
-def prepare_noise(latent_image, seed, noise_inds=None):
+def prepare_noise(latent_image, seed, noise_inds=None, disable_noise=False):
     """
     creates random noise given a latent image and a seed.
     optional arg skip can be used to skip and discard x number of noise generations for a given seed
     """
     generator = torch.manual_seed(seed)
+    if disable_noise:
+        return torch.zeros(latent_image.size(), dtype=latent_image.dtype, layout=latent_image.layout, device="cpu")
+
     if noise_inds is None:
         return torch.randn(latent_image.size(), dtype=latent_image.dtype, layout=latent_image.layout, generator=generator, device="cpu")
 
