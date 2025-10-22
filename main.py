@@ -173,7 +173,7 @@ def prompt_worker(q, server_instance):
     if args.cache_lru > 0:
         cache_type = execution.CacheType.LRU
     elif args.cache_none:
-        cache_type = execution.CacheType.DEPENDENCY_AWARE
+        cache_type = execution.CacheType.NONE
 
     e = execution.PromptExecutor(server_instance, cache_type=cache_type, cache_size=args.cache_lru)
     last_gc_collect = 0
