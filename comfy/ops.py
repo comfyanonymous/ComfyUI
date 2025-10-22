@@ -31,7 +31,8 @@ logger = logging.getLogger(__name__)
 
 
 def run_every_op():
-    if torch.compiler.is_compiling():
+    # this is available on torch 2.3
+    if torch.compiler.is_compiling():  # pylint: disable=no-member
         return
 
     throw_exception_if_processing_interrupted()
