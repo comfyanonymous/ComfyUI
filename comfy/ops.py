@@ -423,8 +423,7 @@ def scaled_fp8_ops(fp8_matrix_mult=False, scale_input=False, override_dtype=None
 
                 if not scale_input:
                     self.scale_input = None
-
-                if not hasattr(self, 'scale_input'):
+                elif not hasattr(self, 'scale_input'):
                     self.scale_input = torch.nn.parameter.Parameter(data=torch.ones((), device=self.weight.device, dtype=torch.float32), requires_grad=False)
                 return None
 
@@ -478,16 +477,17 @@ if CUBLAS_IS_AVAILABLE:
             def forward(self, *args, **kwargs):
                 return super().forward(*args, **kwargs)
 
-def pick_operations(weight_dtype, compute_dtype, load_device=None, disable_fast_fp8=False, fp8_optimizations=False, scaled_fp8=None):
+def pick_operations(weight_dtype, compute_dtype, load_device=None, disable_fast_fp8=False, fp8_optimizations=False, scaled_fp8=None, scaled_fp8_activation=False):
     fp8_compute = comfy.model_management.supports_fp8_compute(load_device)
-    if scaled_fp8 is not None:
-        return scaled_fp8_ops(fp8_matrix_mult=fp8_compute and fp8_optimizations, scale_input=fp8_optimizations, override_dtype=scaled_fp8)
-
-    if (
+    fp8_optimizations = (
         fp8_compute and
-        (fp8_optimizations or PerformanceFeature.Fp8MatrixMultiplication in args.fast) and
-        not disable_fast_fp8
-    ):
+        (fp8_optimizations or PerformanceFeature.Fp8MatrixMultiplication in args.fast)
+        and not disable_fast_fp8
+    )
+    if scaled_fp8 is not None:
+        return scaled_fp8_ops(fp8_matrix_mult=fp8_optimizations, scale_input=scaled_fp8_activation, override_dtype=scaled_fp8)
+
+    if fp8_optimizations:
         return fp8_ops
 
     if (
