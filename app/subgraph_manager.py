@@ -44,6 +44,19 @@ class SubgraphManager:
             entry['data'] = f.read()
         return entry
 
+    async def sanitize_entry(self, entry: SubgraphEntry, remove_data=False) -> SubgraphEntry:
+        entry = entry.copy()
+        entry.pop('path', None)
+        if remove_data:
+            entry.pop('data', None)
+        return entry
+
+    async def sanitize_entries(self, entries: dict[str, SubgraphEntry], remove_data=False) -> dict[str, SubgraphEntry]:
+        entries = entries.copy()
+        for key in list(entries.keys()):
+            entries[key] = await self.sanitize_entry(entries[key], remove_data)
+        return entries
+
     async def get_custom_node_subgraphs(self, loadedModules, force_reload=False):
         # if not forced to reload and cached, return cache
         if not force_reload and self.cached_custom_node_subgraphs is not None:
@@ -71,15 +84,14 @@ class SubgraphManager:
                     "path": file,
                     "info": info,
                 }
-                await self.load_entry_data(entry)
                 subgraphs_dict[id] = entry
         self.cached_custom_node_subgraphs = subgraphs_dict
         return subgraphs_dict
 
-    async def get_custom_node_subgraph(self, id: str):
-        subgraphs = await self.get_custom_node_subgraphs()
+    async def get_custom_node_subgraph(self, id: str, loadedModules):
+        subgraphs = await self.get_custom_node_subgraphs(loadedModules)
         entry: SubgraphEntry = subgraphs.get(id, None)
-        if entry is not None:
+        if entry is not None and entry.get('data', None) is None:
             await self.load_entry_data(entry)
         return entry
 
@@ -89,10 +101,10 @@ class SubgraphManager:
             subgraphs_dict = await self.get_custom_node_subgraphs(loadedModules)
             # NOTE: we may want to include other sources of global subgraphs such as templates in the future;
             # that's the reasoning for the current implementation
-            return web.json_response(subgraphs_dict)
+            return web.json_response(await self.sanitize_entries(subgraphs_dict, remove_data=True))
 
         @routes.get("/global_subgraphs/{id}")
         async def get_global_subgraph(request):
             id = request.match_info.get("id", None)
-            subgraph = await self.get_custom_node_subgraph(id)
-            return web.json_response(subgraph)
+            subgraph = await self.get_custom_node_subgraph(id, loadedModules)
+            return web.json_response(await self.sanitize_entry(subgraph))
