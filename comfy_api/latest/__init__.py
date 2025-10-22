@@ -83,7 +83,6 @@ class ComfyExtension(ABC):
         This should be used to initialize any global resources neeeded by the extension.
         """
 
-
     @abstractmethod
     async def get_node_list(self) -> list[type[io.ComfyNode]]:
         """
