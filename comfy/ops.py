@@ -25,6 +25,9 @@ import comfy.rmsnorm
 import contextlib
 
 def run_every_op():
+    if torch.compiler.is_compiling():
+        return
+
     comfy.model_management.throw_exception_if_processing_interrupted()
 
 def scaled_dot_product_attention(q, k, v, *args, **kwargs):
@@ -52,14 +55,22 @@ try:
 except (ModuleNotFoundError, TypeError):
     logging.warning("Could not set sdpa backend priority.")
 
-cast_to = comfy.model_management.cast_to #TODO: remove once no more references
+NVIDIA_MEMORY_CONV_BUG_WORKAROUND = False
+try:
+    if comfy.model_management.is_nvidia():
+        if torch.backends.cudnn.version() >= 91002 and comfy.model_management.torch_version_numeric >= (2, 9) and comfy.model_management.torch_version_numeric <= (2, 10):
+            #TODO: change upper bound version once it's fixed'
+            NVIDIA_MEMORY_CONV_BUG_WORKAROUND = True
+            logging.info("working around nvidia conv3d memory bug.")
+except:
+    pass
 
-if torch.cuda.is_available() and torch.backends.cudnn.is_available() and PerformanceFeature.AutoTune in args.fast:
-    torch.backends.cudnn.benchmark = True
+cast_to = comfy.model_management.cast_to #TODO: remove once no more references
 
 def cast_to_input(weight, input, non_blocking=False, copy=True):
     return comfy.model_management.cast_to(weight, input.dtype, input.device, non_blocking=non_blocking, copy=copy)
 
+@torch.compiler.disable()
 def cast_bias_weight(s, input=None, dtype=None, device=None, bias_dtype=None):
     if input is not None:
         if dtype is None:
@@ -150,6 +161,15 @@ class disable_weight_init:
     class Conv3d(torch.nn.Conv3d, CastWeightBiasOp):
         def reset_parameters(self):
             return None
+
+        def _conv_forward(self, input, weight, bias, *args, **kwargs):
+            if NVIDIA_MEMORY_CONV_BUG_WORKAROUND and weight.dtype in (torch.float16, torch.bfloat16):
+                out = torch.cudnn_convolution(input, weight, self.padding, self.stride, self.dilation, self.groups, benchmark=False, deterministic=False, allow_tf32=True)
+                if bias is not None:
+                    out += bias.reshape((1, -1) + (1,) * (out.ndim - 2))
+                return out
+            else:
+                return super()._conv_forward(input, weight, bias, *args, **kwargs)
 
         def forward_comfy_cast_weights(self, input):
             weight, bias = cast_bias_weight(self, input)
