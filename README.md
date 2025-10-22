@@ -201,6 +201,8 @@ Python 3.14 will work if you comment out the `kornia` dependency in the requirem
 
 Python 3.13 is very well supported. If you have trouble with some custom node dependencies on 3.13 you can try 3.12
 
+### Instructions:
+
 Git clone this repo.
 
 Put your SD checkpoints (the huge ckpt/safetensors files) in: models/checkpoints
