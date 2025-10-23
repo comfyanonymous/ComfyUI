@@ -26,6 +26,7 @@ import importlib
 import platform
 import weakref
 import gc
+import os
 
 class VRAMState(Enum):
     DISABLED = 0    #No vram present: no need to move models to vram
@@ -335,11 +336,11 @@ AMD_RDNA2_AND_OLDER_ARCH = ["gfx1030", "gfx1031", "gfx1010", "gfx1011", "gfx1012
 
 try:
     if is_amd():
-        arch = torch.cuda.get_device_properties(get_torch_device()).gcnArchName
-        if not (any((a in arch) for a in AMD_RDNA2_AND_OLDER_ARCH)):
-            torch.backends.cudnn.enabled = False  # Seems to improve things a lot on AMD
-            logging.info("Set: torch.backends.cudnn.enabled = False for better AMD performance.")
+        if os.getenv('MIOPEN_FIND_MODE') is None:
+            os.environ['MIOPEN_FIND_MODE'] = "FAST"
+            logging.info("Set: MIOPEN_FIND_MODE=FAST for better AMD performance, change by setting MIOPEN_FIND_MODE.")
 
+        arch = torch.cuda.get_device_properties(get_torch_device()).gcnArchName
         try:
             rocm_version = tuple(map(int, str(torch.version.hip).split(".")[:2]))
         except:
