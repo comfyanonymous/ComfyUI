@@ -112,6 +112,7 @@ dependencies = [
     # doesn't support linux correctly yet
     "stringzilla<4.2.0",
     "requests_cache",
+    "universal_pathlib",
 ]
 
 [build-system]
