@@ -4,7 +4,7 @@ import uuid
 from io import BytesIO
 from pathlib import Path
 from typing import IO, Optional, Union
-from urllib.parse import urlparse
+from urllib.parse import urljoin, urlparse
 
 import aiohttp
 import torch
@@ -57,10 +57,11 @@ async def download_url_to_bytesio(
     delay = retry_delay
     headers: dict[str, str] = {}
 
-    if url.startswith("/proxy/"):
+    parsed_url = urlparse(url)
+    if not parsed_url.scheme and not parsed_url.netloc:  # is URL relative?
         if cls is None:
             raise ValueError("For relative 'cloud' paths, the `cls` parameter is required.")
-        url = default_base_url().rstrip("/") + url
+        url = urljoin(default_base_url().rstrip("/") + "/", url.lstrip("/"))
         headers = get_auth_header(cls)
 
     while True:

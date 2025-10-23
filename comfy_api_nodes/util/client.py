@@ -482,18 +482,6 @@ def _unpack_tuple(t: tuple) -> tuple[str, Any, str]:
     raise ValueError("files tuple must be (filename, file[, content_type])")
 
 
-def _join_url(base_url: str, path: str) -> str:
-    return urljoin(base_url.rstrip("/") + "/", path.lstrip("/"))
-
-
-def _merge_headers(node_cls: type[IO.ComfyNode], endpoint_headers: dict[str, str]) -> dict[str, str]:
-    headers = {"Accept": "*/*"}
-    headers.update(get_auth_header(node_cls))
-    if endpoint_headers:
-        headers.update(endpoint_headers)
-    return headers
-
-
 def _merge_params(endpoint_params: dict[str, Any], method: str, data: Optional[dict[str, Any]]) -> dict[str, Any]:
     params = dict(endpoint_params or {})
     if method.upper() == "GET" and data:
@@ -566,7 +554,11 @@ def _snapshot_request_body_for_logging(
 
 async def _request_base(cfg: _RequestConfig, expect_binary: bool):
     """Core request with retries, per-second interruption monitoring, true cancellation, and friendly errors."""
-    url = _join_url(default_base_url(), cfg.endpoint.path)
+    url = cfg.endpoint.path
+    parsed_url = urlparse(url)
+    if not parsed_url.scheme and not parsed_url.netloc:  # is URL relative?
+        url = urljoin(default_base_url().rstrip("/") + "/", url.lstrip("/"))
+
     method = cfg.endpoint.method
     params = _merge_params(cfg.endpoint.query_params, method, cfg.data if method == "GET" else None)
 
@@ -598,7 +590,12 @@ async def _request_base(cfg: _RequestConfig, expect_binary: bool):
         operation_id = _generate_operation_id(method, cfg.endpoint.path, attempt)
         logging.debug("[DEBUG] HTTP %s %s (attempt %d)", method, url, attempt)
 
-        payload_headers = _merge_headers(cfg.node_cls, cfg.endpoint.headers)
+        payload_headers = {"Accept": "*/*"}
+        if not parsed_url.scheme and not parsed_url.netloc:  # is URL relative?
+            payload_headers.update(get_auth_header(cfg.node_cls))
+        if cfg.endpoint.headers:
+            payload_headers.update(cfg.endpoint.headers)
+
         payload_kw: dict[str, Any] = {"headers": payload_headers}
         if method == "GET":
             payload_headers.pop("Content-Type", None)
