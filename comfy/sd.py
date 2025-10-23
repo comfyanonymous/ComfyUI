@@ -143,6 +143,9 @@ class CLIP:
         n.apply_hooks_to_conds = self.apply_hooks_to_conds
         return n
 
+    def get_ram_usage(self):
+        return self.patcher.get_ram_usage()
+
     def add_patches(self, patches, strength_patch=1.0, strength_model=1.0):
         return self.patcher.add_patches(patches, strength_patch, strength_model)
 
