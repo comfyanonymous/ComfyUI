@@ -44,6 +44,7 @@ from ..component_model.queue_types import QueueTuple, HistoryEntry, QueueItem, M
     ExecutionStatusAsDict
 from ..execution_context import context_execute_node, context_execute_prompt
 from ..execution_ext import should_panic_on_exception
+from ..node_requests_caching import use_requests_caching
 from ..nodes.package_typing import InputTypeSpec, FloatSpecOptions, IntSpecOptions, CustomNode
 from ..nodes_context import get_nodes
 from comfy_execution.progress import get_progress_state, reset_progress_state, add_progress_handler, WebUIProgressHandler, \
@@ -467,7 +468,8 @@ async def execute(server: ExecutorToClientProgress, dynprompt: DynamicPrompt, ca
     :param pending_subgraph_results:
     :return:
     """
-    with context_execute_node(node_id):
+    with context_execute_node(node_id), \
+            use_requests_caching():
         return await _execute(server, dynprompt, caches, node_id, extra_data, executed, prompt_id, execution_list, pending_subgraph_results, pending_async_nodes)
 
 
