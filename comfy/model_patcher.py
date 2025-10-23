@@ -44,7 +44,7 @@ from comfy.model_management import get_free_memory
 
 def need_mmap() -> bool:
     free_cpu_mem = get_free_memory(torch.device("cpu"))
-    mmap_mem_threshold_gb = int(os.environ.get("MMAP_MEM_THRESHOLD_GB", "1024"))
+    mmap_mem_threshold_gb = int(os.environ.get("MMAP_MEM_THRESHOLD_GB", "0"))
     if free_cpu_mem < mmap_mem_threshold_gb * 1024 * 1024 * 1024:
         logging.debug(f"Enabling mmap, current free cpu memory {free_cpu_mem/(1024*1024*1024)} GB < {mmap_mem_threshold_gb} GB")
         return True
