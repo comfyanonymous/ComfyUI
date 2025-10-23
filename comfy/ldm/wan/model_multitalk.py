@@ -4,6 +4,7 @@ import math
 import comfy
 from comfy.ldm.modules.attention import optimized_attention
 import logging
+import latent_preview
 
 
 def calculate_x_ref_attn_map(visual_q, ref_k, ref_target_masks):
@@ -488,8 +489,13 @@ class InfiniteTalkOuterSampleLoopingWrapper:
 
         # custom previewer callback for full loop progress bar
         pbar = comfy.utils.ProgressBar(total_steps)
+        previewer = latent_preview.get_previewer(model_patcher.load_device, model_patcher.model.latent_format)
+
         def custom_callback(step, x0, x, total_steps):
-            pbar.update(1)
+            preview_bytes = None
+            if previewer:
+                preview_bytes = previewer.decode_latent_to_preview_image("JPEG", x0)
+            pbar.update_absolute(pbar.current+1, preview=preview_bytes)
 
         # outer loop start for multiple frame windows
         for i in range(estimated_iterations):
