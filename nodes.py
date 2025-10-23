@@ -2304,6 +2304,7 @@ async def init_builtin_extra_nodes():
         "nodes_mahiro.py",
         "nodes_lt.py",
         "nodes_hooks.py",
+        "nodes_multigpu.py",
         "nodes_load_3d.py",
         "nodes_cosmos.py",
         "nodes_video.py",
