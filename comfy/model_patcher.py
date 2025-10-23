@@ -40,11 +40,11 @@ import comfy.patcher_extension
 import comfy.utils
 from comfy.comfy_types import UnetWrapperFunction
 from comfy.patcher_extension import CallbacksMP, PatcherInjection, WrappersMP
-from comfy.model_management import get_free_memory
+from comfy.model_management import get_free_memory, get_mmap_mem_threshold_gb, get_free_disk
 
 def need_mmap() -> bool:
     free_cpu_mem = get_free_memory(torch.device("cpu"))
-    mmap_mem_threshold_gb = int(os.environ.get("MMAP_MEM_THRESHOLD_GB", "0"))
+    mmap_mem_threshold_gb = get_mmap_mem_threshold_gb()
     if free_cpu_mem < mmap_mem_threshold_gb * 1024 * 1024 * 1024:
         logging.debug(f"Enabling mmap, current free cpu memory {free_cpu_mem/(1024*1024*1024)} GB < {mmap_mem_threshold_gb} GB")
         return True
@@ -972,6 +972,9 @@ class ModelPatcher:
                     if move_weight:
                         cast_weight = self.force_cast_weights
                         if need_mmap():
+                            if get_free_disk() < module_mem:
+                                logging.warning(f"Not enough disk space to offload {n} to mmap, current free disk space {get_free_disk()/(1024*1024*1024)} GB < {module_mem/(1024*1024*1024)} GB")
+                                break
                             # offload to mmap
                             model_to_mmap(m)
                         else:
