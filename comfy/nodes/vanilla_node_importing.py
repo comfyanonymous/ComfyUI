@@ -52,6 +52,7 @@ class _PromptServerStub:
         # todo: these need to be added to a real prompt server if the loading order is behaving in a complex way
         self.on_prompt_handlers.append(handler)
 
+
 def _vanilla_load_importing_execute_prestartup_script(node_paths: Iterable[str]) -> None:
     def execute_script(script_path):
         module_name = splitext(script_path)[0]
@@ -62,7 +63,7 @@ def _vanilla_load_importing_execute_prestartup_script(node_paths: Iterable[str])
                 spec.loader.exec_module(module)
             return True
         except Exception as e:
-            logger.error(f"Failed to execute startup-script: {script_path} / {e}")
+            logger.error(f"Failed to execute startup-script: {script_path}", exc_info=e)
         return False
 
     node_prestartup_times = []
@@ -129,7 +130,10 @@ def _vanilla_load_importing_execute_prestartup_script(node_paths: Iterable[str])
 
 @contextmanager
 def _exec_mitigations(module: types.ModuleType, module_path: str) -> Generator[ExportedNodes, Any, None]:
-    if module.__name__.lower() == "comfyui-manager":
+    if module.__name__.lower() in (
+            "comfyui-manager",
+            "comfyui_ryanonyheinside",
+    ):
         from ..cmd import folder_paths
         old_file = folder_paths.__file__
 
@@ -148,6 +152,7 @@ def _exec_mitigations(module: types.ModuleType, module_path: str) -> Generator[E
             # todo: unfortunately, we shouldn't restore the patches here, they will have to be applied forever.
             # concurrent.futures.ThreadPoolExecutor = _ThreadPoolExecutor
             # threading.Thread.start = original_thread_start
+            logger.info(f"Exec mitigations were applied for {module.__name__}, due to using the folder_paths.__file__ symbol and manipulating EXTENSION_WEB_DIRS")
     else:
         yield ExportedNodes()
 

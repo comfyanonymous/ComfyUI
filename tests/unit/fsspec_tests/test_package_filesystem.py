@@ -105,10 +105,16 @@ def test_load_font_with_upath(pkg_fs):
     # UPath will use the registered fsspec filesystem for "pkg"
     font_path = UPath("pkg://comfy.fonts/Tiny5-Regular.ttf")
 
-    # ImageFont.truetype can take a file-like object.
-    # UPath.open() provides one using the underlying fsspec filesystem.
-    with font_path.open("rb") as f:
-        font = ImageFont.truetype(f, 10)
+    # Try to load the font by passing the UPath object directly.
+    # This is not expected to work for non-local paths unless the consuming
+    # library (Pillow) has specific support for fsspec/upath.
+    try:
+        font = ImageFont.truetype(font_path, 10)
+    except (TypeError, AttributeError):
+        # If passing the path directly fails, fall back to opening the file
+        # and passing the file-like object, which is the standard way.
+        with font_path.open("rb") as f:
+            font = ImageFont.truetype(f, 10)
 
     assert font is not None
     assert isinstance(font, ImageFont.FreeTypeFont)

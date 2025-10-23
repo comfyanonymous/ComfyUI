@@ -104,7 +104,7 @@ class DownloadableFileList(ComboOptions, list[str]):
     A list of downloadable files that can be validated differently than it will be serialized to JSON
     """
 
-    def __init__(self, existing_files: Iterable[str], downloadable_files: Iterable[Downloadable]):
+    def __init__(self, existing_files: Iterable[str], downloadable_files: Iterable[Downloadable]=tuple()):
         super().__init__()
         self._validation_view = set(existing_files)
 

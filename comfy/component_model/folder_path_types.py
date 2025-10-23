@@ -151,6 +151,9 @@ class SupportedExtensions:
         p: FolderNames = self.parent()
         return len(list(p.supported_extensions(self.folder_name)))
 
+    def __or__(self, other):
+        self._append_any(other)
+        return self
 
     __ior__ = _append_any
     add = _append_any
