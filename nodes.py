@@ -2329,6 +2329,8 @@ async def init_builtin_extra_nodes():
         "nodes_model_patch.py",
         "nodes_easycache.py",
         "nodes_audio_encoder.py",
+        "nodes_logic.py",
+        "nodes_math.py",
     ]
 
     import_failed = []
