@@ -526,17 +526,17 @@ class LoadedModel:
         logging.debug(f"offload_device: {self.model.offload_device}")
         available_memory = get_free_memory(self.model.offload_device)
         logging.debug(f"before unload, available_memory of offload device {self.model.offload_device}: {available_memory/(1024*1024*1024)} GB")
-        reserved_memory = 1024*1024*1024  # 1GB reserved memory for other usage
-        if available_memory < reserved_memory:
-            logging.warning(f"Not enough cpu memory to unload. Available: {available_memory/(1024*1024*1024)} GB, Reserved: {reserved_memory/(1024*1024*1024)} GB")
-            return False
-        else:
-            offload_memory = available_memory - reserved_memory
-            
-        if offload_memory < memory_to_free:
-            memory_to_free = offload_memory
-            logging.info(f"Not enough cpu memory to unload. Available: {available_memory/(1024*1024*1024)} GB, Reserved: {reserved_memory/(1024*1024*1024)} GB, Offload: {offload_memory/(1024*1024*1024)} GB")
-            logging.info(f"Set memory_to_free to {memory_to_free/(1024*1024*1024)} GB")
+        # reserved_memory = 1024*1024*1024  # 1GB reserved memory for other usage
+        # if available_memory < reserved_memory:
+        #     logging.warning(f"Not enough cpu memory to unload. Available: {available_memory/(1024*1024*1024)} GB, Reserved: {reserved_memory/(1024*1024*1024)} GB")
+        #     return False
+        # else:
+        #     offload_memory = available_memory - reserved_memory
+        #     
+        # if offload_memory < memory_to_free:
+        #     memory_to_free = offload_memory
+        #     logging.info(f"Not enough cpu memory to unload. Available: {available_memory/(1024*1024*1024)} GB, Reserved: {reserved_memory/(1024*1024*1024)} GB, Offload: {offload_memory/(1024*1024*1024)} GB")
+        #     logging.info(f"Set memory_to_free to {memory_to_free/(1024*1024*1024)} GB")
         try:
             if memory_to_free is not None:
                 if memory_to_free < self.model.loaded_size():
