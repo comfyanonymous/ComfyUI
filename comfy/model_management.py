@@ -553,6 +553,10 @@ class LoadedModel:
             available_memory = get_free_memory(self.model.offload_device)
             logging.info(f"after error, available_memory of offload device {self.model.offload_device}: {available_memory/(1024*1024*1024)} GB")
             return False
+        finally:
+            available_memory = get_free_memory(self.model.offload_device)
+            logging.debug(f"after unload, available_memory of offload device {self.model.offload_device}: {available_memory/(1024*1024*1024)} GB")
+
         self.model_finalizer.detach()
         self.model_finalizer = None
         self.real_model = None
