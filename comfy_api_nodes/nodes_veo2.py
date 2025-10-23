@@ -164,7 +164,7 @@ class VeoVideoGenerationNode(IO.ComfyNode):
         if seed > 0:
             parameters["seed"] = seed
         # Only add generateAudio for Veo 3 models
-        if "veo-3.0" in model:
+        if model.find("veo-2.0") == -1:
             parameters["generateAudio"] = generate_audio
 
         initial_response = await sync_op(
