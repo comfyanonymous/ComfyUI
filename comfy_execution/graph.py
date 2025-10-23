@@ -217,7 +217,8 @@ class ExecutionList(TopologicalSort):
     def cache_update(self, node_id, value):
         if node_id in self.execution_cache_listeners:
             for to_node_id in self.execution_cache_listeners[node_id]:
-                self.execution_cache[to_node_id][node_id] = value
+                if to_node_id in self.execution_cache:
+                    self.execution_cache[to_node_id][node_id] = value
 
     def add_strong_link(self, from_node_id, from_socket, to_node_id):
         super().add_strong_link(from_node_id, from_socket, to_node_id)
