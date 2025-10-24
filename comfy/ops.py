@@ -345,19 +345,8 @@ class manual_cast(disable_weight_init):
 
 def fp8_linear(self, input):
     """
-    Legacy FP8 linear function - now uses tensor subclass infrastructure.
-    
-    This function maintains backward compatibility with existing code while
-    routing all FP8 computation through the unified tensor subclass system.
-    All actual FP8 matmul logic is handled by the registered operation handlers
-    in quant_ops.py via __torch_dispatch__.
-    
-    Args:
-        self: Linear layer with FP8 weight and scale parameters
-        input: Input tensor (any dtype)
-        
-    Returns:
-        Output tensor or None if weight is not FP8
+    Legacy FP8 linear function for backward compatibility. 
+    Uses QuantizedTensor subclass for dispatch.
     """
     dtype = self.weight.dtype
     if dtype not in [torch.float8_e4m3fn]:
@@ -372,10 +361,8 @@ def fp8_linear(self, input):
     input_dtype = input.dtype
     
     if len(input.shape) == 3:
-        # Get weight and bias using standard casting
         w, bias = cast_bias_weight(self, input, dtype=dtype, bias_dtype=input_dtype)
 
-        # Get scales (same as before)
         scale_weight = self.scale_weight
         scale_input = self.scale_input
         if scale_weight is None:
@@ -388,14 +375,13 @@ def fp8_linear(self, input):
         else:
             scale_input = scale_input.to(input.device)
         
-        # Wrap weight in QuantizedTensorFP8 - this enables unified dispatch
-        quantized_weight = QuantizedTensorFP8(w, scale_weight, orig_dtype=input_dtype)
-        quantized_input = QuantizedTensorFP8.quantize(input.reshape(-1, input_shape[2]), scale_input, fp8_dtype=dtype)
-        # Call F.linear - __torch_dispatch__ routes to handle_linear_fp8 in quant_ops.py!
-        # This is the key unification: all FP8 computation goes through one path
+        # Wrap weight in QuantizedTensor - this enables unified dispatch
+        # Call F.linear - __torch_dispatch__ routes to fp8_linear handler in quant_ops.py!
+        layout_params_weight = {'scale': scale_weight, 'orig_dtype': input_dtype}
+        quantized_weight = QuantizedTensor(w, TensorCoreFP8Layout, layout_params_weight)
+        quantized_input = QuantizedTensor.from_float(input.reshape(-1, input_shape[2]), TensorCoreFP8Layout, scale=scale_input, fp8_dtype=dtype)
         o = torch.nn.functional.linear(quantized_input, quantized_weight, bias)
         
-        # Reshape output
         if tensor_2d:
             return o.reshape(input_shape[0], -1)
         return o.reshape((-1, input_shape[1], self.weight.shape[0]))
@@ -492,183 +478,117 @@ if CUBLAS_IS_AVAILABLE:
                 return super().forward(*args, **kwargs)
 
 
-# Import quantization operations from separate module
-from .quant_ops import QuantizedTensorFP8
-
-
 # ==============================================================================
 # Mixed Precision Operations
 # ==============================================================================
+from .quant_ops import QuantizedTensor, TensorCoreFP8Layout
+
+QUANT_FORMAT_MIXINS = {
+    "float8_e4m3fn": {
+        "dtype": torch.float8_e4m3fn,
+        "layout_type": TensorCoreFP8Layout,
+        "parameters": {
+            "weight_scale": torch.nn.Parameter(torch.zeros((), dtype=torch.float32), requires_grad=False),
+            "input_scale": torch.nn.Parameter(torch.zeros((), dtype=torch.float32), requires_grad=False),
+        }
+    }
+}
 
 class MixedPrecisionOps(disable_weight_init):
-    """
-    Operations class supporting per-layer quantization (mixed precision).
-    
-    This class enables different layers to use different quantization formats
-    within the same model (e.g., some layers FP8, others BF16).
-    
-    Layer-specific quantization is configured via _layer_quant_config class variable,
-    which is set by pick_operations() when a model has mixed precision.
-    """
-    
-    _layer_quant_config = {}  # Class variable set by pick_operations()
-    
-    class Linear(disable_weight_init.Linear):
-        """Linear layer with optional per-layer quantization using tensor subclasses"""
-        
-        def __init__(self, *args, **kwargs):
-            super().__init__(*args, **kwargs)
-            self.quant_format = None
-            self.quant_scale = None
-            self._quantization_initialized = False
-        
+    _layer_quant_config = {}
+    _compute_dtype = torch.bfloat16
+
+    class Linear(torch.nn.Module, CastWeightBiasOp):
+        def __init__(
+            self,
+            in_features: int,
+            out_features: int,
+            bias: bool = True,
+            device=None,
+            dtype=None,
+        ) -> None:
+            super().__init__()
+
+            self.factory_kwargs = {"device": device, "dtype": MixedPrecisionOps._compute_dtype}
+            # self.factory_kwargs = {"device": device, "dtype": dtype}
+
+            self.in_features = in_features
+            self.out_features = out_features
+            if bias:
+                self.bias = torch.nn.Parameter(torch.empty(out_features, **self.factory_kwargs))
+            else:
+                self.register_parameter("bias", None)
+
+            self.tensor_class = None
+
         def reset_parameters(self):
-            # Don't allocate weights - return None like disable_weight_init
             return None
         
         def _load_from_state_dict(self, state_dict, prefix, local_metadata, 
                                   strict, missing_keys, unexpected_keys, error_msgs):
-            """
-            Called by PyTorch during load_state_dict.
-            Load weight and wrap in QuantizedTensorFP8 if this layer is quantized.
-            """
-            # Call parent to load weight and bias first
-            super()._load_from_state_dict(
-                state_dict, prefix, local_metadata,
-                strict, missing_keys, unexpected_keys, error_msgs
-            )
-            
-            # After weight is loaded, wrap it if this layer is quantized
-            if not self._quantization_initialized:
-                # Normalize layer name from prefix
-                layer_name = prefix.rstrip('.')
-                
-                # Strip known model prefixes
-                for model_prefix in ["model.diffusion_model.", "model.model.", "net."]:
-                    if layer_name.startswith(model_prefix):
-                        layer_name = layer_name[len(model_prefix):]
-                        break
-                
-                # Check if this layer has quantization config
-                if layer_name in MixedPrecisionOps._layer_quant_config:
-                    config = MixedPrecisionOps._layer_quant_config[layer_name]
-                    self.quant_format = config.get("format", "fp8_e4m3fn")
-                    
-                    # Load scale parameter
-                    scale_key = f"{prefix}scale_weight"
-                    if scale_key in state_dict:
-                        self.quant_scale = state_dict[scale_key]
-                        
-                        # Wrap weight in QuantizedTensorFP8
-                        if self.weight is not None and self.weight.dtype in [torch.float8_e4m3fn, torch.float8_e5m2]:
-                            try:
-                                # Determine original dtype (default to bfloat16)
-                                orig_dtype = torch.bfloat16
-                                
-                                # Wrap weight in quantized tensor subclass
-                                quantized_weight = QuantizedTensorFP8(
-                                    self.weight.data,
-                                    self.quant_scale,
-                                    orig_dtype=orig_dtype
-                                )
-                                
-                                # Replace weight parameter with wrapped version
-                                self.weight = torch.nn.Parameter(quantized_weight, requires_grad=False)
-                                
-                                logging.debug(f"Wrapped layer {layer_name} weight in QuantizedTensorFP8 (format: {self.quant_format})")
-                            except Exception as e:
-                                logging.warning(f"Failed to wrap layer {layer_name} in QuantizedTensorFP8: {e}")
-                                self.quant_format = None
-                                self.quant_scale = None
-                        else:
-                            logging.debug(f"Layer {layer_name} has scale but weight dtype is not FP8, skipping quantization")
-                            self.quant_format = None
-                            self.quant_scale = None
-                    else:
-                        logging.debug(f"Layer {layer_name} has quant config but no scale_weight in state_dict")
-                        self.quant_format = None
-                
-                self._quantization_initialized = True
-        
-        def _save_to_state_dict(self, destination, prefix, keep_vars):
-            """Save layer parameters including quantization scale"""
-            # First unwrap the weight if it's quantized
-            if isinstance(self.weight, torch.nn.Parameter) and isinstance(self.weight.data, QuantizedTensorFP8):
-                # Temporarily unwrap to save the raw FP8 data
-                quantized_tensor = self.weight.data
-                raw_fp8_data = quantized_tensor._raw_data
-                original_weight = self.weight
-                self.weight = torch.nn.Parameter(raw_fp8_data, requires_grad=False)
-                
-                # Call parent to save unwrapped weight
-                super()._save_to_state_dict(destination, prefix, keep_vars)
-                
-                # Restore the wrapped weight
-                self.weight = original_weight
-                
-                # Save the scale parameter
-                if self.quant_scale is not None:
-                    destination[f"{prefix}scale_weight"] = self.quant_scale if keep_vars else self.quant_scale.detach()
-            else:
-                # Standard path for non-quantized weights
-                super()._save_to_state_dict(destination, prefix, keep_vars)
-        
-        def forward_comfy_cast_weights(self, input):
-            """
-            Forward pass - tensor subclass handles dispatch automatically!
-            __torch_dispatch__ will route to registered handlers based on tensor types.
-            """
-            weight, bias = cast_bias_weight(self, input)
-            
-            # Call F.linear - if weight is QuantizedTensorFP8, __torch_dispatch__ handles it!
-            return torch.nn.functional.linear(input, weight, bias)
-        
-        def forward(self, *args, **kwargs):
-            """Main forward pass"""
-            run_every_op()
-            # Same logic as disable_weight_init.Linear
-            if self.comfy_cast_weights or len(self.weight_function) > 0 or len(self.bias_function) > 0:
-                return self.forward_comfy_cast_weights(*args, **kwargs)
-            else:
-                return super().forward(*args, **kwargs)
-    
-    @classmethod
-    def conv_nd(s, dims, *args, **kwargs):
-        """Create Conv layer (same as disable_weight_init)"""
-        if dims == 2:
-            return s.Conv2d(*args, **kwargs)
-        elif dims == 3:
-            return s.Conv3d(*args, **kwargs)
-        else:
-            raise ValueError(f"unsupported dimensions: {dims}")
 
+            device = self.factory_kwargs["device"]
+            layer_name = prefix.rstrip('.')
+            weight_key = f"{prefix}weight"
+            weight = state_dict.pop(weight_key, None)
+            if weight is None:
+                raise ValueError(f"Missing weight for layer {layer_name}")
+
+            if layer_name not in MixedPrecisionOps._layer_quant_config:
+                self.weight = torch.nn.Parameter(weight.to(device=device, dtype=MixedPrecisionOps._compute_dtype), requires_grad=False)
+            else:
+                quant_format = MixedPrecisionOps._layer_quant_config[layer_name].get("format", None)
+                if quant_format is None:
+                    raise ValueError(f"Unknown quantization format for layer {layer_name}")
+                
+                mixin = QUANT_FORMAT_MIXINS[quant_format]
+                self.layout_type = mixin["layout_type"]
+                
+                layout_params = {
+                    'scale': state_dict.pop(f"{prefix}weight_scale", None),
+                    'orig_dtype': MixedPrecisionOps._compute_dtype
+                }
+                self.weight = torch.nn.Parameter(
+                    QuantizedTensor(weight.to(device=device, dtype=mixin["dtype"]), self.layout_type, layout_params),
+                    requires_grad=False
+                )
+
+                for param_name, param_value in mixin["parameters"].items():
+                    _v = state_dict.pop(f"{prefix}{param_name}", None)
+                    if _v is None:
+                        continue
+                    setattr(self, param_name, _v.to(device=device))
+
+            super()._load_from_state_dict(state_dict, prefix, local_metadata, strict, missing_keys, unexpected_keys, error_msgs)
+
+        def _forward(self, input, weight, bias):
+            return torch.nn.functional.linear(input, weight, bias)
+
+        def forward_comfy_cast_weights(self, input):
+            weight, bias = cast_bias_weight(self, input)
+            self._forward(input, weight, bias)
+
+        def forward(self, input, *args, **kwargs):
+            run_every_op()
+
+            if self.comfy_cast_weights or len(self.weight_function) > 0 or len(self.bias_function) > 0:
+                return self.forward_comfy_cast_weights(input, *args, **kwargs)
+            if (getattr(self, 'layout_type', None) is not None and
+                getattr(self, 'input_scale', None) is not None and
+                not isinstance(input, QuantizedTensor)):
+                input = QuantizedTensor.from_float(input, self.layout_type, scale=self.input_scale, fp8_dtype=self.weight.dtype)
+            return self._forward(input, self.weight, self.bias)
+    
 
 def pick_operations(weight_dtype, compute_dtype, load_device=None, disable_fast_fp8=False, fp8_optimizations=False, scaled_fp8=None, model_config=None):
-    """
-    Select appropriate operations class for model.
-    
-    NEW: If model_config.layer_quant_config exists, returns MixedPrecisionOps (Phase 3).
-    LEGACY: All other paths unchanged for backward compatibility.
-    
-    Args:
-        weight_dtype: Weight storage dtype
-        compute_dtype: Computation dtype
-        load_device: Device for loading
-        disable_fast_fp8: Disable fast FP8 paths
-        fp8_optimizations: Enable FP8 optimizations
-        scaled_fp8: Legacy FP8 dtype marker
-        model_config: Model config object (optional, for mixed precision support)
-        
-    Returns:
-        Operations class (e.g., MixedPrecisionOps, fp8_ops, disable_weight_init)
-    """
-    # NEW: Check for mixed precision
+    # If model_config.layer_quant_config exists, use new MixedPrecisionOps.
     if model_config and hasattr(model_config, 'layer_quant_config') and model_config.layer_quant_config:
         MixedPrecisionOps._layer_quant_config = model_config.layer_quant_config
+        # MixedPrecisionOps._compute_dtype = compute_dtype # TODO
+        MixedPrecisionOps._compute_dtype = torch.bfloat16
         logging.info(f"Using mixed precision operations: {len(model_config.layer_quant_config)} quantized layers")
         return MixedPrecisionOps
     
-    # LEGACY paths (unchanged)
     fp8_compute = comfy.model_management.supports_fp8_compute(load_device)
     if scaled_fp8 is not None:
         return scaled_fp8_ops(fp8_matrix_mult=fp8_compute and fp8_optimizations, scale_input=fp8_optimizations, override_dtype=scaled_fp8)
