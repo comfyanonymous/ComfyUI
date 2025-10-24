@@ -7,9 +7,111 @@ import inspect
 import warnings
 from enum import Enum
 from dataclasses import dataclass, fields
-from transformers.cache_utils import StaticCache, DynamicCache, Cache
 from typing import Optional, Union, Any
+from abc import ABC, abstractmethod
 import comfy.model_management
+
+class CacheLayerParent(ABC):
+    def __init__(self):
+        self.keys, self.values = None, None
+    
+    @abstractmethod
+    def lazy_init(self, key_states): ...
+    
+    @abstractmethod
+    def update(self, key_states, value_states, cache_kwargs = None): ...
+
+    @abstractmethod
+    def get_seq_length(self) -> int: ...
+
+    @abstractmethod
+    def get_max_cache_shape(self) -> int: ...
+
+    def reset(self):
+        if self.keys is not None:
+            self.keys.zero_()
+            self.values.zero_()
+
+class Cache:
+    def __init__(self):
+        self.layers = []
+        # TODO: offload logic
+    def get_seq_length(self, layer_idx = 0):
+        if layer_idx >= len(self.layers):
+            return 0
+        return self.layers[layer_idx].get_seq_length()
+    
+    def get_max_cache_shape(self, layer_idx = 0):
+        if layer_idx >= len(self.layers): # for future dynamic cache impl.
+            return -1
+        return self.layers[layer_idx].get_max_cache_shape()
+    def reset(self):
+        for layer_idx in range(len(self.layers)):
+            self.layers[layer_idx].reset()
+
+    def update(self, key_states, value_states, layer_idx, cache_kwargs):
+        keys, values = self.layers[layer_idx].update(key_states, value_states, cache_kwargs)
+        return keys, values
+    
+    @property
+    def max_cache_len(self):
+        values = [layer.max_cache_len for layer in self.layers]
+        return max(values)
+
+class StaticLayer(CacheLayerParent):
+    def __init__(self, max_cache_len):
+        super().__init__()
+        self.max_cache_len = max_cache_len
+
+    def get_max_cache_shape(self):
+        return self.max_cache_len
+
+    def get_seq_length(self):
+        return (self.keys[0, 0].any(dim=-1)).sum() if self.keys is not None else 0
+
+    def lazy_init(self, key_states):
+
+        self.max_batch_size, self.num_heads, _, self.head_dim = key_states.shape
+        self.dtype, self.device = key_states.dtype, key_states.device
+        
+        self.keys = torch.zeros(
+            (self.max_batch_size, self.num_heads, self.max_cache_len, self.head_dim),
+            dtype=self.dtype,
+            device=self.device,
+        )
+
+        self.values = torch.zeros(
+            (self.max_batch_size, self.num_heads, self.max_cache_len, self.head_dim),
+            dtype=self.dtype,
+            device=self.device,
+        )
+
+    def update(self, key_states, value_states, cache_kwargs = None):
+        
+        if self.keys is None:
+            self.lazy_init(key_states)
+
+        cache_position = cache_kwargs.get("cache_position") if cache_kwargs is not None else None
+        cache_position = (
+            cache_position if cache_position is not None else torch.arange(key_states.shape[-2], device=self.device)
+        )
+
+        try:
+            self.keys.index_copy_(2, cache_position, key_states)
+            self.values.index_copy_(2, cache_position, value_states)
+        except NotImplementedError:
+            # mps fallback
+            self.keys[:, :, cache_position] = key_states
+            self.values[:, :, cache_position] = value_states
+        return self.keys, self.values
+    
+class StaticCache(Cache):
+    def __init__(self, config, max_cache_len):
+        self.layers = [StaticLayer(max_cache_len) for _ in range(config.num_hidden_layers)]
+
+# TODO
+class DynamicCache(Cache):
+    pass
 
 NEED_SETUP_CACHE_CLASSES_MAPPING = { "static": StaticCache }
 
@@ -240,13 +342,9 @@ class AutoRegressiveGeneration:
         self.model.cache_config = self.cache_config
 
         self.kv_caches = {
-
             length: StaticCache(
                 config=self.cache_config,
-                max_batch_size = self.cache_config.max_batch,
                 max_cache_len=length,
-                device=self.model.device,
-                dtype=self.model.dtype,
             )
             for length in sorted(kv_cache_lengths)
 
@@ -386,11 +484,11 @@ class AutoRegressiveGeneration:
 
     def _get_cache(
         self, cache_implementation: str, batch_size: int, max_cache_len: int, device: torch.device, model_kwargs
-    ) -> Cache:
+    ):
 
         assert cache_implementation == "static", f"Only 'static' cache is supported, got {cache_implementation}"
 
-        cache_cls: Cache = NEED_SETUP_CACHE_CLASSES_MAPPING[cache_implementation]
+        cache_cls = NEED_SETUP_CACHE_CLASSES_MAPPING[cache_implementation]
 
         if hasattr(self.model, "_cache"):
             cache_to_check = self.model._cache
@@ -405,14 +503,9 @@ class AutoRegressiveGeneration:
         )
 
         if need_new_cache:
-            cache_dtype = getattr(self.model.config, "_pre_quantization_dtype", self.dtype)
             cache_kwargs = {
                 "config": self.cache_config,
-                "max_batch_size": batch_size,
                 "max_cache_len": max_cache_len,
-                "dtype": cache_dtype,
-                "device": device,
-                "layer_device_map": None,
             }
             self.model._cache = cache_cls(**cache_kwargs)
 

@@ -4,8 +4,7 @@ from comfy.text_encoders.llama import (
     RMSNorm, MLP, Attention, LlamaRoPE, Llama2Config
 )
 
-from comfy.autoregressive_sampling import GenerationConfig, apply_logits_processing, check_stopping_criteria
-from transformers.cache_utils import Cache, StaticCache, DynamicCache
+from comfy.autoregressive_sampling import GenerationConfig, apply_logits_processing, check_stopping_criteria, Cache, StaticCache, DynamicCache
 from comfy.ldm.modules.attention import optimized_attention_for_device
 from comfy.ldm.modules.attention import optimized_attention
 from .preprocess import _ceil_to_nearest
@@ -982,24 +981,9 @@ class HiggsAudioModel(nn.Module):
             from_layer = from_cache.layers[i]
             to_layer = to_cache.layers[i]
 
-            # lazy init
-            if getattr(to_layer, "keys", None) is None:
-                to_layer.keys = torch.zeros(
-                    (self.cache_config.max_batch, self.cache_config.num_key_value_heads,
-                     to_cache.get_max_cache_shape(),
-                     self.cache_config.head_dim),
-                    device=self.device, dtype=self.dtype
-                )
-
-            if getattr(to_layer, "values", None) is None:
-                to_layer.values = torch.zeros(
-                    (self.cache_config.max_batch, self.cache_config.num_key_value_heads,
-                     to_cache.get_max_cache_shape(),
-                     self.cache_config.head_dim),
-                    device=self.device, dtype=self.dtype
-                )
-
             seq_len = from_cache_size
+
+            to_layer.lazy_init(from_layer.keys)
             to_layer.keys[:, :, :seq_len, :] = from_layer.keys
             to_layer.values[:, :, :seq_len, :] = from_layer.values
 
@@ -1266,43 +1250,3 @@ class HiggsAudioModel(nn.Module):
         )
 
         return generation_config
-
-    @torch.inference_mode()
-    def capture_model(self, past_key_values: list[Union[Cache, List[torch.FloatTensor]]]) -> None:
-        for past_key_value in past_key_values:
-            kv_cache_length = past_key_value.get_max_cache_shape()
-            for is_decoding_audio_token in [True, False]:
-                runner = None#CUDAGraphRunner(self._forward_core)
-
-                batch_size = 1
-                hidden_dim = self.config["hidden_size"]
-
-                hidden_states = torch.zeros(
-                    (batch_size, 1, hidden_dim), dtype=self.dtype, device=self.device
-                )
-                causal_mask = torch.ones(
-                    (batch_size, 1, 1, kv_cache_length), dtype=self.dtype, device=self.device
-                )
-                position_ids = torch.zeros((batch_size, 1), dtype=torch.long, device=self.device)
-                audio_discrete_codes_mask = torch.tensor(
-                    [[is_decoding_audio_token]], dtype=torch.bool, device=self.device
-                )
-                cache_position = torch.tensor([kv_cache_length - 1], dtype=torch.long, device=self.device)
-                audio_attention_mask = torch.ones_like(causal_mask)
-                fast_forward_attention_mask = torch.ones_like(causal_mask)
-
-                runner.capture(
-                    hidden_states=hidden_states,
-                    causal_mask=causal_mask,
-                    position_ids=position_ids,
-                    audio_discrete_codes_mask=audio_discrete_codes_mask,
-                    cache_position=cache_position,
-                    past_key_values=past_key_value,
-                    use_cache=True,
-                    audio_attention_mask=audio_attention_mask,
-                    fast_forward_attention_mask=fast_forward_attention_mask,
-                    is_decoding_audio_token=is_decoding_audio_token,
-                    is_using_cuda_graph=True,
-                )
-
-                self.decode_graph_runners[kv_cache_length][is_decoding_audio_token] = runner
