@@ -651,6 +651,7 @@ def trim_memory() -> bool:
     try:
         if sys.platform.startswith('linux'):
             import ctypes
+            import ctypes.util
             libc_path = ctypes.util.find_library('c')
             if not libc_path:
                 return False
