@@ -197,8 +197,14 @@ class BaseModel(torch.nn.Module):
             extra_conds[o] = extra
 
         t = self.process_timestep(t, x=x, **extra_conds)
-        model_output = self.diffusion_model(xc, t, context=context, control=control, transformer_options=transformer_options, **extra_conds).float()
-        return self.model_sampling.calculate_denoised(sigma, model_output, x)
+        if "latent_shapes" in extra_conds:
+            xc = utils.unpack_latents(xc, extra_conds.pop("latent_shapes"))
+
+        model_output = self.diffusion_model(xc, t, context=context, control=control, transformer_options=transformer_options, **extra_conds)
+        if len(model_output) > 1 and not torch.is_tensor(model_output):
+            model_output, _ = utils.pack_latents(model_output)
+
+        return self.model_sampling.calculate_denoised(sigma, model_output.float(), x)
 
     def process_timestep(self, timestep, **kwargs):
         return timestep
