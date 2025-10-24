@@ -176,17 +176,12 @@ class TextEncodeQwenImageEliGen(io.ComfyNode):
         entity_prompt_emb_list = []
         entity_prompt_emb_mask_list = []
 
-        for entity_prompt, _ in valid_entities:
+        for entity_prompt, _ in valid_entities: # mask not used at this point
             entity_tokens = clip.tokenize(entity_prompt)
-            entity_cond = clip.encode_from_tokens_scheduled(entity_tokens)
-
-            # Extract embeddings and masks from conditioning
-            # Conditioning format: [[cond_tensor, extra_dict], ...]
-            entity_prompt_emb = entity_cond[0][0]  # The embedding tensor directly [1, seq_len, 3584]
-            extra_dict = entity_cond[0][1]  # Metadata dict (pooled_output, attention_mask, etc.)
-
-            # Extract attention mask from metadata dict
-            entity_prompt_emb_mask = extra_dict.get("attention_mask", None)
+            entity_cond_dict = clip.encode_from_tokens(entity_tokens, return_pooled=True, return_dict=True)
+            
+            entity_prompt_emb = entity_cond_dict["cond"]
+            entity_prompt_emb_mask = entity_cond_dict.get("attention_mask", None)
 
             # If no attention mask in extra_dict, create one (all True)
             if entity_prompt_emb_mask is None:
@@ -194,11 +189,12 @@ class TextEncodeQwenImageEliGen(io.ComfyNode):
                 entity_prompt_emb_mask = torch.ones((entity_prompt_emb.shape[0], seq_len),
                                                    dtype=torch.bool, device=entity_prompt_emb.device)
 
+
             entity_prompt_emb_list.append(entity_prompt_emb)
             entity_prompt_emb_mask_list.append(entity_prompt_emb_mask)
 
         # Process spatial masks to latent space
-        processed_masks = []
+        processed_entity_masks = []
         for i, (_, mask) in enumerate(valid_entities):
             # mask is expected to be [batch, height, width, channels] or [batch, height, width]
             mask_tensor = mask
@@ -244,11 +240,11 @@ class TextEncodeQwenImageEliGen(io.ComfyNode):
             total_pixels = resized_mask.numel()
             print(f"[EliGen] Entity {i+1} mask coverage: {active_pixels}/{total_pixels} pixels ({100*active_pixels/total_pixels:.1f}%)")
 
-            processed_masks.append(resized_mask)
+            processed_entity_masks.append(resized_mask)
 
-        # Stack masks: [batch, num_entities, 1, latent_height, latent_width]
+        # Stack masks: [batch, num_entities, 1, latent_height, latent_width] (1 is selected channel)
         # No padding - handle dynamic number of entities
-        entity_masks_tensor = torch.stack(processed_masks, dim=1)
+        entity_masks_tensor = torch.stack(processed_entity_masks, dim=1)
 
         # Extract global prompt embedding and mask from conditioning
         # Conditioning format: [[cond_tensor, extra_dict]]
@@ -263,11 +259,10 @@ class TextEncodeQwenImageEliGen(io.ComfyNode):
                                                 dtype=torch.bool, device=global_prompt_emb.device)
 
         # Attach entity data to conditioning using conditioning_set_values
-        # Wrap lists in CONDList so they can be properly concatenated during CFG
         entity_data = {
-            "entity_prompt_emb": comfy.conds.CONDList(entity_prompt_emb_list),
-            "entity_prompt_emb_mask": comfy.conds.CONDList(entity_prompt_emb_mask_list),
-            "entity_masks": comfy.conds.CONDRegular(entity_masks_tensor),
+            "entity_prompt_emb": entity_prompt_emb_list,
+            "entity_prompt_emb_mask": entity_prompt_emb_mask_list,
+            "entity_masks": entity_masks_tensor,
         }
 
         conditioning_with_entities = node_helpers.conditioning_set_values(
