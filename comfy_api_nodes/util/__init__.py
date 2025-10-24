@@ -20,6 +20,7 @@ from .conversions import (
     trim_video,
 )
 from .download_helpers import (
+    download_url_as_bytesio,
     download_url_to_bytesio,
     download_url_to_image_tensor,
     download_url_to_video_output,
@@ -56,6 +57,7 @@ __all__ = [
     "upload_images_to_comfyapi",
     "upload_video_to_comfyapi",
     # Download helpers
+    "download_url_as_bytesio",
     "download_url_to_bytesio",
     "download_url_to_image_tensor",
     "download_url_to_video_output",
