@@ -24,8 +24,8 @@ from comfy_api_nodes.apis.client import (
 from comfy_api_nodes.apinode_utils import (
     download_url_to_bytesio,
     upload_images_to_comfyapi,
-    validate_string,
 )
+from comfy_api_nodes.util import validate_string
 from server import PromptServer
 
 

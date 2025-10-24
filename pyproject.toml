@@ -50,6 +50,8 @@ messages_control.disable = [
   "too-many-branches",
   "too-many-locals",
   "too-many-arguments",
+  "too-many-return-statements",
+  "too-many-nested-blocks",
   "duplicate-code",
   "abstract-method",
   "superfluous-parens",

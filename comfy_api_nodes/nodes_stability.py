@@ -27,14 +27,14 @@ from comfy_api_nodes.apis.client import (
     PollingOperation,
     EmptyRequest,
 )
-from comfy_api_nodes.apinode_utils import (
+from comfy_api_nodes.util import (
+    validate_audio_duration,
+    validate_string,
+    audio_input_to_mp3,
     bytesio_to_image_tensor,
     tensor_to_bytesio,
-    validate_string,
     audio_bytes_to_audio_input,
-    audio_input_to_mp3,
 )
-from comfy_api_nodes.util.validation_utils import validate_audio_duration
 
 import torch
 import base64

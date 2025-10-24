@@ -50,44 +50,6 @@ class BFLFluxFillImageRequest(BaseModel):
     mask: str = Field(None, description='A Base64-encoded string representing the mask of the areas you with to modify.')
 
 
-class BFLFluxCannyImageRequest(BaseModel):
-    prompt: str = Field(..., description='Text prompt for image generation')
-    prompt_upsampling: Optional[bool] = Field(
-        None, description='Whether to perform upsampling on the prompt. If active, automatically modifies the prompt for more creative generation.'
-    )
-    canny_low_threshold: Optional[int] = Field(None, description='Low threshold for Canny edge detection')
-    canny_high_threshold: Optional[int] = Field(None, description='High threshold for Canny edge detection')
-    seed: Optional[int] = Field(None, description='The seed value for reproducibility.')
-    steps: conint(ge=15, le=50) = Field(..., description='Number of steps for the image generation process')
-    guidance: confloat(ge=1, le=100) = Field(..., description='Guidance strength for the image generation process')
-    safety_tolerance: Optional[conint(ge=0, le=6)] = Field(
-        6, description='Tolerance level for input and output moderation. Between 0 and 6, 0 being most strict, 6 being least strict. Defaults to 2.'
-    )
-    output_format: Optional[BFLOutputFormat] = Field(
-        BFLOutputFormat.png, description="Output format for the generated image. Can be 'jpeg' or 'png'.", examples=['png']
-    )
-    control_image: Optional[str] = Field(None, description='Base64 encoded image to use as control input if no preprocessed image is provided')
-    preprocessed_image: Optional[str] = Field(None, description='Optional pre-processed image that will bypass the control preprocessing step')
-
-
-class BFLFluxDepthImageRequest(BaseModel):
-    prompt: str = Field(..., description='Text prompt for image generation')
-    prompt_upsampling: Optional[bool] = Field(
-        None, description='Whether to perform upsampling on the prompt. If active, automatically modifies the prompt for more creative generation.'
-    )
-    seed: Optional[int] = Field(None, description='The seed value for reproducibility.')
-    steps: conint(ge=15, le=50) = Field(..., description='Number of steps for the image generation process')
-    guidance: confloat(ge=1, le=100) = Field(..., description='Guidance strength for the image generation process')
-    safety_tolerance: Optional[conint(ge=0, le=6)] = Field(
-        6, description='Tolerance level for input and output moderation. Between 0 and 6, 0 being most strict, 6 being least strict. Defaults to 2.'
-    )
-    output_format: Optional[BFLOutputFormat] = Field(
-        BFLOutputFormat.png, description="Output format for the generated image. Can be 'jpeg' or 'png'.", examples=['png']
-    )
-    control_image: Optional[str] = Field(None, description='Base64 encoded image to use as control input if no preprocessed image is provided')
-    preprocessed_image: Optional[str] = Field(None, description='Optional pre-processed image that will bypass the control preprocessing step')
-
-
 class BFLFluxProGenerateRequest(BaseModel):
     prompt: str = Field(..., description='The text prompt for image generation.')
     prompt_upsampling: Optional[bool] = Field(
@@ -160,15 +122,8 @@ class BFLStatus(str, Enum):
     error = "Error"
 
 
-class BFLFluxProStatusResponse(BaseModel):
+class BFLFluxStatusResponse(BaseModel):
     id: str = Field(..., description="The unique identifier for the generation task.")
     status: BFLStatus = Field(..., description="The status of the task.")
-    result: Optional[Dict[str, Any]] = Field(
-        None, description="The result of the task (null if not completed)."
-    )
-    progress: confloat(ge=0.0, le=1.0) = Field(
-        ..., description="The progress of the task (0.0 to 1.0)."
-    )
-    details: Optional[Dict[str, Any]] = Field(
-        None, description="Additional details about the task (null if not available)."
-    )
+    result: Optional[Dict[str, Any]] = Field(None, description="The result of the task (null if not completed).")
+    progress: Optional[float] = Field(None, description="The progress of the task (0.0 to 1.0).", ge=0.0, le=1.0)
