@@ -334,11 +334,13 @@ SUPPORT_FP8_OPS = args.supports_fp8_compute
 AMD_RDNA2_AND_OLDER_ARCH = ["gfx1030", "gfx1031", "gfx1010", "gfx1011", "gfx1012", "gfx906", "gfx900", "gfx803"]
 
 try:
-    if is_amd():
-        arch = torch.cuda.get_device_properties(get_torch_device()).gcnArchName
-        if not (any((a in arch) for a in AMD_RDNA2_AND_OLDER_ARCH)):
-            torch.backends.cudnn.enabled = False  # Seems to improve things a lot on AMD
-            logging.info("Set: torch.backends.cudnn.enabled = False for better AMD performance.")
+    arch = torch.cuda.get_device_properties(get_torch_device()).gcnArchName
+    if not (any((a in arch) for a in AMD_RDNA2_AND_OLDER_ARCH)):
+        torch.backends.cudnn.enabled = os.environ.get("TORCH_BACKENDS_CUDNN_ENABLED", "0").strip().lower() not in {
+            "0", "off", "false", "disable", "disabled", "no"}
+        if not torch.backends.cudnn.enabled:
+            logging.info(
+                "ComfyUI has set torch.backends.cudnn.enabled to False for better AMD performance. Set environment var TORCH_BACKENDS_CUDDNN_ENABLED=1 to enable it again.")
 
         try:
             rocm_version = tuple(map(int, str(torch.version.hip).split(".")[:2]))
