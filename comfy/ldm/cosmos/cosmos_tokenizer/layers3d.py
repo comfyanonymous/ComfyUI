@@ -120,7 +120,7 @@ class CausalUpsample3d(nn.Module):
             time_factor = time_factor.item()
         x = x.repeat_interleave(int(time_factor), dim=2)
         # TODO(freda): Check if this causes temporal inconsistency.
-        # Shoule reverse the order of the following two ops,
+        # Should reverse the order of the following two ops,
         # better perf and better temporal smoothness.
         x = self.conv(x)
         return x[..., int(time_factor - 1) :, :, :]
