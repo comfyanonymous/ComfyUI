@@ -998,12 +998,6 @@ def device_supports_non_blocking(device):
         return False
     return True
 
-def device_should_use_non_blocking(device):
-    if not device_supports_non_blocking(device):
-        return False
-    return False
-    # return True #TODO: figure out why this causes memory issues on Nvidia and possibly others
-
 def force_channels_last():
     if args.force_channels_last:
         return True
