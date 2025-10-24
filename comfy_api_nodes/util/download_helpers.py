@@ -240,6 +240,18 @@ async def download_url_to_video_output(
     return VideoFromFile(result)
 
 
+async def download_url_as_bytesio(
+    url: str,
+    *,
+    timeout: float = None,
+    cls: type[COMFY_IO.ComfyNode] = None,
+) -> BytesIO:
+    """Downloads content from a URL and returns a new BytesIO (rewound to 0)."""
+    result = BytesIO()
+    await download_url_to_bytesio(url, result, timeout=timeout, cls=cls)
+    return result
+
+
 def _generate_operation_id(method: str, url: str, attempt: int) -> str:
     try:
         parsed = urlparse(url)
