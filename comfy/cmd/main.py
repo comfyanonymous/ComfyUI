@@ -148,6 +148,13 @@ def setup_database():
 
 
 async def _start_comfyui(from_script_dir: Optional[Path] = None):
+    from ..execution_context import context_configuration
+    from ..cli_args import cli_args_configuration
+    with context_configuration(cli_args_configuration()):
+        await __start_comfyui(from_script_dir=from_script_dir)
+
+
+async def __start_comfyui(from_script_dir: Optional[Path] = None):
     """
     Runs ComfyUI's frontend and backend like upstream.
     :param from_script_dir: when set to a path, assumes that you are running ComfyUI's legacy main.py entrypoint at the root of the git repository located at the path

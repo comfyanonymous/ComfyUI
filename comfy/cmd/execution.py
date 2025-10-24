@@ -30,9 +30,9 @@ from comfy_execution.graph_utils import is_link, GraphBuilder
 from comfy_execution.utils import CurrentNodeContext
 from comfy_api.internal import _ComfyNodeInternal, _NodeOutputInternal, first_real_override, is_class, make_locked_method_func
 from comfy_api.latest import io
+from ..execution_context import current_execution_context
 from .. import interruption
 from .. import model_management
-from ..cli_args import args
 from ..component_model.abstract_prompt_queue import AbstractPromptQueue
 from ..component_model.executor_types import ExecutorToClientProgress, ValidationTuple, ValidateInputsTuple, \
     ValidationErrorDict, NodeErrorsDictValue, ValidationErrorExtraInfoDict, FormattedValue, RecursiveExecutionTuple, \
@@ -675,7 +675,7 @@ async def _execute(server, dynprompt, caches: CacheSet, current_item: str, extra
             "current_inputs": input_data_formatted
         }
 
-        if should_panic_on_exception(ex, args.panic_when):
+        if should_panic_on_exception(ex, current_execution_context().configuration.panic_when):
             logger.error(f"The exception {ex} was configured as unrecoverable, scheduling an exit")
 
             def sys_exit(*args):

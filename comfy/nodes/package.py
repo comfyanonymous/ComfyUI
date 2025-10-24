@@ -4,10 +4,12 @@ import importlib
 import logging
 import os
 import pkgutil
+import threading
 import time
 import types
 from functools import reduce
 from importlib.metadata import entry_points
+from threading import RLock
 
 from opentelemetry.trace import Span, Status, StatusCode
 
@@ -17,8 +19,9 @@ from comfy_api.version_list import supported_versions
 from .comfyui_v3_package_imports import _comfy_entrypoint_upstream_v3_imports
 from .package_typing import ExportedNodes
 from ..component_model.files import get_package_as_path
+from ..execution_context import current_execution_context
 
-_nodes_available_at_startup: ExportedNodes = ExportedNodes()
+_nodes_local = threading.local()
 
 logger = logging.getLogger(__name__)
 
@@ -44,8 +47,6 @@ def _import_nodes_in_module(module: types.ModuleType) -> ExportedNodes:
         exported_nodes.EXTENSION_WEB_DIRS[module.__name__] = abs_web_directory
     exported_nodes.update(_comfy_entrypoint_upstream_v3_imports(module))
     return exported_nodes
-
-
 
 
 def _import_and_enumerate_nodes_in_module(module: types.ModuleType,
@@ -116,7 +117,11 @@ def _import_and_enumerate_nodes_in_module(module: types.ModuleType,
 @tracer.start_as_current_span("Import All Nodes In Workspace")
 def import_all_nodes_in_workspace(vanilla_custom_nodes=True, raise_on_failure=False) -> ExportedNodes:
     # now actually import the nodes, to improve control of node loading order
-    from ..cli_args import args
+    try:
+        _nodes_available_at_startup = _nodes_local.nodes
+    except (LookupError, AttributeError):
+        _nodes_available_at_startup = _nodes_local.nodes = ExportedNodes()
+    args = current_execution_context().configuration
 
     # todo: this is some truly braindead stuff
     register_versions([
@@ -126,48 +131,47 @@ def import_all_nodes_in_workspace(vanilla_custom_nodes=True, raise_on_failure=Fa
         ) for v in supported_versions
     ])
 
-    # only load these nodes once
-    if len(_nodes_available_at_startup) == 0:
+    _nodes_available_at_startup.clear()
 
-        # import base_nodes first
-        from . import base_nodes
-        from comfy_extras import nodes as comfy_extras_nodes  # pylint: disable=absolute-import-used
-        from .vanilla_node_importing import mitigated_import_of_vanilla_custom_nodes
+    # import base_nodes first
+    from . import base_nodes
+    from comfy_extras import nodes as comfy_extras_nodes  # pylint: disable=absolute-import-used
+    from .vanilla_node_importing import mitigated_import_of_vanilla_custom_nodes
 
-        base_and_extra = reduce(lambda x, y: x.update(y),
-                                map(lambda module_inner: _import_and_enumerate_nodes_in_module(module_inner, raise_on_failure=raise_on_failure), [
-                                    # this is the list of default nodes to import
-                                    base_nodes,
-                                    comfy_extras_nodes
-                                ]),
-                                ExportedNodes())
-        custom_nodes_mappings = ExportedNodes()
+    base_and_extra = reduce(lambda x, y: x.update(y),
+                            map(lambda module_inner: _import_and_enumerate_nodes_in_module(module_inner, raise_on_failure=raise_on_failure), [
+                                # this is the list of default nodes to import
+                                base_nodes,
+                                comfy_extras_nodes
+                            ]),
+                            ExportedNodes())
+    custom_nodes_mappings = ExportedNodes()
 
-        if args.disable_all_custom_nodes:
-            logger.info("Loading custom nodes was disabled, only base and extra nodes were loaded")
-            _nodes_available_at_startup.update(base_and_extra)
-            return _nodes_available_at_startup
+    if args.disable_all_custom_nodes:
+        logger.info("Loading custom nodes was disabled, only base and extra nodes were loaded")
+        _nodes_available_at_startup.update(base_and_extra)
+        return _nodes_available_at_startup
 
-        # load from entrypoints
-        for entry_point in entry_points().select(group='comfyui.custom_nodes'):
-            # Load the module associated with the current entry point
-            try:
-                module = entry_point.load()
-            except ModuleNotFoundError as module_not_found_error:
-                logger.error(f"A module was not found while importing nodes via an entry point: {entry_point}. Please ensure the entry point in setup.py is named correctly", exc_info=module_not_found_error)
-                continue
+    # load from entrypoints
+    for entry_point in entry_points().select(group='comfyui.custom_nodes'):
+        # Load the module associated with the current entry point
+        try:
+            module = entry_point.load()
+        except ModuleNotFoundError as module_not_found_error:
+            logger.error(f"A module was not found while importing nodes via an entry point: {entry_point}. Please ensure the entry point in setup.py is named correctly", exc_info=module_not_found_error)
+            continue
 
-            # Ensure that what we've loaded is indeed a module
-            if isinstance(module, types.ModuleType):
-                custom_nodes_mappings.update(
-                    _import_and_enumerate_nodes_in_module(module, print_import_times=True))
+        # Ensure that what we've loaded is indeed a module
+        if isinstance(module, types.ModuleType):
+            custom_nodes_mappings.update(
+                _import_and_enumerate_nodes_in_module(module, print_import_times=True))
 
-        # load the vanilla custom nodes last
-        if vanilla_custom_nodes:
-            custom_nodes_mappings += mitigated_import_of_vanilla_custom_nodes()
+    # load the vanilla custom nodes last
+    if vanilla_custom_nodes:
+        custom_nodes_mappings += mitigated_import_of_vanilla_custom_nodes()
 
-        # don't allow custom nodes to overwrite base nodes
-        custom_nodes_mappings -= base_and_extra
+    # don't allow custom nodes to overwrite base nodes
+    custom_nodes_mappings -= base_and_extra
 
-        _nodes_available_at_startup.update(base_and_extra + custom_nodes_mappings)
+    _nodes_available_at_startup.update(base_and_extra + custom_nodes_mappings)
     return _nodes_available_at_startup

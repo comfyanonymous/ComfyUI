@@ -6,7 +6,7 @@ from pytest_mock import MockerFixture
 
 from comfy.cli_args import args
 from comfy.cmd.execution import validate_prompt
-from comfy.nodes_context import nodes
+from comfy.nodes_context import get_nodes
 
 import uuid
 
@@ -75,6 +75,7 @@ known_models: ContextVar[list[str]] = ContextVar('known_models', default=[])
 
 @pytest.fixture
 def mock_nodes(mocker: MockerFixture):
+    nodes = get_nodes()
     class MockCheckpointLoaderSimple:
         @staticmethod
         def INPUT_TYPES():

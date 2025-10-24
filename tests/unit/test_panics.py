@@ -190,6 +190,8 @@ async def test_no_panic_when_disabled_with_executor(executor_cls, executor_kwarg
           patch('sys.exit') as mock_exit):
         try:
             async with Comfy(configuration=config, executor=executor) as client:
+                from comfy.cli_args import args
+                assert len(args.panic_when) == 0
                 # Queue our failing workflow
                 await client.queue_prompt(create_failing_workflow())
         except SystemExit:

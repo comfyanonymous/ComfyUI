@@ -29,7 +29,7 @@ from ..distributed.executors import ContextVarExecutor
 from ..distributed.history import History
 from ..distributed.process_pool_executor import ProcessPoolExecutor
 from ..distributed.server_stub import ServerStub
-from ..execution_context import current_execution_context
+from ..execution_context import current_execution_context, context_configuration
 
 _prompt_executor = threading.local()
 
@@ -57,7 +57,6 @@ def _execute_prompt(
     finally:
         detach(token)
 
-
 async def __execute_prompt(
         prompt: dict,
         prompt_id: str,
@@ -66,7 +65,16 @@ async def __execute_prompt(
         progress_handler: ExecutorToClientProgress | None,
         configuration: Configuration | None,
         partial_execution_targets: list[str] | None) -> dict:
-    from .. import options
+    with context_configuration(configuration):
+        return await ___execute_prompt(prompt, prompt_id, client_id, span_context, progress_handler, partial_execution_targets)
+
+async def ___execute_prompt(
+        prompt: dict,
+        prompt_id: str,
+        client_id: str,
+        span_context: Context,
+        progress_handler: ExecutorToClientProgress | None,
+        partial_execution_targets: list[str] | None) -> dict:
     from ..cmd.execution import PromptExecutor
 
     progress_handler = progress_handler or ServerStub()
@@ -74,13 +82,6 @@ async def __execute_prompt(
     try:
         prompt_executor: PromptExecutor = _prompt_executor.executor
     except (LookupError, AttributeError):
-        if configuration is None:
-            options.enable_args_parsing()
-        else:
-            from ..cmd.main_pre import args
-            args.clear()
-            args.update(configuration)
-
         with tracer.start_as_current_span("Initialize Prompt Executor", context=span_context):
             # todo: deal with new caching features
             prompt_executor = PromptExecutor(progress_handler)
@@ -117,6 +118,7 @@ async def __execute_prompt(
 
 def _cleanup():
     from ..cmd.execution import PromptExecutor
+    from ..nodes_context import invalidate
     try:
         prompt_executor: PromptExecutor = _prompt_executor.executor
         # this should clear all references to output tensors and make it easier to collect back the memory
@@ -128,6 +130,10 @@ def _cleanup():
     gc.collect()
     try:
         model_management.soft_empty_cache()
+    except:
+        pass
+    try:
+        invalidate()
     except:
         pass
 
@@ -172,6 +178,8 @@ class Comfy:
         self._task_count_lock = RLock()
         self._task_count = 0
         self._history = History()
+        self._context_stack = []
+
 
     @property
     def is_running(self) -> bool:
@@ -183,6 +191,9 @@ class Comfy:
 
     def __enter__(self):
         self._is_running = True
+        cm = context_configuration(self._configuration)
+        cm.__enter__()
+        self._context_stack.append(cm)
         return self
 
     @property
@@ -193,9 +204,13 @@ class Comfy:
         get_event_loop().run_in_executor(self._executor, _cleanup)
         self._executor.shutdown(wait=True)
         self._is_running = False
+        self._context_stack.pop().__exit__(*args)
 
     async def __aenter__(self):
         self._is_running = True
+        cm = context_configuration(self._configuration)
+        cm.__enter__()
+        self._context_stack.append(cm)
         return self
 
     async def __aexit__(self, *args):
@@ -207,6 +222,7 @@ class Comfy:
 
         self._executor.shutdown(wait=True)
         self._is_running = False
+        self._context_stack.pop().__exit__(*args)
 
     async def queue_prompt_api(self,
                                prompt: PromptDict | str | dict,

@@ -5,6 +5,8 @@ from contextvars import ContextVar
 from dataclasses import dataclass, replace
 from typing import Optional, Final
 
+from .cli_args import cli_args_configuration
+from .cli_args_types import Configuration
 from .component_model import cvpickle
 from .component_model.executor_types import ExecutorToClientProgress
 from .component_model.folder_path_types import FolderNames
@@ -23,6 +25,7 @@ class ExecutionContext:
     list_index: Optional[int] = None
     inference_mode: bool = True
     progress_registry: Optional[AbstractProgressRegistry] = None
+    configuration: Optional[Configuration] = None
 
     def __iter__(self):
         """
@@ -34,7 +37,7 @@ class ExecutionContext:
         yield self.list_index
 
 
-comfyui_execution_context: Final[ContextVar] = ContextVar("comfyui_execution_context", default=ExecutionContext(server=ServerStub(), folder_names_and_paths=FolderNames(is_root=True), custom_nodes=ExportedNodes(), progress_registry=ProgressRegistryStub()))
+comfyui_execution_context: Final[ContextVar] = ContextVar("comfyui_execution_context", default=ExecutionContext(server=ServerStub(), folder_names_and_paths=FolderNames(is_root=True), custom_nodes=ExportedNodes(), progress_registry=ProgressRegistryStub(), configuration=cli_args_configuration()))
 # enables context var propagation across process boundaries for process pool executors
 cvpickle.register_contextvar(comfyui_execution_context, __name__)
 
@@ -50,6 +53,17 @@ def _new_execution_context(ctx: ExecutionContext):
         yield ctx
     finally:
         comfyui_execution_context.reset(token)
+
+
+@contextmanager
+def context_configuration(configuration: Optional[Configuration] = None):
+    current_ctx = current_execution_context()
+    if configuration is None:
+        from .cli_args import cli_args_configuration
+        configuration = cli_args_configuration()
+    new_ctx = replace(current_ctx, configuration=configuration)
+    with _new_execution_context(new_ctx):
+        yield new_ctx
 
 
 @contextmanager

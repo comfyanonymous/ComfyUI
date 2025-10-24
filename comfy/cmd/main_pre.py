@@ -18,6 +18,7 @@ import fsspec
 
 from .. import options
 from ..app import logger
+from ..cli_args_types import Configuration
 from ..component_model import package_filesystem
 
 os.environ['TORCH_ROCM_AOTRITON_ENABLE_EXPERIMENTAL'] = '1'
@@ -164,6 +165,7 @@ def _register_fsspec_fs():
         package_filesystem.PkgResourcesFileSystem,
     )
 
+args: Configuration
 
 _configure_logging()
 _fix_pytorch_240()

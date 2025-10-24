@@ -187,7 +187,7 @@ class TestExecution:
 
         await client.run(g)
         mask.inputs['value'] = 0.4
-        result2 = client.run(g)
+        result2 = await client.run(g)
         assert not result2.did_run(input1), "Input1 should have been cached"
         assert not result2.did_run(input2), "Input2 should have been cached"
 

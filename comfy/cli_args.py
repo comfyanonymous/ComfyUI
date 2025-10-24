@@ -9,14 +9,16 @@ from typing import Optional
 import configargparse as argparse
 
 from . import __version__
-from . import options
 from .cli_args_types import LatentPreviewMethod, Configuration, ConfigurationExtender, EnumAction, \
     EnhancedConfigArgParser, PerformanceFeature, is_valid_directory, db_config, FlattenAndAppendAction
+from .component_model.module_property import create_module_properties
 
 # todo: move this
 DEFAULT_VERSION_STRING = "comfyanonymous/ComfyUI@latest"
 
 logger = logging.getLogger(__name__)
+
+_module_properties = create_module_properties()
 
 
 def _create_parser() -> EnhancedConfigArgParser:
@@ -28,7 +30,7 @@ def _create_parser() -> EnhancedConfigArgParser:
 
     parser.add_argument('-w', "--cwd", type=str, default=None,
                         help="Specify the working directory. If not set, this is the current working directory. models/, input/, output/ and other directories will be located here by default.")
-    parser.add_argument("--base-paths", type=str, nargs='+', default=[], help="Additional base paths for custom nodes, models and inputs.")
+    parser.add_argument("--base-paths", type=str, nargs='+', default=[], action=FlattenAndAppendAction, help="Additional base paths for custom nodes, models and inputs.")
     parser.add_argument('-H', "--listen", type=str, default="127.0.0.1", metavar="IP", nargs="?", const="0.0.0.0,::",
                         help="Specify the IP address to listen on (default: 127.0.0.1). You can give a list of ip addresses by separating them with a comma like: 127.2.2.2,127.3.3.3 If --listen is provided without an argument, it defaults to 0.0.0.0,:: (listens on all ipv4 and ipv6)")
     parser.add_argument("--port", type=int, default=8188, help="Set the listen port.")
@@ -149,8 +151,8 @@ def _create_parser() -> EnhancedConfigArgParser:
 
     parser.add_argument("--disable-metadata", action="store_true", help="Disable saving prompt metadata in files.")
     parser.add_argument("--disable-all-custom-nodes", action="store_true", help="Disable loading all custom nodes.")
-    parser.add_argument("--whitelist-custom-nodes", type=str, nargs='+', default=[], help="Specify custom node folders to load even when --disable-all-custom-nodes is enabled.")
-    parser.add_argument("--blacklist-custom-nodes", type=str, nargs='+', default=[], help="Specify custom node folders to never load. Accepts shell-style globs.")
+    parser.add_argument("--whitelist-custom-nodes", type=str, action=FlattenAndAppendAction, nargs='+', default=[], help="Specify custom node folders to load even when --disable-all-custom-nodes is enabled.")
+    parser.add_argument("--blacklist-custom-nodes", type=str, action=FlattenAndAppendAction, nargs='+', default=[], help="Specify custom node folders to never load. Accepts shell-style globs.")
     parser.add_argument("--disable-api-nodes", action="store_true", help="Disable loading all api nodes.")
 
     parser.add_argument("--multi-user", action="store_true", help="Enables per-user storage.")
@@ -208,7 +210,8 @@ def _create_parser() -> EnhancedConfigArgParser:
 
     parser.add_argument(
         '--panic-when',
-        action='append',
+        action=FlattenAndAppendAction,
+        nargs='+',
         help="""
         List of fully qualified exception class names to panic (sys.exit(1)) when a workflow raises it.
         Example: --panic-when=torch.cuda.OutOfMemoryError. Can be specified multiple times or as a 
@@ -270,7 +273,7 @@ def _create_parser() -> EnhancedConfigArgParser:
 
     default_db_url = db_config()
     parser.add_argument("--database-url", type=str, default=default_db_url, help="Specify the database URL, e.g. for an in-memory database you can use 'sqlite:///:memory:'.")
-    parser.add_argument("--workflows", type=str, nargs='+', default=[], help="Execute the API workflow(s) specified in the provided files. For each workflow, its outputs will be printed to a line to standard out. Application logging will be redirected to standard error. Use `-` to signify standard in.")
+    parser.add_argument("--workflows", type=str, action=FlattenAndAppendAction, nargs='+', default=[], help="Execute the API workflow(s) specified in the provided files. For each workflow, its outputs will be printed to a line to standard out. Application logging will be redirected to standard error. Use `-` to signify standard in.")
 
     # now give plugins a chance to add configuration
     for entry_point in entry_points().select(group='comfyui.custom_config'):
@@ -317,4 +320,19 @@ def default_configuration() -> Configuration:
     return _parse_args(_create_parser())
 
 
-args = _parse_args(args_parsing=options.args_parsing)
+def cli_args_configuration() -> Configuration:
+    return _parse_args(args_parsing=True)
+
+
+@_module_properties.getter
+def _args() -> Configuration:
+    from .execution_context import current_execution_context
+    return current_execution_context().configuration
+
+
+__all__ = [
+    "args",  # pylint: disable=undefined-all-variable, type: Configuration
+    "default_configuration",
+    "cli_args_configuration",
+    "DEFAULT_VERSION_STRING"
+]

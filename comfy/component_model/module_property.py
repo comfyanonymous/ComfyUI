@@ -2,6 +2,17 @@ import sys
 from functools import wraps
 
 def create_module_properties():
+    """
+    Example:
+        >>> _module_properties = create_module_properties()
+
+        >>> @_module_properties.getter
+        >>> def _nodes():
+        >>>     return ...
+
+    This creates nodes as a property
+    :return:
+    """
     properties = {}
     patched_modules = set()
 

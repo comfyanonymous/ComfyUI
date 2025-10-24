@@ -198,6 +198,10 @@ class ExportedNodes:
     def __bool__(self):
         return len(self.NODE_CLASS_MAPPINGS) + len(self.NODE_DISPLAY_NAME_MAPPINGS) + len(self.EXTENSION_WEB_DIRS) > 0
 
+    def clear(self):
+        self.NODE_CLASS_MAPPINGS.clear()
+        self.EXTENSION_WEB_DIRS.clear()
+        self.NODE_DISPLAY_NAME_MAPPINGS.clear()
 
 class _ExportedNodesAsChainMap(ExportedNodes):
     @classmethod

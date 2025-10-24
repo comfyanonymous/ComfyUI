@@ -128,12 +128,11 @@ def load_torch_file(ckpt: str, safe_load=False, device=None, return_metadata=Fal
                 if return_metadata:
                     metadata = f.metadata()
         except Exception as e:
-            if len(e.args) > 0:
-                message = e.args[0]
-                if "HeaderTooLarge" in message:
-                    raise ValueError(f"{message} (File path: {ckpt} The safetensors file is corrupt or invalid. Make sure this is actually a safetensors file and not a ckpt or pt or other filetype.")
-                if "MetadataIncompleteBuffer" in message or "InvalidHeaderDeserialization" in message:
-                    raise ValueError(f"{message} (File path: {ckpt} The safetensors file is corrupt/incomplete. Check the file size and make sure you have copied/downloaded it correctly.")
+            message = str(e)
+            if "HeaderTooLarge" in message:
+                raise ValueError(f"{message} (File path: {ckpt} The safetensors file is corrupt or invalid. Make sure this is actually a safetensors file and not a ckpt or pt or other filetype.")
+            if "MetadataIncompleteBuffer" in message or "InvalidHeaderDeserialization" in message:
+                raise ValueError(f"{message} (File path: {ckpt} The safetensors file is corrupt/incomplete. Check the file size and make sure you have copied/downloaded it correctly.")
             raise e
     elif ckpt.lower().endswith("index.json"):
         # from accelerate
