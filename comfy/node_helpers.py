@@ -1,8 +1,8 @@
 import hashlib
 from PIL import ImageFile, UnidentifiedImageError
 
-from .cli_args import args
 from .component_model.files import get_package_as_path
+from .execution_context import current_execution_context
 
 
 def conditioning_set_values(conditioning, values: dict = None, append=False):
@@ -45,6 +45,7 @@ def hasher():
         "sha256": hashlib.sha256,
         "sha512": hashlib.sha512
     }
+    args = current_execution_context().configuration
     return hashfuncs[args.default_hashing_function]
 
 

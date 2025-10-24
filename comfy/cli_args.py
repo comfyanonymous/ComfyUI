@@ -18,6 +18,8 @@ DEFAULT_VERSION_STRING = "comfyanonymous/ComfyUI@latest"
 
 logger = logging.getLogger(__name__)
 
+args: Configuration
+
 _module_properties = create_module_properties()
 
 
