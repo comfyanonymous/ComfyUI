@@ -1,21 +1,25 @@
-import pytest
 import base64
 import json
 import struct
 from io import BytesIO
+
+import pytest
 from PIL import Image
 from aiohttp import web
-from unittest.mock import patch
 
 from comfy.app.model_manager import ModelFileManager
+from comfy.component_model.folder_path_types import FolderNames
+from comfy.execution_context import context_folder_names_and_paths
 
 pytestmark = (
     pytest.mark.asyncio
 )  # This applies the asyncio mark to all test functions in the module
 
+
 @pytest.fixture
 def model_manager():
     return ModelFileManager()
+
 
 @pytest.fixture
 def app(model_manager):
@@ -24,6 +28,7 @@ def app(model_manager):
     model_manager.add_routes(routes)
     app.add_routes(routes)
     return app
+
 
 async def test_get_model_preview_safetensors(aiohttp_client, app, tmp_path):
     img = Image.new('RGB', (100, 100), 'white')
@@ -43,9 +48,12 @@ async def test_get_model_preview_safetensors(aiohttp_client, app, tmp_path):
         f.write(length_bytes)
         f.write(header_bytes)
 
-    with patch('folder_paths.folder_names_and_paths', {
-        'test_folder': ([str(tmp_path)], None)
-    }):
+    fn = FolderNames()
+    with context_folder_names_and_paths(fn):
+        test_folder = fn["test_folder"]
+        test_folder.paths.append(tmp_path)
+        test_folder.supported_extensions |= {".safetensors"}
+
         client = await aiohttp_client(app)
         response = await client.get('/experiment/models/preview/test_folder/0/test_model.safetensors')
 

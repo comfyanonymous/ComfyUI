@@ -102,7 +102,7 @@ class PathsList:
         paths = [x for x in self]
         return paths[item]
 
-    def append(self, path_str: str):
+    def append(self, path_str: str | Path):
         p: FolderNames = self.parent()
         p.add_paths(self.folder_name, [path_str])
 
