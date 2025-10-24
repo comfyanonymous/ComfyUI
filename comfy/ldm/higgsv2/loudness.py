@@ -88,6 +88,7 @@ def fft_conv1d(
 class IIRfilter(object):
 
     def __init__(self, G, Q, fc, rate, filter_type, passband_gain=1.0):
+        G, Q, fc, rate = [t if isinstance(t, torch.Tensor) else torch.as_tensor(t) for t in (G, Q, fc, rate)]
         self.G  = G
         self.Q  = Q
         self.fc = fc
@@ -98,26 +99,26 @@ class IIRfilter(object):
     def generate_coefficients(self):
 
         A  = 10**(self.G/40.0)
-        w0 = 2.0 * np.pi * (self.fc / self.rate)
-        alpha = np.sin(w0) / (2.0 * self.Q)
+        w0 = 2.0 * torch.pi * (self.fc / self.rate)
+        alpha = torch.sin(w0) / (2.0 * self.Q)
 
         if self.filter_type == 'high_shelf':
-            b0 =      A * ( (A+1) + (A-1) * np.cos(w0) + 2 * np.sqrt(A) * alpha )
-            b1 = -2 * A * ( (A-1) + (A+1) * np.cos(w0)                          )
-            b2 =      A * ( (A+1) + (A-1) * np.cos(w0) - 2 * np.sqrt(A) * alpha )
-            a0 =            (A+1) - (A-1) * np.cos(w0) + 2 * np.sqrt(A) * alpha
-            a1 =      2 * ( (A-1) - (A+1) * np.cos(w0)                          )
-            a2 =            (A+1) - (A-1) * np.cos(w0) - 2 * np.sqrt(A) * alpha
+            b0 =      A * ( (A+1) + (A-1) * torch.cos(w0) + 2 * torch.sqrt(A) * alpha )
+            b1 = -2 * A * ( (A-1) + (A+1) * torch.cos(w0)                          )
+            b2 =      A * ( (A+1) + (A-1) * torch.cos(w0) - 2 * torch.sqrt(A) * alpha )
+            a0 =            (A+1) - (A-1) * torch.cos(w0) + 2 * torch.sqrt(A) * alpha
+            a1 =      2 * ( (A-1) - (A+1) * torch.cos(w0)                          )
+            a2 =            (A+1) - (A-1) * torch.cos(w0) - 2 * torch.sqrt(A) * alpha
 
         elif self.filter_type == 'high_pass':
-            b0 =  (1 + np.cos(w0))/2
-            b1 = -(1 + np.cos(w0))
-            b2 =  (1 + np.cos(w0))/2
+            b0 =  (1 + torch.cos(w0))/2
+            b1 = -(1 + torch.cos(w0))
+            b2 =  (1 + torch.cos(w0))/2
             a0 =   1 + alpha
-            a1 =  -2 * np.cos(w0)
+            a1 =  -2 * torch.cos(w0)
             a2 =   1 - alpha
 
-        return np.array([b0, b1, b2])/a0, np.array([a0, a1, a2])/a0
+        return torch.tensor([b0, b1, b2])/a0, torch.tensor([a0, a1, a2])/a0
 
     def apply_filter(self, data):
         return self.passband_gain * scipy.signal.lfilter(self.b, self.a, data)
@@ -160,14 +161,14 @@ class Meter(torch.nn.Module):
 
         for i, (_, filter_stage) in enumerate(self._filters.items()):
             b, a = filter_stage.b_and_a
-            firs[i] = scipy.signal.lfilter(b, a, impulse)
+            firs[i] = scipy.signal.lfilter(b.numpy(), a.numpy(), impulse)
 
         firs = torch.from_numpy(firs[..., ::-1].copy()).float()
 
         self.register_buffer("firs", firs)
         self.register_buffer("passband_gain", passband_gain)
 
-    def apply_filter_gpu(self, data: torch.Tensor):
+    def apply_filter_fir(self, data: torch.Tensor):
 
         # Data is of shape (nb, nch, nt)
         # Reshape to (nb*nch, 1, nt)
@@ -189,27 +190,8 @@ class Meter(torch.nn.Module):
         data = data[:, :nt, :]
         return data
 
-    def apply_filter_cpu(self, data: torch.Tensor):
-        for _, filter_stage in self._filters.items():
-            passband_gain = filter_stage.passband_gain
-            b, a = filter_stage.b_and_a
-
-            a_coeffs = torch.from_numpy(a).float().to(data.device)
-            b_coeffs = torch.from_numpy(b).float().to(data.device)
-
-            _data = data.permute(0, 2, 1)
-            filtered = torchaudio.functional.lfilter(
-                _data, a_coeffs, b_coeffs, clamp=False
-            )
-            data = passband_gain * filtered.permute(0, 2, 1)
-        return data
-
     def apply_filter(self, data: torch.Tensor):
-        if data.is_cuda or self.use_fir:
-            data = self.apply_filter_gpu(data)
-        else:
-            data = self.apply_filter_cpu(data)
-        return data
+        return self.apply_filter_fir(data)
 
     def forward(self, data: torch.Tensor):
         return self.integrated_loudness(data)

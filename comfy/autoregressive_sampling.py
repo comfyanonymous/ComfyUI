@@ -9,39 +9,9 @@ from enum import Enum
 from dataclasses import dataclass, fields
 from transformers.cache_utils import StaticCache, DynamicCache, Cache
 from typing import Optional, Union, Any
-from comfy.model_management import get_free_memory, minimum_inference_memory
 import comfy.model_management
 
 NEED_SETUP_CACHE_CLASSES_MAPPING = { "static": StaticCache }
-
-def estimate_autoregressive_vram(
-    num_layers: int,
-    hidden_dim: int,
-    max_seq_len: int,
-    batch_size: int = 1,
-    dtype = torch.float16,
-    intermediate_factor: float = 4.0,
-    device = torch.device('cuda')
-) -> bool:
-
-    dtype_size = torch.finfo(dtype).bits // 8
-    kv_cache_bytes = num_layers * max_seq_len * hidden_dim * 2 * batch_size * dtype_size
-
-    # we only calculate hidden states in cuda graphs, so we don't care about the output logits
-    input_bytes = output_bytes = batch_size * max_seq_len * hidden_dim * dtype_size
-
-    # rough calculation for activation sizes
-    intermediate_bytes = intermediate_factor * output_bytes
-
-    total_estimated = kv_cache_bytes + input_bytes + output_bytes + intermediate_bytes
-
-    # get vram info
-    free_vram = get_free_memory(device)
-    minimum_vram = minimum_inference_memory()
-
-    enough_vram = free_vram - minimum_vram >= total_estimated
-
-    return enough_vram
 
 class TopKLogits:
     def __init__(self, top_k: int, filter_value: float = -float("Inf"), min_tokens_to_keep: int = 1):
@@ -282,21 +252,8 @@ class AutoRegressiveGeneration:
 
         } if self.model.cache_implementation == "static" and self.model.use_kv_buckets else None
 
-        enough_vram = estimate_autoregressive_vram(
-            self.model.num_hidden_layers, self.model.hidden_dim, self.model.max_seq_len, dtype = self.dtype, device = device
-        )
-
-        # cuda graphs only help if input shapes are constant
-        if (
-            device == "cuda"
-            and hasattr(model, "capture_model")
-            and self.model.cache_implementation == "static"
-            and self.model.use_kv_buckets
-            and enough_vram
-        ):
-            self.model.capture_model(self.kv_caches.values())
-        else:
-            self.model.generation_config.is_using_cuda_graphs = False
+        # for now
+        self.model.generation_config.is_using_cuda_graphs = False
 
     @torch.inference_mode()
     def generate(self, input_ids: Optional[torch.LongTensor] = None, max_new_length: int = 1024, min_new_length = 0,
