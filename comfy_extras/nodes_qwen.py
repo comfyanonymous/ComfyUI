@@ -105,7 +105,7 @@ class TextEncodeQwenImageEditPlus(io.ComfyNode):
             conditioning = node_helpers.conditioning_set_values(conditioning, {"reference_latents": ref_latents}, append=True)
         return io.NodeOutput(conditioning)
 
-
+################ NEW
 class TextEncodeQwenImageEliGen(io.ComfyNode):
     @classmethod
     def define_schema(cls):

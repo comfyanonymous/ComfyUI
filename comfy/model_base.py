@@ -1462,9 +1462,6 @@ class QwenImage(BaseModel):
         entity_masks = kwargs.get("entity_masks", None)
         if entity_masks is not None:
             out['entity_masks'] = comfy.conds.CONDRegular(entity_masks)
-
-        # import pdb; pdb.set_trace()
-
         return out
 
     def extra_conds_shapes(self, **kwargs):
