@@ -9,6 +9,7 @@ from comfy.cli_args import args
 from app.logger import setup_logger
 import itertools
 import utils.extra_config
+import utils.landlock
 import logging
 import sys
 from comfy_execution.progress import get_progress_state
@@ -310,6 +311,13 @@ def start_comfyui(asyncio_loop=None):
         logging.info(f"Setting temp directory to: {temp_dir}")
         folder_paths.set_temp_directory(temp_dir)
     cleanup_temp()
+
+    if args.enable_landlock:
+        logging.info("Enabling Landlock")
+        landlock_ok = utils.landlock.enable_landlock(args, logging.getLogger("landlock"))
+        if not landlock_ok:
+            logging.critical("Requested Landlock sandbox but it could not be enabled. Exiting.")
+            sys.exit(1)
 
     if args.windows_standalone_build:
         try:
