@@ -12,6 +12,7 @@ from PIL import Image
 
 from comfy.utils import common_upscale
 from comfy_api.latest import Input, InputImpl
+from comfy_api.util import VideoContainer, VideoCodec
 
 from ._helpers import mimetype_to_extension
 
@@ -171,6 +172,30 @@ def audio_to_base64_string(audio: Input.Audio, container_format: str = "mp4", co
     audio_bytes_io = audio_ndarray_to_bytesio(audio_data_np, sample_rate, container_format, codec_name)
     audio_bytes = audio_bytes_io.getvalue()
     return base64.b64encode(audio_bytes).decode("utf-8")
+
+
+def video_to_base64_string(
+    video: Input.Video,
+    container_format: VideoContainer = None,
+    codec: VideoCodec = None
+) -> str:
+    """
+    Converts a video input to a base64 string.
+
+    Args:
+        video: The video input to convert
+        container_format: Optional container format to use (defaults to video.container if available)
+        codec: Optional codec to use (defaults to video.codec if available)
+    """
+    video_bytes_io = BytesIO()
+
+    # Use provided format/codec if specified, otherwise use video's own if available
+    format_to_use = container_format if container_format is not None else getattr(video, 'container', VideoContainer.MP4)
+    codec_to_use = codec if codec is not None else getattr(video, 'codec', VideoCodec.H264)
+
+    video.save_to(video_bytes_io, format=format_to_use, codec=codec_to_use)
+    video_bytes_io.seek(0)
+    return base64.b64encode(video_bytes_io.getvalue()).decode("utf-8")
 
 
 def audio_ndarray_to_bytesio(

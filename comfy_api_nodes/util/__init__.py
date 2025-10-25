@@ -18,6 +18,7 @@ from .conversions import (
     tensor_to_bytesio,
     tensor_to_pil,
     trim_video,
+    video_to_base64_string,
 )
 from .download_helpers import (
     download_url_as_bytesio,
@@ -73,6 +74,7 @@ __all__ = [
     "tensor_to_bytesio",
     "tensor_to_pil",
     "trim_video",
+    "video_to_base64_string",
     # Validation utilities
     "get_number_of_images",
     "validate_aspect_ratio_closeness",

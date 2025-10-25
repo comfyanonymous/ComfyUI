@@ -3,8 +3,6 @@ import aiohttp
 import mimetypes
 from typing import Optional, Union
 from comfy.utils import common_upscale
-from comfy_api.util import VideoContainer, VideoCodec
-from comfy_api.input.video_types import VideoInput
 from comfy_api_nodes.apis.client import (
     ApiClient,
     ApiEndpoint,
@@ -207,30 +205,6 @@ async def upload_file_to_comfyapi(
     response: UploadResponse = await operation.execute()
     await ApiClient.upload_file(response.upload_url, file_bytes_io, content_type=upload_mime_type)
     return response.download_url
-
-
-def video_to_base64_string(
-    video: VideoInput,
-    container_format: VideoContainer = None,
-    codec: VideoCodec = None
-) -> str:
-    """
-    Converts a video input to a base64 string.
-
-    Args:
-        video: The video input to convert
-        container_format: Optional container format to use (defaults to video.container if available)
-        codec: Optional codec to use (defaults to video.codec if available)
-    """
-    video_bytes_io = BytesIO()
-
-    # Use provided format/codec if specified, otherwise use video's own if available
-    format_to_use = container_format if container_format is not None else getattr(video, 'container', VideoContainer.MP4)
-    codec_to_use = codec if codec is not None else getattr(video, 'codec', VideoCodec.H264)
-
-    video.save_to(video_bytes_io, format=format_to_use, codec=codec_to_use)
-    video_bytes_io.seek(0)
-    return base64.b64encode(video_bytes_io.getvalue()).decode("utf-8")
 
 
 async def upload_images_to_comfyapi(
