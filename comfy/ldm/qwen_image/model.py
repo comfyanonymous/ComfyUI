@@ -3,6 +3,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import math
+import logging
 from typing import Optional, Tuple
 from einops import repeat, rearrange
 
@@ -11,6 +12,8 @@ from comfy.ldm.modules.attention import optimized_attention_masked
 from comfy.ldm.flux.layers import EmbedND
 import comfy.ldm.common_dit
 import comfy.patcher_extension
+
+logger = logging.getLogger(__name__)
 
 
 class QwenEmbedRope(nn.Module):
@@ -269,9 +272,6 @@ class Attention(nn.Module):
         txt_query = self.norm_added_q(txt_query)
         txt_key = self.norm_added_k(txt_key)
 
-        ### NEW 
-        #################################################
-
         # Handle both tuple (EliGen) and single tensor (standard) RoPE formats
         if isinstance(image_rotary_emb, tuple):
             # EliGen path: Apply RoPE BEFORE concatenation (research-accurate)
@@ -303,6 +303,7 @@ class Attention(nn.Module):
             joint_query = apply_rotary_emb(joint_query, image_rotary_emb)
             joint_key = apply_rotary_emb(joint_key, image_rotary_emb)
 
+        # Apply EliGen attention mask if present
         effective_mask = attention_mask
         if transformer_options is not None:
             eligen_mask = transformer_options.get("eligen_attention_mask", None)
@@ -312,11 +313,12 @@ class Attention(nn.Module):
                 # Validate shape
                 expected_seq = joint_query.shape[1]
                 if eligen_mask.shape[-1] != expected_seq:
-                    raise ValueError(f"EliGen mask shape {eligen_mask.shape} doesn't match sequence length {expected_seq}")
-        
-        #################################################
+                    raise ValueError(
+                        f"EliGen attention mask shape mismatch: {eligen_mask.shape} "
+                        f"doesn't match sequence length {expected_seq}"
+                    )
 
-        # Standard path: Use ComfyUI's optimized attention
+        # Use ComfyUI's optimized attention
         joint_query = joint_query.flatten(start_dim=2)
         joint_key = joint_key.flatten(start_dim=2)
         joint_value = joint_value.flatten(start_dim=2)
@@ -443,8 +445,12 @@ class LastLayer(nn.Module):
         x = torch.addcmul(shift[:, None, :], self.norm(x), (1 + scale)[:, None, :])
         return x
 
-### NEW changes
 class QwenImageTransformer2DModel(nn.Module):
+    # Constants for EliGen processing
+    LATENT_TO_PIXEL_RATIO = 8  # Latents are 8x downsampled from pixel space
+    PATCH_TO_LATENT_RATIO = 2  # 2x2 patches in latent space
+    PATCH_TO_PIXEL_RATIO = 16  # Combined: 2x2 patches on 8x downsampled latents = 16x in pixel space
+
     def __init__(
         self,
         patch_size: int = 2,
@@ -540,8 +546,8 @@ class QwenImageTransformer2DModel(nn.Module):
             entity_prompt_emb: List[[1, L_i, 3584]] - Entity prompts
             entity_prompt_emb_mask: List[[1, L_i]]
             entity_masks: [1, N, 1, H/8, W/8]
-            height: int
-            width: int
+            height: int (padded pixel height)
+            width: int (padded pixel width)
             image: [B, patches, 64] - Patchified latents
 
         Returns:
@@ -549,6 +555,17 @@ class QwenImageTransformer2DModel(nn.Module):
             image_rotary_emb: RoPE embeddings
             attention_mask: [1, 1, total_seq, total_seq]
         """
+        num_entities = len(entity_prompt_emb)
+        batch_size = latents.shape[0]
+        logger.debug(
+            f"[EliGen Model] Processing {num_entities} entities for {height}x{width}px image "
+            f"(latents: {latents.shape}, batch_size: {batch_size})"
+        )
+
+        # Validate batch consistency (all batches should have same sequence lengths)
+        # This is a ComfyUI requirement - batched prompts must have uniform padding
+        if batch_size > 1:
+            logger.debug(f"[EliGen Model] Batch size > 1 detected ({batch_size} batches), ensuring RoPE compatibility")
 
         # SECTION 1: Concatenate entity + global prompts
         all_prompt_emb = entity_prompt_emb + [prompt_emb]
@@ -556,45 +573,63 @@ class QwenImageTransformer2DModel(nn.Module):
         all_prompt_emb = torch.cat(all_prompt_emb, dim=1)
 
         # SECTION 2: Build RoPE position embeddings
-        # Calculate img_shapes for RoPE (batch, height//16, width//16 for images in latent space after patchifying)
-        img_shapes = [(latents.shape[0], height//16, width//16)]
+        # For EliGen, we create RoPE for ONE batch element's dimensions
+        # The queries/keys have shape [batch, seq, heads, dim], and RoPE broadcasts across batch dim
+        patch_h = height // self.PATCH_TO_PIXEL_RATIO
+        patch_w = width // self.PATCH_TO_PIXEL_RATIO
+
+        # Create RoPE for a single image (frame=1 for images, not video)
+        # This will broadcast across all batch elements automatically
+        img_shapes_single = [(1, patch_h, patch_w)]
 
         # Calculate sequence lengths for entities and global prompt
-        entity_seq_lens = [int(mask.sum(dim=1).item()) for mask in entity_prompt_emb_mask]
+        # Use [0] to get first batch element (all batches should have same sequence lengths)
+        entity_seq_lens = [int(mask.sum(dim=1)[0].item()) for mask in entity_prompt_emb_mask]
 
         # Handle None case in ComfyUI (None means no padding, all tokens valid)
         if prompt_emb_mask is not None:
-            global_seq_len = int(prompt_emb_mask.sum(dim=1).item())
+            global_seq_len = int(prompt_emb_mask.sum(dim=1)[0].item())
         else:
             # No mask = no padding, use full sequence length
             global_seq_len = int(prompt_emb.shape[1])
 
         # Get base image RoPE using global prompt length (returns tuple: (img_freqs, txt_freqs))
+        # We pass a single shape, not repeated for batch, because RoPE will broadcast
         txt_seq_lens = [global_seq_len]
-        image_rotary_emb = self.pos_embed(img_shapes, txt_seq_lens, device=latents.device)
+        image_rotary_emb = self.pos_embed(img_shapes_single, txt_seq_lens, device=latents.device)
 
         # Create SEPARATE RoPE embeddings for each entity
         # Each entity gets its own positional encoding based on its sequence length
-        entity_rotary_emb = [self.pos_embed(img_shapes, [entity_seq_len], device=latents.device)[1]
+        # We only need to create these once since they're the same for all batch elements
+        entity_rotary_emb = [self.pos_embed([(1, patch_h, patch_w)], [entity_seq_len], device=latents.device)[1]
                              for entity_seq_len in entity_seq_lens]
 
         # Concatenate entity RoPEs with global RoPE along sequence dimension
         # Result: [entity1_seq, entity2_seq, ..., global_seq] concatenated
+        # This creates the RoPE for ONE batch element's sequence
+        # Note: We DON'T repeat for batch_size because the queries/keys have shape [batch, seq, ...]
+        # and PyTorch will broadcast the RoPE [seq, ...] across the batch dimension automatically
         txt_rotary_emb = torch.cat(entity_rotary_emb + [image_rotary_emb[1]], dim=0)
+
+        logger.debug(
+            f"[EliGen Model] RoPE created for single batch element - "
+            f"img: {image_rotary_emb[0].shape}, txt: {txt_rotary_emb.shape} "
+            f"(both will broadcast across batch_size={batch_size})"
+        )
 
         # Replace text part of tuple with concatenated entity + global RoPE
         image_rotary_emb = (image_rotary_emb[0], txt_rotary_emb)
 
         # SECTION 3: Prepare spatial masks
-        repeat_dim = latents.shape[1]  # 16
+        repeat_dim = latents.shape[1]  # 16 (latent channels)
         max_masks = entity_masks.shape[1]  # N entities
         entity_masks = entity_masks.repeat(1, 1, repeat_dim, 1, 1)
 
         # Pad masks to match padded latent dimensions
         # entity_masks shape: [1, N, 16, H/8, W/8]
         # Need to pad to match orig_shape which is [B, 16, padded_H/8, padded_W/8]
-        padded_h = height // 8
-        padded_w = width // 8
+        padded_h = height // self.LATENT_TO_PIXEL_RATIO
+        padded_w = width // self.LATENT_TO_PIXEL_RATIO
         if entity_masks.shape[3] != padded_h or entity_masks.shape[4] != padded_w:
             assert entity_masks.shape[3] <= padded_h and entity_masks.shape[4] <= padded_w, \
                 f"Entity masks {entity_masks.shape[3]}x{entity_masks.shape[4]} larger than padded dims {padded_h}x{padded_w}"
@@ -602,6 +637,7 @@ class QwenImageTransformer2DModel(nn.Module):
             # Pad each entity mask
             pad_h = padded_h - entity_masks.shape[3]
             pad_w = padded_w - entity_masks.shape[4]
+            logger.debug(f"[EliGen Model] Padding entity masks by ({pad_h}, {pad_w}) to match latent dimensions")
             entity_masks = torch.nn.functional.pad(entity_masks, (0, pad_w, 0, pad_h), mode='constant', value=0)
 
         entity_masks = [entity_masks[:, i, None].squeeze(1) for i in range(max_masks)]
@@ -617,12 +653,20 @@ class QwenImageTransformer2DModel(nn.Module):
         seq_lens = entity_seq_lens + [global_seq_len]
         total_seq_len = int(sum(seq_lens) + image.shape[1])
 
+        logger.debug(
+            f"[EliGen Model] Building attention mask: "
+            f"total_seq={total_seq_len} (entities: {entity_seq_lens}, global: {global_seq_len}, image: {image.shape[1]})"
+        )
+
         patched_masks = []
         for i in range(N):
             patched_mask = rearrange(
                 entity_masks[i],
                 "B C (H P) (W Q) -> B (H W) (C P Q)",
-                H=height//16, W=width//16, P=2, Q=2
+                H=height // self.PATCH_TO_PIXEL_RATIO,
+                W=width // self.PATCH_TO_PIXEL_RATIO,
+                P=self.PATCH_TO_LATENT_RATIO,
+                Q=self.PATCH_TO_LATENT_RATIO
             )
             patched_masks.append(patched_mask)
 
@@ -671,9 +715,15 @@ class QwenImageTransformer2DModel(nn.Module):
 
         # SECTION 6: Convert to additive bias
         attention_mask = attention_mask.float()
+        num_valid_connections = (attention_mask == 1).sum().item()
         attention_mask[attention_mask == 0] = float('-inf')
         attention_mask[attention_mask == 1] = 0
         attention_mask = attention_mask.to(device=latents.device, dtype=latents.dtype).unsqueeze(1)
+
+        logger.debug(
+            f"[EliGen Model] Attention mask created: shape={attention_mask.shape}, "
+            f"valid_connections={num_valid_connections}/{total_seq_len * total_seq_len}"
+        )
 
         return all_prompt_emb, image_rotary_emb, attention_mask
 

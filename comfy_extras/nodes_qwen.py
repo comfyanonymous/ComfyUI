@@ -3,8 +3,12 @@ import comfy.utils
 import comfy.conds
 import math
 import torch
+import logging
+from typing import Optional
 from typing_extensions import override
 from comfy_api.latest import ComfyExtension, io
+
+logger = logging.getLogger(__name__)
 
 
 class TextEncodeQwenImageEdit(io.ComfyNode):
@@ -105,8 +109,31 @@ class TextEncodeQwenImageEditPlus(io.ComfyNode):
             conditioning = node_helpers.conditioning_set_values(conditioning, {"reference_latents": ref_latents}, append=True)
         return io.NodeOutput(conditioning)
 
-################ NEW
 class TextEncodeQwenImageEliGen(io.ComfyNode):
+    """
+    Entity-Level Image Generation (EliGen) conditioning node for Qwen Image model.
+
+    Allows specifying different prompts for different spatial regions using masks.
+    Each entity (mask + prompt pair) will only influence its masked region through
+    spatial attention masking.
+
+    Features:
+    - Supports up to 3 entities per generation
+    - Spatial attention masks prevent cross-entity contamination
+    - Separate RoPE embeddings per entity (research-accurate)
+    - Falls back to standard generation if no entities provided
+
+    Usage:
+    1. Create spatial masks using LoadImageMask (white=entity, black=background)
+    2. Use 'red', 'green', or 'blue' channel (NOT 'alpha' - it gets inverted)
+    3. Provide entity-specific prompts for each masked region
+
+    Based on DiffSynth Studio: https://github.com/modelscope/DiffSynth-Studio
+    """
+
+    # Qwen Image model uses 2x2 patches on latents (which are 8x downsampled from pixels)
+    PATCH_SIZE = 2
+
     @classmethod
     def define_schema(cls):
         return io.Schema(
@@ -129,8 +156,18 @@ class TextEncodeQwenImageEliGen(io.ComfyNode):
         )
 
     @classmethod
-    def execute(cls, clip, global_conditioning, latent, entity_prompt_1="", entity_mask_1=None,
-                entity_prompt_2="", entity_mask_2=None, entity_prompt_3="", entity_mask_3=None) -> io.NodeOutput:
+    def execute(
+        cls,
+        clip,
+        global_conditioning,
+        latent,
+        entity_prompt_1: str = "",
+        entity_mask_1: Optional[torch.Tensor] = None,
+        entity_prompt_2: str = "",
+        entity_mask_2: Optional[torch.Tensor] = None,
+        entity_prompt_3: str = "",
+        entity_mask_3: Optional[torch.Tensor] = None
+    ) -> io.NodeOutput:
 
         # Extract dimensions from latent tensor
         # latent["samples"] shape: [batch, channels, latent_h, latent_w]
@@ -139,10 +176,9 @@ class TextEncodeQwenImageEliGen(io.ComfyNode):
         unpadded_latent_width = latent_samples.shape[3]   # Unpadded latent space
 
         # Calculate padded dimensions (same logic as model's pad_to_patch_size with patch_size=2)
-        # The model pads latents to be multiples of patch_size (2 for Qwen)
-        patch_size = 2
-        pad_h = (patch_size - unpadded_latent_height % patch_size) % patch_size
-        pad_w = (patch_size - unpadded_latent_width % patch_size) % patch_size
+        # The model pads latents to be multiples of PATCH_SIZE
+        pad_h = (cls.PATCH_SIZE - unpadded_latent_height % cls.PATCH_SIZE) % cls.PATCH_SIZE
+        pad_w = (cls.PATCH_SIZE - unpadded_latent_width % cls.PATCH_SIZE) % cls.PATCH_SIZE
         latent_height = unpadded_latent_height + pad_h  # Padded latent dimensions
         latent_width = unpadded_latent_width + pad_w     # Padded latent dimensions
 
@@ -150,8 +186,8 @@ class TextEncodeQwenImageEliGen(io.ComfyNode):
         width = latent_width * 8
 
         if pad_h > 0 or pad_w > 0:
-            print(f"[EliGen] Latent padding detected: {unpadded_latent_height}x{unpadded_latent_width} → {latent_height}x{latent_width}")
-        print(f"[EliGen] Target generation dimensions: {height}x{width} pixels ({latent_height}x{latent_width} latent)")
+            logger.debug(f"[EliGen] Latent padding detected: {unpadded_latent_height}x{unpadded_latent_width} → {latent_height}x{latent_width}")
+        logger.debug(f"[EliGen] Target generation dimensions: {height}x{width} pixels ({latent_height}x{latent_width} latent)")
 
         # Collect entity prompts and masks
         entity_prompts = [entity_prompt_1, entity_prompt_2, entity_prompt_3]
@@ -166,7 +202,7 @@ class TextEncodeQwenImageEliGen(io.ComfyNode):
         # Log warning if some entities were skipped
         total_prompts_provided = len([p for p in entity_prompts if p.strip()])
         if len(valid_entities) < total_prompts_provided:
-            print(f"[EliGen] Warning: Only {len(valid_entities)} of {total_prompts_provided} entity prompts have valid masks")
+            logger.warning(f"[EliGen] Only {len(valid_entities)} of {total_prompts_provided} entity prompts have valid masks")
 
         # If no valid entities, return standard conditioning
         if len(valid_entities) == 0:
@@ -200,7 +236,37 @@ class TextEncodeQwenImageEliGen(io.ComfyNode):
             # This is different from IMAGE type which is [batch, height, width, channels]
             mask_tensor = mask
 
-            # Log original mask dimensions
+            # Validate mask dtype
+            if mask_tensor.dtype not in [torch.float32, torch.float16, torch.bfloat16]:
+                raise TypeError(
+                    f"Entity {i+1} mask has invalid dtype {mask_tensor.dtype}. "
+                    f"Expected float32, float16, or bfloat16. "
+                    f"Ensure you're using LoadImageMask node, not LoadImage."
+                )
+
+            # Log original mask statistics
+            logger.debug(
+                f"[EliGen] Entity {i+1} input mask: shape={mask_tensor.shape}, "
+                f"dtype={mask_tensor.dtype}, min={mask_tensor.min():.4f}, max={mask_tensor.max():.4f}"
+            )
+
+            # Check for all-zero masks (common error when wrong channel selected)
+            if mask_tensor.max() == 0.0:
+                raise ValueError(
+                    f"Entity {i+1} mask is all zeros! This usually means:\n"
+                    f"  1. Wrong channel selected in LoadImageMask (use 'red', 'green', or 'blue', NOT 'alpha')\n"
+                    f"  2. Your mask image is completely black\n"
+                    f"  3. The mask file failed to load"
+                )
+
+            # Check for constant masks (no variation)
+            if mask_tensor.min() == mask_tensor.max() and mask_tensor.max() > 0:
+                logger.warning(
+                    f"[EliGen] Entity {i+1} mask has no variation (all pixels = {mask_tensor.min():.4f}). "
+                    f"This entity will affect the entire image."
+                )
+
+            # Extract original dimensions
             original_shape = mask_tensor.shape
             if len(original_shape) == 2:
                 # [height, width] - single mask without batch
@@ -211,7 +277,20 @@ class TextEncodeQwenImageEliGen(io.ComfyNode):
                 # [batch, height, width] - standard MASK format
                 orig_h, orig_w = original_shape[1], original_shape[2]
             else:
-                raise ValueError(f"Unexpected mask shape: {original_shape}. Expected [H, W] or [B, H, W]")
+                raise ValueError(
+                    f"Entity {i+1} has unexpected mask shape: {original_shape}. "
+                    f"Expected [H, W] or [B, H, W]. Got {len(original_shape)} dimensions."
+                )
+
+            # Log size mismatch if mask doesn't match expected latent dimensions
+            expected_h, expected_w = latent_height * 8, latent_width * 8
+            if orig_h != expected_h or orig_w != expected_w:
+                logger.info(
+                    f"[EliGen] Entity {i+1} mask size mismatch: {orig_h}x{orig_w} vs expected {expected_h}x{expected_w}. "
+                    f"Will resize to {latent_height}x{latent_width} latent space."
+                )
+            else:
+                logger.debug(f"[EliGen] Entity {i+1} mask: {orig_h}x{orig_w} → will resize to {latent_height}x{latent_width} latent")
 
             # Convert MASK format [batch, height, width] to [batch, 1, height, width] for common_upscale
             # common_upscale expects [batch, channels, height, width]
@@ -233,16 +312,31 @@ class TextEncodeQwenImageEliGen(io.ComfyNode):
             # Log how many pixels are active in the mask
             active_pixels = (resized_mask > 0).sum().item()
             total_pixels = resized_mask.numel()
+            coverage_pct = 100 * active_pixels / total_pixels if total_pixels > 0 else 0
+
+            if active_pixels == 0:
+                raise ValueError(
+                    f"Entity {i+1} mask has no active pixels after resizing to latent space! "
+                    f"Original mask may have been too small or all black."
+                )
+
+            logger.debug(
+                f"[EliGen] Entity {i+1} mask coverage: {active_pixels}/{total_pixels} pixels ({coverage_pct:.1f}%)"
+            )
 
             processed_entity_masks.append(resized_mask)
 
         # Stack masks: [batch, num_entities, 1, latent_height, latent_width]
         # Each item in processed_entity_masks has shape [1, 1, H, W] (batch=1, channel=1)
         # We need to remove batch dim, stack, then add it back
-        # Option 1: Squeeze batch dim from each mask
-        processed_no_batch = [m.squeeze(0) for m in processed_entity_masks]  # Each: [1, H, W]
-        entity_masks_tensor = torch.stack(processed_no_batch, dim=0)  # [num_entities, 1, H, W]
+        processed_entity_masks_no_batch = [m.squeeze(0) for m in processed_entity_masks]  # Each: [1, H, W]
+        entity_masks_tensor = torch.stack(processed_entity_masks_no_batch, dim=0)  # [num_entities, 1, H, W]
         entity_masks_tensor = entity_masks_tensor.unsqueeze(0)  # [1, num_entities, 1, H, W]
+
+        logger.debug(
+            f"[EliGen] Stacked {len(valid_entities)} entity masks into tensor: "
+            f"shape={entity_masks_tensor.shape} (expected: [1, {len(valid_entities)}, 1, {latent_height}, {latent_width}])"
+        )
 
         # Extract global prompt embedding and mask from conditioning
         # Conditioning format: [[cond_tensor, extra_dict]]
