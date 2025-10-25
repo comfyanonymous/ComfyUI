@@ -844,6 +844,45 @@ class SamplerCustomAdvanced:
             out_denoised = out
         return (out, out_denoised)
 
+
+class LoopingSamplerCustomAdvanced:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required":
+                    {
+                    "noise": ("NOISE", ),
+                    "guider": ("GUIDER", ),
+                    "sampler": ("SAMPLER", ),
+                    "sigmas": ("SIGMAS", ),
+                    "latent_image": ("LATENT", ),
+                     }
+                }
+
+    RETURN_TYPES = ("IMAGE",)
+    RETURN_NAMES = ("output",)
+
+    FUNCTION = "sample"
+
+    CATEGORY = "sampling/custom_sampling"
+    DESCRIPTION = "SamplerCustomAdvanced for models that alredy have decode latents in a loop generation such as InfiniteTalk"
+
+    def sample(self, noise, guider, sampler, sigmas, latent_image):
+        latent = latent_image
+        latent_image = latent["samples"]
+        latent = latent.copy()
+        latent_image = comfy.sample.fix_empty_latent_channels(guider.model_patcher, latent_image)
+        latent["samples"] = latent_image
+
+        noise_mask = None
+        if "noise_mask" in latent:
+            noise_mask = latent["noise_mask"]
+
+        samples = guider.sample(noise.generate_noise(latent), latent_image, sampler, sigmas, denoise_mask=noise_mask, callback=None, disable_pbar=False, seed=noise.seed)
+        result = samples.to(comfy.model_management.intermediate_device())
+
+        return (result[0].cpu().float(), )
+
+
 class AddNoise:
     @classmethod
     def INPUT_TYPES(s):
@@ -925,6 +964,7 @@ NODE_CLASS_MAPPINGS = {
     "DisableNoise": DisableNoise,
     "AddNoise": AddNoise,
     "SamplerCustomAdvanced": SamplerCustomAdvanced,
+    "LoopingSamplerCustomAdvanced": LoopingSamplerCustomAdvanced,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
