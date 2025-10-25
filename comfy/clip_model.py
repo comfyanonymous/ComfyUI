@@ -1,6 +1,27 @@
 import torch
-from comfy.ldm.modules.attention import optimized_attention_for_device
+from comfy.ldm.modules.attention import optimized_attention_for_device, MultiheadAttentionComfyv
 import comfy.ops
+
+class SiglipMultiheadAttentionPoolingHead(torch.nn.Module):
+    def __init__(self, hidden_size, num_attention_heads, layer_norm_eps, intermediate_size, activation, device=None, dtype=None, operations=None):
+        super().__init__()
+
+        self.probe = torch.nn.Parameter(torch.randn(1, 1, hidden_size, device=device, dtype=dtype))
+        self.attention = MultiheadAttentionComfyv(hidden_size, num_attention_heads, batch_first=True, device=device, dtype=dtype, operations=operations)
+        self.layernorm = operations.LayerNorm(hidden_size, eps=layer_norm_eps, device=device, dtype=dtype)
+        self.mlp = CLIPMLP(hidden_size, intermediate_size, activation = activation, device=device, dtype=dtype, operations=operations)
+
+    def forward(self, hidden_state):
+        batch_size = hidden_state.shape[0]
+        probe = self.probe.repeat(batch_size, 1, 1)
+
+        hidden_state = self.attention(probe, hidden_state, hidden_state)
+
+        residual = hidden_state
+        hidden_state = self.layernorm(hidden_state)
+        hidden_state = residual + self.mlp(hidden_state)
+
+        return hidden_state[:, 0]
 
 class CLIPAttention(torch.nn.Module):
     def __init__(self, embed_dim, heads, dtype, device, operations):
@@ -198,6 +219,8 @@ class CLIPVision(torch.nn.Module):
         intermediate_size = config_dict["intermediate_size"]
         intermediate_activation = config_dict["hidden_act"]
         model_type = config_dict["model_type"]
+        use_head = config_dict.get("use_head", False)
+        layer_norm_eps = config_dict.get("layer_norm_eps", 1e-6)
 
         self.embeddings = CLIPVisionEmbeddings(embed_dim, config_dict["num_channels"], config_dict["patch_size"], config_dict["image_size"], model_type=model_type, dtype=dtype, device=device, operations=operations)
         if model_type == "siglip_vision_model":
@@ -208,6 +231,11 @@ class CLIPVision(torch.nn.Module):
             self.output_layernorm = False
         self.encoder = CLIPEncoder(num_layers, embed_dim, heads, intermediate_size, intermediate_activation, dtype, device, operations)
         self.post_layernorm = operations.LayerNorm(embed_dim)
+        self.use_head = use_head
+        if use_head:
+            self.head = SiglipMultiheadAttentionPoolingHead(
+                hidden_size=embed_dim, num_attention_heads=heads, layer_norm_eps=layer_norm_eps, intermediate_size=intermediate_size, activation=intermediate_activation, device=device, dtype=dtype, operations=operations
+            )
 
     def forward(self, pixel_values, attention_mask=None, intermediate_output=None):
         x = self.embeddings(pixel_values)
@@ -216,7 +244,10 @@ class CLIPVision(torch.nn.Module):
         x, i = self.encoder(x, mask=None, intermediate_output=intermediate_output)
         if self.output_layernorm:
             x = self.post_layernorm(x)
-            pooled_output = x
+            if self.use_head:
+                pooled_output = self.head(x)
+            else:
+                pooled_output = x
         else:
             pooled_output = self.post_layernorm(x[:, 0, :])
         return x, i, pooled_output

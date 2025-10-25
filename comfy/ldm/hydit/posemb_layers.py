@@ -158,7 +158,7 @@ def get_2d_rotary_pos_embed_from_grid(embed_dim, grid, use_real=False):
         return emb
 
 
-def get_1d_rotary_pos_embed(dim: int, pos: Union[np.ndarray, int], theta: float = 10000.0, use_real=False):
+def get_1d_rotary_pos_embed(dim: int, pos: Union[np.ndarray, int], theta: float = 10000.0, use_real=False, freq_scaling = 1.0):
     """
     Precompute the frequency tensor for complex exponentials (cis) with given dimensions.
 
@@ -180,7 +180,13 @@ def get_1d_rotary_pos_embed(dim: int, pos: Union[np.ndarray, int], theta: float 
     if isinstance(pos, int):
         pos = np.arange(pos)
     freqs = 1.0 / (theta ** (torch.arange(0, dim, 2)[: (dim // 2)].float() / dim))  # [D/2]
-    t = torch.from_numpy(pos).to(freqs.device)  # type: ignore  # [S]
+
+    if freq_scaling != 1.0:
+        freqs *= freq_scaling
+    if not isinstance(pos, torch.Tensor):
+        t = torch.from_numpy(pos).to(freqs.device)  # type: ignore  # [S]
+    else:
+        t = pos.to(freqs.device)
     freqs = torch.outer(t, freqs).float()  # type: ignore   # [S, D/2]
     if use_real:
         freqs_cos = freqs.cos().repeat_interleave(2, dim=1)  # [S, D]
