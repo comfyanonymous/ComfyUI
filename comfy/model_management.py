@@ -89,6 +89,7 @@ if args.deterministic:
 
 directml_enabled = False
 if args.directml is not None:
+    logging.warning("WARNING: torch-directml barely works, is very slow, has not been updated in over 1 year and might be removed soon, please don't use it, there are better options.")
     import torch_directml
     directml_enabled = True
     device_index = args.directml
