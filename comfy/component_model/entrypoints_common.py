@@ -22,8 +22,8 @@ def configure_application_paths(args: Configuration, folder_names: Optional[Fold
     if args.temp_directory:
         folder_names.application_paths.temp_directory = construct_path(args.temp_directory)
     if args.extra_model_paths_config:
-        for config_path in itertools.chain(*args.extra_model_paths_config):
-            load_extra_path_config(config_path, folder_names=folder_names)
+        for config_path in args.extra_model_paths_config:
+            load_extra_path_config(config_path)
 
 
 async def executor_from_args(configuration:Optional[Configuration]=None):
