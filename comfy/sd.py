@@ -143,6 +143,9 @@ class CLIP:
         n.apply_hooks_to_conds = self.apply_hooks_to_conds
         return n
 
+    def get_ram_usage(self):
+        return self.patcher.get_ram_usage()
+
     def add_patches(self, patches, strength_patch=1.0, strength_model=1.0):
         return self.patcher.add_patches(patches, strength_patch, strength_model)
 
@@ -293,6 +296,7 @@ class VAE:
         self.working_dtypes = [torch.bfloat16, torch.float32]
         self.disable_offload = False
         self.not_video = False
+        self.size = None
 
         self.downscale_index_formula = None
         self.upscale_index_formula = None
@@ -595,6 +599,16 @@ class VAE:
 
         self.patcher = comfy.model_patcher.ModelPatcher(self.first_stage_model, load_device=self.device, offload_device=offload_device)
         logging.info("VAE load device: {}, offload device: {}, dtype: {}".format(self.device, offload_device, self.vae_dtype))
+        self.model_size()
+
+    def model_size(self):
+        if self.size is not None:
+            return self.size
+        self.size = comfy.model_management.module_size(self.first_stage_model)
+        return self.size
+
+    def get_ram_usage(self):
+        return self.model_size()
 
     def throw_exception_if_invalid(self):
         if self.first_stage_model is None:
