@@ -17,7 +17,7 @@ def prepare_noise_inner(latent_image, generator, noise_inds=None):
         if i in unique_inds:
             noises.append(noise)
     noises = [noises[i] for i in inverse]
-    noises = torch.cat(noises, axis=0)
+    return torch.cat(noises, axis=0)
 
 def prepare_noise(latent_image, seed, noise_inds=None):
     """
