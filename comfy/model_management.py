@@ -90,6 +90,7 @@ if args.deterministic:
 
 directml_enabled = False
 if args.directml is not None:
+    logging.warning("WARNING: torch-directml barely works, is very slow, has not been updated in over 1 year and might be removed soon, please don't use it, there are better options.")
     import torch_directml
     directml_enabled = True
     device_index = args.directml
@@ -998,12 +999,6 @@ def device_supports_non_blocking(device):
     if directml_enabled:
         return False
     return True
-
-def device_should_use_non_blocking(device):
-    if not device_supports_non_blocking(device):
-        return False
-    return False
-    # return True #TODO: figure out why this causes memory issues on Nvidia and possibly others
 
 def force_channels_last():
     if args.force_channels_last:

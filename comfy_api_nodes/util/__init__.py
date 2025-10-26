@@ -18,8 +18,10 @@ from .conversions import (
     tensor_to_bytesio,
     tensor_to_pil,
     trim_video,
+    video_to_base64_string,
 )
 from .download_helpers import (
+    download_url_as_bytesio,
     download_url_to_bytesio,
     download_url_to_image_tensor,
     download_url_to_video_output,
@@ -56,6 +58,7 @@ __all__ = [
     "upload_images_to_comfyapi",
     "upload_video_to_comfyapi",
     # Download helpers
+    "download_url_as_bytesio",
     "download_url_to_bytesio",
     "download_url_to_image_tensor",
     "download_url_to_video_output",
@@ -71,6 +74,7 @@ __all__ = [
     "tensor_to_bytesio",
     "tensor_to_pil",
     "trim_video",
+    "video_to_base64_string",
     # Validation utilities
     "get_number_of_images",
     "validate_aspect_ratio_closeness",
