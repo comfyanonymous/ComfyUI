@@ -2,7 +2,6 @@ import asyncio
 import contextlib
 import json
 import logging
-import socket
 import time
 import uuid
 from dataclasses import dataclass
@@ -456,24 +455,20 @@ async def _diagnose_connectivity() -> dict[str, bool]:
     results = {
         "internet_accessible": False,
         "api_accessible": False,
-        "is_local_issue": False,
-        "is_api_issue": False,
     }
     timeout = aiohttp.ClientTimeout(total=5.0)
     async with aiohttp.ClientSession(timeout=timeout) as session:
-        try:
+        with contextlib.suppress(ClientError, OSError):
             async with session.get("https://www.google.com") as resp:
                 results["internet_accessible"] = resp.status < 500
-        except (ClientError, asyncio.TimeoutError, socket.gaierror):
-            results["is_local_issue"] = True
+        if not results["internet_accessible"]:
             return results
 
         parsed = urlparse(default_base_url())
         health_url = f"{parsed.scheme}://{parsed.netloc}/health"
-        with contextlib.suppress(ClientError, asyncio.TimeoutError):
+        with contextlib.suppress(ClientError, OSError):
             async with session.get(health_url) as resp:
                 results["api_accessible"] = resp.status < 500
-    results["is_api_issue"] = results["internet_accessible"] and not results["api_accessible"]
     return results
 
 
@@ -790,7 +785,7 @@ async def _request_base(cfg: _RequestConfig, expect_binary: bool):
         except ProcessingInterrupted:
             logging.debug("Polling was interrupted by user")
             raise
-        except (ClientError, asyncio.TimeoutError, socket.gaierror) as e:
+        except (ClientError, OSError) as e:
             if attempt <= cfg.max_retries:
                 logging.warning(
                     "Connection error calling %s %s. Retrying in %.2fs (%d/%d): %s",
@@ -824,7 +819,7 @@ async def _request_base(cfg: _RequestConfig, expect_binary: bool):
                 delay *= cfg.retry_backoff
                 continue
             diag = await _diagnose_connectivity()
-            if diag.get("is_local_issue"):
+            if not diag["internet_accessible"]:
                 try:
                     request_logger.log_request_response(
                         operation_id=operation_id,
