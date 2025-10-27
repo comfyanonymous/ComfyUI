@@ -143,7 +143,7 @@ class QuantizedTensor(torch.Tensor):
         """
         Tensor flattening protocol for proper device movement.
         """
-        inner_tensors = ["_q_data"]
+        inner_tensors = ["_qdata"]
         ctx = {
             "layout_type": self._layout_type,
         }
@@ -206,7 +206,7 @@ class QuantizedTensor(torch.Tensor):
         
         # Step 3: Fallback to dequantization
         if isinstance(args[0] if args else None, QuantizedTensor):
-            logging.warning(f"QuantizedTensor: Unhandled operation {func}, falling back to dequantization. kwargs={kwargs}")
+            logging.info(f"QuantizedTensor: Unhandled operation {func}, falling back to dequantization. kwargs={kwargs}")
         return cls._dequant_and_fallback(func, args, kwargs)
     
     @classmethod

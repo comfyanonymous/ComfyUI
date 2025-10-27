@@ -566,7 +566,7 @@ class MixedPrecisionOps(disable_weight_init):
 
         def forward_comfy_cast_weights(self, input):
             weight, bias = cast_bias_weight(self, input)
-            self._forward(input, weight, bias)
+            return self._forward(input, weight, bias)
 
         def forward(self, input, *args, **kwargs):
             run_every_op()
