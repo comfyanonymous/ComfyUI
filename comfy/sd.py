@@ -1330,7 +1330,10 @@ def load_diffusion_model_state_dict(sd, model_options={}, metadata=None):
     else:
         unet_dtype = dtype
 
-    manual_cast_dtype = model_management.unet_manual_cast(unet_dtype, load_device, model_config.supported_inference_dtypes)
+    if hasattr(model_config, "layer_quant_config"):
+        manual_cast_dtype = model_management.unet_manual_cast(None, load_device, model_config.supported_inference_dtypes)
+    else:
+        manual_cast_dtype = model_management.unet_manual_cast(unet_dtype, load_device, model_config.supported_inference_dtypes)
     model_config.set_inference_dtype(unet_dtype, manual_cast_dtype)
     model_config.custom_operations = model_options.get("custom_operations", model_config.custom_operations)
     if model_options.get("fp8_optimizations", False):

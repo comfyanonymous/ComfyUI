@@ -7,8 +7,7 @@ import logging
 import torch
 
 
-def detect_layer_quantization(state_dict, metadata, prefix="model.diffusion_model."):
-    # 1. Check for per-layer config in metadata
+def detect_layer_quantization(metadata):
     quant_key = "_quantization_metadata"
     if metadata is not None and quant_key in metadata:
         quant_metadata = metadata.pop(quant_key)
@@ -18,13 +17,6 @@ def detect_layer_quantization(state_dict, metadata, prefix="model.diffusion_mode
             return quant_metadata["layers"]
         else:
             raise ValueError(f"Invalid quantization metadata format")
-    
-    # 2. Check for legacy scaled_fp8 marker
-    scaled_fp8_key = f"{prefix}scaled_fp8"
-    if scaled_fp8_key in state_dict:
-        logging.debug("Detected legacy scaled_fp8 format, using legacy code path")
-        return None
-
     return None
 
 
@@ -724,7 +716,7 @@ def model_config_from_unet(state_dict, unet_key_prefix, use_base_if_no_match=Fal
             model_config.optimizations["fp8"] = True
 
     # Detect per-layer quantization (mixed precision)
-    layer_quant_config = detect_layer_quantization(state_dict, metadata, unet_key_prefix)
+    layer_quant_config = detect_layer_quantization(metadata)
     if layer_quant_config:
         model_config.layer_quant_config = layer_quant_config
         logging.info(f"Detected mixed precision quantization: {len(layer_quant_config)} layers quantized")
