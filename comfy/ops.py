@@ -581,11 +581,9 @@ class MixedPrecisionOps(disable_weight_init):
     
 
 def pick_operations(weight_dtype, compute_dtype, load_device=None, disable_fast_fp8=False, fp8_optimizations=False, scaled_fp8=None, model_config=None):
-    # If model_config.layer_quant_config exists, use new MixedPrecisionOps.
     if model_config and hasattr(model_config, 'layer_quant_config') and model_config.layer_quant_config:
         MixedPrecisionOps._layer_quant_config = model_config.layer_quant_config
-        # MixedPrecisionOps._compute_dtype = compute_dtype # TODO
-        MixedPrecisionOps._compute_dtype = torch.bfloat16
+        MixedPrecisionOps._compute_dtype = compute_dtype
         logging.info(f"Using mixed precision operations: {len(model_config.layer_quant_config)} quantized layers")
         return MixedPrecisionOps
     

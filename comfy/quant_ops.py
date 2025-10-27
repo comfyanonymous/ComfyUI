@@ -75,21 +75,6 @@ def _copy_layout_params(params):
     return new_params
 
 
-try:
-    import comfy_kitchen as ck
-    ck.disable_backend("cutile")
-    _CK_AVAILABLE = True
-    logging.info("comfy_kitchen available for optimized quantization kernels")
-except ImportError:
-    ck = None
-    _CK_AVAILABLE = False
-    logging.info("comfy_kitchen not available - using PyTorch fallbacks")
-except Exception as e:
-    ck = None
-    _CK_AVAILABLE = False
-    logging.warning(f"comfy_kitchen import failed: {e} - using PyTorch fallbacks")
-
-
 class QuantizedLayout:
     """
     Base class for quantization layouts.
@@ -372,13 +357,10 @@ class TensorCoreFP8Layout(QuantizedLayout):
             scale = torch.tensor(scale)
         scale = scale.to(device=tensor.device, dtype=torch.float32)
 
-        if _CK_AVAILABLE and tensor.device.type == "cuda":
-            qdata = ck.quantize_per_tensor_fp8(tensor, scale, fp8_dtype)
-        else:
-            lp_amax = torch.finfo(fp8_dtype).max
-            tensor_scaled = tensor.float() / scale
-            torch.clamp(tensor_scaled, min=-lp_amax, max=lp_amax, out=tensor_scaled)
-            qdata = tensor_scaled.to(fp8_dtype, memory_format=torch.contiguous_format)
+        lp_amax = torch.finfo(fp8_dtype).max
+        tensor_scaled = tensor.float() / scale
+        torch.clamp(tensor_scaled, min=-lp_amax, max=lp_amax, out=tensor_scaled)
+        qdata = tensor_scaled.to(fp8_dtype, memory_format=torch.contiguous_format)
 
         layout_params = {
             'scale': scale,
