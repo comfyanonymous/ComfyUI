@@ -32,7 +32,7 @@ async def download_url_to_bytesio(
     dest: Optional[Union[BytesIO, IO[bytes], str, Path]],
     *,
     timeout: Optional[float] = None,
-    max_retries: int = 3,
+    max_retries: int = 5,
     retry_delay: float = 1.0,
     retry_backoff: float = 2.0,
     cls: type[COMFY_IO.ComfyNode] = None,
@@ -177,7 +177,7 @@ async def download_url_to_bytesio(
                 return
         except asyncio.CancelledError:
             raise ProcessingInterrupted("Task cancelled") from None
-        except (ClientError, asyncio.TimeoutError) as e:
+        except (ClientError, OSError) as e:
             if attempt <= max_retries:
                 with contextlib.suppress(Exception):
                     request_logger.log_request_response(
@@ -191,7 +191,7 @@ async def download_url_to_bytesio(
                 continue
 
             diag = await _diagnose_connectivity()
-            if diag.get("is_local_issue"):
+            if not diag["internet_accessible"]:
                 raise LocalNetworkError(
                     "Unable to connect to the network. Please check your internet connection and try again."
                 ) from e
