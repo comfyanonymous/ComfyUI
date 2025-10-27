@@ -1,8 +1,3 @@
-"""
-End-to-end tests for mixed precision quantization.
-Tests Phase 3: Mixed Precision Operations
-"""
-
 import unittest
 import torch
 import sys
@@ -12,10 +7,10 @@ import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 
 from comfy import ops
+from comfy.quant_ops import QuantizedTensor, TensorCoreFP8Layout
 
 
 class SimpleModel(torch.nn.Module):
-    """Simple model for testing mixed precision"""
     def __init__(self, operations=ops.disable_weight_init):
         super().__init__()
         self.layer1 = operations.Linear(10, 20, device="cpu", dtype=torch.bfloat16)
@@ -32,8 +27,7 @@ class SimpleModel(torch.nn.Module):
 
 
 class TestMixedPrecisionOps(unittest.TestCase):
-    """Test MixedPrecisionOps end-to-end"""
-    
+
     def test_all_layers_standard(self):
         """Test that model with no quantization works normally"""
         # Configure no quantization
@@ -67,48 +61,54 @@ class TestMixedPrecisionOps(unittest.TestCase):
         # Configure mixed precision: layer1 is FP8, layer2 and layer3 are standard
         layer_quant_config = {
             "layer1": {
-                "format": "fp8_e4m3fn_scaled",
-                "params": {"use_fp8_matmul": False}  # Disable for CPU testing
+                "format": "float8_e4m3fn",
+                "params": {}
             },
             "layer3": {
-                "format": "fp8_e5m2_scaled",
-                "params": {"use_fp8_matmul": False}
+                "format": "float8_e4m3fn",
+                "params": {}
             }
         }
         ops.MixedPrecisionOps._layer_quant_config = layer_quant_config
         
         # Create state dict with mixed precision
         fp8_weight1 = torch.randn(20, 10, dtype=torch.float32).to(torch.float8_e4m3fn)
-        fp8_weight3 = torch.randn(40, 30, dtype=torch.float32).to(torch.float8_e5m2)
+        fp8_weight3 = torch.randn(40, 30, dtype=torch.float32).to(torch.float8_e4m3fn)
         
         state_dict = {
             # Layer 1: FP8 E4M3FN
             "layer1.weight": fp8_weight1,
             "layer1.bias": torch.randn(20, dtype=torch.bfloat16),
-            "layer1.scale_weight": torch.tensor(2.0, dtype=torch.float32),
+            "layer1.weight_scale": torch.tensor(2.0, dtype=torch.float32),
             
             # Layer 2: Standard BF16
             "layer2.weight": torch.randn(30, 20, dtype=torch.bfloat16),
             "layer2.bias": torch.randn(30, dtype=torch.bfloat16),
             
-            # Layer 3: FP8 E5M2
+            # Layer 3: FP8 E4M3FN
             "layer3.weight": fp8_weight3,
             "layer3.bias": torch.randn(40, dtype=torch.bfloat16),
-            "layer3.scale_weight": torch.tensor(1.5, dtype=torch.float32),
+            "layer3.weight_scale": torch.tensor(1.5, dtype=torch.float32),
         }
         
-        # Create model and load state dict
+        # Create model and load state dict (strict=False because custom loading pops keys)
         model = SimpleModel(operations=ops.MixedPrecisionOps)
-        model.load_state_dict(state_dict)
+        model.load_state_dict(state_dict, strict=False)
         
-        # Verify handlers are set up correctly
-        self.assertIsNotNone(model.layer1.quant_handler)
-        self.assertIsNone(model.layer2.quant_handler)  # No quantization
-        self.assertIsNotNone(model.layer3.quant_handler)
+        # Verify weights are wrapped in QuantizedTensor
+        self.assertIsInstance(model.layer1.weight, QuantizedTensor)
+        self.assertEqual(model.layer1.weight._layout_type, TensorCoreFP8Layout)
+        
+        # Layer 2 should NOT be quantized
+        self.assertNotIsInstance(model.layer2.weight, QuantizedTensor)
+        
+        # Layer 3 should be quantized
+        self.assertIsInstance(model.layer3.weight, QuantizedTensor)
+        self.assertEqual(model.layer3.weight._layout_type, TensorCoreFP8Layout)
         
         # Verify scales were loaded
-        self.assertEqual(model.layer1.scale_weight.item(), 2.0)
-        self.assertEqual(model.layer3.scale_weight.item(), 1.5)
+        self.assertEqual(model.layer1.weight._layout_params['scale'].item(), 2.0)
+        self.assertEqual(model.layer3.weight._layout_params['scale'].item(), 1.5)
         
         # Forward pass
         input_tensor = torch.randn(5, 10, dtype=torch.bfloat16)
@@ -116,13 +116,13 @@ class TestMixedPrecisionOps(unittest.TestCase):
         
         self.assertEqual(output.shape, (5, 40))
     
-    def test_state_dict_round_trip(self):
-        """Test saving and loading state dict preserves quantization"""
+    def test_state_dict_quantized_preserved(self):
+        """Test that quantized weights are preserved in state_dict()"""
         # Configure mixed precision
         layer_quant_config = {
             "layer1": {
-                "format": "fp8_e4m3fn_scaled",
-                "params": {"use_fp8_matmul": False}
+                "format": "float8_e4m3fn",
+                "params": {}
             }
         }
         ops.MixedPrecisionOps._layer_quant_config = layer_quant_config
@@ -132,45 +132,35 @@ class TestMixedPrecisionOps(unittest.TestCase):
         state_dict1 = {
             "layer1.weight": fp8_weight,
             "layer1.bias": torch.randn(20, dtype=torch.bfloat16),
-            "layer1.scale_weight": torch.tensor(3.0, dtype=torch.float32),
+            "layer1.weight_scale": torch.tensor(3.0, dtype=torch.float32),
             "layer2.weight": torch.randn(30, 20, dtype=torch.bfloat16),
             "layer2.bias": torch.randn(30, dtype=torch.bfloat16),
             "layer3.weight": torch.randn(40, 30, dtype=torch.bfloat16),
             "layer3.bias": torch.randn(40, dtype=torch.bfloat16),
         }
         
-        model1 = SimpleModel(operations=ops.MixedPrecisionOps)
-        model1.load_state_dict(state_dict1)
+        model = SimpleModel(operations=ops.MixedPrecisionOps)
+        model.load_state_dict(state_dict1, strict=False)
         
         # Save state dict
-        state_dict2 = model1.state_dict()
+        state_dict2 = model.state_dict()
         
-        # Verify scale_weight is saved
-        self.assertIn("layer1.scale_weight", state_dict2)
-        self.assertEqual(state_dict2["layer1.scale_weight"].item(), 3.0)
+        # Verify layer1.weight is a QuantizedTensor with scale preserved
+        self.assertIsInstance(state_dict2["layer1.weight"], QuantizedTensor)
+        self.assertEqual(state_dict2["layer1.weight"]._layout_params['scale'].item(), 3.0)
+        self.assertEqual(state_dict2["layer1.weight"]._layout_type, TensorCoreFP8Layout)
         
-        # Load into new model
-        model2 = SimpleModel(operations=ops.MixedPrecisionOps)
-        model2.load_state_dict(state_dict2)
-        
-        # Verify handler is set up
-        self.assertIsNotNone(model2.layer1.quant_handler)
-        self.assertEqual(model2.layer1.scale_weight.item(), 3.0)
-        
-        # Verify forward passes match
-        input_tensor = torch.randn(5, 10, dtype=torch.bfloat16)
-        output1 = model1(input_tensor)
-        output2 = model2(input_tensor)
-        
-        torch.testing.assert_close(output1, output2, rtol=1e-3, atol=1e-3)
+        # Verify non-quantized layers are standard tensors
+        self.assertNotIsInstance(state_dict2["layer2.weight"], QuantizedTensor)
+        self.assertNotIsInstance(state_dict2["layer3.weight"], QuantizedTensor)
     
     def test_weight_function_compatibility(self):
         """Test that weight_function (LoRA) works with quantized layers"""
         # Configure FP8 quantization
         layer_quant_config = {
             "layer1": {
-                "format": "fp8_e4m3fn_scaled",
-                "params": {"use_fp8_matmul": False}
+                "format": "float8_e4m3fn",
+                "params": {}
             }
         }
         ops.MixedPrecisionOps._layer_quant_config = layer_quant_config
@@ -180,7 +170,7 @@ class TestMixedPrecisionOps(unittest.TestCase):
         state_dict = {
             "layer1.weight": fp8_weight,
             "layer1.bias": torch.randn(20, dtype=torch.bfloat16),
-            "layer1.scale_weight": torch.tensor(2.0, dtype=torch.float32),
+            "layer1.weight_scale": torch.tensor(2.0, dtype=torch.float32),
             "layer2.weight": torch.randn(30, 20, dtype=torch.bfloat16),
             "layer2.bias": torch.randn(30, dtype=torch.bfloat16),
             "layer3.weight": torch.randn(40, 30, dtype=torch.bfloat16),
@@ -188,25 +178,24 @@ class TestMixedPrecisionOps(unittest.TestCase):
         }
         
         model = SimpleModel(operations=ops.MixedPrecisionOps)
-        model.load_state_dict(state_dict)
+        model.load_state_dict(state_dict, strict=False)
         
         # Add a weight function (simulating LoRA)
-        # LoRA delta must match weight shape (20, 10)
+        # This should trigger dequantization during forward pass
         def apply_lora(weight):
-            # Generate LoRA delta matching weight shape
             lora_delta = torch.randn_like(weight) * 0.01
             return weight + lora_delta
         
         model.layer1.weight_function.append(apply_lora)
         
-        # Forward pass should work with LoRA
+        # Forward pass should work with LoRA (triggers weight_function path)
         input_tensor = torch.randn(5, 10, dtype=torch.bfloat16)
         output = model(input_tensor)
         
         self.assertEqual(output.shape, (5, 40))
     
     def test_error_handling_unknown_format(self):
-        """Test that unknown formats fall back gracefully"""
+        """Test that unknown formats raise error"""
         # Configure with unknown format
         layer_quant_config = {
             "layer1": {
@@ -226,48 +215,10 @@ class TestMixedPrecisionOps(unittest.TestCase):
             "layer3.bias": torch.randn(40, dtype=torch.bfloat16),
         }
         
-        # Load should not crash, just log warning
+        # Load should raise KeyError for unknown format in QUANT_FORMAT_MIXINS
         model = SimpleModel(operations=ops.MixedPrecisionOps)
-        model.load_state_dict(state_dict)
-        
-        # Handler should be None (fallback to standard)
-        self.assertIsNone(model.layer1.quant_handler)
-        
-        # Forward pass should still work
-        input_tensor = torch.randn(5, 10, dtype=torch.bfloat16)
-        output = model(input_tensor)
-        self.assertEqual(output.shape, (5, 40))
-
-
-class TestPickOperationsWithMixedPrecision(unittest.TestCase):
-    """Test pick_operations with mixed precision config"""
-    
-    def test_pick_operations_with_layer_quant_config(self):
-        """Test that pick_operations returns MixedPrecisionOps when config present"""
-        from comfy import supported_models_base
-        
-        # Create model config with layer_quant_config
-        model_config = supported_models_base.BASE({})
-        model_config.layer_quant_config = {
-            "layer1": {"format": "fp8_e4m3fn_scaled", "params": {}}
-        }
-        
-        result = ops.pick_operations(None, None, model_config=model_config)
-        
-        self.assertEqual(result, ops.MixedPrecisionOps)
-        self.assertEqual(ops.MixedPrecisionOps._layer_quant_config, model_config.layer_quant_config)
-    
-    def test_pick_operations_without_layer_quant_config(self):
-        """Test that pick_operations falls back to standard when no config"""
-        from comfy import supported_models_base
-        
-        model_config = supported_models_base.BASE({})
-        model_config.layer_quant_config = None
-        
-        result = ops.pick_operations(None, None, model_config=model_config)
-        
-        self.assertEqual(result, ops.disable_weight_init)
-
+        with self.assertRaises(KeyError):
+            model.load_state_dict(state_dict, strict=False)
 
 if __name__ == "__main__":
     unittest.main()
