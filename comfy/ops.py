@@ -345,7 +345,7 @@ class manual_cast(disable_weight_init):
 
 def fp8_linear(self, input):
     """
-    Legacy FP8 linear function for backward compatibility. 
+    Legacy FP8 linear function for backward compatibility.
     Uses QuantizedTensor subclass for dispatch.
     """
     dtype = self.weight.dtype
@@ -359,7 +359,7 @@ def fp8_linear(self, input):
 
     input_shape = input.shape
     input_dtype = input.dtype
-    
+
     if len(input.shape) == 3:
         w, bias = cast_bias_weight(self, input, dtype=dtype, bias_dtype=input_dtype)
 
@@ -374,14 +374,14 @@ def fp8_linear(self, input):
             scale_input = torch.ones((), device=input.device, dtype=torch.float32)
         else:
             scale_input = scale_input.to(input.device)
-        
+
         # Wrap weight in QuantizedTensor - this enables unified dispatch
         # Call F.linear - __torch_dispatch__ routes to fp8_linear handler in quant_ops.py!
         layout_params_weight = {'scale': scale_weight, 'orig_dtype': input_dtype}
         quantized_weight = QuantizedTensor(w, TensorCoreFP8Layout, layout_params_weight)
         quantized_input = QuantizedTensor.from_float(input.reshape(-1, input_shape[2]), TensorCoreFP8Layout, scale=scale_input, fp8_dtype=dtype)
         o = torch.nn.functional.linear(quantized_input, quantized_weight, bias)
-        
+
         if tensor_2d:
             return o.reshape(input_shape[0], -1)
         return o.reshape((-1, input_shape[1], self.weight.shape[0]))
@@ -523,8 +523,8 @@ class MixedPrecisionOps(disable_weight_init):
 
         def reset_parameters(self):
             return None
-        
-        def _load_from_state_dict(self, state_dict, prefix, local_metadata, 
+
+        def _load_from_state_dict(self, state_dict, prefix, local_metadata,
                                   strict, missing_keys, unexpected_keys, error_msgs):
 
             device = self.factory_kwargs["device"]
@@ -540,10 +540,10 @@ class MixedPrecisionOps(disable_weight_init):
                 quant_format = MixedPrecisionOps._layer_quant_config[layer_name].get("format", None)
                 if quant_format is None:
                     raise ValueError(f"Unknown quantization format for layer {layer_name}")
-                
+
                 mixin = QUANT_FORMAT_MIXINS[quant_format]
                 self.layout_type = mixin["layout_type"]
-                
+
                 layout_params = {
                     'scale': state_dict.pop(f"{prefix}weight_scale", None),
                     'orig_dtype': MixedPrecisionOps._compute_dtype
@@ -578,7 +578,7 @@ class MixedPrecisionOps(disable_weight_init):
                 not isinstance(input, QuantizedTensor)):
                 input = QuantizedTensor.from_float(input, self.layout_type, scale=self.input_scale, fp8_dtype=self.weight.dtype)
             return self._forward(input, self.weight, self.bias)
-    
+
 
 def pick_operations(weight_dtype, compute_dtype, load_device=None, disable_fast_fp8=False, fp8_optimizations=False, scaled_fp8=None, model_config=None):
     if model_config and hasattr(model_config, 'layer_quant_config') and model_config.layer_quant_config:
@@ -586,7 +586,7 @@ def pick_operations(weight_dtype, compute_dtype, load_device=None, disable_fast_
         MixedPrecisionOps._compute_dtype = compute_dtype
         logging.info(f"Using mixed precision operations: {len(model_config.layer_quant_config)} quantized layers")
         return MixedPrecisionOps
-    
+
     fp8_compute = comfy.model_management.supports_fp8_compute(load_device)
     if scaled_fp8 is not None:
         return scaled_fp8_ops(fp8_matrix_mult=fp8_compute and fp8_optimizations, scale_input=fp8_optimizations, override_dtype=scaled_fp8)

@@ -31,7 +31,7 @@ def register_generic_util(torch_op):
     Decorator to register a generic utility that works for all layouts.
     Args:
         torch_op: PyTorch operation (e.g., torch.ops.aten.detach.default)
-    
+
     Example:
         @register_generic_util(torch.ops.aten.detach.default)
         def generic_detach(func, args, kwargs):
@@ -78,10 +78,10 @@ def _copy_layout_params(params):
 class QuantizedLayout:
     """
     Base class for quantization layouts.
-    
+
     A layout encapsulates the format-specific logic for quantization/dequantization
     and provides a uniform interface for extracting raw tensors needed for computation.
-    
+
     New quantization formats should subclass this and implement the required methods.
     """
     @classmethod
@@ -90,8 +90,8 @@ class QuantizedLayout:
 
     @staticmethod
     def dequantize(qdata, **layout_params) -> torch.Tensor:
-        raise NotImplementedError(f"TensorLayout must implement dequantize()")
-    
+        raise NotImplementedError("TensorLayout must implement dequantize()")
+
     @classmethod
     def get_plain_tensors(cls, qtensor) -> torch.Tensor:
         raise NotImplementedError(f"{cls.__name__} must implement get_plain_tensors()")
@@ -100,45 +100,45 @@ class QuantizedLayout:
 class QuantizedTensor(torch.Tensor):
     """
     Universal quantized tensor that works with any layout.
-    
+
     This tensor subclass uses a pluggable layout system to support multiple
     quantization formats (FP8, INT4, INT8, etc.) without code duplication.
-    
+
     The layout_type determines format-specific behavior, while common operations
     (detach, clone, to) are handled generically.
-    
+
     Attributes:
         _qdata: The quantized tensor data
         _layout_type: Layout class (e.g., TensorCoreFP8Layout)
         _layout_params: Dict with layout-specific params (scale, zero_point, etc.)
     """
-    
+
     @staticmethod
     def __new__(cls, qdata, layout_type, layout_params):
         """
         Create a quantized tensor.
-        
+
         Args:
             qdata: The quantized data tensor
             layout_type: Layout class (subclass of QuantizedLayout)
             layout_params: Dict with layout-specific parameters
         """
         return torch.Tensor._make_subclass(cls, qdata, require_grad=False)
-    
+
     def __init__(self, qdata, layout_type, layout_params):
         self._qdata = qdata.contiguous()
         self._layout_type = layout_type
         self._layout_params = layout_params
-    
+
     def __repr__(self):
         layout_name = self._layout_type.__name__
         param_str = ", ".join(f"{k}={v}" for k, v in list(self._layout_params.items())[:2])
         return f"QuantizedTensor(shape={self.shape}, layout={layout_name}, {param_str})"
-    
+
     @property
     def layout_type(self):
         return self._layout_type
-    
+
     def __tensor_flatten__(self):
         """
         Tensor flattening protocol for proper device movement.
@@ -147,7 +147,7 @@ class QuantizedTensor(torch.Tensor):
         ctx = {
             "layout_type": self._layout_type,
         }
-        
+
         tensor_params = {}
         non_tensor_params = {}
         for k, v in self._layout_params.items():
@@ -155,17 +155,17 @@ class QuantizedTensor(torch.Tensor):
                 tensor_params[k] = v
             else:
                 non_tensor_params[k] = v
-        
+
         ctx["tensor_param_keys"] = list(tensor_params.keys())
         ctx["non_tensor_params"] = non_tensor_params
-        
+
         for k, v in tensor_params.items():
             attr_name = f"_layout_param_{k}"
             object.__setattr__(self, attr_name, v)
             inner_tensors.append(attr_name)
-        
+
         return inner_tensors, ctx
-    
+
     @staticmethod
     def __tensor_unflatten__(inner_tensors, ctx, outer_size, outer_stride):
         """
@@ -174,41 +174,41 @@ class QuantizedTensor(torch.Tensor):
         """
         layout_type = ctx["layout_type"]
         layout_params = dict(ctx["non_tensor_params"])
-        
+
         for key in ctx["tensor_param_keys"]:
             attr_name = f"_layout_param_{key}"
             layout_params[key] = inner_tensors[attr_name]
-        
+
         return QuantizedTensor(inner_tensors["_q_data"], layout_type, layout_params)
-    
+
     @classmethod
     def from_float(cls, tensor, layout_type, **quantize_kwargs) -> 'QuantizedTensor':
         qdata, layout_params = layout_type.quantize(tensor, **quantize_kwargs)
         return cls(qdata, layout_type, layout_params)
-    
+
     def dequantize(self) -> torch.Tensor:
         return self._layout_type.dequantize(self._qdata, **self._layout_params)
-    
+
     @classmethod
     def __torch_dispatch__(cls, func, types, args=(), kwargs=None):
         kwargs = kwargs or {}
-        
+
         # Step 1: Check generic utilities first (detach, clone, to, etc.)
         if func in _GENERIC_UTILS:
             return _GENERIC_UTILS[func](func, args, kwargs)
-        
+
         # Step 2: Check layout-specific handlers (linear, matmul, etc.)
         layout_type = _get_layout_from_args(args)
         if layout_type and func in _LAYOUT_REGISTRY:
             handler = _LAYOUT_REGISTRY[func].get(layout_type)
             if handler:
                 return handler(func, args, kwargs)
-        
+
         # Step 3: Fallback to dequantization
         if isinstance(args[0] if args else None, QuantizedTensor):
             logging.info(f"QuantizedTensor: Unhandled operation {func}, falling back to dequantization. kwargs={kwargs}")
         return cls._dequant_and_fallback(func, args, kwargs)
-    
+
     @classmethod
     def _dequant_and_fallback(cls, func, args, kwargs):
         def dequant_arg(arg):
@@ -217,7 +217,7 @@ class QuantizedTensor(torch.Tensor):
             elif isinstance(arg, (list, tuple)):
                 return type(arg)(dequant_arg(a) for a in arg)
             return arg
-        
+
         new_args = dequant_arg(args)
         new_kwargs = dequant_arg(kwargs)
         return func(*new_args, **new_kwargs)
@@ -239,13 +239,13 @@ def _handle_device_transfer(qt, target_device, target_dtype=None, target_layout=
             f"QuantizedTensor: dtype conversion requested to {target_dtype}, "
             f"but not supported for quantized tensors. Ignoring dtype."
         )
-    
+
     if target_layout is not None and target_layout != torch.strided:
         logging.warning(
             f"QuantizedTensor: layout change requested to {target_layout}, "
             f"but not supported. Ignoring layout."
         )
-    
+
     # Handle device transfer
     current_device = qt._qdata.device
     if target_device is not None:
@@ -254,7 +254,7 @@ def _handle_device_transfer(qt, target_device, target_dtype=None, target_layout=
             target_device = torch.device(target_device)
         if isinstance(current_device, str):
             current_device = torch.device(current_device)
-        
+
         if target_device != current_device:
             logging.debug(f"QuantizedTensor.{op_name}: Moving from {current_device} to {target_device}")
             new_q_data = qt._qdata.to(device=target_device)
@@ -262,7 +262,7 @@ def _handle_device_transfer(qt, target_device, target_dtype=None, target_layout=
             new_qt = QuantizedTensor(new_q_data, qt._layout_type, new_params)
             logging.debug(f"QuantizedTensor.{op_name}: Created new tensor on {target_device}")
             return new_qt
-    
+
     logging.debug(f"QuantizedTensor.{op_name}: No device change needed, returning original")
     return qt
 
@@ -318,7 +318,7 @@ def generic_to_dtype_layout(func, args, kwargs):
 def generic_copy_(func, args, kwargs):
     qt_dest = args[0]
     src = args[1]
-    
+
     if isinstance(qt_dest, QuantizedTensor):
         if isinstance(src, QuantizedTensor):
             # Copy from another quantized tensor
@@ -383,15 +383,15 @@ def fp8_linear(func, args, kwargs):
     input_tensor = args[0]
     weight = args[1]
     bias = args[2] if len(args) > 2 else None
-    
+
     if isinstance(input_tensor, QuantizedTensor) and isinstance(weight, QuantizedTensor):
         plain_input, scale_a = TensorCoreFP8Layout.get_plain_tensors(input_tensor)
         plain_weight, scale_b = TensorCoreFP8Layout.get_plain_tensors(weight)
-        
+
         out_dtype = kwargs.get("out_dtype")
         if out_dtype is None:
             out_dtype = input_tensor._layout_params['orig_dtype']
-        
+
         weight_t = plain_weight.t()
 
         tensor_2d = False
@@ -424,7 +424,7 @@ def fp8_linear(func, args, kwargs):
                 return QuantizedTensor(output, TensorCoreFP8Layout, output_params)
             else:
                 return output
-                
+
         except Exception as e:
             raise RuntimeError(f"FP8 _scaled_mm failed, falling back to dequantization: {e}")
 
