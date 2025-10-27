@@ -215,7 +215,6 @@ class TextEncodeQwenImageEliGen(io.ComfyNode):
         for entity_prompt, _ in valid_entities: # mask not used at this point
             entity_tokens = clip.tokenize(entity_prompt)
             entity_cond_dict = clip.encode_from_tokens(entity_tokens, return_pooled=True, return_dict=True)
-            
             entity_prompt_emb = entity_cond_dict["cond"]
             entity_prompt_emb_mask = entity_cond_dict.get("attention_mask", None)
 
