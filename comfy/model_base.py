@@ -326,7 +326,7 @@ class BaseModel(torch.nn.Module):
 
         if self.model_config.scaled_fp8 is not None:
             unet_state_dict["scaled_fp8"] = torch.tensor([], dtype=self.model_config.scaled_fp8)
-        
+
         # Save mixed precision metadata
         if hasattr(self.model_config, 'layer_quant_config') and self.model_config.layer_quant_config:
             metadata = {

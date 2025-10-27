@@ -16,7 +16,7 @@ def detect_layer_quantization(metadata):
             logging.info(f"Found quantization metadata (version {quant_metadata.get('format_version', 'unknown')})")
             return quant_metadata["layers"]
         else:
-            raise ValueError(f"Invalid quantization metadata format")
+            raise ValueError("Invalid quantization metadata format")
     return None
 
 
