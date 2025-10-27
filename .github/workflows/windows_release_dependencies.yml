@@ -17,7 +17,7 @@ on:
         description: 'cuda version'
         required: true
         type: string
-        default: "129"
+        default: "130"
 
       python_minor:
         description: 'python minor version'
@@ -29,7 +29,7 @@ on:
         description: 'python patch version'
         required: true
         type: string
-        default: "6"
+        default: "9"
 #  push:
 #    branches:
 #      - master
