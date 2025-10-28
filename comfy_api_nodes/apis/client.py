@@ -845,7 +845,7 @@ class PollingOperation(Generic[T, R]):
         if not self.node_id:
             return
         if self.extracted_price is not None:
-            text = f"Price: {self.extracted_price}$\n{text}"
+            text = f"Price: ${self.extracted_price}\n{text}"
         PromptServer.instance.send_progress_text(text, self.node_id)
 
     def _display_time_progress_on_node(self, time_completed: int | float):

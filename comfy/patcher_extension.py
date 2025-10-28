@@ -150,7 +150,7 @@ def merge_nested_dicts(dict1: dict, dict2: dict, copy_dict1=True):
     for key, value in dict2.items():
         if isinstance(value, dict):
             curr_value = merged_dict.setdefault(key, {})
-            merged_dict[key] = merge_nested_dicts(value, curr_value)
+            merged_dict[key] = merge_nested_dicts(curr_value, value)
         elif isinstance(value, list):
             merged_dict.setdefault(key, []).extend(value)
         else:

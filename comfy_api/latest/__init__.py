@@ -114,7 +114,9 @@ if TYPE_CHECKING:
     ComfyAPISync: Type[comfy_api.latest.generated.ComfyAPISyncStub.ComfyAPISyncStub]
 ComfyAPISync = create_sync_class(ComfyAPI_latest)
 
-comfy_io = io  # create the new alias for io
+# create new aliases for io and ui
+IO = io
+UI = ui
 
 __all__ = [
     "ComfyAPI",
@@ -124,6 +126,7 @@ __all__ = [
     "Types",
     "ComfyExtension",
     "io",
-    "comfy_io",
+    "IO",
     "ui",
+    "UI",
 ]
