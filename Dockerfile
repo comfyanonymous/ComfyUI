@@ -22,5 +22,5 @@ RUN pip install --no-cache-dir \
 ENV PORT=8188
 EXPOSE 8188
 
-# Başlat
-CMD python main.py --listen 0.0.0.0 --port ${PORT}
+# Başlat - CPU modunda çalıştır
+CMD python main.py --listen 0.0.0.0 --port ${PORT} --cpu
