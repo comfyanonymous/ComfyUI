@@ -122,7 +122,7 @@ class TestTensorCoreFP8Layout(unittest.TestCase):
         qdata, layout_params = TensorCoreFP8Layout.quantize(
             float_tensor,
             scale=scale,
-            fp8_dtype=torch.float8_e4m3fn
+            dtype=torch.float8_e4m3fn
         )
 
         self.assertEqual(qdata.dtype, torch.float8_e4m3fn)
@@ -139,7 +139,7 @@ class TestTensorCoreFP8Layout(unittest.TestCase):
         qdata, layout_params = TensorCoreFP8Layout.quantize(
             float_tensor,
             scale=scale,
-            fp8_dtype=torch.float8_e4m3fn
+            dtype=torch.float8_e4m3fn
         )
 
         dequantized = TensorCoreFP8Layout.dequantize(qdata, **layout_params)
