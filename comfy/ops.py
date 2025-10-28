@@ -379,7 +379,7 @@ def fp8_linear(self, input):
         # Call F.linear - __torch_dispatch__ routes to fp8_linear handler in quant_ops.py!
         layout_params_weight = {'scale': scale_weight, 'orig_dtype': input_dtype}
         quantized_weight = QuantizedTensor(w, TensorCoreFP8Layout, layout_params_weight)
-        quantized_input = QuantizedTensor.from_float(input.reshape(-1, input_shape[2]), TensorCoreFP8Layout, scale=scale_input, fp8_dtype=dtype)
+        quantized_input = QuantizedTensor.from_float(input.reshape(-1, input_shape[2]), TensorCoreFP8Layout, scale=scale_input, dtype=dtype)
         o = torch.nn.functional.linear(quantized_input, quantized_weight, bias)
 
         if tensor_2d:

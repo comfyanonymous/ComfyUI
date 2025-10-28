@@ -347,20 +347,20 @@ class TensorCoreFP8Layout(QuantizedLayout):
     - orig_dtype: Original dtype before quantization (for casting back)
     """
     @classmethod
-    def quantize(cls, tensor, scale=None, fp8_dtype=torch.float8_e4m3fn):
+    def quantize(cls, tensor, scale=None, dtype=torch.float8_e4m3fn):
         orig_dtype = tensor.dtype
 
         if scale is None:
-            scale = torch.amax(tensor.abs()) / torch.finfo(fp8_dtype).max
+            scale = torch.amax(tensor.abs()) / torch.finfo(dtype).max
 
         if not isinstance(scale, torch.Tensor):
             scale = torch.tensor(scale)
         scale = scale.to(device=tensor.device, dtype=torch.float32)
 
-        lp_amax = torch.finfo(fp8_dtype).max
+        lp_amax = torch.finfo(dtype).max
         tensor_scaled = tensor.float() / scale
         torch.clamp(tensor_scaled, min=-lp_amax, max=lp_amax, out=tensor_scaled)
-        qdata = tensor_scaled.to(fp8_dtype, memory_format=torch.contiguous_format)
+        qdata = tensor_scaled.to(dtype, memory_format=torch.contiguous_format)
 
         layout_params = {
             'scale': scale,
