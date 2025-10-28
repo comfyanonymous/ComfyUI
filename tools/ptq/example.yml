@@ -1,0 +1,30 @@
+# Quantization Configuration for Checkpoint Merger
+# 
+# This file defines which layers to quantize and what precision to use.
+# Patterns use glob-style syntax where * matches any characters.
+
+# Regex patterns of layers to DISABLE quantization
+# If a layer matches any pattern here, it will NOT be quantized
+disable_list: [
+  # Example: disable input/output projection layers
+  # "*img_in*",
+  # "*txt_in*",
+  # "*final_layer*",
+  
+  # Example: disable specific block types
+  # "*norm*",
+  # "*time_in*",
+]
+
+# Per-layer dtype configuration
+# Maps layer name patterns to quantization formats
+# Layers are matched in order - first match wins
+per_layer_dtype: {
+  # Default: quantize all layers to FP8 E4M3
+  "*": "fp8_e4m3fn",
+  
+  # Example: use different precision for specific layers
+  # "*attn*": "fp8_e4m3fn",      # Attention layers
+  # "*mlp*": "fp8_e4m3fn",        # MLP layers
+  # "*qkv*": "fp8_e4m3fn",        # Q/K/V projections
+}

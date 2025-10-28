@@ -1,0 +1,27 @@
+# FLUX Quantization Config: Transformer Blocks Only
+#
+# Quantize only double and single transformer blocks,
+# leave input/output projections in higher precision.
+
+disable_list: [
+  # Disable input projections
+  "*img_in*",
+  "*txt_in*",
+  "*time_in*",
+  "*vector_in*",
+  "*guidance_in*",
+  
+  # Disable output layers
+  "*final_layer*",
+
+  # Disable positional embeddings
+  "*pe_embedder*",
+
+  "*modulation*",
+  "*txt_mod*",
+  "*img_mod*",
+]
+
+per_layer_dtype: {
+  "*": "float4_e2m1fn_x2",
+}
