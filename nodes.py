@@ -2349,6 +2349,7 @@ async def init_builtin_api_nodes():
         "nodes_kling.py",
         "nodes_bfl.py",
         "nodes_bytedance.py",
+        "nodes_ltxv.py",
         "nodes_luma.py",
         "nodes_recraft.py",
         "nodes_pixverse.py",
