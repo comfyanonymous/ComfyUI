@@ -5,11 +5,13 @@ import torch.nn.functional as F
 from typing import Optional, Tuple
 from einops import repeat
 
+from comfy.ldm.flipflop_transformer import FlipFlopModule
 from comfy.ldm.lightricks.model import TimestepEmbedding, Timesteps
 from comfy.ldm.modules.attention import optimized_attention_masked
 from comfy.ldm.flux.layers import EmbedND
 import comfy.ldm.common_dit
 import comfy.patcher_extension
+import comfy.ops
 
 class GELU(nn.Module):
     def __init__(self, dim_in: int, dim_out: int, approximate: str = "none", bias: bool = True, dtype=None, device=None, operations=None):
@@ -283,7 +285,7 @@ class LastLayer(nn.Module):
         return x
 
 
-class QwenImageTransformer2DModel(nn.Module):
+class QwenImageTransformer2DModel(FlipFlopModule):
     def __init__(
         self,
         patch_size: int = 2,
@@ -300,9 +302,9 @@ class QwenImageTransformer2DModel(nn.Module):
         final_layer=True,
         dtype=None,
         device=None,
-        operations=None,
+        operations: comfy.ops.disable_weight_init=None,
     ):
-        super().__init__()
+        super().__init__(block_types=("transformer_blocks",))
         self.dtype = dtype
         self.patch_size = patch_size
         self.in_channels = in_channels
@@ -365,6 +367,40 @@ class QwenImageTransformer2DModel(nn.Module):
             self,
             comfy.patcher_extension.get_all_wrappers(comfy.patcher_extension.WrappersMP.DIFFUSION_MODEL, transformer_options)
         ).execute(x, timestep, context, attention_mask, guidance, ref_latents, transformer_options, **kwargs)
+
+    def indiv_block_fwd(self, i, block, hidden_states, encoder_hidden_states, encoder_hidden_states_mask, temb, image_rotary_emb, patches, control, blocks_replace, x, transformer_options):
+        if ("double_block", i) in blocks_replace:
+            def block_wrap(args):
+                out = {}
+                out["txt"], out["img"] = block(hidden_states=args["img"], encoder_hidden_states=args["txt"], encoder_hidden_states_mask=encoder_hidden_states_mask, temb=args["vec"], image_rotary_emb=args["pe"], transformer_options=args["transformer_options"])
+                return out
+            out = blocks_replace[("double_block", i)]({"img": hidden_states, "txt": encoder_hidden_states, "vec": temb, "pe": image_rotary_emb, "transformer_options": transformer_options}, {"original_block": block_wrap})
+            hidden_states = out["img"]
+            encoder_hidden_states = out["txt"]
+        else:
+            encoder_hidden_states, hidden_states = block(
+                hidden_states=hidden_states,
+                encoder_hidden_states=encoder_hidden_states,
+                encoder_hidden_states_mask=encoder_hidden_states_mask,
+                temb=temb,
+                image_rotary_emb=image_rotary_emb,
+                transformer_options=transformer_options,
+            )
+
+        if "double_block" in patches:
+            for p in patches["double_block"]:
+                out = p({"img": hidden_states, "txt": encoder_hidden_states, "x": x, "block_index": i, "transformer_options": transformer_options})
+                hidden_states = out["img"]
+                encoder_hidden_states = out["txt"]
+
+        if control is not None: # Controlnet
+            control_i = control.get("input")
+            if i < len(control_i):
+                add = control_i[i]
+                if add is not None:
+                    hidden_states[:, :add.shape[1]] += add
+
+        return hidden_states, encoder_hidden_states
 
     def _forward(
         self,
@@ -433,37 +469,8 @@ class QwenImageTransformer2DModel(nn.Module):
         patches = transformer_options.get("patches", {})
         blocks_replace = patches_replace.get("dit", {})
 
-        for i, block in enumerate(self.transformer_blocks):
-            if ("double_block", i) in blocks_replace:
-                def block_wrap(args):
-                    out = {}
-                    out["txt"], out["img"] = block(hidden_states=args["img"], encoder_hidden_states=args["txt"], encoder_hidden_states_mask=encoder_hidden_states_mask, temb=args["vec"], image_rotary_emb=args["pe"], transformer_options=args["transformer_options"])
-                    return out
-                out = blocks_replace[("double_block", i)]({"img": hidden_states, "txt": encoder_hidden_states, "vec": temb, "pe": image_rotary_emb, "transformer_options": transformer_options}, {"original_block": block_wrap})
-                hidden_states = out["img"]
-                encoder_hidden_states = out["txt"]
-            else:
-                encoder_hidden_states, hidden_states = block(
-                    hidden_states=hidden_states,
-                    encoder_hidden_states=encoder_hidden_states,
-                    encoder_hidden_states_mask=encoder_hidden_states_mask,
-                    temb=temb,
-                    image_rotary_emb=image_rotary_emb,
-                    transformer_options=transformer_options,
-                )
-
-            if "double_block" in patches:
-                for p in patches["double_block"]:
-                    out = p({"img": hidden_states, "txt": encoder_hidden_states, "x": x, "block_index": i, "transformer_options": transformer_options})
-                    hidden_states = out["img"]
-                    encoder_hidden_states = out["txt"]
-
-            if control is not None: # Controlnet
-                control_i = control.get("input")
-                if i < len(control_i):
-                    add = control_i[i]
-                    if add is not None:
-                        hidden_states[:, :add.shape[1]] += add
+        out = (hidden_states, encoder_hidden_states)
+        hidden_states, encoder_hidden_states = self.execute_blocks("transformer_blocks", self.indiv_block_fwd, out, encoder_hidden_states_mask, temb, image_rotary_emb, patches, control, blocks_replace, x, transformer_options)
 
         hidden_states = self.norm_out(hidden_states, temb)
         hidden_states = self.proj_out(hidden_states)

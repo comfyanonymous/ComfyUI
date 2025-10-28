@@ -1006,6 +1006,8 @@ def force_channels_last():
     #TODO
     return False
 
+def flipflop_enabled():
+    return args.flipflop_offload
 
 STREAMS = {}
 NUM_STREAMS = 1

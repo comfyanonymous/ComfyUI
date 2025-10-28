@@ -7,6 +7,7 @@ from torch import Tensor, nn
 from einops import rearrange, repeat
 import comfy.ldm.common_dit
 import comfy.patcher_extension
+from comfy.ldm.flipflop_transformer import FlipFlopModule
 
 from .layers import (
     DoubleStreamBlock,
@@ -35,13 +36,13 @@ class FluxParams:
     guidance_embed: bool
 
 
-class Flux(nn.Module):
+class Flux(FlipFlopModule):
     """
     Transformer model for flow matching on sequences.
     """
 
     def __init__(self, image_model=None, final_layer=True, dtype=None, device=None, operations=None, **kwargs):
-        super().__init__()
+        super().__init__(("double_blocks", "single_blocks"))
         self.dtype = dtype
         params = FluxParams(**kwargs)
         self.params = params
@@ -88,6 +89,72 @@ class Flux(nn.Module):
 
         if final_layer:
             self.final_layer = LastLayer(self.hidden_size, 1, self.out_channels, dtype=dtype, device=device, operations=operations)
+
+    def indiv_double_block_fwd(self, i, block, img, txt, vec, pe, attn_mask, control, blocks_replace, transformer_options):
+        if ("double_block", i) in blocks_replace:
+            def block_wrap(args):
+                out = {}
+                out["img"], out["txt"] = block(img=args["img"],
+                                               txt=args["txt"],
+                                               vec=args["vec"],
+                                               pe=args["pe"],
+                                               attn_mask=args.get("attn_mask"),
+                                               transformer_options=args.get("transformer_options"))
+                return out
+
+            out = blocks_replace[("double_block", i)]({"img": img,
+                                                       "txt": txt,
+                                                       "vec": vec,
+                                                       "pe": pe,
+                                                       "attn_mask": attn_mask,
+                                                       "transformer_options": transformer_options},
+                                                       {"original_block": block_wrap})
+            txt = out["txt"]
+            img = out["img"]
+        else:
+            img, txt = block(img=img,
+                             txt=txt,
+                             vec=vec,
+                             pe=pe,
+                             attn_mask=attn_mask,
+                             transformer_options=transformer_options)
+
+        if control is not None: # Controlnet
+            control_i = control.get("input")
+            if i < len(control_i):
+                add = control_i[i]
+                if add is not None:
+                    img[:, :add.shape[1]] += add
+        return img, txt
+
+    def indiv_single_block_fwd(self, i, block, img, txt, vec, pe, attn_mask, control, blocks_replace, transformer_options):
+        if ("single_block", i) in blocks_replace:
+            def block_wrap(args):
+                out = {}
+                out["img"] = block(args["img"],
+                                   vec=args["vec"],
+                                   pe=args["pe"],
+                                   attn_mask=args.get("attn_mask"),
+                                   transformer_options=args.get("transformer_options"))
+                return out
+
+            out = blocks_replace[("single_block", i)]({"img": img,
+                                                       "vec": vec,
+                                                       "pe": pe,
+                                                       "attn_mask": attn_mask,
+                                                       "transformer_options": transformer_options},
+                                                       {"original_block": block_wrap})
+            img = out["img"]
+        else:
+            img = block(img, vec=vec, pe=pe, attn_mask=attn_mask, transformer_options=transformer_options)
+
+        if control is not None: # Controlnet
+            control_o = control.get("output")
+            if i < len(control_o):
+                add = control_o[i]
+                if add is not None:
+                    img[:, txt.shape[1] : txt.shape[1] + add.shape[1], ...] += add
+        return img
 
     def forward_orig(
         self,
@@ -136,74 +203,16 @@ class Flux(nn.Module):
             pe = None
 
         blocks_replace = patches_replace.get("dit", {})
-        for i, block in enumerate(self.double_blocks):
-            if ("double_block", i) in blocks_replace:
-                def block_wrap(args):
-                    out = {}
-                    out["img"], out["txt"] = block(img=args["img"],
-                                                   txt=args["txt"],
-                                                   vec=args["vec"],
-                                                   pe=args["pe"],
-                                                   attn_mask=args.get("attn_mask"),
-                                                   transformer_options=args.get("transformer_options"))
-                    return out
-
-                out = blocks_replace[("double_block", i)]({"img": img,
-                                                           "txt": txt,
-                                                           "vec": vec,
-                                                           "pe": pe,
-                                                           "attn_mask": attn_mask,
-                                                           "transformer_options": transformer_options},
-                                                          {"original_block": block_wrap})
-                txt = out["txt"]
-                img = out["img"]
-            else:
-                img, txt = block(img=img,
-                                 txt=txt,
-                                 vec=vec,
-                                 pe=pe,
-                                 attn_mask=attn_mask,
-                                 transformer_options=transformer_options)
-
-            if control is not None: # Controlnet
-                control_i = control.get("input")
-                if i < len(control_i):
-                    add = control_i[i]
-                    if add is not None:
-                        img[:, :add.shape[1]] += add
+        # execute double blocks
+        img, txt = self.execute_blocks("double_blocks", self.indiv_double_block_fwd, (img, txt), vec, pe, attn_mask, control, blocks_replace, transformer_options)
 
         if img.dtype == torch.float16:
             img = torch.nan_to_num(img, nan=0.0, posinf=65504, neginf=-65504)
 
         img = torch.cat((txt, img), 1)
 
-        for i, block in enumerate(self.single_blocks):
-            if ("single_block", i) in blocks_replace:
-                def block_wrap(args):
-                    out = {}
-                    out["img"] = block(args["img"],
-                                       vec=args["vec"],
-                                       pe=args["pe"],
-                                       attn_mask=args.get("attn_mask"),
-                                       transformer_options=args.get("transformer_options"))
-                    return out
-
-                out = blocks_replace[("single_block", i)]({"img": img,
-                                                           "vec": vec,
-                                                           "pe": pe,
-                                                           "attn_mask": attn_mask,
-                                                           "transformer_options": transformer_options},
-                                                          {"original_block": block_wrap})
-                img = out["img"]
-            else:
-                img = block(img, vec=vec, pe=pe, attn_mask=attn_mask, transformer_options=transformer_options)
-
-            if control is not None: # Controlnet
-                control_o = control.get("output")
-                if i < len(control_o):
-                    add = control_o[i]
-                    if add is not None:
-                        img[:, txt.shape[1] : txt.shape[1] + add.shape[1], ...] += add
+        # execute single blocks
+        img = self.execute_blocks("single_blocks", self.indiv_single_block_fwd, img, txt, vec, pe, attn_mask, control, blocks_replace, transformer_options)
 
         img = img[:, txt.shape[1] :, ...]
 
