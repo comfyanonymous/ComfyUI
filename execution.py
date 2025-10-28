@@ -1116,7 +1116,7 @@ class PromptQueue:
         messages: List[str]
 
     def task_done(self, item_id, history_result,
-                  status: Optional['PromptQueue.ExecutionStatus']):
+                  status: Optional['PromptQueue.ExecutionStatus'], process_item=None):
         with self.mutex:
             prompt = self.currently_running.pop(item_id)
             if len(self.history) > MAXIMUM_HISTORY_SIZE:
@@ -1126,10 +1126,8 @@ class PromptQueue:
             if status is not None:
                 status_dict = copy.deepcopy(status._asdict())
 
-            # Remove sensitive data from extra_data before storing in history
-            for sensitive_val in SENSITIVE_EXTRA_DATA_KEYS:
-                if sensitive_val in prompt[3]:
-                    prompt[3].pop(sensitive_val)
+            if process_item is not None:
+                prompt = process_item(prompt)
 
             self.history[prompt[1]] = {
                 "prompt": prompt,

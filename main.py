@@ -192,14 +192,21 @@ def prompt_worker(q, server_instance):
             prompt_id = item[1]
             server_instance.last_prompt_id = prompt_id
 
-            e.execute(item[2], prompt_id, item[3], item[4])
+            sensitive = item[5]
+            extra_data = item[3].copy()
+            for k in sensitive:
+                extra_data[k] = sensitive[k]
+
+            e.execute(item[2], prompt_id, extra_data, item[4])
             need_gc = True
+
+            remove_sensitive = lambda prompt: prompt[:5] + prompt[6:]
             q.task_done(item_id,
                         e.history_result,
                         status=execution.PromptQueue.ExecutionStatus(
                             status_str='success' if e.success else 'error',
                             completed=e.success,
-                            messages=e.status_messages))
+                            messages=e.status_messages), process_item=remove_sensitive)
             if server_instance.client_id is not None:
                 server_instance.send_sync("executing", {"node": None, "prompt_id": prompt_id}, server_instance.client_id)
 
