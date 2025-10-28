@@ -48,7 +48,9 @@ def get_all_callbacks(call_type: str, transformer_options: dict, is_model_option
 
 class WrappersMP:
     OUTER_SAMPLE = "outer_sample"
+    PREPARE_SAMPLING = "prepare_sampling"
     SAMPLER_SAMPLE = "sampler_sample"
+    PREDICT_NOISE = "predict_noise"
     CALC_COND_BATCH = "calc_cond_batch"
     APPLY_MODEL = "apply_model"
     DIFFUSION_MODEL = "diffusion_model"
@@ -148,7 +150,7 @@ def merge_nested_dicts(dict1: dict, dict2: dict, copy_dict1=True):
     for key, value in dict2.items():
         if isinstance(value, dict):
             curr_value = merged_dict.setdefault(key, {})
-            merged_dict[key] = merge_nested_dicts(value, curr_value)
+            merged_dict[key] = merge_nested_dicts(curr_value, value)
         elif isinstance(value, list):
             merged_dict.setdefault(key, []).extend(value)
         else:

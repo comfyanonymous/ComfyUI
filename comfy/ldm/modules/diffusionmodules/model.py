@@ -36,7 +36,7 @@ def get_timestep_embedding(timesteps, embedding_dim):
 
 def nonlinearity(x):
     # swish
-    return x*torch.sigmoid(x)
+    return torch.nn.functional.silu(x)
 
 
 def Normalize(in_channels, num_groups=32):
@@ -145,7 +145,7 @@ class Downsample(nn.Module):
 
 class ResnetBlock(nn.Module):
     def __init__(self, *, in_channels, out_channels=None, conv_shortcut=False,
-                 dropout, temb_channels=512, conv_op=ops.Conv2d):
+                 dropout=0.0, temb_channels=512, conv_op=ops.Conv2d, norm_op=Normalize):
         super().__init__()
         self.in_channels = in_channels
         out_channels = in_channels if out_channels is None else out_channels
@@ -153,7 +153,7 @@ class ResnetBlock(nn.Module):
         self.use_conv_shortcut = conv_shortcut
 
         self.swish = torch.nn.SiLU(inplace=True)
-        self.norm1 = Normalize(in_channels)
+        self.norm1 = norm_op(in_channels)
         self.conv1 = conv_op(in_channels,
                                      out_channels,
                                      kernel_size=3,
@@ -162,7 +162,7 @@ class ResnetBlock(nn.Module):
         if temb_channels > 0:
             self.temb_proj = ops.Linear(temb_channels,
                                              out_channels)
-        self.norm2 = Normalize(out_channels)
+        self.norm2 = norm_op(out_channels)
         self.dropout = torch.nn.Dropout(dropout, inplace=True)
         self.conv2 = conv_op(out_channels,
                                      out_channels,
@@ -183,7 +183,7 @@ class ResnetBlock(nn.Module):
                                                     stride=1,
                                                     padding=0)
 
-    def forward(self, x, temb):
+    def forward(self, x, temb=None):
         h = x
         h = self.norm1(h)
         h = self.swish(h)
@@ -285,7 +285,7 @@ def pytorch_attention(q, k, v):
     )
 
     try:
-        out = torch.nn.functional.scaled_dot_product_attention(q, k, v, attn_mask=None, dropout_p=0.0, is_causal=False)
+        out = comfy.ops.scaled_dot_product_attention(q, k, v, attn_mask=None, dropout_p=0.0, is_causal=False)
         out = out.transpose(2, 3).reshape(orig_shape)
     except model_management.OOM_EXCEPTION:
         logging.warning("scaled_dot_product_attention OOMed: switched to slice attention")
@@ -293,12 +293,23 @@ def pytorch_attention(q, k, v):
     return out
 
 
+def vae_attention():
+    if model_management.xformers_enabled_vae():
+        logging.info("Using xformers attention in VAE")
+        return xformers_attention
+    elif model_management.pytorch_attention_enabled_vae():
+        logging.info("Using pytorch attention in VAE")
+        return pytorch_attention
+    else:
+        logging.info("Using split attention in VAE")
+        return normal_attention
+
 class AttnBlock(nn.Module):
-    def __init__(self, in_channels, conv_op=ops.Conv2d):
+    def __init__(self, in_channels, conv_op=ops.Conv2d, norm_op=Normalize):
         super().__init__()
         self.in_channels = in_channels
 
-        self.norm = Normalize(in_channels)
+        self.norm = norm_op(in_channels)
         self.q = conv_op(in_channels,
                                  in_channels,
                                  kernel_size=1,
@@ -320,15 +331,7 @@ class AttnBlock(nn.Module):
                                         stride=1,
                                         padding=0)
 
-        if model_management.xformers_enabled_vae():
-            logging.info("Using xformers attention in VAE")
-            self.optimized_attention = xformers_attention
-        elif model_management.pytorch_attention_enabled():
-            logging.info("Using pytorch attention in VAE")
-            self.optimized_attention = pytorch_attention
-        else:
-            logging.info("Using split attention in VAE")
-            self.optimized_attention = normal_attention
+        self.optimized_attention = vae_attention()
 
     def forward(self, x):
         h_ = x
@@ -699,9 +702,6 @@ class Decoder(nn.Module):
                                         padding=1)
 
     def forward(self, z, **kwargs):
-        #assert z.shape[1:] == self.z_shape[1:]
-        self.last_z_shape = z.shape
-
         # timestep embedding
         temb = None
 

@@ -4,6 +4,10 @@ import comfy.sampler_helpers
 import comfy.samplers
 import comfy.utils
 import node_helpers
+import math
+from typing_extensions import override
+from comfy_api.latest import ComfyExtension, io
+
 
 def perp_neg(x, noise_pred_pos, noise_pred_neg, noise_pred_nocond, neg_scale, cond_scale):
     pos = noise_pred_pos - noise_pred_nocond
@@ -15,20 +19,27 @@ def perp_neg(x, noise_pred_pos, noise_pred_neg, noise_pred_nocond, neg_scale, co
     return cfg_result
 
 #TODO: This node should be removed, it has been replaced with PerpNegGuider
-class PerpNeg:
+class PerpNeg(io.ComfyNode):
     @classmethod
-    def INPUT_TYPES(s):
-        return {"required": {"model": ("MODEL", ),
-                             "empty_conditioning": ("CONDITIONING", ),
-                             "neg_scale": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 100.0, "step": 0.01}),
-                            }}
-    RETURN_TYPES = ("MODEL",)
-    FUNCTION = "patch"
+    def define_schema(cls):
+        return io.Schema(
+            node_id="PerpNeg",
+            display_name="Perp-Neg (DEPRECATED by PerpNegGuider)",
+            category="_for_testing",
+            inputs=[
+                io.Model.Input("model"),
+                io.Conditioning.Input("empty_conditioning"),
+                io.Float.Input("neg_scale", default=1.0, min=0.0, max=100.0, step=0.01),
+            ],
+            outputs=[
+                io.Model.Output(),
+            ],
+            is_experimental=True,
+            is_deprecated=True,
+        )
 
-    CATEGORY = "_for_testing"
-    DEPRECATED = True
-
-    def patch(self, model, empty_conditioning, neg_scale):
+    @classmethod
+    def execute(cls, model, empty_conditioning, neg_scale) -> io.NodeOutput:
         m = model.clone()
         nocond = comfy.sampler_helpers.convert_cond(empty_conditioning)
 
@@ -49,7 +60,7 @@ class PerpNeg:
 
         m.set_model_sampler_cfg_function(cfg_function)
 
-        return (m, )
+        return io.NodeOutput(m)
 
 
 class Guider_PerpNeg(comfy.samplers.CFGGuider):
@@ -69,8 +80,23 @@ class Guider_PerpNeg(comfy.samplers.CFGGuider):
         negative_cond = self.conds.get("negative", None)
         empty_cond = self.conds.get("empty_negative_prompt", None)
 
-        (noise_pred_pos, noise_pred_neg, noise_pred_empty) = \
-            comfy.samplers.calc_cond_batch(self.inner_model, [positive_cond, negative_cond, empty_cond], x, timestep, model_options)
+        if model_options.get("disable_cfg1_optimization", False) == False:
+            if math.isclose(self.neg_scale, 0.0):
+                negative_cond = None
+                if math.isclose(self.cfg, 1.0):
+                    empty_cond = None
+
+        conds = [positive_cond, negative_cond, empty_cond]
+
+        out = comfy.samplers.calc_cond_batch(self.inner_model, conds, x, timestep, model_options)
+
+        # Apply pre_cfg_functions since sampling_function() is skipped
+        for fn in model_options.get("sampler_pre_cfg_function", []):
+            args = {"conds":conds, "conds_out": out, "cond_scale": self.cfg, "timestep": timestep,
+                    "input": x, "sigma": timestep, "model": self.inner_model, "model_options": model_options}
+            out = fn(args)
+
+        noise_pred_pos, noise_pred_neg, noise_pred_empty = out
         cfg_result = perp_neg(x, noise_pred_pos, noise_pred_neg, noise_pred_empty, self.neg_scale, self.cfg)
 
         # normally this would be done in cfg_function, but we skipped
@@ -82,6 +108,7 @@ class Guider_PerpNeg(comfy.samplers.CFGGuider):
                 "denoised": cfg_result,
                 "cond": positive_cond,
                 "uncond": negative_cond,
+                "cond_scale": self.cfg,
                 "model": self.inner_model,
                 "uncond_denoised": noise_pred_neg,
                 "cond_denoised": noise_pred_pos,
@@ -95,35 +122,42 @@ class Guider_PerpNeg(comfy.samplers.CFGGuider):
 
         return cfg_result
 
-class PerpNegGuider:
+class PerpNegGuider(io.ComfyNode):
     @classmethod
-    def INPUT_TYPES(s):
-        return {"required":
-                    {"model": ("MODEL",),
-                    "positive": ("CONDITIONING", ),
-                    "negative": ("CONDITIONING", ),
-                    "empty_conditioning": ("CONDITIONING", ),
-                    "cfg": ("FLOAT", {"default": 8.0, "min": 0.0, "max": 100.0, "step":0.1, "round": 0.01}),
-                    "neg_scale": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 100.0, "step": 0.01}),
-                     }
-                }
+    def define_schema(cls):
+        return io.Schema(
+            node_id="PerpNegGuider",
+            category="_for_testing",
+            inputs=[
+                io.Model.Input("model"),
+                io.Conditioning.Input("positive"),
+                io.Conditioning.Input("negative"),
+                io.Conditioning.Input("empty_conditioning"),
+                io.Float.Input("cfg", default=8.0, min=0.0, max=100.0, step=0.1, round=0.01),
+                io.Float.Input("neg_scale", default=1.0, min=0.0, max=100.0, step=0.01),
+            ],
+            outputs=[
+                io.Guider.Output(),
+            ],
+            is_experimental=True,
+        )
 
-    RETURN_TYPES = ("GUIDER",)
-
-    FUNCTION = "get_guider"
-    CATEGORY = "_for_testing"
-
-    def get_guider(self, model, positive, negative, empty_conditioning, cfg, neg_scale):
+    @classmethod
+    def execute(cls, model, positive, negative, empty_conditioning, cfg, neg_scale) -> io.NodeOutput:
         guider = Guider_PerpNeg(model)
         guider.set_conds(positive, negative, empty_conditioning)
         guider.set_cfg(cfg, neg_scale)
-        return (guider,)
+        return io.NodeOutput(guider)
 
-NODE_CLASS_MAPPINGS = {
-    "PerpNeg": PerpNeg,
-    "PerpNegGuider": PerpNegGuider,
-}
 
-NODE_DISPLAY_NAME_MAPPINGS = {
-    "PerpNeg": "Perp-Neg (DEPRECATED by PerpNegGuider)",
-}
+class PerpNegExtension(ComfyExtension):
+    @override
+    async def get_node_list(self) -> list[type[io.ComfyNode]]:
+        return [
+            PerpNeg,
+            PerpNegGuider,
+        ]
+
+
+async def comfy_entrypoint() -> PerpNegExtension:
+    return PerpNegExtension()

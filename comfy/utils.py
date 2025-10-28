@@ -28,23 +28,65 @@ import logging
 import itertools
 from torch.nn.functional import interpolate
 from einops import rearrange
+from comfy.cli_args import args
 
-def load_torch_file(ckpt, safe_load=False, device=None):
+MMAP_TORCH_FILES = args.mmap_torch_files
+DISABLE_MMAP = args.disable_mmap
+
+ALWAYS_SAFE_LOAD = False
+if hasattr(torch.serialization, "add_safe_globals"):  # TODO: this was added in pytorch 2.4, the unsafe path should be removed once earlier versions are deprecated
+    class ModelCheckpoint:
+        pass
+    ModelCheckpoint.__module__ = "pytorch_lightning.callbacks.model_checkpoint"
+
+    def scalar(*args, **kwargs):
+        from numpy.core.multiarray import scalar as sc
+        return sc(*args, **kwargs)
+    scalar.__module__ = "numpy.core.multiarray"
+
+    from numpy import dtype
+    from numpy.dtypes import Float64DType
+    from _codecs import encode
+
+    torch.serialization.add_safe_globals([ModelCheckpoint, scalar, dtype, Float64DType, encode])
+    ALWAYS_SAFE_LOAD = True
+    logging.info("Checkpoint files will always be loaded safely.")
+else:
+    logging.info("Warning, you are using an old pytorch version and some ckpt/pt files might be loaded unsafely. Upgrading to 2.4 or above is recommended.")
+
+def load_torch_file(ckpt, safe_load=False, device=None, return_metadata=False):
     if device is None:
         device = torch.device("cpu")
+    metadata = None
     if ckpt.lower().endswith(".safetensors") or ckpt.lower().endswith(".sft"):
-        sd = safetensors.torch.load_file(ckpt, device=device.type)
+        try:
+            with safetensors.safe_open(ckpt, framework="pt", device=device.type) as f:
+                sd = {}
+                for k in f.keys():
+                    tensor = f.get_tensor(k)
+                    if DISABLE_MMAP:  # TODO: Not sure if this is the best way to bypass the mmap issues
+                        tensor = tensor.to(device=device, copy=True)
+                    sd[k] = tensor
+                if return_metadata:
+                    metadata = f.metadata()
+        except Exception as e:
+            if len(e.args) > 0:
+                message = e.args[0]
+                if "HeaderTooLarge" in message:
+                    raise ValueError("{}\n\nFile path: {}\n\nThe safetensors file is corrupt or invalid. Make sure this is actually a safetensors file and not a ckpt or pt or other filetype.".format(message, ckpt))
+                if "MetadataIncompleteBuffer" in message:
+                    raise ValueError("{}\n\nFile path: {}\n\nThe safetensors file is corrupt/incomplete. Check the file size and make sure you have copied/downloaded it correctly.".format(message, ckpt))
+            raise e
     else:
-        if safe_load:
-            if not 'weights_only' in torch.load.__code__.co_varnames:
-                logging.warning("Warning torch.load doesn't support weights_only on this pytorch version, loading unsafely.")
-                safe_load = False
-        if safe_load:
-            pl_sd = torch.load(ckpt, map_location=device, weights_only=True)
+        torch_args = {}
+        if MMAP_TORCH_FILES:
+            torch_args["mmap"] = True
+
+        if safe_load or ALWAYS_SAFE_LOAD:
+            pl_sd = torch.load(ckpt, map_location=device, weights_only=True, **torch_args)
         else:
+            logging.warning("WARNING: loading {} unsafely, upgrade your pytorch to 2.4 or newer to load this file safely.".format(ckpt))
             pl_sd = torch.load(ckpt, map_location=device, pickle_module=comfy.checkpoint_pickle)
-        if "global_step" in pl_sd:
-            logging.debug(f"Global Step: {pl_sd['global_step']}")
         if "state_dict" in pl_sd:
             sd = pl_sd["state_dict"]
         else:
@@ -55,7 +97,7 @@ def load_torch_file(ckpt, safe_load=False, device=None):
                     sd = pl_sd
             else:
                 sd = pl_sd
-    return sd
+    return (sd, metadata) if return_metadata else sd
 
 def save_torch_file(sd, ckpt, metadata=None):
     if metadata is not None:
@@ -660,6 +702,26 @@ def resize_to_batch_size(tensor, batch_size):
 
     return output
 
+def resize_list_to_batch_size(l, batch_size):
+    in_batch_size = len(l)
+    if in_batch_size == batch_size or in_batch_size == 0:
+        return l
+
+    if batch_size <= 1:
+        return l[:batch_size]
+
+    output = []
+    if batch_size < in_batch_size:
+        scale = (in_batch_size - 1) / (batch_size - 1)
+        for i in range(batch_size):
+            output.append(l[min(round(i * scale), in_batch_size - 1)])
+    else:
+        scale = in_batch_size / batch_size
+        for i in range(batch_size):
+           output.append(l[min(math.floor((i + 0.5) * scale), in_batch_size - 1)])
+
+    return output
+
 def convert_sd_to(state_dict, dtype):
     keys = list(state_dict.keys())
     for k in keys:
@@ -693,7 +755,25 @@ def copy_to_param(obj, attr, value):
     prev = getattr(obj, attrs[-1])
     prev.data.copy_(value)
 
-def get_attr(obj, attr):
+def get_attr(obj, attr: str):
+    """Retrieves a nested attribute from an object using dot notation.
+
+    Args:
+        obj: The object to get the attribute from
+        attr (str): The attribute path using dot notation (e.g. "model.layer.weight")
+
+    Returns:
+        The value of the requested attribute
+
+    Example:
+        model = MyModel()
+        weight = get_attr(model, "layer1.conv.weight")
+        # Equivalent to: model.layer1.conv.weight
+
+    Important:
+        Always prefer `comfy.model_patcher.ModelPatcher.get_model_object` when
+        accessing nested model objects under `ModelPatcher.model`.
+    """
     attrs = attr.split(".")
     for name in attrs:
         obj = getattr(obj, name)
@@ -946,11 +1026,12 @@ def set_progress_bar_global_hook(function):
     PROGRESS_BAR_HOOK = function
 
 class ProgressBar:
-    def __init__(self, total):
+    def __init__(self, total, node_id=None):
         global PROGRESS_BAR_HOOK
         self.total = total
         self.current = 0
         self.hook = PROGRESS_BAR_HOOK
+        self.node_id = node_id
 
     def update_absolute(self, value, total=None, preview=None):
         if total is not None:
@@ -959,7 +1040,7 @@ class ProgressBar:
             value = self.total
         self.current = value
         if self.hook is not None:
-            self.hook(self.current, self.total, preview)
+            self.hook(self.current, self.total, preview, node_id=self.node_id)
 
     def update(self, value):
         self.update_absolute(self.current + value)
@@ -1025,3 +1106,25 @@ def upscale_dit_mask(mask: torch.Tensor, img_size_in, img_size_out):
             dim=1
         )
         return out
+
+def pack_latents(latents):
+    latent_shapes = []
+    tensors = []
+    for tensor in latents:
+        latent_shapes.append(tensor.shape)
+        tensors.append(tensor.reshape(tensor.shape[0], 1, -1))
+
+    latent = torch.cat(tensors, dim=-1)
+    return latent, latent_shapes
+
+def unpack_latents(combined_latent, latent_shapes):
+    if len(latent_shapes) > 1:
+        output_tensors = []
+        for shape in latent_shapes:
+            cut = math.prod(shape[1:])
+            tens = combined_latent[:, :, :cut]
+            combined_latent = combined_latent[:, :, cut:]
+            output_tensors.append(tens.reshape([tens.shape[0]] + list(shape)[1:]))
+    else:
+        output_tensors = combined_latent
+    return output_tensors

@@ -21,16 +21,23 @@ def rescale_zero_terminal_snr_sigmas(sigmas):
     alphas_bar[-1] = 4.8973451890853435e-08
     return ((1 - alphas_bar) / alphas_bar) ** 0.5
 
+def reshape_sigma(sigma, noise_dim):
+    if sigma.nelement() == 1:
+        return sigma.view(())
+    else:
+        return sigma.view(sigma.shape[:1] + (1,) * (noise_dim - 1))
+
 class EPS:
     def calculate_input(self, sigma, noise):
-        sigma = sigma.view(sigma.shape[:1] + (1,) * (noise.ndim - 1))
+        sigma = reshape_sigma(sigma, noise.ndim)
         return noise / (sigma ** 2 + self.sigma_data ** 2) ** 0.5
 
     def calculate_denoised(self, sigma, model_output, model_input):
-        sigma = sigma.view(sigma.shape[:1] + (1,) * (model_output.ndim - 1))
+        sigma = reshape_sigma(sigma, model_output.ndim)
         return model_input - model_output * sigma
 
     def noise_scaling(self, sigma, noise, latent_image, max_denoise=False):
+        sigma = reshape_sigma(sigma, noise.ndim)
         if max_denoise:
             noise = noise * torch.sqrt(1.0 + sigma ** 2.0)
         else:
@@ -44,12 +51,12 @@ class EPS:
 
 class V_PREDICTION(EPS):
     def calculate_denoised(self, sigma, model_output, model_input):
-        sigma = sigma.view(sigma.shape[:1] + (1,) * (model_output.ndim - 1))
+        sigma = reshape_sigma(sigma, model_output.ndim)
         return model_input * self.sigma_data ** 2 / (sigma ** 2 + self.sigma_data ** 2) - model_output * sigma * self.sigma_data / (sigma ** 2 + self.sigma_data ** 2) ** 0.5
 
 class EDM(V_PREDICTION):
     def calculate_denoised(self, sigma, model_output, model_input):
-        sigma = sigma.view(sigma.shape[:1] + (1,) * (model_output.ndim - 1))
+        sigma = reshape_sigma(sigma, model_output.ndim)
         return model_input * self.sigma_data ** 2 / (sigma ** 2 + self.sigma_data ** 2) + model_output * sigma * self.sigma_data / (sigma ** 2 + self.sigma_data ** 2) ** 0.5
 
 class CONST:
@@ -57,14 +64,44 @@ class CONST:
         return noise
 
     def calculate_denoised(self, sigma, model_output, model_input):
-        sigma = sigma.view(sigma.shape[:1] + (1,) * (model_output.ndim - 1))
+        sigma = reshape_sigma(sigma, model_output.ndim)
         return model_input - model_output * sigma
 
     def noise_scaling(self, sigma, noise, latent_image, max_denoise=False):
+        sigma = reshape_sigma(sigma, noise.ndim)
         return sigma * noise + (1.0 - sigma) * latent_image
 
     def inverse_noise_scaling(self, sigma, latent):
+        sigma = reshape_sigma(sigma, latent.ndim)
         return latent / (1.0 - sigma)
+
+class X0(EPS):
+    def calculate_denoised(self, sigma, model_output, model_input):
+        return model_output
+
+class IMG_TO_IMG(X0):
+    def calculate_input(self, sigma, noise):
+        return noise
+
+class COSMOS_RFLOW:
+    def calculate_input(self, sigma, noise):
+        sigma = (sigma / (sigma + 1))
+        sigma = reshape_sigma(sigma, noise.ndim)
+        return noise * (1.0 - sigma)
+
+    def calculate_denoised(self, sigma, model_output, model_input):
+        sigma = (sigma / (sigma + 1))
+        sigma = reshape_sigma(sigma, model_output.ndim)
+        return model_input * (1.0 - sigma) - model_output * sigma
+
+    def noise_scaling(self, sigma, noise, latent_image, max_denoise=False):
+        sigma = reshape_sigma(sigma, noise.ndim)
+        noise = noise * sigma
+        noise += latent_image
+        return noise
+
+    def inverse_noise_scaling(self, sigma, latent):
+        return latent
 
 class ModelSamplingDiscrete(torch.nn.Module):
     def __init__(self, model_config=None, zsnr=None):
@@ -99,13 +136,14 @@ class ModelSamplingDiscrete(torch.nn.Module):
         self.num_timesteps = int(timesteps)
         self.linear_start = linear_start
         self.linear_end = linear_end
+        self.zsnr = zsnr
 
         # self.register_buffer('betas', torch.tensor(betas, dtype=torch.float32))
         # self.register_buffer('alphas_cumprod', torch.tensor(alphas_cumprod, dtype=torch.float32))
         # self.register_buffer('alphas_cumprod_prev', torch.tensor(alphas_cumprod_prev, dtype=torch.float32))
 
         sigmas = ((1 - alphas_cumprod) / alphas_cumprod) ** 0.5
-        if zsnr:
+        if self.zsnr:
             sigmas = rescale_zero_terminal_snr_sigmas(sigmas)
 
         self.set_sigmas(sigmas)
@@ -337,3 +375,15 @@ class ModelSamplingFlux(torch.nn.Module):
         if percent >= 1.0:
             return 0.0
         return flux_time_shift(self.shift, 1.0, 1.0 - percent)
+
+
+class ModelSamplingCosmosRFlow(ModelSamplingContinuousEDM):
+    def timestep(self, sigma):
+        return sigma / (sigma + 1)
+
+    def sigma(self, timestep):
+        sigma_max = self.sigma_max
+        if timestep >= (sigma_max / (sigma_max + 1)):
+            return sigma_max
+
+        return timestep / (1 - timestep)

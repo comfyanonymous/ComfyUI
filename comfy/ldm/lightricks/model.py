@@ -1,13 +1,13 @@
 import torch
 from torch import nn
+import comfy.patcher_extension
 import comfy.ldm.modules.attention
-from comfy.ldm.genmo.joint_model.layers import RMSNorm
 import comfy.ldm.common_dit
 from einops import rearrange
 import math
 from typing import Dict, Optional, Tuple
 
-from .symmetric_patchifier import SymmetricPatchifier
+from .symmetric_patchifier import SymmetricPatchifier, latent_to_pixel_coords
 
 
 def get_timestep_embedding(
@@ -262,8 +262,8 @@ class CrossAttention(nn.Module):
         self.heads = heads
         self.dim_head = dim_head
 
-        self.q_norm = RMSNorm(inner_dim, dtype=dtype, device=device)
-        self.k_norm = RMSNorm(inner_dim, dtype=dtype, device=device)
+        self.q_norm = operations.RMSNorm(inner_dim, eps=1e-5, dtype=dtype, device=device)
+        self.k_norm = operations.RMSNorm(inner_dim, eps=1e-5, dtype=dtype, device=device)
 
         self.to_q = operations.Linear(query_dim, inner_dim, bias=True, dtype=dtype, device=device)
         self.to_k = operations.Linear(context_dim, inner_dim, bias=True, dtype=dtype, device=device)
@@ -271,7 +271,7 @@ class CrossAttention(nn.Module):
 
         self.to_out = nn.Sequential(operations.Linear(inner_dim, query_dim, dtype=dtype, device=device), nn.Dropout(dropout))
 
-    def forward(self, x, context=None, mask=None, pe=None):
+    def forward(self, x, context=None, mask=None, pe=None, transformer_options={}):
         q = self.to_q(x)
         context = x if context is None else context
         k = self.to_k(context)
@@ -285,9 +285,9 @@ class CrossAttention(nn.Module):
             k = apply_rotary_emb(k, pe)
 
         if mask is None:
-            out = comfy.ldm.modules.attention.optimized_attention(q, k, v, self.heads, attn_precision=self.attn_precision)
+            out = comfy.ldm.modules.attention.optimized_attention(q, k, v, self.heads, attn_precision=self.attn_precision, transformer_options=transformer_options)
         else:
-            out = comfy.ldm.modules.attention.optimized_attention_masked(q, k, v, self.heads, mask, attn_precision=self.attn_precision)
+            out = comfy.ldm.modules.attention.optimized_attention_masked(q, k, v, self.heads, mask, attn_precision=self.attn_precision, transformer_options=transformer_options)
         return self.to_out(out)
 
 
@@ -303,12 +303,12 @@ class BasicTransformerBlock(nn.Module):
 
         self.scale_shift_table = nn.Parameter(torch.empty(6, dim, device=device, dtype=dtype))
 
-    def forward(self, x, context=None, attention_mask=None, timestep=None, pe=None):
+    def forward(self, x, context=None, attention_mask=None, timestep=None, pe=None, transformer_options={}):
         shift_msa, scale_msa, gate_msa, shift_mlp, scale_mlp, gate_mlp = (self.scale_shift_table[None, None].to(device=x.device, dtype=x.dtype) + timestep.reshape(x.shape[0], timestep.shape[1], self.scale_shift_table.shape[0], -1)).unbind(dim=2)
 
-        x += self.attn1(comfy.ldm.common_dit.rms_norm(x) * (1 + scale_msa) + shift_msa, pe=pe) * gate_msa
+        x += self.attn1(comfy.ldm.common_dit.rms_norm(x) * (1 + scale_msa) + shift_msa, pe=pe, transformer_options=transformer_options) * gate_msa
 
-        x += self.attn2(x, context=context, mask=attention_mask)
+        x += self.attn2(x, context=context, mask=attention_mask, transformer_options=transformer_options)
 
         y = comfy.ldm.common_dit.rms_norm(x) * (1 + scale_mlp) + shift_mlp
         x += self.ff(y) * gate_mlp
@@ -377,12 +377,16 @@ class LTXVModel(torch.nn.Module):
 
                  positional_embedding_theta=10000.0,
                  positional_embedding_max_pos=[20, 2048, 2048],
+                 causal_temporal_positioning=False,
+                 vae_scale_factors=(8, 32, 32),
                  dtype=None, device=None, operations=None, **kwargs):
         super().__init__()
         self.generator = None
+        self.vae_scale_factors = vae_scale_factors
         self.dtype = dtype
         self.out_channels = in_channels
         self.inner_dim = num_attention_heads * attention_head_dim
+        self.causal_temporal_positioning = causal_temporal_positioning
 
         self.patchify_proj = operations.Linear(in_channels, self.inner_dim, bias=True, dtype=dtype, device=device)
 
@@ -416,51 +420,38 @@ class LTXVModel(torch.nn.Module):
 
         self.patchifier = SymmetricPatchifier(1)
 
-    def forward(self, x, timestep, context, attention_mask, frame_rate=25, guiding_latent=None, guiding_latent_noise_scale=0, transformer_options={}, **kwargs):
+    def forward(self, x, timestep, context, attention_mask, frame_rate=25, transformer_options={}, keyframe_idxs=None, **kwargs):
+        return comfy.patcher_extension.WrapperExecutor.new_class_executor(
+            self._forward,
+            self,
+            comfy.patcher_extension.get_all_wrappers(comfy.patcher_extension.WrappersMP.DIFFUSION_MODEL, transformer_options)
+        ).execute(x, timestep, context, attention_mask, frame_rate, transformer_options, keyframe_idxs, **kwargs)
+
+    def _forward(self, x, timestep, context, attention_mask, frame_rate=25, transformer_options={}, keyframe_idxs=None, **kwargs):
         patches_replace = transformer_options.get("patches_replace", {})
-
-        indices_grid = self.patchifier.get_grid(
-            orig_num_frames=x.shape[2],
-            orig_height=x.shape[3],
-            orig_width=x.shape[4],
-            batch_size=x.shape[0],
-            scale_grid=((1 / frame_rate) * 8, 32, 32),
-            device=x.device,
-        )
-
-        if guiding_latent is not None:
-            ts = torch.ones([x.shape[0], 1, x.shape[2], x.shape[3], x.shape[4]], device=x.device, dtype=x.dtype)
-            input_ts = timestep.view([timestep.shape[0]] + [1] * (x.ndim - 1))
-            ts *= input_ts
-            ts[:, :, 0] = guiding_latent_noise_scale * (input_ts[:, :, 0] ** 2)
-            timestep = self.patchifier.patchify(ts)
-            input_x = x.clone()
-            x[:, :, 0] = guiding_latent[:, :, 0]
-            if guiding_latent_noise_scale > 0:
-                if self.generator is None:
-                    self.generator = torch.Generator(device=x.device).manual_seed(42)
-                elif self.generator.device != x.device:
-                    self.generator = torch.Generator(device=x.device).set_state(self.generator.get_state())
-
-                noise_shape = [guiding_latent.shape[0], guiding_latent.shape[1], 1, guiding_latent.shape[3], guiding_latent.shape[4]]
-                scale = guiding_latent_noise_scale * (input_ts ** 2)
-                guiding_noise = scale * torch.randn(size=noise_shape, device=x.device, generator=self.generator)
-
-                x[:, :, 0] = guiding_noise[:, :, 0] + x[:, :, 0] *  (1.0 - scale[:, :, 0])
-
 
         orig_shape = list(x.shape)
 
-        x = self.patchifier.patchify(x)
+        x, latent_coords = self.patchifier.patchify(x)
+        pixel_coords = latent_to_pixel_coords(
+            latent_coords=latent_coords,
+            scale_factors=self.vae_scale_factors,
+            causal_fix=self.causal_temporal_positioning,
+        )
+
+        if keyframe_idxs is not None:
+            pixel_coords[:, :, -keyframe_idxs.shape[2]:] = keyframe_idxs
+
+        fractional_coords = pixel_coords.to(torch.float32)
+        fractional_coords[:, 0] = fractional_coords[:, 0] * (1.0 / frame_rate)
 
         x = self.patchify_proj(x)
         timestep = timestep * 1000.0
 
-        attention_mask = 1.0 - attention_mask.to(x.dtype).reshape((attention_mask.shape[0], 1, -1, attention_mask.shape[-1]))
-        attention_mask = attention_mask.masked_fill(attention_mask.to(torch.bool), float("-inf"))  # not sure about this
-        # attention_mask = (context != 0).any(dim=2).to(dtype=x.dtype)
+        if attention_mask is not None and not torch.is_floating_point(attention_mask):
+            attention_mask = (attention_mask - 1).to(x.dtype).reshape((attention_mask.shape[0], 1, -1, attention_mask.shape[-1])) * torch.finfo(x.dtype).max
 
-        pe = precompute_freqs_cis(indices_grid, dim=self.inner_dim, out_dtype=x.dtype)
+        pe = precompute_freqs_cis(fractional_coords, dim=self.inner_dim, out_dtype=x.dtype)
 
         batch_size = x.shape[0]
         timestep, embedded_timestep = self.adaln_single(
@@ -488,10 +479,10 @@ class LTXVModel(torch.nn.Module):
             if ("double_block", i) in blocks_replace:
                 def block_wrap(args):
                     out = {}
-                    out["img"] = block(args["img"], context=args["txt"], attention_mask=args["attention_mask"], timestep=args["vec"], pe=args["pe"])
+                    out["img"] = block(args["img"], context=args["txt"], attention_mask=args["attention_mask"], timestep=args["vec"], pe=args["pe"], transformer_options=args["transformer_options"])
                     return out
 
-                out = blocks_replace[("double_block", i)]({"img": x, "txt": context, "attention_mask": attention_mask, "vec": timestep, "pe": pe}, {"original_block": block_wrap})
+                out = blocks_replace[("double_block", i)]({"img": x, "txt": context, "attention_mask": attention_mask, "vec": timestep, "pe": pe, "transformer_options": transformer_options}, {"original_block": block_wrap})
                 x = out["img"]
             else:
                 x = block(
@@ -499,7 +490,8 @@ class LTXVModel(torch.nn.Module):
                     context=context,
                     attention_mask=attention_mask,
                     timestep=timestep,
-                    pe=pe
+                    pe=pe,
+                    transformer_options=transformer_options,
                 )
 
         # 3. Output
@@ -520,8 +512,4 @@ class LTXVModel(torch.nn.Module):
             out_channels=orig_shape[1] // math.prod(self.patchifier.patch_size),
         )
 
-        if guiding_latent is not None:
-            x[:, :, 0] = (input_x[:, :, 0] - guiding_latent[:, :, 0]) / input_ts[:, :, 0]
-
-        # print("res", x)
         return x
