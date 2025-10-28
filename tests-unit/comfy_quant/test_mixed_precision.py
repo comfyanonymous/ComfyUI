@@ -6,6 +6,13 @@ import os
 # Add comfy to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 
+def has_gpu():
+    return torch.cuda.is_available()
+
+from comfy.cli_args import args
+if not has_gpu():
+    args.cpu = True
+
 from comfy import ops
 from comfy.quant_ops import QuantizedTensor, TensorCoreFP8Layout
 
