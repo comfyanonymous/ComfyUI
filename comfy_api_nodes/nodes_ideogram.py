@@ -20,9 +20,9 @@ from comfy_api_nodes.apis.client import (
 
 from comfy_api_nodes.apinode_utils import (
     download_url_to_bytesio,
-    bytesio_to_image_tensor,
     resize_mask_to_image,
 )
+from comfy_api_nodes.util import bytesio_to_image_tensor
 from server import PromptServer
 
 V1_V1_RES_MAP = {
