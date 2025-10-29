@@ -655,6 +655,7 @@ class ModelPatcher:
             mem_counter = 0
             patch_counter = 0
             lowvram_counter = 0
+            lowvram_mem_counter = 0
             loading = self._load_list()
 
             load_completely = []
@@ -675,6 +676,7 @@ class ModelPatcher:
                     if mem_counter + module_mem >= lowvram_model_memory:
                         lowvram_weight = True
                         lowvram_counter += 1
+                        lowvram_mem_counter += module_mem
                         if hasattr(m, "prev_comfy_cast_weights"): #Already lowvramed
                             continue
 
@@ -748,10 +750,10 @@ class ModelPatcher:
                     self.pin_weight_to_device("{}.{}".format(n, param))
 
             if lowvram_counter > 0:
-                logging.info("loaded partially {} {} {}".format(lowvram_model_memory / (1024 * 1024), mem_counter / (1024 * 1024), patch_counter))
+                logging.info("loaded partially; {:.2f} MB usable, {:.2f} MB loaded, {:.2f} MB offloaded, lowvram patches: {}".format(lowvram_model_memory / (1024 * 1024), mem_counter / (1024 * 1024), lowvram_mem_counter / (1024 * 1024), patch_counter))
                 self.model.model_lowvram = True
             else:
-                logging.info("loaded completely {} {} {}".format(lowvram_model_memory / (1024 * 1024), mem_counter / (1024 * 1024), full_load))
+                logging.info("loaded completely; {:.2f} MB usable, {:.2f} MB loaded, full load: {}".format(lowvram_model_memory / (1024 * 1024), mem_counter / (1024 * 1024), full_load))
                 self.model.model_lowvram = False
                 if full_load:
                     self.model.to(device_to)
