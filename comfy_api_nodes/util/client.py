@@ -78,7 +78,7 @@ class _PollUIState:
 
 _RETRY_STATUS = {408, 429, 500, 502, 503, 504}
 COMPLETED_STATUSES = ["succeeded", "succeed", "success", "completed"]
-FAILED_STATUSES = ["cancelled", "canceled", "failed", "error"]
+FAILED_STATUSES = ["cancelled", "canceled", "fail", "failed", "error"]
 QUEUED_STATUSES = ["created", "queued", "queueing", "submitted"]
 
 
