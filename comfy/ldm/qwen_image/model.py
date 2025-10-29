@@ -2,7 +2,6 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import math
 import logging
 from typing import Optional, Tuple
 from einops import repeat, rearrange
@@ -336,7 +335,6 @@ class QwenImageTransformer2DModel(nn.Module):
         self.inner_dim = num_attention_heads * attention_head_dim
 
         self.pe_embedder = EmbedND(dim=attention_head_dim, theta=10000, axes_dim=list(axes_dims_rope))
-        
         self.time_text_embed = QwenTimestepProjEmbeddings(
             embedding_dim=self.inner_dim,
             pooled_projection_dim=pooled_projection_dim,
@@ -560,8 +558,8 @@ class QwenImageTransformer2DModel(nn.Module):
             # Positive gets entity constraints, negative gets standard attention (all zeros)
 
             logger.debug(
-                f"[EliGen Model] CFG batched detected - creating separate masks. "
-                f"Positive (index 0) gets entity mask, Negative (index 1) gets standard mask"
+                "[EliGen Model] CFG batched detected - creating separate masks. "
+                "Positive (index 0) gets entity mask, Negative (index 1) gets standard mask"
             )
 
             # Create standard attention mask (all zeros = no constraints)
