@@ -29,18 +29,19 @@ def test_regex():
     n = Regex()
 
     # Basic match test
-    match, = n.execute(pattern=r"hello", string="hello world")
+    match, *_ = n.execute(pattern=r"hello", string="hello world")
     assert match is not None
     assert match.group(0) == "hello"
 
     # Test with flags
-    match, = n.execute(pattern=r"HELLO", string="hello world", flags=re.IGNORECASE)
+    match, *_ = n.execute(pattern=r"HELLO", string="hello world", flags=re.IGNORECASE)
     assert match is not None
     assert match.group(0) == "hello"
 
     # Test no match
-    match, = n.execute(pattern=r"python", string="hello world")
+    match, has_match = n.execute(pattern=r"python", string="hello world")
     assert match is None
+    assert not has_match
 
 
 def test_regex_match_group_by_index():
@@ -48,7 +49,7 @@ def test_regex_match_group_by_index():
     regex = Regex()
 
     # Test basic group
-    match, = regex.execute(pattern=r"(hello) (world)", string="hello world")
+    match, *_ = regex.execute(pattern=r"(hello) (world)", string="hello world")
     group, = n.execute(match=match, index=0)
     assert group == "hello world"
 
@@ -64,8 +65,8 @@ def test_regex_match_group_by_name():
     regex = Regex()
 
     # Test named group
-    match, = regex.execute(pattern=r"(?P<greeting>hello) (?P<subject>world)",
-                           string="hello world")
+    match, *_ = regex.execute(pattern=r"(?P<greeting>hello) (?P<subject>world)",
+                              string="hello world")
 
     group, = n.execute(match=match, name="greeting")
     assert group == "hello"
@@ -83,12 +84,12 @@ def test_regex_match_expand():
     regex = Regex()
 
     # Test basic expansion
-    match, = regex.execute(pattern=r"(hello) (world)", string="hello world")
+    match, *_ = regex.execute(pattern=r"(hello) (world)", string="hello world")
     result, = n.execute(match=match, template=r"\2, \1!")
     assert result == "world, hello!"
 
     # Test named group expansion
-    match, = regex.execute(pattern=r"(?P<greeting>hello) (?P<subject>world)",
-                           string="hello world")
+    match, *_ = regex.execute(pattern=r"(?P<greeting>hello) (?P<subject>world)",
+                              string="hello world")
     result, = n.execute(match=match, template=r"\g<subject>, \g<greeting>!")
     assert result == "world, hello!"
