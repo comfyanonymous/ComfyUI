@@ -75,7 +75,7 @@ pypatch-url apply https://raw.githubusercontent.com/sfinktah/amd-torch/refs/head
 :: copy comfy\customzluda\fa\distributed.py %VIRTUAL_ENV%\Lib\site-packages\flash_attn\utils\distributed.py /y >NUL
 
 echo  ::  %time:~0,8%  ::  - Installing and patching sage-attention
-pip install sageattention --quiet
+pip install sageattention==1.0.6 --quiet
 copy comfy\customzluda\sa\quant_per_block.py %VIRTUAL_ENV%\Lib\site-packages\sageattention\quant_per_block.py /y >NUL
 copy comfy\customzluda\sa\attn_qk_int8_per_block_causal.py %VIRTUAL_ENV%\Lib\site-packages\sageattention\attn_qk_int8_per_block_causal.py /y >NUL
 copy comfy\customzluda\sa\attn_qk_int8_per_block.py %VIRTUAL_ENV%\Lib\site-packages\sageattention\attn_qk_int8_per_block.py /y >NUL
@@ -152,5 +152,6 @@ set FLASH_ATTENTION_TRITON_AMD_ENABLE=TRUE
 set MIOPEN_FIND_MODE=2
 set MIOPEN_LOG_LEVEL=3
 .\zluda\zluda.exe -- python main.py --auto-launch --use-quad-cross-attention
+
 
 
