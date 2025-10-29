@@ -130,7 +130,7 @@ class ExecutorToClientProgress(Protocol):
     last_prompt_id: Optional[str]
 
     @property
-    def receive_all_progress_notifications(self):
+    def receive_all_progress_notifications(self) -> bool:
         """
         Set to true if this should receive progress bar updates, in addition to the standard execution lifecycle messages
         :return:

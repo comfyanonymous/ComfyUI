@@ -1,11 +1,11 @@
 from __future__ import annotations
 
+import fnmatch
 import importlib
 import importlib.util
 import logging
 import os
 import sys
-import fnmatch
 import time
 import types
 from contextlib import contextmanager
@@ -18,6 +18,7 @@ from .comfyui_v3_package_imports import _comfy_entrypoint_upstream_v3_imports
 from .package_typing import ExportedNodes
 from ..cmd import folder_paths
 from ..component_model.plugins import prompt_server_instance_routes
+from ..distributed.server_stub import ServerStub
 
 logger = logging.getLogger(__name__)
 
@@ -43,14 +44,18 @@ class StreamToLogger:
         pass
 
 
-class _PromptServerStub:
+class _PromptServerStub(ServerStub):
     def __init__(self):
+        super().__init__()
         self.routes = prompt_server_instance_routes
         self.on_prompt_handlers = []
 
     def add_on_prompt_handler(self, handler):
         # todo: these need to be added to a real prompt server if the loading order is behaving in a complex way
         self.on_prompt_handlers.append(handler)
+
+    def send_sync(self, *args, **kwargs):
+        logger.warning(f"Node tried to send a message over the websocket while importing, args={args} kwargs={kwargs}")
 
 
 def _vanilla_load_importing_execute_prestartup_script(node_paths: Iterable[str]) -> None:
