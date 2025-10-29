@@ -11,6 +11,7 @@ import types
 from contextlib import contextmanager
 from os.path import join, basename, dirname, isdir, isfile, exists, abspath, split, splitext, realpath
 from typing import Iterable, Any, Generator
+from unittest.mock import patch
 
 from comfy_compatibility.vanilla import prepare_vanilla_environment
 from . import base_nodes
@@ -138,6 +139,7 @@ def _exec_mitigations(module: types.ModuleType, module_path: str) -> Generator[E
     if module.__name__.lower() in (
             "comfyui-manager",
             "comfyui_ryanonyheinside",
+            "comfyui-easy-use",
     ):
         from ..cmd import folder_paths
         old_file = folder_paths.__file__
@@ -145,13 +147,11 @@ def _exec_mitigations(module: types.ModuleType, module_path: str) -> Generator[E
         try:
             # mitigate path
             new_path = join(abspath(join(dirname(old_file), "..", "..")), basename(old_file))
-            folder_paths.__file__ = new_path
-            # mitigate JS copy
-            sys.modules['nodes'].EXTENSION_WEB_DIRS = {}
 
-            yield ExportedNodes()
+            with patch.object(folder_paths, "__file__", new_path), \
+                    patch.object(sys.modules['nodes'], "EXTENSION_WEB_DIRS", {}, create=True):  # mitigate JS copy
+                yield ExportedNodes()
         finally:
-            folder_paths.__file__ = old_file
             # todo: mitigate "/manager/reboot"
             # todo: mitigate process_wrap
             # todo: unfortunately, we shouldn't restore the patches here, they will have to be applied forever.

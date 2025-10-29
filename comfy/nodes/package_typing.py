@@ -61,7 +61,7 @@ BooleanSpec = Tuple[Literal["BOOLEAN"], BoolSpecOptions]
 
 ChoiceSpec = Tuple[Union[List[str], List[float], List[int], Tuple[str, ...], Tuple[float, ...], Tuple[int, ...]]]
 
-NonPrimitiveTypeSpec = Tuple[CommonReturnTypes, Any]
+NonPrimitiveTypeSpec = Tuple[CommonReturnTypes] | Tuple[CommonReturnTypes, dict]
 
 InputTypeSpec = Union[IntSpec, FloatSpec, StringSpec, BooleanSpec, ChoiceSpec, NonPrimitiveTypeSpec]
 

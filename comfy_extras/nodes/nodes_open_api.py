@@ -684,7 +684,7 @@ class SaveImagesResponse(CustomNode):
                     mut_srgb_to_linear(image_as_numpy_array[:, :, :3])
                     image_scaled = image_as_numpy_array.astype(np.float32)
                     if bits == 16:
-                        cv_save_options = [cv2.IMWRITE_EXR_TYPE, cv2.IMWRITE_EXR_TYPE_HALF]  
+                        cv_save_options = [cv2.IMWRITE_EXR_TYPE, cv2.IMWRITE_EXR_TYPE_HALF]
                 else:
                     image_scaled = np.clip(image_as_numpy_array * 65535, 0, 65535).astype(np.uint16)
 
@@ -779,7 +779,7 @@ class SaveImagesResponse(CustomNode):
                 if save_method == 'pil':
                     image_as_pil.save(local_path, format=save_format, **additional_args)
                 else:
-                    cv2.imwrite(local_path, image_scaled)  
+                    cv2.imwrite(local_path, image_scaled)
 
             img_item: SaveNodeResultWithName = {
                 "abs_path": str(abs_path),
@@ -809,6 +809,7 @@ class ImageRequestParameter(CustomNode):
             },
             "optional": {
                 **_open_api_common_schema,
+                "default_if_empty": ("IMAGE",)
             }
         }
 
@@ -816,7 +817,9 @@ class ImageRequestParameter(CustomNode):
     FUNCTION = "execute"
     CATEGORY = "api/openapi"
 
-    def execute(self, value: str = "", *args, **kwargs) -> ValidatedNodeResult:
+    def execute(self, value: str = "", default_if_empty=None, *args, **kwargs) -> ValidatedNodeResult:
+        if value.strip() == "":
+            return (default_if_empty,)
         output_images = []
         f: OpenFile
         fsspec_kwargs = {}
