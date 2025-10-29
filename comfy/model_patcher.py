@@ -238,6 +238,7 @@ class ModelPatcher:
         self.force_cast_weights = False
         self.patches_uuid = uuid.uuid4()
         self.parent = None
+        self.pinned = set()
 
         self.attachments: dict[str] = {}
         self.additional_models: dict[str, list[ModelPatcher]] = {}
@@ -618,6 +619,21 @@ class ModelPatcher:
         else:
             set_func(out_weight, inplace_update=inplace_update, seed=string_to_seed(key))
 
+    def pin_weight_to_device(self, key):
+        weight, set_func, convert_func = get_key_weight(self.model, key)
+        if comfy.model_management.pin_memory(weight):
+            self.pinned.add(key)
+
+    def unpin_weight(self, key):
+        if key in self.pinned:
+            weight, set_func, convert_func = get_key_weight(self.model, key)
+            comfy.model_management.unpin_memory(weight)
+            self.pinned.remove(key)
+
+    def unpin_all_weights(self):
+        for key in list(self.pinned):
+            self.unpin_weight(key)
+
     def _load_list(self):
         loading = []
         for n, m in self.model.named_modules():
@@ -683,6 +699,8 @@ class ModelPatcher:
                             patch_counter += 1
 
                     cast_weight = True
+                    for param in params:
+                        self.pin_weight_to_device("{}.{}".format(n, param))
                 else:
                     if hasattr(m, "comfy_cast_weights"):
                         wipe_lowvram_weight(m)
@@ -713,7 +731,9 @@ class ModelPatcher:
                         continue
 
                 for param in params:
-                    self.patch_weight_to_device("{}.{}".format(n, param), device_to=device_to)
+                    key = "{}.{}".format(n, param)
+                    self.unpin_weight(key)
+                    self.patch_weight_to_device(key, device_to=device_to)
 
                 logging.debug("lowvram: loaded module regularly {} {}".format(n, m))
                 m.comfy_patched_weights = True
@@ -762,6 +782,7 @@ class ModelPatcher:
         self.eject_model()
         if unpatch_weights:
             self.unpatch_hooks()
+            self.unpin_all_weights()
             if self.model.model_lowvram:
                 for m in self.model.modules():
                     move_weight_functions(m, device_to)
@@ -856,6 +877,9 @@ class ModelPatcher:
                         m.comfy_patched_weights = False
                         memory_freed += module_mem
                         logging.debug("freed {}".format(n))
+
+                        for param in params:
+                            self.pin_weight_to_device("{}.{}".format(n, param))
 
             self.model.model_lowvram = True
             self.model.lowvram_patch_counter += patch_counter
