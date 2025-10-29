@@ -400,11 +400,24 @@ class UserManager():
             try:
                 body = await request.read()
 
+                # Pretty print JSON files for better source control
+                if path.lower().endswith('.json'):
+                    try:
+                        # Parse JSON and re-serialize with indentation
+                        json_data = json.loads(body.decode('utf-8'))
+                        formatted_body = json.dumps(json_data, indent=2).encode('utf-8')
+                    except (json.JSONDecodeError, UnicodeDecodeError):
+                        # If JSON parsing fails, save as-is
+                        formatted_body = body
+                else:
+                    # Non-JSON files are saved as-is
+                    formatted_body = body
+
                 dir_name = os.path.dirname(path)
                 fd, tmp_path = tempfile.mkstemp(dir=dir_name)
                 try:
                     with os.fdopen(fd, "wb") as f:
-                        f.write(body)
+                        f.write(formatted_body)
                     os.replace(tmp_path, path)
                 except:
                     os.unlink(tmp_path)
