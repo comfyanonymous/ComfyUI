@@ -658,6 +658,7 @@ class ModelPatcher:
             loading = self._load_list()
 
             load_completely = []
+            offloaded = []
             loading.sort(reverse=True)
             for x in loading:
                 n = x[1]
@@ -699,8 +700,7 @@ class ModelPatcher:
                             patch_counter += 1
 
                     cast_weight = True
-                    for param in params:
-                        self.pin_weight_to_device("{}.{}".format(n, param))
+                    offloaded.append((module_mem, n, m, params))
                 else:
                     if hasattr(m, "comfy_cast_weights"):
                         wipe_lowvram_weight(m)
@@ -740,6 +740,12 @@ class ModelPatcher:
 
             for x in load_completely:
                 x[2].to(device_to)
+
+            for x in offloaded:
+                n = x[1]
+                params = x[3]
+                for param in params:
+                    self.pin_weight_to_device("{}.{}".format(n, param))
 
             if lowvram_counter > 0:
                 logging.info("loaded partially {} {} {}".format(lowvram_model_memory / (1024 * 1024), mem_counter / (1024 * 1024), patch_counter))
