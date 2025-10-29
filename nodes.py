@@ -2275,6 +2275,7 @@ async def init_builtin_extra_nodes():
         "nodes_images.py",
         "nodes_video_model.py",
         "nodes_train.py",
+        "nodes_dataset.py",
         "nodes_sag.py",
         "nodes_perpneg.py",
         "nodes_stable3d.py",
