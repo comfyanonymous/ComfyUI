@@ -358,7 +358,7 @@ class TensorCoreFP8Layout(QuantizedLayout):
         scale = scale.to(device=tensor.device, dtype=torch.float32)
 
         lp_amax = torch.finfo(dtype).max
-        tensor_scaled = tensor.float() / scale
+        tensor_scaled = tensor * (1.0 / scale).to(tensor.dtype)
         torch.clamp(tensor_scaled, min=-lp_amax, max=lp_amax, out=tensor_scaled)
         qdata = tensor_scaled.to(dtype, memory_format=torch.contiguous_format)
 
