@@ -421,14 +421,18 @@ def fp8_linear(self, input):
 
         if scale_input is None:
             scale_input = torch.ones((), device=input.device, dtype=torch.float32)
+            input = torch.clamp(input, min=-448, max=448, out=input)
+            input = input.reshape(-1, input_shape[2]).to(dtype).contiguous()
+            layout_params_weight = {'scale': scale_input, 'orig_dtype': input_dtype}
+            quantized_input = QuantizedTensor(input.reshape(-1, input_shape[2]).to(dtype).contiguous(), TensorCoreFP8Layout, layout_params_weight)
         else:
             scale_input = scale_input.to(input.device)
+            quantized_input = QuantizedTensor.from_float(input.reshape(-1, input_shape[2]), TensorCoreFP8Layout, scale=scale_input, dtype=dtype)
 
         # Wrap weight in QuantizedTensor - this enables unified dispatch
         # Call F.linear - __torch_dispatch__ routes to fp8_linear handler in quant_ops.py!
         layout_params_weight = {'scale': scale_weight, 'orig_dtype': input_dtype}
         quantized_weight = QuantizedTensor(w, TensorCoreFP8Layout, layout_params_weight)
-        quantized_input = QuantizedTensor.from_float(input.reshape(-1, input_shape[2]), TensorCoreFP8Layout, scale=scale_input, dtype=dtype)
         o = torch.nn.functional.linear(quantized_input, quantized_weight, bias)
 
         uncast_bias_weight(self, w, bias, offload_stream)
