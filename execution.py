@@ -445,6 +445,7 @@ async def execute(server, dynprompt, caches, current_item, extra_data, executed,
                     resolved_outputs.append(tuple(resolved_output))
             output_data = merge_result_data(resolved_outputs, class_def)
             output_ui = []
+            del pending_subgraph_results[unique_id]
             has_subgraph = False
         else:
             get_progress_state().start_progress(unique_id)
@@ -527,10 +528,6 @@ async def execute(server, dynprompt, caches, current_item, extra_data, executed,
                 if new_graph is None:
                     cached_outputs.append((False, node_outputs))
                 else:
-                    # Check for conflicts
-                    for node_id in new_graph.keys():
-                        if dynprompt.has_node(node_id):
-                            raise DuplicateNodeError(f"Attempt to add duplicate node {node_id}. Ensure node ids are unique and deterministic or use graph_utils.GraphBuilder.")
                     for node_id, node_info in new_graph.items():
                         new_node_ids.append(node_id)
                         display_id = node_info.get("override_display_id", unique_id)
@@ -1116,7 +1113,7 @@ class PromptQueue:
         messages: List[str]
 
     def task_done(self, item_id, history_result,
-                  status: Optional['PromptQueue.ExecutionStatus']):
+                  status: Optional['PromptQueue.ExecutionStatus'], process_item=None):
         with self.mutex:
             prompt = self.currently_running.pop(item_id)
             if len(self.history) > MAXIMUM_HISTORY_SIZE:
@@ -1126,10 +1123,8 @@ class PromptQueue:
             if status is not None:
                 status_dict = copy.deepcopy(status._asdict())
 
-            # Remove sensitive data from extra_data before storing in history
-            for sensitive_val in SENSITIVE_EXTRA_DATA_KEYS:
-                if sensitive_val in prompt[3]:
-                    prompt[3].pop(sensitive_val)
+            if process_item is not None:
+                prompt = process_item(prompt)
 
             self.history[prompt[1]] = {
                 "prompt": prompt,
