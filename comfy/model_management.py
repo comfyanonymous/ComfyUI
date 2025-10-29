@@ -1080,6 +1080,36 @@ def cast_to_device(tensor, device, dtype, copy=False):
     non_blocking = device_supports_non_blocking(device)
     return cast_to(tensor, dtype=dtype, device=device, non_blocking=non_blocking, copy=copy)
 
+def pin_memory(tensor):
+    if PerformanceFeature.PinnedMem not in args.fast:
+        return False
+
+    if not is_nvidia():
+        return False
+
+    if not is_device_cpu(tensor.device):
+        return False
+
+    if torch.cuda.cudart().cudaHostRegister(tensor.data_ptr(), tensor.numel() * tensor.element_size(), 1) == 0:
+        return True
+
+    return False
+
+def unpin_memory(tensor):
+    if PerformanceFeature.PinnedMem not in args.fast:
+        return False
+
+    if not is_nvidia():
+        return False
+
+    if not is_device_cpu(tensor.device):
+        return False
+
+    if torch.cuda.cudart().cudaHostUnregister(tensor.data_ptr()) == 0:
+        return True
+
+    return False
+
 def sage_attention_enabled():
     return args.use_sage_attention
 
