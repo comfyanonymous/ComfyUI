@@ -445,6 +445,7 @@ async def execute(server, dynprompt, caches, current_item, extra_data, executed,
                     resolved_outputs.append(tuple(resolved_output))
             output_data = merge_result_data(resolved_outputs, class_def)
             output_ui = []
+            del pending_subgraph_results[unique_id]
             has_subgraph = False
         else:
             get_progress_state().start_progress(unique_id)
@@ -527,10 +528,6 @@ async def execute(server, dynprompt, caches, current_item, extra_data, executed,
                 if new_graph is None:
                     cached_outputs.append((False, node_outputs))
                 else:
-                    # Check for conflicts
-                    for node_id in new_graph.keys():
-                        if dynprompt.has_node(node_id):
-                            raise DuplicateNodeError(f"Attempt to add duplicate node {node_id}. Ensure node ids are unique and deterministic or use graph_utils.GraphBuilder.")
                     for node_id, node_info in new_graph.items():
                         new_node_ids.append(node_id)
                         display_id = node_info.get("override_display_id", unique_id)
