@@ -1,4 +1,5 @@
 import re
+from typing import Optional
 
 from comfy.node_helpers import export_custom_nodes
 from comfy.nodes.package_typing import CustomNode, InputTypes
@@ -44,10 +45,12 @@ class Regex(CustomNode):
 
     CATEGORY = "regular_expressions"
     FUNCTION = "execute"
-    RETURN_TYPES = (MATCH_TYPE_NAME,)
+    RETURN_TYPES = (MATCH_TYPE_NAME, "BOOLEAN")
+    RETURN_NAMES = ("match", "match found")
 
-    def execute(self, pattern: str = "", string: str = "", flags: int = 0) -> tuple[re.Match]:
-        return re.match(pattern=pattern, string=string, flags=flags),
+    def execute(self, pattern: str = "", string: str = "", flags: int = 0) -> tuple[re.Match, bool]:
+        match = re.match(pattern=pattern, string=string, flags=flags)
+        return match, match is not None
 
 
 class RegexMatchGroupByIndex(CustomNode):
@@ -62,10 +65,10 @@ class RegexMatchGroupByIndex(CustomNode):
 
     CATEGORY = "regular_expressions"
     FUNCTION = "execute"
-    RETURN_TYPES = (MATCH_TYPE_NAME,)
+    RETURN_TYPES = ("STRING",)
 
-    def execute(self, match: re.Match, index: int = 0) -> tuple[str]:
-        return match.group(index),
+    def execute(self, match: Optional[re.Match], index: int = 0) -> tuple[str]:
+        return "" if match is None else match.group(index),
 
 
 class RegexMatchGroupByName(CustomNode):
@@ -80,10 +83,10 @@ class RegexMatchGroupByName(CustomNode):
 
     CATEGORY = "regular_expressions"
     FUNCTION = "execute"
-    RETURN_TYPES = (MATCH_TYPE_NAME,)
+    RETURN_TYPES = ("STRING",)
 
-    def execute(self, match: re.Match, name: str = "") -> tuple[str]:
-        return match.group(name),
+    def execute(self, match: Optional[re.Match], name: str = "") -> tuple[str]:
+        return "" if match is None else match.group(name),
 
 
 class RegexMatchExpand(CustomNode):
@@ -100,8 +103,8 @@ class RegexMatchExpand(CustomNode):
     FUNCTION = "execute"
     RETURN_TYPES = ("STRING",)
 
-    def execute(self, match: re.Match, template: str = "") -> tuple[str]:
-        return match.expand(template),
+    def execute(self, match: Optional[re.Match], template: str = "") -> tuple[str]:
+        return "" if match is None else match.expand(template),
 
 
 export_custom_nodes()
