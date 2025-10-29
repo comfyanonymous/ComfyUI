@@ -1283,5 +1283,6 @@ class ModelPatcher:
         self.clear_cached_hook_weights()
 
     def __del__(self):
+        self.unpin_all_weights()
         self.detach(unpatch_all=False)
 
