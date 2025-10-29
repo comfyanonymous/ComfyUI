@@ -1330,7 +1330,7 @@ def load_diffusion_model_state_dict(sd, model_options={}, metadata=None):
     else:
         unet_dtype = dtype
 
-    if hasattr(model_config, "layer_quant_config"):
+    if model_config.layer_quant_config is not None:
         manual_cast_dtype = model_management.unet_manual_cast(None, load_device, model_config.supported_inference_dtypes)
     else:
         manual_cast_dtype = model_management.unet_manual_cast(unet_dtype, load_device, model_config.supported_inference_dtypes)
