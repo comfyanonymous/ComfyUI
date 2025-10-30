@@ -14,9 +14,9 @@ from comfy_api_nodes.util import (
     poll_op,
     sync_op,
     upload_images_to_comfyapi,
-    validate_aspect_ratio_closeness,
-    validate_image_aspect_ratio_range,
+    validate_image_aspect_ratio,
     validate_image_dimensions,
+    validate_images_aspect_ratio_closeness,
 )
 
 VIDU_TEXT_TO_VIDEO = "/proxy/vidu/text2video"
@@ -114,7 +114,7 @@ async def execute_task(
         cls,
         ApiEndpoint(path=VIDU_GET_GENERATION_STATUS % response.task_id),
         response_model=TaskStatusResponse,
-        status_extractor=lambda r: r.state.value,
+        status_extractor=lambda r: r.state,
         estimated_duration=estimated_duration,
     )
 
@@ -307,7 +307,7 @@ class ViduImageToVideoNode(IO.ComfyNode):
     ) -> IO.NodeOutput:
         if get_number_of_images(image) > 1:
             raise ValueError("Only one input image is allowed.")
-        validate_image_aspect_ratio_range(image, (1, 4), (4, 1))
+        validate_image_aspect_ratio(image, (1, 4), (4, 1))
         payload = TaskCreationRequest(
             model_name=model,
             prompt=prompt,
@@ -423,7 +423,7 @@ class ViduReferenceVideoNode(IO.ComfyNode):
         if a > 7:
             raise ValueError("Too many images, maximum allowed is 7.")
         for image in images:
-            validate_image_aspect_ratio_range(image, (1, 4), (4, 1))
+            validate_image_aspect_ratio(image, (1, 4), (4, 1))
             validate_image_dimensions(image, min_width=128, min_height=128)
         payload = TaskCreationRequest(
             model_name=model,
@@ -533,7 +533,7 @@ class ViduStartEndToVideoNode(IO.ComfyNode):
         resolution: str,
         movement_amplitude: str,
     ) -> IO.NodeOutput:
-        validate_aspect_ratio_closeness(first_frame, end_frame, min_rel=0.8, max_rel=1.25, strict=False)
+        validate_images_aspect_ratio_closeness(first_frame, end_frame, min_rel=0.8, max_rel=1.25, strict=False)
         payload = TaskCreationRequest(
             model_name=model,
             prompt=prompt,

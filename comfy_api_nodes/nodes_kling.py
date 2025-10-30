@@ -282,7 +282,7 @@ def validate_input_image(image: torch.Tensor) -> None:
     See: https://app.klingai.com/global/dev/document-api/apiReference/model/imageToVideo
     """
     validate_image_dimensions(image, min_width=300, min_height=300)
-    validate_image_aspect_ratio(image, min_aspect_ratio=1 / 2.5, max_aspect_ratio=2.5)
+    validate_image_aspect_ratio(image, (1, 2.5), (2.5, 1))
 
 
 def get_video_from_response(response) -> KlingVideoResult:

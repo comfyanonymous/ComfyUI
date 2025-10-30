@@ -8,9 +8,6 @@ from typing_extensions import override
 
 from comfy.utils import ProgressBar
 from comfy_api.latest import IO, ComfyExtension
-from comfy_api_nodes.apinode_utils import (
-    resize_mask_to_image,
-)
 from comfy_api_nodes.apis.recraft_api import (
     RecraftColor,
     RecraftColorChain,
@@ -28,6 +25,7 @@ from comfy_api_nodes.util import (
     ApiEndpoint,
     bytesio_to_image_tensor,
     download_url_as_bytesio,
+    resize_mask_to_image,
     sync_op,
     tensor_to_bytesio,
     validate_string,

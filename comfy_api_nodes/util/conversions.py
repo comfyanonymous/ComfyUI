@@ -430,3 +430,24 @@ def audio_bytes_to_audio_input(audio_bytes: bytes) -> dict:
     wav = torch.cat(frames, dim=1)  # [C, T]
     wav = _f32_pcm(wav)
     return {"waveform": wav.unsqueeze(0).contiguous(), "sample_rate": out_sr}
+
+
+def resize_mask_to_image(
+    mask: torch.Tensor,
+    image: torch.Tensor,
+    upscale_method="nearest-exact",
+    crop="disabled",
+    allow_gradient=True,
+    add_channel_dim=False,
+):
+    """Resize mask to be the same dimensions as an image, while maintaining proper format for API calls."""
+    _, height, width, _ = image.shape
+    mask = mask.unsqueeze(-1)
+    mask = mask.movedim(-1, 1)
+    mask = common_upscale(mask, width=width, height=height, upscale_method=upscale_method, crop=crop)
+    mask = mask.movedim(1, -1)
+    if not add_channel_dim:
+        mask = mask.squeeze(-1)
+    if not allow_gradient:
+        mask = (mask > 0.5).float()
+    return mask
