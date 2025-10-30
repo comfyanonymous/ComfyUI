@@ -17,7 +17,7 @@ from comfy_api_nodes.util import (
     poll_op,
     sync_op,
     upload_images_to_comfyapi,
-    validate_image_aspect_ratio_range,
+    validate_image_aspect_ratio,
     validate_image_dimensions,
     validate_string,
 )
@@ -403,7 +403,7 @@ class ByteDanceImageEditNode(IO.ComfyNode):
         validate_string(prompt, strip_whitespace=True, min_length=1)
         if get_number_of_images(image) != 1:
             raise ValueError("Exactly one input image is required.")
-        validate_image_aspect_ratio_range(image, (1, 3), (3, 1))
+        validate_image_aspect_ratio(image, (1, 3), (3, 1))
         source_url = (await upload_images_to_comfyapi(cls, image, max_images=1, mime_type="image/png"))[0]
         payload = Image2ImageTaskCreationRequest(
             model=model,
@@ -565,7 +565,7 @@ class ByteDanceSeedreamNode(IO.ComfyNode):
         reference_images_urls = []
         if n_input_images:
             for i in image:
-                validate_image_aspect_ratio_range(i, (1, 3), (3, 1))
+                validate_image_aspect_ratio(i, (1, 3), (3, 1))
             reference_images_urls = await upload_images_to_comfyapi(
                 cls,
                 image,
@@ -798,7 +798,7 @@ class ByteDanceImageToVideoNode(IO.ComfyNode):
         validate_string(prompt, strip_whitespace=True, min_length=1)
         raise_if_text_params(prompt, ["resolution", "ratio", "duration", "seed", "camerafixed", "watermark"])
         validate_image_dimensions(image, min_width=300, min_height=300, max_width=6000, max_height=6000)
-        validate_image_aspect_ratio_range(image, (2, 5), (5, 2), strict=False)  # 0.4 to 2.5
+        validate_image_aspect_ratio(image, (2, 5), (5, 2), strict=False)  # 0.4 to 2.5
 
         image_url = (await upload_images_to_comfyapi(cls, image, max_images=1))[0]
         prompt = (
@@ -923,7 +923,7 @@ class ByteDanceFirstLastFrameNode(IO.ComfyNode):
         raise_if_text_params(prompt, ["resolution", "ratio", "duration", "seed", "camerafixed", "watermark"])
         for i in (first_frame, last_frame):
             validate_image_dimensions(i, min_width=300, min_height=300, max_width=6000, max_height=6000)
-            validate_image_aspect_ratio_range(i, (2, 5), (5, 2), strict=False)  # 0.4 to 2.5
+            validate_image_aspect_ratio(i, (2, 5), (5, 2), strict=False)  # 0.4 to 2.5
 
         download_urls = await upload_images_to_comfyapi(
             cls,
@@ -1045,7 +1045,7 @@ class ByteDanceImageReferenceNode(IO.ComfyNode):
         raise_if_text_params(prompt, ["resolution", "ratio", "duration", "seed", "watermark"])
         for image in images:
             validate_image_dimensions(image, min_width=300, min_height=300, max_width=6000, max_height=6000)
-            validate_image_aspect_ratio_range(image, (2, 5), (5, 2), strict=False)  # 0.4 to 2.5
+            validate_image_aspect_ratio(image, (2, 5), (5, 2), strict=False)  # 0.4 to 2.5
 
         image_urls = await upload_images_to_comfyapi(cls, images, max_images=4, mime_type="image/png")
         prompt = (
