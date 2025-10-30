@@ -276,6 +276,9 @@ class ModelPatcher:
         self.size = comfy.model_management.module_size(self.model)
         return self.size
 
+    def get_ram_usage(self):
+        return self.model_size()
+
     def loaded_size(self):
         return self.model.model_loaded_weight_memory
 
