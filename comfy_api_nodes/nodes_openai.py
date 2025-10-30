@@ -225,7 +225,7 @@ class OpenAIDalle2(ComfyNodeABC):
             ),
             files=(
                 {
-                    "image": img_binary,
+                    "image": ("image.png", img_binary, "image/png"),
                 }
                 if img_binary
                 else None
