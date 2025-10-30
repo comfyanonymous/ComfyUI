@@ -225,21 +225,20 @@ async def get_rodin_download_list(uuid, auth_kwargs: Optional[dict[str, str]] = 
 
 
 async def download_files(url_list, task_uuid):
-    save_path = os.path.join(comfy_paths.get_output_directory(), f"Rodin3D_{task_uuid}")
+    result_folder_name = f"Rodin3D_{task_uuid}"
+    save_path = os.path.join(comfy_paths.get_output_directory(), result_folder_name)
     os.makedirs(save_path, exist_ok=True)
     model_file_path = None
     async with aiohttp.ClientSession() as session:
         for i in url_list.list:
-            url = i.url
-            file_name = i.name
-            file_path = os.path.join(save_path, file_name)
+            file_path = os.path.join(save_path, i.name)
             if file_path.endswith(".glb"):
-                model_file_path = file_path
+                model_file_path = os.path.join(result_folder_name, i.name)
             logging.info("[ Rodin3D API - download_files ] Downloading file: %s", file_path)
             max_retries = 5
             for attempt in range(max_retries):
                 try:
-                    async with session.get(url) as resp:
+                    async with session.get(i.url) as resp:
                         resp.raise_for_status()
                         with open(file_path, "wb") as f:
                             async for chunk in resp.content.iter_chunked(32 * 1024):
