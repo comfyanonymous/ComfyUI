@@ -1,11 +1,12 @@
 import hashlib
 from PIL import ImageFile, UnidentifiedImageError
 
+from comfy_api.latest import io
 from .component_model.files import get_package_as_path
 from .execution_context import current_execution_context
 
 
-def conditioning_set_values(conditioning, values: dict = None, append=False):
+def conditioning_set_values(conditioning, values: dict = None, append=False) -> io.Conditioning.CondList:
     if values is None:
         values = {}
     c = []

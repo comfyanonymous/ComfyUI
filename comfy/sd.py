@@ -801,6 +801,7 @@ class VAE:
         pixel_samples = self.vae_encode_crop_pixels(pixel_samples)
         pixel_samples = pixel_samples.movedim(-1, 1)
         do_tile = False
+        samples = None
         if self.latent_dim == 3 and pixel_samples.ndim < 5:
             if not self.not_video:
                 pixel_samples = pixel_samples.movedim(1, 0).unsqueeze(0)

@@ -97,6 +97,8 @@ class VAEDecodeHunyuan3D:
     CATEGORY = "latent/3d"
 
     def decode(self, vae, samples, num_chunks, octree_resolution):
+        if samples is None:
+            return None,
         voxels = VOXEL(vae.decode(samples["samples"], vae_options={"num_chunks": num_chunks, "octree_resolution": octree_resolution}))
         return (voxels, )
 

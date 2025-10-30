@@ -293,6 +293,8 @@ class LatentAddNoiseChannels(io.ComfyNode):
 
     @classmethod
     def execute(cls, samples: Latent, std_dev, seed: int, slice_i: int, slice_j: int):
+        if samples is None:
+            return None,
         s = samples.copy()
 
         latent = samples["samples"]

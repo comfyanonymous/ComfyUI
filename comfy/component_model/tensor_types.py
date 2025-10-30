@@ -5,7 +5,7 @@ from torch import Tensor
 from typing_extensions import NotRequired
 
 ImageBatch = Float[Tensor, "batch height width channels"]
-LatentBatch = Float[Tensor, "batch channels height width"]
+LatentBatch = Float[Tensor, "batch channels width height"]
 SD15LatentBatch = Float[Tensor, "batch 4 height width"]
 SDXLLatentBatch = Float[Tensor, "batch 8 height width"]
 SD3LatentBatch = Float[Tensor, "batch 16 height width"]
