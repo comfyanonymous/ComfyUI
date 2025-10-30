@@ -310,11 +310,13 @@ class ControlLoraOps:
             self.bias = None
 
         def forward(self, input):
-            weight, bias = comfy.ops.cast_bias_weight(self, input)
+            weight, bias, offload_stream = comfy.ops.cast_bias_weight(self, input, offloadable=True)
             if self.up is not None:
-                return torch.nn.functional.linear(input, weight + (torch.mm(self.up.flatten(start_dim=1), self.down.flatten(start_dim=1))).reshape(self.weight.shape).type(input.dtype), bias)
+                x = torch.nn.functional.linear(input, weight + (torch.mm(self.up.flatten(start_dim=1), self.down.flatten(start_dim=1))).reshape(self.weight.shape).type(input.dtype), bias)
             else:
-                return torch.nn.functional.linear(input, weight, bias)
+                x = torch.nn.functional.linear(input, weight, bias)
+            comfy.ops.uncast_bias_weight(self, weight, bias, offload_stream)
+            return x
 
     class Conv2d(torch.nn.Module, comfy.ops.CastWeightBiasOp):
         def __init__(
@@ -350,12 +352,13 @@ class ControlLoraOps:
 
 
         def forward(self, input):
-            weight, bias = comfy.ops.cast_bias_weight(self, input)
+            weight, bias, offload_stream = comfy.ops.cast_bias_weight(self, input, offloadable=True)
             if self.up is not None:
-                return torch.nn.functional.conv2d(input, weight + (torch.mm(self.up.flatten(start_dim=1), self.down.flatten(start_dim=1))).reshape(self.weight.shape).type(input.dtype), bias, self.stride, self.padding, self.dilation, self.groups)
+                x = torch.nn.functional.conv2d(input, weight + (torch.mm(self.up.flatten(start_dim=1), self.down.flatten(start_dim=1))).reshape(self.weight.shape).type(input.dtype), bias, self.stride, self.padding, self.dilation, self.groups)
             else:
-                return torch.nn.functional.conv2d(input, weight, bias, self.stride, self.padding, self.dilation, self.groups)
-
+                x = torch.nn.functional.conv2d(input, weight, bias, self.stride, self.padding, self.dilation, self.groups)
+            comfy.ops.uncast_bias_weight(self, weight, bias, offload_stream)
+            return x
 
 class ControlLora(ControlNet):
     def __init__(self, control_weights, global_average_pooling=False, model_options={}): #TODO? model_options
