@@ -225,14 +225,11 @@ async def get_rodin_download_list(uuid, auth_kwargs: Optional[dict[str, str]] = 
 
 
 async def download_files(url_list, task_uuid):
-    save_path = os.path.join(comfy_paths.get_output_directory(), f"Rodin3D_{task_uuid}")
-    os.makedirs(save_path, exist_ok=True)
     model_file_path = None
     async with aiohttp.ClientSession() as session:
         for i in url_list.list:
             url = i.url
-            file_name = i.name
-            file_path = os.path.join(save_path, file_name)
+            file_path = os.path.join(comfy_paths.get_output_directory(), f"Rodin3D_{task_uuid}_{i.name}")
             if file_path.endswith(".glb"):
                 model_file_path = file_path
             logging.info("[ Rodin3D API - download_files ] Downloading file: %s", file_path)
