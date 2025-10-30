@@ -200,7 +200,7 @@ class RunwayImageToVideoNodeGen3a(IO.ComfyNode):
     ) -> IO.NodeOutput:
         validate_string(prompt, min_length=1)
         validate_image_dimensions(start_frame, max_width=7999, max_height=7999)
-        validate_image_aspect_ratio(start_frame, min_aspect_ratio=0.5, max_aspect_ratio=2.0)
+        validate_image_aspect_ratio(start_frame, (1, 2), (2, 1))
 
         download_urls = await upload_images_to_comfyapi(
             cls,
@@ -290,7 +290,7 @@ class RunwayImageToVideoNodeGen4(IO.ComfyNode):
     ) -> IO.NodeOutput:
         validate_string(prompt, min_length=1)
         validate_image_dimensions(start_frame, max_width=7999, max_height=7999)
-        validate_image_aspect_ratio(start_frame, min_aspect_ratio=0.5, max_aspect_ratio=2.0)
+        validate_image_aspect_ratio(start_frame, (1, 2), (2, 1))
 
         download_urls = await upload_images_to_comfyapi(
             cls,
@@ -390,8 +390,8 @@ class RunwayFirstLastFrameNode(IO.ComfyNode):
         validate_string(prompt, min_length=1)
         validate_image_dimensions(start_frame, max_width=7999, max_height=7999)
         validate_image_dimensions(end_frame, max_width=7999, max_height=7999)
-        validate_image_aspect_ratio(start_frame, min_aspect_ratio=0.5, max_aspect_ratio=2.0)
-        validate_image_aspect_ratio(end_frame, min_aspect_ratio=0.5, max_aspect_ratio=2.0)
+        validate_image_aspect_ratio(start_frame, (1, 2), (2, 1))
+        validate_image_aspect_ratio(end_frame, (1, 2), (2, 1))
 
         stacked_input_images = image_tensor_pair_to_batch(start_frame, end_frame)
         download_urls = await upload_images_to_comfyapi(
@@ -475,7 +475,7 @@ class RunwayTextToImageNode(IO.ComfyNode):
         reference_images = None
         if reference_image is not None:
             validate_image_dimensions(reference_image, max_width=7999, max_height=7999)
-            validate_image_aspect_ratio(reference_image, min_aspect_ratio=0.5, max_aspect_ratio=2.0)
+            validate_image_aspect_ratio(reference_image, (1, 2), (2, 1))
             download_urls = await upload_images_to_comfyapi(
                 cls,
                 reference_image,

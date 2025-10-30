@@ -5,10 +5,6 @@ import torch
 from typing_extensions import override
 
 from comfy_api.latest import IO, ComfyExtension
-from comfy_api_nodes.apinode_utils import (
-    resize_mask_to_image,
-    validate_aspect_ratio,
-)
 from comfy_api_nodes.apis.bfl_api import (
     BFLFluxExpandImageRequest,
     BFLFluxFillImageRequest,
@@ -23,8 +19,10 @@ from comfy_api_nodes.util import (
     ApiEndpoint,
     download_url_to_image_tensor,
     poll_op,
+    resize_mask_to_image,
     sync_op,
     tensor_to_base64_string,
+    validate_aspect_ratio_string,
     validate_string,
 )
 
@@ -42,11 +40,6 @@ class FluxProUltraImageNode(IO.ComfyNode):
     """
     Generates images using Flux Pro 1.1 Ultra via api based on prompt and resolution.
     """
-
-    MINIMUM_RATIO = 1 / 4
-    MAXIMUM_RATIO = 4 / 1
-    MINIMUM_RATIO_STR = "1:4"
-    MAXIMUM_RATIO_STR = "4:1"
 
     @classmethod
     def define_schema(cls) -> IO.Schema:
@@ -112,16 +105,7 @@ class FluxProUltraImageNode(IO.ComfyNode):
 
     @classmethod
     def validate_inputs(cls, aspect_ratio: str):
-        try:
-            validate_aspect_ratio(
-                aspect_ratio,
-                minimum_ratio=cls.MINIMUM_RATIO,
-                maximum_ratio=cls.MAXIMUM_RATIO,
-                minimum_ratio_str=cls.MINIMUM_RATIO_STR,
-                maximum_ratio_str=cls.MAXIMUM_RATIO_STR,
-            )
-        except Exception as e:
-            return str(e)
+        validate_aspect_ratio_string(aspect_ratio, (1, 4), (4, 1))
         return True
 
     @classmethod
@@ -145,13 +129,7 @@ class FluxProUltraImageNode(IO.ComfyNode):
                 prompt=prompt,
                 prompt_upsampling=prompt_upsampling,
                 seed=seed,
-                aspect_ratio=validate_aspect_ratio(
-                    aspect_ratio,
-                    minimum_ratio=cls.MINIMUM_RATIO,
-                    maximum_ratio=cls.MAXIMUM_RATIO,
-                    minimum_ratio_str=cls.MINIMUM_RATIO_STR,
-                    maximum_ratio_str=cls.MAXIMUM_RATIO_STR,
-                ),
+                aspect_ratio=aspect_ratio,
                 raw=raw,
                 image_prompt=(image_prompt if image_prompt is None else tensor_to_base64_string(image_prompt)),
                 image_prompt_strength=(None if image_prompt is None else round(image_prompt_strength, 2)),
@@ -179,11 +157,6 @@ class FluxKontextProImageNode(IO.ComfyNode):
     """
     Edits images using Flux.1 Kontext [pro] via api based on prompt and aspect ratio.
     """
-
-    MINIMUM_RATIO = 1 / 4
-    MAXIMUM_RATIO = 4 / 1
-    MINIMUM_RATIO_STR = "1:4"
-    MAXIMUM_RATIO_STR = "4:1"
 
     @classmethod
     def define_schema(cls) -> IO.Schema:
@@ -261,13 +234,7 @@ class FluxKontextProImageNode(IO.ComfyNode):
         seed=0,
         prompt_upsampling=False,
     ) -> IO.NodeOutput:
-        aspect_ratio = validate_aspect_ratio(
-            aspect_ratio,
-            minimum_ratio=cls.MINIMUM_RATIO,
-            maximum_ratio=cls.MAXIMUM_RATIO,
-            minimum_ratio_str=cls.MINIMUM_RATIO_STR,
-            maximum_ratio_str=cls.MAXIMUM_RATIO_STR,
-        )
+        validate_aspect_ratio_string(aspect_ratio, (1, 4), (4, 1))
         if input_image is None:
             validate_string(prompt, strip_whitespace=False)
         initial_response = await sync_op(
