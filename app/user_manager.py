@@ -20,13 +20,15 @@ class FileInfo(TypedDict):
     path: str
     size: int
     modified: int
+    created: int
 
 
 def get_file_info(path: str, relative_to: str) -> FileInfo:
     return {
         "path": os.path.relpath(path, relative_to).replace(os.sep, '/'),
         "size": os.path.getsize(path),
-        "modified": os.path.getmtime(path)
+        "modified": os.path.getmtime(path),
+        "created": os.path.getctime(path)
     }
 
 
@@ -361,10 +363,17 @@ class UserManager():
             if not overwrite and os.path.exists(path):
                 return web.Response(status=409, text="File already exists")
 
-            body = await request.read()
+            try:
+                body = await request.read()
 
-            with open(path, "wb") as f:
-                f.write(body)
+                with open(path, "wb") as f:
+                    f.write(body)
+            except OSError as e:
+                logging.warning(f"Error saving file '{path}': {e}")
+                return web.Response(
+                    status=400,
+                    reason="Invalid filename. Please avoid special characters like :\\/*?\"<>|"
+                )
 
             user_path = self.get_request_user_filepath(request, None)
             if full_info:

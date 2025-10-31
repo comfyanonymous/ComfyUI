@@ -14,10 +14,15 @@ import comfy.ldm.genmo.vae.model
 import comfy.ldm.lightricks.vae.causal_video_autoencoder
 import comfy.ldm.cosmos.vae
 import comfy.ldm.wan.vae
+import comfy.ldm.wan.vae2_2
 import comfy.ldm.hunyuan3d.vae
 import comfy.ldm.ace.vae.music_dcae_pipeline
+import comfy.ldm.hunyuan_video.vae
+import comfy.ldm.mmaudio.vae.autoencoder
+import comfy.pixel_space_convert
 import yaml
 import math
+import os
 
 import comfy.utils
 
@@ -45,6 +50,8 @@ import comfy.text_encoders.wan
 import comfy.text_encoders.hidream
 import comfy.text_encoders.ace
 import comfy.text_encoders.omnigen2
+import comfy.text_encoders.qwen_image
+import comfy.text_encoders.hunyuan_image
 
 import comfy.model_patcher
 import comfy.lora
@@ -135,6 +142,9 @@ class CLIP:
         n.use_clip_schedule = self.use_clip_schedule
         n.apply_hooks_to_conds = self.apply_hooks_to_conds
         return n
+
+    def get_ram_usage(self):
+        return self.patcher.get_ram_usage()
 
     def add_patches(self, patches, strength_patch=1.0, strength_model=1.0):
         return self.patcher.add_patches(patches, strength_patch, strength_model)
@@ -269,8 +279,13 @@ class VAE:
         if 'decoder.up_blocks.0.resnets.0.norm1.weight' in sd.keys(): #diffusers format
             sd = diffusers_convert.convert_vae_state_dict(sd)
 
-        self.memory_used_encode = lambda shape, dtype: (1767 * shape[2] * shape[3]) * model_management.dtype_size(dtype) #These are for AutoencoderKL and need tweaking (should be lower)
-        self.memory_used_decode = lambda shape, dtype: (2178 * shape[2] * shape[3] * 64) * model_management.dtype_size(dtype)
+        if model_management.is_amd():
+            VAE_KL_MEM_RATIO = 2.73
+        else:
+            VAE_KL_MEM_RATIO = 1.0
+
+        self.memory_used_encode = lambda shape, dtype: (1767 * shape[2] * shape[3]) * model_management.dtype_size(dtype) * VAE_KL_MEM_RATIO #These are for AutoencoderKL and need tweaking (should be lower)
+        self.memory_used_decode = lambda shape, dtype: (2178 * shape[2] * shape[3] * 64) * model_management.dtype_size(dtype) * VAE_KL_MEM_RATIO
         self.downscale_ratio = 8
         self.upscale_ratio = 8
         self.latent_channels = 4
@@ -280,10 +295,13 @@ class VAE:
         self.process_output = lambda image: torch.clamp((image + 1.0) / 2.0, min=0.0, max=1.0)
         self.working_dtypes = [torch.bfloat16, torch.float32]
         self.disable_offload = False
+        self.not_video = False
+        self.size = None
 
         self.downscale_index_formula = None
         self.upscale_index_formula = None
         self.extra_1d_channel = None
+        self.crop_input = True
 
         if config is None:
             if "decoder.mid.block_1.mix_factor" in sd:
@@ -326,21 +344,50 @@ class VAE:
                 self.downscale_ratio = 32
                 self.latent_channels = 16
             elif "decoder.conv_in.weight" in sd:
-                #default SD1.x/SD2.x VAE parameters
-                ddconfig = {'double_z': True, 'z_channels': 4, 'resolution': 256, 'in_channels': 3, 'out_ch': 3, 'ch': 128, 'ch_mult': [1, 2, 4, 4], 'num_res_blocks': 2, 'attn_resolutions': [], 'dropout': 0.0}
-
-                if 'encoder.down.2.downsample.conv.weight' not in sd and 'decoder.up.3.upsample.conv.weight' not in sd: #Stable diffusion x4 upscaler VAE
-                    ddconfig['ch_mult'] = [1, 2, 4]
-                    self.downscale_ratio = 4
-                    self.upscale_ratio = 4
-
-                self.latent_channels = ddconfig['z_channels'] = sd["decoder.conv_in.weight"].shape[1]
-                if 'post_quant_conv.weight' in sd:
-                    self.first_stage_model = AutoencoderKL(ddconfig=ddconfig, embed_dim=sd['post_quant_conv.weight'].shape[1])
-                else:
+                if sd['decoder.conv_in.weight'].shape[1] == 64:
+                    ddconfig = {"block_out_channels": [128, 256, 512, 512, 1024, 1024], "in_channels": 3, "out_channels": 3, "num_res_blocks": 2, "ffactor_spatial": 32, "downsample_match_channel": True, "upsample_match_channel": True}
+                    self.latent_channels = ddconfig['z_channels'] = sd["decoder.conv_in.weight"].shape[1]
+                    self.downscale_ratio = 32
+                    self.upscale_ratio = 32
+                    self.working_dtypes = [torch.float16, torch.bfloat16, torch.float32]
                     self.first_stage_model = AutoencodingEngine(regularizer_config={'target': "comfy.ldm.models.autoencoder.DiagonalGaussianRegularizer"},
-                                                                encoder_config={'target': "comfy.ldm.modules.diffusionmodules.model.Encoder", 'params': ddconfig},
-                                                                decoder_config={'target': "comfy.ldm.modules.diffusionmodules.model.Decoder", 'params': ddconfig})
+                                                                encoder_config={'target': "comfy.ldm.hunyuan_video.vae.Encoder", 'params': ddconfig},
+                                                                decoder_config={'target': "comfy.ldm.hunyuan_video.vae.Decoder", 'params': ddconfig})
+
+                    self.memory_used_encode = lambda shape, dtype: (700 * shape[2] * shape[3]) * model_management.dtype_size(dtype)
+                    self.memory_used_decode = lambda shape, dtype: (700 * shape[2] * shape[3] * 32 * 32) * model_management.dtype_size(dtype)
+                elif sd['decoder.conv_in.weight'].shape[1] == 32:
+                    ddconfig = {"block_out_channels": [128, 256, 512, 1024, 1024], "in_channels": 3, "out_channels": 3, "num_res_blocks": 2, "ffactor_spatial": 16, "ffactor_temporal": 4, "downsample_match_channel": True, "upsample_match_channel": True, "refiner_vae": False}
+                    self.latent_channels = ddconfig['z_channels'] = sd["decoder.conv_in.weight"].shape[1]
+                    self.working_dtypes = [torch.float16, torch.bfloat16, torch.float32]
+                    self.upscale_ratio = (lambda a: max(0, a * 4 - 3), 16, 16)
+                    self.upscale_index_formula = (4, 16, 16)
+                    self.downscale_ratio = (lambda a: max(0, math.floor((a + 3) / 4)), 16, 16)
+                    self.downscale_index_formula = (4, 16, 16)
+                    self.latent_dim = 3
+                    self.not_video = True
+                    self.first_stage_model = AutoencodingEngine(regularizer_config={'target': "comfy.ldm.models.autoencoder.DiagonalGaussianRegularizer"},
+                                                                encoder_config={'target': "comfy.ldm.hunyuan_video.vae_refiner.Encoder", 'params': ddconfig},
+                                                                decoder_config={'target': "comfy.ldm.hunyuan_video.vae_refiner.Decoder", 'params': ddconfig})
+
+                    self.memory_used_encode = lambda shape, dtype: (2800 * shape[-2] * shape[-1]) * model_management.dtype_size(dtype)
+                    self.memory_used_decode = lambda shape, dtype: (2800 * shape[-3] * shape[-2] * shape[-1] * 16 * 16) * model_management.dtype_size(dtype)
+                else:
+                    #default SD1.x/SD2.x VAE parameters
+                    ddconfig = {'double_z': True, 'z_channels': 4, 'resolution': 256, 'in_channels': 3, 'out_ch': 3, 'ch': 128, 'ch_mult': [1, 2, 4, 4], 'num_res_blocks': 2, 'attn_resolutions': [], 'dropout': 0.0}
+
+                    if 'encoder.down.2.downsample.conv.weight' not in sd and 'decoder.up.3.upsample.conv.weight' not in sd: #Stable diffusion x4 upscaler VAE
+                        ddconfig['ch_mult'] = [1, 2, 4]
+                        self.downscale_ratio = 4
+                        self.upscale_ratio = 4
+
+                    self.latent_channels = ddconfig['z_channels'] = sd["decoder.conv_in.weight"].shape[1]
+                    if 'post_quant_conv.weight' in sd:
+                        self.first_stage_model = AutoencoderKL(ddconfig=ddconfig, embed_dim=sd['post_quant_conv.weight'].shape[1])
+                    else:
+                        self.first_stage_model = AutoencodingEngine(regularizer_config={'target': "comfy.ldm.models.autoencoder.DiagonalGaussianRegularizer"},
+                                                                    encoder_config={'target': "comfy.ldm.modules.diffusionmodules.model.Encoder", 'params': ddconfig},
+                                                                    decoder_config={'target': "comfy.ldm.modules.diffusionmodules.model.Decoder", 'params': ddconfig})
             elif "decoder.layers.1.layers.0.beta" in sd:
                 self.first_stage_model = AudioOobleckVAE()
                 self.memory_used_encode = lambda shape, dtype: (1000 * shape[2]) * model_management.dtype_size(dtype)
@@ -391,6 +438,23 @@ class VAE:
                 self.downscale_ratio = (lambda a: max(0, math.floor((a + 7) / 8)), 32, 32)
                 self.downscale_index_formula = (8, 32, 32)
                 self.working_dtypes = [torch.bfloat16, torch.float32]
+            elif "decoder.conv_in.conv.weight" in sd and sd['decoder.conv_in.conv.weight'].shape[1] == 32:
+                ddconfig = {"block_out_channels": [128, 256, 512, 1024, 1024], "in_channels": 3, "out_channels": 3, "num_res_blocks": 2, "ffactor_spatial": 16, "ffactor_temporal": 4, "downsample_match_channel": True, "upsample_match_channel": True}
+                ddconfig['z_channels'] = sd["decoder.conv_in.conv.weight"].shape[1]
+                self.latent_channels = 64
+                self.upscale_ratio = (lambda a: max(0, a * 4 - 3), 16, 16)
+                self.upscale_index_formula = (4, 16, 16)
+                self.downscale_ratio = (lambda a: max(0, math.floor((a + 3) / 4)), 16, 16)
+                self.downscale_index_formula = (4, 16, 16)
+                self.latent_dim = 3
+                self.not_video = True
+                self.working_dtypes = [torch.float16, torch.bfloat16, torch.float32]
+                self.first_stage_model = AutoencodingEngine(regularizer_config={'target': "comfy.ldm.models.autoencoder.EmptyRegularizer"},
+                                                            encoder_config={'target': "comfy.ldm.hunyuan_video.vae_refiner.Encoder", 'params': ddconfig},
+                                                            decoder_config={'target': "comfy.ldm.hunyuan_video.vae_refiner.Decoder", 'params': ddconfig})
+
+                self.memory_used_encode = lambda shape, dtype: (1400 * shape[-2] * shape[-1]) * model_management.dtype_size(dtype)
+                self.memory_used_decode = lambda shape, dtype: (1400 * shape[-3] * shape[-2] * shape[-1] * 16 * 16) * model_management.dtype_size(dtype)
             elif "decoder.conv_in.conv.weight" in sd:
                 ddconfig = {'double_z': True, 'z_channels': 4, 'resolution': 256, 'in_channels': 3, 'out_ch': 3, 'ch': 128, 'ch_mult': [1, 2, 4, 4], 'num_res_blocks': 2, 'attn_resolutions': [], 'dropout': 0.0}
                 ddconfig["conv3d"] = True
@@ -419,28 +483,53 @@ class VAE:
                 self.memory_used_encode = lambda shape, dtype: (50 * (round((shape[2] + 7) / 8) * 8) * shape[3] * shape[4]) * model_management.dtype_size(dtype)
                 self.working_dtypes = [torch.bfloat16, torch.float32]
             elif "decoder.middle.0.residual.0.gamma" in sd:
-                self.upscale_ratio = (lambda a: max(0, a * 4 - 3), 8, 8)
-                self.upscale_index_formula = (4, 8, 8)
-                self.downscale_ratio = (lambda a: max(0, math.floor((a + 3) / 4)), 8, 8)
-                self.downscale_index_formula = (4, 8, 8)
-                self.latent_dim = 3
-                self.latent_channels = 16
-                ddconfig = {"dim": 96, "z_dim": self.latent_channels, "dim_mult": [1, 2, 4, 4], "num_res_blocks": 2, "attn_scales": [], "temperal_downsample": [False, True, True], "dropout": 0.0}
-                self.first_stage_model = comfy.ldm.wan.vae.WanVAE(**ddconfig)
-                self.working_dtypes = [torch.bfloat16, torch.float16, torch.float32]
-                self.memory_used_encode = lambda shape, dtype: 6000 * shape[3] * shape[4] * model_management.dtype_size(dtype)
-                self.memory_used_decode = lambda shape, dtype: 7000 * shape[3] * shape[4] * (8 * 8) * model_management.dtype_size(dtype)
+                if "decoder.upsamples.0.upsamples.0.residual.2.weight" in sd:  # Wan 2.2 VAE
+                    self.upscale_ratio = (lambda a: max(0, a * 4 - 3), 16, 16)
+                    self.upscale_index_formula = (4, 16, 16)
+                    self.downscale_ratio = (lambda a: max(0, math.floor((a + 3) / 4)), 16, 16)
+                    self.downscale_index_formula = (4, 16, 16)
+                    self.latent_dim = 3
+                    self.latent_channels = 48
+                    ddconfig = {"dim": 160, "z_dim": self.latent_channels, "dim_mult": [1, 2, 4, 4], "num_res_blocks": 2, "attn_scales": [], "temperal_downsample": [False, True, True], "dropout": 0.0}
+                    self.first_stage_model = comfy.ldm.wan.vae2_2.WanVAE(**ddconfig)
+                    self.working_dtypes = [torch.bfloat16, torch.float16, torch.float32]
+                    self.memory_used_encode = lambda shape, dtype: 3300 * shape[3] * shape[4] * model_management.dtype_size(dtype)
+                    self.memory_used_decode = lambda shape, dtype: 8000 * shape[3] * shape[4] * (16 * 16) * model_management.dtype_size(dtype)
+                else:  # Wan 2.1 VAE
+                    self.upscale_ratio = (lambda a: max(0, a * 4 - 3), 8, 8)
+                    self.upscale_index_formula = (4, 8, 8)
+                    self.downscale_ratio = (lambda a: max(0, math.floor((a + 3) / 4)), 8, 8)
+                    self.downscale_index_formula = (4, 8, 8)
+                    self.latent_dim = 3
+                    self.latent_channels = 16
+                    ddconfig = {"dim": 96, "z_dim": self.latent_channels, "dim_mult": [1, 2, 4, 4], "num_res_blocks": 2, "attn_scales": [], "temperal_downsample": [False, True, True], "dropout": 0.0}
+                    self.first_stage_model = comfy.ldm.wan.vae.WanVAE(**ddconfig)
+                    self.working_dtypes = [torch.bfloat16, torch.float16, torch.float32]
+                    self.memory_used_encode = lambda shape, dtype: 6000 * shape[3] * shape[4] * model_management.dtype_size(dtype)
+                    self.memory_used_decode = lambda shape, dtype: 7000 * shape[3] * shape[4] * (8 * 8) * model_management.dtype_size(dtype)
+            # Hunyuan 3d v2 2.0 & 2.1
             elif "geo_decoder.cross_attn_decoder.ln_1.bias" in sd:
+
                 self.latent_dim = 1
-                ln_post = "geo_decoder.ln_post.weight" in sd
-                inner_size = sd["geo_decoder.output_proj.weight"].shape[1]
-                downsample_ratio = sd["post_kl.weight"].shape[0] // inner_size
-                mlp_expand = sd["geo_decoder.cross_attn_decoder.mlp.c_fc.weight"].shape[0] // inner_size
-                self.memory_used_encode = lambda shape, dtype: (1000 * shape[2]) * model_management.dtype_size(dtype)  # TODO
-                self.memory_used_decode = lambda shape, dtype: (1024 * 1024 * 1024 * 2.0) * model_management.dtype_size(dtype)  # TODO
-                ddconfig = {"embed_dim": 64, "num_freqs": 8, "include_pi": False, "heads": 16, "width": 1024, "num_decoder_layers": 16, "qkv_bias": False, "qk_norm": True, "geo_decoder_mlp_expand_ratio": mlp_expand, "geo_decoder_downsample_ratio": downsample_ratio, "geo_decoder_ln_post": ln_post}
-                self.first_stage_model = comfy.ldm.hunyuan3d.vae.ShapeVAE(**ddconfig)
+
+                def estimate_memory(shape, dtype, num_layers = 16, kv_cache_multiplier = 2):
+                    batch, num_tokens, hidden_dim = shape
+                    dtype_size = model_management.dtype_size(dtype)
+
+                    total_mem = batch * num_tokens * hidden_dim * dtype_size * (1 + kv_cache_multiplier * num_layers)
+                    return total_mem
+
+                # better memory estimations
+                self.memory_used_encode = lambda shape, dtype, num_layers = 8, kv_cache_multiplier = 0:\
+                    estimate_memory(shape, dtype, num_layers, kv_cache_multiplier)
+
+                self.memory_used_decode = lambda shape, dtype, num_layers = 16, kv_cache_multiplier = 2: \
+                    estimate_memory(shape, dtype, num_layers, kv_cache_multiplier)
+
+                self.first_stage_model = comfy.ldm.hunyuan3d.vae.ShapeVAE()
                 self.working_dtypes = [torch.float16, torch.bfloat16, torch.float32]
+
+
             elif "vocoder.backbone.channel_layers.0.0.bias" in sd: #Ace Step Audio
                 self.first_stage_model = comfy.ldm.ace.vae.music_dcae_pipeline.MusicDCAE(source_sample_rate=44100)
                 self.memory_used_encode = lambda shape, dtype: (shape[2] * 330) * model_management.dtype_size(dtype)
@@ -455,6 +544,34 @@ class VAE:
                 self.working_dtypes = [torch.bfloat16, torch.float16, torch.float32]
                 self.disable_offload = True
                 self.extra_1d_channel = 16
+            elif "pixel_space_vae" in sd:
+                self.first_stage_model = comfy.pixel_space_convert.PixelspaceConversionVAE()
+                self.memory_used_encode = lambda shape, dtype: (1 * shape[2] * shape[3]) * model_management.dtype_size(dtype)
+                self.memory_used_decode = lambda shape, dtype: (1 * shape[2] * shape[3]) * model_management.dtype_size(dtype)
+                self.downscale_ratio = 1
+                self.upscale_ratio = 1
+                self.latent_channels = 3
+                self.latent_dim = 2
+                self.output_channels = 3
+            elif "vocoder.activation_post.downsample.lowpass.filter" in sd: #MMAudio VAE
+                sample_rate = 16000
+                if sample_rate == 16000:
+                    mode = '16k'
+                else:
+                    mode = '44k'
+
+                self.first_stage_model = comfy.ldm.mmaudio.vae.autoencoder.AudioAutoencoder(mode=mode)
+                self.memory_used_encode = lambda shape, dtype: (30 * shape[2]) * model_management.dtype_size(dtype)
+                self.memory_used_decode = lambda shape, dtype: (90 * shape[2] * 1411.2) * model_management.dtype_size(dtype)
+                self.latent_channels = 20
+                self.output_channels = 2
+                self.upscale_ratio = 512 * (44100 / sample_rate)
+                self.downscale_ratio = 512 * (44100 / sample_rate)
+                self.latent_dim = 1
+                self.process_output = lambda audio: audio
+                self.process_input = lambda audio: audio
+                self.working_dtypes = [torch.float32]
+                self.crop_input = False
             else:
                 logging.warning("WARNING: No VAE weights detected, VAE not initalized.")
                 self.first_stage_model = None
@@ -482,12 +599,25 @@ class VAE:
 
         self.patcher = comfy.model_patcher.ModelPatcher(self.first_stage_model, load_device=self.device, offload_device=offload_device)
         logging.info("VAE load device: {}, offload device: {}, dtype: {}".format(self.device, offload_device, self.vae_dtype))
+        self.model_size()
+
+    def model_size(self):
+        if self.size is not None:
+            return self.size
+        self.size = comfy.model_management.module_size(self.first_stage_model)
+        return self.size
+
+    def get_ram_usage(self):
+        return self.model_size()
 
     def throw_exception_if_invalid(self):
         if self.first_stage_model is None:
             raise RuntimeError("ERROR: VAE is invalid: None\n\nIf the VAE is from a checkpoint loader node your checkpoint does not contain a valid VAE.")
 
     def vae_encode_crop_pixels(self, pixels):
+        if not self.crop_input:
+            return pixels
+
         downscale_ratio = self.spacial_compression_encode()
 
         dims = pixels.shape[1:-1]
@@ -565,6 +695,7 @@ class VAE:
     def decode(self, samples_in, vae_options={}):
         self.throw_exception_if_invalid()
         pixel_samples = None
+        do_tile = False
         try:
             memory_used = self.memory_used_decode(samples_in.shape, self.vae_dtype)
             model_management.load_models_gpu([self.patcher], memory_required=memory_used, force_full_load=self.disable_offload)
@@ -580,6 +711,13 @@ class VAE:
                 pixel_samples[x:x+batch_number] = out
         except model_management.OOM_EXCEPTION:
             logging.warning("Warning: Ran out of memory when regular VAE decoding, retrying with tiled VAE decoding.")
+            #NOTE: We don't know what tensors were allocated to stack variables at the time of the
+            #exception and the exception itself refs them all until we get out of this except block.
+            #So we just set a flag for tiler fallback so that tensor gc can happen once the
+            #exception is fully off the books.
+            do_tile = True
+
+        if do_tile:
             dims = samples_in.ndim - 2
             if dims == 1 or self.extra_1d_channel is not None:
                 pixel_samples = self.decode_tiled_1d(samples_in)
@@ -626,8 +764,12 @@ class VAE:
         self.throw_exception_if_invalid()
         pixel_samples = self.vae_encode_crop_pixels(pixel_samples)
         pixel_samples = pixel_samples.movedim(-1, 1)
+        do_tile = False
         if self.latent_dim == 3 and pixel_samples.ndim < 5:
-            pixel_samples = pixel_samples.movedim(1, 0).unsqueeze(0)
+            if not self.not_video:
+                pixel_samples = pixel_samples.movedim(1, 0).unsqueeze(0)
+            else:
+                pixel_samples = pixel_samples.unsqueeze(2)
         try:
             memory_used = self.memory_used_encode(pixel_samples.shape, self.vae_dtype)
             model_management.load_models_gpu([self.patcher], memory_required=memory_used, force_full_load=self.disable_offload)
@@ -644,6 +786,13 @@ class VAE:
 
         except model_management.OOM_EXCEPTION:
             logging.warning("Warning: Ran out of memory when regular VAE encoding, retrying with tiled VAE encoding.")
+            #NOTE: We don't know what tensors were allocated to stack variables at the time of the
+            #exception and the exception itself refs them all until we get out of this except block.
+            #So we just set a flag for tiler fallback so that tensor gc can happen once the
+            #exception is fully off the books.
+            do_tile = True
+
+        if do_tile:
             if self.latent_dim == 3:
                 tile = 256
                 overlap = tile // 4
@@ -661,7 +810,10 @@ class VAE:
         dims = self.latent_dim
         pixel_samples = pixel_samples.movedim(-1, 1)
         if dims == 3:
-            pixel_samples = pixel_samples.movedim(1, 0).unsqueeze(0)
+            if not self.not_video:
+                pixel_samples = pixel_samples.movedim(1, 0).unsqueeze(0)
+            else:
+                pixel_samples = pixel_samples.unsqueeze(2)
 
         memory_used = self.memory_used_encode(pixel_samples.shape, self.vae_dtype)  # TODO: calculate mem required for tile
         model_management.load_models_gpu([self.patcher], memory_required=memory_used, force_full_load=self.disable_offload)
@@ -718,6 +870,7 @@ class VAE:
         except:
             return None
 
+
 class StyleModel:
     def __init__(self, model, device="cpu"):
         self.model = model
@@ -756,6 +909,8 @@ class CLIPType(Enum):
     CHROMA = 15
     ACE = 16
     OMNIGEN2 = 17
+    QWEN_IMAGE = 18
+    HUNYUAN_IMAGE = 19
 
 
 def load_clip(ckpt_paths, embedding_directory=None, clip_type=CLIPType.STABLE_DIFFUSION, model_options={}):
@@ -776,6 +931,9 @@ class TEModel(Enum):
     T5_XXL_OLD = 8
     GEMMA_2_2B = 9
     QWEN25_3B = 10
+    QWEN25_7B = 11
+    BYT5_SMALL_GLYPH = 12
+    GEMMA_3_4B = 13
 
 def detect_te_model(sd):
     if "text_model.encoder.layers.30.mlp.fc1.weight" in sd:
@@ -793,11 +951,20 @@ def detect_te_model(sd):
     if 'encoder.block.23.layer.1.DenseReluDense.wi.weight' in sd:
         return TEModel.T5_XXL_OLD
     if "encoder.block.0.layer.0.SelfAttention.k.weight" in sd:
+        weight = sd['encoder.block.0.layer.0.SelfAttention.k.weight']
+        if weight.shape[0] == 384:
+            return TEModel.BYT5_SMALL_GLYPH
         return TEModel.T5_BASE
     if 'model.layers.0.post_feedforward_layernorm.weight' in sd:
+        if 'model.layers.0.self_attn.q_norm.weight' in sd:
+            return TEModel.GEMMA_3_4B
         return TEModel.GEMMA_2_2B
     if 'model.layers.0.self_attn.k_proj.bias' in sd:
-        return TEModel.QWEN25_3B
+        weight = sd['model.layers.0.self_attn.k_proj.bias']
+        if weight.shape[0] == 256:
+            return TEModel.QWEN25_3B
+        if weight.shape[0] == 512:
+            return TEModel.QWEN25_7B
     if "model.layers.0.post_attention_layernorm.weight" in sd:
         return TEModel.LLAMA3_8
     return None
@@ -895,6 +1062,10 @@ def load_text_encoder_state_dicts(state_dicts=[], embedding_directory=None, clip
             clip_target.clip = comfy.text_encoders.lumina2.te(**llama_detect(clip_data))
             clip_target.tokenizer = comfy.text_encoders.lumina2.LuminaTokenizer
             tokenizer_data["spiece_model"] = clip_data[0].get("spiece_model", None)
+        elif te_model == TEModel.GEMMA_3_4B:
+            clip_target.clip = comfy.text_encoders.lumina2.te(**llama_detect(clip_data), model_type="gemma3_4b")
+            clip_target.tokenizer = comfy.text_encoders.lumina2.NTokenizer
+            tokenizer_data["spiece_model"] = clip_data[0].get("spiece_model", None)
         elif te_model == TEModel.LLAMA3_8:
             clip_target.clip = comfy.text_encoders.hidream.hidream_clip(**llama_detect(clip_data),
                                                                         clip_l=False, clip_g=False, t5=False, llama=True, dtype_t5=None, t5xxl_scaled_fp8=None)
@@ -902,6 +1073,13 @@ def load_text_encoder_state_dicts(state_dicts=[], embedding_directory=None, clip
         elif te_model == TEModel.QWEN25_3B:
             clip_target.clip = comfy.text_encoders.omnigen2.te(**llama_detect(clip_data))
             clip_target.tokenizer = comfy.text_encoders.omnigen2.Omnigen2Tokenizer
+        elif te_model == TEModel.QWEN25_7B:
+            if clip_type == CLIPType.HUNYUAN_IMAGE:
+                clip_target.clip = comfy.text_encoders.hunyuan_image.te(byt5=False, **llama_detect(clip_data))
+                clip_target.tokenizer = comfy.text_encoders.hunyuan_image.HunyuanImageTokenizer
+            else:
+                clip_target.clip = comfy.text_encoders.qwen_image.te(**llama_detect(clip_data))
+                clip_target.tokenizer = comfy.text_encoders.qwen_image.QwenImageTokenizer
         else:
             # clip_l
             if clip_type == CLIPType.SD3:
@@ -945,6 +1123,9 @@ def load_text_encoder_state_dicts(state_dicts=[], embedding_directory=None, clip
 
             clip_target.clip = comfy.text_encoders.hidream.hidream_clip(clip_l=clip_l, clip_g=clip_g, t5=t5, llama=llama, **t5_kwargs, **llama_kwargs)
             clip_target.tokenizer = comfy.text_encoders.hidream.HiDreamTokenizer
+        elif clip_type == CLIPType.HUNYUAN_IMAGE:
+            clip_target.clip = comfy.text_encoders.hunyuan_image.te(**llama_detect(clip_data))
+            clip_target.tokenizer = comfy.text_encoders.hunyuan_image.HunyuanImageTokenizer
         else:
             clip_target.clip = sdxl_clip.SDXLClipModel
             clip_target.tokenizer = sdxl_clip.SDXLTokenizer
@@ -977,6 +1158,12 @@ def load_gligen(ckpt_path):
         model = model.half()
     return comfy.model_patcher.ModelPatcher(model, load_device=model_management.get_torch_device(), offload_device=model_management.unet_offload_device())
 
+def model_detection_error_hint(path, state_dict):
+    filename = os.path.basename(path)
+    if 'lora' in filename.lower():
+        return "\nHINT: This seems to be a Lora file and Lora files should be put in the lora folder and loaded with a lora loader node.."
+    return ""
+
 def load_checkpoint(config_path=None, ckpt_path=None, output_vae=True, output_clip=True, embedding_directory=None, state_dict=None, config=None):
     logging.warning("Warning: The load checkpoint with config function is deprecated and will eventually be removed, please use the other one.")
     model, clip, vae, _ = load_checkpoint_guess_config(ckpt_path, output_vae=output_vae, output_clip=output_clip, output_clipvision=False, embedding_directory=embedding_directory, output_model=True)
@@ -1005,7 +1192,7 @@ def load_checkpoint_guess_config(ckpt_path, output_vae=True, output_clip=True, o
     sd, metadata = comfy.utils.load_torch_file(ckpt_path, return_metadata=True)
     out = load_state_dict_guess_config(sd, output_vae, output_clip, output_clipvision, embedding_directory, output_model, model_options, te_model_options=te_model_options, metadata=metadata)
     if out is None:
-        raise RuntimeError("ERROR: Could not detect model type of: {}".format(ckpt_path))
+        raise RuntimeError("ERROR: Could not detect model type of: {}\n{}".format(ckpt_path, model_detection_error_hint(ckpt_path, sd)))
     return out
 
 def load_state_dict_guess_config(sd, output_vae=True, output_clip=True, output_clipvision=False, embedding_directory=None, output_model=True, model_options={}, te_model_options={}, metadata=None):
@@ -1089,7 +1276,7 @@ def load_state_dict_guess_config(sd, output_vae=True, output_clip=True, output_c
     return (model_patcher, clip, vae, clipvision)
 
 
-def load_diffusion_model_state_dict(sd, model_options={}):
+def load_diffusion_model_state_dict(sd, model_options={}, metadata=None):
     """
     Loads a UNet diffusion model from a state dictionary, supporting both diffusers and regular formats.
 
@@ -1123,7 +1310,7 @@ def load_diffusion_model_state_dict(sd, model_options={}):
     weight_dtype = comfy.utils.weight_dtype(sd)
 
     load_device = model_management.get_torch_device()
-    model_config = model_detection.model_config_from_unet(sd, "")
+    model_config = model_detection.model_config_from_unet(sd, "", metadata=metadata)
 
     if model_config is not None:
         new_sd = sd
@@ -1157,7 +1344,10 @@ def load_diffusion_model_state_dict(sd, model_options={}):
     else:
         unet_dtype = dtype
 
-    manual_cast_dtype = model_management.unet_manual_cast(unet_dtype, load_device, model_config.supported_inference_dtypes)
+    if model_config.layer_quant_config is not None:
+        manual_cast_dtype = model_management.unet_manual_cast(None, load_device, model_config.supported_inference_dtypes)
+    else:
+        manual_cast_dtype = model_management.unet_manual_cast(unet_dtype, load_device, model_config.supported_inference_dtypes)
     model_config.set_inference_dtype(unet_dtype, manual_cast_dtype)
     model_config.custom_operations = model_options.get("custom_operations", model_config.custom_operations)
     if model_options.get("fp8_optimizations", False):
@@ -1173,11 +1363,11 @@ def load_diffusion_model_state_dict(sd, model_options={}):
 
 
 def load_diffusion_model(unet_path, model_options={}):
-    sd = comfy.utils.load_torch_file(unet_path)
-    model = load_diffusion_model_state_dict(sd, model_options=model_options)
+    sd, metadata = comfy.utils.load_torch_file(unet_path, return_metadata=True)
+    model = load_diffusion_model_state_dict(sd, model_options=model_options, metadata=metadata)
     if model is None:
         logging.error("ERROR UNSUPPORTED DIFFUSION MODEL {}".format(unet_path))
-        raise RuntimeError("ERROR: Could not detect model type of: {}".format(unet_path))
+        raise RuntimeError("ERROR: Could not detect model type of: {}\n{}".format(unet_path, model_detection_error_hint(unet_path, sd)))
     return model
 
 def load_unet(unet_path, dtype=None):

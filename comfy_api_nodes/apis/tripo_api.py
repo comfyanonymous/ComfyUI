@@ -1,12 +1,19 @@
 from __future__ import annotations
-from comfy_api_nodes.apis import (
-    TripoModelVersion,
-    TripoTextureQuality,
-)
 from enum import Enum
 from typing import Optional, List, Dict, Any, Union
 
 from pydantic import BaseModel, Field, RootModel
+
+class TripoModelVersion(str, Enum):
+    v2_5_20250123 = 'v2.5-20250123'
+    v2_0_20240919 = 'v2.0-20240919'
+    v1_4_20240625 = 'v1.4-20240625'
+
+
+class TripoTextureQuality(str, Enum):
+    standard = 'standard'
+    detailed = 'detailed'
+
 
 class TripoStyle(str, Enum):
     PERSON_TO_CARTOON = "person:person2cartoon"
@@ -127,7 +134,7 @@ class TripoTextToModelRequest(BaseModel):
     type: TripoTaskType = Field(TripoTaskType.TEXT_TO_MODEL, description='Type of task')
     prompt: str = Field(..., description='The text prompt describing the model to generate', max_length=1024)
     negative_prompt: Optional[str] = Field(None, description='The negative text prompt', max_length=1024)
-    model_version: Optional[TripoModelVersion] = TripoModelVersion.V2_5
+    model_version: Optional[TripoModelVersion] = TripoModelVersion.v2_5_20250123
     face_limit: Optional[int] = Field(None, description='The number of faces to limit the generation to')
     texture: Optional[bool] = Field(True, description='Whether to apply texture to the generated model')
     pbr: Optional[bool] = Field(True, description='Whether to apply PBR to the generated model')

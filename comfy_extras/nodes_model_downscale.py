@@ -1,24 +1,33 @@
+from typing_extensions import override
 import comfy.utils
+from comfy_api.latest import ComfyExtension, io
 
-class PatchModelAddDownscale:
-    upscale_methods = ["bicubic", "nearest-exact", "bilinear", "area", "bislerp"]
+
+class PatchModelAddDownscale(io.ComfyNode):
+    UPSCALE_METHODS = ["bicubic", "nearest-exact", "bilinear", "area", "bislerp"]
     @classmethod
-    def INPUT_TYPES(s):
-        return {"required": { "model": ("MODEL",),
-                              "block_number": ("INT", {"default": 3, "min": 1, "max": 32, "step": 1}),
-                              "downscale_factor": ("FLOAT", {"default": 2.0, "min": 0.1, "max": 9.0, "step": 0.001}),
-                              "start_percent": ("FLOAT", {"default": 0.0, "min": 0.0, "max": 1.0, "step": 0.001}),
-                              "end_percent": ("FLOAT", {"default": 0.35, "min": 0.0, "max": 1.0, "step": 0.001}),
-                              "downscale_after_skip": ("BOOLEAN", {"default": True}),
-                              "downscale_method": (s.upscale_methods,),
-                              "upscale_method": (s.upscale_methods,),
-                              }}
-    RETURN_TYPES = ("MODEL",)
-    FUNCTION = "patch"
+    def define_schema(cls):
+        return io.Schema(
+            node_id="PatchModelAddDownscale",
+            display_name="PatchModelAddDownscale (Kohya Deep Shrink)",
+            category="model_patches/unet",
+            inputs=[
+                io.Model.Input("model"),
+                io.Int.Input("block_number", default=3, min=1, max=32, step=1),
+                io.Float.Input("downscale_factor", default=2.0, min=0.1, max=9.0, step=0.001),
+                io.Float.Input("start_percent", default=0.0, min=0.0, max=1.0, step=0.001),
+                io.Float.Input("end_percent", default=0.35, min=0.0, max=1.0, step=0.001),
+                io.Boolean.Input("downscale_after_skip", default=True),
+                io.Combo.Input("downscale_method", options=cls.UPSCALE_METHODS),
+                io.Combo.Input("upscale_method", options=cls.UPSCALE_METHODS),
+            ],
+            outputs=[
+                io.Model.Output(),
+            ],
+        )
 
-    CATEGORY = "model_patches/unet"
-
-    def patch(self, model, block_number, downscale_factor, start_percent, end_percent, downscale_after_skip, downscale_method, upscale_method):
+    @classmethod
+    def execute(cls, model, block_number, downscale_factor, start_percent, end_percent, downscale_after_skip, downscale_method, upscale_method) -> io.NodeOutput:
         model_sampling = model.get_model_object("model_sampling")
         sigma_start = model_sampling.percent_to_sigma(start_percent)
         sigma_end = model_sampling.percent_to_sigma(end_percent)
@@ -41,13 +50,21 @@ class PatchModelAddDownscale:
         else:
             m.set_model_input_block_patch(input_block_patch)
         m.set_model_output_block_patch(output_block_patch)
-        return (m, )
+        return io.NodeOutput(m)
 
-NODE_CLASS_MAPPINGS = {
-    "PatchModelAddDownscale": PatchModelAddDownscale,
-}
 
 NODE_DISPLAY_NAME_MAPPINGS = {
     # Sampling
-    "PatchModelAddDownscale": "PatchModelAddDownscale (Kohya Deep Shrink)",
+    "PatchModelAddDownscale": "",
 }
+
+class ModelDownscaleExtension(ComfyExtension):
+    @override
+    async def get_node_list(self) -> list[type[io.ComfyNode]]:
+        return [
+            PatchModelAddDownscale,
+        ]
+
+
+async def comfy_entrypoint() -> ModelDownscaleExtension:
+    return ModelDownscaleExtension()

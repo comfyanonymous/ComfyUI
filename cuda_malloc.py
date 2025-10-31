@@ -1,6 +1,6 @@
 import os
 import importlib.util
-from comfy.cli_args import args
+from comfy.cli_args import args, PerformanceFeature
 import subprocess
 
 #Can't use pytorch to get the GPU names because the cuda malloc has to be set before the first import.
@@ -74,8 +74,10 @@ if not args.cuda_malloc:
                 module = importlib.util.module_from_spec(spec)
                 spec.loader.exec_module(module)
                 version = module.__version__
-        if int(version[0]) >= 2: #enable by default for torch version 2.0 and up
-            args.cuda_malloc = cuda_malloc_supported()
+
+        if int(version[0]) >= 2 and "+cu" in version:  # enable by default for torch version 2.0 and up only on cuda torch
+            if PerformanceFeature.AutoTune not in args.fast:  # Autotune has issues with cuda malloc
+                args.cuda_malloc = cuda_malloc_supported()
     except:
         pass
 

@@ -5,6 +5,7 @@ from dataclasses import dataclass
 import torch
 from torch import Tensor, nn
 from einops import rearrange, repeat
+import comfy.patcher_extension
 import comfy.ldm.common_dit
 
 from comfy.ldm.flux.layers import (
@@ -150,8 +151,6 @@ class Chroma(nn.Module):
         attn_mask: Tensor = None,
     ) -> Tensor:
         patches_replace = transformer_options.get("patches_replace", {})
-        if img.ndim != 3 or txt.ndim != 3:
-            raise ValueError("Input img and txt tensors must have 3 dimensions.")
 
         # running on sequences img
         img = self.img_in(img)
@@ -192,14 +191,16 @@ class Chroma(nn.Module):
                                                        txt=args["txt"],
                                                        vec=args["vec"],
                                                        pe=args["pe"],
-                                                       attn_mask=args.get("attn_mask"))
+                                                       attn_mask=args.get("attn_mask"),
+                                                       transformer_options=args.get("transformer_options"))
                         return out
 
                     out = blocks_replace[("double_block", i)]({"img": img,
                                                                "txt": txt,
                                                                "vec": double_mod,
                                                                "pe": pe,
-                                                               "attn_mask": attn_mask},
+                                                               "attn_mask": attn_mask,
+                                                               "transformer_options": transformer_options},
                                                               {"original_block": block_wrap})
                     txt = out["txt"]
                     img = out["img"]
@@ -208,7 +209,8 @@ class Chroma(nn.Module):
                                      txt=txt,
                                      vec=double_mod,
                                      pe=pe,
-                                     attn_mask=attn_mask)
+                                     attn_mask=attn_mask,
+                                     transformer_options=transformer_options)
 
                 if control is not None: # Controlnet
                     control_i = control.get("input")
@@ -228,17 +230,19 @@ class Chroma(nn.Module):
                         out["img"] = block(args["img"],
                                            vec=args["vec"],
                                            pe=args["pe"],
-                                           attn_mask=args.get("attn_mask"))
+                                           attn_mask=args.get("attn_mask"),
+                                           transformer_options=args.get("transformer_options"))
                         return out
 
                     out = blocks_replace[("single_block", i)]({"img": img,
                                                                "vec": single_mod,
                                                                "pe": pe,
-                                                               "attn_mask": attn_mask},
+                                                               "attn_mask": attn_mask,
+                                                               "transformer_options": transformer_options},
                                                               {"original_block": block_wrap})
                     img = out["img"]
                 else:
-                    img = block(img, vec=single_mod, pe=pe, attn_mask=attn_mask)
+                    img = block(img, vec=single_mod, pe=pe, attn_mask=attn_mask, transformer_options=transformer_options)
 
                 if control is not None: # Controlnet
                     control_o = control.get("output")
@@ -248,19 +252,29 @@ class Chroma(nn.Module):
                             img[:, txt.shape[1] :, ...] += add
 
         img = img[:, txt.shape[1] :, ...]
-        final_mod = self.get_modulations(mod_vectors, "final")
-        img = self.final_layer(img, vec=final_mod)  # (N, T, patch_size ** 2 * out_channels)
+        if hasattr(self, "final_layer"):
+            final_mod = self.get_modulations(mod_vectors, "final")
+            img = self.final_layer(img, vec=final_mod)  # (N, T, patch_size ** 2 * out_channels)
         return img
 
     def forward(self, x, timestep, context, guidance, control=None, transformer_options={}, **kwargs):
+        return comfy.patcher_extension.WrapperExecutor.new_class_executor(
+            self._forward,
+            self,
+            comfy.patcher_extension.get_all_wrappers(comfy.patcher_extension.WrappersMP.DIFFUSION_MODEL, transformer_options)
+        ).execute(x, timestep, context, guidance, control, transformer_options, **kwargs)
+
+    def _forward(self, x, timestep, context, guidance, control=None, transformer_options={}, **kwargs):
         bs, c, h, w = x.shape
-        patch_size = 2
-        x = comfy.ldm.common_dit.pad_to_patch_size(x, (patch_size, patch_size))
+        x = comfy.ldm.common_dit.pad_to_patch_size(x, (self.patch_size, self.patch_size))
 
-        img = rearrange(x, "b c (h ph) (w pw) -> b (h w) (c ph pw)", ph=patch_size, pw=patch_size)
+        img = rearrange(x, "b c (h ph) (w pw) -> b (h w) (c ph pw)", ph=self.patch_size, pw=self.patch_size)
 
-        h_len = ((h + (patch_size // 2)) // patch_size)
-        w_len = ((w + (patch_size // 2)) // patch_size)
+        if img.ndim != 3 or context.ndim != 3:
+            raise ValueError("Input img and txt tensors must have 3 dimensions.")
+
+        h_len = ((h + (self.patch_size // 2)) // self.patch_size)
+        w_len = ((w + (self.patch_size // 2)) // self.patch_size)
         img_ids = torch.zeros((h_len, w_len, 3), device=x.device, dtype=x.dtype)
         img_ids[:, :, 1] = img_ids[:, :, 1] + torch.linspace(0, h_len - 1, steps=h_len, device=x.device, dtype=x.dtype).unsqueeze(1)
         img_ids[:, :, 2] = img_ids[:, :, 2] + torch.linspace(0, w_len - 1, steps=w_len, device=x.device, dtype=x.dtype).unsqueeze(0)
@@ -268,4 +282,4 @@ class Chroma(nn.Module):
 
         txt_ids = torch.zeros((bs, context.shape[1], 3), device=x.device, dtype=x.dtype)
         out = self.forward_orig(img, img_ids, context, txt_ids, timestep, guidance, control, transformer_options, attn_mask=kwargs.get("attention_mask", None))
-        return rearrange(out, "b (h w) (c ph pw) -> b c (h ph) (w pw)", h=h_len, w=w_len, ph=2, pw=2)[:,:,:h,:w]
+        return rearrange(out, "b (h w) (c ph pw) -> b c (h ph) (w pw)", h=h_len, w=w_len, ph=self.patch_size, pw=self.patch_size)[:,:,:h,:w]
