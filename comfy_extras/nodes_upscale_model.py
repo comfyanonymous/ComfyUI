@@ -84,7 +84,9 @@ class ImageUpscaleWithModel(io.ComfyNode):
                 pbar = comfy.utils.ProgressBar(steps)
                 s = comfy.utils.tiled_scale(in_img, lambda a: upscale_model(a), tile_x=tile, tile_y=tile, overlap=overlap, upscale_amount=upscale_model.scale, pbar=pbar)
                 oom = False
-            except model_management.OOM_EXCEPTION as e:
+            except Exception as e:
+                if not model_management.is_oom_exception(e):
+                    raise
                 tile //= 2
                 if tile < 128:
                     raise e
