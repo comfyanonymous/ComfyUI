@@ -2282,6 +2282,7 @@ def init_builtin_extra_nodes():
         "nodes_ace.py",
         "nodes_string.py",
         "nodes_camera_trajectory.py",
+        "nodes_hunyuan_image.py",
         "nodes_edit_model.py",
         "nodes_tcfg.py"
     ]
