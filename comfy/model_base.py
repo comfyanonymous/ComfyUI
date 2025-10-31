@@ -42,6 +42,7 @@ import comfy.ldm.hidream.model
 import comfy.ldm.chroma.model
 import comfy.ldm.ace.model
 import comfy.ldm.omnigen.omnigen2
+import comfy.ldm.hunyuan_image_3.model
 
 import comfy.model_management
 import comfy.patcher_extension
@@ -1196,6 +1197,10 @@ class Hunyuan3Dv2(BaseModel):
         if guidance is not None:
             out['guidance'] = comfy.conds.CONDRegular(torch.FloatTensor([guidance]))
         return out
+    
+class HunyuanImage3(BaseModel):
+    def __init__(self, model_config, model_type=ModelType.Flow, device=None):
+        super().__init__(model_config, model_type, device, unet_model = comfy.ldm.hunyuan_image_3.model.HunyuanImage3ForCausalMM)
 
 class HiDream(BaseModel):
     def __init__(self, model_config, model_type=ModelType.FLOW, device=None):
