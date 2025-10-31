@@ -605,9 +605,9 @@ class WanModel(torch.nn.Module):
         w_start = 0
         rope_options = transformer_options.get("rope_options", None)
         if rope_options is not None:
-            t_len = t_len * rope_options.get("scale_t", 1.0)
-            h_len = h_len * rope_options.get("scale_y", 1.0)
-            w_len = w_len * rope_options.get("scale_x", 1.0)
+            t_len = (t_len - 1.0) * rope_options.get("scale_t", 1.0) + 1.0
+            h_len = (h_len - 1.0) * rope_options.get("scale_y", 1.0) + 1.0
+            w_len = (w_len - 1.0) * rope_options.get("scale_x", 1.0) + 1.0
 
             t_start += rope_options.get("shift_t", 0.0)
             h_start += rope_options.get("shift_y", 0.0)
