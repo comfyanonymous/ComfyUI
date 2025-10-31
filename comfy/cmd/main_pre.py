@@ -53,6 +53,8 @@ logging.getLogger("torch.distributed.elastic.multiprocessing.redirects").addFilt
 )
 logging.getLogger("alembic.runtime.migration").setLevel(logging.WARNING)
 logging.getLogger("asyncio").addFilter(lambda record: 'Using selector:' not in record.getMessage())
+logging.getLogger("requests_cache").setLevel(logging.ERROR)
+logging.getLogger("fsspec").setLevel(logging.WARNING)
 
 from ..cli_args import args
 

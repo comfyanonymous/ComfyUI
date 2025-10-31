@@ -9,6 +9,7 @@ from comfy.component_model.tensor_types import RGBImageBatch, ImageBatch, MaskBa
 from comfy.nodes.package_typing import CustomNode
 from comfy_api.latest import io
 
+
 def resize_mask(mask, shape):
     return torch.nn.functional.interpolate(mask.reshape((-1, 1, mask.shape[-2], mask.shape[-1])), size=(shape[0], shape[1]), mode="bilinear").squeeze(1)
 
@@ -252,13 +253,16 @@ class Flatten(CustomNode):
     CATEGORY = "image/postprocessing"
 
     def convert_rgba_to_rgb(self, images: ImageBatch, background_color) -> tuple[RGBImageBatch]:
+        b, h, w, c = images.shape
+        if c == 3:
+            return images,
         bg_color = torch.tensor(self.hex_to_rgb(background_color), dtype=torch.float32) / 255.0
         rgb = images[..., :3]
         alpha = images[..., 3:4]
         bg = bg_color.view(1, 1, 1, 3).expand(rgb.shape)
         blended = alpha * rgb + (1 - alpha) * bg
 
-        return (blended,)
+        return blended,
 
     @staticmethod
     def hex_to_rgb(hex_color):

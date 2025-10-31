@@ -3,7 +3,7 @@ import operator
 from typing import OrderedDict, Callable, Any
 
 from comfy.comfy_types import IO
-from comfy.lazy_helpers import is_input_unscheduled_unexecuted
+from comfy.lazy_helpers import is_input_pending
 from comfy.node_helpers import export_custom_nodes
 from comfy.nodes.package_typing import CustomNode, InputTypes
 
@@ -81,14 +81,13 @@ class LazySwitch(CustomNode):
 
     def check_lazy_status(self, switch, on_false=None, on_true=None):
         try:
-            on_false_not_evaluated, on_true_not_evaluated = is_input_unscheduled_unexecuted("on_false", "on_true")
+            on_false_not_evaluated, on_true_not_evaluated = is_input_pending("on_false", "on_true")
         except LookupError:
             on_false_not_evaluated, on_true_not_evaluated = on_false is None, on_true is None
         if switch and on_true_not_evaluated:
             return ["on_true"]
         if not switch and on_false_not_evaluated:
             return ["on_false"]
-        return []
 
     def execute(self, switch, on_false=None, on_true=None):
         value = on_true if switch else on_false
@@ -140,7 +139,7 @@ class BinaryOperation(CustomNode):
 
     def check_lazy_status(self, lhs=None, op=None, rhs=None) -> list[str]:
         try:
-            lhs_not_evaluated, rhs_not_evaluated = is_input_unscheduled_unexecuted("lhs", "rhs")
+            lhs_not_evaluated, rhs_not_evaluated = is_input_pending("lhs", "rhs")
         except LookupError:
             lhs_not_evaluated, rhs_not_evaluated = lhs is None, rhs is None
         lhs_evaluated, rhs_evaluated = not lhs_not_evaluated, not rhs_not_evaluated

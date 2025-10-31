@@ -1,7 +1,9 @@
 main.exp
 main.lib
 main.obj
-tests/inference/output/
+comfy/cmd/web/
+tests/**/output
+tests/**/temp
 .DS_Store
 /[Oo]utput/
 /[Ii]nput/
