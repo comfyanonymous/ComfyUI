@@ -276,6 +276,9 @@ class ModelPatcher:
         self.size = comfy.model_management.module_size(self.model)
         return self.size
 
+    def get_ram_usage(self):
+        return self.model_size()
+
     def loaded_size(self):
         return self.model.model_loaded_weight_memory
 
@@ -450,6 +453,19 @@ class ModelPatcher:
 
     def set_model_post_input_patch(self, patch):
         self.set_model_patch(patch, "post_input")
+
+    def set_model_rope_options(self, scale_x, shift_x, scale_y, shift_y, scale_t, shift_t, **kwargs):
+        rope_options = self.model_options["transformer_options"].get("rope_options", {})
+        rope_options["scale_x"] = scale_x
+        rope_options["scale_y"] = scale_y
+        rope_options["scale_t"] = scale_t
+
+        rope_options["shift_x"] = shift_x
+        rope_options["shift_y"] = shift_y
+        rope_options["shift_t"] = shift_t
+
+        self.model_options["transformer_options"]["rope_options"] = rope_options
+
 
     def add_object_patch(self, name, obj):
         self.object_patches[name] = obj
