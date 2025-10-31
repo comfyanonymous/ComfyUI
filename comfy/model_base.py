@@ -1199,7 +1199,7 @@ class Hunyuan3Dv2(BaseModel):
         return out
     
 class HunyuanImage3(BaseModel):
-    def __init__(self, model_config, model_type=ModelType.Flow, device=None):
+    def __init__(self, model_config, model_type=ModelType.FLOW, device=None):
         super().__init__(model_config, model_type, device, unet_model = comfy.ldm.hunyuan_image_3.model.HunyuanImage3ForCausalMM)
 
 class HiDream(BaseModel):
