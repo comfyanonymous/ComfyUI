@@ -30,6 +30,7 @@ from ..cli_args import args
 from ..cmd import folder_paths, latent_preview
 from ..comfy_types import IO, ComfyNodeABC, InputTypeDict, FileLocator
 from ..component_model.deprecation import _deprecate_method
+from ..component_model.images_types import ImageMaskTuple
 from ..component_model.tensor_types import RGBImage, RGBImageBatch, MaskBatch, RGBAImageBatch, Latent
 from ..execution_context import current_execution_context
 from ..images import open_image
@@ -1791,7 +1792,7 @@ class LoadImage:
     RETURN_TYPES = ("IMAGE", "MASK")
     FUNCTION = "load_image"
 
-    def load_image(self, image: str) -> tuple[RGBImageBatch, MaskBatch]:
+    def load_image(self, image: str) -> ImageMaskTuple:
         image_path = folder_paths.get_annotated_filepath(image)
         output_images = []
         output_masks = []
@@ -1829,7 +1830,9 @@ class LoadImage:
                     mask = np.array(i.convert('RGBA').getchannel('A')).astype(np.float32) / 255.0
                     mask = 1. - torch.from_numpy(mask)
                 else:
-                    mask = torch.zeros((64, 64), dtype=torch.float32, device="cpu")
+                    # unlike upstream, the mask is now the size of the original image, even when there was no alpha channel
+                    # this is opaque
+                    mask = torch.zeros((h, w), dtype=torch.float32, device="cpu")
                 output_images.append(image)
                 output_masks.append(mask.unsqueeze(0))
 
@@ -1840,7 +1843,7 @@ class LoadImage:
             output_image = output_images[0]
             output_mask = output_masks[0]
 
-        return (output_image, output_mask)
+        return ImageMaskTuple(output_image, output_mask)
 
     @classmethod
     def VALIDATE_INPUTS(s, image):

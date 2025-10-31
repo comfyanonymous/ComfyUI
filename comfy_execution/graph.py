@@ -5,7 +5,7 @@ import inspect
 from typing import Optional, Type, Literal, Union, NamedTuple
 
 from comfy.nodes.package_typing import CustomNode, InputTypes
-from comfy_execution.graph_utils import is_link, ExecutionBlocker
+from comfy_execution.graph_utils import ExecutionBlocker
 from comfy.comfy_types.node_typing import ComfyNodeABC, InputTypeDict, InputTypeOptions
 from comfy.component_model.executor_types import DependencyCycleError, NodeInputError, NodeNotFoundError, \
     DependencyExecutionErrorMessage, ComboOptions
@@ -249,7 +249,7 @@ class ExecutionList(TopologicalSort):
         # for a PreviewImage to display a result as soon as it can
         # Some other heuristics could probably be used here to improve the UX further.
         def is_output(node_id):
-            class_type = self.dynprompt.get_node(node_id)["class_type"]
+            class_type = self.dynprompt.get_node(node_id)['class_type']
             class_def = get_nodes().NODE_CLASS_MAPPINGS[class_type]
             if hasattr(class_def, 'OUTPUT_NODE') and class_def.OUTPUT_NODE == True:
                 return True
@@ -258,7 +258,7 @@ class ExecutionList(TopologicalSort):
         # If an available node is async, do that first.
         # This will execute the asynchronous function earlier, reducing the overall time.
         def is_async(node_id):
-            class_type = self.dynprompt.get_node(node_id)["class_type"]
+            class_type = self.dynprompt.get_node(node_id)['class_type']
             class_def = get_nodes().NODE_CLASS_MAPPINGS[class_type]
             return inspect.iscoroutinefunction(getattr(class_def, class_def.FUNCTION))
 

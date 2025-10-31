@@ -34,7 +34,8 @@ from torch import Tensor
 
 from comfy.cmd import folder_paths
 from comfy.comfy_types import IO
-from comfy.component_model.tensor_types import RGBAImageBatch, RGBImageBatch
+from comfy.component_model.images_types import ImageMaskTuple
+from comfy.component_model.tensor_types import RGBAImageBatch, RGBImageBatch, MaskBatch, ImageBatch
 from comfy.digest import digest
 from comfy.node_helpers import export_custom_nodes
 from comfy.nodes.package_typing import CustomNode, InputTypes, FunctionReturnsUIVariables, SaveNodeResult, \
@@ -809,18 +810,20 @@ class ImageRequestParameter(CustomNode):
             },
             "optional": {
                 **_open_api_common_schema,
-                "default_if_empty": ("IMAGE",)
+                "default_if_empty": ("IMAGE",),
+                "alpha_is_transparency": ("BOOLEAN", {"default": False}),
             }
         }
 
-    RETURN_TYPES = ("IMAGE",)
+    RETURN_TYPES = ("IMAGE", "MASK")
     FUNCTION = "execute"
     CATEGORY = "api/openapi"
 
-    def execute(self, value: str = "", default_if_empty=None, *args, **kwargs) -> ValidatedNodeResult:
+    def execute(self, value: str = "", default_if_empty=None, alpha_is_transparency=False, *args, **kwargs) -> ImageMaskTuple:
         if value.strip() == "":
             return (default_if_empty,)
         output_images = []
+        output_masks = []
         f: OpenFile
         fsspec_kwargs = {}
         if value.startswith('http'):
@@ -832,31 +835,41 @@ class ImageRequestParameter(CustomNode):
             })
         # todo: additional security is needed here to prevent users from accessing local paths
         # however this generally needs to be done with user accounts on all OSes
-        with fsspec.open(value, mode="rb", **fsspec_kwargs) as f:
-            # from LoadImage
-            img = Image.open(f)
-            for i in ImageSequence.Iterator(img):
-                prev_value = None
-                try:
-                    i = ImageOps.exif_transpose(i)
-                except OSError:
-                    prev_value = ImageFile.LOAD_TRUNCATED_IMAGES
-                    ImageFile.LOAD_TRUNCATED_IMAGES = True
-                    i = ImageOps.exif_transpose(i)
-                finally:
-                    if prev_value is not None:
-                        ImageFile.LOAD_TRUNCATED_IMAGES = prev_value
-                    if i.mode == 'I':
-                        i = i.point(lambda i: i * (1 / 255))
-                    image = i.convert("RGB")
-                    image = np.array(image).astype(np.float32) / 255.0
-                    image = torch.from_numpy(image)[None,]
-                    output_images.append(image)
-        if len(output_images) > 1:
-            output_image = torch.cat(output_images, dim=0)
-        else:
-            output_image = output_images[0]
-        return (output_image,)
+        with fsspec.open_files(value, mode="rb", **fsspec_kwargs) as files:
+            for f in files:
+                # from LoadImage
+                img = Image.open(f)
+                for i in ImageSequence.Iterator(img):
+                    prev_value = None
+                    try:
+                        i = ImageOps.exif_transpose(i)
+                    except OSError:
+                        prev_value = ImageFile.LOAD_TRUNCATED_IMAGES
+                        ImageFile.LOAD_TRUNCATED_IMAGES = True
+                        i = ImageOps.exif_transpose(i)
+                    finally:
+                        if prev_value is not None:
+                            ImageFile.LOAD_TRUNCATED_IMAGES = prev_value
+                        if i.mode == 'I':
+                            i = i.point(lambda i: i * (1 / 255))
+                        image = i.convert("RGBA" if alpha_is_transparency else "RGB")
+                        image = np.array(image).astype(np.float32) / 255.0
+                        image = torch.from_numpy(image)[None,]
+                        if 'A' in i.getbands():
+                            mask = np.array(i.getchannel('A')).astype(np.float32) / 255.0
+                            mask = 1. - torch.from_numpy(mask)
+                        elif i.mode == 'P' and 'transparency' in i.info:
+                            mask = np.array(i.convert('RGBA').getchannel('A')).astype(np.float32) / 255.0
+                            mask = 1. - torch.from_numpy(mask)
+                        else:
+                            mask = torch.zeros((image.shape[1], image.shape[2]), dtype=torch.float32, device="cpu")
+                        output_images.append(image)
+                        output_masks.append(mask.unsqueeze(0))
+
+        output_images_batched: ImageBatch = torch.cat(output_images, dim=0)
+        output_masks_batched: MaskBatch = torch.cat(output_masks, dim=0)
+
+        return ImageMaskTuple(output_images_batched, output_masks_batched)
 
 
 export_custom_nodes()

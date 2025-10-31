@@ -5,6 +5,7 @@ from contextvars import ContextVar
 from dataclasses import dataclass, replace
 from typing import Optional, Final
 
+from comfy_execution.graph_types import FrozenTopologicalSort
 from .cli_args import cli_args_configuration
 from .cli_args_types import Configuration
 from .component_model import cvpickle
@@ -17,15 +18,26 @@ from .progress_types import AbstractProgressRegistry, ProgressRegistryStub
 
 @dataclass(frozen=True)
 class ExecutionContext:
+    # at any time
     server: ExecutorToClientProgress
     folder_names_and_paths: FolderNames
     custom_nodes: ExportedNodes
+    configuration: Optional[Configuration] = None
+
+    # during prompt execution
+    progress_registry: Optional[AbstractProgressRegistry] = None
+
+    # during node execution
     node_id: Optional[str] = None
     task_id: Optional[str] = None
     list_index: Optional[int] = None
     inference_mode: bool = True
-    progress_registry: Optional[AbstractProgressRegistry] = None
-    configuration: Optional[Configuration] = None
+    execution_list: Optional[FrozenTopologicalSort] = None
+    executed: Optional[frozenset] = None
+
+    @property
+    def inputs(self) -> dict:
+        return self.execution_list.dynprompt.get_node(self.node_id)['inputs']
 
     def __iter__(self):
         """
@@ -121,5 +133,13 @@ def context_set_node_and_prompt(prompt_id: str, node_id: str, list_index: Option
     """
     current_ctx = current_execution_context()
     new_ctx = replace(current_ctx, task_id=prompt_id, node_id=node_id, list_index=list_index)
+    with _new_execution_context(new_ctx):
+        yield new_ctx
+
+
+@contextmanager
+def context_set_execution_list_and_inputs(execution_list: FrozenTopologicalSort, executed: frozenset):
+    current_ctx = current_execution_context()
+    new_ctx = replace(current_ctx, execution_list=execution_list, executed=executed)
     with _new_execution_context(new_ctx):
         yield new_ctx

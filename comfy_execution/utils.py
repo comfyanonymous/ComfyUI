@@ -42,7 +42,7 @@ class CurrentNodeContext:
         self._cm = core_execution_context.context_set_node_and_prompt(
             prompt_id=prompt_id,
             node_id=node_id,
-            list_index=list_index
+            list_index=list_index,
         )
 
     def __enter__(self):

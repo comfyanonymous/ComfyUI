@@ -3,7 +3,7 @@ import logging
 import time
 import urllib.request
 import uuid
-from typing import Dict, Optional
+from typing import Dict, Optional, AsyncGenerator
 
 import numpy
 import pytest
@@ -128,7 +128,7 @@ class TestExecution:
         (0, True),
         (100, True),
     ])
-    async def client(self, request) -> ComfyClient:
+    async def client(self, request):
         from ..inference.testing_pack import NODE_CLASS_MAPPINGS, NODE_DISPLAY_NAME_MAPPINGS
 
         # ??? todo: we have to deal with this
@@ -784,3 +784,163 @@ class TestExecution:
         result = client.get_all_history(max_items=5, offset=len(all_history) - 1)
 
         assert len(result) <= 1, "Should return at most 1 item when offset is near end"
+
+    async def test_lazy_switch_true_branch(self, client: ComfyClient, builder: GraphBuilder):
+        await client.embedded_client.clear_cache()
+        g = builder
+        # Create a "True" boolean value
+        true_int = g.node("StubInt", value=1)
+        true_bool = g.node("TestIntConditions", a=true_int.out(0), b=1, operation="==")  # 1 == 1 -> True
+
+        # Create nodes for branches
+        node_true = g.node("StubImage", content="WHITE", height=32, width=32, batch_size=1)
+        node_false = g.node("StubImage", content="BLACK", height=32, width=32, batch_size=1)
+
+        # Create lazy switch
+        # Note: LazySwitch is imported at the top of the file
+        switch = g.node("LazySwitch", switch=true_bool.out(0), on_true=node_true.out(0), on_false=node_false.out(0))
+        output = g.node("SaveImage", images=switch.out(0))
+
+        result = await client.run(g)
+
+        # Check execution
+        assert result.did_run(true_int), "True stub int should run"
+        assert result.did_run(true_bool), "Boolean condition node should run"
+        assert result.did_run(node_true), "on_true node should run"
+        assert not result.did_run(node_false), "on_false node should NOT run"
+        assert result.did_run(switch), "LazySwitch node should run"
+        assert result.did_run(output), "SaveImage node should run"
+
+        # Check output
+        result_image = result.get_images(output)[0]
+        assert numpy.array(result_image).mean() == 255, "Image should be white"
+
+    async def test_lazy_switch_false_branch(self, client: ComfyClient, builder: GraphBuilder):
+        await client.embedded_client.clear_cache()
+        g = builder
+        # Create a "False" boolean value
+        false_int = g.node("StubInt", value=0)
+        false_bool = g.node("TestIntConditions", a=false_int.out(0), b=1, operation="==")  # 0 == 1 -> False
+
+        # Create nodes for branches
+        node_true = g.node("StubImage", content="WHITE", height=32, width=32, batch_size=1)
+        node_false = g.node("StubImage", content="BLACK", height=32, width=32, batch_size=1)
+
+        # Create lazy switch
+        switch = g.node("LazySwitch", switch=false_bool.out(0), on_true=node_true.out(0), on_false=node_false.out(0))
+        output = g.node("SaveImage", images=switch.out(0))
+
+        result = await client.run(g)
+
+        # Check execution
+        assert result.did_run(false_int), "False stub int should run"
+        assert result.did_run(false_bool), "Boolean condition node should run"
+        assert not result.did_run(node_true), "on_true node should NOT run"
+        assert result.did_run(node_false), "on_false node should run"
+        assert result.did_run(switch), "LazySwitch node should run"
+        assert result.did_run(output), "SaveImage node should run"
+
+        # Check output
+        result_image = result.get_images(output)[0]
+        assert numpy.array(result_image).mean() == 0, "Image should be black"
+
+    async def test_lazy_binary_op_and_short_circuit(self, client: ComfyClient, builder: GraphBuilder):
+        await client.embedded_client.clear_cache()
+        g = builder
+        # Create a "False" boolean value
+        false_int = g.node("StubInt", value=0)
+        lhs_bool = g.node("TestIntConditions", a=false_int.out(0), b=1, operation="==")  # 0 == 1 -> False
+
+        # Create a "True" boolean value for RHS (this node should not run)
+        true_int_rhs = g.node("StubInt", value=1)
+        rhs_bool = g.node("TestIntConditions", a=true_int_rhs.out(0), b=1, operation="==")  # 1 == 1 -> True
+
+        # Create binary op
+        # Note: BinaryOperation is imported at the top of the file
+        binary_op = g.node("BinaryOperation", lhs=lhs_bool.out(0), op="and", rhs=rhs_bool.out(0))
+
+        # Create lazy switch to check result
+        node_true = g.node("StubImage", content="WHITE", height=32, width=32, batch_size=1)
+        node_false = g.node("StubImage", content="BLACK", height=32, width=32, batch_size=1)
+        switch = g.node("LazySwitch", switch=binary_op.out(0), on_true=node_true.out(0), on_false=node_false.out(0))
+        output = g.node("SaveImage", images=switch.out(0))
+
+        result = await client.run(g)
+
+        # Check execution
+        assert result.did_run(false_int), "LHS int node should run"
+        assert result.did_run(lhs_bool), "LHS bool node should run"
+        assert not result.did_run(true_int_rhs), "RHS int node should NOT run (short-circuit)"
+        assert not result.did_run(rhs_bool), "RHS bool node should NOT run (short-circuit)"
+        assert result.did_run(binary_op), "BinaryOp should run"
+        assert not result.did_run(node_true), "on_true node should NOT run"
+        assert result.did_run(node_false), "on_false node should run"
+
+        # Check output
+        result_image = result.get_images(output)[0]
+        assert numpy.array(result_image).mean() == 0, "Image should be black (result of 'and' was False)"
+
+    async def test_lazy_binary_op_or_short_circuit(self, client: ComfyClient, builder: GraphBuilder):
+        await client.embedded_client.clear_cache()
+        g = builder
+        # Create a "True" boolean value
+        true_int = g.node("StubInt", value=1)
+        lhs_bool = g.node("TestIntConditions", a=true_int.out(0), b=1, operation="==")  # 1 == 1 -> True
+
+        # Create a "False" boolean value for RHS (this node should not run)
+        false_int_rhs = g.node("StubInt", value=0)
+        rhs_bool = g.node("TestIntConditions", a=false_int_rhs.out(0), b=1, operation="==")  # 0 == 1 -> False
+
+        # Create binary op
+        binary_op = g.node("BinaryOperation", lhs=lhs_bool.out(0), op="or", rhs=rhs_bool.out(0))
+
+        # Create lazy switch to check result
+        node_true = g.node("StubImage", content="WHITE", height=32, width=32, batch_size=1)
+        node_false = g.node("StubImage", content="BLACK", height=32, width=32, batch_size=1)
+        switch = g.node("LazySwitch", switch=binary_op.out(0), on_true=node_true.out(0), on_false=node_false.out(0))
+        output = g.node("SaveImage", images=switch.out(0))
+
+        result = await client.run(g)
+
+        # Check execution
+        assert result.did_run(true_int), "LHS int node should run"
+        assert result.did_run(lhs_bool), "LHS bool node should run"
+        assert not result.did_run(false_int_rhs), "RHS int node should NOT run (short-circuit)"
+        assert not result.did_run(rhs_bool), "RHS bool node should NOT run (short-circuit)"
+        assert result.did_run(binary_op), "BinaryOp should run"
+        assert result.did_run(node_true), "on_true node should run"
+        assert not result.did_run(node_false), "on_false node should NOT run"
+
+        # Check output
+        result_image = result.get_images(output)[0]
+        assert numpy.array(result_image).mean() == 255, "Image should be white (result of 'or' was True)"
+
+    async def test_lazy_switch_with_none_input(self, client: ComfyClient, builder: GraphBuilder):
+        await client.embedded_client.clear_cache()
+        g = builder
+        # Create a "False" boolean value
+        false_int = g.node("StubInt", value=0)
+        false_bool = g.node("TestIntConditions", a=false_int.out(0), b=1, operation="==")  # 0 == 1 -> False
+
+        # Create nodes for branches
+        # This node will return None as its value is empty and default_if_empty is not set
+        node_true_image = g.node("ImageRequestParameter", value="", description="1")
+        node_false_image = g.node("StubImage", content="BLACK", height=32, width=32, batch_size=1)
+
+        # Create lazy switch
+        switch = g.node("LazySwitch", switch=false_bool.out(0), on_true=node_true_image.out(0), on_false=node_false_image.out(0))
+        output = g.node("SaveImage", images=switch.out(0))
+
+        result = await client.run(g)
+
+        # Check execution
+        assert result.did_run(false_int), "False stub int should run"
+        assert result.did_run(false_bool), "Boolean condition node should run"
+        assert not result.did_run(node_true_image), "on_true (ImageRequestParameter) node should NOT run"
+        assert result.did_run(node_false_image), "on_false node should run"
+        assert result.did_run(switch), "LazySwitch node should run"
+        assert result.did_run(output), "SaveImage node should run"
+
+        # Check output
+        result_image = result.get_images(output)[0]
+        assert numpy.array(result_image).mean() == 0, "Image should be black"

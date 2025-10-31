@@ -1,4 +1,7 @@
 from __future__ import annotations
+
+import platform
+
 # noqa: E402
 from comfy.cmd.main_pre import args
 import os
@@ -280,7 +283,6 @@ def test_posix_join_curly_brackets():
     assert joined_path == "a_{test}/b/c"
 
 
-@pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA is not available")
 def test_file_request_parameter(use_temporary_input_directory):
     _image_1x1_px = np.array([[[255, 0, 0]]], dtype=np.uint8)
     image_path = os.path.join(use_temporary_input_directory, "test_image.png")
@@ -288,7 +290,7 @@ def test_file_request_parameter(use_temporary_input_directory):
     image.save(image_path)
 
     n = ImageRequestParameter()
-    loaded_image, = n.execute(value=image_path)
+    loaded_image, *_ = n.execute(value=image_path)
     assert loaded_image.shape == (1, 1, 1, 3)
     from comfy.nodes.base_nodes import LoadImage
 
@@ -299,13 +301,174 @@ def test_file_request_parameter(use_temporary_input_directory):
     assert torch.allclose(loaded_image, load_image_node_rgb)
 
 
+def test_file_request_parameter2(use_temporary_input_directory):
+    n = ImageRequestParameter()
+
+    # Test 1: Load a single RGB image
+    _image_1x1_px_rgb = np.array([[[255, 0, 0]]], dtype=np.uint8)  # 1x1 RGB
+    image_path_rgb = os.path.join(use_temporary_input_directory, "test_image_rgb.png")
+    image_rgb = Image.fromarray(_image_1x1_px_rgb, 'RGB')
+    image_rgb.save(image_path_rgb)
+
+    loaded_image_rgb, loaded_mask_rgb = n.execute(value=image_path_rgb, alpha_is_transparency=True)
+
+    # Node converts RGB to RGBA
+    assert loaded_image_rgb.shape == (1, 1, 1, 4)  # B, H, W, C
+    # Check RGB values
+    assert torch.allclose(loaded_image_rgb[0, 0, 0, :3], torch.tensor([1.0, 0.0, 0.0]))
+    # Check added Alpha channel
+    assert torch.allclose(loaded_image_rgb[0, 0, 0, 3], torch.tensor(1.0))
+    # Check mask (should be all 0s for 1.0 alpha)
+    assert loaded_mask_rgb.shape == (1, 1, 1)  # B, H, W
+    assert torch.all(loaded_mask_rgb == 0.0)
+
+    # Test 2: Load a single RGBA image with transparency
+    _image_1x1_px_rgba = np.array([[[255, 0, 0, 128]]], dtype=np.uint8)  # 1x1 RGBA
+    image_path_rgba = os.path.join(use_temporary_input_directory, "test_image_rgba.png")
+    image_rgba = Image.fromarray(_image_1x1_px_rgba, 'RGBA')
+    image_rgba.save(image_path_rgba)
+
+    loaded_image_rgba, loaded_mask_rgba = n.execute(value=image_path_rgba, alpha_is_transparency=True)
+
+    # Node should load RGBA as is
+    assert loaded_image_rgba.shape == (1, 1, 1, 4)  # B, H, W, C
+    # Check RGBA values
+    assert torch.allclose(loaded_image_rgba[0, 0, 0, :], torch.tensor([1.0, 0.0, 0.0, 128 / 255.0]))
+    # Check mask (should be 1.0 - alpha)
+    assert loaded_mask_rgba.shape == (1, 1, 1)  # B, H, W
+    assert torch.allclose(loaded_mask_rgba[0, 0, 0], torch.tensor(1.0 - 128 / 255.0))
+
+    # Test 3: Load a single RGB image with alpha_is_transparency=False
+    loaded_image_rgb_no_alpha, loaded_mask_rgb_no_alpha = n.execute(value=image_path_rgb, alpha_is_transparency=False)
+
+    # Node converts to RGB
+    assert loaded_image_rgb_no_alpha.shape == (1, 1, 1, 3)  # B, H, W, C
+    # Check RGB values
+    assert torch.allclose(loaded_image_rgb_no_alpha[0, 0, 0, :], torch.tensor([1.0, 0.0, 0.0]))
+    # Check mask
+    assert loaded_mask_rgb_no_alpha.shape == (1, 1, 1)  # B, H, W
+
+    # Test 4: Load a single RGBA image with alpha_is_transparency=False
+    loaded_image_rgba_no_alpha, loaded_mask_rgba_no_alpha = n.execute(value=image_path_rgba, alpha_is_transparency=False)
+
+    # Node should load RGBA as RGB (dropping alpha)
+    assert loaded_image_rgba_no_alpha.shape == (1, 1, 1, 3)  # B, H, W, C
+    # Check RGB values (straight, not pre-multiplied)
+    assert torch.allclose(loaded_image_rgba_no_alpha[0, 0, 0, :], torch.tensor([1.0, 0.0, 0.0]))
+    assert loaded_mask_rgba_no_alpha.shape == (1, 1, 1)  # B, H, W
+
+
+def test_file_request_parameter_glob(use_temporary_input_directory):
+    # 1. Create dummy images (2x2)
+    # Image 1 (RGB)
+    img_rgb_data = np.array([
+        [[255, 0, 0], [0, 255, 0]],
+        [[0, 0, 255], [255, 255, 255]]
+    ], dtype=np.uint8)
+    img_rgb = Image.fromarray(img_rgb_data, 'RGB')
+    path_rgb = os.path.join(use_temporary_input_directory, "img_rgb.png")
+    img_rgb.save(path_rgb)
+
+    # Image 2 (RGBA with transparency)
+    img_rgba_data_rgb = np.array([
+        [[10, 20, 30], [40, 50, 60]],
+        [[70, 80, 90], [100, 110, 120]]
+    ], dtype=np.uint8)
+    img_rgba_data_a = np.array([
+        [255, 128], # alpha 1.0, 0.5
+        [0, 255]   # alpha 0.0, 1.0
+    ], dtype=np.uint8)
+    img_rgba_data = np.dstack((img_rgba_data_rgb, img_rgba_data_a))
+    img_rgba = Image.fromarray(img_rgba_data, 'RGBA')
+    path_rgba = os.path.join(use_temporary_input_directory, "img_rgba.png")
+    img_rgba.save(path_rgba)
+
+    # 2. Construct fsspec URL
+    prefix = 'file:///' if platform.system() == "Windows" else 'file://'
+    # Add glob pattern
+    url = f"{prefix}{use_temporary_input_directory}/*.png"
+
+    n = ImageRequestParameter()
+
+    # 3. Test with alpha_is_transparency=True (default)
+    loaded_images, loaded_masks = n.execute(value=url, alpha_is_transparency=True)
+
+    # 4. Verify results (True) - Order independent
+    assert loaded_images.shape == (2, 2, 2, 4)  # B=2, H=2, W=2, C=RGBA
+    assert loaded_masks.shape == (2, 2, 2)  # B=2, H=2, W=2
+
+    # Find which image is which by checking the mask sum
+    mask_sums = torch.sum(loaded_masks, dim=(1, 2))
+    expected_rgba_mask_sum = (1.0 - 128/255.0) + 1.0 # From alpha 128 and 0
+
+    # Argmin should find the all-zero mask (from the RGB image)
+    rgb_img_index = torch.argmin(mask_sums)
+    # Argmax should find the mask with transparency
+    rgba_img_index = torch.argmax(mask_sums)
+
+    assert rgb_img_index != rgba_img_index
+    assert torch.allclose(mask_sums[rgb_img_index], torch.tensor(0.0))
+    assert torch.allclose(mask_sums[rgba_img_index], torch.tensor(expected_rgba_mask_sum))
+
+    # Check RGB image tensor (which was converted to RGBA)
+    rgb_image_tensor = loaded_images[rgb_img_index]
+    assert torch.allclose(rgb_image_tensor[0, 0, :3], torch.tensor([1.0, 0.0, 0.0])) # Red pixel
+    assert torch.allclose(rgb_image_tensor[0, 0, 3], torch.tensor(1.0)) # Added alpha
+    assert torch.allclose(rgb_image_tensor[1, 1, :3], torch.tensor([1.0, 1.0, 1.0])) # White pixel
+    assert torch.allclose(rgb_image_tensor[1, 1, 3], torch.tensor(1.0)) # Added alpha
+
+    # Check RGBA image tensor
+    rgba_image_tensor = loaded_images[rgba_img_index]
+    # Pixel [0, 1] (alpha 128)
+    assert torch.allclose(rgba_image_tensor[0, 1, :3], torch.tensor([40/255.0, 50/255.0, 60/255.0]))
+    assert torch.allclose(rgba_image_tensor[0, 1, 3], torch.tensor(128/255.0)) # Original alpha
+    # Pixel [1, 0] (alpha 0)
+    assert torch.allclose(rgba_image_tensor[1, 0, :3], torch.tensor([70/255.0, 80/255.0, 90/255.0]))
+    assert torch.allclose(rgba_image_tensor[1, 0, 3], torch.tensor(0.0)) # Original alpha
+    assert torch.allclose(rgba_image_tensor[1, 0, 3], torch.tensor(0.0))  # Original alpha
+
+    # 5. Test with alpha_is_transparency=False
+    loaded_images_no_alpha, loaded_masks_no_alpha = n.execute(value=url, alpha_is_transparency=False)
+
+    # 6. Verify results (False)
+    assert loaded_images_no_alpha.shape == (2, 2, 2, 3)  # B=2, H=2, W=2, C=RGB
+    assert loaded_masks_no_alpha.shape == (2, 2, 2)  # B=2, H, W (empty)
+
+    # Find which image is which by checking pixel sum (RGB image has brighter pixels)
+    img_sums = torch.sum(loaded_images_no_alpha, dim=(1, 2, 3))
+    rgb_img_index = torch.argmax(img_sums)
+    rgba_img_index = torch.argmin(img_sums)
+
+    assert rgb_img_index != rgba_img_index
+
+    # Check RGB image tensor
+    rgb_image_tensor_no_alpha = loaded_images_no_alpha[rgb_img_index]
+    assert torch.allclose(rgb_image_tensor_no_alpha[0, 0, :], torch.tensor([1.0, 0.0, 0.0]))  # Red
+    assert torch.allclose(rgb_image_tensor_no_alpha[1, 1, :], torch.tensor([1.0, 1.0, 1.0]))  # White
+
+    # Check RGBA image tensor (which was converted to RGB, dropping alpha - straight matte)
+    rgba_image_tensor_no_alpha = loaded_images_no_alpha[rgba_img_index]
+    # Pixel [0, 1] (RGB [40, 50, 60], alpha 128)
+    # RGB channels are passed through unaltered
+    expected_rgb_0_1 = torch.tensor([40 / 255.0, 50 / 255.0, 60 / 255.0])
+    assert torch.allclose(rgba_image_tensor_no_alpha[0, 1, :], expected_rgb_0_1)
+    # Pixel [1, 0] (RGB [70, 80, 90], alpha 0)
+    # RGB channels are passed through unaltered
+    expected_rgb_1_0 = torch.tensor([70 / 255.0, 80 / 255.0, 90 / 255.0])
+    assert torch.allclose(rgba_image_tensor_no_alpha[1, 0, :], expected_rgb_1_0)
+
 def test_file_request_to_http_url_no_exceptions():
     n = ImageRequestParameter()
-    loaded_image, = n.execute(value="https://upload.wikimedia.org/wikipedia/commons/thumb/a/a6/A_rainbow_at_sunset_after_rain_in_Gaziantep%2C_Turkey.IMG_2448.jpg/484px-A_rainbow_at_sunset_after_rain_in_Gaziantep%2C_Turkey.IMG_2448.jpg")
-    _, height, width, channels = loaded_image.shape
+    loaded_image, loaded_mask = n.execute(value="https://upload.wikimedia.org/wikipedia/commons/thumb/a/a6/A_rainbow_at_sunset_after_rain_in_Gaziantep%2C_Turkey.IMG_2448.jpg/484px-A_rainbow_at_sunset_after_rain_in_Gaziantep%2C_Turkey.IMG_2448.jpg")
+    # This is an RGB jpg, so it will be converted to RGBA
+    b, height, width, channels = loaded_image.shape
+    assert b == 1
     assert width == 484
     assert height == 480
     assert channels == 3
+    # Mask should be all zeros
+    assert loaded_mask.shape == (1, 480, 484)
+    assert torch.all(loaded_mask == 0.0)
 
 
 @pytest.mark.parametrize("format,bits,supports_16bit", [

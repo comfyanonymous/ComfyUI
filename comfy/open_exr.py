@@ -33,7 +33,7 @@ import numpy as np
 import torch
 from torch import Tensor
 
-from .component_model.images_types import RgbMaskTuple
+from .component_model.images_types import ImageMaskTuple
 
 
 read_exr = lambda fp: cv2.imread(fp, cv2.IMREAD_UNCHANGED).astype(np.float32) 
@@ -50,7 +50,7 @@ def mut_linear_to_srgb(np_array) -> None:
     np_array[~less] = np.power(np_array[~less], 1 / 2.4) * 1.055 - 0.055
 
 
-def load_exr(file_path: str, srgb: bool) -> RgbMaskTuple:
+def load_exr(file_path: str, srgb: bool) -> ImageMaskTuple:
     image = read_exr(file_path)
     rgb = np.flip(image[:, :, :3], 2).copy()
     if srgb:
@@ -62,7 +62,7 @@ def load_exr(file_path: str, srgb: bool) -> RgbMaskTuple:
     if image.shape[2] > 3:
         mask[0] = torch.from_numpy(np.clip(image[:, :, 3], 0, 1))
 
-    return RgbMaskTuple(rgb, mask)
+    return ImageMaskTuple(rgb, mask)
 
 
 def load_exr_latent(file_path: str) -> Tuple[Tensor]:

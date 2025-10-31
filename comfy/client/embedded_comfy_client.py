@@ -57,6 +57,7 @@ def _execute_prompt(
     finally:
         detach(token)
 
+
 async def __execute_prompt(
         prompt: dict,
         prompt_id: str,
@@ -67,6 +68,7 @@ async def __execute_prompt(
         partial_execution_targets: list[str] | None) -> dict:
     with context_configuration(configuration):
         return await ___execute_prompt(prompt, prompt_id, client_id, span_context, progress_handler, partial_execution_targets)
+
 
 async def ___execute_prompt(
         prompt: dict,
@@ -116,7 +118,7 @@ async def ___execute_prompt(
             raise exc_info
 
 
-def _cleanup():
+def _cleanup(invalidate_nodes=True):
     from ..cmd.execution import PromptExecutor
     from ..nodes_context import invalidate
     try:
@@ -132,10 +134,11 @@ def _cleanup():
         model_management.soft_empty_cache()
     except:
         pass
-    try:
-        invalidate()
-    except:
-        pass
+    if invalidate_nodes:
+        try:
+            invalidate()
+        except:
+            pass
 
 
 class Comfy:
@@ -180,7 +183,6 @@ class Comfy:
         self._history = History()
         self._context_stack = []
 
-
     @property
     def is_running(self) -> bool:
         return self._is_running
@@ -199,6 +201,9 @@ class Comfy:
     @property
     def history(self) -> History:
         return self._history
+
+    async def clear_cache(self):
+        await get_event_loop().run_in_executor(self._executor, _cleanup, False)
 
     def __exit__(self, *args):
         get_event_loop().run_in_executor(self._executor, _cleanup)

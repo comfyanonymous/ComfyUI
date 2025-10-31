@@ -1,8 +1,8 @@
 from typing import NamedTuple
 
-from torch import Tensor
+from .tensor_types import ImageBatch, MaskBatch
 
 
-class RgbMaskTuple(NamedTuple):
-    rgb: Tensor
-    mask: Tensor
+class ImageMaskTuple(NamedTuple):
+    image: ImageBatch
+    mask: MaskBatch

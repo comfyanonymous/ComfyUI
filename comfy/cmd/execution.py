@@ -18,8 +18,9 @@ from typing import List, Optional, Tuple, Literal
 
 # order matters
 from .main_pre import tracer
-
 import torch
+from frozendict import frozendict
+from comfy_execution.graph_types import FrozenTopologicalSort, Input
 from opentelemetry.trace import get_current_span, StatusCode, Status
 
 from comfy_execution.caching import HierarchicalCache, LRUCache, CacheKeySetInputSignature, CacheKeySetID, \
@@ -30,7 +31,7 @@ from comfy_execution.graph_utils import is_link, GraphBuilder
 from comfy_execution.utils import CurrentNodeContext
 from comfy_api.internal import _ComfyNodeInternal, _NodeOutputInternal, first_real_override, is_class, make_locked_method_func
 from comfy_api.latest import io
-from ..execution_context import current_execution_context
+from ..execution_context import current_execution_context, context_set_execution_list_and_inputs
 from .. import interruption
 from .. import model_management
 from ..component_model.abstract_prompt_queue import AbstractPromptQueue
@@ -241,7 +242,12 @@ async def resolve_map_node_over_list_results(results):
 
 
 @tracer.start_as_current_span("Execute Node")
-async def _async_map_node_over_list(prompt_id, unique_id, obj, input_data_all, func, allow_interrupt=False, execution_block_cb=None, pre_execute_cb=None, hidden_inputs=None):
+async def _async_map_node_over_list(prompt_id, unique_id, obj, input_data_all, func, allow_interrupt=False, execution_block_cb=None, pre_execute_cb=None, hidden_inputs=None, execution_list=None, executed=None):
+    with context_set_execution_list_and_inputs(FrozenTopologicalSort.from_topological_sort(execution_list) if execution_list is not None else None, frozenset(executed) if executed is not None else None):
+        return await __async_map_node_over_list(prompt_id, unique_id, obj, input_data_all, func, allow_interrupt, execution_block_cb, pre_execute_cb, hidden_inputs)
+
+
+async def __async_map_node_over_list(prompt_id, unique_id, obj, input_data_all, func, allow_interrupt=False, execution_block_cb=None, pre_execute_cb=None, hidden_inputs=None):
     span = get_current_span()
     class_type = obj.__class__.__name__
     span.set_attribute("class_type", class_type)
@@ -368,8 +374,8 @@ def merge_result_data(results, obj):
     return output
 
 
-async def get_output_data(prompt_id, unique_id, obj, input_data_all, execution_block_cb=None, pre_execute_cb=None, hidden_inputs=None):
-    return_values = await _async_map_node_over_list(prompt_id, unique_id, obj, input_data_all, obj.FUNCTION, allow_interrupt=True, execution_block_cb=execution_block_cb, pre_execute_cb=pre_execute_cb, hidden_inputs=hidden_inputs)
+async def get_output_data(prompt_id, unique_id, obj, input_data_all, execution_block_cb=None, pre_execute_cb=None, hidden_inputs=None, inputs=None, execution_list=None, executed=None):
+    return_values = await _async_map_node_over_list(prompt_id, unique_id, obj, input_data_all, obj.FUNCTION, allow_interrupt=True, execution_block_cb=execution_block_cb, pre_execute_cb=pre_execute_cb, hidden_inputs=hidden_inputs, execution_list=execution_list, executed=executed)
     has_pending_task = any(isinstance(r, asyncio.Task) and not r.done() for r in return_values)
     if has_pending_task:
         return return_values, {}, False, has_pending_task
@@ -469,12 +475,12 @@ async def execute(server: ExecutorToClientProgress, dynprompt: DynamicPrompt, ca
     :return:
     """
     with (context_execute_node(node_id),
-            vanilla_node_execution_environment(),
-            use_requests_caching()):
+          vanilla_node_execution_environment(),
+          use_requests_caching()):
         return await _execute(server, dynprompt, caches, node_id, extra_data, executed, prompt_id, execution_list, pending_subgraph_results, pending_async_nodes)
 
 
-async def _execute(server, dynprompt, caches: CacheSet, current_item: str, extra_data, executed, prompt_id, execution_list, pending_subgraph_results, pending_async_nodes) -> RecursiveExecutionTuple:
+async def _execute(server, dynprompt: DynamicPrompt, caches: CacheSet, current_item: str, extra_data, executed, prompt_id, execution_list: ExecutionList, pending_subgraph_results, pending_async_nodes) -> RecursiveExecutionTuple:
     unique_id = current_item
     real_node_id = dynprompt.get_real_node_id(unique_id)
     display_node_id = dynprompt.get_display_node_id(unique_id)
@@ -543,7 +549,7 @@ async def _execute(server, dynprompt, caches: CacheSet, current_item: str, extra
             else:
                 lazy_status_present = getattr(obj, "check_lazy_status", None) is not None
             if lazy_status_present:
-                required_inputs = await _async_map_node_over_list(prompt_id, unique_id, obj, input_data_all, "check_lazy_status", allow_interrupt=True, hidden_inputs=hidden_inputs)
+                required_inputs = await _async_map_node_over_list(prompt_id, unique_id, obj, input_data_all, "check_lazy_status", allow_interrupt=True, hidden_inputs=hidden_inputs, execution_list=execution_list, executed=executed)
                 required_inputs = await resolve_map_node_over_list_results(required_inputs)
                 required_inputs = set(sum([r for r in required_inputs if isinstance(r, list)], []))
                 required_inputs = [x for x in required_inputs if isinstance(x, str) and (
@@ -577,7 +583,7 @@ async def _execute(server, dynprompt, caches: CacheSet, current_item: str, extra
                 # TODO - How to handle this with async functions without contextvars (which requires Python 3.12)?
                 GraphBuilder.set_default_prefix(unique_id, call_index, 0)
 
-            output_data, output_ui, has_subgraph, has_pending_tasks = await get_output_data(prompt_id, unique_id, obj, input_data_all, execution_block_cb=execution_block_cb, pre_execute_cb=pre_execute_cb, hidden_inputs=hidden_inputs)
+            output_data, output_ui, has_subgraph, has_pending_tasks = await get_output_data(prompt_id, unique_id, obj, input_data_all, execution_block_cb=execution_block_cb, pre_execute_cb=pre_execute_cb, hidden_inputs=hidden_inputs, inputs=inputs, execution_list=execution_list, executed=executed)
             if has_pending_tasks:
                 pending_async_nodes[unique_id] = output_data
                 unblock = execution_list.add_external_block(unique_id)
