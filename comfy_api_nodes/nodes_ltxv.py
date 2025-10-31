@@ -46,7 +46,7 @@ class TextToVideoNode(IO.ComfyNode):
                     multiline=True,
                     default="",
                 ),
-                IO.Combo.Input("duration", options=[6, 8, 10], default=8),
+                IO.Combo.Input("duration", options=[6, 8, 10, 12, 14, 16, 18, 20], default=8),
                 IO.Combo.Input(
                     "resolution",
                     options=[
@@ -85,6 +85,10 @@ class TextToVideoNode(IO.ComfyNode):
         generate_audio: bool = False,
     ) -> IO.NodeOutput:
         validate_string(prompt, min_length=1, max_length=10000)
+        if duration > 10 and (model != "LTX-2 (Fast)" or resolution != "1920x1080" or fps != 25):
+            raise ValueError(
+                "Durations over 10s are only available for the Fast model at 1920x1080 resolution and 25 FPS."
+            )
         response = await sync_op_raw(
             cls,
             ApiEndpoint("/proxy/ltx/v1/text-to-video", "POST"),
@@ -118,7 +122,7 @@ class ImageToVideoNode(IO.ComfyNode):
                     multiline=True,
                     default="",
                 ),
-                IO.Combo.Input("duration", options=[6, 8, 10], default=8),
+                IO.Combo.Input("duration", options=[6, 8, 10, 12, 14, 16, 18, 20], default=8),
                 IO.Combo.Input(
                     "resolution",
                     options=[
@@ -158,6 +162,10 @@ class ImageToVideoNode(IO.ComfyNode):
         generate_audio: bool = False,
     ) -> IO.NodeOutput:
         validate_string(prompt, min_length=1, max_length=10000)
+        if duration > 10 and (model != "LTX-2 (Fast)" or resolution != "1920x1080" or fps != 25):
+            raise ValueError(
+                "Durations over 10s are only available for the Fast model at 1920x1080 resolution and 25 FPS."
+            )
         if get_number_of_images(image) != 1:
             raise ValueError("Currently only one input image is supported.")
         response = await sync_op_raw(
