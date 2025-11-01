@@ -10,6 +10,8 @@ import time
 import logging
 import tempfile
 import requests
+import subprocess
+import threading
 from typing import Dict, Any, Optional
 import runpod
 
@@ -24,13 +26,31 @@ class ComfyUIServerlessHandler:
     def __init__(self):
         self.comfyui_url = "http://127.0.0.1:8000"
         self.client_id = "runpod_serverless_worker"
+        self.comfyui_process = None
         self.setup_paths()
+        self.start_comfyui()
         
     def setup_paths(self):
         """Setup required paths for serverless operation"""
         os.makedirs("/tmp/inputs", exist_ok=True)
         os.makedirs("/tmp/outputs", exist_ok=True)
         os.makedirs("/tmp/comfyui", exist_ok=True)
+        
+    def start_comfyui(self):
+        """Start ComfyUI server in background"""
+        try:
+            logger.info("Starting ComfyUI server...")
+            self.comfyui_process = subprocess.Popen([
+                "python3", "main.py", 
+                "--listen", "0.0.0.0", 
+                "--port", "8000",
+                "--dont-print-server",
+                "--disable-auto-launch"
+            ], cwd="/workspace/ComfyUI")
+            logger.info("ComfyUI server started")
+        except Exception as e:
+            logger.error(f"Failed to start ComfyUI: {str(e)}")
+            raise
         
     def wait_for_comfyui(self, timeout: int = 120) -> bool:
         """Wait for ComfyUI to be ready"""

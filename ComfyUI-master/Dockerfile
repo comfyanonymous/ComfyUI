@@ -18,6 +18,12 @@ RUN apt-get update && apt-get install -y \
     libgl1-mesa-glx \
     && rm -rf /var/lib/apt/lists/*
 
+# Copy ComfyUI source code
+COPY . /workspace/ComfyUI
+
+# Set ComfyUI as working directory
+WORKDIR /workspace/ComfyUI
+
 # Install Python dependencies
 RUN pip install --no-cache-dir \
     runpod \
@@ -33,27 +39,13 @@ RUN pip install --no-cache-dir \
     diffusers \
     opencv-python \
     scipy \
-    scikit-image
-
-# Copy ComfyUI source code
-COPY . /workspace/ComfyUI
-
-# Set ComfyUI as working directory
-WORKDIR /workspace/ComfyUI
-
-# Install ComfyUI requirements
-RUN pip install --no-cache-dir -r requirements.txt
-
-# Install additional dependencies for new features
-RUN pip install --no-cache-dir \
+    scikit-image \
     safetensors \
-    transformers[torch] \
-    accelerate \
     bitsandbytes \
     optimum
 
-# Copy environment example (users should provide their own .env)
-COPY .env.example /workspace/.env.example
+# Install ComfyUI requirements if exists
+RUN if [ -f requirements.txt ]; then pip install --no-cache-dir -r requirements.txt; fi
 
 # Create necessary directories
 RUN mkdir -p /workspace/ComfyUI/models/checkpoints \
@@ -74,16 +66,12 @@ ENV COMFYUI_SERVERLESS=true
 ENV NVIDIA_VISIBLE_DEVICES=all
 ENV NVIDIA_DRIVER_CAPABILITIES=compute,utility
 
-# Create startup script
-RUN echo '#!/bin/bash\n\
-cd /workspace/ComfyUI\n\
-python main.py --listen 0.0.0.0 --port 8000 --dont-print-server --disable-auto-launch &\n\
-sleep 10\n\
-cd /workspace/ComfyUI\n\
-python runpod_handler.py' > /workspace/start.sh && chmod +x /workspace/start.sh
+# Set environment variables
+ENV PYTHONPATH="/workspace/ComfyUI:${PYTHONPATH}"
+ENV COMFYUI_SERVERLESS=true
 
 # Expose port
 EXPOSE 8000
 
-# Set the command
-CMD ["/workspace/start.sh"]
+# Start command
+CMD ["python3", "runpod_handler.py"]
