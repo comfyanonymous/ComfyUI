@@ -53,7 +53,7 @@ class Unhashable:
 def to_hashable(obj):
     # So that we don't infinitely recurse since frozenset and tuples
     # are Sequences.
-    if isinstance(obj, (int, float, str, bool, type(None))):
+    if isinstance(obj, (int, float, str, bool, bytes, type(None))):
         return obj
     elif isinstance(obj, Mapping):
         return frozenset([(to_hashable(k), to_hashable(v)) for k, v in sorted(obj.items())])
