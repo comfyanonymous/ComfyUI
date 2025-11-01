@@ -1053,6 +1053,7 @@ class HunyuanImage3ForCausalMM(nn.Module):
         gen_timestep_scatter_index = 4
         cond, uncond = condition[:4], condition[4:]
         joint_image, cond_vae_image_mask, input_ids = cond[0], cond[1]
+        joint_image[:, 2] = x[:, 2] # updates image ratio 
 
         position_ids = torch.arange(0, input_ids.shape[1], dtype=torch.long, device=x.device)[None].expand(x.size(0), -1)
         height, width = x.shape[2] * 16, x.shape[3] * 16
@@ -1079,11 +1080,11 @@ class HunyuanImage3ForCausalMM(nn.Module):
 
         if self.first_step:
             t_emb = self.time_embed(timestep)
-            x[:, 5:-4], token_h, token_w = self.patch_embed(x[:, 5:-4], t_emb)
+            x[:, 3:-1], token_h, token_w = self.patch_embed(x[:, 3:-1], t_emb)
             x[:, gen_timestep_scatter_index] = self.timestep_emb(timestep.reshape(-1)).reshape(bsz, -1, n_embd)
         else:
             t_emb = self.time_embed(timestep)
-            x[:, 5:-4], token_h, token_w = self.patch_embed(x, t_emb)
+            x[:, 3:-1], token_h, token_w = self.patch_embed(x[:, 3:-1], t_emb)
             timestep_emb = self.timestep_emb(timestep).reshape(bsz, -1, n_embd)
             x = torch.cat([timestep_emb, x], dim=1)
 
@@ -1095,16 +1096,19 @@ class HunyuanImage3ForCausalMM(nn.Module):
         # cond_timestep_scatter_index 
         joint_image[:, 3] = self.timestep_emb(timestep.reshape(-1)).reshape(bsz, -1, n_embd)
         # conditioning images (vae)
-        joint_image[:, 7:cond_vae_image_mask.size(0)], token_h, token_w = self.patch_embed(
-            joint_image[:, 7:cond_vae_image_mask.size(0)], self.time_embed(cond_timestep)
+        joint_image[:, 3:cond_vae_image_mask.size(0)+3], token_h, token_w = self.patch_embed(
+            joint_image[:, 3:cond_vae_image_mask.size(0)+3], self.time_embed(cond_timestep)
         )
 
         inputs_embeds = torch.cat([inputs_embeds, joint_image], dim = 1)
 
-        batch_image_slices = [
-            input_ids[i] + x[i]
-            for i in range(bsz)
-        ]
+        batch_image_slices = []
+        for i in range(x.size(0)):
+            # slice the vae and vit parts + slice the latent from x
+            joint_slices_i = [slice(3, cond_vae_image_mask[i].size(0) + 3), slice(cond_vae_image_mask[i].size(0) + 4, joint_image.size(1) - 1)]
+            gen_slices_i = [slice(3, x[i].size(1) - 1)]
+            batch_image_slices.append(joint_slices_i + gen_slices_i)
+
         attention_mask = torch.ones(seq_len, seq_len, dtype=torch.bool).tril(diagonal=0).repeat(bsz, 1, 1)
         for i in range(bsz):
             for _, image_slice in enumerate(batch_image_slices[i]):

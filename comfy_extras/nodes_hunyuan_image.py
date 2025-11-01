@@ -35,8 +35,7 @@ class EmptyLatentHunyuanImage3(io.ComfyNode):
 
         height, width = get_target_size(height, width)
         latent = torch.randn(batch_size, 32, height // 16, width // 16, device=comfy.model_management.intermediate_device())
-        latent = torch.cat([fn("<boi>"), fn("<all_img>_start"), fn("<img_size_1024>", special_fn), fn(f"<img_ratio_{height / width}", special_fn), fn("<timestep>", special_fn),
-                            latent, fn("<eoi>"), fn("<img>_start"), fn("<img>_end"), fn("<all_img>_end")], dim = 1)
+        latent = torch.cat([fn("<boi>"), fn("<img_size_1024>", special_fn), fn(f"<img_ratio_{height / width}", special_fn), fn("<timestep>", special_fn), latent, fn("<eoi>")], dim = 1)
         return io.NodeOutput({"samples": latent, "type": "hunyuan_image_3"}, )
 
 class HunyuanImage3Conditioning(io.ComfyNode):
@@ -63,51 +62,29 @@ class HunyuanImage3Conditioning(io.ComfyNode):
         def fn(string, func = encode_fn):
             return torch.tensor(func(string), device=text_encoding.device).unsqueeze(0)
 
-        text_encoding = text_encoding[0][0]
+        text_tokens = text_encoding[0][0]
+        #                                                                       should dynamically change in model logic
+        joint_image = torch.cat([fn("<boi>"), fn("<img_size_1024>", special_fn), fn("<img_ratio_3>", special_fn), fn("<timestep>", special_fn), vae_encoding, fn("<joint_img_sep>"), vit_encoding, fn("<eoi>")], dim = 1)
 
-        text_tokens = torch.cat([fn("<text>_start"), text_encoding, fn("<text>_end")], dim = 1)
-        vae_tokens = torch.cat([fn("<vae_img>_start"), fn("<joint_img>_start"), fn("<all_img>_start"), vae_encoding, fn("<vae_img>_end"), fn("<all_img>_end"), fn("<joint_img_sep>")], dim = 1)
-        vit_tokens = torch.cat([fn("<vit_img>_start"), fn("<all_img>_start"), vit_encoding, fn("<vit_img>_end"), fn("<joint_img>_end"), fn("<all_img>_end")], dim = 1)
-        n, seq_len, dim = vit_tokens.shape
-        vit_tokens = vit_tokens.reshape(n * seq_len, dim)
-        #                                                                                                     should dynamically change in model logic
-        joint_image = torch.cat([fn("<boi>"), fn("<img_size_1024>", special_fn), fn("<img_ratio_3>", special_fn), fn("<timestep>", special_fn), vae_tokens, vit_tokens, fn("<eoi>")], dim = 1)
+        vae_mask = torch.ones(joint_image.size(1))
+        vae_mask[:3] = torch.zeros(3); vae_mask[vae_encoding.size(1) + 4:] = torch.zeros(2)
 
-        seq_len_total = joint_image.shape[1]
-        mask = torch.zeros(seq_len_total, dtype=torch.bool, device=joint_image.device)
-        positions = {}
-        current = 4
+        ragged_tensors = torch.nested.nested_tensor([joint_image, vae_mask.unsqueeze(0).unsqueeze(-1), text_tokens.unsqueeze(-1).to(joint_image.dtype)])
 
-        def mark_region(name, tensor):
-            nonlocal current
-            start = current
-            current += tensor.shape[1]
-            end = current - 1
-            positions[f"<{name}>_start"] = start
-            positions[f"<{name}>_end"] = end
-            mask[start:end + 1] = True
-            return start, end
-
-        mark_region("vae_img", vae_tokens)
-
-        mask_list = []
-        for prefix in ["text", "vae_img", "vit_img"]:
-            start = positions[f"<{prefix}>_start"]
-            end = positions[f"<{prefix}>_end"]
-            
-            section_mask = torch.arange(start, end + 1, device=mask.device)
-            mask_list.append(section_mask)
-
-        mask_list.insert(0, joint_image)
-        mask_list.append(text_tokens)
-        ragged_tensors = torch.nested.nested_tensor(mask_list, dtype=torch.long)
-
+        uncond_ragged_tensors = None
         if text_encoding_negative is not None:
-            uncond_ragged_tensors = cls.execute(vae_encoding, vit_encoding, text_encoding_negative, clip=clip, text_encoding_negative = None)
+            uncond_ragged_tensors, _ = cls.execute(vae_encoding, vit_encoding, text_encoding_negative, clip=clip, text_encoding_negative = None)
         else:
             uncond_ragged_tensors = torch.nested.nested_tensor([torch.zeros_like(t) for t in ragged_tensors.unbind()])
 
-        return ragged_tensors, uncond_ragged_tensors
+        if uncond_ragged_tensors is not None:
+            positive = [[ragged_tensors, {}]]
+            negative = [[uncond_ragged_tensors, {}]]
+        else:
+            positive = ragged_tensors
+            negative = uncond_ragged_tensors
+
+        return positive, negative
 
 class Image3Extension(ComfyExtension):
     @override
