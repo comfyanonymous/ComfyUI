@@ -60,12 +60,13 @@ tmp/
 *.tmp
 
 # Large model files (will be mounted from network storage)
-models/*/
+models/
 !models/.gitkeep
 
 # Output files
 output/
 outputs/
+input/
 
 # Cache
 .cache/
