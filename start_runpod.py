@@ -177,7 +177,7 @@ def main():
     port = os.environ.get('PORT', '8188')
     listen = os.environ.get('LISTEN', '0.0.0.0')
 
-    # ComfyUI command
+    # ComfyUI command - main.py dosyası mevcut dizinde
     cmd = [
         sys.executable, 'main.py',
         '--listen', listen,
