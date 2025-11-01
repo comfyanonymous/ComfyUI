@@ -530,7 +530,7 @@ if CUBLAS_IS_AVAILABLE:
 # ==============================================================================
 # Mixed Precision Operations
 # ==============================================================================
-from .quant_ops import QuantizedTensor, TensorCoreFP8Layout
+from .quant_ops import QuantizedTensor
 
 QUANT_FORMAT_MIXINS = {
     "float8_e4m3fn": {
