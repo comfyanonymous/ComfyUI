@@ -1,4 +1,9 @@
+import bisect
+import gc
 import itertools
+import psutil
+import time
+import torch
 from typing import Sequence, Mapping, Dict
 from comfy_execution.graph import DynamicPrompt
 from abc import ABC, abstractmethod
@@ -188,6 +193,9 @@ class BasicCache:
         self._clean_cache()
         self._clean_subcaches()
 
+    def poll(self, **kwargs):
+        pass
+
     def _set_immediate(self, node_id, value):
         assert self.initialized
         cache_key = self.cache_key_set.get_data_key(node_id)
@@ -276,6 +284,9 @@ class NullCache:
     def clean_unused(self):
         pass
 
+    def poll(self, **kwargs):
+        pass
+
     def get(self, node_id):
         return None
 
@@ -336,3 +347,75 @@ class LRUCache(BasicCache):
             self._mark_used(child_id)
             self.children[cache_key].append(self.cache_key_set.get_data_key(child_id))
         return self
+
+
+#Iterating the cache for usage analysis might be expensive, so if we trigger make sure
+#to take a chunk out to give breathing space on high-node / low-ram-per-node flows.
+
+RAM_CACHE_HYSTERESIS = 1.1
+
+#This is kinda in GB but not really. It needs to be non-zero for the below heuristic
+#and as long as Multi GB models dwarf this it will approximate OOM scoring OK
+
+RAM_CACHE_DEFAULT_RAM_USAGE = 0.1
+
+#Exponential bias towards evicting older workflows so garbage will be taken out
+#in constantly changing setups.
+
+RAM_CACHE_OLD_WORKFLOW_OOM_MULTIPLIER = 1.3
+
+class RAMPressureCache(LRUCache):
+
+    def __init__(self, key_class):
+        super().__init__(key_class, 0)
+        self.timestamps = {}
+
+    def clean_unused(self):
+        self._clean_subcaches()
+
+    def set(self, node_id, value):
+        self.timestamps[self.cache_key_set.get_data_key(node_id)] = time.time()
+        super().set(node_id, value)
+
+    def get(self, node_id):
+        self.timestamps[self.cache_key_set.get_data_key(node_id)] = time.time()
+        return super().get(node_id)
+
+    def poll(self, ram_headroom):
+        def _ram_gb():
+            return psutil.virtual_memory().available / (1024**3)
+
+        if _ram_gb() > ram_headroom:
+            return
+        gc.collect()
+        if _ram_gb() > ram_headroom:
+            return
+
+        clean_list = []
+
+        for key, (outputs, _), in self.cache.items():
+            oom_score =  RAM_CACHE_OLD_WORKFLOW_OOM_MULTIPLIER ** (self.generation - self.used_generation[key])
+
+            ram_usage = RAM_CACHE_DEFAULT_RAM_USAGE
+            def scan_list_for_ram_usage(outputs):
+                nonlocal ram_usage
+                for output in outputs:
+                    if isinstance(output, list):
+                        scan_list_for_ram_usage(output)
+                    elif isinstance(output, torch.Tensor) and output.device.type == 'cpu':
+                        #score Tensors at a 50% discount for RAM usage as they are likely to
+                        #be high value intermediates
+                        ram_usage += (output.numel() * output.element_size()) * 0.5
+                    elif hasattr(output, "get_ram_usage"):
+                        ram_usage += output.get_ram_usage()
+            scan_list_for_ram_usage(outputs)
+
+            oom_score *= ram_usage
+            #In the case where we have no information on the node ram usage at all,
+            #break OOM score ties on the last touch timestamp (pure LRU)
+            bisect.insort(clean_list, (oom_score, self.timestamps[key], key))
+
+        while _ram_gb() < ram_headroom * RAM_CACHE_HYSTERESIS and clean_list:
+            _, _, key = clean_list.pop()
+            del self.cache[key]
+            gc.collect()

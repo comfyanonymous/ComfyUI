@@ -37,63 +37,62 @@ def validate_image_dimensions(
 
 def validate_image_aspect_ratio(
     image: torch.Tensor,
-    min_aspect_ratio: Optional[float] = None,
-    max_aspect_ratio: Optional[float] = None,
-):
-    width, height = get_image_dimensions(image)
-    aspect_ratio = width / height
-
-    if min_aspect_ratio is not None and aspect_ratio < min_aspect_ratio:
-        raise ValueError(f"Image aspect ratio must be at least {min_aspect_ratio}, got {aspect_ratio}")
-    if max_aspect_ratio is not None and aspect_ratio > max_aspect_ratio:
-        raise ValueError(f"Image aspect ratio must be at most {max_aspect_ratio}, got {aspect_ratio}")
-
-
-def validate_image_aspect_ratio_range(
-    image: torch.Tensor,
-    min_ratio: tuple[float, float],  # e.g. (1, 4)
-    max_ratio: tuple[float, float],  # e.g. (4, 1)
+    min_ratio: Optional[tuple[float, float]] = None,  # e.g. (1, 4)
+    max_ratio: Optional[tuple[float, float]] = None,  # e.g. (4, 1)
     *,
     strict: bool = True,  # True -> (min, max); False -> [min, max]
 ) -> float:
-    a1, b1 = min_ratio
-    a2, b2 = max_ratio
-    if a1 <= 0 or b1 <= 0 or a2 <= 0 or b2 <= 0:
-        raise ValueError("Ratios must be positive, like (1, 4) or (4, 1).")
-    lo, hi = (a1 / b1), (a2 / b2)
-    if lo > hi:
-        lo, hi = hi, lo
-        a1, b1, a2, b2 = a2, b2, a1, b1  # swap only for error text
+    """Validates that image aspect ratio is within min and max. If a bound is None, that side is not checked."""
     w, h = get_image_dimensions(image)
     if w <= 0 or h <= 0:
         raise ValueError(f"Invalid image dimensions: {w}x{h}")
     ar = w / h
-    ok = (lo < ar < hi) if strict else (lo <= ar <= hi)
-    if not ok:
-        op = "<" if strict else "≤"
-        raise ValueError(f"Image aspect ratio {ar:.6g} is outside allowed range: {a1}:{b1} {op} ratio {op} {a2}:{b2}")
+    _assert_ratio_bounds(ar, min_ratio=min_ratio, max_ratio=max_ratio, strict=strict)
     return ar
 
 
-def validate_aspect_ratio_closeness(
-    start_img,
-    end_img,
-    min_rel: float,
-    max_rel: float,
+def validate_images_aspect_ratio_closeness(
+    first_image: torch.Tensor,
+    second_image: torch.Tensor,
+    min_rel: float,   # e.g. 0.8
+    max_rel: float,   # e.g. 1.25
     *,
-    strict: bool = False,  # True => exclusive, False => inclusive
-) -> None:
-    w1, h1 = get_image_dimensions(start_img)
-    w2, h2 = get_image_dimensions(end_img)
+    strict: bool = False,  # True -> (min, max); False -> [min, max]
+) -> float:
+    """
+    Validates that the two images' aspect ratios are 'close'.
+    The closeness factor is C = max(ar1, ar2) / min(ar1, ar2)  (C >= 1).
+    We require C <= limit, where limit = max(max_rel, 1.0 / min_rel).
+
+    Returns the computed closeness factor C.
+    """
+    w1, h1 = get_image_dimensions(first_image)
+    w2, h2 = get_image_dimensions(second_image)
     if min(w1, h1, w2, h2) <= 0:
         raise ValueError("Invalid image dimensions")
     ar1 = w1 / h1
     ar2 = w2 / h2
-    # Normalize so it is symmetric (no need to check both ar1/ar2 and ar2/ar1)
     closeness = max(ar1, ar2) / min(ar1, ar2)
-    limit = max(max_rel, 1.0 / min_rel)  # for 0.8..1.25 this is 1.25
+    limit = max(max_rel, 1.0 / min_rel)
     if (closeness >= limit) if strict else (closeness > limit):
-        raise ValueError(f"Aspect ratios must be close: start/end={ar1/ar2:.4f}, allowed range {min_rel}–{max_rel}.")
+        raise ValueError(
+            f"Aspect ratios must be close: ar1/ar2={ar1/ar2:.2g}, "
+            f"allowed range {min_rel}–{max_rel} (limit {limit:.2g})."
+        )
+    return closeness
+
+
+def validate_aspect_ratio_string(
+    aspect_ratio: str,
+    min_ratio: Optional[tuple[float, float]] = None,  # e.g. (1, 4)
+    max_ratio: Optional[tuple[float, float]] = None,  # e.g. (4, 1)
+    *,
+    strict: bool = False,  # True -> (min, max); False -> [min, max]
+) -> float:
+    """Parses 'X:Y' and validates it against optional bounds. Returns the numeric ratio."""
+    ar = _parse_aspect_ratio_string(aspect_ratio)
+    _assert_ratio_bounds(ar, min_ratio=min_ratio, max_ratio=max_ratio, strict=strict)
+    return ar
 
 
 def validate_video_dimensions(
@@ -183,3 +182,49 @@ def validate_container_format_is_mp4(video: VideoInput) -> None:
     container_format = video.get_container_format()
     if container_format not in ["mp4", "mov,mp4,m4a,3gp,3g2,mj2"]:
         raise ValueError(f"Only MP4 container format supported. Got: {container_format}")
+
+
+def _ratio_from_tuple(r: tuple[float, float]) -> float:
+    a, b = r
+    if a <= 0 or b <= 0:
+        raise ValueError(f"Ratios must be positive, got {a}:{b}.")
+    return a / b
+
+
+def _assert_ratio_bounds(
+    ar: float,
+    *,
+    min_ratio: Optional[tuple[float, float]] = None,
+    max_ratio: Optional[tuple[float, float]] = None,
+    strict: bool = True,
+) -> None:
+    """Validate a numeric aspect ratio against optional min/max ratio bounds."""
+    lo = _ratio_from_tuple(min_ratio) if min_ratio is not None else None
+    hi = _ratio_from_tuple(max_ratio) if max_ratio is not None else None
+
+    if lo is not None and hi is not None and lo > hi:
+        lo, hi = hi, lo  # normalize order if caller swapped them
+
+    if lo is not None:
+        if (ar <= lo) if strict else (ar < lo):
+            op = "<" if strict else "≤"
+            raise ValueError(f"Aspect ratio `{ar:.2g}` must be {op} {lo:.2g}.")
+    if hi is not None:
+        if (ar >= hi) if strict else (ar > hi):
+            op = "<" if strict else "≤"
+            raise ValueError(f"Aspect ratio `{ar:.2g}` must be {op} {hi:.2g}.")
+
+
+def _parse_aspect_ratio_string(ar_str: str) -> float:
+    """Parse 'X:Y' with integer parts into a positive float ratio X/Y."""
+    parts = ar_str.split(":")
+    if len(parts) != 2:
+        raise ValueError(f"Aspect ratio must be 'X:Y' (e.g., 16:9), got '{ar_str}'.")
+    try:
+        a = int(parts[0].strip())
+        b = int(parts[1].strip())
+    except ValueError as exc:
+        raise ValueError(f"Aspect ratio must contain integers separated by ':', got '{ar_str}'.") from exc
+    if a <= 0 or b <= 0:
+        raise ValueError(f"Aspect ratio parts must be positive integers, got {a}:{b}.")
+    return a / b
