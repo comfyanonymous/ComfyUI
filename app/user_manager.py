@@ -366,8 +366,22 @@ class UserManager():
             try:
                 body = await request.read()
 
-                with open(path, "wb") as f:
-                    f.write(body)
+                # Pretty print JSON files for better source control
+                if path.lower().endswith('.json'):
+                    try:
+                        # Parse JSON and re-serialize with indentation
+                        json_data = json.loads(body.decode('utf-8'))
+                        formatted_json = json.dumps(json_data, indent=2)
+                        with open(path, "w", encoding='utf-8') as f:
+                            f.write(formatted_json)
+                    except (json.JSONDecodeError, UnicodeDecodeError):
+                        # If JSON parsing fails, save as-is
+                        with open(path, "wb") as f:
+                            f.write(body)
+                else:
+                    # Non-JSON files are saved as-is
+                    with open(path, "wb") as f:
+                        f.write(body)
             except OSError as e:
                 logging.warning(f"Error saving file '{path}': {e}")
                 return web.Response(
