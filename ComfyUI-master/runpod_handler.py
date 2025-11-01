@@ -5,14 +5,12 @@ Optimized for the new ComfyUI features and performance improvements
 """
 
 import os
-import json
 import time
 import logging
 import tempfile
 import requests
 import subprocess
-import threading
-from typing import Dict, Any, Optional
+from typing import Dict, Any
 import runpod
 
 # Configure logging
