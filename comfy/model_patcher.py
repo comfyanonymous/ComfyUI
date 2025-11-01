@@ -298,6 +298,7 @@ class ModelPatcher:
         n.backup = self.backup
         n.object_patches_backup = self.object_patches_backup
         n.parent = self
+        n.pinned = self.pinned
 
         n.force_cast_weights = self.force_cast_weights
 
