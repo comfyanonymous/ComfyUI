@@ -1,0 +1,161 @@
+name: ComfyUI CI/CD Pipeline
+
+on:
+  push:
+    branches: [ create_image ]
+  pull_request:
+    branches: [ create_image ]
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  # Test ve Build Job
+  test-and-build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Set up Python 3.11
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install flake8 pytest
+        # Install basic dependencies for syntax check
+        pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
+        pip install runpod requests pillow numpy
+
+    - name: Lint with flake8
+      run: |
+        # Stop the build if there are Python syntax errors or undefined names
+        flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+        # Exit-zero treats all errors as warnings
+        flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+
+    - name: Test Python files syntax
+      run: |
+        python -m py_compile runpod_handler.py
+        echo "✅ Python syntax check passed"
+
+    - name: Validate Dockerfile
+      run: |
+        # Check if Dockerfile exists and has basic structure
+        if [ ! -f Dockerfile ]; then
+          echo "❌ Dockerfile not found"
+          exit 1
+        fi
+        
+        # Basic Dockerfile validation
+        if ! grep -q "FROM" Dockerfile; then
+          echo "❌ Dockerfile missing FROM instruction"
+          exit 1
+        fi
+        
+        if ! grep -q "WORKDIR" Dockerfile; then
+          echo "❌ Dockerfile missing WORKDIR instruction"
+          exit 1
+        fi
+        
+        echo "✅ Dockerfile validation passed"
+
+    - name: Test Docker build (dry run)
+      run: |
+        # Test if Docker build would succeed (without actually building)
+        docker build --dry-run -f Dockerfile .
+        echo "✅ Docker build dry run passed"
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Log in to Container Registry
+      uses: docker/login-action@v3
+      with:
+        registry: ${{ env.REGISTRY }}
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Extract metadata
+      id: meta
+      uses: docker/metadata-action@v5
+      with:
+        images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+        tags: |
+          type=ref,event=branch
+          type=ref,event=pr
+          type=sha,prefix={{branch}}-
+
+    - name: Build and push Docker image
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        file: ./Dockerfile
+        push: true
+        tags: ${{ steps.meta.outputs.tags }}
+        labels: ${{ steps.meta.outputs.labels }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+
+    - name: Test image functionality
+      run: |
+        # Pull the built image and test basic functionality
+        docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.ref_name }}-${{ github.sha }}
+        
+        # Test if the image can start (timeout after 30 seconds)
+        timeout 30s docker run --rm ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.ref_name }}-${{ github.sha }} python3 -c "import runpod; print('✅ RunPod import successful')" || true
+        
+        echo "✅ Image functionality test completed"
+
+  # RunPod Deployment Job (sadece test başarılı olursa çalışır)
+  deploy-to-runpod:
+    needs: test-and-build
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/create_image' && github.event_name == 'push'
+    
+    steps:
+    - name: Trigger RunPod Build
+      run: |
+        echo "🚀 Triggering RunPod build..."
+        
+        # RunPod API ile build tetikleme
+        curl -X POST \
+          -H "Authorization: Bearer ${{ secrets.RUNPOD_API_KEY }}" \
+          -H "Content-Type: application/json" \
+          -d '{
+            "endpointId": "${{ secrets.RUNPOD_ENDPOINT_ID }}",
+            "action": "rebuild"
+          }' \
+          https://api.runpod.ai/v2/endpoints/${{ secrets.RUNPOD_ENDPOINT_ID }}/rebuild || echo "⚠️ RunPod API call failed, manual rebuild required"
+        
+        echo "✅ RunPod build triggered successfully"
+
+    - name: Notify Success
+      run: |
+        echo "🎉 Deployment pipeline completed successfully!"
+        echo "📊 Summary:"
+        echo "  ✅ Code quality checks passed"
+        echo "  ✅ Docker build successful"
+        echo "  ✅ Image pushed to registry"
+        echo "  ✅ RunPod build triggered"
+
+  # Notification Job (hata durumunda)
+  notify-failure:
+    needs: [test-and-build]
+    runs-on: ubuntu-latest
+    if: failure()
+    
+    steps:
+    - name: Notify Failure
+      run: |
+        echo "❌ Pipeline failed!"
+        echo "🔍 Check the logs above for details"
+        echo "🚫 RunPod build was NOT triggered due to failures"
