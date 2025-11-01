@@ -29,13 +29,13 @@ class ComfyUIServerlessHandler:
         self.comfyui_process = None
         self.setup_paths()
         self.start_comfyui()
-        
+
     def setup_paths(self):
         """Setup required paths for serverless operation"""
         os.makedirs("/tmp/inputs", exist_ok=True)
         os.makedirs("/tmp/outputs", exist_ok=True)
         os.makedirs("/tmp/comfyui", exist_ok=True)
-        
+
     def start_comfyui(self):
         """Start ComfyUI server in background"""
         try:
@@ -51,7 +51,7 @@ class ComfyUIServerlessHandler:
         except Exception as e:
             logger.error(f"Failed to start ComfyUI: {str(e)}")
             raise
-        
+
     def wait_for_comfyui(self, timeout: int = 120) -> bool:
         """Wait for ComfyUI to be ready"""
         start_time = time.time()
@@ -67,7 +67,7 @@ class ComfyUIServerlessHandler:
         
         logger.error(f"ComfyUI not ready after {timeout} seconds")
         return False
-    
+
     def download_input_files(self, input_data: Dict[str, Any]) -> Dict[str, str]:
         """Download input files and return local paths"""
         local_files = {}
@@ -92,9 +92,9 @@ class ComfyUIServerlessHandler:
                 except Exception as e:
                     logger.error(f"Failed to download {file_key}: {str(e)}")
                     raise
-        
+
         return local_files
-    
+
     def execute_workflow(self, workflow: Dict[str, Any]) -> Dict[str, Any]:
         """Execute ComfyUI workflow"""
         try:
@@ -114,11 +114,11 @@ class ComfyUIServerlessHandler:
             
             # Wait for completion
             return self.wait_for_completion(prompt_id)
-            
+
         except Exception as e:
             logger.error(f"Failed to execute workflow: {str(e)}")
             raise
-    
+
     def wait_for_completion(self, prompt_id: str, timeout: int = 300) -> Dict[str, Any]:
         """Wait for workflow completion and return results"""
         start_time = time.time()
@@ -146,9 +146,9 @@ class ComfyUIServerlessHandler:
             except Exception as e:
                 logger.error(f"Error checking completion: {str(e)}")
                 time.sleep(5)
-        
+
         raise TimeoutError(f"Workflow {prompt_id} timed out after {timeout} seconds")
-    
+
     def process_results(self, history_data: Dict[str, Any]) -> Dict[str, Any]:
         """Process and upload results"""
         results = {
@@ -187,9 +187,9 @@ class ComfyUIServerlessHandler:
                             
                         except Exception as e:
                             logger.error(f"Failed to process image {image_info['filename']}: {str(e)}")
-        
+
         return results
-    
+
     def cleanup(self):
         """Clean up temporary files"""
         try:
@@ -205,15 +205,15 @@ class ComfyUIServerlessHandler:
 def handler(job: Dict[str, Any]) -> Dict[str, Any]:
     """Main serverless handler function"""
     handler_instance = ComfyUIServerlessHandler()
-    
+
     try:
         # Wait for ComfyUI to be ready
         if not handler_instance.wait_for_comfyui():
             return {"error": "ComfyUI failed to start"}
-        
+
         # Get job input
         job_input = job.get("input", {})
-        
+
         # Download input files if any
         local_files = handler_instance.download_input_files(job_input)
 
