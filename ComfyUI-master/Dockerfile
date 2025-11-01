@@ -47,18 +47,16 @@ RUN pip install --no-cache-dir \
 # Install ComfyUI requirements if exists
 RUN if [ -f requirements.txt ]; then pip install --no-cache-dir -r requirements.txt; fi
 
-# Create necessary directories
-RUN mkdir -p /workspace/ComfyUI/models/checkpoints \
-    /workspace/ComfyUI/models/vae \
-    /workspace/ComfyUI/models/loras \
-    /workspace/ComfyUI/models/controlnet \
-    /workspace/ComfyUI/models/clip_vision \
-    /workspace/ComfyUI/models/upscale_models \
-    /workspace/ComfyUI/input \
+# Create necessary directories for temp files
+RUN mkdir -p /workspace/ComfyUI/input \
     /workspace/ComfyUI/output \
     /tmp/inputs \
     /tmp/outputs \
     /tmp/comfyui
+
+# Create symlinks to network storage for models
+RUN mkdir -p /runpod-volume && \
+    ln -sf /runpod-volume/models /workspace/ComfyUI/models
 
 # Set environment variables
 ENV PYTHONPATH="/workspace/ComfyUI:${PYTHONPATH}"

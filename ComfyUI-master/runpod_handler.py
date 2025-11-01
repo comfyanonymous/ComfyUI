@@ -39,14 +39,33 @@ class ComfyUIServerlessHandler:
         """Start ComfyUI server in background"""
         try:
             logger.info("Starting ComfyUI server...")
+            
+            # Check if main.py exists
+            if not os.path.exists("/workspace/ComfyUI/main.py"):
+                logger.error("main.py not found in /workspace/ComfyUI")
+                raise FileNotFoundError("ComfyUI main.py not found")
+            
+            # Check if models directory exists (network storage)
+            if not os.path.exists("/workspace/ComfyUI/models"):
+                logger.warning("Models directory not found, creating symlink to network storage")
+                if os.path.exists("/runpod-volume/models"):
+                    os.symlink("/runpod-volume/models", "/workspace/ComfyUI/models")
+                else:
+                    logger.error("Network storage models not found at /runpod-volume/models")
+            
+            # Start ComfyUI
             self.comfyui_process = subprocess.Popen([
                 "python3", "main.py",
                 "--listen", "0.0.0.0",
                 "--port", "8000",
                 "--dont-print-server",
                 "--disable-auto-launch"
-            ], cwd="/workspace/ComfyUI")
+            ], cwd="/workspace/ComfyUI", 
+               stdout=subprocess.PIPE, 
+               stderr=subprocess.PIPE)
+            
             logger.info("ComfyUI server started")
+            
         except Exception as e:
             logger.error(f"Failed to start ComfyUI: {str(e)}")
             raise
