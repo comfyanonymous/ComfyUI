@@ -216,7 +216,7 @@ def handler(job: Dict[str, Any]) -> Dict[str, Any]:
         
         # Download input files if any
         local_files = handler_instance.download_input_files(job_input)
-        
+
         # Update workflow with local file paths
         workflow = job_input.get("workflow", {})
         if local_files and "file_mappings" in job_input:
@@ -225,10 +225,10 @@ def handler(job: Dict[str, Any]) -> Dict[str, Any]:
                     for input_key, file_key in mappings.items():
                         if file_key in local_files:
                             workflow[node_id]["inputs"][input_key] = local_files[file_key]
-        
+
         # Execute workflow
         results = handler_instance.execute_workflow(workflow)
-        
+
         # Upload output files to RunPod storage or return base64
         output_urls = []
         for output in results.get("outputs", []):
@@ -242,20 +242,20 @@ def handler(job: Dict[str, Any]) -> Dict[str, Any]:
                         "data": image_data,
                         "node_id": output["node_id"]
                     })
-        
+
         return {
             "status": "success",
             "outputs": output_urls,
             "execution_time": time.time() - job.get("start_time", time.time())
         }
-        
+
     except Exception as e:
         logger.error(f"Handler error: {str(e)}")
         return {
             "error": str(e),
             "status": "failed"
         }
-    
+
     finally:
         # Always cleanup
         handler_instance.cleanup()
