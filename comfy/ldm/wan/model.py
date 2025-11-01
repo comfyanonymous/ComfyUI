@@ -232,6 +232,7 @@ class WanAttentionBlock(nn.Module):
         # assert e[0].dtype == torch.float32
 
         # self-attention
+        x = x.contiguous() # otherwise implicit in LayerNorm
         y = self.self_attn(
             torch.addcmul(repeat_e(e[0], x), self.norm1(x), 1 + repeat_e(e[1], x)),
             freqs, transformer_options=transformer_options)
