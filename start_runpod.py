@@ -161,11 +161,12 @@ def main():
     # Environment setup
     setup_environment()
 
-    # Network storage'ı bekle
-    wait_for_storage()
-
-    # Network storage mount
-    mount_runpod_storage()
+    # Hızlı başlatma için network storage mount'u atla
+    # Modeller zaten Docker image'da mevcut
+    logger.info("Hızlı başlatma modu - modeller image'da mevcut")
+    
+    # Model klasörlerini kontrol et
+    ensure_local_model_folders()
 
     # Temel modelleri indir (opsiyonel)
     download_essential_models()

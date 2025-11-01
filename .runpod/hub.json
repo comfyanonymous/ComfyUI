@@ -1,0 +1,66 @@
+{
+  "title": "ComfyUI - AI Image Generation",
+  "description": "ComfyUI serverless deployment with network storage support for models. Generate high-quality images using Stable Diffusion XL with custom workflows.",
+  "type": "serverless",
+  "category": "image",
+  "iconUrl": "https://raw.githubusercontent.com/comfyanonymous/ComfyUI/master/web/favicon.ico",
+  "config": {
+    "runsOn": "GPU",
+    "containerDiskInGb": 20,
+    "presets": [
+      {
+        "name": "SDXL Base",
+        "defaults": {
+          "MODEL_NAME": "sd_xl_base_1.0.safetensors",
+          "STEPS": "25",
+          "CFG": "8.0"
+        }
+      },
+      {
+        "name": "High Quality",
+        "defaults": {
+          "MODEL_NAME": "sd_xl_base_1.0.safetensors",
+          "STEPS": "50",
+          "CFG": "7.0"
+        }
+      }
+    ],
+    "env": [
+      {
+        "key": "HF_HUB_DISABLE_TELEMETRY",
+        "value": "1"
+      },
+      {
+        "key": "DO_NOT_TRACK",
+        "value": "1"
+      },
+      {
+        "key": "MODEL_NAME",
+        "input": {
+          "name": "Model Name",
+          "type": "string",
+          "description": "Checkpoint model file name to use",
+          "default": "sd_xl_base_1.0.safetensors"
+        }
+      },
+      {
+        "key": "STEPS",
+        "input": {
+          "name": "Generation Steps",
+          "type": "string",
+          "description": "Number of denoising steps",
+          "default": "25"
+        }
+      },
+      {
+        "key": "CFG",
+        "input": {
+          "name": "CFG Scale",
+          "type": "string",
+          "description": "Classifier-free guidance scale",
+          "default": "8.0"
+        }
+      }
+    ]
+  }
+}

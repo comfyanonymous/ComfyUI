@@ -1,0 +1,94 @@
+{
+  "tests": [
+    {
+      "name": "basic_text_to_image",
+      "input": {
+        "workflow": {
+          "3": {
+            "inputs": {
+              "seed": 42,
+              "steps": 20,
+              "cfg": 8.0,
+              "sampler_name": "euler",
+              "scheduler": "normal",
+              "denoise": 1.0,
+              "model": ["4", 0],
+              "positive": ["6", 0],
+              "negative": ["7", 0],
+              "latent_image": ["5", 0]
+            },
+            "class_type": "KSampler"
+          },
+          "4": {
+            "inputs": {
+              "ckpt_name": "sd_xl_base_1.0.safetensors"
+            },
+            "class_type": "CheckpointLoaderSimple"
+          },
+          "5": {
+            "inputs": {
+              "width": 1024,
+              "height": 1024,
+              "batch_size": 1
+            },
+            "class_type": "EmptyLatentImage"
+          },
+          "6": {
+            "inputs": {
+              "text": "a beautiful landscape, high quality, detailed",
+              "clip": ["4", 1]
+            },
+            "class_type": "CLIPTextEncode"
+          },
+          "7": {
+            "inputs": {
+              "text": "blurry, low quality, distorted",
+              "clip": ["4", 1]
+            },
+            "class_type": "CLIPTextEncode"
+          },
+          "8": {
+            "inputs": {
+              "samples": ["3", 0],
+              "vae": ["4", 2]
+            },
+            "class_type": "VAEDecode"
+          },
+          "9": {
+            "inputs": {
+              "filename_prefix": "test_output",
+              "images": ["8", 0]
+            },
+            "class_type": "SaveImage"
+          }
+        }
+      },
+      "timeout": 120000
+    },
+    {
+      "name": "simple_prompt_test",
+      "input": {
+        "prompt": "modern software interface, clean design"
+      },
+      "timeout": 60000
+    }
+  ],
+  "config": {
+    "gpuTypeId": "NVIDIA RTX A4000",
+    "gpuCount": 1,
+    "env": [
+      {
+        "key": "HF_HUB_DISABLE_TELEMETRY",
+        "value": "1"
+      },
+      {
+        "key": "DO_NOT_TRACK", 
+        "value": "1"
+      }
+    ],
+    "allowedCudaVersions": [
+      "12.1",
+      "11.8"
+    ]
+  }
+}
