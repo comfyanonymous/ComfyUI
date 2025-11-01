@@ -77,7 +77,7 @@ class _PollUIState:
 
 
 _RETRY_STATUS = {408, 429, 500, 502, 503, 504}
-COMPLETED_STATUSES = ["succeeded", "succeed", "success", "completed"]
+COMPLETED_STATUSES = ["succeeded", "succeed", "success", "completed", "finished"]
 FAILED_STATUSES = ["cancelled", "canceled", "fail", "failed", "error"]
 QUEUED_STATUSES = ["created", "queued", "queueing", "submitted"]
 
@@ -589,7 +589,7 @@ async def _request_base(cfg: _RequestConfig, expect_binary: bool):
         operation_id = _generate_operation_id(method, cfg.endpoint.path, attempt)
         logging.debug("[DEBUG] HTTP %s %s (attempt %d)", method, url, attempt)
 
-        payload_headers = {"Accept": "*/*"}
+        payload_headers = {"Accept": "*/*"} if expect_binary else {"Accept": "application/json"}
         if not parsed_url.scheme and not parsed_url.netloc:  # is URL relative?
             payload_headers.update(get_auth_header(cfg.node_cls))
         if cfg.endpoint.headers:
