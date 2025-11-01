@@ -1,0 +1,93 @@
+# RunPod Serverless ComfyUI Worker
+FROM runpod/pytorch:2.2.0-py3.11-cuda12.1.1-devel-ubuntu22.04
+
+# Set working directory
+WORKDIR /workspace
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    git \
+    wget \
+    curl \
+    unzip \
+    ffmpeg \
+    libsm6 \
+    libxext6 \
+    libxrender-dev \
+    libglib2.0-0 \
+    libgl1-mesa-glx \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Python dependencies
+RUN pip install --no-cache-dir \
+    runpod \
+    requests \
+    pillow \
+    numpy \
+    torch \
+    torchvision \
+    torchaudio \
+    xformers \
+    accelerate \
+    transformers \
+    diffusers \
+    opencv-python \
+    scipy \
+    scikit-image
+
+# Clone ComfyUI
+RUN git clone https://github.com/bahadirciloglu/ComfyUI.git /workspace/ComfyUI
+
+# Set ComfyUI as working directory
+WORKDIR /workspace/ComfyUI
+
+# Switch to create_image branch
+RUN git checkout create_image
+
+# Install ComfyUI requirements
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Install additional dependencies for new features
+RUN pip install --no-cache-dir \
+    safetensors \
+    transformers[torch] \
+    accelerate \
+    bitsandbytes \
+    optimum
+
+# Copy serverless handler
+COPY runpod_handler.py /workspace/runpod_handler.py
+COPY .env /workspace/.env
+
+# Create necessary directories
+RUN mkdir -p /workspace/ComfyUI/models/checkpoints \
+    /workspace/ComfyUI/models/vae \
+    /workspace/ComfyUI/models/loras \
+    /workspace/ComfyUI/models/controlnet \
+    /workspace/ComfyUI/models/clip_vision \
+    /workspace/ComfyUI/models/upscale_models \
+    /workspace/ComfyUI/input \
+    /workspace/ComfyUI/output \
+    /tmp/inputs \
+    /tmp/outputs \
+    /tmp/comfyui
+
+# Set environment variables
+ENV PYTHONPATH="/workspace/ComfyUI:${PYTHONPATH}"
+ENV COMFYUI_SERVERLESS=true
+ENV NVIDIA_VISIBLE_DEVICES=all
+ENV NVIDIA_DRIVER_CAPABILITIES=compute,utility
+
+# Create startup script
+RUN echo '#!/bin/bash\n\
+cd /workspace/ComfyUI\n\
+python main.py --listen 0.0.0.0 --port 8000 --dont-print-server --disable-auto-launch &\n\
+sleep 10\n\
+cd /workspace\n\
+python runpod_handler.py' > /workspace/start.sh && chmod +x /workspace/start.sh
+
+# Expose port
+EXPOSE 8000
+
+# Set the command
+CMD ["/workspace/start.sh"]

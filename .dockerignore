@@ -1,19 +1,79 @@
+# Git
 .git
-.github
-__pycache__
-*.pyc
-*.pyo
-*.pyd
-.Python
-*.so
-*.egg
-*.egg-info
-dist
-build
-.vscode
-.idea
+.gitignore
+.gitattributes
+
+# Documentation
 *.md
-output
-input
-models/checkpoints/*.safetensors
-models/checkpoints/*.ckpt
+docs/
+
+# Development files
+.env
+.env.local
+.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environments
+venv/
+env/
+ENV/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Temporary files
+temp/
+tmp/
+*.tmp
+
+# Large model files (will be mounted from network storage)
+models/*/
+!models/.gitkeep
+
+# Output files
+output/
+outputs/
+
+# Cache
+.cache/
+cache/
+
+# Node modules (if any)
+node_modules/
+
+# Docker
+Dockerfile.*
+docker-compose*.yml

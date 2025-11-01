@@ -18,9 +18,16 @@ RUN pip install --no-cache-dir \
     torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu && \
     pip install --no-cache-dir -r requirements.txt
 
-# Cloud Run PORT environment variable'ını kullan
+# RunPod başlangıç scriptini çalıştırılabilir yap
+RUN chmod +x start_runpod.py
+
+# Environment variables
 ENV PORT=8188
+ENV RUNPOD_NETWORK_STORAGE_PATH=/runpod-volume
+ENV HF_HUB_DISABLE_TELEMETRY=1
+ENV DO_NOT_TRACK=1
+
 EXPOSE 8188
 
-# Başlat - CPU modunda çalıştır
-CMD python main.py --listen 0.0.0.0 --port ${PORT} --cpu
+# RunPod başlangıç scriptini kullan
+CMD ["python", "start_runpod.py"]
