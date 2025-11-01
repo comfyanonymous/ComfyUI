@@ -14,7 +14,7 @@ if not has_gpu():
     args.cpu = True
 
 from comfy import ops
-from comfy.quant_ops import QuantizedTensor, TensorCoreFP8Layout
+from comfy.quant_ops import QuantizedTensor
 
 
 class SimpleModel(torch.nn.Module):
