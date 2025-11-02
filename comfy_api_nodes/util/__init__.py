@@ -18,6 +18,8 @@ from .conversions import (
     tensor_to_base64_string,
     tensor_to_bytesio,
     tensor_to_pil,
+    text_filepath_to_base64_string,
+    text_filepath_to_data_uri,
     trim_video,
     video_to_base64_string,
 )
@@ -75,6 +77,8 @@ __all__ = [
     "tensor_to_base64_string",
     "tensor_to_bytesio",
     "tensor_to_pil",
+    "text_filepath_to_base64_string",
+    "text_filepath_to_data_uri",
     "trim_video",
     "video_to_base64_string",
     # Validation utilities
