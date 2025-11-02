@@ -558,8 +558,27 @@ class TrainLoraNode:
         lora_dtype = node_helpers.string_to_torch_dtype(lora_dtype)
         mp.set_model_compute_dtype(dtype)
 
-        latents = latents["samples"].to(dtype)
-        num_images = latents.shape[0]
+        # latents here can be list of different size latent or one large batch
+        latents = latents["samples"]
+        if isinstance(latents, list):
+            all_shapes = set()
+            latents = [t.to(dtype) for t in latents]
+            for latent in latents:
+                all_shapes.add(latent.shape)
+            logging.info(f"Latent shapes: {all_shapes}")
+            if len(all_shapes) > 1:
+                raise ValueError(
+                    "Different shapes latents are not currently supported"
+                )
+            else:
+                latents = torch.cat(latents, dim=0)
+            num_images = len(latents)
+        elif isinstance(latents, list):
+            latents = latents["samples"].to(dtype)
+            num_images = latents.shape[0]
+        else:
+            logging.error(f"Invalid latents type: {type(latents)}")
+
         logging.info(f"Total Images: {num_images}, Total Captions: {len(positive)}")
         if len(positive) == 1 and num_images > 1:
             positive = positive * num_images
