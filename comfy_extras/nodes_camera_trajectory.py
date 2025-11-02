@@ -114,7 +114,7 @@ def ray_condition(K, c2w, H, W, device):
     rays_d = directions @ c2w[..., :3, :3].transpose(-1, -2)  # B, V, 3, HW
     rays_o = c2w[..., :3, 3]  # B, V, 3
     rays_o = rays_o[:, :, None].expand_as(rays_d)  # B, V, 3, HW
-    # c2w @ dirctions
+    # c2w @ directions
     rays_dxo = torch.cross(rays_o, rays_d)
     plucker = torch.cat([rays_dxo, rays_d], dim=-1)
     plucker = plucker.reshape(B, c2w.shape[1], H, W, 6)  # B, V, H, W, 6

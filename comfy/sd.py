@@ -573,7 +573,7 @@ class VAE:
                 self.working_dtypes = [torch.float32]
                 self.crop_input = False
             else:
-                logging.warning("WARNING: No VAE weights detected, VAE not initalized.")
+                logging.warning("WARNING: No VAE weights detected, VAE not initialized.")
                 self.first_stage_model = None
                 return
         else:
