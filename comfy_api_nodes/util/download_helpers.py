@@ -12,8 +12,8 @@ from aiohttp.client_exceptions import ClientError, ContentTypeError
 
 from comfy_api.input_impl import VideoFromFile
 from comfy_api.latest import IO as COMFY_IO
-from comfy_api_nodes.apis import request_logger
 
+from . import request_logger
 from ._helpers import (
     default_base_url,
     get_auth_header,

@@ -13,8 +13,8 @@ from pydantic import BaseModel, Field
 
 from comfy_api.latest import IO, Input
 from comfy_api.util import VideoCodec, VideoContainer
-from comfy_api_nodes.apis import request_logger
 
+from . import request_logger
 from ._helpers import is_processing_interrupted, sleep_with_interrupt
 from .client import (
     ApiEndpoint,
