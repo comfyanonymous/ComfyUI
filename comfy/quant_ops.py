@@ -131,7 +131,7 @@ class QuantizedTensor(torch.Tensor):
         self._layout_params = layout_params
 
     def __repr__(self):
-        layout_name = self._layout_type.__name__
+        layout_name = self._layout_type
         param_str = ", ".join(f"{k}={v}" for k, v in list(self._layout_params.items())[:2])
         return f"QuantizedTensor(shape={self.shape}, layout={layout_name}, {param_str})"
 
@@ -179,7 +179,7 @@ class QuantizedTensor(torch.Tensor):
             attr_name = f"_layout_param_{key}"
             layout_params[key] = inner_tensors[attr_name]
 
-        return QuantizedTensor(inner_tensors["_q_data"], layout_type, layout_params)
+        return QuantizedTensor(inner_tensors["_qdata"], layout_type, layout_params)
 
     @classmethod
     def from_float(cls, tensor, layout_type, **quantize_kwargs) -> 'QuantizedTensor':
