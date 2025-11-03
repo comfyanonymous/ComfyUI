@@ -407,9 +407,9 @@ class MultiTalkCrossAttnPatch:
     def __call__(self, kwargs):
         transformer_options = kwargs.get("transformer_options", {})
         block_idx = transformer_options.get("block_idx", None)
+        x = kwargs["x"]
         if block_idx is None:
             return torch.zeros_like(x)
-        x = kwargs["x"]
 
         audio_embeds = transformer_options.get("audio_embeds")
 
