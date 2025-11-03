@@ -418,6 +418,10 @@ def fp8_linear(func, args, kwargs):
                 scale_b=scale_b,
                 out_dtype=out_dtype,
             )
+
+            if isinstance(output, tuple):  # TODO: remove when we drop support for torch 2.4
+                output = output[0]
+
             if not tensor_2d:
                 output = output.reshape((-1, input_shape[1], weight.shape[0]))
 
