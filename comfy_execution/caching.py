@@ -399,6 +399,8 @@ class RAMPressureCache(LRUCache):
             ram_usage = RAM_CACHE_DEFAULT_RAM_USAGE
             def scan_list_for_ram_usage(outputs):
                 nonlocal ram_usage
+                if outputs is None:
+                    return
                 for output in outputs:
                     if isinstance(output, list):
                         scan_list_for_ram_usage(output)
