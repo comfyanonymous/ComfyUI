@@ -461,7 +461,6 @@ def fp8_addmm(func, args, kwargs):
         plain_input, scale_a = TensorCoreFP8Layout.get_plain_tensors(input_tensor)
         plain_weight, scale_b = TensorCoreFP8Layout.get_plain_tensors(weight)
 
-        print(plain_input.shape, plain_weight.shape, bias.shape)
         output = torch._scaled_mm(
             plain_input.contiguous(),
             plain_weight,
