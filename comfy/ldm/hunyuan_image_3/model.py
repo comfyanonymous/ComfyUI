@@ -337,7 +337,7 @@ class UNetDown(nn.Module):
 
         if self.patch_size == 1:
             self.model.append(ResBlock(
-                in_channels=hidden_channels,
+                channels=hidden_channels,
                 emb_channels=emb_channels,
                 out_channels=out_channels,
                 dropout=dropout,
@@ -346,7 +346,7 @@ class UNetDown(nn.Module):
         else:
             for i in range(self.patch_size // 2):
                 self.model.append(ResBlock(
-                    in_channels=hidden_channels,
+                    channels=hidden_channels,
                     emb_channels=emb_channels,
                     out_channels=hidden_channels if (i + 1) * 2 != self.patch_size else out_channels,
                     dropout=dropout,
@@ -381,7 +381,7 @@ class UNetUp(nn.Module):
 
         if self.patch_size == 1:
             self.model.append(ResBlock(
-                in_channels=in_channels,
+                channels=in_channels,
                 emb_channels=emb_channels,
                 out_channels=hidden_channels,
                 dropout=dropout,
@@ -390,7 +390,7 @@ class UNetUp(nn.Module):
         else:
             for i in range(self.patch_size // 2):
                 self.model.append(ResBlock(
-                    in_channels=in_channels if i == 0 else hidden_channels,
+                    channels=in_channels if i == 0 else hidden_channels,
                     emb_channels=emb_channels,
                     out_channels=hidden_channels,
                     dropout=dropout,
@@ -929,7 +929,7 @@ class HunyuanImage3DecoderLayer(nn.Module):
     
 class HunyuanImage3Model(nn.Module):
     def __init__(self, config, moe_lru=None):
-        super().__init__(config)
+        super().__init__()
         self.padding_idx = 128009
         self.vocab_size = 133120
         self.wte = nn.Embedding(133120, config["hidden_size"], self.padding_idx)
@@ -989,12 +989,12 @@ class HunyuanImage3Model(nn.Module):
 
 class HunyuanImage3ForCausalMM(nn.Module):
     def __init__(self, config):
-        super().__init__(config)
+        super().__init__()
         self.config = config
 
         self.timestep_emb = TimestepEmbedder(hidden_size=config["hidden_size"])
         self.patch_embed = UNetDown(
-            patch_size=16,
+            patch_size=1,
             emb_channels=config["hidden_size"],
             in_channels=32,
             hidden_channels=1024,
@@ -1003,7 +1003,7 @@ class HunyuanImage3ForCausalMM(nn.Module):
         self.time_embed = TimestepEmbedder(hidden_size=config["hidden_size"])
 
         self.final_layer = UNetUp(
-            patch_size=16,
+            patch_size=1,
             emb_channels=config["hidden_size"],
             in_channels=config["hidden_size"],
             hidden_channels=1024,
@@ -1045,8 +1045,7 @@ class HunyuanImage3ForCausalMM(nn.Module):
 
     def forward(self, x, condition, timestep, **kwargs):
         
-        cond, uncond = condition[:4], condition[4:]
-        joint_image, cond_vae_image_mask, input_ids = cond[0], cond[1]
+        joint_image, cond_vae_image_mask, input_ids, uncond_joint, uncond_vae_mask, uncond_inputs = condition.unbind()
 
         if self.kv_cache is None:
             # TODO: should change when higgsv2 gets merged
@@ -1058,9 +1057,11 @@ class HunyuanImage3ForCausalMM(nn.Module):
             )
 
         image_mask = torch.ones(x.size(1))
-        image_mask[:, :3] = torch.zeros(5); image_mask[:, -1] = torch.zeros(0)
+        image_mask[:3] = torch.zeros(3); image_mask[-1] = torch.zeros(1)
         gen_timestep_scatter_index = 4
-        joint_image[:, 2] = x[:, 2] # updates image ratio 
+
+        with torch.no_grad():
+            joint_image[:, 2, 0] = x[:, 2, 0, 0] # updates image ratio 
 
         position_ids = torch.arange(0, input_ids.shape[1], dtype=torch.long, device=x.device)[None].expand(x.size(0), -1)
         height, width = x.shape[2] * 16, x.shape[3] * 16
