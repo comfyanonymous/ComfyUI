@@ -119,6 +119,7 @@ def convert_tensor(extra, dtype, device):
             extra = comfy.model_management.cast_to_device(extra, device, None)
     return extra
 
+
 class BaseModel(torch.nn.Module):
     def __init__(self, model_config, model_type=ModelType.EPS, device=None, unet_model=UNetModel):
         super().__init__()
@@ -380,6 +381,7 @@ class BaseModel(torch.nn.Module):
     def extra_conds_shapes(self, **kwargs):
         return {}
 
+
 def unclip_adm(unclip_conditioning, device, noise_augmentor, noise_augment_merge=0.0, seed=None):
     adm_inputs = []
     weights = []
@@ -475,6 +477,7 @@ class SDXL(BaseModel):
         flat = torch.flatten(torch.cat(out)).unsqueeze(dim=0).repeat(clip_pooled.shape[0], 1)
         return torch.cat((clip_pooled.to(flat.device), flat), dim=1)
 
+
 class SVD_img2vid(BaseModel):
     def __init__(self, model_config, model_type=ModelType.V_PREDICTION_EDM, device=None):
         super().__init__(model_config, model_type, device=device)
@@ -550,6 +553,7 @@ class SV3D_p(SVD_img2vid):
 
         out = list(map(lambda a: utils.resize_to_batch_size(a, noise.shape[0]), out))
         return torch.cat(out, dim=1)
+
 
 class Stable_Zero123(BaseModel):
     def __init__(self, model_config, model_type=ModelType.EPS, device=None, cc_projection_weight=None, cc_projection_bias=None):
@@ -634,10 +638,12 @@ class IP2P:
         image = utils.resize_to_batch_size(image, noise.shape[0])
         return self.process_ip2p_image_in(image)
 
+
 class SD15_instructpix2pix(IP2P, BaseModel):
     def __init__(self, model_config, model_type=ModelType.EPS, device=None):
         super().__init__(model_config, model_type, device=device)
         self.process_ip2p_image_in = lambda image: image
+
 
 class SDXL_instructpix2pix(IP2P, SDXL):
     def __init__(self, model_config, model_type=ModelType.EPS, device=None):
@@ -688,6 +694,7 @@ class StableCascade_C(BaseModel):
             out['clip_text'] = comfy.conds.CONDCrossAttn(cross_attn)
         return out
 
+
 class StableCascade_B(BaseModel):
     def __init__(self, model_config, model_type=ModelType.STABLE_CASCADE, device=None):
         super().__init__(model_config, model_type, device=device, unet_model=StageB)
@@ -707,6 +714,7 @@ class StableCascade_B(BaseModel):
         out["sca"] = comfy.conds.CONDRegular(torch.zeros((1,)))
         return out
 
+
 class SD3(BaseModel):
     def __init__(self, model_config, model_type=ModelType.FLOW, device=None):
         super().__init__(model_config, model_type, device=device, unet_model=OpenAISignatureMMDITWrapper)
@@ -721,6 +729,7 @@ class SD3(BaseModel):
             out['c_crossattn'] = comfy.conds.CONDRegular(cross_attn)
         return out
 
+
 class AuraFlow(BaseModel):
     def __init__(self, model_config, model_type=ModelType.FLOW, device=None):
         super().__init__(model_config, model_type, device=device, unet_model=comfy.ldm.aura.mmdit.MMDiT)
@@ -731,6 +740,7 @@ class AuraFlow(BaseModel):
         if cross_attn is not None:
             out['c_crossattn'] = comfy.conds.CONDRegular(cross_attn)
         return out
+
 
 class StableAudio1(BaseModel):
     def __init__(self, model_config, seconds_start_embedder_weights, seconds_total_embedder_weights, model_type=ModelType.V_PREDICTION_CONTINUOUS, device=None):
@@ -769,6 +779,7 @@ class StableAudio1(BaseModel):
             for l in s:
                 sd["{}{}".format(k, l)] = s[l]
         return sd
+
 
 class HunyuanDiT(BaseModel):
     def __init__(self, model_config, model_type=ModelType.V_PREDICTION, device=None):
@@ -902,6 +913,7 @@ class Flux(BaseModel):
         if ref_latents is not None:
             out['ref_latents'] = list([1, 16, sum(map(lambda a: math.prod(a.size()), ref_latents)) // 16])
         return out
+
 
 class GenmoMochi(BaseModel):
     def __init__(self, model_config, model_type=ModelType.FLOW, device=None):
@@ -1153,6 +1165,7 @@ class WAN21(BaseModel):
             out['reference_latent'] = comfy.conds.CONDRegular(self.process_latent_in(reference_latents[-1])[:, :, 0])
 
         return out
+
 
 class WAN21_Vace(WAN21):
     def __init__(self, model_config, model_type=ModelType.FLOW, image_to_video=False, device=None):

@@ -8,8 +8,6 @@ from typing import Optional
 from typing_extensions import override
 from comfy_api.latest import ComfyExtension, io
 
-logger = logging.getLogger(__name__)
-
 
 class TextEncodeQwenImageEdit(io.ComfyNode):
     @classmethod
@@ -186,8 +184,8 @@ class TextEncodeQwenImageEliGen(io.ComfyNode):
         width = latent_width * 8
 
         if pad_h > 0 or pad_w > 0:
-            logger.debug(f"[EliGen] Latent padding detected: {unpadded_latent_height}x{unpadded_latent_width} → {latent_height}x{latent_width}")
-        logger.debug(f"[EliGen] Target generation dimensions: {height}x{width} pixels ({latent_height}x{latent_width} latent)")
+            logging.debug(f"[EliGen] Latent padding detected: {unpadded_latent_height}x{unpadded_latent_width} → {latent_height}x{latent_width}")
+        logging.debug(f"[EliGen] Target generation dimensions: {height}x{width} pixels ({latent_height}x{latent_width} latent)")
 
         # Collect entity prompts and masks
         entity_prompts = [entity_prompt_1, entity_prompt_2, entity_prompt_3]
@@ -202,7 +200,7 @@ class TextEncodeQwenImageEliGen(io.ComfyNode):
         # Log warning if some entities were skipped
         total_prompts_provided = len([p for p in entity_prompts if p.strip()])
         if len(valid_entities) < total_prompts_provided:
-            logger.warning(f"[EliGen] Only {len(valid_entities)} of {total_prompts_provided} entity prompts have valid masks")
+            logging.warning(f"[EliGen] Only {len(valid_entities)} of {total_prompts_provided} entity prompts have valid masks")
 
         # If no valid entities, return standard conditioning
         if len(valid_entities) == 0:
@@ -244,7 +242,7 @@ class TextEncodeQwenImageEliGen(io.ComfyNode):
                 )
 
             # Log original mask statistics
-            logger.debug(
+            logging.debug(
                 f"[EliGen] Entity {i+1} input mask: shape={mask_tensor.shape}, "
                 f"dtype={mask_tensor.dtype}, min={mask_tensor.min():.4f}, max={mask_tensor.max():.4f}"
             )
@@ -260,7 +258,7 @@ class TextEncodeQwenImageEliGen(io.ComfyNode):
 
             # Check for constant masks (no variation)
             if mask_tensor.min() == mask_tensor.max() and mask_tensor.max() > 0:
-                logger.warning(
+                logging.warning(
                     f"[EliGen] Entity {i+1} mask has no variation (all pixels = {mask_tensor.min():.4f}). "
                     f"This entity will affect the entire image."
                 )
@@ -284,12 +282,12 @@ class TextEncodeQwenImageEliGen(io.ComfyNode):
             # Log size mismatch if mask doesn't match expected latent dimensions
             expected_h, expected_w = latent_height * 8, latent_width * 8
             if orig_h != expected_h or orig_w != expected_w:
-                logger.info(
+                logging.info(
                     f"[EliGen] Entity {i+1} mask size mismatch: {orig_h}x{orig_w} vs expected {expected_h}x{expected_w}. "
                     f"Will resize to {latent_height}x{latent_width} latent space."
                 )
             else:
-                logger.debug(f"[EliGen] Entity {i+1} mask: {orig_h}x{orig_w} → will resize to {latent_height}x{latent_width} latent")
+                logging.debug(f"[EliGen] Entity {i+1} mask: {orig_h}x{orig_w} → will resize to {latent_height}x{latent_width} latent")
 
             # Convert MASK format [batch, height, width] to [batch, 1, height, width] for common_upscale
             # common_upscale expects [batch, channels, height, width]
@@ -319,7 +317,7 @@ class TextEncodeQwenImageEliGen(io.ComfyNode):
                     f"Original mask may have been too small or all black."
                 )
 
-            logger.debug(
+            logging.debug(
                 f"[EliGen] Entity {i+1} mask coverage: {active_pixels}/{total_pixels} pixels ({coverage_pct:.1f}%)"
             )
 
@@ -332,7 +330,7 @@ class TextEncodeQwenImageEliGen(io.ComfyNode):
         entity_masks_tensor = torch.stack(processed_entity_masks_no_batch, dim=0)  # [num_entities, 1, H, W]
         entity_masks_tensor = entity_masks_tensor.unsqueeze(0)  # [1, num_entities, 1, H, W]
 
-        logger.debug(
+        logging.debug(
             f"[EliGen] Stacked {len(valid_entities)} entity masks into tensor: "
             f"shape={entity_masks_tensor.shape} (expected: [1, {len(valid_entities)}, 1, {latent_height}, {latent_width}])"
         )

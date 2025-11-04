@@ -12,8 +12,6 @@ from comfy.ldm.flux.layers import EmbedND
 import comfy.ldm.common_dit
 import comfy.patcher_extension
 
-logger = logging.getLogger(__name__)
-
 
 class GELU(nn.Module):
     def __init__(self, dim_in: int, dim_out: int, approximate: str = "none", bias: bool = True, dtype=None, device=None, operations=None):
@@ -401,7 +399,7 @@ class QwenImageTransformer2DModel(nn.Module):
         has_negative = cond_or_uncond and 1 in cond_or_uncond
         is_cfg_batched = has_positive and has_negative
 
-        logger.debug(
+        logging.debug(
             f"[EliGen Model] Processing {num_entities} entities for {height}x{width}px, "
             f"batch_size={actual_batch_size}, CFG_batched={is_cfg_batched}"
         )
@@ -457,7 +455,7 @@ class QwenImageTransformer2DModel(nn.Module):
 
         img_rope = self.pe_embedder(img_ids).squeeze(1).squeeze(0)
 
-        logger.debug(f"[EliGen Model] RoPE shapes - img: {img_rope.shape}, txt: {txt_rotary_emb.shape}")
+        logging.debug(f"[EliGen Model] RoPE shapes - img: {img_rope.shape}, txt: {txt_rotary_emb.shape}")
 
         # Concatenate text and image RoPE embeddings
         # Convert to latent dtype to match queries/keys
@@ -473,7 +471,7 @@ class QwenImageTransformer2DModel(nn.Module):
         if entity_masks.shape[3] != padded_h or entity_masks.shape[4] != padded_w:
             pad_h = padded_h - entity_masks.shape[3]
             pad_w = padded_w - entity_masks.shape[4]
-            logger.debug(f"[EliGen Model] Padding masks by ({pad_h}, {pad_w})")
+            logging.debug(f"[EliGen Model] Padding masks by ({pad_h}, {pad_w})")
             entity_masks = torch.nn.functional.pad(entity_masks, (0, pad_w, 0, pad_h), mode='constant', value=0)
 
         entity_masks = [entity_masks[:, i, None].squeeze(1) for i in range(max_masks)]
@@ -488,7 +486,7 @@ class QwenImageTransformer2DModel(nn.Module):
         seq_lens = entity_seq_lens + [global_seq_len]
         total_seq_len = int(sum(seq_lens) + image.shape[1])
 
-        logger.debug(f"[EliGen Model] total_seq={total_seq_len}")
+        logging.debug(f"[EliGen Model] total_seq={total_seq_len}")
 
         patched_masks = []
         for i in range(N):
@@ -557,7 +555,7 @@ class QwenImageTransformer2DModel(nn.Module):
             # CFG batch: [positive, negative] - need different masks for each
             # Positive gets entity constraints, negative gets standard attention (all zeros)
 
-            logger.debug(
+            logging.debug(
                 "[EliGen Model] CFG batched detected - creating separate masks. "
                 "Positive (index 0) gets entity mask, Negative (index 1) gets standard mask"
             )
@@ -576,7 +574,7 @@ class QwenImageTransformer2DModel(nn.Module):
             # Concatenate masks to match batch
             attention_mask = torch.cat(mask_list, dim=0)
 
-            logger.debug(
+            logging.debug(
                 f"[EliGen Model] Created {len(mask_list)} masks for CFG batch. "
                 f"Final shape: {attention_mask.shape}"
             )
@@ -584,7 +582,7 @@ class QwenImageTransformer2DModel(nn.Module):
         # Add head dimension: [B, 1, seq, seq]
         attention_mask = attention_mask.unsqueeze(1)
 
-        logger.debug(
+        logging.debug(
             f"[EliGen Model] Attention mask created: shape={attention_mask.shape}, "
             f"valid_connections={num_valid_connections}/{total_seq_len * total_seq_len}"
         )
@@ -654,7 +652,7 @@ class QwenImageTransformer2DModel(nn.Module):
         batch_size = x.shape[0]
 
         if entity_prompt_emb is not None:
-            logger.debug(
+            logging.debug(
                 f"[EliGen Forward] batch_size={batch_size}, cond_or_uncond={cond_or_uncond}, "
                 f"has_positive={is_positive_cond}, has_negative={is_negative_cond}"
             )
