@@ -474,7 +474,15 @@ def fp8_addmm(func, args, kwargs):
             output = output[0]
         return output
 
-    return func(*args, **kwargs)
+    a = list(args)
+    if isinstance(args[0], QuantizedTensor):
+        a[0] = args[0].dequantize()
+    if isinstance(args[1], QuantizedTensor):
+        a[1] = args[1].dequantize()
+    if isinstance(args[2], QuantizedTensor):
+        a[2] = args[2].dequantize()
+
+    return func(*a, **kwargs)
 
 @register_layout_op(torch.ops.aten.view.default, "TensorCoreFP8Layout")
 @register_layout_op(torch.ops.aten.t.default, "TensorCoreFP8Layout")
