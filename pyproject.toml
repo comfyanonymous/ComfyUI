@@ -1,6 +1,6 @@
 [project]
 name = "ComfyUI"
-version = "0.3.66"
+version = "0.3.68"
 readme = "README.md"
 license = { file = "LICENSE" }
 requires-python = ">=3.9"
@@ -50,6 +50,8 @@ messages_control.disable = [
   "too-many-branches",
   "too-many-locals",
   "too-many-arguments",
+  "too-many-return-statements",
+  "too-many-nested-blocks",
   "duplicate-code",
   "abstract-method",
   "superfluous-parens",

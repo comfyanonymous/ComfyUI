@@ -35,6 +35,7 @@ from comfy_api.internal import _ComfyNodeInternal
 from app.user_manager import UserManager
 from app.model_manager import ModelFileManager
 from app.custom_node_manager import CustomNodeManager
+from app.subgraph_manager import SubgraphManager
 from typing import Optional, Union
 from api_server.routes.internal.internal_routes import InternalRoutes
 from protocol import BinaryEventTypes
@@ -173,6 +174,7 @@ class PromptServer():
         self.user_manager = UserManager()
         self.model_file_manager = ModelFileManager()
         self.custom_node_manager = CustomNodeManager()
+        self.subgraph_manager = SubgraphManager()
         self.internal_routes = InternalRoutes(self)
         self.supports = ["custom_nodes_from_web"]
         self.prompt_queue = execution.PromptQueue(self)
@@ -689,8 +691,9 @@ class PromptServer():
         async def get_queue(request):
             queue_info = {}
             current_queue = self.prompt_queue.get_current_queue_volatile()
-            queue_info['queue_running'] = current_queue[0]
-            queue_info['queue_pending'] = current_queue[1]
+            remove_sensitive = lambda queue: [x[:5] for x in queue]
+            queue_info['queue_running'] = remove_sensitive(current_queue[0])
+            queue_info['queue_pending'] = remove_sensitive(current_queue[1])
             return web.json_response(queue_info)
 
         @routes.post("/prompt")
@@ -726,7 +729,11 @@ class PromptServer():
                     extra_data["client_id"] = json_data["client_id"]
                 if valid[0]:
                     outputs_to_execute = valid[2]
-                    self.prompt_queue.put((number, prompt_id, prompt, extra_data, outputs_to_execute))
+                    sensitive = {}
+                    for sensitive_val in execution.SENSITIVE_EXTRA_DATA_KEYS:
+                        if sensitive_val in extra_data:
+                            sensitive[sensitive_val] = extra_data.pop(sensitive_val)
+                    self.prompt_queue.put((number, prompt_id, prompt, extra_data, outputs_to_execute, sensitive))
                     response = {"prompt_id": prompt_id, "number": number, "node_errors": valid[3]}
                     return web.json_response(response)
                 else:
@@ -819,6 +826,7 @@ class PromptServer():
         self.user_manager.add_routes(self.routes)
         self.model_file_manager.add_routes(self.routes)
         self.custom_node_manager.add_routes(self.routes, self.app, nodes.LOADED_MODULE_DIRS.items())
+        self.subgraph_manager.add_routes(self.routes, nodes.LOADED_MODULE_DIRS.items())
         self.app.add_subapp('/internal', self.internal_routes.get_app())
 
         # Prefix every route with /api for easier matching for delegation.

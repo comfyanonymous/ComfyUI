@@ -11,7 +11,7 @@ from comfy.ldm.modules.attention import optimized_attention_masked
 from comfy.ldm.flux.layers import EmbedND
 import comfy.ldm.common_dit
 import comfy.patcher_extension
-
+from comfy.ldm.flux.math import apply_rope1
 
 class GELU(nn.Module):
     def __init__(self, dim_in: int, dim_out: int, approximate: str = "none", bias: bool = True, dtype=None, device=None, operations=None):
@@ -135,45 +135,34 @@ class Attention(nn.Module):
         image_rotary_emb: Optional[torch.Tensor] = None,
         transformer_options={},
     ) -> Tuple[torch.Tensor, torch.Tensor]:
+        batch_size = hidden_states.shape[0]
+        seq_img = hidden_states.shape[1]
         seq_txt = encoder_hidden_states.shape[1]
 
-        img_query = self.to_q(hidden_states).unflatten(-1, (self.heads, -1))
-        img_key = self.to_k(hidden_states).unflatten(-1, (self.heads, -1))
-        img_value = self.to_v(hidden_states).unflatten(-1, (self.heads, -1))
+        # Project and reshape to BHND format (batch, heads, seq, dim)
+        img_query = self.to_q(hidden_states).view(batch_size, seq_img, self.heads, -1).transpose(1, 2).contiguous()
+        img_key = self.to_k(hidden_states).view(batch_size, seq_img, self.heads, -1).transpose(1, 2).contiguous()
+        img_value = self.to_v(hidden_states).view(batch_size, seq_img, self.heads, -1).transpose(1, 2)
 
-        txt_query = self.add_q_proj(encoder_hidden_states).unflatten(-1, (self.heads, -1))
-        txt_key = self.add_k_proj(encoder_hidden_states).unflatten(-1, (self.heads, -1))
-        txt_value = self.add_v_proj(encoder_hidden_states).unflatten(-1, (self.heads, -1))
+        txt_query = self.add_q_proj(encoder_hidden_states).view(batch_size, seq_txt, self.heads, -1).transpose(1, 2).contiguous()
+        txt_key = self.add_k_proj(encoder_hidden_states).view(batch_size, seq_txt, self.heads, -1).transpose(1, 2).contiguous()
+        txt_value = self.add_v_proj(encoder_hidden_states).view(batch_size, seq_txt, self.heads, -1).transpose(1, 2)
 
         img_query = self.norm_q(img_query)
         img_key = self.norm_k(img_key)
         txt_query = self.norm_added_q(txt_query)
         txt_key = self.norm_added_k(txt_key)
 
-        # Concatenate text and image streams
-        joint_query = torch.cat([txt_query, img_query], dim=1)
-        joint_key = torch.cat([txt_key, img_key], dim=1)
-        joint_value = torch.cat([txt_value, img_value], dim=1)
+        joint_query = torch.cat([txt_query, img_query], dim=2)
+        joint_key = torch.cat([txt_key, img_key], dim=2)
+        joint_value = torch.cat([txt_value, img_value], dim=2)
 
-        # Apply RoPE to concatenated queries and keys
-        joint_query = apply_rotary_emb(joint_query, image_rotary_emb)
-        joint_key = apply_rotary_emb(joint_key, image_rotary_emb)
+        joint_query = apply_rope1(joint_query, image_rotary_emb)
+        joint_key = apply_rope1(joint_key, image_rotary_emb)
 
-        # Validate attention mask shape if provided
-        if attention_mask is not None:
-            expected_seq = joint_query.shape[1]
-            if attention_mask.shape[-1] != expected_seq:
-                raise ValueError(
-                    f"Attention mask shape mismatch: {attention_mask.shape} "
-                    f"doesn't match sequence length {expected_seq}"
-                )
-
-        # Use ComfyUI's optimized attention
-        joint_query = joint_query.flatten(start_dim=2)
-        joint_key = joint_key.flatten(start_dim=2)
-        joint_value = joint_value.flatten(start_dim=2)
-
-        joint_hidden_states = optimized_attention_masked(joint_query, joint_key, joint_value, self.heads, attention_mask, transformer_options=transformer_options)
+        joint_hidden_states = optimized_attention_masked(joint_query, joint_key, joint_value, self.heads,
+                                                         attention_mask, transformer_options=transformer_options,
+                                                         skip_reshape=True)
 
         txt_attn_output = joint_hidden_states[:, :seq_txt, :]
         img_attn_output = joint_hidden_states[:, seq_txt:, :]
@@ -427,7 +416,7 @@ class QwenImageTransformer2DModel(nn.Module):
                 device=latents.device
             ).reshape(1, -1, 1).repeat(1, 1, 3)
 
-            entity_rope = self.pe_embedder(entity_ids).squeeze(1).squeeze(0)
+            entity_rope = self.pe_embedder(entity_ids)  # Keep shape [1, 1, seq, dim, 2, 2]
             entity_txt_embs.append(entity_rope)
 
         # Generate global text RoPE
@@ -436,9 +425,9 @@ class QwenImageTransformer2DModel(nn.Module):
             max_vid_index + global_seq_len,
             device=latents.device
         ).reshape(1, -1, 1).repeat(1, 1, 3)
-        global_rope = self.pe_embedder(global_ids).squeeze(1).squeeze(0)
+        global_rope = self.pe_embedder(global_ids)  # Keep shape [1, 1, seq, dim, 2, 2]
 
-        txt_rotary_emb = torch.cat(entity_txt_embs + [global_rope], dim=0)
+        txt_rotary_emb = torch.cat(entity_txt_embs + [global_rope], dim=2)  # Concatenate on sequence dimension
 
         h_coords = torch.arange(-(patch_h - patch_h // 2), patch_h // 2, device=latents.device)
         w_coords = torch.arange(-(patch_w - patch_w // 2), patch_w // 2, device=latents.device)
@@ -449,13 +438,13 @@ class QwenImageTransformer2DModel(nn.Module):
         img_ids[:, :, 2] = w_coords.unsqueeze(0)
         img_ids = img_ids.reshape(1, -1, 3)
 
-        img_rope = self.pe_embedder(img_ids).squeeze(1).squeeze(0)
+        img_rope = self.pe_embedder(img_ids)  # Keep shape [1, 1, seq, dim, 2, 2]
 
         logging.debug(f"[EliGen Model] RoPE shapes - img: {img_rope.shape}, txt: {txt_rotary_emb.shape}")
 
-        # Concatenate text and image RoPE embeddings
-        # Convert to latent dtype to match queries/keys
-        image_rotary_emb = torch.cat([txt_rotary_emb, img_rope], dim=0).unsqueeze(1).to(dtype=latents.dtype)
+        # Concatenate text and image RoPE embeddings on sequence dimension
+        # Shape will be [1, 1, total_seq, dim, 2, 2] where total_seq = txt_seq + img_seq
+        image_rotary_emb = torch.cat([txt_rotary_emb, img_rope], dim=2).to(dtype=latents.dtype)
 
         # Prepare spatial masks
         repeat_dim = latents.shape[1]
@@ -684,7 +673,7 @@ class QwenImageTransformer2DModel(nn.Module):
             txt_start = round(max(((x.shape[-1] + (self.patch_size // 2)) // self.patch_size) // 2, ((x.shape[-2] + (self.patch_size // 2)) // self.patch_size) // 2))
             txt_ids = torch.arange(txt_start, txt_start + context.shape[1], device=x.device).reshape(1, -1, 1).repeat(x.shape[0], 1, 3)
             ids = torch.cat((txt_ids, img_ids), dim=1)
-            image_rotary_emb = self.pe_embedder(ids).squeeze(1).unsqueeze(2).to(x.dtype)
+            image_rotary_emb = self.pe_embedder(ids).to(x.dtype).contiguous()
             del ids, txt_ids, img_ids
 
             hidden_states = self.img_in(hidden_states)
