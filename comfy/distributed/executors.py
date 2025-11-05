@@ -13,7 +13,7 @@ class ContextVarExecutor(ThreadPoolExecutor):
     def submit(self, fn: typing.Callable, *args, **kwargs) -> Future:
         ctx = contextvars.copy_context()  # type: contextvars.Context
 
-        return super().submit(partial(ctx.run, partial(fn, *args, **kwargs)))
+        return super().submit(partial(ctx.run, partial(fn, *args, **kwargs)))  # pylint: disable=no-member
 
 
 class ContextVarProcessPoolExecutor(ProcessPoolExecutor):
