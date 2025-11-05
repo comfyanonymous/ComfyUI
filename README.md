@@ -748,15 +748,19 @@ usage: comfyui [-h] [-c CONFIG_FILE]
                [--otel-exporter-otlp-endpoint OTEL_EXPORTER_OTLP_ENDPOINT]
                [--force-channels-last] [--force-hf-local-dir-mode]
                [--front-end-version FRONT_END_VERSION]
-               [--panic-when PANIC_WHEN] [--front-end-root FRONT_END_ROOT]
+               [--panic-when PANIC_WHEN [PANIC_WHEN ...]]
+               [--front-end-root FRONT_END_ROOT]
                [--executor-factory EXECUTOR_FACTORY]
                [--openai-api-key OPENAI_API_KEY]
                [--ideogram-api-key IDEOGRAM_API_KEY]
                [--anthropic-api-key ANTHROPIC_API_KEY]
                [--user-directory USER_DIRECTORY]
                [--enable-compress-response-body]
-               [--comfy-api-base COMFY_API_BASE] [--database-url DATABASE_URL]
+               [--comfy-api-base COMFY_API_BASE]
+               [--block-runtime-package-installation]
+               [--database-url DATABASE_URL]
                [--workflows WORKFLOWS [WORKFLOWS ...]]
+
 options:
   -h, --help            show this help message and exit
   -c CONFIG_FILE, --config CONFIG_FILE
@@ -791,8 +795,9 @@ options:
                         custom_nodes, input, output, temp, and user
                         directories. [env var: COMFYUI_BASE_DIRECTORY]
   --extra-model-paths-config PATH [PATH ...]
-                        Load one or more extra_model_paths.yaml files. [env
-                        var: COMFYUI_EXTRA_MODEL_PATHS_CONFIG]
+                        Load one or more extra_model_paths.yaml files. Can be
+                        specified multiple times or as a comma-separated list.
+                        [env var: COMFYUI_EXTRA_MODEL_PATHS_CONFIG]
   --output-directory OUTPUT_DIRECTORY
                         Set the ComfyUI output directory. Overrides --base-
                         directory. [env var: COMFYUI_OUTPUT_DIRECTORY]
@@ -1058,7 +1063,7 @@ options:
                         format of: [repoOwner]/[repoName]@[version] where
                         version is one of: "latest" or a valid version number
                         (e.g. "1.0.0") [env var: COMFYUI_FRONT_END_VERSION]
-  --panic-when PANIC_WHEN
+  --panic-when PANIC_WHEN [PANIC_WHEN ...]
                         List of fully qualified exception class names to panic
                         (sys.exit(1)) when a workflow raises it. Example:
                         --panic-when=torch.cuda.OutOfMemoryError. Can be
@@ -1101,6 +1106,11 @@ options:
                         Set the base URL for the ComfyUI API. (default:
                         https://api.comfy.org) [env var:
                         COMFYUI_COMFY_API_BASE]
+  --block-runtime-package-installation
+                        When set, custom nodes like ComfyUI Manager, Easy Use,
+                        Nunchaku and others will not be able to use pip or uv
+                        to install packages at runtime (experimental). [env
+                        var: COMFYUI_BLOCK_RUNTIME_PACKAGE_INSTALLATION]
   --database-url DATABASE_URL
                         Specify the database URL, e.g. for an in-memory
                         database you can use 'sqlite:///:memory:'. [env var:
