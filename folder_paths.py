@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import mimetypes
 import os
+import sys
 import time
 from collections.abc import Collection
 from typing import List, Literal
@@ -117,9 +118,15 @@ def set_input_directory(input_dir: str) -> None:
 
 def set_custom_nodes_directory(custom_nodes_dir: str) -> None:
     #NOTE: this function doesn't need a "get_custom_nodes_directory", we have "get_folder_paths".
-    # PATH style ';' delimiters allow for more folders.
+    # PATH style ';' / ':' (platform dependant) delimiters allow for more folders.
     global folder_names_and_paths
-    folder_names_and_paths["custom_nodes"] = (custom_nodes_dir.split(";"), set())
+
+    delimiter = ":"
+    if sys.platform in ("win32", "cygwin"):
+        delimiter = ";"
+
+    directories = custom_nodes_dir.split(delimiter)
+    folder_names_and_paths["custom_nodes"] = (directories, set())
 
 def get_output_directory() -> str:
     global output_directory
