@@ -23,6 +23,13 @@ def validate_node_input(
     if not received_type != input_type:
         return True
 
+    # If input_type is a Combo, frontend permits a Combo output to be connected,
+    # but it is defined as a tuple of values with V3 schema.
+    # This probably should be dealt with sending one thing to the frontend and another to the backend,
+    # but this will do for now.
+    if input_type == "COMBO" and isinstance(received_type, tuple):
+        return True
+
     # Not equal, and not strings
     if not isinstance(received_type, str) or not isinstance(input_type, str):
         return False
