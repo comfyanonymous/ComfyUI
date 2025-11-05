@@ -1,4 +1,5 @@
 from __future__ import annotations
+from comfy_api.latest import IO
 
 
 def validate_node_input(
@@ -21,6 +22,11 @@ def validate_node_input(
     # If the types are exactly the same, we can return immediately
     # Use pre-union behaviour: inverse of `__ne__`
     if not received_type != input_type:
+        return True
+
+    # If the received type is a MatchType, we can return immediately;
+    # validation for this is handled by the frontend
+    if received_type == IO.MatchType.io_type:
         return True
 
     # If input_type is a Combo, frontend permits a Combo output to be connected,
