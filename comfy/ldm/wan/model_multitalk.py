@@ -391,11 +391,26 @@ class MultiTalkAudioProjModel(torch.nn.Module):
 
         return context_tokens
 
+
 class WanMultiTalkAttentionBlock(torch.nn.Module):
     def __init__(self, in_dim=5120, out_dim=768, device=None, dtype=None, operations=None):
         super().__init__()
         self.audio_cross_attn = SingleStreamMultiAttention(in_dim, out_dim, num_heads=40, qkv_bias=True, device=device, dtype=dtype, operations=operations)
         self.norm_x = operations.LayerNorm(in_dim, device=device, dtype=dtype, elementwise_affine=True)
+
+
+class MultiTalkGetAttnMapPatch:
+    def __init__(self, ref_target_masks=None):
+        self.ref_target_masks = ref_target_masks
+
+    def __call__(self, kwargs):
+        transformer_options = kwargs.get("transformer_options", {})
+        x = kwargs["x"]
+
+        if self.ref_target_masks is not None:
+            x_ref_attn_map = get_attn_map_with_target(kwargs["q"], kwargs["k"], transformer_options["grid_sizes"], ref_target_masks=self.ref_target_masks.to(x.device))
+            transformer_options["x_ref_attn_map"] = x_ref_attn_map
+        return x
 
 
 class MultiTalkCrossAttnPatch:
@@ -412,17 +427,16 @@ class MultiTalkCrossAttnPatch:
             return torch.zeros_like(x)
 
         audio_embeds = transformer_options.get("audio_embeds")
+        x_ref_attn_map = transformer_options.pop("x_ref_attn_map", None)
 
-        x_ref_attn_map = None
-        if self.ref_target_masks is not None:
-            x_ref_attn_map = get_attn_map_with_target(kwargs["q"], kwargs["k"], transformer_options["grid_sizes"], ref_target_masks=self.ref_target_masks.to(x.device))
         norm_x = self.model_patch.model.blocks[block_idx].norm_x(x)
         x_audio = self.model_patch.model.blocks[block_idx].audio_cross_attn(
             norm_x, audio_embeds.to(x.dtype),
             shape=transformer_options["grid_sizes"],
             x_ref_attn_map=x_ref_attn_map
         )
-        return x_audio * self.audio_scale
+        x = x + x_audio * self.audio_scale
+        return x
 
     def models(self):
         return [self.model_patch]

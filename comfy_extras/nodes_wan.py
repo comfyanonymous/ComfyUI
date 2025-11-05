@@ -1289,7 +1289,7 @@ class Wan22ImageToVideoLatent(io.ComfyNode):
         return io.NodeOutput(out_latent)
 
 
-from comfy.ldm.wan.model_multitalk import InfiniteTalkOuterSampleWrapper, MultiTalkCrossAttnPatch, project_audio_features
+from comfy.ldm.wan.model_multitalk import InfiniteTalkOuterSampleWrapper, MultiTalkCrossAttnPatch, MultiTalkGetAttnMapPatch, project_audio_features
 class WanInfiniteTalkToVideo(io.ComfyNode):
     @classmethod
     def define_schema(cls):
@@ -1429,7 +1429,9 @@ class WanInfiniteTalkToVideo(io.ComfyNode):
                 is_extend=previous_frames is not None,
             ))
         # add cross-attention patch
-        model_patched.set_model_patch(MultiTalkCrossAttnPatch(model_patch, audio_scale, ref_target_masks=token_ref_target_masks), "cross_attn")
+        model_patched.set_model_patch(MultiTalkCrossAttnPatch(model_patch, audio_scale), "cross_attn")
+        if token_ref_target_masks is not None:
+            model_patched.set_model_patch(MultiTalkGetAttnMapPatch(token_ref_target_masks), "self_attn")
 
         out_latent = {}
         out_latent["samples"] = latent

@@ -62,6 +62,8 @@ class WanSelfAttention(nn.Module):
             x(Tensor): Shape [B, L, num_heads, C / num_heads]
             freqs(Tensor): Rope freqs, shape [1024, C / num_heads / 2]
         """
+        patches = transformer_options.get("patches", {})
+
         b, s, n, d = *x.shape[:2], self.num_heads, self.head_dim
 
         def qkv_fn_q(x):
@@ -86,8 +88,12 @@ class WanSelfAttention(nn.Module):
             transformer_options=transformer_options,
         )
 
+        if "self_attn" in patches:
+            for p in patches["self_attn"]:
+                x = p({"x": x, "q": q, "k": k, "transformer_options": transformer_options})
+
         x = self.o(x)
-        return x, q, k
+        return x
 
 
 class WanT2VCrossAttention(WanSelfAttention):
@@ -234,7 +240,7 @@ class WanAttentionBlock(nn.Module):
         # assert e[0].dtype == torch.float32
 
         # self-attention
-        y, q, k = self.self_attn(
+        y = self.self_attn(
             torch.addcmul(repeat_e(e[0], x), self.norm1(x), 1 + repeat_e(e[1], x)),
             freqs, transformer_options=transformer_options)
 
@@ -246,7 +252,7 @@ class WanAttentionBlock(nn.Module):
 
         if "cross_attn" in patches:
             for p in patches["cross_attn"]:
-                x = x + p({"x": x, "q": q, "k": k, "transformer_options": transformer_options})
+                x = p({"x": x, "transformer_options": transformer_options})
 
         y = self.ffn(torch.addcmul(repeat_e(e[3], x), self.norm2(x), 1 + repeat_e(e[4], x)))
         x = torch.addcmul(x, y, repeat_e(e[5], x))
