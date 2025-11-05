@@ -4,6 +4,7 @@ import copy
 import inspect
 from abc import ABC, abstractmethod
 from collections import Counter
+from collections.abc import Iterable
 from dataclasses import asdict, dataclass
 from enum import Enum
 from typing import Any, Callable, Literal, TypedDict, TypeVar, TYPE_CHECKING
@@ -882,12 +883,22 @@ class MatchType(ComfyTypeIO):
     class Template:
         def __init__(self, template_id: str, allowed_types: _ComfyType | list[_ComfyType] = AnyType):
             self.template_id = template_id
-            self.allowed_types = [allowed_types] if issubclass(allowed_types, _ComfyType) else allowed_types
+            # account for syntactic sugar
+            if not isinstance(allowed_types, Iterable):
+                allowed_types = [allowed_types]
+            for t in allowed_types:
+                if not isinstance(t, type):
+                    if not isinstance(t, _ComfyType):
+                        raise ValueError(f"Allowed types must be a ComfyType or a list of ComfyTypes, got {t.__class__.__name__}")
+                else:
+                    if not issubclass(t, _ComfyType):
+                        raise ValueError(f"Allowed types must be a ComfyType or a list of ComfyTypes, got {t.__name__}")
+            self.allowed_types = allowed_types
 
         def as_dict(self):
             return {
                 "template_id": self.template_id,
-                "allowed_types": "".join(t.io_type for t in self.allowed_types),
+                "allowed_types": ",".join([t.io_type for t in self.allowed_types]),
             }
 
     class Input(DynamicInput):
