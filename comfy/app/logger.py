@@ -31,10 +31,12 @@ class LogInterceptor(io.TextIOWrapper):
             if isinstance(data, str) and data.startswith("\r") and len(logs) > 0 and not logs[-1]["m"].endswith("\n"):
                 logs.pop()
             logs.append(entry)
-        super().write(data)
+        if not self.closed:
+            super().write(data)
 
     def flush(self):
-        super().flush()
+        if not self.closed:
+            super().flush()
         for cb in self._flush_callbacks:
             cb(self._logs_since_flush)
             self._logs_since_flush = []
@@ -56,7 +58,8 @@ def on_flush(callback):
 
 class StackTraceLogger(logging.Logger):
     def _log(self, level, msg, args, exc_info=None, extra=None, stack_info=False, stacklevel=1):
-        if level >= logging.ERROR:
+        if not stack_info and level >= logging.ERROR and exc_info is None:
+            # create a stack even when there is no exception
             stack_info = True
         super()._log(level, msg, args, exc_info, extra, stack_info, stacklevel=stacklevel + 1)
 

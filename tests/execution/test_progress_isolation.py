@@ -16,6 +16,7 @@ from typing import List, Dict, Any, Generator
 
 from PIL import Image
 
+from comfy.cli_args import default_configuration
 from comfy.cli_args_types import Configuration
 from comfy_execution.graph_utils import GraphBuilder
 from .test_execution import ComfyClient, RunResult
@@ -188,7 +189,7 @@ class TestProgressIsolation:
         tmp_path = tmp_path_factory.mktemp("comfy_background_server")
         # Start server
 
-        configuration = Configuration()
+        configuration = default_configuration()
         configuration.listen = args_pytest["listen"]
         configuration.port = args_pytest["port"]
         configuration.cpu = True
@@ -205,7 +206,7 @@ testing_pack:
         yaml_path = str(tmp_path_factory.mktemp("comfy_background_server") / "extra_nodes.yaml")
         with open(yaml_path, mode="wt") as f:
             f.write(extra_nodes)
-        configuration.extra_model_paths_config = [str(yaml_path)]
+        configuration.extra_model_paths_config = [yaml_path]
 
         yield from comfy_background_server_from_config(configuration)
 

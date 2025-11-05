@@ -168,6 +168,7 @@ class Configuration(dict):
         blacklist_custom_nodes (list[str]): Specify custom node folders to never load. Accepts shell-style globs.
         whitelist_custom_nodes (list[str]): Specify custom node folders to load even when --disable-all-custom-nodes is enabled.
         default_device (Optional[int]): Set the id of the default device, all other devices will stay visible.
+        block_runtime_package_installation (Optional[bool]): When set, custom nodes like ComfyUI Manager, Easy Use, Nunchaku and others will not be able to use pip or uv to install packages at runtime (experimental).
     """
 
     def __init__(self, **kwargs):
@@ -286,6 +287,7 @@ class Configuration(dict):
         self.comfy_api_base: str = "https://api.comfy.org"
         self.database_url: str = db_config()
         self.default_device: Optional[int] = None
+        self.block_runtime_package_installation = None
 
         for key, value in kwargs.items():
             self[key] = value
@@ -315,6 +317,8 @@ class Configuration(dict):
         super().update(__m, **kwargs)
         for k, v in changes.items():
             self._notify_observers(k, v)
+        # make this more pythonic
+        return self
 
     def register_observer(self, observer: ConfigObserver):
         self._observers.append(observer)

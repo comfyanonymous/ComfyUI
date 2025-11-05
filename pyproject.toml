@@ -27,7 +27,7 @@ dependencies = [
     "torchsde>=0.2.6",
     "einops>=0.6.0",
     "open-clip-torch>=2.24.0",
-    "transformers>=4.46.0,!=4.53.0,!=4.53.1,!=4.53.2",
+    "transformers>=4.46.0,!=4.53.0,!=4.53.1,!=4.53.2,!=4.57.0",
     "tokenizers>=0.13.3",
     "sentencepiece",
     "peft>=0.10.0",
@@ -52,7 +52,7 @@ dependencies = [
     "tqdm",
     "protobuf>=3.20.0,<5.0.0",
     "psutil",
-    "ConfigArgParse",
+    "ConfigArgParse>=1.7.1",
     "aio-pika",
     "pyjwt[crypto]",
     "kornia>=0.7.0",
@@ -113,6 +113,8 @@ dependencies = [
     "stringzilla<4.2.0",
     "requests_cache",
     "universal_pathlib",
+    # yanked propcache is omitted
+    "propcache!=0.4.0",
 ]
 
 [build-system]

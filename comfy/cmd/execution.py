@@ -19,19 +19,23 @@ from typing import List, Optional, Tuple, Literal
 # order matters
 from .main_pre import tracer
 import torch
-from frozendict import frozendict
-from comfy_execution.graph_types import FrozenTopologicalSort, Input
 from opentelemetry.trace import get_current_span, StatusCode, Status
 
+from comfy_api.internal import _ComfyNodeInternal, _NodeOutputInternal, first_real_override, is_class, \
+    make_locked_method_func
+from comfy_api.latest import io
+from comfy_compatibility.vanilla import vanilla_environment_node_execution_hooks
 from comfy_execution.caching import HierarchicalCache, LRUCache, CacheKeySetInputSignature, CacheKeySetID, \
     DependencyAwareCache, \
     BasicCache
 from comfy_execution.graph import get_input_info, ExecutionList, DynamicPrompt, ExecutionBlocker
+from comfy_execution.graph_types import FrozenTopologicalSort
 from comfy_execution.graph_utils import is_link, GraphBuilder
+from comfy_execution.progress import get_progress_state, reset_progress_state, add_progress_handler, \
+    WebUIProgressHandler, \
+    ProgressRegistry
 from comfy_execution.utils import CurrentNodeContext
-from comfy_api.internal import _ComfyNodeInternal, _NodeOutputInternal, first_real_override, is_class, make_locked_method_func
-from comfy_api.latest import io
-from ..execution_context import current_execution_context, context_set_execution_list_and_inputs
+from comfy_execution.validation import validate_node_input
 from .. import interruption
 from .. import model_management
 from ..component_model.abstract_prompt_queue import AbstractPromptQueue
@@ -44,13 +48,11 @@ from ..component_model.module_property import create_module_properties
 from ..component_model.queue_types import QueueTuple, HistoryEntry, QueueItem, MAXIMUM_HISTORY_SIZE, ExecutionStatus, \
     ExecutionStatusAsDict
 from ..execution_context import context_execute_node, context_execute_prompt
+from ..execution_context import current_execution_context, context_set_execution_list_and_inputs
 from ..execution_ext import should_panic_on_exception
 from ..node_requests_caching import use_requests_caching
 from ..nodes.package_typing import InputTypeSpec, FloatSpecOptions, IntSpecOptions, CustomNode
-from ..nodes_context import get_nodes, vanilla_node_execution_environment
-from comfy_execution.progress import get_progress_state, reset_progress_state, add_progress_handler, WebUIProgressHandler, \
-    ProgressRegistry
-from comfy_execution.validation import validate_node_input
+from ..nodes_context import get_nodes
 
 _module_properties = create_module_properties()
 logger = logging.getLogger(__name__)
@@ -474,9 +476,11 @@ async def execute(server: ExecutorToClientProgress, dynprompt: DynamicPrompt, ca
     :param pending_subgraph_results:
     :return:
     """
-    with (context_execute_node(node_id),
-          vanilla_node_execution_environment(),
-          use_requests_caching()):
+    with (
+        context_execute_node(node_id),
+        vanilla_environment_node_execution_hooks(),
+        use_requests_caching(),
+    ):
         return await _execute(server, dynprompt, caches, node_id, extra_data, executed, prompt_id, execution_list, pending_subgraph_results, pending_async_nodes)
 
 

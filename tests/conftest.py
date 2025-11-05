@@ -13,6 +13,9 @@ from typing import List, Any, Generator
 import pytest
 import requests
 
+from comfy.cli_args import default_configuration
+from comfy.execution_context import context_configuration
+
 os.environ['OTEL_METRICS_EXPORTER'] = 'none'
 os.environ["OPENCV_IO_ENABLE_OPENEXR"] = "1"
 os.environ["HF_XET_HIGH_PERFORMANCE"] = "True"
@@ -27,11 +30,8 @@ logging.getLogger("aio_pika").setLevel(logging.CRITICAL + 1)
 
 def run_server(server_arguments: Configuration):
     from comfy.cmd.main import _start_comfyui
-    from comfy.cli_args import args
     import asyncio
-    for arg, value in server_arguments.items():
-        args[arg] = value
-    asyncio.run(_start_comfyui())
+    asyncio.run(_start_comfyui(configuration=server_arguments))
 
 
 @pytest.fixture(scope="function", autouse=False)
@@ -140,7 +140,7 @@ def comfy_background_server(tmp_path_factory) -> Generator[tuple[Configuration, 
     tmp_path = tmp_path_factory.mktemp("comfy_background_server")
     # Start server
 
-    configuration = Configuration()
+    configuration = default_configuration()
     configuration.listen = "localhost"
     configuration.output_directory = str(tmp_path)
     configuration.input_directory = str(tmp_path)

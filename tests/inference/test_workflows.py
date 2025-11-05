@@ -1,5 +1,6 @@
 import importlib.resources
 import json
+import logging
 from importlib.abc import Traversable
 
 import pytest
@@ -10,6 +11,8 @@ from comfy.model_downloader import add_known_models, KNOWN_LORAS
 from comfy.model_downloader_types import CivitFile, HuggingFile
 from comfy_extras.nodes.nodes_audio import TorchAudioNotFoundError
 from . import workflows
+
+logger = logging.getLogger(__name__)
 
 
 @pytest.fixture(scope="function", autouse=False)
@@ -35,6 +38,7 @@ async def test_workflow(workflow_name: str, workflow_file: Traversable, has_gpu:
 
     prompt = Prompt.validate(workflow)
     # todo: add all the models we want to test a bit m2ore elegantly
+    outputs = {}
     try:
         outputs = await client.queue_prompt(prompt)
     except TorchAudioNotFoundError:
@@ -46,8 +50,14 @@ async def test_workflow(workflow_name: str, workflow_file: Traversable, has_gpu:
     elif any(v.class_type == "SaveAudio" for v in prompt.values()):
         save_audio_node_id = next(key for key in prompt if prompt[key].class_type == "SaveAudio")
         assert outputs[save_audio_node_id]["audio"][0]["filename"] is not None
+    elif any(v.class_type == "SaveAnimatedWEBP" for v in prompt.values()):
+        save_video_node_id = next(key for key in prompt if prompt[key].class_type == "SaveAnimatedWEBP")
+        assert outputs[save_video_node_id]["images"][0]["filename"] is not None
     elif any(v.class_type == "PreviewString" for v in prompt.values()):
         save_image_node_id = next(key for key in prompt if prompt[key].class_type == "PreviewString")
         output_str = outputs[save_image_node_id]["string"][0]
         assert output_str is not None
         assert len(output_str) > 0
+    else:
+        assert len(outputs) > 0
+        logger.warning(f"test {workflow_name} did not have a node that could be checked for output")

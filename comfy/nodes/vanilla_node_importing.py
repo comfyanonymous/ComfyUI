@@ -8,18 +8,19 @@ import os
 import sys
 import time
 import types
-from contextlib import contextmanager
+from contextlib import contextmanager, nullcontext
 from os.path import join, basename, dirname, isdir, isfile, exists, abspath, split, splitext, realpath
 from typing import Iterable, Any, Generator
-from unittest.mock import patch
+from unittest.mock import patch, MagicMock
 
-from comfy_compatibility.vanilla import prepare_vanilla_environment
+from comfy_compatibility.vanilla import prepare_vanilla_environment, patch_pip_install_subprocess_run, patch_pip_install_popen
 from . import base_nodes
 from .comfyui_v3_package_imports import _comfy_entrypoint_upstream_v3_imports
 from .package_typing import ExportedNodes
 from ..cmd import folder_paths
 from ..component_model.plugins import prompt_server_instance_routes
 from ..distributed.server_stub import ServerStub
+from ..execution_context import current_execution_context
 
 logger = logging.getLogger(__name__)
 
@@ -43,6 +44,10 @@ class StreamToLogger:
     def flush(self):
         # The logger handles its own flushing, so this can be a no-op.
         pass
+
+    @property
+    def encoding(self):
+        return "utf-8"
 
 
 class _PromptServerStub(ServerStub):
@@ -140,6 +145,7 @@ def _exec_mitigations(module: types.ModuleType, module_path: str) -> Generator[E
             "comfyui-manager",
             "comfyui_ryanonyheinside",
             "comfyui-easy-use",
+            "comfyui_custom_nodes_alekpet",
     ):
         from ..cmd import folder_paths
         old_file = folder_paths.__file__
@@ -147,9 +153,15 @@ def _exec_mitigations(module: types.ModuleType, module_path: str) -> Generator[E
         try:
             # mitigate path
             new_path = join(abspath(join(dirname(old_file), "..", "..")), basename(old_file))
+            config = current_execution_context()
 
-            with patch.object(folder_paths, "__file__", new_path), \
-                    patch.object(sys.modules['nodes'], "EXTENSION_WEB_DIRS", {}, create=True):  # mitigate JS copy
+            block_installation = config and config.configuration and config.configuration.block_runtime_package_installation
+            with (
+                patch.object(folder_paths, "__file__", new_path),
+                # mitigate packages installing things dynamically
+                patch_pip_install_subprocess_run() if block_installation else nullcontext(),
+                patch_pip_install_popen() if block_installation else nullcontext(),
+            ):
                 yield ExportedNodes()
         finally:
             # todo: mitigate "/manager/reboot"
@@ -263,6 +275,8 @@ def mitigated_import_of_vanilla_custom_nodes() -> ExportedNodes:
     # this mitigation puts files that custom nodes expects are at the root of the repository back where they should be
     # found. we're in the middle of executing the import of execution and server, in all likelihood, so like all things,
     # the way community custom nodes is pretty radioactive
+    # there's a lot of subtle details here, and unfortunately, once this is called, there are some things that have
+    # to be activated later, in different places, to make all the hacks necessary for custom nodes to work
     prepare_vanilla_environment()
 
     from ..cmd import folder_paths

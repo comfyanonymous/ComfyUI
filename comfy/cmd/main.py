@@ -1,7 +1,7 @@
 import asyncio
 import contextvars
 import gc
-import itertools
+
 import logging
 import os
 import shutil
@@ -11,8 +11,10 @@ from pathlib import Path
 from typing import Optional
 
 # main_pre must be the earliest import
-from .main_pre import args
-
+from .main_pre import tracer
+from ..cli_args_types import Configuration
+from ..component_model.file_counter import cleanup_temp as fc_cleanup_temp
+from ..execution_context import current_execution_context
 from . import hook_breaker_ac10a0
 from .extra_model_paths import load_extra_path_config
 from .. import model_management
@@ -51,6 +53,7 @@ async def _prompt_worker(q: AbstractPromptQueue, server_instance: server_module.
     from ..cmd import execution
     from ..component_model import queue_types
     from .. import model_management
+    args = current_execution_context().configuration
     cache_type = execution.CacheType.CLASSIC
     if args.cache_lru > 0:
         cache_type = execution.CacheType.LRU
@@ -147,10 +150,14 @@ def setup_database():
         init_db()
 
 
-async def _start_comfyui(from_script_dir: Optional[Path] = None):
+async def _start_comfyui(from_script_dir: Optional[Path] = None, configuration: Optional[Configuration] = None):
     from ..execution_context import context_configuration
     from ..cli_args import cli_args_configuration
-    with context_configuration(cli_args_configuration()):
+    configuration = configuration or cli_args_configuration()
+    with (
+        context_configuration(configuration),
+        fc_cleanup_temp()
+    ):
         await __start_comfyui(from_script_dir=from_script_dir)
 
 
@@ -159,6 +166,7 @@ async def __start_comfyui(from_script_dir: Optional[Path] = None):
     Runs ComfyUI's frontend and backend like upstream.
     :param from_script_dir: when set to a path, assumes that you are running ComfyUI's legacy main.py entrypoint at the root of the git repository located at the path
     """
+    args = current_execution_context().configuration
     if not from_script_dir:
         os_getcwd = os.getcwd()
     else:
@@ -168,7 +176,6 @@ async def __start_comfyui(from_script_dir: Optional[Path] = None):
         temp_dir = os.path.join(os.path.abspath(args.temp_directory), "temp")
         logger.debug(f"Setting temp directory to: {temp_dir}")
         folder_paths.set_temp_directory(temp_dir)
-    cleanup_temp()
 
     if args.user_directory:
         user_dir = os.path.abspath(args.user_directory)
@@ -305,7 +312,6 @@ async def __start_comfyui(from_script_dir: Optional[Path] = None):
     finally:
         if distributed:
             await q.close()
-    cleanup_temp()
 
 
 def entrypoint():
