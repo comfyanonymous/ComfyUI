@@ -16,9 +16,9 @@ from pydantic import BaseModel
 
 from comfy import utils
 from comfy_api.latest import IO
-from comfy_api_nodes.apis import request_logger
 from server import PromptServer
 
+from . import request_logger
 from ._helpers import (
     default_base_url,
     get_auth_header,
@@ -77,7 +77,7 @@ class _PollUIState:
 
 
 _RETRY_STATUS = {408, 429, 500, 502, 503, 504}
-COMPLETED_STATUSES = ["succeeded", "succeed", "success", "completed", "finished"]
+COMPLETED_STATUSES = ["succeeded", "succeed", "success", "completed", "finished", "done"]
 FAILED_STATUSES = ["cancelled", "canceled", "fail", "failed", "error"]
 QUEUED_STATUSES = ["created", "queued", "queueing", "submitted"]
 
