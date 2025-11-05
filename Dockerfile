@@ -33,7 +33,7 @@ RUN pip install uv && uv --version && \
 
 # install sageattention
 ADD pkg/sageattention-2.2.0-cp312-cp312-linux_x86_64.whl /workspace/pkg/sageattention-2.2.0-cp312-cp312-linux_x86_64.whl
-RUN uv pip install --no-deps --no-build-isolation spandrel>=0.3.4 timm>=1.0.19 tensorboard>=2.17.0 poetry flash-attn xformers==0.0.31.post1 file:./pkg/sageattention-2.2.0-cp312-cp312-linux_x86_64.whl
+RUN uv pip install -U --no-deps --no-build-isolation spandrel timm tensorboard poetry flash-attn "xformers==0.0.31.post1" "file:./pkg/sageattention-2.2.0-cp312-cp312-linux_x86_64.whl"
 # this exotic command will determine the correct torchaudio to install for the image
 RUN <<-EOF
 python -c 'import torch, re, subprocess
