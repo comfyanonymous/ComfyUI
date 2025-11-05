@@ -1,11 +1,11 @@
 from __future__ import annotations
 
+import logging
+import mimetypes
 import os
 import time
-import mimetypes
-import logging
-from typing import Literal, List
 from collections.abc import Collection
+from typing import List, Literal
 
 from comfy.cli_args import args
 
@@ -114,6 +114,11 @@ def set_temp_directory(temp_dir: str) -> None:
 def set_input_directory(input_dir: str) -> None:
     global input_directory
     input_directory = input_dir
+
+def set_custom_nodes_directory(custom_nodes_dir: str) -> None:
+    #NOTE: this function doesn't need a "get_custom_nodes_directory", we have "get_folder_paths".
+    global folder_names_and_paths
+    folder_names_and_paths["custom_nodes"] = ([custom_nodes_dir], set())
 
 def get_output_directory() -> str:
     global output_directory

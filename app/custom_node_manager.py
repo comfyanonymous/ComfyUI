@@ -1,15 +1,15 @@
 from __future__ import annotations
 
-import os
-import folder_paths
 import glob
-from aiohttp import web
 import json
 import logging
+import os
 from functools import lru_cache
 
-from utils.json_util import merge_json_recursive
+from aiohttp import web
 
+import folder_paths
+from utils.json_util import merge_json_recursive
 
 # Extra locale files to load into main.json
 EXTRA_LOCALE_FILES = [
@@ -32,6 +32,14 @@ def safe_load_json_file(file_path: str) -> dict:
 
 
 class CustomNodeManager:
+    """Manages and resolves folders for custom nodes.
+
+    The custom_nodes folder location can be overridden using either
+    by passing in a folder through client argument --custom-nodes-directory,
+    or by setting COMFYUI_CUSTOM_NODES_DIR as an environment variable.
+
+    The cli argument takes prescedence if passed in.
+    """
     @lru_cache(maxsize=1)
     def build_translations(self):
         """Load all custom nodes translations during initialization. Translations are

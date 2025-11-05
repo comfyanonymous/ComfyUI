@@ -1,6 +1,7 @@
 import argparse
 import enum
 import os
+
 import comfy.options
 
 
@@ -47,6 +48,7 @@ parser.add_argument("--extra-model-paths-config", type=str, default=None, metava
 parser.add_argument("--output-directory", type=str, default=None, help="Set the ComfyUI output directory. Overrides --base-directory.")
 parser.add_argument("--temp-directory", type=str, default=None, help="Set the ComfyUI temp directory (default is in the ComfyUI directory). Overrides --base-directory.")
 parser.add_argument("--input-directory", type=str, default=None, help="Set the ComfyUI input directory. Overrides --base-directory.")
+parser.add_argument("--custom-nodes-directory", type=str, default=None, help="Set the ComfyUI custom_nodes directory. Overrides --base-directory and environment variable COMFYUI_CUSTOM_NODES_DIR.")
 parser.add_argument("--auto-launch", action="store_true", help="Automatically launch ComfyUI in the default browser.")
 parser.add_argument("--disable-auto-launch", action="store_true", help="Disable auto launching the browser.")
 parser.add_argument("--cuda-device", type=int, default=None, metavar="DEVICE_ID", help="Set the id of the cuda device this instance will use. All other devices will not be visible.")

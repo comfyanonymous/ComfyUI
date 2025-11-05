@@ -1,19 +1,21 @@
 import comfy.options
+
 comfy.options.enable_args_parsing()
 
-import os
 import importlib.util
-import folder_paths
-import time
-from comfy.cli_args import args
-from app.logger import setup_logger
 import itertools
-import utils.extra_config
 import logging
+import os
 import sys
+import time
+
+import folder_paths
+import utils.extra_config
+from app.logger import setup_logger
+from comfy.cli_args import args
+from comfy_api import feature_flags
 from comfy_execution.progress import get_progress_state
 from comfy_execution.utils import get_executing_context
-from comfy_api import feature_flags
 
 if __name__ == "__main__":
     #NOTE: These do not do anything on core ComfyUI, they are for custom nodes.
@@ -32,7 +34,7 @@ def apply_custom_paths():
         for config_path in itertools.chain(*args.extra_model_paths_config):
             utils.extra_config.load_extra_path_config(config_path)
 
-    # --output-directory, --input-directory, --user-directory
+    # --output-directory, --input-directory, --user-directory, --custom-nodes-directory
     if args.output_directory:
         output_dir = os.path.abspath(args.output_directory)
         logging.info(f"Setting output directory to: {output_dir}")
@@ -55,6 +57,16 @@ def apply_custom_paths():
         user_dir = os.path.abspath(args.user_directory)
         logging.info(f"Setting user directory to: {user_dir}")
         folder_paths.set_user_directory(user_dir)
+
+    #NOTE: hierarchy of resolution should be cli args first, then environment.
+    if args.custom_nodes_directory:
+        custom_nodes_dir = os.path.abspath(args.custom_nodes_dir)
+        logging.info(f"Setting custom nodes directory to: {custom_nodes_dir}")
+        folder_paths.set_custom_nodes_directory(custom_nodes_dir)
+    elif os.environ.get("COMFYUI_CUSTOM_NODES_DIR", None):
+        custom_nodes_dir = os.path.abspath(os.environ.get("COMFYUI_CUSTOM_NODES_DIR"))
+        logging.info(f"Setting custom nodes directory to: {custom_nodes_dir} from environment variable COMFYUI_CUSTOM_NODES_DIR")
+        folder_paths.set_custom_nodes_directory(custom_nodes_dir)
 
 
 def execute_prestartup_script():
@@ -106,10 +118,9 @@ execute_prestartup_script()
 
 # Main code
 import asyncio
+import gc
 import shutil
 import threading
-import gc
-
 
 if os.name == "nt":
     os.environ['MIMALLOC_PURGE_DELAY'] = '0'
@@ -144,16 +155,16 @@ if __name__ == "__main__":
 if 'torch' in sys.modules:
     logging.warning("WARNING: Potential Error in code: Torch already imported, torch should never be imported before this point.")
 
+import app.logger
+import comfy.model_management
 import comfy.utils
-
+import comfyui_version
 import execution
+import hook_breaker_ac10a0
+import nodes
 import server
 from protocol import BinaryEventTypes
-import nodes
-import comfy.model_management
-import comfyui_version
-import app.logger
-import hook_breaker_ac10a0
+
 
 def cuda_malloc_warning():
     device = comfy.model_management.get_torch_device()
@@ -293,7 +304,7 @@ def cleanup_temp():
 
 def setup_database():
     try:
-        from app.database.db import init_db, dependencies_available
+        from app.database.db import dependencies_available, init_db
         if dependencies_available():
             init_db()
     except Exception as e:
