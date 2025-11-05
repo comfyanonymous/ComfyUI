@@ -60,7 +60,7 @@ def apply_custom_paths():
 
     #NOTE: hierarchy of resolution should be cli args first, then environment.
     if args.custom_nodes_directory:
-        custom_nodes_dir = os.path.abspath(args.custom_nodes_dir)
+        custom_nodes_dir = os.path.abspath(args.custom_nodes_directory)
         logging.info(f"Setting custom nodes directory to: {custom_nodes_dir}")
         folder_paths.set_custom_nodes_directory(custom_nodes_dir)
     elif os.environ.get("COMFYUI_CUSTOM_NODES_DIR", None):
