@@ -30,16 +30,20 @@ class EmptyLatentHunyuanImage3(io.ComfyNode):
     def execute(cls, height, width, batch_size, clip):
         encode_fn = clip.tokenizer.tokenizer.convert_tokens_to_ids
         special_fn = clip.tokenizer.tokenizer.added_tokens_encoder
-        word_embed = clip.tokenizer.wte
 
-        hidden_size = word_embed.weight.shape[1]
+        # may convert clip.tokenizer -> clip.
+        word_embed = clip.tokenizer.wte
+        patch_embed = clip.tokenizer.patch_embed
+        t_embed = clip.tokenizer.time_embed
 
         height, width = get_target_size(height, width)
         latent = torch.randn(batch_size, 32, int(height) // 16, int(width) // 16, device=comfy.model_management.intermediate_device())
+
+        latent, _, _ = patch_embed(latent, t_embed(torch.tensor([0]).repeat(batch_size)))
         
         def fn(string, func = encode_fn):
             return word_embed(torch.tensor(func(string) if not isinstance(func, dict) else func[string], device=comfy.model_management.intermediate_device()))\
-                .view(1, hidden_size, 1, 1).expand(batch_size, hidden_size, int(height) // 16, int(width) // 16)
+                .unsqueeze(0).expand(batch_size, -1, -1)
 
         latent = torch.cat([fn("<boi>"), fn("<img_size_1024>", func = special_fn), fn(f"<img_ratio_{int(height) // int(width)}>", special_fn), fn("<timestep>", special_fn), latent, fn("<eoi>")], dim = 1)
         return io.NodeOutput({"samples": latent, "type": "hunyuan_image_3"}, )
@@ -67,13 +71,16 @@ class HunyuanImage3Conditioning(io.ComfyNode):
         special_fn = clip.tokenizer.tokenizer.added_tokens_encoder
 
         word_embed = clip.tokenizer.wte
-        batch_size, _, hidden_size = vae_encoding.shape
+        patch_embed = clip.tokenizer.patch_embed
+        t_embed = clip.tokenizer.time_embed
+        batch_size, _, hidden_size = vit_encoding.shape
 
         def fn(string, func = encode_fn):
             return word_embed(torch.tensor(func(string) if not isinstance(func, dict) else func[string], device=comfy.model_management.intermediate_device()))\
-                .view(1, hidden_size, 1, 1).view(1, 1, hidden_size).expand(batch_size, -1, hidden_size)
+                .view(1, 1, hidden_size).expand(batch_size, -1, hidden_size)
 
         text_tokens = text_encoding[0][0]
+        vae_encoding, _, _ = patch_embed(vae_encoding, t_embed(torch.tensor([0]).repeat(vae_encoding.size(0))))
         #                                                                       should dynamically change in model logic
         joint_image = torch.cat([fn("<boi>"), fn("<img_size_1024>", special_fn), fn("<img_ratio_3>", special_fn), fn("<timestep>", special_fn), vae_encoding, fn("<joint_img_sep>"), vit_encoding, fn("<eoi>")], dim = 1)
 
