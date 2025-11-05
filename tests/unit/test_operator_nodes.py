@@ -122,7 +122,8 @@ def test_binary_operation_lazy_check():
 
     # Test standard ops
     assert n.check_lazy_status(op="eq") == ["lhs", "rhs"]
-    assert n.check_lazy_status(op="add", lhs=1, rhs=2) == ["lhs", "rhs"]
+    assert n.check_lazy_status(op="add", lhs=1, rhs=2) == []
+    assert n.check_lazy_status(op="add", lhs=None, rhs=None) == ["lhs", "rhs"]
 
     # Test 'and'
     assert n.check_lazy_status(op="and", lhs=None) == ["lhs"]

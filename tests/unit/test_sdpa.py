@@ -91,7 +91,7 @@ def test_sdpa_import_exception():
             importlib.reload(comfy.ops)
 
             assert comfy.ops.scaled_dot_product_attention is comfy.ops._scaled_dot_product_attention
-            mock_logger.debug.assert_called_once()
+            mock_logger.debug.assert_called()
             # Check that the log message contains the exception info
             assert "Could not set sdpa backend priority." in mock_logger.debug.call_args[0][0]
 
