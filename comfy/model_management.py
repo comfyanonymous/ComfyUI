@@ -26,6 +26,7 @@ import importlib
 import platform
 import weakref
 import gc
+import os
 
 class VRAMState(Enum):
     DISABLED = 0    #No vram present: no need to move models to vram
@@ -338,8 +339,11 @@ try:
     if is_amd():
         arch = torch.cuda.get_device_properties(get_torch_device()).gcnArchName
         if not (any((a in arch) for a in AMD_RDNA2_AND_OLDER_ARCH)):
-            torch.backends.cudnn.enabled = False  # Seems to improve things a lot on AMD
-            logging.info("Set: torch.backends.cudnn.enabled = False for better AMD performance.")
+            torch.backends.cudnn.enabled = os.environ.get("TORCH_AMD_CUDNN_ENABLED", "0").strip().lower() not in {
+                "0", "off", "false", "disable", "disabled", "no"}
+            if not torch.backends.cudnn.enabled:
+                logging.info(
+                    "ComfyUI has set torch.backends.cudnn.enabled to False for better AMD performance. Set environment var TORCH_AMD_CUDDNN_ENABLED=1 to enable it again.")
 
         try:
             rocm_version = tuple(map(int, str(torch.version.hip).split(".")[:2]))
@@ -1082,20 +1086,8 @@ def cast_to_device(tensor, device, dtype, copy=False):
     non_blocking = device_supports_non_blocking(device)
     return cast_to(tensor, dtype=dtype, device=device, non_blocking=non_blocking, copy=copy)
 
-
-PINNED_MEMORY = {}
-TOTAL_PINNED_MEMORY = 0
-if PerformanceFeature.PinnedMem in args.fast:
-    if WINDOWS:
-        MAX_PINNED_MEMORY = get_total_memory(torch.device("cpu")) * 0.45  # Windows limit is apparently 50%
-    else:
-        MAX_PINNED_MEMORY = get_total_memory(torch.device("cpu")) * 0.95
-else:
-    MAX_PINNED_MEMORY = -1
-
 def pin_memory(tensor):
-    global TOTAL_PINNED_MEMORY
-    if MAX_PINNED_MEMORY <= 0:
+    if PerformanceFeature.PinnedMem not in args.fast:
         return False
 
     if not is_nvidia():
@@ -1104,21 +1096,13 @@ def pin_memory(tensor):
     if not is_device_cpu(tensor.device):
         return False
 
-    size = tensor.numel() * tensor.element_size()
-    if (TOTAL_PINNED_MEMORY + size) > MAX_PINNED_MEMORY:
-        return False
-
-    ptr = tensor.data_ptr()
-    if torch.cuda.cudart().cudaHostRegister(ptr, size, 1) == 0:
-        PINNED_MEMORY[ptr] = size
-        TOTAL_PINNED_MEMORY += size
+    if torch.cuda.cudart().cudaHostRegister(tensor.data_ptr(), tensor.numel() * tensor.element_size(), 1) == 0:
         return True
 
     return False
 
 def unpin_memory(tensor):
-    global TOTAL_PINNED_MEMORY
-    if MAX_PINNED_MEMORY <= 0:
+    if PerformanceFeature.PinnedMem not in args.fast:
         return False
 
     if not is_nvidia():
@@ -1127,11 +1111,7 @@ def unpin_memory(tensor):
     if not is_device_cpu(tensor.device):
         return False
 
-    ptr = tensor.data_ptr()
-    if torch.cuda.cudart().cudaHostUnregister(ptr) == 0:
-        TOTAL_PINNED_MEMORY -= PINNED_MEMORY.pop(ptr)
-        if len(PINNED_MEMORY) == 0:
-            TOTAL_PINNED_MEMORY = 0
+    if torch.cuda.cudart().cudaHostUnregister(tensor.data_ptr()) == 0:
         return True
 
     return False
