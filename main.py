@@ -32,7 +32,7 @@ def apply_custom_paths():
         for config_path in itertools.chain(*args.extra_model_paths_config):
             utils.extra_config.load_extra_path_config(config_path)
 
-    # --output-directory, --input-directory, --user-directory
+    # --output-directory, --input-directory, --user-directory, --custom-nodes-directory
     if args.output_directory:
         output_dir = os.path.abspath(args.output_directory)
         logging.info(f"Setting output directory to: {output_dir}")
@@ -55,6 +55,11 @@ def apply_custom_paths():
         user_dir = os.path.abspath(args.user_directory)
         logging.info(f"Setting user directory to: {user_dir}")
         folder_paths.set_user_directory(user_dir)
+
+    if args.custom_nodes_directory:
+        custom_nodes_dir = os.path.abspath(args.custom_nodes_directory)
+        logging.info(f"Setting custom nodes directory to: {custom_nodes_dir}")
+        folder_paths.set_custom_nodes_directory(custom_nodes_dir)
 
 
 def execute_prestartup_script():
@@ -110,7 +115,6 @@ import shutil
 import threading
 import gc
 
-
 if os.name == "nt":
     os.environ['MIMALLOC_PURGE_DELAY'] = '0'
 
@@ -154,6 +158,7 @@ import comfy.model_management
 import comfyui_version
 import app.logger
 import hook_breaker_ac10a0
+
 
 def cuda_malloc_warning():
     device = comfy.model_management.get_torch_device()
@@ -293,7 +298,7 @@ def cleanup_temp():
 
 def setup_database():
     try:
-        from app.database.db import init_db, dependencies_available
+        from app.database.db import dependencies_available, init_db
         if dependencies_available():
             init_db()
     except Exception as e:
