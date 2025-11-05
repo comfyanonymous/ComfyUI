@@ -24,9 +24,9 @@ def validate_node_input(
     if not received_type != input_type:
         return True
 
-    # If the received type is a MatchType, we can return immediately;
+    # If the received type or input_type is a MatchType, we can return True immediately;
     # validation for this is handled by the frontend
-    if received_type == IO.MatchType.io_type:
+    if received_type == IO.MatchType.io_type or input_type == IO.MatchType.io_type:
         return True
 
     # If input_type is a Combo, frontend permits a Combo output to be connected,
