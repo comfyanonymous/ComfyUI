@@ -1085,20 +1085,19 @@ def cast_to_device(tensor, device, dtype, copy=False):
 
 PINNED_MEMORY = {}
 TOTAL_PINNED_MEMORY = 0
-if PerformanceFeature.PinnedMem in args.fast:
-    if WINDOWS:
-        MAX_PINNED_MEMORY = get_total_memory(torch.device("cpu")) * 0.45  # Windows limit is apparently 50%
-    else:
-        MAX_PINNED_MEMORY = get_total_memory(torch.device("cpu")) * 0.95
-else:
-    MAX_PINNED_MEMORY = -1
+MAX_PINNED_MEMORY = -1
+if not args.disable_pinned_memory:
+    if is_nvidia() or is_amd():
+        if WINDOWS:
+            MAX_PINNED_MEMORY = get_total_memory(torch.device("cpu")) * 0.45  # Windows limit is apparently 50%
+        else:
+            MAX_PINNED_MEMORY = get_total_memory(torch.device("cpu")) * 0.95
+        logging.info("Enabled pinned memory {}".format(MAX_PINNED_MEMORY // (1024 * 1024)))
+
 
 def pin_memory(tensor):
     global TOTAL_PINNED_MEMORY
     if MAX_PINNED_MEMORY <= 0:
-        return False
-
-    if not is_nvidia():
         return False
 
     if not is_device_cpu(tensor.device):
@@ -1119,9 +1118,6 @@ def pin_memory(tensor):
 def unpin_memory(tensor):
     global TOTAL_PINNED_MEMORY
     if MAX_PINNED_MEMORY <= 0:
-        return False
-
-    if not is_nvidia():
         return False
 
     if not is_device_cpu(tensor.device):
