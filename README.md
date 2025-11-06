@@ -112,10 +112,11 @@ Workflow examples can be found on the [Examples page](https://comfyanonymous.git
 
 ## Release Process
 
-ComfyUI follows a weekly release cycle targeting Friday but this regularly changes because of model releases or large changes to the codebase. There are three interconnected repositories:
+ComfyUI follows a weekly release cycle targeting Monday but this regularly changes because of model releases or large changes to the codebase. There are three interconnected repositories:
 
 1. **[ComfyUI Core](https://github.com/comfyanonymous/ComfyUI)**
-   - Releases a new stable version (e.g., v0.7.0)
+   - Releases a new stable version (e.g., v0.7.0) roughly every week.
+   - Commits outside of the stable release tags may be very unstable and break many custom nodes.
    - Serves as the foundation for the desktop release
 
 2. **[ComfyUI Desktop](https://github.com/Comfy-Org/desktop)**
