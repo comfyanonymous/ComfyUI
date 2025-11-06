@@ -354,19 +354,29 @@ paths:
           required: true
           description: |
             The ID of the prompt to query.
-    responses:
-      204:
-        description: |
-          The prompt is still in progress
-      200:
-        description: |
-          Prompt outputs
-        content:
-          application/json:
-            $ref: "#/components/schemas/Outputs"
-      404:
-        description: |
-          The prompt was not found
+      responses:
+        204:
+          description: |
+            The prompt is still in progress
+        200:
+          description: |
+            Prompt outputs
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Outputs"
+        404:
+          description: |
+            The prompt was not found
+        500:
+          description: |
+            An execution error occurred while processing the prompt.
+          content:
+            application/json:
+              description:
+                An execution status directly from the workers
+              schema:
+                $ref: "#/components/schemas/ExecutionStatusAsDict"
   /api/v1/prompts:
     get:
       operationId: list_prompts

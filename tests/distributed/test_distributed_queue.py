@@ -243,3 +243,265 @@ async def test_two_workers_distinct_requests():
             all_workflows.update(worker.processed_workflows)
 
         assert len(all_workflows) == 2, f"Expected 2 distinct workflows, but got {len(all_workflows)}"
+
+
+# ============================================================================
+# API Error Reporting Tests
+# ============================================================================
+
+
+@pytest.mark.asyncio
+async def test_api_error_reporting_blocking_request(frontend_backend_worker_with_rabbitmq):
+    """Test error reporting with blocking request (no async preference)"""
+    async with AsyncRemoteComfyClient(server_address=frontend_backend_worker_with_rabbitmq) as client:
+        # Create an invalid prompt that will cause a validation error
+        prompt = sdxl_workflow_with_refiner("test", inference_steps=1, refiner_steps=1)
+        # Make the prompt invalid by referencing a non-existent checkpoint
+        prompt["4"]["inputs"]["ckpt_name"] = "nonexistent_checkpoint.safetensors"
+
+        # Post with blocking behavior (no prefer header for async)
+        prompt_json = client._AsyncRemoteComfyClient__json_encoder.encode(prompt)
+        async with client.session.post(
+            f"{frontend_backend_worker_with_rabbitmq}/api/v1/prompts",
+            data=prompt_json,
+            headers={'Content-Type': 'application/json', 'Accept': 'application/json'}
+        ) as response:
+            # Should return 400 for validation error (invalid checkpoint)
+            assert response.status == 400, f"Expected 400, got {response.status}"
+            error_body = await response.json()
+
+            # Verify ValidationErrorDict structure per OpenAPI spec
+            assert "type" in error_body, "Missing 'type' field in error response"
+            assert "message" in error_body, "Missing 'message' field in error response"
+            assert "details" in error_body, "Missing 'details' field in error response"
+            assert "extra_info" in error_body, "Missing 'extra_info' field in error response"
+
+
+@pytest.mark.asyncio
+async def test_api_error_reporting_async_prefer_header(frontend_backend_worker_with_rabbitmq):
+    """Test error reporting with Prefer: respond-async header"""
+    async with AsyncRemoteComfyClient(server_address=frontend_backend_worker_with_rabbitmq) as client:
+        # Create a valid prompt structure but with invalid checkpoint
+        prompt = sdxl_workflow_with_refiner("test", inference_steps=1, refiner_steps=1)
+        prompt["4"]["inputs"]["ckpt_name"] = "nonexistent.safetensors"
+
+        # Post with Prefer: respond-async header
+        prompt_json = client._AsyncRemoteComfyClient__json_encoder.encode(prompt)
+        async with client.session.post(
+            f"{frontend_backend_worker_with_rabbitmq}/api/v1/prompts",
+            data=prompt_json,
+            headers={
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                'Prefer': 'respond-async'
+            }
+        ) as response:
+            # Should return 400 immediately for validation error
+            assert response.status == 400, f"Expected 400 for validation error, got {response.status}"
+            error_body = await response.json()
+            assert "type" in error_body
+
+
+@pytest.mark.asyncio
+async def test_api_error_reporting_async_accept_mimetype(frontend_backend_worker_with_rabbitmq):
+    """Test error reporting with +respond-async in Accept mimetype"""
+    async with AsyncRemoteComfyClient(server_address=frontend_backend_worker_with_rabbitmq) as client:
+        # Create a prompt with validation error
+        prompt = sdxl_workflow_with_refiner("test", inference_steps=1, refiner_steps=1)
+        prompt["4"]["inputs"]["ckpt_name"] = "invalid_model.safetensors"
+
+        # Post with +respond-async in Accept header
+        prompt_json = client._AsyncRemoteComfyClient__json_encoder.encode(prompt)
+        async with client.session.post(
+            f"{frontend_backend_worker_with_rabbitmq}/api/v1/prompts",
+            data=prompt_json,
+            headers={
+                'Content-Type': 'application/json',
+                'Accept': 'application/json+respond-async'
+            }
+        ) as response:
+            # Should return 400 for validation error (happens before queuing)
+            assert response.status == 400, f"Expected 400, got {response.status}"
+            error_body = await response.json()
+            assert "type" in error_body
+
+
+@pytest.mark.asyncio
+async def test_api_get_prompt_status_success(frontend_backend_worker_with_rabbitmq):
+    """Test GET /api/v1/prompts/{prompt_id} returns 200 with Outputs on success"""
+    async with AsyncRemoteComfyClient(server_address=frontend_backend_worker_with_rabbitmq) as client:
+        # Create a valid prompt
+        prompt = sdxl_workflow_with_refiner("test", inference_steps=1, refiner_steps=1)
+
+        # Queue async to get prompt_id
+        task_id = await client.queue_and_forget_prompt_api(prompt, prefer_header="respond-async")
+        assert task_id is not None
+
+        # Poll until done
+        status_code, result = await client.poll_prompt_until_done(task_id, max_attempts=60, poll_interval=1.0)
+
+        # For a valid prompt, should get 200
+        assert status_code == 200, f"Expected 200 for successful execution, got {status_code}"
+        assert result is not None
+
+        # Verify it returns outputs structure (dict with node IDs)
+        assert isinstance(result, dict)
+        assert len(result) > 0, "Expected non-empty outputs"
+
+
+@pytest.mark.asyncio
+async def test_api_get_prompt_status_404(frontend_backend_worker_with_rabbitmq):
+    """Test GET /api/v1/prompts/{prompt_id} returns 404 for non-existent prompt"""
+    async with AsyncRemoteComfyClient(server_address=frontend_backend_worker_with_rabbitmq) as client:
+        # Request a non-existent prompt ID
+        fake_prompt_id = str(uuid.uuid4())
+
+        async with await client.get_prompt_status(fake_prompt_id) as response:
+            assert response.status == 404, f"Expected 404 for non-existent prompt, got {response.status}"
+
+
+@pytest.mark.asyncio
+async def test_api_get_prompt_status_204_in_progress(frontend_backend_worker_with_rabbitmq):
+    """Test GET /api/v1/prompts/{prompt_id} returns 204 while prompt is in progress"""
+    async with AsyncRemoteComfyClient(server_address=frontend_backend_worker_with_rabbitmq) as client:
+        # Create a prompt that takes some time to execute
+        prompt = sdxl_workflow_with_refiner("test", inference_steps=10, refiner_steps=10)
+
+        # Queue async
+        task_id = await client.queue_and_forget_prompt_api(prompt, prefer_header="respond-async")
+
+        # Immediately check status (should be 204 or 200 if very fast)
+        async with await client.get_prompt_status(task_id) as response:
+            # Should be either 204 (in progress) or 200 (completed very fast)
+            assert response.status in [200, 204], f"Expected 200 or 204, got {response.status}"
+
+            if response.status == 204:
+                # No content for in-progress
+                content = await response.read()
+                assert len(content) == 0 or content == b'', "Expected no content for 204 response"
+
+
+@pytest.mark.asyncio
+async def test_api_async_workflow_both_methods(frontend_backend_worker_with_rabbitmq):
+    """Test full async workflow: queue with respond-async, then poll for completion"""
+    async with AsyncRemoteComfyClient(server_address=frontend_backend_worker_with_rabbitmq) as client:
+        # Create a valid prompt
+        prompt = sdxl_workflow_with_refiner("test", inference_steps=1, refiner_steps=1)
+
+        # Method 1: Prefer header
+        task_id_1 = await client.queue_and_forget_prompt_api(prompt, prefer_header="respond-async")
+        assert task_id_1 is not None
+
+        # Method 2: +respond-async in Accept header
+        task_id_2 = await client.queue_and_forget_prompt_api(
+            prompt, prefer_header=None, accept_header="application/json+respond-async"
+        )
+        assert task_id_2 is not None
+
+        # Poll both until done
+        status_1, result_1 = await client.poll_prompt_until_done(task_id_1, max_attempts=60, poll_interval=1.0)
+        status_2, result_2 = await client.poll_prompt_until_done(task_id_2, max_attempts=60, poll_interval=1.0)
+
+        # Both should succeed
+        assert status_1 == 200, f"Task 1 failed with status {status_1}"
+        assert status_2 == 200, f"Task 2 failed with status {status_2}"
+
+        # Both should have outputs
+        assert result_1 is not None and len(result_1) > 0
+        assert result_2 is not None and len(result_2) > 0
+
+
+@pytest.mark.asyncio
+async def test_api_validation_error_structure(frontend_backend_worker_with_rabbitmq):
+    """Test that validation errors return proper ValidationErrorDict structure"""
+    async with AsyncRemoteComfyClient(server_address=frontend_backend_worker_with_rabbitmq) as client:
+        # Create an invalid prompt (invalid checkpoint name)
+        prompt = sdxl_workflow_with_refiner("test", 1, 1)
+        prompt["4"]["inputs"]["ckpt_name"] = "fake.safetensors"
+
+        prompt_json = client._AsyncRemoteComfyClient__json_encoder.encode(prompt)
+
+        async with client.session.post(
+            f"{frontend_backend_worker_with_rabbitmq}/api/v1/prompts",
+            data=prompt_json,
+            headers={'Content-Type': 'application/json', 'Accept': 'application/json'}
+        ) as response:
+            assert response.status == 400, f"Expected 400, got {response.status}"
+
+            error_body = await response.json()
+
+            # Verify ValidationErrorDict structure per OpenAPI spec
+            assert "type" in error_body, "Missing 'type'"
+            assert "message" in error_body, "Missing 'message'"
+            assert "details" in error_body, "Missing 'details'"
+            assert "extra_info" in error_body, "Missing 'extra_info'"
+
+            # extra_info should have exception_type and traceback
+            assert "exception_type" in error_body["extra_info"], "Missing 'exception_type' in extra_info"
+            assert "traceback" in error_body["extra_info"], "Missing 'traceback' in extra_info"
+            assert isinstance(error_body["extra_info"]["traceback"], list), "traceback should be a list"
+
+
+@pytest.mark.asyncio
+async def test_api_success_response_contract(frontend_backend_worker_with_rabbitmq):
+    """Test that successful execution returns proper response structure"""
+    async with AsyncRemoteComfyClient(server_address=frontend_backend_worker_with_rabbitmq) as client:
+        # Create a valid prompt
+        prompt = sdxl_workflow_with_refiner("test", inference_steps=1, refiner_steps=1)
+
+        # Queue and wait for blocking response
+        prompt_json = client._AsyncRemoteComfyClient__json_encoder.encode(prompt)
+        async with client.session.post(
+            f"{frontend_backend_worker_with_rabbitmq}/api/v1/prompts",
+            data=prompt_json,
+            headers={'Content-Type': 'application/json', 'Accept': 'application/json'}
+        ) as response:
+            assert response.status == 200, f"Expected 200, got {response.status}"
+
+            result = await response.json()
+
+            # Should have 'outputs' key (and deprecated 'urls' key)
+            assert "outputs" in result, "Missing 'outputs' in response"
+
+            # outputs should be a dict with node IDs as keys
+            outputs = result["outputs"]
+            assert isinstance(outputs, dict), "outputs should be a dict"
+            assert len(outputs) > 0, "outputs should not be empty"
+
+            # Each output should follow the Output schema
+            for node_id, output in outputs.items():
+                assert isinstance(output, dict), f"Output for node {node_id} should be a dict"
+                # Should have images or other output types
+                if "images" in output:
+                    assert isinstance(output["images"], list), f"images for node {node_id} should be a list"
+                    for image in output["images"]:
+                        assert "filename" in image, f"image missing 'filename' in node {node_id}"
+                        assert "subfolder" in image, f"image missing 'subfolder' in node {node_id}"
+                        assert "type" in image, f"image missing 'type' in node {node_id}"
+
+
+@pytest.mark.asyncio
+async def test_api_get_prompt_returns_outputs_directly(frontend_backend_worker_with_rabbitmq):
+    """Test GET /api/v1/prompts/{prompt_id} returns Outputs directly (not wrapped in history entry)"""
+    async with AsyncRemoteComfyClient(server_address=frontend_backend_worker_with_rabbitmq) as client:
+        # Create and queue a prompt
+        prompt = sdxl_workflow_with_refiner("test", inference_steps=1, refiner_steps=1)
+        task_id = await client.queue_and_forget_prompt_api(prompt)
+
+        # Poll until done
+        status_code, result = await client.poll_prompt_until_done(task_id, max_attempts=60, poll_interval=1.0)
+
+        assert status_code == 200, f"Expected 200, got {status_code}"
+        assert result is not None, "Result should not be None"
+
+        # Per OpenAPI spec, GET should return Outputs directly, not wrapped
+        # result should be a dict with node IDs as keys
+        assert isinstance(result, dict), "Result should be a dict (Outputs)"
+
+        # Should NOT have 'prompt', 'outputs', 'status' keys (those are in history entry)
+        # Should have node IDs directly
+        for key in result.keys():
+            # Node IDs are typically numeric strings like "4", "13", etc.
+            # Should not be "prompt", "outputs", "status"
+            assert key not in ["prompt", "status"], \
+                f"GET endpoint should return Outputs directly, not history entry. Found key: {key}"

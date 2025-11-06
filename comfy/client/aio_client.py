@@ -65,16 +65,21 @@ class AsyncRemoteComfyClient:
             else:
                 raise RuntimeError(f"unexpected response: {response.status}: {await response.text()}")
 
-    async def queue_and_forget_prompt_api(self, prompt: PromptDict) -> str:
+    async def queue_and_forget_prompt_api(self, prompt: PromptDict, prefer_header: Optional[str] = "respond-async", accept_header: str = "application/json") -> str:
         """
         Calls the API to queue a prompt, and forgets about it
         :param prompt:
+        :param prefer_header: The Prefer header value (e.g., "respond-async" or None)
+        :param accept_header: The Accept header value (e.g., "application/json", "application/json+respond-async")
         :return: the task ID
         """
         prompt_json = AsyncRemoteComfyClient.__json_encoder.encode(prompt)
         response: ClientResponse
+        headers = {'Content-Type': 'application/json', 'Accept': accept_header}
+        if prefer_header:
+            headers['Prefer'] = prefer_header
         async with self.session.post(urljoin(self.server_address, "/api/v1/prompts"), data=prompt_json,
-                                     headers={'Content-Type': 'application/json', 'Accept': 'application/json', 'Prefer': 'respond-async'}) as response:
+                                     headers=headers) as response:
 
             if 200 <= response.status < 400:
                 response_json = await response.json()
@@ -82,16 +87,21 @@ class AsyncRemoteComfyClient:
             else:
                 raise RuntimeError(f"could not prompt: {response.status}: {await response.text()}")
 
-    async def queue_prompt_api(self, prompt: PromptDict) -> V1QueuePromptResponse:
+    async def queue_prompt_api(self, prompt: PromptDict, prefer_header: Optional[str] = None, accept_header: str = "application/json") -> V1QueuePromptResponse:
         """
         Calls the API to queue a prompt.
         :param prompt:
+        :param prefer_header: The Prefer header value (e.g., "respond-async" or None)
+        :param accept_header: The Accept header value (e.g., "application/json", "application/json+respond-async")
         :return: the API response from the server containing URLs and the outputs for the UI (nodes with OUTPUT_NODE == true)
         """
         prompt_json = AsyncRemoteComfyClient.__json_encoder.encode(prompt)
         response: ClientResponse
+        headers = {'Content-Type': 'application/json', 'Accept': accept_header}
+        if prefer_header:
+            headers['Prefer'] = prefer_header
         async with self.session.post(urljoin(self.server_address, "/api/v1/prompts"), data=prompt_json,
-                                     headers={'Content-Type': 'application/json', 'Accept': 'application/json'}) as response:
+                                     headers=headers) as response:
 
             if 200 <= response.status < 400:
                 return V1QueuePromptResponse(**(await response.json()))
@@ -160,3 +170,36 @@ class AsyncRemoteComfyClient:
         # images have filename, subfolder, type keys
         # todo: use the OpenAPI spec for this when I get around to updating it
         return history_json[prompt_id].outputs
+
+    async def get_prompt_status(self, prompt_id: str) -> ClientResponse:
+        """
+        Get the status of a prompt by ID using the API endpoint.
+        :param prompt_id: The prompt ID to query
+        :return: The ClientResponse object (caller should check status and read body)
+        """
+        return await self.session.get(urljoin(self.server_address, f"/api/v1/prompts/{prompt_id}"))
+
+    async def poll_prompt_until_done(self, prompt_id: str, max_attempts: int = 60, poll_interval: float = 1.0) -> tuple[int, dict | None]:
+        """
+        Poll a prompt until it's done (200), errors (500), or times out.
+        :param prompt_id: The prompt ID to poll
+        :param max_attempts: Maximum number of polling attempts
+        :param poll_interval: Time to wait between polls in seconds
+        :return: Tuple of (status_code, response_json or None)
+        """
+        for _ in range(max_attempts):
+            async with await self.get_prompt_status(prompt_id) as response:
+                if response.status == 200:
+                    return response.status, await response.json()
+                elif response.status == 500:
+                    return response.status, await response.json()
+                elif response.status == 404:
+                    return response.status, None
+                elif response.status == 204:
+                    # Still in progress
+                    await asyncio.sleep(poll_interval)
+                else:
+                    # Unexpected status
+                    return response.status, None
+        # Timeout
+        return 408, None

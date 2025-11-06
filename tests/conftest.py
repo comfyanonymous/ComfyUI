@@ -3,8 +3,6 @@ import multiprocessing
 import os
 import pathlib
 import subprocess
-import sys
-import time
 import urllib
 from contextvars import ContextVar
 from multiprocessing import Process
@@ -12,9 +10,9 @@ from typing import List, Any, Generator
 
 import pytest
 import requests
+import sys
+import time
 
-from comfy.cli_args import default_configuration
-from comfy.execution_context import context_configuration
 
 os.environ['OTEL_METRICS_EXPORTER'] = 'none'
 os.environ["OPENCV_IO_ENABLE_OPENEXR"] = "1"
@@ -22,6 +20,7 @@ os.environ["HF_XET_HIGH_PERFORMANCE"] = "True"
 # fixes issues with running the testcontainers rabbitmqcontainer on Windows
 os.environ["TC_HOST"] = "localhost"
 
+from comfy.cli_args import default_configuration
 from comfy.cli_args_types import Configuration
 
 logging.getLogger("pika").setLevel(logging.CRITICAL + 1)
