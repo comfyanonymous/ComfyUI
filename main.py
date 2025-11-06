@@ -58,14 +58,9 @@ def apply_custom_paths():
         logging.info(f"Setting user directory to: {user_dir}")
         folder_paths.set_user_directory(user_dir)
 
-    #NOTE: hierarchy of resolution should be cli args first, then environment.
     if args.custom_nodes_directory:
         custom_nodes_dir = os.path.abspath(args.custom_nodes_directory)
         logging.info(f"Setting custom nodes directory to: {custom_nodes_dir}")
-        folder_paths.set_custom_nodes_directory(custom_nodes_dir)
-    elif os.environ.get("COMFYUI_CUSTOM_NODES_DIR", None):
-        custom_nodes_dir = os.path.abspath(os.environ.get("COMFYUI_CUSTOM_NODES_DIR"))
-        logging.info(f"Setting custom nodes directory to: {custom_nodes_dir} from environment variable COMFYUI_CUSTOM_NODES_DIR")
         folder_paths.set_custom_nodes_directory(custom_nodes_dir)
 
 
