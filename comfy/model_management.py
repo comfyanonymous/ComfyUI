@@ -1087,7 +1087,7 @@ PINNED_MEMORY = {}
 TOTAL_PINNED_MEMORY = 0
 MAX_PINNED_MEMORY = -1
 if not args.disable_pinned_memory:
-    if is_nvidia():
+    if is_nvidia() or is_amd():
         if WINDOWS:
             MAX_PINNED_MEMORY = get_total_memory(torch.device("cpu")) * 0.45  # Windows limit is apparently 50%
         else:
