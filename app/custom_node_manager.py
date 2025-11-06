@@ -34,11 +34,12 @@ def safe_load_json_file(file_path: str) -> dict:
 class CustomNodeManager:
     """Manages and resolves folders for custom nodes.
 
-    The custom_nodes folder location can be overridden using either
-    by passing in a folder through client argument --custom-nodes-directory,
-    or by setting COMFYUI_CUSTOM_NODES_DIR as an environment variable.
+    The custom_nodes folder location can be overridden
+    by passing in a folder argument --custom-nodes-directory.
 
-    The cli argument takes prescedence if passed in.
+    The argument can take appropriately delimited path entries, e.g.
+    `... --custom-nodes-directory /path/to/custom1:/path/to/custom2` for linux / osx (:)
+    `... --custom-nodes-directory "X:\\path\\to\\custom1;X:\\path\\to\\custom2"` for windows (;)
     """
     @lru_cache(maxsize=1)
     def build_translations(self):
