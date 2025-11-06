@@ -18,6 +18,7 @@ class TaskInvocation(NamedTuple):
     item_id: int | str
     outputs: OutputsDict
     status: Optional[ExecutionStatus]
+    error_details: Optional['ExecutionErrorMessage'] = None
 
 
 class ExecutionStatus(NamedTuple):
@@ -25,12 +26,15 @@ class ExecutionStatus(NamedTuple):
     completed: bool
     messages: List[str]
 
-    def as_dict(self) -> ExecutionStatusAsDict:
-        return {
+    def as_dict(self, error_details: Optional['ExecutionErrorMessage'] = None) -> ExecutionStatusAsDict:
+        result: ExecutionStatusAsDict = {
             "status_str": self.status_str,
             "completed": self.completed,
             "messages": copy.copy(self.messages),
         }
+        if error_details is not None:
+            result["error_details"] = error_details
+        return result
 
 
 class ExecutionError(RuntimeError):

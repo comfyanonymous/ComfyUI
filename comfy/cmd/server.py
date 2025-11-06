@@ -905,9 +905,13 @@ class PromptServer(ExecutorToClientProgress):
             if accept == '*/*':
                 accept = "application/json"
             content_type = request.headers.get("content-type", "application/json")
-            preferences = request.headers.get("prefer", "") + request.query.get("prefer", "") + " " + content_type
+            preferences = request.headers.get("prefer", "") + request.query.get("prefer", "") + " " + content_type + " " + accept
+
+            # handle media type parameters like "application/json+respond-async"
             if "+" in content_type:
                 content_type = content_type.split("+")[0]
+            if "+" in accept:
+                accept = accept.split("+")[0]
 
             wait = not "respond-async" in preferences
 
@@ -993,7 +997,8 @@ class PromptServer(ExecutorToClientProgress):
                 return web.Response(body=str(ex), status=500)
 
             if result.status is not None and result.status.status_str == "error":
-                return web.Response(body=json.dumps(result.status._asdict()), status=500, content_type="application/json")
+                status_dict = result.status.as_dict(error_details=result.error_details)
+                return web.Response(body=json.dumps(status_dict), status=500, content_type="application/json")
             # find images and read them
             output_images: List[FileOutput] = []
             for node_id, node in result.outputs.items():

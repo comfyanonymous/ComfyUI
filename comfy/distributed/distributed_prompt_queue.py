@@ -162,7 +162,7 @@ class DistributedPromptQueue(AbstractPromptQueue, AsyncAbstractPromptQueue):
 
         return item, item[1]
 
-    def task_done(self, item_id: int, outputs: dict, status: Optional[ExecutionStatus]):
+    def task_done(self, item_id: int, outputs: dict, status: Optional[ExecutionStatus], error_details: Optional['ExecutionErrorMessage'] = None):
         # callee: executed on the worker thread
         if "outputs" in outputs:
             outputs: HistoryResultDict
@@ -173,7 +173,7 @@ class DistributedPromptQueue(AbstractPromptQueue, AsyncAbstractPromptQueue):
         assert pending.completed is not None
         assert not pending.completed.done()
         # finish the task. status will transmit the errors in comfy's domain-specific way
-        pending.completed.set_result(TaskInvocation(item_id=item_id, outputs=outputs, status=status))
+        pending.completed.set_result(TaskInvocation(item_id=item_id, outputs=outputs, status=status, error_details=error_details))
         # todo: the caller is responsible for sending a websocket message right now that the UI expects for updates
 
     def get_current_queue(self) -> Tuple[List[QueueTuple], List[QueueTuple]]:

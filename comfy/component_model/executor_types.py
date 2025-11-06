@@ -199,9 +199,8 @@ class ValidationErrorExtraInfoDict(TypedDict, total=False):
     input_config: NotRequired[Dict[str, InputTypeSpec]]
     received_value: NotRequired[Any]
     linked_node: NotRequired[str]
-    traceback: NotRequired[list[str]]
     exception_message: NotRequired[str]
-    exception_type: NotRequired[str]
+    node_errors: NotRequired[Dict[str, 'NodeErrorsDictValue']]
 
 
 class ValidationErrorDict(TypedDict):

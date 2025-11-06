@@ -871,6 +871,22 @@ components:
               type: array
               items:
                 type: string
+            node_errors:
+              type: object
+              description: "Detailed validation errors per node"
+              additionalProperties:
+                type: object
+                properties:
+                  errors:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/ValidationErrorDict"
+                  dependent_outputs:
+                    type: array
+                    items:
+                      type: string
+                  class_type:
+                    type: string
       required:
         - type
         - details

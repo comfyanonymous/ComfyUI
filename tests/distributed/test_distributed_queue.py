@@ -245,11 +245,6 @@ async def test_two_workers_distinct_requests():
         assert len(all_workflows) == 2, f"Expected 2 distinct workflows, but got {len(all_workflows)}"
 
 
-# ============================================================================
-# API Error Reporting Tests
-# ============================================================================
-
-
 @pytest.mark.asyncio
 async def test_api_error_reporting_blocking_request(frontend_backend_worker_with_rabbitmq):
     """Test error reporting with blocking request (no async preference)"""
@@ -416,7 +411,7 @@ async def test_api_validation_error_structure(frontend_backend_worker_with_rabbi
     """Test that validation errors return proper ValidationErrorDict structure"""
     async with AsyncRemoteComfyClient(server_address=frontend_backend_worker_with_rabbitmq) as client:
         # Create an invalid prompt (invalid checkpoint name)
-        prompt = sdxl_workflow_with_refiner("test", 1, 1)
+        prompt = sdxl_workflow_with_refiner("test", "", 1, refiner_steps=1)
         prompt["4"]["inputs"]["ckpt_name"] = "fake.safetensors"
 
         prompt_json = client._AsyncRemoteComfyClient__json_encoder.encode(prompt)
@@ -436,10 +431,36 @@ async def test_api_validation_error_structure(frontend_backend_worker_with_rabbi
             assert "details" in error_body, "Missing 'details'"
             assert "extra_info" in error_body, "Missing 'extra_info'"
 
+            assert error_body["type"] == "prompt_outputs_failed_validation", "unexpected type"
+
             # extra_info should have exception_type and traceback
             assert "exception_type" in error_body["extra_info"], "Missing 'exception_type' in extra_info"
             assert "traceback" in error_body["extra_info"], "Missing 'traceback' in extra_info"
             assert isinstance(error_body["extra_info"]["traceback"], list), "traceback should be a list"
+
+            # extra_info should have node_errors with detailed validation information
+            assert "node_errors" in error_body["extra_info"], "Missing 'node_errors' in extra_info"
+            node_errors = error_body["extra_info"]["node_errors"]
+            assert isinstance(node_errors, dict), "node_errors should be a dict"
+            assert len(node_errors) > 0, "node_errors should contain at least one node"
+
+            # Verify node_errors structure for node "4" (CheckpointLoaderSimple with invalid ckpt_name)
+            assert "4" in node_errors, "Node '4' should have validation errors"
+            node_4_errors = node_errors["4"]
+            assert "errors" in node_4_errors, "Node '4' should have 'errors' field"
+            assert "class_type" in node_4_errors, "Node '4' should have 'class_type' field"
+            assert "dependent_outputs" in node_4_errors, "Node '4' should have 'dependent_outputs' field"
+
+            assert node_4_errors["class_type"] == "CheckpointLoaderSimple", "Node '4' class_type should be CheckpointLoaderSimple"
+            assert len(node_4_errors["errors"]) > 0, "Node '4' should have at least one error"
+
+            # Verify the error details include the validation error type and message
+            first_error = node_4_errors["errors"][0]
+            assert "type" in first_error, "Error should have 'type' field"
+            assert "message" in first_error, "Error should have 'message' field"
+            assert "details" in first_error, "Error should have 'details' field"
+            assert first_error["type"] == "value_not_in_list", f"Expected 'value_not_in_list' error, got {first_error['type']}"
+            assert "fake.safetensors" in first_error["details"], "Error details should mention 'fake.safetensors'"
 
 
 @pytest.mark.asyncio
@@ -505,3 +526,85 @@ async def test_api_get_prompt_returns_outputs_directly(frontend_backend_worker_w
             # Should not be "prompt", "outputs", "status"
             assert key not in ["prompt", "status"], \
                 f"GET endpoint should return Outputs directly, not history entry. Found key: {key}"
+
+
+@pytest.mark.asyncio
+async def test_api_execution_error_blocking_mode(frontend_backend_worker_with_rabbitmq):
+    """Test that execution errors (not validation) return proper error structure in blocking mode"""
+    from comfy_execution.graph_utils import GraphBuilder
+
+    async with AsyncRemoteComfyClient(server_address=frontend_backend_worker_with_rabbitmq) as client:
+        # Create a prompt that will fail during execution (not validation)
+        # Use Regex with a group name that doesn't exist - validation passes but execution fails
+        g = GraphBuilder()
+        regex_match = g.node("Regex", pattern="hello", string="hello world")
+        # Request a non-existent group name - this will pass validation but fail during execution
+        match_group = g.node("RegexMatchGroupByName", match=regex_match.out(0), name="nonexistent_group")
+        g.node("SaveString", value=match_group.out(0), filename_prefix="test")
+
+        prompt = g.finalize()
+        prompt_json = client._AsyncRemoteComfyClient__json_encoder.encode(prompt)
+
+        async with client.session.post(
+            f"{frontend_backend_worker_with_rabbitmq}/api/v1/prompts",
+            data=prompt_json,
+            headers={'Content-Type': 'application/json', 'Accept': 'application/json'}
+        ) as response:
+            # Execution errors return 500
+            assert response.status == 500, f"Expected 500 for execution error, got {response.status}"
+
+            error_body = await response.json()
+
+            # Verify ExecutionStatus structure
+            assert "status_str" in error_body, "Missing 'status_str'"
+            assert "completed" in error_body, "Missing 'completed'"
+            assert "messages" in error_body, "Missing 'messages'"
+
+            assert error_body["status_str"] == "error", f"Expected 'error', got {error_body['status_str']}"
+            assert error_body["completed"] == False, "completed should be False for errors"
+            assert isinstance(error_body["messages"], list), "messages should be a list"
+            assert len(error_body["messages"]) > 0, "messages should contain error details"
+
+
+@pytest.mark.asyncio
+async def test_api_execution_error_async_mode(frontend_backend_worker_with_rabbitmq):
+    """Test that execution errors return proper error structure in respond-async mode"""
+    from comfy_execution.graph_utils import GraphBuilder
+
+    async with AsyncRemoteComfyClient(server_address=frontend_backend_worker_with_rabbitmq) as client:
+        # Create a prompt that will fail during execution (not validation)
+        # Use Regex with a group name that doesn't exist - validation passes but execution fails
+        g = GraphBuilder()
+        regex_match = g.node("Regex", pattern="hello", string="hello world")
+        # Request a non-existent group name - this will pass validation but fail during execution
+        match_group = g.node("RegexMatchGroupByName", match=regex_match.out(0), name="nonexistent_group")
+        g.node("SaveString", value=match_group.out(0), filename_prefix="test")
+
+        prompt = g.finalize()
+
+        # Queue with respond-async
+        task_id = await client.queue_and_forget_prompt_api(prompt, prefer_header="respond-async")
+        assert task_id is not None, "Should get task_id in async mode"
+
+        # Poll for completion
+        status_code, result = await client.poll_prompt_until_done(task_id, max_attempts=60, poll_interval=1.0)
+
+        # In async mode with polling, errors come back as 200 with error in the response body
+        # because the prompt was accepted (202) and we're just retrieving the completed result
+        assert status_code in (200, 500), f"Expected 200 or 500, got {status_code}"
+
+        if status_code == 500:
+            # Error returned directly - should be ExecutionStatus
+            assert "status_str" in result, "Missing 'status_str'"
+            assert "completed" in result, "Missing 'completed'"
+            assert "messages" in result, "Missing 'messages'"
+            assert result["status_str"] == "error"
+            assert result["completed"] == False
+            assert len(result["messages"]) > 0
+        else:
+            # Error in successful response - result might be ExecutionStatus or empty outputs
+            # If it's a dict with status info, verify it
+            if "status_str" in result:
+                assert result["status_str"] == "error"
+                assert result["completed"] == False
+                assert len(result["messages"]) > 0

@@ -1246,16 +1246,36 @@ async def _validate_prompt(prompt_id: typing.Any, prompt: typing.Mapping[str, ty
 
     if len(good_outputs) == 0:
         errors_list = []
+        extra_info = {}
         for o, _errors in errors:
             for error in _errors:
                 errors_list.append(f"{error['message']}: {error['details']}")
+                # Aggregate exception_type and traceback from validation errors
+                if 'extra_info' in error and error['extra_info']:
+                    if 'exception_type' in error['extra_info'] and 'exception_type' not in extra_info:
+                        extra_info['exception_type'] = error['extra_info']['exception_type']
+                    if 'traceback' in error['extra_info'] and 'traceback' not in extra_info:
+                        extra_info['traceback'] = error['extra_info']['traceback']
+
+        # Per OpenAPI spec, extra_info must have exception_type and traceback
+        # For non-exception validation errors, provide synthetic values
+        if 'exception_type' not in extra_info:
+            extra_info['exception_type'] = 'ValidationError'
+        if 'traceback' not in extra_info:
+            # Capture current stack for validation errors that don't have their own traceback
+            extra_info['traceback'] = traceback.format_stack()
+
+        # Include detailed node_errors for actionable debugging information
+        if node_errors:
+            extra_info['node_errors'] = node_errors
+
         errors_list = "\n".join(errors_list)
 
         error = {
             "type": "prompt_outputs_failed_validation",
             "message": "Prompt outputs failed validation",
             "details": errors_list,
-            "extra_info": {}
+            "extra_info": extra_info
         }
 
         return ValidationTuple(False, error, list(good_outputs), node_errors)
@@ -1301,7 +1321,7 @@ class PromptQueue(AbstractPromptQueue):
             return copy.deepcopy(item_with_future.queue_tuple), task_id
 
     def task_done(self, item_id: str, outputs: HistoryResultDict,
-                  status: Optional[ExecutionStatus]):
+                  status: Optional[ExecutionStatus], error_details: Optional[ExecutionErrorMessage] = None):
         history_result = outputs
         with self.mutex:
             queue_item = self.currently_running.pop(item_id)
@@ -1311,7 +1331,7 @@ class PromptQueue(AbstractPromptQueue):
 
             status_dict = None
             if status is not None:
-                status_dict: Optional[ExecutionStatusAsDict] = status.as_dict()
+                status_dict: Optional[ExecutionStatusAsDict] = status.as_dict(error_details=error_details)
 
             outputs_ = history_result["outputs"]
             # Remove sensitive data from extra_data before storing in history

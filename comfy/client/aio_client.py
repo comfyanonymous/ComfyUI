@@ -85,7 +85,7 @@ class AsyncRemoteComfyClient:
                 response_json = await response.json()
                 return response_json["prompt_id"]
             else:
-                raise RuntimeError(f"could not prompt: {response.status}: {await response.text()}")
+                raise RuntimeError(f"could not prompt: {response.status}, reason={response.reason}: {await response.text()}")
 
     async def queue_prompt_api(self, prompt: PromptDict, prefer_header: Optional[str] = None, accept_header: str = "application/json") -> V1QueuePromptResponse:
         """
