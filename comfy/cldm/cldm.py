@@ -99,10 +99,10 @@ class ControlNet(nn.Module):
         super().__init__()
         assert use_spatial_transformer == True, "use_spatial_transformer has to be true"
         if use_spatial_transformer:
-            assert context_dim is not None, 'Fool!! You forgot to include the dimension of your cross-attention conditioning...'
+            assert context_dim is not None,
 
         if context_dim is not None:
-            assert use_spatial_transformer, 'Fool!! You forgot to use the spatial transformer for your cross-attention conditioning...'
+            assert use_spatial_transformer,
             # from omegaconf.listconfig import ListConfig
             # if type(context_dim) == ListConfig:
             #     context_dim = list(context_dim)
