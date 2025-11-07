@@ -1104,6 +1104,12 @@ def pin_memory(tensor):
     if not is_device_cpu(tensor.device):
         return False
 
+    if tensor.is_pinned():
+        #NOTE: Cuda does detect when a tensor is already pinned and would
+        #error below, but there are proven cases where this also queues an error
+        #on the GPU async. So dont trust the CUDA API and guard here
+        return False
+
     size = tensor.numel() * tensor.element_size()
     if (TOTAL_PINNED_MEMORY + size) > MAX_PINNED_MEMORY:
         return False
@@ -1122,6 +1128,12 @@ def unpin_memory(tensor):
         return False
 
     if not is_device_cpu(tensor.device):
+        return False
+
+    if not tensor.is_pinned():
+        #NOTE: Cuda does detect when a tensor is already pinned and would
+        #error below, but there are proven cases where this also queues an error
+        #on the GPU async. So dont trust the CUDA API and guard here
         return False
 
     ptr = tensor.data_ptr()
