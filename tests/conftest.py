@@ -90,6 +90,14 @@ def frontend_backend_worker_with_rabbitmq(request, tmp_path_factory, num_workers
         params = rabbitmq.get_connection_params()
         connection_uri = f"amqp://guest:guest@127.0.0.1:{params.port}"
 
+        # Check if OTEL endpoint is configured for integration testing
+        otel_endpoint = os.environ.get("OTEL_EXPORTER_OTLP_ENDPOINT")
+
+        env = os.environ.copy()
+        if otel_endpoint:
+            env["OTEL_EXPORTER_OTLP_ENDPOINT"] = otel_endpoint
+            logging.info(f"Configuring services to export traces to: {otel_endpoint}")
+
         frontend_command = [
             "comfyui",
             "--listen=127.0.0.1",
@@ -100,7 +108,7 @@ def frontend_backend_worker_with_rabbitmq(request, tmp_path_factory, num_workers
             f"--distributed-queue-connection-uri={connection_uri}",
         ]
 
-        processes_to_close.append(subprocess.Popen(frontend_command, stdout=sys.stdout, stderr=sys.stderr))
+        processes_to_close.append(subprocess.Popen(frontend_command, stdout=sys.stdout, stderr=sys.stderr, env=env))
 
         # Start multiple workers
         for i in range(num_workers):
@@ -111,7 +119,7 @@ def frontend_backend_worker_with_rabbitmq(request, tmp_path_factory, num_workers
                 f"--distributed-queue-connection-uri={connection_uri}",
                 f"--executor-factory={executor_factory}"
             ]
-            processes_to_close.append(subprocess.Popen(backend_command, stdout=sys.stdout, stderr=sys.stderr))
+            processes_to_close.append(subprocess.Popen(backend_command, stdout=sys.stdout, stderr=sys.stderr, env=env))
 
         try:
             server_address = f"http://127.0.0.1:19001"
