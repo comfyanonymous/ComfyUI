@@ -1129,13 +1129,18 @@ def unpin_memory(tensor):
     if not is_device_cpu(tensor.device):
         return False
 
-    if not tensor.is_pinned():
-        #NOTE: Cuda does detect when a tensor is already pinned and would
-        #error below, but there are proven cases where this also queues an error
-        #on the GPU async. So dont trust the CUDA API and guard here
+    ptr = tensor.data_ptr()
+    size = tensor.numel() * tensor.element_size()
+
+    size_stored = PINNED_MEMORY.get(ptr, None)
+    if size_stored is None:
+        logging.warning("Tried to unpin tensor not pinned by ComfyUI")
         return False
 
-    ptr = tensor.data_ptr()
+    if size != size_stored:
+        logging.warning("Size of pinned tensor changed")
+        return False
+
     if torch.cuda.cudart().cudaHostUnregister(ptr) == 0:
         TOTAL_PINNED_MEMORY -= PINNED_MEMORY.pop(ptr)
         if len(PINNED_MEMORY) == 0:
