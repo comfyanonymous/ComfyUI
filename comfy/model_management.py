@@ -26,6 +26,7 @@ import importlib
 import platform
 import weakref
 import gc
+import os
 
 class VRAMState(Enum):
     DISABLED = 0    #No vram present: no need to move models to vram
