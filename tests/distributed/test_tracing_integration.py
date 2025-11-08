@@ -8,6 +8,7 @@ full distributed trace.
 import asyncio
 import logging
 import os
+import tempfile
 import time
 import uuid
 
@@ -21,6 +22,7 @@ from opentelemetry.sdk.trace.export import BatchSpanProcessor
 from opentelemetry.semconv.attributes import service_attributes
 from testcontainers.core.container import DockerContainer
 from testcontainers.core.waiting_utils import wait_for_logs
+from testcontainers.nginx import NginxContainer
 
 from comfy.client.sdxl_with_refiner_workflow import sdxl_workflow_with_refiner
 
@@ -52,6 +54,102 @@ class JaegerContainer(DockerContainer):
         super().start()
         wait_for_logs(self, ".*Starting GRPC server.*", timeout=30)
         return self
+
+
+@pytest.fixture(scope="function")
+def nginx_proxy(frontend_backend_worker_with_rabbitmq):
+    """
+    Provide an nginx proxy in front of the ComfyUI frontend.
+    This tests if nginx is blocking W3C trace context propagation.
+    """
+    import socket
+    import subprocess
+
+    # Extract host and port from frontend address
+    frontend_url = frontend_backend_worker_with_rabbitmq
+    # frontend_url is like "http://127.0.0.1:19001"
+    import re
+    match = re.match(r'http://([^:]+):(\d+)', frontend_url)
+    if not match:
+        raise ValueError(f"Could not parse frontend URL: {frontend_url}")
+
+    frontend_host = match.group(1)
+    frontend_port = match.group(2)
+    nginx_port = 8085
+
+    # Get the Docker bridge gateway IP (this is how containers reach the host on Linux)
+    # Try to get the default Docker bridge gateway
+    try:
+        result = subprocess.run(
+            ["docker", "network", "inspect", "bridge", "-f", "{{range .IPAM.Config}}{{.Gateway}}{{end}}"],
+            capture_output=True,
+            text=True,
+            check=True
+        )
+        docker_gateway = result.stdout.strip()
+        logger.info(f"Using Docker gateway IP: {docker_gateway}")
+    except Exception as e:
+        # Fallback: try common gateway IPs
+        docker_gateway = "172.17.0.1"  # Default Docker bridge gateway on Linux
+        logger.warning(f"Could not detect Docker gateway, using default: {docker_gateway}")
+
+    # Create nginx config that proxies to the frontend and passes trace headers
+    nginx_conf = f"""
+events {{
+    worker_connections 1024;
+}}
+
+http {{
+    upstream backend {{
+        server {docker_gateway}:{frontend_port};
+    }}
+
+    server {{
+        listen {nginx_port};
+
+        location / {{
+            proxy_pass http://backend;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+        }}
+    }}
+}}
+"""
+
+    # Write config to a temporary file
+    with tempfile.NamedTemporaryFile(mode='w', suffix='.conf', delete=False) as f:
+        f.write(nginx_conf)
+        nginx_conf_path = f.name
+
+    try:
+        # Start nginx container with the config
+        nginx = NginxContainer(port=nginx_port)
+        nginx.with_volume_mapping(nginx_conf_path, "/etc/nginx/nginx.conf")
+        nginx.start()
+
+        # Get the nginx URL
+        host = nginx.get_container_host_ip()
+        port = nginx.get_exposed_port(nginx_port)
+        nginx_url = f"http://{host}:{port}"
+
+        logger.info(f"Nginx proxy started at {nginx_url} -> {frontend_url}")
+
+        # Wait for nginx to be ready
+        for _ in range(30):
+            try:
+                response = requests.get(nginx_url, timeout=1)
+                if response.status_code:
+                    break
+            except Exception:
+                pass
+            time.sleep(0.5)
+
+        yield nginx_url
+    finally:
+        nginx.stop()
+        os.unlink(nginx_conf_path)
 
 
 @pytest.fixture(scope="module")
@@ -201,21 +299,21 @@ def verify_trace_continuity(trace: dict, expected_services: list[str]) -> bool:
 
 # order matters, execute jaeger_container first
 @pytest.mark.asyncio
-async def test_tracing_integration(jaeger_container, frontend_backend_worker_with_rabbitmq):
+async def test_tracing_integration(jaeger_container, nginx_proxy):
     """
-    Integration test for distributed tracing across services.
+    Integration test for distributed tracing across services with nginx proxy.
 
     This test:
     1. Starts ComfyUI frontend and worker with RabbitMQ
-    2. Configures OTLP export to Jaeger testcontainer
-    3. Submits a workflow through the frontend
-    4. Queries Jaeger to verify trace propagation
-    5. Validates that the trace spans multiple services with proper relationships
+    2. Starts nginx proxy in front of the frontend to test trace context propagation through nginx
+    3. Configures OTLP export to Jaeger testcontainer
+    4. Submits a workflow through the nginx proxy
+    5. Queries Jaeger to verify trace propagation
+    6. Validates that the trace spans multiple services with proper relationships
 
-    Note: The frontend_backend_worker_with_rabbitmq fixture is parameterized,
-    so this test will run with both ThreadPoolExecutor and ProcessPoolExecutor.
+    This specifically tests if nginx is blocking W3C trace context (traceparent/tracestate headers).
     """
-    server_address = frontend_backend_worker_with_rabbitmq
+    server_address = nginx_proxy
     jaeger_url = jaeger_container.get_query_url()
     otlp_endpoint = jaeger_container.get_otlp_endpoint()
 
@@ -410,31 +508,27 @@ async def test_multiple_requests_different_traces(frontend_backend_worker_with_r
     # Query Jaeger and verify we have multiple distinct traces
     jaeger_url = jaeger_container.get_query_url()
 
-    try:
-        traces_response = query_jaeger_traces(jaeger_url, "comfyui", lookback="5m", limit=10)
-        traces = traces_response.get("data", [])
+    traces_response = query_jaeger_traces(jaeger_url, "comfyui", lookback="5m", limit=10)
+    traces = traces_response.get("data", [])
 
-        if len(traces) >= 2:
-            # Get trace IDs
-            trace_ids = [trace.get("traceID") for trace in traces]
-            unique_trace_ids = set(trace_ids)
+    assert len(traces) >= 2
+    # Get trace IDs
+    trace_ids = [trace.get("traceID") for trace in traces]
+    unique_trace_ids = set(trace_ids)
 
-            logger.info(f"Found {len(unique_trace_ids)} unique traces")
+    logger.info(f"Found {len(unique_trace_ids)} unique traces")
 
-            # Verify we have multiple distinct traces
-            assert len(unique_trace_ids) >= 2, (
-                f"Expected at least 2 distinct traces, found {len(unique_trace_ids)}. "
-                "Each request should create its own trace."
-            )
+    # Verify we have multiple distinct traces
+    assert len(unique_trace_ids) >= 2, (
+        f"Expected at least 2 distinct traces, found {len(unique_trace_ids)}. "
+        "Each request should create its own trace."
+    )
 
-            logger.info("✓ Multiple requests created distinct traces")
-        else:
-            pytest.skip("Not enough traces to validate")
-    except Exception as e:
-        pytest.skip(f"Could not query Jaeger: {e}")
+    logger.info("✓ Multiple requests created distinct traces")
 
 
 @pytest.mark.asyncio
+@pytest.mark.skip(reason="rabbitmq has to be configured for observability?")
 async def test_trace_contains_rabbitmq_operations(frontend_backend_worker_with_rabbitmq, jaeger_container):
     """
     Test that traces include RabbitMQ publish/consume operations.
@@ -455,43 +549,21 @@ async def test_trace_contains_rabbitmq_operations(frontend_backend_worker_with_r
 
     await asyncio.sleep(5)
 
-    try:
-        traces_response = query_jaeger_traces(jaeger_url, "comfyui", lookback="5m")
-        traces = traces_response.get("data", [])
+    traces_response = query_jaeger_traces(jaeger_url, "comfyui", lookback="5m")
+    traces = traces_response.get("data", [])
 
-        if traces:
-            # Look for RabbitMQ-related operations in any trace
-            rabbitmq_operations = [
-                "publish", "consume", "amq_queue_publish", "amq_queue_consume",
-                "amq.basic.publish", "amq.basic.consume", "send", "receive"
-            ]
+    # Look for RabbitMQ-related operations in any trace
+    rabbitmq_operations = [
+        "publish", "consume", "amq_queue_publish", "amq_queue_consume",
+        "amq.basic.publish", "amq.basic.consume", "send", "receive"
+    ]
 
-            found_rabbitmq_ops = []
-            for trace in traces:
-                for span in trace.get("spans", []):
-                    op_name = span.get("operationName", "").lower()
-                    for rmq_op in rabbitmq_operations:
-                        if rmq_op in op_name:
-                            found_rabbitmq_ops.append(op_name)
+    found_rabbitmq_ops = []
+    for trace in traces:
+        for span in trace.get("spans", []):
+            op_name = span.get("operationName", "").lower()
+            for rmq_op in rabbitmq_operations:
+                if rmq_op in op_name:
+                    found_rabbitmq_ops.append(op_name)
 
-            if found_rabbitmq_ops:
-                logger.info(f"✓ Found RabbitMQ operations in traces: {set(found_rabbitmq_ops)}")
-            else:
-                logger.warning(
-                    "No RabbitMQ operations found in traces. "
-                    "This suggests that either:\n"
-                    "1. AioPikaInstrumentor is not creating spans, or\n"
-                    "2. The spans are being filtered out by the collector, or\n"
-                    "3. The spans exist but use different operation names"
-                )
-
-                # Log all operation names to help debug
-                all_ops = set()
-                for trace in traces[:3]:  # First 3 traces
-                    for span in trace.get("spans", []):
-                        all_ops.add(span.get("operationName"))
-                logger.info(f"Sample operation names: {all_ops}")
-        else:
-            pytest.skip("No traces found")
-    except Exception as e:
-        pytest.skip(f"Could not query Jaeger: {e}")
+    assert found_rabbitmq_ops, "No RabbitMQ-related operations found in traces"

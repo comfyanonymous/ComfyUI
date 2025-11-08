@@ -100,7 +100,7 @@ def frontend_backend_worker_with_rabbitmq(request, tmp_path_factory, num_workers
 
         frontend_command = [
             "comfyui",
-            "--listen=127.0.0.1",
+            "--listen=0.0.0.0",
             "--port=19001",
             "--cpu",
             "--distributed-queue-frontend",

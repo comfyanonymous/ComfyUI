@@ -169,6 +169,7 @@ class Configuration(dict):
         whitelist_custom_nodes (list[str]): Specify custom node folders to load even when --disable-all-custom-nodes is enabled.
         default_device (Optional[int]): Set the id of the default device, all other devices will stay visible.
         block_runtime_package_installation (Optional[bool]): When set, custom nodes like ComfyUI Manager, Easy Use, Nunchaku and others will not be able to use pip or uv to install packages at runtime (experimental).
+        enable_eval (Optional[bool]): Enable nodes that can evaluate Python code in workflows.
     """
 
     def __init__(self, **kwargs):
@@ -288,6 +289,7 @@ class Configuration(dict):
         self.database_url: str = db_config()
         self.default_device: Optional[int] = None
         self.block_runtime_package_installation = None
+        self.enable_eval: Optional[bool] = False
 
         for key, value in kwargs.items():
             self[key] = value
@@ -420,6 +422,7 @@ class FlattenAndAppendAction(argparse.Action):
     Custom action to handle comma-separated values and multiple invocations
     of the same argument, flattening them into a single list.
     """
+
     def __call__(self, parser, namespace, values, option_string=None):
         items = getattr(namespace, self.dest, None)
         if items is None:

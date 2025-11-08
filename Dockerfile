@@ -33,7 +33,7 @@ RUN pip install uv && uv --version && \
 
 # install sageattention
 ADD pkg/sageattention-2.2.0-cp312-cp312-linux_x86_64.whl /workspace/pkg/sageattention-2.2.0-cp312-cp312-linux_x86_64.whl
-RUN uv pip install -U --no-deps --no-build-isolation spandrel timm tensorboard poetry flash-attn "xformers==0.0.31.post1" "file:./pkg/sageattention-2.2.0-cp312-cp312-linux_x86_64.whl"
+RUN uv pip install -U --no-deps --no-build-isolation spandrel timm tensorboard poetry "flash-attn<=2.8.0" "xformers==0.0.31.post1" "file:./pkg/sageattention-2.2.0-cp312-cp312-linux_x86_64.whl"
 # this exotic command will determine the correct torchaudio to install for the image
 RUN <<-EOF
 python -c 'import torch, re, subprocess
@@ -66,7 +66,7 @@ WORKDIR /workspace
 # addresses https://github.com/pytorch/pytorch/issues/104801
 # and issues reported by importing nodes_canny
 # smoke test
-RUN python -c "import torch; import xformers; import sageattention; import cv2" && comfyui --quick-test-for-ci --cpu --cwd /workspace
+RUN python -c "import torch; import xformers; import sageattention; import cv2; import diffusers.hooks" && comfyui --quick-test-for-ci --cpu --cwd /workspace
 
 EXPOSE 8188
 CMD ["python", "-m", "comfy.cmd.main", "--listen", "--use-sage-attention", "--reserve-vram=0", "--logging-level=INFO", "--enable-cors"]
