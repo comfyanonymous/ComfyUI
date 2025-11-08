@@ -39,13 +39,17 @@ class EmptyLatentHunyuanImage3(io.ComfyNode):
         height, width = get_target_size(height, width)
         latent = torch.randn(batch_size, 32, int(height) // 16, int(width) // 16, device=comfy.model_management.intermediate_device())
 
-        latent, _, _ = patch_embed(latent, t_embed(torch.tensor([0]).repeat(batch_size)))
+        latent, tk_height, tk_width = patch_embed(latent, t_embed(torch.tensor([0]).repeat(batch_size)))
+
+        def tk_fn(token):
+            return torch.tensor([token], device = latent.device, dtype = latent.dtype).unsqueeze(1).expand(batch_size, 1, latent.size(-1))
         
         def fn(string, func = encode_fn):
             return word_embed(torch.tensor(func(string) if not isinstance(func, dict) else func[string], device=comfy.model_management.intermediate_device()))\
                 .unsqueeze(0).expand(batch_size, -1, -1)
 
         latent = torch.cat([fn("<boi>"), fn("<img_size_1024>", func = special_fn), fn(f"<img_ratio_{int(height) // int(width)}>", special_fn), fn("<timestep>", special_fn), latent, fn("<eoi>")], dim = 1)
+        latent = torch.cat([latent, tk_fn(tk_height), tk_fn(tk_width)], dim = 1)
         return io.NodeOutput({"samples": latent, "type": "hunyuan_image_3"}, )
 
 class HunyuanImage3Conditioning(io.ComfyNode):
@@ -87,7 +91,7 @@ class HunyuanImage3Conditioning(io.ComfyNode):
         vae_mask = torch.ones(joint_image.size(1))
         vae_mask[:3] = torch.zeros(3); vae_mask[vae_encoding.size(1) + 4:] = torch.zeros(len(vae_mask[vae_encoding.size(1) + 4:]))
 
-        ragged_tensors = torch.nested.nested_tensor([joint_image, vae_mask.unsqueeze(0).unsqueeze(-1), text_tokens.unsqueeze(-1).to(joint_image.dtype)])
+        ragged_tensors = torch.nested.nested_tensor([joint_image, vae_mask.unsqueeze(0).unsqueeze(-1), text_tokens.to(joint_image.dtype)])
 
         uncond_ragged_tensors = None
         if text_encoding_negative is not None:
