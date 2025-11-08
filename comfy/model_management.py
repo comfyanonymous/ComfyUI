@@ -343,7 +343,7 @@ try:
                 "0", "off", "false", "disable", "disabled", "no"}
             if not torch.backends.cudnn.enabled:
                 logging.info(
-                    "ComfyUI has set torch.backends.cudnn.enabled to False for better AMD performance. Set environment var TORCH_AMD_CUDDNN_ENABLED=1 to enable it again.")
+                    "ComfyUI has set torch.backends.cudnn.enabled to False for better AMD performance. Set environment var TORCH_AMD_CUDNN_ENABLED=1 to enable it again.")
 
         try:
             rocm_version = tuple(map(int, str(torch.version.hip).split(".")[:2]))
