@@ -909,6 +909,7 @@ class ModelPatcher:
             self.model.model_lowvram = True
             self.model.lowvram_patch_counter += patch_counter
             self.model.model_loaded_weight_memory -= memory_freed
+            logging.info("loaded partially: {:.2f} MB loaded, lowvram patches: {}".format(self.model.model_loaded_weight_memory / (1024 * 1024), self.model.lowvram_patch_counter))
             return memory_freed
 
     def partially_load(self, device_to, extra_memory=0, force_patch_weights=False):
