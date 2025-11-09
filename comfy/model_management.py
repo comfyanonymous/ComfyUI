@@ -1100,7 +1100,7 @@ def pin_memory(tensor):
     if MAX_PINNED_MEMORY <= 0:
         return False
 
-    if not is_device_cpu(tensor.device):
+    if not is_device_cpu(tensor.device) or is_intel_xpu():
         return False
 
     if tensor.is_pinned():
@@ -1126,7 +1126,7 @@ def unpin_memory(tensor):
     if MAX_PINNED_MEMORY <= 0:
         return False
 
-    if not is_device_cpu(tensor.device):
+    if not is_device_cpu(tensor.device) or is_intel_xpu():
         return False
 
     ptr = tensor.data_ptr()
