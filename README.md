@@ -112,10 +112,11 @@ Workflow examples can be found on the [Examples page](https://comfyanonymous.git
 
 ## Release Process
 
-ComfyUI follows a weekly release cycle targeting Friday but this regularly changes because of model releases or large changes to the codebase. There are three interconnected repositories:
+ComfyUI follows a weekly release cycle targeting Monday but this regularly changes because of model releases or large changes to the codebase. There are three interconnected repositories:
 
 1. **[ComfyUI Core](https://github.com/comfyanonymous/ComfyUI)**
-   - Releases a new stable version (e.g., v0.7.0)
+   - Releases a new stable version (e.g., v0.7.0) roughly every week.
+   - Commits outside of the stable release tags may be very unstable and break many custom nodes.
    - Serves as the foundation for the desktop release
 
 2. **[ComfyUI Desktop](https://github.com/Comfy-Org/desktop)**
@@ -176,6 +177,8 @@ Simply download, extract with [7-Zip](https://7-zip.org) and run. Make sure you 
 
 If you have trouble extracting it, right click the file -> properties -> unblock
 
+Update your Nvidia drivers if it doesn't start.
+
 #### Alternative Downloads:
 
 [Experimental portable for AMD GPUs](https://github.com/comfyanonymous/ComfyUI/releases/latest/download/ComfyUI_windows_portable_amd.7z)
@@ -197,7 +200,11 @@ comfy install
 
 ## Manual Install (Windows, Linux)
 
-Python 3.13 is very well supported. If you have trouble with some custom node dependencies you can try 3.12
+Python 3.14 will work if you comment out the `kornia` dependency in the requirements.txt file (breaks the canny node) but it is not recommended.
+
+Python 3.13 is very well supported. If you have trouble with some custom node dependencies on 3.13 you can try 3.12
+
+### Instructions:
 
 Git clone this repo.
 
@@ -253,7 +260,7 @@ This is the command to install the Pytorch xpu nightly which might have some per
 
 Nvidia users should install stable pytorch using this command:
 
-```pip install torch torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/cu129```
+```pip install torch torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/cu130```
 
 This is the command to install pytorch nightly instead which might have performance improvements.
 
