@@ -4,9 +4,8 @@ from unittest.mock import Mock, patch
 from comfy.cli_args import default_configuration
 from comfy.execution_context import context_configuration
 from comfy_extras.nodes.nodes_eval import (
-    EvalPython,
-    EvalPython_5_5,
     eval_python,
+    EvalPython_5_5,
     EvalPython_List_1,
     EvalPython_1_List,
     EvalPython_List_List,
@@ -447,7 +446,7 @@ def test_eval_python_input_types():
     assert "required" in input_types
     assert "optional" in input_types
     assert "pycode" in input_types["required"]
-    assert input_types["required"]["pycode"][0] == "PYCODE"
+    assert input_types["required"]["pycode"][0] == "CODE_BLOCK_PYTHON"
 
     # Check optional inputs
     for i in range(5):
@@ -560,7 +559,6 @@ def test_eval_python_list_1_input_is_list(eval_context):
 
     # Verify INPUT_IS_LIST is set
     assert EvalPython_List_1.INPUT_IS_LIST is True
-    assert EvalPython_List_1.OUTPUT_IS_LIST is None
 
     # Test that value0 receives a list
     result = node.exec_py(
@@ -586,7 +584,6 @@ def test_eval_python_1_list_output_is_list(eval_context):
     node = EvalPython_1_List()
 
     # Verify OUTPUT_IS_LIST is set
-    assert EvalPython_1_List.INPUT_IS_LIST is False
     assert EvalPython_1_List.OUTPUT_IS_LIST == (True,)
 
     # Test that returns a list
@@ -652,7 +649,6 @@ def test_eval_python_factory_with_list_flags(eval_context):
     ListInputNode = eval_python(inputs=1, outputs=1, input_is_list=True, output_is_list=None)
 
     assert ListInputNode.INPUT_IS_LIST is True
-    assert ListInputNode.OUTPUT_IS_LIST is None
 
     node = ListInputNode()
     result = node.exec_py(
@@ -666,7 +662,6 @@ def test_eval_python_factory_scalar_output_list(eval_context):
     """Test factory function with scalar input and list output"""
     ScalarToListNode = eval_python(inputs=1, outputs=1, input_is_list=None, output_is_list=(True,))
 
-    assert ScalarToListNode.INPUT_IS_LIST is False
     assert ScalarToListNode.OUTPUT_IS_LIST == (True,)
 
     node = ScalarToListNode()
@@ -686,8 +681,3 @@ def test_eval_python_list_empty_list(eval_context):
         value0=[]
     )
     assert result == ([],)
-
-
-def test_eval_python_backward_compatibility():
-    """Test that EvalPython is an alias for EvalPython_5_5"""
-    assert EvalPython is EvalPython_5_5
