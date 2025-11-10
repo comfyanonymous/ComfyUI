@@ -15,7 +15,7 @@
 [![][github-downloads-latest-shield]][github-downloads-link]
 
 [matrix-shield]: https://img.shields.io/badge/Matrix-000000?style=flat&logo=matrix&logoColor=white
-[matrix-url]: https://app.element.io/#/room/%23comfyui_space%3Amatrix.org
+[matrix-url]: https://matrix.to/#/#comfyui_space:matrix.org
 [website-shield]: https://img.shields.io/badge/ComfyOrg-4285F4?style=flat
 [website-url]: https://www.comfy.org/
 <!-- Workaround to display total user from https://github.com/badges/shields/issues/4500#issuecomment-2060079995 -->
@@ -376,7 +376,7 @@ Use `--tls-keyfile key.pem --tls-certfile cert.pem` to enable TLS/SSL, the app w
 
 [Discord](https://comfy.org/discord): Try the #help or #feedback channels.
 
-[Matrix space: #comfyui_space:matrix.org](https://app.element.io/#/room/%23comfyui_space%3Amatrix.org) (it's like discord but open source).
+[Matrix space: #comfyui_space:matrix.org](https://matrix.to/#/#comfyui_space:matrix.org) (it's like discord but open source).
 
 See also: [https://www.comfy.org/](https://www.comfy.org/)
 
