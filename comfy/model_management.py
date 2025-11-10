@@ -1128,6 +1128,16 @@ def pin_memory(tensor):
 
     return False
 
+def disable_pinned():
+    global MAX_PINNED_MEMORY
+    global TOTAL_PINNED_MEMORY
+    MAX_PINNED_MEMORY = -1
+    logging.warning("Bad behavior detected, disabling pinned memory")
+    for ptr in PINNED_MEMORY:  # TODO: check if this makes things worse
+        torch.cuda.cudart().cudaHostUnregister(ptr)
+    PINNED_MEMORY.clear()
+    TOTAL_PINNED_MEMORY = 0
+
 def unpin_memory(tensor):
     global TOTAL_PINNED_MEMORY
     if MAX_PINNED_MEMORY <= 0:
@@ -1142,6 +1152,7 @@ def unpin_memory(tensor):
     size_stored = PINNED_MEMORY.get(ptr, None)
     if size_stored is None:
         logging.warning("Tried to unpin tensor not pinned by ComfyUI")
+        disable_pinned()
         return False
 
     if size != size_stored:
