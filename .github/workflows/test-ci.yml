@@ -23,8 +23,8 @@ jobs:
         # os: [macos, linux, windows]
         # os: [macos, linux]
         os: [linux]
-        python_version: ["3.10", "3.11", "3.12", "3.13", "3.14"]
-        cuda_version: ["12.8"]
+        python_version: ["3.10", "3.11", "3.12"]
+        cuda_version: ["12.1"]
         torch_version: ["stable"]
         include:
           # - os: macos
@@ -76,8 +76,8 @@ jobs:
       matrix:
         # os: [macos, linux]
         os: [linux]
-        python_version: ["3.14"]
-        cuda_version: ["12.8"]
+        python_version: ["3.12"]
+        cuda_version: ["12.1"]
         torch_version: ["nightly"]
         include:
           # - os: macos
