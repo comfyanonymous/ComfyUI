@@ -1,109 +1,120 @@
-import re
-import traceback
-import types
+import logging
 
+from comfy.comfy_types import IO
 from comfy.execution_context import current_execution_context
 from comfy.node_helpers import export_package_as_web_directory, export_custom_nodes
 from comfy.nodes.package_typing import CustomNode
 
-remove_type_name = re.compile(r"(\{.*\})", re.I | re.M)
+logger = logging.getLogger(__name__)
 
 
-# Hack: string type that is always equal in not equal comparisons, thanks pythongosssss
-class AnyType(str):
-    def __ne__(self, __value: object) -> bool:
-        return False
+def eval_python(inputs=5, outputs=5, name=None, input_is_list=None, output_is_list=None):
+    """
+    Factory function to create EvalPython node classes with configurable input/output counts.
 
+    Args:
+        inputs: Number of input value slots (default: 5)
+        outputs: Number of output item slots (default: 5)
+        name: Class name (default: f"EvalPython_{inputs}_{outputs}")
+        input_is_list: Optional list of bools indicating which inputs accept lists (default: None, meaning all scalar)
+        output_is_list: Optional tuple of bools indicating which outputs return lists (default: None, meaning all scalar)
 
-PY_CODE = AnyType("*")
-IDEs_DICT = {}
+    Returns:
+        A CustomNode subclass configured with the specified inputs/outputs
+    """
+    if name is None:
+        name = f"EvalPython_{inputs}_{outputs}"
 
-
-# - Thank you very much for the class -> Trung0246 -
-# - https://github.com/Trung0246/ComfyUI-0246/blob/main/utils.py#L51
-class TautologyStr(str):
-    def __ne__(self, other):
-        return False
-
-
-class ByPassTypeTuple(tuple):
-    def __getitem__(self, index):
-        if index > 0:
-            index = 0
-        item = super().__getitem__(index)
-        if isinstance(item, str):
-            return TautologyStr(item)
-        return item
-
-
-# ---------------------------
-
-
-class KY_Eval_Python(CustomNode):
-    @classmethod
-    def INPUT_TYPES(s):
-
-        return {
-            "required": {
-                "pycode": (
-                    "PYCODE",
-                    {
-                        "default": """import re, json, os, traceback
-from time import strftime
-
-def runCode():
-    nowDataTime = strftime("%Y-%m-%d %H:%M:%S")
-    return f"Hello ComfyUI with us today {nowDataTime}!"
-r0_str = runCode() + unique_id
+    default_code = f"""
+print("Hello World!")
+return {", ".join([f"value{i}" for i in range(inputs)])}
 """
-                    },
-                ),
-            },
-            "hidden": {"unique_id": "UNIQUE_ID", "extra_pnginfo": "EXTRA_PNGINFO"},
-        }
 
-    RETURN_TYPES = ByPassTypeTuple((PY_CODE,))
-    RETURN_NAMES = ("r0_str",)
-    FUNCTION = "exec_py"
-    DESCRIPTION = "IDE Node is an node that allows you to run code written in Python or Javascript directly in the node."
-    CATEGORY = "KYNode/Code"
+    class EvalPythonNode(CustomNode):
+        @classmethod
+        def INPUT_TYPES(cls):
+            return {
+                "required": {
+                    "pycode": (
+                        "PYCODE",
+                        {
+                            "default": default_code
+                        },
+                    ),
+                },
+                "optional": {f"value{i}": (IO.ANY, {}) for i in range(inputs)},
+            }
 
-    def exec_py(self, pycode, unique_id, extra_pnginfo, **kwargs):
-        ctx = current_execution_context()
-        if ctx.configuration.enable_eval is not True:
-            raise ValueError("Python eval is disabled")
+        RETURN_TYPES = tuple(IO.ANY for _ in range(outputs))
+        RETURN_NAMES = tuple(f"item{i}" for i in range(outputs))
+        OUTPUT_IS_LIST = output_is_list
+        INPUT_IS_LIST = input_is_list is not None
+        FUNCTION = "exec_py"
+        DESCRIPTION = ""
+        CATEGORY = "eval"
 
-        if unique_id not in IDEs_DICT:
-            IDEs_DICT[unique_id] = self
+        def exec_py(self, pycode, **kwargs):
+            ctx = current_execution_context()
 
-        outputs = {unique_id: unique_id}
-        if extra_pnginfo and 'workflow' in extra_pnginfo and extra_pnginfo['workflow']:
-            for node in extra_pnginfo['workflow']['nodes']:
-                if node['id'] == int(unique_id):
-                    outputs_valid = [ouput for ouput in node.get('outputs', []) if ouput.get('name', '') != '' and ouput.get('type', '') != '']
-                    outputs = {ouput['name']: None for ouput in outputs_valid}
-                    self.RETURN_TYPES = ByPassTypeTuple(out["type"] for out in outputs_valid)
-                    self.RETURN_NAMES = tuple(name for name in outputs.keys())
-        my_namespace = types.SimpleNamespace()
-        # 从 prompt 对象中提取 prompt_id
-        # if extra_data and 'extra_data' in extra_data and 'prompt_id' in extra_data['extra_data']:
-        #     prompt_id = prompt['extra_data']['prompt_id']
-        # outputs['p0_str'] = p0_str
+            # Ensure all value inputs have a default of None
+            kwargs = {
+                **{f"value{i}": None for i in range(inputs)},
+                **kwargs,
+            }
 
-        my_namespace.__dict__.update(outputs)
-        my_namespace.__dict__.update({prop: kwargs[prop] for prop in kwargs})
-        # my_namespace.__dict__.setdefault("r0_str", "The r0 variable is not assigned")
+            def print(*args):
+                ctx.server.send_progress_text(" ".join(map(str, args)), ctx.node_id)
 
-        try:
-            exec(pycode, my_namespace.__dict__)
-        except Exception as e:
-            err = traceback.format_exc()
-            mc = re.search(r'line (\d+), in <module>([\w\W]+)$', err, re.MULTILINE)
-            msg = mc[1] + ':' + mc[2]
-            my_namespace.r0 = f"Error Line{msg}"
+            if not ctx.configuration.enable_eval:
+                raise ValueError("Python eval is disabled")
 
-        new_dict = {key: my_namespace.__dict__[key] for key in my_namespace.__dict__ if key not in ['__builtins__', *kwargs.keys()] and not callable(my_namespace.__dict__[key])}
-        return (*new_dict.values(),)
+            # Extract value arguments in order
+            value_args = [kwargs.pop(f"value{i}") for i in range(inputs)]
+            arg_names = ", ".join(f"value{i}=None" for i in range(inputs))
+
+            # Wrap pycode in a function to support return statements
+            wrapped_code = f"def _eval_func({arg_names}):\n"
+            for line in pycode.splitlines():
+                wrapped_code += "    " + line + "\n"
+
+            globals_for_eval = {
+                **kwargs,
+                "logger": logger,
+                "print": print,
+            }
+
+            # Execute wrapped function definition
+            exec(wrapped_code, globals_for_eval)
+
+            # Call the function with value arguments
+            results = globals_for_eval["_eval_func"](*value_args)
+
+            # Normalize results to match output count
+            if not isinstance(results, tuple):
+                results = (results,)
+
+            if len(results) < outputs:
+                results += (None,) * (outputs - len(results))
+            elif len(results) > outputs:
+                results = results[:outputs]
+
+            return results
+
+    # Set the class name for better debugging/introspection
+    EvalPythonNode.__name__ = name
+    EvalPythonNode.__qualname__ = name
+
+    return EvalPythonNode
+
+
+# Create the default EvalPython node with 5 inputs and 5 outputs
+EvalPython_5_5 = eval_python(inputs=5, outputs=5, name="EvalPython_5_5")
+EvalPython = EvalPython_5_5  # Backward compatibility alias
+
+# Create list variants
+EvalPython_List_1 = eval_python(inputs=1, outputs=1, name="EvalPython_List_1", input_is_list=True, output_is_list=None)
+EvalPython_1_List = eval_python(inputs=1, outputs=1, name="EvalPython_1_List", input_is_list=None, output_is_list=(True,))
+EvalPython_List_List = eval_python(inputs=1, outputs=1, name="EvalPython_List_List", input_is_list=True, output_is_list=(True,))
 
 
 export_custom_nodes()

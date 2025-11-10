@@ -42,6 +42,7 @@ warnings.filterwarnings("ignore", message="torch.utils._pytree._register_pytree_
 warnings.filterwarnings("ignore", message="Torch was not compiled with flash attention.")
 warnings.filterwarnings("ignore", message=".*Torch was not compiled with flash attention.*")
 warnings.filterwarnings('ignore', category=FutureWarning, message=r'`torch\.cuda\.amp\.custom_fwd.*')
+warnings.filterwarnings("ignore", category=UserWarning, message="Please use the new API settings to control TF32 behavior.*")
 warnings.filterwarnings("ignore", message="Importing from timm.models.registry is deprecated, please import via timm.models", category=FutureWarning)
 warnings.filterwarnings("ignore", message="Importing from timm.models.layers is deprecated, please import via timm.layers", category=FutureWarning)
 warnings.filterwarnings("ignore", message="Inheritance class _InstrumentedApplication from web.Application is discouraged", category=DeprecationWarning)
