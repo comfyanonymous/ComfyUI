@@ -9,6 +9,21 @@
 - Dependency checking implementation
 - User interaction flow
 
+## Related Issue
+
+⚠️ **Feature Request Issue**: A Feature Request issue will be created before submitting this PR to comply with contribution guidelines. The issue number will be added here once created.
+
+## Issue Addressed
+
+This PR addresses common user pain points when setting up ComfyUI on Windows:
+
+1. **Missing Dependencies**: Users often encounter cryptic import errors when dependencies are missing, requiring manual installation and troubleshooting
+2. **CPU-Only PyTorch**: Many users accidentally install CPU-only PyTorch, which prevents GPU acceleration and causes performance issues
+3. **Poor Error Messages**: Existing error messages don't provide clear guidance on how to resolve issues
+4. **Installation Confusion**: Users are unsure which dependencies are required vs optional, and whether to install in virtual environments
+
+This PR solves these issues by providing automated dependency checking, intelligent PyTorch detection, and user-friendly error messages with actionable troubleshooting steps.
+
 ## Overview
 
 This PR enhances the `run_comfyui.bat` startup script for Windows users, significantly improving the user experience by automatically checking dependencies, detecting virtual environments, and offering intelligent installation options. The script now provides a polished, user-friendly interface with clear error messages and troubleshooting guidance.
@@ -180,6 +195,26 @@ To thoroughly test this PR, please verify the following scenarios:
 - Installation commands use `python -m pip` for consistency
 - Error handling provides actionable troubleshooting steps
 - The script is designed to be safe and non-destructive
+
+## Potential Concerns and Side Effects
+
+### Installation Risks
+- **System Python Modifications**: If run outside a virtual environment, this script will install packages to the system Python, which may affect other Python applications. The script warns users about this and recommends virtual environments.
+- **Automatic PyTorch Installation**: The CUDA PyTorch installation is large (~2-3GB) and takes several minutes. Users are clearly warned before installation begins.
+- **Package Conflicts**: Installing packages automatically could potentially conflict with existing packages, though this is mitigated by using standard pip installation methods.
+
+### Virtual Environment Considerations
+- The script detects virtual environments and provides appropriate warnings
+- Users are informed about the implications of installing in system Python vs virtual environments
+- The script does not force virtual environment usage, but provides guidance
+
+### Backward Compatibility
+- ✅ All existing functionality is preserved
+- Users who don't want automatic installations can cancel at any prompt
+- The script works identically to the original if all dependencies are already installed
+
+### PR Size Note
+While this PR is larger than typical first-time contributions (+694/-61 lines, 5 files), all changes are cohesive and focused on a single feature: enhancing the startup script. Splitting this into smaller PRs would reduce the value of each individual PR, as the features work together as a unified improvement. We request thorough review due to the size, but believe the cohesive nature justifies the scope.
 
 ## Request for Review
 
