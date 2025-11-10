@@ -79,12 +79,25 @@ async def _prompt_worker(q: AbstractPromptQueue, server_instance: server_module.
 
             await e.execute_async(item[2], prompt_id, item[3], item[4])
             need_gc = True
+
+            # Extract error details from status_messages if there's an error
+            error_details = None
+            if not e.success:
+                for event, data in e.status_messages:
+                    if event == "execution_error":
+                        error_details = data
+                        break
+
+            # Convert status_messages tuples to string messages for backward compatibility
+            messages = [f"{event}: {data.get('exception_message', str(data))}" if isinstance(data, dict) and 'exception_message' in data else f"{event}" for event, data in e.status_messages]
+
             q.task_done(item_id,
                         e.history_result,
                         status=queue_types.ExecutionStatus(
                             status_str='success' if e.success else 'error',
                             completed=e.success,
-                            messages=e.status_messages))
+                            messages=messages),
+                        error_details=error_details)
             if server_instance.client_id is not None:
                 server_instance.send_sync("executing", {"node": None, "prompt_id": prompt_id},
                                           server_instance.client_id)

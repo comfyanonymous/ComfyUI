@@ -1,8 +1,6 @@
 import copy
 from typing import TypeAlias, Union
 
-from ..api.components.schema.prompt import PromptDict, Prompt
-
 JSON: TypeAlias = Union[dict[str, "JSON"], list["JSON"], str, int, float, bool, None]
 _BASE_PROMPT: JSON = {
     "4": {
@@ -161,7 +159,7 @@ def sdxl_workflow_with_refiner(prompt: str,
                                sampler="euler_ancestral",
                                scheduler="normal",
                                filename_prefix="sdxl_",
-                               seed=42) -> PromptDict:
+                               seed=42) -> dict:
     prompt_dict: JSON = copy.deepcopy(_BASE_PROMPT)
     prompt_dict["17"]["inputs"]["text"] = prompt
     prompt_dict["20"]["inputs"]["text"] = negative_prompt
@@ -188,4 +186,4 @@ def sdxl_workflow_with_refiner(prompt: str,
     prompt_dict["14"]["inputs"]["scheduler"] = scheduler
 
     prompt_dict["13"]["inputs"]["filename_prefix"] = filename_prefix
-    return Prompt.validate(prompt_dict)
+    return prompt_dict

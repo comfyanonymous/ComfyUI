@@ -34,7 +34,9 @@ jobs:
           tags: |
             type=raw,value=latest-rocm,enable={{is_default_branch}}
             type=sha,prefix=,suffix=-rocm
-            type=semver,pattern={{version}},suffix=-rocm
+            type=match,pattern=v?(\d+\.\d+\.\d+\.\d+),group=1,suffix=-rocm
+            type=match,pattern=v?(\d+\.\d+\.\d+),group=1,suffix=-rocm
+            type=match,pattern=v?(\d+\.\d+),group=1,suffix=-rocm
       - name: Build and push ROCm (AMD) image
         uses: docker/build-push-action@v6
         with:

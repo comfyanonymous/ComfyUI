@@ -156,6 +156,7 @@ def _create_parser() -> EnhancedConfigArgParser:
     parser.add_argument("--whitelist-custom-nodes", type=str, action=FlattenAndAppendAction, nargs='+', default=[], help="Specify custom node folders to load even when --disable-all-custom-nodes is enabled.")
     parser.add_argument("--blacklist-custom-nodes", type=str, action=FlattenAndAppendAction, nargs='+', default=[], help="Specify custom node folders to never load. Accepts shell-style globs.")
     parser.add_argument("--disable-api-nodes", action="store_true", help="Disable loading all api nodes.")
+    parser.add_argument("--enable-eval", action="store_true", help="Enable nodes that can evaluate Python code in workflows.")
 
     parser.add_argument("--multi-user", action="store_true", help="Enables per-user storage.")
     parser.add_argument("--create-directories", action="store_true",

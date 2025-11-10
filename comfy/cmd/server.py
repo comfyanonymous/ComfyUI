@@ -116,6 +116,24 @@ async def compress_body(request: web.Request, handler):
     return response
 
 
+@web.middleware
+async def opentelemetry_middleware(request: web.Request, handler):
+    """Middleware to extract and propagate OpenTelemetry context from request headers"""
+    from opentelemetry import propagate, context
+
+    # Extract OpenTelemetry context from headers
+    carrier = dict(request.headers)
+    ctx = propagate.extract(carrier)
+
+    # Attach context and execute handler
+    token = context.attach(ctx)
+    try:
+        response = await handler(request)
+        return response
+    finally:
+        context.detach(token)
+
+
 def create_cors_middleware(allowed_origin: str):
     @web.middleware
     async def cors_middleware(request: web.Request, handler):
@@ -127,7 +145,7 @@ def create_cors_middleware(allowed_origin: str):
 
         response.headers['Access-Control-Allow-Origin'] = allowed_origin
         response.headers['Access-Control-Allow-Methods'] = 'POST, GET, DELETE, PUT, OPTIONS'
-        response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization'
+        response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, traceparent, tracestate'
         response.headers['Access-Control-Allow-Credentials'] = 'true'
         return response
 
@@ -224,7 +242,7 @@ class PromptServer(ExecutorToClientProgress):
         self._external_address: Optional[str] = None
         self.background_tasks: dict[str, Task] = dict()
 
-        middlewares = [cache_control, deprecation_warning]
+        middlewares = [opentelemetry_middleware, cache_control, deprecation_warning]
         if args.enable_compress_response_body:
             middlewares.append(compress_body)
 
@@ -867,9 +885,19 @@ class PromptServer(ExecutorToClientProgress):
                     return web.json_response(status=404)
             elif prompt_id in history_items:
                 history_entry = history_items[prompt_id]
+                # Check if execution resulted in an error
+                if "status" in history_entry:
+                    status = history_entry["status"]
+                    if isinstance(status, dict) and status.get("status_str") == "error":
+                        # Return ExecutionStatusAsDict format with status 500, matching POST /api/v1/prompts behavior
+                        return web.Response(
+                            body=json.dumps(status),
+                            status=500,
+                            content_type="application/json"
+                        )
                 return web.json_response(history_entry["outputs"])
             else:
-                return web.json_response(status=500)
+                return web.Response(status=404, reason="prompt not found in expected state")
 
         @routes.post("/api/v1/prompts")
         async def post_api_prompt(request: web.Request) -> web.Response | web.FileResponse:
@@ -877,9 +905,13 @@ class PromptServer(ExecutorToClientProgress):
             if accept == '*/*':
                 accept = "application/json"
             content_type = request.headers.get("content-type", "application/json")
-            preferences = request.headers.get("prefer", "") + request.query.get("prefer", "") + " " + content_type
+            preferences = request.headers.get("prefer", "") + request.query.get("prefer", "") + " " + content_type + " " + accept
+
+            # handle media type parameters like "application/json+respond-async"
             if "+" in content_type:
                 content_type = content_type.split("+")[0]
+            if "+" in accept:
+                accept = accept.split("+")[0]
 
             wait = not "respond-async" in preferences
 
@@ -965,7 +997,8 @@ class PromptServer(ExecutorToClientProgress):
                 return web.Response(body=str(ex), status=500)
 
             if result.status is not None and result.status.status_str == "error":
-                return web.Response(body=json.dumps(result.status._asdict()), status=500, content_type="application/json")
+                status_dict = result.status.as_dict(error_details=result.error_details)
+                return web.Response(body=json.dumps(status_dict), status=500, content_type="application/json")
             # find images and read them
             output_images: List[FileOutput] = []
             for node_id, node in result.outputs.items():

@@ -41,8 +41,12 @@ jobs:
             type=raw,value=latest-cuda,enable={{is_default_branch}}
             type=sha,prefix=
             type=sha,prefix=,suffix=-cuda
-            type=semver,pattern={{version}}
-            type=semver,pattern={{version}},suffix=-cuda
+            type=match,pattern=v?(\d+\.\d+\.\d+\.\d+),group=1
+            type=match,pattern=v?(\d+\.\d+\.\d+\.\d+),group=1,suffix=-cuda
+            type=match,pattern=v?(\d+\.\d+\.\d+),group=1
+            type=match,pattern=v?(\d+\.\d+\.\d+),group=1,suffix=-cuda
+            type=match,pattern=v?(\d+\.\d+),group=1
+            type=match,pattern=v?(\d+\.\d+),group=1,suffix=-cuda
       - name: Build and push CUDA (NVIDIA) image
         uses: docker/build-push-action@v6
         with:

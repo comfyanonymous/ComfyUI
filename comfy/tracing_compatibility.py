@@ -3,7 +3,7 @@ from typing import Optional, Sequence
 from aio_pika.abc import AbstractChannel
 from opentelemetry.context import Context
 from opentelemetry.sdk.trace.sampling import Sampler, SamplingResult, Decision
-from opentelemetry.semconv.trace import SpanAttributes
+from opentelemetry.semconv.attributes.network_attributes import NETWORK_PEER_ADDRESS, NETWORK_PEER_PORT
 from opentelemetry.trace import SpanKind, Link, TraceState
 from opentelemetry.util.types import Attributes
 
@@ -22,8 +22,8 @@ def patch_spanbuilder_set_channel() -> None:
             port = url.port or 5672
             self._attributes.update(
                 {
-                    SpanAttributes.NET_PEER_NAME: url.host,
-                    SpanAttributes.NET_PEER_PORT: port,
+                    NETWORK_PEER_ADDRESS: url.host,
+                    NETWORK_PEER_PORT: port,
                 }
             )
 

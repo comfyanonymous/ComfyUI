@@ -3,8 +3,6 @@ import multiprocessing
 import os
 import pathlib
 import subprocess
-import sys
-import time
 import urllib
 from contextvars import ContextVar
 from multiprocessing import Process
@@ -12,9 +10,9 @@ from typing import List, Any, Generator
 
 import pytest
 import requests
+import sys
+import time
 
-from comfy.cli_args import default_configuration
-from comfy.execution_context import context_configuration
 
 os.environ['OTEL_METRICS_EXPORTER'] = 'none'
 os.environ["OPENCV_IO_ENABLE_OPENEXR"] = "1"
@@ -22,6 +20,7 @@ os.environ["HF_XET_HIGH_PERFORMANCE"] = "True"
 # fixes issues with running the testcontainers rabbitmqcontainer on Windows
 os.environ["TC_HOST"] = "localhost"
 
+from comfy.cli_args import default_configuration
 from comfy.cli_args_types import Configuration
 
 logging.getLogger("pika").setLevel(logging.CRITICAL + 1)
@@ -91,9 +90,17 @@ def frontend_backend_worker_with_rabbitmq(request, tmp_path_factory, num_workers
         params = rabbitmq.get_connection_params()
         connection_uri = f"amqp://guest:guest@127.0.0.1:{params.port}"
 
+        # Check if OTEL endpoint is configured for integration testing
+        otel_endpoint = os.environ.get("OTEL_EXPORTER_OTLP_ENDPOINT")
+
+        env = os.environ.copy()
+        if otel_endpoint:
+            env["OTEL_EXPORTER_OTLP_ENDPOINT"] = otel_endpoint
+            logging.info(f"Configuring services to export traces to: {otel_endpoint}")
+
         frontend_command = [
             "comfyui",
-            "--listen=127.0.0.1",
+            "--listen=0.0.0.0",
             "--port=19001",
             "--cpu",
             "--distributed-queue-frontend",
@@ -101,7 +108,7 @@ def frontend_backend_worker_with_rabbitmq(request, tmp_path_factory, num_workers
             f"--distributed-queue-connection-uri={connection_uri}",
         ]
 
-        processes_to_close.append(subprocess.Popen(frontend_command, stdout=sys.stdout, stderr=sys.stderr))
+        processes_to_close.append(subprocess.Popen(frontend_command, stdout=sys.stdout, stderr=sys.stderr, env=env))
 
         # Start multiple workers
         for i in range(num_workers):
@@ -112,7 +119,7 @@ def frontend_backend_worker_with_rabbitmq(request, tmp_path_factory, num_workers
                 f"--distributed-queue-connection-uri={connection_uri}",
                 f"--executor-factory={executor_factory}"
             ]
-            processes_to_close.append(subprocess.Popen(backend_command, stdout=sys.stdout, stderr=sys.stderr))
+            processes_to_close.append(subprocess.Popen(backend_command, stdout=sys.stdout, stderr=sys.stderr, env=env))
 
         try:
             server_address = f"http://127.0.0.1:19001"
