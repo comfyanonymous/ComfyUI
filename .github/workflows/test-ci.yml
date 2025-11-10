@@ -21,14 +21,15 @@ jobs:
       fail-fast: false
       matrix:
         # os: [macos, linux, windows]
-        os: [macos, linux]
-        python_version: ["3.9", "3.10", "3.11", "3.12"]
+        # os: [macos, linux]
+        os: [linux]
+        python_version: ["3.10", "3.11", "3.12"]
         cuda_version: ["12.1"]
         torch_version: ["stable"]
         include:
-          - os: macos
-            runner_label: [self-hosted, macOS]
-            flags: "--use-pytorch-cross-attention"
+          # - os: macos
+          #   runner_label: [self-hosted, macOS]
+          #   flags: "--use-pytorch-cross-attention"
           - os: linux
             runner_label: [self-hosted, Linux]
             flags: ""
@@ -73,14 +74,15 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [macos, linux]
+        # os: [macos, linux]
+        os: [linux]
         python_version: ["3.11"]
         cuda_version: ["12.1"]
         torch_version: ["nightly"]
         include:
-          - os: macos
-            runner_label: [self-hosted, macOS]
-            flags: "--use-pytorch-cross-attention"
+          # - os: macos
+          #   runner_label: [self-hosted, macOS]
+          #   flags: "--use-pytorch-cross-attention"
           - os: linux
             runner_label: [self-hosted, Linux]
             flags: ""
