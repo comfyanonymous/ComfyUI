@@ -76,7 +76,7 @@ jobs:
       matrix:
         # os: [macos, linux]
         os: [linux]
-        python_version: ["3.12"]
+        python_version: ["3.11"]
         cuda_version: ["12.1"]
         torch_version: ["nightly"]
         include:
