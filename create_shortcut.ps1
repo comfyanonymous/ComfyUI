@@ -8,3 +8,4 @@ $Shortcut.Description = "Run ComfyUI from repository"
 $Shortcut.Save()
 Write-Host "Shortcut created at: $ShortcutPath"
 
+
