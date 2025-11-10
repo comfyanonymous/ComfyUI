@@ -116,7 +116,7 @@ class TextEncodeQwenImageEliGen(io.ComfyNode):
     spatial attention masking.
 
     Features:
-    - Supports up to 3 entities per generation
+    - Supports up to 8 entities per generation
     - Spatial attention masks prevent cross-entity contamination
     - Separate RoPE embeddings per entity (research-accurate)
     - Falls back to standard generation if no entities provided
@@ -147,6 +147,16 @@ class TextEncodeQwenImageEliGen(io.ComfyNode):
                 io.String.Input("entity_prompt_2", multiline=True, dynamic_prompts=True, default=""),
                 io.Mask.Input("entity_mask_3", optional=True),
                 io.String.Input("entity_prompt_3", multiline=True, dynamic_prompts=True, default=""),
+                io.Mask.Input("entity_mask_4", optional=True),
+                io.String.Input("entity_prompt_4", multiline=True, dynamic_prompts=True, default=""),
+                io.Mask.Input("entity_mask_5", optional=True),
+                io.String.Input("entity_prompt_5", multiline=True, dynamic_prompts=True, default=""),
+                io.Mask.Input("entity_mask_6", optional=True),
+                io.String.Input("entity_prompt_6", multiline=True, dynamic_prompts=True, default=""),
+                io.Mask.Input("entity_mask_7", optional=True),
+                io.String.Input("entity_prompt_7", multiline=True, dynamic_prompts=True, default=""),
+                io.Mask.Input("entity_mask_8", optional=True),
+                io.String.Input("entity_prompt_8", multiline=True, dynamic_prompts=True, default=""),
             ],
             outputs=[
                 io.Conditioning.Output(),
@@ -164,7 +174,17 @@ class TextEncodeQwenImageEliGen(io.ComfyNode):
         entity_prompt_2: str = "",
         entity_mask_2: Optional[torch.Tensor] = None,
         entity_prompt_3: str = "",
-        entity_mask_3: Optional[torch.Tensor] = None
+        entity_mask_3: Optional[torch.Tensor] = None,
+        entity_prompt_4: str = "",
+        entity_mask_4: Optional[torch.Tensor] = None,
+        entity_prompt_5: str = "",
+        entity_mask_5: Optional[torch.Tensor] = None,
+        entity_prompt_6: str = "",
+        entity_mask_6: Optional[torch.Tensor] = None,
+        entity_prompt_7: str = "",
+        entity_mask_7: Optional[torch.Tensor] = None,
+        entity_prompt_8: str = "",
+        entity_mask_8: Optional[torch.Tensor] = None
     ) -> io.NodeOutput:
 
         # Extract dimensions from latent tensor
@@ -188,8 +208,8 @@ class TextEncodeQwenImageEliGen(io.ComfyNode):
         logging.debug(f"[EliGen] Target generation dimensions: {height}x{width} pixels ({latent_height}x{latent_width} latent)")
 
         # Collect entity prompts and masks
-        entity_prompts = [entity_prompt_1, entity_prompt_2, entity_prompt_3]
-        entity_masks_raw = [entity_mask_1, entity_mask_2, entity_mask_3]
+        entity_prompts = [entity_prompt_1, entity_prompt_2, entity_prompt_3, entity_prompt_4, entity_prompt_5, entity_prompt_6, entity_prompt_7, entity_prompt_8]
+        entity_masks_raw = [entity_mask_1, entity_mask_2, entity_mask_3, entity_mask_4, entity_mask_5, entity_mask_6, entity_mask_7, entity_mask_8]
 
         # Filter out entities with empty prompts or missing masks
         valid_entities = []
