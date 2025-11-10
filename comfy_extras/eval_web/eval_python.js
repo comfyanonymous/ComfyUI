@@ -158,7 +158,8 @@ app.registerExtension({
   },
 
   async beforeRegisterNodeDef(nodeType, nodeData) {
-    if (nodeData.name === "EvalPython") {
+    // Handle all EvalPython node variants
+    if (nodeData.name.startsWith("EvalPython")) {
       const originalOnConfigure = nodeType.prototype.onConfigure;
       nodeType.prototype.onConfigure = function (info) {
         originalOnConfigure?.apply(this, arguments);
