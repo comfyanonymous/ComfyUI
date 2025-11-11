@@ -72,33 +72,54 @@ The complete PR description is in `PR_DESCRIPTION.md` and includes:
 
 - [x] All changes committed to `preinstall-enhancements` branch
 - [x] Branch is based on `master`
-- [x] PR description written
+- [x] PR description written with all required sections
 - [x] Plan document included
 - [x] Code tested
+- [x] Feature Request issue content created (`FEATURE_REQUEST_ISSUE.md`)
+- [x] Issue creation instructions created (`CREATE_ISSUE_INSTRUCTIONS.md`)
+- [x] PR compliance analysis completed (`PR_COMPLIANCE_ANALYSIS.md`)
+- [ ] **Create Feature Request issue on GitHub** (REQUIRED - see instructions below)
+- [ ] Update PR description with issue number after issue is created
 - [ ] Screenshots captured (optional but recommended)
 - [ ] Final review of PR description
 - [ ] Ready to submit to upstream repository
 
 ## Submission Steps
 
-1. **Push branch to your fork**:
-   ```bash
-   git push origin preinstall-enhancements
-   ```
+### Step 1: Create Feature Request Issue (REQUIRED)
 
-2. **Create PR on GitHub**:
-   - Go to the upstream repository
-   - Click "New Pull Request"
-   - Select `preinstall-enhancements` as source branch
-   - Select `master` as target branch
-   - Copy PR description from `PR_DESCRIPTION.md`
-   - Add screenshots if available
-   - Submit PR
+**This must be done BEFORE submitting the PR to comply with contribution guidelines.**
 
-3. **Monitor PR**:
-   - Respond to review comments
-   - Make requested changes if needed
-   - Update branch as necessary
+1. Go to: https://github.com/comfyanonymous/ComfyUI/issues/new
+2. Use title: `Feature Request: Enhanced run_comfyui.bat with Automated Dependency Checking and CUDA PyTorch Detection`
+3. Copy content from `FEATURE_REQUEST_ISSUE.md` and paste into issue body
+4. Submit the issue
+5. **Save the issue number** (e.g., #12345)
+6. Update `PR_DESCRIPTION.md` to replace the placeholder with: `Addresses #[issue-number]`
+7. Commit the update: `git commit -am "Add issue number to PR description"`
+
+See `CREATE_ISSUE_INSTRUCTIONS.md` for detailed steps.
+
+### Step 2: Push Branch to Fork
+
+```bash
+git push origin preinstall-enhancements
+```
+
+### Step 3: Create PR on GitHub
+
+1. Go to: https://github.com/comfyanonymous/ComfyUI/compare
+2. Select `preinstall-enhancements` as source branch
+3. Select `master` as target branch
+4. Copy PR description from `PR_DESCRIPTION.md` (with issue number included)
+5. Add screenshots if available
+6. Submit PR
+
+### Step 4: Monitor PR
+
+- Respond to review comments
+- Make requested changes if needed
+- Update branch as necessary
 
 ## Notes
 
