@@ -44,7 +44,7 @@ class QwenImageControlNetModel(QwenImageTransformer2DModel):
         txt_start = round(max(((x.shape[-1] + (self.patch_size // 2)) // self.patch_size) // 2, ((x.shape[-2] + (self.patch_size // 2)) // self.patch_size) // 2))
         txt_ids = torch.arange(txt_start, txt_start + context.shape[1], device=x.device).reshape(1, -1, 1).repeat(x.shape[0], 1, 3)
         ids = torch.cat((txt_ids, img_ids), dim=1)
-        image_rotary_emb = self.pe_embedder(ids).squeeze(1).unsqueeze(2).to(x.dtype)
+        image_rotary_emb = self.pe_embedder(ids).to(x.dtype).contiguous()
         del ids, txt_ids, img_ids
 
         hidden_states = self.img_in(hidden_states) + self.controlnet_x_embedder(hint)
