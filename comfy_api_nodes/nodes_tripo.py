@@ -102,9 +102,9 @@ class TripoTextToModelNode(IO.ComfyNode):
                 IO.Int.Input("model_seed", default=42, optional=True),
                 IO.Int.Input("texture_seed", default=42, optional=True),
                 IO.Combo.Input("texture_quality", default="standard", options=["standard", "detailed"], optional=True),
-                IO.Combo.Input("geometry_quality", default="standard", options=["standard", "detailed"], optional=True),
                 IO.Int.Input("face_limit", default=-1, min=-1, max=2000000, optional=True),
                 IO.Boolean.Input("quad", default=False, optional=True),
+                IO.Combo.Input("geometry_quality", default="standard", options=["standard", "detailed"], optional=True),
             ],
             outputs=[
                 IO.String.Output(display_name="model_file"),
@@ -192,12 +192,12 @@ class TripoImageToModelNode(IO.ComfyNode):
                 ),
                 IO.Int.Input("texture_seed", default=42, optional=True),
                 IO.Combo.Input("texture_quality", default="standard", options=["standard", "detailed"], optional=True),
-                IO.Combo.Input("geometry_quality", default="standard", options=["standard", "detailed"], optional=True),
                 IO.Combo.Input(
                     "texture_alignment", default="original_image", options=["original_image", "geometry"], optional=True
                 ),
                 IO.Int.Input("face_limit", default=-1, min=-1, max=500000, optional=True),
                 IO.Boolean.Input("quad", default=False, optional=True),
+                IO.Combo.Input("geometry_quality", default="standard", options=["standard", "detailed"], optional=True),
             ],
             outputs=[
                 IO.String.Output(display_name="model_file"),
@@ -296,12 +296,12 @@ class TripoMultiviewToModelNode(IO.ComfyNode):
                 IO.Int.Input("model_seed", default=42, optional=True),
                 IO.Int.Input("texture_seed", default=42, optional=True),
                 IO.Combo.Input("texture_quality", default="standard", options=["standard", "detailed"], optional=True),
-                IO.Combo.Input("geometry_quality", default="standard", options=["standard", "detailed"], optional=True),
                 IO.Combo.Input(
                     "texture_alignment", default="original_image", options=["original_image", "geometry"], optional=True
                 ),
                 IO.Int.Input("face_limit", default=-1, min=-1, max=500000, optional=True),
                 IO.Boolean.Input("quad", default=False, optional=True),
+                IO.Combo.Input("geometry_quality", default="standard", options=["standard", "detailed"], optional=True),
             ],
             outputs=[
                 IO.String.Output(display_name="model_file"),
