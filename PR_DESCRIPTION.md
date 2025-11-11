@@ -80,8 +80,12 @@ This PR enhances the `run_comfyui.bat` startup script for Windows users, signifi
 
 ## Screenshots
 
+> **Note**: Screenshots are available in the `screenshots/` directory. See `screenshots/README.md` for details on what each screenshot demonstrates.
+
 ### ASCII Art Banner
 The script displays a polished ASCII art banner with "Comfy" text:
+
+![ASCII Art Banner](screenshots/01_ascii_banner.png)
 ```
 ╔═══════════════════════════════════════════════════════════╗
 ║                                                           ║
@@ -101,6 +105,8 @@ The script displays a polished ASCII art banner with "Comfy" text:
 ### Key User Interactions
 
 **Dependency Checking Prompt:**
+
+![Dependency Check](screenshots/02_dependency_check.png)
 ```
 ╔═══════════════════════════════════════════════════════════╗
 ║            Missing Required Packages                      ║
@@ -120,6 +126,9 @@ The script displays a polished ASCII art banner with "Comfy" text:
 ```
 
 **CUDA PyTorch Detection:**
+
+![CUDA Detection](screenshots/03_cuda_detection.png)
+
 ```
 ╔═══════════════════════════════════════════════════════════╗
 ║     CPU-Only PyTorch Detected - CUDA Version Required     ║
