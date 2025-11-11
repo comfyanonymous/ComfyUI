@@ -48,7 +48,7 @@ class LoadImageDataSetFromFolderNode(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="LoadImageDataSetFromFolder",
-            display_name="Load Simple Image Dataset from Folder",
+            display_name="Load Image Dataset from Folder",
             category="dataset",
             is_experimental=True,
             inputs=[
@@ -60,7 +60,9 @@ class LoadImageDataSetFromFolderNode(io.ComfyNode):
             ],
             outputs=[
                 io.Image.Output(
-                    "images", is_output_list=True, tooltip="List of loaded images"
+                    display_name="images",
+                    is_output_list=True,
+                    tooltip="List of loaded images",
                 )
             ],
         )
@@ -83,7 +85,7 @@ class LoadImageTextDataSetFromFolderNode(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="LoadImageTextDataSetFromFolder",
-            display_name="Load Simple Image and Text Dataset from Folder",
+            display_name="Load Image and Text Dataset from Folder",
             category="dataset",
             is_experimental=True,
             inputs=[
@@ -95,10 +97,14 @@ class LoadImageTextDataSetFromFolderNode(io.ComfyNode):
             ],
             outputs=[
                 io.Image.Output(
-                    "images", is_output_list=True, tooltip="List of loaded images"
+                    display_name="images",
+                    is_output_list=True,
+                    tooltip="List of loaded images",
                 ),
                 io.String.Output(
-                    "texts", is_output_list=True, tooltip="List of text captions"
+                    display_name="texts",
+                    is_output_list=True,
+                    tooltip="List of text captions",
                 ),
             ],
         )
@@ -201,7 +207,7 @@ class SaveImageDataSetToFolderNode(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="SaveImageDataSetToFolder",
-            display_name="Save Simple Image Dataset to Folder",
+            display_name="Save Image Dataset to Folder",
             category="dataset",
             is_experimental=True,
             is_output_node=True,
@@ -240,7 +246,7 @@ class SaveImageTextDataSetToFolderNode(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="SaveImageTextDataSetToFolder",
-            display_name="Save Simple Image and Text Dataset to Folder",
+            display_name="Save Image and Text Dataset to Folder",
             category="dataset",
             is_experimental=True,
             is_output_node=True,
@@ -337,7 +343,9 @@ class ImageProcessingNode(io.ComfyNode):
             inputs=inputs,
             outputs=[
                 io.Image.Output(
-                    "images", is_output_list=True, tooltip="Processed images"
+                    display_name="images",
+                    is_output_list=True,
+                    tooltip="Processed images",
                 )
             ],
         )
@@ -405,7 +413,7 @@ class TextProcessingNode(io.ComfyNode):
             inputs=inputs,
             outputs=[
                 io.String.Output(
-                    "texts", is_output_list=True, tooltip="Processed texts"
+                    display_name="texts", is_output_list=True, tooltip="Processed texts"
                 )
             ],
         )
@@ -767,10 +775,12 @@ class ShuffleImageTextDatasetNode(io.ComfyNode):
             ],
             outputs=[
                 io.Image.Output(
-                    "images", is_output_list=True, tooltip="Shuffled images"
+                    display_name="images",
+                    is_output_list=True,
+                    tooltip="Shuffled images",
                 ),
                 io.String.Output(
-                    "texts", is_output_list=True, tooltip="Shuffled texts"
+                    display_name="texts", is_output_list=True, tooltip="Shuffled texts"
                 ),
             ],
         )
@@ -903,10 +913,12 @@ class MakeTrainingDataset(io.ComfyNode):
             ],
             outputs=[
                 io.Latent.Output(
-                    "latents", is_output_list=True, tooltip="List of latent dicts"
+                    display_name="latents",
+                    is_output_list=True,
+                    tooltip="List of latent dicts",
                 ),
                 io.Conditioning.Output(
-                    "conditioning",
+                    display_name="conditioning",
                     is_output_list=True,
                     tooltip="List of conditioning lists",
                 ),
@@ -1082,10 +1094,12 @@ class LoadTrainingDataset(io.ComfyNode):
             ],
             outputs=[
                 io.Latent.Output(
-                    "latents", is_output_list=True, tooltip="List of latent dicts"
+                    display_name="latents",
+                    is_output_list=True,
+                    tooltip="List of latent dicts",
                 ),
                 io.Conditioning.Output(
-                    "conditioning",
+                    display_name="conditioning",
                     is_output_list=True,
                     tooltip="List of conditioning lists",
                 ),

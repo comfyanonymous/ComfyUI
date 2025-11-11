@@ -387,10 +387,16 @@ class TrainLoraNode(io.ComfyNode):
                 ),
             ],
             outputs=[
-                io.Model.Output("model", tooltip="Model with LoRA applied"),
-                io.Custom("LORA_MODEL").Output("lora", tooltip="LoRA weights"),
-                io.Custom("LOSS_MAP").Output("loss_map", tooltip="Loss history"),
-                io.Int.Output("steps", tooltip="Total training steps"),
+                io.Model.Output(
+                    display_name="model", tooltip="Model with LoRA applied"
+                ),
+                io.Custom("LORA_MODEL").Output(
+                    display_name="lora", tooltip="LoRA weights"
+                ),
+                io.Custom("LOSS_MAP").Output(
+                    display_name="loss_map", tooltip="Loss history"
+                ),
+                io.Int.Output(display_name="steps", tooltip="Total training steps"),
             ],
         )
 
@@ -663,7 +669,9 @@ class LoraModelLoader(io.ComfyNode):
                 ),
             ],
             outputs=[
-                io.Model.Output("model", tooltip="The modified diffusion model."),
+                io.Model.Output(
+                    display_name="model", tooltip="The modified diffusion model."
+                ),
             ],
         )
 
