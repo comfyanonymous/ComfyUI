@@ -78,8 +78,8 @@ The complete PR description is in `PR_DESCRIPTION.md` and includes:
 - [x] Feature Request issue content created (`FEATURE_REQUEST_ISSUE.md`)
 - [x] Issue creation instructions created (`CREATE_ISSUE_INSTRUCTIONS.md`)
 - [x] PR compliance analysis completed (`PR_COMPLIANCE_ANALYSIS.md`)
-- [ ] **Create Feature Request issue on GitHub** (REQUIRED - see instructions below)
-- [ ] Update PR description with issue number after issue is created
+- [x] **Create Feature Request issue on GitHub** (REQUIRED - see instructions below) ✅ Issue #10705 created
+- [x] Update PR description with issue number after issue is created ✅ Updated with #10705
 - [ ] Screenshots captured (optional but recommended)
 - [ ] Final review of PR description
 - [ ] Ready to submit to upstream repository
