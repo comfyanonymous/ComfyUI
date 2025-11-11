@@ -11,7 +11,7 @@
 
 ## Related Issue
 
-⚠️ **Feature Request Issue**: A Feature Request issue will be created before submitting this PR to comply with contribution guidelines. The issue number will be added here once created.
+Addresses [#10705](https://github.com/comfyanonymous/ComfyUI/issues/10705) - Feature Request: Enhanced run_comfyui.bat with Automated Dependency Checking and CUDA PyTorch Detection
 
 ## Issue Addressed
 
