@@ -2,29 +2,9 @@
 chcp 65001 >nul 2>&1
 cd /d "%~dp0"
 
-REM Display ComfyUI 8-bit header
 echo.
-echo  ╔═══════════════════════════════════════════════════════════╗
-echo  ║                                                           ║
-echo  ║          ██████╗ ██████╗ ███╗   ███╗███████╗██╗   ██╗     ║
-echo  ║         ██╔════╝██╔═══██╗████╗ ████║██╔════╝╚██╗ ██╔╝     ║
-echo  ║         ██║     ██║   ██║██╔████╔██║█████╗   ╚████╔╝      ║
-echo  ║         ██║     ██║   ██║██║╚██╔╝██║██╔══╝    ╚██╔╝       ║
-echo  ║         ╚██████╗╚██████╔╝██║ ╚═╝ ██║██║        ██║        ║
-echo  ║          ╚═════╝ ╚═════╝ ╚═╝     ╚═╝╚═╝        ╚═╝        ║
-echo  ║                                                           ║
-echo  ║         The most powerful open source node-based          ║
-echo  ║         application for generative AI                     ║
-echo  ║                                                           ║
-echo  ╚═══════════════════════════════════════════════════════════╝
-echo.
-
-echo  ╔═══════════════════════════════════════════════════════════╗
-echo  ║                    Preflight Check                        ║
-echo  ╚═══════════════════════════════════════════════════════════╝
-echo.
-echo  ▓ Taking a quick look around your rig... checking prereqs.
-echo    This will only take a moment.
+echo  ComfyUI Windows launcher
+echo  Performing quick preflight checks...
 echo.
 
 REM Check Python availability
@@ -57,7 +37,7 @@ for /f "tokens=1,* delims==" %%a in (env_info.tmp) do (
 del env_info.tmp
 
 REM ---------------------------------------------------------------
-REM Weekly full check logic (skip optional prompts for faster launch)
+REM Weekly full check logic (informational checks only)
 REM Force with: run_comfyui.bat --full-check
 REM ---------------------------------------------------------------
 set STATE_DIR=%LOCALAPPDATA%\ComfyUI\state
@@ -79,159 +59,31 @@ if not defined NEED_FULL (
     )
 )
 
-REM Check for missing dependencies - separate critical vs optional
+REM Dependency presence check (informational only)
 if not defined NEED_FULL goto :check_pytorch
-python -c "import importlib.util; critical = []; optional = []; critical_deps = {'yaml': 'yaml', 'torch': 'torch', 'torchvision': 'torchvision', 'torchaudio': 'torchaudio', 'numpy': 'numpy', 'einops': 'einops', 'transformers': 'transformers', 'tokenizers': 'tokenizers', 'sentencepiece': 'sentencepiece', 'safetensors': 'safetensors', 'aiohttp': 'aiohttp', 'yarl': 'yarl', 'PIL': 'PIL', 'scipy': 'scipy', 'tqdm': 'tqdm', 'psutil': 'psutil', 'alembic': 'alembic', 'sqlalchemy': 'sqlalchemy', 'av': 'av', 'comfyui_frontend': 'comfyui_frontend_package'}; optional_deps = {'comfyui_workflow_templates': 'comfyui_workflow_templates', 'comfyui_embedded_docs': 'comfyui_embedded_docs'}; [critical.append(k) for k, v in critical_deps.items() if not importlib.util.find_spec(v)]; [optional.append(k) for k, v in optional_deps.items() if not importlib.util.find_spec(v)]; print('CRITICAL:' + (','.join(critical) if critical else 'NONE')); print('OPTIONAL:' + (','.join(optional) if optional else 'NONE'))" > deps_check.tmp
+python -c "import importlib.util as u; mods=['yaml','torch','torchvision','torchaudio','numpy','einops','transformers','tokenizers','sentencepiece','safetensors','aiohttp','yarl','PIL','scipy','tqdm','psutil','alembic','sqlalchemy','av']; missing=[m for m in mods if not u.find_spec(m)]; print('MISSING:' + (','.join(missing) if missing else 'NONE'))" > deps_check.tmp
 for /f "tokens=1,* delims=:" %%a in (deps_check.tmp) do (
-    if "%%a"=="CRITICAL" set MISSING_CRITICAL=%%b
-    if "%%a"=="OPTIONAL" set MISSING_OPTIONAL=%%b
+    if "%%a"=="MISSING" set MISSING_CRITICAL=%%b
 )
 del deps_check.tmp
 
-REM Check if we can launch without optional dependencies
-if "%MISSING_CRITICAL%"=="NONE" (
-    if not "%MISSING_OPTIONAL%"=="NONE" (
-        echo.
-        echo  ╔═══════════════════════════════════════════════════════════╗
-        echo  ║              Optional Packages Available                   ║
-        echo  ╚═══════════════════════════════════════════════════════════╝
-        echo.
-        echo  ▓ The following optional packages are missing:
-        echo    %MISSING_OPTIONAL%
-        echo.
-        echo  ▓ These packages add extra features but aren't required to run ComfyUI.
-        echo    ComfyUI will launch without them, but some features may be unavailable.
-        echo.
-        choice /C YNS /N /D S /T 10 /M "Install optional packages? (Y=Yes / N=No / S=Skip for now, default S in 10s): "
-        if errorlevel 3 (
-            echo.
-            echo  ▓ Skipping optional packages. ComfyUI will launch with limited features.
-            echo.
-        ) else if errorlevel 2 (
-            echo.
-            echo  ▓ Skipping optional packages.
-            echo.
-        ) else (
-            echo.
-            echo  ▓ Installing optional packages...
-            python -m pip install --disable-pip-version-check comfyui-workflow-templates comfyui-embedded-docs >nul 2>&1
-            echo  ▓ Optional packages installed.
-            echo.
-        )
-        type nul > "%FULL_STAMP%"
-        goto :check_pytorch
-    )
-    type nul > "%FULL_STAMP%"
-    goto :check_pytorch
-)
-
-REM Critical dependencies are missing
 if not "%MISSING_CRITICAL%"=="NONE" (
     echo.
-    echo  ╔═══════════════════════════════════════════════════════════╗
-    echo  ║            Missing Required Packages                      ║
-    echo  ╚═══════════════════════════════════════════════════════════╝
-    echo.
-    echo  ▓ ComfyUI needs some additional software to run.
-    echo    The following critical packages are missing:
+    echo  Missing required Python packages:
     echo    %MISSING_CRITICAL%
     echo.
-    if not "%MISSING_OPTIONAL%"=="NONE" (
-        echo  ▓ Optional packages also missing: %MISSING_OPTIONAL%
-        echo.
+    if "%ENV_TYPE%"=="SYSTEM_PYTHON" (
+        echo  Tip: Creating a virtual environment is recommended:
+        echo    python -m venv venv ^&^& venv\Scripts\activate
     )
-    echo  ▓ These are like plugins that ComfyUI needs to work properly.
     echo.
-
-    REM Display environment warnings
-    if "%ENV_TYPE%"=="VENV_DETECTED" (
-        echo  ▓ [Good News] You're using a virtual environment.
-        echo    This means installing packages here won't affect other programs.
-        echo.
-    ) else (
-        echo  ▓ [Heads Up] You're using your main Python installation.
-        echo    Installing packages here might affect other programs that use Python.
-        echo.
-        echo  ▓ Tip: For better safety, you can create a separate environment:
-        echo     1. Create it: python -m venv venv
-        echo     2. Activate it: venv\Scripts\activate
-        echo     3. Run this script again
-        echo.
-    )
-
-    echo  ▓ We'll install packages using: %PYTHON_PATH%
+    echo  Install the dependencies, then run this script again:
+    echo    python -m pip install -r requirements.txt
     echo.
-    echo  ╔═══════════════════════════════════════════════════════════╗
-    echo  ║                    Installation Options                   ║
-    echo  ╚═══════════════════════════════════════════════════════════╝
-    echo.
-    echo    [I] Install all missing packages (recommended)
-    echo    [C] Install only critical packages
-    echo    [N] Cancel and exit
-    echo.
-    set /p INSTALL_CHOICE="Choose an option (I/C/N): "
-
-    if /i "%INSTALL_CHOICE%"=="I" (
-        echo.
-        echo  ▓ Installing all required packages...
-        echo    This may take several minutes. Please wait...
-        echo.
-        python -m pip install --progress-bar on --disable-pip-version-check -r requirements.txt
-        if errorlevel 1 (
-            echo.
-            echo  ╔═══════════════════════════════════════════════════════════╗
-            echo  ║                  Installation Failed                       ║
-            echo  ╚═══════════════════════════════════════════════════════════╝
-            echo.
-            echo  ▓ Something went wrong while installing the packages.
-            echo.
-            echo  ▓ Common problems and fixes:
-            echo    - Internet connection issues: Check your internet and try again
-            echo    - Permission errors: Try right-clicking and "Run as Administrator"
-            echo    - Package conflicts: Try creating a virtual environment (see above)
-            echo.
-            echo  ▓ To try installing manually, open a terminal here and run:
-            echo    python -m pip install -r requirements.txt
-            echo.
-            pause
-            exit /b 1
-        )
-        echo.
-        echo  ▓ Great! All packages installed successfully.
-        echo.
-        type nul > "%FULL_STAMP%"
-    ) else if /i "%INSTALL_CHOICE%"=="C" (
-        echo.
-        echo  ▓ Installing critical packages only...
-        echo.
-        python -m pip install --progress-bar on --disable-pip-version-check torch torchvision torchaudio numpy einops transformers tokenizers sentencepiece safetensors aiohttp yarl pyyaml Pillow scipy tqdm psutil alembic SQLAlchemy av comfyui-frontend-package
-        if errorlevel 1 (
-            echo.
-            echo  ╔═══════════════════════════════════════════════════════════╗
-            echo  ║                  Installation Failed                       ║
-            echo  ╚═══════════════════════════════════════════════════════════╝
-            echo.
-            echo  ▓ Something went wrong while installing the packages.
-            echo    Please check the error messages above.
-            echo.
-            pause
-            exit /b 1
-        )
-        echo.
-        echo  ▓ Critical packages installed. ComfyUI should now launch.
-        echo.
-        type nul > "%FULL_STAMP%"
-    ) else (
-        echo.
-        echo  ▓ Installation cancelled.
-        echo.
-        echo  ▓ If you want to install them later, open a terminal here and run:
-        echo    python -m pip install -r requirements.txt
-        echo.
-        pause
-        exit /b 0
-    )
+    exit /b 1
 )
+type nul > "%FULL_STAMP%"
+goto :check_pytorch
 
 :check_pytorch
 REM Fast path: read torch version without importing (import is slow)
@@ -267,106 +119,13 @@ REM Check if PyTorch version contains "+cpu" indicating CPU-only build
 echo %PYTORCH_VERSION% | findstr /C:"+cpu" >nul
 if not errorlevel 1 (
     echo.
-    echo  ╔═══════════════════════════════════════════════════════════╗
-    echo  ║     CPU-Only PyTorch Detected - CUDA Version Required     ║
-    echo  ╚═══════════════════════════════════════════════════════════╝
+    echo  CPU-only PyTorch detected.
+    echo  ComfyUI requires a CUDA-enabled PyTorch build for GPU acceleration.
     echo.
-    echo  ▓ Your PyTorch installation doesn't support GPU acceleration.
-    echo    ComfyUI requires CUDA-enabled PyTorch to run properly.
+    echo  Install CUDA-enabled PyTorch, then run this script again. Example:
+    echo    python -m pip install torch torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/cu130
     echo.
-    echo  ▓ We can automatically install the CUDA-enabled version for you.
-    echo    This will:
-    echo      1. Remove the current CPU-only version
-    echo      2. Install the CUDA-enabled version (this will take several minutes)
-    echo      3. Continue to launch ComfyUI automatically
-    echo.
-    echo  ▓ Note: This requires an NVIDIA graphics card with CUDA support.
-    echo.
-    choice /C YN /N /D N /T 15 /M "Install CUDA-enabled PyTorch now? (Y/N, default N in 15s): "
-    if errorlevel 2 (
-        echo.
-        echo  ▓ Skipping CUDA PyTorch installation.
-        echo    ComfyUI will not be able to run with CPU-only PyTorch.
-        echo    Please install CUDA-enabled PyTorch manually and try again.
-        echo.
-        pause
-        exit /b 0
-    ) else (
-        echo.
-        echo  ▓ Uninstalling CPU-only PyTorch...
-        python -m pip uninstall -y torch torchvision torchaudio
-        if errorlevel 1 (
-            echo.
-            echo  ╔═══════════════════════════════════════════════════════════╗
-            echo  ║              Uninstallation Failed                       ║
-            echo  ╚═══════════════════════════════════════════════════════════╝
-            echo.
-            echo  ▓ Failed to uninstall CPU-only PyTorch.
-            echo    Please try running as Administrator or uninstall manually.
-            echo.
-            pause
-            exit /b 1
-        )
-        echo.
-        echo  ▓ Installing CUDA-enabled PyTorch...
-        echo    This may take several minutes. Please wait...
-        echo.
-        python -m pip install --progress-bar on --disable-pip-version-check torch torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/cu130
-        if errorlevel 1 (
-            echo.
-            echo  ╔═══════════════════════════════════════════════════════════╗
-            echo  ║              Installation Failed                           ║
-            echo  ╚═══════════════════════════════════════════════════════════╝
-            echo.
-            echo  ▓ Failed to install CUDA-enabled PyTorch.
-            echo    Please check your internet connection and try again.
-            echo.
-            echo  ▓ To install manually, run:
-            echo    python -m pip install torch torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/cu130
-            echo.
-            pause
-            exit /b 1
-        )
-        echo.
-        echo  ▓ CUDA-enabled PyTorch installed successfully!
-        echo    Verifying installation...
-        echo.
-        REM Verify the installation
-        python -c "import torch; print('CUDA_AVAILABLE:' + str(torch.cuda.is_available())); print('PYTORCH_VERSION:' + torch.__version__)" > pytorch_verify.tmp 2>&1
-        if errorlevel 1 (
-            echo  ▓ Warning: Could not verify PyTorch installation.
-            echo    Continuing anyway...
-            echo.
-            REM Continue to launch (offer updates) even if verification failed
-            goto :maybe_update_torch
-        ) else (
-            for /f "tokens=1,* delims=:" %%a in (pytorch_verify.tmp) do (
-                if "%%a"=="CUDA_AVAILABLE" set CUDA_VERIFY=%%b
-                if "%%a"=="PYTORCH_VERSION" set PYTORCH_VERIFY=%%b
-            )
-            del pytorch_verify.tmp
-            
-            REM Update CUDA_AVAILABLE and PYTORCH_VERSION with the new values
-            set CUDA_AVAILABLE=%CUDA_VERIFY%
-            set PYTORCH_VERSION=%PYTORCH_VERIFY%
-            
-            echo %PYTORCH_VERIFY% | findstr /C:"+cpu" >nul
-            if not errorlevel 1 (
-                echo  ▓ Warning: PyTorch still appears to be CPU-only.
-                echo    The installation may have failed. Please check manually.
-                echo.
-                REM Still continue - let ComfyUI try to run
-                goto :start_comfyui
-            ) else (
-                echo  ▓ Verification successful! CUDA-enabled PyTorch is ready.
-                echo.
-                REM Continue to launch (offer updates)
-                goto :maybe_update_torch
-            )
-        )
-        REM If verification failed but installation succeeded, continue anyway
-        goto :maybe_update_torch
-    )
+    exit /b 1
 )
 
 REM Check if CUDA is not available but PyTorch doesn't have "+cpu" (might be CUDA build but no GPU)
@@ -397,60 +156,7 @@ if "%CUDA_AVAILABLE%"=="False" (
 )
 )
 
-REM If CUDA is available after checks, offer optional updates then show all-clear banner
-if /i "%CUDA_AVAILABLE%"=="True" goto :maybe_update_torch
-
-REM Otherwise go straight to launch (CPU fallback accepted)
-goto :check_port
-
-:maybe_update_torch
-REM Quick connectivity probe - skip updates if offline
-powershell -NoProfile -Command "try{(Invoke-WebRequest -Uri 'https://pypi.org' -Method Head -TimeoutSec 3)>$null; exit 0}catch{exit 1}"
-if errorlevel 1 (
-    echo.
-    echo  ▓ Looks like we're offline. Skipping update checks.
-    goto :all_clear_banner
-)
-
-set OUTDATED_TORCH=
-python -m pip list --disable-pip-version-check --outdated --format=freeze 2>nul | findstr /i "^torch==" > outdated_torch.tmp
-for /f %%i in (outdated_torch.tmp) do set OUTDATED_TORCH=1
-del outdated_torch.tmp 2>nul
-
-if defined OUTDATED_TORCH (
-    echo.
-    echo  ╔═══════════════════════════════════════════════════════════╗
-    echo  ║               PyTorch Updates Available                   ║
-    echo  ╚═══════════════════════════════════════════════════════════╝
-    echo.
-    echo  ▓ A newer version of PyTorch packages is available.
-    echo  ▓ You can update now or skip and launch immediately.
-    echo.
-    choice /C YN /N /D N /T 10 /M "Update now? (Y/N, default N in 10s): "
-    if errorlevel 2 (
-        echo.
-        echo  ▓ Skipping updates for now.
-        echo.
-    ) else (
-        echo.
-        echo  ▓ Updating PyTorch packages...
-        python -m pip install --progress-bar on --disable-pip-version-check --upgrade torch torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/cu130
-        echo.
-    )
-)
-
-:all_clear_banner
-echo.
-echo  ╔═══════════════════════════════════════════════════════════╗
-echo  ║                      You're All Set!                      ║
-echo  ╚═══════════════════════════════════════════════════════════╝
-echo.
-echo  ▓ CUDA-enabled PyTorch is ready to go!
-echo    Your GPU is configured and ready for ComfyUI.
-echo.
-echo  ▓ Launching ComfyUI in 3 seconds...
-timeout /t 3 /nobreak >nul
-echo.
+REM Proceed to launch
 goto :check_port
 
 :check_port
