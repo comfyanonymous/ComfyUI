@@ -59,7 +59,9 @@ class LoadImageDataSetFromFolderNode(io.ComfyNode):
                 )
             ],
             outputs=[
-                io.Image.Output(is_output_list=True, tooltip="List of loaded images")
+                io.Image.Output(
+                    "images", is_output_list=True, tooltip="List of loaded images"
+                )
             ],
         )
 
@@ -92,8 +94,12 @@ class LoadImageTextDataSetFromFolderNode(io.ComfyNode):
                 )
             ],
             outputs=[
-                io.Image.Output(is_output_list=True, tooltip="List of loaded images"),
-                io.String.Output(is_output_list=True, tooltip="List of text captions"),
+                io.Image.Output(
+                    "images", is_output_list=True, tooltip="List of loaded images"
+                ),
+                io.String.Output(
+                    "texts", is_output_list=True, tooltip="List of text captions"
+                ),
             ],
         )
 
@@ -329,7 +335,11 @@ class ImageProcessingNode(io.ComfyNode):
             is_experimental=True,
             is_input_list=True,
             inputs=inputs,
-            outputs=[io.Image.Output(is_output_list=True, tooltip="Processed images")],
+            outputs=[
+                io.Image.Output(
+                    "images", is_output_list=True, tooltip="Processed images"
+                )
+            ],
         )
 
     @classmethod
@@ -393,7 +403,11 @@ class TextProcessingNode(io.ComfyNode):
             is_experimental=True,
             is_input_list=True,
             inputs=inputs,
-            outputs=[io.String.Output(is_output_list=True, tooltip="Processed texts")],
+            outputs=[
+                io.String.Output(
+                    "texts", is_output_list=True, tooltip="Processed texts"
+                )
+            ],
         )
 
     @classmethod
@@ -752,8 +766,12 @@ class ShuffleImageTextDatasetNode(io.ComfyNode):
                 ),
             ],
             outputs=[
-                io.Image.Output(is_output_list=True, tooltip="Shuffled images"),
-                io.String.Output(is_output_list=True, tooltip="Shuffled texts"),
+                io.Image.Output(
+                    "images", is_output_list=True, tooltip="Shuffled images"
+                ),
+                io.String.Output(
+                    "texts", is_output_list=True, tooltip="Shuffled texts"
+                ),
             ],
         )
 
@@ -884,9 +902,13 @@ class MakeTrainingDataset(io.ComfyNode):
                 ),
             ],
             outputs=[
-                io.Latent.Output(is_output_list=True, tooltip="List of latent dicts"),
+                io.Latent.Output(
+                    "latents", is_output_list=True, tooltip="List of latent dicts"
+                ),
                 io.Conditioning.Output(
-                    is_output_list=True, tooltip="List of conditioning lists"
+                    "conditioning",
+                    is_output_list=True,
+                    tooltip="List of conditioning lists",
                 ),
             ],
         )
@@ -1059,9 +1081,13 @@ class LoadTrainingDataset(io.ComfyNode):
                 ),
             ],
             outputs=[
-                io.Latent.Output(is_output_list=True, tooltip="List of latent dicts"),
+                io.Latent.Output(
+                    "latents", is_output_list=True, tooltip="List of latent dicts"
+                ),
                 io.Conditioning.Output(
-                    is_output_list=True, tooltip="List of conditioning lists"
+                    "conditioning",
+                    is_output_list=True,
+                    tooltip="List of conditioning lists",
                 ),
             ],
         )
