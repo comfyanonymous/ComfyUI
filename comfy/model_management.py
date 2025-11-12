@@ -523,7 +523,7 @@ class LoadedModel:
     def model_unload(self, memory_to_free=None, unpatch_weights=True):
         if memory_to_free is not None:
             if memory_to_free < self.model.loaded_size():
-                freed = self.model.partially_unload(self.model.offload_device, memory_to_free)
+                freed = self.model.partially_unload(self.model.offload_device, memory_to_free, allow_full_unload=True)
                 if freed >= memory_to_free:
                     return False
         self.model.detach(unpatch_weights)
