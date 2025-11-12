@@ -74,6 +74,12 @@ def _copy_layout_params(params):
             new_params[k] = v
     return new_params
 
+def _copy_layout_params_inplace(src, dst, non_blocking=False):
+    for k, v in src.items():
+        if isinstance(v, torch.Tensor):
+            dst[k].copy_(v, non_blocking=non_blocking)
+        else:
+            dst[k] = v
 
 class QuantizedLayout:
     """
@@ -318,13 +324,13 @@ def generic_to_dtype_layout(func, args, kwargs):
 def generic_copy_(func, args, kwargs):
     qt_dest = args[0]
     src = args[1]
-
+    non_blocking = args[2] if len(args) > 2 else False
     if isinstance(qt_dest, QuantizedTensor):
         if isinstance(src, QuantizedTensor):
             # Copy from another quantized tensor
-            qt_dest._qdata.copy_(src._qdata)
+            qt_dest._qdata.copy_(src._qdata, non_blocking=non_blocking)
             qt_dest._layout_type = src._layout_type
-            qt_dest._layout_params = _copy_layout_params(src._layout_params)
+            _copy_layout_params_inplace(src._layout_params, qt_dest._layout_params, non_blocking=non_blocking)
         else:
             # Copy from regular tensor - just copy raw data
             qt_dest._qdata.copy_(src)
@@ -335,6 +341,26 @@ def generic_copy_(func, args, kwargs):
 @register_generic_util(torch.ops.aten._has_compatible_shallow_copy_type.default)
 def generic_has_compatible_shallow_copy_type(func, args, kwargs):
     return True
+
+
+@register_generic_util(torch.ops.aten.empty_like.default)
+def generic_empty_like(func, args, kwargs):
+    """Empty_like operation - creates an empty tensor with the same quantized structure."""
+    qt = args[0]
+    if isinstance(qt, QuantizedTensor):
+        # Create empty tensor with same shape and dtype as the quantized data
+        hp_dtype = kwargs.pop('dtype', qt._layout_params["orig_dtype"])
+        new_qdata = torch.empty_like(qt._qdata, **kwargs)
+
+        # Handle device transfer for layout params
+        target_device = kwargs.get('device', new_qdata.device)
+        new_params = _move_layout_params_to_device(qt._layout_params, target_device)
+
+        # Update orig_dtype if dtype is specified
+        new_params['orig_dtype'] = hp_dtype
+
+        return QuantizedTensor(new_qdata, qt._layout_type, new_params)
+    return func(*args, **kwargs)
 
 # ==============================================================================
 # FP8 Layout + Operation Handlers
@@ -378,6 +404,13 @@ class TensorCoreFP8Layout(QuantizedLayout):
     def get_plain_tensors(cls, qtensor):
         return qtensor._qdata, qtensor._layout_params['scale']
 
+QUANT_ALGOS = {
+    "float8_e4m3fn": {
+        "storage_t": torch.float8_e4m3fn,
+        "parameters": {"weight_scale", "input_scale"},
+        "comfy_tensor_layout": "TensorCoreFP8Layout",
+    },
+}
 
 LAYOUTS = {
     "TensorCoreFP8Layout": TensorCoreFP8Layout,
