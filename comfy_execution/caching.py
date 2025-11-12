@@ -53,7 +53,7 @@ class Unhashable:
 def to_hashable(obj):
     # So that we don't infinitely recurse since frozenset and tuples
     # are Sequences.
-    if isinstance(obj, (int, float, str, bool, type(None))):
+    if isinstance(obj, (int, float, str, bool, bytes, type(None))):
         return obj
     elif isinstance(obj, Mapping):
         return frozenset([(to_hashable(k), to_hashable(v)) for k, v in sorted(obj.items())])
@@ -399,6 +399,8 @@ class RAMPressureCache(LRUCache):
             ram_usage = RAM_CACHE_DEFAULT_RAM_USAGE
             def scan_list_for_ram_usage(outputs):
                 nonlocal ram_usage
+                if outputs is None:
+                    return
                 for output in outputs:
                     if isinstance(output, list):
                         scan_list_for_ram_usage(output)

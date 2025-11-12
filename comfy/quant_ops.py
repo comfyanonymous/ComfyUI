@@ -123,15 +123,15 @@ class QuantizedTensor(torch.Tensor):
             layout_type: Layout class (subclass of QuantizedLayout)
             layout_params: Dict with layout-specific parameters
         """
-        return torch.Tensor._make_subclass(cls, qdata, require_grad=False)
+        return torch.Tensor._make_wrapper_subclass(cls, qdata.shape, device=qdata.device, dtype=qdata.dtype, requires_grad=False)
 
     def __init__(self, qdata, layout_type, layout_params):
-        self._qdata = qdata.contiguous()
+        self._qdata = qdata
         self._layout_type = layout_type
         self._layout_params = layout_params
 
     def __repr__(self):
-        layout_name = self._layout_type.__name__
+        layout_name = self._layout_type
         param_str = ", ".join(f"{k}={v}" for k, v in list(self._layout_params.items())[:2])
         return f"QuantizedTensor(shape={self.shape}, layout={layout_name}, {param_str})"
 
@@ -179,15 +179,15 @@ class QuantizedTensor(torch.Tensor):
             attr_name = f"_layout_param_{key}"
             layout_params[key] = inner_tensors[attr_name]
 
-        return QuantizedTensor(inner_tensors["_q_data"], layout_type, layout_params)
+        return QuantizedTensor(inner_tensors["_qdata"], layout_type, layout_params)
 
     @classmethod
     def from_float(cls, tensor, layout_type, **quantize_kwargs) -> 'QuantizedTensor':
-        qdata, layout_params = layout_type.quantize(tensor, **quantize_kwargs)
+        qdata, layout_params = LAYOUTS[layout_type].quantize(tensor, **quantize_kwargs)
         return cls(qdata, layout_type, layout_params)
 
     def dequantize(self) -> torch.Tensor:
-        return self._layout_type.dequantize(self._qdata, **self._layout_params)
+        return LAYOUTS[self._layout_type].dequantize(self._qdata, **self._layout_params)
 
     @classmethod
     def __torch_dispatch__(cls, func, types, args=(), kwargs=None):
@@ -379,7 +379,12 @@ class TensorCoreFP8Layout(QuantizedLayout):
         return qtensor._qdata, qtensor._layout_params['scale']
 
 
-@register_layout_op(torch.ops.aten.linear.default, TensorCoreFP8Layout)
+LAYOUTS = {
+    "TensorCoreFP8Layout": TensorCoreFP8Layout,
+}
+
+
+@register_layout_op(torch.ops.aten.linear.default, "TensorCoreFP8Layout")
 def fp8_linear(func, args, kwargs):
     input_tensor = args[0]
     weight = args[1]
@@ -406,13 +411,17 @@ def fp8_linear(func, args, kwargs):
 
         try:
             output = torch._scaled_mm(
-                plain_input.reshape(-1, input_shape[2]),
+                plain_input.reshape(-1, input_shape[2]).contiguous(),
                 weight_t,
                 bias=bias,
                 scale_a=scale_a,
                 scale_b=scale_b,
                 out_dtype=out_dtype,
             )
+
+            if isinstance(output, tuple):  # TODO: remove when we drop support for torch 2.4
+                output = output[0]
+
             if not tensor_2d:
                 output = output.reshape((-1, input_shape[1], weight.shape[0]))
 
@@ -422,7 +431,7 @@ def fp8_linear(func, args, kwargs):
                     'scale': output_scale,
                     'orig_dtype': input_tensor._layout_params['orig_dtype']
                 }
-                return QuantizedTensor(output, TensorCoreFP8Layout, output_params)
+                return QuantizedTensor(output, "TensorCoreFP8Layout", output_params)
             else:
                 return output
 
@@ -436,3 +445,68 @@ def fp8_linear(func, args, kwargs):
         input_tensor = input_tensor.dequantize()
 
     return torch.nn.functional.linear(input_tensor, weight, bias)
+
+def fp8_mm_(input_tensor, weight, bias=None, out_dtype=None):
+    if out_dtype is None:
+        out_dtype = input_tensor._layout_params['orig_dtype']
+
+    plain_input, scale_a = TensorCoreFP8Layout.get_plain_tensors(input_tensor)
+    plain_weight, scale_b = TensorCoreFP8Layout.get_plain_tensors(weight)
+
+    output = torch._scaled_mm(
+        plain_input.contiguous(),
+        plain_weight,
+        bias=bias,
+        scale_a=scale_a,
+        scale_b=scale_b,
+        out_dtype=out_dtype,
+    )
+
+    if isinstance(output, tuple):  # TODO: remove when we drop support for torch 2.4
+        output = output[0]
+    return output
+
+@register_layout_op(torch.ops.aten.addmm.default, "TensorCoreFP8Layout")
+def fp8_addmm(func, args, kwargs):
+    input_tensor = args[1]
+    weight = args[2]
+    bias = args[0]
+
+    if isinstance(input_tensor, QuantizedTensor) and isinstance(weight, QuantizedTensor):
+        return fp8_mm_(input_tensor, weight, bias=bias, out_dtype=kwargs.get("out_dtype", None))
+
+    a = list(args)
+    if isinstance(args[0], QuantizedTensor):
+        a[0] = args[0].dequantize()
+    if isinstance(args[1], QuantizedTensor):
+        a[1] = args[1].dequantize()
+    if isinstance(args[2], QuantizedTensor):
+        a[2] = args[2].dequantize()
+
+    return func(*a, **kwargs)
+
+@register_layout_op(torch.ops.aten.mm.default, "TensorCoreFP8Layout")
+def fp8_mm(func, args, kwargs):
+    input_tensor = args[0]
+    weight = args[1]
+
+    if isinstance(input_tensor, QuantizedTensor) and isinstance(weight, QuantizedTensor):
+        return fp8_mm_(input_tensor, weight, bias=None, out_dtype=kwargs.get("out_dtype", None))
+
+    a = list(args)
+    if isinstance(args[0], QuantizedTensor):
+        a[0] = args[0].dequantize()
+    if isinstance(args[1], QuantizedTensor):
+        a[1] = args[1].dequantize()
+    return func(*a, **kwargs)
+
+@register_layout_op(torch.ops.aten.view.default, "TensorCoreFP8Layout")
+@register_layout_op(torch.ops.aten.t.default, "TensorCoreFP8Layout")
+def fp8_func(func, args, kwargs):
+    input_tensor = args[0]
+    if isinstance(input_tensor, QuantizedTensor):
+        plain_input, scale_a = TensorCoreFP8Layout.get_plain_tensors(input_tensor)
+        ar = list(args)
+        ar[0] = plain_input
+        return QuantizedTensor(func(*ar, **kwargs), "TensorCoreFP8Layout", input_tensor._layout_params)
+    return func(*args, **kwargs)
