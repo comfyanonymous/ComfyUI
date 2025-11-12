@@ -503,10 +503,7 @@ class LoadedModel:
         use_more_vram = lowvram_model_memory
         if use_more_vram == 0:
             use_more_vram = 1e32
-        if use_more_vram > 0:
-            self.model_use_more_vram(use_more_vram, force_patch_weights=force_patch_weights)
-        else:
-            self.model.partially_unload(self.model.offload_device, -use_more_vram, force_patch_weights=force_patch_weights)
+        self.model_use_more_vram(use_more_vram, force_patch_weights=force_patch_weights)
 
         real_model = self.model.model
 
