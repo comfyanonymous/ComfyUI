@@ -928,6 +928,9 @@ class ModelPatcher:
                 extra_memory += (used - self.model.model_loaded_weight_memory)
 
             self.patch_model(load_weights=False)
+            if extra_memory < 0 and not unpatch_weights:
+                self.partially_unload(self.offload_device, -extra_memory, force_patch_weights=force_patch_weights)
+                return 0
             full_load = False
             if self.model.model_lowvram == False and self.model.model_loaded_weight_memory > 0:
                 self.apply_hooks(self.forced_hooks, force_apply=True)
