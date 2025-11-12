@@ -256,6 +256,9 @@ This is the command to install the Pytorch xpu nightly which might have some per
 
 1. visit [Installation](https://intel.github.io/intel-extension-for-pytorch/index.html#installation?platform=gpu) for more information.
 
+(Option 3) [OpenVINO Node for ComfyUI](https://github.com/openvino-dev-samples/comfyui_openvino). This node is designed for optimizing the performance of model inference in ComfyUI by leveraging Intel OpenVINO toolkits.
+
+
 ### NVIDIA
 
 Nvidia users should install stable pytorch using this command:
