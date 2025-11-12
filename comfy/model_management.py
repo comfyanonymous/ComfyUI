@@ -546,20 +546,6 @@ class LoadedModel:
         return self.real_model() is not None and self.model is None
 
 
-def use_more_memory(extra_memory, loaded_models, device):
-    for m in loaded_models:
-        if m.device == device:
-            extra_memory -= m.model_use_more_vram(extra_memory)
-            if extra_memory <= 0:
-                break
-
-def offloaded_memory(loaded_models, device):
-    offloaded_mem = 0
-    for m in loaded_models:
-        if m.device == device:
-            offloaded_mem += m.model_offloaded_memory()
-    return offloaded_mem
-
 WINDOWS = any(platform.win32_ver())
 
 EXTRA_RESERVED_VRAM = 400 * 1024 * 1024
