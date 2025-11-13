@@ -1012,7 +1012,7 @@ def force_channels_last():
 
 
 STREAMS = {}
-NUM_STREAMS = 1
+NUM_STREAMS = 0
 if args.async_offload:
     NUM_STREAMS = 2
     logging.info("Using async weight offloading with {} streams".format(NUM_STREAMS))
@@ -1030,7 +1030,7 @@ def current_stream(device):
 stream_counters = {}
 def get_offload_stream(device):
     stream_counter = stream_counters.get(device, 0)
-    if NUM_STREAMS <= 1:
+    if NUM_STREAMS == 0:
         return None
 
     if device in STREAMS:
