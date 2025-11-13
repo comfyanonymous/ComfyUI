@@ -838,6 +838,7 @@ class AutogrowDynamic(ComfyTypeI):
         def __init__(self, id: str, template_input: Input, min: int=1, max: int=None,
                      display_name: str=None, optional=False, tooltip: str=None, lazy: bool=None, extra_dict=None):
             super().__init__(id, display_name, optional, tooltip, lazy, extra_dict)
+            raise Exception("AutogrowDynamic is not implemented yet, and will likely be renamed for actual implementation.")
             self.template_input = template_input
             if min is not None:
                 assert(min >= 1)
