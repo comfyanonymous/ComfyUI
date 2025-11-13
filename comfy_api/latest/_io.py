@@ -890,6 +890,9 @@ class DynamicCombo(ComfyTypeI):
             super().__init__(id)
             self.options = options
 
+        def get_dynamic(self) -> list[Input]:
+            return [self]
+
         def as_dict(self):
             return super().as_dict() | prune_dict({
                 "options": [o.as_dict() for o in self.options],
