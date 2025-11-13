@@ -220,11 +220,12 @@ class Encoder(nn.Module):
         if self.refiner_vae:
             out = self.regul(out)[0]
 
-            out = torch.cat((out[:, :, :1], out), dim=2)
-            out = out.permute(0, 2, 1, 3, 4)
-            b, f_times_2, c, h, w = out.shape
-            out = out.reshape(b, f_times_2 // 2, 2 * c, h, w)
-            out = out.permute(0, 2, 1, 3, 4).contiguous()
+        # todo don't break this
+        #     out = torch.cat((out[:, :, :1], out), dim=2)
+        #     out = out.permute(0, 2, 1, 3, 4)
+        #     b, f_times_2, c, h, w = out.shape
+        #     out = out.reshape(b, f_times_2 // 2, 2 * c, h, w)
+        #     out = out.permute(0, 2, 1, 3, 4).contiguous()
 
         return out
 
@@ -275,13 +276,15 @@ class Decoder(nn.Module):
         self.conv_out = conv_op(ch, out_channels, 3, stride=1, padding=1)
 
     def forward(self, z):
-        if self.refiner_vae:
-            z = z.permute(0, 2, 1, 3, 4)
-            b, f, c, h, w = z.shape
-            z = z.reshape(b, f, 2, c // 2, h, w)
-            z = z.permute(0, 1, 2, 3, 4, 5).reshape(b, f * 2, c // 2, h, w)
-            z = z.permute(0, 2, 1, 3, 4)
-            z = z[:, :, 1:]
+
+        # todo don't break this
+        # if self.refiner_vae:
+        #     z = z.permute(0, 2, 1, 3, 4)
+        #     b, f, c, h, w = z.shape
+        #     z = z.reshape(b, f, 2, c // 2, h, w)
+        #     z = z.permute(0, 1, 2, 3, 4, 5).reshape(b, f * 2, c // 2, h, w)
+        #     z = z.permute(0, 2, 1, 3, 4)
+        #     z = z[:, :, 1:]
 
         x = self.conv_in(z) + z.repeat_interleave(self.block_out_channels[0] // self.z_channels, 1)
         x = self.mid.block_2(self.mid.attn_1(self.mid.block_1(x)))

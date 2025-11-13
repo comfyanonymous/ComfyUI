@@ -57,6 +57,22 @@ class EmptyHunyuanLatentVideo(io.ComfyNode):
     generate = execute  # TODO: remove
 
 
+class EmptyHunyuanVideo15Latent(EmptyHunyuanLatentVideo):
+    @classmethod
+    def define_schema(cls):
+        schema = super().define_schema()
+        schema.node_id = "EmptyHunyuanVideo15Latent"
+        return schema
+
+    @classmethod
+    def execute(cls, width, height, length, batch_size=1) -> io.NodeOutput:
+        # Using scale factor of 16 instead of 8
+        latent = torch.zeros([batch_size, 16, ((length - 1) // 4) + 1, height // 16, width // 16], device=comfy.model_management.intermediate_device())
+        return io.NodeOutput({"samples": latent})
+
+    generate = execute  # TODO: remove
+
+
 PROMPT_TEMPLATE_ENCODE_VIDEO_I2V = (
     "<|start_header_id|>system<|end_header_id|>\n\n<image>\nDescribe the video by detailing the following aspects according to the reference image: "
     "1. The main content and theme of the video."
@@ -210,6 +226,7 @@ class HunyuanExtension(ComfyExtension):
             CLIPTextEncodeHunyuanDiT,
             TextEncodeHunyuanVideo_ImageToVideo,
             EmptyHunyuanLatentVideo,
+            EmptyHunyuanVideo15Latent,
             HunyuanImageToVideo,
             EmptyHunyuanImageLatent,
             HunyuanRefinerLatent,

@@ -42,6 +42,8 @@ class HunyuanVideoParams:
     guidance_embed: bool
     byt5: bool
     meanflow: bool
+    use_cond_type_embedding: bool
+    vision_in_dim: int
 
 
 class SelfAttentionRef(nn.Module):
@@ -196,11 +198,16 @@ class HunyuanVideo(nn.Module):
     def __init__(self, image_model=None, final_layer=True, dtype=None, device=None, operations=None, **kwargs):
         super().__init__()
         self.dtype = dtype
+        operation_settings = {"operations": operations, "device": device, "dtype": dtype}
+
         params = HunyuanVideoParams(**kwargs)
+        print("HunyuanVideo params:", params)
         self.params = params
         self.patch_size = params.patch_size
         self.in_channels = params.in_channels
         self.out_channels = params.out_channels
+        self.use_cond_type_embedding = params.use_cond_type_embedding
+        self.vision_in_dim = params.vision_in_dim
         if params.hidden_size % params.num_heads != 0:
             raise ValueError(
                 f"Hidden size {params.hidden_size} must be divisible by num_heads {params.num_heads}"
@@ -265,6 +272,18 @@ class HunyuanVideo(nn.Module):
 
         if final_layer:
             self.final_layer = LastLayer(self.hidden_size, self.patch_size[-1], self.out_channels, dtype=dtype, device=device, operations=operations)
+
+        # HunyuanVideo 1.5 specific modules
+        if self.vision_in_dim is not None:
+            from comfy.ldm.wan.model import MLPProj # todo move
+            self.vision_in = MLPProj(in_dim=self.vision_in_dim, out_dim=self.hidden_size, operation_settings=operation_settings)
+        else:
+            self.vision_in = None
+        if self.use_cond_type_embedding:
+            # 0: text_encoder feature 1: byt5 feature 2: vision_encoder feature
+            self.cond_type_embedding = nn.Embedding(3, self.hidden_size)
+        else:
+            self.cond_type_embedding = None
 
     def forward_orig(
         self,
@@ -336,6 +355,44 @@ class HunyuanVideo(nn.Module):
             txt_byt5_ids = torch.zeros((txt_ids.shape[0], txt_byt5.shape[1], txt_ids.shape[-1]), device=txt_ids.device, dtype=txt_ids.dtype)
             txt = torch.cat((txt, txt_byt5), dim=1)
             txt_ids = torch.cat((txt_ids, txt_byt5_ids), dim=1)
+
+        # if self.cond_type_embedding is not None:
+        #     self.cond_type_embedding.to(txt.device)
+        #     cond_emb = self.cond_type_embedding(torch.zeros_like(txt[:, :, 0], device=txt.device, dtype=torch.long))
+        #     txt = txt + cond_emb.to(txt.dtype)
+
+        # if txt_byt5 is None:
+        #     txt_byt5 = torch.zeros((1, 1000, 1472), device=txt.device, dtype=txt.dtype)
+        # if self.byt5_in is not None and txt_byt5 is not None:
+        #     txt_byt5 = self.byt5_in(txt_byt5)
+        #     if self.cond_type_embedding is not None:
+        #         cond_emb = self.cond_type_embedding(torch.ones_like(txt_byt5[:, :, 0], device=txt_byt5.device, dtype=torch.long))
+        #         txt_byt5 = txt_byt5 + cond_emb.to(txt_byt5.dtype)
+        #     txt_byt5_ids = torch.zeros((txt_ids.shape[0], txt_byt5.shape[1], txt_ids.shape[-1]), device=txt_ids.device, dtype=txt_ids.dtype)
+        #     #txt = torch.cat((txt, txt_byt5), dim=1)
+        #     #txt_ids = torch.cat((txt_ids, txt_byt5_ids), dim=1)
+        #     print("txt_byt5 shape:", txt_byt5.shape)
+        #     print("txt shape:", txt.shape)
+        #     txt = torch.cat((txt_byt5, txt), dim=1)
+        #     txt_ids = torch.cat((txt_byt5_ids, txt_ids), dim=1)
+
+        # vision_states = torch.zeros(img.shape[0], 729, self.vision_in_dim, device=img.device, dtype=img.dtype)
+        # if self.cond_type_embedding is not None:
+        #     extra_encoder_hidden_states = self.vision_in(vision_states)
+        #     extra_encoder_hidden_states = extra_encoder_hidden_states * 0.0 #t2v
+        #     cond_emb = self.cond_type_embedding(
+        #         2 * torch.ones_like(
+        #             extra_encoder_hidden_states[:, :, 0],
+        #             dtype=torch.long,
+        #             device=extra_encoder_hidden_states.device,
+        #         )
+        #     )
+        #     extra_encoder_hidden_states = extra_encoder_hidden_states + cond_emb
+        #     print("extra_encoder_hidden_states shape:", extra_encoder_hidden_states.shape)
+        #     txt = torch.cat((extra_encoder_hidden_states.to(txt.dtype), txt), dim=1)
+
+        #     extra_txt_ids = torch.zeros((txt_ids.shape[0], extra_encoder_hidden_states.shape[1], txt_ids.shape[-1]), device=txt_ids.device, dtype=txt_ids.dtype)
+        #     txt_ids = torch.cat((extra_txt_ids, txt_ids), dim=1)
 
         ids = torch.cat((img_ids, txt_ids), dim=1)
         pe = self.pe_embedder(ids)

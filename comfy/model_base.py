@@ -1536,3 +1536,36 @@ class HunyuanImage21Refiner(HunyuanImage21):
         out = super().extra_conds(**kwargs)
         out['disable_time_r'] = comfy.conds.CONDConstant(True)
         return out
+
+class HunyuanVideo15(HunyuanImage21):
+    def __init__(self, model_config, model_type=ModelType.FLOW, device=None):
+        super().__init__(model_config, model_type, device=device)
+
+    def concat_cond(self, **kwargs):
+        noise = kwargs.get("noise", None)
+        extra_channels = self.diffusion_model.img_in.proj.weight.shape[1] - noise.shape[1] - 1 #noise 32 img cond 32 + mask 1
+        if extra_channels == 0:
+            return None
+
+        image = kwargs.get("concat_latent_image", None)
+        device = kwargs["device"]
+
+        if image is None:
+            shape_image = list(noise.shape)
+            shape_image[1] = extra_channels
+            image = torch.zeros(shape_image, dtype=noise.dtype, layout=noise.layout, device=noise.device)
+        else:
+            latent_dim = self.latent_format.latent_channels
+            image = utils.common_upscale(image.to(device), noise.shape[-1], noise.shape[-2], "bilinear", "center")
+            for i in range(0, image.shape[1], latent_dim):
+                image[:, i: i + latent_dim] = self.process_latent_in(image[:, i: i + latent_dim])
+            image = utils.resize_to_batch_size(image, noise.shape[0])
+
+        mask = kwargs.get("concat_mask", kwargs.get("denoise_mask", None))
+        if mask is None:
+            mask = torch.zeros_like(noise)[:, :1]
+        else:
+            mask = torch.zeros_like(noise)[:, :1]
+            mask[:, :, 1:] = 1.0
+
+        return torch.cat((image, mask), dim=1)

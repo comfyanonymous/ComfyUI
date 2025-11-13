@@ -611,6 +611,11 @@ class HunyuanImage21Refiner(LatentFormat):
     latent_dimensions = 3
     scale_factor = 1.03682
 
+class HunyuanVideo15(LatentFormat):
+    latent_channels = 32
+    latent_dimensions = 3
+    scale_factor = 1.03682
+
 class Hunyuan3Dv2(LatentFormat):
     latent_channels = 64
     latent_dimensions = 1
