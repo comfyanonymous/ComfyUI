@@ -872,11 +872,28 @@ class AutogrowDynamic(ComfyTypeI):
                 curr_count += 1
             return new_inputs
 
-@comfytype(io_type="COMFY_COMBODYNAMIC_V3")
-class ComboDynamic(ComfyTypeI):
+@comfytype(io_type="COMFY_DYNAMICCOMBO_V3")
+class DynamicCombo(ComfyTypeI):
+    class Option:
+        def __init__(self, key: str, inputs: list[Input]):
+            self.key = key
+            self.inputs = inputs
+
+        def as_dict(self):
+            return {
+                "key": self.key,
+                "inputs": [i.as_dict() for i in self.inputs],
+            }
+
     class Input(DynamicInput):
-        def __init__(self, id: str):
-            pass
+        def __init__(self, id: str, options: list[DynamicCombo.Option]):
+            super().__init__(id)
+            self.options = options
+
+        def as_dict(self):
+            return super().as_dict() | prune_dict({
+                "options": [o.as_dict() for o in self.options],
+            })
 
 @comfytype(io_type="COMFY_MATCHTYPE_V3")
 class MatchType(ComfyTypeIO):
