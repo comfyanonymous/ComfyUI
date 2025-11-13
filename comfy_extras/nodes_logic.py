@@ -11,6 +11,7 @@ class SwitchNode(io.ComfyNode):
             node_id="ComfySwitchNode",
             display_name="Switch",
             category="logic",
+            is_experimental=True,
             inputs=[
                 io.Boolean.Input("switch"),
                 io.MatchType.Input("on_false", template=template, lazy=True),
