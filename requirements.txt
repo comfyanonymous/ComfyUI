@@ -167,10 +167,10 @@ sympy==1.14.0
 tenacity==9.1.2
 tokenizers==0.15.2
 toml==0.10.2
-torch==2.4.0
-torchaudio==2.4.0
+torch>=2.0.0
+torchaudio>=2.0.0
 torchsde==0.2.6
-torchvision==0.19.0
+torchvision>=0.15.0
 tornado==6.5.2
 tqdm==4.67.1
 trampoline==0.1.2
