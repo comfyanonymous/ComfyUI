@@ -200,7 +200,7 @@ comfy install
 
 ## Manual Install (Windows, Linux)
 
-Python 3.14 will work if you comment out the `kornia` dependency in the requirements.txt file (breaks the canny node) but it is not recommended.
+Python 3.14 works but you may encounter issues with the torch compile node. The free threaded variant is still missing some dependencies.
 
 Python 3.13 is very well supported. If you have trouble with some custom node dependencies on 3.13 you can try 3.12
 
@@ -242,7 +242,7 @@ RDNA 4 (RX 9000 series):
 
 ### Intel GPUs (Windows and Linux)
 
-(Option 1) Intel Arc GPU users can install native PyTorch with torch.xpu support using pip. More information can be found [here](https://pytorch.org/docs/main/notes/get_start_xpu.html)
+Intel Arc GPU users can install native PyTorch with torch.xpu support using pip. More information can be found [here](https://pytorch.org/docs/main/notes/get_start_xpu.html)
 
 1. To install PyTorch xpu, use the following command:
 
@@ -251,10 +251,6 @@ RDNA 4 (RX 9000 series):
 This is the command to install the Pytorch xpu nightly which might have some performance improvements:
 
 ```pip install --pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/nightly/xpu```
-
-(Option 2) Alternatively, Intel GPUs supported by Intel Extension for PyTorch (IPEX) can leverage IPEX for improved performance.
-
-1. visit [Installation](https://intel.github.io/intel-extension-for-pytorch/index.html#installation?platform=gpu) for more information.
 
 ### NVIDIA
 
