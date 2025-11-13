@@ -2,6 +2,7 @@ import os
 import sys
 import asyncio
 import traceback
+import time
 
 import nodes
 import folder_paths
@@ -733,6 +734,7 @@ class PromptServer():
                     for sensitive_val in execution.SENSITIVE_EXTRA_DATA_KEYS:
                         if sensitive_val in extra_data:
                             sensitive[sensitive_val] = extra_data.pop(sensitive_val)
+                    extra_data["create_time"] = int(time.time() * 1000)  # timestamp in milliseconds
                     self.prompt_queue.put((number, prompt_id, prompt, extra_data, outputs_to_execute, sensitive))
                     response = {"prompt_id": prompt_id, "number": number, "node_errors": valid[3]}
                     return web.json_response(response)
