@@ -580,7 +580,11 @@ class LazyMoELoader(nn.Module):
                     new_k = k.split(f"experts.{expert_idx}.", 1)[1]
                     sd[new_k] = f.get_tensor(k)
 
-        return HunyuanMLP(self.config, layer_idx=layer_idx, is_shared_mlp=False, is_moe=True).load_state_dict(sd)
+        model = HunyuanMLP(self.config, layer_idx=layer_idx, is_shared_mlp=False, is_moe=True, device="meta")
+        model.to_empty(device = "cpu")
+        
+        model.load_state_dict(sd)
+        return model
 
     async def lazy_load_from_disk(self, layer_idx, expert_idx):
         loop = asyncio.get_event_loop()
