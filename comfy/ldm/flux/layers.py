@@ -130,13 +130,17 @@ def apply_mod(tensor, m_mult, m_add=None, modulation_dims=None):
 
 
 class DoubleStreamBlock(nn.Module):
-    def __init__(self, hidden_size: int, num_heads: int, mlp_ratio: float, qkv_bias: bool = False, flipped_img_txt=False, dtype=None, device=None, operations=None):
+    def __init__(self, hidden_size: int, num_heads: int, mlp_ratio: float, qkv_bias: bool = False, flipped_img_txt=False, modulation=True, dtype=None, device=None, operations=None):
         super().__init__()
 
         mlp_hidden_dim = int(hidden_size * mlp_ratio)
         self.num_heads = num_heads
         self.hidden_size = hidden_size
-        self.img_mod = Modulation(hidden_size, double=True, dtype=dtype, device=device, operations=operations)
+        self.modulation = modulation
+
+        if self.modulation:
+            self.img_mod = Modulation(hidden_size, double=True, dtype=dtype, device=device, operations=operations)
+
         self.img_norm1 = operations.LayerNorm(hidden_size, elementwise_affine=False, eps=1e-6, dtype=dtype, device=device)
         self.img_attn = SelfAttention(dim=hidden_size, num_heads=num_heads, qkv_bias=qkv_bias, dtype=dtype, device=device, operations=operations)
 
@@ -147,7 +151,9 @@ class DoubleStreamBlock(nn.Module):
             operations.Linear(mlp_hidden_dim, hidden_size, bias=True, dtype=dtype, device=device),
         )
 
-        self.txt_mod = Modulation(hidden_size, double=True, dtype=dtype, device=device, operations=operations)
+        if self.modulation:
+            self.txt_mod = Modulation(hidden_size, double=True, dtype=dtype, device=device, operations=operations)
+
         self.txt_norm1 = operations.LayerNorm(hidden_size, elementwise_affine=False, eps=1e-6, dtype=dtype, device=device)
         self.txt_attn = SelfAttention(dim=hidden_size, num_heads=num_heads, qkv_bias=qkv_bias, dtype=dtype, device=device, operations=operations)
 
@@ -160,8 +166,11 @@ class DoubleStreamBlock(nn.Module):
         self.flipped_img_txt = flipped_img_txt
 
     def forward(self, img: Tensor, txt: Tensor, vec: Tensor, pe: Tensor, attn_mask=None, modulation_dims_img=None, modulation_dims_txt=None, transformer_options={}):
-        img_mod1, img_mod2 = self.img_mod(vec)
-        txt_mod1, txt_mod2 = self.txt_mod(vec)
+        if self.modulation:
+            img_mod1, img_mod2 = self.img_mod(vec)
+            txt_mod1, txt_mod2 = self.txt_mod(vec)
+        else:
+            (img_mod1, img_mod2), (txt_mod1, txt_mod2) = vec
 
         # prepare image for attention
         img_modulated = self.img_norm1(img)
@@ -236,6 +245,7 @@ class SingleStreamBlock(nn.Module):
         num_heads: int,
         mlp_ratio: float = 4.0,
         qk_scale: float = None,
+        modulation=True,
         dtype=None,
         device=None,
         operations=None
@@ -258,10 +268,17 @@ class SingleStreamBlock(nn.Module):
         self.pre_norm = operations.LayerNorm(hidden_size, elementwise_affine=False, eps=1e-6, dtype=dtype, device=device)
 
         self.mlp_act = nn.GELU(approximate="tanh")
-        self.modulation = Modulation(hidden_size, double=False, dtype=dtype, device=device, operations=operations)
+        if modulation:
+            self.modulation = Modulation(hidden_size, double=False, dtype=dtype, device=device, operations=operations)
+        else:
+            self.modulation = None
 
     def forward(self, x: Tensor, vec: Tensor, pe: Tensor, attn_mask=None, modulation_dims=None, transformer_options={}) -> Tensor:
-        mod, _ = self.modulation(vec)
+        if self.modulation:
+            mod, _ = self.modulation(vec)
+        else:
+            mod = vec
+
         qkv, mlp = torch.split(self.linear1(apply_mod(self.pre_norm(x), (1 + mod.scale), mod.shift, modulation_dims)), [3 * self.hidden_size, self.mlp_hidden_dim], dim=-1)
 
         q, k, v = qkv.view(qkv.shape[0], qkv.shape[1], 3, self.num_heads, -1).permute(2, 0, 3, 1, 4)
