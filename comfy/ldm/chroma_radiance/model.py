@@ -10,12 +10,10 @@ from torch import Tensor, nn
 from einops import repeat
 import comfy.ldm.common_dit
 
-from comfy.ldm.flux.layers import EmbedND
+from comfy.ldm.flux.layers import EmbedND, DoubleStreamBlock, SingleStreamBlock
 
 from comfy.ldm.chroma.model import Chroma, ChromaParams
 from comfy.ldm.chroma.layers import (
-    DoubleStreamBlock,
-    SingleStreamBlock,
     Approximator,
 )
 from .layers import (
@@ -89,7 +87,6 @@ class ChromaRadiance(Chroma):
                     dtype=dtype, device=device, operations=operations
                 )
 
-
         self.double_blocks = nn.ModuleList(
             [
                 DoubleStreamBlock(
@@ -97,6 +94,7 @@ class ChromaRadiance(Chroma):
                     self.num_heads,
                     mlp_ratio=params.mlp_ratio,
                     qkv_bias=params.qkv_bias,
+                    modulation=False,
                     dtype=dtype, device=device, operations=operations
                 )
                 for _ in range(params.depth)
@@ -109,6 +107,7 @@ class ChromaRadiance(Chroma):
                     self.hidden_size,
                     self.num_heads,
                     mlp_ratio=params.mlp_ratio,
+                    modulation=False,
                     dtype=dtype, device=device, operations=operations,
                 )
                 for _ in range(params.depth_single_blocks)

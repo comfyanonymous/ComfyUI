@@ -11,12 +11,12 @@ import comfy.ldm.common_dit
 from comfy.ldm.flux.layers import (
     EmbedND,
     timestep_embedding,
+    DoubleStreamBlock,
+    SingleStreamBlock,
 )
 
 from .layers import (
-    DoubleStreamBlock,
     LastLayer,
-    SingleStreamBlock,
     Approximator,
     ChromaModulationOut,
 )
@@ -90,6 +90,7 @@ class Chroma(nn.Module):
                     self.num_heads,
                     mlp_ratio=params.mlp_ratio,
                     qkv_bias=params.qkv_bias,
+                    modulation=False,
                     dtype=dtype, device=device, operations=operations
                 )
                 for _ in range(params.depth)
@@ -98,7 +99,7 @@ class Chroma(nn.Module):
 
         self.single_blocks = nn.ModuleList(
             [
-                SingleStreamBlock(self.hidden_size, self.num_heads, mlp_ratio=params.mlp_ratio, dtype=dtype, device=device, operations=operations)
+                SingleStreamBlock(self.hidden_size, self.num_heads, mlp_ratio=params.mlp_ratio, modulation=False, dtype=dtype, device=device, operations=operations)
                 for _ in range(params.depth_single_blocks)
             ]
         )
