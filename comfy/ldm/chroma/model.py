@@ -4,7 +4,7 @@ from dataclasses import dataclass
 
 import torch
 from torch import Tensor, nn
-from einops import rearrange, repeat
+from einops import rearrange
 import comfy.patcher_extension
 import comfy.ldm.common_dit
 
