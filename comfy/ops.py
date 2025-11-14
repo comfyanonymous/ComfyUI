@@ -77,7 +77,10 @@ def cast_bias_weight(s, input=None, dtype=None, device=None, bias_dtype=None, of
     # will add async-offload support to your cast and improve performance.
     if input is not None:
         if dtype is None:
-            dtype = input.dtype
+            if isinstance(input, QuantizedTensor):
+                dtype = input._layout_params["orig_dtype"]
+            else:
+                dtype = input.dtype
         if bias_dtype is None:
             bias_dtype = dtype
         if device is None:
@@ -534,18 +537,7 @@ if CUBLAS_IS_AVAILABLE:
 # ==============================================================================
 # Mixed Precision Operations
 # ==============================================================================
-from .quant_ops import QuantizedTensor
-
-QUANT_FORMAT_MIXINS = {
-    "float8_e4m3fn": {
-        "dtype": torch.float8_e4m3fn,
-        "layout_type": "TensorCoreFP8Layout",
-        "parameters": {
-            "weight_scale": torch.nn.Parameter(torch.zeros((), dtype=torch.float32), requires_grad=False),
-            "input_scale": torch.nn.Parameter(torch.zeros((), dtype=torch.float32), requires_grad=False),
-        }
-    }
-}
+from .quant_ops import QuantizedTensor, QUANT_ALGOS
 
 class MixedPrecisionOps(disable_weight_init):
     _layer_quant_config = {}
@@ -596,23 +588,24 @@ class MixedPrecisionOps(disable_weight_init):
                 if quant_format is None:
                     raise ValueError(f"Unknown quantization format for layer {layer_name}")
 
-                mixin = QUANT_FORMAT_MIXINS[quant_format]
-                self.layout_type = mixin["layout_type"]
+                qconfig = QUANT_ALGOS[quant_format]
+                self.layout_type = qconfig["comfy_tensor_layout"]
 
-                scale_key = f"{prefix}weight_scale"
+                weight_scale_key = f"{prefix}weight_scale"
                 layout_params = {
-                    'scale': state_dict.pop(scale_key, None),
-                    'orig_dtype': MixedPrecisionOps._compute_dtype
+                    'scale': state_dict.pop(weight_scale_key, None),
+                    'orig_dtype': MixedPrecisionOps._compute_dtype,
+                    'block_size': qconfig.get("group_size", None),
                 }
                 if layout_params['scale'] is not None:
-                    manually_loaded_keys.append(scale_key)
+                    manually_loaded_keys.append(weight_scale_key)
 
                 self.weight = torch.nn.Parameter(
-                    QuantizedTensor(weight.to(device=device, dtype=mixin["dtype"]), self.layout_type, layout_params),
+                    QuantizedTensor(weight.to(device=device), self.layout_type, layout_params),
                     requires_grad=False
                 )
 
-                for param_name, param_value in mixin["parameters"].items():
+                for param_name in qconfig["parameters"]:
                     param_key = f"{prefix}{param_name}"
                     _v = state_dict.pop(param_key, None)
                     if _v is None:
@@ -643,7 +636,7 @@ class MixedPrecisionOps(disable_weight_init):
             if (getattr(self, 'layout_type', None) is not None and
                 getattr(self, 'input_scale', None) is not None and
                 not isinstance(input, QuantizedTensor)):
-                input = QuantizedTensor.from_float(input, self.layout_type, scale=self.input_scale, fp8_dtype=self.weight.dtype)
+                input = QuantizedTensor.from_float(input, self.layout_type, scale=self.input_scale, dtype=self.weight.dtype)
             return self._forward(input, self.weight, self.bias)
 
 
