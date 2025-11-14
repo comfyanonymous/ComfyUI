@@ -108,7 +108,7 @@ class CacheSet:
             self.init_null_cache()
             logging.info("Disabling intermediate node cache.")
         elif cache_type == CacheType.RAM_PRESSURE:
-            cache_ram = cache_args.get("ram", 16.0)
+            cache_ram = cache_args.get("ram", 4.0)
             self.init_ram_cache(cache_ram)
             logging.info("Using RAM pressure cache.")
         elif cache_type == CacheType.LRU:
@@ -130,7 +130,7 @@ class CacheSet:
         self.objects = HierarchicalCache(CacheKeySetID)
 
     def init_ram_cache(self, min_headroom):
-        self.outputs = RAMPressureCache(CacheKeySetInputSignature)
+        self.outputs = RAMPressureCache(CacheKeySetInputSignature, min_headroom)
         self.objects = HierarchicalCache(CacheKeySetID)
 
     def init_null_cache(self):
@@ -725,7 +725,7 @@ class PromptExecutor:
                     execution_list.unstage_node_execution()
                 else: # result == ExecutionResult.SUCCESS:
                     execution_list.complete_node_execution()
-                self.caches.outputs.poll(ram_headroom=self.cache_args["ram"])
+                self.caches.outputs.free_ram()
             else:
                 # Only execute when the while-loop ends without break
                 self.add_message("execution_success", { "prompt_id": prompt_id }, broadcast=False)

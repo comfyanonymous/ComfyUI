@@ -193,7 +193,7 @@ class BasicCache:
         self._clean_cache()
         self._clean_subcaches()
 
-    def poll(self, **kwargs):
+    def free_ram(self, *args, **kwargs):
         pass
 
     def _set_immediate(self, node_id, value):
@@ -284,7 +284,7 @@ class NullCache:
     def clean_unused(self):
         pass
 
-    def poll(self, **kwargs):
+    def free_ram(self, *args, **kwargs):
         pass
 
     def get(self, node_id):
@@ -366,9 +366,10 @@ RAM_CACHE_OLD_WORKFLOW_OOM_MULTIPLIER = 1.3
 
 class RAMPressureCache(LRUCache):
 
-    def __init__(self, key_class):
+    def __init__(self, key_class, min_headroom=4.0):
         super().__init__(key_class, 0)
         self.timestamps = {}
+        self.min_headroom = min_headroom
 
     def clean_unused(self):
         self._clean_subcaches()
@@ -381,19 +382,10 @@ class RAMPressureCache(LRUCache):
         self.timestamps[self.cache_key_set.get_data_key(node_id)] = time.time()
         return super().get(node_id)
 
-    def poll(self, ram_headroom):
-        def _ram_gb():
-            return psutil.virtual_memory().available / (1024**3)
-
-        if _ram_gb() > ram_headroom:
-            return
-        gc.collect()
-        if _ram_gb() > ram_headroom:
-            return
-
+    def _build_clean_list(self):
         clean_list = []
 
-        for key, (outputs, _), in self.cache.items():
+        for key, (_, outputs), in self.cache.items():
             oom_score =  RAM_CACHE_OLD_WORKFLOW_OOM_MULTIPLIER ** (self.generation - self.used_generation[key])
 
             ram_usage = RAM_CACHE_DEFAULT_RAM_USAGE
@@ -416,8 +408,22 @@ class RAMPressureCache(LRUCache):
             #In the case where we have no information on the node ram usage at all,
             #break OOM score ties on the last touch timestamp (pure LRU)
             bisect.insort(clean_list, (oom_score, self.timestamps[key], key))
+        return clean_list
 
-        while _ram_gb() < ram_headroom * RAM_CACHE_HYSTERESIS and clean_list:
+    def free_ram(self, extra_ram=0):
+        headroom_target = self.min_headroom + (extra_ram / (1024**3))
+        def _ram_gb():
+            return psutil.virtual_memory().available / (1024**3)
+
+        if _ram_gb() > headroom_target:
+            return
+        gc.collect()
+        if _ram_gb() > headroom_target:
+            return
+
+        clean_list = self._build_clean_list()
+
+        while _ram_gb() < headroom_target * RAM_CACHE_HYSTERESIS and clean_list:
             _, _, key = clean_list.pop()
             del self.cache[key]
             gc.collect()
