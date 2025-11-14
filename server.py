@@ -39,6 +39,7 @@ from app.custom_node_manager import CustomNodeManager
 from app.subgraph_manager import SubgraphManager
 from typing import Optional, Union
 from api_server.routes.internal.internal_routes import InternalRoutes
+from app.assets import sync_seed_assets, register_assets_system
 from protocol import BinaryEventTypes
 
 # Import cache control middleware
@@ -203,6 +204,7 @@ class PromptServer():
             else args.front_end_root
         )
         logging.info(f"[Prompt Server] web root: {self.web_root}")
+        register_assets_system(self.app, self.user_manager)
         routes = web.RouteTableDef()
         self.routes = routes
         self.last_node_id = None
@@ -651,6 +653,7 @@ class PromptServer():
 
         @routes.get("/object_info")
         async def get_object_info(request):
+            await sync_seed_assets(["models"])
             with folder_paths.cache_helper:
                 out = {}
                 for x in nodes.NODE_CLASS_MAPPINGS:
