@@ -7,6 +7,9 @@ from comfy.ldm.flux.layers import (
     ModulationOut,
 )
 
+# TODO: remove this in a few months
+SingleStreamBlock = None
+DoubleStreamBlock = None
 
 
 class ChromaModulationOut(ModulationOut):
