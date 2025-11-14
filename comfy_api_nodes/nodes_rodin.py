@@ -5,12 +5,9 @@ Rodin API docs: https://developer.hyper3d.ai/
 
 """
 
-from __future__ import annotations
 from inspect import cleandoc
 import folder_paths as comfy_paths
-import aiohttp
 import os
-import asyncio
 import logging
 import math
 from typing import Optional
@@ -26,26 +23,26 @@ from comfy_api_nodes.apis.rodin_api import (
     Rodin3DDownloadResponse,
     JobStatus,
 )
-from comfy_api_nodes.apis.client import (
+from comfy_api_nodes.util import (
+    sync_op,
+    poll_op,
     ApiEndpoint,
-    HttpMethod,
-    SynchronousOperation,
-    PollingOperation,
+    download_url_to_bytesio,
 )
-from comfy_api.latest import ComfyExtension, io as comfy_io
+from comfy_api.latest import ComfyExtension, IO
 
 
 COMMON_PARAMETERS = [
-    comfy_io.Int.Input(
+    IO.Int.Input(
         "Seed",
         default=0,
         min=0,
         max=65535,
-        display_mode=comfy_io.NumberDisplay.number,
+        display_mode=IO.NumberDisplay.number,
         optional=True,
     ),
-    comfy_io.Combo.Input("Material_Type", options=["PBR", "Shaded"], default="PBR", optional=True),
-    comfy_io.Combo.Input(
+    IO.Combo.Input("Material_Type", options=["PBR", "Shaded"], default="PBR", optional=True),
+    IO.Combo.Input(
         "Polygon_count",
         options=["4K-Quad", "8K-Quad", "18K-Quad", "50K-Quad", "200K-Triangle"],
         default="18K-Quad",
@@ -121,35 +118,31 @@ def tensor_to_filelike(tensor, max_pixels: int = 2048*2048):
 
 
 async def create_generate_task(
+    cls: type[IO.ComfyNode],
     images=None,
     seed=1,
     material="PBR",
     quality_override=18000,
     tier="Regular",
     mesh_mode="Quad",
-    TAPose = False,
-    auth_kwargs: Optional[dict[str, str]] = None,
+    ta_pose: bool = False,
 ):
     if images is None:
         raise Exception("Rodin 3D generate requires at least 1 image.")
     if len(images) > 5:
         raise Exception("Rodin 3D generate requires up to 5 image.")
 
-    path = "/proxy/rodin/api/v2/rodin"
-    operation = SynchronousOperation(
-        endpoint=ApiEndpoint(
-            path=path,
-            method=HttpMethod.POST,
-            request_model=Rodin3DGenerateRequest,
-            response_model=Rodin3DGenerateResponse,
-        ),
-        request=Rodin3DGenerateRequest(
+    response = await sync_op(
+        cls,
+        ApiEndpoint(path="/proxy/rodin/api/v2/rodin", method="POST"),
+        response_model=Rodin3DGenerateResponse,
+        data=Rodin3DGenerateRequest(
             seed=seed,
             tier=tier,
             material=material,
             quality_override=quality_override,
             mesh_mode=mesh_mode,
-            TAPose=TAPose,
+            TAPose=ta_pose,
         ),
         files=[
             (
@@ -159,10 +152,7 @@ async def create_generate_task(
             for image in images if image is not None
         ],
         content_type="multipart/form-data",
-        auth_kwargs=auth_kwargs,
     )
-
-    response = await operation.execute()
 
     if hasattr(response, "error"):
         error_message = f"Rodin3D Create 3D generate Task Failed. Message: {response.message}, error: {response.error}"
@@ -172,111 +162,83 @@ async def create_generate_task(
     logging.info("[ Rodin3D API - Submit Jobs ] Submit Generate Task Success!")
     subscription_key = response.jobs.subscription_key
     task_uuid = response.uuid
-    logging.info(f"[ Rodin3D API - Submit Jobs ] UUID: {task_uuid}")
+    logging.info("[ Rodin3D API - Submit Jobs ] UUID: %s", task_uuid)
     return task_uuid, subscription_key
 
 
 def check_rodin_status(response: Rodin3DCheckStatusResponse) -> str:
     all_done = all(job.status == JobStatus.Done for job in response.jobs)
     status_list = [str(job.status) for job in response.jobs]
-    logging.info(f"[ Rodin3D API - CheckStatus ] Generate Status: {status_list}")
+    logging.info("[ Rodin3D API - CheckStatus ] Generate Status: %s", status_list)
     if any(job.status == JobStatus.Failed for job in response.jobs):
-        logging.error(f"[ Rodin3D API - CheckStatus ] Generate Failed: {status_list}, Please try again.")
+        logging.error("[ Rodin3D API - CheckStatus ] Generate Failed: %s, Please try again.", status_list)
         raise Exception("[ Rodin3D API ] Generate Failed, Please Try again.")
     if all_done:
         return "DONE"
     return "Generating"
 
+def extract_progress(response: Rodin3DCheckStatusResponse) -> Optional[int]:
+    if not response.jobs:
+        return None
+    completed_count = sum(1 for job in response.jobs if job.status == JobStatus.Done)
+    return int((completed_count / len(response.jobs)) * 100)
 
-async def poll_for_task_status(
-    subscription_key, auth_kwargs: Optional[dict[str, str]] = None,
-) -> Rodin3DCheckStatusResponse:
-    poll_operation = PollingOperation(
-        poll_endpoint=ApiEndpoint(
-            path="/proxy/rodin/api/v2/status",
-            method=HttpMethod.POST,
-            request_model=Rodin3DCheckStatusRequest,
-            response_model=Rodin3DCheckStatusResponse,
-        ),
-        request=Rodin3DCheckStatusRequest(subscription_key=subscription_key),
-        completed_statuses=["DONE"],
-        failed_statuses=["FAILED"],
-        status_extractor=check_rodin_status,
-        poll_interval=3.0,
-        auth_kwargs=auth_kwargs,
-    )
+
+async def poll_for_task_status(subscription_key: str, cls: type[IO.ComfyNode]) -> Rodin3DCheckStatusResponse:
     logging.info("[ Rodin3D API - CheckStatus ] Generate Start!")
-    return await poll_operation.execute()
-
-
-async def get_rodin_download_list(uuid, auth_kwargs: Optional[dict[str, str]] = None) -> Rodin3DDownloadResponse:
-    logging.info("[ Rodin3D API - Downloading ] Generate Successfully!")
-    operation = SynchronousOperation(
-        endpoint=ApiEndpoint(
-            path="/proxy/rodin/api/v2/download",
-            method=HttpMethod.POST,
-            request_model=Rodin3DDownloadRequest,
-            response_model=Rodin3DDownloadResponse,
-        ),
-        request=Rodin3DDownloadRequest(task_uuid=uuid),
-        auth_kwargs=auth_kwargs,
+    return await poll_op(
+        cls,
+        ApiEndpoint(path="/proxy/rodin/api/v2/status", method="POST"),
+        response_model=Rodin3DCheckStatusResponse,
+        data=Rodin3DCheckStatusRequest(subscription_key=subscription_key),
+        status_extractor=check_rodin_status,
+        progress_extractor=extract_progress,
     )
-    return await operation.execute()
 
 
-async def download_files(url_list, task_uuid):
-    save_path = os.path.join(comfy_paths.get_output_directory(), f"Rodin3D_{task_uuid}")
+async def get_rodin_download_list(uuid: str, cls: type[IO.ComfyNode]) -> Rodin3DDownloadResponse:
+    logging.info("[ Rodin3D API - Downloading ] Generate Successfully!")
+    return await sync_op(
+        cls,
+        ApiEndpoint(path="/proxy/rodin/api/v2/download", method="POST"),
+        response_model=Rodin3DDownloadResponse,
+        data=Rodin3DDownloadRequest(task_uuid=uuid),
+        monitor_progress=False,
+    )
+
+
+async def download_files(url_list, task_uuid: str):
+    result_folder_name = f"Rodin3D_{task_uuid}"
+    save_path = os.path.join(comfy_paths.get_output_directory(), result_folder_name)
     os.makedirs(save_path, exist_ok=True)
     model_file_path = None
-    async with aiohttp.ClientSession() as session:
-        for i in url_list.list:
-            url = i.url
-            file_name = i.name
-            file_path = os.path.join(save_path, file_name)
-            if file_path.endswith(".glb"):
-                model_file_path = file_path
-            logging.info(f"[ Rodin3D API - download_files ] Downloading file: {file_path}")
-            max_retries = 5
-            for attempt in range(max_retries):
-                try:
-                    async with session.get(url) as resp:
-                        resp.raise_for_status()
-                        with open(file_path, "wb") as f:
-                            async for chunk in resp.content.iter_chunked(32 * 1024):
-                                f.write(chunk)
-                    break
-                except Exception as e:
-                    logging.info(f"[ Rodin3D API - download_files ] Error downloading {file_path}:{e}")
-                    if attempt < max_retries - 1:
-                        logging.info("Retrying...")
-                        await asyncio.sleep(2)
-                    else:
-                        logging.info(
-                            "[ Rodin3D API - download_files ] Failed to download %s after %s attempts.",
-                            file_path,
-                            max_retries,
-                        )
+    for i in url_list.list:
+        file_path = os.path.join(save_path, i.name)
+        if file_path.endswith(".glb"):
+            model_file_path = os.path.join(result_folder_name, i.name)
+        await download_url_to_bytesio(i.url, file_path)
     return model_file_path
 
 
-class Rodin3D_Regular(comfy_io.ComfyNode):
+class Rodin3D_Regular(IO.ComfyNode):
     """Generate 3D Assets using Rodin API"""
 
     @classmethod
-    def define_schema(cls) -> comfy_io.Schema:
-        return comfy_io.Schema(
+    def define_schema(cls) -> IO.Schema:
+        return IO.Schema(
             node_id="Rodin3D_Regular",
             display_name="Rodin 3D Generate - Regular Generate",
             category="api node/3d/Rodin",
             description=cleandoc(cls.__doc__ or ""),
             inputs=[
-                comfy_io.Image.Input("Images"),
+                IO.Image.Input("Images"),
                 *COMMON_PARAMETERS,
             ],
-            outputs=[comfy_io.String.Output(display_name="3D Model Path")],
+            outputs=[IO.String.Output(display_name="3D Model Path")],
             hidden=[
-                comfy_io.Hidden.auth_token_comfy_org,
-                comfy_io.Hidden.api_key_comfy_org,
+                IO.Hidden.auth_token_comfy_org,
+                IO.Hidden.api_key_comfy_org,
+                IO.Hidden.unique_id,
             ],
             is_api_node=True,
         )
@@ -288,51 +250,48 @@ class Rodin3D_Regular(comfy_io.ComfyNode):
         Seed,
         Material_Type,
         Polygon_count,
-    ) -> comfy_io.NodeOutput:
+    ) -> IO.NodeOutput:
         tier = "Regular"
         num_images = Images.shape[0]
         m_images = []
         for i in range(num_images):
             m_images.append(Images[i])
         mesh_mode, quality_override = get_quality_mode(Polygon_count)
-        auth = {
-            "auth_token": cls.hidden.auth_token_comfy_org,
-            "comfy_api_key": cls.hidden.api_key_comfy_org,
-        }
         task_uuid, subscription_key = await create_generate_task(
+            cls,
             images=m_images,
             seed=Seed,
             material=Material_Type,
             quality_override=quality_override,
             tier=tier,
             mesh_mode=mesh_mode,
-            auth_kwargs=auth,
         )
-        await poll_for_task_status(subscription_key, auth_kwargs=auth)
-        download_list = await get_rodin_download_list(task_uuid, auth_kwargs=auth)
+        await poll_for_task_status(subscription_key, cls)
+        download_list = await get_rodin_download_list(task_uuid, cls)
         model = await download_files(download_list, task_uuid)
 
-        return comfy_io.NodeOutput(model)
+        return IO.NodeOutput(model)
 
 
-class Rodin3D_Detail(comfy_io.ComfyNode):
+class Rodin3D_Detail(IO.ComfyNode):
     """Generate 3D Assets using Rodin API"""
 
     @classmethod
-    def define_schema(cls) -> comfy_io.Schema:
-        return comfy_io.Schema(
+    def define_schema(cls) -> IO.Schema:
+        return IO.Schema(
             node_id="Rodin3D_Detail",
             display_name="Rodin 3D Generate - Detail Generate",
             category="api node/3d/Rodin",
             description=cleandoc(cls.__doc__ or ""),
             inputs=[
-                comfy_io.Image.Input("Images"),
+                IO.Image.Input("Images"),
                 *COMMON_PARAMETERS,
             ],
-            outputs=[comfy_io.String.Output(display_name="3D Model Path")],
+            outputs=[IO.String.Output(display_name="3D Model Path")],
             hidden=[
-                comfy_io.Hidden.auth_token_comfy_org,
-                comfy_io.Hidden.api_key_comfy_org,
+                IO.Hidden.auth_token_comfy_org,
+                IO.Hidden.api_key_comfy_org,
+                IO.Hidden.unique_id,
             ],
             is_api_node=True,
         )
@@ -344,51 +303,48 @@ class Rodin3D_Detail(comfy_io.ComfyNode):
         Seed,
         Material_Type,
         Polygon_count,
-    ) -> comfy_io.NodeOutput:
+    ) -> IO.NodeOutput:
         tier = "Detail"
         num_images = Images.shape[0]
         m_images = []
         for i in range(num_images):
             m_images.append(Images[i])
         mesh_mode, quality_override = get_quality_mode(Polygon_count)
-        auth = {
-            "auth_token": cls.hidden.auth_token_comfy_org,
-            "comfy_api_key": cls.hidden.api_key_comfy_org,
-        }
         task_uuid, subscription_key = await create_generate_task(
+            cls,
             images=m_images,
             seed=Seed,
             material=Material_Type,
             quality_override=quality_override,
             tier=tier,
             mesh_mode=mesh_mode,
-            auth_kwargs=auth,
         )
-        await poll_for_task_status(subscription_key, auth_kwargs=auth)
-        download_list = await get_rodin_download_list(task_uuid, auth_kwargs=auth)
+        await poll_for_task_status(subscription_key, cls)
+        download_list = await get_rodin_download_list(task_uuid, cls)
         model = await download_files(download_list, task_uuid)
 
-        return comfy_io.NodeOutput(model)
+        return IO.NodeOutput(model)
 
 
-class Rodin3D_Smooth(comfy_io.ComfyNode):
+class Rodin3D_Smooth(IO.ComfyNode):
     """Generate 3D Assets using Rodin API"""
 
     @classmethod
-    def define_schema(cls) -> comfy_io.Schema:
-        return comfy_io.Schema(
+    def define_schema(cls) -> IO.Schema:
+        return IO.Schema(
             node_id="Rodin3D_Smooth",
             display_name="Rodin 3D Generate - Smooth Generate",
             category="api node/3d/Rodin",
             description=cleandoc(cls.__doc__ or ""),
             inputs=[
-                comfy_io.Image.Input("Images"),
+                IO.Image.Input("Images"),
                 *COMMON_PARAMETERS,
             ],
-            outputs=[comfy_io.String.Output(display_name="3D Model Path")],
+            outputs=[IO.String.Output(display_name="3D Model Path")],
             hidden=[
-                comfy_io.Hidden.auth_token_comfy_org,
-                comfy_io.Hidden.api_key_comfy_org,
+                IO.Hidden.auth_token_comfy_org,
+                IO.Hidden.api_key_comfy_org,
+                IO.Hidden.unique_id,
             ],
             is_api_node=True,
         )
@@ -400,58 +356,54 @@ class Rodin3D_Smooth(comfy_io.ComfyNode):
         Seed,
         Material_Type,
         Polygon_count,
-    ) -> comfy_io.NodeOutput:
-        tier = "Smooth"
+    ) -> IO.NodeOutput:
         num_images = Images.shape[0]
         m_images = []
         for i in range(num_images):
             m_images.append(Images[i])
         mesh_mode, quality_override = get_quality_mode(Polygon_count)
-        auth = {
-            "auth_token": cls.hidden.auth_token_comfy_org,
-            "comfy_api_key": cls.hidden.api_key_comfy_org,
-        }
         task_uuid, subscription_key = await create_generate_task(
+            cls,
             images=m_images,
             seed=Seed,
             material=Material_Type,
             quality_override=quality_override,
-            tier=tier,
+            tier="Smooth",
             mesh_mode=mesh_mode,
-            auth_kwargs=auth,
         )
-        await poll_for_task_status(subscription_key, auth_kwargs=auth)
-        download_list = await get_rodin_download_list(task_uuid, auth_kwargs=auth)
+        await poll_for_task_status(subscription_key, cls)
+        download_list = await get_rodin_download_list(task_uuid, cls)
         model = await download_files(download_list, task_uuid)
 
-        return comfy_io.NodeOutput(model)
+        return IO.NodeOutput(model)
 
 
-class Rodin3D_Sketch(comfy_io.ComfyNode):
+class Rodin3D_Sketch(IO.ComfyNode):
     """Generate 3D Assets using Rodin API"""
 
     @classmethod
-    def define_schema(cls) -> comfy_io.Schema:
-        return comfy_io.Schema(
+    def define_schema(cls) -> IO.Schema:
+        return IO.Schema(
             node_id="Rodin3D_Sketch",
             display_name="Rodin 3D Generate - Sketch Generate",
             category="api node/3d/Rodin",
             description=cleandoc(cls.__doc__ or ""),
             inputs=[
-                comfy_io.Image.Input("Images"),
-                comfy_io.Int.Input(
+                IO.Image.Input("Images"),
+                IO.Int.Input(
                     "Seed",
                     default=0,
                     min=0,
                     max=65535,
-                    display_mode=comfy_io.NumberDisplay.number,
+                    display_mode=IO.NumberDisplay.number,
                     optional=True,
                 ),
             ],
-            outputs=[comfy_io.String.Output(display_name="3D Model Path")],
+            outputs=[IO.String.Output(display_name="3D Model Path")],
             hidden=[
-                comfy_io.Hidden.auth_token_comfy_org,
-                comfy_io.Hidden.api_key_comfy_org,
+                IO.Hidden.auth_token_comfy_org,
+                IO.Hidden.api_key_comfy_org,
+                IO.Hidden.unique_id,
             ],
             is_api_node=True,
         )
@@ -461,68 +413,61 @@ class Rodin3D_Sketch(comfy_io.ComfyNode):
         cls,
         Images,
         Seed,
-    ) -> comfy_io.NodeOutput:
-        tier = "Sketch"
+    ) -> IO.NodeOutput:
         num_images = Images.shape[0]
         m_images = []
         for i in range(num_images):
             m_images.append(Images[i])
-        material_type = "PBR"
-        quality_override = 18000
-        mesh_mode = "Quad"
-        auth = {
-            "auth_token": cls.hidden.auth_token_comfy_org,
-            "comfy_api_key": cls.hidden.api_key_comfy_org,
-        }
         task_uuid, subscription_key = await create_generate_task(
+            cls,
             images=m_images,
             seed=Seed,
-            material=material_type,
-            quality_override=quality_override,
-            tier=tier,
-            mesh_mode=mesh_mode,
-            auth_kwargs=auth,
+            material="PBR",
+            quality_override=18000,
+            tier="Sketch",
+            mesh_mode="Quad",
         )
-        await poll_for_task_status(subscription_key, auth_kwargs=auth)
-        download_list = await get_rodin_download_list(task_uuid, auth_kwargs=auth)
+        await poll_for_task_status(subscription_key, cls)
+        download_list = await get_rodin_download_list(task_uuid, cls)
         model = await download_files(download_list, task_uuid)
 
-        return comfy_io.NodeOutput(model)
+        return IO.NodeOutput(model)
 
 
-class Rodin3D_Gen2(comfy_io.ComfyNode):
+class Rodin3D_Gen2(IO.ComfyNode):
     """Generate 3D Assets using Rodin API"""
 
     @classmethod
-    def define_schema(cls) -> comfy_io.Schema:
-        return comfy_io.Schema(
+    def define_schema(cls) -> IO.Schema:
+        return IO.Schema(
             node_id="Rodin3D_Gen2",
             display_name="Rodin 3D Generate - Gen-2 Generate",
             category="api node/3d/Rodin",
             description=cleandoc(cls.__doc__ or ""),
             inputs=[
-                comfy_io.Image.Input("Images"),
-                comfy_io.Int.Input(
+                IO.Image.Input("Images"),
+                IO.Int.Input(
                     "Seed",
                     default=0,
                     min=0,
                     max=65535,
-                    display_mode=comfy_io.NumberDisplay.number,
+                    display_mode=IO.NumberDisplay.number,
                     optional=True,
                 ),
-                comfy_io.Combo.Input("Material_Type", options=["PBR", "Shaded"], default="PBR", optional=True),
-                comfy_io.Combo.Input(
+                IO.Combo.Input("Material_Type", options=["PBR", "Shaded"], default="PBR", optional=True),
+                IO.Combo.Input(
                     "Polygon_count",
                     options=["4K-Quad", "8K-Quad", "18K-Quad", "50K-Quad", "2K-Triangle", "20K-Triangle", "150K-Triangle", "500K-Triangle"],
                     default="500K-Triangle",
                     optional=True,
                 ),
-                comfy_io.Boolean.Input("TAPose", default=False),
+                IO.Boolean.Input("TAPose", default=False),
             ],
-            outputs=[comfy_io.String.Output(display_name="3D Model Path")],
+            outputs=[IO.String.Output(display_name="3D Model Path")],
             hidden=[
-                comfy_io.Hidden.auth_token_comfy_org,
-                comfy_io.Hidden.api_key_comfy_org,
+                IO.Hidden.auth_token_comfy_org,
+                IO.Hidden.api_key_comfy_org,
+                IO.Hidden.unique_id,
             ],
             is_api_node=True,
         )
@@ -535,37 +480,33 @@ class Rodin3D_Gen2(comfy_io.ComfyNode):
         Material_Type,
         Polygon_count,
         TAPose,
-    ) -> comfy_io.NodeOutput:
+    ) -> IO.NodeOutput:
         tier = "Gen-2"
         num_images = Images.shape[0]
         m_images = []
         for i in range(num_images):
             m_images.append(Images[i])
         mesh_mode, quality_override = get_quality_mode(Polygon_count)
-        auth = {
-            "auth_token": cls.hidden.auth_token_comfy_org,
-            "comfy_api_key": cls.hidden.api_key_comfy_org,
-        }
         task_uuid, subscription_key = await create_generate_task(
+            cls,
             images=m_images,
             seed=Seed,
             material=Material_Type,
             quality_override=quality_override,
             tier=tier,
             mesh_mode=mesh_mode,
-            TAPose=TAPose,
-            auth_kwargs=auth,
+            ta_pose=TAPose,
         )
-        await poll_for_task_status(subscription_key, auth_kwargs=auth)
-        download_list = await get_rodin_download_list(task_uuid, auth_kwargs=auth)
+        await poll_for_task_status(subscription_key, cls)
+        download_list = await get_rodin_download_list(task_uuid, cls)
         model = await download_files(download_list, task_uuid)
 
-        return comfy_io.NodeOutput(model)
+        return IO.NodeOutput(model)
 
 
 class Rodin3DExtension(ComfyExtension):
     @override
-    async def get_node_list(self) -> list[type[comfy_io.ComfyNode]]:
+    async def get_node_list(self) -> list[type[IO.ComfyNode]]:
         return [
             Rodin3D_Regular,
             Rodin3D_Detail,
