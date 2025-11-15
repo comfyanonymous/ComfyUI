@@ -15,7 +15,6 @@ import shutil
 import warnings
 
 import fsspec
-from opentelemetry.instrumentation.urllib3 import URLLib3Instrumentor
 
 from .. import options
 from ..app import logger
@@ -130,6 +129,8 @@ def _create_tracer():
     from opentelemetry.processor.baggage import BaggageSpanProcessor, ALLOW_ALL_BAGGAGE_KEYS
     from opentelemetry.instrumentation.aiohttp_server import AioHttpServerInstrumentor
     from opentelemetry.instrumentation.aiohttp_client import AioHttpClientInstrumentor
+    from opentelemetry.instrumentation.urllib3 import URLLib3Instrumentor
+
     from ..tracing_compatibility import ProgressSpanSampler
     from ..tracing_compatibility import patch_spanbuilder_set_channel
 
@@ -163,6 +164,8 @@ def _create_tracer():
 
 
     provider.add_span_processor(BaggageSpanProcessor(ALLOW_ALL_BAGGAGE_KEYS))
+    trace.set_tracer_provider(provider)
+
     # makes this behave better as a library
     return trace.get_tracer(args.otel_service_name, tracer_provider=provider)
 

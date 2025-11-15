@@ -70,6 +70,12 @@ class InternalRoutes:
 
     def get_app(self):
         if self._app is None:
+            # Manually apply instrumentation to ensure web.Application is instrumented
+            from opentelemetry.instrumentation.aiohttp_server import AioHttpServerInstrumentor
+            instrumentor = AioHttpServerInstrumentor()
+            if not instrumentor.is_instrumented_by_opentelemetry:
+                instrumentor.instrument()
+
             self._app = web.Application()
             self.setup_routes()
             self._app.add_routes(self.routes)

@@ -252,6 +252,14 @@ class PromptServer(ExecutorToClientProgress):
             middlewares.append(create_origin_only_middleware())
 
         max_upload_size = round(args.max_upload_size * 1024 * 1024)
+
+        # Manually apply instrumentation to ensure web.Application is instrumented
+        # This works around the import caching bug in opentelemetry-instrumentation-aiohttp-server
+        from opentelemetry.instrumentation.aiohttp_server import AioHttpServerInstrumentor
+        instrumentor = AioHttpServerInstrumentor()
+        if not instrumentor.is_instrumented_by_opentelemetry:
+            instrumentor.instrument()
+
         self.app: web.Application = web.Application(client_max_size=max_upload_size,
                                                     handler_args={'max_field_size': 16380},
                                                     middlewares=middlewares)
