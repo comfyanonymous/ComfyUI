@@ -169,7 +169,6 @@ class OpenAIDalle2(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
-            is_deprecated=True,
         )
 
     @classmethod
@@ -300,7 +299,6 @@ class OpenAIDalle3(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
-            is_deprecated=True,
         )
 
     @classmethod
