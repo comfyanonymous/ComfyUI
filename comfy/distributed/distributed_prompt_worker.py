@@ -53,12 +53,6 @@ class DistributedPromptWorker:
             return web.Response(text="UNHEALTHY: RabbitMQ connection is not healthy", status=503)
 
     async def _start_health_check_server(self):
-        # Manually apply instrumentation to ensure web.Application is instrumented
-        from opentelemetry.instrumentation.aiohttp_server import AioHttpServerInstrumentor
-        instrumentor = AioHttpServerInstrumentor()
-        if not instrumentor.is_instrumented_by_opentelemetry:
-            instrumentor.instrument()
-
         app = web.Application()
         app.router.add_get('/health', self._health_check)
 
