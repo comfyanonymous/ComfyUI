@@ -16,7 +16,8 @@ class LogInterceptor(io.TextIOWrapper):
     def __init__(self, stream, *args, **kwargs):
         buffer = stream.buffer
         encoding = stream.encoding
-        super().__init__(buffer, *args, **kwargs, encoding=encoding, line_buffering=stream.line_buffering)
+        # Use 'replace' error handling to avoid Unicode encoding errors on Windows
+        super().__init__(buffer, *args, **kwargs, encoding=encoding, errors='replace', line_buffering=stream.line_buffering)
         self._lock = threading.Lock()
         self._flush_callbacks = []
         self._logs_since_flush = []
@@ -32,7 +33,11 @@ class LogInterceptor(io.TextIOWrapper):
                 logs.pop()
             logs.append(entry)
         if not self.closed:
-            super().write(data)
+            try:
+                super().write(data)
+            except UnicodeEncodeError:
+                # some random bs in custom nodes will trigger errors on Windows
+                super().write(data.encode(self.encoding, errors='replace').decode(self.encoding))
 
     def flush(self):
         if not self.closed:
