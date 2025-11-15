@@ -77,9 +77,9 @@ class _PollUIState:
 
 
 _RETRY_STATUS = {408, 429, 500, 502, 503, 504}
-COMPLETED_STATUSES = ["succeeded", "succeed", "success", "completed", "finished", "done"]
-FAILED_STATUSES = ["cancelled", "canceled", "fail", "failed", "error"]
-QUEUED_STATUSES = ["created", "queued", "queueing", "submitted"]
+COMPLETED_STATUSES = ["succeeded", "succeed", "success", "completed", "finished", "done", "complete"]
+FAILED_STATUSES = ["cancelled", "canceled", "canceling", "fail", "failed", "error"]
+QUEUED_STATUSES = ["created", "queued", "queueing", "submitted", "initializing"]
 
 
 async def sync_op(
@@ -424,7 +424,8 @@ def _display_text(
     if status:
         display_lines.append(f"Status: {status.capitalize() if isinstance(status, str) else status}")
     if price is not None:
-        display_lines.append(f"Price: ${float(price):,.4f}")
+        p = f"{float(price):,.4f}".rstrip("0").rstrip(".")
+        display_lines.append(f"Price: ${p}")
     if text is not None:
         display_lines.append(text)
     if display_lines:
