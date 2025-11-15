@@ -1373,7 +1373,7 @@ class HunyuanImage21Refiner(HunyuanVideo):
     def get_model(self, state_dict, prefix="", device=None):
         out = model_base.HunyuanImage21Refiner(self, device=device)
         return out
-    
+
 class HunyuanVideo15(HunyuanVideo):
     unet_config = {
         "image_model": "hunyuan_video",
@@ -1387,7 +1387,7 @@ class HunyuanVideo15(HunyuanVideo):
     sampling_settings = {
         "shift": 7.0,
     }
-    memory_usage_factor = 7.7
+    memory_usage_factor = 4.0 #TODO
     supported_inference_dtypes = [torch.bfloat16, torch.float32]
 
     latent_format = latent_formats.HunyuanVideo15
@@ -1396,7 +1396,7 @@ class HunyuanVideo15(HunyuanVideo):
         print("HunyuanVideo15")
         out = model_base.HunyuanVideo15(self, device=device)
         return out
-    
+
     def clip_target(self, state_dict={}):
         pref = self.text_encoder_key_prefix[0]
         hunyuan_detect = comfy.text_encoders.hunyuan_video.llama_detect(state_dict, "{}qwen25_7b.transformer.".format(pref))
