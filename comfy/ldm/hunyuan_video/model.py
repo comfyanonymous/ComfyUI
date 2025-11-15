@@ -350,6 +350,11 @@ class HunyuanVideo(nn.Module):
 
         txt = self.txt_in(txt, timesteps, txt_mask, transformer_options=transformer_options)
 
+        if self.cond_type_embedding is not None:
+            self.cond_type_embedding.to(txt.device)
+            cond_emb = self.cond_type_embedding(torch.zeros_like(txt[:, :, 0], device=txt.device, dtype=torch.long))
+            txt = txt + cond_emb.to(txt.dtype)
+
         if self.byt5_in is not None and txt_byt5 is not None:
             txt_byt5 = self.byt5_in(txt_byt5)
             if self.cond_type_embedding is not None:
