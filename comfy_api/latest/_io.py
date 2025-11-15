@@ -4,6 +4,7 @@ import copy
 import inspect
 from abc import ABC, abstractmethod
 from collections import Counter
+from collections.abc import Iterable
 from dataclasses import asdict, dataclass
 from enum import Enum
 from typing import Any, Callable, Literal, TypedDict, TypeVar, TYPE_CHECKING
@@ -880,14 +881,24 @@ class ComboDynamic(ComfyTypeI):
 @comfytype(io_type="COMFY_MATCHTYPE_V3")
 class MatchType(ComfyTypeIO):
     class Template:
-        def __init__(self, template_id: str, allowed_types: _ComfyType | list[_ComfyType]):
+        def __init__(self, template_id: str, allowed_types: _ComfyType | list[_ComfyType] = AnyType):
             self.template_id = template_id
-            self.allowed_types = [allowed_types] if isinstance(allowed_types, _ComfyType) else allowed_types
+            # account for syntactic sugar
+            if not isinstance(allowed_types, Iterable):
+                allowed_types = [allowed_types]
+            for t in allowed_types:
+                if not isinstance(t, type):
+                    if not isinstance(t, _ComfyType):
+                        raise ValueError(f"Allowed types must be a ComfyType or a list of ComfyTypes, got {t.__class__.__name__}")
+                else:
+                    if not issubclass(t, _ComfyType):
+                        raise ValueError(f"Allowed types must be a ComfyType or a list of ComfyTypes, got {t.__name__}")
+            self.allowed_types = allowed_types
 
         def as_dict(self):
             return {
                 "template_id": self.template_id,
-                "allowed_types": "".join(t.io_type for t in self.allowed_types),
+                "allowed_types": ",".join([t.io_type for t in self.allowed_types]),
             }
 
     class Input(DynamicInput):
@@ -979,6 +990,7 @@ class NodeInfoV1:
     output_is_list: list[bool]=None
     output_name: list[str]=None
     output_tooltips: list[str]=None
+    output_matchtypes: list[str]=None
     name: str=None
     display_name: str=None
     description: str=None
@@ -1118,12 +1130,24 @@ class Schema:
         output_is_list = []
         output_name = []
         output_tooltips = []
+        output_matchtypes = []
+        any_matchtypes = False
         if self.outputs:
             for o in self.outputs:
                 output.append(o.io_type)
                 output_is_list.append(o.is_output_list)
                 output_name.append(o.display_name if o.display_name else o.io_type)
                 output_tooltips.append(o.tooltip if o.tooltip else None)
+                # special handling for MatchType
+                if isinstance(o, MatchType.Output):
+                    output_matchtypes.append(o.template.template_id)
+                    any_matchtypes = True
+                else:
+                    output_matchtypes.append(None)
+
+        # clear out lists that are all None
+        if not any_matchtypes:
+            output_matchtypes = None
 
         info = NodeInfoV1(
             input=input,
@@ -1132,6 +1156,7 @@ class Schema:
             output_is_list=output_is_list,
             output_name=output_name,
             output_tooltips=output_tooltips,
+            output_matchtypes=output_matchtypes,
             name=self.node_id,
             display_name=self.display_name,
             category=self.category,
@@ -1646,6 +1671,8 @@ __all__ = [
     "SEGS",
     "AnyType",
     "MultiType",
+    # Dynamic Types
+    "MatchType",
     # Other classes
     "HiddenHolder",
     "Hidden",
