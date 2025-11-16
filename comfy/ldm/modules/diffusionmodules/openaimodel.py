@@ -268,7 +268,11 @@ class ResBlock(TimestepBlock):
             if emb_out is not None:
                 if self.exchange_temb_dims:
                     emb_out = emb_out.movedim(1, 2)
-                h = h + emb_out
+                try:
+                    h = h + emb_out
+                except:
+                    emb_out = emb_out.movedim(1, 2)
+                    h = h + emb_out
             h = self.out_layers(h)
         return self.skip_connection(x) + h
 
