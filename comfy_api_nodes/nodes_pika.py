@@ -77,6 +77,7 @@ class PikaImageToVideo(IO.ComfyNode):
     @classmethod
     def define_schema(cls) -> IO.Schema:
         return IO.Schema(
+            is_deprecated=True,
             node_id="PikaImageToVideoNode2_2",
             display_name="Pika Image to Video",
             description="Sends an image and prompt to the Pika API v2.2 to generate a video.",
@@ -130,6 +131,7 @@ class PikaTextToVideoNode(IO.ComfyNode):
     @classmethod
     def define_schema(cls) -> IO.Schema:
         return IO.Schema(
+            is_deprecated=True,
             node_id="PikaTextToVideoNode2_2",
             display_name="Pika Text to Video",
             description="Sends a text prompt to the Pika API v2.2 to generate a video.",
@@ -187,6 +189,7 @@ class PikaScenes(IO.ComfyNode):
     @classmethod
     def define_schema(cls) -> IO.Schema:
         return IO.Schema(
+            is_deprecated=True,
             node_id="PikaScenesV2_2",
             display_name="Pika Scenes (Video Image Composition)",
             description="Combine your images to create a video with the objects in them. Upload multiple images as ingredients and generate a high-quality video that incorporates all of them.",
@@ -300,6 +303,7 @@ class PikAdditionsNode(IO.ComfyNode):
     @classmethod
     def define_schema(cls) -> IO.Schema:
         return IO.Schema(
+            is_deprecated=True,
             node_id="Pikadditions",
             display_name="Pikadditions (Video Object Insertion)",
             description="Add any object or image into your video. Upload a video and specify what you'd like to add to create a seamlessly integrated result.",
@@ -366,6 +370,7 @@ class PikaSwapsNode(IO.ComfyNode):
     @classmethod
     def define_schema(cls) -> IO.Schema:
         return IO.Schema(
+            is_deprecated=True,
             node_id="Pikaswaps",
             display_name="Pika Swaps (Video Object Replacement)",
             description="Swap out any object or region of your video with a new image or object. Define areas to replace either with a mask or coordinates.",
@@ -446,6 +451,7 @@ class PikaffectsNode(IO.ComfyNode):
     @classmethod
     def define_schema(cls) -> IO.Schema:
         return IO.Schema(
+            is_deprecated=True,
             node_id="Pikaffects",
             display_name="Pikaffects (Video Effects)",
             description="Generate a video with a specific Pikaffect. Supported Pikaffects: Cake-ify, Crumble, Crush, Decapitate, Deflate, Dissolve, Explode, Eye-pop, Inflate, Levitate, Melt, Peel, Poke, Squish, Ta-da, Tear",
@@ -499,6 +505,7 @@ class PikaStartEndFrameNode(IO.ComfyNode):
     @classmethod
     def define_schema(cls) -> IO.Schema:
         return IO.Schema(
+            is_deprecated=True,
             node_id="PikaStartEndFrameNode2_2",
             display_name="Pika Start and End Frame to Video",
             description="Generate a video by combining your first and last frame. Upload two images to define the start and end points, and let the AI create a smooth transition between them.",
