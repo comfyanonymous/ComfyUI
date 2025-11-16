@@ -51,6 +51,7 @@ frozenlist==1.7.0
 fsspec==2025.9.0
 gitdb==4.0.12
 GitPython==3.1.45
+google-cloud-storage==2.18.2
 greenlet==3.2.3
 gunicorn==23.0.0
 h11==0.16.0
