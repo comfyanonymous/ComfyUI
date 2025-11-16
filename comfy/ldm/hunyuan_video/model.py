@@ -200,7 +200,6 @@ class HunyuanVideo(nn.Module):
         operation_settings = {"operations": operations, "device": device, "dtype": dtype}
 
         params = HunyuanVideoParams(**kwargs)
-        print("HunyuanVideo params:", params)
         self.params = params
         self.patch_size = params.patch_size
         self.in_channels = params.in_channels
