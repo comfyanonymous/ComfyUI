@@ -909,7 +909,7 @@ class HunyuanImage3Model(nn.Module):
                 experts = [LazyMoELoader(self.moe_lru, self.config) for _ in range(64)]
                 self.layers[layer_idx+1].mlp.experts = [expert._schedule_disk_load(layer_idx+1, i) for i, expert in enumerate(experts)]
             
-            if not additional_layers_set:
+            if not self.additional_layers_set:
                 if (layer_idx % sparse_interval == 0) and layer_idx >= sparse_interval:
                     experts = [LazyMoELoader(self.moe_lru, self.config) for _ in range(64)]
                     self.layers[next_layers].mlp.experts = [expert._schedule_disk_load(next_layers, i) for i, expert in enumerate(experts)]
