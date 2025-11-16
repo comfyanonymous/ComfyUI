@@ -34,11 +34,34 @@ class SwitchNode(io.ComfyNode):
         return io.NodeOutput(on_true if switch else on_false)
 
 
+class DCTestNode(io.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return io.Schema(
+            node_id="DCTestNode",
+            display_name="DCTest",
+            category="logic",
+            is_output_node=True,
+            inputs=[io.DynamicCombo.Input("combo", options=[
+                io.DynamicCombo.Option("option1", [io.String.Input("string")]),
+                io.DynamicCombo.Option("option2", [io.Int.Input("integer")]),
+                io.DynamicCombo.Option("option3", [io.Image.Input("image")]),
+                ]
+            )],
+            outputs=[io.String.Output()],
+        )
+    
+    @classmethod
+    def execute(cls, combo) -> io.NodeOutput:
+        return io.NodeOutput("haha")
+
+
 class LogicExtension(ComfyExtension):
     @override
     async def get_node_list(self) -> list[type[io.ComfyNode]]:
         return [
             SwitchNode,
+            DCTestNode,
         ]
 
 async def comfy_entrypoint() -> LogicExtension:
