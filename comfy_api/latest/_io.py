@@ -150,6 +150,9 @@ class _IO_V3:
     def __init__(self):
         pass
 
+    def validate(self):
+        pass
+
     @property
     def io_type(self):
         return self.Parent.io_type
@@ -898,6 +901,12 @@ class DynamicCombo(ComfyTypeI):
             return super().as_dict() | prune_dict({
                 "options": [o.as_dict() for o in self.options],
             })
+        
+        def validate(self):
+            # make sure all nested inputs are validated
+            for option in self.options:
+                for input in option.inputs:
+                    input.validate()
 
 @comfytype(io_type="COMFY_MATCHTYPE_V3")
 class MatchType(ComfyTypeIO):
@@ -1105,6 +1114,11 @@ class Schema:
             issues.append(f"Ids must be unique between inputs and outputs, but {intersection} are not.")
         if len(issues) > 0:
             raise ValueError("\n".join(issues))
+        # validate inputs and outputs
+        for input in self.inputs:
+            input.validate()
+        for output in self.outputs:
+            output.validate()
 
     def finalize(self):
         """Add hidden based on selected schema options, and give outputs without ids default ids."""
@@ -1697,6 +1711,7 @@ __all__ = [
     "MultiType",
     # Dynamic Types
     "MatchType",
+    "DynamicCombo",
     # Other classes
     "HiddenHolder",
     "Hidden",
