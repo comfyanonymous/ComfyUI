@@ -890,8 +890,9 @@ class DynamicCombo(ComfyTypeI):
             }
 
     class Input(DynamicInput):
-        def __init__(self, id: str, options: list[DynamicCombo.Option]):
-            super().__init__(id)
+        def __init__(self, id: str, options: list[DynamicCombo.Option],
+                    display_name: str=None, optional=False, tooltip: str=None, lazy: bool=None, extra_dict=None):
+            super().__init__(id, display_name, optional, tooltip, lazy, extra_dict)
             self.options = options
 
         def get_dynamic(self) -> list[Input]:
