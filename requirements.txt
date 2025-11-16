@@ -1,3 +1,12 @@
+####################################
+# 注意，如果不慎安装了GPU版本，要：
+# 1. 卸载现有的 torch 相关包
+# pip uninstall torch torchvision torchaudio triton -y
+# 2. （可选）安装 CPU 版本的 PyTorch
+# pip install torch==2.4.0 torchvision==0.19.0 torchaudio==2.4.0 --index-url https://download.pytorch.org/whl/cpu
+####################################
+
+
 --extra-index-url https://download.pytorch.org/whl/cpu
 
 aiofiles==24.1.0
