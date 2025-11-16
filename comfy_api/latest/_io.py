@@ -883,7 +883,7 @@ class DynamicCombo(ComfyTypeI):
         def as_dict(self):
             return {
                 "key": self.key,
-                "inputs": [i.as_dict() for i in self.inputs],
+                "inputs": create_input_dict_v1(self.inputs),
             }
 
     class Input(DynamicInput):
@@ -1132,17 +1132,7 @@ class Schema:
 
     def get_v1_info(self, cls) -> NodeInfoV1:
         # get V1 inputs
-        input = {
-            "required": {}
-        }
-        if self.inputs:
-            for i in self.inputs:
-                if isinstance(i, DynamicInput):
-                    dynamic_inputs = i.get_dynamic()
-                    for d in dynamic_inputs:
-                        add_to_dict_v1(d, input)
-                else:
-                    add_to_dict_v1(i, input)
+        input = create_input_dict_v1(self.inputs)
         if self.hidden:
             for hidden in self.hidden:
                 input.setdefault("hidden", {})[hidden.name] = (hidden.value,)
@@ -1222,6 +1212,19 @@ class Schema:
         )
         return info
 
+
+def create_input_dict_v1(inputs: list[Input]) -> dict:
+    input = {
+        "required": {}
+    }
+    for i in inputs:
+        if isinstance(i, DynamicInput):
+            dynamic_inputs = i.get_dynamic()
+            for d in dynamic_inputs:
+                add_to_dict_v1(d, input)
+        else:
+            add_to_dict_v1(i, input)
+    return input
 
 def add_to_dict_v1(i: Input, input: dict):
     key = "optional" if i.optional else "required"
