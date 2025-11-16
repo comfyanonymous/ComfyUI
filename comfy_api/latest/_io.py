@@ -184,6 +184,9 @@ class Input(_IO_V3):
 
     def get_io_type(self):
         return _StringIOType(self.io_type)
+    
+    def get_all(self) -> list[Input]:
+        return [self]
 
 class WidgetInput(Input):
     '''
@@ -898,6 +901,9 @@ class DynamicCombo(ComfyTypeI):
         def get_dynamic(self) -> list[Input]:
             return [self]
 
+        def get_all(self) -> list[Input]:
+            return [self] + [input for option in self.options for input in option.inputs]
+
         def as_dict(self):
             return super().as_dict() | prune_dict({
                 "options": [o.as_dict() for o in self.options],
@@ -1099,7 +1105,10 @@ class Schema:
         '''Validate the schema:
         - verify ids on inputs and outputs are unique - both internally and in relation to each other
         '''
-        input_ids = [i.id for i in self.inputs] if self.inputs is not None else []
+        nested_inputs: list[Input] = []
+        for input in self.inputs:
+            nested_inputs.extend(input.get_all())
+        input_ids = [i.id for i in nested_inputs] if nested_inputs is not None else []
         output_ids = [o.id for o in self.outputs] if self.outputs is not None else []
         input_set = set(input_ids)
         output_set = set(output_ids)
