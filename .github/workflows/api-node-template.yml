@@ -2,7 +2,7 @@ name: Append API Node PR template
 
 on:
   pull_request_target:
-    types: [opened, reopened, synchronize, edited, ready_for_review]
+    types: [opened, reopened, synchronize, ready_for_review]
     paths:
       - 'comfy_api_nodes/**'   # only run if these files changed
 
