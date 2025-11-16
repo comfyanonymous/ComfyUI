@@ -7,7 +7,7 @@ on:
         description: 'torch dependencies'
         required: false
         type: string
-        default: "torch torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/cu128"
+        default: "torch==2.8.0 torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/cu128"
       cache_tag:
         description: 'Cached dependencies tag'
         required: true
