@@ -205,6 +205,8 @@ parser.add_argument("--user-directory", type=is_valid_directory, default=None, h
 
 parser.add_argument("--enable-compress-response-body", action="store_true", help="Enable compressing response body.")
 
+parser.add_argument("--num-workers", type=int, default=1, help="Set the number of worker threads to process the queue (default: 1). Increase this for better concurrency but be aware of GPU memory limitations.")
+
 parser.add_argument(
     "--comfy-api-base",
     type=str,
