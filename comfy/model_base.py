@@ -1570,11 +1570,9 @@ class HunyuanVideo15(HunyuanVideo):
             if mask.shape[-3] < noise.shape[-3]:
                 mask = torch.nn.functional.pad(mask, (0, 0, 0, 0, 0, noise.shape[-3] - mask.shape[-3]), mode='constant', value=0)
             mask = utils.resize_to_batch_size(mask, noise.shape[0])
-        print("image.shape:", image.shape)
-        print("mask.shape:", mask.shape)
 
         return torch.cat((image, mask), dim=1)
-    
+
     def extra_conds(self, **kwargs):
         out = super().extra_conds(**kwargs)
         attention_mask = kwargs.get("attention_mask", None)
