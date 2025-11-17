@@ -79,6 +79,8 @@ class HunyuanVideo15Tokenizer(HunyuanImageTokenizer):
         super().__init__(embedding_directory=embedding_directory, tokenizer_data=tokenizer_data)
         self.llama_template = "<|im_start|>system\nYou are a helpful assistant. Describe the video by detailing the following aspects:\n1. The main content and theme of the video.\n2. The color, shape, size, texture, quantity, text, and spatial relationships of the objects.\n3. Actions, events, behaviors temporal relationships, physical movement changes of the objects.\n4. background environment, light, style and atmosphere.\n5. camera angles, movements, and transitions used in the video.<|im_end|>\n<|im_start|>user\n{}<|im_end|>\n<|im_start|>assistant\n"
 
+    def tokenize_with_weights(self, text:str, return_word_ids=False, **kwargs):
+        return super().tokenize_with_weights(text, return_word_ids, prevent_empty_text=True, **kwargs)
 
 class HunyuanVideoClipModel(torch.nn.Module):
     def __init__(self, dtype_llama=None, device="cpu", dtype=None, model_options={}):
