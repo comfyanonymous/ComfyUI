@@ -602,23 +602,26 @@ def free_memory(memory_required, device, keep_loaded=[]):
         shift_model = current_loaded_models[i]
         if shift_model.device == device:
             if shift_model not in keep_loaded and not shift_model.is_dead():
-                can_unload.append((-shift_model.model_offloaded_memory(), sys.getrefcount(shift_model.model), shift_model.model_memory(), i))
+                can_unload.append((-shift_model.model_offloaded_memory(), sys.getrefcount(shift_model.model), shift_model.model_memory(), i, shift_model))
                 shift_model.currently_used = False
 
     for x in sorted(can_unload):
-        i = x[-1]
+        shift_model = x[-1]
+        i = x[-2]
         memory_to_free = None
         if not DISABLE_SMART_MEMORY:
             free_mem = get_free_memory(device)
             if free_mem > memory_required:
                 break
             memory_to_free = memory_required - free_mem
-        logging.debug(f"Unloading {current_loaded_models[i].model.model.__class__.__name__}")
-        if current_loaded_models[i].model_unload(memory_to_free):
-            unloaded_model.append(i)
+        logging.info(f"Unloading {shift_model.model.model.__class__.__name__}")
+        if shift_model.model_unload(memory_to_free):
+            unloaded_model.append((i, shift_model))
 
-    for i in sorted(unloaded_model, reverse=True):
-        unloaded_models.append(current_loaded_models.pop(i))
+    for i, shift_model in sorted(unloaded_model, reverse=True):
+        unloaded_models.append(shift_model)
+        if shift_model in current_loaded_models:
+            current_loaded_models.remove(shift_model)
 
     if len(unloaded_model) > 0:
         soft_empty_cache()
