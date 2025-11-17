@@ -111,9 +111,9 @@ execute_prestartup_script()
 
 # Main code
 import asyncio
-import gc
 import shutil
 import threading
+import gc
 
 if os.name == "nt":
     os.environ['MIMALLOC_PURGE_DELAY'] = '0'
@@ -148,15 +148,16 @@ if __name__ == "__main__":
 if 'torch' in sys.modules:
     logging.warning("WARNING: Potential Error in code: Torch already imported, torch should never be imported before this point.")
 
-import app.logger
-import comfy.model_management
 import comfy.utils
-import comfyui_version
+
 import execution
-import hook_breaker_ac10a0
-import nodes
 import server
 from protocol import BinaryEventTypes
+import nodes
+import comfy.model_management
+import comfyui_version
+import app.logger
+import hook_breaker_ac10a0
 
 
 def cuda_malloc_warning():
