@@ -28,8 +28,12 @@ import weakref
 import gc
 import os
 
+from functools import lru_cache
+
+@lru_cache(maxsize=1)
 def get_mmap_mem_threshold_gb():
     mmap_mem_threshold_gb = int(os.environ.get("MMAP_MEM_THRESHOLD_GB", "0"))
+    logging.debug(f"MMAP_MEM_THRESHOLD_GB: {mmap_mem_threshold_gb}")
     return mmap_mem_threshold_gb
 
 def get_free_disk():
