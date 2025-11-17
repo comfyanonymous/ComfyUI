@@ -619,13 +619,21 @@ async def execute(server, dynprompt, caches, current_item, extra_data, executed,
 
 class PromptExecutor:
     def __init__(self, server, cache_type=False, cache_args=None):
+        self.caches = None
         self.cache_args = cache_args
         self.cache_type = cache_type
         self.server = server
         self.reset()
 
     def reset(self):
+        if self.caches is not None:
+            for cache in self.caches.all:
+                comfy.model_management.unregister_ram_listener(cache)
+
         self.caches = CacheSet(cache_type=self.cache_type, cache_args=self.cache_args)
+
+        for cache in self.caches.all:
+            comfy.model_management.register_ram_listener(cache)
         self.status_messages = []
         self.success = True
 

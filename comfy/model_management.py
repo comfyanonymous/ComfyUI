@@ -445,6 +445,20 @@ try:
 except:
     logging.warning("Could not pick default device.")
 
+current_ram_listeners = set()
+
+def register_ram_listener(listener):
+    current_ram_listeners.add(listener)
+
+def unregister_ram_listener(listener):
+    current_ram_listeners.discard(listener)
+
+def free_ram(extra_ram=0, state_dict={}):
+    for tensor in state_dict.values():
+        if isinstance(tensor, torch.Tensor):
+            extra_ram += tensor.numel() * tensor.element_size()
+    for listener in current_ram_listeners:
+        listener.free_ram(extra_ram)
 
 current_loaded_models = []
 
