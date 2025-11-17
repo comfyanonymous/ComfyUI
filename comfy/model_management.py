@@ -535,12 +535,17 @@ class LoadedModel:
         return False
 
     def model_unload(self, memory_to_free=None, unpatch_weights=True):
+        if self.model is None:
+            return True
         if memory_to_free is not None:
             if memory_to_free < self.model.loaded_size():
-                freed = self.model.partially_unload(self.model.offload_device, memory_to_free)
+                freed, modules_to_offload = self.model.partially_unload(self.model.offload_device, memory_to_free)
+                offload_modules(modules_to_offload, self.model.offload_device)
                 if freed >= memory_to_free:
                     return False
-        self.model.detach(unpatch_weights)
+        if self.model is not None:
+            modules_to_offload = self.model.detach(unpatch_weights)
+            offload_modules(modules_to_offload, self.model.offload_device)
         self.model_finalizer.detach()
         self.model_finalizer = None
         self.real_model = None
@@ -591,6 +596,13 @@ def extra_reserved_memory():
 
 def minimum_inference_memory():
     return (1024 * 1024 * 1024) * 0.8 + extra_reserved_memory()
+
+def offload_modules(modules, offload_device):
+    for module in modules:
+        if module() is None:
+            continue
+        module().to(offload_device)
+        free_ram()
 
 def free_memory(memory_required, device, keep_loaded=[]):
     cleanup_models_gc()
