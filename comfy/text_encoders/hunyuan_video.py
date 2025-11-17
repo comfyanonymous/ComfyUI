@@ -1,6 +1,7 @@
 from comfy import sd1_clip
 import comfy.model_management
 import comfy.text_encoders.llama
+from .hunyuan_image import HunyuanImageTokenizer
 from transformers import LlamaTokenizerFast
 import torch
 import os
@@ -71,6 +72,12 @@ class HunyuanVideoTokenizer:
 
     def state_dict(self):
         return {}
+
+
+class HunyuanVideo15Tokenizer(HunyuanImageTokenizer):
+    def __init__(self, embedding_directory=None, tokenizer_data={}):
+        super().__init__(embedding_directory=embedding_directory, tokenizer_data=tokenizer_data)
+        self.llama_template = "<|im_start|>system\nYou are a helpful assistant. Describe the video by detailing the following aspects:\n1. The main content and theme of the video.\n2. The color, shape, size, texture, quantity, text, and spatial relationships of the objects.\n3. Actions, events, behaviors temporal relationships, physical movement changes of the objects.\n4. background environment, light, style and atmosphere.\n5. camera angles, movements, and transitions used in the video.<|im_end|>\n<|im_start|>user\n{}<|im_end|>\n<|im_start|>assistant\n"
 
 
 class HunyuanVideoClipModel(torch.nn.Module):

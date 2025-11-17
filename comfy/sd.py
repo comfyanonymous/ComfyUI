@@ -911,6 +911,7 @@ class CLIPType(Enum):
     OMNIGEN2 = 17
     QWEN_IMAGE = 18
     HUNYUAN_IMAGE = 19
+    HUNYUAN_VIDEO_15 = 20
 
 
 def load_clip(ckpt_paths, embedding_directory=None, clip_type=CLIPType.STABLE_DIFFUSION, model_options={}):
@@ -1126,6 +1127,9 @@ def load_text_encoder_state_dicts(state_dicts=[], embedding_directory=None, clip
         elif clip_type == CLIPType.HUNYUAN_IMAGE:
             clip_target.clip = comfy.text_encoders.hunyuan_image.te(**llama_detect(clip_data))
             clip_target.tokenizer = comfy.text_encoders.hunyuan_image.HunyuanImageTokenizer
+        elif clip_type == CLIPType.HUNYUAN_VIDEO_15:
+            clip_target.clip = comfy.text_encoders.hunyuan_image.te(**llama_detect(clip_data))
+            clip_target.tokenizer = comfy.text_encoders.hunyuan_video.HunyuanVideo15Tokenizer
         else:
             clip_target.clip = sdxl_clip.SDXLClipModel
             clip_target.tokenizer = sdxl_clip.SDXLTokenizer
