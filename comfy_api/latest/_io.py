@@ -820,9 +820,8 @@ class DynamicInput(Input, ABC):
     '''
     Abstract class for dynamic input registration.
     '''
-    @abstractmethod
     def get_dynamic(self) -> list[Input]:
-        ...
+        return []
 
 class DynamicOutput(Output, ABC):
     '''
@@ -832,9 +831,8 @@ class DynamicOutput(Output, ABC):
                  is_output_list=False):
         super().__init__(id, display_name, tooltip, is_output_list)
 
-    @abstractmethod
     def get_dynamic(self) -> list[Output]:
-        ...
+        return []
 
 
 @comfytype(io_type="COMFY_AUTOGROW_V3")
@@ -899,7 +897,7 @@ class DynamicCombo(ComfyTypeI):
             self.options = options
 
         def get_dynamic(self) -> list[Input]:
-            return [self]
+            return [input for option in self.options for input in option.inputs]
 
         def get_all(self) -> list[Input]:
             return [self] + [input for option in self.options for input in option.inputs]
@@ -944,9 +942,6 @@ class MatchType(ComfyTypeIO):
             super().__init__(id, display_name, optional, tooltip, lazy, extra_dict)
             self.template = template
 
-        def get_dynamic(self) -> list[Input]:
-            return [self]
-
         def as_dict(self):
             return super().as_dict() | prune_dict({
                 "template": self.template.as_dict(),
@@ -957,9 +952,6 @@ class MatchType(ComfyTypeIO):
                      is_output_list=False):
             super().__init__(id, display_name, tooltip, is_output_list)
             self.template = template
-
-        def get_dynamic(self) -> list[Output]:
-            return [self]
 
         def as_dict(self):
             return super().as_dict() | prune_dict({
@@ -1243,19 +1235,29 @@ def create_input_dict_v1(inputs: list[Input]) -> dict:
     }
     for i in inputs:
         if isinstance(i, DynamicInput):
+            add_to_dict_v1(i, input)
             dynamic_inputs = i.get_dynamic()
             for d in dynamic_inputs:
-                add_to_dict_v1(d, input)
+                add_dynamic_to_dict_v1(d, input)
         else:
             add_to_dict_v1(i, input)
     return input
 
-def add_to_dict_v1(i: Input, input: dict):
+def add_to_dict_v1(i: Input, input: dict, dynamic_dict: dict=None):
     key = "optional" if i.optional else "required"
     as_dict = i.as_dict()
     # for v1, we don't want to include the optional key
     as_dict.pop("optional", None)
-    input.setdefault(key, {})[i.id] = (i.get_io_type(), as_dict)
+    if dynamic_dict is None:
+        value = (i.get_io_type(), as_dict)
+    else:
+        value = (i.get_io_type(), as_dict, dynamic_dict)
+    input.setdefault(key, {})[i.id] = value
+
+def add_dynamic_to_dict_v1(d: DynamicInput, i: Input, input: dict):
+    dynamic = input.setdefault("_dynamic", {})
+    dd = {"parent_id": d.id}
+    add_to_dict_v1(input, dynamic, dd)
 
 def add_to_dict_v3(io: Input | Output, d: dict):
     d[io.id] = (io.get_io_type(), io.as_dict())
