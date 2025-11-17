@@ -357,6 +357,7 @@ class UNetDown(nn.Module):
                 channels=hidden_channels,
                 emb_channels=emb_channels,
                 out_channels=out_channels,
+                use_scale_shift_norm = True,
                 dropout=dropout,
                 **factory_kwargs
             ))
@@ -365,6 +366,7 @@ class UNetDown(nn.Module):
                 self.model.append(ResBlock(
                     channels=hidden_channels,
                     emb_channels=emb_channels,
+                    use_scale_shift_norm = True,
                     out_channels=hidden_channels if (i + 1) * 2 != self.patch_size else out_channels,
                     dropout=dropout,
                     down=True,
@@ -401,6 +403,7 @@ class UNetUp(nn.Module):
                 channels=in_channels,
                 emb_channels=emb_channels,
                 out_channels=hidden_channels,
+                use_scale_shift_norm = True,
                 dropout=dropout,
                 **factory_kwargs
             ))
@@ -410,6 +413,7 @@ class UNetUp(nn.Module):
                     channels=in_channels if i == 0 else hidden_channels,
                     emb_channels=emb_channels,
                     out_channels=hidden_channels,
+                    use_scale_shift_norm = True,
                     dropout=dropout,
                     up=True,
                     **factory_kwargs
