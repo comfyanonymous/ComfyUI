@@ -822,6 +822,10 @@ class DynamicInput(Input, ABC):
     '''
     def get_dynamic(self) -> list[Input]:
         return []
+    
+    def add_to_dict_live_inputs(self, d: dict[str], live_inputs: dict[str]):
+        pass
+
 
 class DynamicOutput(Output, ABC):
     '''
@@ -896,6 +900,19 @@ class DynamicCombo(ComfyTypeI):
             super().__init__(id, display_name, optional, tooltip, lazy, extra_dict)
             self.options = options
 
+        def add_to_dict_live_inputs(self, d: dict[str], live_inputs: dict[str]):
+            # check if dynamic input's id is in live_inputs
+            if self.id in live_inputs:
+                key = live_inputs[self.id]
+                selected_option = None
+                for option in self.options:
+                    if option.key == key:
+                        selected_option = option
+                        break
+                if selected_option is not None:
+                    add_to_input_dict_v1(d, selected_option.inputs, live_inputs)
+                    add_dynamic_to_dict_v1(d, self, selected_option.inputs)
+
         def get_dynamic(self) -> list[Input]:
             return [input for option in self.options for input in option.inputs]
 
@@ -958,6 +975,9 @@ class MatchType(ComfyTypeIO):
                 "template": self.template.as_dict(),
             })
 
+class V3Data(TypedDict):
+    hidden_inputs: dict[str]
+    dynamic_data: dict[str]
 
 class HiddenHolder:
     def __init__(self, unique_id: str, prompt: Any,
@@ -1149,9 +1169,9 @@ class Schema:
                 if output.id is None:
                     output.id = f"_{i}_{output.io_type}_"
 
-    def get_v1_info(self, cls) -> NodeInfoV1:
+    def get_v1_info(self, cls, live_inputs: dict[str]=None) -> NodeInfoV1:
         # get V1 inputs
-        input = create_input_dict_v1(self.inputs)
+        input = create_input_dict_v1(self.inputs, live_inputs)
         if self.hidden:
             for hidden in self.hidden:
                 input.setdefault("hidden", {})[hidden.name] = (hidden.value,)
@@ -1232,21 +1252,23 @@ class Schema:
         return info
 
 
-def create_input_dict_v1(inputs: list[Input]) -> dict:
+def create_input_dict_v1(inputs: list[Input], live_inputs: dict[str]=None) -> dict:
     input = {
         "required": {}
     }
-    for i in inputs:
-        if isinstance(i, DynamicInput):
-            add_to_dict_v1(i, input)
-            dynamic_inputs = i.get_dynamic()
-            for d in dynamic_inputs:
-                add_dynamic_to_dict_v1(d, input)
-        else:
-            add_to_dict_v1(i, input)
+    add_to_input_dict_v1(input, inputs, live_inputs)
     return input
 
-def add_to_dict_v1(i: Input, input: dict, dynamic_dict: dict=None):
+def add_to_input_dict_v1(d: dict[str], inputs: list[Input], live_inputs: dict[str]=None):
+    for i in inputs:
+        if isinstance(i, DynamicInput):
+            add_to_dict_v1(i, d)
+            if live_inputs is not None:
+                i.add_to_dict_live_inputs(d, live_inputs)
+        else:
+            add_to_dict_v1(i, d)
+
+def add_to_dict_v1(i: Input, d: dict, dynamic_dict: dict=None):
     key = "optional" if i.optional else "required"
     as_dict = i.as_dict()
     # for v1, we don't want to include the optional key
@@ -1255,12 +1277,12 @@ def add_to_dict_v1(i: Input, input: dict, dynamic_dict: dict=None):
         value = (i.get_io_type(), as_dict)
     else:
         value = (i.get_io_type(), as_dict, dynamic_dict)
-    input.setdefault(key, {})[i.id] = value
+    d.setdefault(key, {})[i.id] = value
 
-def add_dynamic_to_dict_v1(d: DynamicInput, i: Input, input: dict):
-    dynamic = input.setdefault("_dynamic", {})
-    dd = {"parent_id": d.id}
-    add_to_dict_v1(input, dynamic, dd)
+def add_dynamic_to_dict_v1(d: dict[str], parent: DynamicInput, inputs: list[Input]):
+    dynamic = d.setdefault("dynamic_data", {})
+    ids = [i.id for i in inputs]
+    dynamic[parent.id] = {"ids": ids}
 
 def add_to_dict_v3(io: Input | Output, d: dict):
     d[io.id] = (io.get_io_type(), io.as_dict())
@@ -1384,12 +1406,12 @@ class _ComfyNodeBaseInternal(_ComfyNodeInternal):
 
     @final
     @classmethod
-    def PREPARE_CLASS_CLONE(cls, hidden_inputs: dict) -> type[ComfyNode]:
+    def PREPARE_CLASS_CLONE(cls, v3_data: V3Data) -> type[ComfyNode]:
         """Creates clone of real node class to prevent monkey-patching."""
         c_type: type[ComfyNode] = cls if is_class(cls) else type(cls)
         type_clone: type[ComfyNode] = shallow_clone_class(c_type)
         # set hidden
-        type_clone.hidden = HiddenHolder.from_dict(hidden_inputs)
+        type_clone.hidden = HiddenHolder.from_dict(v3_data["hidden_inputs"])
         return type_clone
 
     @final
@@ -1506,14 +1528,18 @@ class _ComfyNodeBaseInternal(_ComfyNodeInternal):
 
     @final
     @classmethod
-    def INPUT_TYPES(cls, include_hidden=True, return_schema=False) -> dict[str, dict] | tuple[dict[str, dict], Schema]:
+    def INPUT_TYPES(cls, include_hidden=True, return_schema=False, live_inputs=None) -> dict[str, dict] | tuple[dict[str, dict], Schema, V3Data]:
         schema = cls.FINALIZE_SCHEMA()
-        info = schema.get_v1_info(cls)
+        info = schema.get_v1_info(cls, live_inputs)
         input = info.input
         if not include_hidden:
             input.pop("hidden", None)
         if return_schema:
-            return input, schema
+            v3_data: V3Data = {}
+            dynamic = input.pop("dynamic_data", None)
+            if dynamic is not None:
+                v3_data["dynamic_data"] = dynamic
+            return input, schema, v3_data
         return input
 
     @final
@@ -1737,4 +1763,5 @@ __all__ = [
     "NodeOutput",
     "add_to_dict_v1",
     "add_to_dict_v3",
+    "V3Data",
 ]

@@ -48,12 +48,19 @@ class DCTestNode(io.ComfyNode):
                 io.DynamicCombo.Option("option3", [io.Image.Input("image")]),
                 ]
             )],
-            outputs=[io.String.Output()],
+            outputs=[io.AnyType.Output()],
         )
     
     @classmethod
-    def execute(cls, combo) -> io.NodeOutput:
-        return io.NodeOutput("haha")
+    def execute(cls, combo, **kwargs) -> io.NodeOutput:
+        if combo == "option1":
+            return io.NodeOutput(kwargs["string"])
+        elif combo == "option2":
+            return io.NodeOutput(kwargs["integer"])
+        elif combo == "option3":
+            return io.NodeOutput(kwargs["image"])
+        else:
+            raise ValueError(f"Invalid combo: {combo}")
 
 
 class LogicExtension(ComfyExtension):
