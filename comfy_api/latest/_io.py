@@ -1098,8 +1098,9 @@ class Schema:
         - verify ids on inputs and outputs are unique - both internally and in relation to each other
         '''
         nested_inputs: list[Input] = []
-        for input in self.inputs:
-            nested_inputs.extend(input.get_all())
+        if self.inputs is not None:
+            for input in self.inputs:
+                nested_inputs.extend(input.get_all())
         input_ids = [i.id for i in nested_inputs] if nested_inputs is not None else []
         output_ids = [o.id for o in self.outputs] if self.outputs is not None else []
         input_set = set(input_ids)
@@ -1117,10 +1118,12 @@ class Schema:
         if len(issues) > 0:
             raise ValueError("\n".join(issues))
         # validate inputs and outputs
-        for input in self.inputs:
-            input.validate()
-        for output in self.outputs:
-            output.validate()
+        if self.inputs is not None:
+            for input in self.inputs:
+                input.validate()
+        if self.outputs is not None:
+            for output in self.outputs:
+                output.validate()
 
     def finalize(self):
         """Add hidden based on selected schema options, and give outputs without ids default ids."""
