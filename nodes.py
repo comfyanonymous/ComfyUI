@@ -57,7 +57,7 @@ class CLIPTextEncode(ComfyNodeABC):
         return {
             "required": {
                 "text": (IO.STRING, {"multiline": True, "dynamicPrompts": True, "tooltip": "The text to be encoded."}),
-                "clip": (IO.CLIP, {"tooltip": "The CLIP model used for encoding the text."})
+                "clip": (IO.CLIP, {"tooltip": "The CLIP model used for encoding the text.", "lazy" : True})
             }
         }
     RETURN_TYPES = (IO.CONDITIONING,)
@@ -66,6 +66,9 @@ class CLIPTextEncode(ComfyNodeABC):
 
     CATEGORY = "conditioning"
     DESCRIPTION = "Encodes a text prompt using a CLIP model into an embedding that can be used to guide the diffusion model towards generating specific images."
+
+    def check_lazy_status(self, *args, **kwargs):
+        return ["clip"]
 
     def encode(self, clip, text):
         if clip is None:
