@@ -1,15 +1,15 @@
 from __future__ import annotations
 
+import os
+import folder_paths
 import glob
+from aiohttp import web
 import json
 import logging
-import os
 from functools import lru_cache
 
-from aiohttp import web
-
-import folder_paths
 from utils.json_util import merge_json_recursive
+
 
 # Extra locale files to load into main.json
 EXTRA_LOCALE_FILES = [
@@ -32,15 +32,6 @@ def safe_load_json_file(file_path: str) -> dict:
 
 
 class CustomNodeManager:
-    """Manages and resolves folders for custom nodes.
-
-    The custom_nodes folder location can be overridden
-    by passing in a folder argument --custom-nodes-directory.
-
-    The argument can take appropriately delimited path entries, e.g.
-    `... --custom-nodes-directory /path/to/custom1:/path/to/custom2` for linux / osx (:)
-    `... --custom-nodes-directory "X:\\path\\to\\custom1;X:\\path\\to\\custom2"` for windows (;)
-    """
     @lru_cache(maxsize=1)
     def build_translations(self):
         """Load all custom nodes translations during initialization. Translations are

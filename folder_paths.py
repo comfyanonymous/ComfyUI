@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-import logging
-import mimetypes
 import os
-import sys
 import time
+import mimetypes
+import logging
+import sys
+from typing import Literal, List
 from collections.abc import Collection
-from typing import List, Literal
 
 from comfy.cli_args import args
 
@@ -117,8 +117,6 @@ def set_input_directory(input_dir: str) -> None:
     input_directory = input_dir
 
 def set_custom_nodes_directory(custom_nodes_dir: str) -> None:
-    #NOTE: this function doesn't need a "get_custom_nodes_directory", we have "get_folder_paths".
-    # PATH style ';' / ':' (platform dependant) delimiters allow for more folders.
     global folder_names_and_paths
 
     delimiter = ":"
