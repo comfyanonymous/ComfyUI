@@ -1384,7 +1384,7 @@ class HunyuanVideo15(HunyuanVideo):
         "shift": 7.0,
     }
     memory_usage_factor = 4.0 #TODO
-    supported_inference_dtypes = [torch.bfloat16, torch.float32] #TODO check if fp16 works
+    supported_inference_dtypes = [torch.float16, torch.bfloat16, torch.float32]
 
     latent_format = latent_formats.HunyuanVideo15
 
