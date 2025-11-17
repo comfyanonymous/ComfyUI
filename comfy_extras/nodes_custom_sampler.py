@@ -14,7 +14,7 @@ class BasicScheduler:
     @classmethod
     def INPUT_TYPES(s):
         return {"required":
-                    {"model": ("MODEL",),
+                    {"model": ("MODEL", { "lazy" : True }),
                      "scheduler": (comfy.samplers.SCHEDULER_NAMES, ),
                      "steps": ("INT", {"default": 20, "min": 1, "max": 10000}),
                      "denoise": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 1.0, "step": 0.01}),
@@ -24,6 +24,9 @@ class BasicScheduler:
     CATEGORY = "sampling/custom_sampling/schedulers"
 
     FUNCTION = "get_sigmas"
+
+    def check_lazy_status(self, *args, **kwargs):
+        return ["model"]
 
     def get_sigmas(self, model, scheduler, steps, denoise):
         total_steps = steps
@@ -118,7 +121,7 @@ class SDTurboScheduler:
     @classmethod
     def INPUT_TYPES(s):
         return {"required":
-                    {"model": ("MODEL",),
+                    {"model": ("MODEL", { "lazy" : True }),
                      "steps": ("INT", {"default": 1, "min": 1, "max": 10}),
                      "denoise": ("FLOAT", {"default": 1.0, "min": 0, "max": 1.0, "step": 0.01}),
                       }
@@ -127,6 +130,9 @@ class SDTurboScheduler:
     CATEGORY = "sampling/custom_sampling/schedulers"
 
     FUNCTION = "get_sigmas"
+
+    def check_lazy_status(self, *args, **kwargs):
+        return ["model"]
 
     def get_sigmas(self, model, steps, denoise):
         start_step = 10 - int(10 * denoise)
@@ -139,7 +145,7 @@ class BetaSamplingScheduler:
     @classmethod
     def INPUT_TYPES(s):
         return {"required":
-                    {"model": ("MODEL",),
+                    {"model": ("MODEL", { "lazy" : True }),
                      "steps": ("INT", {"default": 20, "min": 1, "max": 10000}),
                      "alpha": ("FLOAT", {"default": 0.6, "min": 0.0, "max": 50.0, "step":0.01, "round": False}),
                      "beta": ("FLOAT", {"default": 0.6, "min": 0.0, "max": 50.0, "step":0.01, "round": False}),
@@ -149,6 +155,9 @@ class BetaSamplingScheduler:
     CATEGORY = "sampling/custom_sampling/schedulers"
 
     FUNCTION = "get_sigmas"
+
+    def check_lazy_status(self, *args, **kwargs):
+        return ["model"]
 
     def get_sigmas(self, model, steps, alpha, beta):
         sigmas = comfy.samplers.beta_scheduler(model.get_model_object("model_sampling"), steps, alpha=alpha, beta=beta)
@@ -307,7 +316,7 @@ class SamplingPercentToSigma:
     def INPUT_TYPES(cls) -> InputTypeDict:
         return {
             "required": {
-                "model": (IO.MODEL, {}),
+                "model": (IO.MODEL, {"lazy" : True}),
                 "sampling_percent": (IO.FLOAT, {"default": 0.0, "min": 0.0, "max": 1.0, "step": 0.0001}),
                 "return_actual_sigma": (IO.BOOLEAN, {"default": False, "tooltip": "Return the actual sigma value instead of the value used for interval checks.\nThis only affects results at 0.0 and 1.0."}),
             }
@@ -318,6 +327,9 @@ class SamplingPercentToSigma:
     CATEGORY = "sampling/custom_sampling/sigmas"
 
     FUNCTION = "get_sigma"
+
+    def check_lazy_status(self, *args, **kwargs):
+        return ["model"]
 
     def get_sigma(self, model, sampling_percent, return_actual_sigma):
         model_sampling = model.get_model_object("model_sampling")
@@ -556,7 +568,7 @@ class SamplerSASolver(ComfyNodeABC):
     def INPUT_TYPES(cls) -> InputTypeDict:
         return {
             "required": {
-                "model": (IO.MODEL, {}),
+                "model": (IO.MODEL, { "lazy" : True }),
                 "eta": (IO.FLOAT, {"default": 1.0, "min": 0.0, "max": 10.0, "step": 0.01, "round": False},),
                 "sde_start_percent": (IO.FLOAT, {"default": 0.2, "min": 0.0, "max": 1.0, "step": 0.001},),
                 "sde_end_percent": (IO.FLOAT, {"default": 0.8, "min": 0.0, "max": 1.0, "step": 0.001},),
@@ -572,6 +584,9 @@ class SamplerSASolver(ComfyNodeABC):
     CATEGORY = "sampling/custom_sampling/samplers"
 
     FUNCTION = "get_sampler"
+
+    def check_lazy_status(self, *args, **kwargs):
+        return ["model"]
 
     def get_sampler(self, model, eta, sde_start_percent, sde_end_percent, s_noise, predictor_order, corrector_order, use_pece, simple_order_2):
         model_sampling = model.get_model_object("model_sampling")
@@ -616,7 +631,7 @@ class SamplerCustom:
     @classmethod
     def INPUT_TYPES(s):
         return {"required":
-                    {"model": ("MODEL",),
+                    {"model": ("MODEL", { "lazy" : True }),
                     "add_noise": ("BOOLEAN", {"default": True}),
                     "noise_seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff, "control_after_generate": True}),
                     "cfg": ("FLOAT", {"default": 8.0, "min": 0.0, "max": 100.0, "step":0.1, "round": 0.01}),
@@ -634,6 +649,9 @@ class SamplerCustom:
     FUNCTION = "sample"
 
     CATEGORY = "sampling/custom_sampling"
+
+    def check_lazy_status(self, *args, **kwargs):
+        return ["model"]
 
     def sample(self, model, add_noise, noise_seed, cfg, positive, negative, sampler, sigmas, latent_image):
         latent = latent_image
@@ -674,7 +692,7 @@ class BasicGuider:
     @classmethod
     def INPUT_TYPES(s):
         return {"required":
-                    {"model": ("MODEL",),
+                    {"model": ("MODEL", { "lazy" : True }),
                     "conditioning": ("CONDITIONING", ),
                      }
                 }
@@ -683,6 +701,9 @@ class BasicGuider:
 
     FUNCTION = "get_guider"
     CATEGORY = "sampling/custom_sampling/guiders"
+
+    def check_lazy_status(self, *args, **kwargs):
+        return ["model"]
 
     def get_guider(self, model, conditioning):
         guider = Guider_Basic(model)
@@ -693,7 +714,7 @@ class CFGGuider:
     @classmethod
     def INPUT_TYPES(s):
         return {"required":
-                    {"model": ("MODEL",),
+                    {"model": ("MODEL", { "lazy" : True }),
                     "positive": ("CONDITIONING", ),
                     "negative": ("CONDITIONING", ),
                     "cfg": ("FLOAT", {"default": 8.0, "min": 0.0, "max": 100.0, "step":0.1, "round": 0.01}),
@@ -704,6 +725,9 @@ class CFGGuider:
 
     FUNCTION = "get_guider"
     CATEGORY = "sampling/custom_sampling/guiders"
+
+    def check_lazy_status(self, *args, **kwargs):
+        return ["model"]
 
     def get_guider(self, model, positive, negative, cfg):
         guider = comfy.samplers.CFGGuider(model)
@@ -744,7 +768,7 @@ class DualCFGGuider:
     @classmethod
     def INPUT_TYPES(s):
         return {"required":
-                    {"model": ("MODEL",),
+                    {"model": ("MODEL", { "lazy" : True }),
                     "cond1": ("CONDITIONING", ),
                     "cond2": ("CONDITIONING", ),
                     "negative": ("CONDITIONING", ),
@@ -758,6 +782,9 @@ class DualCFGGuider:
 
     FUNCTION = "get_guider"
     CATEGORY = "sampling/custom_sampling/guiders"
+
+    def check_lazy_status(self, *args, **kwargs):
+        return ["model"]
 
     def get_guider(self, model, cond1, cond2, negative, cfg_conds, cfg_cond2_negative, style):
         guider = Guider_DualCFG(model)
@@ -848,7 +875,7 @@ class AddNoise:
     @classmethod
     def INPUT_TYPES(s):
         return {"required":
-                    {"model": ("MODEL",),
+                    {"model": ("MODEL", { "lazy" : True }),
                      "noise": ("NOISE", ),
                      "sigmas": ("SIGMAS", ),
                      "latent_image": ("LATENT", ),
@@ -860,6 +887,9 @@ class AddNoise:
     FUNCTION = "add_noise"
 
     CATEGORY = "_for_testing/custom_sampling/noise"
+
+    def check_lazy_status(self, *args, **kwargs):
+        return ["model"]
 
     def add_noise(self, model, noise, sigmas, latent_image):
         if len(sigmas) == 0:
