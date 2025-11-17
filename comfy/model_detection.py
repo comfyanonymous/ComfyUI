@@ -491,6 +491,7 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
         dit_config["num_attention_heads"] = 32
         dit_config['rms_norm_eps'] = 1e-05
         dit_config["num_hidden_layers"] = 32
+        dit_config["attention_head_dim"] = 128
         return dit_config
 
     if '{}blocks.0.mlp.layer1.weight'.format(key_prefix) in state_dict_keys:  # Cosmos predict2
