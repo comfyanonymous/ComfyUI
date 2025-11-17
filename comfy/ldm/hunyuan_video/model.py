@@ -273,7 +273,7 @@ class HunyuanVideo(nn.Module):
 
         # HunyuanVideo 1.5 specific modules
         if self.vision_in_dim is not None:
-            from comfy.ldm.wan.model import MLPProj # todo move
+            from comfy.ldm.wan.model import MLPProj
             self.vision_in = MLPProj(in_dim=self.vision_in_dim, out_dim=self.hidden_size, operation_settings=operation_settings)
         else:
             self.vision_in = None
@@ -293,7 +293,7 @@ class HunyuanVideo(nn.Module):
         timesteps: Tensor,
         y: Tensor = None,
         txt_byt5=None,
-        vision_states=None, #todo hunyuan video 1.5 vision encoder states input
+        clip_fea=None,
         guidance: Tensor = None,
         guiding_frame_index=None,
         ref_latent=None,
@@ -365,13 +365,11 @@ class HunyuanVideo(nn.Module):
             txt_byt5_ids = torch.zeros((txt_ids.shape[0], txt_byt5.shape[1], txt_ids.shape[-1]), device=txt_ids.device, dtype=txt_ids.dtype)
             txt_ids = torch.cat((txt_ids, txt_byt5_ids), dim=1)
 
-        #todo vision_in
-        if vision_states is not None:
-            txt_vision_states = self.vision_in(vision_states)
+        if clip_fea is not None:
+            txt_vision_states = self.vision_in(clip_fea)
             if self.cond_type_embedding is not None:
                 cond_emb = self.cond_type_embedding(2 * torch.ones_like(txt_vision_states[:, :, 0], dtype=torch.long, device=txt_vision_states.device))
                 txt_vision_states = txt_vision_states + cond_emb
-            #print("txt_vision_states shape:", txt_vision_states.shape)
             txt = torch.cat((txt_vision_states.to(txt.dtype), txt), dim=1)
             extra_txt_ids = torch.zeros((txt_ids.shape[0], txt_vision_states.shape[1], txt_ids.shape[-1]), device=txt_ids.device, dtype=txt_ids.dtype)
             txt_ids = torch.cat((txt_ids, extra_txt_ids), dim=1)
@@ -469,14 +467,14 @@ class HunyuanVideo(nn.Module):
         img_ids[:, :, 1] = img_ids[:, :, 1] + torch.linspace(0, w_len - 1, steps=w_len, device=x.device, dtype=x.dtype).unsqueeze(0)
         return repeat(img_ids, "h w c -> b (h w) c", b=bs)
 
-    def forward(self, x, timestep, context, y=None, txt_byt5=None, vision_states=None, guidance=None, attention_mask=None, guiding_frame_index=None, ref_latent=None, disable_time_r=False, control=None, transformer_options={}, **kwargs):
+    def forward(self, x, timestep, context, y=None, txt_byt5=None, clip_fea=None, guidance=None, attention_mask=None, guiding_frame_index=None, ref_latent=None, disable_time_r=False, control=None, transformer_options={}, **kwargs):
         return comfy.patcher_extension.WrapperExecutor.new_class_executor(
             self._forward,
             self,
             comfy.patcher_extension.get_all_wrappers(comfy.patcher_extension.WrappersMP.DIFFUSION_MODEL, transformer_options)
-        ).execute(x, timestep, context, y, txt_byt5, vision_states, guidance, attention_mask, guiding_frame_index, ref_latent, disable_time_r, control, transformer_options, **kwargs)
+        ).execute(x, timestep, context, y, txt_byt5, clip_fea, guidance, attention_mask, guiding_frame_index, ref_latent, disable_time_r, control, transformer_options, **kwargs)
 
-    def _forward(self, x, timestep, context, y=None, txt_byt5=None, vision_states=None, guidance=None, attention_mask=None, guiding_frame_index=None, ref_latent=None, disable_time_r=False, control=None, transformer_options={}, **kwargs):
+    def _forward(self, x, timestep, context, y=None, txt_byt5=None, clip_fea=None, guidance=None, attention_mask=None, guiding_frame_index=None, ref_latent=None, disable_time_r=False, control=None, transformer_options={}, **kwargs):
         bs = x.shape[0]
         if len(self.patch_size) == 3:
             img_ids = self.img_ids(x)
@@ -484,5 +482,5 @@ class HunyuanVideo(nn.Module):
         else:
             img_ids = self.img_ids_2d(x)
             txt_ids = torch.zeros((bs, context.shape[1], 2), device=x.device, dtype=x.dtype)
-        out = self.forward_orig(x, img_ids, context, txt_ids, attention_mask, timestep, y, txt_byt5, vision_states, guidance, guiding_frame_index, ref_latent, disable_time_r=disable_time_r, control=control, transformer_options=transformer_options)
+        out = self.forward_orig(x, img_ids, context, txt_ids, attention_mask, timestep, y, txt_byt5, clip_fea, guidance, guiding_frame_index, ref_latent, disable_time_r=disable_time_r, control=control, transformer_options=transformer_options)
         return out

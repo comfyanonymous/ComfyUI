@@ -1537,7 +1537,7 @@ class HunyuanImage21Refiner(HunyuanImage21):
         out['disable_time_r'] = comfy.conds.CONDConstant(True)
         return out
 
-class HunyuanVideo15(HunyuanImage21):
+class HunyuanVideo15(HunyuanVideo):
     def __init__(self, model_config, model_type=ModelType.FLOW, device=None):
         super().__init__(model_config, model_type, device=device)
 
@@ -1565,7 +1565,36 @@ class HunyuanVideo15(HunyuanImage21):
         if mask is None:
             mask = torch.zeros_like(noise)[:, :1]
         else:
-            mask = torch.zeros_like(noise)[:, :1]
-            mask[:, :, 1:] = 1.0
+            mask = 1.0 - mask
+            mask = utils.common_upscale(mask.to(device), noise.shape[-1], noise.shape[-2], "bilinear", "center")
+            if mask.shape[-3] < noise.shape[-3]:
+                mask = torch.nn.functional.pad(mask, (0, 0, 0, 0, 0, noise.shape[-3] - mask.shape[-3]), mode='constant', value=0)
+            mask = utils.resize_to_batch_size(mask, noise.shape[0])
+        print("image.shape:", image.shape)
+        print("mask.shape:", mask.shape)
 
         return torch.cat((image, mask), dim=1)
+    
+    def extra_conds(self, **kwargs):
+        out = super().extra_conds(**kwargs)
+        attention_mask = kwargs.get("attention_mask", None)
+        if attention_mask is not None:
+            if torch.numel(attention_mask) != attention_mask.sum():
+                out['attention_mask'] = comfy.conds.CONDRegular(attention_mask)
+        cross_attn = kwargs.get("cross_attn", None)
+        if cross_attn is not None:
+            out['c_crossattn'] = comfy.conds.CONDRegular(cross_attn)
+
+        conditioning_byt5small = kwargs.get("conditioning_byt5small", None)
+        if conditioning_byt5small is not None:
+            out['txt_byt5'] = comfy.conds.CONDRegular(conditioning_byt5small)
+
+        guidance = kwargs.get("guidance", 6.0)
+        if guidance is not None:
+            out['guidance'] = comfy.conds.CONDRegular(torch.FloatTensor([guidance]))
+
+        clip_vision_output = kwargs.get("clip_vision_output", None)
+        if clip_vision_output is not None:
+            out['clip_fea'] = comfy.conds.CONDRegular(clip_vision_output.penultimate_hidden_states)
+
+        return out
