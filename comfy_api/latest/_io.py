@@ -1325,12 +1325,12 @@ def build_nested_inputs(values: dict[str], paths: dict[str]):
                 while len(lst) <= index:
                     lst.append(None)
 
-                # Last element → assign the value directly
+                # Last element - assign the value directly
                 if is_last:
                     lst[index] = values.pop(key)
                     break
 
-                # Non-last element → ensure dict
+                # Non-last element - ensure dict
                 if lst[index] is None or not isinstance(lst[index], dict):
                     lst[index] = {}
 
