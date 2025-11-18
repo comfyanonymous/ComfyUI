@@ -888,10 +888,13 @@ def add_dynamic_id_mapping(d: dict[str], inputs: list[Input], curr_prefix: str, 
         dynamic[self.id] = f"{curr_prefix}{self.id}"
     for i in inputs:
         if not isinstance(i, DynamicInput):
-            dynamic[i.id] = f"{curr_prefix}{i.id}"
+            # frontend keys should include the prefixes
+            dynamic[f"{curr_prefix}{i.id}"] = f"{curr_prefix}{i.id}"
 
 @comfytype(io_type="COMFY_DYNAMICCOMBO_V3")
 class DynamicCombo(ComfyTypeI):
+    Type = dict[str]
+
     class Option:
         def __init__(self, key: str, inputs: list[Input]):
             self.key = key
@@ -1276,9 +1279,9 @@ def add_to_input_dict_v1(d: dict[str], inputs: list[Input], live_inputs: dict[st
             if live_inputs is not None:
                 i.add_to_dict_live_inputs(d, live_inputs, curr_prefix)
         else:
-            add_to_dict_v1(i, d)
+            add_to_dict_v1(i, d, curr_prefix=curr_prefix)
 
-def add_to_dict_v1(i: Input, d: dict, dynamic_dict: dict=None):
+def add_to_dict_v1(i: Input, d: dict, dynamic_dict: dict=None, curr_prefix=''):
     key = "optional" if i.optional else "required"
     as_dict = i.as_dict()
     # for v1, we don't want to include the optional key
@@ -1287,7 +1290,7 @@ def add_to_dict_v1(i: Input, d: dict, dynamic_dict: dict=None):
         value = (i.get_io_type(), as_dict)
     else:
         value = (i.get_io_type(), as_dict, dynamic_dict)
-    d.setdefault(key, {})[i.id] = value
+    d.setdefault(key, {})[f"{curr_prefix}{i.id}"] = value
 
 def add_to_dict_v3(io: Input | Output, d: dict):
     d[io.id] = (io.get_io_type(), io.as_dict())
