@@ -236,10 +236,10 @@ class QwenImageTransformerBlock(nn.Module):
         img_mod1, img_mod2 = img_mod_params.chunk(2, dim=-1)
         txt_mod1, txt_mod2 = txt_mod_params.chunk(2, dim=-1)
 
-        img_normed = self.img_norm1(hidden_states)
-        img_modulated, img_gate1 = self._modulate(img_normed, img_mod1)
-        txt_normed = self.txt_norm1(encoder_hidden_states)
-        txt_modulated, txt_gate1 = self._modulate(txt_normed, txt_mod1)
+        img_modulated, img_gate1 = self._modulate(self.img_norm1(hidden_states), img_mod1)
+        del img_mod1
+        txt_modulated, txt_gate1 = self._modulate(self.txt_norm1(encoder_hidden_states), txt_mod1)
+        del txt_mod1
 
         img_attn_output, txt_attn_output = self.attn(
             hidden_states=img_modulated,
@@ -248,16 +248,20 @@ class QwenImageTransformerBlock(nn.Module):
             image_rotary_emb=image_rotary_emb,
             transformer_options=transformer_options,
         )
+        del img_modulated
+        del txt_modulated
 
         hidden_states = hidden_states + img_gate1 * img_attn_output
         encoder_hidden_states = encoder_hidden_states + txt_gate1 * txt_attn_output
+        del img_attn_output
+        del txt_attn_output
+        del img_gate1
+        del txt_gate1
 
-        img_normed2 = self.img_norm2(hidden_states)
-        img_modulated2, img_gate2 = self._modulate(img_normed2, img_mod2)
+        img_modulated2, img_gate2 = self._modulate(self.img_norm2(hidden_states), img_mod2)
         hidden_states = torch.addcmul(hidden_states, img_gate2, self.img_mlp(img_modulated2))
 
-        txt_normed2 = self.txt_norm2(encoder_hidden_states)
-        txt_modulated2, txt_gate2 = self._modulate(txt_normed2, txt_mod2)
+        txt_modulated2, txt_gate2 = self._modulate(self.txt_norm2(encoder_hidden_states), txt_mod2)
         encoder_hidden_states = torch.addcmul(encoder_hidden_states, txt_gate2, self.txt_mlp(txt_modulated2))
 
         return encoder_hidden_states, hidden_states
