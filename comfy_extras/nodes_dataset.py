@@ -329,7 +329,7 @@ class ImageProcessingNode(io.ComfyNode):
     description = None
     extra_inputs = []
     is_group_process = None  # None = auto-detect, True/False = explicit
-    is_output_list = True  # Configurable output mode
+    is_output_list = None  # None = auto-detect based on processing mode
 
     @classmethod
     def _detect_processing_mode(cls):
@@ -342,10 +342,26 @@ class ImageProcessingNode(io.ComfyNode):
         if cls.is_group_process is not None:
             return cls.is_group_process
 
-        # Check which method is overridden
+        # Check which method is overridden by looking at the defining class in MRO
         base_class = ImageProcessingNode
-        has_process = cls._process is not base_class._process
-        has_group = cls._group_process is not base_class._group_process
+
+        # Find which class in MRO defines _process
+        process_definer = None
+        for klass in cls.__mro__:
+            if "_process" in klass.__dict__:
+                process_definer = klass
+                break
+
+        # Find which class in MRO defines _group_process
+        group_definer = None
+        for klass in cls.__mro__:
+            if "_group_process" in klass.__dict__:
+                group_definer = klass
+                break
+
+        # Check what was overridden (not defined in base class)
+        has_process = process_definer is not None and process_definer is not base_class
+        has_group = group_definer is not None and group_definer is not base_class
 
         if has_process and has_group:
             raise ValueError(
@@ -365,6 +381,13 @@ class ImageProcessingNode(io.ComfyNode):
             raise NotImplementedError(f"{cls.__name__} must set node_id class variable")
 
         is_group = cls._detect_processing_mode()
+
+        # Auto-detect is_output_list if not explicitly set
+        # Single processing: True (backend collects results into list)
+        # Group processing: True by default (can be False for single-output nodes)
+        output_is_list = (
+            cls.is_output_list if cls.is_output_list is not None else is_group
+        )
 
         inputs = [
             io.Image.Input(
@@ -386,7 +409,7 @@ class ImageProcessingNode(io.ComfyNode):
             outputs=[
                 io.Image.Output(
                     display_name="images",
-                    is_output_list=cls.is_output_list,
+                    is_output_list=output_is_list,
                     tooltip="Processed images",
                 )
             ],
@@ -470,7 +493,7 @@ class TextProcessingNode(io.ComfyNode):
     description = None
     extra_inputs = []
     is_group_process = None  # None = auto-detect, True/False = explicit
-    is_output_list = True  # Configurable output mode
+    is_output_list = None  # None = auto-detect based on processing mode
 
     @classmethod
     def _detect_processing_mode(cls):
@@ -483,10 +506,26 @@ class TextProcessingNode(io.ComfyNode):
         if cls.is_group_process is not None:
             return cls.is_group_process
 
-        # Check which method is overridden
+        # Check which method is overridden by looking at the defining class in MRO
         base_class = TextProcessingNode
-        has_process = cls._process is not base_class._process
-        has_group = cls._group_process is not base_class._group_process
+
+        # Find which class in MRO defines _process
+        process_definer = None
+        for klass in cls.__mro__:
+            if "_process" in klass.__dict__:
+                process_definer = klass
+                break
+
+        # Find which class in MRO defines _group_process
+        group_definer = None
+        for klass in cls.__mro__:
+            if "_group_process" in klass.__dict__:
+                group_definer = klass
+                break
+
+        # Check what was overridden (not defined in base class)
+        has_process = process_definer is not None and process_definer is not base_class
+        has_group = group_definer is not None and group_definer is not base_class
 
         if has_process and has_group:
             raise ValueError(
