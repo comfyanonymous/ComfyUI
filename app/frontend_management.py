@@ -302,9 +302,6 @@ comfyui-workflow-templates is not installed.
 
         return asset_map
 
-    @classmethod
-    def templates_path(cls) -> Optional[Dict[str, str]]:
-        return cls.template_asset_map()
 
     @classmethod
     def legacy_templates_path(cls) -> Optional[str]:
