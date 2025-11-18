@@ -24,7 +24,7 @@ lint.select = [
 exclude = ["*.ipynb", "**/generated/*.pyi"]
 
 [tool.pylint]
-master.py-version = "3.9"
+master.py-version = "3.10"
 master.extension-pkg-allow-list = [
   "pydantic",
 ]
