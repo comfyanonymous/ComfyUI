@@ -1593,6 +1593,6 @@ class HunyuanVideo15(HunyuanVideo):
 
         clip_vision_output = kwargs.get("clip_vision_output", None)
         if clip_vision_output is not None:
-            out['clip_fea'] = comfy.conds.CONDRegular(clip_vision_output.penultimate_hidden_states)
+            out['clip_fea'] = comfy.conds.CONDRegular(clip_vision_output.last_hidden_state)
 
         return out
