@@ -1357,13 +1357,10 @@ def build_nested_inputs(values: dict[str], v3_data: V3Data):
     paths = v3_data.get("dynamic_data", None)
     if paths is None:
         return values
-    # NOTE: This was initially AI generated
-    # Tries to account for arrays as well, will likely be changed once that's in
     values = values.copy()
     result = {}
 
-    index_pattern = re.compile(r"^(?P<key>[A-Za-z0-9_]+)\[(?P<index>\d+)\]$")
-
+    # NOTE: This was initially AI generated, verified works
     for key, path in paths.items():
         parts = path.split(".")
         current = result
@@ -1371,36 +1368,8 @@ def build_nested_inputs(values: dict[str], v3_data: V3Data):
         for i, p in enumerate(parts):
             is_last = (i == len(parts) - 1)
 
-            match = index_pattern.match(p)
-            if match:
-                list_key = match.group("key")
-                index = int(match.group("index"))
-
-                # Ensure list exists
-                if list_key not in current or not isinstance(current[list_key], list):
-                    current[list_key] = []
-
-                lst = current[list_key]
-
-                # Expand list to the needed index
-                while len(lst) <= index:
-                    lst.append(None)
-
-                # Last element - assign the value directly
-                if is_last:
-                    lst[index] = values.pop(key)
-                    break
-
-                # Non-last element - ensure dict
-                if lst[index] is None or not isinstance(lst[index], dict):
-                    lst[index] = {}
-
-                current = lst[index]
-                continue
-
-            # Normal dict key
             if is_last:
-                current[p] = values.pop(key)
+                current[p] = values.pop(key, None)
             else:
                 current = current.setdefault(p, {})
 
