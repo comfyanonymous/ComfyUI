@@ -269,8 +269,8 @@ async def _async_map_node_over_list(prompt_id, unique_id, obj, input_data_all, f
                     class_clone = type_obj.PREPARE_CLASS_CLONE(v3_data)
                 f = make_locked_method_func(type_obj, func, class_clone)
                 # in case of dynamic inputs, restructure inputs to expected nested dict
-                if v3_data is not None and v3_data["dynamic_data"] is not None:
-                    inputs = _io.build_nested_inputs(inputs, v3_data["dynamic_data"])
+                if v3_data is not None:
+                    inputs = _io.build_nested_inputs(inputs, v3_data)
             # V1
             else:
                 f = getattr(obj, func)
