@@ -18,4 +18,4 @@ If **Need pricing update**:
 - [ ] **QA not required**
 
 ### Comms
-- [ ] Informed **@Kosinkadink**
+- [ ] Informed **Kosinkadink**
