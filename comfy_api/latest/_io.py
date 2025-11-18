@@ -823,8 +823,8 @@ class DynamicInput(Input, ABC):
     '''
     def get_dynamic(self) -> list[Input]:
         return []
-    
-    def add_to_dict_live_inputs(self, d: dict[str], live_inputs: dict[str]):
+
+    def add_to_dict_live_inputs(self, d: dict[str], live_inputs: dict[str], curr_prefix=''):
         pass
 
 
@@ -841,46 +841,105 @@ class DynamicOutput(Output, ABC):
 
 
 @comfytype(io_type="COMFY_AUTOGROW_V3")
-class AutogrowDynamic(ComfyTypeI):
+class Autogrow(ComfyTypeI):
     Type = list[Any]
-    class Input(DynamicInput):
-        def __init__(self, id: str, template_input: Input, min: int=1, max: int=None,
-                     display_name: str=None, optional=False, tooltip: str=None, lazy: bool=None, extra_dict=None):
-            super().__init__(id, display_name, optional, tooltip, lazy, extra_dict)
-            raise Exception("AutogrowDynamic is not implemented yet, and will likely be renamed for actual implementation.")
-            self.template_input = template_input
-            if min is not None:
-                assert(min >= 1)
-            if max is not None:
-                assert(max >= 1)
+    _MaxNames = 100  # NOTE: max 100 names for sanity
+
+    class _AutogrowTemplate:
+        def __init__(self, input: Input):
+            # dynamic inputs are not allowed as the template input
+            assert(not isinstance(input, DynamicInput))
+            self.input = input
+            self.names: list[str] = []
+            self.cached_inputs = {}
+
+        def _create_input(self, input: Input, name: str):
+            new_input = copy.copy(self.input)
+            new_input.id = name
+            return new_input
+
+        def _create_cached_inputs(self):
+            for name in self.names:
+                self.cached_inputs[name] = self._create_input(self.input, name)
+
+        def get_all(self) -> list[Input]:
+            return list(self.cached_inputs.values())
+
+        def as_dict(self):
+            return prune_dict({
+                "input": create_input_dict_v1([self.input]),
+            })
+
+        def validate(self):
+            self.input.validate()
+
+        def add_to_dict_live_inputs(self, d: dict[str], live_inputs: dict[str], curr_prefix=''):
+            real_inputs = []
+            for name, input in self.cached_inputs.items():
+                if name in live_inputs:
+                    real_inputs.append(input)
+            add_to_input_dict_v1(d, real_inputs, live_inputs, curr_prefix)
+            add_dynamic_id_mapping(d, real_inputs, curr_prefix)
+
+    class TemplatePrefix(_AutogrowTemplate):
+        def __init__(self, input: Input, prefix: str, min: int=1, max: int=None):
+            super().__init__(input)
+            self.prefix = prefix
+            assert(min >= 1)
+            if not max:
+                max = 10
+            assert(max >= 1)
+            assert(max <= Autogrow._MaxNames)
             self.min = min
             self.max = max
+            self.names = [f"{self.prefix}{i+1}" for i in range(self.max)]
+            self._create_cached_inputs()
+
+        def as_dict(self):
+            return super().as_dict() | prune_dict({
+                "prefix": self.prefix,
+                "min": self.min,
+                "max": self.max,
+            })
+
+    class TemplateNames(_AutogrowTemplate):
+        def __init__(self, input: Input, names: list[str], min: int=1):
+            super().__init__(input)
+            self.names = names[:Autogrow._MaxNames] 
+            assert(min >= 1)
+            self.min = min
+            self._create_cached_inputs()
+
+        def as_dict(self):
+            return super().as_dict() | prune_dict({
+                "names": self.names,
+                "min": self.min,
+            })
+
+    class Input(DynamicInput):
+        def __init__(self, id: str, template: Autogrow.TemplatePrefix | Autogrow.TemplateNames,
+                     display_name: str=None, optional=False, tooltip: str=None, lazy: bool=None, extra_dict=None):
+            super().__init__(id, display_name, optional, tooltip, lazy, extra_dict)
+            # raise Exception("AutogrowDynamic is not implemented yet, and will likely be renamed for actual implementation.")
+            self.template = template
+
+        def as_dict(self):
+            return super().as_dict() | prune_dict({
+                "template": self.template.as_dict(),
+            })
 
         def get_dynamic(self) -> list[Input]:
-            curr_count = 1
-            new_inputs = []
-            for i in range(self.min):
-                new_input = copy.copy(self.template_input)
-                new_input.id = f"{new_input.id}{curr_count}_${self.id}_ag$"
-                if new_input.display_name is not None:
-                    new_input.display_name = f"{new_input.display_name}{curr_count}"
-                new_input.optional = self.optional or new_input.optional
-                if isinstance(self.template_input, WidgetInput):
-                    new_input.force_input = True
-                new_inputs.append(new_input)
-                curr_count += 1
-            # pretend to expand up to max
-            for i in range(curr_count-1, self.max):
-                new_input = copy.copy(self.template_input)
-                new_input.id = f"{new_input.id}{curr_count}_${self.id}_ag$"
-                if new_input.display_name is not None:
-                    new_input.display_name = f"{new_input.display_name}{curr_count}"
-                new_input.optional = True
-                if isinstance(self.template_input, WidgetInput):
-                    new_input.force_input = True
-                new_inputs.append(new_input)
-                curr_count += 1
-            return new_inputs
+            return self.template.get_all()
+
+        def get_all(self) -> list[Input]:
+            return [self] + self.template.get_all()
+
+        def validate(self):
+            self.template.validate()
+
+        def add_to_dict_live_inputs(self, d: dict[str], live_inputs: dict[str], curr_prefix=''):
+            curr_prefix = f"{curr_prefix}{self.id}."
+            self.template.add_to_dict_live_inputs(d, live_inputs, curr_prefix)
 
 def add_dynamic_id_mapping(d: dict[str], inputs: list[Input], curr_prefix: str, self: DynamicInput=None):
     dynamic = d.setdefault("dynamic_data", {})
