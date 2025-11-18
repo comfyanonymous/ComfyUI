@@ -1016,7 +1016,7 @@ class MatchType(ComfyTypeIO):
                 "allowed_types": ",".join([t.io_type for t in self.allowed_types]),
             }
 
-    class Input(DynamicInput):
+    class Input(Input):
         def __init__(self, id: str, template: MatchType.Template,
                     display_name: str=None, optional=False, tooltip: str=None, lazy: bool=None, extra_dict=None):
             super().__init__(id, display_name, optional, tooltip, lazy, extra_dict)
@@ -1027,7 +1027,7 @@ class MatchType(ComfyTypeIO):
                 "template": self.template.as_dict(),
             })
 
-    class Output(DynamicOutput):
+    class Output(Output):
         def __init__(self, id: str, template: MatchType.Template, display_name: str=None, tooltip: str=None,
                      is_output_list=False):
             super().__init__(id, display_name, tooltip, is_output_list)
