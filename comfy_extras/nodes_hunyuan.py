@@ -159,13 +159,13 @@ class HunyuanVideo15RefinerLatent(io.ComfyNode):
             encoded = vae.encode(start_image[:, :, :, :3])
             cond_latent[:, :in_channels, :encoded.shape[2], :, :] = encoded
             cond_latent[:, in_channels + 1, 0] = 1
-        
+
         positive = node_helpers.conditioning_set_values(positive, {"concat_latent_image": cond_latent, "noise_augmentation": noise_augmentation})
         negative = node_helpers.conditioning_set_values(negative, {"concat_latent_image": cond_latent, "noise_augmentation": noise_augmentation})
         if clip_vision_output is not None:
             positive = node_helpers.conditioning_set_values(positive, {"clip_vision_output": clip_vision_output})
             negative = node_helpers.conditioning_set_values(negative, {"clip_vision_output": clip_vision_output})
-    
+
         return io.NodeOutput(positive, negative, latent)
 
 

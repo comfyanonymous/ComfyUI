@@ -1596,7 +1596,7 @@ class HunyuanVideo15(HunyuanVideo):
             out['clip_fea'] = comfy.conds.CONDRegular(clip_vision_output.last_hidden_state)
 
         return out
-    
+
 class HunyuanVideo15_SR_Distilled(HunyuanImage21Refiner):
     def __init__(self, model_config, model_type=ModelType.FLOW, device=None):
         super().__init__(model_config, model_type, device=device)
