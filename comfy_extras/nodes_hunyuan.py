@@ -125,6 +125,50 @@ class HunyuanVideo15ImageToVideo(io.ComfyNode):
     encode = execute  # TODO: remove
 
 
+class HunyuanVideo15RefinerLatent(io.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return io.Schema(
+            node_id="HunyuanVideo15RefinerLatent",
+            inputs=[
+                io.Conditioning.Input("positive"),
+                io.Conditioning.Input("negative"),
+                io.Vae.Input("vae", optional=True),
+                io.Image.Input("start_image", optional=True),
+                io.ClipVisionOutput.Input("clip_vision_output", optional=True),
+                io.Latent.Input("latent"),
+                io.Float.Input("noise_augmentation", default=0.10, min=0.0, max=1.0, step=0.01),
+
+            ],
+            outputs=[
+                io.Conditioning.Output(display_name="positive"),
+                io.Conditioning.Output(display_name="negative"),
+                io.Latent.Output(display_name="latent"),
+            ],
+        )
+
+    @classmethod
+    def execute(cls, positive, negative, latent, noise_augmentation, vae=None, start_image=None, clip_vision_output=None) -> io.NodeOutput:
+        in_latent = latent["samples"]
+        in_channels = in_latent.shape[1]
+        cond_latent = torch.zeros([in_latent.shape[0], in_channels * 2 + 2, in_latent.shape[-3], in_latent.shape[-2], in_latent.shape[-1]], device=comfy.model_management.intermediate_device())
+        cond_latent[:, in_channels + 1 : 2 * in_channels + 1] = in_latent
+        cond_latent[:, 2 * in_channels + 1] = 1
+        if start_image is not None:
+            start_image = comfy.utils.common_upscale(start_image.movedim(-1, 1), in_latent.shape[-1] * 16, in_latent.shape[-2] * 16, "bilinear", "center").movedim(1, -1)
+            encoded = vae.encode(start_image[:, :, :, :3])
+            cond_latent[:, :in_channels, :encoded.shape[2], :, :] = encoded
+            cond_latent[:, in_channels + 1, 0] = 1
+        
+        positive = node_helpers.conditioning_set_values(positive, {"concat_latent_image": cond_latent, "noise_augmentation": noise_augmentation})
+        negative = node_helpers.conditioning_set_values(negative, {"concat_latent_image": cond_latent, "noise_augmentation": noise_augmentation})
+        if clip_vision_output is not None:
+            positive = node_helpers.conditioning_set_values(positive, {"clip_vision_output": clip_vision_output})
+            negative = node_helpers.conditioning_set_values(negative, {"clip_vision_output": clip_vision_output})
+    
+        return io.NodeOutput(positive, negative, latent)
+
+
 PROMPT_TEMPLATE_ENCODE_VIDEO_I2V = (
     "<|start_header_id|>system<|end_header_id|>\n\n<image>\nDescribe the video by detailing the following aspects according to the reference image: "
     "1. The main content and theme of the video."
@@ -280,6 +324,7 @@ class HunyuanExtension(ComfyExtension):
             EmptyHunyuanLatentVideo,
             EmptyHunyuanVideo15Latent,
             HunyuanVideo15ImageToVideo,
+            HunyuanVideo15RefinerLatent,
             HunyuanImageToVideo,
             EmptyHunyuanImageLatent,
             HunyuanRefinerLatent,
