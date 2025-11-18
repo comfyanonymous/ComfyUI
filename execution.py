@@ -750,18 +750,17 @@ async def validate_inputs(prompt_id, prompt, item, validated):
     class_type = prompt[unique_id]['class_type']
     obj_class = nodes.NODE_CLASS_MAPPINGS[class_type]
 
-    class_inputs = obj_class.INPUT_TYPES()
-    valid_inputs = set(class_inputs.get('required',{})).union(set(class_inputs.get('optional',{})))
-
     errors = []
     valid = True
 
     validate_function_inputs = []
     validate_has_kwargs = False
     if issubclass(obj_class, _ComfyNodeInternal):
+        class_inputs, _, _ = obj_class.INPUT_TYPES(include_hidden=False, return_schema=True, live_inputs=inputs)
         validate_function_name = "validate_inputs"
         validate_function = first_real_override(obj_class, validate_function_name)
     else:
+        class_inputs = obj_class.INPUT_TYPES()
         validate_function_name = "VALIDATE_INPUTS"
         validate_function = getattr(obj_class, validate_function_name, None)
     if validate_function is not None:
@@ -769,6 +768,8 @@ async def validate_inputs(prompt_id, prompt, item, validated):
         validate_function_inputs = argspec.args
         validate_has_kwargs = argspec.varkw is not None
     received_types = {}
+
+    valid_inputs = set(class_inputs.get('required',{})).union(set(class_inputs.get('optional',{})))
 
     for x in valid_inputs:
         input_type, input_category, extra_info = get_input_info(obj_class, x, class_inputs)

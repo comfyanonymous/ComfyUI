@@ -941,14 +941,6 @@ class Autogrow(ComfyTypeI):
             curr_prefix = f"{curr_prefix}{self.id}."
             self.template.add_to_dict_live_inputs(d, live_inputs, curr_prefix)
 
-def add_dynamic_id_mapping(d: dict[str], inputs: list[Input], curr_prefix: str, self: DynamicInput=None):
-    dynamic = d.setdefault("dynamic_data", {})
-    if self is not None:
-        dynamic[self.id] = f"{curr_prefix}{self.id}"
-    for i in inputs:
-        if not isinstance(i, DynamicInput):
-            dynamic[f"{i.id}"] = f"{curr_prefix}{i.id}"
-
 @comfytype(io_type="COMFY_DYNAMICCOMBO_V3")
 class DynamicCombo(ComfyTypeI):
     Type = dict[str]
@@ -1046,9 +1038,17 @@ class MatchType(ComfyTypeIO):
                 "template": self.template.as_dict(),
             })
 
+def add_dynamic_id_mapping(d: dict[str], inputs: list[Input], curr_prefix: str, self: DynamicInput=None):
+    dynamic = d.setdefault("dynamic_paths", {})
+    if self is not None:
+        dynamic[self.id] = f"{curr_prefix}{self.id}"
+    for i in inputs:
+        if not isinstance(i, DynamicInput):
+            dynamic[f"{i.id}"] = f"{curr_prefix}{i.id}"
+
 class V3Data(TypedDict):
     hidden_inputs: dict[str]
-    dynamic_data: dict[str]
+    dynamic_paths: dict[str]
 
 class HiddenHolder:
     def __init__(self, unique_id: str, prompt: Any,
@@ -1354,7 +1354,7 @@ def add_to_dict_v3(io: Input | Output, d: dict):
     d[io.id] = (io.get_io_type(), io.as_dict())
 
 def build_nested_inputs(values: dict[str], v3_data: V3Data):
-    paths = v3_data.get("dynamic_data", None)
+    paths = v3_data.get("dynamic_paths", None)
     if paths is None:
         return values
     values = values.copy()
@@ -1624,9 +1624,9 @@ class _ComfyNodeBaseInternal(_ComfyNodeInternal):
             input.pop("hidden", None)
         if return_schema:
             v3_data: V3Data = {}
-            dynamic = input.pop("dynamic_data", None)
+            dynamic = input.pop("dynamic_paths", None)
             if dynamic is not None:
-                v3_data["dynamic_data"] = dynamic
+                v3_data["dynamic_paths"] = dynamic
             return input, schema, v3_data
         return input
 
