@@ -41,6 +41,7 @@ class DCTestNode(io.ComfyNode):
         string: str
         integer: int
         image: io.Image.Type
+        subcombo: dict[str]
 
     @classmethod
     def define_schema(cls):
@@ -53,7 +54,12 @@ class DCTestNode(io.ComfyNode):
                 io.DynamicCombo.Option("option1", [io.String.Input("string")]),
                 io.DynamicCombo.Option("option2", [io.Int.Input("integer")]),
                 io.DynamicCombo.Option("option3", [io.Image.Input("image")]),
-                ]
+                io.DynamicCombo.Option("option4", [
+                    io.DynamicCombo.Input("subcombo", options=[
+                        io.DynamicCombo.Option("opt1", [io.Float.Input("float_x"), io.Float.Input("float_y")]),
+                        io.DynamicCombo.Option("opt2", [io.Mask.Input("mask1", optional=True)]),
+                    ])
+                ])]
             )],
             outputs=[io.AnyType.Output()],
         )
@@ -67,6 +73,8 @@ class DCTestNode(io.ComfyNode):
             return io.NodeOutput(combo["integer"])
         elif combo_val == "option3":
             return io.NodeOutput(combo["image"])
+        elif combo_val == "option4":
+            return io.NodeOutput(f"{combo['subcombo']}")
         else:
             raise ValueError(f"Invalid combo: {combo_val}")
 
