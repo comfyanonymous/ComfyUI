@@ -7,7 +7,7 @@ import uuid
 
 import pytest
 from testcontainers.rabbitmq import RabbitMqContainer
-from opentelemetry import trace, propagate, context
+from opentelemetry import trace, propagate
 from opentelemetry.trace import SpanKind
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor

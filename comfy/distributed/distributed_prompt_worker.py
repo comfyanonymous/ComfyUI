@@ -1,3 +1,5 @@
+from ..cmd.main_pre import tracer
+
 import asyncio
 import logging
 from asyncio import AbstractEventLoop
@@ -9,8 +11,6 @@ from aio_pika import connect_robust
 from aio_pika.patterns import JsonRPC
 from aiohttp import web
 from aiormq import AMQPConnectionError
-
-from ..cmd.main_pre import tracer
 from .executors import ContextVarExecutor
 from .distributed_progress import DistributedExecutorToClientProgress
 from .distributed_types import RpcRequest, RpcReply

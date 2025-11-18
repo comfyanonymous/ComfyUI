@@ -74,22 +74,41 @@ class MainPreImportOrderChecker(BaseChecker):
 
     def _is_other_relevant_import(self, stmt: Union[nodes.Import, nodes.ImportFrom]) -> bool:
         """
-        Checks if an import is a relative import or an import from
-        the 'comfy' package family, and is not a 'main_pre' import.
+        Checks if an import should come after main_pre.
+
+        Returns True for:
+        - Any relative import
+        - Any import from the 'comfy' package family
+        - Any third-party library import (aio_pika, aiohttp, etc.)
+
+        Returns False for:
+        - main_pre imports
+        - __future__ imports (must always be first)
         """
         if self._is_main_pre_import(stmt):
             return False
 
         if isinstance(stmt, nodes.ImportFrom):
+            # Allow __future__ imports (they must be first by Python rules)
+            if stmt.modname == '__future__':
+                return False
+
             if stmt.level and stmt.level > 0:  # Any relative import
                 return True
             if stmt.modname and stmt.modname.startswith('comfy'):
+                return True
+
+            # Flag any third-party or stdlib imports that need instrumentation
+            # This includes aio_pika, aiohttp, requests, etc.
+            if stmt.modname:
                 return True
 
         if isinstance(stmt, nodes.Import):
             for name, _ in stmt.names:
                 if name.startswith('comfy'):
                     return True
+                # Flag any other absolute imports
+                return True
 
         return False
 

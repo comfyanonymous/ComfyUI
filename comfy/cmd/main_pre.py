@@ -118,8 +118,9 @@ def _fix_pytorch_240():
 
 
 def _create_tracer():
-    from opentelemetry import trace
+    from opentelemetry import trace, metrics
     from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
+    from opentelemetry.exporter.otlp.proto.http.metric_exporter import OTLPMetricExporter
     from opentelemetry.instrumentation.aio_pika import AioPikaInstrumentor
     from opentelemetry.instrumentation.requests import RequestsInstrumentor
     from opentelemetry.semconv.attributes import service_attributes
@@ -127,6 +128,8 @@ def _create_tracer():
     from opentelemetry.sdk.resources import Resource
     from opentelemetry.sdk.trace import TracerProvider
     from opentelemetry.sdk.trace.export import BatchSpanProcessor, SpanExporter
+    from opentelemetry.sdk.metrics import MeterProvider
+    from opentelemetry.sdk.metrics.export import PeriodicExportingMetricReader
     from opentelemetry.processor.baggage import BaggageSpanProcessor, ALLOW_ALL_BAGGAGE_KEYS
     from opentelemetry.instrumentation.aiohttp_server import AioHttpServerInstrumentor
     from opentelemetry.instrumentation.aiohttp_client import AioHttpClientInstrumentor
@@ -142,6 +145,10 @@ def _create_tracer():
     sampler = ProgressSpanSampler()
     provider = TracerProvider(resource=resource, sampler=sampler)
 
+    # Set the global tracer provider FIRST, before instrumenting
+    # This ensures instrumentors can access the provider
+    trace.set_tracer_provider(provider)
+
     has_endpoint = args.otel_exporter_otlp_endpoint is not None
 
     if has_endpoint:
@@ -152,9 +159,21 @@ def _create_tracer():
     processor = BatchSpanProcessor(exporter)
     provider.add_span_processor(processor)
 
-    # enable instrumentation
+    # Set up metrics export to track dropped spans
+    # Only enable if OTEL_EXPORTER_OTLP_METRICS_ENDPOINT is set, since not all OTLP endpoints support metrics
+    metrics_endpoint = os.environ.get("OTEL_EXPORTER_OTLP_METRICS_ENDPOINT")
+    if metrics_endpoint:
+        metric_reader = PeriodicExportingMetricReader(
+            OTLPMetricExporter(endpoint=metrics_endpoint),
+            export_interval_millis=10000  # Export every 10 seconds
+        )
+        meter_provider = MeterProvider(resource=resource, metric_readers=[metric_reader])
+        metrics.set_meter_provider(meter_provider)
+
+    # enable instrumentation BEFORE any aio_pika imports
     patch_spanbuilder_set_channel()
 
+    # Instrument aio_pika first since it's most likely to be imported early
     AioPikaInstrumentor().instrument()
     AioHttpServerInstrumentor().instrument()
     AioHttpClientInstrumentor().instrument()

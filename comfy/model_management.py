@@ -17,6 +17,8 @@
 """
 from __future__ import annotations
 
+from .cmd.main_pre import tracer
+
 import gc
 import logging
 import platform
@@ -32,8 +34,6 @@ from typing import List, Sequence, Final, Optional
 import psutil
 import torch
 from opentelemetry.trace import get_current_span
-
-from .cmd.main_pre import tracer
 from . import interruption
 from .cli_args import args, PerformanceFeature
 from .component_model.deprecation import _deprecate_method

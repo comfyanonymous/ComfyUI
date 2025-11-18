@@ -8,6 +8,7 @@ full distributed trace.
 import asyncio
 import logging
 import os
+import subprocess
 import tempfile
 import time
 import uuid
@@ -23,6 +24,7 @@ from opentelemetry.semconv.attributes import service_attributes
 from testcontainers.core.container import DockerContainer
 from testcontainers.core.waiting_utils import wait_for_logs
 from testcontainers.nginx import NginxContainer
+from testcontainers.rabbitmq import RabbitMqContainer
 
 from comfy.client.sdxl_with_refiner_workflow import sdxl_workflow_with_refiner
 
@@ -528,7 +530,6 @@ async def test_multiple_requests_different_traces(frontend_backend_worker_with_r
 
 
 @pytest.mark.asyncio
-@pytest.mark.skip(reason="rabbitmq has to be configured for observability?")
 async def test_trace_contains_rabbitmq_operations(frontend_backend_worker_with_rabbitmq, jaeger_container):
     """
     Test that traces include RabbitMQ publish/consume operations.
@@ -567,3 +568,201 @@ async def test_trace_contains_rabbitmq_operations(frontend_backend_worker_with_r
                     found_rabbitmq_ops.append(op_name)
 
     assert found_rabbitmq_ops, "No RabbitMQ-related operations found in traces"
+
+
+@pytest.mark.asyncio
+async def test_aiohttp_and_aio_pika_spans_with_docker_frontend(jaeger_container):
+    """
+    Test that both aiohttp and aio_pika instrumentation work in the Docker image.
+
+    This test helps diagnose if there's a dependency issue in the Docker image preventing
+    instrumentation from working correctly by:
+    1. Starting the ComfyUI frontend in a Docker container
+    2. Starting a local worker process
+    3. Submitting a workflow
+    4. Querying Jaeger to verify both aiohttp and aio_pika spans are present
+
+    Set COMFYUI_IMAGE env var to override default image, e.g.:
+    COMFYUI_IMAGE=ghcr.io/hiddenswitch/comfyui:latest
+    """
+    docker_image = os.environ.get("COMFYUI_IMAGE", "ghcr.io/hiddenswitch/comfyui:latest")
+
+    jaeger_url = jaeger_container.get_query_url()
+    otlp_endpoint = jaeger_container.get_otlp_endpoint()
+    otlp_port = jaeger_container.get_exposed_port(4318)
+
+    with RabbitMqContainer("rabbitmq:latest") as rabbitmq:
+        params = rabbitmq.get_connection_params()
+
+        # Get Docker bridge gateway for container-to-host communication
+        try:
+            result = subprocess.run(
+                ["docker", "network", "inspect", "bridge", "-f", "{{(index .IPAM.Config 0).Gateway}}"],
+                capture_output=True,
+                text=True,
+                check=True,
+                timeout=5
+            )
+            docker_host = result.stdout.strip()
+            if not docker_host:
+                docker_host = "host.docker.internal"
+        except (subprocess.CalledProcessError, subprocess.TimeoutExpired, FileNotFoundError):
+            docker_host = "host.docker.internal"
+
+        connection_uri_container = f"amqp://guest:guest@{docker_host}:{params.port}"
+        connection_uri_local = f"amqp://guest:guest@127.0.0.1:{params.port}"
+
+        # Start frontend in Docker container
+        frontend_container = DockerContainer(docker_image)
+        frontend_container.with_exposed_ports(8188)
+
+        otlp_endpoint_container = f"http://{docker_host}:{otlp_port}"
+        env_vars = {
+            "OTEL_SERVICE_NAME": "comfyui-docker-frontend",
+            "OTEL_EXPORTER_OTLP_ENDPOINT": otlp_endpoint_container,
+        }
+
+        for key, value in env_vars.items():
+            frontend_container.with_env(key, value)
+
+        frontend_container.with_command(
+            f"python -m comfy.cmd.main --listen 0.0.0.0 --port 8188 "
+            f"--cpu --distributed-queue-frontend "
+            f"--distributed-queue-connection-uri={connection_uri_container}"
+        )
+
+        frontend_container.start()
+
+        try:
+            frontend_host = frontend_container.get_container_host_ip()
+            frontend_port = frontend_container.get_exposed_port(8188)
+            frontend_url = f"http://{frontend_host}:{frontend_port}"
+
+            # Wait for frontend to be ready
+            connected = False
+            for _ in range(15):
+                try:
+                    response = requests.get(frontend_url, timeout=1)
+                    if response.status_code == 200:
+                        connected = True
+                        break
+                except Exception:
+                    pass
+                time.sleep(1)
+
+            assert connected, f"Could not connect to Docker frontend at {frontend_url}"
+
+            # Start local worker
+            worker_env = os.environ.copy()
+            worker_env["OTEL_SERVICE_NAME"] = "comfyui-worker"
+            worker_env["OTEL_EXPORTER_OTLP_ENDPOINT"] = otlp_endpoint
+
+            worker_process = subprocess.Popen(
+                [
+                    "comfyui-worker",
+                    "--port=19099",
+                    f"--distributed-queue-connection-uri={connection_uri_local}",
+                    "--executor-factory=ThreadPoolExecutor"
+                ],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                env=worker_env,
+                text=True,
+                bufsize=1
+            )
+
+            try:
+                time.sleep(5)
+
+                from comfy.client.aio_client import AsyncRemoteComfyClient
+
+                test_id = str(uuid.uuid4())[:8]
+                prompt = sdxl_workflow_with_refiner(f"docker_test_{test_id}", inference_steps=1, refiner_steps=1)
+
+                async with AsyncRemoteComfyClient(server_address=frontend_url) as client:
+                    task_id = await client.queue_and_forget_prompt_api(prompt, prefer_header="respond-async")
+                    assert task_id is not None, "Failed to get task ID"
+
+                    status_code, result = await client.poll_prompt_until_done(task_id, max_attempts=60, poll_interval=2.0)
+
+                    if status_code != 200:
+                        # Capture worker logs
+                        worker_output = ""
+                        if worker_process.stdout:
+                            worker_output = worker_process.stdout.read()
+
+                        # Get frontend container logs
+                        frontend_logs = frontend_container.get_logs()
+
+                        logger.error("=" * 80)
+                        logger.error("TASK FAILED - Diagnostic Information:")
+                        logger.error("=" * 80)
+                        logger.error(f"Task ID: {task_id}")
+                        logger.error(f"Status Code: {status_code}")
+                        logger.error(f"Result: {result}")
+                        logger.error("\n--- Frontend Container Logs (last 100 lines) ---")
+                        frontend_log_lines = frontend_logs.decode('utf-8').split('\n')
+                        for line in frontend_log_lines[-100:]:
+                            logger.error(line)
+                        logger.error("\n--- Worker Process Output ---")
+                        for line in worker_output.split('\n')[-100:]:
+                            logger.error(line)
+                        logger.error("=" * 80)
+
+                    assert status_code == 200, f"Task failed with status {status_code}. Check logs above for details."
+
+                await asyncio.sleep(5)
+
+                # Query Jaeger for traces from both services
+                frontend_traces = query_jaeger_traces(jaeger_url, "comfyui-docker-frontend", lookback="5m").get("data", [])
+                worker_traces = query_jaeger_traces(jaeger_url, "comfyui-worker", lookback="5m").get("data", [])
+
+                assert frontend_traces, (
+                    f"No traces found in Jaeger for service 'comfyui-docker-frontend'. "
+                    f"Check that OTEL export is working from Docker container. Jaeger UI: {jaeger_url}"
+                )
+
+                assert worker_traces, (
+                    f"No traces found in Jaeger for service 'comfyui-worker'. "
+                    f"Check that OTEL export is working from worker. Jaeger UI: {jaeger_url}"
+                )
+
+                # Analyze span types from both services
+                aiohttp_spans = []
+                aio_pika_frontend_spans = []
+                aio_pika_worker_spans = []
+
+                for trace_item in frontend_traces:
+                    for span in trace_item.get("spans", []):
+                        operation_name = span.get("operationName", "")
+                        if any(http_op in operation_name.upper() for http_op in ["GET", "POST", "PUT", "DELETE", "PATCH"]):
+                            aiohttp_spans.append(operation_name)
+                        elif "publish" in operation_name.lower() or "send" in operation_name.lower():
+                            aio_pika_frontend_spans.append(operation_name)
+
+                for trace_item in worker_traces:
+                    for span in trace_item.get("spans", []):
+                        operation_name = span.get("operationName", "")
+                        if "consume" in operation_name.lower() or "receive" in operation_name.lower() or "publish" in operation_name.lower():
+                            aio_pika_worker_spans.append(operation_name)
+
+                assert aiohttp_spans, (
+                    f"No aiohttp server spans found in traces from Docker frontend. "
+                    f"This indicates aiohttp server instrumentation is not working in the Docker image. "
+                    f"Image: {docker_image}. Jaeger UI: {jaeger_url}"
+                )
+
+                total_aio_pika_spans = len(aio_pika_frontend_spans) + len(aio_pika_worker_spans)
+                assert total_aio_pika_spans > 0, (
+                    f"No aio_pika spans found in traces. "
+                    f"Frontend aio_pika spans: {len(aio_pika_frontend_spans)}, Worker aio_pika spans: {len(aio_pika_worker_spans)}. "
+                    f"Expected messaging spans for distributed queue operations. "
+                    f"This indicates aio_pika instrumentation is not working. Jaeger UI: {jaeger_url}"
+                )
+
+            finally:
+                worker_process.terminate()
+                worker_process.wait(timeout=10)
+
+        finally:
+            frontend_container.stop()

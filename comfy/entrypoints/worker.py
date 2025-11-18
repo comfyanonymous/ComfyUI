@@ -1,6 +1,6 @@
-import asyncio
-
 from ..cmd.main_pre import args
+
+import asyncio
 from ..component_model.file_counter import cleanup_temp
 from ..component_model.entrypoints_common import configure_application_paths, executor_from_args
 

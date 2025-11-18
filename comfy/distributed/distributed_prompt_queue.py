@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from ..cmd.main_pre import tracer
+
 import asyncio
 import time
 import uuid
@@ -13,7 +15,6 @@ from aio_pika import connect_robust
 from aio_pika.abc import AbstractConnection, AbstractChannel
 from aio_pika.patterns import JsonRPC
 
-from ..cmd.main_pre import tracer
 from .distributed_progress import ProgressHandlers
 from .distributed_types import RpcRequest, RpcReply
 from .history import History

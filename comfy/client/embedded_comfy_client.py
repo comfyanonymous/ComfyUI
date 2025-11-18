@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from ..cmd.main_pre import tracer
+
 import asyncio
 import concurrent.futures
 import copy
@@ -15,8 +17,6 @@ from typing import Optional, Generator
 from opentelemetry import context, propagate
 from opentelemetry.context import Context, attach, detach
 from opentelemetry.trace import Status, StatusCode
-
-from ..cmd.main_pre import tracer
 from .async_progress_iterable import _ProgressHandler, QueuePromptWithProgress
 from .client_types import V1QueuePromptResponse
 from ..api.components.schema.prompt import PromptDict

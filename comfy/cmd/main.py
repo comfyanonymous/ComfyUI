@@ -1,3 +1,5 @@
+from .main_pre import tracer
+
 import asyncio
 import contextvars
 import gc
@@ -9,9 +11,6 @@ import threading
 import time
 from pathlib import Path
 from typing import Optional
-
-# main_pre must be the earliest import
-from .main_pre import tracer
 from ..cli_args_types import Configuration
 from ..component_model.file_counter import cleanup_temp as fc_cleanup_temp
 from ..execution_context import current_execution_context

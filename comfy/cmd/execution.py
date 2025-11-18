@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from .main_pre import tracer
+
 import asyncio
 import copy
 import heapq
@@ -16,8 +18,6 @@ from enum import Enum
 from os import PathLike
 from typing import List, Optional, Tuple, Literal
 
-# order matters
-from .main_pre import tracer
 import torch
 from opentelemetry.trace import get_current_span, StatusCode, Status
 
