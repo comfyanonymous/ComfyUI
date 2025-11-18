@@ -185,7 +185,7 @@ class Input(_IO_V3):
 
     def get_io_type(self):
         return _StringIOType(self.io_type)
-    
+
     def get_all(self) -> list[Input]:
         return [self]
 
@@ -905,7 +905,7 @@ class Autogrow(ComfyTypeI):
     class TemplateNames(_AutogrowTemplate):
         def __init__(self, input: Input, names: list[str], min: int=1):
             super().__init__(input)
-            self.names = names[:Autogrow._MaxNames] 
+            self.names = names[:Autogrow._MaxNames]
             assert(min >= 1)
             self.min = min
             self._create_cached_inputs()
@@ -994,7 +994,7 @@ class DynamicCombo(ComfyTypeI):
             return super().as_dict() | prune_dict({
                 "options": [o.as_dict() for o in self.options],
             })
-        
+
         def validate(self):
             # make sure all nested inputs are validated
             for option in self.options:
