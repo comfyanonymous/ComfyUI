@@ -67,7 +67,7 @@ class EmptyHunyuanVideo15Latent(EmptyHunyuanLatentVideo):
     @classmethod
     def execute(cls, width, height, length, batch_size=1) -> io.NodeOutput:
         # Using scale factor of 16 instead of 8
-        latent = torch.zeros([batch_size, 16, ((length - 1) // 4) + 1, height // 16, width // 16], device=comfy.model_management.intermediate_device())
+        latent = torch.zeros([batch_size, 32, ((length - 1) // 4) + 1, height // 16, width // 16], device=comfy.model_management.intermediate_device())
         return io.NodeOutput({"samples": latent})
 
     generate = execute  # TODO: remove
@@ -137,7 +137,7 @@ class HunyuanVideo15RefinerLatent(io.ComfyNode):
                 io.Image.Input("start_image", optional=True),
                 io.ClipVisionOutput.Input("clip_vision_output", optional=True),
                 io.Latent.Input("latent"),
-                io.Float.Input("noise_augmentation", default=0.10, min=0.0, max=1.0, step=0.01),
+                io.Float.Input("noise_augmentation", default=0.70, min=0.0, max=1.0, step=0.01),
 
             ],
             outputs=[
