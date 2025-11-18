@@ -557,7 +557,7 @@ class LoadedModel:
             self._patcher_finalizer.detach()
 
     def is_dead(self):
-        return self.real_model() is not None and self.model is None
+        return self.real_model is not None and self.real_model() is not None and self.model is None
 
 
 def use_more_memory(extra_memory, loaded_models, device):
@@ -753,7 +753,7 @@ def cleanup_models_gc():
 def cleanup_models():
     to_delete = []
     for i in range(len(current_loaded_models)):
-        if current_loaded_models[i].real_model() is None:
+        if current_loaded_models[i].real_model is None or current_loaded_models[i].real_model() is None:
             to_delete = [i] + to_delete
 
     for i in to_delete:
