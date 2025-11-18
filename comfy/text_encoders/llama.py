@@ -3,6 +3,7 @@ import torch.nn as nn
 from dataclasses import dataclass
 from typing import Optional, Any
 import math
+import logging
 
 from comfy.ldm.modules.attention import optimized_attention_for_device
 import comfy.model_management
@@ -28,6 +29,9 @@ class Llama2Config:
     mlp_activation = "silu"
     qkv_bias = False
     rope_dims = None
+    q_norm = None
+    k_norm = None
+    rope_scale = None
 
 @dataclass
 class Qwen25_3BConfig:
@@ -46,6 +50,9 @@ class Qwen25_3BConfig:
     mlp_activation = "silu"
     qkv_bias = True
     rope_dims = None
+    q_norm = None
+    k_norm = None
+    rope_scale = None
 
 @dataclass
 class Qwen25_7BVLI_Config:
@@ -64,6 +71,9 @@ class Qwen25_7BVLI_Config:
     mlp_activation = "silu"
     qkv_bias = True
     rope_dims = [16, 24, 24]
+    q_norm = None
+    k_norm = None
+    rope_scale = None
 
 @dataclass
 class Gemma2_2B_Config:
@@ -82,6 +92,32 @@ class Gemma2_2B_Config:
     mlp_activation = "gelu_pytorch_tanh"
     qkv_bias = False
     rope_dims = None
+    q_norm = None
+    k_norm = None
+    sliding_attention = None
+    rope_scale = None
+
+@dataclass
+class Gemma3_4B_Config:
+    vocab_size: int = 262208
+    hidden_size: int = 2560
+    intermediate_size: int = 10240
+    num_hidden_layers: int = 34
+    num_attention_heads: int = 8
+    num_key_value_heads: int = 4
+    max_position_embeddings: int = 131072
+    rms_norm_eps: float = 1e-6
+    rope_theta = [10000.0, 1000000.0]
+    transformer_type: str = "gemma3"
+    head_dim = 256
+    rms_norm_add = True
+    mlp_activation = "gelu_pytorch_tanh"
+    qkv_bias = False
+    rope_dims = None
+    q_norm = "gemma3"
+    k_norm = "gemma3"
+    sliding_attention = [False, False, False, False, False, 1024]
+    rope_scale = [1.0, 8.0]
 
 class RMSNorm(nn.Module):
     def __init__(self, dim: int, eps: float = 1e-5, add=False, device=None, dtype=None):
@@ -106,25 +142,40 @@ def rotate_half(x):
     return torch.cat((-x2, x1), dim=-1)
 
 
-def precompute_freqs_cis(head_dim, position_ids, theta, rope_dims=None, device=None):
-    theta_numerator = torch.arange(0, head_dim, 2, device=device).float()
-    inv_freq = 1.0 / (theta ** (theta_numerator / head_dim))
+def precompute_freqs_cis(head_dim, position_ids, theta, rope_scale=None, rope_dims=None, device=None):
+    if not isinstance(theta, list):
+        theta = [theta]
 
-    inv_freq_expanded = inv_freq[None, :, None].float().expand(position_ids.shape[0], -1, 1)
-    position_ids_expanded = position_ids[:, None, :].float()
-    freqs = (inv_freq_expanded.float() @ position_ids_expanded.float()).transpose(1, 2)
-    emb = torch.cat((freqs, freqs), dim=-1)
-    cos = emb.cos()
-    sin = emb.sin()
-    if rope_dims is not None and position_ids.shape[0] > 1:
-        mrope_section = rope_dims * 2
-        cos = torch.cat([m[i % 3] for i, m in enumerate(cos.split(mrope_section, dim=-1))], dim=-1).unsqueeze(0)
-        sin = torch.cat([m[i % 3] for i, m in enumerate(sin.split(mrope_section, dim=-1))], dim=-1).unsqueeze(0)
-    else:
-        cos = cos.unsqueeze(1)
-        sin = sin.unsqueeze(1)
+    out = []
+    for index, t in enumerate(theta):
+        theta_numerator = torch.arange(0, head_dim, 2, device=device).float()
+        inv_freq = 1.0 / (t ** (theta_numerator / head_dim))
 
-    return (cos, sin)
+        if rope_scale is not None:
+            if isinstance(rope_scale, list):
+                inv_freq /= rope_scale[index]
+            else:
+                inv_freq /= rope_scale
+
+        inv_freq_expanded = inv_freq[None, :, None].float().expand(position_ids.shape[0], -1, 1)
+        position_ids_expanded = position_ids[:, None, :].float()
+        freqs = (inv_freq_expanded.float() @ position_ids_expanded.float()).transpose(1, 2)
+        emb = torch.cat((freqs, freqs), dim=-1)
+        cos = emb.cos()
+        sin = emb.sin()
+        if rope_dims is not None and position_ids.shape[0] > 1:
+            mrope_section = rope_dims * 2
+            cos = torch.cat([m[i % 3] for i, m in enumerate(cos.split(mrope_section, dim=-1))], dim=-1).unsqueeze(0)
+            sin = torch.cat([m[i % 3] for i, m in enumerate(sin.split(mrope_section, dim=-1))], dim=-1).unsqueeze(0)
+        else:
+            cos = cos.unsqueeze(1)
+            sin = sin.unsqueeze(1)
+        out.append((cos, sin))
+
+    if len(out) == 1:
+        return out[0]
+
+    return out
 
 
 def apply_rope(xq, xk, freqs_cis):
@@ -152,6 +203,14 @@ class Attention(nn.Module):
         self.v_proj = ops.Linear(config.hidden_size, self.num_kv_heads * self.head_dim, bias=config.qkv_bias, device=device, dtype=dtype)
         self.o_proj = ops.Linear(self.inner_size, config.hidden_size, bias=False, device=device, dtype=dtype)
 
+        self.q_norm = None
+        self.k_norm = None
+
+        if config.q_norm == "gemma3":
+            self.q_norm = RMSNorm(self.head_dim, eps=config.rms_norm_eps, add=config.rms_norm_add, device=device, dtype=dtype)
+        if config.k_norm == "gemma3":
+            self.k_norm = RMSNorm(self.head_dim, eps=config.rms_norm_eps, add=config.rms_norm_add, device=device, dtype=dtype)
+
     def forward(
         self,
         hidden_states: torch.Tensor,
@@ -167,6 +226,11 @@ class Attention(nn.Module):
         xq = xq.view(batch_size, seq_length, self.num_heads, self.head_dim).transpose(1, 2)
         xk = xk.view(batch_size, seq_length, self.num_kv_heads, self.head_dim).transpose(1, 2)
         xv = xv.view(batch_size, seq_length, self.num_kv_heads, self.head_dim).transpose(1, 2)
+
+        if self.q_norm is not None:
+            xq = self.q_norm(xq)
+        if self.k_norm is not None:
+            xk = self.k_norm(xk)
 
         xq, xk = apply_rope(xq, xk, freqs_cis=freqs_cis)
 
@@ -192,7 +256,7 @@ class MLP(nn.Module):
         return self.down_proj(self.activation(self.gate_proj(x)) * self.up_proj(x))
 
 class TransformerBlock(nn.Module):
-    def __init__(self, config: Llama2Config, device=None, dtype=None, ops: Any = None):
+    def __init__(self, config: Llama2Config, index, device=None, dtype=None, ops: Any = None):
         super().__init__()
         self.self_attn = Attention(config, device=device, dtype=dtype, ops=ops)
         self.mlp = MLP(config, device=device, dtype=dtype, ops=ops)
@@ -226,7 +290,7 @@ class TransformerBlock(nn.Module):
         return x
 
 class TransformerBlockGemma2(nn.Module):
-    def __init__(self, config: Llama2Config, device=None, dtype=None, ops: Any = None):
+    def __init__(self, config: Llama2Config, index, device=None, dtype=None, ops: Any = None):
         super().__init__()
         self.self_attn = Attention(config, device=device, dtype=dtype, ops=ops)
         self.mlp = MLP(config, device=device, dtype=dtype, ops=ops)
@@ -235,6 +299,13 @@ class TransformerBlockGemma2(nn.Module):
         self.pre_feedforward_layernorm = RMSNorm(config.hidden_size, eps=config.rms_norm_eps, add=config.rms_norm_add, device=device, dtype=dtype)
         self.post_feedforward_layernorm = RMSNorm(config.hidden_size, eps=config.rms_norm_eps, add=config.rms_norm_add, device=device, dtype=dtype)
 
+        if config.sliding_attention is not None:  # TODO: implement. (Not that necessary since models are trained on less than 1024 tokens)
+            self.sliding_attention = config.sliding_attention[index % len(config.sliding_attention)]
+        else:
+            self.sliding_attention = False
+
+        self.transformer_type = config.transformer_type
+
     def forward(
         self,
         x: torch.Tensor,
@@ -242,6 +313,14 @@ class TransformerBlockGemma2(nn.Module):
         freqs_cis: Optional[torch.Tensor] = None,
         optimized_attention=None,
     ):
+        if self.transformer_type == 'gemma3':
+            if self.sliding_attention:
+                if x.shape[1] > self.sliding_attention:
+                    logging.warning("Warning: sliding attention not implemented, results may be incorrect")
+                freqs_cis = freqs_cis[1]
+            else:
+                freqs_cis = freqs_cis[0]
+
         # Self Attention
         residual = x
         x = self.input_layernorm(x)
@@ -276,7 +355,7 @@ class Llama2_(nn.Module):
             device=device,
             dtype=dtype
         )
-        if self.config.transformer_type == "gemma2":
+        if self.config.transformer_type == "gemma2" or self.config.transformer_type == "gemma3":
             transformer = TransformerBlockGemma2
             self.normalize_in = True
         else:
@@ -284,8 +363,8 @@ class Llama2_(nn.Module):
             self.normalize_in = False
 
         self.layers = nn.ModuleList([
-            transformer(config, device=device, dtype=dtype, ops=ops)
-            for _ in range(config.num_hidden_layers)
+            transformer(config, index=i, device=device, dtype=dtype, ops=ops)
+            for i in range(config.num_hidden_layers)
         ])
         self.norm = RMSNorm(config.hidden_size, eps=config.rms_norm_eps, add=config.rms_norm_add, device=device, dtype=dtype)
         # self.lm_head = ops.Linear(config.hidden_size, config.vocab_size, bias=False, device=device, dtype=dtype)
@@ -305,6 +384,7 @@ class Llama2_(nn.Module):
         freqs_cis = precompute_freqs_cis(self.config.head_dim,
                                          position_ids,
                                          self.config.rope_theta,
+                                         self.config.rope_scale,
                                          self.config.rope_dims,
                                          device=x.device)
 
@@ -429,6 +509,15 @@ class Gemma2_2B(BaseLlama, torch.nn.Module):
     def __init__(self, config_dict, dtype, device, operations):
         super().__init__()
         config = Gemma2_2B_Config(**config_dict)
+        self.num_layers = config.num_hidden_layers
+
+        self.model = Llama2_(config, device=device, dtype=dtype, ops=operations)
+        self.dtype = dtype
+
+class Gemma3_4B(BaseLlama, torch.nn.Module):
+    def __init__(self, config_dict, dtype, device, operations):
+        super().__init__()
+        config = Gemma3_4B_Config(**config_dict)
         self.num_layers = config.num_hidden_layers
 
         self.model = Llama2_(config, device=device, dtype=dtype, ops=operations)

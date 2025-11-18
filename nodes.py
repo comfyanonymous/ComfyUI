@@ -2027,7 +2027,6 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "DiffControlNetLoader": "Load ControlNet Model (diff)",
     "StyleModelLoader": "Load Style Model",
     "CLIPVisionLoader": "Load CLIP Vision",
-    "UpscaleModelLoader": "Load Upscale Model",
     "UNETLoader": "Load Diffusion Model",
     # Conditioning
     "CLIPVisionEncode": "CLIP Vision Encode",
@@ -2065,7 +2064,6 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "LoadImageOutput": "Load Image (from Outputs)",
     "ImageScale": "Upscale Image",
     "ImageScaleBy": "Upscale Image By",
-    "ImageUpscaleWithModel": "Upscale Image (using Model)",
     "ImageInvert": "Invert Image",
     "ImagePadForOutpaint": "Pad Image for Outpainting",
     "ImageBatch": "Batch Images",
@@ -2297,6 +2295,7 @@ async def init_builtin_extra_nodes():
         "nodes_gits.py",
         "nodes_controlnet.py",
         "nodes_hunyuan.py",
+        "nodes_eps.py",
         "nodes_flux.py",
         "nodes_lora_extract.py",
         "nodes_torch_compile.py",
@@ -2330,6 +2329,8 @@ async def init_builtin_extra_nodes():
         "nodes_model_patch.py",
         "nodes_easycache.py",
         "nodes_audio_encoder.py",
+        "nodes_rope.py",
+        "nodes_nop.py",
     ]
 
     import_failed = []
@@ -2350,12 +2351,14 @@ async def init_builtin_api_nodes():
         "nodes_kling.py",
         "nodes_bfl.py",
         "nodes_bytedance.py",
+        "nodes_ltxv.py",
         "nodes_luma.py",
         "nodes_recraft.py",
         "nodes_pixverse.py",
         "nodes_stability.py",
         "nodes_pika.py",
         "nodes_runway.py",
+        "nodes_sora.py",
         "nodes_tripo.py",
         "nodes_moonvalley.py",
         "nodes_rodin.py",

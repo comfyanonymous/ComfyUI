@@ -7,15 +7,7 @@ import comfy.model_management
 
 
 def attention(q: Tensor, k: Tensor, v: Tensor, pe: Tensor, mask=None, transformer_options={}) -> Tensor:
-    q_shape = q.shape
-    k_shape = k.shape
-
-    if pe is not None:
-        q = q.to(dtype=pe.dtype).reshape(*q.shape[:-1], -1, 1, 2)
-        k = k.to(dtype=pe.dtype).reshape(*k.shape[:-1], -1, 1, 2)
-        q = (pe[..., 0] * q[..., 0] + pe[..., 1] * q[..., 1]).reshape(*q_shape).type_as(v)
-        k = (pe[..., 0] * k[..., 0] + pe[..., 1] * k[..., 1]).reshape(*k_shape).type_as(v)
-
+    q, k = apply_rope(q, k, pe)
     heads = q.shape[1]
     x = optimized_attention(q, k, v, heads, skip_reshape=True, mask=mask, transformer_options=transformer_options)
     return x
@@ -37,7 +29,10 @@ def rope(pos: Tensor, dim: int, theta: int) -> Tensor:
 
 def apply_rope1(x: Tensor, freqs_cis: Tensor):
     x_ = x.to(dtype=freqs_cis.dtype).reshape(*x.shape[:-1], -1, 1, 2)
-    x_out = freqs_cis[..., 0] * x_[..., 0] + freqs_cis[..., 1] * x_[..., 1]
+
+    x_out = freqs_cis[..., 0] * x_[..., 0]
+    x_out.addcmul_(freqs_cis[..., 1], x_[..., 1])
+
     return x_out.reshape(*x.shape).type_as(x)
 
 def apply_rope(xq: Tensor, xk: Tensor, freqs_cis: Tensor):
