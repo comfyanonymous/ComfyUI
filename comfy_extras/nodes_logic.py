@@ -1,3 +1,4 @@
+from typing import TypedDict
 from typing_extensions import override
 from comfy_api.latest import ComfyExtension, io
 
@@ -35,6 +36,12 @@ class SwitchNode(io.ComfyNode):
 
 
 class DCTestNode(io.ComfyNode):
+    class DCValues(TypedDict):
+        combo: str
+        string: str
+        integer: int
+        image: io.Image.Type
+
     @classmethod
     def define_schema(cls):
         return io.Schema(
@@ -52,15 +59,16 @@ class DCTestNode(io.ComfyNode):
         )
     
     @classmethod
-    def execute(cls, combo, **kwargs) -> io.NodeOutput:
-        if combo == "option1":
-            return io.NodeOutput(kwargs["string"])
-        elif combo == "option2":
-            return io.NodeOutput(kwargs["integer"])
-        elif combo == "option3":
-            return io.NodeOutput(kwargs["image"])
+    def execute(cls, combo: DCValues) -> io.NodeOutput:
+        combo_val = combo["combo"]
+        if combo_val == "option1":
+            return io.NodeOutput(combo["string"])
+        elif combo_val == "option2":
+            return io.NodeOutput(combo["integer"])
+        elif combo_val == "option3":
+            return io.NodeOutput(combo["image"])
         else:
-            raise ValueError(f"Invalid combo: {combo}")
+            raise ValueError(f"Invalid combo: {combo_val}")
 
 
 class LogicExtension(ComfyExtension):

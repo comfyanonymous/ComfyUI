@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import copy
 import inspect
+import re
 from abc import ABC, abstractmethod
 from collections import Counter
 from collections.abc import Iterable
@@ -881,6 +882,14 @@ class AutogrowDynamic(ComfyTypeI):
                 curr_count += 1
             return new_inputs
 
+def add_dynamic_id_mapping(d: dict[str], inputs: list[Input], curr_prefix: str, self: DynamicInput=None):
+    dynamic = d.setdefault("dynamic_data", {})
+    if self is not None:
+        dynamic[self.id] = f"{curr_prefix}{self.id}"
+    for i in inputs:
+        if not isinstance(i, DynamicInput):
+            dynamic[i.id] = f"{curr_prefix}{i.id}"
+
 @comfytype(io_type="COMFY_DYNAMICCOMBO_V3")
 class DynamicCombo(ComfyTypeI):
     class Option:
@@ -900,8 +909,9 @@ class DynamicCombo(ComfyTypeI):
             super().__init__(id, display_name, optional, tooltip, lazy, extra_dict)
             self.options = options
 
-        def add_to_dict_live_inputs(self, d: dict[str], live_inputs: dict[str]):
+        def add_to_dict_live_inputs(self, d: dict[str], live_inputs: dict[str], curr_prefix=''):
             # check if dynamic input's id is in live_inputs
+            curr_prefix = f"{curr_prefix}{self.id}."
             if self.id in live_inputs:
                 key = live_inputs[self.id]
                 selected_option = None
@@ -910,8 +920,8 @@ class DynamicCombo(ComfyTypeI):
                         selected_option = option
                         break
                 if selected_option is not None:
-                    add_to_input_dict_v1(d, selected_option.inputs, live_inputs)
-                    add_dynamic_to_dict_v1(d, self, selected_option.inputs)
+                    add_to_input_dict_v1(d, selected_option.inputs, live_inputs, curr_prefix)
+                    add_dynamic_id_mapping(d, selected_option.inputs, curr_prefix, self)
 
         def get_dynamic(self) -> list[Input]:
             return [input for option in self.options for input in option.inputs]
@@ -1259,12 +1269,12 @@ def create_input_dict_v1(inputs: list[Input], live_inputs: dict[str]=None) -> di
     add_to_input_dict_v1(input, inputs, live_inputs)
     return input
 
-def add_to_input_dict_v1(d: dict[str], inputs: list[Input], live_inputs: dict[str]=None):
+def add_to_input_dict_v1(d: dict[str], inputs: list[Input], live_inputs: dict[str]=None, curr_prefix=''):
     for i in inputs:
         if isinstance(i, DynamicInput):
             add_to_dict_v1(i, d)
             if live_inputs is not None:
-                i.add_to_dict_live_inputs(d, live_inputs)
+                i.add_to_dict_live_inputs(d, live_inputs, curr_prefix)
         else:
             add_to_dict_v1(i, d)
 
@@ -1279,14 +1289,59 @@ def add_to_dict_v1(i: Input, d: dict, dynamic_dict: dict=None):
         value = (i.get_io_type(), as_dict, dynamic_dict)
     d.setdefault(key, {})[i.id] = value
 
-def add_dynamic_to_dict_v1(d: dict[str], parent: DynamicInput, inputs: list[Input]):
-    dynamic = d.setdefault("dynamic_data", {})
-    ids = [i.id for i in inputs]
-    dynamic[parent.id] = {"ids": ids}
-
 def add_to_dict_v3(io: Input | Output, d: dict):
     d[io.id] = (io.get_io_type(), io.as_dict())
 
+def build_nested_inputs(values: dict[str], paths: dict[str]):
+    # NOTE: This was initially AI generated
+    # Tries to account for arrays as well, will likely be changed once that's in
+    values = values.copy()
+    result = {}
+
+    index_pattern = re.compile(r"^(?P<key>[A-Za-z0-9_]+)\[(?P<index>\d+)\]$")
+
+    for key, path in paths.items():
+        parts = path.split(".")
+        current = result
+
+        for i, p in enumerate(parts):
+            is_last = (i == len(parts) - 1)
+
+            match = index_pattern.match(p)
+            if match:
+                list_key = match.group("key")
+                index = int(match.group("index"))
+
+                # Ensure list exists
+                if list_key not in current or not isinstance(current[list_key], list):
+                    current[list_key] = []
+
+                lst = current[list_key]
+
+                # Expand list to the needed index
+                while len(lst) <= index:
+                    lst.append(None)
+
+                # Last element → assign the value directly
+                if is_last:
+                    lst[index] = values.pop(key)
+                    break
+
+                # Non-last element → ensure dict
+                if lst[index] is None or not isinstance(lst[index], dict):
+                    lst[index] = {}
+
+                current = lst[index]
+                continue
+
+            # Normal dict key
+            if is_last:
+                current[p] = values.pop(key)
+            else:
+                current = current.setdefault(p, {})
+
+    values.update(result)
+    return values
 
 
 class _ComfyNodeBaseInternal(_ComfyNodeInternal):

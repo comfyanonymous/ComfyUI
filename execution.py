@@ -34,7 +34,7 @@ from comfy_execution.validation import validate_node_input
 from comfy_execution.progress import get_progress_state, reset_progress_state, add_progress_handler, WebUIProgressHandler
 from comfy_execution.utils import CurrentNodeContext
 from comfy_api.internal import _ComfyNodeInternal, _NodeOutputInternal, first_real_override, is_class, make_locked_method_func
-from comfy_api.latest import io
+from comfy_api.latest import io, _io
 
 
 class ExecutionResult(Enum):
@@ -268,6 +268,9 @@ async def _async_map_node_over_list(prompt_id, unique_id, obj, input_data_all, f
                     type_obj.VALIDATE_CLASS()
                     class_clone = type_obj.PREPARE_CLASS_CLONE(v3_data)
                 f = make_locked_method_func(type_obj, func, class_clone)
+                # in case of dynamic inputs, restructure inputs to expected nested dict
+                if v3_data is not None and v3_data["dynamic_data"] is not None:
+                    inputs = _io.build_nested_inputs(inputs, v3_data["dynamic_data"])
             # V1
             else:
                 f = getattr(obj, func)
