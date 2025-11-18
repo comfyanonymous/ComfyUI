@@ -3,8 +3,6 @@ API Nodes for Gemini Multimodal LLM Usage via Remote API
 See: https://cloud.google.com/vertex-ai/generative-ai/docs/model-reference/inference
 """
 
-from __future__ import annotations
-
 import base64
 import json
 import os
@@ -12,7 +10,7 @@ import time
 import uuid
 from enum import Enum
 from io import BytesIO
-from typing import Literal, Optional
+from typing import Literal
 
 import torch
 from typing_extensions import override
@@ -20,18 +18,17 @@ from typing_extensions import override
 import folder_paths
 from comfy_api.latest import IO, ComfyExtension, Input
 from comfy_api.util import VideoCodec, VideoContainer
-from comfy_api_nodes.apis import (
+from comfy_api_nodes.apis.gemini_api import (
     GeminiContent,
     GeminiGenerateContentRequest,
     GeminiGenerateContentResponse,
-    GeminiInlineData,
-    GeminiMimeType,
-    GeminiPart,
-)
-from comfy_api_nodes.apis.gemini_api import (
     GeminiImageConfig,
     GeminiImageGenerateContentRequest,
     GeminiImageGenerationConfig,
+    GeminiInlineData,
+    GeminiMimeType,
+    GeminiPart,
+    GeminiRole,
 )
 from comfy_api_nodes.util import (
     ApiEndpoint,
@@ -57,6 +54,7 @@ class GeminiModel(str, Enum):
     gemini_2_5_flash_preview_04_17 = "gemini-2.5-flash-preview-04-17"
     gemini_2_5_pro = "gemini-2.5-pro"
     gemini_2_5_flash = "gemini-2.5-flash"
+    gemini_3_0_pro = "gemini-3-pro-preview"
 
 
 class GeminiImageModel(str, Enum):
@@ -103,6 +101,16 @@ def get_parts_by_type(response: GeminiGenerateContentResponse, part_type: Litera
     Returns:
         List of response parts matching the requested type.
     """
+    if response.candidates is None:
+        if response.promptFeedback.blockReason:
+            feedback = response.promptFeedback
+            raise ValueError(
+                f"Gemini API blocked the request. Reason: {feedback.blockReason} ({feedback.blockReasonMessage})"
+            )
+        raise NotImplementedError(
+            "Gemini returned no response candidates. "
+            "Please report to ComfyUI repository with the example of workflow to reproduce this."
+        )
     parts = []
     for part in response.candidates[0].content.parts:
         if part_type == "text" and hasattr(part, "text") and part.text:
@@ -272,10 +280,10 @@ class GeminiNode(IO.ComfyNode):
         prompt: str,
         model: str,
         seed: int,
-        images: Optional[torch.Tensor] = None,
-        audio: Optional[Input.Audio] = None,
-        video: Optional[Input.Video] = None,
-        files: Optional[list[GeminiPart]] = None,
+        images: torch.Tensor | None = None,
+        audio: Input.Audio | None = None,
+        video: Input.Video | None = None,
+        files: list[GeminiPart] | None = None,
     ) -> IO.NodeOutput:
         validate_string(prompt, strip_whitespace=False)
 
@@ -300,7 +308,7 @@ class GeminiNode(IO.ComfyNode):
             data=GeminiGenerateContentRequest(
                 contents=[
                     GeminiContent(
-                        role="user",
+                        role=GeminiRole.user,
                         parts=parts,
                     )
                 ]
@@ -308,7 +316,6 @@ class GeminiNode(IO.ComfyNode):
             response_model=GeminiGenerateContentResponse,
         )
 
-        # Get result output
         output_text = get_text_from_response(response)
         if output_text:
             # Not a true chat history like the OpenAI Chat node. It is emulated so the frontend can show a copy button.
@@ -406,7 +413,7 @@ class GeminiInputFiles(IO.ComfyNode):
         )
 
     @classmethod
-    def execute(cls, file: str, GEMINI_INPUT_FILES: Optional[list[GeminiPart]] = None) -> IO.NodeOutput:
+    def execute(cls, file: str, GEMINI_INPUT_FILES: list[GeminiPart] | None = None) -> IO.NodeOutput:
         """Loads and formats input files for Gemini API."""
         if GEMINI_INPUT_FILES is None:
             GEMINI_INPUT_FILES = []
@@ -421,7 +428,7 @@ class GeminiImage(IO.ComfyNode):
     def define_schema(cls):
         return IO.Schema(
             node_id="GeminiImageNode",
-            display_name="Google Gemini Image",
+            display_name="Nano Banana (Google Gemini Image)",
             category="api node/image/Gemini",
             description="Edit images synchronously via Google API.",
             inputs=[
@@ -488,8 +495,8 @@ class GeminiImage(IO.ComfyNode):
         prompt: str,
         model: str,
         seed: int,
-        images: Optional[torch.Tensor] = None,
-        files: Optional[list[GeminiPart]] = None,
+        images: torch.Tensor | None = None,
+        files: list[GeminiPart] | None = None,
         aspect_ratio: str = "auto",
     ) -> IO.NodeOutput:
         validate_string(prompt, strip_whitespace=True, min_length=1)
@@ -510,7 +517,7 @@ class GeminiImage(IO.ComfyNode):
             endpoint=ApiEndpoint(path=f"{GEMINI_BASE_ENDPOINT}/{model}", method="POST"),
             data=GeminiImageGenerateContentRequest(
                 contents=[
-                    GeminiContent(role="user", parts=parts),
+                    GeminiContent(role=GeminiRole.user, parts=parts),
                 ],
                 generationConfig=GeminiImageGenerationConfig(
                     responseModalities=["TEXT", "IMAGE"],
