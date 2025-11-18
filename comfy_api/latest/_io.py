@@ -842,7 +842,7 @@ class DynamicOutput(Output, ABC):
 
 @comfytype(io_type="COMFY_AUTOGROW_V3")
 class Autogrow(ComfyTypeI):
-    Type = list[Any]
+    Type = dict[str, Any]
     _MaxNames = 100  # NOTE: max 100 names for sanity
 
     class _AutogrowTemplate:
@@ -1872,6 +1872,7 @@ __all__ = [
     # Dynamic Types
     "MatchType",
     "DynamicCombo",
+    "Autogrow",
     # Other classes
     "HiddenHolder",
     "Hidden",
