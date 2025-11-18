@@ -54,6 +54,8 @@ def stochastic_rounding(value, dtype, seed=0):
         return value.to(dtype=torch.float16)
     if dtype == torch.bfloat16:
         return value.to(dtype=torch.bfloat16)
+    if dtype == torch.int8:
+        return value.to(dtype=torch.int8)
     if dtype == torch.float8_e4m3fn or dtype == torch.float8_e5m2:
         generator = torch.Generator(device=value.device)
         generator.manual_seed(seed)

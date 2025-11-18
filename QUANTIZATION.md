@@ -124,6 +124,10 @@ We define 4 possible scaling parameters that should cover most recipes in the ne
 | Format | Storage dtype | weight_scale | weight_scale_2 | pre_quant_scale | input_scale |
 |--------|---------------|--------------|----------------|-----------------|-------------|
 | float8_e4m3fn | float32 | float32 (scalar) | - | - | float32 (scalar) |
+| int8_blockwise | int8 | float32 (per-block) | - | - | - |
+
+For int8_blockwise with block_size=128 and weight shape (N, K):
+- weight_scale shape: (N//128, K//128)
 
 You can find the defined formats in `comfy/quant_ops.py` (QUANT_ALGOS).
 
@@ -131,7 +135,9 @@ You can find the defined formats in `comfy/quant_ops.py` (QUANT_ALGOS).
 
 The metadata stored alongside the checkpoint contains:
 - **format_version**: String to define a version of the standard
-- **layers**: A dictionary mapping layer names to their quantization format. The format string maps to the definitions found in `QUANT_ALGOS`. 
+- **layers**: A dictionary mapping layer names to their quantization configuration. Each layer's config is a dictionary with:
+  - **format**: Quantization format string that maps to the definitions found in `QUANT_ALGOS`
+  - **group_size** (optional): Block size for block-wise quantization schemes (e.g., int8_blockwise) 
 
 Example:
 ```json
@@ -139,9 +145,9 @@ Example:
   "_quantization_metadata": {
     "format_version": "1.0",
     "layers": {
-      "model.layers.0.mlp.up_proj": "float8_e4m3fn",
-      "model.layers.0.mlp.down_proj": "float8_e4m3fn",
-      "model.layers.1.mlp.up_proj": "float8_e4m3fn"
+      "model.layers.0.mlp.up_proj": {"format": "float8_e4m3fn"},
+      "model.layers.0.mlp.down_proj": {"format": "int8_blockwise", "group_size": 128},
+      "model.layers.1.mlp.up_proj": {"format": "int8_blockwise", "group_size": 256}
     }
   }
 }
