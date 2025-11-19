@@ -851,7 +851,6 @@ class HunyuanVideoFoley(nn.Module):
         transformer_options = {},
         drop_visual: Optional[List[bool]] = None,
     ):
-        device = x.device
         audio = x
         bs, _, ol = x.shape
         tl = ol // self.patch_size

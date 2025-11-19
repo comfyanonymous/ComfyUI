@@ -50,7 +50,7 @@ class EncodeVideo(io.ComfyNode):
 
     @classmethod
     def execute(cls, video, processing_batch_size, step_size, vae = None, clip_vision = None):
-        
+
         video = video.images
         if not isinstance(video, torch.Tensor):
             video = torch.from_numpy(video)
