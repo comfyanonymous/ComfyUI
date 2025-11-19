@@ -7,7 +7,8 @@ import comfy.model_management
 
 
 def attention(q: Tensor, k: Tensor, v: Tensor, pe: Tensor, mask=None, transformer_options={}) -> Tensor:
-    q, k = apply_rope(q, k, pe)
+    if pe is not None:
+        q, k = apply_rope(q, k, pe)
     heads = q.shape[1]
     x = optimized_attention(q, k, v, heads, skip_reshape=True, mask=mask, transformer_options=transformer_options)
     return x
