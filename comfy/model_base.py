@@ -135,10 +135,11 @@ class BaseModel(torch.nn.Module):
         if not unet_config.get("disable_unet_model_creation", False):
             if model_config.custom_operations is None:
                 fp8 = model_config.optimizations.get("fp8", False)
-                operations = comfy.ops.pick_operations(unet_config.get("dtype", None), self.manual_cast_dtype, fp8_optimizations=fp8, scaled_fp8=model_config.scaled_fp8)
+                operations = comfy.ops.pick_operations(unet_config.get("dtype", None), self.manual_cast_dtype, fp8_optimizations=fp8, scaled_fp8=model_config.scaled_fp8, model_config=model_config)
             else:
                 operations = model_config.custom_operations
             self.diffusion_model = unet_model(**unet_config, device=device, operations=operations)
+            self.diffusion_model.eval()
             if comfy.model_management.force_channels_last():
                 self.diffusion_model.to(memory_format=torch.channels_last)
                 logging.debug("using channels last mode for diffusion model")
@@ -197,8 +198,14 @@ class BaseModel(torch.nn.Module):
             extra_conds[o] = extra
 
         t = self.process_timestep(t, x=x, **extra_conds)
-        model_output = self.diffusion_model(xc, t, context=context, control=control, transformer_options=transformer_options, **extra_conds).float()
-        return self.model_sampling.calculate_denoised(sigma, model_output, x)
+        if "latent_shapes" in extra_conds:
+            xc = utils.unpack_latents(xc, extra_conds.pop("latent_shapes"))
+
+        model_output = self.diffusion_model(xc, t, context=context, control=control, transformer_options=transformer_options, **extra_conds)
+        if len(model_output) > 1 and not torch.is_tensor(model_output):
+            model_output, _ = utils.pack_latents(model_output)
+
+        return self.model_sampling.calculate_denoised(sigma, model_output.float(), x)
 
     def process_timestep(self, timestep, **kwargs):
         return timestep
@@ -326,6 +333,14 @@ class BaseModel(torch.nn.Module):
 
         if self.model_config.scaled_fp8 is not None:
             unet_state_dict["scaled_fp8"] = torch.tensor([], dtype=self.model_config.scaled_fp8)
+
+        # Save mixed precision metadata
+        if hasattr(self.model_config, 'layer_quant_config') and self.model_config.layer_quant_config:
+            metadata = {
+                "format_version": "1.0",
+                "layers": self.model_config.layer_quant_config
+            }
+            unet_state_dict["_quantization_metadata"] = metadata
 
         unet_state_dict = self.model_config.process_unet_state_dict_for_saving(unet_state_dict)
 
@@ -670,7 +685,6 @@ class Lotus(BaseModel):
 class StableCascade_C(BaseModel):
     def __init__(self, model_config, model_type=ModelType.STABLE_CASCADE, device=None):
         super().__init__(model_config, model_type, device=device, unet_model=StageC)
-        self.diffusion_model.eval().requires_grad_(False)
 
     def extra_conds(self, **kwargs):
         out = {}
@@ -699,7 +713,6 @@ class StableCascade_C(BaseModel):
 class StableCascade_B(BaseModel):
     def __init__(self, model_config, model_type=ModelType.STABLE_CASCADE, device=None):
         super().__init__(model_config, model_type, device=device, unet_model=StageB)
-        self.diffusion_model.eval().requires_grad_(False)
 
     def extra_conds(self, **kwargs):
         out = {}

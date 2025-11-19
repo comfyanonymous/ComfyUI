@@ -39,7 +39,11 @@ if hasattr(torch.serialization, "add_safe_globals"):  # TODO: this was added in 
         pass
     ModelCheckpoint.__module__ = "pytorch_lightning.callbacks.model_checkpoint"
 
-    from numpy.core.multiarray import scalar
+    def scalar(*args, **kwargs):
+        from numpy.core.multiarray import scalar as sc
+        return sc(*args, **kwargs)
+    scalar.__module__ = "numpy.core.multiarray"
+
     from numpy import dtype
     from numpy.dtypes import Float64DType
     from _codecs import encode
@@ -1102,3 +1106,25 @@ def upscale_dit_mask(mask: torch.Tensor, img_size_in, img_size_out):
             dim=1
         )
         return out
+
+def pack_latents(latents):
+    latent_shapes = []
+    tensors = []
+    for tensor in latents:
+        latent_shapes.append(tensor.shape)
+        tensors.append(tensor.reshape(tensor.shape[0], 1, -1))
+
+    latent = torch.cat(tensors, dim=-1)
+    return latent, latent_shapes
+
+def unpack_latents(combined_latent, latent_shapes):
+    if len(latent_shapes) > 1:
+        output_tensors = []
+        for shape in latent_shapes:
+            cut = math.prod(shape[1:])
+            tens = combined_latent[:, :, :cut]
+            combined_latent = combined_latent[:, :, cut:]
+            output_tensors.append(tens.reshape([tens.shape[0]] + list(shape)[1:]))
+    else:
+        output_tensors = combined_latent
+    return output_tensors
