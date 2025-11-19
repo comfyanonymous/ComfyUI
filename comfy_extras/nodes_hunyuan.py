@@ -4,7 +4,8 @@ import torch
 import comfy.model_management
 from typing_extensions import override
 from comfy_api.latest import ComfyExtension, io
-
+from comfy.ldm.hunyuan_video.upsampler import HunyuanVideo15SRModel
+import folder_paths
 
 class CLIPTextEncodeHunyuanDiT(io.ComfyNode):
     @classmethod
@@ -169,6 +170,93 @@ class HunyuanVideo15RefinerLatent(io.ComfyNode):
         return io.NodeOutput(positive, negative, latent)
 
 
+class LatentUpscaleModelLoader(io.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return io.Schema(
+            node_id="LatentUpscaleModelLoader",
+            display_name="Load Latent Upscale Model",
+            category="loaders",
+            inputs=[
+                io.Combo.Input("model_name", options=folder_paths.get_filename_list("upscale_models")),
+            ],
+            outputs=[
+                io.UpscaleModel.Output(),
+            ],
+        )
+
+    @classmethod
+    def execute(cls, model_name) -> io.NodeOutput:
+        model_path = folder_paths.get_full_path_or_raise("upscale_models", model_name)
+        sd = comfy.utils.load_torch_file(model_path, safe_load=True)
+
+        if "blocks.0.block.0.conv.weight" in sd:
+            config = {
+                "in_channels": sd["in_conv.conv.weight"].shape[1],
+                "out_channels": sd["out_conv.conv.weight"].shape[0],
+                "hidden_channels": sd["in_conv.conv.weight"].shape[0],
+                "num_blocks": len([k for k in sd.keys() if k.startswith("blocks.") and k.endswith(".block.0.conv.weight")]),
+                "global_residual": False,
+            }
+            model_type = "720p"
+        elif "up.0.block.0.conv1.conv.weight" in sd:
+            sd = {key.replace("nin_shortcut", "nin_shortcut.conv", 1): value for key, value in sd.items()}
+            config = {
+                "z_channels": sd["conv_in.conv.weight"].shape[1],
+                "out_channels": sd["conv_out.conv.weight"].shape[0],
+                "block_out_channels": tuple(sd[f"up.{i}.block.0.conv1.conv.weight"].shape[0] for i in range(len([k for k in sd.keys() if k.startswith("up.") and k.endswith(".block.0.conv1.conv.weight")]))),
+            }
+            model_type = "1080p"
+
+        model = HunyuanVideo15SRModel(model_type, config)
+        model.load_sd(sd)
+
+        return io.NodeOutput(model)
+
+    load_model = execute  # TODO: remove
+
+
+class HunyuanVideo15LatentUpscaleWithModel(io.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return io.Schema(
+            node_id="HunyuanVideo15LatentUpscaleWithModel",
+            display_name="Hunyuan Video 15 Latent Upscale With Model",
+            category="latent",
+            inputs=[
+                io.UpscaleModel.Input("model"),
+                io.Latent.Input("samples"),
+                io.Combo.Input("upscale_method", options=["nearest-exact", "bilinear", "area", "bicubic", "bislerp"], default="bilinear"),
+                io.Int.Input("width", default=1280, min=0, max=16384, step=8),
+                io.Int.Input("height", default=720, min=0, max=16384, step=8),
+                io.Combo.Input("crop", options=["disabled", "center"]),
+            ],
+            outputs=[
+                io.Latent.Output(),
+            ],
+        )
+
+    @classmethod
+    def execute(cls, model, samples, upscale_method, width, height, crop) -> io.NodeOutput:
+        if width == 0 and height == 0:
+            return io.NodeOutput(samples)
+        else:
+            if width == 0:
+                height = max(64, height)
+                width = max(64, round(samples["samples"].shape[-1] * height / samples["samples"].shape[-2]))
+            elif height == 0:
+                width = max(64, width)
+                height = max(64, round(samples["samples"].shape[-2] * width / samples["samples"].shape[-1]))
+            else:
+                width = max(64, width)
+                height = max(64, height)
+            s = comfy.utils.common_upscale(samples["samples"], width // 16, height // 16, upscale_method, crop)
+            s = model.resample_latent(s)
+            return io.NodeOutput({"samples": s.cpu().float()})
+
+    upscale = execute  # TODO: remove
+
+
 PROMPT_TEMPLATE_ENCODE_VIDEO_I2V = (
     "<|start_header_id|>system<|end_header_id|>\n\n<image>\nDescribe the video by detailing the following aspects according to the reference image: "
     "1. The main content and theme of the video."
@@ -325,6 +413,8 @@ class HunyuanExtension(ComfyExtension):
             EmptyHunyuanVideo15Latent,
             HunyuanVideo15ImageToVideo,
             HunyuanVideo15RefinerLatent,
+            HunyuanVideo15LatentUpscaleWithModel,
+            LatentUpscaleModelLoader,
             HunyuanImageToVideo,
             EmptyHunyuanImageLatent,
             HunyuanRefinerLatent,
