@@ -7,7 +7,7 @@ from comfy_api.internal.singleton import ProxiedSingleton
 from comfy_api.internal.async_to_sync import create_sync_class
 from comfy_api.latest._input import ImageInput, AudioInput, MaskInput, LatentInput, VideoInput
 from comfy_api.latest._input_impl import VideoFromFile, VideoFromComponents
-from comfy_api.latest._util import VideoCodec, VideoContainer, VideoComponents
+from comfy_api.latest._util import VideoCodec, VideoContainer, VideoComponents, MESH, VOXEL
 from . import _io as io
 from . import _ui as ui
 # from comfy_api.latest._resources import _RESOURCES as resources  #noqa: F401
@@ -104,6 +104,8 @@ class Types:
     VideoCodec = VideoCodec
     VideoContainer = VideoContainer
     VideoComponents = VideoComponents
+    MESH = MESH
+    VOXEL = VOXEL
 
 ComfyAPI = ComfyAPI_latest
 
