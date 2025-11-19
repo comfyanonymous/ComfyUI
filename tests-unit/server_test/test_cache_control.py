@@ -48,6 +48,13 @@ CACHE_SCENARIOS = [
         "expected_cache": "no-cache",
         "should_have_header": True,
     },
+    {
+        "name": "localized_index_json_no_cache",
+        "path": "/templates/index.zh.json",
+        "status": 200,
+        "expected_cache": "no-cache",
+        "should_have_header": True,
+    },
     # Non-matching files
     {
         "name": "html_no_header",

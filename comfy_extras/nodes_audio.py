@@ -146,9 +146,10 @@ def save_audio(self, audio, filename_prefix="ComfyUI", format="flac", prompt=Non
         for key, value in metadata.items():
             output_container.metadata[key] = value
 
+        layout = 'mono' if waveform.shape[0] == 1 else 'stereo'
         # Set up the output stream with appropriate properties
         if format == "opus":
-            out_stream = output_container.add_stream("libopus", rate=sample_rate)
+            out_stream = output_container.add_stream("libopus", rate=sample_rate, layout=layout)
             if quality == "64k":
                 out_stream.bit_rate = 64000
             elif quality == "96k":
@@ -160,7 +161,7 @@ def save_audio(self, audio, filename_prefix="ComfyUI", format="flac", prompt=Non
             elif quality == "320k":
                 out_stream.bit_rate = 320000
         elif format == "mp3":
-            out_stream = output_container.add_stream("libmp3lame", rate=sample_rate)
+            out_stream = output_container.add_stream("libmp3lame", rate=sample_rate, layout=layout)
             if quality == "V0":
                 #TODO i would really love to support V3 and V5 but there doesn't seem to be a way to set the qscale level, the property below is a bool
                 out_stream.codec_context.qscale = 1
@@ -169,9 +170,9 @@ def save_audio(self, audio, filename_prefix="ComfyUI", format="flac", prompt=Non
             elif quality == "320k":
                 out_stream.bit_rate = 320000
         else: #format == "flac":
-            out_stream = output_container.add_stream("flac", rate=sample_rate)
+            out_stream = output_container.add_stream("flac", rate=sample_rate, layout=layout)
 
-        frame = av.AudioFrame.from_ndarray(waveform.movedim(0, 1).reshape(1, -1).float().numpy(), format='flt', layout='mono' if waveform.shape[0] == 1 else 'stereo')
+        frame = av.AudioFrame.from_ndarray(waveform.movedim(0, 1).reshape(1, -1).float().numpy(), format='flt', layout=layout)
         frame.sample_rate = sample_rate
         frame.pts = 0
         output_container.mux(out_stream.encode(frame))
@@ -364,7 +365,7 @@ class RecordAudio:
     def load(self, audio):
         audio_path = folder_paths.get_annotated_filepath(audio)
 
-        waveform, sample_rate = torchaudio.load(audio_path)
+        waveform, sample_rate = load(audio_path)
         audio = {"waveform": waveform.unsqueeze(0), "sample_rate": sample_rate}
         return (audio, )
 
