@@ -50,7 +50,8 @@ class EncodeVideo(io.ComfyNode):
 
     @classmethod
     def execute(cls, video, processing_batch_size, step_size, vae = None, clip_vision = None):
-
+        
+        video = video.images
         if not isinstance(video, torch.Tensor):
             video = torch.from_numpy(video)
 
@@ -135,6 +136,8 @@ class ResampleVideo(io.ComfyNode):
     @classmethod
     def execute(cls, video, target_fps: int):
         # doesn't support upsampling
+
+        video_components = video.get_components()
         with av.open(video.get_stream_source(), mode="r") as container:
             stream = container.streams.video[0]
             frames = []
@@ -147,11 +150,7 @@ class ResampleVideo(io.ComfyNode):
 
             # yield original frames if asked for upsampling
             if target_fps > src_fps:
-                for packet in container.demux(stream):
-                    for frame in packet.decode():
-                        arr = torch.from_numpy(frame.to_ndarray(format="rgb24")).float()
-                        frames.append(arr)
-                return io.NodeOutput(torch.stack(frames))
+                return io.NodeOutput(video_components)
 
             stream.thread_type = "AUTO"
 
@@ -168,25 +167,13 @@ class ResampleVideo(io.ComfyNode):
                         frames.append(arr)
                         next_time += step
 
-            return io.NodeOutput(torch.stack(frames))
-
-class VideoToImage(io.ComfyNode):
-    @classmethod
-    def define_schema(cls):
-        return io.Schema(
-            node_id="VideoToImage",
-            category="image/video",
-            display_name = "Video To Images",
-            inputs=[io.Video.Input("video")],
-            outputs=[io.Image.Output("images")]
-        )
-    @classmethod
-    def execute(cls, video):
-        with av.open(video.get_stream_source(), mode="r") as container:
-            components = video.get_components_internal(container)
-
-        images = components.images
-        return io.NodeOutput(images)
+            new_components = VideoComponents(
+                images=torch.stack(frames),
+                audio=video_components.audio,
+                frame_rate=Fraction(target_fps, 1),
+                metadata=video_components.metadata,
+            )
+            return io.NodeOutput(new_components)
 
 class SaveWEBM(io.ComfyNode):
     @classmethod
@@ -388,7 +375,6 @@ class VideoExtension(ComfyExtension):
             LoadVideo,
             EncodeVideo,
             ResampleVideo,
-            VideoToImage
         ]
 
 async def comfy_entrypoint() -> VideoExtension:

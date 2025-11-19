@@ -213,7 +213,9 @@ class FoleyVae(torch.nn.Module):
                 v2.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5]),
             ]
         )
-        self.decode_sample_rate = self.dac.sample_rate
+
+    def decode_sample_rate(self):
+        return self.dac.sample_rate
 
     def decode(self, x, vae_options = {}):
         return self.dac.decode(x)
