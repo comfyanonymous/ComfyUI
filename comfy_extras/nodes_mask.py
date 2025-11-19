@@ -394,6 +394,7 @@ class MaskPreview(IO.ComfyNode):
     def define_schema(cls):
         return IO.Schema(
             node_id="MaskPreview",
+            display_name="Preview Mask",
             category="mask",
             description="Saves the input images to your ComfyUI output directory.",
             inputs=[
