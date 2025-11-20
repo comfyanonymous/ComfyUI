@@ -18,7 +18,7 @@ class AutoRegressiveGeneration:
             }
         }
 
-    RETURN_TYPES = ("TOKENS",)
+    RETURN_TYPES = ("GENERATED_TOKENS",)
     FUNCTION = "generate"
 
     CATEGORY = "sampling"
@@ -35,7 +35,7 @@ class DecodeTokens:
         return {
             "required": {
                 "clip": (IO.CLIP, {"tooltip": "The model used for generation."}),
-                "tokens": ("TOKENS", ),}
+                "tokens": ("GENERATED_TOKENS", ),}
         }
 
     FUNCTION = "decode"
