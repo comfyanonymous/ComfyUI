@@ -158,7 +158,10 @@ class TokenRefiner(nn.Module):
         t = self.t_embedder(timestep_embedding(timesteps, 256, time_factor=1.0).to(x.dtype))
         # m = mask.float().unsqueeze(-1)
         # c = (x.float() * m).sum(dim=1) / m.sum(dim=1) #TODO: the following works when the x.shape is the same length as the tokens but might break otherwise
-        c = x.sum(dim=1) / x.shape[1]
+        if x.dtype == torch.float16:
+            c = x.float().sum(dim=1) / x.shape[1]
+        else:
+            c = x.sum(dim=1) / x.shape[1]
 
         c = t + self.c_embedder(c.to(x.dtype))
         x = self.input_embedder(x)
