@@ -113,7 +113,7 @@ class EncodeVideoVAE(io.ComfyNode):
         model = vae.first_stage_model
         model = model.to(vae.device)
         return io.NodeOutput(encode_video(vae, model, video, step_size, processing_batch_size))
-    
+
 class EncodeVideoCLIP(io.ComfyNode):
     @classmethod
     def define_schema(cls):
@@ -130,7 +130,7 @@ class EncodeVideoCLIP(io.ComfyNode):
                 io.Conditioning.Output(display_name="encoded_video"),
             ],
         )
-    
+
     @classmethod
     def execute(cls, video, processing_batch_size, step_size, clip_vision):
         model = clip_vision.model
