@@ -22,19 +22,20 @@ class EmptyLatentHunyuanImage3(io.ComfyNode):
                 io.Int.Input("height", min = 1, default = 512),
                 io.Int.Input("width", min = 1, default = 512),
                 io.Int.Input("batch_size", min = 1, max = 48_000, default = 1),
-                io.Clip.Input("clip")
+                io.Clip.Input("clip"),
+                io.Model.Input("model")
             ],
             outputs=[io.Latent.Output(display_name="latent")]
         )
     @classmethod
-    def execute(cls, height, width, batch_size, clip):
+    def execute(cls, height, width, batch_size, clip, model):
         encode_fn = clip.tokenizer.tokenizer.convert_tokens_to_ids
         special_fn = clip.tokenizer.tokenizer.added_tokens_encoder
 
         # may convert clip.tokenizer -> clip.
-        word_embed = clip.tokenizer.wte
-        patch_embed = clip.tokenizer.patch_embed
-        t_embed = clip.tokenizer.time_embed
+        word_embed = model.wte
+        patch_embed = model.patch_embed
+        t_embed = model.time_embed
 
         height, width = get_target_size(height, width)
         latent = torch.randn(batch_size, 32, int(height) // 16, int(width) // 16, device=comfy.model_management.intermediate_device())
@@ -63,20 +64,21 @@ class HunyuanImage3Conditioning(io.ComfyNode):
                 io.Conditioning.Input("vae_encoding"),
                 io.Conditioning.Input("vit_encoding"),
                 io.Conditioning.Input("text_encoding_positive"),
+                io.Clip.Input("clip"),
+                io.Model.Input("model"),
                 io.Conditioning.Input("text_encoding_negative", optional = True),
-                io.Clip.Input("clip")
             ],
             outputs=[io.Conditioning.Output(display_name= "positive"), io.Conditioning.Output(display_name="negative")]
         )
 
     @classmethod
-    def execute(cls, vae_encoding, vit_encoding, text_encoding, clip, text_encoding_negative=None):
+    def execute(cls, vae_encoding, vit_encoding, text_encoding, clip, model, text_encoding_negative=None):
         encode_fn = clip.tokenizer.tokenizer.convert_tokens_to_ids
         special_fn = clip.tokenizer.tokenizer.added_tokens_encoder
 
-        word_embed = clip.tokenizer.wte
-        patch_embed = clip.tokenizer.patch_embed
-        t_embed = clip.tokenizer.time_embed
+        word_embed = model.wte
+        patch_embed = model.patch_embed
+        t_embed = model.time_embed
         batch_size, _, hidden_size = vit_encoding.shape
 
         def fn(string, func = encode_fn):
