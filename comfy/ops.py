@@ -58,7 +58,8 @@ except (ModuleNotFoundError, TypeError):
 NVIDIA_MEMORY_CONV_BUG_WORKAROUND = False
 try:
     if comfy.model_management.is_nvidia():
-        if torch.backends.cudnn.version() >= 91002 and comfy.model_management.torch_version_numeric >= (2, 9) and comfy.model_management.torch_version_numeric <= (2, 10):
+        cudnn_version = torch.backends.cudnn.version()
+        if (cudnn_version >= 91002 and cudnn_version < 91500) and comfy.model_management.torch_version_numeric >= (2, 9) and comfy.model_management.torch_version_numeric <= (2, 10):
             #TODO: change upper bound version once it's fixed'
             NVIDIA_MEMORY_CONV_BUG_WORKAROUND = True
             logging.info("working around nvidia conv3d memory bug.")
