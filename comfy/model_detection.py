@@ -190,6 +190,8 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
         # HunyuanVideo 1.5
         if '{}cond_type_embedding.weight'.format(key_prefix) in state_dict_keys:
             dit_config["use_cond_type_embedding"] = True
+        else:
+            dit_config["use_cond_type_embedding"] = False
         if '{}vision_in.proj.0.weight'.format(key_prefix) in state_dict_keys:
             dit_config["vision_in_dim"] = state_dict['{}vision_in.proj.0.weight'.format(key_prefix)].shape[0]
         else:

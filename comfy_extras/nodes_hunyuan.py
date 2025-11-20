@@ -123,8 +123,6 @@ class HunyuanVideo15ImageToVideo(io.ComfyNode):
         out_latent["samples"] = latent
         return io.NodeOutput(positive, negative, out_latent)
 
-    encode = execute  # TODO: remove
-
 
 class HunyuanVideo15RefinerLatent(io.ComfyNode):
     @classmethod
@@ -213,8 +211,6 @@ class LatentUpscaleModelLoader(io.ComfyNode):
 
         return io.NodeOutput(model)
 
-    load_model = execute  # TODO: remove
-
 
 class HunyuanVideo15LatentUpscaleWithModel(io.ComfyNode):
     @classmethod
@@ -253,8 +249,6 @@ class HunyuanVideo15LatentUpscaleWithModel(io.ComfyNode):
             s = comfy.utils.common_upscale(samples["samples"], width // 16, height // 16, upscale_method, crop)
             s = model.resample_latent(s)
             return io.NodeOutput({"samples": s.cpu().float()})
-
-    upscale = execute  # TODO: remove
 
 
 PROMPT_TEMPLATE_ENCODE_VIDEO_I2V = (
