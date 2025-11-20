@@ -16,32 +16,92 @@ from comfy_api.latest import ComfyExtension, io, ui
 from comfy.cli_args import args
 import comfy.utils
 
-class EncodeVideo(io.ComfyNode):
+def encode_video(vae, model, video, step_size, processing_batch_size):
+    video = video.images
+    if not isinstance(video, torch.Tensor):
+        video = torch.from_numpy(video)
+
+    t, *rest = video.shape
+
+    # channel last
+    if rest[-1] in (1, 3, 4) and rest[0] not in (1, 3, 4):
+        video = video.permute(0, 3, 1, 2)
+    b = 1
+    t, c, h, w = video.shape
+    batch_size = video.shape[0]
+    if hasattr(model, "video_encoding"):
+        data, num_segments, output_fn = model.video_encoding(video, step_size)
+        batch_size = b * num_segments
+    else:
+        data = video.view(batch_size, c, h, w)
+        output_fn = lambda x: x.view(b, t, -1)
+
+    if processing_batch_size != -1:
+        batch_size = processing_batch_size
+    outputs = None
+    total = data.shape[0]
+    pbar = comfy.utils.ProgressBar(total/batch_size)
+    model_dtype = next(model.parameters()).dtype
+    with torch.inference_mode():
+        for i in range(0, total, batch_size):
+            chunk = data[i : i + batch_size].to(next(model.parameters()).device, non_blocking = True)
+            chunk = chunk.to(model_dtype)
+            if hasattr(vae, "encode"):
+                try:
+                    if chunk.ndim > 5:
+                        raise ValueError("chunk.ndim > 5")
+                    chunk = chunk.movedim(1, -1)
+                    out = vae.encode(chunk)
+                except Exception:
+                    out = model.encode(chunk)
+            else:
+                chunk = chunk.movedim(1, -1)
+                out = vae.encode_image(chunk.to(torch.uint8), crop=False, resize_mode="bilinear")
+                out = out["image_embeds"]
+
+            out_cpu = out.cpu()
+            if outputs is None:
+                full_shape = (total, *out_cpu.shape[1:])
+                # should be the offload device
+                outputs = torch.empty(full_shape, dtype=out_cpu.dtype, pin_memory=True)
+
+            chunk_len = out_cpu.shape[0]
+            outputs[i : i + chunk_len].copy_(out_cpu)
+
+            del out, chunk, out_cpu
+            torch.cuda.empty_cache()
+            pbar.update(1)
+
+    return output_fn(outputs)
+
+encode_video_inputs = [
+    io.Video.Input("video", tooltip="The video to be encoded."),
+    io.Int.Input(
+        "processing_batch_size", default=-1, min=-1,
+        tooltip=(
+            "Number of frames/segments to process at a time during encoding.\n"
+            "-1 means process all at once. Smaller values reduce GPU memory usage."
+        ),
+    ),
+    io.Int.Input("step_size", default=8, min=1, max=32,
+        tooltip=(
+            "Stride (in frames) between the start of consecutive segments.\n"
+            "Smaller step = more overlap and smoother temporal coverage "
+            "but higher compute cost. Larger step = faster but may miss detail."
+        ),
+    ),
+]
+class EncodeVideoVAE(io.ComfyNode):
     @classmethod
     def define_schema(cls):
         return io.Schema(
-            node_id="EncodeVideo",
-            display_name="Encode Video",
+            node_id="EncodeVideoVAE",
+            display_name="Encode Video VAE",
             category="image/video",
-            description="Encode a video using an image encoder.",
+            description="Encode a video using a VAE.",
             inputs=[
-                io.Video.Input("video", tooltip="The video to be encoded."),
-                io.Int.Input(
-                    "processing_batch_size", default=-1, min=-1,
-                    tooltip=(
-                        "Number of frames/segments to process at a time during encoding.\n"
-                        "-1 means process all at once. Smaller values reduce GPU memory usage."
-                    ),
-                ),
-                io.Int.Input("step_size", default=8, min=1, max=32,
-                    tooltip=(
-                        "Stride (in frames) between the start of consecutive segments.\n"
-                        "Smaller step = more overlap and smoother temporal coverage "
-                        "but higher compute cost. Larger step = faster but may miss detail."
-                    ),
-                ),
-                io.Vae.Input("vae", optional=True),
-                io.ClipVision.Input("clip_vision", optional=True),
+                *encode_video_inputs,
+                io.Vae.Input("vae"),
             ],
             outputs=[
                 io.Conditioning.Output(display_name="encoded_video"),
@@ -49,76 +109,32 @@ class EncodeVideo(io.ComfyNode):
         )
 
     @classmethod
-    def execute(cls, video, processing_batch_size, step_size, vae = None, clip_vision = None):
-
-        video = video.images
-        if not isinstance(video, torch.Tensor):
-            video = torch.from_numpy(video)
-
-        t, *rest = video.shape
-
-        # channel last
-        if rest[-1] in (1, 3, 4) and rest[0] not in (1, 3, 4):
-            video = video.permute(0, 3, 1, 2)
-
-        t, c, h, w = video.shape
-        device = video.device
-        b = 1
-        batch_size = b * t
-
-        if vae is not None and clip_vision is not None:
-            raise ValueError("Must either have vae or clip_vision.")
-        elif vae is None and clip_vision is None:
-            raise ValueError("Can't have VAE and Clip Vision passed at the same time!")
-        model = vae.first_stage_model if vae is not None else clip_vision.model
-        vae = vae if vae is not None else clip_vision
-
-
-        if hasattr(model, "video_encoding"):
-            data, num_segments, output_fn = model.video_encoding(video, step_size)
-            batch_size = b * num_segments
-        else:
-            data = video.view(batch_size, c, h, w)
-            output_fn = lambda x: x.view(b, t, -1)
-
-        if processing_batch_size != -1:
-            batch_size = processing_batch_size
-
-        outputs = None
-        total = data.shape[0]
-        pbar = comfy.utils.ProgressBar(total/batch_size)
-        model_dtype = next(model.parameters()).dtype
-        with torch.inference_mode():
-            for i in range(0, total, batch_size):
-                chunk = data[i : i + batch_size].to(device, non_blocking = True)
-                chunk = chunk.to(model_dtype)
-                if hasattr(vae, "encode"):
-                    try:
-                        if chunk.ndim > 5:
-                            raise ValueError("chunk.ndim > 5")
-                        chunk = chunk.movedim(1, -1)
-                        out = vae.encode(chunk)
-                    except Exception:
-                        out = model.encode(chunk)
-                else:
-                    chunk = chunk.movedim(1, -1)
-                    out = vae.encode_image(chunk.to(torch.uint8), crop=False, resize_mode="bilinear")
-                    out = out["image_embeds"]
-
-                out_cpu = out.cpu()
-                if outputs is None:
-                    full_shape = (total, *out_cpu.shape[1:])
-                    # should be the offload device
-                    outputs = torch.empty(full_shape, dtype=out_cpu.dtype, pin_memory=True)
-
-                chunk_len = out_cpu.shape[0]
-                outputs[i : i + chunk_len].copy_(out_cpu)
-
-                del out, chunk, out_cpu
-                torch.cuda.empty_cache()
-                pbar.update(1)
-
-        return io.NodeOutput(output_fn(outputs))
+    def execute(cls, video, processing_batch_size, step_size, vae):
+        model = vae.first_stage_model
+        model = model.to(vae.device)
+        return io.NodeOutput(encode_video(vae, model, video, step_size, processing_batch_size))
+    
+class EncodeVideoCLIP(io.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return io.Schema(
+            node_id="EncodeVideoCLIP",
+            display_name="Encode Video CLIP",
+            category="image/video",
+            description="Encode a video using a CLIP Vision Model.",
+            inputs=[
+                *encode_video_inputs,
+                io.ClipVision.Input("clip_vision"),
+            ],
+            outputs=[
+                io.Conditioning.Output(display_name="encoded_video"),
+            ],
+        )
+    
+    @classmethod
+    def execute(cls, video, processing_batch_size, step_size, clip_vision):
+        model = clip_vision.model
+        return io.NodeOutput(encode_video(clip_vision, model, video, step_size, processing_batch_size))
 
 class ResampleVideo(io.ComfyNode):
     @classmethod
@@ -373,8 +389,9 @@ class VideoExtension(ComfyExtension):
             CreateVideo,
             GetVideoComponents,
             LoadVideo,
-            EncodeVideo,
             ResampleVideo,
+            EncodeVideoVAE,
+            EncodeVideoCLIP
         ]
 
 async def comfy_entrypoint() -> VideoExtension:
