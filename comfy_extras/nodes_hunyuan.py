@@ -317,7 +317,7 @@ class HunyuanImageToVideo(io.ComfyNode):
 
     @classmethod
     def execute(cls, positive, vae, width, height, length, batch_size, guidance_type, start_image=None) -> io.NodeOutput:
-        latent = torch.zeros([batch_size, 16, ((length - 1) // 4) + 1, height // 8, width // 8], device=comfy.model_management.intermediate_device())
+        latent = torch.zeros([batch_size, 32, ((length - 1) // 4) + 1, height // 8, width // 8], device=comfy.model_management.intermediate_device())
         out_latent = {}
 
         if start_image is not None:
