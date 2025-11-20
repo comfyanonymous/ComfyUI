@@ -4,6 +4,7 @@ import torch.nn.functional as F
 from comfy.ldm.modules.diffusionmodules.model import ResnetBlock, AttnBlock, VideoConv3d, Normalize
 import comfy.ops
 import comfy.ldm.models.autoencoder
+import comfy.model_management
 ops = comfy.ops.disable_weight_init
 
 class NoPadConv3d(nn.Module):
@@ -45,7 +46,7 @@ class RMS_norm(nn.Module):
         self.gamma = nn.Parameter(torch.empty(shape))
 
     def forward(self, x):
-        return F.normalize(x, dim=1) * self.scale * self.gamma
+        return F.normalize(x, dim=1) * self.scale * comfy.model_management.cast_to(self.gamma, dtype=x.dtype, device=x.device)
 
 class DnSmpl(nn.Module):
     def __init__(self, ic, oc, tds=True, refiner_vae=True, op=VideoConv3d):
