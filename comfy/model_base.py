@@ -1613,10 +1613,10 @@ class HunyuanVideo15_SR_Distilled(HunyuanVideo15):
             image = utils.common_upscale(image.to(device), noise.shape[-1], noise.shape[-2], "bilinear", "center")
             #image = self.process_latent_in(image) # scaling wasn't applied in reference code
             image = utils.resize_to_batch_size(image, noise.shape[0])
+            lq_image_slice = slice(noise.shape[1] + 1, 2 * noise.shape[1] + 1)
             if noise_augmentation > 0:
                 generator = torch.Generator(device="cpu")
                 generator.manual_seed(kwargs.get("seed", 0) - 10)
-                lq_image_slice = slice(noise.shape[1] + 1, 2 * noise.shape[1] + 1)
                 noise = torch.randn(image[:, lq_image_slice].shape, generator=generator, dtype=image.dtype, device="cpu").to(image.device)
                 image[:, lq_image_slice] = noise_augmentation * noise + min(1.0 - noise_augmentation, 0.75) * image[:, lq_image_slice]
             else:
