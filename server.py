@@ -164,6 +164,22 @@ def create_origin_only_middleware():
 
     return origin_only_middleware
 
+
+def create_block_external_middleware():
+    @web.middleware
+    async def block_external_middleware(request: web.Request, handler):
+        if request.method == "OPTIONS":
+            # Pre-flight request. Reply successfully:
+            response = web.Response()
+        else:
+            response = await handler(request)
+
+        response.headers['Content-Security-Policy'] = "default-src 'self'; script-src 'self'  'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; frame-src 'self'; object-src 'self';"
+        return response
+
+    return block_external_middleware
+
+
 class PromptServer():
     def __init__(self, loop):
         PromptServer.instance = self
@@ -192,6 +208,9 @@ class PromptServer():
             middlewares.append(create_cors_middleware(args.enable_cors_header))
         else:
             middlewares.append(create_origin_only_middleware())
+
+        if args.disable_api_nodes:
+            middlewares.append(create_block_external_middleware())
 
         max_upload_size = round(args.max_upload_size * 1024 * 1024)
         self.app = web.Application(client_max_size=max_upload_size, middlewares=middlewares)
