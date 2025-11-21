@@ -13,6 +13,7 @@ from comfy.cli_args import args
 SERVER_FEATURE_FLAGS: Dict[str, Any] = {
     "supports_preview_metadata": True,
     "max_upload_size": args.max_upload_size * 1024 * 1024, # Convert MB to bytes
+    "extension": {"manager": {"supports_v4": True}},
 }
 
 
