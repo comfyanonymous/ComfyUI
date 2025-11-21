@@ -1557,7 +1557,6 @@ class KSamplerAdvanced:
         if add_noise == "disable":
             disable_noise = True
         return common_ksampler(model, noise_seed, steps, cfg, sampler_name, scheduler, positive, negative, latent_image, denoise=denoise, disable_noise=disable_noise, start_step=start_at_step, last_step=end_at_step, force_full_denoise=force_full_denoise)
-
 class SaveImage:
     def __init__(self):
         self.output_dir = folder_paths.get_output_directory()
@@ -2334,6 +2333,7 @@ async def init_builtin_extra_nodes():
         "nodes_model_patch.py",
         "nodes_easycache.py",
         "nodes_audio_encoder.py",
+        "nodes_hunyuan_foley.py",
         "nodes_rope.py",
         "nodes_nop.py",
     ]

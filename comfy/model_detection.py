@@ -435,6 +435,11 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
 
         return dit_config
 
+    if '{}triple_blocks.17.audio_cross_q.weight'.format(key_prefix) in state_dict_keys: # Hunyuan Foley
+        dit_config =  {}
+        dit_config["image_model"] = "hunyuan_foley"
+        return dit_config
+
     if '{}latent_in.weight'.format(key_prefix) in state_dict_keys:  # Hunyuan 3D
         in_shape = state_dict['{}latent_in.weight'.format(key_prefix)].shape
         dit_config = {}
