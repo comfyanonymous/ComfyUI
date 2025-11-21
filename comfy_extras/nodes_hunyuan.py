@@ -176,10 +176,10 @@ class LatentUpscaleModelLoader(io.ComfyNode):
             display_name="Load Latent Upscale Model",
             category="loaders",
             inputs=[
-                io.Combo.Input("model_name", options=folder_paths.get_filename_list("upscale_models")),
+                io.Combo.Input("model_name", options=folder_paths.get_filename_list("latent_upscale_models")),
             ],
             outputs=[
-                io.UpscaleModel.Output(),
+                io.LatentUpscaleModel.Output(),
             ],
         )
 
@@ -220,7 +220,7 @@ class HunyuanVideo15LatentUpscaleWithModel(io.ComfyNode):
             display_name="Hunyuan Video 15 Latent Upscale With Model",
             category="latent",
             inputs=[
-                io.UpscaleModel.Input("model"),
+                io.LatentUpscaleModel.Input("model"),
                 io.Latent.Input("samples"),
                 io.Combo.Input("upscale_method", options=["nearest-exact", "bilinear", "area", "bicubic", "bislerp"], default="bilinear"),
                 io.Int.Input("width", default=1280, min=0, max=16384, step=8),
