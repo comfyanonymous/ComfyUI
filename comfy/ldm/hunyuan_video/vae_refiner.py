@@ -234,7 +234,7 @@ class Encoder(nn.Module):
         if self.refiner_vae:
             xl = [x[:, :, :1, :, :]]
             if x.shape[2] > self.ffactor_temporal:
-                xl += torch.split(x[:, :, 1: 1 + ((x.shape[2] - 1) // self.ffactor_temporal) * self.ffactor_temporal, :, :], self.ffactor_temporal, dim=2)
+                xl += torch.split(x[:, :, 1: 1 + ((x.shape[2] - 1) // self.ffactor_temporal) * self.ffactor_temporal, :, :], self.ffactor_temporal * 2, dim=2)
             x = xl
         else:
             x = [x]
