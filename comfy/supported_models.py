@@ -1339,9 +1339,12 @@ class HunyuanImage3(supported_models_base.BASE):
     latent_format = latent_formats.HunyuanImage3
 
     def get_model(self, state_dict, prefix="", device=None):
-        return model_base.HunyuanImage3(self, device = device)
+        state_dict["text_encoders.wte"] = state_dict["model.model.wte"]
+        state_dict.pop("model.model.wte", None)
+        model = model_base.HunyuanImage3(self, device = device)
+        return model
     def clip_target(self, state_dict={}):
-        return supported_models_base.ClipTarget(comfy.text_encoders.hunyuan_image.HunyuanImage3Tokenizer, comfy.text_encoders.hunyuan_image.DummyClip)
+        return supported_models_base.ClipTarget(comfy.text_encoders.hunyuan_image.HunyuanImage3Tokenizer, comfy.text_encoders.hunyuan_image.HunyuanImage3)
 
 class HunyuanImage21(HunyuanVideo):
     unet_config = {

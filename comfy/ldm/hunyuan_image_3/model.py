@@ -18,16 +18,7 @@ from comfy.ldm.modules.attention import optimized_attention
 from comfy.ldm.modules.diffusionmodules.openaimodel import ResBlock
 
 INIT_MOE = torch.cuda.device_count() != 1
-
-if not INIT_MOE:
-    MOE_LAYER_SIZE = (1024**3) * 2.65 # approx
-
-    torch.cuda.set_device(0)
-    props = torch.cuda.get_device_properties(0)
-    
-    LAYERS_IN_CPU = math.floor((int((os.sysconf('SC_PAGE_SIZE') * os.sysconf('SC_PHYS_PAGES')) 
-                                    - psutil.Process(os.getpid()).memory_info().rss 
-                                    - (2*1024**3)) * 0.50) / MOE_LAYER_SIZE)
+MOE_LAYER_SIZE = (1024**3) * 2.65 # approx
 
 class HunyuanStaticCache(StaticCache):
 
@@ -885,7 +876,6 @@ class HunyuanImage3Model(nn.Module):
 
     def forward(
             self,
-            input_ids: torch.LongTensor = None,
             attention_mask: Optional[torch.Tensor] = None,
             position_ids: Optional[torch.LongTensor] = None,
             past_key_values: Optional[List[torch.FloatTensor]] = None,
@@ -896,9 +886,6 @@ class HunyuanImage3Model(nn.Module):
             first_step: Optional[bool] = None,
             gen_timestep_scatter_index: Optional[torch.Tensor] = None,
     ):
-
-        if inputs_embeds is None:
-            inputs_embeds = self.wte(input_ids)
 
         hidden_states = inputs_embeds
 

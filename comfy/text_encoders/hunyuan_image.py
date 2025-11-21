@@ -2,12 +2,20 @@ from comfy import sd1_clip
 import comfy.text_encoders.llama
 from .qwen_image import QwenImageTokenizer, QwenImageTEModel
 from transformers import ByT5Tokenizer
+import torch
 import os
 import re
 
-class DummyClip:
-    def __init__(*args, **kwargs):
-        pass
+class HunyuanImage3TextEncoder(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.wte = torch.nn.Embedding(133120, 4096, 128009)
+    def forward(self, x):
+        out = self.wte(x)
+        return out, torch.empty_like(out)
+class HunyuanImage3(sd1_clip.SDClipModel):
+    def __init__(self, device="cpu", max_length=77, freeze=True, layer="last", layer_idx=None, textmodel_json_config=None, dtype=None, model_class=HunyuanImage3TextEncoder, layer_norm_hidden_state=True, enable_attention_masks=False, zero_out_masked=False, return_projected_pooled=False, return_attention_masks=False, model_options={}):
+        super().__init__(device, max_length, freeze, layer, layer_idx, textmodel_json_config, dtype, model_class, layer_norm_hidden_state, enable_attention_masks, zero_out_masked, return_projected_pooled, return_attention_masks, model_options)
 
 class HunyuanImage3Tokenizer(sd1_clip.SDTokenizer):
     def __init__(self, tokenizer_path="hunyuan_image_3", max_length=77, pad_with_end=True, embedding_directory=None, embedding_size=768, embedding_key='clip_l', tokenizer_class=..., has_start_token=True, has_end_token=True, pad_to_max_length=True, min_length=None, pad_token=None, end_token=None, min_padding=None, tokenizer_data=..., tokenizer_args=...):
