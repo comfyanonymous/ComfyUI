@@ -185,7 +185,7 @@ class LatentUpscaleModelLoader(io.ComfyNode):
 
     @classmethod
     def execute(cls, model_name) -> io.NodeOutput:
-        model_path = folder_paths.get_full_path_or_raise("upscale_models", model_name)
+        model_path = folder_paths.get_full_path_or_raise("latent_upscale_models", model_name)
         sd = comfy.utils.load_torch_file(model_path, safe_load=True)
 
         if "blocks.0.block.0.conv.weight" in sd:
