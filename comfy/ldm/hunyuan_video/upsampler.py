@@ -93,7 +93,7 @@ class Upsampler(nn.Module):
 
         out = self.conv_out(F.silu(self.norm_out(x)))
         return out
-    
+
 UPSAMPLERS = {
     "720p": SRModel3DV2,
     "1080p": Upsampler,
