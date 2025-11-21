@@ -629,6 +629,10 @@ class UpscaleModel(ComfyTypeIO):
     if TYPE_CHECKING:
         Type = ImageModelDescriptor
 
+@comfytype(io_type="LATENT_UPSCALE_MODEL")
+class LatentUpscaleModel(ComfyTypeIO):
+    Type = Any
+
 @comfytype(io_type="AUDIO")
 class Audio(ComfyTypeIO):
     class AudioDict(TypedDict):
