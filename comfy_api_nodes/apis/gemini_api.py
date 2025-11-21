@@ -68,7 +68,7 @@ class GeminiTextPart(BaseModel):
 
 
 class GeminiContent(BaseModel):
-    parts: list[GeminiPart] = Field(...)
+    parts: list[GeminiPart] = Field([])
     role: GeminiRole = Field(..., examples=["user"])
 
 
@@ -120,7 +120,7 @@ class GeminiGenerationConfig(BaseModel):
 
 class GeminiImageConfig(BaseModel):
     aspectRatio: str | None = Field(None)
-    resolution: str | None = Field(None)
+    imageSize: str | None = Field(None)
 
 
 class GeminiImageGenerationConfig(GeminiGenerationConfig):
@@ -227,3 +227,4 @@ class GeminiGenerateContentResponse(BaseModel):
     candidates: list[GeminiCandidate] | None = Field(None)
     promptFeedback: GeminiPromptFeedback | None = Field(None)
     usageMetadata: GeminiUsageMetadata | None = Field(None)
+    modelVersion: str | None = Field(None)
