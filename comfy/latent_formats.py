@@ -626,6 +626,11 @@ class Hunyuan3Dv2mini(LatentFormat):
     latent_dimensions = 1
     scale_factor = 1.0188137142395404
 
+class HunyuanImage3(LatentFormat):
+    latent_channels = 32
+    scale_factor = 0.562679178327931
+    latent_dimensions = 3
+
 class ACEAudio(LatentFormat):
     latent_channels = 8
     latent_dimensions = 2

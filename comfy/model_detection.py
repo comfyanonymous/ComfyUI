@@ -482,6 +482,17 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
         dit_config["patch_size"] = 2
         dit_config["text_emb_dim"] = 2048
         return dit_config
+    
+    if "{}layers.32.mlp.gate_and_up_proj.weight".format(key_prefix) in state_dict_keys:
+        dit_config = {}
+        dit_config["image_model"] = "hunyuan_image_3"
+        dit_config["hidden_size"] = 4096
+        dit_config["max_position_embeddings"] = 12800
+        dit_config["num_attention_heads"] = 32
+        dit_config['rms_norm_eps'] = 1e-05
+        dit_config["num_hidden_layers"] = 32
+        dit_config["attention_head_dim"] = 128
+        return dit_config
 
     if '{}blocks.0.mlp.layer1.weight'.format(key_prefix) in state_dict_keys:  # Cosmos predict2
         dit_config = {}
