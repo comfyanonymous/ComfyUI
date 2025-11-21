@@ -124,11 +124,11 @@ class HunyuanVideo15ImageToVideo(io.ComfyNode):
         return io.NodeOutput(positive, negative, out_latent)
 
 
-class HunyuanVideo15RefinerLatent(io.ComfyNode):
+class HunyuanVideo15SuperResolution(io.ComfyNode):
     @classmethod
     def define_schema(cls):
         return io.Schema(
-            node_id="HunyuanVideo15RefinerLatent",
+            node_id="HunyuanVideo15SuperResolution",
             inputs=[
                 io.Conditioning.Input("positive"),
                 io.Conditioning.Input("negative"),
@@ -406,7 +406,7 @@ class HunyuanExtension(ComfyExtension):
             EmptyHunyuanLatentVideo,
             EmptyHunyuanVideo15Latent,
             HunyuanVideo15ImageToVideo,
-            HunyuanVideo15RefinerLatent,
+            HunyuanVideo15SuperResolution,
             HunyuanVideo15LatentUpscaleWithModel,
             LatentUpscaleModelLoader,
             HunyuanImageToVideo,
