@@ -327,7 +327,7 @@ class Decoder(nn.Module):
         x = self.mid.block_2(self.mid.attn_1(self.mid.block_1(x)))
 
         if self.refiner_vae:
-            x = torch.split(x, 1, dim=2)
+            x = torch.split(x, 2, dim=2)
         else:
             x = [ x ]
         out = []
