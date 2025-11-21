@@ -1852,6 +1852,11 @@ class ImageBatch:
     CATEGORY = "image"
 
     def batch(self, image1, image2):
+        if image1.shape[-1] != image2.shape[-1]:
+            if image1.shape[-1] > image2.shape[-1]:
+                image2 = torch.nn.functional.pad(image2, (0,1), mode='constant', value=1.0)
+            else:
+                image1 = torch.nn.functional.pad(image1, (0,1), mode='constant', value=1.0)
         if image1.shape[1:] != image2.shape[1:]:
             image2 = comfy.utils.common_upscale(image2.movedim(-1,1), image1.shape[2], image1.shape[1], "bilinear", "center").movedim(1,-1)
         s = torch.cat((image1, image2), dim=0)
