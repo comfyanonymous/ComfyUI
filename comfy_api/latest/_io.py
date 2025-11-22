@@ -821,6 +821,51 @@ class MultiType:
             else:
                 return super().as_dict()
 
+@comfytype(io_type="COMFY_MATCHTYPE_V3")
+class MatchType(ComfyTypeIO):
+    class Template:
+        def __init__(self, template_id: str, allowed_types: _ComfyType | list[_ComfyType] = AnyType):
+            self.template_id = template_id
+            # account for syntactic sugar
+            if not isinstance(allowed_types, Iterable):
+                allowed_types = [allowed_types]
+            for t in allowed_types:
+                if not isinstance(t, type):
+                    if not isinstance(t, _ComfyType):
+                        raise ValueError(f"Allowed types must be a ComfyType or a list of ComfyTypes, got {t.__class__.__name__}")
+                else:
+                    if not issubclass(t, _ComfyType):
+                        raise ValueError(f"Allowed types must be a ComfyType or a list of ComfyTypes, got {t.__name__}")
+            self.allowed_types = allowed_types
+
+        def as_dict(self):
+            return {
+                "template_id": self.template_id,
+                "allowed_types": ",".join([t.io_type for t in self.allowed_types]),
+            }
+
+    class Input(Input):
+        def __init__(self, id: str, template: MatchType.Template,
+                    display_name: str=None, optional=False, tooltip: str=None, lazy: bool=None, extra_dict=None):
+            super().__init__(id, display_name, optional, tooltip, lazy, extra_dict)
+            self.template = template
+
+        def as_dict(self):
+            return super().as_dict() | prune_dict({
+                "template": self.template.as_dict(),
+            })
+
+    class Output(Output):
+        def __init__(self, template: MatchType.Template, id: str=None, display_name: str=None, tooltip: str=None,
+                     is_output_list=False):
+            super().__init__(id, display_name, tooltip, is_output_list)
+            self.template = template
+
+        def as_dict(self):
+            return super().as_dict() | prune_dict({
+                "template": self.template.as_dict(),
+            })
+
 class DynamicInput(Input, ABC):
     '''
     Abstract class for dynamic input registration.
@@ -996,51 +1041,6 @@ class DynamicCombo(ComfyTypeI):
             for option in self.options:
                 for input in option.inputs:
                     input.validate()
-
-@comfytype(io_type="COMFY_MATCHTYPE_V3")
-class MatchType(ComfyTypeIO):
-    class Template:
-        def __init__(self, template_id: str, allowed_types: _ComfyType | list[_ComfyType] = AnyType):
-            self.template_id = template_id
-            # account for syntactic sugar
-            if not isinstance(allowed_types, Iterable):
-                allowed_types = [allowed_types]
-            for t in allowed_types:
-                if not isinstance(t, type):
-                    if not isinstance(t, _ComfyType):
-                        raise ValueError(f"Allowed types must be a ComfyType or a list of ComfyTypes, got {t.__class__.__name__}")
-                else:
-                    if not issubclass(t, _ComfyType):
-                        raise ValueError(f"Allowed types must be a ComfyType or a list of ComfyTypes, got {t.__name__}")
-            self.allowed_types = allowed_types
-
-        def as_dict(self):
-            return {
-                "template_id": self.template_id,
-                "allowed_types": ",".join([t.io_type for t in self.allowed_types]),
-            }
-
-    class Input(Input):
-        def __init__(self, id: str, template: MatchType.Template,
-                    display_name: str=None, optional=False, tooltip: str=None, lazy: bool=None, extra_dict=None):
-            super().__init__(id, display_name, optional, tooltip, lazy, extra_dict)
-            self.template = template
-
-        def as_dict(self):
-            return super().as_dict() | prune_dict({
-                "template": self.template.as_dict(),
-            })
-
-    class Output(Output):
-        def __init__(self, template: MatchType.Template, id: str=None, display_name: str=None, tooltip: str=None,
-                     is_output_list=False):
-            super().__init__(id, display_name, tooltip, is_output_list)
-            self.template = template
-
-        def as_dict(self):
-            return super().as_dict() | prune_dict({
-                "template": self.template.as_dict(),
-            })
 
 def add_dynamic_id_mapping(d: dict[str], inputs: list[Input], curr_prefix: str, self: DynamicInput=None):
     dynamic = d.setdefault("dynamic_paths", {})
