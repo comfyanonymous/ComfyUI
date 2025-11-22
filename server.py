@@ -30,7 +30,7 @@ import comfy.model_management
 from comfy_api import feature_flags
 import node_helpers
 from comfyui_version import __version__
-from app.frontend_management import FrontendManager
+from app.frontend_management import FrontendManager, parse_version
 from comfy_api.internal import _ComfyNodeInternal
 
 from app.user_manager import UserManager
@@ -164,6 +164,22 @@ def create_origin_only_middleware():
 
     return origin_only_middleware
 
+
+def create_block_external_middleware():
+    @web.middleware
+    async def block_external_middleware(request: web.Request, handler):
+        if request.method == "OPTIONS":
+            # Pre-flight request. Reply successfully:
+            response = web.Response()
+        else:
+            response = await handler(request)
+
+        response.headers['Content-Security-Policy'] = "default-src 'self'; script-src 'self' 'unsafe-inline' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; frame-src 'self'; object-src 'self';"
+        return response
+
+    return block_external_middleware
+
+
 class PromptServer():
     def __init__(self, loop):
         PromptServer.instance = self
@@ -192,6 +208,9 @@ class PromptServer():
             middlewares.append(create_cors_middleware(args.enable_cors_header))
         else:
             middlewares.append(create_origin_only_middleware())
+
+        if args.disable_api_nodes:
+            middlewares.append(create_block_external_middleware())
 
         max_upload_size = round(args.max_upload_size * 1024 * 1024)
         self.app = web.Application(client_max_size=max_upload_size, middlewares=middlewares)
@@ -849,11 +868,31 @@ class PromptServer():
         for name, dir in nodes.EXTENSION_WEB_DIRS.items():
             self.app.add_routes([web.static('/extensions/' + name, dir)])
 
-        workflow_templates_path = FrontendManager.templates_path()
-        if workflow_templates_path:
-            self.app.add_routes([
-                web.static('/templates', workflow_templates_path)
-            ])
+        installed_templates_version = FrontendManager.get_installed_templates_version()
+        use_legacy_templates = True
+        if installed_templates_version:
+            try:
+                use_legacy_templates = (
+                    parse_version(installed_templates_version)
+                    < parse_version("0.3.0")
+                )
+            except Exception as exc:
+                logging.warning(
+                    "Unable to parse templates version '%s': %s",
+                    installed_templates_version,
+                    exc,
+                )
+
+        if use_legacy_templates:
+            workflow_templates_path = FrontendManager.legacy_templates_path()
+            if workflow_templates_path:
+                self.app.add_routes([
+                    web.static('/templates', workflow_templates_path)
+                ])
+        else:
+            handler = FrontendManager.template_asset_handler()
+            if handler:
+                self.app.router.add_get("/templates/{path:.*}", handler)
 
         # Serve embedded documentation from the package
         embedded_docs_path = FrontendManager.embedded_docs_path()
