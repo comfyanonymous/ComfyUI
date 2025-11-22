@@ -1,4 +1,11 @@
 import torch
+import folder_paths
+import logging
+
+from comfy.taesd.taesd import TAESD
+from comfy.ldm.cascade.stage_c_coder import Previewer
+import comfy.utils
+
 
 class LatentFormat:
     scale_factor = 1.0
@@ -7,6 +14,21 @@ class LatentFormat:
     latent_rgb_factors = None
     latent_rgb_factors_bias = None
     taesd_decoder_name = None
+    # Default if decoder name is defined
+    previewer_class = TAESD
+
+    def load_previewer(self, device):
+        model = None
+        if not self.taesd_decoder_name:
+            return None
+
+        filename = next((fn for fn in folder_paths.get_filename_list("vae_approx") if fn.startswith(self.taesd_decoder_name)), "")
+        model_path = folder_paths.get_full_path("vae_approx", filename)
+        if model_path:
+            model = self.previewer_class(decoder_path=model_path, latent_channels=self.latent_channels).to(device)
+        if not model:
+            logging.warning("Warning: Could not load previewer model: models/vae_approx/%s", self.taesd_decoder_name)
+        return model
 
     def process_in(self, latent):
         return latent * self.scale_factor
@@ -77,8 +99,19 @@ class SD_X4(LatentFormat):
             [ 0.2523, -0.0055, -0.1651]
         ]
 
+class CascadePreviewWrapper(Previewer):
+    def __init__(self, decoder_path=None, **kwargs):
+        super().__init__()
+        self.load_state_dict(comfy.utils.load_torch_file(decoder_path, safe_load=True), strict=True)
+        self.eval()
+
+    def decode(self, latent):
+        return self(latent)
+
 class SC_Prior(LatentFormat):
     latent_channels = 16
+    taesd_decoder_name = "cascade_previewer"
+    previewer_class = CascadePreviewWrapper
     def __init__(self):
         self.scale_factor = 1.0
         self.latent_rgb_factors = [
