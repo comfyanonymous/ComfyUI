@@ -1042,6 +1042,52 @@ class DynamicCombo(ComfyTypeI):
                 for input in option.inputs:
                     input.validate()
 
+@comfytype(io_type="COMFY_DYNAMICSLOT_V3")
+class DynamicSlot(ComfyTypeI):
+    Type = dict[str]
+
+    class Input(DynamicInput):
+        def __init__(self, slot: Input, inputs: list[Input],
+                    display_name: str=None, tooltip: str=None, lazy: bool=None, extra_dict=None):
+            assert(not isinstance(slot, DynamicInput))
+            self.slot = copy.copy(slot)
+            self.slot.display_name = slot.display_name if slot.display_name is not None else display_name
+            optional = True
+            self.slot.tooltip = slot.tooltip if slot.tooltip is not None else tooltip
+            self.slot.lazy = slot.lazy if slot.lazy is not None else lazy
+            self.slot.extra_dict = self.extra_dict if extra_dict is not None else extra_dict
+            super().__init__(slot.id, self.slot.display_name, optional, self.slot.tooltip, self.slot.lazy, self.slot.extra_dict)
+            self.inputs = inputs
+            self.force_input = None
+            # force widget inputs to have no widgets, otherwise this would be awkward
+            if isinstance(self.slot, WidgetInput):
+                self.force_input = True
+                self.slot.force_input = True
+
+        def add_to_dict_live_inputs(self, d: dict[str], live_inputs: dict[str], curr_prefix=''):
+            if self.id in live_inputs:
+                curr_prefix = f"{curr_prefix}{self.id}."
+                add_to_input_dict_v1(d, self.inputs, live_inputs, curr_prefix)
+                add_dynamic_id_mapping(d, [self.slot] + self.inputs, curr_prefix)
+
+        def get_dynamic(self) -> list[Input]:
+            return [self.slot] + self.inputs
+
+        def get_all(self) -> list[Input]:
+            return [self] + [self.slot] + self.inputs
+
+        def as_dict(self):
+            return super().as_dict() | prune_dict({
+                "slotType": str(self.slot.get_io_type()),
+                "inputs": create_input_dict_v1(self.inputs),
+                "forceInput": self.force_input,
+            })
+
+        def validate(self):
+            self.slot.validate()
+            for input in self.inputs:
+                input.validate()
+
 def add_dynamic_id_mapping(d: dict[str], inputs: list[Input], curr_prefix: str, self: DynamicInput=None):
     dynamic = d.setdefault("dynamic_paths", {})
     if self is not None:
