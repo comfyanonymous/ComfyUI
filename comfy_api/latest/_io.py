@@ -1705,7 +1705,7 @@ class ComfyNode(_ComfyNodeBaseInternal):
         raise NotImplementedError
 
     @classmethod
-    def validate_inputs(cls, **kwargs) -> bool:
+    def validate_inputs(cls, **kwargs) -> bool | str:
         """Optionally, define this function to validate inputs; equivalent to V1's VALIDATE_INPUTS."""
         raise NotImplementedError
 
@@ -1820,6 +1820,7 @@ __all__ = [
     "StyleModel",
     "Gligen",
     "UpscaleModel",
+    "LatentUpscaleModel",
     "Audio",
     "Video",
     "SVG",
