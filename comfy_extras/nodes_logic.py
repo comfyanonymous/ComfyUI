@@ -19,7 +19,7 @@ class SwitchNode(io.ComfyNode):
                 io.MatchType.Input("on_true", template=template, lazy=True),
             ],
             outputs=[
-                io.MatchType.Output("output", template=template, display_name="output"),
+                io.MatchType.Output(template=template, display_name="output"),
             ],
         )
 

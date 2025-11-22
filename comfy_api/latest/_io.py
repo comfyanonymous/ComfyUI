@@ -1033,7 +1033,7 @@ class MatchType(ComfyTypeIO):
             })
 
     class Output(Output):
-        def __init__(self, id: str, template: MatchType.Template, display_name: str=None, tooltip: str=None,
+        def __init__(self, template: MatchType.Template, id: str=None, display_name: str=None, tooltip: str=None,
                      is_output_list=False):
             super().__init__(id, display_name, tooltip, is_output_list)
             self.template = template
