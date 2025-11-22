@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import copy
 import inspect
-import re
 from abc import ABC, abstractmethod
 from collections import Counter
 from collections.abc import Iterable
