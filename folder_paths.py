@@ -10,6 +10,7 @@ from collections.abc import Collection
 from comfy.cli_args import args
 
 supported_pt_extensions: set[str] = {'.ckpt', '.pt', '.pt2', '.bin', '.pth', '.safetensors', '.pkl', '.sft'}
+supported_input_extensions: set[str] = {""}
 
 folder_names_and_paths: dict[str, tuple[list[str], set[str]]] = {}
 
@@ -56,6 +57,9 @@ output_directory = os.path.join(base_path, "output")
 temp_directory = os.path.join(base_path, "temp")
 input_directory = os.path.join(base_path, "input")
 user_directory = os.path.join(base_path, "user")
+
+folder_names_and_paths["input"] = ([input_directory], supported_input_extensions)
+folder_names_and_paths["latent"] = ([input_directory], {".latent"})
 
 filename_list_cache: dict[str, tuple[list[str], dict[str, float], float]] = {}
 
