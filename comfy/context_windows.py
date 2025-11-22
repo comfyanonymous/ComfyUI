@@ -98,7 +98,7 @@ class ContextFuseMethod:
 
 ContextResults = collections.namedtuple("ContextResults", ['window_idx', 'sub_conds_out', 'sub_conds', 'window'])
 class IndexListContextHandler(ContextHandlerABC):
-    def __init__(self, context_schedule: ContextSchedule, fuse_method: ContextFuseMethod, context_length: int=1, context_overlap: int=0, context_stride: int=1, 
+    def __init__(self, context_schedule: ContextSchedule, fuse_method: ContextFuseMethod, context_length: int=1, context_overlap: int=0, context_stride: int=1,
                  closed_loop: bool=False, dim:int=0, freenoise: bool=False, cond_retain_index_list: list[int]=[]):
         self.context_schedule = context_schedule
         self.fuse_method = fuse_method
@@ -575,7 +575,7 @@ def shift_window_to_end(window: list[int], num_frames: int):
 
 # https://github.com/Kosinkadink/ComfyUI-AnimateDiff-Evolved/blob/90fb1331201a4b29488089e4fbffc0d82cc6d0a9/animatediff/sample_settings.py#L465
 def apply_freenoise(noise: torch.Tensor, context_length: int, context_overlap: int, seed: int):
-    logging.info(f"Context windows: Applying FreeNoise")
+    logging.info("Context windows: Applying FreeNoise")
     generator = torch.manual_seed(seed)
     latent_video_length = noise.shape[2]
     delta = context_length - context_overlap
