@@ -923,7 +923,6 @@ class Autogrow(ComfyTypeI):
             self.input.validate()
 
         def add_to_dict_live_inputs(self, d: dict[str], live_inputs: dict[str], curr_prefix=''):
-            curr_prefix = f"{curr_prefix}{self.id}."
             real_inputs = []
             for name, input in self.cached_inputs.items():
                 if name in live_inputs:
