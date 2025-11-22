@@ -564,6 +564,7 @@ def shift_window_to_end(window: list[int], num_frames: int):
         # 2) add end_delta to each val to slide windows to end
         window[i] = window[i] + end_delta
 
+
 # https://github.com/Kosinkadink/ComfyUI-AnimateDiff-Evolved/blob/90fb1331201a4b29488089e4fbffc0d82cc6d0a9/animatediff/sample_settings.py#L465
 def apply_freenoise(noise: torch.Tensor, context_length: int, context_overlap: int, seed: int):
     logging.info(f"Context windows: Applying FreeNoise")
