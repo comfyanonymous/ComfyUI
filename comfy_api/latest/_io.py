@@ -29,6 +29,7 @@ from comfy_api.internal import (_ComfyNodeInternal, _NodeOutputInternal, classpr
     prune_dict, shallow_clone_class)
 from comfy_api.latest._resources import Resources, ResourcesLocal
 from comfy_execution.graph_utils import ExecutionBlocker
+from ._util import MESH, VOXEL
 
 # from comfy_extras.nodes_images import SVG as SVG_ # NOTE: needs to be moved before can be imported due to circular reference
 
@@ -636,6 +637,10 @@ class UpscaleModel(ComfyTypeIO):
     if TYPE_CHECKING:
         Type = ImageModelDescriptor
 
+@comfytype(io_type="LATENT_UPSCALE_MODEL")
+class LatentUpscaleModel(ComfyTypeIO):
+    Type = Any
+
 @comfytype(io_type="AUDIO")
 class Audio(ComfyTypeIO):
     class AudioDict(TypedDict):
@@ -664,11 +669,11 @@ class LossMap(ComfyTypeIO):
 
 @comfytype(io_type="VOXEL")
 class Voxel(ComfyTypeIO):
-    Type = Any # TODO: VOXEL class is defined in comfy_extras/nodes_hunyuan3d.py; should be moved to somewhere else before referenced directly in v3
+    Type = VOXEL
 
 @comfytype(io_type="MESH")
 class Mesh(ComfyTypeIO):
-    Type = Any # TODO: MESH class is defined in comfy_extras/nodes_hunyuan3d.py; should be moved to somewhere else before referenced directly in v3
+    Type = MESH
 
 @comfytype(io_type="HOOKS")
 class Hooks(ComfyTypeIO):
