@@ -111,7 +111,7 @@ class AutogrowNamesTestNode(io.ComfyNode):
             inputs=[
                 io.Autogrow.Input("autogrow", template=template)
             ],
-            outputs=[io.String.Output("output")],
+            outputs=[io.String.Output()],
         )
 
     @classmethod
@@ -131,7 +131,7 @@ class AutogrowPrefixTestNode(io.ComfyNode):
             inputs=[
                 io.Autogrow.Input("autogrow", template=template)
             ],
-            outputs=[io.String.Output("output")],
+            outputs=[io.String.Output()],
         )
 
     @classmethod
