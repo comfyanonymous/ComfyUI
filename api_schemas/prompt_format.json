@@ -1,0 +1,205 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/comfyanonymous/ComfyUI/schemas/prompt_format.json",
+  "title": "ComfyUI Prompt API Format",
+  "description": "JSON Schema for the ComfyUI Prompt API format used with the /prompt endpoint",
+  "type": "object",
+  "properties": {
+    "prompt": {
+      "type": "object",
+      "description": "The node graph defining the workflow to execute",
+      "patternProperties": {
+        "^[0-9]+$": {
+          "type": "object",
+          "description": "Node definition with numeric ID as key",
+          "properties": {
+            "class_type": {
+              "type": "string",
+              "description": "The class name of the node (e.g., 'CheckpointLoaderSimple', 'KSampler')",
+              "minLength": 1
+            },
+            "inputs": {
+              "type": "object",
+              "description": "Input values or connections for this node",
+              "patternProperties": {
+                ".*": {
+                  "oneOf": [
+                    {
+                      "type": "array",
+                      "description": "Connection to another node [node_id, output_slot]",
+                      "prefixItems": [
+                        {
+                          "type": "string",
+                          "description": "ID of the source node",
+                          "pattern": "^[0-9]+$"
+                        },
+                        {
+                          "type": "integer",
+                          "description": "Output slot index of the source node",
+                          "minimum": 0
+                        }
+                      ],
+                      "items": false,
+                      "minItems": 2,
+                      "maxItems": 2
+                    },
+                    {
+                      "not": {
+                        "type": "array",
+                        "minItems": 2,
+                        "maxItems": 2,
+                        "prefixItems": [
+                          {"type": "string", "pattern": "^[0-9]+$"},
+                          {"type": "integer", "minimum": 0}
+                        ]
+                      },
+                      "description": "Direct input value (string, number, boolean, object, or array)"
+                    }
+                  ]
+                }
+              },
+              "additionalProperties": true
+            },
+            "_meta": {
+              "type": "object",
+              "description": "Optional metadata for the node (not used in execution)",
+              "properties": {
+                "title": {
+                  "type": "string",
+                  "description": "Custom title for the node"
+                }
+              },
+              "additionalProperties": true
+            }
+          },
+          "required": ["class_type", "inputs"],
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false,
+      "minProperties": 1
+    },
+    "prompt_id": {
+      "type": "string",
+      "description": "Optional unique identifier for this prompt execution. If not provided, a UUID will be generated.",
+      "pattern": "^[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}$|^[a-fA-F0-9]{32}$"
+    },
+    "number": {
+      "type": "number",
+      "description": "Optional execution priority number. Lower numbers execute first."
+    },
+    "front": {
+      "type": "boolean",
+      "description": "If true, this prompt will be prioritized (given a negative number)."
+    },
+    "extra_data": {
+      "type": "object",
+      "description": "Additional metadata and configuration for the execution",
+      "properties": {
+        "client_id": {
+          "type": "string",
+          "description": "Client identifier for WebSocket communication"
+        }
+      },
+      "additionalProperties": true
+    },
+    "client_id": {
+      "type": "string",
+      "description": "Client identifier for WebSocket communication (alternative to extra_data.client_id)"
+    },
+    "partial_execution_targets": {
+      "type": "array",
+      "description": "Optional array of node IDs to execute selectively. If provided, only these nodes (and their dependencies) will be executed.",
+      "items": {
+        "type": "string",
+        "pattern": "^[0-9]+$",
+        "description": "Node ID to execute"
+      },
+      "uniqueItems": true
+    }
+  },
+  "required": ["prompt"],
+  "additionalProperties": false,
+  "examples": [
+    {
+      "prompt": {
+        "1": {
+          "class_type": "CheckpointLoaderSimple",
+          "inputs": {
+            "ckpt_name": "model.safetensors"
+          }
+        },
+        "2": {
+          "class_type": "CLIPTextEncode",
+          "inputs": {
+            "text": "a beautiful landscape",
+            "clip": ["1", 1]
+          }
+        },
+        "3": {
+          "class_type": "CLIPTextEncode", 
+          "inputs": {
+            "text": "blurry, low quality",
+            "clip": ["1", 1]
+          }
+        },
+        "4": {
+          "class_type": "KSampler",
+          "inputs": {
+            "seed": 12345,
+            "steps": 20,
+            "cfg": 7.0,
+            "sampler_name": "euler",
+            "scheduler": "normal",
+            "denoise": 1.0,
+            "model": ["1", 0],
+            "positive": ["2", 0],
+            "negative": ["3", 0],
+            "latent_image": ["5", 0]
+          }
+        },
+        "5": {
+          "class_type": "EmptyLatentImage",
+          "inputs": {
+            "width": 512,
+            "height": 512,
+            "batch_size": 1
+          }
+        },
+        "6": {
+          "class_type": "VAEDecode",
+          "inputs": {
+            "samples": ["4", 0],
+            "vae": ["1", 2]
+          }
+        },
+        "7": {
+          "class_type": "SaveImage",
+          "inputs": {
+            "filename_prefix": "ComfyUI",
+            "images": ["6", 0]
+          }
+        }
+      }
+    },
+    {
+      "prompt": {
+        "1": {
+          "class_type": "LoadImage",
+          "inputs": {
+            "image": "input.png"
+          }
+        },
+        "2": {
+          "class_type": "SaveImage",
+          "inputs": {
+            "filename_prefix": "output",
+            "images": ["1", 0]
+          }
+        }
+      },
+      "prompt_id": "550e8400-e29b-41d4-a716-446655440000",
+      "client_id": "client_123"
+    }
+  ]
+}
