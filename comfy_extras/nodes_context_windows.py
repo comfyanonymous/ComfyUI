@@ -27,6 +27,7 @@ class ContextWindowsManualNode(io.ComfyNode):
                 io.Combo.Input("fuse_method", options=comfy.context_windows.ContextFuseMethods.LIST_STATIC, default=comfy.context_windows.ContextFuseMethods.PYRAMID, tooltip="The method to use to fuse the context windows."),
                 io.Int.Input("dim", min=0, max=5, default=0, tooltip="The dimension to apply the context windows to."),
                 io.Boolean.Input("freenoise", default=False, tooltip="Whether to apply FreeNoise noise shuffling, improves window blending."),
+                io.String.Input("cond_retain_index_list", default="", tooltip="List of latent indices to retain in the conditioning tensors for each window, for example setting this to '0' will use the initial start image for each window."),
             ],
             outputs=[
                 io.Model.Output(tooltip="The model with context windows applied during sampling."),
@@ -35,7 +36,7 @@ class ContextWindowsManualNode(io.ComfyNode):
         )
 
     @classmethod
-    def execute(cls, model: io.Model.Type, context_length: int, context_overlap: int, context_schedule: str, context_stride: int, closed_loop: bool, fuse_method: str, dim: int, freenoise: bool) -> io.Model:
+    def execute(cls, model: io.Model.Type, context_length: int, context_overlap: int, context_schedule: str, context_stride: int, closed_loop: bool, fuse_method: str, dim: int, freenoise: bool, cond_retain_index_list: list[int]=[]) -> io.Model:
         model = model.clone()
         model.model_options["context_handler"] = comfy.context_windows.IndexListContextHandler(
             context_schedule=comfy.context_windows.get_matching_context_schedule(context_schedule),
@@ -45,7 +46,8 @@ class ContextWindowsManualNode(io.ComfyNode):
             context_stride=context_stride,
             closed_loop=closed_loop,
             dim=dim,
-            freenoise=freenoise)
+            freenoise=freenoise,
+            cond_retain_index_list=cond_retain_index_list)
         # make memory usage calculation only take into account the context window latents
         comfy.context_windows.create_prepare_sampling_wrapper(model)
         if freenoise: # no other use for this wrapper at this time
@@ -73,14 +75,15 @@ class WanContextWindowsManualNode(ContextWindowsManualNode):
                 io.Boolean.Input("closed_loop", default=False, tooltip="Whether to close the context window loop; only applicable to looped schedules."),
                 io.Combo.Input("fuse_method", options=comfy.context_windows.ContextFuseMethods.LIST_STATIC, default=comfy.context_windows.ContextFuseMethods.PYRAMID, tooltip="The method to use to fuse the context windows."),
                 io.Boolean.Input("freenoise", default=False, tooltip="Whether to apply FreeNoise noise shuffling, improves window blending."),
+                io.String.Input("cond_retain_index_list", default="", tooltip="List of latent indices to retain in the conditioning tensors for each window, for example setting this to '0' will use the initial start image for each window."),
         ]
         return schema
 
     @classmethod
-    def execute(cls, model: io.Model.Type, context_length: int, context_overlap: int, context_schedule: str, context_stride: int, closed_loop: bool, fuse_method: str, freenoise: bool) -> io.Model:
+    def execute(cls, model: io.Model.Type, context_length: int, context_overlap: int, context_schedule: str, context_stride: int, closed_loop: bool, fuse_method: str, freenoise: bool, cond_retain_index_list: list[int]=[]) -> io.Model:
         context_length = max(((context_length - 1) // 4) + 1, 1)  # at least length 1
         context_overlap = max(((context_overlap - 1) // 4) + 1, 0)  # at least overlap 0
-        return super().execute(model, context_length, context_overlap, context_schedule, context_stride, closed_loop, fuse_method, dim=2, freenoise=freenoise)
+        return super().execute(model, context_length, context_overlap, context_schedule, context_stride, closed_loop, fuse_method, dim=2, freenoise=freenoise, cond_retain_index_list=cond_retain_index_list)
 
 
 class ContextWindowsExtension(ComfyExtension):

@@ -56,13 +56,17 @@ class IndexListContextWindow(ContextWindowABC):
         self.context_length = len(index_list)
         self.dim = dim
 
-    def get_tensor(self, full: torch.Tensor, device=None, dim=None) -> torch.Tensor:
+    def get_tensor(self, full: torch.Tensor, device=None, dim=None, retain_index_list=[]) -> torch.Tensor:
         if dim is None:
             dim = self.dim
         if dim == 0 and full.shape[dim] == 1:
             return full
         idx = tuple([slice(None)] * dim + [self.index_list])
-        return full[idx].to(device)
+        window = full[idx]
+        if retain_index_list:
+            idx = tuple([slice(None)] * dim + [retain_index_list])
+            window[idx] = full[idx]
+        return window.to(device)
 
     def add_window(self, full: torch.Tensor, to_add: torch.Tensor, dim=None) -> torch.Tensor:
         if dim is None:
@@ -94,7 +98,8 @@ class ContextFuseMethod:
 
 ContextResults = collections.namedtuple("ContextResults", ['window_idx', 'sub_conds_out', 'sub_conds', 'window'])
 class IndexListContextHandler(ContextHandlerABC):
-    def __init__(self, context_schedule: ContextSchedule, fuse_method: ContextFuseMethod, context_length: int=1, context_overlap: int=0, context_stride: int=1, closed_loop: bool=False, dim:int=0, freenoise: bool=False):
+    def __init__(self, context_schedule: ContextSchedule, fuse_method: ContextFuseMethod, context_length: int=1, context_overlap: int=0, context_stride: int=1, 
+                 closed_loop: bool=False, dim:int=0, freenoise: bool=False, cond_retain_index_list: list[int]=[]):
         self.context_schedule = context_schedule
         self.fuse_method = fuse_method
         self.context_length = context_length
@@ -104,6 +109,7 @@ class IndexListContextHandler(ContextHandlerABC):
         self.dim = dim
         self._step = 0
         self.freenoise = freenoise
+        self.cond_retain_index_list = [int(x.strip()) for x in cond_retain_index_list.split(",")] if cond_retain_index_list else []
 
         self.callbacks = {}
 
@@ -111,6 +117,8 @@ class IndexListContextHandler(ContextHandlerABC):
         # for now, assume first dim is batch - should have stored on BaseModel in actual implementation
         if x_in.size(self.dim) > self.context_length:
             logging.info(f"Using context windows {self.context_length} with overlap {self.context_overlap} for {x_in.size(self.dim)} frames.")
+            if self.cond_retain_index_list:
+                logging.info(f"Retaining original cond for indexes: {self.cond_retain_index_list}")
             return True
         return False
 
@@ -154,7 +162,7 @@ class IndexListContextHandler(ContextHandlerABC):
                             elif hasattr(cond_value, "cond") and isinstance(cond_value.cond, torch.Tensor):
                                 if  (self.dim < cond_value.cond.ndim and cond_value.cond.size(self.dim) == x_in.size(self.dim)) or \
                                     (cond_value.cond.ndim < self.dim and cond_value.cond.size(0) == x_in.size(self.dim)):
-                                    new_cond_item[cond_key] = cond_value._copy_with(window.get_tensor(cond_value.cond, device))
+                                    new_cond_item[cond_key] = cond_value._copy_with(window.get_tensor(cond_value.cond, device, retain_index_list=self.cond_retain_index_list))
                             elif cond_key == "num_video_frames": # for SVD
                                 new_cond_item[cond_key] = cond_value._copy_with(cond_value.cond)
                                 new_cond_item[cond_key].cond = window.context_length
