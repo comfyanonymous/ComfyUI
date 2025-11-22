@@ -1,0 +1,340 @@
+/**
+ * ComfyUI Frontend Extension Example
+ * 
+ * This file demonstrates how to create a frontend extension for ComfyUI.
+ * Frontend extensions allow you to customize and extend the ComfyUI web interface
+ * by adding new functionality, modifying node behavior, or creating custom UI elements.
+ * 
+ * IMPORTANT: This is an EXAMPLE file. To use it:
+ * 1. Remove the .example extension (rename to frontend_extension.js)
+ * 2. Place it in a subdirectory of your custom node (conventionally called 'js' or 'web/js')
+ * 3. Export WEB_DIRECTORY in your Python module's __init__.py:
+ *    ```
+ *    WEB_DIRECTORY = "./js"  # or "./web/js"
+ *    __all__ = ["NODE_CLASS_MAPPINGS", "WEB_DIRECTORY"]
+ *    ```
+ * 
+ * @see https://docs.comfy.org/custom-nodes/js/javascript_overview
+ * @see custom_nodes/example_node.py.example for the Python counterpart
+ */
+
+// Import the main ComfyUI app object
+// The app object provides access to the ComfyUI API and allows you to register extensions
+import { app } from "../../scripts/app.js";
+
+/**
+ * EXTENSION REGISTRATION
+ * ======================
+ * 
+ * To create a frontend extension, you need to:
+ * 1. Import the app object from ComfyUI
+ * 2. Call app.registerExtension() with an extension configuration object
+ * 3. The configuration object must have a unique 'name' property
+ * 4. Add one or more lifecycle hooks or event handlers
+ */
+
+app.registerExtension({
+    // REQUIRED: Unique name for your extension
+    // Use a namespace to avoid conflicts (e.g., "company.project.feature")
+    name: "example.frontend.extension",
+
+    /**
+     * LIFECYCLE HOOKS
+     * ===============
+     * These methods are called at specific points in the ComfyUI lifecycle.
+     * All hooks are optional - only implement the ones you need.
+     */
+
+    /**
+     * setup() - Called once when the extension is first loaded
+     * 
+     * This is typically used for:
+     * - Registering event listeners
+     * - Adding global UI elements
+     * - Initializing extension state
+     * - Setting up API communications
+     * 
+     * @returns {Promise<void>} Can return a promise for async operations
+     */
+    async setup() {
+        console.log("[Example Extension] Setup complete!");
+        
+        // Example: Listen for custom events from the server
+        // When your Python node sends a message via PromptServer.instance.send_sync(),
+        // you can listen for it here
+        app.api.addEventListener("example.custom.event", (event) => {
+            console.log("Received custom event:", event.detail);
+        });
+    },
+
+    /**
+     * async beforeRegisterNodeDef(nodeType, nodeData, app)
+     * 
+     * Called BEFORE each node type is registered with LiteGraph.
+     * This allows you to modify node definitions before they're used.
+     * 
+     * Use cases:
+     * - Add custom widgets to nodes
+     * - Modify node appearance
+     * - Add custom node behaviors
+     * - Override node methods
+     * 
+     * @param {Function} nodeType - The node class constructor
+     * @param {Object} nodeData - The node's metadata from the server
+     * @param {Object} app - The ComfyUI app instance
+     */
+    async beforeRegisterNodeDef(nodeType, nodeData, app) {
+        // Example: Only modify nodes with a specific class name
+        if (nodeData.name === "ExampleNode") {
+            console.log("Modifying ExampleNode before registration");
+            
+            // You can modify the prototype to change node behavior
+            // For example, override the onExecuted method to handle results
+            const onExecuted = nodeType.prototype.onExecuted;
+            nodeType.prototype.onExecuted = function(message) {
+                // Call the original method first
+                onExecuted?.apply(this, arguments);
+                
+                // Add your custom logic
+                console.log("ExampleNode executed with output:", message);
+            };
+        }
+    },
+
+    /**
+     * async nodeCreated(node)
+     * 
+     * Called when a new node instance is created.
+     * This happens when:
+     * - A node is added to the canvas
+     * - A workflow is loaded
+     * 
+     * Use cases:
+     * - Initialize node-specific state
+     * - Add custom properties to node instances
+     * - Set up node-level event handlers
+     * 
+     * @param {LGraphNode} node - The newly created node instance
+     */
+    async nodeCreated(node) {
+        if (node.comfyClass === "ExampleNode") {
+            console.log("ExampleNode instance created:", node);
+            
+            // Example: Add a custom property
+            node.customProperty = "custom value";
+            
+            // Example: Add a custom callback that runs when widgets change
+            const onWidgetChange = node.onWidgetChanged;
+            node.onWidgetChanged = function(name, value, oldValue, widget) {
+                onWidgetChange?.apply(this, arguments);
+                console.log(`Widget '${name}' changed from ${oldValue} to ${value}`);
+            };
+        }
+    },
+
+    /**
+     * async loadedGraphNode(node, app)
+     * 
+     * Called when a node is loaded from a saved workflow.
+     * Similar to nodeCreated but specifically for loaded workflows.
+     * 
+     * @param {LGraphNode} node - The loaded node
+     * @param {Object} app - The ComfyUI app instance
+     */
+    async loadedGraphNode(node, app) {
+        if (node.comfyClass === "ExampleNode") {
+            console.log("ExampleNode loaded from workflow");
+        }
+    },
+
+    /**
+     * IMPORTANT NODE FIELDS AND PROPERTIES
+     * ====================================
+     * 
+     * When working with nodes, these are key properties you'll use:
+     * 
+     * node.comfyClass - String identifying the node type (e.g., "ExampleNode")
+     * node.type - The LiteGraph node type
+     * node.id - Unique numeric ID for this node instance
+     * node.title - Display title of the node
+     * node.properties - Object containing node properties
+     * node.widgets - Array of UI widgets (inputs, sliders, etc.)
+     * node.imgs - Array of image data for nodes that output images
+     *            Format: [{src: "data:image/png;base64,...", type: "output"}]
+     *            This is commonly used for preview nodes
+     * node.size - [width, height] array for node dimensions
+     * node.pos - [x, y] array for node position on canvas
+     */
+
+    /**
+     * WORKING WITH IMAGES
+     * ===================
+     * 
+     * The node.imgs field is particularly important for image-handling nodes.
+     * It's used by ComfyUI to display image previews on nodes.
+     * 
+     * Example: Accessing images from a node
+     */
+    async nodeCreated(node) {
+        if (node.comfyClass === "PreviewImage" || node.comfyClass === "SaveImage") {
+            // Images will be populated in node.imgs after execution
+            // Each image object has: {src: base64Data, type: "output" or "temp"}
+            
+            // You can add a callback to detect when images are updated
+            const originalCallback = node.callback;
+            node.callback = function() {
+                originalCallback?.apply(this, arguments);
+                
+                if (this.imgs && this.imgs.length > 0) {
+                    console.log(`Node has ${this.imgs.length} image(s)`);
+                    // Access image data: this.imgs[0].src
+                }
+            };
+        }
+    },
+
+    /**
+     * ADDING CUSTOM WIDGETS
+     * =====================
+     * 
+     * Widgets are UI controls on nodes (text inputs, sliders, dropdowns, etc.)
+     * You can add custom widgets in beforeRegisterNodeDef:
+     */
+    async beforeRegisterNodeDef(nodeType, nodeData, app) {
+        if (nodeData.name === "ExampleNode") {
+            // Add a custom button widget
+            const onNodeCreated = nodeType.prototype.onNodeCreated;
+            nodeType.prototype.onNodeCreated = function() {
+                onNodeCreated?.apply(this, arguments);
+                
+                // Add a button widget
+                this.addWidget("button", "Click Me", null, () => {
+                    console.log("Button clicked on node:", this.id);
+                    alert("Custom button clicked!");
+                });
+            };
+        }
+    },
+
+    /**
+     * CUSTOM UI ELEMENTS
+     * ==================
+     * 
+     * You can add custom UI elements to the ComfyUI interface.
+     * This is typically done in the setup() method.
+     */
+    async setup() {
+        // Example: Add a custom button to the menu
+        const menu = document.querySelector(".comfy-menu");
+        if (menu) {
+            const button = document.createElement("button");
+            button.textContent = "Custom Action";
+            button.onclick = () => {
+                console.log("Custom menu button clicked");
+            };
+            menu.appendChild(button);
+        }
+    },
+
+    /**
+     * API COMMUNICATION
+     * =================
+     * 
+     * Extensions can communicate with the server through the API.
+     * The app.api object provides methods for HTTP requests and WebSocket messaging.
+     */
+    async setup() {
+        // Example: Send an API request to your custom endpoint
+        // (You would define this endpoint in your Python module)
+        try {
+            const response = await fetch("/api/example/endpoint", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({ data: "example" }),
+            });
+            const result = await response.json();
+            console.log("API response:", result);
+        } catch (error) {
+            console.error("API request failed:", error);
+        }
+
+        // Example: Send a message through WebSocket
+        // This is useful for real-time communication
+        app.api.addEventListener("example.message", (event) => {
+            console.log("Received WebSocket message:", event.detail);
+        });
+    },
+
+    /**
+     * HOOKING INTO WORKFLOW EXECUTION
+     * ===============================
+     * 
+     * You can monitor when workflows are queued, executing, or completed.
+     */
+    async setup() {
+        // Listen for when prompts are executed
+        app.api.addEventListener("executed", (event) => {
+            const data = event.detail;
+            console.log("Node executed:", data.node);
+            console.log("Output:", data.output);
+        });
+
+        // Listen for execution progress
+        app.api.addEventListener("execution_start", (event) => {
+            console.log("Workflow execution started");
+        });
+
+        app.api.addEventListener("execution_cached", (event) => {
+            console.log("Some nodes were cached:", event.detail);
+        });
+    },
+
+    /**
+     * BEST PRACTICES
+     * ==============
+     * 
+     * 1. Use unique, namespaced extension names
+     * 2. Always check if a method exists before calling it (use optional chaining)
+     * 3. Preserve existing functionality when overriding methods
+     * 4. Use console.log for debugging, but remove or disable in production
+     * 5. Handle errors gracefully
+     * 6. Document your code thoroughly
+     * 7. Test with different node types and workflows
+     */
+
+    /**
+     * DEBUGGING TIPS
+     * ==============
+     * 
+     * - Use browser DevTools (F12) to inspect console logs
+     * - Set breakpoints in your extension code
+     * - Use console.log() to track extension lifecycle
+     * - Inspect the `app` object in console to explore the API
+     * - Check Network tab for API requests
+     * - Use `node.serialize()` to see the full node state
+     */
+});
+
+/**
+ * ADDITIONAL RESOURCES
+ * ====================
+ * 
+ * - ComfyUI Documentation: https://docs.comfy.org
+ * - LiteGraph Documentation: https://github.com/jagenjo/litegraph.js
+ * - Example Extensions: Browse other custom nodes with frontend code
+ * - ComfyUI Source: https://github.com/comfyanonymous/ComfyUI
+ * 
+ * COMMON USE CASES
+ * ================
+ * 
+ * 1. Custom Node UI: Add special widgets or controls to your nodes
+ * 2. Image Processing: Display or manipulate images in the frontend
+ * 3. Real-time Preview: Show live previews during generation
+ * 4. Workflow Automation: Add shortcuts or automated actions
+ * 5. Custom Menus: Add new menu items or panels
+ * 6. Node Validation: Add client-side validation for node inputs
+ * 7. Analytics: Track usage or performance metrics
+ * 8. Integration: Connect to external services or APIs
+ */
