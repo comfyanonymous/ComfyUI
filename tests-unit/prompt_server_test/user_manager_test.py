@@ -287,3 +287,72 @@ async def test_listuserdata_v2_url_encoded_path(aiohttp_client, app, tmp_path):
     assert entry["name"] == "file.txt"
     # Ensure the path is correctly decoded and uses forward slash
     assert entry["path"] == "my dir/file.txt"
+
+
+async def test_post_userdata_json_pretty_print(aiohttp_client, app, tmp_path):
+    """Test that JSON files are saved with pretty printing (indentation)"""
+    import json
+
+    client = await aiohttp_client(app)
+
+    # Create a compact JSON workflow
+    workflow_data = {
+        "nodes": [
+            {"id": "1", "type": "LoadImage", "inputs": {"image": "test.png"}},
+            {"id": "2", "type": "SaveImage", "inputs": {"images": ["1", 0]}}
+        ],
+        "metadata": {"version": "1.0", "author": "test"}
+    }
+    compact_json = json.dumps(workflow_data).encode('utf-8')
+
+    # Save as JSON file
+    resp = await client.post("/userdata/workflow.json", data=compact_json)
+    assert resp.status == 200
+
+    # Read the saved file and verify it's pretty-printed
+    with open(tmp_path / "workflow.json", "r", encoding='utf-8') as f:
+        saved_content = f.read()
+
+    # Verify the file contains indentation (pretty-printed)
+    assert "  " in saved_content  # Should have 2-space indentation
+    assert "\n" in saved_content  # Should have newlines
+
+    # Verify the content is still valid JSON and matches original data
+    saved_data = json.loads(saved_content)
+    assert saved_data == workflow_data
+
+    # Verify it's actually formatted (not compact)
+    # Compact JSON would be much shorter
+    assert len(saved_content) > len(compact_json)
+
+
+async def test_post_userdata_json_invalid_fallback(aiohttp_client, app, tmp_path):
+    """Test that invalid JSON is saved as-is without error"""
+    client = await aiohttp_client(app)
+
+    # Create invalid JSON content
+    invalid_json = b'{"invalid": json content}'
+
+    # Save as JSON file - should not fail
+    resp = await client.post("/userdata/invalid.json", data=invalid_json)
+    assert resp.status == 200
+
+    # Verify file was saved as-is
+    with open(tmp_path / "invalid.json", "rb") as f:
+        assert f.read() == invalid_json
+
+
+async def test_post_userdata_non_json_unchanged(aiohttp_client, app, tmp_path):
+    """Test that non-JSON files are saved unchanged"""
+    client = await aiohttp_client(app)
+
+    # Create binary content
+    binary_content = b'\x00\x01\x02\x03\x04\x05'
+
+    # Save as non-JSON file
+    resp = await client.post("/userdata/test.bin", data=binary_content)
+    assert resp.status == 200
+
+    # Verify file was saved exactly as-is
+    with open(tmp_path / "test.bin", "rb") as f:
+        assert f.read() == binary_content
