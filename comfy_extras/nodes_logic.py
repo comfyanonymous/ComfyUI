@@ -15,8 +15,8 @@ class SwitchNode(io.ComfyNode):
             is_experimental=True,
             inputs=[
                 io.Boolean.Input("switch"),
-                io.MatchType.Input("on_false", template=template, lazy=True),
-                io.MatchType.Input("on_true", template=template, lazy=True),
+                io.MatchType.Input("on_false", template=template, lazy=True, optional=True),
+                io.MatchType.Input("on_true", template=template, lazy=True, optional=True),
             ],
             outputs=[
                 io.MatchType.Output(template=template, display_name="output"),
@@ -24,14 +24,35 @@ class SwitchNode(io.ComfyNode):
         )
 
     @classmethod
-    def check_lazy_status(cls, switch, on_false=None, on_true=None):
+    def check_lazy_status(cls, switch, on_false=..., on_true=...):
+        # We use ... instead of None, as None is passed for connected-but-unevaluated inputs.
+        # This trick allows us to ignore the value of the switch and still be able to run execute().
+
+        # One of the inputs may be missing, in which case we need to evaluate the other input
+        if on_false is ...:
+            return ["on_true"]
+        if on_true is ...:
+            return ["on_false"]
+        # Normal lazy switch operation
         if switch and on_true is None:
             return ["on_true"]
         if not switch and on_false is None:
             return ["on_false"]
 
     @classmethod
-    def execute(cls, switch, on_true, on_false) -> io.NodeOutput:
+    def validate_inputs(cls, switch, on_false=..., on_true=...):
+        # This check happens before check_lazy_status(), so we can eliminate the case where
+        # both inputs are missing.
+        if on_false is ... and on_true is ...:
+            return "At least one of on_false or on_true must be connected to Switch node"
+        return True
+
+    @classmethod
+    def execute(cls, switch, on_true=..., on_false=...) -> io.NodeOutput:
+        if on_true is ...:
+            return io.NodeOutput(on_false)
+        if on_false is ...:
+            return io.NodeOutput(on_true)
         return io.NodeOutput(on_true if switch else on_false)
 
 
