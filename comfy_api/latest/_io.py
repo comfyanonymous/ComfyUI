@@ -923,6 +923,7 @@ class Autogrow(ComfyTypeI):
             self.input.validate()
 
         def add_to_dict_live_inputs(self, d: dict[str], live_inputs: dict[str], curr_prefix=''):
+            curr_prefix = f"{curr_prefix}{self.id}."
             real_inputs = []
             for name, input in self.cached_inputs.items():
                 if name in live_inputs:
@@ -1013,8 +1014,8 @@ class DynamicCombo(ComfyTypeI):
 
         def add_to_dict_live_inputs(self, d: dict[str], live_inputs: dict[str], curr_prefix=''):
             # check if dynamic input's id is in live_inputs
-            curr_prefix = f"{curr_prefix}{self.id}."
             if self.id in live_inputs:
+                curr_prefix = f"{curr_prefix}{self.id}."
                 key = live_inputs[self.id]
                 selected_option = None
                 for option in self.options:
