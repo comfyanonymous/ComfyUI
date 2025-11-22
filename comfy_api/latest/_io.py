@@ -898,7 +898,9 @@ class Autogrow(ComfyTypeI):
         def __init__(self, input: Input):
             # dynamic inputs are not allowed as the template input
             assert(not isinstance(input, DynamicInput))
-            self.input = input
+            self.input = copy.copy(input)
+            if isinstance(self.input, WidgetInput):
+                self.input.force_input = True
             self.names: list[str] = []
             self.cached_inputs = {}
 
@@ -934,14 +936,14 @@ class Autogrow(ComfyTypeI):
         def __init__(self, input: Input, prefix: str, min: int=1, max: int=None):
             super().__init__(input)
             self.prefix = prefix
-            assert(min >= 1)
+            assert(min >= 0)
             if not max:
                 max = 10
-            assert(max >= 1)
+            assert(max >= 2)
             assert(max <= Autogrow._MaxNames)
             self.min = min
             self.max = max
-            self.names = [f"{self.prefix}{i+1}" for i in range(self.max)]
+            self.names = [f"{self.prefix}{i}" for i in range(self.max)]
             self._create_cached_inputs()
 
         def as_dict(self):
@@ -955,7 +957,7 @@ class Autogrow(ComfyTypeI):
         def __init__(self, input: Input, names: list[str], min: int=1):
             super().__init__(input)
             self.names = names[:Autogrow._MaxNames]
-            assert(min >= 1)
+            assert(min >= 0)
             self.min = min
             self._create_cached_inputs()
 
@@ -988,6 +990,10 @@ class Autogrow(ComfyTypeI):
 
         def add_to_dict_live_inputs(self, d: dict[str], live_inputs: dict[str], curr_prefix=''):
             curr_prefix = f"{curr_prefix}{self.id}."
+            # need to remove self from expected inputs dictionary; replaced by template inputs in frontend
+            for inner_dict in d.values():
+                if self.id in inner_dict:
+                    del inner_dict[self.id]
             self.template.add_to_dict_live_inputs(d, live_inputs, curr_prefix)
 
 @comfytype(io_type="COMFY_DYNAMICCOMBO_V3")

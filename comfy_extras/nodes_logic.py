@@ -103,7 +103,7 @@ class DCTestNode(io.ComfyNode):
 class AutogrowNamesTestNode(io.ComfyNode):
     @classmethod
     def define_schema(cls):
-        template = io.Autogrow.TemplateNames(input=io.String.Input("string"), names=["a", "b", "c"])
+        template = io.Autogrow.TemplateNames(input=io.Float.Input("float"), names=["a", "b", "c"])
         return io.Schema(
             node_id="AutogrowNamesTestNode",
             display_name="AutogrowNamesTest",
@@ -117,13 +117,13 @@ class AutogrowNamesTestNode(io.ComfyNode):
     @classmethod
     def execute(cls, autogrow: io.Autogrow.Type) -> io.NodeOutput:
         vals = list(autogrow.values())
-        combined = "".join(vals)
+        combined = ",".join([str(x) for x in vals])
         return io.NodeOutput(combined)
 
 class AutogrowPrefixTestNode(io.ComfyNode):
     @classmethod
     def define_schema(cls):
-        template = io.Autogrow.TemplatePrefix(input=io.String.Input("string"), prefix="string", min=1, max=10)
+        template = io.Autogrow.TemplatePrefix(input=io.Float.Input("float"), prefix="float", min=1, max=10)
         return io.Schema(
             node_id="AutogrowPrefixTestNode",
             display_name="AutogrowPrefixTest",
@@ -137,7 +137,7 @@ class AutogrowPrefixTestNode(io.ComfyNode):
     @classmethod
     def execute(cls, autogrow: io.Autogrow.Type) -> io.NodeOutput:
         vals = list(autogrow.values())
-        combined = "".join(vals)
+        combined = ",".join([str(x) for x in vals])
         return io.NodeOutput(combined)
 
 class LogicExtension(ComfyExtension):
