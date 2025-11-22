@@ -61,13 +61,13 @@ class IndexListContextWindow(ContextWindowABC):
             dim = self.dim
         if dim == 0 and full.shape[dim] == 1:
             return full
-        idx = [slice(None)] * dim + [self.index_list]
+        idx = tuple([slice(None)] * dim + [self.index_list])
         return full[idx].to(device)
 
     def add_window(self, full: torch.Tensor, to_add: torch.Tensor, dim=None) -> torch.Tensor:
         if dim is None:
             dim = self.dim
-        idx = [slice(None)] * dim + [self.index_list]
+        idx = tuple([slice(None)] * dim + [self.index_list])
         full[idx] += to_add
         return full
 
@@ -94,7 +94,7 @@ class ContextFuseMethod:
 
 ContextResults = collections.namedtuple("ContextResults", ['window_idx', 'sub_conds_out', 'sub_conds', 'window'])
 class IndexListContextHandler(ContextHandlerABC):
-    def __init__(self, context_schedule: ContextSchedule, fuse_method: ContextFuseMethod, context_length: int=1, context_overlap: int=0, context_stride: int=1, closed_loop=False, dim=0):
+    def __init__(self, context_schedule: ContextSchedule, fuse_method: ContextFuseMethod, context_length: int=1, context_overlap: int=0, context_stride: int=1, closed_loop: bool=False, dim:int=0, freenoise: bool=False):
         self.context_schedule = context_schedule
         self.fuse_method = fuse_method
         self.context_length = context_length
@@ -103,13 +103,14 @@ class IndexListContextHandler(ContextHandlerABC):
         self.closed_loop = closed_loop
         self.dim = dim
         self._step = 0
+        self.freenoise = freenoise
 
         self.callbacks = {}
 
     def should_use_context(self, model: BaseModel, conds: list[list[dict]], x_in: torch.Tensor, timestep: torch.Tensor, model_options: dict[str]) -> bool:
         # for now, assume first dim is batch - should have stored on BaseModel in actual implementation
         if x_in.size(self.dim) > self.context_length:
-            logging.info(f"Using context windows {self.context_length} for {x_in.size(self.dim)} frames.")
+            logging.info(f"Using context windows {self.context_length} with overlap {self.context_overlap} for {x_in.size(self.dim)} frames.")
             return True
         return False
 
@@ -252,8 +253,8 @@ class IndexListContextHandler(ContextHandlerABC):
                     prev_weight = (bias_total / (bias_total + bias))
                     new_weight = (bias / (bias_total + bias))
                     # account for dims of tensors
-                    idx_window = [slice(None)] * self.dim + [idx]
-                    pos_window = [slice(None)] * self.dim + [pos]
+                    idx_window = tuple([slice(None)] * self.dim + [idx])
+                    pos_window = tuple([slice(None)] * self.dim + [pos])
                     # apply new values
                     conds_final[i][idx_window] = conds_final[i][idx_window] * prev_weight + sub_conds_out[i][pos_window] * new_weight
                     biases_final[i][idx] = bias_total + bias
@@ -286,6 +287,28 @@ def create_prepare_sampling_wrapper(model: ModelPatcher):
         comfy.patcher_extension.WrappersMP.PREPARE_SAMPLING,
         "ContextWindows_prepare_sampling",
         _prepare_sampling_wrapper
+    )
+
+
+def _sampler_sample_wrapper(executor, guider, sigmas, extra_args, callback, noise, *args, **kwargs):
+    model_options = extra_args.get("model_options", None)
+    if model_options is None:
+        raise Exception("model_options not found in sampler_sample_wrapper; this should never happen, something went wrong.")
+    handler: IndexListContextHandler = model_options.get("context_handler", None)
+    if handler is None:
+        raise Exception("context_handler not found in sampler_sample_wrapper; this should never happen, something went wrong.")
+    if not handler.freenoise:
+        return executor(guider, sigmas, extra_args, callback, noise, *args, **kwargs)
+    noise = apply_freenoise(noise, handler.context_length, handler.context_overlap, extra_args["seed"])
+
+    return executor(guider, sigmas, extra_args, callback, noise, *args, **kwargs)
+
+
+def create_sampler_sample_wrapper(model: ModelPatcher):
+    model.add_wrapper_with_key(
+        comfy.patcher_extension.WrappersMP.SAMPLER_SAMPLE,
+        "ContextWindows_sampler_sample",
+        _sampler_sample_wrapper
     )
 
 
@@ -540,3 +563,26 @@ def shift_window_to_end(window: list[int], num_frames: int):
     for i in range(len(window)):
         # 2) add end_delta to each val to slide windows to end
         window[i] = window[i] + end_delta
+
+# https://github.com/Kosinkadink/ComfyUI-AnimateDiff-Evolved/blob/90fb1331201a4b29488089e4fbffc0d82cc6d0a9/animatediff/sample_settings.py#L465
+def apply_freenoise(noise: torch.Tensor, context_length: int, context_overlap: int, seed: int):
+    logging.info(f"Context windows: Applying FreeNoise")
+    generator = torch.manual_seed(seed)
+    latent_video_length = noise.shape[2]
+    delta = context_length - context_overlap
+    for start_idx in range(0, latent_video_length-context_length, delta):
+        place_idx = start_idx + context_length
+        if place_idx >= latent_video_length:
+            break
+        end_idx = place_idx - 1
+
+        if end_idx + delta >= latent_video_length:
+            final_delta = latent_video_length - place_idx
+            list_idx = torch.tensor(list(range(start_idx,start_idx+final_delta)), device=torch.device("cpu"), dtype=torch.long)
+            list_idx = list_idx[torch.randperm(final_delta, generator=generator)]
+            noise[:, :, place_idx:place_idx + final_delta] = noise[:, :, list_idx]
+            break
+        list_idx = torch.tensor(list(range(start_idx,start_idx+delta)), device=torch.device("cpu"), dtype=torch.long)
+        list_idx = list_idx[torch.randperm(delta, generator=generator)]
+        noise[:, :, place_idx:place_idx + delta] = noise[:, :, list_idx]
+    return noise
