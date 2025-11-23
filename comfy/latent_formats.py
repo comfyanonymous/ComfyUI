@@ -611,6 +611,66 @@ class HunyuanImage21Refiner(LatentFormat):
     latent_dimensions = 3
     scale_factor = 1.03682
 
+    def process_in(self, latent):
+        out = latent * self.scale_factor
+        out = torch.cat((out[:, :, :1], out), dim=2)
+        out = out.permute(0, 2, 1, 3, 4)
+        b, f_times_2, c, h, w = out.shape
+        out = out.reshape(b, f_times_2 // 2, 2 * c, h, w)
+        out = out.permute(0, 2, 1, 3, 4).contiguous()
+        return out
+
+    def process_out(self, latent):
+        z = latent / self.scale_factor
+        z = z.permute(0, 2, 1, 3, 4)
+        b, f, c, h, w = z.shape
+        z = z.reshape(b, f, 2, c // 2, h, w)
+        z = z.permute(0, 1, 2, 3, 4, 5).reshape(b, f * 2, c // 2, h, w)
+        z = z.permute(0, 2, 1, 3, 4)
+        z = z[:, :, 1:]
+        return z
+
+class HunyuanVideo15(LatentFormat):
+    latent_rgb_factors = [
+        [ 0.0568, -0.0521, -0.0131],
+        [ 0.0014,  0.0735,  0.0326],
+        [ 0.0186,  0.0531, -0.0138],
+        [-0.0031,  0.0051,  0.0288],
+        [ 0.0110,  0.0556,  0.0432],
+        [-0.0041, -0.0023, -0.0485],
+        [ 0.0530,  0.0413,  0.0253],
+        [ 0.0283,  0.0251,  0.0339],
+        [ 0.0277, -0.0372, -0.0093],
+        [ 0.0393,  0.0944,  0.1131],
+        [ 0.0020,  0.0251,  0.0037],
+        [-0.0017,  0.0012,  0.0234],
+        [ 0.0468,  0.0436,  0.0203],
+        [ 0.0354,  0.0439, -0.0233],
+        [ 0.0090,  0.0123,  0.0346],
+        [ 0.0382,  0.0029,  0.0217],
+        [ 0.0261, -0.0300,  0.0030],
+        [-0.0088, -0.0220, -0.0283],
+        [-0.0272, -0.0121, -0.0363],
+        [-0.0664, -0.0622,  0.0144],
+        [ 0.0414,  0.0479,  0.0529],
+        [ 0.0355,  0.0612, -0.0247],
+        [ 0.0147,  0.0264,  0.0174],
+        [ 0.0438,  0.0038,  0.0542],
+        [ 0.0431, -0.0573, -0.0033],
+        [-0.0162, -0.0211, -0.0406],
+        [-0.0487, -0.0295, -0.0393],
+        [ 0.0005, -0.0109,  0.0253],
+        [ 0.0296,  0.0591,  0.0353],
+        [ 0.0119,  0.0181, -0.0306],
+        [-0.0085, -0.0362,  0.0229],
+        [ 0.0005, -0.0106,  0.0242]
+    ]
+
+    latent_rgb_factors_bias = [ 0.0456, -0.0202, -0.0644]
+    latent_channels = 32
+    latent_dimensions = 3
+    scale_factor = 1.03682
+
 class Hunyuan3Dv2(LatentFormat):
     latent_channels = 64
     latent_dimensions = 1

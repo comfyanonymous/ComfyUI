@@ -14,7 +14,7 @@ jobs:
       contents: "write"
       packages: "write"
       pull-requests: "read"
-    name: "Release NVIDIA Default (cu129)"
+    name: "Release NVIDIA Default (cu130)"
     uses: ./.github/workflows/stable-release.yml
     with:
       git_tag: ${{ inputs.git_tag }}
