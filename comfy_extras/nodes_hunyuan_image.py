@@ -32,8 +32,7 @@ class EmptyLatentHunyuanImage3(io.ComfyNode):
         encode_fn = clip.tokenizer.tokenizer.convert_tokens_to_ids
         special_fn = clip.tokenizer.tokenizer.added_tokens_encoder
 
-        # may convert clip.tokenizer -> clip.
-        word_embed = model.wte
+        word_embed = clip.wte
         patch_embed = model.patch_embed
         t_embed = model.time_embed
 
@@ -61,37 +60,42 @@ class HunyuanImage3Conditioning(io.ComfyNode):
             display_name="HunyuanImage3Conditioning",
             category="conditioning/video_models",
             inputs = [
-                io.Conditioning.Input("vae_encoding"),
-                io.Conditioning.Input("vit_encoding"),
                 io.Conditioning.Input("text_encoding_positive"),
                 io.Clip.Input("clip"),
                 io.Model.Input("model"),
+                io.Conditioning.Input("vae_encoding", optional=True),
+                io.Conditioning.Input("vit_encoding", optional=True),
                 io.Conditioning.Input("text_encoding_negative", optional = True),
             ],
             outputs=[io.Conditioning.Output(display_name= "positive"), io.Conditioning.Output(display_name="negative")]
         )
 
     @classmethod
-    def execute(cls, vae_encoding, vit_encoding, text_encoding, clip, model, text_encoding_negative=None):
+    def execute(cls, text_encoding, clip, model, text_encoding_negative=None, vae_encoding = None, vit_encoding = None):
         encode_fn = clip.tokenizer.tokenizer.convert_tokens_to_ids
         special_fn = clip.tokenizer.tokenizer.added_tokens_encoder
 
-        word_embed = model.wte
+        word_embed = clip.wte
         patch_embed = model.patch_embed
         t_embed = model.time_embed
-        batch_size, _, hidden_size = vit_encoding.shape
 
         def fn(string, func = encode_fn):
             return word_embed(torch.tensor(func(string) if not isinstance(func, dict) else func[string], device=comfy.model_management.intermediate_device()))\
                 .view(1, 1, hidden_size).expand(batch_size, -1, hidden_size)
 
         text_tokens = text_encoding[0][0]
-        vae_encoding, _, _ = patch_embed(vae_encoding, t_embed(torch.tensor([0]).repeat(vae_encoding.size(0))))
-        #                                                                       should dynamically change in model logic
-        joint_image = torch.cat([fn("<boi>"), fn("<img_size_1024>", special_fn), fn("<img_ratio_3>", special_fn), fn("<timestep>", special_fn), vae_encoding, fn("<joint_img_sep>"), vit_encoding, fn("<eoi>")], dim = 1)
+        text_tokens = torch.cat([fn("<|startoftext|>"), text_tokens], dim = 1)
+        batch_size, _, hidden_size = text_tokens.shape
 
-        vae_mask = torch.ones(joint_image.size(1))
-        vae_mask[:3] = torch.zeros(3); vae_mask[vae_encoding.size(1) + 4:] = torch.zeros(len(vae_mask[vae_encoding.size(1) + 4:]))
+        if vae_encoding is not None or vit_encoding is not None:
+            vae_encoding, _, _ = patch_embed(vae_encoding, t_embed(torch.tensor([0]).repeat(vae_encoding.size(0))))
+            #                                                                       should dynamically change in model logic
+            joint_image = torch.cat([fn("<boi>"), fn("<img_size_1024>", special_fn), fn("<img_ratio_3>", special_fn), fn("<timestep>", special_fn), vae_encoding, fn("<joint_img_sep>"), vit_encoding, fn("<eoi>"), fn("<|endoftext|>")], dim = 1)
+            vae_mask = torch.ones(joint_image.size(1))
+            vae_mask[:3] = torch.zeros(3); vae_mask[vae_encoding.size(1) + 4:] = torch.zeros(len(vae_mask[vae_encoding.size(1) + 4:]))
+        else:
+            pad_token = torch.tensor([-100.0]).view(1, 1, 1).expand(batch_size, 1, hidden_size)
+            joint_image = torch.cat([pad_token, fn("<|endoftext|>")], dim = 1)
 
         ragged_tensors = torch.nested.nested_tensor([joint_image, vae_mask.unsqueeze(0).unsqueeze(-1), text_tokens.to(joint_image.dtype)])
 
