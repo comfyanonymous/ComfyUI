@@ -38,6 +38,7 @@ class EmptyHunyuanLatentVideo(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="EmptyHunyuanLatentVideo",
+            display_name="Empty Hunyuan 1.0 Latent Video",
             category="latent/video",
             inputs=[
                 io.Int.Input("width", default=848, min=16, max=nodes.MAX_RESOLUTION, step=16),
@@ -79,6 +80,7 @@ class HunyuanVideo15ImageToVideo(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="HunyuanVideo15ImageToVideo",
+            display_name="Empty Hunyuan 1.5 Latent Video",
             category="conditioning/video_models",
             inputs=[
                 io.Conditioning.Input("positive"),
