@@ -413,7 +413,8 @@ class ControlNet(nn.Module):
         out_middle = []
 
         if self.num_classes is not None:
-            assert y.shape[0] == x.shape[0]
+            if y is None:
+                raise ValueError("y is None, did you try using a controlnet for SDXL on SD1?")
             emb = emb + self.label_emb(y)
 
         h = x
