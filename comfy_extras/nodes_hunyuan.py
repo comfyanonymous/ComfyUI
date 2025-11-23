@@ -64,7 +64,7 @@ class EmptyHunyuanVideo15Latent(EmptyHunyuanLatentVideo):
     def define_schema(cls):
         schema = super().define_schema()
         schema.node_id = "EmptyHunyuanVideo15Latent"
-        schema.display_name = display_name="Empty HunyuanVideo 1.5 Latent",
+        schema.display_name ="Empty HunyuanVideo 1.5 Latent",
         return schema
 
     @classmethod
