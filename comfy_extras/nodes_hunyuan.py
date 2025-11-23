@@ -73,8 +73,6 @@ class EmptyHunyuanVideo15Latent(EmptyHunyuanLatentVideo):
         latent = torch.zeros([batch_size, 32, ((length - 1) // 4) + 1, height // 16, width // 16], device=comfy.model_management.intermediate_device())
         return io.NodeOutput({"samples": latent})
 
-    generate = execute  # TODO: remove
-
 
 class HunyuanVideo15ImageToVideo(io.ComfyNode):
     @classmethod
