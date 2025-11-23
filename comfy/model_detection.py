@@ -6,6 +6,20 @@ import math
 import logging
 import torch
 
+
+def detect_layer_quantization(metadata):
+    quant_key = "_quantization_metadata"
+    if metadata is not None and quant_key in metadata:
+        quant_metadata = metadata.pop(quant_key)
+        quant_metadata = json.loads(quant_metadata)
+        if isinstance(quant_metadata, dict) and "layers" in quant_metadata:
+            logging.info(f"Found quantization metadata (version {quant_metadata.get('format_version', 'unknown')})")
+            return quant_metadata["layers"]
+        else:
+            raise ValueError("Invalid quantization metadata format")
+    return None
+
+
 def count_blocks(state_dict_keys, prefix_string):
     count = 0
     while True:
@@ -172,6 +186,16 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
 
         guidance_keys = list(filter(lambda a: a.startswith("{}guidance_in.".format(key_prefix)), state_dict_keys))
         dit_config["guidance_embed"] = len(guidance_keys) > 0
+
+        # HunyuanVideo 1.5
+        if '{}cond_type_embedding.weight'.format(key_prefix) in state_dict_keys:
+            dit_config["use_cond_type_embedding"] = True
+        else:
+            dit_config["use_cond_type_embedding"] = False
+        if '{}vision_in.proj.0.weight'.format(key_prefix) in state_dict_keys:
+            dit_config["vision_in_dim"] = state_dict['{}vision_in.proj.0.weight'.format(key_prefix)].shape[0]
+        else:
+            dit_config["vision_in_dim"] = None
         return dit_config
 
     if '{}double_blocks.0.img_attn.norm.key_norm.scale'.format(key_prefix) in state_dict_keys and ('{}img_in.weight'.format(key_prefix) in state_dict_keys or f"{key_prefix}distilled_guidance_layer.norms.0.scale" in state_dict_keys): #Flux, Chroma or Chroma Radiance (has no img_in.weight)
@@ -213,7 +237,7 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
                 dit_config["nerf_mlp_ratio"] = 4
                 dit_config["nerf_depth"] = 4
                 dit_config["nerf_max_freqs"] = 8
-                dit_config["nerf_tile_size"] = 32
+                dit_config["nerf_tile_size"] = 512
                 dit_config["nerf_final_head_type"] = "conv" if f"{key_prefix}nerf_final_layer_conv.norm.scale" in state_dict_keys else "linear"
                 dit_config["nerf_embedder_dtype"] = torch.float32
         else:
@@ -365,8 +389,8 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
         dit_config["patch_size"] = 2
         dit_config["in_channels"] = 16
         dit_config["dim"] = 2304
-        dit_config["cap_feat_dim"] = 2304
-        dit_config["n_layers"] = 26
+        dit_config["cap_feat_dim"] = state_dict['{}cap_embedder.1.weight'.format(key_prefix)].shape[1]
+        dit_config["n_layers"] = count_blocks(state_dict_keys, '{}layers.'.format(key_prefix) + '{}.')
         dit_config["n_heads"] = 24
         dit_config["n_kv_heads"] = 8
         dit_config["qk_norm"] = True
@@ -700,6 +724,12 @@ def model_config_from_unet(state_dict, unet_key_prefix, use_base_if_no_match=Fal
             model_config.optimizations["fp8"] = False
         else:
             model_config.optimizations["fp8"] = True
+
+    # Detect per-layer quantization (mixed precision)
+    layer_quant_config = detect_layer_quantization(metadata)
+    if layer_quant_config:
+        model_config.layer_quant_config = layer_quant_config
+        logging.info(f"Detected mixed precision quantization: {len(layer_quant_config)} layers quantized")
 
     return model_config
 

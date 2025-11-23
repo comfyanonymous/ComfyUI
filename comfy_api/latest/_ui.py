@@ -449,15 +449,16 @@ class PreviewText(_UIOutput):
         return {"text": (self.value,)}
 
 
-class _UI:
-    SavedResult = SavedResult
-    SavedImages = SavedImages
-    SavedAudios = SavedAudios
-    ImageSaveHelper = ImageSaveHelper
-    AudioSaveHelper = AudioSaveHelper
-    PreviewImage = PreviewImage
-    PreviewMask = PreviewMask
-    PreviewAudio = PreviewAudio
-    PreviewVideo = PreviewVideo
-    PreviewUI3D = PreviewUI3D
-    PreviewText = PreviewText
+__all__ = [
+    "SavedResult",
+    "SavedImages",
+    "SavedAudios",
+    "ImageSaveHelper",
+    "AudioSaveHelper",
+    "PreviewImage",
+    "PreviewMask",
+    "PreviewAudio",
+    "PreviewVideo",
+    "PreviewUI3D",
+    "PreviewText",
+]

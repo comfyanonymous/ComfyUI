@@ -10,7 +10,8 @@ import importlib
 from dataclasses import dataclass
 from functools import cached_property
 from pathlib import Path
-from typing import TypedDict, Optional
+from typing import Dict, TypedDict, Optional
+from aiohttp import web
 from importlib.metadata import version
 
 import requests
@@ -257,7 +258,54 @@ comfyui-frontend-package is not installed.
             sys.exit(-1)
 
     @classmethod
-    def templates_path(cls) -> str:
+    def template_asset_map(cls) -> Optional[Dict[str, str]]:
+        """Return a mapping of template asset names to their absolute paths."""
+        try:
+            from comfyui_workflow_templates import (
+                get_asset_path,
+                iter_templates,
+            )
+        except ImportError:
+            logging.error(
+                f"""
+********** ERROR ***********
+
+comfyui-workflow-templates is not installed.
+
+{frontend_install_warning_message()}
+
+********** ERROR ***********
+""".strip()
+            )
+            return None
+
+        try:
+            template_entries = list(iter_templates())
+        except Exception as exc:
+            logging.error(f"Failed to enumerate workflow templates: {exc}")
+            return None
+
+        asset_map: Dict[str, str] = {}
+        try:
+            for entry in template_entries:
+                for asset in entry.assets:
+                    asset_map[asset.filename] = get_asset_path(
+                        entry.template_id, asset.filename
+                    )
+        except Exception as exc:
+            logging.error(f"Failed to resolve template asset paths: {exc}")
+            return None
+
+        if not asset_map:
+            logging.error("No workflow template assets found. Did the packages install correctly?")
+            return None
+
+        return asset_map
+
+
+    @classmethod
+    def legacy_templates_path(cls) -> Optional[str]:
+        """Return the legacy templates directory shipped inside the meta package."""
         try:
             import comfyui_workflow_templates
 
@@ -276,6 +324,7 @@ comfyui-workflow-templates is not installed.
 ********** ERROR ***********
 """.strip()
             )
+            return None
 
     @classmethod
     def embedded_docs_path(cls) -> str:
@@ -392,3 +441,17 @@ comfyui-workflow-templates is not installed.
             logging.info("Falling back to the default frontend.")
             check_frontend_version()
             return cls.default_frontend_path()
+    @classmethod
+    def template_asset_handler(cls):
+        assets = cls.template_asset_map()
+        if not assets:
+            return None
+
+        async def serve_template(request: web.Request) -> web.StreamResponse:
+            rel_path = request.match_info.get("path", "")
+            target = assets.get(rel_path)
+            if target is None:
+                raise web.HTTPNotFound()
+            return web.FileResponse(target)
+
+        return serve_template
