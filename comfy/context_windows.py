@@ -51,10 +51,12 @@ class ContextHandlerABC(ABC):
 
 
 class IndexListContextWindow(ContextWindowABC):
-    def __init__(self, index_list: list[int], dim: int=0):
+    def __init__(self, index_list: list[int], dim: int=0, total_frames: int=0):
         self.index_list = index_list
         self.context_length = len(index_list)
         self.dim = dim
+        self.total_frames = total_frames
+        self.center_ratio = (min(index_list) + max(index_list)) / (2 * total_frames)
 
     def get_tensor(self, full: torch.Tensor, device=None, dim=None, retain_index_list=[]) -> torch.Tensor:
         if dim is None:
@@ -74,6 +76,10 @@ class IndexListContextWindow(ContextWindowABC):
         idx = tuple([slice(None)] * dim + [self.index_list])
         full[idx] += to_add
         return full
+    
+    def get_region_index(self, num_regions: int) -> int:
+        region_idx = int(self.center_ratio * num_regions)
+        return min(max(region_idx, 0), num_regions - 1)
 
 
 class IndexListCallbacks:
@@ -99,7 +105,7 @@ class ContextFuseMethod:
 ContextResults = collections.namedtuple("ContextResults", ['window_idx', 'sub_conds_out', 'sub_conds', 'window'])
 class IndexListContextHandler(ContextHandlerABC):
     def __init__(self, context_schedule: ContextSchedule, fuse_method: ContextFuseMethod, context_length: int=1, context_overlap: int=0, context_stride: int=1,
-                 closed_loop: bool=False, dim:int=0, freenoise: bool=False, cond_retain_index_list: list[int]=[]):
+                 closed_loop: bool=False, dim:int=0, freenoise: bool=False, cond_retain_index_list: list[int]=[], split_conds_to_windows: bool=False):
         self.context_schedule = context_schedule
         self.fuse_method = fuse_method
         self.context_length = context_length
@@ -110,6 +116,7 @@ class IndexListContextHandler(ContextHandlerABC):
         self._step = 0
         self.freenoise = freenoise
         self.cond_retain_index_list = [int(x.strip()) for x in cond_retain_index_list.split(",")] if cond_retain_index_list else []
+        self.split_conds_to_windows = split_conds_to_windows
 
         self.callbacks = {}
 
@@ -132,6 +139,11 @@ class IndexListContextHandler(ContextHandlerABC):
             return None
         # reuse or resize cond items to match context requirements
         resized_cond = []
+        # if multiple conds, split based on primary region
+        if self.split_conds_to_windows and len(cond_in) > 1:
+            region = window.get_region_index(len(cond_in))
+            logging.info(f"Splitting conds to windows; using region {region} for window {window[0]}-{window[-1]} with center ratio {window.center_ratio:.3f}")
+            cond_in = [cond_in[region]]
         # cond object is a list containing a dict - outer list is irrelevant, so just loop through it
         for actual_cond in cond_in:
             resized_actual_cond = actual_cond.copy()
@@ -184,7 +196,7 @@ class IndexListContextHandler(ContextHandlerABC):
     def get_context_windows(self, model: BaseModel, x_in: torch.Tensor, model_options: dict[str]) -> list[IndexListContextWindow]:
         full_length = x_in.size(self.dim) # TODO: choose dim based on model
         context_windows = self.context_schedule.func(full_length, self, model_options)
-        context_windows = [IndexListContextWindow(window, dim=self.dim) for window in context_windows]
+        context_windows = [IndexListContextWindow(window, dim=self.dim, total_frames=full_length) for window in context_windows]
         return context_windows
 
     def execute(self, calc_cond_batch: Callable, model: BaseModel, conds: list[list[dict]], x_in: torch.Tensor, timestep: torch.Tensor, model_options: dict[str]):
