@@ -844,6 +844,7 @@ class SamplerCustomAdvanced:
             out_denoised = out
         return (out, out_denoised)
 
+
 class AddNoise:
     @classmethod
     def INPUT_TYPES(s):
