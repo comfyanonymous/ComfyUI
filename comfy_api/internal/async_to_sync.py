@@ -8,7 +8,7 @@ import os
 import textwrap
 import threading
 from enum import Enum
-from typing import Optional, Type, get_origin, get_args
+from typing import Optional, Type, get_origin, get_args, get_type_hints
 
 
 class TypeTracker:
@@ -220,11 +220,18 @@ class AsyncToSyncConverter:
             self._async_instance = async_class(*args, **kwargs)
 
             # Handle annotated class attributes (like execution: Execution)
-            # Get all annotations from the class hierarchy
-            all_annotations = {}
-            for base_class in reversed(inspect.getmro(async_class)):
-                if hasattr(base_class, "__annotations__"):
-                    all_annotations.update(base_class.__annotations__)
+            # Get all annotations from the class hierarchy and resolve string annotations
+            try:
+                # get_type_hints resolves string annotations to actual type objects
+                # This handles classes using 'from __future__ import annotations'
+                all_annotations = get_type_hints(async_class)
+            except Exception:
+                # Fallback to raw annotations if get_type_hints fails
+                # (e.g., for undefined forward references)
+                all_annotations = {}
+                for base_class in reversed(inspect.getmro(async_class)):
+                    if hasattr(base_class, "__annotations__"):
+                        all_annotations.update(base_class.__annotations__)
 
             # For each annotated attribute, check if it needs to be created or wrapped
             for attr_name, attr_type in all_annotations.items():
@@ -625,15 +632,19 @@ class AsyncToSyncConverter:
         """Extract class attributes that are classes themselves."""
         class_attributes = []
 
+        # Get resolved type hints to handle string annotations
+        try:
+            type_hints = get_type_hints(async_class)
+        except Exception:
+            type_hints = {}
+
         # Look for class attributes that are classes
         for name, attr in sorted(inspect.getmembers(async_class)):
             if isinstance(attr, type) and not name.startswith("_"):
                 class_attributes.append((name, attr))
-            elif (
-                hasattr(async_class, "__annotations__")
-                and name in async_class.__annotations__
-            ):
-                annotation = async_class.__annotations__[name]
+            elif name in type_hints:
+                # Use resolved type hint instead of raw annotation
+                annotation = type_hints[name]
                 if isinstance(annotation, type):
                     class_attributes.append((name, annotation))
 
@@ -908,11 +919,15 @@ class AsyncToSyncConverter:
             attribute_mappings = {}
 
             # First check annotations for typed attributes (including from parent classes)
-            # Collect all annotations from the class hierarchy
-            all_annotations = {}
-            for base_class in reversed(inspect.getmro(async_class)):
-                if hasattr(base_class, "__annotations__"):
-                    all_annotations.update(base_class.__annotations__)
+            # Resolve string annotations to actual types
+            try:
+                all_annotations = get_type_hints(async_class)
+            except Exception:
+                # Fallback to raw annotations
+                all_annotations = {}
+                for base_class in reversed(inspect.getmro(async_class)):
+                    if hasattr(base_class, "__annotations__"):
+                        all_annotations.update(base_class.__annotations__)
 
             for attr_name, attr_type in sorted(all_annotations.items()):
                 for class_name, class_type in class_attributes:
