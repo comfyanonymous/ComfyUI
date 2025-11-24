@@ -4,10 +4,7 @@ See: https://cloud.google.com/vertex-ai/generative-ai/docs/model-reference/infer
 """
 
 import base64
-import json
 import os
-import time
-import uuid
 from enum import Enum
 from io import BytesIO
 from typing import Literal
@@ -41,7 +38,6 @@ from comfy_api_nodes.util import (
     validate_string,
     video_to_base64_string,
 )
-from server import PromptServer
 
 GEMINI_BASE_ENDPOINT = "/proxy/vertexai/gemini"
 GEMINI_MAX_INPUT_FILE_SIZE = 20 * 1024 * 1024  # 20 MB
@@ -363,29 +359,6 @@ class GeminiNode(IO.ComfyNode):
         )
 
         output_text = get_text_from_response(response)
-        if output_text:
-            # Not a true chat history like the OpenAI Chat node. It is emulated so the frontend can show a copy button.
-            render_spec = {
-                "node_id": cls.hidden.unique_id,
-                "component": "ChatHistoryWidget",
-                "props": {
-                    "history": json.dumps(
-                        [
-                            {
-                                "prompt": prompt,
-                                "response": output_text,
-                                "response_id": str(uuid.uuid4()),
-                                "timestamp": time.time(),
-                            }
-                        ]
-                    ),
-                },
-            }
-            PromptServer.instance.send_sync(
-                "display_component",
-                render_spec,
-            )
-
         return IO.NodeOutput(output_text or "Empty response from Gemini model...")
 
 
@@ -581,30 +554,7 @@ class GeminiImage(IO.ComfyNode):
             response_model=GeminiGenerateContentResponse,
             price_extractor=calculate_tokens_price,
         )
-
-        output_text = get_text_from_response(response)
-        if output_text:
-            render_spec = {
-                "node_id": cls.hidden.unique_id,
-                "component": "ChatHistoryWidget",
-                "props": {
-                    "history": json.dumps(
-                        [
-                            {
-                                "prompt": prompt,
-                                "response": output_text,
-                                "response_id": str(uuid.uuid4()),
-                                "timestamp": time.time(),
-                            }
-                        ]
-                    ),
-                },
-            }
-            PromptServer.instance.send_sync(
-                "display_component",
-                render_spec,
-            )
-        return IO.NodeOutput(get_image_from_response(response), output_text)
+        return IO.NodeOutput(get_image_from_response(response), get_text_from_response(response))
 
 
 class GeminiImage2(IO.ComfyNode):
@@ -724,30 +674,7 @@ class GeminiImage2(IO.ComfyNode):
             response_model=GeminiGenerateContentResponse,
             price_extractor=calculate_tokens_price,
         )
-
-        output_text = get_text_from_response(response)
-        if output_text:
-            render_spec = {
-                "node_id": cls.hidden.unique_id,
-                "component": "ChatHistoryWidget",
-                "props": {
-                    "history": json.dumps(
-                        [
-                            {
-                                "prompt": prompt,
-                                "response": output_text,
-                                "response_id": str(uuid.uuid4()),
-                                "timestamp": time.time(),
-                            }
-                        ]
-                    ),
-                },
-            }
-            PromptServer.instance.send_sync(
-                "display_component",
-                render_spec,
-            )
-        return IO.NodeOutput(get_image_from_response(response), output_text)
+        return IO.NodeOutput(get_image_from_response(response), get_text_from_response(response))
 
 
 class GeminiExtension(ComfyExtension):
