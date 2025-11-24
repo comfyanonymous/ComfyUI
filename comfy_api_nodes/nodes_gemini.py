@@ -104,14 +104,14 @@ def get_parts_by_type(response: GeminiGenerateContentResponse, part_type: Litera
         List of response parts matching the requested type.
     """
     if response.candidates is None:
-        if response.promptFeedback.blockReason:
+        if response.promptFeedback and response.promptFeedback.blockReason:
             feedback = response.promptFeedback
             raise ValueError(
                 f"Gemini API blocked the request. Reason: {feedback.blockReason} ({feedback.blockReasonMessage})"
             )
-        raise NotImplementedError(
-            "Gemini returned no response candidates. "
-            "Please report to ComfyUI repository with the example of workflow to reproduce this."
+        raise ValueError(
+            "Gemini API returned no response candidates. If you are using the `IMAGE` modality, "
+            "try changing it to `IMAGE+TEXT` to view the model's reasoning and understand why image generation failed."
         )
     parts = []
     for part in response.candidates[0].content.parts:
@@ -182,11 +182,12 @@ def calculate_tokens_price(response: GeminiGenerateContentResponse) -> float | N
     else:
         return None
     final_price = response.usageMetadata.promptTokenCount * input_tokens_price
-    for i in response.usageMetadata.candidatesTokensDetails:
-        if i.modality == Modality.IMAGE:
-            final_price += output_image_tokens_price * i.tokenCount  # for Nano Banana models
-        else:
-            final_price += output_text_tokens_price * i.tokenCount
+    if response.usageMetadata.candidatesTokensDetails:
+        for i in response.usageMetadata.candidatesTokensDetails:
+            if i.modality == Modality.IMAGE:
+                final_price += output_image_tokens_price * i.tokenCount  # for Nano Banana models
+            else:
+                final_price += output_text_tokens_price * i.tokenCount
     if response.usageMetadata.thoughtsTokenCount:
         final_price += output_text_tokens_price * response.usageMetadata.thoughtsTokenCount
     return final_price / 1_000_000.0
@@ -645,7 +646,7 @@ class GeminiImage2(IO.ComfyNode):
                     options=["auto", "1:1", "2:3", "3:2", "3:4", "4:3", "4:5", "5:4", "9:16", "16:9", "21:9"],
                     default="auto",
                     tooltip="If set to 'auto', matches your input image's aspect ratio; "
-                    "if no image is provided, generates a 1:1 square.",
+                    "if no image is provided, a 16:9 square is usually generated.",
                 ),
                 IO.Combo.Input(
                     "resolution",
