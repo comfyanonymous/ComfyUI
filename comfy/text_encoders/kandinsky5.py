@@ -6,11 +6,10 @@ from .llama import Qwen25_7BVLI
 class Kandinsky5Tokenizer(QwenImageTokenizer):
     def __init__(self, embedding_directory=None, tokenizer_data={}):
         super().__init__(embedding_directory=embedding_directory, tokenizer_data=tokenizer_data)
-        # yes the typo "promt" was also in the original template...
+        # yes the typos "promt", "scren" were also in the original template... todo: check if it matters
         self.llama_template = "<|im_start|>system\nYou are a promt engineer. Describe the video in detail.\nDescribe how the camera moves or shakes, describe the zoom and view angle, whether it follows the objects.\nDescribe the location of the video, main characters or objects and their action.\nDescribe the dynamism of the video and presented actions.\nName the visual style of the video: whether it is a professional footage, user generated content, some kind of animation, video game or scren content.\nDescribe the visual effects, postprocessing and transitions if they are presented in the video.\nPay attention to the order of key actions shown in the scene.<|im_end|>\n<|im_start|>user\n{}<|im_end|>"
         self.llama_template_image2video = "<|im_start|>system\nYou are a promt engineer. Your task is to create a highly detailed and effective video description based on a provided input image.\nDescribe how the camera moves or shakes, describe the zoom and view angle, whether it follows the objects.\nDescribe main characters actions.\nDescribe the dynamism of the video and presented actions.\nName the visual style of the video: whether it is a professional footage, user generated content, some kind of animation, video game or scren content.\nDescribe the visual effects, postprocessing and transitions if they are presented in the video.\nPay attention to the order of key actions shown in the scene.<|im_end|>\n<|im_start|>user\n{}<|im_end|>"
         self.clip_l = sd1_clip.SDTokenizer(embedding_directory=embedding_directory, tokenizer_data=tokenizer_data)
-
 
     def tokenize_with_weights(self, text:str, return_word_ids=False, **kwargs):
         out = super().tokenize_with_weights(text, return_word_ids, **kwargs)
@@ -34,12 +33,8 @@ class Kandinsky5TEModel(QwenImageTEModel):
         self.clip_l = sd1_clip.SDClipModel(device=device, dtype=dtype, return_projected_pooled=False, model_options=model_options)
 
     def encode_token_weights(self, token_weight_pairs):
-        #tok_pairs = token_weight_pairs["qwen25_7b"][0]
-        token_weight_pairs_l = token_weight_pairs["l"]
-        template_end = -1
-
-        cond, p, extra = super().encode_token_weights(token_weight_pairs, template_end=template_end)
-        l_out, l_pooled = self.clip_l.encode_token_weights(token_weight_pairs_l)
+        cond, p, extra = super().encode_token_weights(token_weight_pairs, template_end=-1)
+        l_out, l_pooled = self.clip_l.encode_token_weights(token_weight_pairs["l"])
 
         return cond, l_pooled, extra
 
