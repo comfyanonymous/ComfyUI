@@ -439,7 +439,10 @@ class QwenImageTransformer2DModel(nn.Module):
         patches = transformer_options.get("patches", {})
         blocks_replace = patches_replace.get("dit", {})
 
+        transformer_options["total_blocks"] = len(self.transformer_blocks)
+        transformer_options["block_type"] = "double"
         for i, block in enumerate(self.transformer_blocks):
+            transformer_options["block_index"] = i
             if ("double_block", i) in blocks_replace:
                 def block_wrap(args):
                     out = {}
