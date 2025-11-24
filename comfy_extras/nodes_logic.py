@@ -144,10 +144,10 @@ class LogicExtension(ComfyExtension):
     @override
     async def get_node_list(self) -> list[type[io.ComfyNode]]:
         return [
-            SwitchNode,
-            DCTestNode,
-            AutogrowNamesTestNode,
-            AutogrowPrefixTestNode,
+            # SwitchNode,
+            # DCTestNode,
+            # AutogrowNamesTestNode,
+            # AutogrowPrefixTestNode,
         ]
 
 async def comfy_entrypoint() -> LogicExtension:
