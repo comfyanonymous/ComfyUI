@@ -441,20 +441,20 @@ class VAE:
             elif "decoder.conv_in.conv.weight" in sd and sd['decoder.conv_in.conv.weight'].shape[1] == 32:
                 ddconfig = {"block_out_channels": [128, 256, 512, 1024, 1024], "in_channels": 3, "out_channels": 3, "num_res_blocks": 2, "ffactor_spatial": 16, "ffactor_temporal": 4, "downsample_match_channel": True, "upsample_match_channel": True}
                 ddconfig['z_channels'] = sd["decoder.conv_in.conv.weight"].shape[1]
-                self.latent_channels = 64
+                self.latent_channels = 32
                 self.upscale_ratio = (lambda a: max(0, a * 4 - 3), 16, 16)
                 self.upscale_index_formula = (4, 16, 16)
                 self.downscale_ratio = (lambda a: max(0, math.floor((a + 3) / 4)), 16, 16)
                 self.downscale_index_formula = (4, 16, 16)
                 self.latent_dim = 3
-                self.not_video = True
+                self.not_video = False
                 self.working_dtypes = [torch.float16, torch.bfloat16, torch.float32]
                 self.first_stage_model = AutoencodingEngine(regularizer_config={'target': "comfy.ldm.models.autoencoder.EmptyRegularizer"},
                                                             encoder_config={'target': "comfy.ldm.hunyuan_video.vae_refiner.Encoder", 'params': ddconfig},
                                                             decoder_config={'target': "comfy.ldm.hunyuan_video.vae_refiner.Decoder", 'params': ddconfig})
 
-                self.memory_used_encode = lambda shape, dtype: (1400 * shape[-2] * shape[-1]) * model_management.dtype_size(dtype)
-                self.memory_used_decode = lambda shape, dtype: (1400 * shape[-3] * shape[-2] * shape[-1] * 16 * 16) * model_management.dtype_size(dtype)
+                self.memory_used_encode = lambda shape, dtype: (1400 * 9 * shape[-2] * shape[-1]) * model_management.dtype_size(dtype)
+                self.memory_used_decode = lambda shape, dtype: (2800 * 4 * shape[-2] * shape[-1] * 16 * 16) * model_management.dtype_size(dtype)
             elif "decoder.conv_in.conv.weight" in sd:
                 ddconfig = {'double_z': True, 'z_channels': 4, 'resolution': 256, 'in_channels': 3, 'out_ch': 3, 'ch': 128, 'ch_mult': [1, 2, 4, 4], 'num_res_blocks': 2, 'attn_resolutions': [], 'dropout': 0.0}
                 ddconfig["conv3d"] = True
@@ -911,6 +911,7 @@ class CLIPType(Enum):
     OMNIGEN2 = 17
     QWEN_IMAGE = 18
     HUNYUAN_IMAGE = 19
+    HUNYUAN_VIDEO_15 = 20
 
 
 def load_clip(ckpt_paths, embedding_directory=None, clip_type=CLIPType.STABLE_DIFFUSION, model_options={}):
@@ -1126,6 +1127,9 @@ def load_text_encoder_state_dicts(state_dicts=[], embedding_directory=None, clip
         elif clip_type == CLIPType.HUNYUAN_IMAGE:
             clip_target.clip = comfy.text_encoders.hunyuan_image.te(**llama_detect(clip_data))
             clip_target.tokenizer = comfy.text_encoders.hunyuan_image.HunyuanImageTokenizer
+        elif clip_type == CLIPType.HUNYUAN_VIDEO_15:
+            clip_target.clip = comfy.text_encoders.hunyuan_image.te(**llama_detect(clip_data))
+            clip_target.tokenizer = comfy.text_encoders.hunyuan_video.HunyuanVideo15Tokenizer
         else:
             clip_target.clip = sdxl_clip.SDXLClipModel
             clip_target.tokenizer = sdxl_clip.SDXLTokenizer
