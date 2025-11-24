@@ -38,6 +38,7 @@ class EmptyHunyuanLatentVideo(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="EmptyHunyuanLatentVideo",
+            display_name="Empty HunyuanVideo 1.0 Latent",
             category="latent/video",
             inputs=[
                 io.Int.Input("width", default=848, min=16, max=nodes.MAX_RESOLUTION, step=16),
@@ -63,6 +64,7 @@ class EmptyHunyuanVideo15Latent(EmptyHunyuanLatentVideo):
     def define_schema(cls):
         schema = super().define_schema()
         schema.node_id = "EmptyHunyuanVideo15Latent"
+        schema.display_name = "Empty HunyuanVideo 1.5 Latent"
         return schema
 
     @classmethod
@@ -70,8 +72,6 @@ class EmptyHunyuanVideo15Latent(EmptyHunyuanLatentVideo):
         # Using scale factor of 16 instead of 8
         latent = torch.zeros([batch_size, 32, ((length - 1) // 4) + 1, height // 16, width // 16], device=comfy.model_management.intermediate_device())
         return io.NodeOutput({"samples": latent})
-
-    generate = execute  # TODO: remove
 
 
 class HunyuanVideo15ImageToVideo(io.ComfyNode):
