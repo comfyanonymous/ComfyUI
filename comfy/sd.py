@@ -54,6 +54,7 @@ import comfy.text_encoders.qwen_image
 import comfy.text_encoders.hunyuan_image
 import comfy.text_encoders.z_image
 import comfy.text_encoders.ovis
+import comfy.text_encoders.kandinsky5
 
 import comfy.model_patcher
 import comfy.lora
@@ -958,6 +959,7 @@ class CLIPType(Enum):
     HUNYUAN_IMAGE = 19
     HUNYUAN_VIDEO_15 = 20
     OVIS = 21
+    KANDINSKY5 = 22
 
 
 def load_clip(ckpt_paths, embedding_directory=None, clip_type=CLIPType.STABLE_DIFFUSION, model_options={}):
@@ -1208,6 +1210,9 @@ def load_text_encoder_state_dicts(state_dicts=[], embedding_directory=None, clip
         elif clip_type == CLIPType.HUNYUAN_VIDEO_15:
             clip_target.clip = comfy.text_encoders.hunyuan_image.te(**llama_detect(clip_data))
             clip_target.tokenizer = comfy.text_encoders.hunyuan_video.HunyuanVideo15Tokenizer
+        elif clip_type == CLIPType.KANDINSKY5:
+            clip_target.clip = comfy.text_encoders.kandinsky5.te(**llama_detect(clip_data))
+            clip_target.tokenizer = comfy.text_encoders.kandinsky5.Kandinsky5Tokenizer
         else:
             clip_target.clip = sdxl_clip.SDXLClipModel
             clip_target.tokenizer = sdxl_clip.SDXLTokenizer
