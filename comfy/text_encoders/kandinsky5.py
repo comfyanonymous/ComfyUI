@@ -1,5 +1,7 @@
 from comfy import sd1_clip
-from .qwen_image import QwenImageTokenizer, QwenImageTEModel, Qwen25_7BVLIModel
+from .qwen_image import QwenImageTokenizer, QwenImageTEModel
+from .llama import Qwen25_7BVLI
+
 
 class Kandinsky5Tokenizer(QwenImageTokenizer):
     def __init__(self, embedding_directory=None, tokenizer_data={}):
@@ -15,6 +17,15 @@ class Kandinsky5Tokenizer(QwenImageTokenizer):
         out["l"] = self.clip_l.tokenize_with_weights(text, return_word_ids, **kwargs)
 
         return out
+
+
+class Qwen25_7BVLIModel(sd1_clip.SDClipModel):
+    def __init__(self, device="cpu", layer="hidden", layer_idx=-1, dtype=None, attention_mask=True, model_options={}):
+        llama_scaled_fp8 = model_options.get("qwen_scaled_fp8", None)
+        if llama_scaled_fp8 is not None:
+            model_options = model_options.copy()
+            model_options["scaled_fp8"] = llama_scaled_fp8
+        super().__init__(device=device, layer=layer, layer_idx=layer_idx, textmodel_json_config={}, dtype=dtype, special_tokens={"pad": 151643}, layer_norm_hidden_state=False, model_class=Qwen25_7BVLI, enable_attention_masks=attention_mask, return_attention_masks=attention_mask, model_options=model_options)
 
 
 class Kandinsky5TEModel(QwenImageTEModel):
