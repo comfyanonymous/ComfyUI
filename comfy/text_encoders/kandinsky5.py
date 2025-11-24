@@ -29,7 +29,7 @@ class Kandinsky5TEModel(QwenImageTEModel):
 
         cond, p, extra = super().encode_token_weights(token_weight_pairs, template_end=template_end)
         l_out, l_pooled = self.clip_l.encode_token_weights(token_weight_pairs_l)
-        
+
         return cond, l_pooled, extra
 
     def set_clip_options(self, options):
