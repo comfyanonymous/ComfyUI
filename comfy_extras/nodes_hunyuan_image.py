@@ -79,13 +79,14 @@ class HunyuanImage3Conditioning(io.ComfyNode):
         patch_embed = model.patch_embed
         t_embed = model.time_embed
 
+        text_tokens = text_encoding[0][0]
+        batch_size, _, hidden_size = text_tokens.shape
+
         def fn(string, func = encode_fn):
             return word_embed(torch.tensor(func(string) if not isinstance(func, dict) else func[string], device=comfy.model_management.intermediate_device()))\
                 .view(1, 1, hidden_size).expand(batch_size, -1, hidden_size)
 
-        text_tokens = text_encoding[0][0]
         text_tokens = torch.cat([fn("<|startoftext|>"), text_tokens], dim = 1)
-        batch_size, _, hidden_size = text_tokens.shape
 
         if vae_encoding is not None or vit_encoding is not None:
             vae_encoding, _, _ = patch_embed(vae_encoding, t_embed(torch.tensor([0]).repeat(vae_encoding.size(0))))
@@ -93,11 +94,13 @@ class HunyuanImage3Conditioning(io.ComfyNode):
             joint_image = torch.cat([fn("<boi>"), fn("<img_size_1024>", special_fn), fn("<img_ratio_3>", special_fn), fn("<timestep>", special_fn), vae_encoding, fn("<joint_img_sep>"), vit_encoding, fn("<eoi>"), fn("<|endoftext|>")], dim = 1)
             vae_mask = torch.ones(joint_image.size(1))
             vae_mask[:3] = torch.zeros(3); vae_mask[vae_encoding.size(1) + 4:] = torch.zeros(len(vae_mask[vae_encoding.size(1) + 4:]))
+            vae_mask = vae_mask.unsqueeze(0).unsqueeze(-1)
         else:
             pad_token = torch.tensor([-100.0]).view(1, 1, 1).expand(batch_size, 1, hidden_size)
             joint_image = torch.cat([pad_token, fn("<|endoftext|>")], dim = 1)
+            vae_mask = torch.empty_like(joint_image)
 
-        ragged_tensors = torch.nested.nested_tensor([joint_image, vae_mask.unsqueeze(0).unsqueeze(-1), text_tokens.to(joint_image.dtype)])
+        ragged_tensors = torch.nested.nested_tensor([joint_image, vae_mask, text_tokens.to(joint_image.dtype)])
 
         uncond_ragged_tensors = None
         if text_encoding_negative is not None:
