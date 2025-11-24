@@ -5,8 +5,7 @@ import aiohttp
 import torch
 from typing_extensions import override
 
-from comfy_api.input.video_types import VideoInput
-from comfy_api.latest import IO, ComfyExtension
+from comfy_api.latest import IO, ComfyExtension, Input
 from comfy_api_nodes.apis import topaz_api
 from comfy_api_nodes.util import (
     ApiEndpoint,
@@ -282,7 +281,7 @@ class TopazVideoEnhance(IO.ComfyNode):
     @classmethod
     async def execute(
         cls,
-        video: VideoInput,
+        video: Input.Video,
         upscaler_enabled: bool,
         upscaler_model: str,
         upscaler_resolution: str,
@@ -297,12 +296,10 @@ class TopazVideoEnhance(IO.ComfyNode):
     ) -> IO.NodeOutput:
         if upscaler_enabled is False and interpolation_enabled is False:
             raise ValueError("There is nothing to do: both upscaling and interpolation are disabled.")
-        src_width, src_height = video.get_dimensions()
-        video_components = video.get_components()
-        src_frame_rate = int(video_components.frame_rate)
-        duration_sec = video.get_duration()
-        estimated_frames = int(duration_sec * src_frame_rate)
         validate_container_format_is_mp4(video)
+        src_width, src_height = video.get_dimensions()
+        src_frame_rate = int(video.get_frame_rate())
+        duration_sec = video.get_duration()
         src_video_stream = video.get_stream_source()
         target_width = src_width
         target_height = src_height
@@ -338,7 +335,7 @@ class TopazVideoEnhance(IO.ComfyNode):
                     container="mp4",
                     size=get_fs_object_size(src_video_stream),
                     duration=int(duration_sec),
-                    frameCount=estimated_frames,
+                    frameCount=video.get_frame_count(),
                     frameRate=src_frame_rate,
                     resolution=topaz_api.Resolution(width=src_width, height=src_height),
                 ),
