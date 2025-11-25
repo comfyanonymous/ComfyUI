@@ -178,6 +178,15 @@ class Flux(SD3):
     def process_out(self, latent):
         return (latent / self.scale_factor) + self.shift_factor
 
+class Flux2(LatentFormat):
+    latent_channels = 128
+
+    def process_in(self, latent):
+        return latent
+
+    def process_out(self, latent):
+        return latent
+
 class Mochi(LatentFormat):
     latent_channels = 12
     latent_dimensions = 3

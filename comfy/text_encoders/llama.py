@@ -35,6 +35,28 @@ class Llama2Config:
     final_norm: bool = True
 
 @dataclass
+class Mistral3Small24BConfig:
+    vocab_size: int = 131072
+    hidden_size: int = 5120
+    intermediate_size: int = 32768
+    num_hidden_layers: int = 40
+    num_attention_heads: int = 32
+    num_key_value_heads: int = 8
+    max_position_embeddings: int = 8192
+    rms_norm_eps: float = 1e-5
+    rope_theta: float = 1000000000.0
+    transformer_type: str = "llama"
+    head_dim = 128
+    rms_norm_add = False
+    mlp_activation = "silu"
+    qkv_bias = False
+    rope_dims = None
+    q_norm = None
+    k_norm = None
+    rope_scale = None
+    final_norm: bool = True
+
+@dataclass
 class Qwen25_3BConfig:
     vocab_size: int = 151936
     hidden_size: int = 2048
@@ -460,6 +482,15 @@ class Llama2(BaseLlama, torch.nn.Module):
     def __init__(self, config_dict, dtype, device, operations):
         super().__init__()
         config = Llama2Config(**config_dict)
+        self.num_layers = config.num_hidden_layers
+
+        self.model = Llama2_(config, device=device, dtype=dtype, ops=operations)
+        self.dtype = dtype
+
+class Mistral3Small24B(BaseLlama, torch.nn.Module):
+    def __init__(self, config_dict, dtype, device, operations):
+        super().__init__()
+        config = Mistral3Small24BConfig(**config_dict)
         self.num_layers = config.num_hidden_layers
 
         self.model = Llama2_(config, device=device, dtype=dtype, ops=operations)

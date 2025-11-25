@@ -356,7 +356,7 @@ class VAE:
 
                     self.memory_used_encode = lambda shape, dtype: (700 * shape[2] * shape[3]) * model_management.dtype_size(dtype)
                     self.memory_used_decode = lambda shape, dtype: (700 * shape[2] * shape[3] * 32 * 32) * model_management.dtype_size(dtype)
-                elif sd['decoder.conv_in.weight'].shape[1] == 32:
+                elif sd['decoder.conv_in.weight'].shape[1] == 32 and sd['decoder.conv_in.weight'].ndim == 5:
                     ddconfig = {"block_out_channels": [128, 256, 512, 1024, 1024], "in_channels": 3, "out_channels": 3, "num_res_blocks": 2, "ffactor_spatial": 16, "ffactor_temporal": 4, "downsample_match_channel": True, "upsample_match_channel": True, "refiner_vae": False}
                     self.latent_channels = ddconfig['z_channels'] = sd["decoder.conv_in.weight"].shape[1]
                     self.working_dtypes = [torch.float16, torch.bfloat16, torch.float32]
@@ -382,6 +382,17 @@ class VAE:
                         self.upscale_ratio = 4
 
                     self.latent_channels = ddconfig['z_channels'] = sd["decoder.conv_in.weight"].shape[1]
+                    if 'decoder.post_quant_conv.weight' in sd:
+                        sd = comfy.utils.state_dict_prefix_replace(sd, {"decoder.post_quant_conv.": "post_quant_conv.", "encoder.quant_conv.": "quant_conv."})
+
+                    if 'bn.running_mean' in sd:
+                        ddconfig["batch_norm_latent"] = True
+                        self.downscale_ratio *= 2
+                        self.upscale_ratio *= 2
+                        self.latent_channels *= 4
+                        old_memory_used_decode = self.memory_used_decode
+                        self.memory_used_decode = lambda shape, dtype: old_memory_used_decode(shape, dtype) *  4.0
+
                     if 'post_quant_conv.weight' in sd:
                         self.first_stage_model = AutoencoderKL(ddconfig=ddconfig, embed_dim=sd['post_quant_conv.weight'].shape[1])
                     else:
@@ -940,6 +951,8 @@ class TEModel(Enum):
     QWEN25_7B = 11
     BYT5_SMALL_GLYPH = 12
     GEMMA_3_4B = 13
+    MISTRAL3_24B = 14
+    MISTRAL3_24B_PRUNED_FLUX2 = 15
 
 def detect_te_model(sd):
     if "text_model.encoder.layers.30.mlp.fc1.weight" in sd:
@@ -972,6 +985,13 @@ def detect_te_model(sd):
         if weight.shape[0] == 512:
             return TEModel.QWEN25_7B
     if "model.layers.0.post_attention_layernorm.weight" in sd:
+        weight = sd['model.layers.0.post_attention_layernorm.weight']
+        if weight.shape[0] == 5120:
+            if "model.layers.39.post_attention_layernorm.weight" in sd:
+                return TEModel.MISTRAL3_24B
+            else:
+                return TEModel.MISTRAL3_24B_PRUNED_FLUX2
+
         return TEModel.LLAMA3_8
     return None
 
@@ -1086,6 +1106,10 @@ def load_text_encoder_state_dicts(state_dicts=[], embedding_directory=None, clip
             else:
                 clip_target.clip = comfy.text_encoders.qwen_image.te(**llama_detect(clip_data))
                 clip_target.tokenizer = comfy.text_encoders.qwen_image.QwenImageTokenizer
+        elif te_model == TEModel.MISTRAL3_24B or te_model == TEModel.MISTRAL3_24B_PRUNED_FLUX2:
+            clip_target.clip = comfy.text_encoders.flux.flux2_te(**llama_detect(clip_data), pruned=te_model == TEModel.MISTRAL3_24B_PRUNED_FLUX2)
+            clip_target.tokenizer = comfy.text_encoders.flux.Flux2Tokenizer
+            tokenizer_data["tekken_model"] = clip_data[0].get("tekken_model", None)
         else:
             # clip_l
             if clip_type == CLIPType.SD3:
