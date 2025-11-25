@@ -228,6 +228,14 @@ class QuantizedTensor(torch.Tensor):
         new_kwargs = dequant_arg(kwargs)
         return func(*new_args, **new_kwargs)
 
+    def data_ptr(self):
+        return self._qdata.data_ptr()
+
+    def is_pinned(self):
+        return self._qdata.is_pinned()
+
+    def is_contiguous(self):
+        return self._qdata.is_contiguous()
 
 # ==============================================================================
 # Generic Utilities (Layout-Agnostic Operations)
@@ -338,6 +346,18 @@ def generic_copy_(func, args, kwargs):
     return func(*args, **kwargs)
 
 
+@register_generic_util(torch.ops.aten.to.dtype)
+def generic_to_dtype(func, args, kwargs):
+    """Handle .to(dtype) calls - dtype conversion only."""
+    src = args[0]
+    if isinstance(src, QuantizedTensor):
+        # For dtype-only conversion, just change the orig_dtype, no real cast is needed
+        target_dtype = args[1] if len(args) > 1 else kwargs.get('dtype')
+        src._layout_params["orig_dtype"] = target_dtype
+        return src
+    return func(*args, **kwargs)
+
+
 @register_generic_util(torch.ops.aten._has_compatible_shallow_copy_type.default)
 def generic_has_compatible_shallow_copy_type(func, args, kwargs):
     return True
@@ -385,8 +405,8 @@ class TensorCoreFP8Layout(QuantizedLayout):
 
         tensor_scaled = tensor * (1.0 / scale).to(tensor.dtype)
         # TODO: uncomment this if it's actually needed because the clamp has a small performance penality'
-        # lp_amax = torch.finfo(dtype).max
-        # torch.clamp(tensor_scaled, min=-lp_amax, max=lp_amax, out=tensor_scaled)
+        lp_amax = torch.finfo(dtype).max
+        torch.clamp(tensor_scaled, min=-lp_amax, max=lp_amax, out=tensor_scaled)
         qdata = tensor_scaled.to(dtype, memory_format=torch.contiguous_format)
 
         layout_params = {
