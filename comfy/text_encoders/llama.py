@@ -434,8 +434,12 @@ class Llama2_(nn.Module):
 
         intermediate = None
         all_intermediate = None
+        only_layers = None
         if intermediate_output is not None:
-            if intermediate_output == "all":
+            if isinstance(intermediate_output, list):
+                all_intermediate = []
+                only_layers = set(intermediate_output)
+            elif intermediate_output == "all":
                 all_intermediate = []
                 intermediate_output = None
             elif intermediate_output < 0:
@@ -443,7 +447,8 @@ class Llama2_(nn.Module):
 
         for i, layer in enumerate(self.layers):
             if all_intermediate is not None:
-                all_intermediate.append(x.unsqueeze(1).clone())
+                if only_layers is None or (i in only_layers):
+                    all_intermediate.append(x.unsqueeze(1).clone())
             x = layer(
                 x=x,
                 attention_mask=mask,
@@ -457,7 +462,8 @@ class Llama2_(nn.Module):
             x = self.norm(x)
 
         if all_intermediate is not None:
-            all_intermediate.append(x.unsqueeze(1).clone())
+            if only_layers is None or ((i + 1) in only_layers):
+                all_intermediate.append(x.unsqueeze(1).clone())
 
         if all_intermediate is not None:
             intermediate = torch.cat(all_intermediate, dim=1)
