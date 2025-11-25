@@ -28,10 +28,7 @@ def get_shift_scale_gate(params):
     return tuple(x.unsqueeze(1) for x in (shift, scale, gate))
 
 def get_freqs(dim, max_period=10000.0):
-    return torch.exp(
-        -math.log(max_period)
-        * torch.arange(start=0, end=dim, dtype=torch.float32)
-        / dim)
+    return torch.exp(-math.log(max_period) * torch.arange(start=0, end=dim, dtype=torch.float32) / dim)
 
 
 class TimeEmbeddings(nn.Module):
@@ -354,16 +351,22 @@ class Kandinsky5(nn.Module):
         visual_embed = visual_embed.reshape(*visual_shape, -1)
         return self.out_layer(visual_embed, time_embed)
 
-    def _forward(self, x, timestep, context, y, transformer_options={}, **kwargs):
+    def _forward(self, x, timestep, context, y, time_dim_replace=None, transformer_options={}, **kwargs):
         bs, c, t_len, h, w = x.shape
         x = comfy.ldm.common_dit.pad_to_patch_size(x, self.patch_size)
+
+        if time_dim_replace is not None:
+            time_dim_replace = comfy.ldm.common_dit.pad_to_patch_size(time_dim_replace, self.patch_size)
+            x[:, :time_dim_replace.shape[1], :time_dim_replace.shape[2]] = time_dim_replace
+
         freqs = self.rope_encode_3d(t_len, h, w, device=x.device, dtype=x.dtype, transformer_options=transformer_options)
         freqs_text = self.rope_encode_1d(context.shape[1], device=x.device, dtype=x.dtype, transformer_options=transformer_options)
+
         return self.forward_orig(x, timestep, context, y, freqs, freqs_text, transformer_options=transformer_options, **kwargs)
 
-    def forward(self, x, timestep, context, y, transformer_options={}, **kwargs):
+    def forward(self, x, timestep, context, y, time_dim_replace=None, transformer_options={}, **kwargs):
         return comfy.patcher_extension.WrapperExecutor.new_class_executor(
             self._forward,
             self,
             comfy.patcher_extension.get_all_wrappers(comfy.patcher_extension.WrappersMP.DIFFUSION_MODEL, transformer_options)
-        ).execute(x, timestep, context, y, transformer_options=transformer_options, **kwargs)
+        ).execute(x, timestep, context, y, time_dim_replace=time_dim_replace, transformer_options=transformer_options, **kwargs)

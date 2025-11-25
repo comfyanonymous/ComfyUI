@@ -7,6 +7,7 @@ import comfy.utils
 from typing_extensions import override
 from comfy_api.latest import ComfyExtension, io
 
+
 class Kandinsky5ImageToVideo(io.ComfyNode):
     @classmethod
     def define_schema(cls):
@@ -26,28 +27,82 @@ class Kandinsky5ImageToVideo(io.ComfyNode):
             outputs=[
                 io.Conditioning.Output(display_name="positive"),
                 io.Conditioning.Output(display_name="negative"),
-                io.Latent.Output(display_name="latent"),
+                io.Latent.Output(display_name="latent", tooltip="Empty video latent"),
+                io.Latent.Output(display_name="cond_latent", tooltip="Clean encoded start images, used to replace the noisy start of the model output latents"),
             ],
         )
 
     @classmethod
     def execute(cls, positive, negative, vae, width, height, length, batch_size, start_image=None) -> io.NodeOutput:
         latent = torch.zeros([batch_size, 16, ((length - 1) // 4) + 1, height // 8, width // 8], device=comfy.model_management.intermediate_device())
+        cond_latent_out = {}
         if start_image is not None:
             start_image = comfy.utils.common_upscale(start_image[:length].movedim(-1, 1), width, height, "bilinear", "center").movedim(1, -1)
             encoded = vae.encode(start_image[:, :, :, :3])
-            concat_latent_image = latent.clone()
-            concat_latent_image[:, :, :encoded.shape[2], :, :] = encoded
+            cond_latent_out["samples"] = encoded
 
-            mask = torch.ones((1, 1, latent.shape[2], concat_latent_image.shape[-2], concat_latent_image.shape[-1]), device=start_image.device, dtype=start_image.dtype)
+            mask = torch.ones((1, 1, latent.shape[2], latent.shape[-2], latent.shape[-1]), device=start_image.device, dtype=start_image.dtype)
             mask[:, :, :((start_image.shape[0] - 1) // 4) + 1] = 0.0
 
-            positive = node_helpers.conditioning_set_values(positive, {"concat_latent_image": concat_latent_image, "concat_mask": mask})
-            negative = node_helpers.conditioning_set_values(negative, {"concat_latent_image": concat_latent_image, "concat_mask": mask})
+            positive = node_helpers.conditioning_set_values(positive, {"time_dim_replace": encoded, "concat_mask": mask})
+            negative = node_helpers.conditioning_set_values(negative, {"time_dim_replace": encoded, "concat_mask": mask})
 
         out_latent = {}
         out_latent["samples"] = latent
-        return io.NodeOutput(positive, negative, out_latent)
+        return io.NodeOutput(positive, negative, out_latent, cond_latent_out)
+
+
+def adaptive_mean_std_normalization(source, reference):
+    source_mean = source.mean(dim=(1, 3, 4), keepdim=True)  # mean over C, H, W
+    source_std = source.std(dim=(1, 3, 4), keepdim=True)    # std over C, H, W
+    #magic constants - limit changes in latents
+    clump_mean_low = 0.05
+    clump_mean_high = 0.1
+    clump_std_low = 0.1
+    clump_std_high = 0.25
+
+    reference_mean = torch.clamp(reference.mean(), source_mean - clump_mean_low, source_mean + clump_mean_high)
+    reference_std = torch.clamp(reference.std(), source_std - clump_std_low, source_std + clump_std_high)
+
+    # normalization
+    normalized = (source - source_mean) / (source_std + 1e-8)
+    normalized = normalized * reference_std + reference_mean
+    
+    return normalized
+
+
+class NormalizeVideoLatentFrames(io.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return io.Schema(
+            node_id="NormalizeVideoLatentFrames",
+            category="conditioning/video_models",
+            description="Normalizes the initial frames of a video latent to match the mean and standard deviation of subsequent reference frames.",
+            inputs=[
+                io.Latent.Input("latent"),
+                io.Int.Input("frames_to_normalize", default=4, min=1, max=nodes.MAX_RESOLUTION, step=1, tooltip="Number of initial frames to normalize, counted from the start"),
+                io.Int.Input("reference_frames", default=5, min=1, max=nodes.MAX_RESOLUTION, step=1, tooltip="Number of frames after the normalized frames to use as reference"),
+            ],
+            outputs=[
+                io.Latent.Output(display_name="latent"),
+            ],
+        )
+
+    @classmethod
+    def execute(cls, latent, frames_to_normalize, reference_frames) -> io.NodeOutput:
+        if latent["samples"].shape[2] <= 1:
+            return latent
+        s = latent.copy()
+        samples = latent["samples"].clone()
+
+        first_frames = samples[:, :, :frames_to_normalize]
+        reference_frames_data = samples[:, :, frames_to_normalize:frames_to_normalize+min(reference_frames, samples.shape[2]-frames_to_normalize)]
+        
+        normalized_first_frames = adaptive_mean_std_normalization(first_frames, reference_frames_data)
+        
+        samples[:, :, :frames_to_normalize] = normalized_first_frames
+        s["samples"] = samples
+        return io.NodeOutput(s)
 
 
 class Kandinsky5Extension(ComfyExtension):
@@ -55,6 +110,7 @@ class Kandinsky5Extension(ComfyExtension):
     async def get_node_list(self) -> list[type[io.ComfyNode]]:
         return [
             Kandinsky5ImageToVideo,
+            NormalizeVideoLatentFrames
         ]
 
 async def comfy_entrypoint() -> Kandinsky5Extension:
