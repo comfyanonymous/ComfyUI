@@ -1098,13 +1098,14 @@ if not args.disable_pinned_memory:
             MAX_PINNED_MEMORY = get_total_memory(torch.device("cpu")) * 0.95
         logging.info("Enabled pinned memory {}".format(MAX_PINNED_MEMORY // (1024 * 1024)))
 
+PINNING_ALLOWED_TYPES = set(["Parameter", "QuantizedTensor"])
 
 def pin_memory(tensor):
     global TOTAL_PINNED_MEMORY
     if MAX_PINNED_MEMORY <= 0:
         return False
 
-    if type(tensor) is not torch.nn.parameter.Parameter:
+    if type(tensor).__name__ not in PINNING_ALLOWED_TYPES:
         return False
 
     if not is_device_cpu(tensor.device):
@@ -1124,6 +1125,9 @@ def pin_memory(tensor):
         return False
 
     ptr = tensor.data_ptr()
+    if ptr == 0:
+        return False
+
     if torch.cuda.cudart().cudaHostRegister(ptr, size, 1) == 0:
         PINNED_MEMORY[ptr] = size
         TOTAL_PINNED_MEMORY += size
