@@ -86,7 +86,7 @@ class Flux2ProGenerateRequest(BaseModel):
     input_image_8: str | None = Field(None, description="Base64 encoded image for image-to-image generation")
     input_image_9: str | None = Field(None, description="Base64 encoded image for image-to-image generation")
     safety_tolerance: int | None = Field(
-        6, description="Tolerance level for input and output moderation. Value 0 being most strict.", ge=0, le=6
+        5, description="Tolerance level for input and output moderation. Value 0 being most strict.", ge=0, le=5
     )
     output_format: str | None = Field(
         "png", description="Output format for the generated image. Can be 'jpeg' or 'png'."
