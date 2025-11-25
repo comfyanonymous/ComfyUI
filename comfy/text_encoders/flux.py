@@ -87,6 +87,7 @@ def load_mistral_tokenizer(data):
     vocab = {}
 
     max_vocab = mistral_vocab["config"]["default_vocab_size"]
+    max_vocab -= len(mistral_vocab["special_tokens"])
 
     for w in mistral_vocab["vocab"]:
         r = w["rank"]
