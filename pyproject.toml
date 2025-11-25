@@ -127,11 +127,6 @@ dependencies = [
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
-[tool.setuptools.packages.find]
-where = ["."]
-include = ["comfy*"]
-namespaces = false
-
 [project.optional-dependencies]
 dev = [
     "pytest",
