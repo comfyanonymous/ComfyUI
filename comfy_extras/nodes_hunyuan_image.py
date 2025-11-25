@@ -22,34 +22,13 @@ class EmptyLatentHunyuanImage3(io.ComfyNode):
                 io.Int.Input("height", min = 1, default = 512),
                 io.Int.Input("width", min = 1, default = 512),
                 io.Int.Input("batch_size", min = 1, max = 48_000, default = 1),
-                io.Clip.Input("clip"),
-                io.Model.Input("model")
             ],
             outputs=[io.Latent.Output(display_name="latent")]
         )
     @classmethod
-    def execute(cls, height, width, batch_size, clip, model):
-        encode_fn = clip.tokenizer.tokenizer.convert_tokens_to_ids
-        special_fn = clip.tokenizer.tokenizer.added_tokens_encoder
-
-        word_embed = clip.wte
-        patch_embed = model.patch_embed
-        t_embed = model.time_embed
-
+    def execute(cls, height, width, batch_size):
         height, width = get_target_size(height, width)
         latent = torch.randn(batch_size, 32, int(height) // 16, int(width) // 16, device=comfy.model_management.intermediate_device())
-
-        latent, tk_height, tk_width = patch_embed(latent, t_embed(torch.tensor([0]).repeat(batch_size)))
-
-        def tk_fn(token):
-            return torch.tensor([token], device = latent.device, dtype = latent.dtype).unsqueeze(1).expand(batch_size, 1, latent.size(-1))
-        
-        def fn(string, func = encode_fn):
-            return word_embed(torch.tensor(func(string) if not isinstance(func, dict) else func[string], device=comfy.model_management.intermediate_device()))\
-                .unsqueeze(0).expand(batch_size, -1, -1)
-
-        latent = torch.cat([fn("<boi>"), fn("<img_size_1024>", func = special_fn), fn(f"<img_ratio_{int(height) // int(width)}>", special_fn), fn("<timestep>", special_fn), latent, fn("<eoi>")], dim = 1)
-        latent = torch.cat([latent, tk_fn(tk_height), tk_fn(tk_width)], dim = 1)
         return io.NodeOutput({"samples": latent, "type": "hunyuan_image_3"}, )
 
 class HunyuanImage3Conditioning(io.ComfyNode):

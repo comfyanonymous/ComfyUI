@@ -1342,6 +1342,11 @@ class HunyuanImage3(supported_models_base.BASE):
         state_dict["text_encoders.wte"] = state_dict["model.model.wte"]
         state_dict.pop("model.model.wte", None)
         model = model_base.HunyuanImage3(self, device = device)
+
+        temp_tokenizer = comfy.text_encoders.hunyuan_image.HunyuanImage3Tokenizer()
+        model.encode_tok = temp_tokenizer.tokenizer.convert_tokens_to_ids
+        model.special_tok = temp_tokenizer.tokenizer.added_tokens_encoder
+
         return model
     def clip_target(self, state_dict={}):
         return supported_models_base.ClipTarget(comfy.text_encoders.hunyuan_image.HunyuanImage3Tokenizer, comfy.text_encoders.hunyuan_image.HunyuanImage3)
