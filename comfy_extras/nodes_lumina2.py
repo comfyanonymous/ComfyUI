@@ -1,20 +1,27 @@
-from comfy.comfy_types import IO, ComfyNodeABC, InputTypeDict
+from typing_extensions import override
 import torch
 
+from comfy_api.latest import ComfyExtension, io
 
-class RenormCFG:
+
+class RenormCFG(io.ComfyNode):
     @classmethod
-    def INPUT_TYPES(s):
-        return {"required": { "model": ("MODEL",),
-                              "cfg_trunc": ("FLOAT", {"default": 100, "min": 0.0, "max": 100.0, "step": 0.01}),
-                              "renorm_cfg": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 100.0, "step": 0.01}),
-                              }}
-    RETURN_TYPES = ("MODEL",)
-    FUNCTION = "patch"
+    def define_schema(cls):
+        return io.Schema(
+            node_id="RenormCFG",
+            category="advanced/model",
+            inputs=[
+                io.Model.Input("model"),
+                io.Float.Input("cfg_trunc", default=100, min=0.0, max=100.0, step=0.01),
+                io.Float.Input("renorm_cfg", default=1.0, min=0.0, max=100.0, step=0.01),
+            ],
+            outputs=[
+                io.Model.Output(),
+            ],
+        )
 
-    CATEGORY = "advanced/model"
-
-    def patch(self, model, cfg_trunc, renorm_cfg):
+    @classmethod
+    def execute(cls, model, cfg_trunc, renorm_cfg) -> io.NodeOutput:
         def renorm_cfg_func(args):
             cond_denoised = args["cond_denoised"]
             uncond_denoised = args["uncond_denoised"]
@@ -53,10 +60,10 @@ class RenormCFG:
 
         m = model.clone()
         m.set_model_sampler_cfg_function(renorm_cfg_func)
-        return (m, )
+        return io.NodeOutput(m)
 
 
-class CLIPTextEncodeLumina2(ComfyNodeABC):
+class CLIPTextEncodeLumina2(io.ComfyNode):
     SYSTEM_PROMPT = {
         "superior": "You are an assistant designed to generate superior images with the superior "\
             "degree of image-text alignment based on textual prompts or user prompts.",
@@ -69,36 +76,52 @@ class CLIPTextEncodeLumina2(ComfyNodeABC):
         "Alignment: You are an assistant designed to generate high-quality images with the highest "\
         "degree of image-text alignment based on textual prompts."
     @classmethod
-    def INPUT_TYPES(s) -> InputTypeDict:
-        return {
-            "required": {
-                "system_prompt": (list(CLIPTextEncodeLumina2.SYSTEM_PROMPT.keys()), {"tooltip": CLIPTextEncodeLumina2.SYSTEM_PROMPT_TIP}),
-                "user_prompt": (IO.STRING, {"multiline": True, "dynamicPrompts": True, "tooltip": "The text to be encoded."}),
-                "clip": (IO.CLIP, {"tooltip": "The CLIP model used for encoding the text."})
-            }
-        }
-    RETURN_TYPES = (IO.CONDITIONING,)
-    OUTPUT_TOOLTIPS = ("A conditioning containing the embedded text used to guide the diffusion model.",)
-    FUNCTION = "encode"
+    def define_schema(cls):
+        return io.Schema(
+            node_id="CLIPTextEncodeLumina2",
+            display_name="CLIP Text Encode for Lumina2",
+            category="conditioning",
+            description="Encodes a system prompt and a user prompt using a CLIP model into an embedding "
+                        "that can be used to guide the diffusion model towards generating specific images.",
+            inputs=[
+                io.Combo.Input(
+                    "system_prompt",
+                    options=list(cls.SYSTEM_PROMPT.keys()),
+                    tooltip=cls.SYSTEM_PROMPT_TIP,
+                ),
+                io.String.Input(
+                    "user_prompt",
+                    multiline=True,
+                    dynamic_prompts=True,
+                    tooltip="The text to be encoded.",
+                ),
+                io.Clip.Input("clip", tooltip="The CLIP model used for encoding the text."),
+            ],
+            outputs=[
+                io.Conditioning.Output(
+                    tooltip="A conditioning containing the embedded text used to guide the diffusion model.",
+                ),
+            ],
+        )
 
-    CATEGORY = "conditioning"
-    DESCRIPTION = "Encodes a system prompt and a user prompt using a CLIP model into an embedding that can be used to guide the diffusion model towards generating specific images."
-
-    def encode(self, clip, user_prompt, system_prompt):
+    @classmethod
+    def execute(cls, clip, user_prompt, system_prompt) -> io.NodeOutput:
         if clip is None:
             raise RuntimeError("ERROR: clip input is invalid: None\n\nIf the clip is from a checkpoint loader node your checkpoint does not contain a valid clip or text encoder model.")
-        system_prompt = CLIPTextEncodeLumina2.SYSTEM_PROMPT[system_prompt]
+        system_prompt = cls.SYSTEM_PROMPT[system_prompt]
         prompt = f'{system_prompt} <Prompt Start> {user_prompt}'
         tokens = clip.tokenize(prompt)
-        return (clip.encode_from_tokens_scheduled(tokens), )
+        return io.NodeOutput(clip.encode_from_tokens_scheduled(tokens))
 
 
-NODE_CLASS_MAPPINGS = {
-    "CLIPTextEncodeLumina2": CLIPTextEncodeLumina2,
-    "RenormCFG": RenormCFG
-}
+class Lumina2Extension(ComfyExtension):
+    @override
+    async def get_node_list(self) -> list[type[io.ComfyNode]]:
+        return [
+            CLIPTextEncodeLumina2,
+            RenormCFG,
+        ]
 
 
-NODE_DISPLAY_NAME_MAPPINGS = {
-    "CLIPTextEncodeLumina2": "CLIP Text Encode for Lumina2",
-}
+async def comfy_entrypoint() -> Lumina2Extension:
+    return Lumina2Extension()

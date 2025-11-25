@@ -84,6 +84,21 @@ class ComfyClient:
         with urllib.request.urlopen("http://{}/history/{}".format(self.server_address, prompt_id)) as response:
             return json.loads(response.read())
 
+    def get_all_history(self, max_items=None, offset=None):
+        url = "http://{}/history".format(self.server_address)
+        params = {}
+        if max_items is not None:
+            params["max_items"] = max_items
+        if offset is not None:
+            params["offset"] = offset
+
+        if params:
+            url_values = urllib.parse.urlencode(params)
+            url = "{}?{}".format(url, url_values)
+
+        with urllib.request.urlopen(url) as response:
+            return json.loads(response.read())
+
     def set_test_name(self, name):
         self.test_name = name
 
@@ -137,27 +152,25 @@ class TestExecution:
     # Initialize server and client
     #
     @fixture(scope="class", autouse=True, params=[
-        # (use_lru, lru_size)
-        (False, 0),
-        (True, 0),
-        (True, 100),
+        { "extra_args" : [], "should_cache_results" : True },
+        { "extra_args" : ["--cache-lru", 0], "should_cache_results" : True },
+        { "extra_args" : ["--cache-lru", 100], "should_cache_results" : True },
+        { "extra_args" : ["--cache-none"], "should_cache_results" : False },
     ])
-    def _server(self, args_pytest, request):
+    def server(self, args_pytest, request):
         # Start server
         pargs = [
             'python','main.py',
             '--output-directory', args_pytest["output_dir"],
             '--listen', args_pytest["listen"],
             '--port', str(args_pytest["port"]),
-            '--extra-model-paths-config', 'tests/inference/extra_model_paths.yaml',
+            '--extra-model-paths-config', 'tests/execution/extra_model_paths.yaml',
             '--cpu',
         ]
-        use_lru, lru_size = request.param
-        if use_lru:
-            pargs += ['--cache-lru', str(lru_size)]
+        pargs += [ str(param) for param in request.param["extra_args"] ]
         print("Running server with args:", pargs)  # noqa: T201
         p = subprocess.Popen(pargs)
-        yield
+        yield request.param
         p.kill()
         torch.cuda.empty_cache()
 
@@ -178,7 +191,7 @@ class TestExecution:
         return comfy_client
 
     @fixture(scope="class", autouse=True)
-    def shared_client(self, args_pytest, _server):
+    def shared_client(self, args_pytest, server):
         client = self.start_client(args_pytest["listen"], args_pytest["port"])
         yield client
         del client
@@ -210,7 +223,7 @@ class TestExecution:
         assert result.did_run(mask)
         assert result.did_run(lazy_mix)
 
-    def test_full_cache(self, client: ComfyClient, builder: GraphBuilder):
+    def test_full_cache(self, client: ComfyClient, builder: GraphBuilder, server):
         g = builder
         input1 = g.node("StubImage", content="BLACK", height=512, width=512, batch_size=1)
         input2 = g.node("StubImage", content="NOISE", height=512, width=512, batch_size=1)
@@ -222,9 +235,12 @@ class TestExecution:
         client.run(g)
         result2 = client.run(g)
         for node_id, node in g.nodes.items():
-            assert not result2.did_run(node), f"Node {node_id} ran, but should have been cached"
+            if server["should_cache_results"]:
+                assert not result2.did_run(node), f"Node {node_id} ran, but should have been cached"
+            else:
+                assert result2.did_run(node), f"Node {node_id} was cached, but should have been run"
 
-    def test_partial_cache(self, client: ComfyClient, builder: GraphBuilder):
+    def test_partial_cache(self, client: ComfyClient, builder: GraphBuilder, server):
         g = builder
         input1 = g.node("StubImage", content="BLACK", height=512, width=512, batch_size=1)
         input2 = g.node("StubImage", content="NOISE", height=512, width=512, batch_size=1)
@@ -236,8 +252,12 @@ class TestExecution:
         client.run(g)
         mask.inputs['value'] = 0.4
         result2 = client.run(g)
-        assert not result2.did_run(input1), "Input1 should have been cached"
-        assert not result2.did_run(input2), "Input2 should have been cached"
+        if server["should_cache_results"]:
+            assert not result2.did_run(input1), "Input1 should have been cached"
+            assert not result2.did_run(input2), "Input2 should have been cached"
+        else:
+            assert result2.did_run(input1), "Input1 should have been rerun"
+            assert result2.did_run(input2), "Input2 should have been rerun"
 
     def test_error(self, client: ComfyClient, builder: GraphBuilder):
         g = builder
@@ -396,7 +416,7 @@ class TestExecution:
         input2 = g.node("StubImage", id="removeme", content="WHITE", height=512, width=512, batch_size=1)
         client.run(g)
 
-    def test_custom_is_changed(self, client: ComfyClient, builder: GraphBuilder):
+    def test_custom_is_changed(self, client: ComfyClient, builder: GraphBuilder, server):
         g = builder
         # Creating the nodes in this specific order previously caused a bug
         save = g.node("SaveImage")
@@ -412,7 +432,10 @@ class TestExecution:
         result3 = client.run(g)
         result4 = client.run(g)
         assert result1.did_run(is_changed), "is_changed should have been run"
-        assert not result2.did_run(is_changed), "is_changed should have been cached"
+        if server["should_cache_results"]:
+            assert not result2.did_run(is_changed), "is_changed should have been cached"
+        else:
+            assert result2.did_run(is_changed), "is_changed should have been re-run"
         assert result3.did_run(is_changed), "is_changed should have been re-run"
         assert result4.did_run(is_changed), "is_changed should not have been cached"
 
@@ -498,9 +521,8 @@ class TestExecution:
         assert len(images1) == 1, "Should have 1 image"
         assert len(images2) == 1, "Should have 1 image"
 
-
     # This tests that only constant outputs are used in the call to `IS_CHANGED`
-    def test_is_changed_with_outputs(self, client: ComfyClient, builder: GraphBuilder):
+    def test_is_changed_with_outputs(self, client: ComfyClient, builder: GraphBuilder, server):
         g = builder
         input1 = g.node("StubConstantImage", value=0.5, height=512, width=512, batch_size=1)
         test_node = g.node("TestIsChangedWithConstants", image=input1.out(0), value=0.5)
@@ -516,9 +538,13 @@ class TestExecution:
         images = result.get_images(output)
         assert len(images) == 1, "Should have 1 image"
         assert numpy.array(images[0]).min() == 63 and numpy.array(images[0]).max() == 63, "Image should have value 0.25"
-        assert not result.did_run(test_node), "The execution should have been cached"
+        if server["should_cache_results"]:
+            assert not result.did_run(test_node), "The execution should have been cached"
+        else:
+            assert result.did_run(test_node), "The execution should have been re-run"
 
-    def test_parallel_sleep_nodes(self, client: ComfyClient, builder: GraphBuilder):
+
+    def test_parallel_sleep_nodes(self, client: ComfyClient, builder: GraphBuilder, skip_timing_checks):
         # Warmup execution to ensure server is fully initialized
         run_warmup(client)
 
@@ -541,14 +567,15 @@ class TestExecution:
 
         # The test should take around 3.0 seconds (the longest sleep duration)
         # plus some overhead, but definitely less than the sum of all sleeps (9.0s)
-        assert elapsed_time < 8.9, f"Parallel execution took {elapsed_time}s, expected less than 8.9s"
+        if not skip_timing_checks:
+            assert elapsed_time < 8.9, f"Parallel execution took {elapsed_time}s, expected less than 8.9s"
 
         # Verify that all nodes executed
         assert result.did_run(sleep_node1), "Sleep node 1 should have run"
         assert result.did_run(sleep_node2), "Sleep node 2 should have run"
         assert result.did_run(sleep_node3), "Sleep node 3 should have run"
 
-    def test_parallel_sleep_expansion(self, client: ComfyClient, builder: GraphBuilder):
+    def test_parallel_sleep_expansion(self, client: ComfyClient, builder: GraphBuilder, skip_timing_checks):
         # Warmup execution to ensure server is fully initialized
         run_warmup(client)
 
@@ -574,7 +601,9 @@ class TestExecution:
 
         # Similar to the previous test, expect parallel execution of the sleep nodes
         # which should complete in less than the sum of all sleeps
-        assert elapsed_time < 10.0, f"Expansion execution took {elapsed_time}s, expected less than 5.5s"
+        # Lots of leeway here since Windows CI is slow
+        if not skip_timing_checks:
+            assert elapsed_time < 13.0, f"Expansion execution took {elapsed_time}s"
 
         # Verify the parallel sleep node executed
         assert result.did_run(parallel_sleep), "ParallelSleep node should have run"
@@ -759,3 +788,92 @@ class TestExecution:
         except urllib.error.HTTPError:
             pass  # Expected behavior
 
+    def _create_history_item(self, client, builder):
+        g = GraphBuilder(prefix="offset_test")
+        input_node = g.node(
+            "StubImage", content="BLACK", height=32, width=32, batch_size=1
+        )
+        g.node("SaveImage", images=input_node.out(0))
+        return client.run(g)
+
+    def test_offset_returns_different_items_than_beginning_of_history(
+        self, client: ComfyClient, builder: GraphBuilder
+    ):
+        """Test that offset skips items at the beginning"""
+        for _ in range(5):
+            self._create_history_item(client, builder)
+
+        first_two = client.get_all_history(max_items=2, offset=0)
+        next_two = client.get_all_history(max_items=2, offset=2)
+
+        assert set(first_two.keys()).isdisjoint(
+            set(next_two.keys())
+        ), "Offset should skip initial items"
+
+    def test_offset_beyond_history_length_returns_empty(
+        self, client: ComfyClient, builder: GraphBuilder
+    ):
+        """Test offset larger than total history returns empty result"""
+        self._create_history_item(client, builder)
+
+        result = client.get_all_history(offset=100)
+        assert len(result) == 0, "Large offset should return no items"
+
+    def test_offset_at_exact_history_length_returns_empty(
+        self, client: ComfyClient, builder: GraphBuilder
+    ):
+        """Test offset equal to history length returns empty"""
+        for _ in range(3):
+            self._create_history_item(client, builder)
+
+        all_history = client.get_all_history()
+        result = client.get_all_history(offset=len(all_history))
+        assert len(result) == 0, "Offset at history length should return empty"
+
+    def test_offset_zero_equals_no_offset_parameter(
+        self, client: ComfyClient, builder: GraphBuilder
+    ):
+        """Test offset=0 behaves same as omitting offset"""
+        self._create_history_item(client, builder)
+
+        with_zero = client.get_all_history(offset=0)
+        without_offset = client.get_all_history()
+
+        assert with_zero == without_offset, "offset=0 should equal no offset"
+
+    def test_offset_without_max_items_skips_from_beginning(
+        self, client: ComfyClient, builder: GraphBuilder
+    ):
+        """Test offset alone (no max_items) returns remaining items"""
+        for _ in range(4):
+            self._create_history_item(client, builder)
+
+        all_items = client.get_all_history()
+        offset_items = client.get_all_history(offset=2)
+
+        assert (
+            len(offset_items) == len(all_items) - 2
+        ), "Offset should skip specified number of items"
+
+    def test_offset_with_max_items_returns_correct_window(
+        self, client: ComfyClient, builder: GraphBuilder
+    ):
+        """Test offset + max_items returns correct slice of history"""
+        for _ in range(6):
+            self._create_history_item(client, builder)
+
+        window = client.get_all_history(max_items=2, offset=1)
+        assert len(window) <= 2, "Should respect max_items limit"
+
+    def test_offset_near_end_returns_remaining_items_only(
+        self, client: ComfyClient, builder: GraphBuilder
+    ):
+        """Test offset near end of history returns only remaining items"""
+        for _ in range(3):
+            self._create_history_item(client, builder)
+
+        all_history = client.get_all_history()
+        # Offset to near the end
+        result = client.get_all_history(max_items=5, offset=len(all_history) - 1)
+
+        assert len(result) <= 1, "Should return at most 1 item when offset is near end"

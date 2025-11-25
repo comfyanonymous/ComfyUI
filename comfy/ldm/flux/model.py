@@ -106,6 +106,7 @@ class Flux(nn.Module):
         if y is None:
             y = torch.zeros((img.shape[0], self.params.vec_in_dim), device=img.device, dtype=img.dtype)
 
+        patches = transformer_options.get("patches", {})
         patches_replace = transformer_options.get("patches_replace", {})
         if img.ndim != 3 or txt.ndim != 3:
             raise ValueError("Input img and txt tensors must have 3 dimensions.")
@@ -117,8 +118,16 @@ class Flux(nn.Module):
             if guidance is not None:
                 vec = vec + self.guidance_in(timestep_embedding(guidance, 256).to(img.dtype))
 
-        vec = vec + self.vector_in(y[:,:self.params.vec_in_dim])
+        vec = vec + self.vector_in(y[:, :self.params.vec_in_dim])
         txt = self.txt_in(txt)
+
+        if "post_input" in patches:
+            for p in patches["post_input"]:
+                out = p({"img": img, "txt": txt, "img_ids": img_ids, "txt_ids": txt_ids})
+                img = out["img"]
+                txt = out["txt"]
+                img_ids = out["img_ids"]
+                txt_ids = out["txt_ids"]
 
         if img_ids is not None:
             ids = torch.cat((txt_ids, img_ids), dim=1)
@@ -135,14 +144,16 @@ class Flux(nn.Module):
                                                    txt=args["txt"],
                                                    vec=args["vec"],
                                                    pe=args["pe"],
-                                                   attn_mask=args.get("attn_mask"))
+                                                   attn_mask=args.get("attn_mask"),
+                                                   transformer_options=args.get("transformer_options"))
                     return out
 
                 out = blocks_replace[("double_block", i)]({"img": img,
                                                            "txt": txt,
                                                            "vec": vec,
                                                            "pe": pe,
-                                                           "attn_mask": attn_mask},
+                                                           "attn_mask": attn_mask,
+                                                           "transformer_options": transformer_options},
                                                           {"original_block": block_wrap})
                 txt = out["txt"]
                 img = out["img"]
@@ -151,14 +162,15 @@ class Flux(nn.Module):
                                  txt=txt,
                                  vec=vec,
                                  pe=pe,
-                                 attn_mask=attn_mask)
+                                 attn_mask=attn_mask,
+                                 transformer_options=transformer_options)
 
             if control is not None: # Controlnet
                 control_i = control.get("input")
                 if i < len(control_i):
                     add = control_i[i]
                     if add is not None:
-                        img += add
+                        img[:, :add.shape[1]] += add
 
         if img.dtype == torch.float16:
             img = torch.nan_to_num(img, nan=0.0, posinf=65504, neginf=-65504)
@@ -172,31 +184,33 @@ class Flux(nn.Module):
                     out["img"] = block(args["img"],
                                        vec=args["vec"],
                                        pe=args["pe"],
-                                       attn_mask=args.get("attn_mask"))
+                                       attn_mask=args.get("attn_mask"),
+                                       transformer_options=args.get("transformer_options"))
                     return out
 
                 out = blocks_replace[("single_block", i)]({"img": img,
                                                            "vec": vec,
                                                            "pe": pe,
-                                                           "attn_mask": attn_mask},
+                                                           "attn_mask": attn_mask,
+                                                           "transformer_options": transformer_options},
                                                           {"original_block": block_wrap})
                 img = out["img"]
             else:
-                img = block(img, vec=vec, pe=pe, attn_mask=attn_mask)
+                img = block(img, vec=vec, pe=pe, attn_mask=attn_mask, transformer_options=transformer_options)
 
             if control is not None: # Controlnet
                 control_o = control.get("output")
                 if i < len(control_o):
                     add = control_o[i]
                     if add is not None:
-                        img[:, txt.shape[1] :, ...] += add
+                        img[:, txt.shape[1] : txt.shape[1] + add.shape[1], ...] += add
 
         img = img[:, txt.shape[1] :, ...]
 
         img = self.final_layer(img, vec)  # (N, T, patch_size ** 2 * out_channels)
         return img
 
-    def process_img(self, x, index=0, h_offset=0, w_offset=0):
+    def process_img(self, x, index=0, h_offset=0, w_offset=0, transformer_options={}):
         bs, c, h, w = x.shape
         patch_size = self.patch_size
         x = comfy.ldm.common_dit.pad_to_patch_size(x, (patch_size, patch_size))
@@ -208,10 +222,22 @@ class Flux(nn.Module):
         h_offset = ((h_offset + (patch_size // 2)) // patch_size)
         w_offset = ((w_offset + (patch_size // 2)) // patch_size)
 
-        img_ids = torch.zeros((h_len, w_len, 3), device=x.device, dtype=x.dtype)
+        steps_h = h_len
+        steps_w = w_len
+
+        rope_options = transformer_options.get("rope_options", None)
+        if rope_options is not None:
+            h_len = (h_len - 1.0) * rope_options.get("scale_y", 1.0) + 1.0
+            w_len = (w_len - 1.0) * rope_options.get("scale_x", 1.0) + 1.0
+
+            index += rope_options.get("shift_t", 0.0)
+            h_offset += rope_options.get("shift_y", 0.0)
+            w_offset += rope_options.get("shift_x", 0.0)
+
+        img_ids = torch.zeros((steps_h, steps_w, 3), device=x.device, dtype=x.dtype)
         img_ids[:, :, 0] = img_ids[:, :, 1] + index
-        img_ids[:, :, 1] = img_ids[:, :, 1] + torch.linspace(h_offset, h_len - 1 + h_offset, steps=h_len, device=x.device, dtype=x.dtype).unsqueeze(1)
-        img_ids[:, :, 2] = img_ids[:, :, 2] + torch.linspace(w_offset, w_len - 1 + w_offset, steps=w_len, device=x.device, dtype=x.dtype).unsqueeze(0)
+        img_ids[:, :, 1] = img_ids[:, :, 1] + torch.linspace(h_offset, h_len - 1 + h_offset, steps=steps_h, device=x.device, dtype=x.dtype).unsqueeze(1)
+        img_ids[:, :, 2] = img_ids[:, :, 2] + torch.linspace(w_offset, w_len - 1 + w_offset, steps=steps_w, device=x.device, dtype=x.dtype).unsqueeze(0)
         return img, repeat(img_ids, "h w c -> b (h w) c", b=bs)
 
     def forward(self, x, timestep, context, y=None, guidance=None, ref_latents=None, control=None, transformer_options={}, **kwargs):
@@ -227,18 +253,24 @@ class Flux(nn.Module):
 
         h_len = ((h_orig + (patch_size // 2)) // patch_size)
         w_len = ((w_orig + (patch_size // 2)) // patch_size)
-        img, img_ids = self.process_img(x)
+        img, img_ids = self.process_img(x, transformer_options=transformer_options)
         img_tokens = img.shape[1]
         if ref_latents is not None:
             h = 0
             w = 0
             index = 0
-            index_ref_method = kwargs.get("ref_latents_method", "offset") == "index"
+            ref_latents_method = kwargs.get("ref_latents_method", "offset")
             for ref in ref_latents:
-                if index_ref_method:
+                if ref_latents_method == "index":
                     index += 1
                     h_offset = 0
                     w_offset = 0
+                elif ref_latents_method == "uxo":
+                    index = 0
+                    h_offset = h_len * patch_size + h
+                    w_offset = w_len * patch_size + w
+                    h += ref.shape[-2]
+                    w += ref.shape[-1]
                 else:
                     index = 1
                     h_offset = 0

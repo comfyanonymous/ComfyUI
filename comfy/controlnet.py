@@ -253,7 +253,10 @@ class ControlNet(ControlBase):
                 to_concat = []
                 for c in self.extra_concat_orig:
                     c = c.to(self.cond_hint.device)
-                    c = comfy.utils.common_upscale(c, self.cond_hint.shape[3], self.cond_hint.shape[2], self.upscale_algorithm, "center")
+                    c = comfy.utils.common_upscale(c, self.cond_hint.shape[-1], self.cond_hint.shape[-2], self.upscale_algorithm, "center")
+                    if c.ndim < self.cond_hint.ndim:
+                        c = c.unsqueeze(2)
+                        c = comfy.utils.repeat_to_batch_size(c, self.cond_hint.shape[2], dim=2)
                     to_concat.append(comfy.utils.repeat_to_batch_size(c, self.cond_hint.shape[0]))
                 self.cond_hint = torch.cat([self.cond_hint] + to_concat, dim=1)
 
@@ -307,11 +310,13 @@ class ControlLoraOps:
             self.bias = None
 
         def forward(self, input):
-            weight, bias = comfy.ops.cast_bias_weight(self, input)
+            weight, bias, offload_stream = comfy.ops.cast_bias_weight(self, input, offloadable=True)
             if self.up is not None:
-                return torch.nn.functional.linear(input, weight + (torch.mm(self.up.flatten(start_dim=1), self.down.flatten(start_dim=1))).reshape(self.weight.shape).type(input.dtype), bias)
+                x = torch.nn.functional.linear(input, weight + (torch.mm(self.up.flatten(start_dim=1), self.down.flatten(start_dim=1))).reshape(self.weight.shape).type(input.dtype), bias)
             else:
-                return torch.nn.functional.linear(input, weight, bias)
+                x = torch.nn.functional.linear(input, weight, bias)
+            comfy.ops.uncast_bias_weight(self, weight, bias, offload_stream)
+            return x
 
     class Conv2d(torch.nn.Module, comfy.ops.CastWeightBiasOp):
         def __init__(
@@ -347,12 +352,13 @@ class ControlLoraOps:
 
 
         def forward(self, input):
-            weight, bias = comfy.ops.cast_bias_weight(self, input)
+            weight, bias, offload_stream = comfy.ops.cast_bias_weight(self, input, offloadable=True)
             if self.up is not None:
-                return torch.nn.functional.conv2d(input, weight + (torch.mm(self.up.flatten(start_dim=1), self.down.flatten(start_dim=1))).reshape(self.weight.shape).type(input.dtype), bias, self.stride, self.padding, self.dilation, self.groups)
+                x = torch.nn.functional.conv2d(input, weight + (torch.mm(self.up.flatten(start_dim=1), self.down.flatten(start_dim=1))).reshape(self.weight.shape).type(input.dtype), bias, self.stride, self.padding, self.dilation, self.groups)
             else:
-                return torch.nn.functional.conv2d(input, weight, bias, self.stride, self.padding, self.dilation, self.groups)
-
+                x = torch.nn.functional.conv2d(input, weight, bias, self.stride, self.padding, self.dilation, self.groups)
+            comfy.ops.uncast_bias_weight(self, weight, bias, offload_stream)
+            return x
 
 class ControlLora(ControlNet):
     def __init__(self, control_weights, global_average_pooling=False, model_options={}): #TODO? model_options
@@ -585,11 +591,18 @@ def load_controlnet_flux_instantx(sd, model_options={}):
 
 def load_controlnet_qwen_instantx(sd, model_options={}):
     model_config, operations, load_device, unet_dtype, manual_cast_dtype, offload_device = controlnet_config(sd, model_options=model_options)
-    control_model = comfy.ldm.qwen_image.controlnet.QwenImageControlNetModel(operations=operations, device=offload_device, dtype=unet_dtype, **model_config.unet_config)
+    control_latent_channels = sd.get("controlnet_x_embedder.weight").shape[1]
+
+    extra_condition_channels = 0
+    concat_mask = False
+    if control_latent_channels == 68: #inpaint controlnet
+        extra_condition_channels = control_latent_channels - 64
+        concat_mask = True
+    control_model = comfy.ldm.qwen_image.controlnet.QwenImageControlNetModel(extra_condition_channels=extra_condition_channels, operations=operations, device=offload_device, dtype=unet_dtype, **model_config.unet_config)
     control_model = controlnet_load_state_dict(control_model, sd)
     latent_format = comfy.latent_formats.Wan21()
     extra_conds = []
-    control = ControlNet(control_model, compression_ratio=1, latent_format=latent_format, load_device=load_device, manual_cast_dtype=manual_cast_dtype, extra_conds=extra_conds)
+    control = ControlNet(control_model, compression_ratio=1, latent_format=latent_format, concat_mask=concat_mask, load_device=load_device, manual_cast_dtype=manual_cast_dtype, extra_conds=extra_conds)
     return control
 
 def convert_mistoline(sd):

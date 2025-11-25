@@ -306,17 +306,10 @@ def _calc_cond_batch(model: BaseModel, conds: list[list[dict]], x_in: torch.Tens
                                                                                  copy_dict1=False)
 
             if patches is not None:
-                # TODO: replace with merge_nested_dicts function
-                if "patches" in transformer_options:
-                    cur_patches = transformer_options["patches"].copy()
-                    for p in patches:
-                        if p in cur_patches:
-                            cur_patches[p] = cur_patches[p] + patches[p]
-                        else:
-                            cur_patches[p] = patches[p]
-                    transformer_options["patches"] = cur_patches
-                else:
-                    transformer_options["patches"] = patches
+                transformer_options["patches"] = comfy.patcher_extension.merge_nested_dicts(
+                    transformer_options.get("patches", {}),
+                    patches
+                )
 
             transformer_options["cond_or_uncond"] = cond_or_uncond[:]
             transformer_options["uuids"] = uuids[:]
@@ -360,7 +353,7 @@ def calc_cond_uncond_batch(model, cond, uncond, x_in, timestep, model_options): 
 def cfg_function(model, cond_pred, uncond_pred, cond_scale, x, timestep, model_options={}, cond=None, uncond=None):
     if "sampler_cfg_function" in model_options:
         args = {"cond": x - cond_pred, "uncond": x - uncond_pred, "cond_scale": cond_scale, "timestep": timestep, "input": x, "sigma": timestep,
-                "cond_denoised": cond_pred, "uncond_denoised": uncond_pred, "model": model, "model_options": model_options}
+                "cond_denoised": cond_pred, "uncond_denoised": uncond_pred, "model": model, "model_options": model_options, "input_cond": cond, "input_uncond": uncond}
         cfg_result = x - model_options["sampler_cfg_function"](args)
     else:
         cfg_result = uncond_pred + (cond_pred - uncond_pred) * cond_scale
@@ -390,7 +383,7 @@ def sampling_function(model, x, timestep, uncond, cond, cond_scale, model_option
     for fn in model_options.get("sampler_pre_cfg_function", []):
         args = {"conds":conds, "conds_out": out, "cond_scale": cond_scale, "timestep": timestep,
                 "input": x, "sigma": timestep, "model": model, "model_options": model_options}
-        out  = fn(args)
+        out = fn(args)
 
     return cfg_function(model, out[0], out[1], cond_scale, x, timestep, model_options=model_options, cond=cond, uncond=uncond_)
 
@@ -729,7 +722,7 @@ class Sampler:
 
 KSAMPLER_NAMES = ["euler", "euler_cfg_pp", "euler_ancestral", "euler_ancestral_cfg_pp", "heun", "heunpp2","dpm_2", "dpm_2_ancestral",
                   "lms", "dpm_fast", "dpm_adaptive", "dpmpp_2s_ancestral", "dpmpp_2s_ancestral_cfg_pp", "dpmpp_sde", "dpmpp_sde_gpu",
-                  "dpmpp_2m", "dpmpp_2m_cfg_pp", "dpmpp_2m_sde", "dpmpp_2m_sde_gpu", "dpmpp_3m_sde", "dpmpp_3m_sde_gpu", "ddpm", "lcm",
+                  "dpmpp_2m", "dpmpp_2m_cfg_pp", "dpmpp_2m_sde", "dpmpp_2m_sde_gpu", "dpmpp_2m_sde_heun", "dpmpp_2m_sde_heun_gpu", "dpmpp_3m_sde", "dpmpp_3m_sde_gpu", "ddpm", "lcm",
                   "ipndm", "ipndm_v", "deis", "res_multistep", "res_multistep_cfg_pp", "res_multistep_ancestral", "res_multistep_ancestral_cfg_pp",
                   "gradient_estimation", "gradient_estimation_cfg_pp", "er_sde", "seeds_2", "seeds_3", "sa_solver", "sa_solver_pece"]
 
@@ -789,7 +782,7 @@ def ksampler(sampler_name, extra_options={}, inpaint_options={}):
     return KSAMPLER(sampler_function, extra_options, inpaint_options)
 
 
-def process_conds(model, noise, conds, device, latent_image=None, denoise_mask=None, seed=None):
+def process_conds(model, noise, conds, device, latent_image=None, denoise_mask=None, seed=None, latent_shapes=None):
     for k in conds:
         conds[k] = conds[k][:]
         resolve_areas_and_cond_masks_multidim(conds[k], noise.shape[2:], device)
@@ -799,7 +792,7 @@ def process_conds(model, noise, conds, device, latent_image=None, denoise_mask=N
 
     if hasattr(model, 'extra_conds'):
         for k in conds:
-            conds[k] = encode_model_conds(model.extra_conds, conds[k], noise, device, k, latent_image=latent_image, denoise_mask=denoise_mask, seed=seed)
+            conds[k] = encode_model_conds(model.extra_conds, conds[k], noise, device, k, latent_image=latent_image, denoise_mask=denoise_mask, seed=seed, latent_shapes=latent_shapes)
 
     #make sure each cond area has an opposite one with the same area
     for k in conds:
@@ -969,11 +962,11 @@ class CFGGuider:
     def predict_noise(self, x, timestep, model_options={}, seed=None):
         return sampling_function(self.inner_model, x, timestep, self.conds.get("negative", None), self.conds.get("positive", None), self.cfg, model_options=model_options, seed=seed)
 
-    def inner_sample(self, noise, latent_image, device, sampler, sigmas, denoise_mask, callback, disable_pbar, seed):
+    def inner_sample(self, noise, latent_image, device, sampler, sigmas, denoise_mask, callback, disable_pbar, seed, latent_shapes=None):
         if latent_image is not None and torch.count_nonzero(latent_image) > 0: #Don't shift the empty latent image.
             latent_image = self.inner_model.process_latent_in(latent_image)
 
-        self.conds = process_conds(self.inner_model, noise, self.conds, device, latent_image, denoise_mask, seed)
+        self.conds = process_conds(self.inner_model, noise, self.conds, device, latent_image, denoise_mask, seed, latent_shapes=latent_shapes)
 
         extra_model_options = comfy.model_patcher.create_model_options_clone(self.model_options)
         extra_model_options.setdefault("transformer_options", {})["sample_sigmas"] = sigmas
@@ -987,7 +980,7 @@ class CFGGuider:
         samples = executor.execute(self, sigmas, extra_args, callback, noise, latent_image, denoise_mask, disable_pbar)
         return self.inner_model.process_latent_out(samples.to(torch.float32))
 
-    def outer_sample(self, noise, latent_image, sampler, sigmas, denoise_mask=None, callback=None, disable_pbar=False, seed=None):
+    def outer_sample(self, noise, latent_image, sampler, sigmas, denoise_mask=None, callback=None, disable_pbar=False, seed=None, latent_shapes=None):
         self.inner_model, self.conds, self.loaded_models = comfy.sampler_helpers.prepare_sampling(self.model_patcher, noise.shape, self.conds, self.model_options)
         device = self.model_patcher.load_device
 
@@ -1001,7 +994,7 @@ class CFGGuider:
 
         try:
             self.model_patcher.pre_run()
-            output = self.inner_sample(noise, latent_image, device, sampler, sigmas, denoise_mask, callback, disable_pbar, seed)
+            output = self.inner_sample(noise, latent_image, device, sampler, sigmas, denoise_mask, callback, disable_pbar, seed, latent_shapes=latent_shapes)
         finally:
             self.model_patcher.cleanup()
 
@@ -1013,6 +1006,12 @@ class CFGGuider:
     def sample(self, noise, latent_image, sampler, sigmas, denoise_mask=None, callback=None, disable_pbar=False, seed=None):
         if sigmas.shape[-1] == 0:
             return latent_image
+
+        if latent_image.is_nested:
+            latent_image, latent_shapes = comfy.utils.pack_latents(latent_image.unbind())
+            noise, _ = comfy.utils.pack_latents(noise.unbind())
+        else:
+            latent_shapes = [latent_image.shape]
 
         self.conds = {}
         for k in self.original_conds:
@@ -1033,7 +1032,7 @@ class CFGGuider:
                 self,
                 comfy.patcher_extension.get_all_wrappers(comfy.patcher_extension.WrappersMP.OUTER_SAMPLE, self.model_options, is_model_options=True)
             )
-            output = executor.execute(noise, latent_image, sampler, sigmas, denoise_mask, callback, disable_pbar, seed)
+            output = executor.execute(noise, latent_image, sampler, sigmas, denoise_mask, callback, disable_pbar, seed, latent_shapes=latent_shapes)
         finally:
             cast_to_load_options(self.model_options, device=self.model_patcher.offload_device)
             self.model_options = orig_model_options
@@ -1041,6 +1040,9 @@ class CFGGuider:
             self.model_patcher.restore_hook_patches()
 
         del self.conds
+
+        if len(latent_shapes) > 1:
+            output = comfy.nested_tensor.NestedTensor(comfy.utils.unpack_latents(output, latent_shapes))
         return output
 
 

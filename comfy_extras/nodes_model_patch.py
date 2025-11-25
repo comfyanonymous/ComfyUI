@@ -1,4 +1,5 @@
 import torch
+from torch import nn
 import folder_paths
 import comfy.utils
 import comfy.ops
@@ -58,6 +59,136 @@ class QwenImageBlockWiseControlNet(torch.nn.Module):
         return self.controlnet_blocks[block_id](img, controlnet_conditioning)
 
 
+class SigLIPMultiFeatProjModel(torch.nn.Module):
+    """
+    SigLIP Multi-Feature Projection Model for processing style features from different layers
+    and projecting them into a unified hidden space.
+
+    Args:
+        siglip_token_nums (int): Number of SigLIP tokens, default 257
+        style_token_nums (int): Number of style tokens, default 256
+        siglip_token_dims (int): Dimension of SigLIP tokens, default 1536
+        hidden_size (int): Hidden layer size, default 3072
+        context_layer_norm (bool): Whether to use context layer normalization, default False
+    """
+
+    def __init__(
+        self,
+        siglip_token_nums: int = 729,
+        style_token_nums: int = 64,
+        siglip_token_dims: int = 1152,
+        hidden_size: int = 3072,
+        context_layer_norm: bool = True,
+        device=None, dtype=None, operations=None
+    ):
+        super().__init__()
+
+        # High-level feature processing (layer -2)
+        self.high_embedding_linear = nn.Sequential(
+            operations.Linear(siglip_token_nums, style_token_nums),
+            nn.SiLU()
+        )
+        self.high_layer_norm = (
+            operations.LayerNorm(siglip_token_dims) if context_layer_norm else nn.Identity()
+        )
+        self.high_projection = operations.Linear(siglip_token_dims, hidden_size, bias=True)
+
+        # Mid-level feature processing (layer -11)
+        self.mid_embedding_linear = nn.Sequential(
+            operations.Linear(siglip_token_nums, style_token_nums),
+            nn.SiLU()
+        )
+        self.mid_layer_norm = (
+            operations.LayerNorm(siglip_token_dims) if context_layer_norm else nn.Identity()
+        )
+        self.mid_projection = operations.Linear(siglip_token_dims, hidden_size, bias=True)
+
+        # Low-level feature processing (layer -20)
+        self.low_embedding_linear = nn.Sequential(
+            operations.Linear(siglip_token_nums, style_token_nums),
+            nn.SiLU()
+        )
+        self.low_layer_norm = (
+            operations.LayerNorm(siglip_token_dims) if context_layer_norm else nn.Identity()
+        )
+        self.low_projection = operations.Linear(siglip_token_dims, hidden_size, bias=True)
+
+    def forward(self, siglip_outputs):
+        """
+        Forward pass function
+
+        Args:
+            siglip_outputs: Output from SigLIP model, containing hidden_states
+
+        Returns:
+            torch.Tensor: Concatenated multi-layer features with shape [bs, 3*style_token_nums, hidden_size]
+        """
+        dtype = next(self.high_embedding_linear.parameters()).dtype
+
+        # Process high-level features (layer -2)
+        high_embedding = self._process_layer_features(
+            siglip_outputs[2],
+            self.high_embedding_linear,
+            self.high_layer_norm,
+            self.high_projection,
+            dtype
+        )
+
+        # Process mid-level features (layer -11)
+        mid_embedding = self._process_layer_features(
+            siglip_outputs[1],
+            self.mid_embedding_linear,
+            self.mid_layer_norm,
+            self.mid_projection,
+            dtype
+        )
+
+        # Process low-level features (layer -20)
+        low_embedding = self._process_layer_features(
+            siglip_outputs[0],
+            self.low_embedding_linear,
+            self.low_layer_norm,
+            self.low_projection,
+            dtype
+        )
+
+        # Concatenate features from all layersmodel_patch
+        return torch.cat((high_embedding, mid_embedding, low_embedding), dim=1)
+
+    def _process_layer_features(
+        self,
+        hidden_states: torch.Tensor,
+        embedding_linear: nn.Module,
+        layer_norm: nn.Module,
+        projection: nn.Module,
+        dtype: torch.dtype
+    ) -> torch.Tensor:
+        """
+        Helper function to process features from a single layer
+
+        Args:
+            hidden_states: Input hidden states [bs, seq_len, dim]
+            embedding_linear: Embedding linear layer
+            layer_norm: Layer normalization
+            projection: Projection layer
+            dtype: Target data type
+
+        Returns:
+            torch.Tensor: Processed features [bs, style_token_nums, hidden_size]
+        """
+        # Transform dimensions: [bs, seq_len, dim] -> [bs, dim, seq_len] -> [bs, dim, style_token_nums] -> [bs, style_token_nums, dim]
+        embedding = embedding_linear(
+            hidden_states.to(dtype).transpose(1, 2)
+        ).transpose(1, 2)
+
+        # Apply layer normalization
+        embedding = layer_norm(embedding)
+
+        # Project to target hidden space
+        embedding = projection(embedding)
+
+        return embedding
+
 class ModelPatchLoader:
     @classmethod
     def INPUT_TYPES(s):
@@ -73,9 +204,14 @@ class ModelPatchLoader:
         model_patch_path = folder_paths.get_full_path_or_raise("model_patches", name)
         sd = comfy.utils.load_torch_file(model_patch_path, safe_load=True)
         dtype = comfy.utils.weight_dtype(sd)
-        # TODO: this node will work with more types of model patches
-        additional_in_dim = sd["img_in.weight"].shape[1] - 64
-        model = QwenImageBlockWiseControlNet(additional_in_dim=additional_in_dim, device=comfy.model_management.unet_offload_device(), dtype=dtype, operations=comfy.ops.manual_cast)
+
+        if 'controlnet_blocks.0.y_rms.weight' in sd:
+            additional_in_dim = sd["img_in.weight"].shape[1] - 64
+            model = QwenImageBlockWiseControlNet(additional_in_dim=additional_in_dim, device=comfy.model_management.unet_offload_device(), dtype=dtype, operations=comfy.ops.manual_cast)
+        elif 'feature_embedder.mid_layer_norm.bias' in sd:
+            sd = comfy.utils.state_dict_prefix_replace(sd, {"feature_embedder.": ""}, filter_keys=True)
+            model = SigLIPMultiFeatProjModel(device=comfy.model_management.unet_offload_device(), dtype=dtype, operations=comfy.ops.manual_cast)
+
         model.load_state_dict(sd)
         model = comfy.model_patcher.ModelPatcher(model, load_device=comfy.model_management.get_torch_device(), offload_device=comfy.model_management.unet_offload_device())
         return (model,)
@@ -89,6 +225,7 @@ class DiffSynthCnetPatch:
         self.strength = strength
         self.mask = mask
         self.encoded_image = model_patch.model.process_input_latent_image(self.encode_latent_cond(image))
+        self.encoded_image_size = (image.shape[1], image.shape[2])
 
     def encode_latent_cond(self, image):
         latent_image = self.vae.encode(image)
@@ -106,14 +243,15 @@ class DiffSynthCnetPatch:
         x = kwargs.get("x")
         img = kwargs.get("img")
         block_index = kwargs.get("block_index")
-        if self.encoded_image is None or self.encoded_image.shape[1:] != img.shape[1:]:
-            spacial_compression = self.vae.spacial_compression_encode()
+        spacial_compression = self.vae.spacial_compression_encode()
+        if self.encoded_image is None or self.encoded_image_size != (x.shape[-2] * spacial_compression, x.shape[-1] * spacial_compression):
             image_scaled = comfy.utils.common_upscale(self.image.movedim(-1, 1), x.shape[-1] * spacial_compression, x.shape[-2] * spacial_compression, "area", "center")
             loaded_models = comfy.model_management.loaded_models(only_currently_used=True)
             self.encoded_image = self.model_patch.model.process_input_latent_image(self.encode_latent_cond(image_scaled.movedim(1, -1)))
+            self.encoded_image_size = (image_scaled.shape[-2], image_scaled.shape[-1])
             comfy.model_management.load_models_gpu(loaded_models)
 
-        img = img + (self.model_patch.model.control_block(img, self.encoded_image.to(img.dtype), block_index) * self.strength)
+        img[:, :self.encoded_image.shape[1]] += (self.model_patch.model.control_block(img[:, :self.encoded_image.shape[1]], self.encoded_image.to(img.dtype), block_index) * self.strength)
         kwargs['img'] = img
         return kwargs
 
@@ -155,7 +293,51 @@ class QwenImageDiffsynthControlnet:
         return (model_patched,)
 
 
+class UsoStyleProjectorPatch:
+    def __init__(self, model_patch, encoded_image):
+        self.model_patch = model_patch
+        self.encoded_image = encoded_image
+
+    def __call__(self, kwargs):
+        txt_ids = kwargs.get("txt_ids")
+        txt = kwargs.get("txt")
+        siglip_embedding = self.model_patch.model(self.encoded_image.to(txt.dtype)).to(txt.dtype)
+        txt = torch.cat([siglip_embedding, txt], dim=1)
+        kwargs['txt'] = txt
+        kwargs['txt_ids'] = torch.cat([torch.zeros(siglip_embedding.shape[0], siglip_embedding.shape[1], 3, dtype=txt_ids.dtype, device=txt_ids.device), txt_ids], dim=1)
+        return kwargs
+
+    def to(self, device_or_dtype):
+        if isinstance(device_or_dtype, torch.device):
+            self.encoded_image = self.encoded_image.to(device_or_dtype)
+        return self
+
+    def models(self):
+        return [self.model_patch]
+
+
+class USOStyleReference:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": {"model": ("MODEL",),
+                             "model_patch": ("MODEL_PATCH",),
+                             "clip_vision_output": ("CLIP_VISION_OUTPUT", ),
+                              }}
+    RETURN_TYPES = ("MODEL",)
+    FUNCTION = "apply_patch"
+    EXPERIMENTAL = True
+
+    CATEGORY = "advanced/model_patches/flux"
+
+    def apply_patch(self, model, model_patch, clip_vision_output):
+        encoded_image = torch.stack((clip_vision_output.all_hidden_states[:, -20], clip_vision_output.all_hidden_states[:, -11], clip_vision_output.penultimate_hidden_states))
+        model_patched = model.clone()
+        model_patched.set_model_post_input_patch(UsoStyleProjectorPatch(model_patch, encoded_image))
+        return (model_patched,)
+
+
 NODE_CLASS_MAPPINGS = {
     "ModelPatchLoader": ModelPatchLoader,
     "QwenImageDiffsynthControlnet": QwenImageDiffsynthControlnet,
+    "USOStyleReference": USOStyleReference,
 }
