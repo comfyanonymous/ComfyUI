@@ -70,6 +70,29 @@ class BFLFluxProGenerateRequest(BaseModel):
     # )
 
 
+class Flux2ProGenerateRequest(BaseModel):
+    prompt: str = Field(...)
+    width: int = Field(1024, description="Must be a multiple of 32.")
+    height: int = Field(768, description="Must be a multiple of 32.")
+    seed: int | None = Field(None)
+    prompt_upsampling: bool | None = Field(None)
+    input_image: str | None = Field(None, description="Base64 encoded image for image-to-image generation")
+    input_image_2: str | None = Field(None, description="Base64 encoded image for image-to-image generation")
+    input_image_3: str | None = Field(None, description="Base64 encoded image for image-to-image generation")
+    input_image_4: str | None = Field(None, description="Base64 encoded image for image-to-image generation")
+    input_image_5: str | None = Field(None, description="Base64 encoded image for image-to-image generation")
+    input_image_6: str | None = Field(None, description="Base64 encoded image for image-to-image generation")
+    input_image_7: str | None = Field(None, description="Base64 encoded image for image-to-image generation")
+    input_image_8: str | None = Field(None, description="Base64 encoded image for image-to-image generation")
+    input_image_9: str | None = Field(None, description="Base64 encoded image for image-to-image generation")
+    safety_tolerance: int | None = Field(
+        5, description="Tolerance level for input and output moderation. Value 0 being most strict.", ge=0, le=5
+    )
+    output_format: str | None = Field(
+        "png", description="Output format for the generated image. Can be 'jpeg' or 'png'."
+    )
+
+
 class BFLFluxKontextProGenerateRequest(BaseModel):
     prompt: str = Field(..., description='The text prompt for what you wannt to edit.')
     input_image: Optional[str] = Field(None, description='Image to edit in base64 format')
@@ -109,8 +132,9 @@ class BFLFluxProUltraGenerateRequest(BaseModel):
 
 
 class BFLFluxProGenerateResponse(BaseModel):
-    id: str = Field(..., description='The unique identifier for the generation task.')
-    polling_url: str = Field(..., description='URL to poll for the generation result.')
+    id: str = Field(..., description="The unique identifier for the generation task.")
+    polling_url: str = Field(..., description="URL to poll for the generation result.")
+    cost: float | None = Field(None, description="Price in cents")
 
 
 class BFLStatus(str, Enum):
