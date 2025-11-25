@@ -228,6 +228,14 @@ class QuantizedTensor(torch.Tensor):
         new_kwargs = dequant_arg(kwargs)
         return func(*new_args, **new_kwargs)
 
+    def data_ptr(self):
+        return self._qdata.data_ptr()
+
+    def is_pinned(self):
+        return self._qdata.is_pinned()
+
+    def is_contiguous(self):
+        return self._qdata.is_contiguous()
 
 # ==============================================================================
 # Generic Utilities (Layout-Agnostic Operations)
