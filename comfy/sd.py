@@ -23,6 +23,7 @@ import comfy.pixel_space_convert
 import yaml
 import math
 import os
+import json
 
 import comfy.utils
 
@@ -917,7 +918,20 @@ class CLIPType(Enum):
 def load_clip(ckpt_paths, embedding_directory=None, clip_type=CLIPType.STABLE_DIFFUSION, model_options={}):
     clip_data = []
     for p in ckpt_paths:
-        clip_data.append(comfy.utils.load_torch_file(p, safe_load=True))
+        clip_data.append(comfy.utils.load_torch_file(p, safe_load=True, return_metadata=True))
+        if type(clip_data[-1]) == tuple:
+            model, metadata = clip_data.pop()
+            if metadata is not None and "_quantization_metadata" in metadata:
+                try:
+                    quant_metadata = metadata.pop("_quantization_metadata")
+                    quant_metadata = json.loads(quant_metadata)
+                    if "layers" in quant_metadata:
+                        layer_quant_config = quant_metadata["layers"]
+                        model_options["layer_quant_config"] = layer_quant_config
+                        logging.info(f"Detected quantized text encoder: {len(layer_quant_config)} layers with quantization")
+                except Exception as e:
+                    logging.warning(f"Failed to parse quantization metadata: {e}")
+            clip_data.append(model)
     return load_text_encoder_state_dicts(clip_data, embedding_directory=embedding_directory, clip_type=clip_type, model_options=model_options)
 
 
