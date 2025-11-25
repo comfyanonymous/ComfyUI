@@ -388,6 +388,34 @@ class LatentOperationSharpen(io.ComfyNode):
             return luminance * sharpened
         return io.NodeOutput(sharpen)
 
+class ReplaceVideoLatentFrames(io.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return io.Schema(
+            node_id="ReplaceVideoLatentFrames",
+            category="latent/batch",
+            inputs=[
+                io.Latent.Input("destination"),
+                io.Latent.Input("source"),
+                io.Int.Input("index", default=0, min=-nodes.MAX_RESOLUTION, max=nodes.MAX_RESOLUTION, step=1),
+            ],
+            outputs=[
+                io.Latent.Output(),
+            ],
+        )
+
+    @classmethod
+    def execute(cls, source, destination, index) -> io.NodeOutput:
+        if index > destination["samples"].shape[2]:
+            raise RuntimeError(f"ReplaceVideoLatentFrames: Index {index} is out of bounds for destination latent frames {destination['samples'].shape[2]}.")
+        if index + source["samples"].shape[2] > destination["samples"].shape[2]:
+            raise RuntimeError(f"ReplaceVideoLatentFrames: Source latent frames {source['samples'].shape[2]} do not fit within destination latent frames {destination['samples'].shape[2]} at the specified index {index}.")
+        s = source.copy()
+        s_source = source["samples"]
+        s_destination = destination["samples"].clone()
+        s_destination[:, :, index:index + s_source.shape[2]] = s_source
+        s["samples"] = s_destination
+        return io.NodeOutput(s)
 
 class LatentExtension(ComfyExtension):
     @override
@@ -405,6 +433,7 @@ class LatentExtension(ComfyExtension):
             LatentApplyOperationCFG,
             LatentOperationTonemapReinhard,
             LatentOperationSharpen,
+            ReplaceVideoLatentFrames
         ]
 
 

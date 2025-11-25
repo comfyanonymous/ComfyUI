@@ -1654,16 +1654,8 @@ class Kandinsky5(BaseModel):
 
     def concat_cond(self, **kwargs):
         noise = kwargs.get("noise", None)
-
-        image = kwargs.get("concat_latent_image", None)
         device = kwargs["device"]
-
-        if image is None:
-            image = torch.zeros_like(noise)
-        else:
-            image = utils.common_upscale(image.to(device), noise.shape[-1], noise.shape[-2], "bilinear", "center")
-            image = self.process_latent_in(image)
-            image = utils.resize_to_batch_size(image, noise.shape[0])
+        image = torch.zeros_like(noise)
 
         mask = kwargs.get("concat_mask", kwargs.get("denoise_mask", None))
         if mask is None:
@@ -1677,7 +1669,6 @@ class Kandinsky5(BaseModel):
 
         return torch.cat((image, mask), dim=1)
 
-
     def extra_conds(self, **kwargs):
         out = super().extra_conds(**kwargs)
         attention_mask = kwargs.get("attention_mask", None)
@@ -1686,5 +1677,9 @@ class Kandinsky5(BaseModel):
         cross_attn = kwargs.get("cross_attn", None)
         if cross_attn is not None:
             out['c_crossattn'] = comfy.conds.CONDRegular(cross_attn)
+
+        time_dim_replace = kwargs.get("time_dim_replace", None)
+        if time_dim_replace is not None:
+            out['time_dim_replace'] = comfy.conds.CONDRegular(self.process_latent_in(time_dim_replace))
 
         return out
