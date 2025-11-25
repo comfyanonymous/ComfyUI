@@ -506,7 +506,6 @@ class NextDiT(nn.Module):
         bsz = len(x)
         pH = pW = self.patch_size
         device = x[0].device
-        dtype = x[0].dtype
 
         if self.pad_tokens_multiple is not None:
             pad_extra = (-cap_feats.shape[1]) % self.pad_tokens_multiple
