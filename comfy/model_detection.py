@@ -416,14 +416,31 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
         dit_config["image_model"] = "lumina2"
         dit_config["patch_size"] = 2
         dit_config["in_channels"] = 16
-        dit_config["dim"] = 2304
-        dit_config["cap_feat_dim"] = state_dict['{}cap_embedder.1.weight'.format(key_prefix)].shape[1]
+        w = state_dict['{}cap_embedder.1.weight'.format(key_prefix)]
+        dit_config["dim"] = w.shape[0]
+        dit_config["cap_feat_dim"] = w.shape[1]
         dit_config["n_layers"] = count_blocks(state_dict_keys, '{}layers.'.format(key_prefix) + '{}.')
-        dit_config["n_heads"] = 24
-        dit_config["n_kv_heads"] = 8
         dit_config["qk_norm"] = True
-        dit_config["axes_dims"] = [32, 32, 32]
-        dit_config["axes_lens"] = [300, 512, 512]
+
+        if dit_config["dim"] == 2304: # Original Lumina 2
+            dit_config["n_heads"] = 24
+            dit_config["n_kv_heads"] = 8
+            dit_config["axes_dims"] = [32, 32, 32]
+            dit_config["axes_lens"] = [300, 512, 512]
+            dit_config["rope_theta"] = 10000.0
+            dit_config["ffn_dim_multiplier"] = 4.0
+        elif dit_config["dim"] == 3840:  # Z image
+            dit_config["n_heads"] = 30
+            dit_config["n_kv_heads"] = 30
+            dit_config["axes_dims"] = [32, 48, 48]
+            dit_config["axes_lens"] = [1536, 512, 512]
+            dit_config["rope_theta"] = 256.0
+            dit_config["ffn_dim_multiplier"] = (8.0 / 3.0)
+            dit_config["z_image_modulation"] = True
+            dit_config["time_scale"] = 1000.0
+            if '{}cap_pad_token'.format(key_prefix) in state_dict_keys:
+                dit_config["pad_tokens_multiple"] = 32
+
         return dit_config
 
     if '{}head.modulation'.format(key_prefix) in state_dict_keys:  # Wan 2.1
