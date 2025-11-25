@@ -917,7 +917,12 @@ class CLIPType(Enum):
 def load_clip(ckpt_paths, embedding_directory=None, clip_type=CLIPType.STABLE_DIFFUSION, model_options={}):
     clip_data = []
     for p in ckpt_paths:
-        clip_data.append(comfy.utils.load_torch_file(p, safe_load=True))
+        sd, metadata = comfy.utils.load_torch_file(p, safe_load=True, return_metadata=True)
+        if metadata is not None:
+            quant_metadata = metadata.get("_quantization_metadata", None)
+            if quant_metadata is not None:
+                sd["_quantization_metadata"] = quant_metadata
+        clip_data.append(sd)
     return load_text_encoder_state_dicts(clip_data, embedding_directory=embedding_directory, clip_type=clip_type, model_options=model_options)
 
 
@@ -1142,6 +1147,8 @@ def load_text_encoder_state_dicts(state_dicts=[], embedding_directory=None, clip
 
     parameters = 0
     for c in clip_data:
+        if "_quantization_metadata" in c:
+            c.pop("_quantization_metadata")
         parameters += comfy.utils.calculate_parameters(c)
         tokenizer_data, model_options = comfy.text_encoders.long_clipl.model_options_long_clip(c, tokenizer_data, model_options)
 

@@ -338,6 +338,18 @@ def generic_copy_(func, args, kwargs):
     return func(*args, **kwargs)
 
 
+@register_generic_util(torch.ops.aten.to.dtype)
+def generic_to_dtype(func, args, kwargs):
+    """Handle .to(dtype) calls - dtype conversion only."""
+    src = args[0]
+    if isinstance(src, QuantizedTensor):
+        # For dtype-only conversion, just change the orig_dtype, no real cast is needed
+        target_dtype = args[1] if len(args) > 1 else kwargs.get('dtype')
+        src._layout_params["orig_dtype"] = target_dtype
+        return src
+    return func(*args, **kwargs)
+
+
 @register_generic_util(torch.ops.aten._has_compatible_shallow_copy_type.default)
 def generic_has_compatible_shallow_copy_type(func, args, kwargs):
     return True
