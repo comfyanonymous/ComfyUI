@@ -1,15 +1,10 @@
 from io import BytesIO
-from typing import Optional, Union
-import json
 import os
-import time
-import uuid
 from enum import Enum
 from inspect import cleandoc
 import numpy as np
 import torch
 from PIL import Image
-from server import PromptServer
 import folder_paths
 import base64
 from comfy_api.latest import IO, ComfyExtension
@@ -587,11 +582,11 @@ class OpenAIChatNode(IO.ComfyNode):
     def create_input_message_contents(
         cls,
         prompt: str,
-        image: Optional[torch.Tensor] = None,
-        files: Optional[list[InputFileContent]] = None,
+        image: torch.Tensor | None = None,
+        files: list[InputFileContent] | None = None,
     ) -> InputMessageContentList:
         """Create a list of input message contents from prompt and optional image."""
-        content_list: list[Union[InputContent, InputTextContent, InputImageContent, InputFileContent]] = [
+        content_list: list[InputContent | InputTextContent | InputImageContent | InputFileContent] = [
             InputTextContent(text=prompt, type="input_text"),
         ]
         if image is not None:
@@ -617,9 +612,9 @@ class OpenAIChatNode(IO.ComfyNode):
         prompt: str,
         persist_context: bool = False,
         model: SupportedOpenAIModel = SupportedOpenAIModel.gpt_5.value,
-        images: Optional[torch.Tensor] = None,
-        files: Optional[list[InputFileContent]] = None,
-        advanced_options: Optional[CreateModelResponseProperties] = None,
+        images: torch.Tensor | None = None,
+        files: list[InputFileContent] | None = None,
+        advanced_options: CreateModelResponseProperties | None = None,
     ) -> IO.NodeOutput:
         validate_string(prompt, strip_whitespace=False)
 
@@ -660,30 +655,7 @@ class OpenAIChatNode(IO.ComfyNode):
                 status_extractor=lambda response: response.status,
                 completed_statuses=["incomplete", "completed"]
             )
-        output_text = cls.get_text_from_message_content(cls.get_message_content_from_response(result_response))
-
-        # Update history
-        render_spec = {
-            "node_id": cls.hidden.unique_id,
-            "component": "ChatHistoryWidget",
-            "props": {
-                "history": json.dumps(
-                    [
-                        {
-                            "prompt": prompt,
-                            "response": output_text,
-                            "response_id": str(uuid.uuid4()),
-                            "timestamp": time.time(),
-                        }
-                    ]
-                ),
-            },
-        }
-        PromptServer.instance.send_sync(
-            "display_component",
-            render_spec,
-        )
-        return IO.NodeOutput(output_text)
+        return IO.NodeOutput(cls.get_text_from_message_content(cls.get_message_content_from_response(result_response)))
 
 
 class OpenAIInputFiles(IO.ComfyNode):
@@ -790,8 +762,8 @@ class OpenAIChatConfig(IO.ComfyNode):
     def execute(
         cls,
         truncation: bool,
-        instructions: Optional[str] = None,
-        max_output_tokens: Optional[int] = None,
+        instructions: str | None = None,
+        max_output_tokens: int | None = None,
     ) -> IO.NodeOutput:
         """
         Configure advanced options for the OpenAI Chat Node.
