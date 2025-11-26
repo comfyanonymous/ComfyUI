@@ -540,115 +540,118 @@ if CUBLAS_IS_AVAILABLE:
 # ==============================================================================
 from .quant_ops import QuantizedTensor, QUANT_ALGOS
 
-class MixedPrecisionOps(disable_weight_init):
-    _layer_quant_config = {}
-    _compute_dtype = torch.bfloat16
 
-    class Linear(torch.nn.Module, CastWeightBiasOp):
-        def __init__(
-            self,
-            in_features: int,
-            out_features: int,
-            bias: bool = True,
-            device=None,
-            dtype=None,
-        ) -> None:
-            super().__init__()
+def mixed_precision_ops(layer_quant_config={}, compute_dtype=torch.bfloat16, full_precision_mm=False):
+    class MixedPrecisionOps(manual_cast):
+        _layer_quant_config = layer_quant_config
+        _compute_dtype = compute_dtype
+        _full_precision_mm = full_precision_mm
 
-            self.factory_kwargs = {"device": device, "dtype": MixedPrecisionOps._compute_dtype}
-            # self.factory_kwargs = {"device": device, "dtype": dtype}
+        class Linear(torch.nn.Module, CastWeightBiasOp):
+            def __init__(
+                self,
+                in_features: int,
+                out_features: int,
+                bias: bool = True,
+                device=None,
+                dtype=None,
+            ) -> None:
+                super().__init__()
 
-            self.in_features = in_features
-            self.out_features = out_features
-            if bias:
-                self.bias = torch.nn.Parameter(torch.empty(out_features, **self.factory_kwargs))
-            else:
-                self.register_parameter("bias", None)
+                self.factory_kwargs = {"device": device, "dtype": MixedPrecisionOps._compute_dtype}
+                # self.factory_kwargs = {"device": device, "dtype": dtype}
 
-            self.tensor_class = None
+                self.in_features = in_features
+                self.out_features = out_features
+                if bias:
+                    self.bias = torch.nn.Parameter(torch.empty(out_features, **self.factory_kwargs))
+                else:
+                    self.register_parameter("bias", None)
 
-        def reset_parameters(self):
-            return None
+                self.tensor_class = None
+                self._full_precision_mm = MixedPrecisionOps._full_precision_mm
 
-        def _load_from_state_dict(self, state_dict, prefix, local_metadata,
-                                  strict, missing_keys, unexpected_keys, error_msgs):
+            def reset_parameters(self):
+                return None
 
-            device = self.factory_kwargs["device"]
-            layer_name = prefix.rstrip('.')
-            weight_key = f"{prefix}weight"
-            weight = state_dict.pop(weight_key, None)
-            if weight is None:
-                raise ValueError(f"Missing weight for layer {layer_name}")
+            def _load_from_state_dict(self, state_dict, prefix, local_metadata,
+                                    strict, missing_keys, unexpected_keys, error_msgs):
 
-            manually_loaded_keys = [weight_key]
+                device = self.factory_kwargs["device"]
+                layer_name = prefix.rstrip('.')
+                weight_key = f"{prefix}weight"
+                weight = state_dict.pop(weight_key, None)
+                if weight is None:
+                    raise ValueError(f"Missing weight for layer {layer_name}")
 
-            if layer_name not in MixedPrecisionOps._layer_quant_config:
-                self.weight = torch.nn.Parameter(weight.to(device=device, dtype=MixedPrecisionOps._compute_dtype), requires_grad=False)
-            else:
-                quant_format = MixedPrecisionOps._layer_quant_config[layer_name].get("format", None)
-                if quant_format is None:
-                    raise ValueError(f"Unknown quantization format for layer {layer_name}")
+                manually_loaded_keys = [weight_key]
 
-                qconfig = QUANT_ALGOS[quant_format]
-                self.layout_type = qconfig["comfy_tensor_layout"]
+                if layer_name not in MixedPrecisionOps._layer_quant_config:
+                    self.weight = torch.nn.Parameter(weight.to(device=device, dtype=MixedPrecisionOps._compute_dtype), requires_grad=False)
+                else:
+                    quant_format = MixedPrecisionOps._layer_quant_config[layer_name].get("format", None)
+                    if quant_format is None:
+                        raise ValueError(f"Unknown quantization format for layer {layer_name}")
 
-                weight_scale_key = f"{prefix}weight_scale"
-                layout_params = {
-                    'scale': state_dict.pop(weight_scale_key, None),
-                    'orig_dtype': MixedPrecisionOps._compute_dtype,
-                    'block_size': qconfig.get("group_size", None),
-                }
-                if layout_params['scale'] is not None:
-                    manually_loaded_keys.append(weight_scale_key)
+                    qconfig = QUANT_ALGOS[quant_format]
+                    self.layout_type = qconfig["comfy_tensor_layout"]
 
-                self.weight = torch.nn.Parameter(
-                    QuantizedTensor(weight.to(device=device), self.layout_type, layout_params),
-                    requires_grad=False
-                )
+                    weight_scale_key = f"{prefix}weight_scale"
+                    layout_params = {
+                        'scale': state_dict.pop(weight_scale_key, None),
+                        'orig_dtype': MixedPrecisionOps._compute_dtype,
+                        'block_size': qconfig.get("group_size", None),
+                    }
+                    if layout_params['scale'] is not None:
+                        manually_loaded_keys.append(weight_scale_key)
 
-                for param_name in qconfig["parameters"]:
-                    param_key = f"{prefix}{param_name}"
-                    _v = state_dict.pop(param_key, None)
-                    if _v is None:
-                        continue
-                    setattr(self, param_name, torch.nn.Parameter(_v.to(device=device), requires_grad=False))
-                    manually_loaded_keys.append(param_key)
+                    self.weight = torch.nn.Parameter(
+                        QuantizedTensor(weight.to(device=device), self.layout_type, layout_params),
+                        requires_grad=False
+                    )
 
-            super()._load_from_state_dict(state_dict, prefix, local_metadata, strict, missing_keys, unexpected_keys, error_msgs)
+                    for param_name in qconfig["parameters"]:
+                        param_key = f"{prefix}{param_name}"
+                        _v = state_dict.pop(param_key, None)
+                        if _v is None:
+                            continue
+                        setattr(self, param_name, torch.nn.Parameter(_v.to(device=device), requires_grad=False))
+                        manually_loaded_keys.append(param_key)
 
-            for key in manually_loaded_keys:
-                if key in missing_keys:
-                    missing_keys.remove(key)
+                super()._load_from_state_dict(state_dict, prefix, local_metadata, strict, missing_keys, unexpected_keys, error_msgs)
 
-        def _forward(self, input, weight, bias):
-            return torch.nn.functional.linear(input, weight, bias)
+                for key in manually_loaded_keys:
+                    if key in missing_keys:
+                        missing_keys.remove(key)
 
-        def forward_comfy_cast_weights(self, input):
-            weight, bias, offload_stream = cast_bias_weight(self, input, offloadable=True)
-            x = self._forward(input, weight, bias)
-            uncast_bias_weight(self, weight, bias, offload_stream)
-            return x
+            def _forward(self, input, weight, bias):
+                return torch.nn.functional.linear(input, weight, bias)
 
-        def forward(self, input, *args, **kwargs):
-            run_every_op()
+            def forward_comfy_cast_weights(self, input):
+                weight, bias, offload_stream = cast_bias_weight(self, input, offloadable=True)
+                x = self._forward(input, weight, bias)
+                uncast_bias_weight(self, weight, bias, offload_stream)
+                return x
 
-            if self.comfy_cast_weights or len(self.weight_function) > 0 or len(self.bias_function) > 0:
-                return self.forward_comfy_cast_weights(input, *args, **kwargs)
-            if (getattr(self, 'layout_type', None) is not None and
-                getattr(self, 'input_scale', None) is not None and
-                not isinstance(input, QuantizedTensor)):
-                input = QuantizedTensor.from_float(input, self.layout_type, scale=self.input_scale, dtype=self.weight.dtype)
-            return self._forward(input, self.weight, self.bias)
+            def forward(self, input, *args, **kwargs):
+                run_every_op()
 
+                if self._full_precision_mm or self.comfy_cast_weights or len(self.weight_function) > 0 or len(self.bias_function) > 0:
+                    return self.forward_comfy_cast_weights(input, *args, **kwargs)
+                if (getattr(self, 'layout_type', None) is not None and
+                    getattr(self, 'input_scale', None) is not None and
+                    not isinstance(input, QuantizedTensor)):
+                    input = QuantizedTensor.from_float(input, self.layout_type, scale=self.input_scale, dtype=self.weight.dtype)
+                return self._forward(input, self.weight, self.bias)
+    return MixedPrecisionOps
 
 def pick_operations(weight_dtype, compute_dtype, load_device=None, disable_fast_fp8=False, fp8_optimizations=False, scaled_fp8=None, model_config=None):
-    if model_config and hasattr(model_config, 'layer_quant_config') and model_config.layer_quant_config:
-        MixedPrecisionOps._layer_quant_config = model_config.layer_quant_config
-        MixedPrecisionOps._compute_dtype = compute_dtype
-        logging.info(f"Using mixed precision operations: {len(model_config.layer_quant_config)} quantized layers")
-        return MixedPrecisionOps
+    fp8_compute = comfy.model_management.supports_fp8_compute(load_device) # TODO: if we support more ops this needs to be more granular
 
-    fp8_compute = comfy.model_management.supports_fp8_compute(load_device)
+    if model_config and hasattr(model_config, 'layer_quant_config') and model_config.layer_quant_config:
+        logging.info(f"Using mixed precision operations: {len(model_config.layer_quant_config)} quantized layers")
+        return mixed_precision_ops(model_config.layer_quant_config, compute_dtype, full_precision_mm=not fp8_compute)
+
     if scaled_fp8 is not None:
         return scaled_fp8_ops(fp8_matrix_mult=fp8_compute and fp8_optimizations, scale_input=fp8_optimizations, override_dtype=scaled_fp8)
 
