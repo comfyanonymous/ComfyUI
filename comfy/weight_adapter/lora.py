@@ -194,6 +194,7 @@ class LoRAAdapter(WeightAdapterBase):
             lora_diff = torch.mm(
                 mat1.flatten(start_dim=1), mat2.flatten(start_dim=1)
             ).reshape(weight.shape)
+            del mat1, mat2
             if dora_scale is not None:
                 weight = weight_decompose(
                     dora_scale,
