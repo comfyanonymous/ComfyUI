@@ -1429,9 +1429,9 @@ class WanInfiniteTalkToVideo(io.ComfyNode):
                 is_extend=previous_frames is not None,
             ))
         # add cross-attention patch
-        model_patched.set_model_patch(MultiTalkCrossAttnPatch(model_patch, audio_scale), "cross_attn")
+        model_patched.set_model_patch(MultiTalkCrossAttnPatch(model_patch, audio_scale), "attn2_patch")
         if token_ref_target_masks is not None:
-            model_patched.set_model_patch(MultiTalkGetAttnMapPatch(token_ref_target_masks), "self_attn")
+            model_patched.set_model_patch(MultiTalkGetAttnMapPatch(token_ref_target_masks), "attn1_patch")
 
         out_latent = {}
         out_latent["samples"] = latent

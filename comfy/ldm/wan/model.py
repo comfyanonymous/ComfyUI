@@ -88,8 +88,8 @@ class WanSelfAttention(nn.Module):
             transformer_options=transformer_options,
         )
 
-        if "self_attn" in patches:
-            for p in patches["self_attn"]:
+        if "attn1_patch" in patches:
+            for p in patches["attn1_patch"]:
                 x = p({"x": x, "q": q, "k": k, "transformer_options": transformer_options})
 
         x = self.o(x)
@@ -251,8 +251,8 @@ class WanAttentionBlock(nn.Module):
         # cross-attention & ffn
         x = x + self.cross_attn(self.norm3(x), context, context_img_len=context_img_len, transformer_options=transformer_options)
 
-        if "cross_attn" in patches:
-            for p in patches["cross_attn"]:
+        if "attn2_patch" in patches:
+            for p in patches["attn2_patch"]:
                 x = p({"x": x, "transformer_options": transformer_options})
 
         y = self.ffn(torch.addcmul(repeat_e(e[3], x), self.norm2(x), 1 + repeat_e(e[4], x)))
