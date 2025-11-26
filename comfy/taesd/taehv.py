@@ -112,13 +112,14 @@ def apply_model_with_memblocks(model, x, parallel, show_progress_bar):
 
 
 class TAEHV(nn.Module):
-    def __init__(self, latent_channels, parallel=False, decoder_time_upscale=(True, True), decoder_space_upscale=(True, True, True), latent_format=None):
+    def __init__(self, latent_channels, parallel=False, decoder_time_upscale=(True, True), decoder_space_upscale=(True, True, True), latent_format=None, show_progress_bar=True):
         super().__init__()
         self.image_channels = 3
         self.patch_size = 1
         self.latent_channels = latent_channels
         self.parallel = parallel
         self.latent_format = latent_format
+        self.show_progress_bar = show_progress_bar
         self.process_in = latent_format().process_in if latent_format is not None else (lambda x: x)
         self.process_out = latent_format().process_out if latent_format is not None else (lambda x: x)
         if self.latent_channels in [48, 32]: # Wan 2.2 and HunyuanVideo1.5
@@ -144,8 +145,15 @@ class TAEHV(nn.Module):
             MemBlock(n_f[2], n_f[2], act_func), MemBlock(n_f[2], n_f[2], act_func), MemBlock(n_f[2], n_f[2], act_func), nn.Upsample(scale_factor=2 if decoder_space_upscale[2] else 1), TGrow(n_f[2], 2 if decoder_time_upscale[1] else 1), conv(n_f[2], n_f[3], bias=False),
             act_func, conv(n_f[3], self.image_channels*self.patch_size**2),
         )
+        @property
+        def show_progress_bar(self):
+            return self._show_progress_bar
 
-    def encode(self, x, show_progress_bar=True, **kwargs):
+        @show_progress_bar.setter
+        def show_progress_bar(self, value):
+            self._show_progress_bar = value
+
+    def encode(self, x, **kwargs):
         if self.patch_size > 1: x = F.pixel_unshuffle(x, self.patch_size)
         x = x.movedim(2, 1)  # [B, C, T, H, W] -> [B, T, C, H, W]
         if x.shape[1] % 4 != 0:
@@ -153,11 +161,11 @@ class TAEHV(nn.Module):
             n_pad = 4 - x.shape[1] % 4
             padding = x[:, -1:].repeat_interleave(n_pad, dim=1)
             x = torch.cat([x, padding], 1)
-        x = apply_model_with_memblocks(self.encoder, x, self.parallel, show_progress_bar).movedim(2, 1)
+        x = apply_model_with_memblocks(self.encoder, x, self.parallel, self.show_progress_bar).movedim(2, 1)
         return self.process_out(x)
 
-    def decode(self, x, show_progress_bar=True, **kwargs):
+    def decode(self, x, **kwargs):
         x = self.process_in(x).movedim(2, 1)  # [B, C, T, H, W] -> [B, T, C, H, W]
-        x = apply_model_with_memblocks(self.decoder, x, self.parallel, show_progress_bar)
+        x = apply_model_with_memblocks(self.decoder, x, self.parallel, self.show_progress_bar)
         if self.patch_size > 1: x = F.pixel_shuffle(x, self.patch_size)
         return x[:, self.frames_to_trim:].movedim(2, 1)

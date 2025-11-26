@@ -2,17 +2,24 @@ import torch
 from PIL import Image
 from comfy.cli_args import args, LatentPreviewMethod
 from comfy.taesd.taesd import TAESD
+from comfy.sd import VAE
 import comfy.model_management
 import folder_paths
 import comfy.utils
 import logging
 
 MAX_PREVIEW_RESOLUTION = args.preview_size
+VIDEO_TAES = ["taehv", "lighttaew2_2", "lighttaew2_1", "lighttaehy1_5"]
 
-def preview_to_image(latent_image):
-        latents_ubyte = (((latent_image + 1.0) / 2.0).clamp(0, 1)  # change scale from -1..1 to 0..1
-                            .mul(0xFF)  # to 0..255
-                            )
+def preview_to_image(latent_image, do_scale=True):
+        if do_scale:
+            latents_ubyte = (((latent_image + 1.0) / 2.0).clamp(0, 1)  # change scale from -1..1 to 0..1
+                                .mul(0xFF)  # to 0..255
+                                )
+        else:
+            latents_ubyte = (latent_image.clamp(0, 1)
+                                .mul(0xFF)  # to 0..255
+                                )
         if comfy.model_management.directml_enabled:
                 latents_ubyte = latents_ubyte.to(dtype=torch.uint8)
         latents_ubyte = latents_ubyte.to(device="cpu", dtype=torch.uint8, non_blocking=comfy.model_management.device_supports_non_blocking(latent_image.device))
@@ -35,6 +42,10 @@ class TAESDPreviewerImpl(LatentPreviewer):
         x_sample = self.taesd.decode(x0[:1])[0].movedim(0, 2)
         return preview_to_image(x_sample)
 
+class TAEHVPreviewerImpl(TAESDPreviewerImpl):
+    def decode_latent_to_preview(self, x0):
+        x_sample = self.taesd.decode(x0[:1, :, :1])[0][0]
+        return preview_to_image(x_sample, do_scale=False)
 
 class Latent2RGBPreviewer(LatentPreviewer):
     def __init__(self, latent_rgb_factors, latent_rgb_factors_bias=None):
@@ -78,8 +89,13 @@ def get_previewer(device, latent_format):
 
         if method == LatentPreviewMethod.TAESD:
             if taesd_decoder_path:
-                taesd = TAESD(None, taesd_decoder_path, latent_channels=latent_format.latent_channels).to(device)
-                previewer = TAESDPreviewerImpl(taesd)
+                if latent_format.taesd_decoder_name in VIDEO_TAES:
+                    taesd = VAE(comfy.utils.load_torch_file(taesd_decoder_path))
+                    taesd.first_stage_model.show_progress_bar = False
+                    previewer = TAEHVPreviewerImpl(taesd)
+                else:
+                    taesd = TAESD(None, taesd_decoder_path, latent_channels=latent_format.latent_channels).to(device)
+                    previewer = TAESDPreviewerImpl(taesd)
             else:
                 logging.warning("Warning: TAESD previews enabled, but could not find models/vae_approx/{}".format(latent_format.taesd_decoder_name))
 
