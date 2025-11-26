@@ -37,13 +37,16 @@ class TAESDPreviewerImpl(LatentPreviewer):
 
 
 class Latent2RGBPreviewer(LatentPreviewer):
-    def __init__(self, latent_rgb_factors, latent_rgb_factors_bias=None):
+    def __init__(self, latent_rgb_factors, latent_rgb_factors_bias=None, latent_rgb_factors_reshape=None):
         self.latent_rgb_factors = torch.tensor(latent_rgb_factors, device="cpu").transpose(0, 1)
         self.latent_rgb_factors_bias = None
         if latent_rgb_factors_bias is not None:
             self.latent_rgb_factors_bias = torch.tensor(latent_rgb_factors_bias, device="cpu")
+        self.latent_rgb_factors_reshape = latent_rgb_factors_reshape
 
     def decode_latent_to_preview(self, x0):
+        if self.latent_rgb_factors_reshape is not None:
+            x0 = self.latent_rgb_factors_reshape(x0)
         self.latent_rgb_factors = self.latent_rgb_factors.to(dtype=x0.dtype, device=x0.device)
         if self.latent_rgb_factors_bias is not None:
             self.latent_rgb_factors_bias = self.latent_rgb_factors_bias.to(dtype=x0.dtype, device=x0.device)
@@ -85,7 +88,7 @@ def get_previewer(device, latent_format):
 
         if previewer is None:
             if latent_format.latent_rgb_factors is not None:
-                previewer = Latent2RGBPreviewer(latent_format.latent_rgb_factors, latent_format.latent_rgb_factors_bias)
+                previewer = Latent2RGBPreviewer(latent_format.latent_rgb_factors, latent_format.latent_rgb_factors_bias, latent_format.latent_rgb_factors_reshape)
     return previewer
 
 def prepare_callback(model, steps, x0_output_dict=None):
