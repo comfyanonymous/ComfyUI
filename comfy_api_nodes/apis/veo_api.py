@@ -1,34 +1,21 @@
-from typing import Optional, Union
-from enum import Enum
+from typing import Optional
 
 from pydantic import BaseModel, Field
 
 
-class Image2(BaseModel):
-    bytesBase64Encoded: str
-    gcsUri: Optional[str] = None
-    mimeType: Optional[str] = None
+class VeoRequestInstanceImage(BaseModel):
+    bytesBase64Encoded: str | None = Field(None)
+    gcsUri: str | None = Field(None)
+    mimeType: str | None = Field(None)
 
 
-class Image3(BaseModel):
-    bytesBase64Encoded: Optional[str] = None
-    gcsUri: str
-    mimeType: Optional[str] = None
-
-
-class Instance1(BaseModel):
-    image: Optional[Union[Image2, Image3]] = Field(
-        None, description='Optional image to guide video generation'
-    )
+class VeoRequestInstance(BaseModel):
+    image: VeoRequestInstanceImage | None = Field(None)
+    lastFrame: VeoRequestInstanceImage | None = Field(None)
     prompt: str = Field(..., description='Text description of the video')
 
 
-class PersonGeneration1(str, Enum):
-    ALLOW = 'ALLOW'
-    BLOCK = 'BLOCK'
-
-
-class Parameters1(BaseModel):
+class VeoRequestParameters(BaseModel):
     aspectRatio: Optional[str] = Field(None, examples=['16:9'])
     durationSeconds: Optional[int] = None
     enhancePrompt: Optional[bool] = None
@@ -37,17 +24,18 @@ class Parameters1(BaseModel):
         description='Generate audio for the video. Only supported by veo 3 models.',
     )
     negativePrompt: Optional[str] = None
-    personGeneration: Optional[PersonGeneration1] = None
+    personGeneration: str | None = Field(None, description="ALLOW or BLOCK")
     sampleCount: Optional[int] = None
     seed: Optional[int] = None
     storageUri: Optional[str] = Field(
         None, description='Optional Cloud Storage URI to upload the video'
     )
+    resolution: str | None = Field(None)
 
 
 class VeoGenVidRequest(BaseModel):
-    instances: Optional[list[Instance1]] = None
-    parameters: Optional[Parameters1] = None
+    instances: list[VeoRequestInstance] | None = Field(None)
+    parameters: VeoRequestParameters | None = Field(None)
 
 
 class VeoGenVidResponse(BaseModel):
