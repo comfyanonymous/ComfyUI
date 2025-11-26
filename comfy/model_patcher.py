@@ -132,7 +132,7 @@ class LowVramPatch:
     def __call__(self, weight):
         intermediate_dtype = weight.dtype
         if self.convert_func is not None:
-            weight = self.convert_func(weight.to(dtype=torch.float32, copy=True), inplace=True)
+            weight = self.convert_func(weight, inplace=False)
 
         if intermediate_dtype not in [torch.float32, torch.float16, torch.bfloat16]: #intermediate_dtype has to be one that is supported in math ops
             intermediate_dtype = torch.float32
@@ -231,7 +231,6 @@ class ModelPatcher:
         self.object_patches_backup = {}
         self.weight_wrapper_patches = {}
         self.model_options = {"transformer_options":{}}
-        self.model_size()
         self.load_device = load_device
         self.offload_device = offload_device
         self.weight_inplace_update = weight_inplace_update
@@ -286,7 +285,7 @@ class ModelPatcher:
         return self.model.lowvram_patch_counter
 
     def clone(self):
-        n = self.__class__(self.model, self.load_device, self.offload_device, self.size, weight_inplace_update=self.weight_inplace_update)
+        n = self.__class__(self.model, self.load_device, self.offload_device, self.model_size(), weight_inplace_update=self.weight_inplace_update)
         n.patches = {}
         for k in self.patches:
             n.patches[k] = self.patches[k][:]
@@ -843,7 +842,7 @@ class ModelPatcher:
 
         self.object_patches_backup.clear()
 
-    def partially_unload(self, device_to, memory_to_free=0):
+    def partially_unload(self, device_to, memory_to_free=0, force_patch_weights=False):
         with self.use_ejected():
             hooks_unpatched = False
             memory_freed = 0
@@ -887,13 +886,19 @@ class ModelPatcher:
                         module_mem += move_weight_functions(m, device_to)
                         if lowvram_possible:
                             if weight_key in self.patches:
-                                _, set_func, convert_func = get_key_weight(self.model, weight_key)
-                                m.weight_function.append(LowVramPatch(weight_key, self.patches, convert_func, set_func))
-                                patch_counter += 1
+                                if force_patch_weights:
+                                    self.patch_weight_to_device(weight_key)
+                                else:
+                                    _, set_func, convert_func = get_key_weight(self.model, weight_key)
+                                    m.weight_function.append(LowVramPatch(weight_key, self.patches, convert_func, set_func))
+                                    patch_counter += 1
                             if bias_key in self.patches:
-                                _, set_func, convert_func = get_key_weight(self.model, bias_key)
-                                m.bias_function.append(LowVramPatch(bias_key, self.patches, convert_func, set_func))
-                                patch_counter += 1
+                                if force_patch_weights:
+                                    self.patch_weight_to_device(bias_key)
+                                else:
+                                    _, set_func, convert_func = get_key_weight(self.model, bias_key)
+                                    m.bias_function.append(LowVramPatch(bias_key, self.patches, convert_func, set_func))
+                                    patch_counter += 1
                             cast_weight = True
 
                         if cast_weight:
@@ -909,6 +914,7 @@ class ModelPatcher:
             self.model.model_lowvram = True
             self.model.lowvram_patch_counter += patch_counter
             self.model.model_loaded_weight_memory -= memory_freed
+            logging.info("loaded partially: {:.2f} MB loaded, lowvram patches: {}".format(self.model.model_loaded_weight_memory / (1024 * 1024), self.model.lowvram_patch_counter))
             return memory_freed
 
     def partially_load(self, device_to, extra_memory=0, force_patch_weights=False):
@@ -921,6 +927,9 @@ class ModelPatcher:
                 extra_memory += (used - self.model.model_loaded_weight_memory)
 
             self.patch_model(load_weights=False)
+            if extra_memory < 0 and not unpatch_weights:
+                self.partially_unload(self.offload_device, -extra_memory, force_patch_weights=force_patch_weights)
+                return 0
             full_load = False
             if self.model.model_lowvram == False and self.model.model_loaded_weight_memory > 0:
                 self.apply_hooks(self.forced_hooks, force_apply=True)
