@@ -132,7 +132,7 @@ class LowVramPatch:
     def __call__(self, weight):
         intermediate_dtype = weight.dtype
         if self.convert_func is not None:
-            weight = self.convert_func(weight.to(dtype=torch.float32, copy=True), inplace=True)
+            weight = self.convert_func(weight, inplace=False)
 
         if intermediate_dtype not in [torch.float32, torch.float16, torch.bfloat16]: #intermediate_dtype has to be one that is supported in math ops
             intermediate_dtype = torch.float32
@@ -231,7 +231,6 @@ class ModelPatcher:
         self.object_patches_backup = {}
         self.weight_wrapper_patches = {}
         self.model_options = {"transformer_options":{}}
-        self.model_size()
         self.load_device = load_device
         self.offload_device = offload_device
         self.weight_inplace_update = weight_inplace_update
@@ -286,7 +285,7 @@ class ModelPatcher:
         return self.model.lowvram_patch_counter
 
     def clone(self):
-        n = self.__class__(self.model, self.load_device, self.offload_device, self.size, weight_inplace_update=self.weight_inplace_update)
+        n = self.__class__(self.model, self.load_device, self.offload_device, self.model_size(), weight_inplace_update=self.weight_inplace_update)
         n.patches = {}
         for k in self.patches:
             n.patches[k] = self.patches[k][:]
