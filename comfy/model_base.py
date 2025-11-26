@@ -1683,3 +1683,13 @@ class Kandinsky5(BaseModel):
             out['time_dim_replace'] = comfy.conds.CONDRegular(self.process_latent_in(time_dim_replace))
 
         return out
+
+class Kandinsky5_image(Kandinsky5):
+    def __init__(self, model_config, model_type=ModelType.FLOW, device=None):
+        super().__init__(model_config, model_type, device=device)
+
+    def concat_cond(self, **kwargs):
+        return None
+    
+    def process_latent_out(self, latent):
+        return self.latent_format.process_out(latent)[:, :, 0]
