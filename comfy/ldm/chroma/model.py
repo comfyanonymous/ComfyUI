@@ -11,12 +11,12 @@ import comfy.ldm.common_dit
 from comfy.ldm.flux.layers import (
     EmbedND,
     timestep_embedding,
+    DoubleStreamBlock,
+    SingleStreamBlock,
 )
 
 from .layers import (
-    DoubleStreamBlock,
     LastLayer,
-    SingleStreamBlock,
     Approximator,
     ChromaModulationOut,
 )
@@ -90,6 +90,7 @@ class Chroma(nn.Module):
                     self.num_heads,
                     mlp_ratio=params.mlp_ratio,
                     qkv_bias=params.qkv_bias,
+                    modulation=False,
                     dtype=dtype, device=device, operations=operations
                 )
                 for _ in range(params.depth)
@@ -98,7 +99,7 @@ class Chroma(nn.Module):
 
         self.single_blocks = nn.ModuleList(
             [
-                SingleStreamBlock(self.hidden_size, self.num_heads, mlp_ratio=params.mlp_ratio, dtype=dtype, device=device, operations=operations)
+                SingleStreamBlock(self.hidden_size, self.num_heads, mlp_ratio=params.mlp_ratio, modulation=False, dtype=dtype, device=device, operations=operations)
                 for _ in range(params.depth_single_blocks)
             ]
         )
@@ -178,7 +179,10 @@ class Chroma(nn.Module):
         pe = self.pe_embedder(ids)
 
         blocks_replace = patches_replace.get("dit", {})
+        transformer_options["total_blocks"] = len(self.double_blocks)
+        transformer_options["block_type"] = "double"
         for i, block in enumerate(self.double_blocks):
+            transformer_options["block_index"] = i
             if i not in self.skip_mmdit:
                 double_mod = (
                     self.get_modulations(mod_vectors, "double_img", idx=i),
@@ -221,7 +225,10 @@ class Chroma(nn.Module):
 
         img = torch.cat((txt, img), 1)
 
+        transformer_options["total_blocks"] = len(self.single_blocks)
+        transformer_options["block_type"] = "single"
         for i, block in enumerate(self.single_blocks):
+            transformer_options["block_index"] = i
             if i not in self.skip_dit:
                 single_mod = self.get_modulations(mod_vectors, "single", idx=i)
                 if ("single_block", i) in blocks_replace:

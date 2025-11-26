@@ -2,6 +2,7 @@ import os
 import sys
 import asyncio
 import traceback
+import time
 
 import nodes
 import folder_paths
@@ -29,12 +30,13 @@ import comfy.model_management
 from comfy_api import feature_flags
 import node_helpers
 from comfyui_version import __version__
-from app.frontend_management import FrontendManager
+from app.frontend_management import FrontendManager, parse_version
 from comfy_api.internal import _ComfyNodeInternal
 
 from app.user_manager import UserManager
 from app.model_manager import ModelFileManager
 from app.custom_node_manager import CustomNodeManager
+from app.subgraph_manager import SubgraphManager
 from typing import Optional, Union
 from api_server.routes.internal.internal_routes import InternalRoutes
 from protocol import BinaryEventTypes
@@ -162,6 +164,22 @@ def create_origin_only_middleware():
 
     return origin_only_middleware
 
+
+def create_block_external_middleware():
+    @web.middleware
+    async def block_external_middleware(request: web.Request, handler):
+        if request.method == "OPTIONS":
+            # Pre-flight request. Reply successfully:
+            response = web.Response()
+        else:
+            response = await handler(request)
+
+        response.headers['Content-Security-Policy'] = "default-src 'self'; script-src 'self' 'unsafe-inline' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; frame-src 'self'; object-src 'self';"
+        return response
+
+    return block_external_middleware
+
+
 class PromptServer():
     def __init__(self, loop):
         PromptServer.instance = self
@@ -173,6 +191,7 @@ class PromptServer():
         self.user_manager = UserManager()
         self.model_file_manager = ModelFileManager()
         self.custom_node_manager = CustomNodeManager()
+        self.subgraph_manager = SubgraphManager()
         self.internal_routes = InternalRoutes(self)
         self.supports = ["custom_nodes_from_web"]
         self.prompt_queue = execution.PromptQueue(self)
@@ -189,6 +208,9 @@ class PromptServer():
             middlewares.append(create_cors_middleware(args.enable_cors_header))
         else:
             middlewares.append(create_origin_only_middleware())
+
+        if args.disable_api_nodes:
+            middlewares.append(create_block_external_middleware())
 
         max_upload_size = round(args.max_upload_size * 1024 * 1024)
         self.app = web.Application(client_max_size=max_upload_size, middlewares=middlewares)
@@ -689,8 +711,9 @@ class PromptServer():
         async def get_queue(request):
             queue_info = {}
             current_queue = self.prompt_queue.get_current_queue_volatile()
-            queue_info['queue_running'] = current_queue[0]
-            queue_info['queue_pending'] = current_queue[1]
+            remove_sensitive = lambda queue: [x[:5] for x in queue]
+            queue_info['queue_running'] = remove_sensitive(current_queue[0])
+            queue_info['queue_pending'] = remove_sensitive(current_queue[1])
             return web.json_response(queue_info)
 
         @routes.post("/prompt")
@@ -726,7 +749,12 @@ class PromptServer():
                     extra_data["client_id"] = json_data["client_id"]
                 if valid[0]:
                     outputs_to_execute = valid[2]
-                    self.prompt_queue.put((number, prompt_id, prompt, extra_data, outputs_to_execute))
+                    sensitive = {}
+                    for sensitive_val in execution.SENSITIVE_EXTRA_DATA_KEYS:
+                        if sensitive_val in extra_data:
+                            sensitive[sensitive_val] = extra_data.pop(sensitive_val)
+                    extra_data["create_time"] = int(time.time() * 1000)  # timestamp in milliseconds
+                    self.prompt_queue.put((number, prompt_id, prompt, extra_data, outputs_to_execute, sensitive))
                     response = {"prompt_id": prompt_id, "number": number, "node_errors": valid[3]}
                     return web.json_response(response)
                 else:
@@ -819,6 +847,7 @@ class PromptServer():
         self.user_manager.add_routes(self.routes)
         self.model_file_manager.add_routes(self.routes)
         self.custom_node_manager.add_routes(self.routes, self.app, nodes.LOADED_MODULE_DIRS.items())
+        self.subgraph_manager.add_routes(self.routes, nodes.LOADED_MODULE_DIRS.items())
         self.app.add_subapp('/internal', self.internal_routes.get_app())
 
         # Prefix every route with /api for easier matching for delegation.
@@ -839,11 +868,31 @@ class PromptServer():
         for name, dir in nodes.EXTENSION_WEB_DIRS.items():
             self.app.add_routes([web.static('/extensions/' + name, dir)])
 
-        workflow_templates_path = FrontendManager.templates_path()
-        if workflow_templates_path:
-            self.app.add_routes([
-                web.static('/templates', workflow_templates_path)
-            ])
+        installed_templates_version = FrontendManager.get_installed_templates_version()
+        use_legacy_templates = True
+        if installed_templates_version:
+            try:
+                use_legacy_templates = (
+                    parse_version(installed_templates_version)
+                    < parse_version("0.3.0")
+                )
+            except Exception as exc:
+                logging.warning(
+                    "Unable to parse templates version '%s': %s",
+                    installed_templates_version,
+                    exc,
+                )
+
+        if use_legacy_templates:
+            workflow_templates_path = FrontendManager.legacy_templates_path()
+            if workflow_templates_path:
+                self.app.add_routes([
+                    web.static('/templates', workflow_templates_path)
+                ])
+        else:
+            handler = FrontendManager.template_asset_handler()
+            if handler:
+                self.app.router.add_get("/templates/{path:.*}", handler)
 
         # Serve embedded documentation from the package
         embedded_docs_path = FrontendManager.embedded_docs_path()

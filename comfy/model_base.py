@@ -135,7 +135,7 @@ class BaseModel(torch.nn.Module):
         if not unet_config.get("disable_unet_model_creation", False):
             if model_config.custom_operations is None:
                 fp8 = model_config.optimizations.get("fp8", False)
-                operations = comfy.ops.pick_operations(unet_config.get("dtype", None), self.manual_cast_dtype, fp8_optimizations=fp8, scaled_fp8=model_config.scaled_fp8)
+                operations = comfy.ops.pick_operations(unet_config.get("dtype", None), self.manual_cast_dtype, fp8_optimizations=fp8, scaled_fp8=model_config.scaled_fp8, model_config=model_config)
             else:
                 operations = model_config.custom_operations
             self.diffusion_model = unet_model(**unet_config, device=device, operations=operations)
@@ -198,8 +198,14 @@ class BaseModel(torch.nn.Module):
             extra_conds[o] = extra
 
         t = self.process_timestep(t, x=x, **extra_conds)
-        model_output = self.diffusion_model(xc, t, context=context, control=control, transformer_options=transformer_options, **extra_conds).float()
-        return self.model_sampling.calculate_denoised(sigma, model_output, x)
+        if "latent_shapes" in extra_conds:
+            xc = utils.unpack_latents(xc, extra_conds.pop("latent_shapes"))
+
+        model_output = self.diffusion_model(xc, t, context=context, control=control, transformer_options=transformer_options, **extra_conds)
+        if len(model_output) > 1 and not torch.is_tensor(model_output):
+            model_output, _ = utils.pack_latents(model_output)
+
+        return self.model_sampling.calculate_denoised(sigma, model_output.float(), x)
 
     def process_timestep(self, timestep, **kwargs):
         return timestep
@@ -334,6 +340,14 @@ class BaseModel(torch.nn.Module):
 
         if self.model_config.scaled_fp8 is not None:
             unet_state_dict["scaled_fp8"] = torch.tensor([], dtype=self.model_config.scaled_fp8)
+
+        # Save mixed precision metadata
+        if hasattr(self.model_config, 'layer_quant_config') and self.model_config.layer_quant_config:
+            metadata = {
+                "format_version": "1.0",
+                "layers": self.model_config.layer_quant_config
+            }
+            unet_state_dict["_quantization_metadata"] = metadata
 
         unet_state_dict = self.model_config.process_unet_state_dict_for_saving(unet_state_dict)
 
@@ -892,12 +906,13 @@ class Flux(BaseModel):
         attention_mask = kwargs.get("attention_mask", None)
         if attention_mask is not None:
             shape = kwargs["noise"].shape
-            mask_ref_size = kwargs["attention_mask_img_shape"]
-            # the model will pad to the patch size, and then divide
-            # essentially dividing and rounding up
-            (h_tok, w_tok) = (math.ceil(shape[2] / self.diffusion_model.patch_size), math.ceil(shape[3] / self.diffusion_model.patch_size))
-            attention_mask = utils.upscale_dit_mask(attention_mask, mask_ref_size, (h_tok, w_tok))
-            out['attention_mask'] = comfy.conds.CONDRegular(attention_mask)
+            mask_ref_size = kwargs.get("attention_mask_img_shape", None)
+            if mask_ref_size is not None:
+                # the model will pad to the patch size, and then divide
+                # essentially dividing and rounding up
+                (h_tok, w_tok) = (math.ceil(shape[2] / self.diffusion_model.patch_size), math.ceil(shape[3] / self.diffusion_model.patch_size))
+                attention_mask = utils.upscale_dit_mask(attention_mask, mask_ref_size, (h_tok, w_tok))
+                out['attention_mask'] = comfy.conds.CONDRegular(attention_mask)
 
         guidance = kwargs.get("guidance", 3.5)
         if guidance is not None:
@@ -919,9 +934,19 @@ class Flux(BaseModel):
         out = {}
         ref_latents = kwargs.get("reference_latents", None)
         if ref_latents is not None:
-            out['ref_latents'] = list([1, 16, sum(map(lambda a: math.prod(a.size()), ref_latents)) // 16])
+            out['ref_latents'] = list([1, 16, sum(map(lambda a: math.prod(a.size()[2:]), ref_latents))])
         return out
 
+class Flux2(Flux):
+    def extra_conds(self, **kwargs):
+        out = super().extra_conds(**kwargs)
+        cross_attn = kwargs.get("cross_attn", None)
+        if cross_attn is not None:
+            target_text_len = 512
+            if cross_attn.shape[1] < target_text_len:
+                cross_attn = torch.nn.functional.pad(cross_attn, (0, 0, target_text_len - cross_attn.shape[1], 0))
+            out['c_crossattn'] = comfy.conds.CONDRegular(cross_attn)
+        return out
 
 class GenmoMochi(BaseModel):
     def __init__(self, model_config, model_type=ModelType.FLOW, device=None):
@@ -1097,9 +1122,13 @@ class Lumina2(BaseModel):
             if torch.numel(attention_mask) != attention_mask.sum():
                 out['attention_mask'] = comfy.conds.CONDRegular(attention_mask)
             out['num_tokens'] = comfy.conds.CONDConstant(max(1, torch.sum(attention_mask).item()))
+
         cross_attn = kwargs.get("cross_attn", None)
         if cross_attn is not None:
             out['c_crossattn'] = comfy.conds.CONDRegular(cross_attn)
+            if 'num_tokens' not in out:
+                out['num_tokens'] = comfy.conds.CONDConstant(cross_attn.shape[1])
+
         return out
 
 class WAN21(BaseModel):
@@ -1529,4 +1558,95 @@ class HunyuanImage21Refiner(HunyuanImage21):
     def extra_conds(self, **kwargs):
         out = super().extra_conds(**kwargs)
         out['disable_time_r'] = comfy.conds.CONDConstant(True)
+        return out
+
+class HunyuanVideo15(HunyuanVideo):
+    def __init__(self, model_config, model_type=ModelType.FLOW, device=None):
+        super().__init__(model_config, model_type, device=device)
+
+    def concat_cond(self, **kwargs):
+        noise = kwargs.get("noise", None)
+        extra_channels = self.diffusion_model.img_in.proj.weight.shape[1] - noise.shape[1] - 1 #noise 32 img cond 32 + mask 1
+        if extra_channels == 0:
+            return None
+
+        image = kwargs.get("concat_latent_image", None)
+        device = kwargs["device"]
+
+        if image is None:
+            shape_image = list(noise.shape)
+            shape_image[1] = extra_channels
+            image = torch.zeros(shape_image, dtype=noise.dtype, layout=noise.layout, device=noise.device)
+        else:
+            latent_dim = self.latent_format.latent_channels
+            image = utils.common_upscale(image.to(device), noise.shape[-1], noise.shape[-2], "bilinear", "center")
+            for i in range(0, image.shape[1], latent_dim):
+                image[:, i: i + latent_dim] = self.process_latent_in(image[:, i: i + latent_dim])
+            image = utils.resize_to_batch_size(image, noise.shape[0])
+
+        mask = kwargs.get("concat_mask", kwargs.get("denoise_mask", None))
+        if mask is None:
+            mask = torch.zeros_like(noise)[:, :1]
+        else:
+            mask = 1.0 - mask
+            mask = utils.common_upscale(mask.to(device), noise.shape[-1], noise.shape[-2], "bilinear", "center")
+            if mask.shape[-3] < noise.shape[-3]:
+                mask = torch.nn.functional.pad(mask, (0, 0, 0, 0, 0, noise.shape[-3] - mask.shape[-3]), mode='constant', value=0)
+            mask = utils.resize_to_batch_size(mask, noise.shape[0])
+
+        return torch.cat((image, mask), dim=1)
+
+    def extra_conds(self, **kwargs):
+        out = super().extra_conds(**kwargs)
+        attention_mask = kwargs.get("attention_mask", None)
+        if attention_mask is not None:
+            if torch.numel(attention_mask) != attention_mask.sum():
+                out['attention_mask'] = comfy.conds.CONDRegular(attention_mask)
+        cross_attn = kwargs.get("cross_attn", None)
+        if cross_attn is not None:
+            out['c_crossattn'] = comfy.conds.CONDRegular(cross_attn)
+
+        conditioning_byt5small = kwargs.get("conditioning_byt5small", None)
+        if conditioning_byt5small is not None:
+            out['txt_byt5'] = comfy.conds.CONDRegular(conditioning_byt5small)
+
+        guidance = kwargs.get("guidance", 6.0)
+        if guidance is not None:
+            out['guidance'] = comfy.conds.CONDRegular(torch.FloatTensor([guidance]))
+
+        clip_vision_output = kwargs.get("clip_vision_output", None)
+        if clip_vision_output is not None:
+            out['clip_fea'] = comfy.conds.CONDRegular(clip_vision_output.last_hidden_state)
+
+        return out
+
+class HunyuanVideo15_SR_Distilled(HunyuanVideo15):
+    def __init__(self, model_config, model_type=ModelType.FLOW, device=None):
+        super().__init__(model_config, model_type, device=device)
+
+    def concat_cond(self, **kwargs):
+        noise = kwargs.get("noise", None)
+        image = kwargs.get("concat_latent_image", None)
+        noise_augmentation = kwargs.get("noise_augmentation", 0.0)
+        device = kwargs["device"]
+
+        if image is None:
+            image = torch.zeros([noise.shape[0], noise.shape[1] * 2 + 2, noise.shape[-3], noise.shape[-2], noise.shape[-1]], device=comfy.model_management.intermediate_device())
+        else:
+            image = utils.common_upscale(image.to(device), noise.shape[-1], noise.shape[-2], "bilinear", "center")
+            #image = self.process_latent_in(image) # scaling wasn't applied in reference code
+            image = utils.resize_to_batch_size(image, noise.shape[0])
+            lq_image_slice = slice(noise.shape[1] + 1, 2 * noise.shape[1] + 1)
+            if noise_augmentation > 0:
+                generator = torch.Generator(device="cpu")
+                generator.manual_seed(kwargs.get("seed", 0) - 10)
+                noise = torch.randn(image[:, lq_image_slice].shape, generator=generator, dtype=image.dtype, device="cpu").to(image.device)
+                image[:, lq_image_slice] = noise_augmentation * noise + min(1.0 - noise_augmentation, 0.75) * image[:, lq_image_slice]
+            else:
+                image[:, lq_image_slice] = 0.75 * image[:, lq_image_slice]
+        return image
+
+    def extra_conds(self, **kwargs):
+        out = super().extra_conds(**kwargs)
+        out['disable_time_r'] = comfy.conds.CONDConstant(False)
         return out
