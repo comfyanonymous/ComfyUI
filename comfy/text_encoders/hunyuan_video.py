@@ -18,6 +18,9 @@ def llama_detect(state_dict, prefix=""):
     if scaled_fp8_key in state_dict:
         out["llama_scaled_fp8"] = state_dict[scaled_fp8_key].dtype
 
+    if "_quantization_metadata" in state_dict:
+        out["llama_quantization_metadata"] = state_dict["_quantization_metadata"]
+
     return out
 
 
