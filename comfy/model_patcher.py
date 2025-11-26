@@ -132,7 +132,7 @@ class LowVramPatch:
     def __call__(self, weight):
         intermediate_dtype = weight.dtype
         if self.convert_func is not None:
-            weight = self.convert_func(weight.to(dtype=torch.float32, copy=True), inplace=True)
+            weight = self.convert_func(weight, inplace=False)
 
         if intermediate_dtype not in [torch.float32, torch.float16, torch.bfloat16]: #intermediate_dtype has to be one that is supported in math ops
             intermediate_dtype = torch.float32
