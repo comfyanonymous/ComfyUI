@@ -504,7 +504,7 @@ def scaled_fp8_ops(fp8_matrix_mult=False, scale_input=False, override_dtype=None
                     weight *= self.scale_weight.to(device=weight.device, dtype=weight.dtype)
                     return weight
                 else:
-                    return weight.to(dtype=torch.float32) * self.scale_weight.to(device=weight.device, dtype=weight.dtype)
+                    return weight.to(dtype=torch.float32) * self.scale_weight.to(device=weight.device, dtype=torch.float32)
 
             def set_weight(self, weight, inplace_update=False, seed=None, return_weight=False, **kwargs):
                 weight = comfy.float.stochastic_rounding(weight / self.scale_weight.to(device=weight.device, dtype=weight.dtype), self.weight.dtype, seed=seed)
