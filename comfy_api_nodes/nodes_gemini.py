@@ -20,6 +20,7 @@ from comfy_api.latest import IO, ComfyExtension, Input
 from comfy_api.util import VideoCodec, VideoContainer
 from comfy_api_nodes.apis.gemini_api import (
     GeminiContent,
+    GeminiFileData,
     GeminiGenerateContentRequest,
     GeminiGenerateContentResponse,
     GeminiImageConfig,
@@ -38,6 +39,7 @@ from comfy_api_nodes.util import (
     get_number_of_images,
     sync_op,
     tensor_to_base64_string,
+    upload_images_to_comfyapi,
     validate_string,
     video_to_base64_string,
 )
@@ -68,24 +70,43 @@ class GeminiImageModel(str, Enum):
     gemini_2_5_flash_image = "gemini-2.5-flash-image"
 
 
-def create_image_parts(image_input: torch.Tensor) -> list[GeminiPart]:
-    """
-    Convert image tensor input to Gemini API compatible parts.
-
-    Args:
-        image_input: Batch of image tensors from ComfyUI.
-
-    Returns:
-        List of GeminiPart objects containing the encoded images.
-    """
+async def create_image_parts(
+    cls: type[IO.ComfyNode],
+    images: torch.Tensor,
+    image_limit: int = 0,
+) -> list[GeminiPart]:
     image_parts: list[GeminiPart] = []
-    for image_index in range(image_input.shape[0]):
-        image_as_b64 = tensor_to_base64_string(image_input[image_index].unsqueeze(0))
+    if image_limit < 0:
+        raise ValueError("image_limit must be greater than or equal to 0 when creating Gemini image parts.")
+    total_images = get_number_of_images(images)
+    if total_images <= 0:
+        raise ValueError("No images provided to create_image_parts; at least one image is required.")
+
+    # If image_limit == 0 --> use all images; otherwise clamp to image_limit.
+    effective_max = total_images if image_limit == 0 else min(total_images, image_limit)
+
+    # Number of images we'll send as URLs (fileData)
+    num_url_images = min(effective_max, 10)  # Vertex API max number of image links
+    reference_images_urls = await upload_images_to_comfyapi(
+        cls,
+        images,
+        max_images=num_url_images,
+    )
+    for reference_image_url in reference_images_urls:
+        image_parts.append(
+            GeminiPart(
+                fileData=GeminiFileData(
+                    mimeType=GeminiMimeType.image_png,
+                    fileUri=reference_image_url,
+                )
+            )
+        )
+    for idx in range(num_url_images, effective_max):
         image_parts.append(
             GeminiPart(
                 inlineData=GeminiInlineData(
                     mimeType=GeminiMimeType.image_png,
-                    data=image_as_b64,
+                    data=tensor_to_base64_string(images[idx]),
                 )
             )
         )
@@ -338,8 +359,7 @@ class GeminiNode(IO.ComfyNode):
 
         # Add other modal parts
         if images is not None:
-            image_parts = create_image_parts(images)
-            parts.extend(image_parts)
+            parts.extend(await create_image_parts(cls, images))
         if audio is not None:
             parts.extend(cls.create_audio_parts(audio))
         if video is not None:
@@ -562,8 +582,7 @@ class GeminiImage(IO.ComfyNode):
         image_config = GeminiImageConfig(aspectRatio=aspect_ratio)
 
         if images is not None:
-            image_parts = create_image_parts(images)
-            parts.extend(image_parts)
+            parts.extend(await create_image_parts(cls, images))
         if files is not None:
             parts.extend(files)
 
@@ -702,7 +721,7 @@ class GeminiImage2(IO.ComfyNode):
         if images is not None:
             if get_number_of_images(images) > 14:
                 raise ValueError("The current maximum number of supported images is 14.")
-            parts.extend(create_image_parts(images))
+            parts.extend(await create_image_parts(cls, images))
         if files is not None:
             parts.extend(files)
 

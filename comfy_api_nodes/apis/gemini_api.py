@@ -58,8 +58,14 @@ class GeminiInlineData(BaseModel):
     mimeType: GeminiMimeType | None = Field(None)
 
 
+class GeminiFileData(BaseModel):
+    fileUri: str | None = Field(None)
+    mimeType: GeminiMimeType | None = Field(None)
+
+
 class GeminiPart(BaseModel):
     inlineData: GeminiInlineData | None = Field(None)
+    fileData: GeminiFileData | None = Field(None)
     text: str | None = Field(None)
 
 
