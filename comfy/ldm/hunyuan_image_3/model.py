@@ -530,7 +530,7 @@ class MoELRUCache(nn.Module):
                     del moe
                 torch.cuda.empty_cache()
 
-            threading.Thread(target=finalize_offload_layer, daemon=True).start()
+            self.cache._loop.call_soon_threadsafe(finalize_offload_layer)
 
     async def _async_load_to_gpu(self, index, moe):
 
@@ -540,23 +540,21 @@ class MoELRUCache(nn.Module):
             if free_bytes > 2 * MOE_LAYER_SIZE:
                 break
 
-            self.last_offload_event.synchronize()
             torch.cuda.empty_cache()
             await asyncio.sleep(0.01)
 
         # async loading from cpu -> gpu
-        with torch.cuda.stream(self.load_stream):
-            moe_gpu = HunyuanMLP(moe.config).to("cuda", non_blocking=True)
-            for (name, p_cpu), p_gpu in zip(moe.named_parameters(), moe_gpu.parameters()):
-                with torch.no_grad():
-                    p_gpu.data = torch.empty_like(p_cpu, device="cuda")
-                    p_gpu.copy_(p_cpu, non_blocking=True)
+        with torch.no_grad():
+            with torch.cuda.stream(self.load_stream):
+                moe_gpu = HunyuanMLP(moe.config, device="meta")
+                for (name, p_cpu), p_gpu in zip(moe.named_parameters(), moe_gpu.parameters()):
+                        p_gpu.data.copy_(p_cpu, non_blocking=True)
 
         def finalize_load():
             self.gpu_cache[index] = moe_gpu
             self.cpu_cache.pop(index, None)
 
-        threading.Thread(target=finalize_load, daemon=True).start()
+        self.cache._loop.call_soon_threadsafe(finalize_load)
 
     def add_cpu(self, moe, index):
         moe_cpu = moe.to("cpu")
@@ -924,10 +922,8 @@ class HunyuanImage3Model(nn.Module):
         next_layers = 0
         additional_layers = torch.cuda.mem_get_info()[0] // (MOE_LAYER_SIZE * 2)
         sparse_interval = max(1, len(self.layers) // additional_layers)
-
         if len(self.layers[0].mlp.experts) == 0:
-            experts = [LazyMoELoader(self.moe_lru, self.config) for _ in range(64)]
-            self.layers[0].mlp.experts = [expert._schedule_disk_load(0, i) for i, expert in enumerate(experts)]
+            self.layers[0].mlp.experts = [self.moe_loader._schedule_disk_load(0, i) for i in range(64)]
 
         for layer_idx, decoder_layer in enumerate(self.layers):
             
@@ -936,16 +932,13 @@ class HunyuanImage3Model(nn.Module):
             second_next_layer = next_layer + 1 if isinstance(self.layers[layer_idx + 2].mlp.experts, list) else next_layer + 2
 
             if next_layer < len(self.layers) and len(self.layers[next_layer].mlp.experts) == 0: # not loaded
-                experts = [LazyMoELoader(self.moe_lru, self.config) for _ in range(64)]
-                self.layers[next_layer].mlp.experts = [expert._schedule_disk_load(next_layer, i) for i, expert in enumerate(experts)]
+                self.layers[next_layer].mlp.experts = [self.moe_loader._schedule_disk_load(next_layer, i) for i in range(64)]
 
             if second_next_layer < len(self.layers) and len(self.layers[second_next_layer].mlp.experts) == 0: # not loaded
-                experts = [LazyMoELoader(self.moe_lru, self.config) for _ in range(64)]
-                self.layers[second_next_layer].mlp.experts = [expert._schedule_disk_load(second_next_layer, i) for i, expert in enumerate(experts)]
+                self.layers[second_next_layer].mlp.experts = [self.moe_loader._schedule_disk_load(second_next_layer, i) for i in range(64)]
 
             if (layer_idx % sparse_interval == 0) and layer_idx > sparse_interval:
-                experts = [LazyMoELoader(self.moe_lru, self.config) for _ in range(64)]
-                self.layers[next_layers].mlp.experts = [expert._schedule_disk_load(next_layers, i) for i, expert in enumerate(experts)]
+                self.layers[next_layers].mlp.experts = [self.moe_loader._schedule_disk_load(next_layers, i) for i in range(64)]
                 next_layers += 1
 
             with torch.no_grad():
@@ -969,6 +962,7 @@ class HunyuanImage3Model(nn.Module):
                         self.moe_lru._async_offload_to_cpu(layer_idx),
                         self.moe_lru._loop
                     )
+                    del self.layers[layer_idx].mlp.experts
                     self.layers[layer_idx].mlp.experts = []
 
             hidden_states = layer_outputs[0]
