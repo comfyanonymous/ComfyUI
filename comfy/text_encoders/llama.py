@@ -79,6 +79,28 @@ class Qwen25_3BConfig:
     final_norm: bool = True
 
 @dataclass
+class Qwen3_4BConfig:
+    vocab_size: int = 151936
+    hidden_size: int = 2560
+    intermediate_size: int = 9728
+    num_hidden_layers: int = 36
+    num_attention_heads: int = 32
+    num_key_value_heads: int = 8
+    max_position_embeddings: int = 40960
+    rms_norm_eps: float = 1e-6
+    rope_theta: float = 1000000.0
+    transformer_type: str = "llama"
+    head_dim = 128
+    rms_norm_add = False
+    mlp_activation = "silu"
+    qkv_bias = False
+    rope_dims = None
+    q_norm = "gemma3"
+    k_norm = "gemma3"
+    rope_scale = None
+    final_norm: bool = True
+
+@dataclass
 class Qwen25_7BVLI_Config:
     vocab_size: int = 152064
     hidden_size: int = 3584
@@ -434,8 +456,12 @@ class Llama2_(nn.Module):
 
         intermediate = None
         all_intermediate = None
+        only_layers = None
         if intermediate_output is not None:
-            if intermediate_output == "all":
+            if isinstance(intermediate_output, list):
+                all_intermediate = []
+                only_layers = set(intermediate_output)
+            elif intermediate_output == "all":
                 all_intermediate = []
                 intermediate_output = None
             elif intermediate_output < 0:
@@ -443,7 +469,8 @@ class Llama2_(nn.Module):
 
         for i, layer in enumerate(self.layers):
             if all_intermediate is not None:
-                all_intermediate.append(x.unsqueeze(1).clone())
+                if only_layers is None or (i in only_layers):
+                    all_intermediate.append(x.unsqueeze(1).clone())
             x = layer(
                 x=x,
                 attention_mask=mask,
@@ -457,7 +484,8 @@ class Llama2_(nn.Module):
             x = self.norm(x)
 
         if all_intermediate is not None:
-            all_intermediate.append(x.unsqueeze(1).clone())
+            if only_layers is None or ((i + 1) in only_layers):
+                all_intermediate.append(x.unsqueeze(1).clone())
 
         if all_intermediate is not None:
             intermediate = torch.cat(all_intermediate, dim=1)
@@ -500,6 +528,15 @@ class Qwen25_3B(BaseLlama, torch.nn.Module):
     def __init__(self, config_dict, dtype, device, operations):
         super().__init__()
         config = Qwen25_3BConfig(**config_dict)
+        self.num_layers = config.num_hidden_layers
+
+        self.model = Llama2_(config, device=device, dtype=dtype, ops=operations)
+        self.dtype = dtype
+
+class Qwen3_4B(BaseLlama, torch.nn.Module):
+    def __init__(self, config_dict, dtype, device, operations):
+        super().__init__()
+        config = Qwen3_4BConfig(**config_dict)
         self.num_layers = config.num_hidden_layers
 
         self.model = Llama2_(config, device=device, dtype=dtype, ops=operations)

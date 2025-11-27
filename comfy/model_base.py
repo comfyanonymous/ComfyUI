@@ -926,7 +926,7 @@ class Flux(BaseModel):
         out = {}
         ref_latents = kwargs.get("reference_latents", None)
         if ref_latents is not None:
-            out['ref_latents'] = list([1, 16, sum(map(lambda a: math.prod(a.size()), ref_latents)) // 16])
+            out['ref_latents'] = list([1, 16, sum(map(lambda a: math.prod(a.size()[2:]), ref_latents))])
         return out
 
 class Flux2(Flux):
@@ -1114,9 +1114,13 @@ class Lumina2(BaseModel):
             if torch.numel(attention_mask) != attention_mask.sum():
                 out['attention_mask'] = comfy.conds.CONDRegular(attention_mask)
             out['num_tokens'] = comfy.conds.CONDConstant(max(1, torch.sum(attention_mask).item()))
+
         cross_attn = kwargs.get("cross_attn", None)
         if cross_attn is not None:
             out['c_crossattn'] = comfy.conds.CONDRegular(cross_attn)
+            if 'num_tokens' not in out:
+                out['num_tokens'] = comfy.conds.CONDConstant(cross_attn.shape[1])
+
         return out
 
 class WAN21(BaseModel):
