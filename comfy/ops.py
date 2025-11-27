@@ -531,7 +531,7 @@ def scaled_fp8_ops(fp8_matrix_mult=False, scale_input=False, override_dtype=None
 
             def set_weight(self, weight, inplace_update=False, seed=None, return_weight=False, **kwargs):
                 weight = comfy.float.stochastic_rounding(scale_hadamard(weight / self.scale_weight.to(device=weight.device, dtype=weight.dtype), 
-                                                        self.weight_scale_inv.to(device=weight.device, dtype=weight.dtype), k_value=None), self.weight.dtype, seed=seed)
+                                                        self.weight_scale_inv.to(device=weight.device, dtype=weight.dtype), k_value=None, divide=True), self.weight.dtype, seed=seed)
                 if return_weight:
                     return weight
                 if inplace_update:
