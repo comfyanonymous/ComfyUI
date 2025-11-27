@@ -1,6 +1,5 @@
 import logging
 import os
-import math
 import json
 
 import numpy as np
@@ -624,79 +623,6 @@ class TextProcessingNode(io.ComfyNode):
 # ========== Image Transform Nodes ==========
 
 
-class ResizeImagesToSameSizeNode(ImageProcessingNode):
-    node_id = "ResizeImagesToSameSize"
-    display_name = "Resize Images to Same Size"
-    description = "Resize all images to the same width and height."
-    extra_inputs = [
-        io.Int.Input("width", default=512, min=1, max=8192, tooltip="Target width."),
-        io.Int.Input("height", default=512, min=1, max=8192, tooltip="Target height."),
-        io.Combo.Input(
-            "mode",
-            options=["stretch", "crop_center", "pad"],
-            default="stretch",
-            tooltip="Resize mode.",
-        ),
-    ]
-
-    @classmethod
-    def _process(cls, image, width, height, mode):
-        img = tensor_to_pil(image)
-
-        if mode == "stretch":
-            img = img.resize((width, height), Image.Resampling.LANCZOS)
-        elif mode == "crop_center":
-            left = max(0, (img.width - width) // 2)
-            top = max(0, (img.height - height) // 2)
-            right = min(img.width, left + width)
-            bottom = min(img.height, top + height)
-            img = img.crop((left, top, right, bottom))
-            if img.width != width or img.height != height:
-                img = img.resize((width, height), Image.Resampling.LANCZOS)
-        elif mode == "pad":
-            img.thumbnail((width, height), Image.Resampling.LANCZOS)
-            new_img = Image.new("RGB", (width, height), (0, 0, 0))
-            paste_x = (width - img.width) // 2
-            paste_y = (height - img.height) // 2
-            new_img.paste(img, (paste_x, paste_y))
-            img = new_img
-
-        return pil_to_tensor(img)
-
-
-class ResizeImagesToPixelCountNode(ImageProcessingNode):
-    node_id = "ResizeImagesToPixelCount"
-    display_name = "Resize Images to Pixel Count"
-    description = "Resize images so that the total pixel count matches the specified number while preserving aspect ratio."
-    extra_inputs = [
-        io.Int.Input(
-            "pixel_count",
-            default=512 * 512,
-            min=1,
-            max=8192 * 8192,
-            tooltip="Target pixel count.",
-        ),
-        io.Int.Input(
-            "steps",
-            default=64,
-            min=1,
-            max=128,
-            tooltip="The stepping for resize width/height.",
-        ),
-    ]
-
-    @classmethod
-    def _process(cls, image, pixel_count, steps):
-        img = tensor_to_pil(image)
-        w, h = img.size
-        pixel_count_ratio = math.sqrt(pixel_count / (w * h))
-        new_w = int(w * pixel_count_ratio / steps) * steps
-        new_h = int(h * pixel_count_ratio / steps) * steps
-        logging.info(f"Resizing from {w}x{h} to {new_w}x{new_h}")
-        img = img.resize((new_w, new_h), Image.Resampling.LANCZOS)
-        return pil_to_tensor(img)
-
-
 class ResizeImagesByShorterEdgeNode(ImageProcessingNode):
     node_id = "ResizeImagesByShorterEdge"
     display_name = "Resize Images by Shorter Edge"
@@ -798,29 +724,6 @@ class RandomCropImagesNode(ImageProcessingNode):
         right = min(img.width, left + width)
         bottom = min(img.height, top + height)
         img = img.crop((left, top, right, bottom))
-        return pil_to_tensor(img)
-
-
-class FlipImagesNode(ImageProcessingNode):
-    node_id = "FlipImages"
-    display_name = "Flip Images"
-    description = "Flip all images horizontally or vertically."
-    extra_inputs = [
-        io.Combo.Input(
-            "direction",
-            options=["horizontal", "vertical"],
-            default="horizontal",
-            tooltip="Flip direction.",
-        ),
-    ]
-
-    @classmethod
-    def _process(cls, image, direction):
-        img = tensor_to_pil(image)
-        if direction == "horizontal":
-            img = img.transpose(Image.FLIP_LEFT_RIGHT)
-        else:
-            img = img.transpose(Image.FLIP_TOP_BOTTOM)
         return pil_to_tensor(img)
 
 
@@ -1470,7 +1373,7 @@ class LoadTrainingDataset(io.ComfyNode):
             shard_path = os.path.join(dataset_dir, shard_file)
 
             with open(shard_path, "rb") as f:
-                shard_data = torch.load(f)
+                shard_data = torch.load(f, weights_only=True)
 
             all_latents.extend(shard_data["latents"])
             all_conditioning.extend(shard_data["conditioning"])
@@ -1496,13 +1399,10 @@ class DatasetExtension(ComfyExtension):
             SaveImageDataSetToFolderNode,
             SaveImageTextDataSetToFolderNode,
             # Image transform nodes
-            ResizeImagesToSameSizeNode,
-            ResizeImagesToPixelCountNode,
             ResizeImagesByShorterEdgeNode,
             ResizeImagesByLongerEdgeNode,
             CenterCropImagesNode,
             RandomCropImagesNode,
-            FlipImagesNode,
             NormalizeImagesNode,
             AdjustBrightnessNode,
             AdjustContrastNode,
