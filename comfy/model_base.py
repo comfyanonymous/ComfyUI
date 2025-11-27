@@ -1690,6 +1690,3 @@ class Kandinsky5_image(Kandinsky5):
 
     def concat_cond(self, **kwargs):
         return None
-
-    def process_latent_out(self, latent): # input is still 5D, return single frame to decode with Flux VAE
-        return self.latent_format.process_out(latent)[:, :, 0]

@@ -742,6 +742,8 @@ class VAE:
         self.throw_exception_if_invalid()
         pixel_samples = None
         do_tile = False
+        if self.latent_dim == 2 and samples_in.ndim == 5:
+            samples_in = samples_in[:, :, 0]
         try:
             memory_used = self.memory_used_decode(samples_in.shape, self.vae_dtype)
             model_management.load_models_gpu([self.patcher], memory_required=memory_used, force_full_load=self.disable_offload)
