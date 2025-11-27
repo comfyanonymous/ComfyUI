@@ -105,12 +105,37 @@ class NormalizeVideoLatentFrames(io.ComfyNode):
         return io.NodeOutput(s)
 
 
+class CLIPTextEncodeKandinsky5(io.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return io.Schema(
+            node_id="CLIPTextEncodeKandinsky5",
+            category="advanced/conditioning/kandinsky5",
+            inputs=[
+                io.Clip.Input("clip"),
+                io.String.Input("clip_l", multiline=True, dynamic_prompts=True),
+                io.String.Input("qwen25_7b", multiline=True, dynamic_prompts=True),
+            ],
+            outputs=[
+                io.Conditioning.Output(),
+            ],
+        )
+
+    @classmethod
+    def execute(cls, clip, clip_l, qwen25_7b) -> io.NodeOutput:
+        tokens = clip.tokenize(clip_l)
+        tokens["qwen25_7b"] = clip.tokenize(qwen25_7b)["qwen25_7b"]
+
+        return io.NodeOutput(clip.encode_from_tokens_scheduled(tokens))
+
+
 class Kandinsky5Extension(ComfyExtension):
     @override
     async def get_node_list(self) -> list[type[io.ComfyNode]]:
         return [
             Kandinsky5ImageToVideo,
-            NormalizeVideoLatentFrames
+            NormalizeVideoLatentFrames,
+            CLIPTextEncodeKandinsky5,
         ]
 
 async def comfy_entrypoint() -> Kandinsky5Extension:
