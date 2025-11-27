@@ -425,7 +425,8 @@ class TensorCoreFP8Layout(QuantizedLayout):
     @staticmethod
     def dequantize(qdata, scale, orig_dtype, **kwargs):
         plain_tensor = torch.ops.aten._to_copy.default(qdata, dtype=orig_dtype)
-        return plain_tensor * scale
+        plain_tensor.mul_(scale)
+        return plain_tensor
 
     @classmethod
     def get_plain_tensors(cls, qtensor):
