@@ -170,6 +170,11 @@ class IndexListContextHandler(ContextHandlerABC):
                                 if (self.dim < cond_value.ndim and cond_value(self.dim) == x_in.size(self.dim)) or \
                                    (cond_value.ndim < self.dim and cond_value.size(0) == x_in.size(self.dim)):
                                     new_cond_item[cond_key] = window.get_tensor(cond_value, device)
+                            # Handle audio_embed (temporal dim is 1)
+                            elif cond_key == "audio_embed" and hasattr(cond_value, "cond") and isinstance(cond_value.cond, torch.Tensor):
+                                audio_cond = cond_value.cond
+                                if audio_cond.ndim > 1 and audio_cond.size(1) == x_in.size(self.dim):
+                                    new_cond_item[cond_key] = cond_value._copy_with(window.get_tensor(audio_cond, device, dim=1))
                             # if has cond that is a Tensor, check if needs to be subset
                             elif hasattr(cond_value, "cond") and isinstance(cond_value.cond, torch.Tensor):
                                 if  (self.dim < cond_value.cond.ndim and cond_value.cond.size(self.dim) == x_in.size(self.dim)) or \
