@@ -171,7 +171,10 @@ class Flux(nn.Module):
             pe = None
 
         blocks_replace = patches_replace.get("dit", {})
+        transformer_options["total_blocks"] = len(self.double_blocks)
+        transformer_options["block_type"] = "double"
         for i, block in enumerate(self.double_blocks):
+            transformer_options["block_index"] = i
             if ("double_block", i) in blocks_replace:
                 def block_wrap(args):
                     out = {}
@@ -215,7 +218,10 @@ class Flux(nn.Module):
         if self.params.global_modulation:
             vec, _ = self.single_stream_modulation(vec_orig)
 
+        transformer_options["total_blocks"] = len(self.single_blocks)
+        transformer_options["block_type"] = "single"
         for i, block in enumerate(self.single_blocks):
+            transformer_options["block_index"] = i
             if ("single_block", i) in blocks_replace:
                 def block_wrap(args):
                     out = {}
