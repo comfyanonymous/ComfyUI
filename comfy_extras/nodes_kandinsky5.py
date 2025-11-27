@@ -67,7 +67,7 @@ def adaptive_mean_std_normalization(source, reference):
     # normalization
     normalized = (source - source_mean) / (source_std + 1e-8)
     normalized = normalized * reference_std + reference_mean
-    
+
     return normalized
 
 
@@ -97,9 +97,9 @@ class NormalizeVideoLatentFrames(io.ComfyNode):
 
         first_frames = samples[:, :, :frames_to_normalize]
         reference_frames_data = samples[:, :, frames_to_normalize:frames_to_normalize+min(reference_frames, samples.shape[2]-frames_to_normalize)]
-        
+
         normalized_first_frames = adaptive_mean_std_normalization(first_frames, reference_frames_data)
-        
+
         samples[:, :, :frames_to_normalize] = normalized_first_frames
         s["samples"] = samples
         return io.NodeOutput(s)

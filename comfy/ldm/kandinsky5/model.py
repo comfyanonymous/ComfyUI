@@ -307,23 +307,14 @@ class Kandinsky5(nn.Module):
             h_start += rope_options.get("shift_y", 0.0)
             w_start += rope_options.get("shift_x", 0.0)
         else:
-            if self.model_dim == 4096: # pro video model,this is experimental as the original code only had two fixed scales for 512p and 1024p
-                spatial_size = h * w
-                scale_16384 = (1.0, 3.16, 3.16)
-                scale_9216 = (1.0, 2.0, 2.0)
-                if spatial_size <= 6144:
-                    rope_scale_factor = scale_9216
-                elif spatial_size >= 14080:
-                    rope_scale_factor = scale_16384
-                else:
-                    t = (spatial_size - 14080) / (6144 - 14080)
-                    rope_scale_factor = tuple(a + (b - a) * t for a, b in zip(scale_16384, scale_9216))
-            else:
-                rope_scale_factor = self.rope_scale_factor
+            rope_scale_factor = self.rope_scale_factor
+            if self.model_dim == 4096: # pro video model uses different rope scaling at higher resolutions
+                if h * w >= 14080:
+                    rope_scale_factor = (1.0, 3.16, 3.16)
 
-            t_len = (t_len - 1.0) // rope_scale_factor[0] + 1.0
-            h_len = (h_len - 1.0) // rope_scale_factor[1] + 1.0
-            w_len = (w_len - 1.0) // rope_scale_factor[2] + 1.0
+            t_len = (t_len - 1.0) / rope_scale_factor[0] + 1.0
+            h_len = (h_len - 1.0) / rope_scale_factor[1] + 1.0
+            w_len = (w_len - 1.0) / rope_scale_factor[2] + 1.0
 
         img_ids = torch.zeros((steps_t, steps_h, steps_w, 3), device=device, dtype=dtype)
         img_ids[:, :, :, 0] = img_ids[:, :, :, 0] + torch.linspace(t_start, t_start + (t_len - 1), steps=steps_t, device=device, dtype=dtype).reshape(-1, 1, 1)
