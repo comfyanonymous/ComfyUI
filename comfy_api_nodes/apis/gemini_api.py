@@ -58,8 +58,14 @@ class GeminiInlineData(BaseModel):
     mimeType: GeminiMimeType | None = Field(None)
 
 
+class GeminiFileData(BaseModel):
+    fileUri: str | None = Field(None)
+    mimeType: GeminiMimeType | None = Field(None)
+
+
 class GeminiPart(BaseModel):
     inlineData: GeminiInlineData | None = Field(None)
+    fileData: GeminiFileData | None = Field(None)
     text: str | None = Field(None)
 
 
@@ -113,9 +119,9 @@ class GeminiGenerationConfig(BaseModel):
     maxOutputTokens: int | None = Field(None, ge=16, le=8192)
     seed: int | None = Field(None)
     stopSequences: list[str] | None = Field(None)
-    temperature: float | None = Field(1, ge=0.0, le=2.0)
-    topK: int | None = Field(40, ge=1)
-    topP: float | None = Field(0.95, ge=0.0, le=1.0)
+    temperature: float | None = Field(None, ge=0.0, le=2.0)
+    topK: int | None = Field(None, ge=1)
+    topP: float | None = Field(None, ge=0.0, le=1.0)
 
 
 class GeminiImageConfig(BaseModel):
