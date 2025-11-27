@@ -99,12 +99,6 @@ def map_legacy(folder_name: str) -> str:
               "clip": "text_encoders"}
     return legacy.get(folder_name, folder_name)
 
-if not os.path.exists(input_directory):
-    try:
-        os.makedirs(input_directory)
-    except:
-        logging.error("Failed to create input directory")
-
 def set_output_directory(output_dir: str) -> None:
     global output_directory
     output_directory = output_dir

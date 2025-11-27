@@ -32,7 +32,22 @@ def apply_custom_paths():
         for config_path in itertools.chain(*args.extra_model_paths_config):
             utils.extra_config.load_extra_path_config(config_path)
 
-    # --output-directory, --input-directory, --user-directory
+    # --temp-directory, --user-directory, --input-directory, --output-directory
+    if args.temp_directory:
+        temp_dir = os.path.join(os.path.abspath(args.temp_directory), "temp")
+        logging.info(f"Setting temp directory to: {temp_dir}")
+        folder_paths.set_temp_directory(temp_dir)
+
+    if args.user_directory:
+        user_dir = os.path.abspath(args.user_directory)
+        logging.info(f"Setting user directory to: {user_dir}")
+        folder_paths.set_user_directory(user_dir)
+
+    if args.input_directory:
+        input_dir = os.path.abspath(args.input_directory)
+        logging.info(f"Setting input directory to: {input_dir}")
+        folder_paths.set_input_directory(input_dir)
+
     if args.output_directory:
         output_dir = os.path.abspath(args.output_directory)
         logging.info(f"Setting output directory to: {output_dir}")
@@ -46,15 +61,20 @@ def apply_custom_paths():
                                        os.path.join(folder_paths.get_output_directory(), "diffusion_models"))
     folder_paths.add_model_folder_path("loras", os.path.join(folder_paths.get_output_directory(), "loras"))
 
-    if args.input_directory:
-        input_dir = os.path.abspath(args.input_directory)
-        logging.info(f"Setting input directory to: {input_dir}")
-        folder_paths.set_input_directory(input_dir)
 
-    if args.user_directory:
-        user_dir = os.path.abspath(args.user_directory)
-        logging.info(f"Setting user directory to: {user_dir}")
-        folder_paths.set_user_directory(user_dir)
+# These are created at startup if missing. Other data directories are created on-demand when needed.
+def create_data_folders():
+    data_dirs = [
+        folder_paths.get_input_directory(),
+        folder_paths.get_temp_directory()
+    ]
+
+    for dir_path in data_dirs:
+        if not os.path.exists(dir_path):
+            try:
+                os.makedirs(dir_path)
+            except:
+                logging.error(f"Failed to create directory: {dir_path}")
 
 
 def execute_prestartup_script():
@@ -74,7 +94,11 @@ def execute_prestartup_script():
 
     node_paths = folder_paths.get_folder_paths("custom_nodes")
     for custom_node_path in node_paths:
-        possible_modules = os.listdir(custom_node_path)
+        if not os.path.exists(custom_node_path):
+            logging.warning(f"Directory {custom_node_path} for custom nodes does not exist, skipping")
+            continue
+
+        possible_modules = os.listdir(os.path.realpath(custom_node_path))
         node_prestartup_times = []
 
         for possible_module in possible_modules:
@@ -100,7 +124,9 @@ def execute_prestartup_script():
             logging.info("{:6.1f} seconds{}: {}".format(n[0], import_message, n[1]))
         logging.info("")
 
+
 apply_custom_paths()
+create_data_folders()
 execute_prestartup_script()
 
 
@@ -305,10 +331,6 @@ def start_comfyui(asyncio_loop=None):
     Starts the ComfyUI server using the provided asyncio event loop or creates a new one.
     Returns the event loop, server instance, and a function to start the server asynchronously.
     """
-    if args.temp_directory:
-        temp_dir = os.path.join(os.path.abspath(args.temp_directory), "temp")
-        logging.info(f"Setting temp directory to: {temp_dir}")
-        folder_paths.set_temp_directory(temp_dir)
     cleanup_temp()
 
     if args.windows_standalone_build:
@@ -341,7 +363,6 @@ def start_comfyui(asyncio_loop=None):
     if args.quick_test_for_ci:
         exit(0)
 
-    os.makedirs(folder_paths.get_temp_directory(), exist_ok=True)
     call_on_start = None
     if args.auto_launch:
         def startup_server(scheme, address, port):
