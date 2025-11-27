@@ -1013,8 +1013,17 @@ def force_channels_last():
 
 STREAMS = {}
 NUM_STREAMS = 0
-if args.async_offload:
-    NUM_STREAMS = 2
+if args.async_offload is not None:
+    NUM_STREAMS = args.async_offload
+else:
+    #  Enable by default on Nvidia
+    if is_nvidia():
+        NUM_STREAMS = 2
+
+if args.disable_async_offload:
+    NUM_STREAMS = 0
+
+if NUM_STREAMS > 0:
     logging.info("Using async weight offloading with {} streams".format(NUM_STREAMS))
 
 def current_stream(device):
