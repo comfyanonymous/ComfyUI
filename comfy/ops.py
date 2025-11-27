@@ -476,7 +476,7 @@ def scale_hadamard(larger, smaller, k_value=None, divide=False):
     expected_shape = (h * k_value, w * k_value)
     assert larger.shape == expected_shape, "weight_scale_inv mismatch, skipping"
     if divide:
-        smaller = 1.0 / smaller 
+        smaller = 1.0 / smaller
     result = larger.view(h, k_value, w, k_value) * smaller.view(h, 1, w, 1)
     return result.reshape(h * k_value, w * k_value)
 
@@ -492,7 +492,7 @@ def scaled_fp8_ops(fp8_matrix_mult=False, scale_input=False, override_dtype=None
             def reset_parameters(self):
                 if not hasattr(self, 'scale_weight'):
                     self.scale_weight = torch.nn.parameter.Parameter(data=torch.ones((), device=self.weight.device, dtype=torch.float32), requires_grad=False)
-                
+
                 if not hasattr(self, 'weight_scale_inv'):
                     self.weight_scale_inv = torch.nn.parameter.Parameter(data=torch.ones((), device=self.weight.device, dtype=torch.float32), requires_grad=False)
 
@@ -526,11 +526,11 @@ def scaled_fp8_ops(fp8_matrix_mult=False, scale_input=False, override_dtype=None
                     weight = scale_hadamard(weight, self.weight_scale_inv.to(device=weight.device, dtype=weight.dtype), k_value=None, divide=False)
                     return weight
                 else:
-                    return scale_hadamard(weight.to(dtype=torch.float32) * self.scale_weight.to(device=weight.device, dtype=torch.float32), 
+                    return scale_hadamard(weight.to(dtype=torch.float32) * self.scale_weight.to(device=weight.device, dtype=torch.float32),
                                         self.weight_scale_inv.to(device=weight.device, dtype=torch.float32), k_value=None, divide=False)
 
             def set_weight(self, weight, inplace_update=False, seed=None, return_weight=False, **kwargs):
-                weight = comfy.float.stochastic_rounding(scale_hadamard(weight / self.scale_weight.to(device=weight.device, dtype=weight.dtype), 
+                weight = comfy.float.stochastic_rounding(scale_hadamard(weight / self.scale_weight.to(device=weight.device, dtype=weight.dtype),
                                                         self.weight_scale_inv.to(device=weight.device, dtype=weight.dtype), k_value=None, divide=True), self.weight.dtype, seed=seed)
                 if return_weight:
                     return weight
