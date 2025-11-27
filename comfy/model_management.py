@@ -537,6 +537,7 @@ class LoadedModel:
     def model_unload(self, memory_to_free=None, unpatch_weights=True):
         if self.model is None:
             return True
+        logging.debug(f"Unloading {self.model.model.__class__.__name__}")
         if memory_to_free is not None:
             if memory_to_free < self.model.loaded_size():
                 freed, modules_to_offload = self.model.partially_unload(self.model.offload_device, memory_to_free)
@@ -626,7 +627,6 @@ def free_memory(memory_required, device, keep_loaded=[]):
             if free_mem > memory_required:
                 break
             memory_to_free = memory_required - free_mem
-        logging.info(f"Unloading {shift_model.model.model.__class__.__name__}")
         if shift_model.model_unload(memory_to_free):
             unloaded_model.append((i, shift_model))
 
