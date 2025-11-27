@@ -632,7 +632,7 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
         if model_dim in [4096, 2560]: # pro video and lite image
             dit_config["axes_dims"] = (32, 48, 48)
             if model_dim == 2560: # lite image
-                dit_config["rope_scale_factors"] = (1.0, 1.0, 1.0)
+                dit_config["rope_scale_factor"] = (1.0, 1.0, 1.0)
         elif model_dim == 1792: # lite video
             dit_config["axes_dims"] = (16, 24, 24)
         dit_config["time_dim"] = state_dict['{}time_embeddings.in_layer.bias'.format(key_prefix)].shape[0]
