@@ -1103,7 +1103,7 @@ class HunyuanImage3ForCausalMM(nn.Module):
 
             inputs_embeds = torch.cat([*input_args, joint_image], dim = 1)
         else:
-            inputs_embeds = torch.cat([*input_args, joint_image[:, 1:, :]], dim = 1) # joint_image == eos_token
+            inputs_embeds = torch.cat([*input_args], dim = 1)
 
         attention_mask = torch.ones(inputs_embeds.shape[1], inputs_embeds.shape[1], dtype=torch.bool).tril(diagonal=0).repeat(bsz, 1, 1)
         for i in range(bsz):

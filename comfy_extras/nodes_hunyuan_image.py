@@ -76,7 +76,7 @@ class HunyuanImage3Conditioning(io.ComfyNode):
             vae_mask = vae_mask.unsqueeze(0).unsqueeze(-1)
         else:
             pad_token = torch.tensor([-100.0]).view(1, 1, 1).expand(batch_size, 1, hidden_size)
-            joint_image = torch.cat([pad_token, fn("<|endoftext|>")], dim = 1)
+            joint_image = torch.cat([pad_token, fn("<|endoftext|>")], dim = 1) # look into
             vae_mask = torch.empty_like(joint_image)
 
         ragged_tensors = torch.nested.nested_tensor([joint_image, vae_mask, text_tokens.to(joint_image.dtype)])
