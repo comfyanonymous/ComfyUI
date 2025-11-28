@@ -95,6 +95,8 @@ def cast_bias_weight(s, input=None, dtype=None, device=None, bias_dtype=None, of
 
     if offload_stream is not None:
         wf_context = offload_stream
+        if hasattr(wf_context, "as_context"):
+            wf_context = wf_context.as_context(offload_stream)
     else:
         wf_context = contextlib.nullcontext()
 
