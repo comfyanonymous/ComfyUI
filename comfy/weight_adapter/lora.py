@@ -10,6 +10,7 @@ from .base import (
     pad_tensor_to_shape,
     tucker_weight_from_conv,
 )
+from comfy.quant_ops import QuantizedTensor
 
 
 class LoraDiff(WeightAdapterTrainBase):
@@ -206,7 +207,7 @@ class LoRAAdapter(WeightAdapterBase):
                     function,
                 )
             else:
-                weight += function(((strength * alpha) * lora_diff).type(weight.dtype))
+                weight += function(((strength * alpha) * lora_diff).type(weight.dtype if not isinstance(weight, QuantizedTensor) else torch.float32))
         except Exception as e:
             logging.error("ERROR {} {} {}".format(self.name, key, e))
         return weight

@@ -4,6 +4,7 @@ from typing import Optional
 import torch
 import comfy.model_management
 from .base import WeightAdapterBase, weight_decompose
+from comfy.quant_ops import QuantizedTensor
 
 
 class GLoRAAdapter(WeightAdapterBase):
@@ -87,7 +88,7 @@ class GLoRAAdapter(WeightAdapterBase):
             if dora_scale is not None:
                 weight = weight_decompose(dora_scale, weight, lora_diff, alpha, strength, intermediate_dtype, function)
             else:
-                weight += function(((strength * alpha) * lora_diff).type(weight.dtype))
+                weight += function(((strength * alpha) * lora_diff).type(weight.dtype if not isinstance(weight, QuantizedTensor) else torch.float32))
         except Exception as e:
             logging.error("ERROR {} {} {}".format(self.name, key, e))
         return weight
