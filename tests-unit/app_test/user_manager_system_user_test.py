@@ -10,8 +10,6 @@ Tests cover:
 import pytest
 from unittest.mock import MagicMock, patch
 import tempfile
-import os
-import json
 
 import folder_paths
 from app.user_manager import UserManager
