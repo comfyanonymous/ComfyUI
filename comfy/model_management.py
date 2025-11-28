@@ -1524,3 +1524,28 @@ def throw_exception_if_processing_interrupted():
         if interrupt_processing:
             interrupt_processing = False
             raise InterruptProcessingException()
+            
+def unload_all_models_full():
+    """
+    Completely unloads all models from RAM and GPU when the user cancels.
+    Frees CPU RAM, GPU VRAM, and clears python references.
+    """
+    global current_loaded_models
+    try:
+        # Unload every model object
+        for m in current_loaded_models:
+            try:
+                m.model_unload(memory_to_free=None, unpatch_weights=True)
+            except:
+                pass
+        current_loaded_models.clear()
+
+        # Force Python GC
+        gc.collect()
+
+        # Clear GPU memory
+        soft_empty_cache(force=True)
+
+        logging.info("All models unloaded successfully (manual full unload).")
+    except Exception as e:
+        logging.warning(f"Model unload warning: {e}")
