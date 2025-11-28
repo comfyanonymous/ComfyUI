@@ -1550,6 +1550,7 @@ def unload_all_models_full():
         logging.info("All models unloaded successfully (manual full unload).")
     except Exception as e:
         logging.warning(f"Model unload warning: {e}")
+        
     """
 
 
@@ -1559,4 +1560,14 @@ def cleanup_ram():
         torch.cuda.empty_cache()
     except:
         pass
+def unload_text_encoder(encoder):
+    if encoder is None:
+        return
+    try:
+        if hasattr(encoder, "model"):
+            del encoder.model
+        del encoder
+    except:
+        pass
+    cleanup_ram()
 
