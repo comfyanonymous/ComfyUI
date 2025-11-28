@@ -1052,7 +1052,9 @@ def get_offload_stream(device):
     elif is_device_cuda(device):
         ss = []
         for k in range(NUM_STREAMS):
-            ss.append(torch.cuda.Stream(device=device, priority=0))
+            s1 = torch.cuda.Stream(device=device, priority=0)
+            s1.as_context = torch.cuda.stream
+            ss.append(s1)
         STREAMS[device] = ss
         s = ss[stream_counter]
         stream_counters[device] = stream_counter
@@ -1060,7 +1062,9 @@ def get_offload_stream(device):
     elif is_device_xpu(device):
         ss = []
         for k in range(NUM_STREAMS):
-            ss.append(torch.xpu.Stream(device=device, priority=0))
+            s1 = torch.xpu.Stream(device=device, priority=0)
+            s1.as_context = torch.xpu.stream
+            ss.append(s1)
         STREAMS[device] = ss
         s = ss[stream_counter]
         stream_counters[device] = stream_counter
@@ -1078,12 +1082,19 @@ def cast_to(weight, dtype=None, device=None, non_blocking=False, copy=False, str
             if dtype is None or weight.dtype == dtype:
                 return weight
         if stream is not None:
-            with stream:
+            wf_context = stream
+            if hasattr(wf_context, "as_context"):
+                wf_context = wf_context.as_context(stream)
+            with wf_context:
                 return weight.to(dtype=dtype, copy=copy)
         return weight.to(dtype=dtype, copy=copy)
 
+
     if stream is not None:
-        with stream:
+        wf_context = stream
+        if hasattr(wf_context, "as_context"):
+            wf_context = wf_context.as_context(stream)
+        with wf_context:
             r = torch.empty_like(weight, dtype=dtype, device=device)
             r.copy_(weight, non_blocking=non_blocking)
     else:
