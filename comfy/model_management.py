@@ -1553,7 +1553,6 @@ def unload_all_models_full():
         
     """
 
-
 def cleanup_ram():
     gc.collect()
     try:
