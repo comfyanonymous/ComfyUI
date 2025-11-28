@@ -13,6 +13,12 @@ if model_management.xformers_enabled_vae():
     import xformers
     import xformers.ops
 
+def torch_cat_if_needed(xl, dim):
+    if len(xl) > 1:
+        return torch.cat(xl, dim)
+    else:
+        return xl[0]
+
 def get_timestep_embedding(timesteps, embedding_dim):
     """
     This matches the implementation in Denoising Diffusion Probabilistic Models:
@@ -41,6 +47,37 @@ def nonlinearity(x):
 
 def Normalize(in_channels, num_groups=32):
     return ops.GroupNorm(num_groups=num_groups, num_channels=in_channels, eps=1e-6, affine=True)
+
+
+class CarriedConv3d(nn.Module):
+    def __init__(self, n_channels, out_channels, kernel_size, stride=1, dilation=1, padding=0, **kwargs):
+        super().__init__()
+        self.conv = ops.Conv3d(n_channels, out_channels, kernel_size, stride=stride, dilation=dilation, **kwargs)
+
+    def forward(self, x):
+        return self.conv(x)
+
+
+def conv_carry_causal_3d(xl, op, conv_carry_in=None, conv_carry_out=None):
+
+    x = xl[0]
+    xl.clear()
+
+    if isinstance(op, CarriedConv3d):
+        if conv_carry_in is None:
+            x = torch.nn.functional.pad(x, (1, 1, 1, 1, 2, 0), mode = 'replicate')
+        else:
+            carry_len = conv_carry_in[0].shape[2]
+            x = torch.nn.functional.pad(x, (1, 1, 1, 1, 2 - carry_len, 0), mode = 'replicate')
+            x = torch.cat([conv_carry_in.pop(0), x], dim=2)
+
+        if conv_carry_out is not None:
+            to_push = x[:, :, -2:, :, :].clone()
+            conv_carry_out.append(to_push)
+
+    out = op(x)
+
+    return out
 
 
 class VideoConv3d(nn.Module):
@@ -183,23 +220,23 @@ class ResnetBlock(nn.Module):
                                                     stride=1,
                                                     padding=0)
 
-    def forward(self, x, temb=None):
+    def forward(self, x, temb=None, conv_carry_in=None, conv_carry_out=None):
         h = x
         h = self.norm1(h)
-        h = self.swish(h)
-        h = self.conv1(h)
+        h = [ self.swish(h) ]
+        h = conv_carry_causal_3d(h, self.conv1, conv_carry_in=conv_carry_in, conv_carry_out=conv_carry_out)
 
         if temb is not None:
             h = h + self.temb_proj(self.swish(temb))[:,:,None,None]
 
         h = self.norm2(h)
         h = self.swish(h)
-        h = self.dropout(h)
-        h = self.conv2(h)
+        h = [ self.dropout(h) ]
+        h = conv_carry_causal_3d(h, self.conv2, conv_carry_in=conv_carry_in, conv_carry_out=conv_carry_out)
 
         if self.in_channels != self.out_channels:
             if self.use_conv_shortcut:
-                x = self.conv_shortcut(x)
+                x = conv_carry_causal_3d([x], self.conv_shortcut, conv_carry_in=conv_carry_in, conv_carry_out=conv_carry_out)
             else:
                 x = self.nin_shortcut(x)
 
