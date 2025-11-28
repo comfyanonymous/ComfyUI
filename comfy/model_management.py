@@ -15,7 +15,8 @@
     You should have received a copy of the GNU General Public License
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
-
+import gc
+import torch
 import psutil
 import logging
 from enum import Enum
@@ -1524,7 +1525,7 @@ def throw_exception_if_processing_interrupted():
         if interrupt_processing:
             interrupt_processing = False
             raise InterruptProcessingException()
-            
+"""            
 def unload_all_models_full():
     """
     Completely unloads all models from RAM and GPU when the user cancels.
@@ -1549,3 +1550,13 @@ def unload_all_models_full():
         logging.info("All models unloaded successfully (manual full unload).")
     except Exception as e:
         logging.warning(f"Model unload warning: {e}")
+    """
+
+
+def cleanup_ram():
+    gc.collect()
+    try:
+        torch.cuda.empty_cache()
+    except:
+        pass
+
