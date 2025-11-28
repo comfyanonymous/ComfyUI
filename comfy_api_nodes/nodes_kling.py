@@ -4,8 +4,6 @@ For source of truth on the allowed permutations of request fields, please refere
 - [Compatibility Table](https://app.klingai.com/global/dev/document-api/apiReference/model/skillsMap)
 """
 
-from __future__ import annotations
-from typing import Optional, TypeVar
 import math
 import logging
 
@@ -66,9 +64,7 @@ from comfy_api_nodes.util import (
     poll_op,
 )
 from comfy_api.input_impl import VideoFromFile
-from comfy_api.input.basic_types import AudioInput
-from comfy_api.input.video_types import VideoInput
-from comfy_api.latest import ComfyExtension, IO
+from comfy_api.latest import ComfyExtension, IO, Input
 
 KLING_API_VERSION = "v1"
 PATH_TEXT_TO_VIDEO = f"/proxy/kling/{KLING_API_VERSION}/videos/text2video"
@@ -93,8 +89,6 @@ AVERAGE_DURATION_VIRTUAL_TRY_ON = 19
 AVERAGE_DURATION_IMAGE_GEN = 32
 AVERAGE_DURATION_VIDEO_EFFECTS = 320
 AVERAGE_DURATION_VIDEO_EXTEND = 320
-
-R = TypeVar("R")
 
 
 MODE_TEXT2VIDEO = {
@@ -130,6 +124,8 @@ MODE_START_END_FRAME = {
     "pro mode / 10s duration / kling-v1-6": ("pro", "10", "kling-v1-6"),
     "pro mode / 5s duration / kling-v2-1": ("pro", "5", "kling-v2-1"),
     "pro mode / 10s duration / kling-v2-1": ("pro", "10", "kling-v2-1"),
+    "pro mode / 5s duration / kling-v2-5-turbo": ("pro", "5", "kling-v2-5-turbo"),
+    "pro mode / 10s duration / kling-v2-5-turbo": ("pro", "10", "kling-v2-5-turbo"),
 }
 """
 Returns a mapping of mode strings to their corresponding (mode, duration, model_name) tuples.
@@ -296,7 +292,7 @@ def get_video_from_response(response) -> KlingVideoResult:
     return video
 
 
-def get_video_url_from_response(response) -> Optional[str]:
+def get_video_url_from_response(response) -> str | None:
     """Returns the first video url from the Kling video generation task result.
     Will not raise an error if the response is not valid.
     """
@@ -315,7 +311,7 @@ def get_images_from_response(response) -> list[KlingImageResult]:
     return images
 
 
-def get_images_urls_from_response(response) -> Optional[str]:
+def get_images_urls_from_response(response) -> str | None:
     """Returns the list of image urls from the Kling image generation task result.
     Will not raise an error if the response is not valid. If there is only one image, returns the url as a string. If there are multiple images, returns a list of urls.
     """
@@ -349,7 +345,7 @@ async def execute_text2video(
     model_mode: str,
     duration: str,
     aspect_ratio: str,
-    camera_control: Optional[KlingCameraControl] = None,
+    camera_control: KlingCameraControl | None = None,
 ) -> IO.NodeOutput:
     validate_prompts(prompt, negative_prompt, MAX_PROMPT_LENGTH_T2V)
     task_creation_response = await sync_op(
@@ -394,8 +390,8 @@ async def execute_image2video(
     model_mode: str,
     aspect_ratio: str,
     duration: str,
-    camera_control: Optional[KlingCameraControl] = None,
-    end_frame: Optional[torch.Tensor] = None,
+    camera_control: KlingCameraControl | None = None,
+    end_frame: torch.Tensor | None = None,
 ) -> IO.NodeOutput:
     validate_prompts(prompt, negative_prompt, MAX_PROMPT_LENGTH_I2V)
     validate_input_image(start_frame)
@@ -451,8 +447,8 @@ async def execute_video_effect(
     model_name: str,
     duration: KlingVideoGenDuration,
     image_1: torch.Tensor,
-    image_2: Optional[torch.Tensor] = None,
-    model_mode: Optional[KlingVideoGenMode] = None,
+    image_2: torch.Tensor | None = None,
+    model_mode: KlingVideoGenMode | None = None,
 ) -> tuple[VideoFromFile, str, str]:
     if dual_character:
         request_input_field = KlingDualCharacterEffectInput(
@@ -499,13 +495,13 @@ async def execute_video_effect(
 
 async def execute_lipsync(
     cls: type[IO.ComfyNode],
-    video: VideoInput,
-    audio: Optional[AudioInput] = None,
-    voice_language: Optional[str] = None,
-    model_mode: Optional[str] = None,
-    text: Optional[str] = None,
-    voice_speed: Optional[float] = None,
-    voice_id: Optional[str] = None,
+    video: Input.Video,
+    audio: Input.Audio | None = None,
+    voice_language: str | None = None,
+    model_mode: str | None = None,
+    text: str | None = None,
+    voice_speed: float | None = None,
+    voice_id: str | None = None,
 ) -> IO.NodeOutput:
     if text:
         validate_string(text, field_name="Text", max_length=MAX_PROMPT_LENGTH_LIP_SYNC)
@@ -787,7 +783,7 @@ class KlingCameraControlT2VNode(IO.ComfyNode):
         negative_prompt: str,
         cfg_scale: float,
         aspect_ratio: str,
-        camera_control: Optional[KlingCameraControl] = None,
+        camera_control: KlingCameraControl | None = None,
     ) -> IO.NodeOutput:
         return await execute_text2video(
             cls,
@@ -854,8 +850,8 @@ class KlingImage2VideoNode(IO.ComfyNode):
         mode: str,
         aspect_ratio: str,
         duration: str,
-        camera_control: Optional[KlingCameraControl] = None,
-        end_frame: Optional[torch.Tensor] = None,
+        camera_control: KlingCameraControl | None = None,
+        end_frame: torch.Tensor | None = None,
     ) -> IO.NodeOutput:
         return await execute_image2video(
             cls,
@@ -965,15 +961,11 @@ class KlingStartEndFrameNode(IO.ComfyNode):
                 IO.String.Input("prompt", multiline=True, tooltip="Positive text prompt"),
                 IO.String.Input("negative_prompt", multiline=True, tooltip="Negative text prompt"),
                 IO.Float.Input("cfg_scale", default=0.5, min=0.0, max=1.0),
-                IO.Combo.Input(
-                    "aspect_ratio",
-                    options=[i.value for i in KlingVideoGenAspectRatio],
-                    default="16:9",
-                ),
+                IO.Combo.Input("aspect_ratio", options=["16:9", "9:16", "1:1"]),
                 IO.Combo.Input(
                     "mode",
                     options=modes,
-                    default=modes[2],
+                    default=modes[8],
                     tooltip="The configuration to use for the video generation following the format: mode / duration / model_name.",
                 ),
             ],
@@ -1254,8 +1246,8 @@ class KlingLipSyncAudioToVideoNode(IO.ComfyNode):
     @classmethod
     async def execute(
         cls,
-        video: VideoInput,
-        audio: AudioInput,
+        video: Input.Video,
+        audio: Input.Audio,
         voice_language: str,
     ) -> IO.NodeOutput:
         return await execute_lipsync(
@@ -1314,7 +1306,7 @@ class KlingLipSyncTextToVideoNode(IO.ComfyNode):
     @classmethod
     async def execute(
         cls,
-        video: VideoInput,
+        video: Input.Video,
         text: str,
         voice: str,
         voice_speed: float,
@@ -1471,7 +1463,7 @@ class KlingImageGenerationNode(IO.ComfyNode):
         human_fidelity: float,
         n: int,
         aspect_ratio: KlingImageGenAspectRatio,
-        image: Optional[torch.Tensor] = None,
+        image: torch.Tensor | None = None,
     ) -> IO.NodeOutput:
         validate_string(prompt, field_name="prompt", min_length=1, max_length=MAX_PROMPT_LENGTH_IMAGE_GEN)
         validate_string(negative_prompt, field_name="negative_prompt", max_length=MAX_PROMPT_LENGTH_IMAGE_GEN)
