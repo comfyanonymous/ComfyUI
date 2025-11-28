@@ -424,7 +424,7 @@ class UserManager():
                 return source
 
             dest = get_user_data_path(request, check_exists=False, param="dest")
-            if not isinstance(source, str):
+            if not isinstance(dest, str):
                 return dest
 
             overwrite = request.query.get("overwrite", 'true') != "false"
