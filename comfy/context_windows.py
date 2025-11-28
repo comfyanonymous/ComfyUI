@@ -76,7 +76,7 @@ class IndexListContextWindow(ContextWindowABC):
         idx = tuple([slice(None)] * dim + [self.index_list])
         full[idx] += to_add
         return full
-    
+
     def get_region_index(self, num_regions: int) -> int:
         region_idx = int(self.center_ratio * num_regions)
         return min(max(region_idx, 0), num_regions - 1)
