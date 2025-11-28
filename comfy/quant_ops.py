@@ -235,8 +235,8 @@ class QuantizedTensor(torch.Tensor):
     def is_pinned(self):
         return self._qdata.is_pinned()
 
-    def is_contiguous(self):
-        return self._qdata.is_contiguous()
+    def is_contiguous(self, *arg, **kwargs):
+        return self._qdata.is_contiguous(*arg, **kwargs)
 
 # ==============================================================================
 # Generic Utilities (Layout-Agnostic Operations)
