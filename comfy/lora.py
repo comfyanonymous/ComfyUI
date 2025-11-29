@@ -316,10 +316,11 @@ def model_lora_keys_unet(model, key_map={}):
     if isinstance(model, comfy.model_base.Lumina2):
         diffusers_keys = comfy.utils.z_image_to_diffusers(model.model_config.unet_config, output_prefix="diffusion_model.")
         for k in diffusers_keys:
-            to = diffusers_keys[k]
-            key_lora = k[:-len(".weight")]
-            key_map["diffusion_model.{}".format(key_lora)] = to
-            key_map["lycoris_{}".format(key_lora.replace(".", "_"))] = to
+            if k.endswith(".weight"):
+                to = diffusers_keys[k]
+                key_lora = k[:-len(".weight")]
+                key_map["diffusion_model.{}".format(key_lora)] = to
+                key_map["lycoris_{}".format(key_lora.replace(".", "_"))] = to
 
     return key_map
 
