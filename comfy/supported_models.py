@@ -1488,7 +1488,7 @@ class Kandinsky5(supported_models_base.BASE):
     unet_extra_config = {}
     latent_format = latent_formats.HunyuanVideo
 
-    memory_usage_factor = 1.8 #TODO
+    memory_usage_factor = 1.1 #TODO
 
     supported_inference_dtypes = [torch.bfloat16, torch.float32]
 
@@ -1516,7 +1516,7 @@ class Kandinsky5_image(Kandinsky5):
     }
 
     latent_format = latent_formats.Flux
-    memory_usage_factor = 1.8 #TODO
+    memory_usage_factor = 1.1 #TODO
 
     def get_model(self, state_dict, prefix="", device=None):
         out = model_base.Kandinsky5_image(self, device=device)
