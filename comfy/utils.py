@@ -678,17 +678,14 @@ def flux_to_diffusers(mmdit_config, output_prefix=""):
 def z_image_to_diffusers(mmdit_config, output_prefix=""):
     n_layers = mmdit_config.get("n_layers", 0)
     hidden_size = mmdit_config.get("dim", 0)
-
+    n_context_refiner = mmdit_config.get("n_refiner_layers", 2)
+    n_noise_refiner = mmdit_config.get("n_refiner_layers", 2)
     key_map = {}
 
-    for index in range(n_layers):
-        prefix_from = "layers.{}".format(index)
-        prefix_to = "{}layers.{}".format(output_prefix, index)
-
+    def add_block_keys(prefix_from, prefix_to, has_adaln=True):
         for end in ("weight", "bias"):
             k = "{}.attention.".format(prefix_from)
             qkv = "{}.attention.qkv.{}".format(prefix_to, end)
-
             key_map["{}to_q.{}".format(k, end)] = (qkv, (0, 0, hidden_size))
             key_map["{}to_k.{}".format(k, end)] = (qkv, (0, hidden_size, hidden_size))
             key_map["{}to_v.{}".format(k, end)] = (qkv, (0, hidden_size * 2, hidden_size))
@@ -698,27 +695,51 @@ def z_image_to_diffusers(mmdit_config, output_prefix=""):
             "attention.norm_k.weight": "attention.k_norm.weight",
             "attention.to_out.0.weight": "attention.out.weight",
             "attention.to_out.0.bias": "attention.out.bias",
+            "attention_norm1.weight": "attention_norm1.weight",
+            "attention_norm2.weight": "attention_norm2.weight",
+            "feed_forward.w1.weight": "feed_forward.w1.weight",
+            "feed_forward.w2.weight": "feed_forward.w2.weight",
+            "feed_forward.w3.weight": "feed_forward.w3.weight",
+            "ffn_norm1.weight": "ffn_norm1.weight",
+            "ffn_norm2.weight": "ffn_norm2.weight",
         }
+        if has_adaln:
+            block_map["adaLN_modulation.0.weight"] = "adaLN_modulation.0.weight"
+            block_map["adaLN_modulation.0.bias"] = "adaLN_modulation.0.bias"
+        for k, v in block_map.items():
+            key_map["{}.{}".format(prefix_from, k)] = "{}.{}".format(prefix_to, v)
 
-        for k in block_map:
-            key_map["{}.{}".format(prefix_from, k)] = "{}.{}".format(prefix_to, block_map[k])
+    for i in range(n_layers):
+        add_block_keys("layers.{}".format(i), "{}layers.{}".format(output_prefix, i))
 
-    MAP_BASIC = {
-        # Final layer
+    for i in range(n_context_refiner):
+        add_block_keys("context_refiner.{}".format(i), "{}context_refiner.{}".format(output_prefix, i))
+
+    for i in range(n_noise_refiner):
+        add_block_keys("noise_refiner.{}".format(i), "{}noise_refiner.{}".format(output_prefix, i))
+
+    MAP_BASIC = [
         ("final_layer.linear.weight", "all_final_layer.2-1.linear.weight"),
         ("final_layer.linear.bias", "all_final_layer.2-1.linear.bias"),
         ("final_layer.adaLN_modulation.1.weight", "all_final_layer.2-1.adaLN_modulation.1.weight"),
         ("final_layer.adaLN_modulation.1.bias", "all_final_layer.2-1.adaLN_modulation.1.bias"),
-        # X embedder
         ("x_embedder.weight", "all_x_embedder.2-1.weight"),
         ("x_embedder.bias", "all_x_embedder.2-1.bias"),
-    }
+        ("x_pad_token", "x_pad_token"),
+        ("cap_embedder.0.weight", "cap_embedder.0.weight"),
+        ("cap_embedder.1.weight", "cap_embedder.1.weight"),
+        ("cap_embedder.1.bias", "cap_embedder.1.bias"),
+        ("cap_pad_token", "cap_pad_token"),
+        ("t_embedder.mlp.0.weight", "t_embedder.mlp.0.weight"),
+        ("t_embedder.mlp.0.bias", "t_embedder.mlp.0.bias"),
+        ("t_embedder.mlp.2.weight", "t_embedder.mlp.2.weight"),
+        ("t_embedder.mlp.2.bias", "t_embedder.mlp.2.bias"),
+    ]
 
-    for k in MAP_BASIC:
-        key_map[k[1]] = "{}{}".format(output_prefix, k[0])
+    for c, diffusers in MAP_BASIC:
+        key_map[diffusers] = "{}{}".format(output_prefix, c)
 
     return key_map
-
 
 def repeat_to_batch_size(tensor, batch_size, dim=0):
     if tensor.shape[dim] > batch_size:
