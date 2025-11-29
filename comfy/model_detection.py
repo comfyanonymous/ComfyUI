@@ -623,6 +623,30 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
         dit_config["image_model"] = "qwen_image"
         dit_config["in_channels"] = state_dict['{}img_in.weight'.format(key_prefix)].shape[1]
         dit_config["num_layers"] = count_blocks(state_dict_keys, '{}transformer_blocks.'.format(key_prefix) + '{}.')
+
+        # Add SVDQuant linear support
+        if '{}transformer_blocks.0.attn.add_qkv_proj.weight'.format(key_prefix) in state_dict_keys:
+            # try import nunchaku:
+            try:
+                from nunchaku.models.linear import SVDQW4A4Linear
+            except ImportError:
+                raise ImportError(
+                    "SVDQuant requires the nunchaku library. "
+                    "Please follow the instructions in https://nunchaku.tech/docs/nunchaku/installation/installation.html to install nunchaku"
+                )
+
+            dit_config["svdquant_format"] = True
+
+            if metadata is not None and 'config' in metadata:
+                if 'quantization_config' in metadata:
+                    import json
+                    metadata_quantization_config = json.loads(metadata['quantization_config'])
+                    if 'weight' in metadata_quantization_config:
+                        if metadata_quantization_config["weight"]["dtype"] == "fp4_e2m1_all":
+                            if metadata_quantization_config["weight"]["group_size"] == 16:
+                                dit_config['precision'] = "nvfp4"
+                        elif metadata_quantization_config["weight"]["dtype"] == "int4":
+                            dit_config['precision'] = "int4"
         return dit_config
 
     if '{}input_blocks.0.0.weight'.format(key_prefix) not in state_dict_keys:

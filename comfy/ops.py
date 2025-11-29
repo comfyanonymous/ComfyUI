@@ -23,6 +23,7 @@ from comfy.cli_args import args, PerformanceFeature
 import comfy.float
 import comfy.rmsnorm
 import contextlib
+from comfy.quant_ops import QuantizedTensor
 
 def run_every_op():
     if torch.compiler.is_compiling():
@@ -582,11 +583,17 @@ def mixed_precision_ops(layer_quant_config={}, compute_dtype=torch.bfloat16, ful
                                     strict, missing_keys, unexpected_keys, error_msgs):
 
                 device = self.factory_kwargs["device"]
+                if device is None and self.bias is not None:
+                    device = self.bias.device
+                
                 layer_name = prefix.rstrip('.')
                 weight_key = f"{prefix}weight"
                 weight = state_dict.pop(weight_key, None)
                 if weight is None:
                     raise ValueError(f"Missing weight for layer {layer_name}")
+                
+                if device is None:
+                    device = weight.device
 
                 manually_loaded_keys = [weight_key]
 
@@ -600,27 +607,58 @@ def mixed_precision_ops(layer_quant_config={}, compute_dtype=torch.bfloat16, ful
                     qconfig = QUANT_ALGOS[quant_format]
                     self.layout_type = qconfig["comfy_tensor_layout"]
 
-                    weight_scale_key = f"{prefix}weight_scale"
+                    # Build layout_params - start with basic parameters
                     layout_params = {
-                        'scale': state_dict.pop(weight_scale_key, None),
                         'orig_dtype': MixedPrecisionOps._compute_dtype,
-                        'block_size': qconfig.get("group_size", None),
+                        'is_weight': True,  # Mark this as a weight tensor
                     }
-                    if layout_params['scale'] is not None:
+                    
+                    # Add group_size and precision if present in qconfig
+                    if 'group_size' in qconfig:
+                        layout_params['group_size'] = qconfig['group_size']
+                    if 'precision' in qconfig:
+                        layout_params['precision'] = qconfig['precision']
+                    
+                    # Handle weight_scale
+                    weight_scale_key = f"{prefix}weight_scale"
+                    weight_scale = state_dict.pop(weight_scale_key, None)
+                    if weight_scale is not None:
+                        layout_params['scale'] = weight_scale
                         manually_loaded_keys.append(weight_scale_key)
 
+                    # custom_layer_params_keys are loaded into layout_params from state_dict
+                    if 'custom_layer_params_keys' in qconfig:
+                        for param_name in qconfig['custom_layer_params_keys']:
+                            param_key = f"{prefix}{param_name}"
+                            param_value = state_dict.pop(param_key, None)
+                            if param_value is not None:
+                                layout_params[param_name] = param_value.to(device=device).contiguous()
+                                manually_loaded_keys.append(param_key)
+                            else:
+                                logging.warning(f"Missing custom parameter {param_name} for layer {layer_name}")
+                    
+                    # parameters are loaded into module attributes from state_dict
+                    for param_name in qconfig["parameters"]:
+                        if param_name in layout_params:
+                            continue  # Already loaded via custom_layer_params_keys or weight_scale
+                        
+                        param_key = f"{prefix}{param_name}"
+                        param_value = state_dict.pop(param_key, None)
+                        if param_value is not None:
+                            # For standard parameters, store as module attributes
+                            setattr(self, param_name, torch.nn.Parameter(param_value.to(device=device), requires_grad=False))
+                            manually_loaded_keys.append(param_key)
+
+                    # Create the quantized weight tensor
+                    quantized_weight = QuantizedTensor(weight.to(device=device), 
+                                                      self.layout_type, layout_params)
+                    
+                    self.weight_prefix = prefix
                     self.weight = torch.nn.Parameter(
-                        QuantizedTensor(weight.to(device=device), self.layout_type, layout_params),
+                        quantized_weight,
                         requires_grad=False
                     )
-
-                    for param_name in qconfig["parameters"]:
-                        param_key = f"{prefix}{param_name}"
-                        _v = state_dict.pop(param_key, None)
-                        if _v is None:
-                            continue
-                        setattr(self, param_name, torch.nn.Parameter(_v.to(device=device), requires_grad=False))
-                        manually_loaded_keys.append(param_key)
+                    self.weight.requires_grad = False
 
                 super()._load_from_state_dict(state_dict, prefix, local_metadata, strict, missing_keys, unexpected_keys, error_msgs)
 
@@ -646,6 +684,7 @@ def mixed_precision_ops(layer_quant_config={}, compute_dtype=torch.bfloat16, ful
                     getattr(self, 'input_scale', None) is not None and
                     not isinstance(input, QuantizedTensor)):
                     input = QuantizedTensor.from_float(input, self.layout_type, scale=self.input_scale, dtype=self.weight.dtype)
+                
                 return self._forward(input, self.weight, self.bias)
 
             def convert_weight(self, weight, inplace=False, **kwargs):
