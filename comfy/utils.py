@@ -675,6 +675,51 @@ def flux_to_diffusers(mmdit_config, output_prefix=""):
 
     return key_map
 
+def z_image_to_diffusers(mmdit_config, output_prefix=""):
+    n_layers = mmdit_config.get("n_layers", 0)
+    hidden_size = mmdit_config.get("dim", 0)
+
+    key_map = {}
+
+    for index in range(n_layers):
+        prefix_from = "layers.{}".format(index)
+        prefix_to = "{}layers.{}".format(output_prefix, index)
+
+        for end in ("weight", "bias"):
+            k = "{}.attention.".format(prefix_from)
+            qkv = "{}.attention.qkv.{}".format(prefix_to, end)
+
+            key_map["{}to_q.{}".format(k, end)] = (qkv, (0, 0, hidden_size))
+            key_map["{}to_k.{}".format(k, end)] = (qkv, (0, hidden_size, hidden_size))
+            key_map["{}to_v.{}".format(k, end)] = (qkv, (0, hidden_size * 2, hidden_size))
+
+        block_map = {
+            "attention.norm_q.weight": "attention.q_norm.weight",
+            "attention.norm_k.weight": "attention.k_norm.weight",
+            "attention.to_out.0.weight": "attention.out.weight",
+            "attention.to_out.0.bias": "attention.out.bias",
+        }
+
+        for k in block_map:
+            key_map["{}.{}".format(prefix_from, k)] = "{}.{}".format(prefix_to, block_map[k])
+
+    MAP_BASIC = {
+        # Final layer
+        ("final_layer.linear.weight", "all_final_layer.2-1.linear.weight"),
+        ("final_layer.linear.bias", "all_final_layer.2-1.linear.bias"),
+        ("final_layer.adaLN_modulation.1.weight", "all_final_layer.2-1.adaLN_modulation.1.weight"),
+        ("final_layer.adaLN_modulation.1.bias", "all_final_layer.2-1.adaLN_modulation.1.bias"),
+        # X embedder
+        ("x_embedder.weight", "all_x_embedder.2-1.weight"),
+        ("x_embedder.bias", "all_x_embedder.2-1.bias"),
+    }
+
+    for k in MAP_BASIC:
+        key_map[k[1]] = "{}{}".format(output_prefix, k[0])
+
+    return key_map
+
+
 def repeat_to_batch_size(tensor, batch_size, dim=0):
     if tensor.shape[dim] > batch_size:
         return tensor.narrow(dim, 0, batch_size)
