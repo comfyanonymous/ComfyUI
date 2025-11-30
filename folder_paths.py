@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import re
 import time
 import mimetypes
 import logging
@@ -431,45 +432,100 @@ def get_save_image_path(filename_prefix: str, output_dir: str, image_width=0, im
         prefix = filename[:prefix_len + 1]
         try:
             digits = int(filename[prefix_len + 1:].split('_')[0])
-        except:
+        except ValueError:
             digits = 0
         return digits, prefix
 
-    def compute_vars(input: str, image_width: int, image_height: int) -> str:
-        input = input.replace("%width%", str(image_width))
-        input = input.replace("%height%", str(image_height))
-        now = time.localtime()
-        input = input.replace("%year%", str(now.tm_year))
-        input = input.replace("%month%", str(now.tm_mon).zfill(2))
-        input = input.replace("%day%", str(now.tm_mday).zfill(2))
-        input = input.replace("%hour%", str(now.tm_hour).zfill(2))
-        input = input.replace("%minute%", str(now.tm_min).zfill(2))
-        input = input.replace("%second%", str(now.tm_sec).zfill(2))
-        return input
+    def compute_vars(input_str: str, image_width: int, image_height: int) -> str:
+        date_pattern = re.compile(r'%date:(.+?)%')
 
-    if "%" in filename_prefix:
-        filename_prefix = compute_vars(filename_prefix, image_width, image_height)
+        def replace_date(match):
+            date_format = match.group(1)
+
+            dateformat_conversion_map = {
+                "yyyy": "%Y",
+                "yy": "%y",
+                "MM": "%m",
+                "dd": "%d",
+                "hh": "%H",
+                "mm": "%M",
+                "ss": "%S",
+            }
+
+            strftime_format = date_format
+            for old, new in dateformat_conversion_map.items():
+                strftime_format = strftime_format.replace(old, new)
+
+            now = time.localtime()
+            formatted_date = time.strftime(strftime_format, now)
+            return formatted_date
+
+        input_str = date_pattern.sub(replace_date, input_str)
+
+        now = time.localtime()
+        input_str = input_str.replace("%year%", str(now.tm_year))
+        input_str = input_str.replace("%month%", str(now.tm_mon).zfill(2))
+        input_str = input_str.replace("%day%", str(now.tm_mday).zfill(2))
+        input_str = input_str.replace("%hour%", str(now.tm_hour).zfill(2))
+        input_str = input_str.replace("%minute%", str(now.tm_min).zfill(2))
+        input_str = input_str.replace("%second%", str(now.tm_sec).zfill(2))
+
+        input_str = input_str.replace("%width%", str(image_width))
+        input_str = input_str.replace("%height%", str(image_height))
+
+        return input_str
+
+    filename_prefix = compute_vars(filename_prefix, image_width, image_height)
 
     subfolder = os.path.dirname(os.path.normpath(filename_prefix))
     filename = os.path.basename(os.path.normpath(filename_prefix))
 
+    if not subfolder and ("%date:" in filename_prefix or "%year%" in filename_prefix or
+                         "%month%" in filename_prefix or "%day%" in filename_prefix or
+                         "%hour%" in filename_prefix or "%minute%" in filename_prefix or
+                         "%second%" in filename_prefix or "ComfyUI" in filename_prefix):
+        import locale
+        try:
+            locale.setlocale(locale.LC_TIME, '')
+            default_date_format = locale.nl_langinfo(locale.D_FMT).replace("%y", "%Y")
+            if os.name == 'nt':
+                default_date_format = default_date_format.replace("/", "-").replace("\\", "-").replace(":","-")
+            subfolder = time.strftime(default_date_format)
+
+        except (locale.Error, AttributeError):
+            subfolder = time.strftime("%Y-%m-%d")
+            if os.name == 'nt':
+                subfolder = subfolder.replace("/", "-").replace("\\", "-").replace(":","-")
+
     full_output_folder = os.path.join(output_dir, subfolder)
 
     if os.path.commonpath((output_dir, os.path.abspath(full_output_folder))) != output_dir:
-        err = "**** ERROR: Saving image outside the output folder is not allowed." + \
-              "\n full_output_folder: " + os.path.abspath(full_output_folder) + \
-              "\n         output_dir: " + output_dir + \
-              "\n         commonpath: " + os.path.commonpath((output_dir, os.path.abspath(full_output_folder)))
+        err = ("**** ERROR: Saving outside the output folder is not allowed."
+               f"\n full_output_folder: {os.path.abspath(full_output_folder)}"
+               f"\n         output_dir: {output_dir}"
+               f"\n         commonpath: {os.path.commonpath((output_dir, os.path.abspath(full_output_folder)))}")
         logging.error(err)
         raise Exception(err)
 
     try:
-        counter = max(filter(lambda a: os.path.normcase(a[1][:-1]) == os.path.normcase(filename) and a[1][-1] == "_", map(map_filename, os.listdir(full_output_folder))))[0] + 1
-    except ValueError:
-        counter = 1
+        files = [f for f in os.listdir(full_output_folder) if os.path.isfile(os.path.join(full_output_folder, f))]
+        mapped_files = [map_filename(f) for f in files]
+        filtered_files = [
+            (digits, prefix) for digits, prefix in mapped_files
+            if os.path.normcase(prefix[:-1]) == os.path.normcase(filename) and prefix[-1] == "_"
+        ]
+
+        if filtered_files:
+            counter = max(digits for digits, _ in filtered_files) + 1
+        else:
+            counter = 1
     except FileNotFoundError:
         os.makedirs(full_output_folder, exist_ok=True)
         counter = 1
+    except OSError as e:
+        logging.error(f"Error accessing directory: {e}")
+        raise
+
     return full_output_folder, filename, counter, subfolder, filename_prefix
 
 def get_input_subfolders() -> list[str]:
