@@ -238,6 +238,12 @@ class QuantizedTensor(torch.Tensor):
     def is_contiguous(self, *arg, **kwargs):
         return self._qdata.is_contiguous(*arg, **kwargs)
 
+    def storage(self):
+        return self._qdata.storage()
+
+    def untyped_storage(self):
+        return self._qdata.untyped_storage()
+
 # ==============================================================================
 # Generic Utilities (Layout-Agnostic Operations)
 # ==============================================================================
@@ -397,17 +403,20 @@ class TensorCoreFP8Layout(QuantizedLayout):
     def quantize(cls, tensor, scale=None, dtype=torch.float8_e4m3fn, stochastic_rounding=0, inplace_ops=False):
         orig_dtype = tensor.dtype
 
-        if scale is None:
+        if scale == "recalculate":
             scale = torch.amax(tensor.abs()) / torch.finfo(dtype).max
 
-        if not isinstance(scale, torch.Tensor):
-            scale = torch.tensor(scale)
-        scale = scale.to(device=tensor.device, dtype=torch.float32)
+        if scale is not None:
+            if not isinstance(scale, torch.Tensor):
+                scale = torch.tensor(scale)
+            scale = scale.to(device=tensor.device, dtype=torch.float32)
 
-        if inplace_ops:
-            tensor *= (1.0 / scale).to(tensor.dtype)
+            if inplace_ops:
+                tensor *= (1.0 / scale).to(tensor.dtype)
+            else:
+                tensor = tensor * (1.0 / scale).to(tensor.dtype)
         else:
-            tensor = tensor * (1.0 / scale).to(tensor.dtype)
+            scale = torch.ones((), device=tensor.device, dtype=torch.float32)
 
         if stochastic_rounding > 0:
             tensor = comfy.float.stochastic_rounding(tensor, dtype=dtype, seed=stochastic_rounding)

@@ -57,6 +57,7 @@ from . import utils
 import comfy.latent_formats
 import comfy.model_sampling
 import math
+import json
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from comfy.model_patcher import ModelPatcher
@@ -134,7 +135,7 @@ class BaseModel(torch.nn.Module):
         if not unet_config.get("disable_unet_model_creation", False):
             if model_config.custom_operations is None:
                 fp8 = model_config.optimizations.get("fp8", False)
-                operations = comfy.ops.pick_operations(unet_config.get("dtype", None), self.manual_cast_dtype, fp8_optimizations=fp8, scaled_fp8=model_config.scaled_fp8, model_config=model_config)
+                operations = comfy.ops.pick_operations(unet_config.get("dtype", None), self.manual_cast_dtype, fp8_optimizations=fp8, model_config=model_config)
             else:
                 operations = model_config.custom_operations
             self.diffusion_model = unet_model(**unet_config, device=device, operations=operations)
@@ -319,7 +320,7 @@ class BaseModel(torch.nn.Module):
     def process_latent_out(self, latent):
         return self.latent_format.process_out(latent)
 
-    def state_dict_for_saving(self, clip_state_dict=None, vae_state_dict=None, clip_vision_state_dict=None):
+    def state_dict_for_saving(self, clip_state_dict=None, vae_state_dict=None, clip_vision_state_dict=None, metadata=None):
         extra_sds = []
         if clip_state_dict is not None:
             extra_sds.append(self.model_config.process_clip_state_dict_for_saving(clip_state_dict))
@@ -330,16 +331,17 @@ class BaseModel(torch.nn.Module):
 
         unet_state_dict = self.diffusion_model.state_dict()
 
-        if self.model_config.scaled_fp8 is not None:
-            unet_state_dict["scaled_fp8"] = torch.tensor([], dtype=self.model_config.scaled_fp8)
-
         # Save mixed precision metadata
-        if hasattr(self.model_config, 'layer_quant_config') and self.model_config.layer_quant_config:
-            metadata = {
-                "format_version": "1.0",
-                "layers": self.model_config.layer_quant_config
-            }
-            unet_state_dict["_quantization_metadata"] = metadata
+        if metadata is not None:
+            if hasattr(self.model_config, 'layer_quant_config') and self.model_config.layer_quant_config:
+                meta = {
+                    "format_version": "1.0",
+                    "layers": self.model_config.layer_quant_config
+                }
+
+                meta_out = {"_quantization_metadata": json.dumps(meta)}
+                meta_out = self.model_config.process_unet_state_dict_for_saving(meta_out)
+                metadata.update(meta_out)
 
         unet_state_dict = self.model_config.process_unet_state_dict_for_saving(unet_state_dict)
 
@@ -349,7 +351,10 @@ class BaseModel(torch.nn.Module):
         for sd in extra_sds:
             unet_state_dict.update(sd)
 
-        return unet_state_dict
+        if metadata is not None:
+            return unet_state_dict, metadata
+        else:
+            return unet_state_dict
 
     def set_inpaint(self):
         self.concat_keys = ("mask", "masked_image")

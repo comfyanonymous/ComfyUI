@@ -7,8 +7,8 @@ import logging
 import torch
 
 
-def detect_layer_quantization(metadata):
-    quant_key = "_quantization_metadata"
+def detect_layer_quantization(metadata, key_prefix=""):
+    quant_key = "{}_quantization_metadata".format(key_prefix)
     if metadata is not None and quant_key in metadata:
         quant_metadata = metadata.pop(quant_key)
         quant_metadata = json.loads(quant_metadata)
@@ -759,19 +759,8 @@ def model_config_from_unet(state_dict, unet_key_prefix, use_base_if_no_match=Fal
     if model_config is None and use_base_if_no_match:
         model_config = comfy.supported_models_base.BASE(unet_config)
 
-    scaled_fp8_key = "{}scaled_fp8".format(unet_key_prefix)
-    if scaled_fp8_key in state_dict:
-        scaled_fp8_weight = state_dict.pop(scaled_fp8_key)
-        model_config.scaled_fp8 = scaled_fp8_weight.dtype
-        if model_config.scaled_fp8 == torch.float32:
-            model_config.scaled_fp8 = torch.float8_e4m3fn
-        if scaled_fp8_weight.nelement() == 2:
-            model_config.optimizations["fp8"] = False
-        else:
-            model_config.optimizations["fp8"] = True
-
     # Detect per-layer quantization (mixed precision)
-    layer_quant_config = detect_layer_quantization(metadata)
+    layer_quant_config = detect_layer_quantization(metadata, unet_key_prefix)
     if layer_quant_config:
         model_config.layer_quant_config = layer_quant_config
         logging.info(f"Detected mixed precision quantization: {len(layer_quant_config)} layers quantized")

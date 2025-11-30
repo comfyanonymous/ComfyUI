@@ -962,6 +962,7 @@ def load_clip(ckpt_paths, embedding_directory=None, clip_type=CLIPType.STABLE_DI
     clip_data = []
     for p in ckpt_paths:
         sd, metadata = comfy.utils.load_torch_file(p, safe_load=True, return_metadata=True)
+        sd, metadata = preprocess_diffusion_state_dict(sd, diffusion_model_prefix="", metadata=metadata)
         if metadata is not None:
             quant_metadata = metadata.get("_quantization_metadata", None)
             if quant_metadata is not None:
@@ -1078,7 +1079,7 @@ def load_text_encoder_state_dicts(state_dicts=[], embedding_directory=None, clip
                 clip_target.clip = comfy.text_encoders.sd3_clip.sd3_clip(clip_l=False, clip_g=True, t5=False)
                 clip_target.tokenizer = comfy.text_encoders.sd3_clip.SD3Tokenizer
             elif clip_type == CLIPType.HIDREAM:
-                clip_target.clip = comfy.text_encoders.hidream.hidream_clip(clip_l=False, clip_g=True, t5=False, llama=False, dtype_t5=None, dtype_llama=None, t5xxl_scaled_fp8=None, llama_scaled_fp8=None)
+                clip_target.clip = comfy.text_encoders.hidream.hidream_clip(clip_l=False, clip_g=True, t5=False, llama=False, dtype_t5=None, dtype_llama=None)
                 clip_target.tokenizer = comfy.text_encoders.hidream.HiDreamTokenizer
             else:
                 clip_target.clip = sdxl_clip.SDXLRefinerClipModel
@@ -1102,7 +1103,7 @@ def load_text_encoder_state_dicts(state_dicts=[], embedding_directory=None, clip
                 tokenizer_data["spiece_model"] = clip_data[0].get("spiece_model", None)
             elif clip_type == CLIPType.HIDREAM:
                 clip_target.clip = comfy.text_encoders.hidream.hidream_clip(**t5xxl_detect(clip_data),
-                                                                        clip_l=False, clip_g=False, t5=True, llama=False, dtype_llama=None, llama_scaled_fp8=None)
+                                                                        clip_l=False, clip_g=False, t5=True, llama=False, dtype_llama=None)
                 clip_target.tokenizer = comfy.text_encoders.hidream.HiDreamTokenizer
             else: #CLIPType.MOCHI
                 clip_target.clip = comfy.text_encoders.genmo.mochi_te(**t5xxl_detect(clip_data))
@@ -1131,7 +1132,7 @@ def load_text_encoder_state_dicts(state_dicts=[], embedding_directory=None, clip
             tokenizer_data["spiece_model"] = clip_data[0].get("spiece_model", None)
         elif te_model == TEModel.LLAMA3_8:
             clip_target.clip = comfy.text_encoders.hidream.hidream_clip(**llama_detect(clip_data),
-                                                                        clip_l=False, clip_g=False, t5=False, llama=True, dtype_t5=None, t5xxl_scaled_fp8=None)
+                                                                        clip_l=False, clip_g=False, t5=False, llama=True, dtype_t5=None)
             clip_target.tokenizer = comfy.text_encoders.hidream.HiDreamTokenizer
         elif te_model == TEModel.QWEN25_3B:
             clip_target.clip = comfy.text_encoders.omnigen2.te(**llama_detect(clip_data))
@@ -1156,7 +1157,7 @@ def load_text_encoder_state_dicts(state_dicts=[], embedding_directory=None, clip
                 clip_target.clip = comfy.text_encoders.sd3_clip.sd3_clip(clip_l=True, clip_g=False, t5=False)
                 clip_target.tokenizer = comfy.text_encoders.sd3_clip.SD3Tokenizer
             elif clip_type == CLIPType.HIDREAM:
-                clip_target.clip = comfy.text_encoders.hidream.hidream_clip(clip_l=True, clip_g=False, t5=False, llama=False, dtype_t5=None, dtype_llama=None, t5xxl_scaled_fp8=None, llama_scaled_fp8=None)
+                clip_target.clip = comfy.text_encoders.hidream.hidream_clip(clip_l=True, clip_g=False, t5=False, llama=False, dtype_t5=None, dtype_llama=None)
                 clip_target.tokenizer = comfy.text_encoders.hidream.HiDreamTokenizer
             else:
                 clip_target.clip = sd1_clip.SD1ClipModel
@@ -1270,6 +1271,56 @@ def load_checkpoint_guess_config(ckpt_path, output_vae=True, output_clip=True, o
         raise RuntimeError("ERROR: Could not detect model type of: {}\n{}".format(ckpt_path, model_detection_error_hint(ckpt_path, sd)))
     return out
 
+def preprocess_diffusion_state_dict(state_dict, diffusion_model_prefix="", metadata={}, model_options={}, output_prefix=""):
+    if metadata is None:
+        metadata = {}
+
+    if "_quantization_metadata" not in metadata:
+        scaled_fp8_key = "{}scaled_fp8".format(diffusion_model_prefix)
+
+        if scaled_fp8_key in state_dict:
+            scaled_fp8_weight = state_dict[scaled_fp8_key]
+            scaled_fp8_dtype = scaled_fp8_weight.dtype
+            if scaled_fp8_dtype == torch.float32:
+                scaled_fp8_dtype = torch.float8_e4m3fn
+
+            if scaled_fp8_weight.nelement() == 2:
+                full_precision_matrix_mult = True
+            else:
+                full_precision_matrix_mult = False
+
+            out_sd = {}
+            layers = {}
+            for k in list(state_dict.keys()):
+                if not k.startswith(diffusion_model_prefix):
+                    out_sd[k] = state_dict[k]
+                    continue
+                k_out = k
+                w = state_dict.pop(k)
+                layer = None
+                if k_out.endswith(".scale_weight"):
+                    layer = k_out[:-len(".scale_weight")]
+                    k_out = "{}.weight_scale".format(layer)
+
+                if layer is not None:
+                    layer_conf = {"format": "float8_e4m3fn"}  # TODO: check if anyone did some non e4m3fn scaled checkpoints
+                    if full_precision_matrix_mult:
+                        layer_conf["full_precision_matrix_mult"] = full_precision_matrix_mult
+                    layers["{}{}".format(output_prefix, layer[len(diffusion_model_prefix):])] = layer_conf
+
+                if k_out.endswith(".scale_input"):
+                    layer = k_out[:-len(".scale_input")]
+                    k_out = "{}.input_scale".format(layer)
+                    if w.item() == 1.0:
+                        continue
+
+                out_sd[k_out] = w
+
+            state_dict = out_sd
+            metadata["{}_quantization_metadata".format(diffusion_model_prefix)] = json.dumps({"format_version": "1.0", "layers": layers})
+
+    return state_dict, metadata
+
 def load_state_dict_guess_config(sd, output_vae=True, output_clip=True, output_clipvision=False, embedding_directory=None, output_model=True, model_options={}, te_model_options={}, metadata=None):
     clip = None
     clipvision = None
@@ -1282,6 +1333,8 @@ def load_state_dict_guess_config(sd, output_vae=True, output_clip=True, output_c
     weight_dtype = comfy.utils.weight_dtype(sd, diffusion_model_prefix)
     load_device = model_management.get_torch_device()
 
+    sd, metadata = preprocess_diffusion_state_dict(sd, diffusion_model_prefix, metadata=metadata, model_options=model_options)
+
     model_config = model_detection.model_config_from_unet(sd, diffusion_model_prefix, metadata=metadata)
     if model_config is None:
         logging.warning("Warning, This is not a checkpoint file, trying to load it as a diffusion model only.")
@@ -1292,7 +1345,7 @@ def load_state_dict_guess_config(sd, output_vae=True, output_clip=True, output_c
 
 
     unet_weight_dtype = list(model_config.supported_inference_dtypes)
-    if model_config.scaled_fp8 is not None:
+    if model_config.layer_quant_config is not None:
         weight_dtype = None
 
     model_config.custom_operations = model_options.get("custom_operations", None)
@@ -1301,7 +1354,10 @@ def load_state_dict_guess_config(sd, output_vae=True, output_clip=True, output_c
     if unet_dtype is None:
         unet_dtype = model_management.unet_dtype(model_params=parameters, supported_dtypes=unet_weight_dtype, weight_dtype=weight_dtype)
 
-    manual_cast_dtype = model_management.unet_manual_cast(unet_dtype, load_device, model_config.supported_inference_dtypes)
+    if model_config.layer_quant_config is not None:
+        manual_cast_dtype = model_management.unet_manual_cast(None, load_device, model_config.supported_inference_dtypes)
+    else:
+        manual_cast_dtype = model_management.unet_manual_cast(unet_dtype, load_device, model_config.supported_inference_dtypes)
     model_config.set_inference_dtype(unet_dtype, manual_cast_dtype)
 
     if model_config.clip_vision_prefix is not None:
@@ -1319,7 +1375,22 @@ def load_state_dict_guess_config(sd, output_vae=True, output_clip=True, output_c
         vae = VAE(sd=vae_sd, metadata=metadata)
 
     if output_clip:
+        to_pop = []
+        for k in list(sd.keys()):  # Convert scaled fp8 to mixed ops
+            if k.endswith(".scaled_fp8"):
+                pref = k[:-len("scaled_fp8")]
+                out_pref = ".".join(pref.split(".")[1:])
+                sd, qmetadata = preprocess_diffusion_state_dict(sd, pref, metadata={}, model_options=model_options, output_prefix=out_pref)
+                for mk in qmetadata:
+                    sd[mk] = qmetadata[mk]
+                    to_pop.append(mk)
+                to_pop.append(k)
+
         clip_target = model_config.clip_target(state_dict=sd)
+
+        for k in to_pop:  # pop the keys for mixed ops
+            sd.pop(k)
+
         if clip_target is not None:
             clip_sd = model_config.process_clip_state_dict(sd)
             if len(clip_sd) > 0:
@@ -1380,7 +1451,11 @@ def load_diffusion_model_state_dict(sd, model_options={}, metadata=None):
     temp_sd = comfy.utils.state_dict_prefix_replace(sd, {diffusion_model_prefix: ""}, filter_keys=True)
     if len(temp_sd) > 0:
         sd = temp_sd
+        quant_key = "{}_quantization_metadata".format(diffusion_model_prefix)
+        if metadata is not None and quant_key in metadata:
+            metadata["_quantization_metadata"] = metadata.pop(quant_key)
 
+    sd, metadata = preprocess_diffusion_state_dict(sd, "", metadata=metadata, model_options=model_options)
     parameters = comfy.utils.calculate_parameters(sd)
     weight_dtype = comfy.utils.weight_dtype(sd)
 
@@ -1411,7 +1486,7 @@ def load_diffusion_model_state_dict(sd, model_options={}, metadata=None):
 
     offload_device = model_management.unet_offload_device()
     unet_weight_dtype = list(model_config.supported_inference_dtypes)
-    if model_config.scaled_fp8 is not None:
+    if model_config.layer_quant_config is not None:
         weight_dtype = None
 
     if dtype is None:
@@ -1463,9 +1538,12 @@ def save_checkpoint(output_path, model, clip=None, vae=None, clip_vision=None, m
     if vae is not None:
         vae_sd = vae.get_sd()
 
+    if metadata is None:
+        metadata = {}
+
     model_management.load_models_gpu(load_models, force_patch_weights=True)
     clip_vision_sd = clip_vision.get_sd() if clip_vision is not None else None
-    sd = model.model.state_dict_for_saving(clip_sd, vae_sd, clip_vision_sd)
+    sd, metadata = model.model.state_dict_for_saving(clip_sd, vae_sd, clip_vision_sd, metadata=metadata)
     for k in extra_keys:
         sd[k] = extra_keys[k]
 
