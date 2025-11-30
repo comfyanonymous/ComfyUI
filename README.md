@@ -281,6 +281,8 @@ install-n.bat
 
 ## Troubleshooting
 
+- IF you are getting `module 'torch.compiler' has no attribute 'is_compiling'` error, add `--disable-async-offload` to the launcher batch file. (this is now added by default to both bat files, you can try without it and if that works for you, all is good.)
+
 - If you are getting `RuntimeError: GET was unable to find an engine to execute this computation` or `RuntimeError: FIND was unable to find an engine to execute this computation` in the vae decoding stage, please use CFZ CUDNN Toggle node between ksampler latent and vae decoding. And leave the enable_cudnn setting "False" , this persists until you close the comfyui from the commandline for the rest of that run. So you won't see this error again.
 
 <img width="667" height="350" alt="Screenshot 2025-08-25 123335" src="https://github.com/user-attachments/assets/db56d460-34aa-4fda-94e2-f0bae7162691" />
