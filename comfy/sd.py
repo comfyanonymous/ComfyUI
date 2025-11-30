@@ -53,6 +53,7 @@ import comfy.text_encoders.omnigen2
 import comfy.text_encoders.qwen_image
 import comfy.text_encoders.hunyuan_image
 import comfy.text_encoders.z_image
+import comfy.text_encoders.kandinsky5
 
 import comfy.model_patcher
 import comfy.lora
@@ -740,6 +741,8 @@ class VAE:
         self.throw_exception_if_invalid()
         pixel_samples = None
         do_tile = False
+        if self.latent_dim == 2 and samples_in.ndim == 5:
+            samples_in = samples_in[:, :, 0]
         try:
             memory_used = self.memory_used_decode(samples_in.shape, self.vae_dtype)
             model_management.load_models_gpu([self.patcher], memory_required=memory_used, force_full_load=self.disable_offload)
@@ -956,6 +959,7 @@ class CLIPType(Enum):
     QWEN_IMAGE = 18
     HUNYUAN_IMAGE = 19
     HUNYUAN_VIDEO_15 = 20
+    KANDINSKY5 = 21
 
 
 def load_clip(ckpt_paths, embedding_directory=None, clip_type=CLIPType.STABLE_DIFFUSION, model_options={}):
@@ -1199,6 +1203,9 @@ def load_text_encoder_state_dicts(state_dicts=[], embedding_directory=None, clip
         elif clip_type == CLIPType.HUNYUAN_VIDEO_15:
             clip_target.clip = comfy.text_encoders.hunyuan_image.te(**llama_detect(clip_data))
             clip_target.tokenizer = comfy.text_encoders.hunyuan_video.HunyuanVideo15Tokenizer
+        elif clip_type == CLIPType.KANDINSKY5:
+            clip_target.clip = comfy.text_encoders.kandinsky5.te(**llama_detect(clip_data))
+            clip_target.tokenizer = comfy.text_encoders.kandinsky5.Kandinsky5Tokenizer
         else:
             clip_target.clip = sdxl_clip.SDXLClipModel
             clip_target.tokenizer = sdxl_clip.SDXLTokenizer
