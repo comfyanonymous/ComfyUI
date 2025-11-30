@@ -259,6 +259,7 @@ class CLIP:
 
     def load_sd(self, sd, full_model=False):
         if full_model:
+            comfy.model_management.free_ram(state_dict=sd)
             return self.cond_stage_model.load_state_dict(sd, strict=False)
         else:
             return self.cond_stage_model.load_sd(sd)
@@ -624,6 +625,7 @@ class VAE:
             self.first_stage_model = AutoencoderKL(**(config['params']))
         self.first_stage_model = self.first_stage_model.eval()
 
+        comfy.model_management.free_ram(state_dict=sd)
         m, u = self.first_stage_model.load_state_dict(sd, strict=False)
         if len(m) > 0:
             logging.warning("Missing VAE keys {}".format(m))
@@ -932,6 +934,7 @@ def load_style_model(ckpt_path):
         model = comfy.ldm.flux.redux.ReduxImageEncoder()
     else:
         raise Exception("invalid style model {}".format(ckpt_path))
+    comfy.model_management.free_ram(state_dict=model_data)
     model.load_state_dict(model_data)
     return StyleModel(model)
 
