@@ -4,7 +4,9 @@ set "PYTHON=%~dp0venv\Scripts\python.exe"
 set "GIT="
 set "VENV_DIR=.\venv"
 
-set "COMMANDLINE_ARGS=--auto-launch --use-quad-cross-attention --reserve-vram 0.9"
+set "COMMANDLINE_ARGS=--auto-launch --use-quad-cross-attention --reserve-vram 0.9 --disable-async-offload"
+
+:: "--disable-async-offload" added because of this : ComfyUI has added async weight offloading by default, not compatible with older GPUs, try without it , if it works you are good."
 
 set "ZLUDA_COMGR_LOG_LEVEL=1"
 
@@ -148,4 +150,5 @@ echo [INFO] Launching application via ZLUDA...
 echo.
 .\zluda\zluda.exe -- %PYTHON% main.py %COMMANDLINE_ARGS%
 pause
+
 
