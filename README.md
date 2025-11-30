@@ -244,6 +244,14 @@ RDNA 4 (RX 9000 series):
 
 ```pip install --pre torch torchvision torchaudio --index-url https://rocm.nightlies.amd.com/v2/gfx120X-all/```
 
+> **Note**: If you're using WSL+Ubuntu and receive a no HIP device error, you will need to run the following set of commands (from the official [ROCM documentation](https://rocm.docs.amd.com/projects/radeon/en/latest/docs/install/wsl/install-pytorch.html)) and will need to do so every time you update Pytorch:
+> 
+> ```location=$(pip show torch | grep Location | awk -F ": " '{print $2}')```
+> 
+> ```cd ${location}/torch/lib/```
+> 
+> ```rm libhsa-runtime64.so*```
+
 ### Intel GPUs (Windows and Linux)
 
 Intel Arc GPU users can install native PyTorch with torch.xpu support using pip. More information can be found [here](https://pytorch.org/docs/main/notes/get_start_xpu.html)
