@@ -5,14 +5,17 @@ import torch
 from pydantic import BaseModel, Field
 from typing_extensions import override
 
-from comfy_api.input_impl import VideoFromFile
-from comfy_api.latest import IO, ComfyExtension
+from comfy_api.latest import IO, ComfyExtension, Input, InputImpl
 from comfy_api_nodes.util import (
     ApiEndpoint,
     get_number_of_images,
     sync_op_raw,
     upload_images_to_comfyapi,
     validate_string,
+    validate_video_duration,
+    validate_video_dimensions,
+    validate_video_frame_count,
+    upload_video_to_comfyapi,
 )
 
 MODELS_MAP = {
@@ -29,6 +32,14 @@ class ExecuteTaskRequest(BaseModel):
     fps: Optional[int] = Field(25)
     generate_audio: Optional[bool] = Field(True)
     image_uri: Optional[str] = Field(None)
+
+
+class VideoEditRequest(BaseModel):
+    video_uri: str = Field(...)
+    prompt: str = Field(...)
+    start_time: int = Field(...)
+    duration: int = Field(...)
+    mode: str = Field(...)
 
 
 class TextToVideoNode(IO.ComfyNode):
@@ -103,7 +114,7 @@ class TextToVideoNode(IO.ComfyNode):
             as_binary=True,
             max_retries=1,
         )
-        return IO.NodeOutput(VideoFromFile(BytesIO(response)))
+        return IO.NodeOutput(InputImpl.VideoFromFile(BytesIO(response)))
 
 
 class ImageToVideoNode(IO.ComfyNode):
@@ -183,7 +194,76 @@ class ImageToVideoNode(IO.ComfyNode):
             as_binary=True,
             max_retries=1,
         )
-        return IO.NodeOutput(VideoFromFile(BytesIO(response)))
+        return IO.NodeOutput(InputImpl.VideoFromFile(BytesIO(response)))
+
+
+class EditVideoNode(IO.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return IO.Schema(
+            node_id="LtxvApiEditVideoNode",
+            display_name="LTXV Video To Video",
+            category="api node/video/LTXV",
+            description="Edit a specific section of a video by replacing audio, video, or both using AI generation.",
+            inputs=[
+                IO.Video.Input("video"),
+                IO.String.Input(
+                    "prompt",
+                    multiline=True,
+                    default="",
+                ),
+                IO.Combo.Input("mode", options=["replace_video", "replace_audio", "replace_audio_and_video"]),
+                IO.Float.Input("start_time", min=0.0, default=0.0),
+                IO.Float.Input("duration", min=1.0, max=20.0, default=3),
+            ],
+            outputs=[
+                IO.Video.Output(),
+            ],
+            hidden=[
+                IO.Hidden.auth_token_comfy_org,
+                IO.Hidden.api_key_comfy_org,
+                IO.Hidden.unique_id,
+            ],
+            is_api_node=True,
+        )
+
+    @classmethod
+    async def execute(
+        cls,
+        video: Input.Video,
+        prompt: str,
+        mode: str,
+        start_time: float,
+        duration: float,
+    ) -> IO.NodeOutput:
+        validate_string(prompt, min_length=1, max_length=10000)
+        validate_video_dimensions(video, max_width=3840, max_height=2160)
+        validate_video_duration(video, max_duration=20)
+        validate_video_frame_count(video, max_frame_count=505)
+        video_duration = video.get_duration()
+        if start_time >= video_duration:
+            raise ValueError(
+                f"Invalid start_time ({start_time}). Start time is greater than input video duration ({video_duration})"
+            )
+        response = await sync_op_raw(
+            cls,
+            # ApiEndpoint(
+            #     "https://api.ltx.video/v1/retake",
+            #     "POST",
+            #     headers={"Authorization": "Bearer PLACE_YOUR_API_KEY"},
+            # ),
+            ApiEndpoint("/proxy/ltx/v1/retake", "POST"),
+            data=VideoEditRequest(
+                video_uri=await upload_video_to_comfyapi(cls, video),
+                prompt=prompt,
+                mode=mode,
+                start_time=int(start_time),
+                duration=int(duration),
+            ),
+            as_binary=True,
+            max_retries=1,
+        )
+        return IO.NodeOutput(InputImpl.VideoFromFile(BytesIO(response)))
 
 
 class LtxvApiExtension(ComfyExtension):
@@ -192,6 +272,7 @@ class LtxvApiExtension(ComfyExtension):
         return [
             TextToVideoNode,
             ImageToVideoNode,
+            EditVideoNode,
         ]
 
 
