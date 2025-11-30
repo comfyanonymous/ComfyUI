@@ -53,9 +53,13 @@ folder_names_and_paths["model_patches"] = ([os.path.join(models_dir, "model_patc
 folder_names_and_paths["audio_encoders"] = ([os.path.join(models_dir, "audio_encoders")], supported_pt_extensions)
 
 output_directory = os.path.join(base_path, "output")
-temp_directory = os.path.join(base_path, "temp")
 input_directory = os.path.join(base_path, "input")
 user_directory = os.path.join(base_path, "user")
+
+write_permitted_base_dir = os.path.join(base_path, "write-permitted")
+# Temp is a subdirectory of write-permitted so the entire directory can be
+# deleted and recreated as needed.
+temp_directory = os.path.join(write_permitted_base_dir, "temp")
 
 filename_list_cache: dict[str, tuple[list[str], dict[str, float], float]] = {}
 
@@ -136,6 +140,8 @@ def set_user_directory(user_dir: str) -> None:
     global user_directory
     user_directory = user_dir
 
+def get_write_permitted_base_directory() -> str:
+    return write_permitted_base_dir
 
 # System User Protection - Protects system directories from HTTP endpoint access
 # System Users are internal-only users that cannot be accessed via HTTP endpoints.

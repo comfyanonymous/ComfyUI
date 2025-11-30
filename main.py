@@ -57,6 +57,26 @@ def apply_custom_paths():
         folder_paths.set_user_directory(user_dir)
 
 
+def try_enable_sandbox():
+    if any([
+        args.output_directory,
+        args.user_directory,
+        args.base_directory,
+        args.temp_directory
+    ]):
+        # Note: If we ever support custom directories, we should warn users if
+        # the directories are in a senstive location (e.g. a high level
+        # directory like C:\ or the user's home directory).
+        raise Exception("Sandbox mode is not supported when using --output-directory, "
+                        "--user-directory, --base-directory, or --temp-directory.")
+
+    success = windows_sandbox.try_enable_sandbox()
+
+    if not success:
+        raise Exception("Unable to run ComfyUI with sandbox enabled. "
+                        "You can rerun without --enable-sandbox.")
+
+
 def execute_prestartup_script():
     if args.disable_all_custom_nodes and len(args.whitelist_custom_nodes) == 0:
         return
@@ -101,6 +121,17 @@ def execute_prestartup_script():
         logging.info("")
 
 apply_custom_paths()
+
+if args.enable_sandbox:
+    if os.name == "nt":
+        # windows_sandbox imports the pywin32 module, which is not available on
+        # non-windows platforms, so this import needs to be guarded.
+        from sandbox import windows_sandbox
+        try_enable_sandbox()
+    else:
+        logging.warning("Sandbox mode is not supported on non-windows platforms."
+                        "ComfyUI will run without sandbox.")
+
 execute_prestartup_script()
 
 
