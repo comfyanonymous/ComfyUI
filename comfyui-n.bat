@@ -10,7 +10,9 @@ set "PYTHON=%~dp0venv\Scripts\python.exe"
 set "GIT="
 set "VENV_DIR=.\venv"
 
-set "COMMANDLINE_ARGS=--auto-launch --use-quad-cross-attention --reserve-vram 0.9"
+set "COMMANDLINE_ARGS=--auto-launch --use-quad-cross-attention --reserve-vram 0.9 --disable-async-offload"
+
+:: "--disable-async-offload" added because of this : ComfyUI has added async weight offloading by default, not compatible with older GPUs, try without it , if it works you are good.
 
 :: in the comfyui-user.bat remove the dots on the line below and change the gfx1030 to your gpu's specific code. 
 :: you can find out about yours here, https://llvm.org/docs/AMDGPUUsage.html#processors
