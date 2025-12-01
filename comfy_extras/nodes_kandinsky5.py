@@ -52,14 +52,9 @@ class Kandinsky5ImageToVideo(io.ComfyNode):
         return io.NodeOutput(positive, negative, out_latent, cond_latent_out)
 
 
-def adaptive_mean_std_normalization(source, reference):
+def adaptive_mean_std_normalization(source, reference, clump_mean_low=0.3, clump_mean_high=0.35, clump_std_low=0.35, clump_std_high=0.5):
     source_mean = source.mean(dim=(1, 3, 4), keepdim=True)  # mean over C, H, W
     source_std = source.std(dim=(1, 3, 4), keepdim=True)    # std over C, H, W
-    #magic constants - limit changes in latents
-    clump_mean_low = 0.05
-    clump_mean_high = 0.1
-    clump_std_low = 0.1
-    clump_std_high = 0.25
 
     reference_mean = torch.clamp(reference.mean(), source_mean - clump_mean_low, source_mean + clump_mean_high)
     reference_std = torch.clamp(reference.std(), source_std - clump_std_low, source_std + clump_std_high)
@@ -96,8 +91,7 @@ class NormalizeVideoLatentFrames(io.ComfyNode):
         samples = latent["samples"].clone()
 
         first_frames = samples[:, :, :frames_to_normalize]
-        reference_frames_data = samples[:, :, frames_to_normalize:frames_to_normalize+min(reference_frames, samples.shape[2]-frames_to_normalize)]
-
+        reference_frames_data = samples[:, :, frames_to_normalize:frames_to_normalize+min(reference_frames, samples.shape[2]-1)]
         normalized_first_frames = adaptive_mean_std_normalization(first_frames, reference_frames_data)
 
         samples[:, :, :frames_to_normalize] = normalized_first_frames
