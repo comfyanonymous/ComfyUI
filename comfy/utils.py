@@ -63,6 +63,8 @@ def load_torch_file(ckpt, safe_load=False, device=None, return_metadata=False):
             with safetensors.safe_open(ckpt, framework="pt", device=device.type) as f:
                 sd = {}
                 for k in f.keys():
+                    if k.startswith("__SKIP__"):
+                        continue
                     tensor = f.get_tensor(k)
                     if DISABLE_MMAP:  # TODO: Not sure if this is the best way to bypass the mmap issues
                         tensor = tensor.to(device=device, copy=True)
