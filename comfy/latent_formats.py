@@ -431,6 +431,7 @@ class HunyuanVideo(LatentFormat):
     ]
 
     latent_rgb_factors_bias = [ 0.0259, -0.0192, -0.0761]
+    taesd_decoder_name = "taehv"
 
 class Cosmos1CV8x8x8(LatentFormat):
     latent_channels = 16
@@ -494,7 +495,7 @@ class Wan21(LatentFormat):
         ]).view(1, self.latent_channels, 1, 1, 1)
 
 
-        self.taesd_decoder_name = None #TODO
+        self.taesd_decoder_name = "lighttaew2_1"
 
     def process_in(self, latent):
         latents_mean = self.latents_mean.to(latent.device, latent.dtype)
@@ -565,6 +566,7 @@ class Wan22(Wan21):
 
     def __init__(self):
         self.scale_factor = 1.0
+        self.taesd_decoder_name = "lighttaew2_2"
         self.latents_mean = torch.tensor([
                 -0.2289, -0.0052, -0.1323, -0.2339, -0.2799, 0.0174, 0.1838, 0.1557,
                 -0.1382, 0.0542, 0.2813, 0.0891, 0.1570, -0.0098, 0.0375, -0.1825,
@@ -719,6 +721,7 @@ class HunyuanVideo15(LatentFormat):
     latent_channels = 32
     latent_dimensions = 3
     scale_factor = 1.03682
+    taesd_decoder_name = "lighttaehy1_5"
 
 class Hunyuan3Dv2(LatentFormat):
     latent_channels = 64
