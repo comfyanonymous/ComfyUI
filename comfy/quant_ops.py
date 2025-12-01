@@ -235,8 +235,8 @@ class QuantizedTensor(torch.Tensor):
     def is_pinned(self):
         return self._qdata.is_pinned()
 
-    def is_contiguous(self):
-        return self._qdata.is_contiguous()
+    def is_contiguous(self, *arg, **kwargs):
+        return self._qdata.is_contiguous(*arg, **kwargs)
 
 # ==============================================================================
 # Generic Utilities (Layout-Agnostic Operations)
@@ -425,7 +425,8 @@ class TensorCoreFP8Layout(QuantizedLayout):
     @staticmethod
     def dequantize(qdata, scale, orig_dtype, **kwargs):
         plain_tensor = torch.ops.aten._to_copy.default(qdata, dtype=orig_dtype)
-        return plain_tensor * scale
+        plain_tensor.mul_(scale)
+        return plain_tensor
 
     @classmethod
     def get_plain_tensors(cls, qtensor):
