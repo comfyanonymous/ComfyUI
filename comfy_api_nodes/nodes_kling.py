@@ -1024,7 +1024,7 @@ class OmniProVideoToVideoNode(IO.ComfyNode):
         reference_images: Input.Image | None = None,
     ) -> IO.NodeOutput:
         validate_string(prompt, min_length=1, max_length=2500)
-        validate_video_duration(reference_video, min_duration=3.0, max_duration=10.0)
+        validate_video_duration(reference_video, min_duration=3.0, max_duration=10.05)
         validate_video_dimensions(reference_video, min_width=720, min_height=720, max_width=2160, max_height=2160)
         image_list: list[OmniParamImage] = []
         if reference_images is not None:
@@ -1104,7 +1104,7 @@ class OmniProEditVideoNode(IO.ComfyNode):
         reference_images: Input.Image | None = None,
     ) -> IO.NodeOutput:
         validate_string(prompt, min_length=1, max_length=2500)
-        validate_video_duration(video, min_duration=3.0, max_duration=10.0)
+        validate_video_duration(video, min_duration=3.0, max_duration=10.05)
         validate_video_dimensions(video, min_width=720, min_height=720, max_width=2160, max_height=2160)
         image_list: list[OmniParamImage] = []
         if reference_images is not None:
