@@ -7,9 +7,11 @@ import os
 import re
 
 class HunyuanImage3TextEncoder(torch.nn.Module):
+    embed_wte = None
     def __init__(self):
         super().__init__()
-        self.wte = torch.nn.Embedding(133120, 4096, 128009)
+        self.wte = torch.nn.Embedding(133120, 4096, padding_idx = 128009)
+        self.wte.data = self.embed_wte
     def forward(self, x):
         out = self.wte(x)
         return out, torch.empty_like(out)
