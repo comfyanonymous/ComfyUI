@@ -15,7 +15,8 @@ from .layers import (
     MLPEmbedder,
     SingleStreamBlock,
     timestep_embedding,
-    Modulation
+    Modulation,
+    RMSNorm
 )
 
 @dataclass
@@ -34,11 +35,14 @@ class FluxParams:
     patch_size: int
     qkv_bias: bool
     guidance_embed: bool
+    txt_ids_dims: list
     global_modulation: bool = False
     mlp_silu_act: bool = False
     ops_bias: bool = True
     default_ref_method: str = "offset"
     ref_index_scale: float = 1.0
+    yak_mlp: bool = False
+    txt_norm: bool = False
 
 
 class Flux(nn.Module):
@@ -76,6 +80,11 @@ class Flux(nn.Module):
         )
         self.txt_in = operations.Linear(params.context_in_dim, self.hidden_size, bias=params.ops_bias, dtype=dtype, device=device)
 
+        if params.txt_norm:
+            self.txt_norm = RMSNorm(params.context_in_dim, dtype=dtype, device=device, operations=operations)
+        else:
+            self.txt_norm = None
+
         self.double_blocks = nn.ModuleList(
             [
                 DoubleStreamBlock(
@@ -86,6 +95,7 @@ class Flux(nn.Module):
                     modulation=params.global_modulation is False,
                     mlp_silu_act=params.mlp_silu_act,
                     proj_bias=params.ops_bias,
+                    yak_mlp=params.yak_mlp,
                     dtype=dtype, device=device, operations=operations
                 )
                 for _ in range(params.depth)
@@ -94,7 +104,7 @@ class Flux(nn.Module):
 
         self.single_blocks = nn.ModuleList(
             [
-                SingleStreamBlock(self.hidden_size, self.num_heads, mlp_ratio=params.mlp_ratio, modulation=params.global_modulation is False, mlp_silu_act=params.mlp_silu_act, bias=params.ops_bias, dtype=dtype, device=device, operations=operations)
+                SingleStreamBlock(self.hidden_size, self.num_heads, mlp_ratio=params.mlp_ratio, modulation=params.global_modulation is False, mlp_silu_act=params.mlp_silu_act, bias=params.ops_bias, yak_mlp=params.yak_mlp, dtype=dtype, device=device, operations=operations)
                 for _ in range(params.depth_single_blocks)
             ]
         )
@@ -150,6 +160,8 @@ class Flux(nn.Module):
                 y = torch.zeros((img.shape[0], self.params.vec_in_dim), device=img.device, dtype=img.dtype)
             vec = vec + self.vector_in(y[:, :self.params.vec_in_dim])
 
+        if self.txt_norm is not None:
+            txt = self.txt_norm(txt)
         txt = self.txt_in(txt)
 
         vec_orig = vec
@@ -332,8 +344,9 @@ class Flux(nn.Module):
 
         txt_ids = torch.zeros((bs, context.shape[1], len(self.params.axes_dim)), device=x.device, dtype=torch.float32)
 
-        if len(self.params.axes_dim) == 4: # Flux 2
-            txt_ids[:, :, 3] = torch.linspace(0, context.shape[1] - 1, steps=context.shape[1], device=x.device, dtype=torch.float32)
+        if len(self.params.txt_ids_dims) > 0:
+            for i in self.params.txt_ids_dims:
+                txt_ids[:, :, i] = torch.linspace(0, context.shape[1] - 1, steps=context.shape[1], device=x.device, dtype=torch.float32)
 
         out = self.forward_orig(img, img_ids, context, txt_ids, timestep, y, guidance, control, transformer_options, attn_mask=kwargs.get("attention_mask", None))
         out = out[:, :img_tokens]
