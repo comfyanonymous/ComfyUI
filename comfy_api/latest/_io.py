@@ -1058,7 +1058,7 @@ class DynamicSlot(ComfyTypeI):
             optional = True
             self.slot.tooltip = slot.tooltip if slot.tooltip is not None else tooltip
             self.slot.lazy = slot.lazy if slot.lazy is not None else lazy
-            self.slot.extra_dict = self.extra_dict if extra_dict is not None else extra_dict
+            self.slot.extra_dict = slot.extra_dict if slot.extra_dict is not None else extra_dict
             super().__init__(slot.id, self.slot.display_name, optional, self.slot.tooltip, self.slot.lazy, self.slot.extra_dict)
             self.inputs = inputs
             self.force_input = None
