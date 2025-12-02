@@ -53,6 +53,7 @@ import comfy.text_encoders.omnigen2
 import comfy.text_encoders.qwen_image
 import comfy.text_encoders.hunyuan_image
 import comfy.text_encoders.z_image
+import comfy.text_encoders.ovis
 
 import comfy.model_patcher
 import comfy.lora
@@ -956,6 +957,7 @@ class CLIPType(Enum):
     QWEN_IMAGE = 18
     HUNYUAN_IMAGE = 19
     HUNYUAN_VIDEO_15 = 20
+    OVIS = 21
 
 
 def load_clip(ckpt_paths, embedding_directory=None, clip_type=CLIPType.STABLE_DIFFUSION, model_options={}):
@@ -987,6 +989,7 @@ class TEModel(Enum):
     MISTRAL3_24B = 14
     MISTRAL3_24B_PRUNED_FLUX2 = 15
     QWEN3_4B = 16
+    QWEN3_2B = 17
 
 
 def detect_te_model(sd):
@@ -1020,9 +1023,12 @@ def detect_te_model(sd):
         if weight.shape[0] == 512:
             return TEModel.QWEN25_7B
     if "model.layers.0.post_attention_layernorm.weight" in sd:
-        if 'model.layers.0.self_attn.q_norm.weight' in sd:
-            return TEModel.QWEN3_4B
         weight = sd['model.layers.0.post_attention_layernorm.weight']
+        if 'model.layers.0.self_attn.q_norm.weight' in sd:
+            if weight.shape[0] == 2560:
+                return TEModel.QWEN3_4B
+            elif weight.shape[0] == 2048:
+                return TEModel.QWEN3_2B
         if weight.shape[0] == 5120:
             if "model.layers.39.post_attention_layernorm.weight" in sd:
                 return TEModel.MISTRAL3_24B
@@ -1150,6 +1156,9 @@ def load_text_encoder_state_dicts(state_dicts=[], embedding_directory=None, clip
         elif te_model == TEModel.QWEN3_4B:
             clip_target.clip = comfy.text_encoders.z_image.te(**llama_detect(clip_data))
             clip_target.tokenizer = comfy.text_encoders.z_image.ZImageTokenizer
+        elif te_model == TEModel.QWEN3_2B:
+            clip_target.clip = comfy.text_encoders.ovis.te(**llama_detect(clip_data))
+            clip_target.tokenizer = comfy.text_encoders.ovis.OvisTokenizer
         else:
             # clip_l
             if clip_type == CLIPType.SD3:

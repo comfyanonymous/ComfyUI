@@ -208,12 +208,12 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
             dit_config["theta"] = 2000
             dit_config["out_channels"] = 128
             dit_config["global_modulation"] = True
-            dit_config["vec_in_dim"] = None
             dit_config["mlp_silu_act"] = True
             dit_config["qkv_bias"] = False
             dit_config["ops_bias"] = False
             dit_config["default_ref_method"] = "index"
             dit_config["ref_index_scale"] = 10.0
+            dit_config["txt_ids_dims"] = [3]
             patch_size = 1
         else:
             dit_config["image_model"] = "flux"
@@ -223,6 +223,7 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
             dit_config["theta"] = 10000
             dit_config["out_channels"] = 16
             dit_config["qkv_bias"] = True
+            dit_config["txt_ids_dims"] = []
             patch_size = 2
 
         dit_config["in_channels"] = 16
@@ -245,6 +246,8 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
         vec_in_key = '{}vector_in.in_layer.weight'.format(key_prefix)
         if vec_in_key in state_dict_keys:
             dit_config["vec_in_dim"] = state_dict[vec_in_key].shape[1]
+        else:
+            dit_config["vec_in_dim"] = None
 
         dit_config["depth"] = count_blocks(state_dict_keys, '{}double_blocks.'.format(key_prefix) + '{}.')
         dit_config["depth_single_blocks"] = count_blocks(state_dict_keys, '{}single_blocks.'.format(key_prefix) + '{}.')
@@ -270,6 +273,11 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
                 dit_config["nerf_embedder_dtype"] = torch.float32
         else:
             dit_config["guidance_embed"] = "{}guidance_in.in_layer.weight".format(key_prefix) in state_dict_keys
+            dit_config["yak_mlp"] = '{}double_blocks.0.img_mlp.gate_proj.weight'.format(key_prefix) in state_dict_keys
+            dit_config["txt_norm"] = "{}txt_norm.scale".format(key_prefix) in state_dict_keys
+            if dit_config["yak_mlp"] and dit_config["txt_norm"]:  # Ovis model
+                dit_config["txt_ids_dims"] = [1, 2]
+
         return dit_config
 
     if '{}t5_yproj.weight'.format(key_prefix) in state_dict_keys: #Genmo mochi preview
