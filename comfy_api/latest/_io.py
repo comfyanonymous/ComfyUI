@@ -1294,6 +1294,7 @@ class Schema:
                     output.id = f"_{i}_{output.io_type}_"
 
     def get_v1_info(self, cls, live_inputs: dict[str, Any]=None) -> NodeInfoV1:
+        # NOTE: live_inputs will not be used anymore very soon and this will be done another way
         # get V1 inputs
         input = create_input_dict_v1(self.inputs, live_inputs)
         if self.hidden:
