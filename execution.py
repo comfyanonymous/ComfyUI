@@ -1290,7 +1290,7 @@ class PromptQueue:
 
     def _normalize_queue_item(self, item, status):
         """Convert queue item tuple to unified job dict."""
-        number, prompt_id, prompt, extra_data, outputs_to_execute = item[:5]
+        _, prompt_id, _, extra_data, _ = item[:5]
         create_time = extra_data.get('create_time')
 
         return {
@@ -1307,7 +1307,7 @@ class PromptQueue:
     def _normalize_history_item(self, prompt_id, history_item, include_outputs=False):
         """Convert history item dict to unified job dict."""
         prompt_tuple = history_item['prompt']
-        number, _, prompt, extra_data, outputs_to_execute = prompt_tuple[:5]
+        _, _, prompt, extra_data, outputs_to_execute = prompt_tuple[:5]
         create_time = extra_data.get('create_time')
 
         # Determine status from history status
