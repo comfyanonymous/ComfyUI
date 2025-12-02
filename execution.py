@@ -1290,13 +1290,14 @@ class PromptQueue:
 
     def _normalize_queue_item(self, item, status):
         """Convert queue item tuple to unified job dict."""
-        _, prompt_id, _, extra_data, _ = item[:5]
+        priority, prompt_id, _, extra_data, _ = item[:5]
         create_time = extra_data.get('create_time')
 
         return {
             'id': prompt_id,
             'status': status,
             'create_time': create_time,
+            'priority': priority,
             'execution_time': None,
             'error_message': None,
             'outputs_count': 0,
