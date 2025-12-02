@@ -4,7 +4,7 @@ import torch
 import nodes
 from typing_extensions import override
 from comfy_api.latest import ComfyExtension, io
-
+import logging
 
 def reshape_latent_to(target_shape, latent, repeat_batch=True):
     if latent.shape[1:] != target_shape[1:]:
@@ -407,9 +407,11 @@ class ReplaceVideoLatentFrames(io.ComfyNode):
     @classmethod
     def execute(cls, source, destination, index) -> io.NodeOutput:
         if index > destination["samples"].shape[2]:
-            raise RuntimeError(f"ReplaceVideoLatentFrames: Index {index} is out of bounds for destination latent frames {destination['samples'].shape[2]}.")
+            logging.warning(f"ReplaceVideoLatentFrames: Index {index} is out of bounds for destination latent frames {destination['samples'].shape[2]}.")
+            return io.NodeOutput(destination)
         if index + source["samples"].shape[2] > destination["samples"].shape[2]:
-            raise RuntimeError(f"ReplaceVideoLatentFrames: Source latent frames {source['samples'].shape[2]} do not fit within destination latent frames {destination['samples'].shape[2]} at the specified index {index}.")
+            logging.warning(f"ReplaceVideoLatentFrames: Source latent frames {source['samples'].shape[2]} do not fit within destination latent frames {destination['samples'].shape[2]} at the specified index {index}.")
+            return io.NodeOutput(destination)
         s = source.copy()
         s_source = source["samples"]
         s_destination = destination["samples"].clone()
