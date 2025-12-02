@@ -1,6 +1,7 @@
 from typing import TypedDict
 from typing_extensions import override
 from comfy_api.latest import ComfyExtension, io
+from comfy_api.latest import _io
 
 
 
@@ -71,14 +72,14 @@ class DCTestNode(io.ComfyNode):
             display_name="DCTest",
             category="logic",
             is_output_node=True,
-            inputs=[io.DynamicCombo.Input("combo", options=[
-                io.DynamicCombo.Option("option1", [io.String.Input("string")]),
-                io.DynamicCombo.Option("option2", [io.Int.Input("integer")]),
-                io.DynamicCombo.Option("option3", [io.Image.Input("image")]),
-                io.DynamicCombo.Option("option4", [
-                    io.DynamicCombo.Input("subcombo", options=[
-                        io.DynamicCombo.Option("opt1", [io.Float.Input("float_x"), io.Float.Input("float_y")]),
-                        io.DynamicCombo.Option("opt2", [io.Mask.Input("mask1", optional=True)]),
+            inputs=[_io.DynamicCombo.Input("combo", options=[
+                _io.DynamicCombo.Option("option1", [io.String.Input("string")]),
+                _io.DynamicCombo.Option("option2", [io.Int.Input("integer")]),
+                _io.DynamicCombo.Option("option3", [io.Image.Input("image")]),
+                _io.DynamicCombo.Option("option4", [
+                    _io.DynamicCombo.Input("subcombo", options=[
+                        _io.DynamicCombo.Option("opt1", [io.Float.Input("float_x"), io.Float.Input("float_y")]),
+                        _io.DynamicCombo.Option("opt2", [io.Mask.Input("mask1", optional=True)]),
                     ])
                 ])]
             )],
@@ -103,19 +104,19 @@ class DCTestNode(io.ComfyNode):
 class AutogrowNamesTestNode(io.ComfyNode):
     @classmethod
     def define_schema(cls):
-        template = io.Autogrow.TemplateNames(input=io.Float.Input("float"), names=["a", "b", "c"])
+        template = _io.Autogrow.TemplateNames(input=io.Float.Input("float"), names=["a", "b", "c"])
         return io.Schema(
             node_id="AutogrowNamesTestNode",
             display_name="AutogrowNamesTest",
             category="logic",
             inputs=[
-                io.Autogrow.Input("autogrow", template=template)
+                _io.Autogrow.Input("autogrow", template=template)
             ],
             outputs=[io.String.Output()],
         )
 
     @classmethod
-    def execute(cls, autogrow: io.Autogrow.Type) -> io.NodeOutput:
+    def execute(cls, autogrow: _io.Autogrow.Type) -> io.NodeOutput:
         vals = list(autogrow.values())
         combined = ",".join([str(x) for x in vals])
         return io.NodeOutput(combined)
@@ -123,19 +124,19 @@ class AutogrowNamesTestNode(io.ComfyNode):
 class AutogrowPrefixTestNode(io.ComfyNode):
     @classmethod
     def define_schema(cls):
-        template = io.Autogrow.TemplatePrefix(input=io.Float.Input("float"), prefix="float", min=1, max=10)
+        template = _io.Autogrow.TemplatePrefix(input=io.Float.Input("float"), prefix="float", min=1, max=10)
         return io.Schema(
             node_id="AutogrowPrefixTestNode",
             display_name="AutogrowPrefixTest",
             category="logic",
             inputs=[
-                io.Autogrow.Input("autogrow", template=template)
+                _io.Autogrow.Input("autogrow", template=template)
             ],
             outputs=[io.String.Output()],
         )
 
     @classmethod
-    def execute(cls, autogrow: io.Autogrow.Type) -> io.NodeOutput:
+    def execute(cls, autogrow: _io.Autogrow.Type) -> io.NodeOutput:
         vals = list(autogrow.values())
         combined = ",".join([str(x) for x in vals])
         return io.NodeOutput(combined)

@@ -1895,8 +1895,8 @@ __all__ = [
     "MultiType",
     # Dynamic Types
     "MatchType",
-    "DynamicCombo",
-    "Autogrow",
+    # "DynamicCombo",
+    # "Autogrow",
     # Other classes
     "HiddenHolder",
     "Hidden",
