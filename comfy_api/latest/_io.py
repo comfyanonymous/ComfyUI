@@ -971,7 +971,6 @@ class Autogrow(ComfyTypeI):
         def __init__(self, id: str, template: Autogrow.TemplatePrefix | Autogrow.TemplateNames,
                      display_name: str=None, optional=False, tooltip: str=None, lazy: bool=None, extra_dict=None):
             super().__init__(id, display_name, optional, tooltip, lazy, extra_dict)
-            # raise Exception("AutogrowDynamic is not implemented yet, and will likely be renamed for actual implementation.")
             self.template = template
 
         def as_dict(self):
