@@ -1130,7 +1130,8 @@ class PromptQueue:
         messages: List[str]
 
     def task_done(self, item_id, history_result,
-                  status: Optional['PromptQueue.ExecutionStatus'], process_item=None):
+                  status: Optional['PromptQueue.ExecutionStatus'], process_item=None,
+                  execution_time: Optional[float] = None):
         with self.mutex:
             prompt = self.currently_running.pop(item_id)
             if len(self.history) > MAXIMUM_HISTORY_SIZE:
@@ -1147,6 +1148,7 @@ class PromptQueue:
                 "prompt": prompt,
                 "outputs": {},
                 'status': status_dict,
+                'execution_time': execution_time,
             }
             self.history[prompt[1]].update(history_result)
             self.server.queue_updated()
@@ -1222,6 +1224,198 @@ class PromptQueue:
     def delete_history_item(self, id_to_delete):
         with self.mutex:
             self.history.pop(id_to_delete, None)
+
+    def get_job(self, prompt_id):
+        """Get a single job by prompt_id from history or queue."""
+        with self.mutex:
+            if prompt_id in self.history:
+                return self._normalize_history_item(prompt_id, self.history[prompt_id], include_outputs=True)
+
+            for item in self.currently_running.values():
+                if item[1] == prompt_id:
+                    return self._normalize_queue_item(item, 'in_progress')
+
+            for item in self.queue:
+                if item[1] == prompt_id:
+                    return self._normalize_queue_item(item, 'pending')
+
+            return None
+
+    def get_all_jobs(self, status_filter=None, sort_by="created_at", sort_order="desc", limit=None, offset=0):
+        """
+        Get all jobs (running, pending, completed) with filtering and sorting.
+
+        Args:
+            status_filter: list of statuses to include ['pending', 'in_progress', 'completed', 'error']
+            sort_by: field to sort by ('created_at', 'execution_time')
+            sort_order: 'asc' or 'desc'
+            limit: maximum number of items to return
+            offset: number of items to skip
+
+        Returns:
+            tuple: (jobs_list, total_count)
+        """
+        with self.mutex:
+            jobs = []
+
+            if status_filter is None:
+                status_filter = ['pending', 'in_progress', 'completed', 'error']
+
+            if 'in_progress' in status_filter:
+                for item in self.currently_running.values():
+                    jobs.append(self._normalize_queue_item(item, 'in_progress'))
+
+            if 'pending' in status_filter:
+                for item in self.queue:
+                    jobs.append(self._normalize_queue_item(item, 'pending'))
+
+            include_completed = 'completed' in status_filter
+            include_error = 'error' in status_filter
+            if include_completed or include_error:
+                for prompt_id, history_item in self.history.items():
+                    is_error = history_item.get('status', {}).get('status_str') == 'error'
+                    if (is_error and include_error) or (not is_error and include_completed):
+                        jobs.append(self._normalize_history_item(prompt_id, history_item))
+
+            jobs = self._apply_sorting(jobs, sort_by, sort_order)
+
+            total_count = len(jobs)
+
+            if offset > 0:
+                jobs = jobs[offset:]
+            if limit is not None:
+                jobs = jobs[:limit]
+
+            return (jobs, total_count)
+
+    def _normalize_queue_item(self, item, status):
+        """Convert queue item tuple to unified job dict."""
+        number, prompt_id, prompt, extra_data, outputs_to_execute = item[:5]
+        create_time = extra_data.get('create_time')
+
+        return {
+            'id': prompt_id,
+            'status': status,
+            'create_time': create_time,
+            'execution_time': None,
+            'error_message': None,
+            'outputs_count': 0,
+            'preview_output': None,
+            'workflow_id': None,
+        }
+
+    def _normalize_history_item(self, prompt_id, history_item, include_outputs=False):
+        """Convert history item dict to unified job dict."""
+        prompt_tuple = history_item['prompt']
+        number, _, prompt, extra_data, outputs_to_execute = prompt_tuple[:5]
+        create_time = extra_data.get('create_time')
+
+        # Determine status from history status
+        status_info = history_item.get('status', {})
+        if status_info:
+            status = 'completed' if status_info.get('status_str') == 'success' else 'error'
+        else:
+            status = 'completed'
+
+        outputs = history_item.get('outputs', {})
+
+        outputs_count, preview_output = self._get_outputs_summary(outputs)
+
+        error_message = None
+        if status == 'error' and status_info:
+            messages = status_info.get('messages', [])
+            if messages:
+                error_message = messages[0] if isinstance(messages[0], str) else str(messages[0])
+
+        execution_time = history_item.get('execution_time')
+
+        job = {
+            'id': prompt_id,
+            'status': status,
+            'create_time': create_time,
+            'execution_time': execution_time,
+            'error_message': error_message,
+            'outputs_count': outputs_count,
+            'preview_output': preview_output,
+            'workflow_id': None,
+        }
+
+        if include_outputs:
+            job['outputs'] = outputs
+            job['prompt'] = prompt
+            job['extra_data'] = extra_data
+            job['outputs_to_execute'] = outputs_to_execute
+
+        return job
+
+    def _get_outputs_summary(self, outputs):
+        """
+        Count outputs and find preview in a single pass.
+        Returns (outputs_count, preview_output).
+
+        Preview priority (matching frontend):
+        1. type="output" with previewable media
+        2. Any previewable media
+        """
+        count = 0
+        preview_output = None
+        fallback_preview = None
+
+        for node_id, node_outputs in outputs.items():
+            for media_type, items in node_outputs.items():
+                if media_type == 'animated' or not isinstance(items, list):
+                    continue
+                for item in items:
+                    count += 1
+
+                    # Skip if we already have the best preview (type=output)
+                    if preview_output is not None:
+                        continue
+
+                    filename = item.get('filename', '').lower()
+                    fmt = item.get('format', '')
+
+                    # Check if previewable (image/video/audio/3D) - matching frontend logic
+                    is_previewable = (
+                        media_type == 'images' or
+                        media_type == 'video' or
+                        media_type == 'audio' or
+                        filename.endswith(('.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp')) or  # images
+                        filename.endswith(('.mp4', '.webm', '.mov', '.avi')) or  # video
+                        filename.endswith(('.mp3', '.wav', '.ogg', '.flac')) or  # audio
+                        filename.endswith(('.obj', '.fbx', '.gltf', '.glb')) or  # 3D
+                        (fmt and (fmt.startswith('video/') or fmt.startswith('audio/')))
+                    )
+
+                    if not is_previewable:
+                        continue
+
+                    enriched = {
+                        **item,
+                        'nodeId': node_id,
+                        'mediaType': media_type
+                    }
+
+                    if item.get('type') == 'output':
+                        preview_output = enriched
+                    elif fallback_preview is None:
+                        fallback_preview = enriched
+
+        return count, preview_output or fallback_preview
+
+    def _apply_sorting(self, jobs, sort_by, sort_order):
+        """Sort jobs list by specified field and order."""
+        reverse = (sort_order == 'desc')
+
+        if sort_by == 'execution_time':
+            def get_sort_key(job):
+                return job.get('execution_time') or 0
+        else:
+            # Default to create_time
+            def get_sort_key(job):
+                return job.get('create_time') or 0
+
+        return sorted(jobs, key=get_sort_key, reverse=reverse)
 
     def set_flag(self, name, data):
         with self.mutex:

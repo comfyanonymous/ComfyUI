@@ -694,6 +694,96 @@ class PromptServer():
                 out[node_class] = node_info(node_class)
             return web.json_response(out)
 
+        @routes.get("/api/jobs")
+        async def get_jobs(request):
+            """List all jobs with filtering, sorting, and pagination."""
+            query = request.rel_url.query
+
+            status_param = query.get("status", None)
+            status_filter = None
+            if status_param:
+                status_filter = [s.strip() for s in status_param.split(',') if s.strip()]
+                valid_statuses = {'pending', 'in_progress', 'completed', 'error'}
+                status_filter = [s for s in status_filter if s in valid_statuses]
+                if not status_filter:
+                    status_filter = None
+
+            sort_by = query.get('sort', 'created_at')
+            if sort_by != 'created_at':
+                return web.json_response(
+                    {"error": "sort must be 'created_at'"},
+                    status=400
+                )
+
+            sort_order = query.get('order', 'desc')
+            if sort_order not in {'asc', 'desc'}:
+                return web.json_response(
+                    {"error": "order must be 'asc' or 'desc'"},
+                    status=400
+                )
+
+            limit = None
+            if 'limit' in query:
+                try:
+                    limit = int(query.get('limit'))
+                    if limit <= 0 or limit > 500:
+                        return web.json_response(
+                            {"error": "limit must be between 1 and 500"},
+                            status=400
+                        )
+                except (ValueError, TypeError):
+                    return web.json_response(
+                        {"error": "limit must be an integer"},
+                        status=400
+                    )
+
+            offset = 0
+            if 'offset' in query:
+                try:
+                    offset = int(query.get('offset'))
+                    if offset < 0:
+                        offset = 0
+                except (ValueError, TypeError):
+                    return web.json_response(
+                        {"error": "offset must be an integer"},
+                        status=400
+                    )
+
+            jobs, total = self.prompt_queue.get_all_jobs(
+                status_filter=status_filter,
+                sort_by=sort_by,
+                sort_order=sort_order,
+                limit=limit,
+                offset=offset
+            )
+
+            has_more = (offset + len(jobs)) < total
+
+            return web.json_response({
+                'jobs': jobs,
+                'total': total,
+                'has_more': has_more
+            })
+
+        @routes.get("/api/jobs/{job_id}")
+        async def get_job(request):
+            """Get a single job by ID."""
+            job_id = request.match_info.get("job_id", None)
+            if not job_id:
+                return web.json_response(
+                    {"error": "job_id is required"},
+                    status=400
+                )
+
+            job = self.prompt_queue.get_job(job_id)
+            if job is None:
+                return web.json_response(
+                    {"error": "Job not found"},
+                    status=404
+                )
+
+            return web.json_response(job)
+
         @routes.get("/history")
         async def get_history(request):
             max_items = request.rel_url.query.get("max_items", None)

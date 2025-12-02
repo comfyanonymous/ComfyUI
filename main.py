@@ -229,18 +229,20 @@ def prompt_worker(q, server_instance):
             e.execute(item[2], prompt_id, extra_data, item[4])
             need_gc = True
 
+            current_time = time.perf_counter()
+            execution_time = current_time - execution_start_time
+
             remove_sensitive = lambda prompt: prompt[:5] + prompt[6:]
             q.task_done(item_id,
                         e.history_result,
                         status=execution.PromptQueue.ExecutionStatus(
                             status_str='success' if e.success else 'error',
                             completed=e.success,
-                            messages=e.status_messages), process_item=remove_sensitive)
+                            messages=e.status_messages),
+                        process_item=remove_sensitive,
+                        execution_time=execution_time)
             if server_instance.client_id is not None:
                 server_instance.send_sync("executing", {"node": None, "prompt_id": prompt_id}, server_instance.client_id)
-
-            current_time = time.perf_counter()
-            execution_time = current_time - execution_start_time
 
             # Log Time in a more readable way after 10 minutes
             if execution_time > 600:
