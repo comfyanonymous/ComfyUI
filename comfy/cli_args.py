@@ -121,6 +121,12 @@ upcast.add_argument("--force-upcast-attention", action="store_true", help="Force
 upcast.add_argument("--dont-upcast-attention", action="store_true", help="Disable all upcasting of attention. Should be unnecessary except for debugging.")
 
 
+parser.add_argument("--enable-manager", action="store_true", help="Enable the ComfyUI-Manager feature.")
+manager_group = parser.add_mutually_exclusive_group()
+manager_group.add_argument("--disable-manager-ui", action="store_true", help="Disables only the ComfyUI-Manager UI and endpoints. Scheduled installations and similar background tasks will still operate.")
+manager_group.add_argument("--enable-manager-legacy-ui", action="store_true", help="Enables the legacy UI of ComfyUI-Manager")
+
+
 vram_group = parser.add_mutually_exclusive_group()
 vram_group.add_argument("--gpu-only", action="store_true", help="Store and run everything (text encoders/CLIP models, etc... on the GPU).")
 vram_group.add_argument("--highvram", action="store_true", help="By default models will be unloaded to CPU memory after being used. This option keeps them in GPU memory.")
@@ -167,6 +173,7 @@ parser.add_argument("--multi-user", action="store_true", help="Enables per-user 
 
 parser.add_argument("--verbose", default='INFO', const='DEBUG', nargs="?", choices=['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'], help='Set the logging level')
 parser.add_argument("--log-stdout", action="store_true", help="Send normal process output to stdout instead of stderr (default).")
+
 
 # The default built-in provider hosted under web/
 DEFAULT_VERSION_STRING = "comfyanonymous/ComfyUI@latest"
