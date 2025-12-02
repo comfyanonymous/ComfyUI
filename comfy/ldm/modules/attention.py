@@ -517,6 +517,7 @@ def attention_pytorch(q, k, v, heads, mask=None, attn_precision=None, skip_resha
 
 @wrap_attn
 def attention_sage(q, k, v, heads, mask=None, attn_precision=None, skip_reshape=False, skip_output_reshape=False, **kwargs):
+    exception_fallback = False
     if skip_reshape:
         b, _, _, dim_head = q.shape
         tensor_layout = "HND"
@@ -541,6 +542,8 @@ def attention_sage(q, k, v, heads, mask=None, attn_precision=None, skip_reshape=
         out = sageattn(q, k, v, attn_mask=mask, is_causal=False, tensor_layout=tensor_layout)
     except Exception as e:
         logging.error("Error running sage attention: {}, using pytorch attention instead.".format(e))
+        exception_fallback = True
+    if exception_fallback:
         if tensor_layout == "NHD":
             q, k, v = map(
                 lambda t: t.transpose(1, 2),
