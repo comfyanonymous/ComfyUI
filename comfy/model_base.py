@@ -1644,7 +1644,6 @@ class HunyuanVideo15_SR_Distilled(HunyuanVideo15):
         out['disable_time_r'] = comfy.conds.CONDConstant(False)
         return out
 
-
 class Kandinsky5(BaseModel):
     def __init__(self, model_config, model_type=ModelType.FLOW, device=None):
         super().__init__(model_config, model_type, device=device, unet_model=comfy.ldm.kandinsky5.model.Kandinsky5)
@@ -1684,7 +1683,7 @@ class Kandinsky5(BaseModel):
 
         return out
 
-class Kandinsky5_image(Kandinsky5):
+class Kandinsky5Image(Kandinsky5):
     def __init__(self, model_config, model_type=ModelType.FLOW, device=None):
         super().__init__(model_config, model_type, device=device)
 
