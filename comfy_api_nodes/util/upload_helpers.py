@@ -103,6 +103,7 @@ async def upload_video_to_comfyapi(
     container: VideoContainer = VideoContainer.MP4,
     codec: VideoCodec = VideoCodec.H264,
     max_duration: Optional[int] = None,
+    wait_label: str | None = "Uploading",
 ) -> str:
     """
     Uploads a single video to ComfyUI API and returns its download URL.
@@ -127,7 +128,7 @@ async def upload_video_to_comfyapi(
     video.save_to(video_bytes_io, format=container, codec=codec)
     video_bytes_io.seek(0)
 
-    return await upload_file_to_comfyapi(cls, video_bytes_io, filename, upload_mime_type)
+    return await upload_file_to_comfyapi(cls, video_bytes_io, filename, upload_mime_type, wait_label)
 
 
 async def upload_file_to_comfyapi(
