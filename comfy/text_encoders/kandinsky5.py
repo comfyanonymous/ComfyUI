@@ -9,7 +9,7 @@ class Kandinsky5Tokenizer(QwenImageTokenizer):
         # yes the typos "promt", "scren" were also in the original template... todo: check if it matters
         self.llama_template = "<|im_start|>system\nYou are a promt engineer. Describe the video in detail.\nDescribe how the camera moves or shakes, describe the zoom and view angle, whether it follows the objects.\nDescribe the location of the video, main characters or objects and their action.\nDescribe the dynamism of the video and presented actions.\nName the visual style of the video: whether it is a professional footage, user generated content, some kind of animation, video game or scren content.\nDescribe the visual effects, postprocessing and transitions if they are presented in the video.\nPay attention to the order of key actions shown in the scene.<|im_end|>\n<|im_start|>user\n{}<|im_end|>"
         self.clip_l = sd1_clip.SDTokenizer(embedding_directory=embedding_directory, tokenizer_data=tokenizer_data)
-        
+
     def tokenize_with_weights(self, text:str, return_word_ids=False, **kwargs):
         out = super().tokenize_with_weights(text, return_word_ids, **kwargs)
         out["l"] = self.clip_l.tokenize_with_weights(text, return_word_ids, **kwargs)
