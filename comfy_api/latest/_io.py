@@ -933,13 +933,11 @@ class Autogrow(ComfyTypeI):
             add_dynamic_id_mapping(d, real_inputs, curr_prefix)
 
     class TemplatePrefix(_AutogrowTemplate):
-        def __init__(self, input: Input, prefix: str, min: int=1, max: int=None):
+        def __init__(self, input: Input, prefix: str, min: int=1, max: int=10):
             super().__init__(input)
             self.prefix = prefix
             assert(min >= 0)
-            if not max:
-                max = 10
-            assert(max >= 2)
+            assert(max >= 1)
             assert(max <= Autogrow._MaxNames)
             self.min = min
             self.max = max
