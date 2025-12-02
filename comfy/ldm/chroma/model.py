@@ -41,7 +41,7 @@ class ChromaParams:
     hidden_dim: int
     n_layers: int
     txt_ids_dims: list
-
+    vec_in_dim: int
 
 
 
