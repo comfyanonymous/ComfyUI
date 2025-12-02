@@ -1522,7 +1522,7 @@ class Kandinsky5Image(Kandinsky5):
     def get_model(self, state_dict, prefix="", device=None):
         out = model_base.Kandinsky5Image(self, device=device)
         return out
-    
+
     def clip_target(self, state_dict={}):
         pref = self.text_encoder_key_prefix[0]
         hunyuan_detect = comfy.text_encoders.hunyuan_video.llama_detect(state_dict, "{}qwen25_7b.transformer.".format(pref))
