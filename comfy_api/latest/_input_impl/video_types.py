@@ -337,7 +337,7 @@ class VideoFromComponents(VideoInput):
         if codec != VideoCodec.AUTO and codec != VideoCodec.H264:
             raise ValueError("Only H264 codec is supported for now")
         extra_kwargs = {}
-        if format != VideoContainer.AUTO:
+        if isinstance(format, VideoContainer) and format != VideoContainer.AUTO:
             extra_kwargs["format"] = format.value
         with av.open(path, mode='w', options={'movflags': 'use_metadata_tags'}, **extra_kwargs) as output:
             # Add metadata before writing any streams
