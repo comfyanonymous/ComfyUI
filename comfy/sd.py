@@ -52,6 +52,7 @@ import comfy.text_encoders.ace
 import comfy.text_encoders.omnigen2
 import comfy.text_encoders.qwen_image
 import comfy.text_encoders.hunyuan_image
+import comfy.text_encoders.z_image
 
 import comfy.model_patcher
 import comfy.lora
@@ -59,6 +60,8 @@ import comfy.lora_convert
 import comfy.hooks
 import comfy.t2i_adapter.adapter
 import comfy.taesd.taesd
+import comfy.taesd.taehv
+import comfy.latent_formats
 
 import comfy.ldm.flux.redux
 
@@ -356,7 +359,7 @@ class VAE:
 
                     self.memory_used_encode = lambda shape, dtype: (700 * shape[2] * shape[3]) * model_management.dtype_size(dtype)
                     self.memory_used_decode = lambda shape, dtype: (700 * shape[2] * shape[3] * 32 * 32) * model_management.dtype_size(dtype)
-                elif sd['decoder.conv_in.weight'].shape[1] == 32:
+                elif sd['decoder.conv_in.weight'].shape[1] == 32 and sd['decoder.conv_in.weight'].ndim == 5:
                     ddconfig = {"block_out_channels": [128, 256, 512, 1024, 1024], "in_channels": 3, "out_channels": 3, "num_res_blocks": 2, "ffactor_spatial": 16, "ffactor_temporal": 4, "downsample_match_channel": True, "upsample_match_channel": True, "refiner_vae": False}
                     self.latent_channels = ddconfig['z_channels'] = sd["decoder.conv_in.weight"].shape[1]
                     self.working_dtypes = [torch.float16, torch.bfloat16, torch.float32]
@@ -382,6 +385,17 @@ class VAE:
                         self.upscale_ratio = 4
 
                     self.latent_channels = ddconfig['z_channels'] = sd["decoder.conv_in.weight"].shape[1]
+                    if 'decoder.post_quant_conv.weight' in sd:
+                        sd = comfy.utils.state_dict_prefix_replace(sd, {"decoder.post_quant_conv.": "post_quant_conv.", "encoder.quant_conv.": "quant_conv."})
+
+                    if 'bn.running_mean' in sd:
+                        ddconfig["batch_norm_latent"] = True
+                        self.downscale_ratio *= 2
+                        self.upscale_ratio *= 2
+                        self.latent_channels *= 4
+                        old_memory_used_decode = self.memory_used_decode
+                        self.memory_used_decode = lambda shape, dtype: old_memory_used_decode(shape, dtype) *  4.0
+
                     if 'post_quant_conv.weight' in sd:
                         self.first_stage_model = AutoencoderKL(ddconfig=ddconfig, embed_dim=sd['post_quant_conv.weight'].shape[1])
                     else:
@@ -496,13 +510,14 @@ class VAE:
                     self.memory_used_encode = lambda shape, dtype: 3300 * shape[3] * shape[4] * model_management.dtype_size(dtype)
                     self.memory_used_decode = lambda shape, dtype: 8000 * shape[3] * shape[4] * (16 * 16) * model_management.dtype_size(dtype)
                 else:  # Wan 2.1 VAE
+                    dim = sd["decoder.head.0.gamma"].shape[0]
                     self.upscale_ratio = (lambda a: max(0, a * 4 - 3), 8, 8)
                     self.upscale_index_formula = (4, 8, 8)
                     self.downscale_ratio = (lambda a: max(0, math.floor((a + 3) / 4)), 8, 8)
                     self.downscale_index_formula = (4, 8, 8)
                     self.latent_dim = 3
                     self.latent_channels = 16
-                    ddconfig = {"dim": 96, "z_dim": self.latent_channels, "dim_mult": [1, 2, 4, 4], "num_res_blocks": 2, "attn_scales": [], "temperal_downsample": [False, True, True], "dropout": 0.0}
+                    ddconfig = {"dim": dim, "z_dim": self.latent_channels, "dim_mult": [1, 2, 4, 4], "num_res_blocks": 2, "attn_scales": [], "temperal_downsample": [False, True, True], "dropout": 0.0}
                     self.first_stage_model = comfy.ldm.wan.vae.WanVAE(**ddconfig)
                     self.working_dtypes = [torch.bfloat16, torch.float16, torch.float32]
                     self.memory_used_encode = lambda shape, dtype: 6000 * shape[3] * shape[4] * model_management.dtype_size(dtype)
@@ -572,6 +587,35 @@ class VAE:
                 self.process_input = lambda audio: audio
                 self.working_dtypes = [torch.float32]
                 self.crop_input = False
+            elif "decoder.22.bias" in sd: # taehv, taew and lighttae
+                self.latent_channels = sd["decoder.1.weight"].shape[1]
+                self.latent_dim = 3
+                self.upscale_ratio = (lambda a: max(0, a * 4 - 3), 16, 16)
+                self.upscale_index_formula = (4, 16, 16)
+                self.downscale_ratio = (lambda a: max(0, math.floor((a + 3) / 4)), 16, 16)
+                self.downscale_index_formula = (4, 16, 16)
+                if self.latent_channels == 48: # Wan 2.2
+                    self.first_stage_model = comfy.taesd.taehv.TAEHV(latent_channels=self.latent_channels, latent_format=None) # taehv doesn't need scaling
+                    self.process_input = lambda image: (_ for _ in ()).throw(NotImplementedError("This light tae doesn't support encoding currently"))
+                    self.process_output = lambda image: image
+                    self.memory_used_decode = lambda shape, dtype: (1800 * (max(1, (shape[-3] ** 0.7 * 0.1)) * shape[-2] * shape[-1] * 16 * 16) * model_management.dtype_size(dtype))
+                elif self.latent_channels == 32 and sd["decoder.22.bias"].shape[0] == 12: # lighttae_hv15
+                    self.first_stage_model = comfy.taesd.taehv.TAEHV(latent_channels=self.latent_channels, latent_format=comfy.latent_formats.HunyuanVideo15)
+                    self.process_input = lambda image: (_ for _ in ()).throw(NotImplementedError("This light tae doesn't support encoding currently"))
+                    self.memory_used_decode = lambda shape, dtype: (1200 * (max(1, (shape[-3] ** 0.7 * 0.05)) * shape[-2] * shape[-1] * 32 * 32) * model_management.dtype_size(dtype))
+                else:
+                    if sd["decoder.1.weight"].dtype == torch.float16: # taehv currently only available in float16, so assume it's not lighttaew2_1 as otherwise state dicts are identical
+                        latent_format=comfy.latent_formats.HunyuanVideo
+                    else:
+                        latent_format=None # lighttaew2_1 doesn't need scaling
+                    self.first_stage_model = comfy.taesd.taehv.TAEHV(latent_channels=self.latent_channels, latent_format=latent_format)
+                    self.process_input = self.process_output = lambda image: image
+                    self.upscale_ratio = (lambda a: max(0, a * 4 - 3), 8, 8)
+                    self.upscale_index_formula = (4, 8, 8)
+                    self.downscale_ratio = (lambda a: max(0, math.floor((a + 3) / 4)), 8, 8)
+                    self.downscale_index_formula = (4, 8, 8)
+                    self.memory_used_encode = lambda shape, dtype: (700 * (max(1, (shape[-3] ** 0.66 * 0.11)) * shape[-2] * shape[-1]) * model_management.dtype_size(dtype))
+                    self.memory_used_decode = lambda shape, dtype: (50 * (max(1, (shape[-3] ** 0.65 * 0.26)) * shape[-2] * shape[-1] * 32 * 32) * model_management.dtype_size(dtype))
             else:
                 logging.warning("WARNING: No VAE weights detected, VAE not initalized.")
                 self.first_stage_model = None
@@ -917,7 +961,12 @@ class CLIPType(Enum):
 def load_clip(ckpt_paths, embedding_directory=None, clip_type=CLIPType.STABLE_DIFFUSION, model_options={}):
     clip_data = []
     for p in ckpt_paths:
-        clip_data.append(comfy.utils.load_torch_file(p, safe_load=True))
+        sd, metadata = comfy.utils.load_torch_file(p, safe_load=True, return_metadata=True)
+        if metadata is not None:
+            quant_metadata = metadata.get("_quantization_metadata", None)
+            if quant_metadata is not None:
+                sd["_quantization_metadata"] = quant_metadata
+        clip_data.append(sd)
     return load_text_encoder_state_dicts(clip_data, embedding_directory=embedding_directory, clip_type=clip_type, model_options=model_options)
 
 
@@ -935,6 +984,10 @@ class TEModel(Enum):
     QWEN25_7B = 11
     BYT5_SMALL_GLYPH = 12
     GEMMA_3_4B = 13
+    MISTRAL3_24B = 14
+    MISTRAL3_24B_PRUNED_FLUX2 = 15
+    QWEN3_4B = 16
+
 
 def detect_te_model(sd):
     if "text_model.encoder.layers.30.mlp.fc1.weight" in sd:
@@ -967,6 +1020,15 @@ def detect_te_model(sd):
         if weight.shape[0] == 512:
             return TEModel.QWEN25_7B
     if "model.layers.0.post_attention_layernorm.weight" in sd:
+        if 'model.layers.0.self_attn.q_norm.weight' in sd:
+            return TEModel.QWEN3_4B
+        weight = sd['model.layers.0.post_attention_layernorm.weight']
+        if weight.shape[0] == 5120:
+            if "model.layers.39.post_attention_layernorm.weight" in sd:
+                return TEModel.MISTRAL3_24B
+            else:
+                return TEModel.MISTRAL3_24B_PRUNED_FLUX2
+
         return TEModel.LLAMA3_8
     return None
 
@@ -1081,6 +1143,13 @@ def load_text_encoder_state_dicts(state_dicts=[], embedding_directory=None, clip
             else:
                 clip_target.clip = comfy.text_encoders.qwen_image.te(**llama_detect(clip_data))
                 clip_target.tokenizer = comfy.text_encoders.qwen_image.QwenImageTokenizer
+        elif te_model == TEModel.MISTRAL3_24B or te_model == TEModel.MISTRAL3_24B_PRUNED_FLUX2:
+            clip_target.clip = comfy.text_encoders.flux.flux2_te(**llama_detect(clip_data), pruned=te_model == TEModel.MISTRAL3_24B_PRUNED_FLUX2)
+            clip_target.tokenizer = comfy.text_encoders.flux.Flux2Tokenizer
+            tokenizer_data["tekken_model"] = clip_data[0].get("tekken_model", None)
+        elif te_model == TEModel.QWEN3_4B:
+            clip_target.clip = comfy.text_encoders.z_image.te(**llama_detect(clip_data))
+            clip_target.tokenizer = comfy.text_encoders.z_image.ZImageTokenizer
         else:
             # clip_l
             if clip_type == CLIPType.SD3:
@@ -1142,6 +1211,8 @@ def load_text_encoder_state_dicts(state_dicts=[], embedding_directory=None, clip
 
     parameters = 0
     for c in clip_data:
+        if "_quantization_metadata" in c:
+            c.pop("_quantization_metadata")
         parameters += comfy.utils.calculate_parameters(c)
         tokenizer_data, model_options = comfy.text_encoders.long_clipl.model_options_long_clip(c, tokenizer_data, model_options)
 
