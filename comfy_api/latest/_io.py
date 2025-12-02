@@ -873,7 +873,7 @@ class DynamicInput(Input, ABC):
     def get_dynamic(self) -> list[Input]:
         return []
 
-    def add_to_dict_live_inputs(self, d: dict[str], live_inputs: dict[str], curr_prefix=''):
+    def add_to_dict_live_inputs(self, d: dict[str, Any], live_inputs: dict[str, Any], curr_prefix=''):
         pass
 
 
@@ -924,7 +924,7 @@ class Autogrow(ComfyTypeI):
         def validate(self):
             self.input.validate()
 
-        def add_to_dict_live_inputs(self, d: dict[str], live_inputs: dict[str], curr_prefix=''):
+        def add_to_dict_live_inputs(self, d: dict[str, Any], live_inputs: dict[str, Any], curr_prefix=''):
             real_inputs = []
             for name, input in self.cached_inputs.items():
                 if name in live_inputs:
@@ -985,7 +985,7 @@ class Autogrow(ComfyTypeI):
         def validate(self):
             self.template.validate()
 
-        def add_to_dict_live_inputs(self, d: dict[str], live_inputs: dict[str], curr_prefix=''):
+        def add_to_dict_live_inputs(self, d: dict[str, Any], live_inputs: dict[str, Any], curr_prefix=''):
             curr_prefix = f"{curr_prefix}{self.id}."
             # need to remove self from expected inputs dictionary; replaced by template inputs in frontend
             for inner_dict in d.values():
@@ -995,7 +995,7 @@ class Autogrow(ComfyTypeI):
 
 @comfytype(io_type="COMFY_DYNAMICCOMBO_V3")
 class DynamicCombo(ComfyTypeI):
-    Type = dict[str]
+    Type = dict[str, Any]
 
     class Option:
         def __init__(self, key: str, inputs: list[Input]):
@@ -1014,7 +1014,7 @@ class DynamicCombo(ComfyTypeI):
             super().__init__(id, display_name, optional, tooltip, lazy, extra_dict)
             self.options = options
 
-        def add_to_dict_live_inputs(self, d: dict[str], live_inputs: dict[str], curr_prefix=''):
+        def add_to_dict_live_inputs(self, d: dict[str, Any], live_inputs: dict[str, Any], curr_prefix=''):
             # check if dynamic input's id is in live_inputs
             if self.id in live_inputs:
                 curr_prefix = f"{curr_prefix}{self.id}."
@@ -1047,7 +1047,7 @@ class DynamicCombo(ComfyTypeI):
 
 @comfytype(io_type="COMFY_DYNAMICSLOT_V3")
 class DynamicSlot(ComfyTypeI):
-    Type = dict[str]
+    Type = dict[str, Any]
 
     class Input(DynamicInput):
         def __init__(self, slot: Input, inputs: list[Input],
@@ -1067,7 +1067,7 @@ class DynamicSlot(ComfyTypeI):
                 self.force_input = True
                 self.slot.force_input = True
 
-        def add_to_dict_live_inputs(self, d: dict[str], live_inputs: dict[str], curr_prefix=''):
+        def add_to_dict_live_inputs(self, d: dict[str, Any], live_inputs: dict[str, Any], curr_prefix=''):
             if self.id in live_inputs:
                 curr_prefix = f"{curr_prefix}{self.id}."
                 add_to_input_dict_v1(d, self.inputs, live_inputs, curr_prefix)
@@ -1091,7 +1091,7 @@ class DynamicSlot(ComfyTypeI):
             for input in self.inputs:
                 input.validate()
 
-def add_dynamic_id_mapping(d: dict[str], inputs: list[Input], curr_prefix: str, self: DynamicInput=None):
+def add_dynamic_id_mapping(d: dict[str, Any], inputs: list[Input], curr_prefix: str, self: DynamicInput=None):
     dynamic = d.setdefault("dynamic_paths", {})
     if self is not None:
         dynamic[self.id] = f"{curr_prefix}{self.id}"
@@ -1100,8 +1100,8 @@ def add_dynamic_id_mapping(d: dict[str], inputs: list[Input], curr_prefix: str, 
             dynamic[f"{i.id}"] = f"{curr_prefix}{i.id}"
 
 class V3Data(TypedDict):
-    hidden_inputs: dict[str]
-    dynamic_paths: dict[str]
+    hidden_inputs: dict[str, Any]
+    dynamic_paths: dict[str, Any]
 
 class HiddenHolder:
     def __init__(self, unique_id: str, prompt: Any,
@@ -1293,7 +1293,7 @@ class Schema:
                 if output.id is None:
                     output.id = f"_{i}_{output.io_type}_"
 
-    def get_v1_info(self, cls, live_inputs: dict[str]=None) -> NodeInfoV1:
+    def get_v1_info(self, cls, live_inputs: dict[str, Any]=None) -> NodeInfoV1:
         # get V1 inputs
         input = create_input_dict_v1(self.inputs, live_inputs)
         if self.hidden:
@@ -1376,14 +1376,14 @@ class Schema:
         return info
 
 
-def create_input_dict_v1(inputs: list[Input], live_inputs: dict[str]=None) -> dict:
+def create_input_dict_v1(inputs: list[Input], live_inputs: dict[str, Any]=None) -> dict:
     input = {
         "required": {}
     }
     add_to_input_dict_v1(input, inputs, live_inputs)
     return input
 
-def add_to_input_dict_v1(d: dict[str], inputs: list[Input], live_inputs: dict[str]=None, curr_prefix=''):
+def add_to_input_dict_v1(d: dict[str, Any], inputs: list[Input], live_inputs: dict[str, Any]=None, curr_prefix=''):
     for i in inputs:
         if isinstance(i, DynamicInput):
             add_to_dict_v1(i, d)
@@ -1406,7 +1406,7 @@ def add_to_dict_v1(i: Input, d: dict, dynamic_dict: dict=None):
 def add_to_dict_v3(io: Input | Output, d: dict):
     d[io.id] = (io.get_io_type(), io.as_dict())
 
-def build_nested_inputs(values: dict[str], v3_data: V3Data):
+def build_nested_inputs(values: dict[str, Any], v3_data: V3Data):
     paths = v3_data.get("dynamic_paths", None)
     if paths is None:
         return values
