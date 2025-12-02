@@ -44,6 +44,9 @@ from protocol import BinaryEventTypes
 # Import cache control middleware
 from middleware.cache_middleware import cache_control
 
+if args.enable_manager:
+    import comfyui_manager
+
 async def send_socket_catch_exception(function, message):
     try:
         await function(message)
@@ -174,7 +177,7 @@ def create_block_external_middleware():
         else:
             response = await handler(request)
 
-        response.headers['Content-Security-Policy'] = "default-src 'self'; script-src 'self' 'unsafe-inline' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; frame-src 'self'; object-src 'self';"
+        response.headers['Content-Security-Policy'] = "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; frame-src 'self'; object-src 'self';"
         return response
 
     return block_external_middleware
@@ -211,6 +214,9 @@ class PromptServer():
 
         if args.disable_api_nodes:
             middlewares.append(create_block_external_middleware())
+
+        if args.enable_manager:
+            middlewares.append(comfyui_manager.create_middleware())
 
         max_upload_size = round(args.max_upload_size * 1024 * 1024)
         self.app = web.Application(client_max_size=max_upload_size, middlewares=middlewares)
@@ -599,7 +605,7 @@ class PromptServer():
 
             system_stats = {
                 "system": {
-                    "os": os.name,
+                    "os": sys.platform,
                     "ram_total": ram_total,
                     "ram_free": ram_free,
                     "comfyui_version": __version__,
