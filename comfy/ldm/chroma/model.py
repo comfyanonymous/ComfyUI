@@ -40,6 +40,7 @@ class ChromaParams:
     out_dim: int
     hidden_dim: int
     n_layers: int
+    txt_ids_dims: list
 
 
 
