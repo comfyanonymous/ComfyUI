@@ -43,6 +43,9 @@ import folder_paths
 import latent_preview
 import node_helpers
 
+if args.enable_manager:
+    import comfyui_manager
+
 def before_node_execution():
     comfy.model_management.throw_exception_if_processing_interrupted()
 
@@ -692,8 +695,10 @@ class LoraLoaderModelOnly(LoraLoader):
         return (self.load_lora(model, None, lora_name, strength_model, 0)[0],)
 
 class VAELoader:
+    video_taes = ["taehv", "lighttaew2_2", "lighttaew2_1", "lighttaehy1_5"]
+    image_taes = ["taesd", "taesdxl", "taesd3", "taef1"]
     @staticmethod
-    def vae_list():
+    def vae_list(s):
         vaes = folder_paths.get_filename_list("vae")
         approx_vaes = folder_paths.get_filename_list("vae_approx")
         sdxl_taesd_enc = False
@@ -722,6 +727,11 @@ class VAELoader:
                 f1_taesd_dec = True
             elif v.startswith("taef1_decoder."):
                 f1_taesd_enc = True
+            else:
+                for tae in s.video_taes:
+                    if v.startswith(tae):
+                        vaes.append(v)
+
         if sd1_taesd_dec and sd1_taesd_enc:
             vaes.append("taesd")
         if sdxl_taesd_dec and sdxl_taesd_enc:
@@ -765,7 +775,7 @@ class VAELoader:
 
     @classmethod
     def INPUT_TYPES(s):
-        return {"required": { "vae_name": (s.vae_list(), )}}
+        return {"required": { "vae_name": (s.vae_list(s), )}}
     RETURN_TYPES = ("VAE",)
     FUNCTION = "load_vae"
 
@@ -776,10 +786,13 @@ class VAELoader:
         if vae_name == "pixel_space":
             sd = {}
             sd["pixel_space_vae"] = torch.tensor(1.0)
-        elif vae_name in ["taesd", "taesdxl", "taesd3", "taef1"]:
+        elif vae_name in self.image_taes:
             sd = self.load_taesd(vae_name)
         else:
-            vae_path = folder_paths.get_full_path_or_raise("vae", vae_name)
+            if os.path.splitext(vae_name)[0] in self.video_taes:
+                vae_path = folder_paths.get_full_path_or_raise("vae_approx", vae_name)
+            else:
+                vae_path = folder_paths.get_full_path_or_raise("vae", vae_name)
             sd = comfy.utils.load_torch_file(vae_path)
         vae = comfy.sd.VAE(sd=sd)
         vae.throw_exception_if_invalid()
@@ -929,7 +942,7 @@ class CLIPLoader:
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "clip_name": (folder_paths.get_filename_list("text_encoders"), ),
-                              "type": (["stable_diffusion", "stable_cascade", "sd3", "stable_audio", "mochi", "ltxv", "pixart", "cosmos", "lumina2", "wan", "hidream", "chroma", "ace", "omnigen2", "qwen_image", "hunyuan_image"], ),
+                              "type": (["stable_diffusion", "stable_cascade", "sd3", "stable_audio", "mochi", "ltxv", "pixart", "cosmos", "lumina2", "wan", "hidream", "chroma", "ace", "omnigen2", "qwen_image", "hunyuan_image", "flux2", "ovis"], ),
                               },
                 "optional": {
                               "device": (["default", "cpu"], {"advanced": True}),
@@ -957,7 +970,7 @@ class DualCLIPLoader:
     def INPUT_TYPES(s):
         return {"required": { "clip_name1": (folder_paths.get_filename_list("text_encoders"), ),
                               "clip_name2": (folder_paths.get_filename_list("text_encoders"), ),
-                              "type": (["sdxl", "sd3", "flux", "hunyuan_video", "hidream", "hunyuan_image"], ),
+                              "type": (["sdxl", "sd3", "flux", "hunyuan_video", "hidream", "hunyuan_image", "hunyuan_video_15"], ),
                               },
                 "optional": {
                               "device": (["default", "cpu"], {"advanced": True}),
@@ -1852,6 +1865,11 @@ class ImageBatch:
     CATEGORY = "image"
 
     def batch(self, image1, image2):
+        if image1.shape[-1] != image2.shape[-1]:
+            if image1.shape[-1] > image2.shape[-1]:
+                image2 = torch.nn.functional.pad(image2, (0,1), mode='constant', value=1.0)
+            else:
+                image1 = torch.nn.functional.pad(image1, (0,1), mode='constant', value=1.0)
         if image1.shape[1:] != image2.shape[1:]:
             image2 = comfy.utils.common_upscale(image2.movedim(-1,1), image1.shape[2], image1.shape[1], "bilinear", "center").movedim(1,-1)
         s = torch.cat((image1, image2), dim=0)
@@ -2228,6 +2246,12 @@ async def init_external_custom_nodes():
             if args.disable_all_custom_nodes and possible_module not in args.whitelist_custom_nodes:
                 logging.info(f"Skipping {possible_module} due to disable_all_custom_nodes and whitelist_custom_nodes")
                 continue
+
+            if args.enable_manager:
+                if comfyui_manager.should_be_disabled(module_path):
+                    logging.info(f"Blocked by policy: {module_path}")
+                    continue
+
             time_before = time.perf_counter()
             success = await load_custom_node(module_path, base_node_names, module_parent="custom_nodes")
             node_import_times.append((time.perf_counter() - time_before, module_path, success))
@@ -2273,6 +2297,7 @@ async def init_builtin_extra_nodes():
         "nodes_images.py",
         "nodes_video_model.py",
         "nodes_train.py",
+        "nodes_dataset.py",
         "nodes_sag.py",
         "nodes_perpneg.py",
         "nodes_stable3d.py",
@@ -2331,6 +2356,8 @@ async def init_builtin_extra_nodes():
         "nodes_audio_encoder.py",
         "nodes_autoregressive.py",
         "nodes_rope.py",
+        "nodes_logic.py",
+        "nodes_nop.py",
     ]
 
     import_failed = []
@@ -2359,6 +2386,7 @@ async def init_builtin_api_nodes():
         "nodes_pika.py",
         "nodes_runway.py",
         "nodes_sora.py",
+        "nodes_topaz.py",
         "nodes_tripo.py",
         "nodes_moonvalley.py",
         "nodes_rodin.py",
