@@ -35,7 +35,7 @@ class DecodeTokens:
         return {
             "required": {
                 "clip": (IO.CLIP, {"tooltip": "The model used for generation."}),
-                "tokens": ("GENERATED_TOKENS", ),}
+                "generated_tokens": ("GENERATED_TOKENS", ),}
         }
 
     FUNCTION = "decode"
