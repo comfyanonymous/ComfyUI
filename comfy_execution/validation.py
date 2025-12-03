@@ -29,6 +29,11 @@ def validate_node_input(
     if received_type == IO.MatchType.io_type or input_type == IO.MatchType.io_type:
         return True
 
+    # This accounts for some custom nodes that output lists of options as the type;
+    # if we ever want to break them on purpose, this can be removed
+    if isinstance(received_type, list) and input_type == IO.Combo.io_type:
+        return True
+
     # Not equal, and not strings
     if not isinstance(received_type, str) or not isinstance(input_type, str):
         return False

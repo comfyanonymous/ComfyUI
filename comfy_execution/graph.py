@@ -6,6 +6,7 @@ import asyncio
 import inspect
 from comfy_execution.graph_utils import is_link, ExecutionBlocker
 from comfy.comfy_types.node_typing import ComfyNodeABC, InputTypeDict, InputTypeOptions
+from comfy_api.latest import IO
 
 # NOTE: ExecutionBlocker code got moved to graph_utils.py to prevent torch being imported too soon during unit tests
 ExecutionBlocker = ExecutionBlocker
@@ -97,6 +98,10 @@ def get_input_info(
         extra_info = input_info[1]
     else:
         extra_info = {}
+    # if input_type is a list, it is a Combo defined in outdated format; convert it
+    if isinstance(input_type, list):
+        extra_info["options"] = input_type
+        input_type = IO.Combo.io_type
     return input_type, input_category, extra_info
 
 class TopologicalSort:

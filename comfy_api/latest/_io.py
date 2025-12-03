@@ -387,10 +387,6 @@ class Combo(ComfyTypeIO):
             super().__init__(id, display_name, tooltip, is_output_list)
             self.options = options if options is not None else []
 
-        @property
-        def io_type(self):
-            return self.options
-
 @comfytype(io_type="COMBO")
 class MultiCombo(ComfyTypeI):
     '''Multiselect Combo input (dropdown for selecting potentially more than one value).'''
