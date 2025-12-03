@@ -1,12 +1,7 @@
 """Unit tests for comfy_execution/jobs.py"""
-import pytest
-from pytest import fixture
-from unittest.mock import MagicMock
 
 from comfy_execution.jobs import (
     JobStatus,
-    PREVIEWABLE_MEDIA_TYPES,
-    THREE_D_EXTENSIONS,
     is_previewable,
     normalize_queue_item,
     normalize_history_item,

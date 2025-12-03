@@ -133,22 +133,16 @@ def get_outputs_summary(outputs):
             for item in items:
                 count += 1
 
-                if preview_output is not None:
-                    continue
-
-                if not is_previewable(media_type, item):
-                    continue
-
-                enriched = {
-                    **item,
-                    'nodeId': node_id,
-                    'mediaType': media_type
-                }
-
-                if item.get('type') == 'output':
-                    preview_output = enriched
-                elif fallback_preview is None:
-                    fallback_preview = enriched
+                if preview_output is None and is_previewable(media_type, item):
+                    enriched = {
+                        **item,
+                        'nodeId': node_id,
+                        'mediaType': media_type
+                    }
+                    if item.get('type') == 'output':
+                        preview_output = enriched
+                    elif fallback_preview is None:
+                        fallback_preview = enriched
 
     return count, preview_output or fallback_preview
 
