@@ -5,7 +5,7 @@ import inspect
 from abc import ABC, abstractmethod
 from collections import Counter
 from collections.abc import Iterable
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from enum import Enum
 from typing import Any, Callable, Literal, TypedDict, TypeVar, TYPE_CHECKING
 from typing_extensions import NotRequired, final
@@ -1210,9 +1210,9 @@ class Schema:
     """Display name of node."""
     category: str = "sd"
     """The category of the node, as per the "Add Node" menu."""
-    inputs: list[Input]=None
-    outputs: list[Output]=None
-    hidden: list[Hidden]=None
+    inputs: list[Input] = field(default_factory=list)
+    outputs: list[Output] = field(default_factory=list)
+    hidden: list[Hidden] = field(default_factory=list)
     description: str=""
     """Node description, shown as a tooltip when hovering over the node."""
     is_input_list: bool = False
