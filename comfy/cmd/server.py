@@ -1161,8 +1161,12 @@ class PromptServer(ExecutorToClientProgress):
             await self.send_image(data, sid=sid)
         elif event == BinaryEventTypes.PREVIEW_IMAGE_WITH_METADATA:
             # data is (preview_image, metadata)
+
             data: PreviewImageWithMetadataMessage
             preview_image, metadata = data
+            if isinstance(preview_image, dict):
+            # todo: this has to be fixed from transformers loader for previewing tokens in real time
+                return
             await self.send_image_with_metadata(preview_image, metadata, sid=sid)
         elif isinstance(data, (bytes, bytearray)):
             await self.send_bytes(event, data, sid)

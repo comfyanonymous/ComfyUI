@@ -46,6 +46,8 @@ def write_atomic(
 
 
 torch._inductor.codecache.write_atomic = write_atomic
+
+
 # torch._inductor.utils.is_big_gpu = lambda *args: True
 
 
@@ -98,7 +100,18 @@ class TorchCompileModel(CustomNode):
                     "make_refittable": True,
                 }
                 del compile_kwargs["mode"]
-            if isinstance(model, (ModelPatcher, TransformersManagedModel, VAE)):
+            if isinstance(model, TransformersManagedModel):
+                to_return = model.clone()
+                model = to_return.model
+
+                model_management.unload_all_models()
+                model.to(device=model_management.get_torch_device())
+                res = torch.compile(model=model, **compile_kwargs),
+                model.to(device=model_management.unet_offload_device())
+
+                to_return.add_object_patch("model", res)
+                return to_return,
+            elif isinstance(model, (ModelPatcher, VAE)):
                 to_return = model.clone()
                 object_patches = [p.strip() for p in object_patch.split(",")]
                 patcher: ModelPatcher

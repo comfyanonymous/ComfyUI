@@ -19,7 +19,7 @@ from transformers import PreTrainedModel, PreTrainedTokenizerBase, ProcessorMixi
 from huggingface_hub import hf_api
 from huggingface_hub.file_download import hf_hub_download
 from transformers.models.auto.modeling_auto import MODEL_FOR_VISION_2_SEQ_MAPPING_NAMES, \
-    MODEL_FOR_SEQ_TO_SEQ_CAUSAL_LM_MAPPING_NAMES, MODEL_FOR_CAUSAL_LM_MAPPING_NAMES
+    MODEL_FOR_SEQ_TO_SEQ_CAUSAL_LM_MAPPING_NAMES, MODEL_FOR_CAUSAL_LM_MAPPING_NAMES, AutoModelForImageTextToText
 
 from .chat_templates import KNOWN_CHAT_TEMPLATES
 from .language_types import ProcessorResult, TOKENS_TYPE, GENERATION_KWARGS_TYPE, TransformerStreamedProgress, \
@@ -122,7 +122,7 @@ class TransformersManagedModel(ModelManageableStub, LanguageModel):
             for i, kwargs_to_try in enumerate(kwargses_to_try):
                 try:
                     if model_type in MODEL_FOR_VISION_2_SEQ_MAPPING_NAMES:
-                        model = AutoModelForVision2Seq.from_pretrained(**from_pretrained_kwargs, **kwargs_to_try)
+                        model = AutoModelForImageTextToText.from_pretrained(**from_pretrained_kwargs, **kwargs_to_try)
                     elif model_type in MODEL_FOR_SEQ_TO_SEQ_CAUSAL_LM_MAPPING_NAMES:
                         model = AutoModelForSeq2SeqLM.from_pretrained(**from_pretrained_kwargs, **kwargs_to_try)
                     elif model_type in _OVERRIDDEN_MODEL_FOR_CAUSAL_LM_MAPPING_NAMES:
@@ -176,7 +176,6 @@ class TransformersManagedModel(ModelManageableStub, LanguageModel):
 
     def generate(self, tokens: TOKENS_TYPE = None,
                  max_new_tokens: int = 512,
-                 repetition_penalty: float = 0.0,
                  seed: int = 0,
                  sampler: Optional[GENERATION_KWARGS_TYPE] = None,
                  *args,
@@ -257,7 +256,6 @@ class TransformersManagedModel(ModelManageableStub, LanguageModel):
                     **inputs,
                     streamer=text_streamer if num_beams <= 1 else None,
                     max_new_tokens=max_new_tokens,
-                    repetition_penalty=repetition_penalty if repetition_penalty != 0 else None,
                     **generate_kwargs
                 )
 
@@ -364,7 +362,7 @@ class TransformersManagedModel(ModelManageableStub, LanguageModel):
         if processor is not None and hasattr(processor, "image_processor") and hasattr(processor.image_processor, "do_rescale"):
             processor.image_processor.do_rescale = False
 
-    def tokenize(self, prompt: str | LanguagePrompt, images: RGBImageBatch | None, chat_template: str | None = None) -> ProcessorResult:
+    def tokenize(self, prompt: str | LanguagePrompt, images: RGBImageBatch | None, videos: list[torch.Tensor] | None = None, chat_template: str | None = None) -> ProcessorResult:
         tokenizer = self.processor if self.processor is not None else self.tokenizer
         assert tokenizer is not None
         assert hasattr(tokenizer, "decode")
@@ -391,16 +389,18 @@ class TransformersManagedModel(ModelManageableStub, LanguageModel):
                 messages: LanguagePrompt
                 if isinstance(prompt, list) and len(prompt) > 0 and isinstance(prompt[0], dict):
                     messages = prompt
-                elif "content[" in chat_template:
+                elif images is not None and len(images) > 0 or videos is not None and len(videos) > 0:
                     messages = [
                         {"role": "user",
                          "content": [
                                         {
                                             "type": "text",
-                                            "text": prompt
+                                            "text": prompt if isinstance(prompt, str) else ""
                                         }
                                     ] + [
                                         {"type": "image"} for _ in range(len(images))
+                                    ] + [
+                                        {"type": "video"} for _ in range(len(videos))
                                     ]
 
                          }
@@ -409,6 +409,7 @@ class TransformersManagedModel(ModelManageableStub, LanguageModel):
                     messages = [
                         {"role": "user", "content": prompt},
                     ]
+
                 prompt = tokenizer.apply_chat_template(messages, chat_template=chat_template, add_generation_prompt=True, tokenize=False)
         except Exception as exc:
             logger.debug("Could not apply chat template", exc_info=exc)
@@ -422,7 +423,14 @@ class TransformersManagedModel(ModelManageableStub, LanguageModel):
             # convert tuple to list from images.unbind() for paligemma workaround
             image_tensor_list = list(images.unbind()) if images is not None and len(images) > 0 else None
             try:
-                batch_feature: BatchFeature = self.processor(text=[prompt], images=image_tensor_list, return_tensors="pt", padding=True)
+                batch_feature: BatchFeature = self.processor(
+                    text=[prompt],
+                    images=image_tensor_list,
+                    videos=None if videos is not None and len(videos) == 0 or (hasattr(videos, "shape") and videos.shape[0]) == 0 else videos,
+                    return_tensors="pt",
+                    padding=True,
+                    input_data_format="channels_last"  # Ensure this is set for Qwen
+                )
             except TypeError as exc_info:
                 logger.warning(f"Exception while trying to run processor. Your transformers package is version {transformers.__version__} and may need to be updated")
                 raise exc_info

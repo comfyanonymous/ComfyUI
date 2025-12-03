@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import operator
 import os.path
+import re
 from abc import ABC, abstractmethod
 from functools import reduce
 from typing import Optional, List
@@ -332,6 +333,7 @@ class OneShotInstructTokenize(CustomNode):
             },
             "optional": {
                 "images": ("IMAGE", {}),
+                "videos": ("VIDEO", {}),
                 "system_prompt": ("STRING", {"multiline": True, "default": ""})
             }
         }
@@ -340,9 +342,8 @@ class OneShotInstructTokenize(CustomNode):
     RETURN_TYPES = (TOKENS_TYPE_NAME,)
     FUNCTION = "execute"
 
-    def execute(self, model: LanguageModel, prompt: str, images: List[torch.Tensor] | torch.Tensor = None, chat_template: Optional[str] = _AUTO_CHAT_TEMPLATE, system_prompt: str = "") -> ValidatedNodeResult:
+    def execute(self, model: LanguageModel, prompt: str, images: List[torch.Tensor] | torch.Tensor = None, videos: list | object = None, chat_template: Optional[str] = _AUTO_CHAT_TEMPLATE, system_prompt: str = "") -> ValidatedNodeResult:
         if chat_template == _AUTO_CHAT_TEMPLATE:
-            # use an exact match
             model_name = os.path.basename(model.repo_id)
             if model_name in KNOWN_CHAT_TEMPLATES:
                 chat_template = KNOWN_CHAT_TEMPLATES[model_name]
@@ -351,22 +352,43 @@ class OneShotInstructTokenize(CustomNode):
         elif chat_template is not None:
             chat_template = KNOWN_CHAT_TEMPLATES[chat_template]
 
+        video_tensors = []
+        if videos is not None:
+            if not isinstance(videos, list):
+                videos_list = [videos]
+            else:
+                videos_list = videos
+
+            for vid in videos_list:
+                if hasattr(vid, "get_components"):
+                    components = vid.get_components()
+                    video_tensors.append(components.images)
+                elif isinstance(vid, torch.Tensor):
+                    video_tensors.append(vid)
+
         messages: LanguagePrompt | str
-        if system_prompt != "":
-            messages: LanguagePrompt = [
-                {"role": "system",
-                 "content": system_prompt},
-                {"role": "user",
-                 "content": [
-                                {"type": "text",
-                                 "text": prompt}
-                            ] + [
-                                {"type": "image"} for _ in range(len(images) if images is not None else 0)
-                            ], }
+
+        has_images = images is not None and len(images) > 0
+        has_videos = len(video_tensors) > 0
+
+        if system_prompt != "" or has_images or has_videos:
+            user_content = [{"type": "text", "text": prompt}]
+            if has_images:
+                user_content += [{"type": "image"} for _ in range(len(images))]
+
+            if has_videos:
+                user_content += [{"type": "video"} for _ in range(len(video_tensors))]
+
+            messages = [
+                {"role": "user", "content": user_content}
             ]
+
+            if system_prompt.strip() != "":
+                messages.insert(0, {"role": "system", "content": system_prompt})
         else:
-            messages: str = prompt
-        return model.tokenize(messages, images, chat_template),
+            messages = prompt
+
+        return model.tokenize(messages, images, video_tensors, chat_template),
 
 
 class TransformersGenerate(CustomNode):
@@ -376,8 +398,7 @@ class TransformersGenerate(CustomNode):
             "required": {
                 "model": ("MODEL",),
                 "tokens": (TOKENS_TYPE_NAME, {}),
-                "max_new_tokens": ("INT", {"default": 512, "min": 1}),
-                "repetition_penalty": ("FLOAT", {"default": 0.0, "min": 0}),
+                "max_new_tokens": ("INT", {"default": 512, "min": 1, "max": 0xffffffff}),
                 "seed": Seed,
             },
             "optional": {
@@ -393,11 +414,10 @@ class TransformersGenerate(CustomNode):
                 model: Optional[LanguageModel] = None,
                 tokens: TOKENS_TYPE = None,
                 max_new_tokens: int = 512,
-                repetition_penalty: float = 0.0,
                 seed: int = 0,
                 sampler: Optional[GENERATION_KWARGS_TYPE] = None,
                 ):
-        return model.generate(tokens, max_new_tokens, repetition_penalty, seed, sampler),
+        return model.generate(tokens, max_new_tokens, seed, sampler),
 
 
 class PreviewString(CustomNode):
@@ -427,7 +447,7 @@ class SaveString(CustomNode):
                 "filename_prefix": ("STRING", {"default": "ComfyUI", "tooltip": "The prefix for the file to save. This may include formatting information such as %date:yyyy-MM-dd% or %Empty Latent Image.width% to include values from nodes."})
             },
             "optional": {
-                "extension": ("STRING", {"default": ".json"})
+                "extension": ("STRING", {"default": ".txt"})
             }
         }
 
@@ -439,16 +459,52 @@ class SaveString(CustomNode):
     def get_save_path(self, filename_prefix) -> SaveImagePathTuple:
         return folder_paths.get_save_image_path(filename_prefix, folder_paths.get_output_directory(), 0, 0)
 
-    def execute(self, value: str | list[str], filename_prefix: str, extension: str = ".json"):
+    def execute(self, value: str | list[str] = "", filename_prefix: str = "ComfyUI", extension: str = ".txt"):
         full_output_folder, filename, counter, subfolder, filename_prefix = self.get_save_path(filename_prefix)
         if isinstance(value, str):
             value = [value]
 
         for i, value_i in enumerate(value):
             # roughly matches the behavior of save image, but does not support batch numbers
-            with open(os.path.join(full_output_folder, f"{filename}_{counter:05d}_{extension}" if len(value) == 1 else f"{filename}_{counter:05d}_{i:02d}_{extension}"), "wt+") as f:
+            with open(os.path.join(full_output_folder, f"{filename}_{counter:05d}{extension}" if len(value) == 1 else f"{filename}_{counter:05d}_{i:02d}{extension}"), "wt+") as f:
                 f.write(value_i)
         return {"ui": {"string": value}}
+
+
+class OmitThink(CustomNode):
+    @classmethod
+    def INPUT_TYPES(cls) -> InputTypes:
+        return {
+            "required": {
+                "value": ("STRING", {"forceInput": True}),
+            },
+        }
+
+    CATEGORY = "strings"
+    FUNCTION = "execute"
+    OUTPUT_NODE = True
+    RETURN_TYPES = ("STRING",)
+
+    def execute(self, value: str | list[str] = "") -> tuple[list[str]]:
+        pattern_explicit = r"<think>.*?</think>"
+        pattern_missing_start = r"^.*?</think>"
+
+        if isinstance(value, str):
+            values = [value]
+        else:
+            values = value
+
+        result = []
+        for value in values:
+            if "<think>" in value:
+                cleaned_text = re.sub(pattern_explicit, "", value, flags=re.DOTALL)
+            elif "</think>" in value:
+                cleaned_text = re.sub(pattern_missing_start, "", value, flags=re.DOTALL)
+            else:
+                cleaned_text = value
+            result.append(cleaned_text.strip())
+
+        return result,
 
 
 export_custom_nodes()

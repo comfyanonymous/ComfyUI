@@ -92,14 +92,13 @@ class LanguageModel(Protocol):
 
     def generate(self, tokens: TOKENS_TYPE = None,
                  max_new_tokens: int = 512,
-                 repetition_penalty: float = 0.0,
                  seed: int = 0,
                  sampler: Optional[GENERATION_KWARGS_TYPE] = None,
                  *args,
                  **kwargs) -> str:
         ...
 
-    def tokenize(self, prompt: str | LanguagePrompt, images: RGBImageBatch | None, chat_template: str | None = None) -> ProcessorResult:
+    def tokenize(self, prompt: str | LanguagePrompt, images: RGBImageBatch | None, videos: list[torch.Tensor] | None, chat_template: str | None = None) -> ProcessorResult:
         ...
 
     @property
