@@ -1004,6 +1004,7 @@ class Autogrow(ComfyTypeI):
             curr_prefix = handle_prefix(curr_prefix, self.id)
             # need to remove self from expected inputs dictionary; replaced by template inputs in frontend
             for inner_dict in d.values():
+                # TODO: once frontend is ready, replace self.id with finalize_prefix(curr_prefix, self.id)
                 if self.id in inner_dict:
                     del inner_dict[self.id]
             self.template.expand_schema_for_dynamic(d, live_inputs, curr_prefix)
@@ -1031,9 +1032,10 @@ class DynamicCombo(ComfyTypeI):
 
         def expand_schema_for_dynamic(self, d: dict[str, Any], live_inputs: dict[str, Any], curr_prefix: list[str] | None=None):
             # check if dynamic input's id is in live_inputs
-            if self.id in live_inputs:
-                curr_prefix = handle_prefix(curr_prefix, self.id)
-                key = live_inputs[self.id]
+            curr_prefix = handle_prefix(curr_prefix, self.id)
+            finalized_id = finalize_prefix(curr_prefix)
+            if finalized_id in live_inputs:
+                key = live_inputs[finalized_id]
                 selected_option = None
                 for option in self.options:
                     if option.key == key:
@@ -1111,8 +1113,13 @@ def add_dynamic_id_mapping(d: dict[str, Any], inputs: list[Input], curr_prefix: 
     if self is not None:
         dynamic[finalize_prefix(curr_prefix[:-1], self.id)] = finalize_prefix(curr_prefix, self.id)
     for i in inputs:
-        # if not isinstance(i, DynamicInput):
-        dynamic[finalize_prefix(curr_prefix, i.id)] = finalize_prefix(curr_prefix, i.id)
+        if not isinstance(i, DynamicInput):
+            dynamic[finalize_prefix(curr_prefix, i.id)] = finalize_prefix(curr_prefix, i.id)
+
+def add_to_dynamic_dict(dynamic: dict[str, Any], curr_prefix: list[str], id: str, value: str):
+    finalize_key = finalize_prefix(curr_prefix, id)
+    if finalize_key not in dynamic:
+        dynamic[finalize_key] = value
 
 class V3Data(TypedDict):
     hidden_inputs: dict[str, Any]

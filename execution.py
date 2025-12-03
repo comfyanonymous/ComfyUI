@@ -756,6 +756,7 @@ async def validate_inputs(prompt_id, prompt, item, validated):
     validate_function_inputs = []
     validate_has_kwargs = False
     if issubclass(obj_class, _ComfyNodeInternal):
+        obj_class: _io._ComfyNodeBaseInternal
         class_inputs, _, _ = obj_class.INPUT_TYPES(include_hidden=False, return_schema=True, live_inputs=inputs)
         validate_function_name = "validate_inputs"
         validate_function = first_real_override(obj_class, validate_function_name)
