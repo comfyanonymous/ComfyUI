@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 import random
+import uuid
 from io import BytesIO
 from typing import Type
 
@@ -436,9 +437,19 @@ class PreviewUI3D(_UIOutput):
     def __init__(self, model_file, camera_info, **kwargs):
         self.model_file = model_file
         self.camera_info = camera_info
+        self.bg_image_path = None
+        bg_image = kwargs.get("bg_image", None)
+        if bg_image is not None:
+            img_array = (bg_image[0].cpu().numpy() * 255).astype(np.uint8)
+            img = PILImage.fromarray(img_array)
+            temp_dir = folder_paths.get_temp_directory()
+            filename = f"bg_{uuid.uuid4().hex}.png"
+            bg_image_path = os.path.join(temp_dir, filename)
+            img.save(bg_image_path, compress_level=1)
+            self.bg_image_path = f"temp/{filename}"
 
     def as_dict(self):
-        return {"result": [self.model_file, self.camera_info]}
+        return {"result": [self.model_file, self.camera_info, self.bg_image_path]}
 
 
 class PreviewText(_UIOutput):

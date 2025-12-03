@@ -2,22 +2,18 @@ import nodes
 import folder_paths
 import os
 
-from comfy.comfy_types import IO
-from comfy_api.input_impl import VideoFromFile
+from typing_extensions import override
+from comfy_api.latest import IO, ComfyExtension, InputImpl, UI
 
 from pathlib import Path
 
-from PIL import Image
-import numpy as np
-
-import uuid
 
 def normalize_path(path):
     return path.replace('\\', '/')
 
-class Load3D():
+class Load3D(IO.ComfyNode):
     @classmethod
-    def INPUT_TYPES(s):
+    def define_schema(cls):
         input_dir = os.path.join(folder_paths.get_input_directory(), "3d")
 
         os.makedirs(input_dir, exist_ok=True)
@@ -30,23 +26,29 @@ class Load3D():
             for file_path in input_path.rglob("*")
             if file_path.suffix.lower() in {'.gltf', '.glb', '.obj', '.fbx', '.stl'}
         ]
+        return IO.Schema(
+            node_id="Load3D",
+            display_name="Load 3D & Animation",
+            category="3d",
+            is_experimental=True,
+            inputs=[
+                IO.Combo.Input("model_file", options=sorted(files), upload=IO.UploadType.model),
+                IO.Load3D.Input("image"),
+                IO.Int.Input("width", default=1024, min=1, max=4096, step=1),
+                IO.Int.Input("height", default=1024, min=1, max=4096, step=1),
+            ],
+            outputs=[
+                IO.Image.Output(display_name="image"),
+                IO.Mask.Output(display_name="mask"),
+                IO.String.Output(display_name="mesh_path"),
+                IO.Image.Output(display_name="normal"),
+                IO.Load3DCamera.Output(display_name="camera_info"),
+                IO.Video.Output(display_name="recording_video"),
+            ],
+        )
 
-        return {"required": {
-            "model_file": (sorted(files), {"file_upload": True}),
-            "image": ("LOAD_3D", {}),
-            "width": ("INT", {"default": 1024, "min": 1, "max": 4096, "step": 1}),
-            "height": ("INT", {"default": 1024, "min": 1, "max": 4096, "step": 1}),
-        }}
-
-    RETURN_TYPES = ("IMAGE", "MASK", "STRING", "IMAGE", "LOAD3D_CAMERA", IO.VIDEO)
-    RETURN_NAMES = ("image", "mask", "mesh_path", "normal", "camera_info", "recording_video")
-
-    FUNCTION = "process"
-    EXPERIMENTAL = True
-
-    CATEGORY = "3d"
-
-    def process(self, model_file, image, **kwargs):
+    @classmethod
+    def execute(cls, model_file, image, **kwargs) -> IO.NodeOutput:
         image_path = folder_paths.get_annotated_filepath(image['image'])
         mask_path = folder_paths.get_annotated_filepath(image['mask'])
         normal_path = folder_paths.get_annotated_filepath(image['normal'])
@@ -61,58 +63,47 @@ class Load3D():
         if image['recording'] != "":
             recording_video_path = folder_paths.get_annotated_filepath(image['recording'])
 
-            video = VideoFromFile(recording_video_path)
+            video = InputImpl.VideoFromFile(recording_video_path)
 
-        return output_image, output_mask, model_file, normal_image, image['camera_info'], video
+        return IO.NodeOutput(output_image, output_mask, model_file, normal_image, image['camera_info'], video)
 
-class Preview3D():
+    process = execute  # TODO: remove
+
+
+class Preview3D(IO.ComfyNode):
     @classmethod
-    def INPUT_TYPES(s):
-        return {"required": {
-            "model_file": ("STRING", {"default": "", "multiline": False}),
-        },
-        "optional": {
-            "camera_info": ("LOAD3D_CAMERA", {}),
-            "bg_image": ("IMAGE", {})
-        }}
+    def define_schema(cls):
+        return IO.Schema(
+            node_id="Preview3D",
+            display_name="Preview 3D & Animation",
+            category="3d",
+            is_experimental=True,
+            is_output_node=True,
+            inputs=[
+                IO.String.Input("model_file", default="", multiline=False),
+                IO.Load3DCamera.Input("camera_info", optional=True),
+                IO.Image.Input("bg_image", optional=True),
+            ],
+            outputs=[],
+        )
 
-    OUTPUT_NODE = True
-    RETURN_TYPES = ()
-
-    CATEGORY = "3d"
-
-    FUNCTION = "process"
-    EXPERIMENTAL = True
-
-    def process(self, model_file, **kwargs):
+    @classmethod
+    def execute(cls, model_file, **kwargs) -> IO.NodeOutput:
         camera_info = kwargs.get("camera_info", None)
         bg_image = kwargs.get("bg_image", None)
+        return IO.NodeOutput(ui=UI.PreviewUI3D(model_file, camera_info, bg_image=bg_image))
 
-        bg_image_path = None
-        if bg_image is not None:
+    process = execute  # TODO: remove
 
-            img_array = (bg_image[0].cpu().numpy() * 255).astype(np.uint8)
-            img = Image.fromarray(img_array)
 
-            temp_dir = folder_paths.get_temp_directory()
-            filename = f"bg_{uuid.uuid4().hex}.png"
-            bg_image_path = os.path.join(temp_dir, filename)
-            img.save(bg_image_path, compress_level=1)
+class Load3DExtension(ComfyExtension):
+    @override
+    async def get_node_list(self) -> list[type[IO.ComfyNode]]:
+        return [
+            Load3D,
+            Preview3D,
+        ]
 
-            bg_image_path = f"temp/{filename}"
 
-        return {
-            "ui": {
-                "result": [model_file, camera_info, bg_image_path]
-            }
-        }
-
-NODE_CLASS_MAPPINGS = {
-    "Load3D": Load3D,
-    "Preview3D": Preview3D,
-}
-
-NODE_DISPLAY_NAME_MAPPINGS = {
-    "Load3D": "Load 3D & Animation",
-    "Preview3D": "Preview 3D & Animation",
-}
+async def comfy_entrypoint() -> Load3DExtension:
+    return Load3DExtension()
