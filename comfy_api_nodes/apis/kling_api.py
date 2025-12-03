@@ -46,21 +46,41 @@ class TaskStatusVideoResult(BaseModel):
     url: str | None = Field(None, description="URL for generated video")
 
 
-class TaskStatusVideoResults(BaseModel):
+class TaskStatusImageResult(BaseModel):
+    index: int = Field(..., description="Image Number，0-9")
+    url: str = Field(..., description="URL for generated image")
+
+
+class OmniTaskStatusResults(BaseModel):
     videos: list[TaskStatusVideoResult] | None = Field(None)
+    images: list[TaskStatusImageResult] | None = Field(None)
 
 
-class TaskStatusVideoResponseData(BaseModel):
+class OmniTaskStatusResponseData(BaseModel):
     created_at: int | None = Field(None, description="Task creation time")
     updated_at: int | None = Field(None, description="Task update time")
     task_status: str | None = None
     task_status_msg: str | None = Field(None, description="Additional failure reason. Only for polling endpoint.")
     task_id: str | None = Field(None, description="Task ID")
-    task_result: TaskStatusVideoResults | None = Field(None)
+    task_result: OmniTaskStatusResults | None = Field(None)
 
 
-class TaskStatusVideoResponse(BaseModel):
+class OmniTaskStatusResponse(BaseModel):
     code: int | None = Field(None, description="Error code")
     message: str | None = Field(None, description="Error message")
     request_id: str | None = Field(None, description="Request ID")
-    data: TaskStatusVideoResponseData | None = Field(None)
+    data: OmniTaskStatusResponseData | None = Field(None)
+
+
+class OmniImageParamImage(BaseModel):
+    image: str = Field(...)
+
+
+class OmniProImageRequest(BaseModel):
+    model_name: str = Field(..., description="kling-image-o1")
+    resolution: str = Field(..., description="'1k' or '2k'")
+    aspect_ratio: str | None = Field(...)
+    prompt: str = Field(...)
+    mode: str = Field("pro")
+    n: int | None = Field(1, le=9)
+    image_list: list[OmniImageParamImage] | None = Field(..., max_length=10)
