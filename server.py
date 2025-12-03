@@ -633,7 +633,31 @@ class PromptServer():
 
         @routes.get("/features")
         async def get_features(request):
-            return web.json_response(feature_flags.get_server_features())
+            features = feature_flags.get_server_features()
+            
+            try:
+                from api_schemas.validation import get_schema_info
+                features["schema_validation"] = get_schema_info()
+            except ImportError:
+                features["schema_validation"] = {
+                    "jsonschema_available": False,
+                    "schema_loaded": False
+                }
+            
+            return web.json_response(features)
+
+        @routes.get("/schema/prompt")
+        async def get_prompt_schema(request):
+            """Serve the JSON Schema for the prompt API format"""
+            schema_path = os.path.join(os.path.dirname(__file__), "api_schemas", "prompt_format.json")
+            try:
+                with open(schema_path, 'r', encoding='utf-8') as f:
+                    schema = json.load(f)
+                return web.json_response(schema)
+            except FileNotFoundError:
+                return web.json_response({"error": "Schema file not found"}, status=404)
+            except json.JSONDecodeError as e:
+                return web.json_response({"error": f"Invalid schema file: {str(e)}"}, status=500)
 
         @routes.get("/prompt")
         async def get_prompt(request):
@@ -726,6 +750,26 @@ class PromptServer():
         async def post_prompt(request):
             logging.info("got prompt")
             json_data =  await request.json()
+            
+            # Optional JSON Schema validation
+            validate_schema = request.rel_url.query.get('validate_schema', 'false').lower() == 'true'
+            if validate_schema:
+                try:
+                    from api_schemas.validation import validate_prompt_format
+                    is_valid, error_msg = validate_prompt_format(json_data, warn_only=False)
+                    if not is_valid:
+                        error = {
+                            "type": "schema_validation_failed",
+                            "message": "Request does not conform to prompt API schema",
+                            "details": error_msg,
+                            "extra_info": {
+                                "schema_url": "/schema/prompt"
+                            }
+                        }
+                        return web.json_response({"error": error, "node_errors": {}}, status=400)
+                except ImportError:
+                    logging.warning("Schema validation requested but validation module not available")
+            
             json_data = self.trigger_on_prompt(json_data)
 
             if "number" in json_data:
