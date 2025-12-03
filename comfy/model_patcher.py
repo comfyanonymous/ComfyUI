@@ -704,7 +704,7 @@ class ModelPatcher:
 
                 lowvram_weight = False
 
-                potential_offload = max(offload_buffer, module_offload_mem * (comfy.model_management.NUM_STREAMS + 1))
+                potential_offload = max(offload_buffer, module_offload_mem + (comfy.model_management.NUM_STREAMS * module_mem))
                 lowvram_fits = mem_counter + module_mem + potential_offload < lowvram_model_memory
 
                 weight_key = "{}.weight".format(n)
@@ -883,7 +883,7 @@ class ModelPatcher:
                     break
                 module_offload_mem, module_mem, n, m, params = unload
 
-                potential_offload = (comfy.model_management.NUM_STREAMS + 1) * module_offload_mem
+                potential_offload = module_offload_mem + (comfy.model_management.NUM_STREAMS * module_mem)
 
                 lowvram_possible = hasattr(m, "comfy_cast_weights")
                 if hasattr(m, "comfy_patched_weights") and m.comfy_patched_weights == True:
