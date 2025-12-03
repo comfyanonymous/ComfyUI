@@ -7,6 +7,7 @@ import time
 import nodes
 import folder_paths
 import execution
+from comfy_execution.jobs import JobStatus
 import uuid
 import urllib
 import json
@@ -703,7 +704,7 @@ class PromptServer():
             status_filter = None
             if status_param:
                 status_filter = [s.strip() for s in status_param.split(',') if s.strip()]
-                valid_statuses = {'pending', 'in_progress', 'completed', 'error'}
+                valid_statuses = set(JobStatus.ALL)
                 status_filter = [s for s in status_filter if s in valid_statuses]
                 if not status_filter:
                     status_filter = None

@@ -1,0 +1,331 @@
+"""Unit tests for comfy_execution/jobs.py"""
+import pytest
+from pytest import fixture
+from unittest.mock import MagicMock
+
+from comfy_execution.jobs import (
+    JobStatus,
+    PREVIEWABLE_MEDIA_TYPES,
+    THREE_D_EXTENSIONS,
+    is_previewable,
+    normalize_queue_item,
+    normalize_history_item,
+    get_outputs_summary,
+    apply_sorting,
+)
+
+
+class TestJobStatus:
+    """Test JobStatus constants."""
+
+    def test_status_values(self):
+        """Status constants should have expected string values."""
+        assert JobStatus.PENDING == 'pending'
+        assert JobStatus.IN_PROGRESS == 'in_progress'
+        assert JobStatus.COMPLETED == 'completed'
+        assert JobStatus.ERROR == 'error'
+
+    def test_all_contains_all_statuses(self):
+        """ALL should contain all status values."""
+        assert JobStatus.PENDING in JobStatus.ALL
+        assert JobStatus.IN_PROGRESS in JobStatus.ALL
+        assert JobStatus.COMPLETED in JobStatus.ALL
+        assert JobStatus.ERROR in JobStatus.ALL
+        assert len(JobStatus.ALL) == 4
+
+
+class TestIsPreviewable:
+    """Unit tests for is_previewable()"""
+
+    def test_previewable_media_types(self):
+        """Images, video, audio media types should be previewable."""
+        for media_type in ['images', 'video', 'audio']:
+            assert is_previewable(media_type, {}) is True
+
+    def test_non_previewable_media_types(self):
+        """Other media types should not be previewable."""
+        for media_type in ['latents', 'text', 'metadata', 'files']:
+            assert is_previewable(media_type, {}) is False
+
+    def test_3d_extensions_previewable(self):
+        """3D file extensions should be previewable regardless of media_type."""
+        for ext in ['.obj', '.fbx', '.gltf', '.glb']:
+            item = {'filename': f'model{ext}'}
+            assert is_previewable('files', item) is True
+
+    def test_3d_extensions_case_insensitive(self):
+        """3D extension check should be case insensitive."""
+        item = {'filename': 'MODEL.GLB'}
+        assert is_previewable('files', item) is True
+
+    def test_video_format_previewable(self):
+        """Items with video/ format should be previewable."""
+        item = {'format': 'video/mp4'}
+        assert is_previewable('files', item) is True
+
+    def test_audio_format_previewable(self):
+        """Items with audio/ format should be previewable."""
+        item = {'format': 'audio/wav'}
+        assert is_previewable('files', item) is True
+
+    def test_other_format_not_previewable(self):
+        """Items with other format should not be previewable."""
+        item = {'format': 'application/json'}
+        assert is_previewable('files', item) is False
+
+
+class TestGetOutputsSummary:
+    """Unit tests for get_outputs_summary()"""
+
+    def test_empty_outputs(self):
+        """Empty outputs should return 0 count and None preview."""
+        count, preview = get_outputs_summary({})
+        assert count == 0
+        assert preview is None
+
+    def test_counts_across_multiple_nodes(self):
+        """Outputs from multiple nodes should all be counted."""
+        outputs = {
+            'node1': {'images': [{'filename': 'a.png', 'type': 'output'}]},
+            'node2': {'images': [{'filename': 'b.png', 'type': 'output'}]},
+            'node3': {'images': [
+                {'filename': 'c.png', 'type': 'output'},
+                {'filename': 'd.png', 'type': 'output'}
+            ]}
+        }
+        count, preview = get_outputs_summary(outputs)
+        assert count == 4
+
+    def test_skips_animated_key_and_non_list_values(self):
+        """The 'animated' key and non-list values should be skipped."""
+        outputs = {
+            'node1': {
+                'images': [{'filename': 'test.png', 'type': 'output'}],
+                'animated': [True],  # Should skip due to key name
+                'metadata': 'string',  # Should skip due to non-list
+                'count': 42  # Should skip due to non-list
+            }
+        }
+        count, preview = get_outputs_summary(outputs)
+        assert count == 1
+
+    def test_preview_prefers_type_output(self):
+        """Items with type='output' should be preferred for preview."""
+        outputs = {
+            'node1': {
+                'images': [
+                    {'filename': 'temp.png', 'type': 'temp'},
+                    {'filename': 'output.png', 'type': 'output'}
+                ]
+            }
+        }
+        count, preview = get_outputs_summary(outputs)
+        assert count == 2
+        assert preview['filename'] == 'output.png'
+
+    def test_preview_fallback_when_no_output_type(self):
+        """If no type='output', should use first previewable."""
+        outputs = {
+            'node1': {
+                'images': [
+                    {'filename': 'temp1.png', 'type': 'temp'},
+                    {'filename': 'temp2.png', 'type': 'temp'}
+                ]
+            }
+        }
+        count, preview = get_outputs_summary(outputs)
+        assert preview['filename'] == 'temp1.png'
+
+    def test_non_previewable_media_types_counted_but_no_preview(self):
+        """Non-previewable media types should be counted but not used as preview."""
+        outputs = {
+            'node1': {
+                'latents': [
+                    {'filename': 'latent1.safetensors'},
+                    {'filename': 'latent2.safetensors'}
+                ]
+            }
+        }
+        count, preview = get_outputs_summary(outputs)
+        assert count == 2
+        assert preview is None
+
+    def test_previewable_media_types(self):
+        """Images, video, and audio media types should be previewable."""
+        for media_type in ['images', 'video', 'audio']:
+            outputs = {
+                'node1': {
+                    media_type: [{'filename': 'test.file', 'type': 'output'}]
+                }
+            }
+            count, preview = get_outputs_summary(outputs)
+            assert preview is not None, f"{media_type} should be previewable"
+
+    def test_3d_files_previewable(self):
+        """3D file extensions should be previewable."""
+        for ext in ['.obj', '.fbx', '.gltf', '.glb']:
+            outputs = {
+                'node1': {
+                    'files': [{'filename': f'model{ext}', 'type': 'output'}]
+                }
+            }
+            count, preview = get_outputs_summary(outputs)
+            assert preview is not None, f"3D file {ext} should be previewable"
+
+    def test_format_mime_type_previewable(self):
+        """Files with video/ or audio/ format should be previewable."""
+        for fmt in ['video/x-custom', 'audio/x-custom']:
+            outputs = {
+                'node1': {
+                    'files': [{'filename': 'file.custom', 'format': fmt, 'type': 'output'}]
+                }
+            }
+            count, preview = get_outputs_summary(outputs)
+            assert preview is not None, f"Format {fmt} should be previewable"
+
+    def test_preview_enriched_with_node_metadata(self):
+        """Preview should include nodeId, mediaType, and original fields."""
+        outputs = {
+            'node123': {
+                'images': [{'filename': 'test.png', 'type': 'output', 'subfolder': 'outputs'}]
+            }
+        }
+        count, preview = get_outputs_summary(outputs)
+        assert preview['nodeId'] == 'node123'
+        assert preview['mediaType'] == 'images'
+        assert preview['subfolder'] == 'outputs'
+
+
+class TestApplySorting:
+    """Unit tests for apply_sorting()"""
+
+    def test_sort_by_create_time_desc(self):
+        """Default sort by create_time descending."""
+        jobs = [
+            {'id': 'a', 'create_time': 100},
+            {'id': 'b', 'create_time': 300},
+            {'id': 'c', 'create_time': 200},
+        ]
+        result = apply_sorting(jobs, 'created_at', 'desc')
+        assert [j['id'] for j in result] == ['b', 'c', 'a']
+
+    def test_sort_by_create_time_asc(self):
+        """Sort by create_time ascending."""
+        jobs = [
+            {'id': 'a', 'create_time': 100},
+            {'id': 'b', 'create_time': 300},
+            {'id': 'c', 'create_time': 200},
+        ]
+        result = apply_sorting(jobs, 'created_at', 'asc')
+        assert [j['id'] for j in result] == ['a', 'c', 'b']
+
+    def test_sort_by_execution_time(self):
+        """Sort by execution_time should order by duration."""
+        jobs = [
+            {'id': 'a', 'create_time': 100, 'execution_time': 5.0},
+            {'id': 'b', 'create_time': 300, 'execution_time': 1.0},
+            {'id': 'c', 'create_time': 200, 'execution_time': 3.0},
+        ]
+        result = apply_sorting(jobs, 'execution_time', 'desc')
+        assert [j['id'] for j in result] == ['a', 'c', 'b']
+
+    def test_sort_with_none_values(self):
+        """Jobs with None values should sort as 0."""
+        jobs = [
+            {'id': 'a', 'create_time': 100, 'execution_time': 5.0},
+            {'id': 'b', 'create_time': 300, 'execution_time': None},
+            {'id': 'c', 'create_time': 200, 'execution_time': 3.0},
+        ]
+        result = apply_sorting(jobs, 'execution_time', 'asc')
+        assert result[0]['id'] == 'b'  # None treated as 0, comes first
+
+
+class TestNormalizeQueueItem:
+    """Unit tests for normalize_queue_item()"""
+
+    def test_basic_normalization(self):
+        """Queue item should be normalized to job dict."""
+        item = (
+            10,  # priority/number
+            'prompt-123',  # prompt_id
+            {'nodes': {}},  # prompt
+            {'create_time': 1234567890},  # extra_data
+            ['node1'],  # outputs_to_execute
+        )
+        job = normalize_queue_item(item, JobStatus.PENDING)
+
+        assert job['id'] == 'prompt-123'
+        assert job['status'] == 'pending'
+        assert job['priority'] == 10
+        assert job['create_time'] == 1234567890
+        assert job['execution_time'] is None
+        assert job['error_message'] is None
+        assert job['outputs_count'] == 0
+
+
+class TestNormalizeHistoryItem:
+    """Unit tests for normalize_history_item()"""
+
+    def test_completed_job(self):
+        """Completed history item should have correct status."""
+        history_item = {
+            'prompt': (
+                5,  # priority
+                'prompt-456',
+                {'nodes': {}},
+                {'create_time': 1234567890},
+                ['node1'],
+            ),
+            'status': {'status_str': 'success', 'completed': True, 'messages': []},
+            'outputs': {},
+            'execution_time': 2.5,
+        }
+        job = normalize_history_item('prompt-456', history_item)
+
+        assert job['id'] == 'prompt-456'
+        assert job['status'] == 'completed'
+        assert job['execution_time'] == 2.5
+
+    def test_error_job(self):
+        """Error history item should have error status and message."""
+        history_item = {
+            'prompt': (
+                5,
+                'prompt-789',
+                {'nodes': {}},
+                {'create_time': 1234567890},
+                ['node1'],
+            ),
+            'status': {
+                'status_str': 'error',
+                'completed': False,
+                'messages': ['Node failed: OutOfMemory']
+            },
+            'outputs': {},
+            'execution_time': 1.0,
+        }
+        job = normalize_history_item('prompt-789', history_item)
+
+        assert job['status'] == 'error'
+        assert job['error_message'] == 'Node failed: OutOfMemory'
+
+    def test_include_outputs(self):
+        """When include_outputs=True, should include full output data."""
+        history_item = {
+            'prompt': (
+                5,
+                'prompt-123',
+                {'nodes': {'1': {}}},
+                {'create_time': 1234567890, 'client_id': 'abc'},
+                ['node1'],
+            ),
+            'status': {'status_str': 'success', 'completed': True, 'messages': []},
+            'outputs': {'node1': {'images': [{'filename': 'test.png'}]}},
+            'execution_time': 2.5,
+        }
+        job = normalize_history_item('prompt-123', history_item, include_outputs=True)
+
+        assert 'outputs' in job
+        assert 'prompt' in job
+        assert 'extra_data' in job
+        assert job['outputs'] == {'node1': {'images': [{'filename': 'test.png'}]}}
