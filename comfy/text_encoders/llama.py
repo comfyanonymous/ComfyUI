@@ -1,12 +1,13 @@
 import torch
 import torch.nn as nn
-from dataclasses import dataclass
 from typing import Optional, Any
+from dataclasses import dataclass, field
+from transformers.cache_utils import Cache
+from transformers.modeling_rope_utils import ROPE_INIT_FUNCTIONS
 import math
 import logging
 
 from comfy.ldm.modules.attention import optimized_attention_for_device
-import comfy.model_management
 import comfy.ldm.common_dit
 
 import comfy.model_management
@@ -24,9 +25,20 @@ class Llama2Config:
     rms_norm_eps: float = 1e-5
     rope_theta: float = 500000.0
     transformer_type: str = "llama"
-    head_dim = 128
+    head_dim: int = 128
     rms_norm_add = False
     mlp_activation = "silu"
+    qkv_bias: bool = False
+    rope_type: str = "llama3"
+    rope_scaling: dict = field(
+        default_factory=lambda: {
+            "factor": 32.0,
+            "high_freq_factor": 4.0,
+            "low_freq_factor": 1.0,
+            "original_max_position_embeddings": 8192,
+            "rope_type": "llama3"
+        }
+    )
     qkv_bias = False
     rope_dims = None
     q_norm = None
@@ -255,15 +267,67 @@ def apply_rope(xq, xk, freqs_cis):
     sin = freqs_cis[1]
     q_embed = (xq * cos) + (rotate_half(xq) * sin)
     k_embed = (xk * cos) + (rotate_half(xk) * sin)
-    return q_embed.to(org_dtype), k_embed.to(org_dtype)
+    return q_embed.to(org_dtype), k_embed.to(org_dtype), sin, cos
+
+class LlamaRoPE(nn.Module):
+    def __init__(self, config, device = None, dtype = None):
+        super().__init__()
+
+        if config.rope_scaling is not None:
+            self.rope_type = config.rope_scaling.get("rope_type", config.rope_type)
+        else:
+            self.rope_type = "default"
+
+        self.config = config
+        self.rope_init_fn = ROPE_INIT_FUNCTIONS[self.rope_type]
+
+        inv_freq, self.attention_scaling = self.rope_init_fn(self.config, device)
+        self.register_buffer("inv_freq", inv_freq, persistent=False)
+        self.original_inv_freq = self.inv_freq
+
+    def _dynamic_frequency_update(self, position_ids, device):
+
+        seq_len = torch.max(position_ids) + 1
+        if seq_len > self.max_seq_len_cached:
+            inv_freq, self.attention_scaling = self.rope_init_fn(
+                self.config, device, seq_len=seq_len, **self.rope_kwargs
+            )
+            self.register_buffer("inv_freq", inv_freq, persistent=False)
+            self.max_seq_len_cached = seq_len
+
+        if seq_len < self.original_max_seq_len and self.max_seq_len_cached > self.original_max_seq_len:
+            self.register_buffer("inv_freq", self.original_inv_freq, persistent=False)
+            self.max_seq_len_cached = self.original_max_seq_len
+
+    @torch.no_grad()
+    def forward(self, x, position_ids):
+        if "dynamic" in self.rope_type:
+            self._dynamic_frequency_update(position_ids, device=x.device)
+
+        inv_freq_expanded = self.inv_freq[None, :, None].float().expand(position_ids.shape[0], -1, 1)
+        position_ids_expanded = position_ids[:, None, :].float()
+
+        device_type = x.device.type
+        device_type = device_type if isinstance(device_type, str) and device_type != "mps" else "cpu"
+        with torch.autocast(device_type=device_type, enabled=False):
+            freqs = (inv_freq_expanded.float() @ position_ids_expanded.float()).transpose(1, 2)
+            emb = torch.cat((freqs, freqs), dim=-1)
+            cos = emb.cos()
+            sin = emb.sin()
+
+        cos = cos * self.attention_scaling
+        sin = sin * self.attention_scaling
+
+        return cos.to(dtype=x.dtype), sin.to(dtype=x.dtype)
 
 
 class Attention(nn.Module):
-    def __init__(self, config: Llama2Config, device=None, dtype=None, ops: Any = None):
+    def __init__(self, config: Llama2Config, layer_idx: int = None, device=None, dtype=None, ops: Any = None):
         super().__init__()
         self.num_heads = config.num_attention_heads
         self.num_kv_heads = config.num_key_value_heads
         self.hidden_size = config.hidden_size
+        self.layer_idx = layer_idx
 
         self.head_dim = config.head_dim
         self.inner_size = self.num_heads * self.head_dim
@@ -286,6 +350,8 @@ class Attention(nn.Module):
         self,
         hidden_states: torch.Tensor,
         attention_mask: Optional[torch.Tensor] = None,
+        past_key_value: Optional[Cache] = None,
+        cache_position: Optional[torch.LongTensor] = None,
         freqs_cis: Optional[torch.Tensor] = None,
         optimized_attention=None,
     ):
@@ -303,13 +369,22 @@ class Attention(nn.Module):
         if self.k_norm is not None:
             xk = self.k_norm(xk)
 
-        xq, xk = apply_rope(xq, xk, freqs_cis=freqs_cis)
+        xq, xk, sin, cos = apply_rope(xq, xk, freqs_cis=freqs_cis)
+
+        if past_key_value is not None:
+            cache_kwargs = {"sin": sin, "cos": cos, "cache_position": cache_position}
+            xk, xv = past_key_value.update(xk, xv, self.layer_idx, cache_kwargs)
 
         xk = xk.repeat_interleave(self.num_heads // self.num_kv_heads, dim=1)
         xv = xv.repeat_interleave(self.num_heads // self.num_kv_heads, dim=1)
 
         output = optimized_attention(xq, xk, xv, self.num_heads, mask=attention_mask, skip_reshape=True)
-        return self.o_proj(output)
+        out = self.o_proj(output)
+
+        if past_key_value is not None:
+            return out, past_key_value
+
+        return out
 
 class MLP(nn.Module):
     def __init__(self, config: Llama2Config, device=None, dtype=None, ops: Any = None):

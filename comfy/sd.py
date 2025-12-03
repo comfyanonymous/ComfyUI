@@ -1312,6 +1312,7 @@ def load_state_dict_guess_config(sd, output_vae=True, output_clip=True, output_c
 
     manual_cast_dtype = model_management.unet_manual_cast(unet_dtype, load_device, model_config.supported_inference_dtypes)
     model_config.set_inference_dtype(unet_dtype, manual_cast_dtype)
+    output_vae = model_config.unet_config.get("output_vae", output_vae)
 
     if model_config.clip_vision_prefix is not None:
         if output_clipvision:

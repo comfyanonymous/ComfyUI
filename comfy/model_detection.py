@@ -527,6 +527,73 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
         dit_config["guidance_cond_proj_dim"] = None#f"{key_prefix}t_embedder.cond_proj.weight" in state_dict_keys
         return dit_config
 
+    if "{}layers.27.audio_post_attention_layernorm.weight".format(key_prefix) in state_dict_keys:
+
+        autoregressive_config = {}
+        autoregressive_config["image_model"] = "higgsv2"
+
+        autoregressive_config["audio_adapter_type"] = "dual_ffn_fast_forward"
+        autoregressive_config["audio_bos_token"] = "<|audio_bos|>"
+        autoregressive_config["audio_codebook_size"] = 1024
+        autoregressive_config["audio_num_codebooks"] = 8
+        autoregressive_config["audio_ffn_hidden_size"] = 3072
+        autoregressive_config["audio_ffn_intermediate_size"] = 8192
+        autoregressive_config["audio_in_token"] = "<|AUDIO|>"
+        autoregressive_config["audio_in_token_idx"] = 128015
+        autoregressive_config["audio_out_token"] = "<|AUDIO_OUT|>"
+        autoregressive_config["audio_out_token_idx"] = 128016
+        autoregressive_config["audio_out_bos_token"] = "<|audio_out_bos|>"
+        autoregressive_config["audio_out_bos_token_id"] = 128013
+        autoregressive_config["audio_eos_token"] = "<|audio_eos|>"
+        autoregressive_config["audio_eos_token_id"] = 128012
+        autoregressive_config["audio_stream_bos_id"] = 1024
+        autoregressive_config["audio_stream_eos_id"] = 1025
+        autoregressive_config["encode_audio_in_tokens"] = True
+
+        autoregressive_config["pad_token_id"] = 128001
+        autoregressive_config["padding_idx"] = 128001
+
+        autoregressive_config["hidden_size"] = 3072
+        autoregressive_config["use_delay_pattern"] = True
+
+        autoregressive_config["vocab_size"] = 128256
+        autoregressive_config["num_hidden_layers"] = 28
+        autoregressive_config["num_attention_heads"] = 24
+        autoregressive_config["num_key_value_heads"] = 8
+        autoregressive_config["max_seq_len"] = 131072
+        autoregressive_config["max_position_embeddings"] = 131072
+        autoregressive_config["bos_token_id"] = 128000
+        autoregressive_config["eos_token_id"] = 128001
+        autoregressive_config["use_cache"] = True
+
+        autoregressive_config["text_config"] = {
+            "model_type": "llama",
+            "vocab_size": 128256,
+            "max_position_embeddings": 131072,
+            "num_hidden_layers": 28,
+            "hidden_size": 3072,
+            "num_attention_heads": 24,
+            "num_key_value_heads": 8,
+            "initializer_range": 0.02,
+            "rms_norm_eps": 1e-05,
+            "pad_token_id": None,
+            "bos_token_id": 128000,
+            "eos_token_id": 128001,
+            "num_return_sequences": 1,
+            "head_dim": 128,
+            "mlp_bias": False,
+            "intermediate_size": 8192
+        }
+
+        autoregressive_config["use_kv_buckets"] = True
+        autoregressive_config["num_attention_heads"] = 24
+
+        autoregressive_config["audio_decoder_proj_num_layers"] = 0
+        autoregressive_config["audio_dual_ffn_layers"] = list(range(28))
+        autoregressive_config["output_vae"] = False
+
+        return autoregressive_config
+
     if '{}caption_projection.0.linear.weight'.format(key_prefix) in state_dict_keys:  # HiDream
         dit_config = {}
         dit_config["image_model"] = "hidream"
