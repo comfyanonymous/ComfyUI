@@ -166,7 +166,7 @@ class Input(_IO_V3):
     '''
     Base class for a V3 Input.
     '''
-    def __init__(self, id: str, display_name: str=None, optional=False, tooltip: str=None, lazy: bool=None, extra_dict=None):
+    def __init__(self, id: str, display_name: str=None, optional=False, tooltip: str=None, lazy: bool=None, extra_dict=None, raw_link: bool=None):
         super().__init__()
         self.id = id
         self.display_name = display_name
@@ -174,6 +174,7 @@ class Input(_IO_V3):
         self.tooltip = tooltip
         self.lazy = lazy
         self.extra_dict = extra_dict if extra_dict is not None else {}
+        self.rawLink = raw_link
 
     def as_dict(self):
         return prune_dict({
@@ -181,6 +182,7 @@ class Input(_IO_V3):
             "optional": self.optional,
             "tooltip": self.tooltip,
             "lazy": self.lazy,
+            "rawLink": self.rawLink,
         }) | prune_dict(self.extra_dict)
 
     def get_io_type(self):
@@ -195,8 +197,8 @@ class WidgetInput(Input):
     '''
     def __init__(self, id: str, display_name: str=None, optional=False, tooltip: str=None, lazy: bool=None,
                  default: Any=None,
-                 socketless: bool=None, widget_type: str=None, force_input: bool=None, extra_dict=None):
-        super().__init__(id, display_name, optional, tooltip, lazy, extra_dict)
+                 socketless: bool=None, widget_type: str=None, force_input: bool=None, extra_dict=None, raw_link: bool=None):
+        super().__init__(id, display_name, optional, tooltip, lazy, extra_dict, raw_link)
         self.default = default
         self.socketless = socketless
         self.widget_type = widget_type
@@ -252,8 +254,8 @@ class Boolean(ComfyTypeIO):
         '''Boolean input.'''
         def __init__(self, id: str, display_name: str=None, optional=False, tooltip: str=None, lazy: bool=None,
                     default: bool=None, label_on: str=None, label_off: str=None,
-                    socketless: bool=None, force_input: bool=None):
-            super().__init__(id, display_name, optional, tooltip, lazy, default, socketless, None, force_input)
+                    socketless: bool=None, force_input: bool=None, extra_dict=None, raw_link: bool=None):
+            super().__init__(id, display_name, optional, tooltip, lazy, default, socketless, None, force_input, extra_dict, raw_link)
             self.label_on = label_on
             self.label_off = label_off
             self.default: bool
@@ -272,8 +274,8 @@ class Int(ComfyTypeIO):
         '''Integer input.'''
         def __init__(self, id: str, display_name: str=None, optional=False, tooltip: str=None, lazy: bool=None,
                     default: int=None, min: int=None, max: int=None, step: int=None, control_after_generate: bool=None,
-                    display_mode: NumberDisplay=None, socketless: bool=None, force_input: bool=None):
-            super().__init__(id, display_name, optional, tooltip, lazy, default, socketless, None, force_input)
+                    display_mode: NumberDisplay=None, socketless: bool=None, force_input: bool=None, extra_dict=None, raw_link: bool=None):
+            super().__init__(id, display_name, optional, tooltip, lazy, default, socketless, None, force_input, extra_dict, raw_link)
             self.min = min
             self.max = max
             self.step = step
@@ -298,8 +300,8 @@ class Float(ComfyTypeIO):
         '''Float input.'''
         def __init__(self, id: str, display_name: str=None, optional=False, tooltip: str=None, lazy: bool=None,
                     default: float=None, min: float=None, max: float=None, step: float=None, round: float=None,
-                    display_mode: NumberDisplay=None, socketless: bool=None, force_input: bool=None):
-            super().__init__(id, display_name, optional, tooltip, lazy, default, socketless, None, force_input)
+                    display_mode: NumberDisplay=None, socketless: bool=None, force_input: bool=None, extra_dict=None, raw_link: bool=None):
+            super().__init__(id, display_name, optional, tooltip, lazy, default, socketless, None, force_input, extra_dict, raw_link)
             self.min = min
             self.max = max
             self.step = step
@@ -324,8 +326,8 @@ class String(ComfyTypeIO):
         '''String input.'''
         def __init__(self, id: str, display_name: str=None, optional=False, tooltip: str=None, lazy: bool=None,
                     multiline=False, placeholder: str=None, default: str=None, dynamic_prompts: bool=None,
-                    socketless: bool=None, force_input: bool=None):
-            super().__init__(id, display_name, optional, tooltip, lazy, default, socketless, None, force_input)
+                    socketless: bool=None, force_input: bool=None, extra_dict=None, raw_link: bool=None):
+            super().__init__(id, display_name, optional, tooltip, lazy, default, socketless, None, force_input, extra_dict, raw_link)
             self.multiline = multiline
             self.placeholder = placeholder
             self.dynamic_prompts = dynamic_prompts
@@ -358,12 +360,14 @@ class Combo(ComfyTypeIO):
             image_folder: FolderType=None,
             remote: RemoteOptions=None,
             socketless: bool=None,
+            extra_dict=None,
+            raw_link: bool=None,
         ):
             if isinstance(options, type) and issubclass(options, Enum):
                 options = [v.value for v in options]
             if isinstance(default, Enum):
                 default = default.value
-            super().__init__(id, display_name, optional, tooltip, lazy, default, socketless)
+            super().__init__(id, display_name, optional, tooltip, lazy, default, socketless, None, None, extra_dict, raw_link)
             self.multiselect = False
             self.options = options
             self.control_after_generate = control_after_generate
@@ -395,8 +399,8 @@ class MultiCombo(ComfyTypeI):
     class Input(Combo.Input):
         def __init__(self, id: str, options: list[str], display_name: str=None, optional=False, tooltip: str=None, lazy: bool=None,
                     default: list[str]=None, placeholder: str=None, chip: bool=None, control_after_generate: bool=None,
-                    socketless: bool=None):
-            super().__init__(id, options, display_name, optional, tooltip, lazy, default, control_after_generate, socketless=socketless)
+                    socketless: bool=None, extra_dict=None, raw_link: bool=None):
+            super().__init__(id, options, display_name, optional, tooltip, lazy, default, control_after_generate, socketless=socketless, extra_dict=extra_dict, raw_link=raw_link)
             self.multiselect = True
             self.placeholder = placeholder
             self.chip = chip
@@ -429,9 +433,9 @@ class Webcam(ComfyTypeIO):
         Type = str
         def __init__(
                 self, id: str, display_name: str=None, optional=False,
-                tooltip: str=None, lazy: bool=None, default: str=None, socketless: bool=None
+                tooltip: str=None, lazy: bool=None, default: str=None, socketless: bool=None, extra_dict=None, raw_link: bool=None
         ):
-            super().__init__(id, display_name, optional, tooltip, lazy, default, socketless)
+            super().__init__(id, display_name, optional, tooltip, lazy, default, socketless, None, None, extra_dict, raw_link)
 
 
 @comfytype(io_type="MASK")
@@ -775,7 +779,7 @@ class MultiType:
         '''
         Input that permits more than one input type; if `id` is an instance of `ComfyType.Input`, then that input will be used to create a widget (if applicable) with overridden values.
         '''
-        def __init__(self, id: str | Input, types: list[type[_ComfyType] | _ComfyType], display_name: str=None, optional=False, tooltip: str=None, lazy: bool=None, extra_dict=None):
+        def __init__(self, id: str | Input, types: list[type[_ComfyType] | _ComfyType], display_name: str=None, optional=False, tooltip: str=None, lazy: bool=None, extra_dict=None, raw_link: bool=None):
             # if id is an Input, then use that Input with overridden values
             self.input_override = None
             if isinstance(id, Input):
@@ -788,7 +792,7 @@ class MultiType:
                 # if is a widget input, make sure widget_type is set appropriately
                 if isinstance(self.input_override, WidgetInput):
                     self.input_override.widget_type = self.input_override.get_io_type()
-            super().__init__(id, display_name, optional, tooltip, lazy, extra_dict)
+            super().__init__(id, display_name, optional, tooltip, lazy, extra_dict, raw_link)
             self._io_types = types
 
         @property
@@ -842,8 +846,8 @@ class MatchType(ComfyTypeIO):
 
     class Input(Input):
         def __init__(self, id: str, template: MatchType.Template,
-                    display_name: str=None, optional=False, tooltip: str=None, lazy: bool=None, extra_dict=None):
-            super().__init__(id, display_name, optional, tooltip, lazy, extra_dict)
+                    display_name: str=None, optional=False, tooltip: str=None, lazy: bool=None, extra_dict=None, raw_link: bool=None):
+            super().__init__(id, display_name, optional, tooltip, lazy, extra_dict, raw_link)
             self.template = template
 
         def as_dict(self):
