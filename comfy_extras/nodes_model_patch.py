@@ -324,7 +324,6 @@ class ZImageControlPatch:
             self.encoded_image = self.encode_latent_cond(image_scaled.movedim(1, -1))
             self.encoded_image_size = (image_scaled.shape[-2], image_scaled.shape[-1])
             comfy.model_management.load_models_gpu(loaded_models)
-            print("encode")
 
         cnet_index = (block_index // 5)
         cnet_index_float = (block_index / 5)
