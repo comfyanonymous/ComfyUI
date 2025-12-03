@@ -1,6 +1,5 @@
 import torch
 from torch import nn
-import math
 
 from .model import JointTransformerBlock
 
@@ -102,7 +101,6 @@ class ZImage_Control(torch.nn.Module):
         patch_size = 2
         f_patch_size = 1
         pH = pW = patch_size
-        device = control_context.device
         B, C, H, W = control_context.shape
         control_context = self.control_all_x_embedder[f"{patch_size}-{f_patch_size}"](control_context.view(B, C, H // pH, pH, W // pW, pW).permute(0, 2, 4, 3, 5, 1).flatten(3).flatten(1, 2))
 
