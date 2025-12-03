@@ -888,11 +888,14 @@ def handle_prefix(prefix_list: list | None, id: str | None = None) -> list[str]:
     if prefix_list is None:
         prefix_list = []
     if id is not None:
-        prefix_list.append(id)
+        prefix_list = prefix_list + [id]
     return prefix_list
 
-def finalize_prefix(prefix_list: list[str], id: str | None = None) -> str:
-    if id is not None:
+def finalize_prefix(prefix_list: list[str] | None, id: str | None = None) -> str:
+    assert not (prefix_list is None and id is None)
+    if prefix_list is None:
+        prefix_list = [id]
+    elif id is not None:
         prefix_list = prefix_list + [id]
     return ".".join(prefix_list)
 
@@ -1102,10 +1105,10 @@ class DynamicSlot(ComfyTypeI):
 def add_dynamic_id_mapping(d: dict[str, Any], inputs: list[Input], curr_prefix: list[str], self: DynamicInput=None):
     dynamic = d.setdefault("dynamic_paths", {})
     if self is not None:
-        dynamic[self.id] = finalize_prefix(curr_prefix, self.id)
+        dynamic[finalize_prefix(curr_prefix[:-1], self.id)] = finalize_prefix(curr_prefix, self.id)
     for i in inputs:
-        if not isinstance(i, DynamicInput):
-            dynamic[f"{i.id}"] = finalize_prefix(curr_prefix, i.id)
+        # if not isinstance(i, DynamicInput):
+        dynamic[finalize_prefix(curr_prefix, i.id)] = finalize_prefix(curr_prefix, i.id)
 
 class V3Data(TypedDict):
     hidden_inputs: dict[str, Any]
@@ -1395,13 +1398,13 @@ def create_input_dict_v1(inputs: list[Input], live_inputs: dict[str, Any]=None) 
 def add_to_input_dict_v1(d: dict[str, Any], inputs: list[Input], live_inputs: dict[str, Any]=None, curr_prefix: list[str] | None=None):
     for i in inputs:
         if isinstance(i, DynamicInput):
-            add_to_dict_v1(i, d)
+            add_to_dict_v1(i, d, curr_prefix=curr_prefix)
             if live_inputs is not None:
                 i.expand_schema_for_dynamic(d, live_inputs, curr_prefix)
         else:
-            add_to_dict_v1(i, d)
+            add_to_dict_v1(i, d, curr_prefix=curr_prefix)
 
-def add_to_dict_v1(i: Input, d: dict, dynamic_dict: dict=None):
+def add_to_dict_v1(i: Input, d: dict, dynamic_dict: dict=None, curr_prefix: list[str] | None=None):
     key = "optional" if i.optional else "required"
     as_dict = i.as_dict()
     # for v1, we don't want to include the optional key
@@ -1410,7 +1413,10 @@ def add_to_dict_v1(i: Input, d: dict, dynamic_dict: dict=None):
         value = (i.get_io_type(), as_dict)
     else:
         value = (i.get_io_type(), as_dict, dynamic_dict)
-    d.setdefault(key, {})[i.id] = value
+    actual_id = finalize_prefix(curr_prefix, i.id)
+    if actual_id == "combo.combo":
+        zzz = 10
+    d.setdefault(key, {})[actual_id] = value
 
 def add_to_dict_v3(io: Input | Output, d: dict):
     d[io.id] = (io.get_io_type(), io.as_dict())
@@ -1516,6 +1522,8 @@ class _ComfyNodeBaseInternal(_ComfyNodeInternal):
     @final
     @classmethod
     def EXECUTE_NORMALIZED(cls, *args, **kwargs) -> NodeOutput:
+        _args = args
+        _kwargs = kwargs
         to_return = cls.execute(*args, **kwargs)
         if to_return is None:
             to_return = NodeOutput()
