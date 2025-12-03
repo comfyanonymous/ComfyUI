@@ -44,6 +44,29 @@ class Llama2Config:
     q_norm = None
     k_norm = None
     rope_scale = None
+    final_norm: bool = True
+
+@dataclass
+class Mistral3Small24BConfig:
+    vocab_size: int = 131072
+    hidden_size: int = 5120
+    intermediate_size: int = 32768
+    num_hidden_layers: int = 40
+    num_attention_heads: int = 32
+    num_key_value_heads: int = 8
+    max_position_embeddings: int = 8192
+    rms_norm_eps: float = 1e-5
+    rope_theta: float = 1000000000.0
+    transformer_type: str = "llama"
+    head_dim = 128
+    rms_norm_add = False
+    mlp_activation = "silu"
+    qkv_bias = False
+    rope_dims = None
+    q_norm = None
+    k_norm = None
+    rope_scale = None
+    final_norm: bool = True
 
 @dataclass
 class Qwen25_3BConfig:
@@ -65,6 +88,51 @@ class Qwen25_3BConfig:
     q_norm = None
     k_norm = None
     rope_scale = None
+    final_norm: bool = True
+
+@dataclass
+class Qwen3_4BConfig:
+    vocab_size: int = 151936
+    hidden_size: int = 2560
+    intermediate_size: int = 9728
+    num_hidden_layers: int = 36
+    num_attention_heads: int = 32
+    num_key_value_heads: int = 8
+    max_position_embeddings: int = 40960
+    rms_norm_eps: float = 1e-6
+    rope_theta: float = 1000000.0
+    transformer_type: str = "llama"
+    head_dim = 128
+    rms_norm_add = False
+    mlp_activation = "silu"
+    qkv_bias = False
+    rope_dims = None
+    q_norm = "gemma3"
+    k_norm = "gemma3"
+    rope_scale = None
+    final_norm: bool = True
+
+@dataclass
+class Ovis25_2BConfig:
+    vocab_size: int = 151936
+    hidden_size: int = 2048
+    intermediate_size: int = 6144
+    num_hidden_layers: int = 28
+    num_attention_heads: int = 16
+    num_key_value_heads: int = 8
+    max_position_embeddings: int = 40960
+    rms_norm_eps: float = 1e-6
+    rope_theta: float = 1000000.0
+    transformer_type: str = "llama"
+    head_dim = 128
+    rms_norm_add = False
+    mlp_activation = "silu"
+    qkv_bias = False
+    rope_dims = None
+    q_norm = "gemma3"
+    k_norm = "gemma3"
+    rope_scale = None
+    final_norm: bool = True
 
 @dataclass
 class Qwen25_7BVLI_Config:
@@ -86,6 +154,7 @@ class Qwen25_7BVLI_Config:
     q_norm = None
     k_norm = None
     rope_scale = None
+    final_norm: bool = True
 
 @dataclass
 class Gemma2_2B_Config:
@@ -108,6 +177,7 @@ class Gemma2_2B_Config:
     k_norm = None
     sliding_attention = None
     rope_scale = None
+    final_norm: bool = True
 
 @dataclass
 class Gemma3_4B_Config:
@@ -130,6 +200,7 @@ class Gemma3_4B_Config:
     k_norm = "gemma3"
     sliding_attention = [False, False, False, False, False, 1024]
     rope_scale = [1.0, 8.0]
+    final_norm: bool = True
 
 class RMSNorm(nn.Module):
     def __init__(self, dim: int, eps: float = 1e-5, add=False, device=None, dtype=None):
@@ -441,7 +512,12 @@ class Llama2_(nn.Module):
             transformer(config, index=i, device=device, dtype=dtype, ops=ops)
             for i in range(config.num_hidden_layers)
         ])
-        self.norm = RMSNorm(config.hidden_size, eps=config.rms_norm_eps, add=config.rms_norm_add, device=device, dtype=dtype)
+
+        if config.final_norm:
+            self.norm = RMSNorm(config.hidden_size, eps=config.rms_norm_eps, add=config.rms_norm_add, device=device, dtype=dtype)
+        else:
+            self.norm = None
+
         # self.lm_head = ops.Linear(config.hidden_size, config.vocab_size, bias=False, device=device, dtype=dtype)
 
     def forward(self, x, attention_mask=None, embeds=None, num_tokens=None, intermediate_output=None, final_layer_norm_intermediate=True, dtype=None, position_ids=None, embeds_info=[]):
@@ -477,8 +553,12 @@ class Llama2_(nn.Module):
 
         intermediate = None
         all_intermediate = None
+        only_layers = None
         if intermediate_output is not None:
-            if intermediate_output == "all":
+            if isinstance(intermediate_output, list):
+                all_intermediate = []
+                only_layers = set(intermediate_output)
+            elif intermediate_output == "all":
                 all_intermediate = []
                 intermediate_output = None
             elif intermediate_output < 0:
@@ -486,7 +566,8 @@ class Llama2_(nn.Module):
 
         for i, layer in enumerate(self.layers):
             if all_intermediate is not None:
-                all_intermediate.append(x.unsqueeze(1).clone())
+                if only_layers is None or (i in only_layers):
+                    all_intermediate.append(x.unsqueeze(1).clone())
             x = layer(
                 x=x,
                 attention_mask=mask,
@@ -496,14 +577,17 @@ class Llama2_(nn.Module):
             if i == intermediate_output:
                 intermediate = x.clone()
 
-        x = self.norm(x)
+        if self.norm is not None:
+            x = self.norm(x)
+
         if all_intermediate is not None:
-            all_intermediate.append(x.unsqueeze(1).clone())
+            if only_layers is None or ((i + 1) in only_layers):
+                all_intermediate.append(x.unsqueeze(1).clone())
 
         if all_intermediate is not None:
             intermediate = torch.cat(all_intermediate, dim=1)
 
-        if intermediate is not None and final_layer_norm_intermediate:
+        if intermediate is not None and final_layer_norm_intermediate and self.norm is not None:
             intermediate = self.norm(intermediate)
 
         return x, intermediate
@@ -528,10 +612,37 @@ class Llama2(BaseLlama, torch.nn.Module):
         self.model = Llama2_(config, device=device, dtype=dtype, ops=operations)
         self.dtype = dtype
 
+class Mistral3Small24B(BaseLlama, torch.nn.Module):
+    def __init__(self, config_dict, dtype, device, operations):
+        super().__init__()
+        config = Mistral3Small24BConfig(**config_dict)
+        self.num_layers = config.num_hidden_layers
+
+        self.model = Llama2_(config, device=device, dtype=dtype, ops=operations)
+        self.dtype = dtype
+
 class Qwen25_3B(BaseLlama, torch.nn.Module):
     def __init__(self, config_dict, dtype, device, operations):
         super().__init__()
         config = Qwen25_3BConfig(**config_dict)
+        self.num_layers = config.num_hidden_layers
+
+        self.model = Llama2_(config, device=device, dtype=dtype, ops=operations)
+        self.dtype = dtype
+
+class Qwen3_4B(BaseLlama, torch.nn.Module):
+    def __init__(self, config_dict, dtype, device, operations):
+        super().__init__()
+        config = Qwen3_4BConfig(**config_dict)
+        self.num_layers = config.num_hidden_layers
+
+        self.model = Llama2_(config, device=device, dtype=dtype, ops=operations)
+        self.dtype = dtype
+
+class Ovis25_2B(BaseLlama, torch.nn.Module):
+    def __init__(self, config_dict, dtype, device, operations):
+        super().__init__()
+        config = Ovis25_2BConfig(**config_dict)
         self.num_layers = config.num_hidden_layers
 
         self.model = Llama2_(config, device=device, dtype=dtype, ops=operations)

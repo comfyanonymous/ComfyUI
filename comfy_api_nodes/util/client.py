@@ -63,6 +63,7 @@ class _RequestConfig:
     estimated_total: Optional[int] = None
     final_label_on_success: Optional[str] = "Completed"
     progress_origin_ts: Optional[float] = None
+    price_extractor: Optional[Callable[[dict[str, Any]], Optional[float]]] = None
 
 
 @dataclass
@@ -77,9 +78,9 @@ class _PollUIState:
 
 
 _RETRY_STATUS = {408, 429, 500, 502, 503, 504}
-COMPLETED_STATUSES = ["succeeded", "succeed", "success", "completed", "finished", "done"]
-FAILED_STATUSES = ["cancelled", "canceled", "fail", "failed", "error"]
-QUEUED_STATUSES = ["created", "queued", "queueing", "submitted"]
+COMPLETED_STATUSES = ["succeeded", "succeed", "success", "completed", "finished", "done", "complete"]
+FAILED_STATUSES = ["cancelled", "canceled", "canceling", "fail", "failed", "error"]
+QUEUED_STATUSES = ["created", "queued", "queueing", "submitted", "initializing"]
 
 
 async def sync_op(
@@ -87,6 +88,7 @@ async def sync_op(
     endpoint: ApiEndpoint,
     *,
     response_model: Type[M],
+    price_extractor: Optional[Callable[[M], Optional[float]]] = None,
     data: Optional[BaseModel] = None,
     files: Optional[Union[dict[str, Any], list[tuple[str, Any]]]] = None,
     content_type: str = "application/json",
@@ -104,6 +106,7 @@ async def sync_op(
     raw = await sync_op_raw(
         cls,
         endpoint,
+        price_extractor=_wrap_model_extractor(response_model, price_extractor),
         data=data,
         files=files,
         content_type=content_type,
@@ -175,6 +178,7 @@ async def sync_op_raw(
     cls: type[IO.ComfyNode],
     endpoint: ApiEndpoint,
     *,
+    price_extractor: Optional[Callable[[dict[str, Any]], Optional[float]]] = None,
     data: Optional[Union[dict[str, Any], BaseModel]] = None,
     files: Optional[Union[dict[str, Any], list[tuple[str, Any]]]] = None,
     content_type: str = "application/json",
@@ -216,6 +220,7 @@ async def sync_op_raw(
         estimated_total=estimated_duration,
         final_label_on_success=final_label_on_success,
         progress_origin_ts=progress_origin_ts,
+        price_extractor=price_extractor,
     )
     return await _request_base(cfg, expect_binary=as_binary)
 
@@ -424,7 +429,9 @@ def _display_text(
     if status:
         display_lines.append(f"Status: {status.capitalize() if isinstance(status, str) else status}")
     if price is not None:
-        display_lines.append(f"Price: ${float(price):,.4f}")
+        p = f"{float(price):,.4f}".rstrip("0").rstrip(".")
+        if p != "0":
+            display_lines.append(f"Price: ${p}")
     if text is not None:
         display_lines.append(text)
     if display_lines:
@@ -580,6 +587,7 @@ async def _request_base(cfg: _RequestConfig, expect_binary: bool):
     delay = cfg.retry_delay
     operation_succeeded: bool = False
     final_elapsed_seconds: Optional[int] = None
+    extracted_price: Optional[float] = None
     while True:
         attempt += 1
         stop_event = asyncio.Event()
@@ -767,6 +775,8 @@ async def _request_base(cfg: _RequestConfig, expect_binary: bool):
                         except json.JSONDecodeError:
                             payload = {"_raw": text}
                         response_content_to_log = payload if isinstance(payload, dict) else text
+                    with contextlib.suppress(Exception):
+                        extracted_price = cfg.price_extractor(payload) if cfg.price_extractor else None
                     operation_succeeded = True
                     final_elapsed_seconds = int(time.monotonic() - start_time)
                     try:
@@ -871,7 +881,7 @@ async def _request_base(cfg: _RequestConfig, expect_binary: bool):
                         else int(time.monotonic() - start_time)
                     ),
                     estimated_total=cfg.estimated_total,
-                    price=None,
+                    price=extracted_price,
                     is_queued=False,
                     processing_elapsed_seconds=final_elapsed_seconds,
                 )

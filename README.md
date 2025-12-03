@@ -67,6 +67,8 @@ See what ComfyUI can do with the [example workflows](https://comfyanonymous.gith
    - [HiDream](https://comfyanonymous.github.io/ComfyUI_examples/hidream/)
    - [Qwen Image](https://comfyanonymous.github.io/ComfyUI_examples/qwen_image/)
    - [Hunyuan Image 2.1](https://comfyanonymous.github.io/ComfyUI_examples/hunyuan_image/)
+   - [Flux 2](https://comfyanonymous.github.io/ComfyUI_examples/flux2/)
+   - [Z Image](https://comfyanonymous.github.io/ComfyUI_examples/z_image/)
 - Image Editing Models
    - [Omnigen 2](https://comfyanonymous.github.io/ComfyUI_examples/omnigen/)
    - [Flux Kontext](https://comfyanonymous.github.io/ComfyUI_examples/flux/#flux-kontext-image-editing-model)
@@ -183,7 +185,9 @@ Update your Nvidia drivers if it doesn't start.
 
 [Experimental portable for AMD GPUs](https://github.com/comfyanonymous/ComfyUI/releases/latest/download/ComfyUI_windows_portable_amd.7z)
 
-[Portable with pytorch cuda 12.8 and python 3.12](https://github.com/comfyanonymous/ComfyUI/releases/latest/download/ComfyUI_windows_portable_nvidia_cu128.7z) (Supports Nvidia 10 series and older GPUs).
+[Portable with pytorch cuda 12.8 and python 3.12](https://github.com/comfyanonymous/ComfyUI/releases/latest/download/ComfyUI_windows_portable_nvidia_cu128.7z).
+
+[Portable with pytorch cuda 12.6 and python 3.12](https://github.com/comfyanonymous/ComfyUI/releases/latest/download/ComfyUI_windows_portable_nvidia_cu126.7z) (Supports Nvidia 10 series and older GPUs).
 
 #### How do I share models between another UI and ComfyUI?
 
@@ -221,7 +225,7 @@ AMD users can install rocm and pytorch with pip if you don't have it already ins
 
 This is the command to install the nightly with ROCm 7.0 which might have some performance improvements:
 
-```pip install --pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/nightly/rocm7.0```
+```pip install --pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/nightly/rocm7.1```
 
 
 ### AMD GPUs (Experimental: Windows and Linux), RDNA 3, 3.5 and 4 only.

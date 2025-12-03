@@ -88,7 +88,7 @@ class SaveVideo(io.ComfyNode):
         )
 
     @classmethod
-    def execute(cls, video: VideoInput, filename_prefix, format, codec) -> io.NodeOutput:
+    def execute(cls, video: VideoInput, filename_prefix, format: str, codec) -> io.NodeOutput:
         width, height = video.get_dimensions()
         full_output_folder, filename, counter, subfolder, filename_prefix = folder_paths.get_save_image_path(
             filename_prefix,
@@ -108,7 +108,7 @@ class SaveVideo(io.ComfyNode):
         file = f"{filename}_{counter:05}_.{VideoContainer.get_extension(format)}"
         video.save_to(
             os.path.join(full_output_folder, file),
-            format=format,
+            format=VideoContainer(format),
             codec=codec,
             metadata=saved_metadata
         )
