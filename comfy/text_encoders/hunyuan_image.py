@@ -1,7 +1,7 @@
 from comfy import sd1_clip
 import comfy.text_encoders.llama
 from .qwen_image import QwenImageTokenizer, QwenImageTEModel
-from transformers import ByT5Tokenizer
+from transformers import ByT5Tokenizer, AutoTokenizer
 import torch
 import os
 import re
@@ -20,8 +20,9 @@ class HunyuanImage3(sd1_clip.SDClipModel):
         super().__init__(device, max_length, freeze, layer, layer_idx, textmodel_json_config, dtype, model_class, layer_norm_hidden_state, enable_attention_masks, zero_out_masked, return_projected_pooled, return_attention_masks, model_options)
 
 class HunyuanImage3Tokenizer(sd1_clip.SDTokenizer):
-    def __init__(self, tokenizer_path="hunyuan_image_3", max_length=77, pad_with_end=True, embedding_directory=None, embedding_size=768, embedding_key='clip_l', tokenizer_class=..., has_start_token=True, has_end_token=True, pad_to_max_length=True, min_length=None, pad_token=None, end_token=None, min_padding=None, tokenizer_data=..., tokenizer_args=...):
-        super().__init__(tokenizer_path, max_length, pad_with_end, embedding_directory, embedding_size, embedding_key, tokenizer_class, has_start_token, has_end_token, pad_to_max_length, min_length, pad_token, end_token, min_padding, tokenizer_data, tokenizer_args)
+    def __init__(self, tokenizer_path="hunyuan3_tokenizer", max_length=77, pad_with_end=True, embedding_directory=None, embedding_size=4096, embedding_key='clip_l', tokenizer_class=AutoTokenizer, has_start_token=True, has_end_token=True, pad_to_max_length=False, min_length=None, pad_token=128009, end_token=None, min_padding=None):
+        tokenizer_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), tokenizer_path)
+        super().__init__(tokenizer_path, max_length, pad_with_end, embedding_directory, embedding_size, embedding_key, tokenizer_class, has_start_token, has_end_token, pad_to_max_length, min_length, pad_token, end_token, min_padding)
 
 class ByT5SmallTokenizer(sd1_clip.SDTokenizer):
     def __init__(self, embedding_directory=None, tokenizer_data={}):

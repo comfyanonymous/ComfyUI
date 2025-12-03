@@ -596,7 +596,7 @@ class LazyMoELoader(nn.Module):
 
     def get_checkpoint(self):
         comfyui_dir = Path.home() / "ComfyUI"
-        checkpoint = comfyui_dir / "models" / "checkpoint" / "hunyuan_image_3.safetensors"
+        checkpoint = comfyui_dir / "models" / "checkpoints" / "hunyuan_image_3.safetensors"
         checkpoint = checkpoint.resolve()
         if not os.path.exists(checkpoint):
             raise ValueError(f"Hunyuan Image 3 Checkpoint on one GPU should have the path: {checkpoint}")
@@ -998,6 +998,7 @@ class HunyuanImage3ForCausalMM(nn.Module):
         super().__init__()
         config = kwargs
         self.config = config
+        self.dtype = dtype
         factory_kwargs = {"device": device, "dtype": dtype, "operations": operations}
 
         self.timestep_emb = TimestepEmbedder(hidden_size=config["hidden_size"], **factory_kwargs)
@@ -1065,7 +1066,7 @@ class HunyuanImage3ForCausalMM(nn.Module):
         cond_exists = (joint_image[:, 0, :] != -100.0).any(dim=1).any()
 
         height, width = x.size(2) * 16, x.size(3) * 16
-        gen_timestep_scatter_index = 4
+        gen_timestep_scatter_index = 3
 
         def fn(string, func = self.encode_tok):
             return self.model.wte(torch.tensor(func(string) if not isinstance(func, dict) else func[string], device=inputs_embeds.device))\
@@ -1175,7 +1176,7 @@ class HunyuanImage3ForCausalMM(nn.Module):
 
         hidden_states = hidden_states.to(inputs_embeds.device)
         img_mask = torch.zeros(hidden_states.size(1))
-        img_mask[seq_len + x.size(1)+4:] = 1; img_mask[-1] = 0
+        img_mask[seq_len + 5:seq_len + 5 + x.size(1)] = 1
 
         diffusion_prediction = self.ragged_final_layer(
             hidden_states, img_mask, timestep, int(token_height), int(token_width), self.first_step)

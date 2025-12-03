@@ -483,7 +483,7 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
         dit_config["text_emb_dim"] = 2048
         return dit_config
     
-    if "{}layers.32.mlp.gate_and_up_proj.weight".format(key_prefix) in state_dict_keys:
+    if "__SKIP__{}model.layers.0.mlp.experts.0.down_proj.weight" or "{}model.layers.0.mlp.experts.0.down_proj.weight".format(key_prefix) in state_dict_keys: # Hunyaun Image 3
         dit_config = {}
         dit_config["image_model"] = "hunyuan_image_3"
         dit_config["hidden_size"] = 4096

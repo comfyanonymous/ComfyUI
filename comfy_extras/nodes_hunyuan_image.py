@@ -40,7 +40,6 @@ class HunyuanImage3Conditioning(io.ComfyNode):
             category="conditioning/video_models",
             inputs = [
                 io.Conditioning.Input("text_encoding_positive"),
-                io.Clip.Input("clip"),
                 io.Model.Input("model"),
                 io.Conditioning.Input("vae_encoding", optional=True),
                 io.Conditioning.Input("vit_encoding", optional=True),
@@ -50,11 +49,13 @@ class HunyuanImage3Conditioning(io.ComfyNode):
         )
 
     @classmethod
-    def execute(cls, text_encoding, clip, model, text_encoding_negative=None, vae_encoding = None, vit_encoding = None):
-        encode_fn = clip.tokenizer.tokenizer.convert_tokens_to_ids
-        special_fn = clip.tokenizer.tokenizer.added_tokens_encoder
+    def execute(cls, text_encoding, model, text_encoding_negative=None, vae_encoding = None, vit_encoding = None):
+        model = model.diffusion_model
 
-        word_embed = clip.wte
+        encode_fn = model.encode_tok
+        special_fn = model.special_tok
+        word_embed = model.wte
+
         patch_embed = model.patch_embed
         t_embed = model.time_embed
 
@@ -80,12 +81,7 @@ class HunyuanImage3Conditioning(io.ComfyNode):
             vae_mask = torch.empty_like(joint_image)
 
         ragged_tensors = torch.nested.nested_tensor([joint_image, vae_mask, text_tokens.to(joint_image.dtype)])
-
-        uncond_ragged_tensors = None
-        if text_encoding_negative is not None:
-            uncond_ragged_tensors, _ = cls.execute(vae_encoding, vit_encoding, text_encoding_negative, clip=clip, text_encoding_negative = None)
-        else:
-            uncond_ragged_tensors = torch.nested.nested_tensor([torch.zeros_like(t) for t in ragged_tensors.unbind()])
+        uncond_ragged_tensors = torch.nested.nested_tensor([torch.zeros_like(t) for t in ragged_tensors.unbind()])
 
         if uncond_ragged_tensors is not None:
             positive = [[ragged_tensors, {}]]
