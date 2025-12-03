@@ -869,7 +869,7 @@ class DynamicInput(Input, ABC):
     def get_dynamic(self) -> list[Input]:
         return []
 
-    def expand_schema_for_dynamic(self, d: dict[str, Any], live_inputs: dict[str, Any], curr_prefix=''):
+    def expand_schema_for_dynamic(self, d: dict[str, Any], live_inputs: dict[str, Any], curr_prefix: list[str] | None=None):
         pass
 
 
@@ -884,6 +884,17 @@ class DynamicOutput(Output, ABC):
     def get_dynamic(self) -> list[Output]:
         return []
 
+def handle_prefix(prefix_list: list | None, id: str | None = None) -> list[str]:
+    if prefix_list is None:
+        prefix_list = []
+    if id is not None:
+        prefix_list.append(id)
+    return prefix_list
+
+def finalize_prefix(prefix_list: list[str], id: str | None = None) -> str:
+    if id is not None:
+        prefix_list = prefix_list + [id]
+    return ".".join(prefix_list)
 
 @comfytype(io_type="COMFY_AUTOGROW_V3")
 class Autogrow(ComfyTypeI):
@@ -920,7 +931,8 @@ class Autogrow(ComfyTypeI):
         def validate(self):
             self.input.validate()
 
-        def expand_schema_for_dynamic(self, d: dict[str, Any], live_inputs: dict[str, Any], curr_prefix=''):
+        def expand_schema_for_dynamic(self, d: dict[str, Any], live_inputs: dict[str, Any], curr_prefix: list[str] | None=None):
+            curr_prefix = handle_prefix(curr_prefix)
             real_inputs = []
             for name, input in self.cached_inputs.items():
                 if name in live_inputs:
@@ -981,8 +993,8 @@ class Autogrow(ComfyTypeI):
         def validate(self):
             self.template.validate()
 
-        def expand_schema_for_dynamic(self, d: dict[str, Any], live_inputs: dict[str, Any], curr_prefix=''):
-            curr_prefix = f"{curr_prefix}{self.id}."
+        def expand_schema_for_dynamic(self, d: dict[str, Any], live_inputs: dict[str, Any], curr_prefix: list[str] | None=None):
+            curr_prefix = handle_prefix(curr_prefix, self.id)
             # need to remove self from expected inputs dictionary; replaced by template inputs in frontend
             for inner_dict in d.values():
                 if self.id in inner_dict:
@@ -1010,10 +1022,10 @@ class DynamicCombo(ComfyTypeI):
             super().__init__(id, display_name, optional, tooltip, lazy, extra_dict)
             self.options = options
 
-        def expand_schema_for_dynamic(self, d: dict[str, Any], live_inputs: dict[str, Any], curr_prefix=''):
+        def expand_schema_for_dynamic(self, d: dict[str, Any], live_inputs: dict[str, Any], curr_prefix: list[str] | None=None):
             # check if dynamic input's id is in live_inputs
             if self.id in live_inputs:
-                curr_prefix = f"{curr_prefix}{self.id}."
+                curr_prefix = handle_prefix(curr_prefix, self.id)
                 key = live_inputs[self.id]
                 selected_option = None
                 for option in self.options:
@@ -1063,9 +1075,9 @@ class DynamicSlot(ComfyTypeI):
                 self.force_input = True
                 self.slot.force_input = True
 
-        def expand_schema_for_dynamic(self, d: dict[str, Any], live_inputs: dict[str, Any], curr_prefix=''):
+        def expand_schema_for_dynamic(self, d: dict[str, Any], live_inputs: dict[str, Any], curr_prefix: list[str] | None=None):
             if self.id in live_inputs:
-                curr_prefix = f"{curr_prefix}{self.id}."
+                curr_prefix = handle_prefix(curr_prefix, self.id)
                 add_to_input_dict_v1(d, self.inputs, live_inputs, curr_prefix)
                 add_dynamic_id_mapping(d, [self.slot] + self.inputs, curr_prefix)
 
@@ -1087,13 +1099,13 @@ class DynamicSlot(ComfyTypeI):
             for input in self.inputs:
                 input.validate()
 
-def add_dynamic_id_mapping(d: dict[str, Any], inputs: list[Input], curr_prefix: str, self: DynamicInput=None):
+def add_dynamic_id_mapping(d: dict[str, Any], inputs: list[Input], curr_prefix: list[str], self: DynamicInput=None):
     dynamic = d.setdefault("dynamic_paths", {})
     if self is not None:
-        dynamic[self.id] = f"{curr_prefix}{self.id}"
+        dynamic[self.id] = finalize_prefix(curr_prefix, self.id)
     for i in inputs:
         if not isinstance(i, DynamicInput):
-            dynamic[f"{i.id}"] = f"{curr_prefix}{i.id}"
+            dynamic[f"{i.id}"] = finalize_prefix(curr_prefix, i.id)
 
 class V3Data(TypedDict):
     hidden_inputs: dict[str, Any]
@@ -1380,7 +1392,7 @@ def create_input_dict_v1(inputs: list[Input], live_inputs: dict[str, Any]=None) 
     add_to_input_dict_v1(input, inputs, live_inputs)
     return input
 
-def add_to_input_dict_v1(d: dict[str, Any], inputs: list[Input], live_inputs: dict[str, Any]=None, curr_prefix=''):
+def add_to_input_dict_v1(d: dict[str, Any], inputs: list[Input], live_inputs: dict[str, Any]=None, curr_prefix: list[str] | None=None):
     for i in inputs:
         if isinstance(i, DynamicInput):
             add_to_dict_v1(i, d)
