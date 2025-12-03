@@ -250,6 +250,7 @@ class Configuration(dict):
         self.external_address: Optional[str] = None
         self.disable_known_models: bool = False
         self.max_queue_size: int = 65536
+        self.disable_requests_caching: bool = False
         self.force_channels_last: bool = False
         self.force_hf_local_dir_mode = False
         self.preview_size: int = 512
@@ -290,6 +291,7 @@ class Configuration(dict):
         self.default_device: Optional[int] = None
         self.block_runtime_package_installation = None
         self.enable_eval: Optional[bool] = False
+        self.enable_video_to_image_fallback: bool = False
 
         for key, value in kwargs.items():
             self[key] = value

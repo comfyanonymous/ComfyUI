@@ -196,6 +196,7 @@ def _create_parser() -> EnhancedConfigArgParser:
     parser.add_argument("--otel-exporter-otlp-endpoint", type=str, default=None, env_var="OTEL_EXPORTER_OTLP_ENDPOINT", help="A base endpoint URL for any signal type, with an optionally-specified port number. Helpful for when you're sending more than one signal to the same endpoint and want one environment variable to control the endpoint.")
     parser.add_argument("--force-channels-last", action="store_true", help="Force channels last format when inferencing the models.")
     parser.add_argument("--force-hf-local-dir-mode", action="store_true", help="Download repos from huggingface.co to the models/huggingface directory with the \"local_dir\" argument instead of models/huggingface_cache with the \"cache_dir\" argument, recreating the traditional file structure.")
+    parser.add_argument("--enable-video-to-image-fallback", action="store_true", help="Enable fallback to convert video frames to images for models that do not natively support video inputs.")
 
     parser.add_argument(
         "--front-end-version",
@@ -298,6 +299,7 @@ def _create_parser() -> EnhancedConfigArgParser:
         except Exception as exc:
             logger.error("Failed to load custom config plugin", exc_info=exc)
 
+    parser.add_argument("--disable-requests-caching", action="store_true", help="Disable requests caching (useful for testing)")
     return parser
 
 

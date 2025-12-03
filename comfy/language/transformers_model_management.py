@@ -30,6 +30,7 @@ from ..model_downloader import get_or_download_huggingface_repo
 from ..model_management import unet_offload_device, get_torch_device, unet_dtype, load_models_gpu
 from ..model_management_types import ModelManageableStub
 from ..utils import comfy_tqdm, ProgressBar, comfy_progress, seed_for_block
+from ..cli_args import args
 
 logger = logging.getLogger(__name__)
 
@@ -519,6 +520,20 @@ class TransformersManagedModel(ModelManageableStub, LanguageModel):
         except Exception as exc:
             logger.debug("Could not apply chat template", exc_info=exc)
 
+        if isinstance(prompt, list):
+            # Fallback: extract text from messages if chat template application failed or wasn't available
+            extracted_text = []
+            for message in prompt:
+                if isinstance(message, dict) and "content" in message:
+                    content = message["content"]
+                    if isinstance(content, str):
+                        extracted_text.append(content)
+                    elif isinstance(content, list):
+                        for item in content:
+                            if isinstance(item, dict) and item.get("type") == "text":
+                                extracted_text.append(item.get("text", ""))
+            prompt = "\n".join(extracted_text)
+
         if self.processor is None and isinstance(prompt, str):
             batch_encoding = tokenizer(prompt, return_tensors="pt").to(device=self.load_device)
             return {**batch_encoding}
@@ -527,15 +542,58 @@ class TransformersManagedModel(ModelManageableStub, LanguageModel):
                 self.processor.to(device=self.load_device)
             # convert tuple to list from images.unbind() for paligemma workaround
             image_tensor_list = list(images.unbind()) if images is not None and len(images) > 0 else None
+            
+            # Convert videos to list of list of frames (uint8)
+            if videos is not None and len(videos) > 0:
+                new_videos = []
+                for v in videos:
+                    # Convert to uint8 0-255 if float
+                    if v.dtype == torch.float32 or v.dtype == torch.float16 or v.dtype == torch.bfloat16:
+                        v = (v * 255).to(torch.uint8)
+                    # Convert (T, H, W, C) tensor to list of (H, W, C) tensors
+                    if v.ndim == 4:
+                        new_videos.append(list(v))
+                    else:
+                        new_videos.append([v]) # Fallback if not 4D
+                videos = new_videos
+
+            # Check if processor accepts 'videos' argument
+            import inspect
+            processor_params = inspect.signature(self.processor).parameters
+            has_videos_arg = "videos" in processor_params
+
+            kwargs = {
+                "text": [prompt],
+                "images": image_tensor_list,
+                "return_tensors": "pt",
+                "padding": True,
+            }
+
+            if has_videos_arg:
+                kwargs["videos"] = videos
+                if "input_data_format" in processor_params:
+                     kwargs["input_data_format"] = "channels_last"
+            elif videos is not None and len(videos) > 0:
+                if args.enable_video_to_image_fallback:
+                    # Fallback: flatten video frames into images if processor doesn't support 'videos'
+                    # videos is List[List[Frame]] where Frame is (H, W, C)
+                    flattened_frames = []
+                    for video in videos:
+                        flattened_frames.extend(video)
+                    
+                    # Convert list of frames to list of tensors if needed, or just append to images list
+                    # images is currently a list of tensors
+                    if kwargs["images"] is None:
+                        kwargs["images"] = []
+                    
+                    # Ensure frames are in the same format as images (tensors)
+                    # Frames in videos are already tensors (uint8)
+                    kwargs["images"].extend(flattened_frames)
+                else:
+                    logger.warning(f"Model {self.model.name_or_path} does not support video inputs and video-to-image fallback is disabled. Use --enable-video-to-image-fallback to enable it.")
+
             try:
-                batch_feature: BatchFeature = self.processor(
-                    text=[prompt],
-                    images=image_tensor_list,
-                    videos=None if videos is not None and len(videos) == 0 or (hasattr(videos, "shape") and videos.shape[0]) == 0 else videos,
-                    return_tensors="pt",
-                    padding=True,
-                    input_data_format="channels_last"  # Ensure this is set for Qwen
-                )
+                batch_feature: BatchFeature = self.processor(**kwargs)
             except TypeError as exc_info:
                 logger.warning(f"Exception while trying to run processor. Your transformers package is version {transformers.__version__} and may need to be updated")
                 raise exc_info
