@@ -9,6 +9,7 @@ from torch.nn import LayerNorm
 
 from comfy import model_management
 from comfy.language.transformers_model_management import TransformersManagedModel
+from comfy.model_management_types import HooksSupport
 from comfy.model_patcher import ModelPatcher
 from comfy.nodes.package_typing import CustomNode, InputTypes
 from comfy.sd import VAE
@@ -100,18 +101,8 @@ class TorchCompileModel(CustomNode):
                     "make_refittable": True,
                 }
                 del compile_kwargs["mode"]
-            if isinstance(model, TransformersManagedModel):
-                to_return = model.clone()
-                model = to_return.model
 
-                model_management.unload_all_models()
-                model.to(device=model_management.get_torch_device())
-                res = torch.compile(model=model, **compile_kwargs),
-                model.to(device=model_management.unet_offload_device())
-
-                to_return.add_object_patch("model", res)
-                return to_return,
-            elif isinstance(model, (ModelPatcher, VAE)):
+            if isinstance(model, HooksSupport):
                 to_return = model.clone()
                 object_patches = [p.strip() for p in object_patch.split(",")]
                 patcher: ModelPatcher

@@ -219,6 +219,23 @@ class TransformersLoader1(TransformersLoader):
             }
         }
 
+class TransformersLoaderQuantized(TransformersLoader):
+    @classmethod
+    def INPUT_TYPES(cls) -> InputTypes:
+        return {
+            "required": {
+                "ckpt_name": ("STRING", {}),
+                "load_in_4bit": ("BOOLEAN", {"default": False}),
+                "load_in_8bit": ("BOOLEAN", {"default": False}),
+            },
+            "optional": {
+                "subfolder": ("STRING", {}),
+            }
+        }
+
+    def execute(self, ckpt_name: str, subfolder: Optional[str] = None, load_in_4bit: bool = False, load_in_8bit: bool = False, *args, **kwargs) -> tuple[TransformersManagedModel]:
+        return TransformersManagedModel.from_pretrained(ckpt_name, subfolder, load_in_4bit=load_in_4bit, load_in_8bit=load_in_8bit),
+
 
 class TransformersTokenize(CustomNode):
     @classmethod

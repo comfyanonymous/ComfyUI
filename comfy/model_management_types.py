@@ -3,7 +3,7 @@ from __future__ import annotations
 import copy
 import dataclasses
 from abc import ABCMeta, abstractmethod
-from typing import Protocol, Optional, TypeVar, runtime_checkable, Callable, Any, NamedTuple, TYPE_CHECKING
+from typing import Any, Callable, Protocol, runtime_checkable, Optional, TypeVar, NamedTuple, TYPE_CHECKING
 
 import torch
 import torch.nn
@@ -26,8 +26,8 @@ class DeviceSettable(Protocol):
 
 @runtime_checkable
 class HooksSupport(Protocol):
-    wrappers: dict[str, dict[str, list[Callable]]]
-    callbacks: dict[str, dict[str, list[Callable]]]
+    wrappers: dict[str, list[Callable]]
+    callbacks: dict[str, list[Callable]]
     hook_mode: "EnumHookMode"
 
     def prepare_hook_patches_current_keyframe(self, t, hook_group, model_options): ...
