@@ -5,6 +5,7 @@ on:
   push:
     branches:
       - master
+      - release/**
     paths-ignore:
       - 'app/**'
       - 'input/**'
