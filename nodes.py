@@ -2355,6 +2355,7 @@ async def init_builtin_extra_nodes():
         "nodes_easycache.py",
         "nodes_audio_encoder.py",
         "nodes_rope.py",
+        "nodes_logic.py",
         "nodes_nop.py",
     ]
 
