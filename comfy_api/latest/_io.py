@@ -1414,7 +1414,6 @@ def build_nested_inputs(values: dict[str, Any], v3_data: V3Data):
     values = values.copy()
     result = {}
 
-    # NOTE: This was initially AI generated, verified works
     for key, path in paths.items():
         parts = path.split(".")
         current = result
