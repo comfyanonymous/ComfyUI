@@ -1253,11 +1253,10 @@ class Schema:
         - verify ids on inputs and outputs are unique - both internally and in relation to each other
         '''
         nested_inputs: list[Input] = []
-        if self.inputs is not None:
-            for input in self.inputs:
-                nested_inputs.extend(input.get_all())
-        input_ids = [i.id for i in nested_inputs] if nested_inputs is not None else []
-        output_ids = [o.id for o in self.outputs] if self.outputs is not None else []
+        for input in self.inputs:
+            nested_inputs.extend(input.get_all())
+        input_ids = [i.id for i in nested_inputs]
+        output_ids = [o.id for o in self.outputs]
         input_set = set(input_ids)
         output_set = set(output_ids)
         issues = []
@@ -1273,36 +1272,36 @@ class Schema:
         if len(issues) > 0:
             raise ValueError("\n".join(issues))
         # validate inputs and outputs
-        if self.inputs is not None:
-            for input in self.inputs:
-                input.validate()
-        if self.outputs is not None:
-            for output in self.outputs:
-                output.validate()
+        for input in self.inputs:
+            input.validate()
+        for output in self.outputs:
+            output.validate()
 
     def finalize(self):
         """Add hidden based on selected schema options, and give outputs without ids default ids."""
+        # ensure inputs, outputs, and hidden are lists
+        if self.inputs is None:
+            self.inputs = []
+        if self.outputs is None:
+            self.outputs = []
+        if self.hidden is None:
+            self.hidden = []
         # if is an api_node, will need key-related hidden
         if self.is_api_node:
-            if self.hidden is None:
-                self.hidden = []
             if Hidden.auth_token_comfy_org not in self.hidden:
                 self.hidden.append(Hidden.auth_token_comfy_org)
             if Hidden.api_key_comfy_org not in self.hidden:
                 self.hidden.append(Hidden.api_key_comfy_org)
         # if is an output_node, will need prompt and extra_pnginfo
         if self.is_output_node:
-            if self.hidden is None:
-                self.hidden = []
             if Hidden.prompt not in self.hidden:
                 self.hidden.append(Hidden.prompt)
             if Hidden.extra_pnginfo not in self.hidden:
                 self.hidden.append(Hidden.extra_pnginfo)
         # give outputs without ids default ids
-        if self.outputs is not None:
-            for i, output in enumerate(self.outputs):
-                if output.id is None:
-                    output.id = f"_{i}_{output.io_type}_"
+        for i, output in enumerate(self.outputs):
+            if output.id is None:
+                output.id = f"_{i}_{output.io_type}_"
 
     def get_v1_info(self, cls, live_inputs: dict[str, Any]=None) -> NodeInfoV1:
         # NOTE: live_inputs will not be used anymore very soon and this will be done another way
