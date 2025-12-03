@@ -154,12 +154,6 @@ class ComboOutputTestNode(io.ComfyNode):
         )
 
     @classmethod
-    def validate_inputs(cls, combo: io.Combo.Type) -> bool:
-        if combo not in ["option1", "option2", "option3"]:
-            return "Invalid combo: {}".format(combo)
-        return True
-
-    @classmethod
     def execute(cls, combo: io.Combo.Type, combo2: io.Combo.Type) -> io.NodeOutput:
         return io.NodeOutput(combo, combo2)
 
