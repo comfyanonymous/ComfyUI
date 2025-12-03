@@ -86,8 +86,12 @@ def normalize_history_item(prompt_id, history_item, include_outputs=False):
     error_message = None
     if status == JobStatus.ERROR and status_info:
         messages = status_info.get('messages', [])
-        if messages:
-            error_message = messages[0] if isinstance(messages[0], str) else str(messages[0])
+        for entry in messages:
+            if isinstance(entry, (list, tuple)) and len(entry) >= 2 and entry[0] == 'execution_error':
+                detail = entry[1]
+                if isinstance(detail, dict):
+                    error_message = str(detail.get('exception_message', ''))
+                break
 
     execution_time = history_item.get('execution_time')
 

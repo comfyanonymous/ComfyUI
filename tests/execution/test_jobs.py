@@ -294,7 +294,9 @@ class TestNormalizeHistoryItem:
             'status': {
                 'status_str': 'error',
                 'completed': False,
-                'messages': ['Node failed: OutOfMemory']
+                'messages': [
+                    ('execution_error', {'exception_message': 'Node failed: OutOfMemory', 'node_id': '5'})
+                ]
             },
             'outputs': {},
             'execution_time': 1.0,
