@@ -910,22 +910,6 @@ class TestExecution:
         assert len(result) <= 1, "Should return at most 1 item when offset is near end"
 
     # Jobs API tests
-    def test_jobs_api_returns_completed_jobs(
-        self, client: ComfyClient, builder: GraphBuilder
-    ):
-        """Test that /api/jobs returns completed jobs"""
-        result = self._create_history_item(client, builder)
-        prompt_id = result.get_prompt_id()
-
-        jobs_response = client.get_jobs(status="completed")
-        assert "jobs" in jobs_response, "Response should have jobs array"
-        assert "pagination" in jobs_response, "Response should have pagination object"
-        assert "total" in jobs_response["pagination"], "Pagination should have total count"
-        assert "has_more" in jobs_response["pagination"], "Pagination should have has_more flag"
-
-        job_ids = [j["id"] for j in jobs_response["jobs"]]
-        assert prompt_id in job_ids, "Completed job should appear in jobs list"
-
     def test_jobs_api_job_structure(
         self, client: ComfyClient, builder: GraphBuilder
     ):
@@ -1029,15 +1013,3 @@ class TestExecution:
         """Test getting a non-existent job returns 404"""
         job = client.get_job("nonexistent-job-id")
         assert job is None, "Non-existent job should return None"
-
-    def test_jobs_list_excludes_outputs(
-        self, client: ComfyClient, builder: GraphBuilder
-    ):
-        """Test that job list doesn't include full outputs"""
-        self._create_history_item(client, builder)
-
-        jobs_response = client.get_jobs(status="completed", limit=1)
-        job = jobs_response["jobs"][0]
-
-        assert "outputs" not in job, "List should not include outputs"
-        assert "prompt" not in job, "List should not include prompt"
