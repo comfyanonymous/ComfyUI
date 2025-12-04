@@ -99,7 +99,7 @@ class ComfyClient:
         with urllib.request.urlopen(url) as response:
             return json.loads(response.read())
 
-    def get_jobs(self, status=None, limit=None, offset=None, sort=None, order=None):
+    def get_jobs(self, status=None, limit=None, offset=None, sort_by=None, sort_order=None):
         url = "http://{}/api/jobs".format(self.server_address)
         params = {}
         if status is not None:
@@ -108,10 +108,10 @@ class ComfyClient:
             params["limit"] = limit
         if offset is not None:
             params["offset"] = offset
-        if sort is not None:
-            params["sort"] = sort
-        if order is not None:
-            params["order"] = order
+        if sort_by is not None:
+            params["sort_by"] = sort_by
+        if sort_order is not None:
+            params["sort_order"] = sort_order
 
         if params:
             url_values = urllib.parse.urlencode(params)
@@ -983,8 +983,8 @@ class TestExecution:
         for _ in range(3):
             self._create_history_item(client, builder)
 
-        desc_jobs = client.get_jobs(order="desc")
-        asc_jobs = client.get_jobs(order="asc")
+        desc_jobs = client.get_jobs(sort_order="desc")
+        asc_jobs = client.get_jobs(sort_order="asc")
 
         if len(desc_jobs["jobs"]) >= 2:
             desc_times = [j["create_time"] for j in desc_jobs["jobs"] if j["create_time"]]
