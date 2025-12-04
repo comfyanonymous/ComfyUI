@@ -1121,6 +1121,27 @@ def add_to_dynamic_dict(dynamic: dict[str, Any], curr_prefix: list[str], id: str
     if finalize_key not in dynamic:
         dynamic[finalize_key] = value
 
+DYNAMIC_INPUT_LOOKUP: dict[str, Callable[[dict[str, Any], dict[str, Any], list[str] | None], None]] = {}
+def register_dynamic_input_func(io_type: str, func: Callable[[dict[str, Any], dict[str, Any], list[str] | None], None]):
+    DYNAMIC_INPUT_LOOKUP[io_type] = func
+
+def get_dynamic_input_func(io_type: str) -> Callable[[dict[str, Any], dict[str, Any], list[str] | None], None]:
+    return DYNAMIC_INPUT_LOOKUP[io_type]
+
+def setup_dynamic_input_funcs():
+    # DynamicCombo.Input
+    def dynamic_combo_input(d: dict[str, Any], live_inputs: dict[str, Any], curr_prefix: list[str] | None):
+        ...
+    register_dynamic_input_func(DynamicCombo.Input.io_type, dynamic_combo_input)
+    # Autogrow.Input
+    def autogrow_input(d: dict[str, Any], live_inputs: dict[str, Any], curr_prefix: list[str] | None):
+        ...
+    register_dynamic_input_func(Autogrow.Input.io_type, autogrow_input)
+    # TODO: DynamicSlot.Input
+
+if len(DYNAMIC_INPUT_LOOKUP) == 0:
+    setup_dynamic_input_funcs()
+
 class V3Data(TypedDict):
     hidden_inputs: dict[str, Any]
     dynamic_paths: dict[str, Any]
