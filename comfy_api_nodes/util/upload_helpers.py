@@ -10,8 +10,7 @@ import aiohttp
 import torch
 from pydantic import BaseModel, Field
 
-from comfy_api.latest import IO, Input
-from comfy_api.util import VideoCodec, VideoContainer
+from comfy_api.latest import IO, Input, Types
 
 from . import request_logger
 from ._helpers import is_processing_interrupted, sleep_with_interrupt
@@ -55,7 +54,7 @@ async def upload_images_to_comfyapi(
     Uploads images to ComfyUI API and returns download URLs.
     To upload multiple images, stack them in the batch dimension first.
     """
-    # if batch, try to upload each file if max_images is greater than 0
+    # if batched, try to upload each file if max_images is greater than 0
     download_urls: list[str] = []
     is_batch = len(image.shape) > 3
     batch_len = image.shape[0] if is_batch else 1
@@ -99,8 +98,8 @@ async def upload_video_to_comfyapi(
     cls: type[IO.ComfyNode],
     video: Input.Video,
     *,
-    container: VideoContainer = VideoContainer.MP4,
-    codec: VideoCodec = VideoCodec.H264,
+    container: Types.VideoContainer = Types.VideoContainer.MP4,
+    codec: Types.VideoCodec = Types.VideoCodec.H264,
     max_duration: int | None = None,
     wait_label: str | None = "Uploading",
 ) -> str:

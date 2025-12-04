@@ -10,8 +10,8 @@ import aiohttp
 import torch
 from aiohttp.client_exceptions import ClientError, ContentTypeError
 
-from comfy_api.input_impl import VideoFromFile
 from comfy_api.latest import IO as COMFY_IO
+from comfy_api.latest import InputImpl
 
 from . import request_logger
 from ._helpers import (
@@ -234,11 +234,11 @@ async def download_url_to_video_output(
     timeout: float = None,
     max_retries: int = 5,
     cls: type[COMFY_IO.ComfyNode] = None,
-) -> VideoFromFile:
+) -> InputImpl.VideoFromFile:
     """Downloads a video from a URL and returns a `VIDEO` output."""
     result = BytesIO()
     await download_url_to_bytesio(video_url, result, timeout=timeout, max_retries=max_retries, cls=cls)
-    return VideoFromFile(result)
+    return InputImpl.VideoFromFile(result)
 
 
 async def download_url_as_bytesio(
