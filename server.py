@@ -762,8 +762,12 @@ class PromptServer():
 
             return web.json_response({
                 'jobs': jobs,
-                'total': total,
-                'has_more': has_more
+                'pagination': {
+                    'offset': offset,
+                    'limit': limit,
+                    'total': total,
+                    'has_more': has_more
+                }
             })
 
         @routes.get("/api/jobs/{job_id}")

@@ -18,15 +18,17 @@ class TestJobStatus:
         assert JobStatus.PENDING == 'pending'
         assert JobStatus.IN_PROGRESS == 'in_progress'
         assert JobStatus.COMPLETED == 'completed'
-        assert JobStatus.ERROR == 'error'
+        assert JobStatus.FAILED == 'failed'
+        assert JobStatus.CANCELLED == 'cancelled'
 
     def test_all_contains_all_statuses(self):
         """ALL should contain all status values."""
         assert JobStatus.PENDING in JobStatus.ALL
         assert JobStatus.IN_PROGRESS in JobStatus.ALL
         assert JobStatus.COMPLETED in JobStatus.ALL
-        assert JobStatus.ERROR in JobStatus.ALL
-        assert len(JobStatus.ALL) == 4
+        assert JobStatus.FAILED in JobStatus.ALL
+        assert JobStatus.CANCELLED in JobStatus.ALL
+        assert len(JobStatus.ALL) == 5
 
 
 class TestIsPreviewable:
@@ -217,9 +219,9 @@ class TestApplySorting:
     def test_sort_by_execution_time(self):
         """Sort by execution_time should order by duration."""
         jobs = [
-            {'id': 'a', 'create_time': 100, 'execution_time': 5.0},
-            {'id': 'b', 'create_time': 300, 'execution_time': 1.0},
-            {'id': 'c', 'create_time': 200, 'execution_time': 3.0},
+            {'id': 'a', 'create_time': 100, 'execution_start_time': 100, 'execution_end_time': 5100},  # 5s
+            {'id': 'b', 'create_time': 300, 'execution_start_time': 300, 'execution_end_time': 1300},  # 1s
+            {'id': 'c', 'create_time': 200, 'execution_start_time': 200, 'execution_end_time': 3200},  # 3s
         ]
         result = apply_sorting(jobs, 'execution_time', 'desc')
         assert [j['id'] for j in result] == ['a', 'c', 'b']
@@ -227,9 +229,9 @@ class TestApplySorting:
     def test_sort_with_none_values(self):
         """Jobs with None values should sort as 0."""
         jobs = [
-            {'id': 'a', 'create_time': 100, 'execution_time': 5.0},
-            {'id': 'b', 'create_time': 300, 'execution_time': None},
-            {'id': 'c', 'create_time': 200, 'execution_time': 3.0},
+            {'id': 'a', 'create_time': 100, 'execution_start_time': 100, 'execution_end_time': 5100},
+            {'id': 'b', 'create_time': 300, 'execution_start_time': None, 'execution_end_time': None},
+            {'id': 'c', 'create_time': 200, 'execution_start_time': 200, 'execution_end_time': 3200},
         ]
         result = apply_sorting(jobs, 'execution_time', 'asc')
         assert result[0]['id'] == 'b'  # None treated as 0, comes first
@@ -251,9 +253,9 @@ class TestNormalizeQueueItem:
 
         assert job['id'] == 'prompt-123'
         assert job['status'] == 'pending'
-        assert job['priority'] == 10
         assert job['create_time'] == 1234567890
-        assert job['execution_time'] is None
+        assert job['execution_start_time'] is None
+        assert job['execution_end_time'] is None
         assert job['error_message'] is None
         assert job['outputs_count'] == 0
 
@@ -268,7 +270,7 @@ class TestNormalizeHistoryItem:
                 5,  # priority
                 'prompt-456',
                 {'nodes': {}},
-                {'create_time': 1234567890},
+                {'create_time': 1234567890000},  # milliseconds
                 ['node1'],
             ),
             'status': {'status_str': 'success', 'completed': True, 'messages': []},
@@ -279,10 +281,11 @@ class TestNormalizeHistoryItem:
 
         assert job['id'] == 'prompt-456'
         assert job['status'] == 'completed'
-        assert job['execution_time'] == 2.5
+        assert job['execution_start_time'] == 1234567890000
+        assert job['execution_end_time'] == 1234567890000 + 2500  # +2.5 seconds in ms
 
-    def test_error_job(self):
-        """Error history item should have error status and message."""
+    def test_failed_job(self):
+        """Failed history item should have failed status and message."""
         error_detail = {
             'node_id': '5',
             'node_type': 'KSampler',
@@ -309,17 +312,13 @@ class TestNormalizeHistoryItem:
             'execution_time': 1.0,
         }
 
-        # List view - no execution_error
+        # List view - includes execution_error
         job = normalize_history_item('prompt-789', history_item)
-        assert job['status'] == 'error'
+        assert job['status'] == 'failed'
         assert job['error_message'] == 'CUDA out of memory'
-        assert 'execution_error' not in job
-
-        # Detail view - includes execution_error
-        job_detail = normalize_history_item('prompt-789', history_item, include_outputs=True)
-        assert job_detail['execution_error'] == error_detail
-        assert job_detail['execution_error']['node_id'] == '5'
-        assert job_detail['execution_error']['node_type'] == 'KSampler'
+        assert job['execution_error'] == error_detail
+        assert job['execution_error']['node_id'] == '5'
+        assert job['execution_error']['node_type'] == 'KSampler'
 
     def test_include_outputs(self):
         """When include_outputs=True, should include full output data."""
@@ -338,6 +337,10 @@ class TestNormalizeHistoryItem:
         job = normalize_history_item('prompt-123', history_item, include_outputs=True)
 
         assert 'outputs' in job
-        assert 'prompt' in job
-        assert 'extra_data' in job
+        assert 'workflow' in job
+        assert 'execution_status' in job
         assert job['outputs'] == {'node1': {'images': [{'filename': 'test.png'}]}}
+        assert job['workflow'] == {
+            'prompt': {'nodes': {'1': {}}},
+            'extra_data': {'create_time': 1234567890, 'client_id': 'abc'},
+        }

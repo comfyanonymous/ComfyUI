@@ -1276,11 +1276,11 @@ class PromptQueue:
                     jobs.append(normalize_queue_item(item, JobStatus.PENDING))
 
             include_completed = JobStatus.COMPLETED in status_filter
-            include_error = JobStatus.ERROR in status_filter
-            if include_completed or include_error:
+            include_failed = JobStatus.FAILED in status_filter
+            if include_completed or include_failed:
                 for prompt_id, history_item in self.history.items():
-                    is_error = history_item.get('status', {}).get('status_str') == 'error'
-                    if (is_error and include_error) or (not is_error and include_completed):
+                    is_failed = history_item.get('status', {}).get('status_str') == 'error'
+                    if (is_failed and include_failed) or (not is_failed and include_completed):
                         jobs.append(normalize_history_item(prompt_id, history_item))
 
             jobs = apply_sorting(jobs, sort_by, sort_order)

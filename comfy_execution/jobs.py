@@ -9,9 +9,10 @@ class JobStatus:
     PENDING = 'pending'
     IN_PROGRESS = 'in_progress'
     COMPLETED = 'completed'
-    ERROR = 'error'
+    FAILED = 'failed'
+    CANCELLED = 'cancelled'
 
-    ALL = [PENDING, IN_PROGRESS, COMPLETED, ERROR]
+    ALL = [PENDING, IN_PROGRESS, COMPLETED, FAILED, CANCELLED]
 
 
 # Media types that can be previewed in the frontend
@@ -49,17 +50,17 @@ def is_previewable(media_type, item):
 
 def normalize_queue_item(item, status):
     """Convert queue item tuple to unified job dict."""
-    priority, prompt_id, _, extra_data, _ = item[:5]
+    _, prompt_id, _, extra_data, _ = item[:5]
     create_time = extra_data.get('create_time')
 
     return {
         'id': prompt_id,
         'status': status,
-        'priority': priority,
         'create_time': create_time,
-        'execution_time': None,
         'error_message': None,
         'execution_error': None,
+        'execution_start_time': None,
+        'execution_end_time': None,
         'outputs_count': 0,
         'preview_output': None,
         'workflow_id': None,
@@ -69,7 +70,7 @@ def normalize_queue_item(item, status):
 def normalize_history_item(prompt_id, history_item, include_outputs=False):
     """Convert history item dict to unified job dict."""
     prompt_tuple = history_item['prompt']
-    priority, _, prompt, extra_data, outputs_to_execute = prompt_tuple[:5]
+    _, _, prompt, extra_data, _ = prompt_tuple[:5]
     create_time = extra_data.get('create_time')
 
     status_info = history_item.get('status', {})
@@ -77,7 +78,7 @@ def normalize_history_item(prompt_id, history_item, include_outputs=False):
     if status_str == 'success':
         status = JobStatus.COMPLETED
     elif status_str == 'error':
-        status = JobStatus.ERROR
+        status = JobStatus.FAILED
     else:
         status = JobStatus.COMPLETED
 
@@ -86,7 +87,7 @@ def normalize_history_item(prompt_id, history_item, include_outputs=False):
 
     error_message = None
     execution_error = None
-    if status == JobStatus.ERROR and status_info:
+    if status == JobStatus.FAILED and status_info:
         messages = status_info.get('messages', [])
         for entry in messages:
             if isinstance(entry, (list, tuple)) and len(entry) >= 2 and entry[0] == 'execution_error':
@@ -96,15 +97,21 @@ def normalize_history_item(prompt_id, history_item, include_outputs=False):
                     execution_error = detail
                 break
 
-    execution_time = history_item.get('execution_time')
+    execution_time_duration = history_item.get('execution_time')
+    execution_start_time = None
+    execution_end_time = None
+    if execution_time_duration is not None and create_time is not None:
+        execution_end_time = create_time + int(execution_time_duration * 1000)
+        execution_start_time = create_time
 
     job = {
         'id': prompt_id,
         'status': status,
-        'priority': priority,
         'create_time': create_time,
-        'execution_time': execution_time,
         'error_message': error_message,
+        'execution_error': execution_error,
+        'execution_start_time': execution_start_time,
+        'execution_end_time': execution_end_time,
         'outputs_count': outputs_count,
         'preview_output': preview_output,
         'workflow_id': None,
@@ -112,10 +119,11 @@ def normalize_history_item(prompt_id, history_item, include_outputs=False):
 
     if include_outputs:
         job['outputs'] = outputs
-        job['prompt'] = prompt
-        job['extra_data'] = extra_data
-        job['outputs_to_execute'] = outputs_to_execute
-        job['execution_error'] = execution_error
+        job['execution_status'] = status_info
+        job['workflow'] = {
+            'prompt': prompt,
+            'extra_data': extra_data,
+        }
 
     return job
 
@@ -161,7 +169,9 @@ def apply_sorting(jobs, sort_by, sort_order):
 
     if sort_by == 'execution_time':
         def get_sort_key(job):
-            return job.get('execution_time') or 0
+            start = job.get('execution_start_time') or 0
+            end = job.get('execution_end_time') or 0
+            return end - start if end and start else 0
     else:
         def get_sort_key(job):
             return job.get('create_time') or 0
