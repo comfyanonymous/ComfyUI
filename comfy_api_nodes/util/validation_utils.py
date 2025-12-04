@@ -2,7 +2,6 @@ import logging
 
 import torch
 
-from comfy_api.input.video_types import VideoInput
 from comfy_api.latest import Input
 
 
@@ -135,6 +134,23 @@ def validate_video_duration(
         raise ValueError(f"Video duration must be at most {max_duration}s, got {duration}s")
 
 
+def validate_video_frame_count(
+    video: Input.Video,
+    min_frame_count: int | None = None,
+    max_frame_count: int | None = None,
+):
+    try:
+        frame_count = video.get_frame_count()
+    except Exception as e:
+        logging.error("Error getting frame count of video: %s", e)
+        return
+
+    if min_frame_count is not None and min_frame_count > frame_count:
+        raise ValueError(f"Video frame count must be at least {min_frame_count}, got {frame_count}")
+    if max_frame_count is not None and frame_count > max_frame_count:
+        raise ValueError(f"Video frame count must be at most {max_frame_count}, got {frame_count}")
+
+
 def get_number_of_images(images):
     if isinstance(images, torch.Tensor):
         return images.shape[0] if images.ndim >= 4 else 1
@@ -176,7 +192,7 @@ def validate_string(
         )
 
 
-def validate_container_format_is_mp4(video: VideoInput) -> None:
+def validate_container_format_is_mp4(video: Input.Video) -> None:
     """Validates video container format is MP4."""
     container_format = video.get_container_format()
     if container_format not in ["mp4", "mov,mp4,m4a,3gp,3g2,mj2"]:
