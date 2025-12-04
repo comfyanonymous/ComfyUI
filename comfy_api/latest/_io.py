@@ -1004,9 +1004,9 @@ class Autogrow(ComfyTypeI):
             curr_prefix = handle_prefix(curr_prefix, self.id)
             # need to remove self from expected inputs dictionary; replaced by template inputs in frontend
             for inner_dict in d.values():
-                # TODO: once frontend is ready, replace self.id with finalize_prefix(curr_prefix, self.id)
-                if self.id in inner_dict:
-                    del inner_dict[self.id]
+                finalized_id = finalize_prefix(curr_prefix, self.id)
+                if finalized_id in inner_dict:
+                    del inner_dict[finalized_id]
             self.template.expand_schema_for_dynamic(d, live_inputs, curr_prefix)
 
 @comfytype(io_type="COMFY_DYNAMICCOMBO_V3")
