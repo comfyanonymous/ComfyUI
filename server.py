@@ -710,9 +710,9 @@ class PromptServer():
                     status_filter = None
 
             sort_by = query.get('sort', 'created_at')
-            if sort_by != 'created_at':
+            if sort_by not in {'created_at', 'execution_duration'}:
                 return web.json_response(
-                    {"error": "sort must be 'created_at'"},
+                    {"error": "sort must be 'created_at' or 'execution_duration'"},
                     status=400
                 )
 
