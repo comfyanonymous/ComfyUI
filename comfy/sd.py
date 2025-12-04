@@ -193,6 +193,7 @@ class CLIP:
                 self.cond_stage_model.set_clip_options({"projected_pooled": False})
 
             self.load_model()
+            self.cond_stage_model.set_clip_options({"execution_device": self.patcher.load_device})
             all_hooks.reset()
             self.patcher.patch_hooks(None)
             if show_pbar:
@@ -240,6 +241,7 @@ class CLIP:
             self.cond_stage_model.set_clip_options({"projected_pooled": False})
 
         self.load_model()
+        self.cond_stage_model.set_clip_options({"execution_device": self.patcher.load_device})
         o = self.cond_stage_model.encode_token_weights(tokens)
         cond, pooled = o[:2]
         if return_dict:
