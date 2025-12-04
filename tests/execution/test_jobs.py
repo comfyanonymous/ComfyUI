@@ -256,10 +256,11 @@ class TestNormalizeQueueItem:
 
         assert job['id'] == 'prompt-123'
         assert job['status'] == 'pending'
+        assert job['priority'] == 10
         assert job['create_time'] == 1234567890
         assert job['execution_start_time'] is None
         assert job['execution_end_time'] is None
-        assert job['error_message'] is None
+        assert job['execution_error'] is None
         assert job['outputs_count'] == 0
         assert job['workflow_id'] == 'workflow-abc'
 
@@ -288,6 +289,7 @@ class TestNormalizeHistoryItem:
 
         assert job['id'] == 'prompt-456'
         assert job['status'] == 'completed'
+        assert job['priority'] == 5
         assert job['execution_start_time'] == 1234567890000
         assert job['execution_end_time'] == 1234567890000 + 2500  # +2.5 seconds in ms
         assert job['workflow_id'] == 'workflow-xyz'
@@ -323,10 +325,10 @@ class TestNormalizeHistoryItem:
         # List view - includes execution_error
         job = normalize_history_item('prompt-789', history_item)
         assert job['status'] == 'failed'
-        assert job['error_message'] == 'CUDA out of memory'
         assert job['execution_error'] == error_detail
         assert job['execution_error']['node_id'] == '5'
         assert job['execution_error']['node_type'] == 'KSampler'
+        assert job['execution_error']['exception_message'] == 'CUDA out of memory'
 
     def test_include_outputs(self):
         """When include_outputs=True, should include full output data."""

@@ -942,7 +942,7 @@ class TestExecution:
         assert "outputs_count" in job, "Job should have outputs_count"
         assert "preview_output" in job, "Job should have preview_output"
         assert "workflow_id" in job, "Job should have workflow_id"
-        assert "error_message" in job, "Job should have error_message"
+        assert "execution_error" in job, "Job should have execution_error"
 
     def test_jobs_api_preview_output_structure(
         self, client: ComfyClient, builder: GraphBuilder

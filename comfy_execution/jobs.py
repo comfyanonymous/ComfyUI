@@ -50,7 +50,7 @@ def is_previewable(media_type, item):
 
 def normalize_queue_item(item, status):
     """Convert queue item tuple to unified job dict."""
-    _, prompt_id, _, extra_data, _ = item[:5]
+    priority, prompt_id, _, extra_data, _ = item[:5]
     create_time = extra_data.get('create_time')
     extra_pnginfo = extra_data.get('extra_pnginfo', {}) or {}
     workflow_id = extra_pnginfo.get('workflow', {}).get('id')
@@ -58,8 +58,8 @@ def normalize_queue_item(item, status):
     return {
         'id': prompt_id,
         'status': status,
+        'priority': priority,
         'create_time': create_time,
-        'error_message': None,
         'execution_error': None,
         'execution_start_time': None,
         'execution_end_time': None,
@@ -72,7 +72,7 @@ def normalize_queue_item(item, status):
 def normalize_history_item(prompt_id, history_item, include_outputs=False):
     """Convert history item dict to unified job dict."""
     prompt_tuple = history_item['prompt']
-    _, _, prompt, extra_data, _ = prompt_tuple[:5]
+    priority, _, prompt, extra_data, _ = prompt_tuple[:5]
     create_time = extra_data.get('create_time')
     extra_pnginfo = extra_data.get('extra_pnginfo', {}) or {}
     workflow_id = extra_pnginfo.get('workflow', {}).get('id')
@@ -89,7 +89,6 @@ def normalize_history_item(prompt_id, history_item, include_outputs=False):
     outputs = history_item.get('outputs', {})
     outputs_count, preview_output = get_outputs_summary(outputs)
 
-    error_message = None
     execution_error = None
     if status == JobStatus.FAILED and status_info:
         messages = status_info.get('messages', [])
@@ -97,7 +96,6 @@ def normalize_history_item(prompt_id, history_item, include_outputs=False):
             if isinstance(entry, (list, tuple)) and len(entry) >= 2 and entry[0] == 'execution_error':
                 detail = entry[1]
                 if isinstance(detail, dict):
-                    error_message = str(detail.get('exception_message', ''))
                     execution_error = detail
                 break
 
@@ -111,8 +109,8 @@ def normalize_history_item(prompt_id, history_item, include_outputs=False):
     job = {
         'id': prompt_id,
         'status': status,
+        'priority': priority,
         'create_time': create_time,
-        'error_message': error_message,
         'execution_error': execution_error,
         'execution_start_time': execution_start_time,
         'execution_end_time': execution_end_time,
