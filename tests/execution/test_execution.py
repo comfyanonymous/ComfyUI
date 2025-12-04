@@ -919,8 +919,9 @@ class TestExecution:
 
         jobs_response = client.get_jobs(status="completed")
         assert "jobs" in jobs_response, "Response should have jobs array"
-        assert "total" in jobs_response, "Response should have total count"
-        assert "has_more" in jobs_response, "Response should have has_more flag"
+        assert "pagination" in jobs_response, "Response should have pagination object"
+        assert "total" in jobs_response["pagination"], "Pagination should have total count"
+        assert "has_more" in jobs_response["pagination"], "Pagination should have has_more flag"
 
         job_ids = [j["id"] for j in jobs_response["jobs"]]
         assert prompt_id in job_ids, "Completed job should appear in jobs list"
