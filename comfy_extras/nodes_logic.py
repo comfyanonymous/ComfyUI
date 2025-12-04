@@ -59,6 +59,27 @@ class SwitchNode(io.ComfyNode):
         return io.NodeOutput(on_true if switch else on_false)
 
 
+class CustomComboNode(io.ComfyNode):
+    """
+    Frontend node that allows user to write their own options for a combo.
+    This is here to make sure the node has a backend-representation to avoid some annoyances.
+    """
+    @classmethod
+    def define_schema(cls):
+        return io.Schema(
+            node_id="CustomCombo",
+            display_name="Custom Combo",
+            category="util",
+            is_experimental=True,
+            inputs=[io.Combo.Input("choice", options=[])],
+            outputs=[io.String.Output()]
+        )
+
+    @classmethod
+    def execute(cls, choice: io.Combo.Type) -> io.NodeOutput:
+        return io.NodeOutput(choice)
+
+
 class DCTestNode(io.ComfyNode):
     class DCValues(TypedDict):
         combo: str
@@ -164,6 +185,7 @@ class LogicExtension(ComfyExtension):
     async def get_node_list(self) -> list[type[io.ComfyNode]]:
         return [
             SwitchNode,
+            CustomComboNode,
             DCTestNode,
             AutogrowNamesTestNode,
             AutogrowPrefixTestNode,
