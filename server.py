@@ -7,7 +7,7 @@ import time
 import nodes
 import folder_paths
 import execution
-from comfy_execution.jobs import JobStatus
+from comfy_execution.jobs import JobStatus, get_job, get_all_jobs
 import uuid
 import urllib
 import json
@@ -709,17 +709,17 @@ class PromptServer():
                 if not status_filter:
                     status_filter = None
 
-            sort_by = query.get('sort', 'created_at')
+            sort_by = query.get('sort_by', 'created_at')
             if sort_by not in {'created_at', 'execution_duration'}:
                 return web.json_response(
-                    {"error": "sort must be 'created_at' or 'execution_duration'"},
+                    {"error": "sort_by must be 'created_at' or 'execution_duration'"},
                     status=400
                 )
 
-            sort_order = query.get('order', 'desc')
+            sort_order = query.get('sort_order', 'desc')
             if sort_order not in {'asc', 'desc'}:
                 return web.json_response(
-                    {"error": "order must be 'asc' or 'desc'"},
+                    {"error": "sort_order must be 'asc' or 'desc'"},
                     status=400
                 )
 
@@ -750,7 +750,11 @@ class PromptServer():
                         status=400
                     )
 
-            jobs, total = self.prompt_queue.get_all_jobs(
+            running, queued = self.prompt_queue.get_current_queue_volatile()
+            history = self.prompt_queue.get_history()
+
+            jobs, total = get_all_jobs(
+                running, queued, history,
                 status_filter=status_filter,
                 sort_by=sort_by,
                 sort_order=sort_order,
@@ -771,7 +775,7 @@ class PromptServer():
             })
 
         @routes.get("/api/jobs/{job_id}")
-        async def get_job(request):
+        async def get_job_by_id(request):
             """Get a single job by ID."""
             job_id = request.match_info.get("job_id", None)
             if not job_id:
@@ -780,7 +784,10 @@ class PromptServer():
                     status=400
                 )
 
-            job = self.prompt_queue.get_job(job_id)
+            running, queued = self.prompt_queue.get_current_queue_volatile()
+            history = self.prompt_queue.get_history(prompt_id=job_id)
+
+            job = get_job(job_id, running, queued, history)
             if job is None:
                 return web.json_response(
                     {"error": "Job not found"},

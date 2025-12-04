@@ -52,7 +52,7 @@ def normalize_queue_item(item, status):
     """Convert queue item tuple to unified job dict."""
     priority, prompt_id, _, extra_data, _ = item[:5]
     create_time = extra_data.get('create_time')
-    extra_pnginfo = extra_data.get('extra_pnginfo', {}) or {}
+    extra_pnginfo = extra_data.get('extra_pnginfo') or {}
     workflow_id = extra_pnginfo.get('workflow', {}).get('id')
 
     return {
@@ -74,7 +74,7 @@ def normalize_history_item(prompt_id, history_item, include_outputs=False):
     prompt_tuple = history_item['prompt']
     priority, _, prompt, extra_data, _ = prompt_tuple[:5]
     create_time = extra_data.get('create_time')
-    extra_pnginfo = extra_data.get('extra_pnginfo', {}) or {}
+    extra_pnginfo = extra_data.get('extra_pnginfo') or {}
     workflow_id = extra_pnginfo.get('workflow', {}).get('id')
 
     status_info = history_item.get('status', {})
@@ -178,3 +178,80 @@ def apply_sorting(jobs, sort_by, sort_order):
             return job.get('create_time') or 0
 
     return sorted(jobs, key=get_sort_key, reverse=reverse)
+
+
+def get_job(prompt_id, running, queued, history):
+    """
+    Get a single job by prompt_id from history or queue.
+
+    Args:
+        prompt_id: The prompt ID to look up
+        running: List of currently running queue items
+        queued: List of pending queue items
+        history: Dict of history items keyed by prompt_id
+
+    Returns:
+        Job dict with full details, or None if not found
+    """
+    if prompt_id in history:
+        return normalize_history_item(prompt_id, history[prompt_id], include_outputs=True)
+
+    for item in running:
+        if item[1] == prompt_id:
+            return normalize_queue_item(item, JobStatus.IN_PROGRESS)
+
+    for item in queued:
+        if item[1] == prompt_id:
+            return normalize_queue_item(item, JobStatus.PENDING)
+
+    return None
+
+
+def get_all_jobs(running, queued, history, status_filter=None, sort_by="created_at", sort_order="desc", limit=None, offset=0):
+    """
+    Get all jobs (running, pending, completed) with filtering and sorting.
+
+    Args:
+        running: List of currently running queue items
+        queued: List of pending queue items
+        history: Dict of history items keyed by prompt_id
+        status_filter: List of statuses to include (from JobStatus.ALL)
+        sort_by: Field to sort by ('created_at', 'execution_duration')
+        sort_order: 'asc' or 'desc'
+        limit: Maximum number of items to return
+        offset: Number of items to skip
+
+    Returns:
+        tuple: (jobs_list, total_count)
+    """
+    jobs = []
+
+    if status_filter is None:
+        status_filter = JobStatus.ALL
+
+    if JobStatus.IN_PROGRESS in status_filter:
+        for item in running:
+            jobs.append(normalize_queue_item(item, JobStatus.IN_PROGRESS))
+
+    if JobStatus.PENDING in status_filter:
+        for item in queued:
+            jobs.append(normalize_queue_item(item, JobStatus.PENDING))
+
+    include_completed = JobStatus.COMPLETED in status_filter
+    include_failed = JobStatus.FAILED in status_filter
+    if include_completed or include_failed:
+        for prompt_id, history_item in history.items():
+            is_failed = history_item.get('status', {}).get('status_str') == 'error'
+            if (is_failed and include_failed) or (not is_failed and include_completed):
+                jobs.append(normalize_history_item(prompt_id, history_item))
+
+    jobs = apply_sorting(jobs, sort_by, sort_order)
+
+    total_count = len(jobs)
+
+    if offset > 0:
+        jobs = jobs[offset:]
+    if limit is not None:
+        jobs = jobs[:limit]
+
+    return (jobs, total_count)

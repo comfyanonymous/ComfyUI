@@ -33,12 +33,6 @@ from comfy_execution.graph_utils import GraphBuilder, is_link
 from comfy_execution.validation import validate_node_input
 from comfy_execution.progress import get_progress_state, reset_progress_state, add_progress_handler, WebUIProgressHandler
 from comfy_execution.utils import CurrentNodeContext
-from comfy_execution.jobs import (
-    JobStatus,
-    normalize_queue_item,
-    normalize_history_item,
-    apply_sorting,
-)
 from comfy_api.internal import _ComfyNodeInternal, _NodeOutputInternal, first_real_override, is_class, make_locked_method_func
 from comfy_api.latest import io, _io
 
@@ -1228,74 +1222,6 @@ class PromptQueue:
     def delete_history_item(self, id_to_delete):
         with self.mutex:
             self.history.pop(id_to_delete, None)
-
-    def get_job(self, prompt_id):
-        """Get a single job by prompt_id from history or queue."""
-        history = self.get_history(prompt_id=prompt_id)
-
-        if prompt_id in history:
-            return normalize_history_item(prompt_id, history[prompt_id], include_outputs=True)
-
-        running, queued = self.get_current_queue_volatile()
-
-        for item in running:
-            if item[1] == prompt_id:
-                return normalize_queue_item(item, JobStatus.IN_PROGRESS)
-
-        for item in queued:
-            if item[1] == prompt_id:
-                return normalize_queue_item(item, JobStatus.PENDING)
-
-        return None
-
-    def get_all_jobs(self, status_filter=None, sort_by="created_at", sort_order="desc", limit=None, offset=0):
-        """
-        Get all jobs (running, pending, completed) with filtering and sorting.
-
-        Args:
-            status_filter: list of statuses to include (from JobStatus.ALL)
-            sort_by: field to sort by ('created_at', 'execution_duration')
-            sort_order: 'asc' or 'desc'
-            limit: maximum number of items to return
-            offset: number of items to skip
-
-        Returns:
-            tuple: (jobs_list, total_count)
-        """
-        running, queued = self.get_current_queue_volatile()
-        history = self.get_history()
-
-        jobs = []
-
-        if status_filter is None:
-            status_filter = JobStatus.ALL
-
-        if JobStatus.IN_PROGRESS in status_filter:
-            for item in running:
-                jobs.append(normalize_queue_item(item, JobStatus.IN_PROGRESS))
-
-        if JobStatus.PENDING in status_filter:
-            for item in queued:
-                jobs.append(normalize_queue_item(item, JobStatus.PENDING))
-
-        include_completed = JobStatus.COMPLETED in status_filter
-        include_failed = JobStatus.FAILED in status_filter
-        if include_completed or include_failed:
-            for prompt_id, history_item in history.items():
-                is_failed = history_item.get('status', {}).get('status_str') == 'error'
-                if (is_failed and include_failed) or (not is_failed and include_completed):
-                    jobs.append(normalize_history_item(prompt_id, history_item))
-
-        jobs = apply_sorting(jobs, sort_by, sort_order)
-
-        total_count = len(jobs)
-
-        if offset > 0:
-            jobs = jobs[offset:]
-        if limit is not None:
-            jobs = jobs[:limit]
-
-        return (jobs, total_count)
 
     def set_flag(self, name, data):
         with self.mutex:
