@@ -1121,21 +1121,37 @@ def add_to_dynamic_dict(dynamic: dict[str, Any], curr_prefix: list[str], id: str
     if finalize_key not in dynamic:
         dynamic[finalize_key] = value
 
-DYNAMIC_INPUT_LOOKUP: dict[str, Callable[[dict[str, Any], dict[str, Any], list[str] | None], None]] = {}
-def register_dynamic_input_func(io_type: str, func: Callable[[dict[str, Any], dict[str, Any], list[str] | None], None]):
+DYNAMIC_INPUT_LOOKUP: dict[str, Callable[[dict[str, Any], dict[str, Any], dict[str, Any], list[str] | None], None]] = {}
+def register_dynamic_input_func(io_type: str, func: Callable[[dict[str, Any], dict[str, Any], dict[str, Any], list[str] | None], None]):
     DYNAMIC_INPUT_LOOKUP[io_type] = func
 
-def get_dynamic_input_func(io_type: str) -> Callable[[dict[str, Any], dict[str, Any], list[str] | None], None]:
+def get_dynamic_input_func(io_type: str) -> Callable[[dict[str, Any], dict[str, Any], dict[str, Any], list[str] | None], None]:
     return DYNAMIC_INPUT_LOOKUP[io_type]
 
 def setup_dynamic_input_funcs():
     # DynamicCombo.Input
-    def dynamic_combo_input(d: dict[str, Any], live_inputs: dict[str, Any], curr_prefix: list[str] | None):
-        ...
+    def dynamic_combo_input(d: dict[str, Any], live_inputs: dict[str, Any], curr_info: dict[str, Any], curr_prefix: list[str] | None):
+        # id = curr_prefix[-1]
+        finalized_id = finalize_prefix(curr_prefix)
+        if finalized_id in live_inputs:
+            key = live_inputs[finalized_id]
+            selected_option = None
+            # get options from dict
+            options: list[dict[str, str | dict[str, Any]]] = curr_info["options"]
+            for option in options:
+                if option["key"] == key:
+                    selected_option = option
+                    break
+            if selected_option is not None:
+                parse_class_inputs(d, live_inputs, selected_option["inputs"], curr_prefix)
+                # TODO: add dynamic id mapping
+
     register_dynamic_input_func(DynamicCombo.Input.io_type, dynamic_combo_input)
+
     # Autogrow.Input
     def autogrow_input(d: dict[str, Any], live_inputs: dict[str, Any], curr_prefix: list[str] | None):
         ...
+
     register_dynamic_input_func(Autogrow.Input.io_type, autogrow_input)
     # TODO: DynamicSlot.Input
 
@@ -1418,6 +1434,19 @@ class Schema:
         )
         return info
 
+def parse_class_inputs(d: dict[str, Any], live_inputs: dict[str, Any], curr_dict: dict[str, Any] | None=None, curr_prefix: list[str] | None=None) -> None:
+    if curr_dict is None:
+        curr_dict = copy.copy(d)
+    for input_type, inner_d in curr_dict.items():
+        for id, value in inner_d.items():
+            io_type = value[0]
+            if io_type in DYNAMIC_INPUT_LOOKUP:
+                handle_prefix(curr_prefix, id)
+                dynamic_input_func = get_dynamic_input_func(io_type)
+                curr_info = {}
+                if len(value) > 1:
+                    curr_info = value[1]
+                dynamic_input_func(d, live_inputs, curr_info, curr_prefix)
 
 def create_input_dict_v1(inputs: list[Input], live_inputs: dict[str, Any]=None) -> dict:
     input = {
@@ -1445,8 +1474,6 @@ def add_to_dict_v1(i: Input, d: dict, dynamic_dict: dict=None, curr_prefix: list
     else:
         value = (i.get_io_type(), as_dict, dynamic_dict)
     actual_id = finalize_prefix(curr_prefix, i.id)
-    if actual_id == "combo.combo":
-        zzz = 10
     d.setdefault(key, {})[actual_id] = value
 
 def add_to_dict_v3(io: Input | Output, d: dict):
