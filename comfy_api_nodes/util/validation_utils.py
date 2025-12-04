@@ -1,5 +1,4 @@
 import logging
-from typing import Optional
 
 import torch
 
@@ -18,10 +17,10 @@ def get_image_dimensions(image: torch.Tensor) -> tuple[int, int]:
 
 def validate_image_dimensions(
     image: torch.Tensor,
-    min_width: Optional[int] = None,
-    max_width: Optional[int] = None,
-    min_height: Optional[int] = None,
-    max_height: Optional[int] = None,
+    min_width: int | None = None,
+    max_width: int | None = None,
+    min_height: int | None = None,
+    max_height: int | None = None,
 ):
     height, width = get_image_dimensions(image)
 
@@ -37,8 +36,8 @@ def validate_image_dimensions(
 
 def validate_image_aspect_ratio(
     image: torch.Tensor,
-    min_ratio: Optional[tuple[float, float]] = None,  # e.g. (1, 4)
-    max_ratio: Optional[tuple[float, float]] = None,  # e.g. (4, 1)
+    min_ratio: tuple[float, float] | None = None,  # e.g. (1, 4)
+    max_ratio: tuple[float, float] | None = None,  # e.g. (4, 1)
     *,
     strict: bool = True,  # True -> (min, max); False -> [min, max]
 ) -> float:
@@ -54,8 +53,8 @@ def validate_image_aspect_ratio(
 def validate_images_aspect_ratio_closeness(
     first_image: torch.Tensor,
     second_image: torch.Tensor,
-    min_rel: float,   # e.g. 0.8
-    max_rel: float,   # e.g. 1.25
+    min_rel: float,  # e.g. 0.8
+    max_rel: float,  # e.g. 1.25
     *,
     strict: bool = False,  # True -> (min, max); False -> [min, max]
 ) -> float:
@@ -84,8 +83,8 @@ def validate_images_aspect_ratio_closeness(
 
 def validate_aspect_ratio_string(
     aspect_ratio: str,
-    min_ratio: Optional[tuple[float, float]] = None,  # e.g. (1, 4)
-    max_ratio: Optional[tuple[float, float]] = None,  # e.g. (4, 1)
+    min_ratio: tuple[float, float] | None = None,  # e.g. (1, 4)
+    max_ratio: tuple[float, float] | None = None,  # e.g. (4, 1)
     *,
     strict: bool = False,  # True -> (min, max); False -> [min, max]
 ) -> float:
@@ -97,10 +96,10 @@ def validate_aspect_ratio_string(
 
 def validate_video_dimensions(
     video: Input.Video,
-    min_width: Optional[int] = None,
-    max_width: Optional[int] = None,
-    min_height: Optional[int] = None,
-    max_height: Optional[int] = None,
+    min_width: int | None = None,
+    max_width: int | None = None,
+    min_height: int | None = None,
+    max_height: int | None = None,
 ):
     try:
         width, height = video.get_dimensions()
@@ -120,8 +119,8 @@ def validate_video_dimensions(
 
 def validate_video_duration(
     video: Input.Video,
-    min_duration: Optional[float] = None,
-    max_duration: Optional[float] = None,
+    min_duration: float | None = None,
+    max_duration: float | None = None,
 ):
     try:
         duration = video.get_duration()
@@ -144,8 +143,8 @@ def get_number_of_images(images):
 
 def validate_audio_duration(
     audio: Input.Audio,
-    min_duration: Optional[float] = None,
-    max_duration: Optional[float] = None,
+    min_duration: float | None = None,
+    max_duration: float | None = None,
 ) -> None:
     sr = int(audio["sample_rate"])
     dur = int(audio["waveform"].shape[-1]) / sr
@@ -194,8 +193,8 @@ def _ratio_from_tuple(r: tuple[float, float]) -> float:
 def _assert_ratio_bounds(
     ar: float,
     *,
-    min_ratio: Optional[tuple[float, float]] = None,
-    max_ratio: Optional[tuple[float, float]] = None,
+    min_ratio: tuple[float, float] | None = None,
+    max_ratio: tuple[float, float] | None = None,
     strict: bool = True,
 ) -> None:
     """Validate a numeric aspect ratio against optional min/max ratio bounds."""

@@ -4,7 +4,6 @@ import logging
 import time
 import uuid
 from io import BytesIO
-from typing import Optional
 from urllib.parse import urlparse
 
 import aiohttp
@@ -32,7 +31,7 @@ from .conversions import (
 
 class UploadRequest(BaseModel):
     file_name: str = Field(..., description="Filename to upload")
-    content_type: Optional[str] = Field(
+    content_type: str | None = Field(
         None,
         description="Mime type of the file. For example: image/png, image/jpeg, video/mp4, etc.",
     )
@@ -102,7 +101,7 @@ async def upload_video_to_comfyapi(
     *,
     container: VideoContainer = VideoContainer.MP4,
     codec: VideoCodec = VideoCodec.H264,
-    max_duration: Optional[int] = None,
+    max_duration: int | None = None,
     wait_label: str | None = "Uploading",
 ) -> str:
     """
@@ -220,7 +219,7 @@ async def upload_file(
                 return
 
         monitor_task = asyncio.create_task(_monitor())
-        sess: Optional[aiohttp.ClientSession] = None
+        sess: aiohttp.ClientSession | None = None
         try:
             try:
                 request_logger.log_request_response(

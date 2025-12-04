@@ -2,8 +2,8 @@ import asyncio
 import contextlib
 import os
 import time
+from collections.abc import Callable
 from io import BytesIO
-from typing import Callable, Optional, Union
 
 from comfy.cli_args import args
 from comfy.model_management import processing_interrupted
@@ -35,12 +35,12 @@ def default_base_url() -> str:
 
 async def sleep_with_interrupt(
     seconds: float,
-    node_cls: Optional[type[IO.ComfyNode]],
-    label: Optional[str] = None,
-    start_ts: Optional[float] = None,
-    estimated_total: Optional[int] = None,
+    node_cls: type[IO.ComfyNode] | None,
+    label: str | None = None,
+    start_ts: float | None = None,
+    estimated_total: int | None = None,
     *,
-    display_callback: Optional[Callable[[type[IO.ComfyNode], str, int, Optional[int]], None]] = None,
+    display_callback: Callable[[type[IO.ComfyNode], str, int, int | None], None] | None = None,
 ):
     """
     Sleep in 1s slices while:
@@ -65,7 +65,7 @@ def mimetype_to_extension(mime_type: str) -> str:
     return mime_type.split("/")[-1].lower()
 
 
-def get_fs_object_size(path_or_object: Union[str, BytesIO]) -> int:
+def get_fs_object_size(path_or_object: str | BytesIO) -> int:
     if isinstance(path_or_object, str):
         return os.path.getsize(path_or_object)
     return len(path_or_object.getvalue())
