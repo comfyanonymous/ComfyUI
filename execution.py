@@ -1136,8 +1136,7 @@ class PromptQueue:
         messages: List[str]
 
     def task_done(self, item_id, history_result,
-                  status: Optional['PromptQueue.ExecutionStatus'], process_item=None,
-                  execution_duration: Optional[float] = None):
+                  status: Optional['PromptQueue.ExecutionStatus'], process_item=None):
         with self.mutex:
             prompt = self.currently_running.pop(item_id)
             if len(self.history) > MAXIMUM_HISTORY_SIZE:
@@ -1154,7 +1153,6 @@ class PromptQueue:
                 "prompt": prompt,
                 "outputs": {},
                 'status': status_dict,
-                'execution_duration': execution_duration,
             }
             self.history[prompt[1]].update(history_result)
             self.server.queue_updated()

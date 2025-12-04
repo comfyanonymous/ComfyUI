@@ -90,21 +90,20 @@ def normalize_history_item(prompt_id, history_item, include_outputs=False):
     outputs_count, preview_output = get_outputs_summary(outputs)
 
     execution_error = None
-    if status == JobStatus.FAILED and status_info:
-        messages = status_info.get('messages', [])
-        for entry in messages:
-            if isinstance(entry, (list, tuple)) and len(entry) >= 2 and entry[0] == 'execution_error':
-                detail = entry[1]
-                if isinstance(detail, dict):
-                    execution_error = detail
-                break
-
-    execution_duration = history_item.get('execution_duration')
     execution_start_time = None
     execution_end_time = None
-    if execution_duration is not None and create_time is not None:
-        execution_end_time = create_time + int(execution_duration * 1000)
-        execution_start_time = create_time
+    if status_info:
+        messages = status_info.get('messages', [])
+        for entry in messages:
+            if isinstance(entry, (list, tuple)) and len(entry) >= 2:
+                event_name, event_data = entry[0], entry[1]
+                if isinstance(event_data, dict):
+                    if event_name == 'execution_start':
+                        execution_start_time = event_data.get('timestamp')
+                    elif event_name in ('execution_success', 'execution_error', 'execution_interrupted'):
+                        execution_end_time = event_data.get('timestamp')
+                        if event_name == 'execution_error':
+                            execution_error = event_data
 
     job = {
         'id': prompt_id,

@@ -269,7 +269,7 @@ class TestNormalizeHistoryItem:
     """Unit tests for normalize_history_item()"""
 
     def test_completed_job(self):
-        """Completed history item should have correct status."""
+        """Completed history item should have correct status and times from messages."""
         history_item = {
             'prompt': (
                 5,  # priority
@@ -278,54 +278,61 @@ class TestNormalizeHistoryItem:
                 {
                     'create_time': 1234567890000,
                     'extra_pnginfo': {'workflow': {'id': 'workflow-xyz'}}
-                },  # milliseconds
+                },
                 ['node1'],
             ),
-            'status': {'status_str': 'success', 'completed': True, 'messages': []},
+            'status': {
+                'status_str': 'success',
+                'completed': True,
+                'messages': [
+                    ('execution_start', {'prompt_id': 'prompt-456', 'timestamp': 1234567890500}),
+                    ('execution_success', {'prompt_id': 'prompt-456', 'timestamp': 1234567893000}),
+                ]
+            },
             'outputs': {},
-            'execution_duration': 2.5,
         }
         job = normalize_history_item('prompt-456', history_item)
 
         assert job['id'] == 'prompt-456'
         assert job['status'] == 'completed'
         assert job['priority'] == 5
-        assert job['execution_start_time'] == 1234567890000
-        assert job['execution_end_time'] == 1234567890000 + 2500  # +2.5 seconds in ms
+        assert job['execution_start_time'] == 1234567890500
+        assert job['execution_end_time'] == 1234567893000
         assert job['workflow_id'] == 'workflow-xyz'
 
     def test_failed_job(self):
-        """Failed history item should have failed status and message."""
-        error_detail = {
-            'node_id': '5',
-            'node_type': 'KSampler',
-            'exception_message': 'CUDA out of memory',
-            'exception_type': 'RuntimeError',
-            'traceback': ['Traceback...', 'RuntimeError: CUDA out of memory'],
-        }
+        """Failed history item should have failed status and error from messages."""
         history_item = {
             'prompt': (
                 5,
                 'prompt-789',
                 {'nodes': {}},
-                {'create_time': 1234567890},
+                {'create_time': 1234567890000},
                 ['node1'],
             ),
             'status': {
                 'status_str': 'error',
                 'completed': False,
                 'messages': [
-                    ('execution_error', error_detail)
+                    ('execution_start', {'prompt_id': 'prompt-789', 'timestamp': 1234567890500}),
+                    ('execution_error', {
+                        'prompt_id': 'prompt-789',
+                        'node_id': '5',
+                        'node_type': 'KSampler',
+                        'exception_message': 'CUDA out of memory',
+                        'exception_type': 'RuntimeError',
+                        'traceback': ['Traceback...', 'RuntimeError: CUDA out of memory'],
+                        'timestamp': 1234567891000,
+                    })
                 ]
             },
             'outputs': {},
-            'execution_duration': 1.0,
         }
 
-        # List view - includes execution_error
         job = normalize_history_item('prompt-789', history_item)
         assert job['status'] == 'failed'
-        assert job['execution_error'] == error_detail
+        assert job['execution_start_time'] == 1234567890500
+        assert job['execution_end_time'] == 1234567891000
         assert job['execution_error']['node_id'] == '5'
         assert job['execution_error']['node_type'] == 'KSampler'
         assert job['execution_error']['exception_message'] == 'CUDA out of memory'
@@ -342,7 +349,6 @@ class TestNormalizeHistoryItem:
             ),
             'status': {'status_str': 'success', 'completed': True, 'messages': []},
             'outputs': {'node1': {'images': [{'filename': 'test.png'}]}},
-            'execution_duration': 2.5,
         }
         job = normalize_history_item('prompt-123', history_item, include_outputs=True)
 
