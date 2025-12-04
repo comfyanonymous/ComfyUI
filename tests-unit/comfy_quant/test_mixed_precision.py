@@ -115,7 +115,8 @@ class TestMixedPrecisionOps(unittest.TestCase):
 
         # Forward pass
         input_tensor = torch.randn(5, 10, dtype=torch.bfloat16)
-        output = model(input_tensor)
+        with torch.inference_mode():
+            output = model(input_tensor)
 
         self.assertEqual(output.shape, (5, 40))
 
