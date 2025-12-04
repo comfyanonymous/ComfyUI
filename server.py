@@ -727,9 +727,9 @@ class PromptServer():
             if 'limit' in query:
                 try:
                     limit = int(query.get('limit'))
-                    if limit <= 0 or limit > 500:
+                    if limit <= 0:
                         return web.json_response(
-                            {"error": "limit must be between 1 and 500"},
+                            {"error": "limit must be a positive integer"},
                             status=400
                         )
                 except (ValueError, TypeError):

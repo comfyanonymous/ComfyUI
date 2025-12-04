@@ -1137,7 +1137,7 @@ class PromptQueue:
 
     def task_done(self, item_id, history_result,
                   status: Optional['PromptQueue.ExecutionStatus'], process_item=None,
-                  execution_time: Optional[float] = None):
+                  execution_duration: Optional[float] = None):
         with self.mutex:
             prompt = self.currently_running.pop(item_id)
             if len(self.history) > MAXIMUM_HISTORY_SIZE:
@@ -1154,7 +1154,7 @@ class PromptQueue:
                 "prompt": prompt,
                 "outputs": {},
                 'status': status_dict,
-                'execution_time': execution_time,
+                'execution_duration': execution_duration,
             }
             self.history[prompt[1]].update(history_result)
             self.server.queue_updated()
@@ -1233,19 +1233,22 @@ class PromptQueue:
 
     def get_job(self, prompt_id):
         """Get a single job by prompt_id from history or queue."""
-        with self.mutex:
-            if prompt_id in self.history:
-                return normalize_history_item(prompt_id, self.history[prompt_id], include_outputs=True)
+        history = self.get_history(prompt_id=prompt_id)
 
-            for item in self.currently_running.values():
-                if item[1] == prompt_id:
-                    return normalize_queue_item(item, JobStatus.IN_PROGRESS)
+        if prompt_id in history:
+            return normalize_history_item(prompt_id, history[prompt_id], include_outputs=True)
 
-            for item in self.queue:
-                if item[1] == prompt_id:
-                    return normalize_queue_item(item, JobStatus.PENDING)
+        running, queued = self.get_current_queue_volatile()
 
-            return None
+        for item in running:
+            if item[1] == prompt_id:
+                return normalize_queue_item(item, JobStatus.IN_PROGRESS)
+
+        for item in queued:
+            if item[1] == prompt_id:
+                return normalize_queue_item(item, JobStatus.PENDING)
+
+        return None
 
     def get_all_jobs(self, status_filter=None, sort_by="created_at", sort_order="desc", limit=None, offset=0):
         """
@@ -1253,7 +1256,7 @@ class PromptQueue:
 
         Args:
             status_filter: list of statuses to include (from JobStatus.ALL)
-            sort_by: field to sort by ('created_at', 'execution_time')
+            sort_by: field to sort by ('created_at', 'execution_duration')
             sort_order: 'asc' or 'desc'
             limit: maximum number of items to return
             offset: number of items to skip
@@ -1261,38 +1264,40 @@ class PromptQueue:
         Returns:
             tuple: (jobs_list, total_count)
         """
-        with self.mutex:
-            jobs = []
+        running, queued = self.get_current_queue_volatile()
+        history = self.get_history()
 
-            if status_filter is None:
-                status_filter = JobStatus.ALL
+        jobs = []
 
-            if JobStatus.IN_PROGRESS in status_filter:
-                for item in self.currently_running.values():
-                    jobs.append(normalize_queue_item(item, JobStatus.IN_PROGRESS))
+        if status_filter is None:
+            status_filter = JobStatus.ALL
 
-            if JobStatus.PENDING in status_filter:
-                for item in self.queue:
-                    jobs.append(normalize_queue_item(item, JobStatus.PENDING))
+        if JobStatus.IN_PROGRESS in status_filter:
+            for item in running:
+                jobs.append(normalize_queue_item(item, JobStatus.IN_PROGRESS))
 
-            include_completed = JobStatus.COMPLETED in status_filter
-            include_failed = JobStatus.FAILED in status_filter
-            if include_completed or include_failed:
-                for prompt_id, history_item in self.history.items():
-                    is_failed = history_item.get('status', {}).get('status_str') == 'error'
-                    if (is_failed and include_failed) or (not is_failed and include_completed):
-                        jobs.append(normalize_history_item(prompt_id, history_item))
+        if JobStatus.PENDING in status_filter:
+            for item in queued:
+                jobs.append(normalize_queue_item(item, JobStatus.PENDING))
 
-            jobs = apply_sorting(jobs, sort_by, sort_order)
+        include_completed = JobStatus.COMPLETED in status_filter
+        include_failed = JobStatus.FAILED in status_filter
+        if include_completed or include_failed:
+            for prompt_id, history_item in history.items():
+                is_failed = history_item.get('status', {}).get('status_str') == 'error'
+                if (is_failed and include_failed) or (not is_failed and include_completed):
+                    jobs.append(normalize_history_item(prompt_id, history_item))
 
-            total_count = len(jobs)
+        jobs = apply_sorting(jobs, sort_by, sort_order)
 
-            if offset > 0:
-                jobs = jobs[offset:]
-            if limit is not None:
-                jobs = jobs[:limit]
+        total_count = len(jobs)
 
-            return (jobs, total_count)
+        if offset > 0:
+            jobs = jobs[offset:]
+        if limit is not None:
+            jobs = jobs[:limit]
+
+        return (jobs, total_count)
 
     def set_flag(self, name, data):
         with self.mutex:

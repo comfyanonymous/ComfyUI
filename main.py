@@ -230,7 +230,7 @@ def prompt_worker(q, server_instance):
             need_gc = True
 
             current_time = time.perf_counter()
-            execution_time = current_time - execution_start_time
+            execution_duration = current_time - execution_start_time
 
             remove_sensitive = lambda prompt: prompt[:5] + prompt[6:]
             q.task_done(item_id,
@@ -240,16 +240,16 @@ def prompt_worker(q, server_instance):
                             completed=e.success,
                             messages=e.status_messages),
                         process_item=remove_sensitive,
-                        execution_time=execution_time)
+                        execution_duration=execution_duration)
             if server_instance.client_id is not None:
                 server_instance.send_sync("executing", {"node": None, "prompt_id": prompt_id}, server_instance.client_id)
 
             # Log Time in a more readable way after 10 minutes
-            if execution_time > 600:
-                execution_time = time.strftime("%H:%M:%S", time.gmtime(execution_time))
-                logging.info(f"Prompt executed in {execution_time}")
+            if execution_duration > 600:
+                execution_duration_str = time.strftime("%H:%M:%S", time.gmtime(execution_duration))
+                logging.info(f"Prompt executed in {execution_duration_str}")
             else:
-                logging.info("Prompt executed in {:.2f} seconds".format(execution_time))
+                logging.info("Prompt executed in {:.2f} seconds".format(execution_duration))
 
         flags = q.get_flags()
         free_memory = flags.get("free_memory", False)

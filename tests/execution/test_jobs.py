@@ -216,14 +216,14 @@ class TestApplySorting:
         result = apply_sorting(jobs, 'created_at', 'asc')
         assert [j['id'] for j in result] == ['a', 'c', 'b']
 
-    def test_sort_by_execution_time(self):
-        """Sort by execution_time should order by duration."""
+    def test_sort_by_execution_duration(self):
+        """Sort by execution_duration should order by duration."""
         jobs = [
             {'id': 'a', 'create_time': 100, 'execution_start_time': 100, 'execution_end_time': 5100},  # 5s
             {'id': 'b', 'create_time': 300, 'execution_start_time': 300, 'execution_end_time': 1300},  # 1s
             {'id': 'c', 'create_time': 200, 'execution_start_time': 200, 'execution_end_time': 3200},  # 3s
         ]
-        result = apply_sorting(jobs, 'execution_time', 'desc')
+        result = apply_sorting(jobs, 'execution_duration', 'desc')
         assert [j['id'] for j in result] == ['a', 'c', 'b']
 
     def test_sort_with_none_values(self):
@@ -233,7 +233,7 @@ class TestApplySorting:
             {'id': 'b', 'create_time': 300, 'execution_start_time': None, 'execution_end_time': None},
             {'id': 'c', 'create_time': 200, 'execution_start_time': 200, 'execution_end_time': 3200},
         ]
-        result = apply_sorting(jobs, 'execution_time', 'asc')
+        result = apply_sorting(jobs, 'execution_duration', 'asc')
         assert result[0]['id'] == 'b'  # None treated as 0, comes first
 
 
@@ -275,7 +275,7 @@ class TestNormalizeHistoryItem:
             ),
             'status': {'status_str': 'success', 'completed': True, 'messages': []},
             'outputs': {},
-            'execution_time': 2.5,
+            'execution_duration': 2.5,
         }
         job = normalize_history_item('prompt-456', history_item)
 
@@ -309,7 +309,7 @@ class TestNormalizeHistoryItem:
                 ]
             },
             'outputs': {},
-            'execution_time': 1.0,
+            'execution_duration': 1.0,
         }
 
         # List view - includes execution_error
@@ -332,7 +332,7 @@ class TestNormalizeHistoryItem:
             ),
             'status': {'status_str': 'success', 'completed': True, 'messages': []},
             'outputs': {'node1': {'images': [{'filename': 'test.png'}]}},
-            'execution_time': 2.5,
+            'execution_duration': 2.5,
         }
         job = normalize_history_item('prompt-123', history_item, include_outputs=True)
 

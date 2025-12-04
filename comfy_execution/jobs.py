@@ -97,11 +97,11 @@ def normalize_history_item(prompt_id, history_item, include_outputs=False):
                     execution_error = detail
                 break
 
-    execution_time_duration = history_item.get('execution_time')
+    execution_duration = history_item.get('execution_duration')
     execution_start_time = None
     execution_end_time = None
-    if execution_time_duration is not None and create_time is not None:
-        execution_end_time = create_time + int(execution_time_duration * 1000)
+    if execution_duration is not None and create_time is not None:
+        execution_end_time = create_time + int(execution_duration * 1000)
         execution_start_time = create_time
 
     job = {
@@ -167,7 +167,7 @@ def apply_sorting(jobs, sort_by, sort_order):
     """Sort jobs list by specified field and order."""
     reverse = (sort_order == 'desc')
 
-    if sort_by == 'execution_time':
+    if sort_by == 'execution_duration':
         def get_sort_key(job):
             start = job.get('execution_start_time') or 0
             end = job.get('execution_end_time') or 0
