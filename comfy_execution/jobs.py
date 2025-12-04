@@ -59,6 +59,7 @@ def normalize_queue_item(item, status):
         'create_time': create_time,
         'execution_time': None,
         'error_message': None,
+        'execution_error': None,
         'outputs_count': 0,
         'preview_output': None,
         'workflow_id': None,
@@ -84,6 +85,7 @@ def normalize_history_item(prompt_id, history_item, include_outputs=False):
     outputs_count, preview_output = get_outputs_summary(outputs)
 
     error_message = None
+    execution_error = None
     if status == JobStatus.ERROR and status_info:
         messages = status_info.get('messages', [])
         for entry in messages:
@@ -91,6 +93,7 @@ def normalize_history_item(prompt_id, history_item, include_outputs=False):
                 detail = entry[1]
                 if isinstance(detail, dict):
                     error_message = str(detail.get('exception_message', ''))
+                    execution_error = detail
                 break
 
     execution_time = history_item.get('execution_time')
@@ -112,6 +115,7 @@ def normalize_history_item(prompt_id, history_item, include_outputs=False):
         job['prompt'] = prompt
         job['extra_data'] = extra_data
         job['outputs_to_execute'] = outputs_to_execute
+        job['execution_error'] = execution_error
 
     return job
 

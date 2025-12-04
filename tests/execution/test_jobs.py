@@ -283,6 +283,13 @@ class TestNormalizeHistoryItem:
 
     def test_error_job(self):
         """Error history item should have error status and message."""
+        error_detail = {
+            'node_id': '5',
+            'node_type': 'KSampler',
+            'exception_message': 'CUDA out of memory',
+            'exception_type': 'RuntimeError',
+            'traceback': ['Traceback...', 'RuntimeError: CUDA out of memory'],
+        }
         history_item = {
             'prompt': (
                 5,
@@ -295,16 +302,24 @@ class TestNormalizeHistoryItem:
                 'status_str': 'error',
                 'completed': False,
                 'messages': [
-                    ('execution_error', {'exception_message': 'Node failed: OutOfMemory', 'node_id': '5'})
+                    ('execution_error', error_detail)
                 ]
             },
             'outputs': {},
             'execution_time': 1.0,
         }
-        job = normalize_history_item('prompt-789', history_item)
 
+        # List view - no execution_error
+        job = normalize_history_item('prompt-789', history_item)
         assert job['status'] == 'error'
-        assert job['error_message'] == 'Node failed: OutOfMemory'
+        assert job['error_message'] == 'CUDA out of memory'
+        assert 'execution_error' not in job
+
+        # Detail view - includes execution_error
+        job_detail = normalize_history_item('prompt-789', history_item, include_outputs=True)
+        assert job_detail['execution_error'] == error_detail
+        assert job_detail['execution_error']['node_id'] == '5'
+        assert job_detail['execution_error']['node_type'] == 'KSampler'
 
     def test_include_outputs(self):
         """When include_outputs=True, should include full output data."""
