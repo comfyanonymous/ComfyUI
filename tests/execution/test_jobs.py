@@ -246,7 +246,10 @@ class TestNormalizeQueueItem:
             10,  # priority/number
             'prompt-123',  # prompt_id
             {'nodes': {}},  # prompt
-            {'create_time': 1234567890},  # extra_data
+            {
+                'create_time': 1234567890,
+                'extra_pnginfo': {'workflow': {'id': 'workflow-abc'}}
+            },  # extra_data
             ['node1'],  # outputs_to_execute
         )
         job = normalize_queue_item(item, JobStatus.PENDING)
@@ -258,6 +261,7 @@ class TestNormalizeQueueItem:
         assert job['execution_end_time'] is None
         assert job['error_message'] is None
         assert job['outputs_count'] == 0
+        assert job['workflow_id'] == 'workflow-abc'
 
 
 class TestNormalizeHistoryItem:
@@ -270,7 +274,10 @@ class TestNormalizeHistoryItem:
                 5,  # priority
                 'prompt-456',
                 {'nodes': {}},
-                {'create_time': 1234567890000},  # milliseconds
+                {
+                    'create_time': 1234567890000,
+                    'extra_pnginfo': {'workflow': {'id': 'workflow-xyz'}}
+                },  # milliseconds
                 ['node1'],
             ),
             'status': {'status_str': 'success', 'completed': True, 'messages': []},
@@ -283,6 +290,7 @@ class TestNormalizeHistoryItem:
         assert job['status'] == 'completed'
         assert job['execution_start_time'] == 1234567890000
         assert job['execution_end_time'] == 1234567890000 + 2500  # +2.5 seconds in ms
+        assert job['workflow_id'] == 'workflow-xyz'
 
     def test_failed_job(self):
         """Failed history item should have failed status and message."""

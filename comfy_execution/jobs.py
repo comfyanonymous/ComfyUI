@@ -52,6 +52,8 @@ def normalize_queue_item(item, status):
     """Convert queue item tuple to unified job dict."""
     _, prompt_id, _, extra_data, _ = item[:5]
     create_time = extra_data.get('create_time')
+    extra_pnginfo = extra_data.get('extra_pnginfo', {}) or {}
+    workflow_id = extra_pnginfo.get('workflow', {}).get('id')
 
     return {
         'id': prompt_id,
@@ -63,7 +65,7 @@ def normalize_queue_item(item, status):
         'execution_end_time': None,
         'outputs_count': 0,
         'preview_output': None,
-        'workflow_id': None,
+        'workflow_id': workflow_id,
     }
 
 
@@ -72,6 +74,8 @@ def normalize_history_item(prompt_id, history_item, include_outputs=False):
     prompt_tuple = history_item['prompt']
     _, _, prompt, extra_data, _ = prompt_tuple[:5]
     create_time = extra_data.get('create_time')
+    extra_pnginfo = extra_data.get('extra_pnginfo', {}) or {}
+    workflow_id = extra_pnginfo.get('workflow', {}).get('id')
 
     status_info = history_item.get('status', {})
     status_str = status_info.get('status_str') if status_info else None
@@ -114,7 +118,7 @@ def normalize_history_item(prompt_id, history_item, include_outputs=False):
         'execution_end_time': execution_end_time,
         'outputs_count': outputs_count,
         'preview_output': preview_output,
-        'workflow_id': None,
+        'workflow_id': workflow_id,
     }
 
     if include_outputs:
