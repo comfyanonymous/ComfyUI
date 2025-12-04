@@ -57,7 +57,6 @@ from . import utils
 import comfy.latent_formats
 import comfy.model_sampling
 import math
-import json
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from comfy.model_patcher import ModelPatcher
