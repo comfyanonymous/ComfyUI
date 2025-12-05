@@ -1861,6 +1861,7 @@ __all__ = [
     "ControlNet",
     "Vae",
     "Model",
+    "ModelPatch",
     "ClipVision",
     "ClipVisionOutput",
     "AudioEncoder",
