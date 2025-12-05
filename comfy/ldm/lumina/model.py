@@ -22,6 +22,10 @@ def modulate(x, scale):
 #                               Core NextDiT Model                              #
 #############################################################################
 
+def clamp_fp16(x):
+    if x.dtype == torch.float16:
+        return torch.nan_to_num(x, nan=0.0, posinf=65504, neginf=-65504)
+    return x
 
 class JointAttention(nn.Module):
     """Multi-head attention module."""
@@ -169,7 +173,7 @@ class FeedForward(nn.Module):
 
     # @torch.compile
     def _forward_silu_gating(self, x1, x3):
-        return F.silu(x1) * x3
+        return clamp_fp16(F.silu(x1) * x3)
 
     def forward(self, x):
         return self.w2(self._forward_silu_gating(self.w1(x), self.w3(x)))
@@ -273,27 +277,27 @@ class JointTransformerBlock(nn.Module):
             scale_msa, gate_msa, scale_mlp, gate_mlp = self.adaLN_modulation(adaln_input).chunk(4, dim=1)
 
             x = x + gate_msa.unsqueeze(1).tanh() * self.attention_norm2(
-                self.attention(
+                clamp_fp16(self.attention(
                     modulate(self.attention_norm1(x), scale_msa),
                     x_mask,
                     freqs_cis,
                     transformer_options=transformer_options,
-                )
+                ))
             )
             x = x + gate_mlp.unsqueeze(1).tanh() * self.ffn_norm2(
-                self.feed_forward(
+                clamp_fp16(self.feed_forward(
                     modulate(self.ffn_norm1(x), scale_mlp),
-                )
+                ))
             )
         else:
             assert adaln_input is None
             x = x + self.attention_norm2(
-                self.attention(
+                clamp_fp16(self.attention(
                     self.attention_norm1(x),
                     x_mask,
                     freqs_cis,
                     transformer_options=transformer_options,
-                )
+                ))
             )
             x = x + self.ffn_norm2(
                 self.feed_forward(
@@ -564,7 +568,7 @@ class NextDiT(nn.Module):
         ).execute(x, timesteps, context, num_tokens, attention_mask, **kwargs)
 
     # def forward(self, x, t, cap_feats, cap_mask):
-    def _forward(self, x, timesteps, context, num_tokens, attention_mask=None, **kwargs):
+    def _forward(self, x, timesteps, context, num_tokens, attention_mask=None, transformer_options={}, **kwargs):
         t = 1.0 - timesteps
         cap_feats = context
         cap_mask = attention_mask
@@ -581,16 +585,24 @@ class NextDiT(nn.Module):
 
         cap_feats = self.cap_embedder(cap_feats)  # (N, L, D)  # todo check if able to batchify w.o. redundant compute
 
+        patches = transformer_options.get("patches", {})
         transformer_options = kwargs.get("transformer_options", {})
         x_is_tensor = isinstance(x, torch.Tensor)
-        x, mask, img_size, cap_size, freqs_cis = self.patchify_and_embed(x, cap_feats, cap_mask, t, num_tokens, transformer_options=transformer_options)
-        freqs_cis = freqs_cis.to(x.device)
+        img, mask, img_size, cap_size, freqs_cis = self.patchify_and_embed(x, cap_feats, cap_mask, t, num_tokens, transformer_options=transformer_options)
+        freqs_cis = freqs_cis.to(img.device)
 
-        for layer in self.layers:
-            x = layer(x, mask, freqs_cis, adaln_input, transformer_options=transformer_options)
+        for i, layer in enumerate(self.layers):
+            img = layer(img, mask, freqs_cis, adaln_input, transformer_options=transformer_options)
+            if "double_block" in patches:
+                for p in patches["double_block"]:
+                    out = p({"img": img[:, cap_size[0]:], "txt": img[:, :cap_size[0]], "pe": freqs_cis[:, cap_size[0]:], "vec": adaln_input, "x": x, "block_index": i, "transformer_options": transformer_options})
+                    if "img" in out:
+                        img[:, cap_size[0]:] = out["img"]
+                    if "txt" in out:
+                        img[:, :cap_size[0]] = out["txt"]
 
-        x = self.final_layer(x, adaln_input)
-        x = self.unpatchify(x, img_size, cap_size, return_tensor=x_is_tensor)[:,:,:h,:w]
+        img = self.final_layer(img, adaln_input)
+        img = self.unpatchify(img, img_size, cap_size, return_tensor=x_is_tensor)[:, :, :h, :w]
 
-        return -x
+        return -img
 

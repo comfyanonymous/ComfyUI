@@ -3,15 +3,15 @@ import contextlib
 import uuid
 from io import BytesIO
 from pathlib import Path
-from typing import IO, Optional, Union
+from typing import IO
 from urllib.parse import urljoin, urlparse
 
 import aiohttp
 import torch
 from aiohttp.client_exceptions import ClientError, ContentTypeError
 
-from comfy_api.input_impl import VideoFromFile
 from comfy_api.latest import IO as COMFY_IO
+from comfy_api.latest import InputImpl
 
 from . import request_logger
 from ._helpers import (
@@ -29,9 +29,9 @@ _RETRY_STATUS = {408, 429, 500, 502, 503, 504}
 
 async def download_url_to_bytesio(
     url: str,
-    dest: Optional[Union[BytesIO, IO[bytes], str, Path]],
+    dest: BytesIO | IO[bytes] | str | Path | None,
     *,
-    timeout: Optional[float] = None,
+    timeout: float | None = None,
     max_retries: int = 5,
     retry_delay: float = 1.0,
     retry_backoff: float = 2.0,
@@ -71,10 +71,10 @@ async def download_url_to_bytesio(
 
         is_path_sink = isinstance(dest, (str, Path))
         fhandle = None
-        session: Optional[aiohttp.ClientSession] = None
-        stop_evt: Optional[asyncio.Event] = None
-        monitor_task: Optional[asyncio.Task] = None
-        req_task: Optional[asyncio.Task] = None
+        session: aiohttp.ClientSession | None = None
+        stop_evt: asyncio.Event | None = None
+        monitor_task: asyncio.Task | None = None
+        req_task: asyncio.Task | None = None
 
         try:
             with contextlib.suppress(Exception):
@@ -234,11 +234,11 @@ async def download_url_to_video_output(
     timeout: float = None,
     max_retries: int = 5,
     cls: type[COMFY_IO.ComfyNode] = None,
-) -> VideoFromFile:
+) -> InputImpl.VideoFromFile:
     """Downloads a video from a URL and returns a `VIDEO` output."""
     result = BytesIO()
     await download_url_to_bytesio(video_url, result, timeout=timeout, max_retries=max_retries, cls=cls)
-    return VideoFromFile(result)
+    return InputImpl.VideoFromFile(result)
 
 
 async def download_url_as_bytesio(

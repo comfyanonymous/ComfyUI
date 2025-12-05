@@ -53,6 +53,7 @@ import comfy.text_encoders.omnigen2
 import comfy.text_encoders.qwen_image
 import comfy.text_encoders.hunyuan_image
 import comfy.text_encoders.z_image
+import comfy.text_encoders.ovis
 
 import comfy.model_patcher
 import comfy.lora
@@ -192,6 +193,7 @@ class CLIP:
                 self.cond_stage_model.set_clip_options({"projected_pooled": False})
 
             self.load_model()
+            self.cond_stage_model.set_clip_options({"execution_device": self.patcher.load_device})
             all_hooks.reset()
             self.patcher.patch_hooks(None)
             if show_pbar:
@@ -239,6 +241,7 @@ class CLIP:
             self.cond_stage_model.set_clip_options({"projected_pooled": False})
 
         self.load_model()
+        self.cond_stage_model.set_clip_options({"execution_device": self.patcher.load_device})
         o = self.cond_stage_model.encode_token_weights(tokens)
         cond, pooled = o[:2]
         if return_dict:
@@ -468,7 +471,7 @@ class VAE:
                                                             decoder_config={'target': "comfy.ldm.hunyuan_video.vae_refiner.Decoder", 'params': ddconfig})
 
                 self.memory_used_encode = lambda shape, dtype: (1400 * 9 * shape[-2] * shape[-1]) * model_management.dtype_size(dtype)
-                self.memory_used_decode = lambda shape, dtype: (2800 * 4 * shape[-2] * shape[-1] * 16 * 16) * model_management.dtype_size(dtype)
+                self.memory_used_decode = lambda shape, dtype: (3600 * 4 * shape[-2] * shape[-1] * 16 * 16) * model_management.dtype_size(dtype)
             elif "decoder.conv_in.conv.weight" in sd:
                 ddconfig = {'double_z': True, 'z_channels': 4, 'resolution': 256, 'in_channels': 3, 'out_ch': 3, 'ch': 128, 'ch_mult': [1, 2, 4, 4], 'num_res_blocks': 2, 'attn_resolutions': [], 'dropout': 0.0}
                 ddconfig["conv3d"] = True
@@ -480,8 +483,10 @@ class VAE:
                 self.latent_dim = 3
                 self.latent_channels = ddconfig['z_channels'] = sd["decoder.conv_in.conv.weight"].shape[1]
                 self.first_stage_model = AutoencoderKL(ddconfig=ddconfig, embed_dim=sd['post_quant_conv.weight'].shape[1])
-                self.memory_used_decode = lambda shape, dtype: (1500 * shape[2] * shape[3] * shape[4] * (4 * 8 * 8)) * model_management.dtype_size(dtype)
-                self.memory_used_encode = lambda shape, dtype: (900 * max(shape[2], 2) * shape[3] * shape[4]) * model_management.dtype_size(dtype)
+                #This is likely to significantly over-estimate with single image or low frame counts as the
+                #implementation is able to completely skip caching. Rework if used as an image only VAE
+                self.memory_used_decode = lambda shape, dtype: (2800 * min(8, ((shape[2] - 1) * 4) + 1) * shape[3] * shape[4] * (8 * 8)) * model_management.dtype_size(dtype)
+                self.memory_used_encode = lambda shape, dtype: (1400 * min(9, shape[2]) * shape[3] * shape[4]) * model_management.dtype_size(dtype)
                 self.working_dtypes = [torch.bfloat16, torch.float16, torch.float32]
             elif "decoder.unpatcher3d.wavelets" in sd:
                 self.upscale_ratio = (lambda a: max(0, a * 8 - 7), 8, 8)
@@ -956,6 +961,7 @@ class CLIPType(Enum):
     QWEN_IMAGE = 18
     HUNYUAN_IMAGE = 19
     HUNYUAN_VIDEO_15 = 20
+    OVIS = 21
 
 
 def load_clip(ckpt_paths, embedding_directory=None, clip_type=CLIPType.STABLE_DIFFUSION, model_options={}):
@@ -987,6 +993,7 @@ class TEModel(Enum):
     MISTRAL3_24B = 14
     MISTRAL3_24B_PRUNED_FLUX2 = 15
     QWEN3_4B = 16
+    QWEN3_2B = 17
 
 
 def detect_te_model(sd):
@@ -1020,9 +1027,12 @@ def detect_te_model(sd):
         if weight.shape[0] == 512:
             return TEModel.QWEN25_7B
     if "model.layers.0.post_attention_layernorm.weight" in sd:
-        if 'model.layers.0.self_attn.q_norm.weight' in sd:
-            return TEModel.QWEN3_4B
         weight = sd['model.layers.0.post_attention_layernorm.weight']
+        if 'model.layers.0.self_attn.q_norm.weight' in sd:
+            if weight.shape[0] == 2560:
+                return TEModel.QWEN3_4B
+            elif weight.shape[0] == 2048:
+                return TEModel.QWEN3_2B
         if weight.shape[0] == 5120:
             if "model.layers.39.post_attention_layernorm.weight" in sd:
                 return TEModel.MISTRAL3_24B
@@ -1150,6 +1160,9 @@ def load_text_encoder_state_dicts(state_dicts=[], embedding_directory=None, clip
         elif te_model == TEModel.QWEN3_4B:
             clip_target.clip = comfy.text_encoders.z_image.te(**llama_detect(clip_data))
             clip_target.tokenizer = comfy.text_encoders.z_image.ZImageTokenizer
+        elif te_model == TEModel.QWEN3_2B:
+            clip_target.clip = comfy.text_encoders.ovis.te(**llama_detect(clip_data))
+            clip_target.tokenizer = comfy.text_encoders.ovis.OvisTokenizer
         else:
             # clip_l
             if clip_type == CLIPType.SD3:

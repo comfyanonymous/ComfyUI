@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 import random
+import uuid
 from io import BytesIO
 from typing import Type
 
@@ -318,9 +319,10 @@ class AudioSaveHelper:
             for key, value in metadata.items():
                 output_container.metadata[key] = value
 
+            layout = "mono" if waveform.shape[0] == 1 else "stereo"
             # Set up the output stream with appropriate properties
             if format == "opus":
-                out_stream = output_container.add_stream("libopus", rate=sample_rate)
+                out_stream = output_container.add_stream("libopus", rate=sample_rate, layout=layout)
                 if quality == "64k":
                     out_stream.bit_rate = 64000
                 elif quality == "96k":
@@ -332,7 +334,7 @@ class AudioSaveHelper:
                 elif quality == "320k":
                     out_stream.bit_rate = 320000
             elif format == "mp3":
-                out_stream = output_container.add_stream("libmp3lame", rate=sample_rate)
+                out_stream = output_container.add_stream("libmp3lame", rate=sample_rate, layout=layout)
                 if quality == "V0":
                     # TODO i would really love to support V3 and V5 but there doesn't seem to be a way to set the qscale level, the property below is a bool
                     out_stream.codec_context.qscale = 1
@@ -341,12 +343,12 @@ class AudioSaveHelper:
                 elif quality == "320k":
                     out_stream.bit_rate = 320000
             else:  # format == "flac":
-                out_stream = output_container.add_stream("flac", rate=sample_rate)
+                out_stream = output_container.add_stream("flac", rate=sample_rate, layout=layout)
 
             frame = av.AudioFrame.from_ndarray(
                 waveform.movedim(0, 1).reshape(1, -1).float().numpy(),
                 format="flt",
-                layout="mono" if waveform.shape[0] == 1 else "stereo",
+                layout=layout,
             )
             frame.sample_rate = sample_rate
             frame.pts = 0
@@ -436,9 +438,19 @@ class PreviewUI3D(_UIOutput):
     def __init__(self, model_file, camera_info, **kwargs):
         self.model_file = model_file
         self.camera_info = camera_info
+        self.bg_image_path = None
+        bg_image = kwargs.get("bg_image", None)
+        if bg_image is not None:
+            img_array = (bg_image[0].cpu().numpy() * 255).astype(np.uint8)
+            img = PILImage.fromarray(img_array)
+            temp_dir = folder_paths.get_temp_directory()
+            filename = f"bg_{uuid.uuid4().hex}.png"
+            bg_image_path = os.path.join(temp_dir, filename)
+            img.save(bg_image_path, compress_level=1)
+            self.bg_image_path = f"temp/{filename}"
 
     def as_dict(self):
-        return {"result": [self.model_file, self.camera_info]}
+        return {"result": [self.model_file, self.camera_info, self.bg_image_path]}
 
 
 class PreviewText(_UIOutput):
