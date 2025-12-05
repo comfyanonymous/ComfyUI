@@ -552,6 +552,8 @@ def mixed_precision_ops(quant_config={}, compute_dtype=torch.bfloat16, full_prec
 
                     weight_scale_key = f"{prefix}weight_scale"
                     scale = state_dict.pop(weight_scale_key, None)
+                    if scale is not None:
+                        scale = scale.to(device)
                     layout_params = {
                         'scale': scale,
                         'orig_dtype': MixedPrecisionOps._compute_dtype,

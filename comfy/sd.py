@@ -98,7 +98,7 @@ def load_lora_for_models(model, clip, lora, strength_model, strength_clip):
 
 
 class CLIP:
-    def __init__(self, target=None, embedding_directory=None, no_init=False, tokenizer_data={}, parameters=0, model_options={}):
+    def __init__(self, target=None, embedding_directory=None, no_init=False, tokenizer_data={}, parameters=0, state_dict=[], model_options={}):
         if no_init:
             return
         params = target.params.copy()
@@ -129,6 +129,27 @@ class CLIP:
         self.patcher.hook_mode = comfy.hooks.EnumHookMode.MinVram
         self.patcher.is_clip = True
         self.apply_hooks_to_conds = None
+        if len(state_dict) > 0:
+            if isinstance(state_dict, list):
+                for c in state_dict:
+                    m, u = self.load_sd(c)
+                    if len(m) > 0:
+                        logging.warning("clip missing: {}".format(m))
+
+                    if len(u) > 0:
+                        logging.debug("clip unexpected: {}".format(u))
+            else:
+                m, u = self.load_sd(state_dict, full_model=True)
+                if len(m) > 0:
+                    m_filter = list(filter(lambda a: ".logit_scale" not in a and ".transformer.text_projection.weight" not in a, m))
+                    if len(m_filter) > 0:
+                        logging.warning("clip missing: {}".format(m))
+                    else:
+                        logging.debug("clip missing: {}".format(m))
+
+                if len(u) > 0:
+                    logging.debug("clip unexpected {}:".format(u))
+
         if params['device'] == load_device:
             model_management.load_models_gpu([self.patcher], force_full_load=True)
         self.layer_idx = None
@@ -1225,14 +1246,7 @@ def load_text_encoder_state_dicts(state_dicts=[], embedding_directory=None, clip
         parameters += comfy.utils.calculate_parameters(c)
         tokenizer_data, model_options = comfy.text_encoders.long_clipl.model_options_long_clip(c, tokenizer_data, model_options)
 
-    clip = CLIP(clip_target, embedding_directory=embedding_directory, parameters=parameters, tokenizer_data=tokenizer_data, model_options=model_options)
-    for c in clip_data:
-        m, u = clip.load_sd(c)
-        if len(m) > 0:
-            logging.warning("clip missing: {}".format(m))
-
-        if len(u) > 0:
-            logging.debug("clip unexpected: {}".format(u))
+    clip = CLIP(clip_target, embedding_directory=embedding_directory, parameters=parameters, tokenizer_data=tokenizer_data, state_dict=clip_data, model_options=model_options)
     return clip
 
 def load_gligen(ckpt_path):
@@ -1362,17 +1376,7 @@ def load_state_dict_guess_config(sd, output_vae=True, output_clip=True, output_c
             clip_sd = model_config.process_clip_state_dict(sd)
             if len(clip_sd) > 0:
                 parameters = comfy.utils.calculate_parameters(clip_sd)
-                clip = CLIP(clip_target, embedding_directory=embedding_directory, tokenizer_data=clip_sd, parameters=parameters, model_options=te_model_options)
-                m, u = clip.load_sd(clip_sd, full_model=True)
-                if len(m) > 0:
-                    m_filter = list(filter(lambda a: ".logit_scale" not in a and ".transformer.text_projection.weight" not in a, m))
-                    if len(m_filter) > 0:
-                        logging.warning("clip missing: {}".format(m))
-                    else:
-                        logging.debug("clip missing: {}".format(m))
-
-                if len(u) > 0:
-                    logging.debug("clip unexpected {}:".format(u))
+                clip = CLIP(clip_target, embedding_directory=embedding_directory, tokenizer_data=clip_sd, parameters=parameters, state_dict=clip_sd, model_options=te_model_options)
             else:
                 logging.warning("no CLIP/text encoder weights in checkpoint, the text encoder model will not be loaded.")
 
