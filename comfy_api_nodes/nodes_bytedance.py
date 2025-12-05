@@ -4,7 +4,7 @@ import math
 import torch
 from typing_extensions import override
 
-from comfy_api.latest import IO, ComfyExtension
+from comfy_api.latest import IO, ComfyExtension, Input
 from comfy_api_nodes.apis.bytedance_api import (
     RECOMMENDED_PRESETS,
     RECOMMENDED_PRESETS_SEEDREAM_4,
@@ -235,7 +235,7 @@ class ByteDanceImageEditNode(IO.ComfyNode):
     async def execute(
         cls,
         model: str,
-        image: torch.Tensor,
+        image: Input.Image,
         prompt: str,
         seed: int,
         guidance_scale: float,
@@ -275,7 +275,7 @@ class ByteDanceSeedreamNode(IO.ComfyNode):
             inputs=[
                 IO.Combo.Input(
                     "model",
-                    options=["seedream-4-0-250828"],
+                    options=["seedream-4-5-251128", "seedream-4-0-250828"],
                     tooltip="Model name",
                 ),
                 IO.String.Input(
@@ -300,7 +300,7 @@ class ByteDanceSeedreamNode(IO.ComfyNode):
                     default=2048,
                     min=1024,
                     max=4096,
-                    step=64,
+                    step=8,
                     tooltip="Custom width for image. Value is working only if `size_preset` is set to `Custom`",
                     optional=True,
                 ),
@@ -309,7 +309,7 @@ class ByteDanceSeedreamNode(IO.ComfyNode):
                     default=2048,
                     min=1024,
                     max=4096,
-                    step=64,
+                    step=8,
                     tooltip="Custom height for image. Value is working only if `size_preset` is set to `Custom`",
                     optional=True,
                 ),
@@ -373,7 +373,7 @@ class ByteDanceSeedreamNode(IO.ComfyNode):
         cls,
         model: str,
         prompt: str,
-        image: torch.Tensor = None,
+        image: Input.Image | None = None,
         size_preset: str = RECOMMENDED_PRESETS_SEEDREAM_4[0][0],
         width: int = 2048,
         height: int = 2048,
@@ -396,6 +396,18 @@ class ByteDanceSeedreamNode(IO.ComfyNode):
                 raise ValueError(
                     f"Custom size out of range: {w}x{h}. " "Both width and height must be between 1024 and 4096 pixels."
                 )
+        out_num_pixels = w * h
+        mp_provided = out_num_pixels / 1_000_000.0
+        if "seedream-4-5" in model and out_num_pixels < 3686400:
+            raise ValueError(
+                f"Minimum image resolution that Seedream 4.5 can generate is 3.68MP, "
+                f"but {mp_provided:.2f}MP provided."
+            )
+        if "seedream-4-0" in model and out_num_pixels < 921600:
+            raise ValueError(
+                f"Minimum image resolution that the selected model can generate is 0.92MP, "
+                f"but {mp_provided:.2f}MP provided."
+            )
         n_input_images = get_number_of_images(image) if image is not None else 0
         if n_input_images > 10:
             raise ValueError(f"Maximum of 10 reference images are supported, but {n_input_images} received.")
@@ -626,7 +638,7 @@ class ByteDanceImageToVideoNode(IO.ComfyNode):
         cls,
         model: str,
         prompt: str,
-        image: torch.Tensor,
+        image: Input.Image,
         resolution: str,
         aspect_ratio: str,
         duration: int,
@@ -748,8 +760,8 @@ class ByteDanceFirstLastFrameNode(IO.ComfyNode):
         cls,
         model: str,
         prompt: str,
-        first_frame: torch.Tensor,
-        last_frame: torch.Tensor,
+        first_frame: Input.Image,
+        last_frame: Input.Image,
         resolution: str,
         aspect_ratio: str,
         duration: int,
@@ -871,7 +883,7 @@ class ByteDanceImageReferenceNode(IO.ComfyNode):
         cls,
         model: str,
         prompt: str,
-        images: torch.Tensor,
+        images: Input.Image,
         resolution: str,
         aspect_ratio: str,
         duration: int,
