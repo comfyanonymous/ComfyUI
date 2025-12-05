@@ -1027,6 +1027,8 @@ class ZImage(Lumina2):
 
     memory_usage_factor = 1.7
 
+    supported_inference_dtypes = [torch.bfloat16, torch.float16, torch.float32]
+
     def clip_target(self, state_dict={}):
         pref = self.text_encoder_key_prefix[0]
         hunyuan_detect = comfy.text_encoders.hunyuan_video.llama_detect(state_dict, "{}qwen3_4b.transformer.".format(pref))
