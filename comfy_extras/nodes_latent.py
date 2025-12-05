@@ -395,9 +395,9 @@ class ReplaceVideoLatentFrames(io.ComfyNode):
             node_id="ReplaceVideoLatentFrames",
             category="latent/batch",
             inputs=[
-                io.Latent.Input("destination"),
-                io.Latent.Input("source"),
-                io.Int.Input("index", default=0, min=-nodes.MAX_RESOLUTION, max=nodes.MAX_RESOLUTION, step=1),
+                io.Latent.Input("destination", tooltip="The destination latent where frames will be replaced."),
+                io.Latent.Input("source", optional=True, tooltip="The source latent providing frames to insert into the destination latent. If not provided, the destination latent is returned unchanged."),
+                io.Int.Input("index", default=0, min=-nodes.MAX_RESOLUTION, max=nodes.MAX_RESOLUTION, step=1, tooltip="The starting latent frame index in the destination latent where the source latent frames will be placed. Negative values count from the end."),
             ],
             outputs=[
                 io.Latent.Output(),
@@ -405,12 +405,18 @@ class ReplaceVideoLatentFrames(io.ComfyNode):
         )
 
     @classmethod
-    def execute(cls, source, destination, index) -> io.NodeOutput:
-        if index > destination["samples"].shape[2]:
-            logging.warning(f"ReplaceVideoLatentFrames: Index {index} is out of bounds for destination latent frames {destination['samples'].shape[2]}.")
+    def execute(cls, destination, index, source=None) -> io.NodeOutput:
+        if source is None:
             return io.NodeOutput(destination)
-        if index + source["samples"].shape[2] > destination["samples"].shape[2]:
-            logging.warning(f"ReplaceVideoLatentFrames: Source latent frames {source['samples'].shape[2]} do not fit within destination latent frames {destination['samples'].shape[2]} at the specified index {index}.")
+        dest_frames = destination["samples"].shape[2]
+        source_frames = source["samples"].shape[2]
+        if index < 0:
+            index = dest_frames + index
+        if index > dest_frames:
+            logging.warning(f"ReplaceVideoLatentFrames: Index {index} is out of bounds for destination latent frames {dest_frames}.")
+            return io.NodeOutput(destination)
+        if index + source_frames > dest_frames:
+            logging.warning(f"ReplaceVideoLatentFrames: Source latent frames {source_frames} do not fit within destination latent frames {dest_frames} at the specified index {index}.")
             return io.NodeOutput(destination)
         s = source.copy()
         s_source = source["samples"]
