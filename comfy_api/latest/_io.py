@@ -938,15 +938,6 @@ class Autogrow(ComfyTypeI):
         def validate(self):
             self.input.validate()
 
-        def expand_schema_for_dynamic(self, d: dict[str, Any], live_inputs: dict[str, Any], curr_prefix: list[str] | None=None):
-            curr_prefix = handle_prefix(curr_prefix)
-            real_inputs = []
-            for name, input in self.cached_inputs.items():
-                if name in live_inputs:
-                    real_inputs.append(input)
-            add_to_input_dict_v1(d, real_inputs, live_inputs, curr_prefix)
-            add_dynamic_id_mapping(d, real_inputs, curr_prefix)
-
     class TemplatePrefix(_AutogrowTemplate):
         def __init__(self, input: Input, prefix: str, min: int=1, max: int=10):
             super().__init__(input)
@@ -1112,12 +1103,6 @@ class DynamicSlot(ComfyTypeI):
                 self.force_input = True
                 self.slot.force_input = True
 
-        def expand_schema_for_dynamic(self, d: dict[str, Any], live_inputs: dict[str, Any], curr_prefix: list[str] | None=None):
-            if self.id in live_inputs:
-                curr_prefix = handle_prefix(curr_prefix, self.id)
-                add_to_input_dict_v1(d, self.inputs, live_inputs, curr_prefix)
-                add_dynamic_id_mapping(d, [self.slot] + self.inputs, curr_prefix)
-
         def get_dynamic(self) -> list[Input]:
             return [self.slot] + self.inputs
 
@@ -1145,19 +1130,6 @@ class DynamicSlot(ComfyTypeI):
             # add self to inputs
             out_dict[input_type][finalized_id] = value
             out_dict["dynamic_paths"][finalized_id] = finalize_prefix(curr_prefix, curr_prefix[-1])
-
-def add_dynamic_id_mapping(d: dict[str, Any], inputs: list[Input], curr_prefix: list[str], self: DynamicInput=None):
-    dynamic = d.setdefault("dynamic_paths", {})
-    if self is not None:
-        dynamic[finalize_prefix(curr_prefix[:-1], self.id)] = finalize_prefix(curr_prefix, self.id)
-    for i in inputs:
-        if not isinstance(i, DynamicInput):
-            dynamic[finalize_prefix(curr_prefix, i.id)] = finalize_prefix(curr_prefix, i.id)
-
-def add_to_dynamic_dict(dynamic: dict[str, Any], curr_prefix: list[str], id: str, value: str):
-    finalize_key = finalize_prefix(curr_prefix, id)
-    if finalize_key not in dynamic:
-        dynamic[finalize_key] = value
 
 DYNAMIC_INPUT_LOOKUP: dict[str, Callable[[dict[str, Any], dict[str, Any], tuple[str, dict[str, Any]], str, list[str] | None], None]] = {}
 def register_dynamic_input_func(io_type: str, func: Callable[[dict[str, Any], dict[str, Any], tuple[str, dict[str, Any]], str, list[str] | None], None]):
