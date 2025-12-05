@@ -4,7 +4,6 @@ import torch.nn as nn
 import torch.nn.functional as F
 from typing import Optional, Tuple
 from einops import repeat
-
 from comfy.ldm.lightricks.model import TimestepEmbedding, Timesteps
 from comfy.ldm.modules.attention import optimized_attention_masked
 from comfy.ldm.flux.layers import EmbedND
@@ -12,8 +11,9 @@ import comfy.ldm.common_dit
 import comfy.patcher_extension
 from comfy.ldm.flux.math import apply_rope1
 
+
 class GELU(nn.Module):
-    def __init__(self, dim_in: int, dim_out: int, approximate: str = "none", bias: bool = True, dtype=None, device=None, operations=None):
+    def __init__(self, dim_in: int, dim_out: int, approximate: str = "none", bias: bool = True, dtype=None, device=None, operations=None, **kwargs):
         super().__init__()
         self.proj = operations.Linear(dim_in, dim_out, bias=bias, dtype=dtype, device=device)
         self.approximate = approximate
@@ -33,7 +33,9 @@ class FeedForward(nn.Module):
         dropout: float = 0.0,
         inner_dim=None,
         bias: bool = True,
-        dtype=None, device=None, operations=None
+        dtype=None, device=None, operations=None,
+        svdquant_format=False,
+        **kwargs,
     ):
         super().__init__()
         if inner_dim is None:
@@ -41,7 +43,7 @@ class FeedForward(nn.Module):
         dim_out = dim_out if dim_out is not None else dim
 
         self.net = nn.ModuleList([])
-        self.net.append(GELU(dim, inner_dim, approximate="tanh", bias=bias, dtype=dtype, device=device, operations=operations))
+        self.net.append(GELU(dim, inner_dim, approximate="tanh", bias=bias, dtype=dtype, device=device, operations=operations, **kwargs))
         self.net.append(nn.Dropout(dropout))
         self.net.append(operations.Linear(inner_dim, dim_out, bias=bias, dtype=dtype, device=device))
 
@@ -92,7 +94,9 @@ class Attention(nn.Module):
         out_context_dim: int = None,
         dtype=None,
         device=None,
-        operations=None
+        operations=None,
+        svdquant_format=False,
+        **kwargs,
     ):
         super().__init__()
         self.inner_dim = out_dim if out_dim is not None else dim_head * heads
@@ -109,21 +113,30 @@ class Attention(nn.Module):
         self.norm_added_q = operations.RMSNorm(dim_head, eps=eps, dtype=dtype, device=device)
         self.norm_added_k = operations.RMSNorm(dim_head, eps=eps, dtype=dtype, device=device)
 
+        self.svdquant_format = svdquant_format
+
         # Image stream projections
-        self.to_q = operations.Linear(query_dim, self.inner_dim, bias=bias, dtype=dtype, device=device)
-        self.to_k = operations.Linear(query_dim, self.inner_kv_dim, bias=bias, dtype=dtype, device=device)
-        self.to_v = operations.Linear(query_dim, self.inner_kv_dim, bias=bias, dtype=dtype, device=device)
+        if self.svdquant_format: # svdq merged qkv for better perf
+            self.to_qkv = operations.Linear(query_dim, self.inner_dim + self.inner_kv_dim * 2, bias=bias, dtype=dtype, device=device)
+        else:
+            self.to_q = operations.Linear(query_dim, self.inner_dim, bias=bias, dtype=dtype, device=device)
+            self.to_k = operations.Linear(query_dim, self.inner_kv_dim, bias=bias, dtype=dtype, device=device)
+            self.to_v = operations.Linear(query_dim, self.inner_kv_dim, bias=bias, dtype=dtype, device=device)
 
         # Text stream projections
-        self.add_q_proj = operations.Linear(query_dim, self.inner_dim, bias=bias, dtype=dtype, device=device)
-        self.add_k_proj = operations.Linear(query_dim, self.inner_kv_dim, bias=bias, dtype=dtype, device=device)
-        self.add_v_proj = operations.Linear(query_dim, self.inner_kv_dim, bias=bias, dtype=dtype, device=device)
+        if self.svdquant_format:
+            self.add_qkv_proj = operations.Linear(query_dim, self.inner_dim + self.inner_kv_dim * 2, bias=bias, dtype=dtype, device=device)
+        else:
+            self.add_q_proj = operations.Linear(query_dim, self.inner_dim, bias=bias, dtype=dtype, device=device)
+            self.add_k_proj = operations.Linear(query_dim, self.inner_kv_dim, bias=bias, dtype=dtype, device=device)
+            self.add_v_proj = operations.Linear(query_dim, self.inner_kv_dim, bias=bias, dtype=dtype, device=device)   
 
         # Output projections
         self.to_out = nn.ModuleList([
             operations.Linear(self.inner_dim, self.out_dim, bias=out_bias, dtype=dtype, device=device),
             nn.Dropout(dropout)
         ])
+
         self.to_add_out = operations.Linear(self.inner_dim, self.out_context_dim, bias=out_bias, dtype=dtype, device=device)
 
     def forward(
@@ -140,29 +153,64 @@ class Attention(nn.Module):
         seq_txt = encoder_hidden_states.shape[1]
 
         # Project and reshape to BHND format (batch, heads, seq, dim)
-        img_query = self.to_q(hidden_states).view(batch_size, seq_img, self.heads, -1).transpose(1, 2).contiguous()
-        img_key = self.to_k(hidden_states).view(batch_size, seq_img, self.heads, -1).transpose(1, 2).contiguous()
-        img_value = self.to_v(hidden_states).view(batch_size, seq_img, self.heads, -1).transpose(1, 2)
+        if self.svdquant_format:
+            img_qkv = self.to_qkv(hidden_states)
+            img_query, img_key, img_value = img_qkv.chunk(3, dim=-1)
+            # Reshape for multi-head attention to [B, L, H, D]
+            img_query = img_query.unflatten(-1, (self.heads, -1))  # [B, L, H, D]
+            img_key = img_key.unflatten(-1, (self.heads, -1))
+            img_value = img_value.unflatten(-1, (self.heads, -1))
+        else:
+            img_query = self.to_q(hidden_states).view(batch_size, seq_img, self.heads, -1).transpose(1, 2).contiguous()
+            img_key = self.to_k(hidden_states).view(batch_size, seq_img, self.heads, -1).transpose(1, 2).contiguous()
+            img_value = self.to_v(hidden_states).view(batch_size, seq_img, self.heads, -1).transpose(1, 2)
+        if self.svdquant_format:
+            txt_qkv = self.add_qkv_proj(encoder_hidden_states)
+            txt_query, txt_key, txt_value = txt_qkv.chunk(3, dim=-1)
+            # Reshape for multi-head attention to [B, L, H, D]
+            txt_query = txt_query.unflatten(-1, (self.heads, -1))
+            txt_key = txt_key.unflatten(-1, (self.heads, -1))
+            txt_value = txt_value.unflatten(-1, (self.heads, -1))
+        else:
+            txt_query = self.add_q_proj(encoder_hidden_states).view(batch_size, seq_txt, self.heads, -1).transpose(1, 2).contiguous()
+            txt_key = self.add_k_proj(encoder_hidden_states).view(batch_size, seq_txt, self.heads, -1).transpose(1, 2).contiguous()
+            txt_value = self.add_v_proj(encoder_hidden_states).view(batch_size, seq_txt, self.heads, -1).transpose(1, 2)
 
-        txt_query = self.add_q_proj(encoder_hidden_states).view(batch_size, seq_txt, self.heads, -1).transpose(1, 2).contiguous()
-        txt_key = self.add_k_proj(encoder_hidden_states).view(batch_size, seq_txt, self.heads, -1).transpose(1, 2).contiguous()
-        txt_value = self.add_v_proj(encoder_hidden_states).view(batch_size, seq_txt, self.heads, -1).transpose(1, 2)
 
         img_query = self.norm_q(img_query)
         img_key = self.norm_k(img_key)
         txt_query = self.norm_added_q(txt_query)
         txt_key = self.norm_added_k(txt_key)
 
-        joint_query = torch.cat([txt_query, img_query], dim=2)
-        joint_key = torch.cat([txt_key, img_key], dim=2)
-        joint_value = torch.cat([txt_value, img_value], dim=2)
+        if self.svdquant_format:
+            # Concatenate image and text streams for joint attention
+            joint_query = torch.cat([txt_query, img_query], dim=1)
+            joint_key = torch.cat([txt_key, img_key], dim=1)
+            joint_value = torch.cat([txt_value, img_value], dim=1)
 
-        joint_query = apply_rope1(joint_query, image_rotary_emb)
-        joint_key = apply_rope1(joint_key, image_rotary_emb)
+            # Apply rotary embeddings to concatenated tensors
+            joint_query = apply_rotary_emb(joint_query, image_rotary_emb)
+            joint_key = apply_rotary_emb(joint_key, image_rotary_emb)
 
-        joint_hidden_states = optimized_attention_masked(joint_query, joint_key, joint_value, self.heads,
-                                                         attention_mask, transformer_options=transformer_options,
-                                                         skip_reshape=True)
+            # Flatten to [B, L, H*D] for attention
+            joint_query = joint_query.flatten(start_dim=2)
+            joint_key = joint_key.flatten(start_dim=2)
+            joint_value = joint_value.flatten(start_dim=2)
+
+            joint_hidden_states = optimized_attention_masked(
+                joint_query, joint_key, joint_value, self.heads, attention_mask
+            )
+        else:
+            joint_query = torch.cat([txt_query, img_query], dim=2)
+            joint_key = torch.cat([txt_key, img_key], dim=2)
+            joint_value = torch.cat([txt_value, img_value], dim=2)
+
+            joint_query = apply_rope1(joint_query, image_rotary_emb)
+            joint_key = apply_rope1(joint_key, image_rotary_emb)
+
+            joint_hidden_states = optimized_attention_masked(joint_query, joint_key, joint_value, self.heads,
+                                                            attention_mask, transformer_options=transformer_options,
+                                                            skip_reshape=True)
 
         txt_attn_output = joint_hidden_states[:, :seq_txt, :]
         img_attn_output = joint_hidden_states[:, seq_txt:, :]
@@ -183,28 +231,38 @@ class QwenImageTransformerBlock(nn.Module):
         eps: float = 1e-6,
         dtype=None,
         device=None,
-        operations=None
+        operations=None,
+        scale_shift: float = None,
+        svdquant_format=False,
+        **kwargs,
     ):
         super().__init__()
         self.dim = dim
         self.num_attention_heads = num_attention_heads
         self.attention_head_dim = attention_head_dim
+        self.svdquant_format = svdquant_format
+        # For svdquant, scale_shift should be 0 as the shift is fused into weights
+        if scale_shift is None:
+            scale_shift = 0.0 if self.svdquant_format else 1.0
+        self.scale_shift = scale_shift
 
         self.img_mod = nn.Sequential(
             nn.SiLU(),
             operations.Linear(dim, 6 * dim, bias=True, dtype=dtype, device=device),
         )
+
         self.img_norm1 = operations.LayerNorm(dim, elementwise_affine=False, eps=eps, dtype=dtype, device=device)
         self.img_norm2 = operations.LayerNorm(dim, elementwise_affine=False, eps=eps, dtype=dtype, device=device)
-        self.img_mlp = FeedForward(dim=dim, dim_out=dim, dtype=dtype, device=device, operations=operations)
+        self.img_mlp = FeedForward(dim=dim, dim_out=dim, dtype=dtype, device=device, operations=operations, **kwargs)
 
         self.txt_mod = nn.Sequential(
             nn.SiLU(),
             operations.Linear(dim, 6 * dim, bias=True, dtype=dtype, device=device),
         )
+
         self.txt_norm1 = operations.LayerNorm(dim, elementwise_affine=False, eps=eps, dtype=dtype, device=device)
         self.txt_norm2 = operations.LayerNorm(dim, elementwise_affine=False, eps=eps, dtype=dtype, device=device)
-        self.txt_mlp = FeedForward(dim=dim, dim_out=dim, dtype=dtype, device=device, operations=operations)
+        self.txt_mlp = FeedForward(dim=dim, dim_out=dim, dtype=dtype, device=device, operations=operations, **kwargs)
 
         self.attn = Attention(
             query_dim=dim,
@@ -216,11 +274,18 @@ class QwenImageTransformerBlock(nn.Module):
             dtype=dtype,
             device=device,
             operations=operations,
+            svdquant_format=svdquant_format,
+            **kwargs,
         )
 
     def _modulate(self, x: torch.Tensor, mod_params: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
         shift, scale, gate = torch.chunk(mod_params, 3, dim=-1)
-        return torch.addcmul(shift.unsqueeze(1), x, 1 + scale.unsqueeze(1)), gate.unsqueeze(1)
+        if self.svdquant_format:
+            if self.scale_shift != 0:
+                scale.add_(self.scale_shift)
+            return x * scale.unsqueeze(1) + shift.unsqueeze(1), gate.unsqueeze(1)
+        else:
+            return torch.addcmul(shift.unsqueeze(1), x, 1 + scale.unsqueeze(1)), gate.unsqueeze(1)
 
     def forward(
         self,
@@ -233,21 +298,42 @@ class QwenImageTransformerBlock(nn.Module):
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         img_mod_params = self.img_mod(temb)
         txt_mod_params = self.txt_mod(temb)
+
+        # Nunchaku's mod_params layout is [B, dim*6] with different ordering
+        # Need to reshape from [B, dim*6] to correct layout
+
+        if self.svdquant_format:
+            img_mod_params = (
+                img_mod_params.view(img_mod_params.shape[0], -1, 6).transpose(1, 2).reshape(img_mod_params.shape[0], -1)
+            )
+            txt_mod_params = (
+                txt_mod_params.view(txt_mod_params.shape[0], -1, 6).transpose(1, 2).reshape(txt_mod_params.shape[0], -1)
+            )
+        
         img_mod1, img_mod2 = img_mod_params.chunk(2, dim=-1)
         txt_mod1, txt_mod2 = txt_mod_params.chunk(2, dim=-1)
+
 
         img_modulated, img_gate1 = self._modulate(self.img_norm1(hidden_states), img_mod1)
         del img_mod1
         txt_modulated, txt_gate1 = self._modulate(self.txt_norm1(encoder_hidden_states), txt_mod1)
         del txt_mod1
 
-        img_attn_output, txt_attn_output = self.attn(
-            hidden_states=img_modulated,
-            encoder_hidden_states=txt_modulated,
-            encoder_hidden_states_mask=encoder_hidden_states_mask,
-            image_rotary_emb=image_rotary_emb,
-            transformer_options=transformer_options,
-        )
+        if self.svdquant_format:
+            img_attn_output, txt_attn_output = self.attn(
+                hidden_states=img_modulated,
+                encoder_hidden_states=txt_modulated,
+                encoder_hidden_states_mask=encoder_hidden_states_mask,
+                image_rotary_emb=image_rotary_emb,
+            )
+        else:
+            img_attn_output, txt_attn_output = self.attn(
+                hidden_states=img_modulated,
+                encoder_hidden_states=txt_modulated,
+                encoder_hidden_states_mask=encoder_hidden_states_mask,
+                image_rotary_emb=image_rotary_emb,
+                transformer_options=transformer_options,
+            )
         del img_modulated
         del txt_modulated
 
@@ -257,6 +343,8 @@ class QwenImageTransformerBlock(nn.Module):
         del txt_attn_output
         del img_gate1
         del txt_gate1
+
+
 
         img_modulated2, img_gate2 = self._modulate(self.img_norm2(hidden_states), img_mod2)
         hidden_states = torch.addcmul(hidden_states, img_gate2, self.img_mlp(img_modulated2))
@@ -307,7 +395,15 @@ class QwenImageTransformer2DModel(nn.Module):
         dtype=None,
         device=None,
         operations=None,
+        scale_shift: float = None,
+        svdquant_format=False,
+        **kwargs,
     ):
+        # For svdquant, scale_shift should be 0 as the shift is fused into weights
+        self.svdquant_format = svdquant_format
+
+        if scale_shift is None:
+            scale_shift = 0.0 if self.svdquant_format else 1.0
         super().__init__()
         self.dtype = dtype
         self.patch_size = patch_size
@@ -336,7 +432,10 @@ class QwenImageTransformer2DModel(nn.Module):
                 attention_head_dim=attention_head_dim,
                 dtype=dtype,
                 device=device,
-                operations=operations
+                operations=operations,
+                scale_shift=scale_shift,
+                svdquant_format=svdquant_format,
+                **kwargs
             )
             for _ in range(num_layers)
         ])
@@ -384,10 +483,12 @@ class QwenImageTransformer2DModel(nn.Module):
         control=None,
         **kwargs
     ):
+        #from safetensors import safe_open
+        #with safe_open("/root/nck_x.safetensors", framework="pt", device="cuda") as f:
+        #    x = f.get_tensor("nck_x")
         timestep = timesteps
         encoder_hidden_states = context
         encoder_hidden_states_mask = attention_mask
-
         hidden_states, img_ids, orig_shape = self.process_img(x)
         num_embeds = hidden_states.shape[1]
 
@@ -419,7 +520,10 @@ class QwenImageTransformer2DModel(nn.Module):
         txt_start = round(max(((x.shape[-1] + (self.patch_size // 2)) // self.patch_size) // 2, ((x.shape[-2] + (self.patch_size // 2)) // self.patch_size) // 2))
         txt_ids = torch.arange(txt_start, txt_start + context.shape[1], device=x.device).reshape(1, -1, 1).repeat(x.shape[0], 1, 3)
         ids = torch.cat((txt_ids, img_ids), dim=1)
-        image_rotary_emb = self.pe_embedder(ids).to(x.dtype).contiguous()
+        if self.svdquant_format:
+            image_rotary_emb = self.pe_embedder(ids).squeeze(1).unsqueeze(2).to(x.dtype)
+        else:
+            image_rotary_emb = self.pe_embedder(ids).to(x.dtype).contiguous()
         del ids, txt_ids, img_ids
 
         hidden_states = self.img_in(hidden_states)
@@ -441,6 +545,9 @@ class QwenImageTransformer2DModel(nn.Module):
 
         transformer_options["total_blocks"] = len(self.transformer_blocks)
         transformer_options["block_type"] = "double"
+
+
+
         for i, block in enumerate(self.transformer_blocks):
             transformer_options["block_index"] = i
             if ("double_block", i) in blocks_replace:

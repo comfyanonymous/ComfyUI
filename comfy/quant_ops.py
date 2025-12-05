@@ -46,13 +46,28 @@ def register_generic_util(torch_op):
 
 
 def _get_layout_from_args(args):
+    def _extract_layout(obj):
+        if isinstance(obj, QuantizedTensor):
+            return obj._layout_type
+        # For torch.nn.Parameter wrapping QuantizedTensor, check the data attribute
+        if isinstance(obj, torch.nn.Parameter):
+            if isinstance(obj.data, QuantizedTensor):
+                return obj.data._layout_type
+            if hasattr(obj.data, "_layout_type"):
+                return getattr(obj.data, "_layout_type", None)
+        if hasattr(obj, "_layout_type"):
+            return getattr(obj, "_layout_type", None)
+        return None
+
     for arg in args:
-        if isinstance(arg, QuantizedTensor):
-            return arg._layout_type
-        elif isinstance(arg, (list, tuple)):
+        layout = _extract_layout(arg)
+        if layout is not None:
+            return layout
+        if isinstance(arg, (list, tuple)):
             for item in arg:
-                if isinstance(item, QuantizedTensor):
-                    return item._layout_type
+                layout = _extract_layout(item)
+                if layout is not None:
+                    return layout
     return None
 
 
@@ -438,6 +453,46 @@ QUANT_ALGOS = {
         "parameters": {"weight_scale", "input_scale"},
         "comfy_tensor_layout": "TensorCoreFP8Layout",
     },
+    "svdquant_int4": {
+        "storage_t": torch.int8,  # Packed 4-bit stored in int8
+        "parameters": {
+            "wscales",
+            "smooth_factor", 
+            "smooth_factor_orig",
+            "proj_down",
+            "proj_up",
+        },
+        "custom_layer_params_keys": ["wscales", "smooth_factor", "smooth_factor_orig", "proj_down", "proj_up"],
+        "comfy_tensor_layout": "SVDQuantLayout",
+        "group_size": 64,
+        "precision": "int4",
+    },
+    "svdquant_nvfp4": {
+        "storage_t": torch.int8,  # Packed 4-bit stored in int8
+        "parameters": {
+            "wscales",
+            "smooth_factor",
+            "smooth_factor_orig", 
+            "proj_down",
+            "proj_up",
+            "wtscale",
+            "wcscales",
+        },
+        "custom_layer_params_keys": ["wscales", "smooth_factor", "smooth_factor_orig", "proj_down", "proj_up", "wtscale", "wcscales"],
+        "comfy_tensor_layout": "SVDQuantLayout",
+        "group_size": 16,
+        "precision": "nvfp4",
+    },
+    "awq_int4": {
+        "storage_t": torch.int32,  # Packed 4-bit stored in int32
+        "parameters": {
+            "wscales",
+            "wzeros",
+        },
+        "custom_layer_params_keys": ["wscales", "wzeros"],
+        "comfy_tensor_layout": "AWQQuantLayout",
+        "group_size": 64,
+    },
 }
 
 LAYOUTS = {
@@ -571,3 +626,439 @@ def fp8_func(func, args, kwargs):
         ar[0] = plain_input
         return QuantizedTensor(func(*ar, **kwargs), "TensorCoreFP8Layout", input_tensor._layout_params)
     return func(*args, **kwargs)
+
+
+# ==============================================================================
+# SVDQuant Layout + Operation Handlers
+# ==============================================================================
+
+class SVDQuantLayout(QuantizedLayout):
+    """
+    SVDQuant W4A4 quantization layout.
+    
+    SVDQuant decomposes linear operations as:
+    X*W = X * proj_up * proj_down + quantize(X) * quantize(R)
+    
+    Where:
+    - proj_up, proj_down: Low-rank factorization of weights
+    - R: Residual weights (quantized to 4-bit)
+    - quantize(): 4-bit quantization with smoothing factors
+    
+    Storage format:
+    For weights (is_weight=True):
+        - qdata: Packed quantized residual weights (out_features, in_features // 2), int8
+        - wscales: Weight quantization scales
+        - smooth_factor: Smoothing factors for inputs
+        - proj_down: Low-rank down projection
+        - proj_up: Low-rank up projection
+        - group_size: Quantization group size (64 for int4, 16 for nvfp4)
+        - precision: 'int4' or 'nvfp4'
+        - rank: SVD rank
+        - wtscale: Global weight scale (nvfp4 only)
+        - wcscales: Channel-wise weight scales (nvfp4 only)
+        - act_unsigned: Whether activations are unsigned (int4 only)
+        - orig_dtype: Original dtype before quantization
+    
+    For activations (is_weight=False):
+        - qdata: Original activation tensor (not quantized yet)
+        - orig_dtype: Original dtype
+        - is_weight: False marker
+    """
+    
+    @classmethod
+    def quantize(cls, tensor, is_weight=True, **kwargs):
+        """
+        For SVDQuant, we don't perform online quantization.
+        - Weights are pre-quantized offline and loaded from checkpoint
+        - Activations are stored as-is and quantized during forward pass
+        """
+        orig_dtype = tensor.dtype
+        
+        if is_weight:
+            # This shouldn't be called for weights as they're loaded pre-quantized
+            raise NotImplementedError(
+                "SVDQuant weights should be loaded pre-quantized from checkpoint, "
+                "not quantized on-the-fly"
+            )
+        else:
+            # For activations, just store the tensor as-is
+            # It will be quantized during the linear operation
+            layout_params = {
+                'orig_dtype': orig_dtype,
+                'is_weight': False
+            }
+            return tensor, layout_params
+    
+    @staticmethod
+    def dequantize(qdata, is_weight=True, orig_dtype=None, **kwargs):
+        """
+        Dequantization for SVDQuant.
+        - Activations: return as-is (not actually quantized)
+        - Weights: full dequantization not supported (would need to reconstruct from SVD + residual)
+        """
+        if not is_weight:
+            # Activations aren't actually quantized, just return them
+            return qdata.to(orig_dtype) if orig_dtype else qdata
+        else:
+            # Full weight dequantization is complex and not typically needed
+            # Would require: proj_down @ proj_up.T + dequantize(qweight)
+            raise NotImplementedError(
+                "Full dequantization of SVDQuant weights is not supported. "
+                "Use the quantized forward pass instead."
+            )
+    
+    @classmethod
+    def get_plain_tensors(cls, qtensor):
+        """Extract the raw tensors needed for SVDQuant computation."""
+        if qtensor._layout_params.get('is_weight', True):
+            # For weights, return all the necessary components
+            return {
+                'qweight': qtensor._qdata,
+                'wscales': qtensor._layout_params.get('wscales'),
+                'smooth_factor': qtensor._layout_params.get('smooth_factor'),
+                'proj_down': qtensor._layout_params.get('proj_down'),
+                'proj_up': qtensor._layout_params.get('proj_up'),
+                'group_size': qtensor._layout_params.get('group_size'),
+                'precision': qtensor._layout_params.get('precision', 'int4'),
+                'wtscale': qtensor._layout_params.get('wtscale'),
+                'wcscales': qtensor._layout_params.get('wcscales'),
+                'act_unsigned': qtensor._layout_params.get('act_unsigned', False),
+            }
+        else:
+            # For activations, just return the tensor
+            return qtensor._qdata
+
+
+@register_layout_op(torch.ops.aten.addmm.default, "SVDQuantLayout")
+@register_layout_op(torch.ops.aten.linear.default, "SVDQuantLayout")
+def svdquant_linear(func, args, kwargs):
+    """
+    SVDQuant linear operation handler.
+    
+    Implements: X*W = X * proj_up * proj_down + quantize(X) * quantize(R)
+    
+    Handles both aten.linear and aten.addmm (which linear decomposes into).
+    """
+    # Handle both linear and addmm calling conventions
+    if func == torch.ops.aten.addmm.default:
+        # addmm(bias, input, weight.t()) -> out
+        bias = args[0] if len(args) > 0 else None
+        input_tensor = args[1] if len(args) > 1 else None
+        weight = args[2] if len(args) > 2 else None
+        # Weight comes transposed in addmm, but SVDQuant stores it non-transposed
+        # So we need to transpose it back
+        need_transpose = True
+    else:
+        # linear(input, weight, bias) -> out
+        input_tensor = args[0]
+        weight = args[1]
+        bias = args[2] if len(args) > 2 else None
+        need_transpose = False
+    
+    # Unwrap Parameter if necessary
+    if isinstance(weight, torch.nn.Parameter):
+        weight = weight.data
+    
+    # Check if weight is SVDQuant quantized
+    if not isinstance(weight, QuantizedTensor) or weight._layout_type != "SVDQuantLayout":
+        # Fallback to standard linear
+        if isinstance(weight, QuantizedTensor):
+            weight = weight.dequantize()
+        if isinstance(input_tensor, QuantizedTensor):
+            input_tensor = input_tensor.dequantize()
+        if func == torch.ops.aten.addmm.default:
+            return torch.addmm(bias, input_tensor, weight)
+        else:
+            return torch.nn.functional.linear(input_tensor, weight, bias)
+    
+    # Extract weight parameters
+    weight_params = SVDQuantLayout.get_plain_tensors(weight)
+    qweight = weight_params['qweight']
+    wscales = weight_params['wscales']
+    smooth_factor = weight_params['smooth_factor']
+    proj_down = weight_params['proj_down']
+    proj_up = weight_params['proj_up']
+    group_size = weight_params['group_size']
+    precision = weight_params['precision']
+    wtscale = weight_params['wtscale']
+    wcscales = weight_params['wcscales']
+    act_unsigned = weight_params['act_unsigned']
+    
+    # Get activation tensor (dequantize if it's a QuantizedTensor)
+    if isinstance(input_tensor, QuantizedTensor):
+        if input_tensor._layout_type == "SVDQuantLayout":
+            x = SVDQuantLayout.get_plain_tensors(input_tensor)
+        else:
+            x = input_tensor.dequantize()
+    else:
+        x = input_tensor
+    
+    # Import nunchaku operations
+    try:
+        from nunchaku.ops.quantize import svdq_quantize_w4a4_act_fuse_lora_cuda
+        from nunchaku.ops.gemm import svdq_gemm_w4a4_cuda
+    except ImportError:
+        raise ImportError(
+            "SVDQuant requires the nunchaku library. "
+            "Install it with: pip install nunchaku"
+        )
+    
+    # Handle batch dimensions
+    original_shape = x.shape
+    if len(original_shape) == 2:
+        batch_size, channels = original_shape
+        seq_len = 1
+        x = x.view(batch_size, seq_len, channels)
+    elif len(original_shape) == 3:
+        batch_size, seq_len, channels = original_shape
+    else:
+        raise ValueError(f"SVDQuant linear expects 2D or 3D input, got {len(original_shape)}D")
+    
+    # Reshape to 2D for computation
+    x_2d = x.reshape(batch_size * seq_len, channels)
+    original_batch_size = x_2d.shape[0]  # Track original size before padding
+    
+    # Step 1: Quantize activations and compute low-rank hidden states
+    # Output: quantized_x, ascales, lora_act_out
+    quantized_x, ascales, lora_act_out = svdq_quantize_w4a4_act_fuse_lora_cuda(
+        x_2d,
+        lora_down=proj_down,
+        smooth=smooth_factor,
+        fp4=(precision == "nvfp4"),
+        pad_size=256
+    )
+    
+    # Step 2: Compute quantized GEMM with low-rank residual
+    # Output shape: (N_padded, out_features) where N_padded may be larger due to padding
+    out_features = qweight.shape[0]
+    output = torch.empty(
+        quantized_x.shape[0],
+        out_features,
+        dtype=proj_up.dtype,
+        device=x.device
+    )
+    
+    svdq_gemm_w4a4_cuda(
+        act=quantized_x,
+        wgt=qweight,
+        out=output,
+        ascales=ascales,
+        wscales=wscales,
+        lora_act_in=lora_act_out,
+        lora_up=proj_up,
+        bias=bias,
+        fp4=(precision == "nvfp4"),
+        alpha=wtscale,
+        wcscales=wcscales,
+        act_unsigned=act_unsigned,
+    )
+    
+    # Slice to remove padding and reshape back to original batch dimensions
+    output = output[:original_batch_size, :]  # Remove padding
+    if len(original_shape) == 2:
+        output = output.view(batch_size, out_features)
+    else:
+        output = output.view(batch_size, seq_len, out_features)
+    
+    return output
+
+
+# ==============================================================================
+# AWQ Layout + Operation Handlers
+# ==============================================================================
+
+class AWQQuantLayout(QuantizedLayout):
+    """
+    AWQ W4A16 quantization layout.
+    
+    AWQ (Activation-aware Weight Quantization) quantizes weights to 4-bit
+    while keeping activations in 16-bit precision (float16/bfloat16).
+    
+    Storage format:
+    For weights (is_weight=True):
+        - qdata: Packed quantized weights (out_features // 4, in_features // 2), int32
+        - wscales: Weight quantization scales (in_features // group_size, out_features)
+        - wzeros: Weight zero points (in_features // group_size, out_features)
+        - group_size: Quantization group size (default 64)
+        - orig_dtype: Original dtype before quantization
+    
+    For activations (is_weight=False):
+        - qdata: Original activation tensor (not quantized)
+        - orig_dtype: Original dtype
+        - is_weight: False marker
+    """
+    
+    @classmethod
+    def quantize(cls, tensor, is_weight=True, **kwargs):
+        """
+        For AWQ, we don't perform online quantization.
+        - Weights are pre-quantized offline and loaded from checkpoint
+        - Activations remain in 16-bit precision
+        """
+        orig_dtype = tensor.dtype
+        
+        if is_weight:
+            # This shouldn't be called for weights as they're loaded pre-quantized
+            raise NotImplementedError(
+                "AWQ weights should be loaded pre-quantized from checkpoint, "
+                "not quantized on-the-fly"
+            )
+        else:
+            # For activations, just store the tensor as-is
+            layout_params = {
+                'orig_dtype': orig_dtype,
+                'is_weight': False
+            }
+            return tensor, layout_params
+    
+    @staticmethod
+    def dequantize(qdata, is_weight=True, orig_dtype=None, wscales=None, wzeros=None, group_size=64, **kwargs):
+        """
+        Dequantization for AWQ.
+        - Activations: return as-is (not quantized)
+        - Weights: unpack and dequantize from 4-bit
+        """
+        if not is_weight:
+            # Activations aren't quantized, just return them
+            return qdata.to(orig_dtype) if orig_dtype else qdata
+        else:
+            # Dequantize 4-bit weights
+            # qdata shape: (out_features // 4, in_features // 2), dtype int32
+            # Output shape should be: (out_features, in_features)
+            
+            # This is a complex operation that requires unpacking 4-bit values
+            # For now, we'll raise an error and rely on the quantized forward pass
+            raise NotImplementedError(
+                "Full dequantization of AWQ weights is not yet supported. "
+                "Use the quantized forward pass instead."
+            )
+    
+    @classmethod
+    def get_plain_tensors(cls, qtensor):
+        """Extract the raw tensors needed for AWQ computation."""
+        if qtensor._layout_params.get('is_weight', True):
+            # For weights, return all the necessary components
+            return {
+                'qweight': qtensor._qdata,
+                'wscales': qtensor._layout_params.get('wscales'),
+                'wzeros': qtensor._layout_params.get('wzeros'),
+                'group_size': qtensor._layout_params.get('group_size', 64),
+            }
+        else:
+            # For activations, just return the tensor
+            return qtensor._qdata
+
+
+@register_layout_op(torch.ops.aten.addmm.default, "AWQQuantLayout")
+@register_layout_op(torch.ops.aten.linear.default, "AWQQuantLayout")
+def awq_linear(func, args, kwargs):
+    """
+    AWQ linear operation handler.
+    
+    Implements W4A16 quantized linear using AWQ format.
+    
+    Handles both aten.linear and aten.addmm (which linear decomposes into).
+    """
+    # Handle both linear and addmm calling conventions
+    if func == torch.ops.aten.addmm.default:
+        # addmm(bias, input, weight.t()) -> out
+        bias = args[0] if len(args) > 0 else None
+        input_tensor = args[1] if len(args) > 1 else None
+        weight = args[2] if len(args) > 2 else None
+    else:
+        # linear(input, weight, bias) -> out
+        input_tensor = args[0]
+        weight = args[1]
+        bias = args[2] if len(args) > 2 else None
+    
+    # Unwrap Parameter if necessary
+    if isinstance(weight, torch.nn.Parameter):
+        weight = weight.data
+    
+    # Check if weight is AWQ quantized
+    if not isinstance(weight, QuantizedTensor) or weight._layout_type != "AWQQuantLayout":
+        # Fallback to standard linear
+        if isinstance(weight, QuantizedTensor):
+            weight = weight.dequantize()
+        if isinstance(input_tensor, QuantizedTensor):
+            input_tensor = input_tensor.dequantize()
+        if func == torch.ops.aten.addmm.default:
+            return torch.addmm(bias, input_tensor, weight)
+        else:
+            return torch.nn.functional.linear(input_tensor, weight, bias)
+    
+    # Extract weight parameters
+    weight_params = AWQQuantLayout.get_plain_tensors(weight)
+    qweight = weight_params['qweight']
+    wscales = weight_params['wscales']
+    wzeros = weight_params['wzeros']
+    group_size = weight_params['group_size']
+    
+    # Get activation tensor (dequantize if it's a QuantizedTensor)
+    if isinstance(input_tensor, QuantizedTensor):
+        if input_tensor._layout_type == "AWQQuantLayout":
+            x = AWQQuantLayout.get_plain_tensors(input_tensor)
+        else:
+            x = input_tensor.dequantize()
+    else:
+        x = input_tensor
+    
+    # Import nunchaku AWQ operation
+    try:
+        from nunchaku.ops.gemv import awq_gemv_w4a16_cuda
+    except ImportError:
+        raise ImportError(
+            "AWQ requires the nunchaku library. "
+            "Install it with: pip install nunchaku"
+        )
+    
+    # Calculate output dimensions from packed weight shape
+    # qweight shape: (out_features // 4, in_features // 2)
+    out_features = qweight.shape[0] * 4
+    in_features = qweight.shape[1] * 2
+
+    
+    # Handle batch dimensions - preserve original shape
+    # Important: nunchaku expects 2D input only, so we reshape 3D to 2D
+    original_shape = x.shape
+    if len(original_shape) == 2:
+        # (batch_size, in_features)
+        batch_size = original_shape[0]
+        x_2d = x
+    #elif len(original_shape) == 3:
+    #    # (batch_size, seq_len, in_features) -> (batch_size * seq_len, in_features)
+    #    batch_size, seq_len, _ = original_shape
+    #    x_2d = x.reshape(batch_size * seq_len, in_features)
+    else:
+        raise ValueError(f"AWQ linear expects 2D or 3D input, got {len(original_shape)}D")
+    
+    # Ensure input is contiguous (required by CUDA kernel)
+    # Only create a contiguous copy if absolutely necessary
+    #if not x_2d.is_contiguous():
+    #    x_2d = x_2d.contiguous()
+    
+    output = awq_gemv_w4a16_cuda(
+        in_feats=x_2d,
+        kernel=qweight,
+        scaling_factors=wscales,
+        zeros=wzeros,
+        m=x_2d.shape[0],
+        n=out_features,
+        k=in_features,
+        group_size=group_size,
+    )
+    
+    # Add bias if present
+    if bias is not None:
+        view_shape = [1] * (output.ndim - 1) + [-1]
+        output = output + bias.view(view_shape)
+    
+    # Reshape back to original batch dimensions
+    #if len(original_shape) == 3:
+    #    output = output.view(batch_size, seq_len, out_features)
+    
+    return output
+
+
+LAYOUTS["SVDQuantLayout"] = SVDQuantLayout
+LAYOUTS["AWQQuantLayout"] = AWQQuantLayout
