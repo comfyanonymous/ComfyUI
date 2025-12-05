@@ -1627,6 +1627,8 @@ class SaveImage:
         return { "ui": { "images": results } }
 
 class PreviewImage(SaveImage):
+    WANT_LIVE_PREVIEW = True
+
     def __init__(self):
         self.output_dir = folder_paths.get_temp_directory()
         self.type = "temp"
