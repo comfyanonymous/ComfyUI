@@ -4,6 +4,7 @@ import os
 import time
 import mimetypes
 import logging
+import sys
 from typing import Literal, List
 from collections.abc import Collection
 
@@ -116,6 +117,16 @@ def set_temp_directory(temp_dir: str) -> None:
 def set_input_directory(input_dir: str) -> None:
     global input_directory
     input_directory = input_dir
+
+def set_custom_nodes_directory(custom_nodes_dir: str) -> None:
+    global folder_names_and_paths
+
+    delimiter = ":"
+    if sys.platform in ("win32", "cygwin"):
+        delimiter = ";"
+
+    directories = custom_nodes_dir.split(delimiter)
+    folder_names_and_paths["custom_nodes"] = (directories, set())
 
 def get_output_directory() -> str:
     global output_directory
