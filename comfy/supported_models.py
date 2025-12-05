@@ -1337,20 +1337,20 @@ class HunyuanImage3(supported_models_base.BASE):
         "image_model": "hunyuan_image_3",
     }
     latent_format = latent_formats.HunyuanImage3
+    text_encoder_key_prefix = ["text_encoders."]
 
     def get_model(self, state_dict, prefix="", device=None):
-        self.wte_sd = state_dict["model.model.wte"]
-        state_dict.pop("model.model.wte", None)
+        self.wte_sd = state_dict["model.model.wte.weight"]
         model = model_base.HunyuanImage3(self, device = device)
+        state_dict["text_encoders.transformer.wte.weight"] = self.wte_sd
 
         temp_tokenizer = comfy.text_encoders.hunyuan_image.HunyuanImage3Tokenizer()
         model.encode_tok = temp_tokenizer.tokenizer.convert_tokens_to_ids
         model.special_tok = temp_tokenizer.tokenizer.added_tokens_encoder
 
         return model
+
     def clip_target(self, state_dict={}):
-        clip = comfy.text_encoders.hunyuan_image.HunyuanImage3
-        clip.embed_wte = self.wte_sd
         return supported_models_base.ClipTarget(comfy.text_encoders.hunyuan_image.HunyuanImage3Tokenizer, comfy.text_encoders.hunyuan_image.HunyuanImage3)
 
 class HunyuanImage21(HunyuanVideo):

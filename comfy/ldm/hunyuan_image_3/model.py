@@ -562,11 +562,13 @@ class MoELRUCache(nn.Module):
 
 def parse_layer_expert(key):
     parts = key.split(".")
-    layer = int(parts[2])
-    expert = int(parts[5])
+    layer = int(parts[3])
+    expert = int(parts[6])
     return layer, expert
         
 class LazyMoELoader(nn.Module):
+    dtype = None
+    operations = None
     def __init__(self, cache, config, max_workers = 16, max_concurrent_loads = 32):
         super().__init__()
         self.cache = cache
@@ -574,7 +576,7 @@ class LazyMoELoader(nn.Module):
         self._loop = cache._loop
         self.expert_key_index = self.index_safetensors()
         self._checkpoint = self.get_checkpoint()
-        self._file = safe_open(self._checkpoint, framework="pt", device="cpu", mmap=True)
+        self._file = safe_open(self._checkpoint, framework="pt", device="cpu")
         self.expert_pool = self.build_meta_experts()
 
         self._executor = ThreadPoolExecutor(max_workers=max_workers)
@@ -595,9 +597,11 @@ class LazyMoELoader(nn.Module):
         return pool
 
     def get_checkpoint(self):
-        comfyui_dir = Path.home() / "ComfyUI"
-        checkpoint = comfyui_dir / "models" / "checkpoints" / "hunyuan_image_3.safetensors"
-        checkpoint = checkpoint.resolve()
+        CURRENT_DIR = Path(__file__).resolve().parent
+        COMFY_ROOT = CURRENT_DIR.parents[2]
+
+        checkpoint = COMFY_ROOT / "models" / "checkpoints" / "hunyuan_image_3.safetensors"
+        checkpoint = str(checkpoint)
         if not os.path.exists(checkpoint):
             raise ValueError(f"Hunyuan Image 3 Checkpoint on one GPU should have the path: {checkpoint}")
         return checkpoint
@@ -607,6 +611,8 @@ class LazyMoELoader(nn.Module):
         index = {}
         with safe_open(checkpoint, framework="pt", device="cpu") as f:
             for k in f.keys():
+                if "_SKIP__" in k:
+                    k = k.split("_SKIP__")[1]
                 if "experts." in k:
                     layer, expert = parse_layer_expert(k)
                     index.setdefault(layer, {}).setdefault(expert, []).append(k)
@@ -915,9 +921,9 @@ class HunyuanImage3Model(nn.Module):
         self.shared_tensor = None
         self.moe_lru = moe_lru
         self.additional_layers_set = False
+        LazyMoELoader.dtype = dtype
+        LazyMoELoader.operations = operations
         self.moe_loader = LazyMoELoader(self.moe_lru, self.config)
-        self.moe_loader.operations = operations 
-        self.moe_loader.dtype = dtype
 
     def forward(
             self,
