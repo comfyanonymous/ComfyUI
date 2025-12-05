@@ -209,6 +209,12 @@ parser.add_argument(
     help="The local filesystem path to the directory where the frontend is located. Overrides --front-end-version.",
 )
 
+parser.add_argument(
+    "--legacy-frontend-compat",
+    action="store_true",
+    help="Convert V3 node schemas to V1 format for compatibility with old frontends"
+)
+
 parser.add_argument("--user-directory", type=is_valid_directory, default=None, help="Set the ComfyUI user directory with an absolute path. Overrides --base-directory.")
 
 parser.add_argument("--enable-compress-response-body", action="store_true", help="Enable compressing response body.")
