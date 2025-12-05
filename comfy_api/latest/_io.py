@@ -1167,10 +1167,10 @@ def get_dynamic_input_func(io_type: str) -> Callable[[dict[str, Any], dict[str, 
     return DYNAMIC_INPUT_LOOKUP[io_type]
 
 def setup_dynamic_input_funcs():
-    # DynamicCombo.Input
-    register_dynamic_input_func(DynamicCombo.io_type, DynamicCombo._expand_schema_for_dynamic)
     # Autogrow.Input
     register_dynamic_input_func(Autogrow.io_type, Autogrow._expand_schema_for_dynamic)
+    # DynamicCombo.Input
+    register_dynamic_input_func(DynamicCombo.io_type, DynamicCombo._expand_schema_for_dynamic)
     # DynamicSlot.Input
     register_dynamic_input_func(DynamicSlot.io_type, DynamicSlot._expand_schema_for_dynamic)
 
