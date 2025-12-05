@@ -147,13 +147,12 @@ SENSITIVE_EXTRA_DATA_KEYS = ("auth_token_comfy_org", "api_key_comfy_org")
 def get_input_data(inputs, class_def, unique_id, execution_list=None, dynprompt=None, extra_data={}):
     is_v3 = issubclass(class_def, _ComfyNodeInternal)
     v3_data: io.V3Data = {}
+    hidden_inputs_v3 = {}
+    valid_inputs = class_def.INPUT_TYPES()
     if is_v3:
-        valid_inputs, schema, v3_data = class_def.INPUT_TYPES(include_hidden=False, return_schema=True, live_inputs=inputs)
-    else:
-        valid_inputs = class_def.INPUT_TYPES()
+        valid_inputs, hidden, v3_data = _io.get_finalized_class_inputs(valid_inputs, inputs)
     input_data_all = {}
     missing_keys = {}
-    hidden_inputs_v3 = {}
     for x in inputs:
         input_data = inputs[x]
         _, input_category, input_info = get_input_info(class_def, x, valid_inputs)
@@ -179,18 +178,18 @@ def get_input_data(inputs, class_def, unique_id, execution_list=None, dynprompt=
             input_data_all[x] = [input_data]
 
     if is_v3:
-        if schema.hidden:
-            if io.Hidden.prompt in schema.hidden:
+        if hidden is not None:
+            if io.Hidden.prompt.name in hidden:
                 hidden_inputs_v3[io.Hidden.prompt] = dynprompt.get_original_prompt() if dynprompt is not None else {}
-            if io.Hidden.dynprompt in schema.hidden:
+            if io.Hidden.dynprompt.name in hidden:
                 hidden_inputs_v3[io.Hidden.dynprompt] = dynprompt
-            if io.Hidden.extra_pnginfo in schema.hidden:
+            if io.Hidden.extra_pnginfo.name in hidden:
                 hidden_inputs_v3[io.Hidden.extra_pnginfo] = extra_data.get('extra_pnginfo', None)
-            if io.Hidden.unique_id in schema.hidden:
+            if io.Hidden.unique_id.name in hidden:
                 hidden_inputs_v3[io.Hidden.unique_id] = unique_id
-            if io.Hidden.auth_token_comfy_org in schema.hidden:
+            if io.Hidden.auth_token_comfy_org.name in hidden:
                 hidden_inputs_v3[io.Hidden.auth_token_comfy_org] = extra_data.get("auth_token_comfy_org", None)
-            if io.Hidden.api_key_comfy_org in schema.hidden:
+            if io.Hidden.api_key_comfy_org.name in hidden:
                 hidden_inputs_v3[io.Hidden.api_key_comfy_org] = extra_data.get("api_key_comfy_org", None)
     else:
         if "hidden" in valid_inputs:
@@ -757,7 +756,8 @@ async def validate_inputs(prompt_id, prompt, item, validated):
     validate_has_kwargs = False
     if issubclass(obj_class, _ComfyNodeInternal):
         obj_class: _io._ComfyNodeBaseInternal
-        class_inputs, _, _ = obj_class.INPUT_TYPES(include_hidden=False, return_schema=True, live_inputs=inputs)
+        class_inputs = obj_class.INPUT_TYPES()
+        class_inputs, _, _ = _io.get_finalized_class_inputs(class_inputs, inputs)
         validate_function_name = "validate_inputs"
         validate_function = first_real_override(obj_class, validate_function_name)
     else:
