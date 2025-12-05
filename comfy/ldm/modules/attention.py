@@ -365,7 +365,9 @@ def attention_split(q, k, v, heads, mask=None, attn_precision=None, skip_reshape
                 r1[:, i:end] = einsum('b i j, b j d -> b i d', s2, v)
                 del s2
             break
-        except model_management.OOM_EXCEPTION as e:
+        except Exception as e:
+            if not model_management.is_oom_exception(e):
+                raise
             if first_op_done == False:
                 model_management.soft_empty_cache(True)
                 if cleared_cache == False:
