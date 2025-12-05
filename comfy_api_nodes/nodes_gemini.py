@@ -13,8 +13,7 @@ import torch
 from typing_extensions import override
 
 import folder_paths
-from comfy_api.latest import IO, ComfyExtension, Input
-from comfy_api.util import VideoCodec, VideoContainer
+from comfy_api.latest import IO, ComfyExtension, Input, Types
 from comfy_api_nodes.apis.gemini_api import (
     GeminiContent,
     GeminiFileData,
@@ -68,7 +67,7 @@ class GeminiImageModel(str, Enum):
 
 async def create_image_parts(
     cls: type[IO.ComfyNode],
-    images: torch.Tensor,
+    images: Input.Image,
     image_limit: int = 0,
 ) -> list[GeminiPart]:
     image_parts: list[GeminiPart] = []
@@ -154,8 +153,8 @@ def get_text_from_response(response: GeminiGenerateContentResponse) -> str:
     return "\n".join([part.text for part in parts])
 
 
-def get_image_from_response(response: GeminiGenerateContentResponse) -> torch.Tensor:
-    image_tensors: list[torch.Tensor] = []
+def get_image_from_response(response: GeminiGenerateContentResponse) -> Input.Image:
+    image_tensors: list[Input.Image] = []
     parts = get_parts_by_type(response, "image/png")
     for part in parts:
         image_data = base64.b64decode(part.inlineData.data)
@@ -293,7 +292,9 @@ class GeminiNode(IO.ComfyNode):
     def create_video_parts(cls, video_input: Input.Video) -> list[GeminiPart]:
         """Convert video input to Gemini API compatible parts."""
 
-        base_64_string = video_to_base64_string(video_input, container_format=VideoContainer.MP4, codec=VideoCodec.H264)
+        base_64_string = video_to_base64_string(
+            video_input, container_format=Types.VideoContainer.MP4, codec=Types.VideoCodec.H264
+        )
         return [
             GeminiPart(
                 inlineData=GeminiInlineData(
@@ -343,7 +344,7 @@ class GeminiNode(IO.ComfyNode):
         prompt: str,
         model: str,
         seed: int,
-        images: torch.Tensor | None = None,
+        images: Input.Image | None = None,
         audio: Input.Audio | None = None,
         video: Input.Video | None = None,
         files: list[GeminiPart] | None = None,
@@ -542,7 +543,7 @@ class GeminiImage(IO.ComfyNode):
         prompt: str,
         model: str,
         seed: int,
-        images: torch.Tensor | None = None,
+        images: Input.Image | None = None,
         files: list[GeminiPart] | None = None,
         aspect_ratio: str = "auto",
         response_modalities: str = "IMAGE+TEXT",
@@ -662,7 +663,7 @@ class GeminiImage2(IO.ComfyNode):
         aspect_ratio: str,
         resolution: str,
         response_modalities: str,
-        images: torch.Tensor | None = None,
+        images: Input.Image | None = None,
         files: list[GeminiPart] | None = None,
     ) -> IO.NodeOutput:
         validate_string(prompt, strip_whitespace=True, min_length=1)
