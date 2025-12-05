@@ -241,9 +241,6 @@ class QuantizedTensor(torch.Tensor):
     def storage(self):
         return self._qdata.storage()
 
-    def untyped_storage(self):
-        return self._qdata.untyped_storage()
-
 # ==============================================================================
 # Generic Utilities (Layout-Agnostic Operations)
 # ==============================================================================
