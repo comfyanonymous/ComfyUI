@@ -1217,8 +1217,6 @@ def load_text_encoder_state_dicts(state_dicts=[], embedding_directory=None, clip
 
     parameters = 0
     for c in clip_data:
-        if "_quantization_metadata" in c:
-            c.pop("_quantization_metadata")
         parameters += comfy.utils.calculate_parameters(c)
         tokenizer_data, model_options = comfy.text_encoders.long_clipl.model_options_long_clip(c, tokenizer_data, model_options)
 
@@ -1410,9 +1408,6 @@ def load_diffusion_model_state_dict(sd, model_options={}, metadata=None):
     temp_sd = comfy.utils.state_dict_prefix_replace(sd, {diffusion_model_prefix: ""}, filter_keys=True)
     if len(temp_sd) > 0:
         sd = temp_sd
-        quant_key = "{}_quantization_metadata".format(diffusion_model_prefix)
-        if metadata is not None and quant_key in metadata:
-            metadata["_quantization_metadata"] = metadata.pop(quant_key)
 
     sd, metadata = comfy.utils.convert_old_quants(sd, "", metadata=metadata)
     parameters = comfy.utils.calculate_parameters(sd)
