@@ -449,7 +449,7 @@ class fp8_ops(manual_cast):
             return None
 
         def forward_comfy_cast_weights(self, input):
-            if not self.training:
+            if len(self.weight_function) == 0 and len(self.bias_function) == 0:
                 try:
                     out = fp8_linear(self, input)
                     if out is not None:
