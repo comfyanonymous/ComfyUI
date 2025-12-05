@@ -338,7 +338,9 @@ def generic_copy_(func, args, kwargs):
             # Copy from another quantized tensor
             qt_dest._qdata.copy_(src._qdata, non_blocking=non_blocking)
             qt_dest._layout_type = src._layout_type
+            orig_dtype = qt_dest._layout_params["orig_dtype"]
             _copy_layout_params_inplace(src._layout_params, qt_dest._layout_params, non_blocking=non_blocking)
+            qt_dest._layout_params["orig_dtype"] = orig_dtype
         else:
             # Copy from regular tensor - just copy raw data
             qt_dest._qdata.copy_(src)
