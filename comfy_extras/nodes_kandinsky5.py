@@ -66,17 +66,17 @@ def adaptive_mean_std_normalization(source, reference, clump_mean_low=0.3, clump
     return normalized
 
 
-class NormalizeVideoLatentFrames(io.ComfyNode):
+class NormalizeVideoLatentStart(io.ComfyNode):
     @classmethod
     def define_schema(cls):
         return io.Schema(
-            node_id="NormalizeVideoLatentFrames",
+            node_id="NormalizeVideoLatentStart",
             category="conditioning/video_models",
-            description="Normalizes the initial frames of a video latent to match the mean and standard deviation of subsequent reference frames.",
+            description="Normalizes the initial frames of a video latent to match the mean and standard deviation of subsequent reference frames. Helps reduce differences between the starting frames and the rest of the video.",
             inputs=[
                 io.Latent.Input("latent"),
-                io.Int.Input("frames_to_normalize", default=4, min=1, max=nodes.MAX_RESOLUTION, step=1, tooltip="Number of initial frames to normalize, counted from the start"),
-                io.Int.Input("reference_frames", default=5, min=1, max=nodes.MAX_RESOLUTION, step=1, tooltip="Number of frames after the normalized frames to use as reference"),
+                io.Int.Input("start_frame_count", default=4, min=1, max=nodes.MAX_RESOLUTION, step=1, tooltip="Number of latent frames to normalize, counted from the start"),
+                io.Int.Input("reference_frame_count", default=5, min=1, max=nodes.MAX_RESOLUTION, step=1, tooltip="Number of latent frames after the start frames to use as reference"),
             ],
             outputs=[
                 io.Latent.Output(display_name="latent"),
@@ -84,17 +84,17 @@ class NormalizeVideoLatentFrames(io.ComfyNode):
         )
 
     @classmethod
-    def execute(cls, latent, frames_to_normalize, reference_frames) -> io.NodeOutput:
+    def execute(cls, latent, start_frame_count, reference_frame_count) -> io.NodeOutput:
         if latent["samples"].shape[2] <= 1:
             return latent
         s = latent.copy()
         samples = latent["samples"].clone()
 
-        first_frames = samples[:, :, :frames_to_normalize]
-        reference_frames_data = samples[:, :, frames_to_normalize:frames_to_normalize+min(reference_frames, samples.shape[2]-1)]
+        first_frames = samples[:, :, :start_frame_count]
+        reference_frames_data = samples[:, :, start_frame_count:start_frame_count+min(reference_frame_count, samples.shape[2]-1)]
         normalized_first_frames = adaptive_mean_std_normalization(first_frames, reference_frames_data)
 
-        samples[:, :, :frames_to_normalize] = normalized_first_frames
+        samples[:, :, :start_frame_count] = normalized_first_frames
         s["samples"] = samples
         return io.NodeOutput(s)
 
@@ -128,7 +128,7 @@ class Kandinsky5Extension(ComfyExtension):
     async def get_node_list(self) -> list[type[io.ComfyNode]]:
         return [
             Kandinsky5ImageToVideo,
-            NormalizeVideoLatentFrames,
+            NormalizeVideoLatentStart,
             CLIPTextEncodeKandinsky5,
         ]
 
