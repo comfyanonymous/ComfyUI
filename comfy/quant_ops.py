@@ -238,6 +238,9 @@ class QuantizedTensor(torch.Tensor):
     def is_contiguous(self, *arg, **kwargs):
         return self._qdata.is_contiguous(*arg, **kwargs)
 
+    def storage(self):
+        return self._qdata.storage()
+
 # ==============================================================================
 # Generic Utilities (Layout-Agnostic Operations)
 # ==============================================================================
@@ -249,12 +252,6 @@ def _create_transformed_qtensor(qt, transform_fn):
 
 
 def _handle_device_transfer(qt, target_device, target_dtype=None, target_layout=None, op_name="to"):
-    if target_dtype is not None and target_dtype != qt.dtype:
-        logging.warning(
-            f"QuantizedTensor: dtype conversion requested to {target_dtype}, "
-            f"but not supported for quantized tensors. Ignoring dtype."
-        )
-
     if target_layout is not None and target_layout != torch.strided:
         logging.warning(
             f"QuantizedTensor: layout change requested to {target_layout}, "
@@ -274,6 +271,8 @@ def _handle_device_transfer(qt, target_device, target_dtype=None, target_layout=
             logging.debug(f"QuantizedTensor.{op_name}: Moving from {current_device} to {target_device}")
             new_q_data = qt._qdata.to(device=target_device)
             new_params = _move_layout_params_to_device(qt._layout_params, target_device)
+            if target_dtype is not None:
+                new_params["orig_dtype"] = target_dtype
             new_qt = QuantizedTensor(new_q_data, qt._layout_type, new_params)
             logging.debug(f"QuantizedTensor.{op_name}: Created new tensor on {target_device}")
             return new_qt
@@ -339,7 +338,9 @@ def generic_copy_(func, args, kwargs):
             # Copy from another quantized tensor
             qt_dest._qdata.copy_(src._qdata, non_blocking=non_blocking)
             qt_dest._layout_type = src._layout_type
+            orig_dtype = qt_dest._layout_params["orig_dtype"]
             _copy_layout_params_inplace(src._layout_params, qt_dest._layout_params, non_blocking=non_blocking)
+            qt_dest._layout_params["orig_dtype"] = orig_dtype
         else:
             # Copy from regular tensor - just copy raw data
             qt_dest._qdata.copy_(src)
@@ -397,17 +398,20 @@ class TensorCoreFP8Layout(QuantizedLayout):
     def quantize(cls, tensor, scale=None, dtype=torch.float8_e4m3fn, stochastic_rounding=0, inplace_ops=False):
         orig_dtype = tensor.dtype
 
-        if scale is None:
+        if isinstance(scale, str) and scale == "recalculate":
             scale = torch.amax(tensor.abs()) / torch.finfo(dtype).max
 
-        if not isinstance(scale, torch.Tensor):
-            scale = torch.tensor(scale)
-        scale = scale.to(device=tensor.device, dtype=torch.float32)
+        if scale is not None:
+            if not isinstance(scale, torch.Tensor):
+                scale = torch.tensor(scale)
+            scale = scale.to(device=tensor.device, dtype=torch.float32)
 
-        if inplace_ops:
-            tensor *= (1.0 / scale).to(tensor.dtype)
+            if inplace_ops:
+                tensor *= (1.0 / scale).to(tensor.dtype)
+            else:
+                tensor = tensor * (1.0 / scale).to(tensor.dtype)
         else:
-            tensor = tensor * (1.0 / scale).to(tensor.dtype)
+            scale = torch.ones((), device=tensor.device, dtype=torch.float32)
 
         if stochastic_rounding > 0:
             tensor = comfy.float.stochastic_rounding(tensor, dtype=dtype, seed=stochastic_rounding)
