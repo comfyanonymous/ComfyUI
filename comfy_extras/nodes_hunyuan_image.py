@@ -49,17 +49,17 @@ class HunyuanImage3Conditioning(io.ComfyNode):
         )
 
     @classmethod
-    def execute(cls, text_encoding, model, text_encoding_negative=None, vae_encoding = None, vit_encoding = None):
-        model = model.diffusion_model
+    def execute(cls, text_encoding_positive, model, text_encoding_negative=None, vae_encoding = None, vit_encoding = None):
+        model = model.model.diffusion_model
 
         encode_fn = model.encode_tok
         special_fn = model.special_tok
-        word_embed = model.wte
+        word_embed = model.model.wte
 
         patch_embed = model.patch_embed
         t_embed = model.time_embed
 
-        text_tokens = text_encoding[0][0]
+        text_tokens = text_encoding_positive[0][0]
         batch_size, _, hidden_size = text_tokens.shape
 
         def fn(string, func = encode_fn):

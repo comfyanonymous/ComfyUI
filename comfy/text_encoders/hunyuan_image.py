@@ -13,8 +13,9 @@ class HunyuanImage3TextEncoder(torch.nn.Module):
         self.num_layers = 1
     def get_input_embeddings(self):
         return self.wte
-    def forward(self, x):
-        return x, torch.empty_like(x)
+    def forward(self, *args, **kwargs):
+        embeds = kwargs.get("embeds")
+        return embeds, torch.empty_like(embeds)
 
 class HunyuanImage3(sd1_clip.SDClipModel):
     def __init__(self, device="cpu", max_length=77, freeze=True, layer="last", layer_idx=None, textmodel_json_config=None, dtype=None, model_class=HunyuanImage3TextEncoder, layer_norm_hidden_state=True, enable_attention_masks=False, zero_out_masked=False, return_projected_pooled=False, return_attention_masks=False, model_options={}):
@@ -22,9 +23,9 @@ class HunyuanImage3(sd1_clip.SDClipModel):
         super().__init__(device=device, max_length=max_length, freeze=freeze, layer=layer, layer_idx=layer_idx, textmodel_json_config=textmodel_json_config, dtype=dtype, model_class=model_class, layer_norm_hidden_state=layer_norm_hidden_state, enable_attention_masks=enable_attention_masks, zero_out_masked=zero_out_masked, return_projected_pooled=return_projected_pooled, return_attention_masks=return_attention_masks, model_options=model_options, special_tokens={"pad": 128009})
 
 class HunyuanImage3Tokenizer(sd1_clip.SDTokenizer):
-    def __init__(self, tokenizer_path="hunyuan3_tokenizer", max_length=77, pad_with_end=True, embedding_directory=None, embedding_size=4096, embedding_key='clip_l', tokenizer_class=AutoTokenizer, pad_to_max_length=False, min_length=None, pad_token=128009, tokenizer_data = {}):
+    def __init__(self, tokenizer_path="hunyuan3_tokenizer", max_length=77, pad_with_end=True, embedding_directory=None, embedding_size=4096, embedding_key='clip_l', tokenizer_class=AutoTokenizer, pad_to_max_length=False, pad_token=128009, tokenizer_data = {}):
         tokenizer_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), tokenizer_path)
-        super().__init__(tokenizer_path, max_length, pad_with_end, embedding_directory, embedding_size, embedding_key, tokenizer_class, pad_to_max_length, min_length, pad_token)
+        super().__init__(tokenizer_path=tokenizer_path, max_length=max_length, pad_with_end=pad_with_end, embedding_directory=embedding_directory, embedding_size=embedding_size, embedding_key=embedding_key, tokenizer_class=tokenizer_class, pad_to_max_length=pad_to_max_length, pad_token=pad_token, has_start_token=False, has_end_token=False)
 
 class ByT5SmallTokenizer(sd1_clip.SDTokenizer):
     def __init__(self, embedding_directory=None, tokenizer_data={}):
