@@ -25,12 +25,12 @@ class WanT5Model(sd1_clip.SD1ClipModel):
     def __init__(self, device="cpu", dtype=None, model_options={}, **kwargs):
         super().__init__(device=device, dtype=dtype, model_options=model_options, name="umt5xxl", clip_model=UMT5XXlModel, **kwargs)
 
-def te(dtype_t5=None, t5xxl_scaled_fp8=None):
+def te(dtype_t5=None, t5_quantization_metadata=None):
     class WanTEModel(WanT5Model):
         def __init__(self, device="cpu", dtype=None, model_options={}):
-            if t5xxl_scaled_fp8 is not None and "scaled_fp8" not in model_options:
+            if t5_quantization_metadata is not None:
                 model_options = model_options.copy()
-                model_options["scaled_fp8"] = t5xxl_scaled_fp8
+                model_options["quantization_metadata"] = t5_quantization_metadata
             if dtype_t5 is not None:
                 dtype = dtype_t5
             super().__init__(device=device, dtype=dtype, model_options=model_options)

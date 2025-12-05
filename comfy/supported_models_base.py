@@ -49,8 +49,7 @@ class BASE:
 
     manual_cast_dtype = None
     custom_operations = None
-    scaled_fp8 = None
-    layer_quant_config = None  # Per-layer quantization configuration for mixed precision
+    quant_config = None  # quantization configuration for mixed precision
     optimizations = {"fp8": False}
 
     @classmethod
