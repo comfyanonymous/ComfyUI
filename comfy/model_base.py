@@ -42,6 +42,7 @@ import comfy.ldm.hidream.model
 import comfy.ldm.chroma.model
 import comfy.ldm.ace.model
 import comfy.ldm.omnigen.omnigen2
+import comfy.ldm.seedvr.model
 
 import comfy.model_management
 import comfy.patcher_extension
@@ -793,6 +794,11 @@ class HunyuanDiT(BaseModel):
 
         out['image_meta_size'] = comfy.conds.CONDRegular(torch.FloatTensor([[height, width, target_height, target_width, 0, 0]]))
         return out
+    
+class SeedVR2(BaseModel):
+    def __init__(self, model_config, model_type=ModelType.FLOW, device=None):
+        super().__init__(model_config, model_type, device, comfy.ldm.seedvr.model.NaDiT)
+    # TODO: extra_conds could be needed to add
 
 class PixArt(BaseModel):
     def __init__(self, model_config, model_type=ModelType.EPS, device=None):

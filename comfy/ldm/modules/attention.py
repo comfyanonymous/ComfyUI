@@ -428,7 +428,7 @@ else:
     SDP_BATCH_LIMIT = 2**31
 
 
-def attention_pytorch(q, k, v, heads, mask=None, attn_precision=None, skip_reshape=False, skip_output_reshape=False):
+def attention_pytorch(q, k, v, heads, mask=None, attn_precision=None, skip_reshape=False, skip_output_reshape=Falsez):
     if skip_reshape:
         b, _, _, dim_head = q.shape
     else:

@@ -470,3 +470,7 @@ class Hunyuan3Dv2mini(LatentFormat):
 class ACEAudio(LatentFormat):
     latent_channels = 8
     latent_dimensions = 2
+
+class SeedVR2(LatentFormat):
+    latent_channels = 16
+    latent_dimensions = 16

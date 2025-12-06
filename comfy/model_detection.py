@@ -341,6 +341,17 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
         dit_config["axes_dims"] = [32, 32, 32]
         dit_config["axes_lens"] = [300, 512, 512]
         return dit_config
+    
+    elif "{}blocks.31.mlp.all.proj_in_gate.weight".format(key_prefix) in state_dict_keys: # seedvr2 3b
+        dit_config = {}
+        dit_config["vid_dim"] = 2560
+        dit_config["heads"] = 20
+        dit_config["num_layers"] = 32
+        dit_config["norm_eps"] = 1.0e-05
+        dit_config["qk_rope"] = None
+        dit_config["mlp_type"] = "swiglu"
+
+        return dit_config
 
     if '{}head.modulation'.format(key_prefix) in state_dict_keys:  # Wan 2.1
         dit_config = {}
