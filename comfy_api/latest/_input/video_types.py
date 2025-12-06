@@ -4,7 +4,7 @@ from fractions import Fraction
 from typing import Optional, Union, IO
 import io
 import av
-from comfy_api.util import VideoContainer, VideoCodec, VideoComponents
+from .._util import VideoContainer, VideoCodec, VideoComponents
 
 class VideoInput(ABC):
     """

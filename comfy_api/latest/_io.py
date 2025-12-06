@@ -26,7 +26,7 @@ if TYPE_CHECKING:
     from comfy_api.input import VideoInput
 from comfy_api.internal import (_ComfyNodeInternal, _NodeOutputInternal, classproperty, copy_class, first_real_override, is_class,
     prune_dict, shallow_clone_class)
-from comfy_api.latest._resources import Resources, ResourcesLocal
+from ._resources import Resources, ResourcesLocal
 from comfy_execution.graph_utils import ExecutionBlocker
 from ._util import MESH, VOXEL
 
