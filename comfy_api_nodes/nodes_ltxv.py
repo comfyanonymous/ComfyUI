@@ -1,12 +1,9 @@
 from io import BytesIO
-from typing import Optional
 
-import torch
 from pydantic import BaseModel, Field
 from typing_extensions import override
 
-from comfy_api.input_impl import VideoFromFile
-from comfy_api.latest import IO, ComfyExtension
+from comfy_api.latest import IO, ComfyExtension, Input, InputImpl
 from comfy_api_nodes.util import (
     ApiEndpoint,
     get_number_of_images,
@@ -26,9 +23,9 @@ class ExecuteTaskRequest(BaseModel):
     model: str = Field(...)
     duration: int = Field(...)
     resolution: str = Field(...)
-    fps: Optional[int] = Field(25)
-    generate_audio: Optional[bool] = Field(True)
-    image_uri: Optional[str] = Field(None)
+    fps: int | None = Field(25)
+    generate_audio: bool | None = Field(True)
+    image_uri: str | None = Field(None)
 
 
 class TextToVideoNode(IO.ComfyNode):
@@ -103,7 +100,7 @@ class TextToVideoNode(IO.ComfyNode):
             as_binary=True,
             max_retries=1,
         )
-        return IO.NodeOutput(VideoFromFile(BytesIO(response)))
+        return IO.NodeOutput(InputImpl.VideoFromFile(BytesIO(response)))
 
 
 class ImageToVideoNode(IO.ComfyNode):
@@ -153,7 +150,7 @@ class ImageToVideoNode(IO.ComfyNode):
     @classmethod
     async def execute(
         cls,
-        image: torch.Tensor,
+        image: Input.Image,
         model: str,
         prompt: str,
         duration: int,
@@ -183,7 +180,7 @@ class ImageToVideoNode(IO.ComfyNode):
             as_binary=True,
             max_retries=1,
         )
-        return IO.NodeOutput(VideoFromFile(BytesIO(response)))
+        return IO.NodeOutput(InputImpl.VideoFromFile(BytesIO(response)))
 
 
 class LtxvApiExtension(ComfyExtension):
