@@ -50,7 +50,8 @@ def before_node_execution():
     comfy.model_management.throw_exception_if_processing_interrupted()
 
 def interrupt_processing(value=True):
-    comfy.model_management.interrupt_current_processing(value)
+    from comfy.execution_core import interrupt_processing as core_interrupt
+    core_interrupt(value)
 
 MAX_RESOLUTION=16384
 

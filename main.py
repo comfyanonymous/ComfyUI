@@ -11,9 +11,6 @@ import itertools
 import utils.extra_config
 import logging
 import sys
-from comfy_execution.progress import get_progress_state
-from comfy_execution.utils import get_executing_context
-from comfy_api import feature_flags
 
 
 if __name__ == "__main__":
@@ -176,16 +173,22 @@ if 'torch' in sys.modules:
 
 import comfy.utils
 
-import execution
 import server
-from protocol import BinaryEventTypes
-import nodes
-import comfy.model_management
 import comfyui_version
 import app.logger
-import hook_breaker_ac10a0
+
+# Import modules needed for server operation
+# GPU initialization happens lazily when GPU functions are called
+# In subprocess mode, main process won't call GPU functions - workers will
+if __name__ == "__main__":
+    import execution
+    import nodes
+    import comfy.model_management
+
 
 def cuda_malloc_warning():
+    if args.use_subprocess_workers:
+        return
     device = comfy.model_management.get_torch_device()
     device_name = comfy.model_management.get_torch_device_name(device)
     cuda_malloc_warning = False
@@ -197,84 +200,6 @@ def cuda_malloc_warning():
             logging.warning("\nWARNING: this card most likely does not support cuda-malloc, if you get \"CUDA error\" please run ComfyUI with: --disable-cuda-malloc\n")
 
 
-def prompt_worker(q, server_instance):
-    current_time: float = 0.0
-    cache_type = execution.CacheType.CLASSIC
-    if args.cache_lru > 0:
-        cache_type = execution.CacheType.LRU
-    elif args.cache_ram > 0:
-        cache_type = execution.CacheType.RAM_PRESSURE
-    elif args.cache_none:
-        cache_type = execution.CacheType.NONE
-
-    e = execution.PromptExecutor(server_instance, cache_type=cache_type, cache_args={ "lru" : args.cache_lru, "ram" : args.cache_ram } )
-    last_gc_collect = 0
-    need_gc = False
-    gc_collect_interval = 10.0
-
-    while True:
-        timeout = 1000.0
-        if need_gc:
-            timeout = max(gc_collect_interval - (current_time - last_gc_collect), 0.0)
-
-        queue_item = q.get(timeout=timeout)
-        if queue_item is not None:
-            item, item_id = queue_item
-            execution_start_time = time.perf_counter()
-            prompt_id = item[1]
-            server_instance.last_prompt_id = prompt_id
-
-            sensitive = item[5]
-            extra_data = item[3].copy()
-            for k in sensitive:
-                extra_data[k] = sensitive[k]
-
-            e.execute(item[2], prompt_id, extra_data, item[4])
-            need_gc = True
-
-            remove_sensitive = lambda prompt: prompt[:5] + prompt[6:]
-            q.task_done(item_id,
-                        e.history_result,
-                        status=execution.PromptQueue.ExecutionStatus(
-                            status_str='success' if e.success else 'error',
-                            completed=e.success,
-                            messages=e.status_messages), process_item=remove_sensitive)
-            if server_instance.client_id is not None:
-                server_instance.send_sync("executing", {"node": None, "prompt_id": prompt_id}, server_instance.client_id)
-
-            current_time = time.perf_counter()
-            execution_time = current_time - execution_start_time
-
-            # Log Time in a more readable way after 10 minutes
-            if execution_time > 600:
-                execution_time = time.strftime("%H:%M:%S", time.gmtime(execution_time))
-                logging.info(f"Prompt executed in {execution_time}")
-            else:
-                logging.info("Prompt executed in {:.2f} seconds".format(execution_time))
-
-        flags = q.get_flags()
-        free_memory = flags.get("free_memory", False)
-
-        if flags.get("unload_models", free_memory):
-            comfy.model_management.unload_all_models()
-            need_gc = True
-            last_gc_collect = 0
-
-        if free_memory:
-            e.reset()
-            need_gc = True
-            last_gc_collect = 0
-
-        if need_gc:
-            current_time = time.perf_counter()
-            if (current_time - last_gc_collect) > gc_collect_interval:
-                gc.collect()
-                comfy.model_management.soft_empty_cache()
-                last_gc_collect = current_time
-                need_gc = False
-                hook_breaker_ac10a0.restore_functions()
-
-
 async def run(server_instance, address='', port=8188, verbose=True, call_on_start=None):
     addresses = []
     for addr in address.split(","):
@@ -282,37 +207,6 @@ async def run(server_instance, address='', port=8188, verbose=True, call_on_star
     await asyncio.gather(
         server_instance.start_multi_address(addresses, call_on_start, verbose), server_instance.publish_loop()
     )
-
-def hijack_progress(server_instance):
-    def hook(value, total, preview_image, prompt_id=None, node_id=None):
-        executing_context = get_executing_context()
-        if prompt_id is None and executing_context is not None:
-            prompt_id = executing_context.prompt_id
-        if node_id is None and executing_context is not None:
-            node_id = executing_context.node_id
-        comfy.model_management.throw_exception_if_processing_interrupted()
-        if prompt_id is None:
-            prompt_id = server_instance.last_prompt_id
-        if node_id is None:
-            node_id = server_instance.last_node_id
-        progress = {"value": value, "max": total, "prompt_id": prompt_id, "node": node_id}
-        get_progress_state().update_progress(node_id, value, total, preview_image)
-
-        server_instance.send_sync("progress", progress, server_instance.client_id)
-        if preview_image is not None:
-            # Only send old method if client doesn't support preview metadata
-            if not feature_flags.supports_feature(
-                server_instance.sockets_metadata,
-                server_instance.client_id,
-                "supports_preview_metadata",
-            ):
-                server_instance.send_sync(
-                    BinaryEventTypes.UNENCODED_PREVIEW_IMAGE,
-                    preview_image,
-                    server_instance.client_id,
-                )
-
-    comfy.utils.set_progress_bar_global_hook(hook)
 
 
 def cleanup_temp():
@@ -356,20 +250,16 @@ def start_comfyui(asyncio_loop=None):
     if args.enable_manager and not args.disable_manager_ui:
         comfyui_manager.start()
 
-    hook_breaker_ac10a0.save_functions()
-    asyncio_loop.run_until_complete(nodes.init_extra_nodes(
-        init_custom_nodes=(not args.disable_all_custom_nodes) or len(args.whitelist_custom_nodes) > 0,
-        init_api_nodes=not args.disable_api_nodes
-    ))
-    hook_breaker_ac10a0.restore_functions()
+    from comfy.execution_core import create_worker, prompt_worker
+    worker = create_worker(prompt_server)
+    node_count = asyncio_loop.run_until_complete(worker.initialize())
+    logging.info(f"Loaded {node_count} node types")
+    threading.Thread(target=prompt_worker, daemon=True, args=(prompt_server.prompt_queue, worker), name="PromptWorker").start()
 
     cuda_malloc_warning()
     setup_database()
 
     prompt_server.add_routes()
-    hijack_progress(prompt_server)
-
-    threading.Thread(target=prompt_worker, daemon=True, args=(prompt_server.prompt_queue, prompt_server,)).start()
 
     if args.quick_test_for_ci:
         exit(0)
