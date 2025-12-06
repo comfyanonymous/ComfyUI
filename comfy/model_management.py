@@ -572,6 +572,9 @@ if args.reserve_vram is not None:
     EXTRA_RESERVED_VRAM = args.reserve_vram * 1024 * 1024 * 1024
     logging.debug("Reserving {}MB vram for other applications.".format(EXTRA_RESERVED_VRAM / (1024 * 1024)))
 
+if is_nvidia() and not args.disable_cuda_malloc:
+    EXTRA_RESERVED_VRAM += 32 * 1024 * 1024
+
 def extra_reserved_memory():
     return EXTRA_RESERVED_VRAM
 
