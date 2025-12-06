@@ -86,7 +86,7 @@ class NormalizeVideoLatentStart(io.ComfyNode):
     @classmethod
     def execute(cls, latent, start_frame_count, reference_frame_count) -> io.NodeOutput:
         if latent["samples"].shape[2] <= 1:
-            return latent
+            return io.NodeOutput(latent)
         s = latent.copy()
         samples = latent["samples"].clone()
 
