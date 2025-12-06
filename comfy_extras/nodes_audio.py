@@ -573,12 +573,14 @@ class EmptyAudio(IO.ComfyNode):
                     step=0.01,
                     tooltip="Duration of the empty audio clip in seconds",
                 ),
-                IO.Float.Input(
+                IO.Int.Input(
                     "sample_rate",
                     default=44100,
                     tooltip="Sample rate of the empty audio clip.",
+                    min=1,
+                    max=192000,
                 ),
-                IO.Float.Input(
+                IO.Int.Input(
                     "channels",
                     default=2,
                     min=1,
