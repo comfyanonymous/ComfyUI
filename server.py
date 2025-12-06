@@ -182,6 +182,33 @@ def create_block_external_middleware():
 
     return block_external_middleware
 
+def convert_v3_to_v1_schema(input_types):
+    """
+    Convert V3 schema (Combo objects) to V1 schema (simple tuples/lists)
+    for compatibility with old frontends
+    """
+    converted = {}
+
+    for category, inputs in input_types.items():
+        converted[category] = {}
+
+        for input_name, input_spec in inputs.items():
+
+            if isinstance(input_spec, tuple) and len(input_spec) > 1 and input_spec[0] == 'COMBO':
+                first_elem = input_spec[1]
+                if isinstance(first_elem, dict) and 'options' in first_elem:
+                    adapted_input_spec = (first_elem['options'], {})
+                    first_elem.pop('options')
+                    adapted_input_spec[1].update(first_elem)
+                    converted[category][input_name] = adapted_input_spec
+                else:
+                    # Already V1 format, pass through
+                    converted[category][input_name] = input_spec
+            else:
+                # Pass through anything else unchanged
+                converted[category][input_name] = input_spec
+
+    return converted
 
 class PromptServer():
     def __init__(self, loop):
@@ -681,6 +708,8 @@ class PromptServer():
                 for x in nodes.NODE_CLASS_MAPPINGS:
                     try:
                         out[x] = node_info(x)
+                        if args.legacy_frontend_compat:
+                            out[x]['input'] = convert_v3_to_v1_schema(out[x]['input'])
                     except Exception:
                         logging.error(f"[ERROR] An error occurred while retrieving information for the '{x}' node.")
                         logging.error(traceback.format_exc())
