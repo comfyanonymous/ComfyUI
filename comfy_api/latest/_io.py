@@ -568,6 +568,8 @@ class Conditioning(ComfyTypeIO):
         '''Used by WAN Camera.'''
         time_dim_concat: NotRequired[torch.Tensor]
         '''Used by WAN Phantom Subject.'''
+        time_dim_replace: NotRequired[torch.Tensor]
+        '''Used by Kandinsky5 I2V.'''
 
     CondList = list[tuple[torch.Tensor, PooledDict]]
     Type = CondList
