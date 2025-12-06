@@ -9,6 +9,12 @@ on:
         type: string
         default: "129"
 
+      release_tag:
+        description: 'Git tag to attach nightly package (e.g., v0.37.0); leave empty to upload to latest'
+        required: false
+        type: string
+        default: ""
+
       python_minor:
         description: 'python minor version'
         required: true
@@ -34,6 +40,7 @@ jobs:
     steps:
         - uses: actions/checkout@v4
           with:
+            ref: ${{ inputs.release_tag || 'master' }}
             fetch-depth: 30
             persist-credentials: false
         - uses: actions/setup-python@v5
@@ -89,5 +96,5 @@ jobs:
           with:
                 repo_token: ${{ secrets.GITHUB_TOKEN }}
                 file: ComfyUI_windows_portable_nvidia_or_cpu_nightly_pytorch.7z
-                tag: "latest"
+                tag: ${{ inputs.release_tag || 'latest' }}
                 overwrite: true

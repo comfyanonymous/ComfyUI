@@ -2,9 +2,9 @@ name: Test server launches without errors
 
 on:
   push:
-    branches: [ main, master ]
+    branches: [ main, master, release/** ]
   pull_request:
-    branches: [ main, master ]
+    branches: [ main, master, release/** ]
 
 jobs:
   test:
