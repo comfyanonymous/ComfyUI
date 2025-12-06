@@ -1,5 +1,6 @@
 import logging
 import os
+import math
 import json
 
 import numpy as np
@@ -623,6 +624,79 @@ class TextProcessingNode(io.ComfyNode):
 # ========== Image Transform Nodes ==========
 
 
+class ResizeImagesToSameSizeNode(ImageProcessingNode):
+    node_id = "ResizeImagesToSameSize"
+    display_name = "Resize Images to Same Size"
+    description = "Resize all images to the same width and height."
+    extra_inputs = [
+        io.Int.Input("width", default=512, min=1, max=8192, tooltip="Target width."),
+        io.Int.Input("height", default=512, min=1, max=8192, tooltip="Target height."),
+        io.Combo.Input(
+            "mode",
+            options=["stretch", "crop_center", "pad"],
+            default="stretch",
+            tooltip="Resize mode.",
+        ),
+    ]
+
+    @classmethod
+    def _process(cls, image, width, height, mode):
+        img = tensor_to_pil(image)
+
+        if mode == "stretch":
+            img = img.resize((width, height), Image.Resampling.LANCZOS)
+        elif mode == "crop_center":
+            left = max(0, (img.width - width) // 2)
+            top = max(0, (img.height - height) // 2)
+            right = min(img.width, left + width)
+            bottom = min(img.height, top + height)
+            img = img.crop((left, top, right, bottom))
+            if img.width != width or img.height != height:
+                img = img.resize((width, height), Image.Resampling.LANCZOS)
+        elif mode == "pad":
+            img.thumbnail((width, height), Image.Resampling.LANCZOS)
+            new_img = Image.new("RGB", (width, height), (0, 0, 0))
+            paste_x = (width - img.width) // 2
+            paste_y = (height - img.height) // 2
+            new_img.paste(img, (paste_x, paste_y))
+            img = new_img
+
+        return pil_to_tensor(img)
+
+
+class ResizeImagesToPixelCountNode(ImageProcessingNode):
+    node_id = "ResizeImagesToPixelCount"
+    display_name = "Resize Images to Pixel Count"
+    description = "Resize images so that the total pixel count matches the specified number while preserving aspect ratio."
+    extra_inputs = [
+        io.Int.Input(
+            "pixel_count",
+            default=512 * 512,
+            min=1,
+            max=8192 * 8192,
+            tooltip="Target pixel count.",
+        ),
+        io.Int.Input(
+            "steps",
+            default=64,
+            min=1,
+            max=128,
+            tooltip="The stepping for resize width/height.",
+        ),
+    ]
+
+    @classmethod
+    def _process(cls, image, pixel_count, steps):
+        img = tensor_to_pil(image)
+        w, h = img.size
+        pixel_count_ratio = math.sqrt(pixel_count / (w * h))
+        new_w = int(w * pixel_count_ratio / steps) * steps
+        new_h = int(h * pixel_count_ratio / steps) * steps
+        logging.info(f"Resizing from {w}x{h} to {new_w}x{new_h}")
+        img = img.resize((new_w, new_h), Image.Resampling.LANCZOS)
+        return pil_to_tensor(img)
+
+
 class ResizeImagesByShorterEdgeNode(ImageProcessingNode):
     node_id = "ResizeImagesByShorterEdge"
     display_name = "Resize Images by Shorter Edge"
@@ -724,6 +798,29 @@ class RandomCropImagesNode(ImageProcessingNode):
         right = min(img.width, left + width)
         bottom = min(img.height, top + height)
         img = img.crop((left, top, right, bottom))
+        return pil_to_tensor(img)
+
+
+class FlipImagesNode(ImageProcessingNode):
+    node_id = "FlipImages"
+    display_name = "Flip Images"
+    description = "Flip all images horizontally or vertically."
+    extra_inputs = [
+        io.Combo.Input(
+            "direction",
+            options=["horizontal", "vertical"],
+            default="horizontal",
+            tooltip="Flip direction.",
+        ),
+    ]
+
+    @classmethod
+    def _process(cls, image, direction):
+        img = tensor_to_pil(image)
+        if direction == "horizontal":
+            img = img.transpose(Image.FLIP_LEFT_RIGHT)
+        else:
+            img = img.transpose(Image.FLIP_TOP_BOTTOM)
         return pil_to_tensor(img)
 
 
@@ -1125,6 +1222,99 @@ class MergeTextListsNode(TextProcessingNode):
 # ========== Training Dataset Nodes ==========
 
 
+class ResolutionBucket(io.ComfyNode):
+    """Bucket latents and conditions by resolution for efficient batch training."""
+
+    @classmethod
+    def define_schema(cls):
+        return io.Schema(
+            node_id="ResolutionBucket",
+            display_name="Resolution Bucket",
+            category="dataset",
+            is_experimental=True,
+            is_input_list=True,
+            inputs=[
+                io.Latent.Input(
+                    "latents",
+                    tooltip="List of latent dicts to bucket by resolution.",
+                ),
+                io.Conditioning.Input(
+                    "conditioning",
+                    tooltip="List of conditioning lists (must match latents length).",
+                ),
+            ],
+            outputs=[
+                io.Latent.Output(
+                    display_name="latents",
+                    is_output_list=True,
+                    tooltip="List of batched latent dicts, one per resolution bucket.",
+                ),
+                io.Conditioning.Output(
+                    display_name="conditioning",
+                    is_output_list=True,
+                    tooltip="List of condition lists, one per resolution bucket.",
+                ),
+            ],
+        )
+
+    @classmethod
+    def execute(cls, latents, conditioning):
+        # latents: list[{"samples": tensor}] where tensor is (B, C, H, W), typically B=1
+        # conditioning: list[list[cond]]
+
+        # Validate lengths match
+        if len(latents) != len(conditioning):
+            raise ValueError(
+                f"Number of latents ({len(latents)}) does not match number of conditions ({len(conditioning)})."
+            )
+
+        # Flatten latents and conditions to individual samples
+        flat_latents = []  # list of (C, H, W) tensors
+        flat_conditions = []  # list of condition lists
+
+        for latent_dict, cond in zip(latents, conditioning):
+            samples = latent_dict["samples"]  # (B, C, H, W)
+            batch_size = samples.shape[0]
+
+            # cond is a list of conditions with length == batch_size
+            for i in range(batch_size):
+                flat_latents.append(samples[i])  # (C, H, W)
+                flat_conditions.append(cond[i])  # single condition
+
+        # Group by resolution (H, W)
+        buckets = {}  # (H, W) -> {"latents": list, "conditions": list}
+
+        for latent, cond in zip(flat_latents, flat_conditions):
+            # latent shape is (C, H, W)
+            h, w = latent.shape[1], latent.shape[2]
+            key = (h, w)
+
+            if key not in buckets:
+                buckets[key] = {"latents": [], "conditions": []}
+
+            buckets[key]["latents"].append(latent)
+            buckets[key]["conditions"].append(cond)
+
+        # Convert buckets to output format
+        output_latents = []  # list[{"samples": tensor}] where tensor is (Bi, C, H, W)
+        output_conditions = []  # list[list[cond]] where each inner list has Bi conditions
+
+        for (h, w), bucket_data in buckets.items():
+            # Stack latents into batch: list of (C, H, W) -> (Bi, C, H, W)
+            stacked_latents = torch.stack(bucket_data["latents"], dim=0)
+            output_latents.append({"samples": stacked_latents})
+
+            # Conditions stay as list of condition lists
+            output_conditions.append(bucket_data["conditions"])
+
+            logging.info(
+                f"Resolution bucket ({h}x{w}): {len(bucket_data['latents'])} samples"
+            )
+
+        logging.info(f"Created {len(buckets)} resolution buckets from {len(flat_latents)} samples")
+        return io.NodeOutput(output_latents, output_conditions)
+
+
 class MakeTrainingDataset(io.ComfyNode):
     """Encode images with VAE and texts with CLIP to create a training dataset."""
 
@@ -1373,7 +1563,7 @@ class LoadTrainingDataset(io.ComfyNode):
             shard_path = os.path.join(dataset_dir, shard_file)
 
             with open(shard_path, "rb") as f:
-                shard_data = torch.load(f, weights_only=True)
+                shard_data = torch.load(f)
 
             all_latents.extend(shard_data["latents"])
             all_conditioning.extend(shard_data["conditioning"])
@@ -1399,10 +1589,13 @@ class DatasetExtension(ComfyExtension):
             SaveImageDataSetToFolderNode,
             SaveImageTextDataSetToFolderNode,
             # Image transform nodes
+            ResizeImagesToSameSizeNode,
+            ResizeImagesToPixelCountNode,
             ResizeImagesByShorterEdgeNode,
             ResizeImagesByLongerEdgeNode,
             CenterCropImagesNode,
             RandomCropImagesNode,
+            FlipImagesNode,
             NormalizeImagesNode,
             AdjustBrightnessNode,
             AdjustContrastNode,
@@ -1425,6 +1618,7 @@ class DatasetExtension(ComfyExtension):
             MakeTrainingDataset,
             SaveTrainingDataset,
             LoadTrainingDataset,
+            ResolutionBucket,
         ]
 
 
