@@ -586,7 +586,6 @@ class NextDiT(nn.Module):
         cap_feats = self.cap_embedder(cap_feats)  # (N, L, D)  # todo check if able to batchify w.o. redundant compute
 
         patches = transformer_options.get("patches", {})
-        transformer_options = kwargs.get("transformer_options", {})
         x_is_tensor = isinstance(x, torch.Tensor)
         img, mask, img_size, cap_size, freqs_cis = self.patchify_and_embed(x, cap_feats, cap_mask, t, num_tokens, transformer_options=transformer_options)
         freqs_cis = freqs_cis.to(img.device)
