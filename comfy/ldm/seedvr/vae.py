@@ -1051,10 +1051,9 @@ class VideoAutoencoderKL(nn.Module):
         out_channels: int = 3,
         down_block_types: Tuple[str] = ("DownEncoderBlock3D",),
         up_block_types: Tuple[str] = ("UpDecoderBlock3D",),
-        block_out_channels: Tuple[int] = (64,),
-        layers_per_block: int = 1,
+        layers_per_block: int = 2,
         act_fn: str = "silu",
-        latent_channels: int = 4,
+        latent_channels: int = 16,
         norm_num_groups: int = 32,
         attention: bool = True,
         temporal_scale_num: int = 2,
@@ -1062,12 +1061,13 @@ class VideoAutoencoderKL(nn.Module):
         gradient_checkpoint: bool = False,
         inflation_mode = "tail",
         time_receptive_field: _receptive_field_t = "full",
-        use_quant_conv: bool = True,
-        use_post_quant_conv: bool = True,
+        use_quant_conv: bool = False,
+        use_post_quant_conv: bool = False,
         *args,
         **kwargs,
     ):
         extra_cond_dim = kwargs.pop("extra_cond_dim") if "extra_cond_dim" in kwargs else None
+        block_out_channels = (128, 256, 512, 512)
         super().__init__()
 
         # pass init params to Encoder
