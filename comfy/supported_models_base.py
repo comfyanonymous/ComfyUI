@@ -17,6 +17,7 @@
 """
 
 import torch
+import logging
 from . import model_base
 from . import utils
 from . import latent_formats
@@ -117,3 +118,7 @@ class BASE:
     def set_inference_dtype(self, dtype, manual_cast_dtype):
         self.unet_config['dtype'] = dtype
         self.manual_cast_dtype = manual_cast_dtype
+
+    def __getattr__(self, name):
+        logging.warning("\nWARNING, you accessed {} from the model config object which doesn't exist. Please fix your code.\n".format(name))
+        return None
