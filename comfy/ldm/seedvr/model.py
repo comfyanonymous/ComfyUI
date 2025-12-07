@@ -1141,11 +1141,6 @@ def repeat(
     kwargs = [{k: v[i].item() for k, v in kwargs.items()} for i in range(len(hid))]
     return flatten([einops.repeat(h, pattern, **a) for h, a in zip(hid, kwargs)])
 
-@dataclass
-class NaDiTOutput:
-    vid_sample: torch.Tensor
-
-
 class NaDiT(nn.Module):
 
     def __init__(
@@ -1246,26 +1241,32 @@ class NaDiT(nn.Module):
             "mmdit_stwin_3d_spatial",
         ]
 
-    def set_gradient_checkpointing(self, enable: bool):
-        self.gradient_checkpointing = enable
-
     def forward(
         self,
-        vid: torch.FloatTensor,  # l c
-        txt: torch.FloatTensor,  # l c
-        vid_shape: torch.LongTensor,  # b 3
-        txt_shape: torch.LongTensor,  # b 1
-        timestep: Union[int, float, torch.IntTensor, torch.FloatTensor],  # b
-        disable_cache: bool = True,  # for test
-    ):
-        # Text input.
+        x,
+        timestep,
+        context,  # l c
+        txt_shape,  # b 1
+        disable_cache: bool = True,  # for test # TODO ?
+    ):  
+        pos_cond, neg_cond = context.chunk(2, dim=0)
+        pos_cond, pos_shape = flatten(pos_cond)
+        neg_cond, neg_shape = flatten(neg_cond)
+        diff = abs(pos_shape.shape[1] - neg_shape.shape[1])
+        if pos_shape.shape[1] > neg_shape.shape[1]:
+            neg_shape = F.pad(neg_shape, (0, 0, 0, diff))
+            neg_cond = F.pad(neg_cond, (0, 0, 0, diff))
+        else:
+            pos_shape = F.pad(pos_shape, (0, 0, 0, diff))
+            pos_cond = F.pad(pos_cond, (0, 0, 0, diff))
+        vid = x
+        txt = context
+        vid, vid_shape = flatten(x)
         if txt_shape.size(-1) == 1 and self.need_txt_repeat:
             txt, txt_shape = repeat(txt, txt_shape, "l c -> t l c", t=vid_shape[:, 0])
         # slice vid after patching in when using sequence parallelism
         txt = self.txt_in(txt)
 
-        # Video input.
-        # Sequence parallel slicing is done inside patching class.
         vid, vid_shape = self.vid_in(vid, vid_shape)
 
         # Embedding input.
@@ -1284,4 +1285,5 @@ class NaDiT(nn.Module):
             )
 
         vid, vid_shape = self.vid_out(vid, vid_shape, cache)
-        return NaDiTOutput(vid_sample=vid)
+        vid = unflatten(vid, vid_shape)
+        return vid
