@@ -1110,6 +1110,10 @@ class Lumina2(BaseModel):
             if 'num_tokens' not in out:
                 out['num_tokens'] = comfy.conds.CONDConstant(cross_attn.shape[1])
 
+        clip_text_pooled = kwargs["pooled_output"]  # Newbie
+        if clip_text_pooled is not None:
+            out['clip_text_pooled'] = comfy.conds.CONDRegular(clip_text_pooled)
+
         return out
 
 class WAN21(BaseModel):
