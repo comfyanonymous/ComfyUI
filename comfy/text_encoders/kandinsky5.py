@@ -24,10 +24,10 @@ class Kandinsky5TokenizerImage(Kandinsky5Tokenizer):
 
 class Qwen25_7BVLIModel(sd1_clip.SDClipModel):
     def __init__(self, device="cpu", layer="hidden", layer_idx=-1, dtype=None, attention_mask=True, model_options={}):
-        llama_scaled_fp8 = model_options.get("qwen_scaled_fp8", None)
-        if llama_scaled_fp8 is not None:
+        llama_quantization_metadata = model_options.get("llama_quantization_metadata", None)
+        if llama_quantization_metadata is not None:
             model_options = model_options.copy()
-            model_options["scaled_fp8"] = llama_scaled_fp8
+            model_options["quantization_metadata"] = llama_quantization_metadata
         super().__init__(device=device, layer=layer, layer_idx=layer_idx, textmodel_json_config={}, dtype=dtype, special_tokens={"pad": 151643}, layer_norm_hidden_state=False, model_class=Qwen25_7BVLI, enable_attention_masks=attention_mask, return_attention_masks=attention_mask, model_options=model_options)
 
 
@@ -56,12 +56,12 @@ class Kandinsky5TEModel(QwenImageTEModel):
         else:
             return super().load_sd(sd)
 
-def te(dtype_llama=None, llama_scaled_fp8=None):
+def te(dtype_llama=None, llama_quantization_metadata=None):
     class Kandinsky5TEModel_(Kandinsky5TEModel):
         def __init__(self, device="cpu", dtype=None, model_options={}):
-            if llama_scaled_fp8 is not None and "scaled_fp8" not in model_options:
+            if llama_quantization_metadata is not None:
                 model_options = model_options.copy()
-                model_options["qwen_scaled_fp8"] = llama_scaled_fp8
+                model_options["llama_quantization_metadata"] = llama_quantization_metadata
             if dtype_llama is not None:
                 dtype = dtype_llama
             super().__init__(device=device, dtype=dtype, model_options=model_options)

@@ -387,6 +387,9 @@ class Kandinsky5(nn.Module):
         return self.out_layer(visual_embed, time_embed)
 
     def _forward(self, x, timestep, context, y, time_dim_replace=None, transformer_options={}, **kwargs):
+        original_dims = x.ndim
+        if original_dims == 4:
+            x = x.unsqueeze(2)
         bs, c, t_len, h, w = x.shape
         x = comfy.ldm.common_dit.pad_to_patch_size(x, self.patch_size)
 
@@ -397,7 +400,10 @@ class Kandinsky5(nn.Module):
         freqs = self.rope_encode_3d(t_len, h, w, device=x.device, dtype=x.dtype, transformer_options=transformer_options)
         freqs_text = self.rope_encode_1d(context.shape[1], device=x.device, dtype=x.dtype, transformer_options=transformer_options)
 
-        return self.forward_orig(x, timestep, context, y, freqs, freqs_text, transformer_options=transformer_options, **kwargs)
+        out = self.forward_orig(x, timestep, context, y, freqs, freqs_text, transformer_options=transformer_options, **kwargs)
+        if original_dims == 4:
+            out = out.squeeze(2)
+        return out
 
     def forward(self, x, timestep, context, y, time_dim_replace=None, transformer_options={}, **kwargs):
         return comfy.patcher_extension.WrapperExecutor.new_class_executor(
