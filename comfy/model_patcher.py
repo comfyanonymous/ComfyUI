@@ -132,14 +132,14 @@ class LowVramPatch:
     def __call__(self, weight):
         return comfy.lora.calculate_weight(self.patches[self.key], weight, self.key, intermediate_dtype=weight.dtype)
 
-#The above patch logic may cast up the weight to fp32, and do math. Go with fp32 x 3
-LOWVRAM_PATCH_ESTIMATE_MATH_FACTOR = 3
+LOWVRAM_PATCH_ESTIMATE_MATH_FACTOR = 2
 
 def low_vram_patch_estimate_vram(model, key):
     weight, set_func, convert_func = get_key_weight(model, key)
     if weight is None:
         return 0
-    return weight.numel() * torch.float32.itemsize * LOWVRAM_PATCH_ESTIMATE_MATH_FACTOR
+    model_dtype = getattr(model, "manual_cast_dtype", torch.float32)
+    return weight.numel() * model_dtype.itemsize * LOWVRAM_PATCH_ESTIMATE_MATH_FACTOR
 
 def get_key_weight(model, key):
     set_func = None
