@@ -27,6 +27,8 @@ from comfy_api_nodes.apis.gemini_api import (
     GeminiMimeType,
     GeminiPart,
     GeminiRole,
+    GeminiSystemInstructionContent,
+    GeminiTextPart,
     Modality,
 )
 from comfy_api_nodes.util import (
@@ -43,6 +45,14 @@ from comfy_api_nodes.util import (
 
 GEMINI_BASE_ENDPOINT = "/proxy/vertexai/gemini"
 GEMINI_MAX_INPUT_FILE_SIZE = 20 * 1024 * 1024  # 20 MB
+GEMINI_IMAGE_SYS_PROMPT = (
+    "You are an expert image-generation engine. You must ALWAYS produce an image.\n"
+    "Interpret all user input—regardless of "
+    "format, intent, or abstraction—as literal visual directives for image composition.\n"
+    "If a prompt is conversational or lacks specific visual details, "
+    "you must creatively invent a concrete visual scenario that depicts the concept.\n"
+    "Prioritize generating the visual representation above any text, formatting, or conversational requests."
+)
 
 
 class GeminiModel(str, Enum):
@@ -277,6 +287,13 @@ class GeminiNode(IO.ComfyNode):
                     tooltip="Optional file(s) to use as context for the model. "
                     "Accepts inputs from the Gemini Generate Content Input Files node.",
                 ),
+                IO.String.Input(
+                    "system_prompt",
+                    multiline=True,
+                    default="",
+                    optional=True,
+                    tooltip="Foundational instructions that dictate an AI's behavior.",
+                ),
             ],
             outputs=[
                 IO.String.Output(),
@@ -347,6 +364,7 @@ class GeminiNode(IO.ComfyNode):
         audio: Input.Audio | None = None,
         video: Input.Video | None = None,
         files: list[GeminiPart] | None = None,
+        system_prompt: str = "",
     ) -> IO.NodeOutput:
         validate_string(prompt, strip_whitespace=False)
 
@@ -363,7 +381,10 @@ class GeminiNode(IO.ComfyNode):
         if files is not None:
             parts.extend(files)
 
-        # Create response
+        gemini_system_prompt = None
+        if system_prompt:
+            gemini_system_prompt = GeminiSystemInstructionContent(parts=[GeminiTextPart(text=system_prompt)], role=None)
+
         response = await sync_op(
             cls,
             endpoint=ApiEndpoint(path=f"{GEMINI_BASE_ENDPOINT}/{model}", method="POST"),
@@ -373,7 +394,8 @@ class GeminiNode(IO.ComfyNode):
                         role=GeminiRole.user,
                         parts=parts,
                     )
-                ]
+                ],
+                systemInstruction=gemini_system_prompt,
             ),
             response_model=GeminiGenerateContentResponse,
             price_extractor=calculate_tokens_price,
@@ -523,6 +545,13 @@ class GeminiImage(IO.ComfyNode):
                     "'IMAGE+TEXT' to return both the generated image and a text response.",
                     optional=True,
                 ),
+                IO.String.Input(
+                    "system_prompt",
+                    multiline=True,
+                    default=GEMINI_IMAGE_SYS_PROMPT,
+                    optional=True,
+                    tooltip="Foundational instructions that dictate an AI's behavior.",
+                ),
             ],
             outputs=[
                 IO.Image.Output(),
@@ -546,6 +575,7 @@ class GeminiImage(IO.ComfyNode):
         files: list[GeminiPart] | None = None,
         aspect_ratio: str = "auto",
         response_modalities: str = "IMAGE+TEXT",
+        system_prompt: str = "",
     ) -> IO.NodeOutput:
         validate_string(prompt, strip_whitespace=True, min_length=1)
         parts: list[GeminiPart] = [GeminiPart(text=prompt)]
@@ -559,6 +589,10 @@ class GeminiImage(IO.ComfyNode):
         if files is not None:
             parts.extend(files)
 
+        gemini_system_prompt = None
+        if system_prompt:
+            gemini_system_prompt = GeminiSystemInstructionContent(parts=[GeminiTextPart(text=system_prompt)], role=None)
+
         response = await sync_op(
             cls,
             endpoint=ApiEndpoint(path=f"{GEMINI_BASE_ENDPOINT}/{model}", method="POST"),
@@ -570,6 +604,7 @@ class GeminiImage(IO.ComfyNode):
                     responseModalities=(["IMAGE"] if response_modalities == "IMAGE" else ["TEXT", "IMAGE"]),
                     imageConfig=None if aspect_ratio == "auto" else image_config,
                 ),
+                systemInstruction=gemini_system_prompt,
             ),
             response_model=GeminiGenerateContentResponse,
             price_extractor=calculate_tokens_price,
@@ -640,6 +675,13 @@ class GeminiImage2(IO.ComfyNode):
                     tooltip="Optional file(s) to use as context for the model. "
                     "Accepts inputs from the Gemini Generate Content Input Files node.",
                 ),
+                IO.String.Input(
+                    "system_prompt",
+                    multiline=True,
+                    default=GEMINI_IMAGE_SYS_PROMPT,
+                    optional=True,
+                    tooltip="Foundational instructions that dictate an AI's behavior.",
+                ),
             ],
             outputs=[
                 IO.Image.Output(),
@@ -664,6 +706,7 @@ class GeminiImage2(IO.ComfyNode):
         response_modalities: str,
         images: torch.Tensor | None = None,
         files: list[GeminiPart] | None = None,
+        system_prompt: str = "",
     ) -> IO.NodeOutput:
         validate_string(prompt, strip_whitespace=True, min_length=1)
 
@@ -679,6 +722,10 @@ class GeminiImage2(IO.ComfyNode):
         if aspect_ratio != "auto":
             image_config.aspectRatio = aspect_ratio
 
+        gemini_system_prompt = None
+        if system_prompt:
+            gemini_system_prompt = GeminiSystemInstructionContent(parts=[GeminiTextPart(text=system_prompt)], role=None)
+
         response = await sync_op(
             cls,
             ApiEndpoint(path=f"{GEMINI_BASE_ENDPOINT}/{model}", method="POST"),
@@ -690,6 +737,7 @@ class GeminiImage2(IO.ComfyNode):
                     responseModalities=(["IMAGE"] if response_modalities == "IMAGE" else ["TEXT", "IMAGE"]),
                     imageConfig=image_config,
                 ),
+                systemInstruction=gemini_system_prompt,
             ),
             response_model=GeminiGenerateContentResponse,
             price_extractor=calculate_tokens_price,
