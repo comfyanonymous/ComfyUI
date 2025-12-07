@@ -137,6 +137,15 @@ def set_user_directory(user_dir: str) -> None:
     user_directory = user_dir
 
 
+def clear_filename_list_cache() -> None:
+    """
+    Clear cached filename lists so new files on disk are discovered.
+    """
+    global filename_list_cache
+    filename_list_cache.clear()
+    cache_helper.clear()
+
+
 # System User Protection - Protects system directories from HTTP endpoint access
 # System Users are internal-only users that cannot be accessed via HTTP endpoints.
 # They use the '__' prefix convention (similar to Python's private member convention).
