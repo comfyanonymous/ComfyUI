@@ -6,20 +6,6 @@ import math
 import logging
 import torch
 
-
-def detect_layer_quantization(metadata):
-    quant_key = "_quantization_metadata"
-    if metadata is not None and quant_key in metadata:
-        quant_metadata = metadata.pop(quant_key)
-        quant_metadata = json.loads(quant_metadata)
-        if isinstance(quant_metadata, dict) and "layers" in quant_metadata:
-            logging.info(f"Found quantization metadata (version {quant_metadata.get('format_version', 'unknown')})")
-            return quant_metadata["layers"]
-        else:
-            raise ValueError("Invalid quantization metadata format")
-    return None
-
-
 def count_blocks(state_dict_keys, prefix_string):
     count = 0
     while True:
@@ -208,12 +194,12 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
             dit_config["theta"] = 2000
             dit_config["out_channels"] = 128
             dit_config["global_modulation"] = True
-            dit_config["vec_in_dim"] = None
             dit_config["mlp_silu_act"] = True
             dit_config["qkv_bias"] = False
             dit_config["ops_bias"] = False
             dit_config["default_ref_method"] = "index"
             dit_config["ref_index_scale"] = 10.0
+            dit_config["txt_ids_dims"] = [3]
             patch_size = 1
         else:
             dit_config["image_model"] = "flux"
@@ -223,6 +209,7 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
             dit_config["theta"] = 10000
             dit_config["out_channels"] = 16
             dit_config["qkv_bias"] = True
+            dit_config["txt_ids_dims"] = []
             patch_size = 2
 
         dit_config["in_channels"] = 16
@@ -245,6 +232,8 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
         vec_in_key = '{}vector_in.in_layer.weight'.format(key_prefix)
         if vec_in_key in state_dict_keys:
             dit_config["vec_in_dim"] = state_dict[vec_in_key].shape[1]
+        else:
+            dit_config["vec_in_dim"] = None
 
         dit_config["depth"] = count_blocks(state_dict_keys, '{}double_blocks.'.format(key_prefix) + '{}.')
         dit_config["depth_single_blocks"] = count_blocks(state_dict_keys, '{}single_blocks.'.format(key_prefix) + '{}.')
@@ -270,6 +259,11 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
                 dit_config["nerf_embedder_dtype"] = torch.float32
         else:
             dit_config["guidance_embed"] = "{}guidance_in.in_layer.weight".format(key_prefix) in state_dict_keys
+            dit_config["yak_mlp"] = '{}double_blocks.0.img_mlp.gate_proj.weight'.format(key_prefix) in state_dict_keys
+            dit_config["txt_norm"] = "{}txt_norm.scale".format(key_prefix) in state_dict_keys
+            if dit_config["yak_mlp"] and dit_config["txt_norm"]:  # Ovis model
+                dit_config["txt_ids_dims"] = [1, 2]
+
         return dit_config
 
     if '{}t5_yproj.weight'.format(key_prefix) in state_dict_keys: #Genmo mochi preview
@@ -617,6 +611,24 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
         dit_config["num_layers"] = count_blocks(state_dict_keys, '{}transformer_blocks.'.format(key_prefix) + '{}.')
         return dit_config
 
+    if '{}visual_transformer_blocks.0.cross_attention.key_norm.weight'.format(key_prefix) in state_dict_keys: # Kandinsky 5
+        dit_config = {}
+        model_dim = state_dict['{}visual_embeddings.in_layer.bias'.format(key_prefix)].shape[0]
+        dit_config["model_dim"] = model_dim
+        if model_dim in [4096, 2560]: # pro video and lite image
+            dit_config["axes_dims"] = (32, 48, 48)
+            if model_dim == 2560: # lite image
+                dit_config["rope_scale_factor"] = (1.0, 1.0, 1.0)
+        elif model_dim == 1792: # lite video
+            dit_config["axes_dims"] = (16, 24, 24)
+        dit_config["time_dim"] = state_dict['{}time_embeddings.in_layer.bias'.format(key_prefix)].shape[0]
+        dit_config["image_model"] = "kandinsky5"
+        dit_config["ff_dim"] = state_dict['{}visual_transformer_blocks.0.feed_forward.in_layer.weight'.format(key_prefix)].shape[0]
+        dit_config["visual_embed_dim"] = state_dict['{}visual_embeddings.in_layer.weight'.format(key_prefix)].shape[1]
+        dit_config["num_text_blocks"] = count_blocks(state_dict_keys, '{}text_transformer_blocks.'.format(key_prefix) + '{}.')
+        dit_config["num_visual_blocks"] = count_blocks(state_dict_keys, '{}visual_transformer_blocks.'.format(key_prefix) + '{}.')
+        return dit_config
+
     if '{}input_blocks.0.0.weight'.format(key_prefix) not in state_dict_keys:
         return None
 
@@ -759,22 +771,11 @@ def model_config_from_unet(state_dict, unet_key_prefix, use_base_if_no_match=Fal
     if model_config is None and use_base_if_no_match:
         model_config = comfy.supported_models_base.BASE(unet_config)
 
-    scaled_fp8_key = "{}scaled_fp8".format(unet_key_prefix)
-    if scaled_fp8_key in state_dict:
-        scaled_fp8_weight = state_dict.pop(scaled_fp8_key)
-        model_config.scaled_fp8 = scaled_fp8_weight.dtype
-        if model_config.scaled_fp8 == torch.float32:
-            model_config.scaled_fp8 = torch.float8_e4m3fn
-        if scaled_fp8_weight.nelement() == 2:
-            model_config.optimizations["fp8"] = False
-        else:
-            model_config.optimizations["fp8"] = True
-
     # Detect per-layer quantization (mixed precision)
-    layer_quant_config = detect_layer_quantization(metadata)
-    if layer_quant_config:
-        model_config.layer_quant_config = layer_quant_config
-        logging.info(f"Detected mixed precision quantization: {len(layer_quant_config)} layers quantized")
+    quant_config = comfy.utils.detect_layer_quantization(state_dict, unet_key_prefix)
+    if quant_config:
+        model_config.quant_config = quant_config
+        logging.info("Detected mixed precision quantization")
 
     return model_config
 

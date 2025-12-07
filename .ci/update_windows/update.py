@@ -66,8 +66,10 @@ if branch is None:
     try:
         ref = repo.lookup_reference('refs/remotes/origin/master')
     except:
-        print("pulling.")  # noqa: T201
-        pull(repo)
+        print("fetching.")  # noqa: T201
+        for remote in repo.remotes:
+            if remote.name == "origin":
+                remote.fetch()
         ref = repo.lookup_reference('refs/remotes/origin/master')
     repo.checkout(ref)
     branch = repo.lookup_branch('master')
@@ -149,3 +151,4 @@ try:
         shutil.copy(stable_update_script, stable_update_script_to)
 except:
     pass
+

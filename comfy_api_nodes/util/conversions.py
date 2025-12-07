@@ -4,7 +4,6 @@ import math
 import mimetypes
 import uuid
 from io import BytesIO
-from typing import Optional
 
 import av
 import numpy as np
@@ -12,8 +11,7 @@ import torch
 from PIL import Image
 
 from comfy.utils import common_upscale
-from comfy_api.latest import Input, InputImpl
-from comfy_api.util import VideoCodec, VideoContainer
+from comfy_api.latest import Input, InputImpl, Types
 
 from ._helpers import mimetype_to_extension
 
@@ -57,7 +55,7 @@ def image_tensor_pair_to_batch(image1: torch.Tensor, image2: torch.Tensor) -> to
 
 def tensor_to_bytesio(
     image: torch.Tensor,
-    name: Optional[str] = None,
+    name: str | None = None,
     total_pixels: int = 2048 * 2048,
     mime_type: str = "image/png",
 ) -> BytesIO:
@@ -177,8 +175,8 @@ def audio_to_base64_string(audio: Input.Audio, container_format: str = "mp4", co
 
 def video_to_base64_string(
     video: Input.Video,
-    container_format: VideoContainer = None,
-    codec: VideoCodec = None
+    container_format: Types.VideoContainer | None = None,
+    codec: Types.VideoCodec | None = None,
 ) -> str:
     """
     Converts a video input to a base64 string.
@@ -189,12 +187,11 @@ def video_to_base64_string(
         codec: Optional codec to use (defaults to video.codec if available)
     """
     video_bytes_io = BytesIO()
-
-    # Use provided format/codec if specified, otherwise use video's own if available
-    format_to_use = container_format if container_format is not None else getattr(video, 'container', VideoContainer.MP4)
-    codec_to_use = codec if codec is not None else getattr(video, 'codec', VideoCodec.H264)
-
-    video.save_to(video_bytes_io, format=format_to_use, codec=codec_to_use)
+    video.save_to(
+        video_bytes_io,
+        format=container_format or getattr(video, "container", Types.VideoContainer.MP4),
+        codec=codec or getattr(video, "codec", Types.VideoCodec.H264),
+    )
     video_bytes_io.seek(0)
     return base64.b64encode(video_bytes_io.getvalue()).decode("utf-8")
 
