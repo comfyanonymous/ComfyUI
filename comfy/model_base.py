@@ -47,6 +47,7 @@ import comfy.ldm.chroma_radiance.model
 import comfy.ldm.ace.model
 import comfy.ldm.omnigen.omnigen2
 import comfy.ldm.qwen_image.model
+import comfy.ldm.kandinsky5.model
 
 import comfy.model_management
 import comfy.patcher_extension
@@ -1109,6 +1110,10 @@ class Lumina2(BaseModel):
             if 'num_tokens' not in out:
                 out['num_tokens'] = comfy.conds.CONDConstant(cross_attn.shape[1])
 
+        clip_text_pooled = kwargs["pooled_output"]  # Newbie
+        if clip_text_pooled is not None:
+            out['clip_text_pooled'] = comfy.conds.CONDRegular(clip_text_pooled)
+
         return out
 
 class WAN21(BaseModel):
@@ -1630,3 +1635,49 @@ class HunyuanVideo15_SR_Distilled(HunyuanVideo15):
         out = super().extra_conds(**kwargs)
         out['disable_time_r'] = comfy.conds.CONDConstant(False)
         return out
+
+class Kandinsky5(BaseModel):
+    def __init__(self, model_config, model_type=ModelType.FLOW, device=None):
+        super().__init__(model_config, model_type, device=device, unet_model=comfy.ldm.kandinsky5.model.Kandinsky5)
+
+    def encode_adm(self, **kwargs):
+        return kwargs["pooled_output"]
+
+    def concat_cond(self, **kwargs):
+        noise = kwargs.get("noise", None)
+        device = kwargs["device"]
+        image = torch.zeros_like(noise)
+
+        mask = kwargs.get("concat_mask", kwargs.get("denoise_mask", None))
+        if mask is None:
+            mask = torch.zeros_like(noise)[:, :1]
+        else:
+            mask = 1.0 - mask
+            mask = utils.common_upscale(mask.to(device), noise.shape[-1], noise.shape[-2], "bilinear", "center")
+            if mask.shape[-3] < noise.shape[-3]:
+                mask = torch.nn.functional.pad(mask, (0, 0, 0, 0, 0, noise.shape[-3] - mask.shape[-3]), mode='constant', value=0)
+            mask = utils.resize_to_batch_size(mask, noise.shape[0])
+
+        return torch.cat((image, mask), dim=1)
+
+    def extra_conds(self, **kwargs):
+        out = super().extra_conds(**kwargs)
+        attention_mask = kwargs.get("attention_mask", None)
+        if attention_mask is not None:
+            out['attention_mask'] = comfy.conds.CONDRegular(attention_mask)
+        cross_attn = kwargs.get("cross_attn", None)
+        if cross_attn is not None:
+            out['c_crossattn'] = comfy.conds.CONDRegular(cross_attn)
+
+        time_dim_replace = kwargs.get("time_dim_replace", None)
+        if time_dim_replace is not None:
+            out['time_dim_replace'] = comfy.conds.CONDRegular(self.process_latent_in(time_dim_replace))
+
+        return out
+
+class Kandinsky5Image(Kandinsky5):
+    def __init__(self, model_config, model_type=ModelType.FLOW, device=None):
+        super().__init__(model_config, model_type, device=device)
+
+    def concat_cond(self, **kwargs):
+        return None
