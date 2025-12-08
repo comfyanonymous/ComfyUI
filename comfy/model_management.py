@@ -1079,11 +1079,15 @@ def cast_to(weight, dtype=None, device=None, non_blocking=False, copy=False, str
             if dtype is None or weight.dtype == dtype:
                 return weight
         if stream is not None:
+            if not hasattr(stream, "__enter__"):
+                logging.error(f"Stream object {stream} of type {type(stream)} does not have __enter__ method")
             with stream:
                 return weight.to(dtype=dtype, copy=copy)
         return weight.to(dtype=dtype, copy=copy)
 
     if stream is not None:
+        if not hasattr(stream, "__enter__"):
+            logging.error(f"Stream object {stream} of type {type(stream)} does not have __enter__ method")
         with stream:
             r = torch.empty_like(weight, dtype=dtype, device=device)
             r.copy_(weight, non_blocking=non_blocking)
@@ -1525,33 +1529,6 @@ def throw_exception_if_processing_interrupted():
         if interrupt_processing:
             interrupt_processing = False
             raise InterruptProcessingException()
-"""            
-def unload_all_models_full():
-    """
-    Completely unloads all models from RAM and GPU when the user cancels.
-    Frees CPU RAM, GPU VRAM, and clears python references.
-    """
-    global current_loaded_models
-    try:
-        # Unload every model object
-        for m in current_loaded_models:
-            try:
-                m.model_unload(memory_to_free=None, unpatch_weights=True)
-            except:
-                pass
-        current_loaded_models.clear()
-
-        # Force Python GC
-        gc.collect()
-
-        # Clear GPU memory
-        soft_empty_cache(force=True)
-
-        logging.info("All models unloaded successfully (manual full unload).")
-    except Exception as e:
-        logging.warning(f"Model unload warning: {e}")
-        
-    """
 
 def cleanup_ram():
     gc.collect()
