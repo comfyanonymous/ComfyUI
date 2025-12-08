@@ -4,6 +4,7 @@ import torch
 import math
 from einops import rearrange
 
+import torch.nn.functional as F
 from torchvision.transforms import functional as TVF
 from torchvision.transforms import Lambda, Normalize
 from torchvision.transforms.functional import InterpolationMode
@@ -108,12 +109,13 @@ class SeedVR2InputProcessing(io.ComfyNode):
                 io.Int.Input("resolution_width")
             ],
             outputs = [
-                io.Image.Output("images")
+                io.Image.Output("processed_images")
             ]
         )
     
     @classmethod
     def execute(cls, images, resolution_height, resolution_width):
+        images = images.permute(0, 3, 1, 2) 
         max_area = ((resolution_height * resolution_width)** 0.5) ** 2
         clip = Lambda(lambda x: torch.clamp(x, 0.0, 1.0))
         normalize = Normalize(0.5, 0.5)
@@ -134,7 +136,7 @@ class SeedVR2Conditioning(io.ComfyNode):
             inputs=[
                 io.Conditioning.Input("text_positive_conditioning"),
                 io.Conditioning.Input("text_negative_conditioning"),
-                io.Conditioning.Input("vae_conditioning")
+                io.Latent.Input("vae_conditioning")
             ],
             outputs=[io.Conditioning.Output(display_name = "positive"),
                      io.Conditioning.Output(display_name = "negative"),
@@ -143,7 +145,8 @@ class SeedVR2Conditioning(io.ComfyNode):
 
     @classmethod
     def execute(cls, text_positive_conditioning, text_negative_conditioning, vae_conditioning) -> io.NodeOutput:
-        # TODO: should do the flattening logic as with the original code
+        
+        vae_conditioning = vae_conditioning["samples"]
         pos_cond = text_positive_conditioning[0][0]
         neg_cond = text_negative_conditioning[0][0]
 
@@ -160,14 +163,18 @@ class SeedVR2Conditioning(io.ComfyNode):
         cond = inter(vae_conditioning, aug_noises, t)
         condition = get_conditions(noises, cond)
 
-        # TODO / FIXME
-        pos_cond = torch.cat([condition, pos_cond], dim = 0)
-        neg_cond = torch.cat([condition, neg_cond], dim = 0)
+        pos_shape = pos_cond.shape[1]
+        neg_shape = neg_shape.shape[1]
+        diff = abs(pos_shape.shape[1] - neg_shape.shape[1])
+        if pos_shape.shape[1] > neg_shape.shape[1]:
+            neg_cond = F.pad(neg_cond, (0, 0, 0, diff))
+        else:
+            pos_cond = F.pad(pos_cond, (0, 0, 0, diff))
 
-        negative = [[pos_cond, {}]]
-        positive = [[neg_cond, {}]]
+        negative = [[pos_cond, {"condition": condition}]]
+        positive = [[neg_cond, {"condition": condition}]]
 
-        return io.NodeOutput(positive, negative, noises)
+        return io.NodeOutput(positive, negative, {"samples": noises})
 
 class SeedVRExtension(ComfyExtension):
     @override

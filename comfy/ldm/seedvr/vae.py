@@ -3,10 +3,9 @@ from typing import Literal, Optional, Tuple
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from diffusers.models.attention_processor import Attention
 from einops import rearrange
 
-from model import safe_pad_operation
+from comfy.ldm.seedvr.model import safe_pad_operation
 from comfy.ldm.hunyuan3d.vae import DiagonalGaussianDistribution
 from comfy.ldm.modules.attention import optimized_attention
 
@@ -216,67 +215,37 @@ class Attention(nn.Module):
         return hidden_states
 
 
-def inflate_weight(weight_2d: torch.Tensor, weight_3d: torch.Tensor, inflation_mode: str):
-    """
-    Inflate a 2D convolution weight matrix to a 3D one.
-    Parameters:
-        weight_2d:      The weight matrix of 2D conv to be inflated.
-        weight_3d:      The weight matrix of 3D conv to be initialized.
-        inflation_mode: the mode of inflation
-    """
-    assert inflation_mode in ["tail", "replicate"]
-    assert weight_3d.shape[:2] == weight_2d.shape[:2]
+def inflate_weight(weight_2d: torch.Tensor, weight_3d: torch.Tensor):
     with torch.no_grad():
-        if inflation_mode == "replicate":
-            depth = weight_3d.size(2)
-            weight_3d.copy_(weight_2d.unsqueeze(2).repeat(1, 1, depth, 1, 1) / depth)
-        else:
-            weight_3d.fill_(0.0)
-            weight_3d[:, :, -1].copy_(weight_2d)
+        depth = weight_3d.size(2)
+        weight_3d.copy_(weight_2d.unsqueeze(2).repeat(1, 1, depth, 1, 1) / depth)
     return weight_3d
 
-
-def inflate_bias(bias_2d: torch.Tensor, bias_3d: torch.Tensor, inflation_mode: str):
-    """
-    Inflate a 2D convolution bias tensor to a 3D one
-    Parameters:
-        bias_2d:        The bias tensor of 2D conv to be inflated.
-        bias_3d:        The bias tensor of 3D conv to be initialized.
-        inflation_mode: Placeholder to align `inflate_weight`.
-    """
-    assert bias_3d.shape == bias_2d.shape
+def inflate_bias(bias_2d: torch.Tensor, bias_3d: torch.Tensor):
     with torch.no_grad():
         bias_3d.copy_(bias_2d)
     return bias_3d
 
 
 def modify_state_dict(layer, state_dict, prefix, inflate_weight_fn, inflate_bias_fn):
-    """
-    the main function to inflated 2D parameters to 3D.
-    """
     weight_name = prefix + "weight"
     bias_name = prefix + "bias"
     if weight_name in state_dict:
         weight_2d = state_dict[weight_name]
         if weight_2d.dim() == 4:
-            # Assuming the 2D weights are 4D tensors (out_channels, in_channels, h, w)
             weight_3d = inflate_weight_fn(
                 weight_2d=weight_2d,
                 weight_3d=layer.weight,
-                inflation_mode=layer.inflation_mode,
             )
             state_dict[weight_name] = weight_3d
         else:
             return state_dict
-            # It's a 3d state dict, should not do inflation on both bias and weight.
     if bias_name in state_dict:
         bias_2d = state_dict[bias_name]
         if bias_2d.dim() == 1:
-            # Assuming the 2D biases are 1D tensors (out_channels,)
             bias_3d = inflate_bias_fn(
                 bias_2d=bias_2d,
                 bias_3d=layer.bias,
-                inflation_mode=layer.inflation_mode,
             )
             state_dict[bias_name] = bias_3d
     return state_dict
@@ -384,19 +353,12 @@ class InflatedCausalConv3d(nn.Conv3d):
     def _load_from_state_dict(
         self, state_dict, prefix, local_metadata, strict, missing_keys, unexpected_keys, error_msgs
     ):
-        if self.inflation_mode != "none":
-            state_dict = modify_state_dict(
-                self,
-                state_dict,
-                prefix,
-                inflate_weight_fn=inflate_weight,
-                inflate_bias_fn=inflate_bias,
-            )
+
         super()._load_from_state_dict(
             state_dict,
             prefix,
             local_metadata,
-            (strict and self.inflation_mode == "none"),
+            strict,
             missing_keys,
             unexpected_keys,
             error_msgs,

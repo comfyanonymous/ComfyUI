@@ -1154,20 +1154,21 @@ class Chroma(supported_models_base.BASE):
         t5_detect = comfy.text_encoders.sd3_clip.t5_xxl_detect(state_dict, "{}t5xxl.transformer.".format(pref))
         return supported_models_base.ClipTarget(comfy.text_encoders.pixart_t5.PixArtTokenizer, comfy.text_encoders.pixart_t5.pixart_te(**t5_detect))
     
-class SeedVR2(supported_models_base.Base):
+class SeedVR2(supported_models_base.BASE):
     unet_config = {
-        "image_mode": "seedvr2"
+        "image_model": "seedvr2"
     }
     latent_format = comfy.latent_formats.SeedVR2
 
     vae_key_prefix = ["vae."]
+    text_encoder_key_prefix = ["text_encoders."]
     supported_inference_dtypes = [torch.bfloat16, torch.float32]
 
     def get_model(self, state_dict, prefix = "", device=None):
         out = model_base.SeedVR2(self, device=device)
         return out
     def clip_target(self, state_dict={}):
-        return None
+        return supported_models_base.ClipTarget(comfy.text_encoders.sd3_clip.SD3Tokenizer, comfy.text_encoders.sd3_clip.SD3ClipModel)
 
 class ACEStep(supported_models_base.BASE):
     unet_config = {

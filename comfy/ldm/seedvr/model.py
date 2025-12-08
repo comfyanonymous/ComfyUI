@@ -1187,8 +1187,12 @@ class NaDiT(nn.Module):
         rope_dim = 128,
         rope_type = "mmrope3d",
         vid_out_norm: Optional[str] = None,
+        device = None,
+        dtype = None,
+        operations = None,
         **kwargs,
     ):
+        self.dtype = dtype
         window_method = num_layers // 2 * ["720pwin_by_size_bysize","720pswin_by_size_bysize"]
         txt_dim = vid_dim
         emb_dim = vid_dim * 6
@@ -1292,33 +1296,33 @@ class NaDiT(nn.Module):
         x,
         timestep,
         context,  # l c
-        txt_shape,  # b 1
         disable_cache: bool = True,  # for test # TODO ?
+        **kwargs
     ):  
+        transformer_options = kwargs.get("transformer_options", {})
+        c_or_u_list = transformer_options.get("cond_or_uncond", [])
+        cond_latent = c_or_u_list[0]["condition"]
+
         pos_cond, neg_cond = context.chunk(2, dim=0)
-        pos_cond, pos_shape = flatten(pos_cond)
-        neg_cond, neg_shape = flatten(neg_cond)
-        diff = abs(pos_shape.shape[1] - neg_shape.shape[1])
-        if pos_shape.shape[1] > neg_shape.shape[1]:
-            neg_shape = F.pad(neg_shape, (0, 0, 0, diff))
-            neg_cond = F.pad(neg_cond, (0, 0, 0, diff))
-        else:
-            pos_shape = F.pad(pos_shape, (0, 0, 0, diff))
-            pos_cond = F.pad(pos_cond, (0, 0, 0, diff))
+        # txt_shape should be the same for both
+        pos_cond, txt_shape = flatten(pos_cond)
+        neg_cond, _ = flatten(neg_cond)
+        txt = torch.cat([pos_cond, neg_cond], dim = 0)
+        txt_shape[0] *= 2
+
         vid = x
-        txt = context
         vid, vid_shape = flatten(x)
+
+        vid = torch.cat([cond_latent, vid])
         if txt_shape.size(-1) == 1 and self.need_txt_repeat:
             txt, txt_shape = repeat(txt, txt_shape, "l c -> t l c", t=vid_shape[:, 0])
-        # slice vid after patching in when using sequence parallelism
+
         txt = self.txt_in(txt)
 
         vid, vid_shape = self.vid_in(vid, vid_shape)
 
-        # Embedding input.
         emb = self.emb_in(timestep, device=vid.device, dtype=vid.dtype)
 
-        # Body
         cache = Cache(disable=disable_cache)
         for i, block in enumerate(self.blocks):
             vid, txt, vid_shape, txt_shape = block(
