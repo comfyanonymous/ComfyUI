@@ -1043,6 +1043,9 @@ def get_offload_stream(device):
     if NUM_STREAMS == 0:
         return None
 
+    if torch.compiler.is_compiling():
+        return None
+
     if device in STREAMS:
         ss = STREAMS[device]
         #Sync the oldest stream in the queue with the current
@@ -1053,7 +1056,9 @@ def get_offload_stream(device):
     elif is_device_cuda(device):
         ss = []
         for k in range(NUM_STREAMS):
-            ss.append(torch.cuda.Stream(device=device, priority=0))
+            s1 = torch.cuda.Stream(device=device, priority=0)
+            s1.as_context = torch.cuda.stream
+            ss.append(s1)
         STREAMS[device] = ss
         s = ss[stream_counter]
         stream_counters[device] = stream_counter
@@ -1061,7 +1066,9 @@ def get_offload_stream(device):
     elif is_device_xpu(device):
         ss = []
         for k in range(NUM_STREAMS):
-            ss.append(torch.xpu.Stream(device=device, priority=0))
+            s1 = torch.xpu.Stream(device=device, priority=0)
+            s1.as_context = torch.xpu.stream
+            ss.append(s1)
         STREAMS[device] = ss
         s = ss[stream_counter]
         stream_counters[device] = stream_counter
@@ -1085,10 +1092,12 @@ def cast_to(weight, dtype=None, device=None, non_blocking=False, copy=False, str
                 return weight.to(dtype=dtype, copy=copy)
         return weight.to(dtype=dtype, copy=copy)
 
+
     if stream is not None:
-        if not hasattr(stream, "__enter__"):
-            logging.error(f"Stream object {stream} of type {type(stream)} does not have __enter__ method")
-        with stream:
+        wf_context = stream
+        if hasattr(wf_context, "as_context"):
+            wf_context = wf_context.as_context(stream)
+        with wf_context:
             r = torch.empty_like(weight, dtype=dtype, device=device)
             r.copy_(weight, non_blocking=non_blocking)
     else:
@@ -1482,6 +1491,20 @@ def extended_fp16_support():
         return False
 
     return True
+
+LORA_COMPUTE_DTYPES = {}
+def lora_compute_dtype(device):
+    dtype = LORA_COMPUTE_DTYPES.get(device, None)
+    if dtype is not None:
+        return dtype
+
+    if should_use_fp16(device):
+        dtype = torch.float16
+    else:
+        dtype = torch.float32
+
+    LORA_COMPUTE_DTYPES[device] = dtype
+    return dtype
 
 def soft_empty_cache(force=False):
     global cpu_state

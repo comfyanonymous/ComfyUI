@@ -43,7 +43,7 @@ import folder_paths
 import latent_preview
 import node_helpers
 
-if getattr(args, "enable_manager", False):
+if args.enable_manager:
     import comfyui_manager
 
 def before_node_execution():

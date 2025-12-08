@@ -1,13 +1,27 @@
 import logging
 import math
-from enum import Enum
-from typing import Literal, Optional, Union
 
 import torch
-from pydantic import BaseModel, Field
 from typing_extensions import override
 
-from comfy_api.latest import IO, ComfyExtension
+from comfy_api.latest import IO, ComfyExtension, Input
+from comfy_api_nodes.apis.bytedance_api import (
+    RECOMMENDED_PRESETS,
+    RECOMMENDED_PRESETS_SEEDREAM_4,
+    VIDEO_TASKS_EXECUTION_TIME,
+    Image2ImageTaskCreationRequest,
+    Image2VideoTaskCreationRequest,
+    ImageTaskCreationResponse,
+    Seedream4Options,
+    Seedream4TaskCreationRequest,
+    TaskCreationResponse,
+    TaskImageContent,
+    TaskImageContentUrl,
+    TaskStatusResponse,
+    TaskTextContent,
+    Text2ImageTaskCreationRequest,
+    Text2VideoTaskCreationRequest,
+)
 from comfy_api_nodes.util import (
     ApiEndpoint,
     download_url_to_image_tensor,
@@ -29,162 +43,6 @@ BYTEPLUS_TASK_ENDPOINT = "/proxy/byteplus/api/v3/contents/generations/tasks"
 BYTEPLUS_TASK_STATUS_ENDPOINT = "/proxy/byteplus/api/v3/contents/generations/tasks"  # + /{task_id}
 
 
-class Text2ImageModelName(str, Enum):
-    seedream_3 = "seedream-3-0-t2i-250415"
-
-
-class Image2ImageModelName(str, Enum):
-    seededit_3 = "seededit-3-0-i2i-250628"
-
-
-class Text2VideoModelName(str, Enum):
-    seedance_1_pro = "seedance-1-0-pro-250528"
-    seedance_1_lite = "seedance-1-0-lite-t2v-250428"
-
-
-class Image2VideoModelName(str, Enum):
-    """note(August 31): Pro model only supports FirstFrame: https://docs.byteplus.com/en/docs/ModelArk/1520757"""
-
-    seedance_1_pro = "seedance-1-0-pro-250528"
-    seedance_1_lite = "seedance-1-0-lite-i2v-250428"
-
-
-class Text2ImageTaskCreationRequest(BaseModel):
-    model: Text2ImageModelName = Text2ImageModelName.seedream_3
-    prompt: str = Field(...)
-    response_format: Optional[str] = Field("url")
-    size: Optional[str] = Field(None)
-    seed: Optional[int] = Field(0, ge=0, le=2147483647)
-    guidance_scale: Optional[float] = Field(..., ge=1.0, le=10.0)
-    watermark: Optional[bool] = Field(True)
-
-
-class Image2ImageTaskCreationRequest(BaseModel):
-    model: Image2ImageModelName = Image2ImageModelName.seededit_3
-    prompt: str = Field(...)
-    response_format: Optional[str] = Field("url")
-    image: str = Field(..., description="Base64 encoded string or image URL")
-    size: Optional[str] = Field("adaptive")
-    seed: Optional[int] = Field(..., ge=0, le=2147483647)
-    guidance_scale: Optional[float] = Field(..., ge=1.0, le=10.0)
-    watermark: Optional[bool] = Field(True)
-
-
-class Seedream4Options(BaseModel):
-    max_images: int = Field(15)
-
-
-class Seedream4TaskCreationRequest(BaseModel):
-    model: str = Field("seedream-4-0-250828")
-    prompt: str = Field(...)
-    response_format: str = Field("url")
-    image: Optional[list[str]] = Field(None, description="Image URLs")
-    size: str = Field(...)
-    seed: int = Field(..., ge=0, le=2147483647)
-    sequential_image_generation: str = Field("disabled")
-    sequential_image_generation_options: Seedream4Options = Field(Seedream4Options(max_images=15))
-    watermark: bool = Field(True)
-
-
-class ImageTaskCreationResponse(BaseModel):
-    model: str = Field(...)
-    created: int = Field(..., description="Unix timestamp (in seconds) indicating time when the request was created.")
-    data: list = Field([], description="Contains information about the generated image(s).")
-    error: dict = Field({}, description="Contains `code` and `message` fields in case of error.")
-
-
-class TaskTextContent(BaseModel):
-    type: str = Field("text")
-    text: str = Field(...)
-
-
-class TaskImageContentUrl(BaseModel):
-    url: str = Field(...)
-
-
-class TaskImageContent(BaseModel):
-    type: str = Field("image_url")
-    image_url: TaskImageContentUrl = Field(...)
-    role: Optional[Literal["first_frame", "last_frame", "reference_image"]] = Field(None)
-
-
-class Text2VideoTaskCreationRequest(BaseModel):
-    model: Text2VideoModelName = Text2VideoModelName.seedance_1_pro
-    content: list[TaskTextContent] = Field(..., min_length=1)
-
-
-class Image2VideoTaskCreationRequest(BaseModel):
-    model: Image2VideoModelName = Image2VideoModelName.seedance_1_pro
-    content: list[Union[TaskTextContent, TaskImageContent]] = Field(..., min_length=2)
-
-
-class TaskCreationResponse(BaseModel):
-    id: str = Field(...)
-
-
-class TaskStatusError(BaseModel):
-    code: str = Field(...)
-    message: str = Field(...)
-
-
-class TaskStatusResult(BaseModel):
-    video_url: str = Field(...)
-
-
-class TaskStatusResponse(BaseModel):
-    id: str = Field(...)
-    model: str = Field(...)
-    status: Literal["queued", "running", "cancelled", "succeeded", "failed"] = Field(...)
-    error: Optional[TaskStatusError] = Field(None)
-    content: Optional[TaskStatusResult] = Field(None)
-
-
-RECOMMENDED_PRESETS = [
-    ("1024x1024 (1:1)", 1024, 1024),
-    ("864x1152 (3:4)", 864, 1152),
-    ("1152x864 (4:3)", 1152, 864),
-    ("1280x720 (16:9)", 1280, 720),
-    ("720x1280 (9:16)", 720, 1280),
-    ("832x1248 (2:3)", 832, 1248),
-    ("1248x832 (3:2)", 1248, 832),
-    ("1512x648 (21:9)", 1512, 648),
-    ("2048x2048 (1:1)", 2048, 2048),
-    ("Custom", None, None),
-]
-
-RECOMMENDED_PRESETS_SEEDREAM_4 = [
-    ("2048x2048 (1:1)", 2048, 2048),
-    ("2304x1728 (4:3)", 2304, 1728),
-    ("1728x2304 (3:4)", 1728, 2304),
-    ("2560x1440 (16:9)", 2560, 1440),
-    ("1440x2560 (9:16)", 1440, 2560),
-    ("2496x1664 (3:2)", 2496, 1664),
-    ("1664x2496 (2:3)", 1664, 2496),
-    ("3024x1296 (21:9)", 3024, 1296),
-    ("4096x4096 (1:1)", 4096, 4096),
-    ("Custom", None, None),
-]
-
-# The time in this dictionary are given for 10 seconds duration.
-VIDEO_TASKS_EXECUTION_TIME = {
-    "seedance-1-0-lite-t2v-250428": {
-        "480p": 40,
-        "720p": 60,
-        "1080p": 90,
-    },
-    "seedance-1-0-lite-i2v-250428": {
-        "480p": 40,
-        "720p": 60,
-        "1080p": 90,
-    },
-    "seedance-1-0-pro-250528": {
-        "480p": 70,
-        "720p": 85,
-        "1080p": 115,
-    },
-}
-
-
 def get_image_url_from_response(response: ImageTaskCreationResponse) -> str:
     if response.error:
         error_msg = f"ByteDance request failed. Code: {response.error['code']}, message: {response.error['message']}"
@@ -192,13 +50,6 @@ def get_image_url_from_response(response: ImageTaskCreationResponse) -> str:
         raise RuntimeError(error_msg)
     logging.info("ByteDance task succeeded, image URL: %s", response.data[0]["url"])
     return response.data[0]["url"]
-
-
-def get_video_url_from_task_status(response: TaskStatusResponse) -> Union[str, None]:
-    """Returns the video URL from the task status response if it exists."""
-    if hasattr(response, "content") and response.content:
-        return response.content.video_url
-    return None
 
 
 class ByteDanceImageNode(IO.ComfyNode):
@@ -211,12 +62,7 @@ class ByteDanceImageNode(IO.ComfyNode):
             category="api node/image/ByteDance",
             description="Generate images using ByteDance models via api based on prompt",
             inputs=[
-                IO.Combo.Input(
-                    "model",
-                    options=Text2ImageModelName,
-                    default=Text2ImageModelName.seedream_3,
-                    tooltip="Model name",
-                ),
+                IO.Combo.Input("model", options=["seedream-3-0-t2i-250415"]),
                 IO.String.Input(
                     "prompt",
                     multiline=True,
@@ -335,12 +181,7 @@ class ByteDanceImageEditNode(IO.ComfyNode):
             category="api node/image/ByteDance",
             description="Edit images using ByteDance models via api based on prompt",
             inputs=[
-                IO.Combo.Input(
-                    "model",
-                    options=Image2ImageModelName,
-                    default=Image2ImageModelName.seededit_3,
-                    tooltip="Model name",
-                ),
+                IO.Combo.Input("model", options=["seededit-3-0-i2i-250628"]),
                 IO.Image.Input(
                     "image",
                     tooltip="The base image to edit",
@@ -394,7 +235,7 @@ class ByteDanceImageEditNode(IO.ComfyNode):
     async def execute(
         cls,
         model: str,
-        image: torch.Tensor,
+        image: Input.Image,
         prompt: str,
         seed: int,
         guidance_scale: float,
@@ -434,7 +275,7 @@ class ByteDanceSeedreamNode(IO.ComfyNode):
             inputs=[
                 IO.Combo.Input(
                     "model",
-                    options=["seedream-4-0-250828"],
+                    options=["seedream-4-5-251128", "seedream-4-0-250828"],
                     tooltip="Model name",
                 ),
                 IO.String.Input(
@@ -459,7 +300,7 @@ class ByteDanceSeedreamNode(IO.ComfyNode):
                     default=2048,
                     min=1024,
                     max=4096,
-                    step=64,
+                    step=8,
                     tooltip="Custom width for image. Value is working only if `size_preset` is set to `Custom`",
                     optional=True,
                 ),
@@ -468,7 +309,7 @@ class ByteDanceSeedreamNode(IO.ComfyNode):
                     default=2048,
                     min=1024,
                     max=4096,
-                    step=64,
+                    step=8,
                     tooltip="Custom height for image. Value is working only if `size_preset` is set to `Custom`",
                     optional=True,
                 ),
@@ -532,7 +373,7 @@ class ByteDanceSeedreamNode(IO.ComfyNode):
         cls,
         model: str,
         prompt: str,
-        image: torch.Tensor = None,
+        image: Input.Image | None = None,
         size_preset: str = RECOMMENDED_PRESETS_SEEDREAM_4[0][0],
         width: int = 2048,
         height: int = 2048,
@@ -555,6 +396,18 @@ class ByteDanceSeedreamNode(IO.ComfyNode):
                 raise ValueError(
                     f"Custom size out of range: {w}x{h}. " "Both width and height must be between 1024 and 4096 pixels."
                 )
+        out_num_pixels = w * h
+        mp_provided = out_num_pixels / 1_000_000.0
+        if "seedream-4-5" in model and out_num_pixels < 3686400:
+            raise ValueError(
+                f"Minimum image resolution that Seedream 4.5 can generate is 3.68MP, "
+                f"but {mp_provided:.2f}MP provided."
+            )
+        if "seedream-4-0" in model and out_num_pixels < 921600:
+            raise ValueError(
+                f"Minimum image resolution that the selected model can generate is 0.92MP, "
+                f"but {mp_provided:.2f}MP provided."
+            )
         n_input_images = get_number_of_images(image) if image is not None else 0
         if n_input_images > 10:
             raise ValueError(f"Maximum of 10 reference images are supported, but {n_input_images} received.")
@@ -607,9 +460,8 @@ class ByteDanceTextToVideoNode(IO.ComfyNode):
             inputs=[
                 IO.Combo.Input(
                     "model",
-                    options=Text2VideoModelName,
-                    default=Text2VideoModelName.seedance_1_pro,
-                    tooltip="Model name",
+                    options=["seedance-1-0-pro-250528", "seedance-1-0-lite-t2v-250428", "seedance-1-0-pro-fast-251015"],
+                    default="seedance-1-0-pro-fast-251015",
                 ),
                 IO.String.Input(
                     "prompt",
@@ -714,9 +566,8 @@ class ByteDanceImageToVideoNode(IO.ComfyNode):
             inputs=[
                 IO.Combo.Input(
                     "model",
-                    options=Image2VideoModelName,
-                    default=Image2VideoModelName.seedance_1_pro,
-                    tooltip="Model name",
+                    options=["seedance-1-0-pro-250528", "seedance-1-0-lite-t2v-250428", "seedance-1-0-pro-fast-251015"],
+                    default="seedance-1-0-pro-fast-251015",
                 ),
                 IO.String.Input(
                     "prompt",
@@ -787,7 +638,7 @@ class ByteDanceImageToVideoNode(IO.ComfyNode):
         cls,
         model: str,
         prompt: str,
-        image: torch.Tensor,
+        image: Input.Image,
         resolution: str,
         aspect_ratio: str,
         duration: int,
@@ -833,9 +684,8 @@ class ByteDanceFirstLastFrameNode(IO.ComfyNode):
             inputs=[
                 IO.Combo.Input(
                     "model",
-                    options=[model.value for model in Image2VideoModelName],
-                    default=Image2VideoModelName.seedance_1_lite.value,
-                    tooltip="Model name",
+                    options=["seedance-1-0-pro-250528", "seedance-1-0-lite-i2v-250428"],
+                    default="seedance-1-0-lite-i2v-250428",
                 ),
                 IO.String.Input(
                     "prompt",
@@ -910,8 +760,8 @@ class ByteDanceFirstLastFrameNode(IO.ComfyNode):
         cls,
         model: str,
         prompt: str,
-        first_frame: torch.Tensor,
-        last_frame: torch.Tensor,
+        first_frame: Input.Image,
+        last_frame: Input.Image,
         resolution: str,
         aspect_ratio: str,
         duration: int,
@@ -968,9 +818,8 @@ class ByteDanceImageReferenceNode(IO.ComfyNode):
             inputs=[
                 IO.Combo.Input(
                     "model",
-                    options=[Image2VideoModelName.seedance_1_lite.value],
-                    default=Image2VideoModelName.seedance_1_lite.value,
-                    tooltip="Model name",
+                    options=["seedance-1-0-pro-250528", "seedance-1-0-lite-i2v-250428"],
+                    default="seedance-1-0-lite-i2v-250428",
                 ),
                 IO.String.Input(
                     "prompt",
@@ -1034,7 +883,7 @@ class ByteDanceImageReferenceNode(IO.ComfyNode):
         cls,
         model: str,
         prompt: str,
-        images: torch.Tensor,
+        images: Input.Image,
         resolution: str,
         aspect_ratio: str,
         duration: int,
@@ -1069,8 +918,8 @@ class ByteDanceImageReferenceNode(IO.ComfyNode):
 
 async def process_video_task(
     cls: type[IO.ComfyNode],
-    payload: Union[Text2VideoTaskCreationRequest, Image2VideoTaskCreationRequest],
-    estimated_duration: Optional[int],
+    payload: Text2VideoTaskCreationRequest | Image2VideoTaskCreationRequest,
+    estimated_duration: int | None,
 ) -> IO.NodeOutput:
     initial_response = await sync_op(
         cls,
@@ -1085,7 +934,7 @@ async def process_video_task(
         estimated_duration=estimated_duration,
         response_model=TaskStatusResponse,
     )
-    return IO.NodeOutput(await download_url_to_video_output(get_video_url_from_task_status(response)))
+    return IO.NodeOutput(await download_url_to_video_output(response.content.video_url))
 
 
 def raise_if_text_params(prompt: str, text_params: list[str]) -> None:

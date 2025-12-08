@@ -4,13 +4,14 @@ For source of truth on the allowed permutations of request fields, please refere
 - [Compatibility Table](https://app.klingai.com/global/dev/document-api/apiReference/model/skillsMap)
 """
 
-import math
 import logging
-
-from typing_extensions import override
+import math
+import re
 
 import torch
+from typing_extensions import override
 
+from comfy_api.latest import IO, ComfyExtension, Input, InputImpl
 from comfy_api_nodes.apis import (
     KlingCameraControl,
     KlingCameraConfig,
@@ -48,23 +49,33 @@ from comfy_api_nodes.apis import (
     KlingCharacterEffectModelName,
     KlingSingleImageEffectModelName,
 )
+from comfy_api_nodes.apis.kling_api import (
+    OmniImageParamImage,
+    OmniParamImage,
+    OmniParamVideo,
+    OmniProFirstLastFrameRequest,
+    OmniProImageRequest,
+    OmniProReferences2VideoRequest,
+    OmniProText2VideoRequest,
+    OmniTaskStatusResponse,
+)
 from comfy_api_nodes.util import (
-    validate_image_dimensions,
+    ApiEndpoint,
+    download_url_to_image_tensor,
+    download_url_to_video_output,
+    get_number_of_images,
+    poll_op,
+    sync_op,
+    tensor_to_base64_string,
+    upload_audio_to_comfyapi,
+    upload_images_to_comfyapi,
+    upload_video_to_comfyapi,
     validate_image_aspect_ratio,
+    validate_image_dimensions,
+    validate_string,
     validate_video_dimensions,
     validate_video_duration,
-    tensor_to_base64_string,
-    validate_string,
-    upload_audio_to_comfyapi,
-    download_url_to_image_tensor,
-    upload_video_to_comfyapi,
-    download_url_to_video_output,
-    sync_op,
-    ApiEndpoint,
-    poll_op,
 )
-from comfy_api.input_impl import VideoFromFile
-from comfy_api.latest import ComfyExtension, IO, Input
 
 KLING_API_VERSION = "v1"
 PATH_TEXT_TO_VIDEO = f"/proxy/kling/{KLING_API_VERSION}/videos/text2video"
@@ -200,6 +211,50 @@ VOICES_CONFIG = {
     "刀片烟嗓": ("daopianyansang-v1", "zh"),
     "乖巧正太": ("mengwa-v1", "zh"),
 }
+
+
+def normalize_omni_prompt_references(prompt: str) -> str:
+    """
+    Rewrites Kling Omni-style placeholders used in the app, like:
+
+        @image, @image1, @image2, ... @imageN
+        @video, @video1, @video2, ... @videoN
+
+    into the API-compatible form:
+
+        <<<image_1>>>, <<<image_2>>>, ...
+        <<<video_1>>>, <<<video_2>>>, ...
+
+    This is a UX shim for ComfyUI so users can type the same syntax as in the Kling app.
+    """
+    if not prompt:
+        return prompt
+
+    def _image_repl(match):
+        return f"<<<image_{match.group('idx') or '1'}>>>"
+
+    def _video_repl(match):
+        return f"<<<video_{match.group('idx') or '1'}>>>"
+
+    # (?<!\w) avoids matching e.g. "test@image.com"
+    # (?!\w) makes sure we only match @image / @image<digits> and not @imageFoo
+    prompt = re.sub(r"(?<!\w)@image(?P<idx>\d*)(?!\w)", _image_repl, prompt)
+    return re.sub(r"(?<!\w)@video(?P<idx>\d*)(?!\w)", _video_repl, prompt)
+
+
+async def finish_omni_video_task(cls: type[IO.ComfyNode], response: OmniTaskStatusResponse) -> IO.NodeOutput:
+    if response.code:
+        raise RuntimeError(
+            f"Kling request failed. Code: {response.code}, Message: {response.message}, Data: {response.data}"
+        )
+    final_response = await poll_op(
+        cls,
+        ApiEndpoint(path=f"/proxy/kling/v1/videos/omni-video/{response.data.task_id}"),
+        response_model=OmniTaskStatusResponse,
+        status_extractor=lambda r: (r.data.task_status if r.data else None),
+        max_poll_attempts=160,
+    )
+    return IO.NodeOutput(await download_url_to_video_output(final_response.data.task_result.videos[0].url))
 
 
 def is_valid_camera_control_configs(configs: list[float]) -> bool:
@@ -449,7 +504,7 @@ async def execute_video_effect(
     image_1: torch.Tensor,
     image_2: torch.Tensor | None = None,
     model_mode: KlingVideoGenMode | None = None,
-) -> tuple[VideoFromFile, str, str]:
+) -> tuple[InputImpl.VideoFromFile, str, str]:
     if dual_character:
         request_input_field = KlingDualCharacterEffectInput(
             model_name=model_name,
@@ -734,6 +789,474 @@ class KlingTextToVideoNode(IO.ComfyNode):
             model_name=model_name,
             duration=duration,
         )
+
+
+class OmniProTextToVideoNode(IO.ComfyNode):
+
+    @classmethod
+    def define_schema(cls) -> IO.Schema:
+        return IO.Schema(
+            node_id="KlingOmniProTextToVideoNode",
+            display_name="Kling Omni Text to Video (Pro)",
+            category="api node/video/Kling",
+            description="Use text prompts to generate videos with the latest Kling model.",
+            inputs=[
+                IO.Combo.Input("model_name", options=["kling-video-o1"]),
+                IO.String.Input(
+                    "prompt",
+                    multiline=True,
+                    tooltip="A text prompt describing the video content. "
+                    "This can include both positive and negative descriptions.",
+                ),
+                IO.Combo.Input("aspect_ratio", options=["16:9", "9:16", "1:1"]),
+                IO.Combo.Input("duration", options=[5, 10]),
+            ],
+            outputs=[
+                IO.Video.Output(),
+            ],
+            hidden=[
+                IO.Hidden.auth_token_comfy_org,
+                IO.Hidden.api_key_comfy_org,
+                IO.Hidden.unique_id,
+            ],
+            is_api_node=True,
+        )
+
+    @classmethod
+    async def execute(
+        cls,
+        model_name: str,
+        prompt: str,
+        aspect_ratio: str,
+        duration: int,
+    ) -> IO.NodeOutput:
+        validate_string(prompt, min_length=1, max_length=2500)
+        response = await sync_op(
+            cls,
+            ApiEndpoint(path="/proxy/kling/v1/videos/omni-video", method="POST"),
+            response_model=OmniTaskStatusResponse,
+            data=OmniProText2VideoRequest(
+                model_name=model_name,
+                prompt=prompt,
+                aspect_ratio=aspect_ratio,
+                duration=str(duration),
+            ),
+        )
+        return await finish_omni_video_task(cls, response)
+
+
+class OmniProFirstLastFrameNode(IO.ComfyNode):
+
+    @classmethod
+    def define_schema(cls) -> IO.Schema:
+        return IO.Schema(
+            node_id="KlingOmniProFirstLastFrameNode",
+            display_name="Kling Omni First-Last-Frame to Video (Pro)",
+            category="api node/video/Kling",
+            description="Use a start frame, an optional end frame, or reference images with the latest Kling model.",
+            inputs=[
+                IO.Combo.Input("model_name", options=["kling-video-o1"]),
+                IO.String.Input(
+                    "prompt",
+                    multiline=True,
+                    tooltip="A text prompt describing the video content. "
+                    "This can include both positive and negative descriptions.",
+                ),
+                IO.Combo.Input("duration", options=["5", "10"]),
+                IO.Image.Input("first_frame"),
+                IO.Image.Input(
+                    "end_frame",
+                    optional=True,
+                    tooltip="An optional end frame for the video. "
+                    "This cannot be used simultaneously with 'reference_images'.",
+                ),
+                IO.Image.Input(
+                    "reference_images",
+                    optional=True,
+                    tooltip="Up to 6 additional reference images.",
+                ),
+            ],
+            outputs=[
+                IO.Video.Output(),
+            ],
+            hidden=[
+                IO.Hidden.auth_token_comfy_org,
+                IO.Hidden.api_key_comfy_org,
+                IO.Hidden.unique_id,
+            ],
+            is_api_node=True,
+        )
+
+    @classmethod
+    async def execute(
+        cls,
+        model_name: str,
+        prompt: str,
+        duration: int,
+        first_frame: Input.Image,
+        end_frame: Input.Image | None = None,
+        reference_images: Input.Image | None = None,
+    ) -> IO.NodeOutput:
+        prompt = normalize_omni_prompt_references(prompt)
+        validate_string(prompt, min_length=1, max_length=2500)
+        if end_frame is not None and reference_images is not None:
+            raise ValueError("The 'end_frame' input cannot be used simultaneously with 'reference_images'.")
+        validate_image_dimensions(first_frame, min_width=300, min_height=300)
+        validate_image_aspect_ratio(first_frame, (1, 2.5), (2.5, 1))
+        image_list: list[OmniParamImage] = [
+            OmniParamImage(
+                image_url=(await upload_images_to_comfyapi(cls, first_frame, wait_label="Uploading first frame"))[0],
+                type="first_frame",
+            )
+        ]
+        if end_frame is not None:
+            validate_image_dimensions(end_frame, min_width=300, min_height=300)
+            validate_image_aspect_ratio(end_frame, (1, 2.5), (2.5, 1))
+            image_list.append(
+                OmniParamImage(
+                    image_url=(await upload_images_to_comfyapi(cls, end_frame, wait_label="Uploading end frame"))[0],
+                    type="end_frame",
+                )
+            )
+        if reference_images is not None:
+            if get_number_of_images(reference_images) > 6:
+                raise ValueError("The maximum number of reference images allowed is 6.")
+            for i in reference_images:
+                validate_image_dimensions(i, min_width=300, min_height=300)
+                validate_image_aspect_ratio(i, (1, 2.5), (2.5, 1))
+            for i in await upload_images_to_comfyapi(cls, reference_images, wait_label="Uploading reference frame(s)"):
+                image_list.append(OmniParamImage(image_url=i))
+        response = await sync_op(
+            cls,
+            ApiEndpoint(path="/proxy/kling/v1/videos/omni-video", method="POST"),
+            response_model=OmniTaskStatusResponse,
+            data=OmniProFirstLastFrameRequest(
+                model_name=model_name,
+                prompt=prompt,
+                duration=str(duration),
+                image_list=image_list,
+            ),
+        )
+        return await finish_omni_video_task(cls, response)
+
+
+class OmniProImageToVideoNode(IO.ComfyNode):
+
+    @classmethod
+    def define_schema(cls) -> IO.Schema:
+        return IO.Schema(
+            node_id="KlingOmniProImageToVideoNode",
+            display_name="Kling Omni Image to Video (Pro)",
+            category="api node/video/Kling",
+            description="Use up to 7 reference images to generate a video with the latest Kling model.",
+            inputs=[
+                IO.Combo.Input("model_name", options=["kling-video-o1"]),
+                IO.String.Input(
+                    "prompt",
+                    multiline=True,
+                    tooltip="A text prompt describing the video content. "
+                    "This can include both positive and negative descriptions.",
+                ),
+                IO.Combo.Input("aspect_ratio", options=["16:9", "9:16", "1:1"]),
+                IO.Int.Input("duration", default=3, min=3, max=10, display_mode=IO.NumberDisplay.slider),
+                IO.Image.Input(
+                    "reference_images",
+                    tooltip="Up to 7 reference images.",
+                ),
+            ],
+            outputs=[
+                IO.Video.Output(),
+            ],
+            hidden=[
+                IO.Hidden.auth_token_comfy_org,
+                IO.Hidden.api_key_comfy_org,
+                IO.Hidden.unique_id,
+            ],
+            is_api_node=True,
+        )
+
+    @classmethod
+    async def execute(
+        cls,
+        model_name: str,
+        prompt: str,
+        aspect_ratio: str,
+        duration: int,
+        reference_images: Input.Image,
+    ) -> IO.NodeOutput:
+        prompt = normalize_omni_prompt_references(prompt)
+        validate_string(prompt, min_length=1, max_length=2500)
+        if get_number_of_images(reference_images) > 7:
+            raise ValueError("The maximum number of reference images is 7.")
+        for i in reference_images:
+            validate_image_dimensions(i, min_width=300, min_height=300)
+            validate_image_aspect_ratio(i, (1, 2.5), (2.5, 1))
+        image_list: list[OmniParamImage] = []
+        for i in await upload_images_to_comfyapi(cls, reference_images, wait_label="Uploading reference image"):
+            image_list.append(OmniParamImage(image_url=i))
+        response = await sync_op(
+            cls,
+            ApiEndpoint(path="/proxy/kling/v1/videos/omni-video", method="POST"),
+            response_model=OmniTaskStatusResponse,
+            data=OmniProReferences2VideoRequest(
+                model_name=model_name,
+                prompt=prompt,
+                aspect_ratio=aspect_ratio,
+                duration=str(duration),
+                image_list=image_list,
+            ),
+        )
+        return await finish_omni_video_task(cls, response)
+
+
+class OmniProVideoToVideoNode(IO.ComfyNode):
+
+    @classmethod
+    def define_schema(cls) -> IO.Schema:
+        return IO.Schema(
+            node_id="KlingOmniProVideoToVideoNode",
+            display_name="Kling Omni Video to Video (Pro)",
+            category="api node/video/Kling",
+            description="Use a video and up to 4 reference images to generate a video with the latest Kling model.",
+            inputs=[
+                IO.Combo.Input("model_name", options=["kling-video-o1"]),
+                IO.String.Input(
+                    "prompt",
+                    multiline=True,
+                    tooltip="A text prompt describing the video content. "
+                    "This can include both positive and negative descriptions.",
+                ),
+                IO.Combo.Input("aspect_ratio", options=["16:9", "9:16", "1:1"]),
+                IO.Int.Input("duration", default=3, min=3, max=10, display_mode=IO.NumberDisplay.slider),
+                IO.Video.Input("reference_video", tooltip="Video to use as a reference."),
+                IO.Boolean.Input("keep_original_sound", default=True),
+                IO.Image.Input(
+                    "reference_images",
+                    tooltip="Up to 4 additional reference images.",
+                    optional=True,
+                ),
+            ],
+            outputs=[
+                IO.Video.Output(),
+            ],
+            hidden=[
+                IO.Hidden.auth_token_comfy_org,
+                IO.Hidden.api_key_comfy_org,
+                IO.Hidden.unique_id,
+            ],
+            is_api_node=True,
+        )
+
+    @classmethod
+    async def execute(
+        cls,
+        model_name: str,
+        prompt: str,
+        aspect_ratio: str,
+        duration: int,
+        reference_video: Input.Video,
+        keep_original_sound: bool,
+        reference_images: Input.Image | None = None,
+    ) -> IO.NodeOutput:
+        prompt = normalize_omni_prompt_references(prompt)
+        validate_string(prompt, min_length=1, max_length=2500)
+        validate_video_duration(reference_video, min_duration=3.0, max_duration=10.05)
+        validate_video_dimensions(reference_video, min_width=720, min_height=720, max_width=2160, max_height=2160)
+        image_list: list[OmniParamImage] = []
+        if reference_images is not None:
+            if get_number_of_images(reference_images) > 4:
+                raise ValueError("The maximum number of reference images allowed with a video input is 4.")
+            for i in reference_images:
+                validate_image_dimensions(i, min_width=300, min_height=300)
+                validate_image_aspect_ratio(i, (1, 2.5), (2.5, 1))
+            for i in await upload_images_to_comfyapi(cls, reference_images, wait_label="Uploading reference image"):
+                image_list.append(OmniParamImage(image_url=i))
+        video_list = [
+            OmniParamVideo(
+                video_url=await upload_video_to_comfyapi(cls, reference_video, wait_label="Uploading reference video"),
+                refer_type="feature",
+                keep_original_sound="yes" if keep_original_sound else "no",
+            )
+        ]
+        response = await sync_op(
+            cls,
+            ApiEndpoint(path="/proxy/kling/v1/videos/omni-video", method="POST"),
+            response_model=OmniTaskStatusResponse,
+            data=OmniProReferences2VideoRequest(
+                model_name=model_name,
+                prompt=prompt,
+                aspect_ratio=aspect_ratio,
+                duration=str(duration),
+                image_list=image_list if image_list else None,
+                video_list=video_list,
+            ),
+        )
+        return await finish_omni_video_task(cls, response)
+
+
+class OmniProEditVideoNode(IO.ComfyNode):
+
+    @classmethod
+    def define_schema(cls) -> IO.Schema:
+        return IO.Schema(
+            node_id="KlingOmniProEditVideoNode",
+            display_name="Kling Omni Edit Video (Pro)",
+            category="api node/video/Kling",
+            description="Edit an existing video with the latest model from Kling.",
+            inputs=[
+                IO.Combo.Input("model_name", options=["kling-video-o1"]),
+                IO.String.Input(
+                    "prompt",
+                    multiline=True,
+                    tooltip="A text prompt describing the video content. "
+                    "This can include both positive and negative descriptions.",
+                ),
+                IO.Video.Input("video", tooltip="Video for editing. The output video length will be the same."),
+                IO.Boolean.Input("keep_original_sound", default=True),
+                IO.Image.Input(
+                    "reference_images",
+                    tooltip="Up to 4 additional reference images.",
+                    optional=True,
+                ),
+            ],
+            outputs=[
+                IO.Video.Output(),
+            ],
+            hidden=[
+                IO.Hidden.auth_token_comfy_org,
+                IO.Hidden.api_key_comfy_org,
+                IO.Hidden.unique_id,
+            ],
+            is_api_node=True,
+        )
+
+    @classmethod
+    async def execute(
+        cls,
+        model_name: str,
+        prompt: str,
+        video: Input.Video,
+        keep_original_sound: bool,
+        reference_images: Input.Image | None = None,
+    ) -> IO.NodeOutput:
+        prompt = normalize_omni_prompt_references(prompt)
+        validate_string(prompt, min_length=1, max_length=2500)
+        validate_video_duration(video, min_duration=3.0, max_duration=10.05)
+        validate_video_dimensions(video, min_width=720, min_height=720, max_width=2160, max_height=2160)
+        image_list: list[OmniParamImage] = []
+        if reference_images is not None:
+            if get_number_of_images(reference_images) > 4:
+                raise ValueError("The maximum number of reference images allowed with a video input is 4.")
+            for i in reference_images:
+                validate_image_dimensions(i, min_width=300, min_height=300)
+                validate_image_aspect_ratio(i, (1, 2.5), (2.5, 1))
+            for i in await upload_images_to_comfyapi(cls, reference_images, wait_label="Uploading reference image"):
+                image_list.append(OmniParamImage(image_url=i))
+        video_list = [
+            OmniParamVideo(
+                video_url=await upload_video_to_comfyapi(cls, video, wait_label="Uploading base video"),
+                refer_type="base",
+                keep_original_sound="yes" if keep_original_sound else "no",
+            )
+        ]
+        response = await sync_op(
+            cls,
+            ApiEndpoint(path="/proxy/kling/v1/videos/omni-video", method="POST"),
+            response_model=OmniTaskStatusResponse,
+            data=OmniProReferences2VideoRequest(
+                model_name=model_name,
+                prompt=prompt,
+                aspect_ratio=None,
+                duration=None,
+                image_list=image_list if image_list else None,
+                video_list=video_list,
+            ),
+        )
+        return await finish_omni_video_task(cls, response)
+
+
+class OmniProImageNode(IO.ComfyNode):
+
+    @classmethod
+    def define_schema(cls) -> IO.Schema:
+        return IO.Schema(
+            node_id="KlingOmniProImageNode",
+            display_name="Kling Omni Image (Pro)",
+            category="api node/image/Kling",
+            description="Create or edit images with the latest model from Kling.",
+            inputs=[
+                IO.Combo.Input("model_name", options=["kling-image-o1"]),
+                IO.String.Input(
+                    "prompt",
+                    multiline=True,
+                    tooltip="A text prompt describing the image content. "
+                    "This can include both positive and negative descriptions.",
+                ),
+                IO.Combo.Input("resolution", options=["1K", "2K"]),
+                IO.Combo.Input(
+                    "aspect_ratio",
+                    options=["16:9", "9:16", "1:1", "4:3", "3:4", "3:2", "2:3", "21:9"],
+                ),
+                IO.Image.Input(
+                    "reference_images",
+                    tooltip="Up to 10 additional reference images.",
+                    optional=True,
+                ),
+            ],
+            outputs=[
+                IO.Image.Output(),
+            ],
+            hidden=[
+                IO.Hidden.auth_token_comfy_org,
+                IO.Hidden.api_key_comfy_org,
+                IO.Hidden.unique_id,
+            ],
+            is_api_node=True,
+        )
+
+    @classmethod
+    async def execute(
+        cls,
+        model_name: str,
+        prompt: str,
+        resolution: str,
+        aspect_ratio: str,
+        reference_images: Input.Image | None = None,
+    ) -> IO.NodeOutput:
+        prompt = normalize_omni_prompt_references(prompt)
+        validate_string(prompt, min_length=1, max_length=2500)
+        image_list: list[OmniImageParamImage] = []
+        if reference_images is not None:
+            if get_number_of_images(reference_images) > 10:
+                raise ValueError("The maximum number of reference images is 10.")
+            for i in reference_images:
+                validate_image_dimensions(i, min_width=300, min_height=300)
+                validate_image_aspect_ratio(i, (1, 2.5), (2.5, 1))
+            for i in await upload_images_to_comfyapi(cls, reference_images, wait_label="Uploading reference image"):
+                image_list.append(OmniImageParamImage(image=i))
+        response = await sync_op(
+            cls,
+            ApiEndpoint(path="/proxy/kling/v1/images/omni-image", method="POST"),
+            response_model=OmniTaskStatusResponse,
+            data=OmniProImageRequest(
+                model_name=model_name,
+                prompt=prompt,
+                resolution=resolution.lower(),
+                aspect_ratio=aspect_ratio,
+                image_list=image_list if image_list else None,
+            ),
+        )
+        if response.code:
+            raise RuntimeError(
+                f"Kling request failed. Code: {response.code}, Message: {response.message}, Data: {response.data}"
+            )
+        final_response = await poll_op(
+            cls,
+            ApiEndpoint(path=f"/proxy/kling/v1/images/omni-image/{response.data.task_id}"),
+            response_model=OmniTaskStatusResponse,
+            status_extractor=lambda r: (r.data.task_status if r.data else None),
+        )
+        return IO.NodeOutput(await download_url_to_image_tensor(final_response.data.task_result.images[0].url))
 
 
 class KlingCameraControlT2VNode(IO.ComfyNode):
@@ -1162,7 +1685,10 @@ class KlingSingleImageVideoEffectNode(IO.ComfyNode):
             category="api node/video/Kling",
             description="Achieve different special effects when generating a video based on the effect_scene.",
             inputs=[
-                IO.Image.Input("image", tooltip=" Reference Image. URL or Base64 encoded string (without data:image prefix). File size cannot exceed 10MB, resolution not less than 300*300px, aspect ratio between 1:2.5 ~ 2.5:1"),
+                IO.Image.Input(
+                    "image",
+                    tooltip=" Reference Image. URL or Base64 encoded string (without data:image prefix). File size cannot exceed 10MB, resolution not less than 300*300px, aspect ratio between 1:2.5 ~ 2.5:1",
+                ),
                 IO.Combo.Input(
                     "effect_scene",
                     options=[i.value for i in KlingSingleImageEffectsScene],
@@ -1525,6 +2051,12 @@ class KlingExtension(ComfyExtension):
             KlingImageGenerationNode,
             KlingSingleImageVideoEffectNode,
             KlingDualCharacterVideoEffectNode,
+            OmniProTextToVideoNode,
+            OmniProFirstLastFrameNode,
+            OmniProImageToVideoNode,
+            OmniProVideoToVideoNode,
+            OmniProEditVideoNode,
+            # OmniProImageNode,  # need support from backend
         ]
 
 
