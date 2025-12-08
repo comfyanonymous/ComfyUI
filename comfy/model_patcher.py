@@ -139,6 +139,8 @@ def low_vram_patch_estimate_vram(model, key):
     if weight is None:
         return 0
     model_dtype = getattr(model, "manual_cast_dtype", torch.float32)
+    if model_dtype is None:
+        model_dtype = torch.float32
     return weight.numel() * model_dtype.itemsize * LOWVRAM_PATCH_ESTIMATE_MATH_FACTOR
 
 def get_key_weight(model, key):
