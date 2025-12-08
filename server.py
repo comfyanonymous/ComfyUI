@@ -703,20 +703,23 @@ class PromptServer():
             status_param = query.get("status", None)
             status_filter = None
             if status_param:
-                status_filter = [s.strip() for s in status_param.split(',') if s.strip()]
+                status_filter = [s.strip().lower() for s in status_param.split(',') if s.strip()]
                 valid_statuses = set(JobStatus.ALL)
-                status_filter = [s for s in status_filter if s in valid_statuses]
-                if not status_filter:
-                    status_filter = None
+                invalid_statuses = [s for s in status_filter if s not in valid_statuses]
+                if invalid_statuses:
+                    return web.json_response(
+                        {"error": f"Invalid status value(s): {', '.join(invalid_statuses)}. Valid values: {', '.join(JobStatus.ALL)}"},
+                        status=400
+                    )
 
-            sort_by = query.get('sort_by', 'created_at')
+            sort_by = query.get('sort_by', 'created_at').lower()
             if sort_by not in {'created_at', 'execution_duration'}:
                 return web.json_response(
                     {"error": "sort_by must be 'created_at' or 'execution_duration'"},
                     status=400
                 )
 
-            sort_order = query.get('sort_order', 'desc')
+            sort_order = query.get('sort_order', 'desc').lower()
             if sort_order not in {'asc', 'desc'}:
                 return web.json_response(
                     {"error": "sort_order must be 'asc' or 'desc'"},

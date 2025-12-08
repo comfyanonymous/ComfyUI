@@ -19,7 +19,6 @@ class TestJobStatus:
         assert JobStatus.IN_PROGRESS == 'in_progress'
         assert JobStatus.COMPLETED == 'completed'
         assert JobStatus.FAILED == 'failed'
-        assert JobStatus.CANCELLED == 'cancelled'
 
     def test_all_contains_all_statuses(self):
         """ALL should contain all status values."""
@@ -27,8 +26,7 @@ class TestJobStatus:
         assert JobStatus.IN_PROGRESS in JobStatus.ALL
         assert JobStatus.COMPLETED in JobStatus.ALL
         assert JobStatus.FAILED in JobStatus.ALL
-        assert JobStatus.CANCELLED in JobStatus.ALL
-        assert len(JobStatus.ALL) == 5
+        assert len(JobStatus.ALL) == 4
 
 
 class TestIsPreviewable:

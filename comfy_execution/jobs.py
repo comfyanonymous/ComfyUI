@@ -10,9 +10,8 @@ class JobStatus:
     IN_PROGRESS = 'in_progress'
     COMPLETED = 'completed'
     FAILED = 'failed'
-    CANCELLED = 'cancelled'
 
-    ALL = [PENDING, IN_PROGRESS, COMPLETED, FAILED, CANCELLED]
+    ALL = [PENDING, IN_PROGRESS, COMPLETED, FAILED]
 
 
 # Media types that can be previewed in the frontend
@@ -86,7 +85,7 @@ def normalize_history_item(prompt_id, history_item, include_outputs=False):
     else:
         status = JobStatus.COMPLETED
 
-    outputs = history_item.get('outputs', {})
+    outputs = history_item.get('outputs') or {}
     outputs_count, preview_output = get_outputs_summary(outputs)
 
     execution_error = None
@@ -150,6 +149,8 @@ def get_outputs_summary(outputs):
                 continue
 
             for item in items:
+                if not isinstance(item, dict):
+                    continue
                 count += 1
 
                 if preview_output is None and is_previewable(media_type, item):
