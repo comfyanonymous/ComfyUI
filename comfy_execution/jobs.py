@@ -143,6 +143,8 @@ def get_outputs_summary(outputs):
     fallback_preview = None
 
     for node_id, node_outputs in outputs.items():
+        if not isinstance(node_outputs, dict):
+            continue
         for media_type, items in node_outputs.items():
             if media_type == 'animated' or not isinstance(items, list):
                 continue
