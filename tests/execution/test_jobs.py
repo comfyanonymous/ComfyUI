@@ -256,9 +256,10 @@ class TestNormalizeQueueItem:
         assert job['status'] == 'pending'
         assert job['priority'] == 10
         assert job['create_time'] == 1234567890
-        assert job['execution_start_time'] is None
-        assert job['execution_end_time'] is None
-        assert job['execution_error'] is None
+        assert 'execution_start_time' not in job
+        assert 'execution_end_time' not in job
+        assert 'execution_error' not in job
+        assert 'preview_output' not in job
         assert job['outputs_count'] == 0
         assert job['workflow_id'] == 'workflow-abc'
 

@@ -3,6 +3,8 @@ Job utilities for the /api/jobs endpoint.
 Provides normalization and helper functions for job status tracking.
 """
 
+from comfy_api.internal import prune_dict
+
 
 class JobStatus:
     """Job status constants."""
@@ -54,18 +56,14 @@ def normalize_queue_item(item, status):
     extra_pnginfo = extra_data.get('extra_pnginfo') or {}
     workflow_id = extra_pnginfo.get('workflow', {}).get('id')
 
-    return {
+    return prune_dict({
         'id': prompt_id,
         'status': status,
         'priority': priority,
         'create_time': create_time,
-        'execution_error': None,
-        'execution_start_time': None,
-        'execution_end_time': None,
         'outputs_count': 0,
-        'preview_output': None,
         'workflow_id': workflow_id,
-    }
+    })
 
 
 def normalize_history_item(prompt_id, history_item, include_outputs=False):
@@ -104,18 +102,18 @@ def normalize_history_item(prompt_id, history_item, include_outputs=False):
                         if event_name == 'execution_error':
                             execution_error = event_data
 
-    job = {
+    job = prune_dict({
         'id': prompt_id,
         'status': status,
         'priority': priority,
         'create_time': create_time,
-        'execution_error': execution_error,
         'execution_start_time': execution_start_time,
         'execution_end_time': execution_end_time,
+        'execution_error': execution_error,
         'outputs_count': outputs_count,
         'preview_output': preview_output,
         'workflow_id': workflow_id,
-    }
+    })
 
     if include_outputs:
         job['outputs'] = outputs
@@ -210,7 +208,7 @@ def get_job(prompt_id, running, queued, history):
     return None
 
 
-def get_all_jobs(running, queued, history, status_filter=None, sort_by="created_at", sort_order="desc", limit=None, offset=0):
+def get_all_jobs(running, queued, history, status_filter=None, workflow_id=None, sort_by="created_at", sort_order="desc", limit=None, offset=0):
     """
     Get all jobs (running, pending, completed) with filtering and sorting.
 
@@ -219,6 +217,7 @@ def get_all_jobs(running, queued, history, status_filter=None, sort_by="created_
         queued: List of pending queue items
         history: Dict of history items keyed by prompt_id
         status_filter: List of statuses to include (from JobStatus.ALL)
+        workflow_id: Filter by workflow ID
         sort_by: Field to sort by ('created_at', 'execution_duration')
         sort_order: 'asc' or 'desc'
         limit: Maximum number of items to return
@@ -247,6 +246,9 @@ def get_all_jobs(running, queued, history, status_filter=None, sort_by="created_
             is_failed = history_item.get('status', {}).get('status_str') == 'error'
             if (is_failed and include_failed) or (not is_failed and include_completed):
                 jobs.append(normalize_history_item(prompt_id, history_item))
+
+    if workflow_id:
+        jobs = [j for j in jobs if j.get('workflow_id') == workflow_id]
 
     jobs = apply_sorting(jobs, sort_by, sort_order)
 

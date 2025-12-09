@@ -753,12 +753,15 @@ class PromptServer():
                         status=400
                     )
 
+            workflow_id = query.get('workflow_id', None)
+
             running, queued = self.prompt_queue.get_current_queue_volatile()
             history = self.prompt_queue.get_history()
 
             jobs, total = get_all_jobs(
                 running, queued, history,
                 status_filter=status_filter,
+                workflow_id=workflow_id,
                 sort_by=sort_by,
                 sort_order=sort_order,
                 limit=limit,
