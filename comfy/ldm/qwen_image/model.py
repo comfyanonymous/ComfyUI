@@ -442,7 +442,7 @@ class QwenImageTransformer2DModel(nn.Module):
         transformer_options["total_blocks"] = len(self.transformer_blocks)
         transformer_options["block_type"] = "double"
         for i, block in enumerate(self.transformer_blocks):
-            transformer_options["block_index"] = i
+            transformer_options["block_index"] = torch.tensor(i, dtype=torch.uint8, device=hidden_states.device)
             if ("double_block", i) in blocks_replace:
                 def block_wrap(args):
                     out = {}
