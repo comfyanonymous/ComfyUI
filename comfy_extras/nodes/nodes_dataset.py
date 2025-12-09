@@ -7,8 +7,8 @@ import torch
 from PIL import Image
 from typing_extensions import override
 
-import folder_paths
-import node_helpers
+from comfy.cmd import folder_paths
+from comfy import node_helpers
 from comfy_api.latest import ComfyExtension, io
 
 

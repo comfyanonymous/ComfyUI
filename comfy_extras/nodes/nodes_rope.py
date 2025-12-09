@@ -1,3 +1,4 @@
+from comfy.model_patcher import ModelPatcher
 from comfy_api.latest import ComfyExtension, io
 from typing_extensions import override
 
@@ -29,7 +30,7 @@ class ScaleROPE(io.ComfyNode):
         )
 
     @classmethod
-    def execute(cls, model, scale_x, shift_x, scale_y, shift_y, scale_t, shift_t) -> io.NodeOutput:
+    def execute(cls, model: ModelPatcher, scale_x, shift_x, scale_y, shift_y, scale_t, shift_t) -> io.NodeOutput:
         m = model.clone()
         m.set_model_rope_options(scale_x, shift_x, scale_y, shift_y, scale_t, shift_t)
         return io.NodeOutput(m)

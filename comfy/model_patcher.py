@@ -340,7 +340,7 @@ class ModelPatcher(ModelManageable, PatchSupport):
     def loaded_size(self):
         return self._memory_measurements.model_loaded_weight_memory
 
-    def clone(self):
+    def clone(self) -> "ModelPatcher":
         n = self.__class__(self.model, self.load_device, self.offload_device, self.model_size(), weight_inplace_update=self.weight_inplace_update)
         n._memory_measurements = self._memory_measurements
         n.ckpt_name = self.ckpt_name
