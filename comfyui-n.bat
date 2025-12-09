@@ -1,8 +1,5 @@
 @echo off
 
-set "FLASH_ATTENTION_TRITON_AMD_ENABLE=TRUE"
-set "FLASH_ATTENTION_TRITON_AMD_AUTOTUNE=TRUE"
-
 set "MIOPEN_FIND_MODE=2"
 set "MIOPEN_LOG_LEVEL=3"
 
@@ -10,9 +7,10 @@ set "PYTHON=%~dp0venv\Scripts\python.exe"
 set "GIT="
 set "VENV_DIR=.\venv"
 
-set "COMMANDLINE_ARGS=--auto-launch --use-quad-cross-attention --reserve-vram 0.9 --disable-async-offload"
+set "COMMANDLINE_ARGS=--auto-launch --use-quad-cross-attention --reserve-vram 0.9 --disable-async-offload --disable-pinned-memory"
 
 :: "--disable-async-offload" added because of this : ComfyUI has added async weight offloading by default, not compatible with older GPUs, try without it , if it works you are good.
+:: "--disable-pinned-memory" added , because it seems to be the cause of many recent problems with generation using zluda.
 
 :: in the comfyui-user.bat remove the dots on the line below and change the gfx1030 to your gpu's specific code. 
 :: you can find out about yours here, https://llvm.org/docs/AMDGPUUsage.html#processors
