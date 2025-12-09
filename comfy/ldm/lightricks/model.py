@@ -1,12 +1,12 @@
-import torch
-from torch import nn
-
-from ..common_dit import rms_norm
-from einops import rearrange
 import math
 from typing import Dict, Optional, Tuple
 
+import torch
+from torch import nn
+
 from .symmetric_patchifier import SymmetricPatchifier, latent_to_pixel_coords
+from ..common_dit import rms_norm
+from ..flux.math import apply_rope1
 from ..modules.attention import optimized_attention, optimized_attention_masked
 from ...patcher_extension import WrapperExecutor, get_all_wrappers, WrappersMP
 
@@ -181,10 +181,11 @@ class AdaLayerNormSingle(nn.Module):
             added_cond_kwargs: Optional[Dict[str, torch.Tensor]] = None,
             batch_size: Optional[int] = None,
             hidden_dtype: Optional[torch.dtype] = None,
-    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+    ) -> Tuple[torch.Tensor, torch.Tensor]: #, torch.Tensor, torch.Tensor, torch.Tensor]:
         # No modulation happening here.
         added_cond_kwargs = added_cond_kwargs or {"resolution": None, "aspect_ratio": None}
         embedded_timestep = self.emb(timestep, **added_cond_kwargs, batch_size=batch_size, hidden_dtype=hidden_dtype)
+        # todo: whats going on with the signature?
         return self.linear(self.silu(embedded_timestep)), embedded_timestep
 
 
@@ -240,20 +241,6 @@ class FeedForward(nn.Module):
         return self.net(x)
 
 
-def apply_rotary_emb(input_tensor, freqs_cis):  # TODO: remove duplicate funcs and pick the best/fastest one
-    cos_freqs = freqs_cis[0]
-    sin_freqs = freqs_cis[1]
-
-    t_dup = rearrange(input_tensor, "... (d r) -> ... d r", r=2)
-    t1, t2 = t_dup.unbind(dim=-1)
-    t_dup = torch.stack((-t2, t1), dim=-1)
-    input_tensor_rot = rearrange(t_dup, "... d r -> ... (d r)")
-
-    out = input_tensor * cos_freqs + input_tensor_rot * sin_freqs
-
-    return out
-
-
 class CrossAttention(nn.Module):
     def __init__(self, query_dim, context_dim=None, heads=8, dim_head=64, dropout=0., attn_precision=None, dtype=None, device=None, operations=None):
         super().__init__()
@@ -285,8 +272,8 @@ class CrossAttention(nn.Module):
         k = self.k_norm(k)
 
         if pe is not None:
-            q = apply_rotary_emb(q, pe)
-            k = apply_rotary_emb(k, pe)
+            q = apply_rope1(q.unsqueeze(1), pe).squeeze(1)
+            k = apply_rope1(k.unsqueeze(1), pe).squeeze(1)
 
         if mask is None:
             out = optimized_attention(q, k, v, self.heads, attn_precision=self.attn_precision, transformer_options=transformer_options)
@@ -312,12 +299,17 @@ class BasicTransformerBlock(nn.Module):
             transformer_options = {}
         shift_msa, scale_msa, gate_msa, shift_mlp, scale_mlp, gate_mlp = (self.scale_shift_table[None, None].to(device=x.device, dtype=x.dtype) + timestep.reshape(x.shape[0], timestep.shape[1], self.scale_shift_table.shape[0], -1)).unbind(dim=2)
 
-        x += self.attn1(rms_norm(x) * (1 + scale_msa) + shift_msa, pe=pe, transformer_options=transformer_options) * gate_msa
+        attn1_input = rms_norm(x)
+        attn1_input = torch.addcmul(attn1_input, attn1_input, scale_msa).add_(shift_msa)
+        attn1_input = self.attn1(attn1_input, pe=pe, transformer_options=transformer_options)
+        x.addcmul_(attn1_input, gate_msa)
+        del attn1_input
 
         x += self.attn2(x, context=context, mask=attention_mask, transformer_options=transformer_options)
 
-        y = rms_norm(x) * (1 + scale_mlp) + shift_mlp
-        x += self.ff(y) * gate_mlp
+        y = rms_norm(x)
+        y = torch.addcmul(y, y, scale_mlp).add_(shift_mlp)
+        x.addcmul_(self.ff(y), gate_mlp)
 
         return x
 
@@ -336,41 +328,35 @@ def get_fractional_positions(indices_grid, max_pos):
 def precompute_freqs_cis(indices_grid, dim, out_dtype, theta=10000.0, max_pos=None):
     if max_pos is None:
         max_pos = [20, 2048, 2048]
-    dtype = torch.float32  # self.dtype
+    dtype = torch.float32
+    device = indices_grid.device
 
+    # Get fractional positions and compute frequency indices
     fractional_positions = get_fractional_positions(indices_grid, max_pos)
+    indices = theta ** torch.linspace(0, 1, dim // 6, device=device, dtype=dtype) * math.pi / 2
 
-    start = 1
-    end = theta
-    device = fractional_positions.device
+    # Compute frequencies and apply cos/sin
+    freqs = (indices * (fractional_positions.unsqueeze(-1) * 2 - 1)).transpose(-1, -2).flatten(2)
+    cos_vals = freqs.cos().repeat_interleave(2, dim=-1)
+    sin_vals = freqs.sin().repeat_interleave(2, dim=-1)
 
-    indices = theta ** (
-        torch.linspace(
-            math.log(start, theta),
-            math.log(end, theta),
-            dim // 6,
-            device=device,
-            dtype=dtype,
-        )
-    )
-    indices = indices.to(dtype=dtype)
-
-    indices = indices * math.pi / 2
-
-    freqs = (
-        (indices * (fractional_positions.unsqueeze(-1) * 2 - 1))
-        .transpose(-1, -2)
-        .flatten(2)
-    )
-
-    cos_freq = freqs.cos().repeat_interleave(2, dim=-1)
-    sin_freq = freqs.sin().repeat_interleave(2, dim=-1)
+    # Pad if dim is not divisible by 6
     if dim % 6 != 0:
-        cos_padding = torch.ones_like(cos_freq[:, :, : dim % 6])
-        sin_padding = torch.zeros_like(cos_freq[:, :, : dim % 6])
-        cos_freq = torch.cat([cos_padding, cos_freq], dim=-1)
-        sin_freq = torch.cat([sin_padding, sin_freq], dim=-1)
-    return cos_freq.to(out_dtype), sin_freq.to(out_dtype)
+        padding_size = dim % 6
+        cos_vals = torch.cat([torch.ones_like(cos_vals[:, :, :padding_size]), cos_vals], dim=-1)
+        sin_vals = torch.cat([torch.zeros_like(sin_vals[:, :, :padding_size]), sin_vals], dim=-1)
+
+    # Reshape and extract one value per pair (since repeat_interleave duplicates each value)
+    cos_vals = cos_vals.reshape(*cos_vals.shape[:2], -1, 2)[..., 0].to(out_dtype)  # [B, N, dim//2]
+    sin_vals = sin_vals.reshape(*sin_vals.shape[:2], -1, 2)[..., 0].to(out_dtype)  # [B, N, dim//2]
+
+    # Build rotation matrix [[cos, -sin], [sin, cos]] and add heads dimension
+    freqs_cis = torch.stack([
+        torch.stack([cos_vals, -sin_vals], dim=-1),
+        torch.stack([sin_vals, cos_vals], dim=-1)
+    ], dim=-2).unsqueeze(1)  # [B, 1, N, dim//2, 2, 2]
+
+    return freqs_cis
 
 
 class LTXVModel(torch.nn.Module):
@@ -515,7 +501,7 @@ class LTXVModel(torch.nn.Module):
         shift, scale = scale_shift_values[:, :, 0], scale_shift_values[:, :, 1]
         x = self.norm_out(x)
         # Modulation
-        x = x * (1 + scale) + shift
+        x = torch.addcmul(x, x, scale).add_(shift)
         x = self.proj_out(x)
 
         x = self.patchifier.unpatchify(

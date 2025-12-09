@@ -1,6 +1,6 @@
 [project]
 name = "comfyui"
-version = "0.3.66"
+version = "0.3.76"
 description = "An installable version of ComfyUI"
 readme = "README.md"
 authors = [
@@ -18,16 +18,16 @@ classifiers = [
 ]
 
 dependencies = [
-    "comfyui-frontend-package>=1.28.7",
-    "comfyui-workflow-templates>=0.1.95,<0.3.0",
-    "comfyui-embedded-docs>=0.3.0",
+    "comfyui-frontend-package>=1.33.10",
+    "comfyui-workflow-templates>=0.7.51",
+    "comfyui-embedded-docs>=0.3.1",
     "torch",
     "torchvision",
     "torchdiffeq>=0.2.3",
     "torchsde>=0.2.6",
     "einops>=0.6.0",
     "open-clip-torch>=2.24.0",
-    "transformers>=4.46.0,!=4.53.0,!=4.53.1,!=4.53.2,!=4.57.0",
+    "transformers>=4.57.1",
     "tokenizers>=0.13.3",
     "sentencepiece",
     "peft>=0.10.0",
@@ -201,6 +201,8 @@ comfyui-manager = [
     "uv",
     "chardet",
     "pip",
+    # todo: bold move
+    "comfyui_manager==4.0.3b4",
 ]
 
 [project.scripts]
@@ -302,3 +304,50 @@ allow-direct-references = true
 
 [tool.hatch.build.targets.wheel]
 packages = ["comfy/", "comfy_extras/", "comfy_api/", "comfy_api_nodes/", "comfy_config/", "comfy_execution/", "comfy_compatibility/"]
+
+[tool.pylint]
+master.py-version = "3.10"
+master.extension-pkg-allow-list = [
+  "pydantic",
+]
+reports.output-format = "colorized"
+similarities.ignore-imports = "yes"
+messages_control.disable = [
+  "missing-module-docstring",
+  "missing-class-docstring",
+  "missing-function-docstring",
+  "line-too-long",
+  "too-few-public-methods",
+  "too-many-public-methods",
+  "too-many-instance-attributes",
+  "too-many-positional-arguments",
+  "broad-exception-raised",
+  "too-many-lines",
+  "invalid-name",
+  "unused-argument",
+  "broad-exception-caught",
+  "consider-using-with",
+  "fixme",
+  "too-many-statements",
+  "too-many-branches",
+  "too-many-locals",
+  "too-many-arguments",
+  "too-many-return-statements",
+  "too-many-nested-blocks",
+  "duplicate-code",
+  "abstract-method",
+  "superfluous-parens",
+  "arguments-differ",
+  "redefined-builtin",
+  "unnecessary-lambda",
+  "dangerous-default-value",
+  "invalid-overridden-method",
+  # next warnings should be fixed in future
+  "bad-classmethod-argument",  # Class method should have 'cls' as first argument
+  "wrong-import-order",  # Standard imports should be placed before third party imports
+  "ungrouped-imports",
+  "unnecessary-pass",
+  "unnecessary-lambda-assignment",
+  "no-else-return",
+  "unused-variable",
+]

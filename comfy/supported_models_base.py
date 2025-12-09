@@ -18,10 +18,10 @@
 from typing import Optional
 
 import torch
+import logging
 from . import model_base
 from . import utils
 from . import latent_formats
-from .ops import Operations
 
 
 class ClipTarget:
@@ -29,6 +29,7 @@ class ClipTarget:
         self.clip = clip
         self.tokenizer = tokenizer
         self.params = {}
+
 
 class BASE:
     unet_config = {}
@@ -51,8 +52,8 @@ class BASE:
     memory_usage_factor = 2.0
 
     manual_cast_dtype: Optional[torch.dtype] = None
-    custom_operations: Optional[Operations] = None
-    scaled_fp8: Optional[torch.dtype] = None
+    custom_operations: Optional[torch.dtype] = None
+    quant_config = None  # quantization configuration for mixed precision
     optimizations = {"fp8": False}
 
     @classmethod
@@ -120,3 +121,7 @@ class BASE:
     def set_inference_dtype(self, dtype, manual_cast_dtype):
         self.unet_config['dtype'] = dtype
         self.manual_cast_dtype = manual_cast_dtype
+
+    def __getattr__(self, name):
+        logging.warning("\nWARNING, you accessed {} from the model config object which doesn't exist. Please fix your code.\n".format(name))
+        return None

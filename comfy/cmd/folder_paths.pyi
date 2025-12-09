@@ -15,6 +15,7 @@ output_directory: str
 temp_directory: str
 input_directory: str
 supported_pt_extensions: set[str]
+extension_mimetypes_cache: dict[str, str]
 
 
 # Functions
@@ -39,7 +40,7 @@ def get_output_directory() -> str: ...
 def get_temp_directory() -> str: ...
 
 
-def get_input_directory() -> str: ...
+def get_input_directory(mkdirs: bool = ...) -> str: ...
 
 
 def get_user_directory() -> str: ...
@@ -108,3 +109,9 @@ def filter_files_content_types(files: List[str], content_types: List[Literal["im
 
 
 def get_input_subfolders() -> list[str]: ...
+
+
+def get_system_user_directory(name: str = ...) -> str: ...
+
+
+def get_public_user_directory(user_id: str) -> Optional[str]: ...

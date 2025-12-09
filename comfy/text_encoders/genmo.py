@@ -33,14 +33,14 @@ class MochiT5Tokenizer(sd1_clip.SD1Tokenizer):
             tokenizer_data = {}
 
 
-def mochi_te(dtype_t5=None, t5xxl_scaled_fp8=None):
+def mochi_te(dtype_t5=None, t5_quantization_metadata=None):
     class MochiTEModel_(MochiT5XXL):
         def __init__(self, device="cpu", dtype=None, model_options=None):
             if model_options is None:
                 model_options = {}
-            if t5xxl_scaled_fp8 is not None and "t5xxl_scaled_fp8" not in model_options:
+            if t5_quantization_metadata is not None:
                 model_options = model_options.copy()
-                model_options["t5xxl_scaled_fp8"] = t5xxl_scaled_fp8
+                model_options["t5xxl_quantization_metadata"] = t5_quantization_metadata
             if dtype is None:
                 dtype = dtype_t5
             super().__init__(device=device, dtype=dtype, model_options=model_options)

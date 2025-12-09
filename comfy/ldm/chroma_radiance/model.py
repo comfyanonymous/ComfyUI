@@ -10,10 +10,10 @@ from torch import Tensor, nn
 from einops import repeat
 from ..common_dit import pad_to_patch_size
 
-from ..flux.layers import EmbedND
+from ..flux.layers import EmbedND, DoubleStreamBlock, SingleStreamBlock
 
 from ..chroma.model import Chroma, ChromaParams
-from ..chroma.layers import DoubleStreamBlock, SingleStreamBlock, Approximator
+from ..chroma.layers import Approximator
 from .layers import (
     NerfEmbedder,
     NerfGLUBlock,
@@ -94,6 +94,7 @@ class ChromaRadiance(Chroma):
                     self.num_heads,
                     mlp_ratio=params.mlp_ratio,
                     qkv_bias=params.qkv_bias,
+                    modulation=False,
                     dtype=dtype, device=device, operations=operations
                 )
                 for _ in range(params.depth)
@@ -106,6 +107,7 @@ class ChromaRadiance(Chroma):
                     self.hidden_size,
                     self.num_heads,
                     mlp_ratio=params.mlp_ratio,
+                    modulation=False,
                     dtype=dtype, device=device, operations=operations,
                 )
                 for _ in range(params.depth_single_blocks)

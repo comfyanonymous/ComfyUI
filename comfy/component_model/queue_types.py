@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import copy
+import typing
 from enum import Enum
 from typing import NamedTuple, Optional, List, Literal, Sequence
 from typing import Tuple
@@ -10,7 +11,12 @@ from typing_extensions import NotRequired, TypedDict
 
 from .outputs_types import OutputsDict
 
-QueueTuple = Tuple[float, str, dict, dict, list]
+if typing.TYPE_CHECKING:
+    from .executor_types import ExecutionErrorMessage
+# todo: migrate this and the tree of objects here to a NamedTuple
+# number, prompt_id, prompt, extra_data, outputs_to_execute, sensitive
+# todo: sensitive dictionary data is actually a JSON value
+QueueTuple = Tuple[float, str, dict, dict, list, Optional[dict[str, str]]]
 MAXIMUM_HISTORY_SIZE = 10000
 
 
@@ -63,6 +69,7 @@ class ExecutionStatusAsDict(TypedDict):
     status_str: Literal['success', 'error']
     completed: bool
     messages: List[str]
+    error_details: NotRequired[ExecutionErrorMessage]
 
 
 class Flags(TypedDict, total=False):
@@ -98,7 +105,8 @@ class NamedQueueTuple(dict):
             prompt_id=queue_tuple[1],
             prompt=queue_tuple[2],
             extra_data=queue_tuple[3] if len(queue_tuple) > 3 else None,
-            good_outputs=queue_tuple[4] if len(queue_tuple) > 4 else None
+            good_outputs=queue_tuple[4] if len(queue_tuple) > 4 else None,
+            sensitive=queue_tuple[5] if len(queue_tuple) > 5 else None,
         )
         # Store the original tuple in a slot, making it invisible to json.dumps.
         self.queue_tuple = queue_tuple
@@ -125,6 +133,12 @@ class NamedQueueTuple(dict):
     def good_outputs(self) -> Optional[List[str]]:
         if len(self.queue_tuple) > 4:
             return self.queue_tuple[4]
+        return None
+
+    @property
+    def sensitive(self) -> Optional[dict]:
+        if len(self.queue_tuple) > 5:
+            return self.queue_tuple[5]
         return None
 
 

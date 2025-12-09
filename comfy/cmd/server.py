@@ -12,6 +12,8 @@ import socket
 import struct
 import sys
 import traceback
+import time
+
 import typing
 import urllib
 import uuid
@@ -39,7 +41,7 @@ from .. import node_helpers
 from .. import utils
 from ..api_server.routes.internal.internal_routes import InternalRoutes
 from ..app.custom_node_manager import CustomNodeManager
-from ..app.frontend_management import FrontendManager
+from ..app.frontend_management import FrontendManager, parse_version
 from ..app.model_manager import ModelFileManager
 from ..app.user_manager import UserManager
 from ..cli_args import args
@@ -69,6 +71,13 @@ class HeuristicPath(NamedTuple):
 
 # Import cache control middleware
 from ..middleware.cache_middleware import cache_control
+
+# todo: what is this really trying to do?
+LOADED_MODULE_DIRS = {}
+
+# todo: is this really how we want to enable the manager?
+if args.enable_manager:
+    import comfyui_manager
 
 async def send_socket_catch_exception(function, message):
     try:
@@ -144,7 +153,7 @@ def create_cors_middleware(allowed_origin: str):
             response = await handler(request)
 
         response.headers['Access-Control-Allow-Origin'] = allowed_origin
-        response.headers['Access-Control-Allow-Methods'] = 'POST, GET, DELETE, PUT, OPTIONS'
+        response.headers['Access-Control-Allow-Methods'] = 'POST, GET, DELETE, PUT, OPTIONS, PATCH'
         response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, traceparent, tracestate'
         response.headers['Access-Control-Allow-Credentials'] = 'true'
         return response
@@ -215,9 +224,23 @@ def create_origin_only_middleware():
     return origin_only_middleware
 
 
+def create_block_external_middleware():
+    @web.middleware
+    async def block_external_middleware(request: web.Request, handler):
+        if request.method == "OPTIONS":
+            # Pre-flight request. Reply successfully:
+            response = web.Response()
+        else:
+            response = await handler(request)
+
+        response.headers['Content-Security-Policy'] = "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; frame-src 'self'; object-src 'self';"
+        return response
+
+    return block_external_middleware
+
+
 class PromptServer(ExecutorToClientProgress):
     instance: Optional['PromptServer'] = None
-
     def __init__(self, loop):
         # todo: this really needs to be set up differently, because sometimes the prompt server will not be initialized
         PromptServer.instance = self
@@ -230,6 +253,7 @@ class PromptServer(ExecutorToClientProgress):
         self.user_manager = UserManager()
         self.model_file_manager = ModelFileManager()
         self.custom_node_manager = CustomNodeManager()
+        self.subgraph_manager = SubgraphManager()
         self.internal_routes = InternalRoutes(self)
         # todo: this is probably read by custom nodes elsewhere
         self.supports: List[str] = ["custom_nodes_from_web"]
@@ -250,6 +274,12 @@ class PromptServer(ExecutorToClientProgress):
             middlewares.append(create_cors_middleware(args.enable_cors_header))
         else:
             middlewares.append(create_origin_only_middleware())
+
+        if args.disable_api_nodes:
+            middlewares.append(create_block_external_middleware())
+
+        if args.enable_manager:
+            middlewares.append(comfyui_manager.create_middleware())
 
         max_upload_size = round(args.max_upload_size * 1024 * 1024)
         self.app: web.Application = web.Application(client_max_size=max_upload_size,
@@ -634,7 +664,7 @@ class PromptServer(ExecutorToClientProgress):
 
             system_stats = {
                 "system": {
-                    "os": os.name,
+                    "os": sys.platform,
                     "ram_total": ram_total,
                     "ram_free": ram_free,
                     "comfyui_version": __version__,
@@ -746,8 +776,9 @@ class PromptServer(ExecutorToClientProgress):
         async def get_queue(request):
             queue_info = {}
             current_queue = self.prompt_queue.get_current_queue_volatile()
-            queue_info['queue_running'] = current_queue[0]
-            queue_info['queue_pending'] = current_queue[1]
+            remove_sensitive = lambda queue: [x[:5] for x in queue]
+            queue_info['queue_running'] = remove_sensitive(current_queue[0])
+            queue_info['queue_pending'] = remove_sensitive(current_queue[1])
             return web.json_response(queue_info)
 
         @routes.post("/prompt")
@@ -782,8 +813,13 @@ class PromptServer(ExecutorToClientProgress):
                     extra_data["client_id"] = json_data["client_id"]
                 if valid[0]:
                     outputs_to_execute = valid[2]
+                    sensitive = {}
+                    for sensitive_val in execution.SENSITIVE_EXTRA_DATA_KEYS:
+                        if sensitive_val in extra_data:
+                            sensitive[sensitive_val] = extra_data.pop(sensitive_val)
+                    extra_data["create_time"] = int(time.time() * 1000)  # timestamp in milliseconds
                     self.prompt_queue.put(
-                        QueueItem(queue_tuple=(number, prompt_id, prompt, extra_data, outputs_to_execute),
+                        QueueItem(queue_tuple=(number, prompt_id, prompt, extra_data, outputs_to_execute, sensitive),
                                   completed=None))
                     response = {"prompt_id": prompt_id, "number": number, "node_errors": valid[3]}
                     return web.json_response(response)
@@ -1112,6 +1148,7 @@ class PromptServer(ExecutorToClientProgress):
         self.model_file_manager.add_routes(self.routes)
         # todo: needs to use module directories
         self.custom_node_manager.add_routes(self.routes, self.app, {})
+        self.subgraph_manager.add_routes(self.routes, LOADED_MODULE_DIRS.items())
         self.app.add_subapp('/internal', self.internal_routes.get_app())
 
         # Prefix every route with /api for easier matching for delegation.
@@ -1132,11 +1169,31 @@ class PromptServer(ExecutorToClientProgress):
         for name, dir in self.nodes.EXTENSION_WEB_DIRS.items():
             self.app.add_routes([web.static('/extensions/' + name, dir, follow_symlinks=True)])
 
-        workflow_templates_path = FrontendManager.templates_path()
-        if workflow_templates_path:
-            self.app.add_routes([
-                web.static('/templates', workflow_templates_path)
-            ])
+        installed_templates_version = FrontendManager.get_installed_templates_version()
+        use_legacy_templates = True
+        if installed_templates_version:
+            try:
+                use_legacy_templates = (
+                    parse_version(installed_templates_version)
+                    < parse_version("0.3.0")
+                )
+            except Exception as exc:
+                logging.warning(
+                    "Unable to parse templates version '%s': %s",
+                    installed_templates_version,
+                    exc,
+                )
+
+        if use_legacy_templates:
+            workflow_templates_path = FrontendManager.legacy_templates_path()
+            if workflow_templates_path:
+                self.app.add_routes([
+                    web.static('/templates', workflow_templates_path)
+                ])
+        else:
+            handler = FrontendManager.template_asset_handler()
+            if handler:
+                self.app.router.add_get("/templates/{path:.*}", handler)
 
         # Serve embedded documentation from the package
         embedded_docs_path = FrontendManager.embedded_docs_path()

@@ -7,7 +7,7 @@ from comfy.nodes.package_typing import Seed, Seed64
 from .nodes_post_processing import gaussian_kernel
 from typing_extensions import override
 from comfy_api.latest import ComfyExtension, io
-
+import logging
 
 def reshape_latent_to(target_shape, latent, repeat_batch=True):
     if latent.shape[1:] != target_shape[1:]:
@@ -452,6 +452,42 @@ class LatentOperationSharpen(io.ComfyNode):
 
         return io.NodeOutput(sharpen)
 
+class ReplaceVideoLatentFrames(io.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return io.Schema(
+            node_id="ReplaceVideoLatentFrames",
+            category="latent/batch",
+            inputs=[
+                io.Latent.Input("destination", tooltip="The destination latent where frames will be replaced."),
+                io.Latent.Input("source", optional=True, tooltip="The source latent providing frames to insert into the destination latent. If not provided, the destination latent is returned unchanged."),
+                io.Int.Input("index", default=0, min=-nodes.MAX_RESOLUTION, max=nodes.MAX_RESOLUTION, step=1, tooltip="The starting latent frame index in the destination latent where the source latent frames will be placed. Negative values count from the end."),
+            ],
+            outputs=[
+                io.Latent.Output(),
+            ],
+        )
+
+    @classmethod
+    def execute(cls, destination, index, source=None) -> io.NodeOutput:
+        if source is None:
+            return io.NodeOutput(destination)
+        dest_frames = destination["samples"].shape[2]
+        source_frames = source["samples"].shape[2]
+        if index < 0:
+            index = dest_frames + index
+        if index > dest_frames:
+            logging.warning(f"ReplaceVideoLatentFrames: Index {index} is out of bounds for destination latent frames {dest_frames}.")
+            return io.NodeOutput(destination)
+        if index + source_frames > dest_frames:
+            logging.warning(f"ReplaceVideoLatentFrames: Source latent frames {source_frames} do not fit within destination latent frames {dest_frames} at the specified index {index}.")
+            return io.NodeOutput(destination)
+        s = source.copy()
+        s_source = source["samples"]
+        s_destination = destination["samples"].clone()
+        s_destination[:, :, index:index + s_source.shape[2]] = s_source
+        s["samples"] = s_destination
+        return io.NodeOutput(s)
 
 class LatentExtension(ComfyExtension):
     @override
@@ -470,6 +506,7 @@ class LatentExtension(ComfyExtension):
             LatentApplyOperationCFG,
             LatentOperationTonemapReinhard,
             LatentOperationSharpen,
+            ReplaceVideoLatentFrames
         ]
 
 

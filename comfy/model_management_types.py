@@ -353,6 +353,9 @@ class MemoryMeasurements:
     current_weight_patches_uuid: Any = None
     _device: torch.device | None = None
 
+    def __init__(self):
+        self.model_offload_buffer_memory = None
+
     @property
     def device(self) -> torch.device:
         if isinstance(self.model, DeviceSettable):

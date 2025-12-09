@@ -12,13 +12,13 @@ logger = logging.getLogger(__name__)
 
 def easycache_forward_wrapper(executor, *args, **kwargs):
     # get values from args
-    x: torch.Tensor = args[0]
     transformer_options: dict[str] = args[-1]
     if not isinstance(transformer_options, dict):
         transformer_options = kwargs.get("transformer_options")
         if not transformer_options:
             transformer_options = args[-2]
     easycache: EasyCacheHolder = transformer_options["easycache"]
+    x: torch.Tensor = args[0][:, :easycache.output_channels]
     sigmas = transformer_options["sigmas"]
     uuids = transformer_options["uuids"]
     if sigmas is not None and easycache.is_past_end_timestep(sigmas):
@@ -83,13 +83,13 @@ def easycache_forward_wrapper(executor, *args, **kwargs):
 
 def lazycache_predict_noise_wrapper(executor, *args, **kwargs):
     # get values from args
-    x: torch.Tensor = args[0]
     timestep: float = args[1]
     model_options: dict[str] = args[2]
     easycache: LazyCacheHolder = model_options["transformer_options"]["easycache"]
     if easycache.is_past_end_timestep(timestep):
         return executor(*args, **kwargs)
     # prepare next x_prev
+    x: torch.Tensor = args[0][:, :easycache.output_channels]
     next_x_prev = x
     input_change = None
     do_easycache = easycache.should_do_easycache(timestep)
@@ -174,7 +174,7 @@ def easycache_sample_wrapper(executor, *args, **kwargs):
 
 
 class EasyCacheHolder:
-    def __init__(self, reuse_threshold: float, start_percent: float, end_percent: float, subsample_factor: int, offload_cache_diff: bool, verbose: bool=False):
+    def __init__(self, reuse_threshold: float, start_percent: float, end_percent: float, subsample_factor: int, offload_cache_diff: bool, verbose: bool=False, output_channels: int=None):
         self.name = "EasyCache"
         self.reuse_threshold = reuse_threshold
         self.start_percent = start_percent
@@ -203,6 +203,7 @@ class EasyCacheHolder:
         self.allow_mismatch = True
         self.cut_from_start = True
         self.state_metadata = None
+        self.output_channels = output_channels
 
     def is_past_end_timestep(self, timestep: float) -> bool:
         return not (timestep[0] > self.end_t).item()
@@ -265,7 +266,7 @@ class EasyCacheHolder:
                     else:
                         slicing.append(slice(None))
                 batch_slice = batch_slice + slicing
-            x[batch_slice] += self.uuid_cache_diffs[uuid].to(x.device)
+            x[tuple(batch_slice)] += self.uuid_cache_diffs[uuid].to(x.device)
         return x
 
     def update_cache_diff(self, output: torch.Tensor, x: torch.Tensor, uuids: list[UUID]):
@@ -284,7 +285,7 @@ class EasyCacheHolder:
                 else:
                     slicing.append(slice(None))
                 skip_dim = False
-            x = x[slicing]
+            x = x[tuple(slicing)]
         diff = output - x
         batch_offset = diff.shape[0] // len(uuids)
         for i, uuid in enumerate(uuids):
@@ -324,7 +325,7 @@ class EasyCacheHolder:
         return self
 
     def clone(self):
-        return EasyCacheHolder(self.reuse_threshold, self.start_percent, self.end_percent, self.subsample_factor, self.offload_cache_diff, self.verbose)
+        return EasyCacheHolder(self.reuse_threshold, self.start_percent, self.end_percent, self.subsample_factor, self.offload_cache_diff, self.verbose, output_channels=self.output_channels)
 
 
 class EasyCacheNode(io.ComfyNode):
@@ -351,7 +352,7 @@ class EasyCacheNode(io.ComfyNode):
     @classmethod
     def execute(cls, model: io.Model.Type, reuse_threshold: float, start_percent: float, end_percent: float, verbose: bool) -> io.NodeOutput:
         model = model.clone()
-        model.model_options["transformer_options"]["easycache"] = EasyCacheHolder(reuse_threshold, start_percent, end_percent, subsample_factor=8, offload_cache_diff=False, verbose=verbose)
+        model.model_options["transformer_options"]["easycache"] = EasyCacheHolder(reuse_threshold, start_percent, end_percent, subsample_factor=8, offload_cache_diff=False, verbose=verbose, output_channels=model.model.latent_format.latent_channels)
         model.add_wrapper_with_key(comfy.patcher_extension.WrappersMP.OUTER_SAMPLE, "easycache", easycache_sample_wrapper)
         model.add_wrapper_with_key(comfy.patcher_extension.WrappersMP.CALC_COND_BATCH, "easycache", easycache_calc_cond_batch_wrapper)
         model.add_wrapper_with_key(comfy.patcher_extension.WrappersMP.DIFFUSION_MODEL, "easycache", easycache_forward_wrapper)
@@ -359,7 +360,7 @@ class EasyCacheNode(io.ComfyNode):
 
 
 class LazyCacheHolder:
-    def __init__(self, reuse_threshold: float, start_percent: float, end_percent: float, subsample_factor: int, offload_cache_diff: bool, verbose: bool=False):
+    def __init__(self, reuse_threshold: float, start_percent: float, end_percent: float, subsample_factor: int, offload_cache_diff: bool, verbose: bool=False, output_channels: int=None):
         self.name = "LazyCache"
         self.reuse_threshold = reuse_threshold
         self.start_percent = start_percent
@@ -383,6 +384,7 @@ class LazyCacheHolder:
         self.approx_output_change_rates = []
         self.total_steps_skipped = 0
         self.state_metadata = None
+        self.output_channels = output_channels
 
     def has_cache_diff(self) -> bool:
         return self.cache_diff is not None
@@ -457,7 +459,7 @@ class LazyCacheHolder:
         return self
 
     def clone(self):
-        return LazyCacheHolder(self.reuse_threshold, self.start_percent, self.end_percent, self.subsample_factor, self.offload_cache_diff, self.verbose)
+        return LazyCacheHolder(self.reuse_threshold, self.start_percent, self.end_percent, self.subsample_factor, self.offload_cache_diff, self.verbose, output_channels=self.output_channels)
 
 class LazyCacheNode(io.ComfyNode):
     @classmethod
@@ -483,7 +485,7 @@ class LazyCacheNode(io.ComfyNode):
     @classmethod
     def execute(cls, model: io.Model.Type, reuse_threshold: float, start_percent: float, end_percent: float, verbose: bool) -> io.NodeOutput:
         model = model.clone()
-        model.model_options["transformer_options"]["easycache"] = LazyCacheHolder(reuse_threshold, start_percent, end_percent, subsample_factor=8, offload_cache_diff=False, verbose=verbose)
+        model.model_options["transformer_options"]["easycache"] = LazyCacheHolder(reuse_threshold, start_percent, end_percent, subsample_factor=8, offload_cache_diff=False, verbose=verbose, output_channels=model.model.latent_format.latent_channels)
         model.add_wrapper_with_key(comfy.patcher_extension.WrappersMP.OUTER_SAMPLE, "lazycache", easycache_sample_wrapper)
         model.add_wrapper_with_key(comfy.patcher_extension.WrappersMP.PREDICT_NOISE, "lazycache", lazycache_predict_noise_wrapper)
         return io.NodeOutput(model)
