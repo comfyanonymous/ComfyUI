@@ -3,14 +3,14 @@ from av.container import InputContainer
 from av.subtitles.stream import SubtitleStream
 from fractions import Fraction
 from typing import Optional
-from comfy_api.latest._input import AudioInput, VideoInput
+from .._input import AudioInput, VideoInput
 import av
 import io
 import json
 import numpy as np
 import math
 import torch
-from comfy_api.latest._util import VideoContainer, VideoCodec, VideoComponents
+from .._util import VideoContainer, VideoCodec, VideoComponents
 
 
 def container_to_output_format(container_format: str | None) -> str | None:
@@ -336,7 +336,10 @@ class VideoFromComponents(VideoInput):
             raise ValueError("Only MP4 format is supported for now")
         if codec != VideoCodec.AUTO and codec != VideoCodec.H264:
             raise ValueError("Only H264 codec is supported for now")
-        with av.open(path, mode='w', options={'movflags': 'use_metadata_tags'}) as output:
+        extra_kwargs = {}
+        if isinstance(format, VideoContainer) and format != VideoContainer.AUTO:
+            extra_kwargs["format"] = format.value
+        with av.open(path, mode='w', options={'movflags': 'use_metadata_tags'}, **extra_kwargs) as output:
             # Add metadata before writing any streams
             if metadata is not None:
                 for key, value in metadata.items():
