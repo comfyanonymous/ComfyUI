@@ -923,7 +923,7 @@ class ModelPatcher:
                                     patch_counter += 1
                             cast_weight = True
 
-                        if cast_weight:
+                        if cast_weight and hasattr(m, "comfy_cast_weights"):
                             m.prev_comfy_cast_weights = m.comfy_cast_weights
                             m.comfy_cast_weights = True
                         m.comfy_patched_weights = False
