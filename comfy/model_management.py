@@ -539,17 +539,6 @@ class LoadedModel:
         logging.debug(f"loaded_size: {self.model.loaded_size()/(1024*1024*1024)} GB")
         logging.debug(f"offload_device: {self.model.offload_device}")
 
-        # if available_memory < reserved_memory:
-        #     logging.warning(f"Not enough cpu memory to unload. Available: {available_memory/(1024*1024*1024)} GB, Reserved: {reserved_memory/(1024*1024*1024)} GB")
-        #     return False
-        # else:
-        #     offload_memory = available_memory - reserved_memory
-        #     
-        # if offload_memory < memory_to_free:
-        #     memory_to_free = offload_memory
-        #     logging.info(f"Not enough cpu memory to unload. Available: {available_memory/(1024*1024*1024)} GB, Reserved: {reserved_memory/(1024*1024*1024)} GB, Offload: {offload_memory/(1024*1024*1024)} GB")
-        #     logging.info(f"Set memory_to_free to {memory_to_free/(1024*1024*1024)} GB")
-
         if memory_to_free is None:
             # free the full model
             memory_to_free = self.model.loaded_size()
