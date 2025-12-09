@@ -201,8 +201,7 @@ class AutoencodingEngineLegacy(AutoencodingEngine):
             self.bn = None
 
     def get_autoencoder_params(self) -> list:
-        params = super().get_autoencoder_params()
-        return params
+        return list(self.parameters())
 
     def encode(
             self, x: torch.Tensor, return_reg_log: bool = False,

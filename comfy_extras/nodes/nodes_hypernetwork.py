@@ -2,6 +2,7 @@ from comfy import utils
 from comfy.cmd import folder_paths
 import torch
 import logging
+logger = logging.getLogger(__name__)
 from comfy_api.latest import IO, ComfyExtension
 from typing_extensions import override
 
@@ -27,7 +28,7 @@ def load_hypernetwork_patch(path, strength):
     }
 
     if activation_func not in valid_activation:
-        logging.error("Unsupported Hypernetwork format, if you report it I might implement it. {}   {} {} {} {} {}".format(path, activation_func, is_layer_norm, use_dropout, activate_output, last_layer_dropout))
+        logger.error("Unsupported Hypernetwork format, if you report it I might implement it. {}   {} {} {} {} {}".format(path, activation_func, is_layer_norm, use_dropout, activate_output, last_layer_dropout))
         return None
 
     out = {}

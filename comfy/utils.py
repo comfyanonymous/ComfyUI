@@ -1475,7 +1475,7 @@ def unpack_latents(combined_latent, latent_shapes):
 def detect_layer_quantization(state_dict, prefix):
     for k in state_dict:
         if k.startswith(prefix) and k.endswith(".comfy_quant"):
-            logging.info("Found quantization metadata version 1")
+            logger.info("Found quantization metadata version 1")
             return {"mixed_ops": True}
     return None
 

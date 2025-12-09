@@ -30,6 +30,7 @@ from PIL import Image, ImageOps
 from PIL.PngImagePlugin import PngInfo
 from aiohttp import web
 from can_ada import URL, parse as urlparse  # pylint: disable=no-name-in-module
+from packaging import version
 from typing_extensions import NamedTuple
 
 from comfy_api import feature_flags
@@ -41,7 +42,8 @@ from .. import node_helpers
 from .. import utils
 from ..api_server.routes.internal.internal_routes import InternalRoutes
 from ..app.custom_node_manager import CustomNodeManager
-from ..app.frontend_management import FrontendManager, parse_version
+from ..app.subgraph_manager import SubgraphManager
+from ..app.frontend_management import FrontendManager
 from ..app.model_manager import ModelFileManager
 from ..app.user_manager import UserManager
 from ..cli_args import args
@@ -60,6 +62,7 @@ from ..images import open_image
 from ..model_management import get_torch_device, get_torch_device_name, get_total_memory, get_free_memory, torch_version
 from ..nodes.package_typing import ExportedNodes
 from ..progress_types import PreviewImageMetadata
+from ..middleware.cache_middleware import cache_control
 
 logger = logging.getLogger(__name__)
 
@@ -69,15 +72,17 @@ class HeuristicPath(NamedTuple):
     abs_path: str
 
 
-# Import cache control middleware
-from ..middleware.cache_middleware import cache_control
-
 # todo: what is this really trying to do?
 LOADED_MODULE_DIRS = {}
 
-# todo: is this really how we want to enable the manager?
-if args.enable_manager:
-    import comfyui_manager
+
+# todo: is this really how we want to enable the manager? we will have to deal with this later
+# if args.enable_manager:
+#     try:
+#         import comfyui_manager
+#     except ImportError:
+#         logger.warning("ComfyUI Manager not found but enabled in args.")
+
 
 async def send_socket_catch_exception(function, message):
     try:
@@ -93,6 +98,7 @@ def get_comfyui_version():
 # Track deprecated paths that have been warned about to only warn once per file
 _deprecated_paths_warned = set()
 
+
 @web.middleware
 async def deprecation_warning(request: web.Request, handler):
     """Middleware to warn about deprecated frontend API paths"""
@@ -102,7 +108,7 @@ async def deprecation_warning(request: web.Request, handler):
         # Only warn once per unique file path
         if path not in _deprecated_paths_warned:
             _deprecated_paths_warned.add(path)
-            logging.warning(
+            logger.warning(
                 f"[DEPRECATION WARNING] Detected import of deprecated legacy API: {path}. "
                 f"This is likely caused by a custom node extension using outdated APIs. "
                 f"Please update your extensions or contact the extension author for an updated version."
@@ -241,6 +247,7 @@ def create_block_external_middleware():
 
 class PromptServer(ExecutorToClientProgress):
     instance: Optional['PromptServer'] = None
+
     def __init__(self, loop):
         # todo: this really needs to be set up differently, because sometimes the prompt server will not be initialized
         PromptServer.instance = self
@@ -278,8 +285,9 @@ class PromptServer(ExecutorToClientProgress):
         if args.disable_api_nodes:
             middlewares.append(create_block_external_middleware())
 
-        if args.enable_manager:
-            middlewares.append(comfyui_manager.create_middleware())
+        # todo: enable the package-installed manager later
+        # if args.enable_manager:
+        #     middlewares.append(comfyui_manager.create_middleware())
 
         max_upload_size = round(args.max_upload_size * 1024 * 1024)
         self.app: web.Application = web.Application(client_max_size=max_upload_size,
@@ -1174,11 +1182,11 @@ class PromptServer(ExecutorToClientProgress):
         if installed_templates_version:
             try:
                 use_legacy_templates = (
-                    parse_version(installed_templates_version)
-                    < parse_version("0.3.0")
+                        version.parse(installed_templates_version)
+                        < version.parse("0.3.0")
                 )
             except Exception as exc:
-                logging.warning(
+                logger.warning(
                     "Unable to parse templates version '%s': %s",
                     installed_templates_version,
                     exc,
@@ -1222,7 +1230,7 @@ class PromptServer(ExecutorToClientProgress):
             data: PreviewImageWithMetadataMessage
             preview_image, metadata = data
             if isinstance(preview_image, dict):
-            # todo: this has to be fixed from transformers loader for previewing tokens in real time
+                # todo: this has to be fixed from transformers loader for previewing tokens in real time
                 return
             await self.send_image_with_metadata(preview_image, metadata, sid=sid)
         elif isinstance(data, (bytes, bytearray)):

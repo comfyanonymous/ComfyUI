@@ -141,7 +141,7 @@ class SVGToImage(CustomNode):
 
                 raster_images.append(img_tensor)
             except Exception as exc_info:
-                logging.error("Error when trying to encode SVG, returning error rectangle instead", exc_info=exc_info)
+                logger.error("Error when trying to encode SVG, returning error rectangle instead", exc_info=exc_info)
                 # Create a small red image to indicate error
                 error_img = np.full((64, 64, 4), [255, 0, 0, 255], dtype=np.uint8)
                 error_tensor = torch.from_numpy(error_img.astype(np.float32) / 255.0)

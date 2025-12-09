@@ -145,13 +145,13 @@ class TAEHV(nn.Module):
             MemBlock(n_f[2], n_f[2], act_func), MemBlock(n_f[2], n_f[2], act_func), MemBlock(n_f[2], n_f[2], act_func), nn.Upsample(scale_factor=2 if decoder_space_upscale[2] else 1), TGrow(n_f[2], 2 if decoder_time_upscale[1] else 1), conv(n_f[2], n_f[3], bias=False),
             act_func, conv(n_f[3], self.image_channels*self.patch_size**2),
         )
-        @property
-        def show_progress_bar(self):
-            return self._show_progress_bar
+    @property
+    def show_progress_bar(self):
+        return self._show_progress_bar
 
-        @show_progress_bar.setter
-        def show_progress_bar(self, value):
-            self._show_progress_bar = value
+    @show_progress_bar.setter
+    def show_progress_bar(self, value):
+        self._show_progress_bar = value
 
     def encode(self, x, **kwargs):
         if self.patch_size > 1: x = F.pixel_unshuffle(x, self.patch_size)

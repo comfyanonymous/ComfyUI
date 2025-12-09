@@ -1,6 +1,6 @@
 from transformers import Qwen2Tokenizer
-import comfy.text_encoders.llama
-from comfy import sd1_clip
+from . import llama
+from .. import sd1_clip
 import os
 
 class Qwen3Tokenizer(sd1_clip.SDTokenizer):
@@ -26,7 +26,7 @@ class ZImageTokenizer(sd1_clip.SD1Tokenizer):
 
 class Qwen3_4BModel(sd1_clip.SDClipModel):
     def __init__(self, device="cpu", layer="hidden", layer_idx=-2, dtype=None, attention_mask=True, model_options={}):
-        super().__init__(device=device, layer=layer, layer_idx=layer_idx, textmodel_json_config={}, dtype=dtype, special_tokens={"pad": 151643}, layer_norm_hidden_state=False, model_class=comfy.text_encoders.llama.Qwen3_4B, enable_attention_masks=attention_mask, return_attention_masks=attention_mask, model_options=model_options)
+        super().__init__(device=device, layer=layer, layer_idx=layer_idx, textmodel_json_config={}, dtype=dtype, special_tokens={"pad": 151643}, layer_norm_hidden_state=False, model_class=llama.Qwen3_4B, enable_attention_masks=attention_mask, return_attention_masks=attention_mask, model_options=model_options)
 
 
 class ZImageTEModel(sd1_clip.SD1ClipModel):

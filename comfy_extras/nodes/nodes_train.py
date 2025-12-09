@@ -1,22 +1,27 @@
 import logging
 import os
 
-import tqdm
 import numpy as np
 import safetensors
+import torch
 import torch.utils.checkpoint
+import tqdm
 from PIL import Image, ImageDraw, ImageFont
+from typing_extensions import override
 
 import comfy.model_management
 import comfy.samplers
 import comfy.sd
 import comfy.utils
-import comfy_extras.nodes.nodes_custom_sampler
+from comfy import node_helpers
 from comfy.cmd import folder_paths
-from comfy.weight_adapter import adapters, adapter_maps
-from comfy_api.latest import ui
-from .nodes_custom_sampler import *
+from comfy.execution_context import current_execution_context
 from comfy.utils import ProgressBar
+from comfy.weight_adapter import adapters, adapter_maps
+from comfy_api.latest import ComfyExtension, io, ui
+from .nodes_custom_sampler import Noise_RandomNoise, Guider_Basic
+
+logger = logging.getLogger(__name__)
 
 
 def make_batch_extra_option_dict(d, indicies, full_size=None):
@@ -130,12 +135,12 @@ class TrainSampler(comfy.samplers.Sampler):
         torch.cuda.empty_cache()
         ui_pbar = ProgressBar(self.total_steps)
         for i in (
-            pbar := tqdm.trange(
-                self.total_steps,
-                desc="Training LoRA",
-                smoothing=0.01,
-                disable=not current_execution_context().server.receive_all_progress_notifications
-            )
+                pbar := tqdm.trange(
+                    self.total_steps,
+                    desc="Training LoRA",
+                    smoothing=0.01,
+                    disable=not current_execution_context().server.receive_all_progress_notifications
+                )
         ):
             noisegen = Noise_RandomNoise(
                 self.seed + i * 1000
@@ -253,7 +258,7 @@ def find_all_highest_child_module_with_forward(
             model, (torch.nn.ModuleList, torch.nn.Sequential, torch.nn.ModuleDict)
     ):
         result.append(model)
-        logging.debug(f"Found module with forward: {name} ({model.__class__.__name__})")
+        logger.debug(f"Found module with forward: {name} ({model.__class__.__name__})")
         return result
     name = name or "root"
     for next_name, child in model.named_children():
@@ -474,20 +479,20 @@ class TrainLoraNode(io.ComfyNode):
             latents = [t.to(dtype) for t in latents]
             for latent in latents:
                 all_shapes.add(latent.shape)
-            logging.info(f"Latent shapes: {all_shapes}")
+            logger.info(f"Latent shapes: {all_shapes}")
             if len(all_shapes) > 1:
                 multi_res = True
             else:
                 multi_res = False
                 latents = torch.cat(latents, dim=0)
             num_images = len(latents)
-        elif isinstance(latents, torch.Tensor):
+            multi_res = False
             latents = latents.to(dtype)
             num_images = latents.shape[0]
         else:
-            logging.error(f"Invalid latents type: {type(latents)}")
+            raise ValueError(f"Invalid latents type: {type(latents)}")
 
-        logging.info(f"Total Images: {num_images}, Total Captions: {len(positive)}")
+        logger.info(f"Total Images: {num_images}, Total Captions: {len(positive)}")
         if len(positive) == 1 and num_images > 1:
             positive = positive * num_images
         elif len(positive) != num_images:
@@ -614,7 +619,7 @@ class TrainLoraNode(io.ComfyNode):
                 training_dtype=dtype,
                 real_dataset=latents if multi_res else None,
             )
-            guider = comfy_extras.Guider_Basic(mp)
+            guider = Guider_Basic(mp)
             guider.set_conds(positive)  # Set conditioning from input
 
             # Training loop

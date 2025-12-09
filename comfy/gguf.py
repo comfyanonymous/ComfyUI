@@ -18,6 +18,8 @@ import argparse
 import logging
 import os
 import warnings
+import numpy as np
+import re
 
 import gguf
 import torch
@@ -38,6 +40,19 @@ MAX_TENSOR_DIMS = 4
 TORCH_COMPATIBLE_QTYPES = (None, gguf.GGMLQuantizationType.F32, gguf.GGMLQuantizationType.F16)
 IMG_ARCH_LIST = {"flux", "sd1", "sdxl", "sd3", "aura", "hidream", "cosmos", "ltxv", "hyvid", "wan", "qwen_image"}
 TXT_ARCH_LIST = {"t5", "t5encoder", "llama", "qwen2vl"}
+
+CLIP_VISION_SD_MAP = {
+    "mm.": "visual.merger.mlp.",
+    "v.post_ln.": "visual.merger.ln_q.",
+    "v.patch_embd": "visual.patch_embed.proj",
+    "v.blk.": "visual.blocks.",
+    "ffn_up": "mlp.up_proj",
+    "ffn_down": "mlp.down_proj",
+    "ffn_gate": "mlp.gate_proj",
+    "attn_out.": "attn.proj.",
+    "ln1.": "norm1.",
+    "ln2.": "norm2.",
+}
 
 
 class ModelTemplate:
@@ -419,7 +434,7 @@ def dequantize_tensor(tensor, dtype=None, dequant_dtype=None):
         return dequantize(tensor.data, qtype, oshape, dtype=dequant_dtype).to(dtype)
     else:
         # this is incredibly slow
-        tqdm.write(f"Falling back to numpy dequant for qtype: {qtype}")
+        tqdm.write(f"Falling back to numpy dequant for qtype: {getattr(qtype, 'name', repr(qtype))}")
         new = gguf.quants.dequantize(tensor.cpu().numpy(), qtype)
         return torch.from_numpy(new).to(tensor.device, dtype=dtype)
 
@@ -892,6 +907,125 @@ def gguf_tokenizer_loader(path, temb_shape):
     return torch.ByteTensor(list(spm.SerializeToString()))
 
 
+def strip_quant_suffix(name):
+    pattern = r"[-_]?(?:ud-)?i?q[0-9]_[a-z0-9_\-]{1,8}$"
+    match = re.search(pattern, name, re.IGNORECASE)
+    if match:
+        name = name[:match.start()]
+    return name
+
+
+def gguf_mmproj_loader(path):
+    # Reverse version of Qwen2VLVisionModel.modify_tensors
+    logger.info("Attempting to find mmproj file for text encoder...")
+
+    # get name to match w/o quant suffix
+    tenc_fname = os.path.basename(path)
+    tenc = os.path.splitext(tenc_fname)[0].lower()
+    tenc = strip_quant_suffix(tenc)
+
+    # try and find matching mmproj
+    target = []
+    root = os.path.dirname(path)
+    for fname in os.listdir(root):
+        name, ext = os.path.splitext(fname)
+        if ext.lower() != ".gguf":
+            continue
+        if "mmproj" not in name.lower():
+            continue
+        if tenc in name.lower():
+            target.append(fname)
+
+    if len(target) == 0:
+        logger.error(f"Error: Can't find mmproj file for '{tenc_fname}' (matching:'{tenc}')! Qwen-Image-Edit will be broken!")
+        return {}
+    if len(target) > 1:
+        logger.error(f"Ambiguous mmproj for text encoder '{tenc_fname}', will use first match.")
+
+    logger.info(f"Using mmproj '{target[0]}' for text encoder '{tenc_fname}'.")
+    target = os.path.join(root, target[0])
+    vsd = gguf_sd_loader(target, is_text_model=True)
+
+    # concat 4D to 5D
+    if "v.patch_embd.weight.1" in vsd:
+        w1 = dequantize_tensor(vsd.pop("v.patch_embd.weight"), dtype=torch.float32)
+        w2 = dequantize_tensor(vsd.pop("v.patch_embd.weight.1"), dtype=torch.float32)
+        vsd["v.patch_embd.weight"] = torch.stack([w1, w2], dim=2)
+
+    # run main replacement
+    vsd = sd_map_replace(vsd, CLIP_VISION_SD_MAP)
+
+    # handle split Q/K/V
+    if "visual.blocks.0.attn_q.weight" in vsd:
+        attns = {}
+        # filter out attentions + group
+        for k,v in vsd.items():
+            if any(x in k for x in ["attn_q", "attn_k", "attn_v"]):
+                k_attn, k_name = k.rsplit(".attn_", 1)
+                k_attn += ".attn.qkv." + k_name.split(".")[-1]
+                if k_attn not in attns:
+                    attns[k_attn] = {}
+                attns[k_attn][k_name] = dequantize_tensor(
+                    v, dtype=(torch.bfloat16 if is_quantized(v) else torch.float16)
+                )
+
+        # recombine
+        for k,v in attns.items():
+            suffix = k.split(".")[-1]
+            vsd[k] = torch.cat([
+                v[f"q.{suffix}"],
+                v[f"k.{suffix}"],
+                v[f"v.{suffix}"],
+            ], dim=0)
+        del attns
+
+    return vsd
+
+
+def gguf_tekken_tokenizer_loader(path, temb_shape):
+    # convert ggml (hf) tokenizer metadata to tekken/comfy data
+    logger.info("Attempting to recreate tekken tokenizer from GGUF file metadata...")
+    import json
+    import base64
+    from transformers.convert_slow_tokenizer import bytes_to_unicode
+
+    reader = gguf.GGUFReader(path)
+
+    model_str = get_field(reader, "tokenizer.ggml.model", str)
+    if model_str == "gpt2":
+        if temb_shape == (131072, 5120):  # probably Mistral
+            data = {
+                "config": {"num_vocab_tokens": 150000, "default_vocab_size": 131072},
+                "vocab": [],
+                "special_tokens": [],
+            }
+        else:
+            raise NotImplementedError("Unknown model, can't set tokenizer!")
+    else:
+        raise NotImplementedError("Unknown model, can't set tokenizer!")
+
+    tokens = get_list_field(reader, "tokenizer.ggml.tokens", str)
+    toktypes = get_list_field(reader, "tokenizer.ggml.token_type", int)
+
+    decoder = {v: k for k, v in bytes_to_unicode().items()}
+    for idx, (token, toktype) in enumerate(zip(tokens, toktypes)):
+        if toktype == 3:
+            data["special_tokens"].append(
+                {'rank': idx, 'token_str': token, 'is_control': True}
+            )
+        else:
+            tok = bytes([decoder[char] for char in token])
+            data["vocab"].append({
+                "rank": len(data["vocab"]),
+                "token_bytes": base64.b64encode(tok).decode("ascii"),
+                "token_str": tok.decode("utf-8", errors="replace")  # ?
+            })
+
+    logger.info(f"Created tekken tokenizer with vocab size of {len(data['vocab'])} (+{len(data['special_tokens'])})")
+    del reader
+    return torch.ByteTensor(list(json.dumps(data).encode('utf-8')))
+
+
 def gguf_clip_loader(path):
     sd, arch = gguf_sd_loader(path, return_arch=True, is_text_model=True)
     if arch in {"t5", "t5encoder"}:
@@ -907,12 +1041,18 @@ def gguf_clip_loader(path):
         # TODO: pass model_options["vocab_size"] to loader somehow
         temb_key = "token_embd.weight"
         if temb_key in sd and sd[temb_key].shape[0] >= (64 * 1024):
+            if arch == "llama" and sd[temb_key].shape == (131072, 5120):
+                # non-standard Comfy-Org tokenizer
+                sd["tekken_model"] = gguf_tekken_tokenizer_loader(path, sd[temb_key].shape)
             # See note above for T5.
             logger.warning(f"Dequantizing {temb_key} to prevent runtime OOM.")
             sd[temb_key] = dequantize_tensor(sd[temb_key], dtype=torch.float16)
         sd = sd_map_replace(sd, LLAMA_SD_MAP)
         if arch == "llama":
-            sd = llama_permute(sd, 32, 8) # L3
+            sd = llama_permute(sd, 32, 8)  # L3 / Mistral
+        if arch == "qwen2vl":
+            vsd = gguf_mmproj_loader(path)
+            sd.update(vsd)
     else:
         pass
     return sd
@@ -1072,7 +1212,7 @@ class GGMLLayer(torch.nn.Module):
         # Take into account space required for dequantizing the largest tensor
         if self.largest_layer:
             shape = getattr(self.weight, "tensor_shape", self.weight.shape)
-            dtype = self.dequant_dtype or torch.float16
+            dtype = self.dequant_dtype if self.dequant_dtype and self.dequant_dtype != "target" else torch.float16
             temp = torch.empty(*shape, device=torch.device("meta"), dtype=dtype)
             destination[prefix + "temp.weight"] = temp
 
@@ -1106,7 +1246,7 @@ class GGMLLayer(torch.nn.Module):
         return weight
 
     @torch_compiler_disable()
-    def cast_bias_weight(s, input=None, dtype=None, device=None, bias_dtype=None):
+    def cast_bias_weight(self, input=None, dtype=None, device=None, bias_dtype=None):
         if input is not None:
             if dtype is None:
                 dtype = getattr(input, "dtype", torch.float32)
@@ -1117,11 +1257,11 @@ class GGMLLayer(torch.nn.Module):
 
         bias = None
         non_blocking = device_supports_non_blocking(device)
-        if s.bias is not None:
-            bias = s.get_weight(s.bias.to(device), dtype)
+        if self.bias is not None:
+            bias = self.get_weight(self.bias.to(device), dtype)
             bias = cast_to(bias, bias_dtype, device, non_blocking=non_blocking, copy=False)
 
-        weight = s.get_weight(s.weight.to(device), dtype)
+        weight = self.get_weight(self.weight.to(device), dtype)
         weight = cast_to(weight, dtype, device, non_blocking=non_blocking, copy=False)
         return weight, bias
 

@@ -209,6 +209,9 @@ class LatentUpscaleModelLoader(io.ComfyNode):
                 "block_out_channels": tuple(sd[f"up.{i}.block.0.conv1.conv.weight"].shape[0] for i in range(len([k for k in sd.keys() if k.startswith("up.") and k.endswith(".block.0.conv1.conv.weight")]))),
             }
             model_type = "1080p"
+        else:
+             # Fallback or error
+             raise ValueError("Unsupported model config in sd")
 
         model = HunyuanVideo15SRModel(model_type, config)
         model.load_sd(sd)

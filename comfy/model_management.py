@@ -114,7 +114,7 @@ if args.deterministic:
 
 directml_device = None
 if args.directml is not None:
-    logging.warning("WARNING: torch-directml barely works, is very slow, has not been updated in over 1 year and might be removed soon, please don't use it, there are better options.")
+    logger.warning("WARNING: torch-directml barely works, is very slow, has not been updated in over 1 year and might be removed soon, please don't use it, there are better options.")
     import torch_directml  # pylint: disable=import-error
 
     device_index = args.directml
@@ -1281,7 +1281,7 @@ if not args.disable_pinned_memory:
             MAX_PINNED_MEMORY = get_total_memory(torch.device("cpu")) * 0.45  # Windows limit is apparently 50%
         else:
             MAX_PINNED_MEMORY = get_total_memory(torch.device("cpu")) * 0.95
-        logging.info("Enabled pinned memory {}".format(MAX_PINNED_MEMORY // (1024 * 1024)))
+        logger.info("Enabled pinned memory {}".format(MAX_PINNED_MEMORY // (1024 * 1024)))
 
 PINNING_ALLOWED_TYPES = set(["Parameter", "QuantizedTensor"])
 
@@ -1335,11 +1335,11 @@ def unpin_memory(tensor):
 
     size_stored = PINNED_MEMORY.get(ptr, None)
     if size_stored is None:
-        logging.warning("Tried to unpin tensor not pinned by ComfyUI")
+        logger.warning("Tried to unpin tensor not pinned by ComfyUI")
         return False
 
     if size != size_stored:
-        logging.warning("Size of pinned tensor changed")
+        logger.warning("Size of pinned tensor changed")
         return False
 
     if torch.cuda.cudart().cudaHostUnregister(ptr) == 0:

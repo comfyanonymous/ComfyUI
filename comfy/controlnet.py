@@ -321,7 +321,7 @@ class ControlLoraOps:
                 x = torch.nn.functional.linear(input, weight + (torch.mm(self.up.flatten(start_dim=1), self.down.flatten(start_dim=1))).reshape(self.weight.shape).type(input.dtype), bias)
             else:
                 x = torch.nn.functional.linear(input, weight, bias)
-            comfy.ops.uncast_bias_weight(self, weight, bias, offload_stream)
+            ops.uncast_bias_weight(self, weight, bias, offload_stream)
             return x
 
     class Conv2d(torch.nn.Module, ops.CastWeightBiasOp):
@@ -362,7 +362,7 @@ class ControlLoraOps:
                 x = torch.nn.functional.conv2d(input, weight + (torch.mm(self.up.flatten(start_dim=1), self.down.flatten(start_dim=1))).reshape(self.weight.shape).type(input.dtype), bias, self.stride, self.padding, self.dilation, self.groups)
             else:
                 x = torch.nn.functional.conv2d(input, weight, bias, self.stride, self.padding, self.dilation, self.groups)
-            comfy.ops.uncast_bias_weight(self, weight, bias, offload_stream)
+            ops.uncast_bias_weight(self, weight, bias, offload_stream)
             return x
 
 class ControlLora(ControlNet):

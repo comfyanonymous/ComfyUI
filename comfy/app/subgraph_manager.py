@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import TypedDict
 import os
-import folder_paths
+from ..cmd import folder_paths
 import glob
 from aiohttp import web
 import hashlib
@@ -37,7 +37,7 @@ class CustomNodeSubgraphEntryInfo(TypedDict):
 
 class SubgraphManager:
     def __init__(self):
-        self.cached_custom_node_subgraphs: dict[SubgraphEntry] | None = None
+        self.cached_custom_node_subgraphs: dict[str, SubgraphEntry] | None = None
 
     async def load_entry_data(self, entry: SubgraphEntry):
         with open(entry['path'], 'r') as f:
@@ -65,7 +65,7 @@ class SubgraphManager:
             return self.cached_custom_node_subgraphs
         # Load subgraphs from custom nodes
         subfolder = "subgraphs"
-        subgraphs_dict: dict[SubgraphEntry] = {}
+        subgraphs_dict: dict[str, SubgraphEntry] = {}
 
         for folder in folder_paths.get_folder_paths("custom_nodes"):
             pattern = os.path.join(folder, f"*/{subfolder}/*.json")

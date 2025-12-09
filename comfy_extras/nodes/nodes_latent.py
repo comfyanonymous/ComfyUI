@@ -8,6 +8,7 @@ from .nodes_post_processing import gaussian_kernel
 from typing_extensions import override
 from comfy_api.latest import ComfyExtension, io
 import logging
+logger = logging.getLogger(__name__)
 
 def reshape_latent_to(target_shape, latent, repeat_batch=True):
     if latent.shape[1:] != target_shape[1:]:
@@ -477,10 +478,10 @@ class ReplaceVideoLatentFrames(io.ComfyNode):
         if index < 0:
             index = dest_frames + index
         if index > dest_frames:
-            logging.warning(f"ReplaceVideoLatentFrames: Index {index} is out of bounds for destination latent frames {dest_frames}.")
+            logger.warning(f"ReplaceVideoLatentFrames: Index {index} is out of bounds for destination latent frames {dest_frames}.")
             return io.NodeOutput(destination)
         if index + source_frames > dest_frames:
-            logging.warning(f"ReplaceVideoLatentFrames: Source latent frames {source_frames} do not fit within destination latent frames {dest_frames} at the specified index {index}.")
+            logger.warning(f"ReplaceVideoLatentFrames: Source latent frames {source_frames} do not fit within destination latent frames {dest_frames} at the specified index {index}.")
             return io.NodeOutput(destination)
         s = source.copy()
         s_source = source["samples"]

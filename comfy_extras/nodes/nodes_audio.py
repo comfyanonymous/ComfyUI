@@ -8,6 +8,7 @@ import os
 import hashlib
 from comfy import node_helpers
 import logging
+logger = logging.getLogger(__name__)
 from typing_extensions import override
 from comfy_api.latest import ComfyExtension, IO, UI
 
@@ -419,11 +420,11 @@ def match_audio_sample_rates(waveform_1, sample_rate_1, waveform_2, sample_rate_
         if sample_rate_1 > sample_rate_2:
             waveform_2 = torchaudio.functional.resample(waveform_2, sample_rate_2, sample_rate_1)
             output_sample_rate = sample_rate_1
-            logging.info(f"Resampling audio2 from {sample_rate_2}Hz to {sample_rate_1}Hz for merging.")
+            logger.info(f"Resampling audio2 from {sample_rate_2}Hz to {sample_rate_1}Hz for merging.")
         else:
             waveform_1 = torchaudio.functional.resample(waveform_1, sample_rate_1, sample_rate_2)
             output_sample_rate = sample_rate_2
-            logging.info(f"Resampling audio1 from {sample_rate_1}Hz to {sample_rate_2}Hz for merging.")
+            logger.info(f"Resampling audio1 from {sample_rate_1}Hz to {sample_rate_2}Hz for merging.")
     else:
         output_sample_rate = sample_rate_1
     return waveform_1, waveform_2, output_sample_rate
@@ -459,10 +460,10 @@ class AudioConcat(IO.ComfyNode):
 
         if waveform_1.shape[1] == 1:
             waveform_1 = waveform_1.repeat(1, 2, 1)
-            logging.info("AudioConcat: Converted mono audio1 to stereo by duplicating the channel.")
+            logger.info("AudioConcat: Converted mono audio1 to stereo by duplicating the channel.")
         if waveform_2.shape[1] == 1:
             waveform_2 = waveform_2.repeat(1, 2, 1)
-            logging.info("AudioConcat: Converted mono audio2 to stereo by duplicating the channel.")
+            logger.info("AudioConcat: Converted mono audio2 to stereo by duplicating the channel.")
 
         waveform_1, waveform_2, output_sample_rate = match_audio_sample_rates(waveform_1, sample_rate_1, waveform_2, sample_rate_2)
 
@@ -470,6 +471,8 @@ class AudioConcat(IO.ComfyNode):
             concatenated_audio = torch.cat((waveform_1, waveform_2), dim=2)
         elif direction == 'before':
             concatenated_audio = torch.cat((waveform_2, waveform_1), dim=2)
+        else:
+            raise ValueError(f"Invalid direction: {direction}")
 
         return IO.NodeOutput({"waveform": concatenated_audio, "sample_rate": output_sample_rate})
 
@@ -509,10 +512,10 @@ class AudioMerge(IO.ComfyNode):
         length_2 = waveform_2.shape[-1]
 
         if length_2 > length_1:
-            logging.info(f"AudioMerge: Trimming audio2 from {length_2} to {length_1} samples to match audio1 length.")
+            logger.info(f"AudioMerge: Trimming audio2 from {length_2} to {length_1} samples to match audio1 length.")
             waveform_2 = waveform_2[..., :length_1]
         elif length_2 < length_1:
-            logging.info(f"AudioMerge: Padding audio2 from {length_2} to {length_1} samples to match audio1 length.")
+            logger.info(f"AudioMerge: Padding audio2 from {length_2} to {length_1} samples to match audio1 length.")
             pad_shape = list(waveform_2.shape)
             pad_shape[-1] = length_1 - length_2
             pad_tensor = torch.zeros(pad_shape, dtype=waveform_2.dtype, device=waveform_2.device)
@@ -526,6 +529,8 @@ class AudioMerge(IO.ComfyNode):
             waveform = waveform_1 * waveform_2
         elif merge_method == "mean":
             waveform = (waveform_1 + waveform_2) / 2
+        else:
+            raise ValueError(f"Invalid merge method: {merge_method}")
 
         max_val = waveform.abs().max()
         if max_val > 1.0:

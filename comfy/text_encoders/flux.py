@@ -170,7 +170,8 @@ class Mistral3_24BModel(sd1_clip.SDClipModel):
             textmodel_json_config["num_hidden_layers"] = num_layers
             if num_layers < 40:
                 textmodel_json_config["final_norm"] = False
-        super().__init__(device=device, layer=layer, layer_idx=layer_idx, textmodel_json_config=textmodel_json_config, dtype=dtype, special_tokens={"start": 1, "pad": 0}, layer_norm_hidden_state=False, model_class=comfy.text_encoders.llama.Mistral3Small24B, enable_attention_masks=attention_mask, return_attention_masks=attention_mask, model_options=model_options)
+        from . import llama
+        super().__init__(device=device, layer=layer, layer_idx=layer_idx, textmodel_json_config=textmodel_json_config, dtype=dtype, special_tokens={"start": 1, "pad": 0}, layer_norm_hidden_state=False, model_class=llama.Mistral3Small24B, enable_attention_masks=attention_mask, return_attention_masks=attention_mask, model_options=model_options)
 
 
 class Flux2TEModel(sd1_clip.SD1ClipModel):

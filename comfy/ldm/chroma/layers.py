@@ -1,7 +1,7 @@
 import torch
 from torch import Tensor, nn
 
-from comfy.ldm.flux.layers import (
+from ..flux.layers import (
     MLPEmbedder,
     RMSNorm,
     ModulationOut,

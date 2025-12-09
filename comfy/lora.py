@@ -326,8 +326,8 @@ def model_lora_keys_unet(model, key_map=None):
                 key_map["transformer.{}".format(key_lora)] = k
                 key_map["lycoris_{}".format(key_lora.replace(".", "_"))] = k  # SimpleTuner lycoris format
 
-    if isinstance(model, comfy.model_base.Lumina2):
-        diffusers_keys = comfy.utils.z_image_to_diffusers(model.model_config.unet_config, output_prefix="diffusion_model.")
+    if isinstance(model, model_base.Lumina2):
+        diffusers_keys = utils.z_image_to_diffusers(model.model_config.unet_config, output_prefix="diffusion_model.")
         for k in diffusers_keys:
             if k.endswith(".weight"):
                 to = diffusers_keys[k]
@@ -335,7 +335,7 @@ def model_lora_keys_unet(model, key_map=None):
                 key_map["diffusion_model.{}".format(key_lora)] = to
                 key_map["lycoris_{}".format(key_lora.replace(".", "_"))] = to
 
-    if isinstance(model, comfy.model_base.Kandinsky5):
+    if isinstance(model, model_base.Kandinsky5):
         for k in sdk:
             if k.startswith("diffusion_model.") and k.endswith(".weight"):
                 key_lora = k[len("diffusion_model."):-len(".weight")]

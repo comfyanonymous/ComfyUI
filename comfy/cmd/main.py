@@ -1,3 +1,4 @@
+from .main_pre import tracer
 import asyncio
 import contextvars
 import gc
@@ -10,15 +11,15 @@ import time
 from pathlib import Path
 from typing import Optional
 
-from comfy.component_model.abstract_prompt_queue import AbstractPromptQueue
+from ..component_model.abstract_prompt_queue import AbstractPromptQueue
 from . import hook_breaker_ac10a0
 from .extra_model_paths import load_extra_path_config
 from .. import model_management
 from ..analytics.analytics import initialize_event_tracking
 from ..cli_args_types import Configuration
-from ..cmd import cuda_malloc
-from ..cmd import folder_paths
-from ..cmd import server as server_module
+from . import cuda_malloc
+from . import folder_paths
+from . import server as server_module
 from ..component_model.entrypoints_common import configure_application_paths, executor_from_args
 from ..component_model.file_counter import cleanup_temp as fc_cleanup_temp
 from ..distributed.distributed_prompt_queue import DistributedPromptQueue
@@ -45,12 +46,12 @@ def cuda_malloc_warning():
 
 def handle_comfyui_manager_unavailable(args: Configuration):
     if not args.windows_standalone_build:
-        logging.warning(f"\n\nYou appear to be running comfyui-manager from source, this is not recommended. Please install comfyui-manager using the following command:\ncommand:\n\t{sys.executable} -m pip install --pre comfyui_manager\n")
+        logger.warning(f"\n\nYou appear to be running comfyui-manager from source, this is not recommended. Please install comfyui-manager using the following command:\ncommand:\n\t{sys.executable} -m pip install --pre comfyui_manager\n")
     args.enable_manager = False
 
 
 async def _prompt_worker(q: AbstractPromptQueue, server_instance: server_module.PromptServer):
-    from ..cmd import execution
+    from . import execution
     from ..component_model import queue_types
     from .. import model_management
 
@@ -149,6 +150,10 @@ async def _prompt_worker(q: AbstractPromptQueue, server_instance: server_module.
                 hook_breaker_ac10a0.restore_functions()
 
 
+def prompt_worker(q, server):
+    asyncio.run(_prompt_worker(q, server))
+
+
 async def run(server_instance, address='', port=8188, call_on_start=None):
     addresses = []
     for addr in address.split(","):
@@ -189,6 +194,7 @@ async def _start_comfyui(from_script_dir: Optional[Path] = None, configuration: 
         await __start_comfyui(from_script_dir=from_script_dir)
 
 
+@tracer.start_as_current_span("Start ComfyUI")
 async def __start_comfyui(from_script_dir: Optional[Path] = None):
     """
     Runs ComfyUI's frontend and backend like upstream.

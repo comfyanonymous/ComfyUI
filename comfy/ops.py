@@ -666,13 +666,13 @@ def mixed_precision_ops(quant_config={}, compute_dtype=torch.bfloat16, full_prec
                         missing_keys.remove(key)
 
             def state_dict(self, *args, destination=None, prefix="", **kwargs):
-                sd = super().state_dict(*args, destination=destination, prefix=prefix, **kwargs)
+                sd: dict = super().state_dict(*args, destination=destination, prefix=prefix, **kwargs)
                 if isinstance(self.weight, QuantizedTensor):
-                    sd["{}weight_scale".format(prefix)] = self.weight._layout_params['scale']
+                    sd["{}weight_scale".format(prefix)] = self.weight._layout_params['scale']  # pylint: disable=unsupported-assignment-operation
                     quant_conf = {"format": self.quant_format}
                     if self._full_precision_mm:
                         quant_conf["full_precision_matrix_mult"] = True
-                    sd["{}comfy_quant".format(prefix)] = torch.frombuffer(json.dumps(quant_conf).encode('utf-8'), dtype=torch.uint8)
+                    sd["{}comfy_quant".format(prefix)] = torch.frombuffer(json.dumps(quant_conf).encode('utf-8'), dtype=torch.uint8)  # pylint: disable=unsupported-assignment-operation
                 return sd
 
             def _forward(self, input, weight, bias):
@@ -735,7 +735,7 @@ def pick_operations(weight_dtype, compute_dtype, load_device=None, disable_fast_
     fp8_compute = model_management.supports_fp8_compute(load_device)  # TODO: if we support more ops this needs to be more granular
 
     if model_config and hasattr(model_config, 'quant_config') and model_config.quant_config:
-        logging.info("Using mixed precision operations")
+        logger.info("Using mixed precision operations")
         return mixed_precision_ops(model_config.quant_config, compute_dtype, full_precision_mm=not fp8_compute)
 
     if (

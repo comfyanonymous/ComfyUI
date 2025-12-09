@@ -342,7 +342,7 @@ class ModelPatcher(ModelManageable, PatchSupport):
 
     def clone(self) -> "ModelPatcher":
         n = self.__class__(self.model, self.load_device, self.offload_device, self.model_size(), weight_inplace_update=self.weight_inplace_update)
-        n._memory_measurements = self._memory_measurements
+        n._memory_measurements = copy.copy(self._memory_measurements)
         n.ckpt_name = self.ckpt_name
         n.patches = {}
         for k in self.patches:
@@ -705,6 +705,8 @@ class ModelPatcher(ModelManageable, PatchSupport):
                 utils.copy_to_param(self.model, key, out_weight)
             else:
                 utils.set_attr_param(self.model, key, out_weight)
+            
+            if self.gguf.patch_on_device:
                 return
         # end gguf
 
@@ -730,6 +732,12 @@ class ModelPatcher(ModelManageable, PatchSupport):
             set_func(out_weight, inplace_update=inplace_update, seed=string_to_seed(key))
 
     def pin_weight_to_device(self, key):
+        if self.gguf.loaded_from_gguf and key not in self.patches:
+            weight = utils.get_attr(self.model, key)
+            if is_quantized(weight):
+                weight.detach_mmap()
+                return
+
         weight, set_func, convert_func = get_key_weight(self.model, key)
         if model_management.pin_memory(weight):
             self.pinned.add(key)
@@ -772,6 +780,13 @@ class ModelPatcher(ModelManageable, PatchSupport):
         if self.gguf.loaded_from_gguf:
             force_patch_weights = True
 
+        if self.gguf.loaded_from_gguf and not self.gguf.mmap_released:
+            for n, m in self.model.named_modules():
+                if hasattr(m, "weight"):
+                    if is_quantized(m.weight):
+                        m.weight.detach_mmap()
+            self.gguf.mmap_released = True
+
         with self.use_ejected():
             self.unpatch_hooks()
             mem_counter = 0
@@ -796,6 +811,8 @@ class ModelPatcher(ModelManageable, PatchSupport):
                 bias_key = "{}.bias".format(n)
 
                 if not full_load and hasattr(m, "comfy_cast_weights"):
+                    if self.gguf.loaded_from_gguf and self.load_device == self.offload_device:
+                        lowvram_fits = True
                     if not lowvram_fits:
                         offload_buffer = potential_offload
                         lowvram_weight = True
@@ -1003,6 +1020,7 @@ class ModelPatcher(ModelManageable, PatchSupport):
             unload_list.sort()
 
             offload_buffer = self._memory_measurements.model_offload_buffer_memory
+            offload_weight_factor = 0
             if len(unload_list) > 0:
                 NS = model_management.NUM_STREAMS
                 offload_weight_factor = [min(offload_buffer / (NS + 1), unload_list[0][1])] * NS

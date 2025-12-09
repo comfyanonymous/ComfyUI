@@ -148,7 +148,7 @@ class FrontendManager:
             # this isn't used the way it says
             return importlib.metadata.version("comfyui_frontend_package")
         except Exception as exc_info:
-            return "1.23.4"
+            return "1.33.10"
 
     @classmethod
     def get_installed_templates_version(cls) -> str:
@@ -157,12 +157,12 @@ class FrontendManager:
             templates_version_str = importlib.metadata.version("comfyui-workflow-templates")
             return templates_version_str
         except Exception:
-            return None
+            return ""
 
     @classmethod
     def get_required_templates_version(cls) -> str:
         # returns a stub, since this isn't a helpful check in this environment
-        return "0.1.95"
+        return "0.7.51"
 
     @classmethod
     def default_frontend_path(cls) -> str:
@@ -183,23 +183,15 @@ class FrontendManager:
                 iter_templates,
             )
         except ImportError:
-            logging.error(
-                f"""
-********** ERROR ***********
-
-comfyui-workflow-templates is not installed.
-
-{frontend_install_warning_message()}
-
-********** ERROR ***********
-""".strip()
+            logger.error(
+                f"comfyui-workflow-templates is not installed. {frontend_install_warning_message()}"
             )
             return None
 
         try:
             template_entries = list(iter_templates())
         except Exception as exc:
-            logging.error(f"Failed to enumerate workflow templates: {exc}")
+            logger.error(f"Failed to enumerate workflow templates: {exc}")
             return None
 
         asset_map: Dict[str, str] = {}
@@ -210,11 +202,11 @@ comfyui-workflow-templates is not installed.
                         entry.template_id, asset.filename
                     )
         except Exception as exc:
-            logging.error(f"Failed to resolve template asset paths: {exc}")
+            logger.error(f"Failed to resolve template asset paths: {exc}")
             return None
 
         if not asset_map:
-            logging.error("No workflow template assets found. Did the packages install correctly?")
+            logger.error("No workflow template assets found. Did the packages install correctly?")
             return None
 
         return asset_map

@@ -53,7 +53,7 @@ from .ldm.modules.encoders.noise_aug_modules import CLIPEmbeddingNoiseAugmentati
 from .ldm.chroma_radiance import model as chroma_radiance
 from .ldm.omnigen.omnigen2 import OmniGen2Transformer2DModel
 from .ldm.pixart.pixartms import PixArtMS
-from .ldm.kandinsky5.model import Kandinsky5
+from .ldm.kandinsky5 import model as kadinsky5_model
 from .ldm.qwen_image.model import QwenImageTransformer2DModel
 from .ldm.wan.model import WanModel, VaceWanModel, CameraWanModel, WanModel_S2V, HumoWanModel
 from .ldm.wan.model_animate import AnimateWanModel
@@ -1699,7 +1699,7 @@ class HunyuanVideo15_SR_Distilled(HunyuanVideo15):
 
 class Kandinsky5(BaseModel):
     def __init__(self, model_config, model_type=ModelType.FLOW, device=None):
-        super().__init__(model_config, model_type, device=device, unet_model=Kandinsky5)
+        super().__init__(model_config, model_type, device=device, unet_model=kadinsky5_model.Kandinsky5)
 
     def encode_adm(self, **kwargs):
         return kwargs["pooled_output"]

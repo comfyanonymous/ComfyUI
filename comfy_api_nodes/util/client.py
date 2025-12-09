@@ -17,7 +17,7 @@ from pydantic import BaseModel
 
 from comfy import utils
 from comfy_api.latest import IO
-from server import PromptServer
+from comfy.cmd.server import PromptServer
 
 from . import request_logger
 from ._helpers import (

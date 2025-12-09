@@ -146,21 +146,21 @@ class CLIP:
                 for c in state_dict:
                     m, u = self.load_sd(c)
                     if len(m) > 0:
-                        logging.warning("clip missing: {}".format(m))
+                        logger.warning("clip missing: {}".format(m))
 
                     if len(u) > 0:
-                        logging.debug("clip unexpected: {}".format(u))
+                        logger.debug("clip unexpected: {}".format(u))
             else:
                 m, u = self.load_sd(state_dict, full_model=True)
                 if len(m) > 0:
                     m_filter = list(filter(lambda a: ".logit_scale" not in a and ".transformer.text_projection.weight" not in a, m))
                     if len(m_filter) > 0:
-                        logging.warning("clip missing: {}".format(m))
+                        logger.warning("clip missing: {}".format(m))
                     else:
-                        logging.debug("clip missing: {}".format(m))
+                        logger.debug("clip missing: {}".format(m))
 
                 if len(u) > 0:
-                    logging.debug("clip unexpected {}:".format(u))
+                    logger.debug("clip unexpected {}:".format(u))
 
         if params['device'] == load_device:
             model_management.load_models_gpu([self.patcher], force_full_load=True)

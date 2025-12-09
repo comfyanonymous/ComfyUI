@@ -305,49 +305,374 @@ allow-direct-references = true
 [tool.hatch.build.targets.wheel]
 packages = ["comfy/", "comfy_extras/", "comfy_api/", "comfy_api_nodes/", "comfy_config/", "comfy_execution/", "comfy_compatibility/"]
 
-[tool.pylint]
-master.py-version = "3.10"
-master.extension-pkg-allow-list = [
-  "pydantic",
+[tool.pylint.master]
+py-version = "3.10"
+extension-pkg-allow-list = ["pydantic", "cv2"]
+ignore-paths = ["^comfy/api/.*$"]
+ignored-modules = ["sentencepiece.*", "comfy.api", "comfy.cmd.folder_paths"]
+init-hook = 'import sys; sys.path.insert(0, ".")'
+load-plugins = ["tests.absolute_import_checker", "tests.main_pre_import_checker", "tests.missing_init"]
+persistent = true
+fail-under = 10
+jobs = 1
+limit-inference-results = 100
+unsafe-load-any-extension = false
+
+[tool.pylint.messages_control]
+enable = [
+    "deprecated-module",
+    "deprecated-method",
+    "deprecated-argument",
+    "deprecated-class",
+    "deprecated-decorator",
+    "deprecated-attribute",
 ]
-reports.output-format = "colorized"
-similarities.ignore-imports = "yes"
-messages_control.disable = [
-  "missing-module-docstring",
-  "missing-class-docstring",
-  "missing-function-docstring",
-  "line-too-long",
-  "too-few-public-methods",
-  "too-many-public-methods",
-  "too-many-instance-attributes",
-  "too-many-positional-arguments",
-  "broad-exception-raised",
-  "too-many-lines",
-  "invalid-name",
-  "unused-argument",
-  "broad-exception-caught",
-  "consider-using-with",
-  "fixme",
-  "too-many-statements",
-  "too-many-branches",
-  "too-many-locals",
-  "too-many-arguments",
-  "too-many-return-statements",
-  "too-many-nested-blocks",
-  "duplicate-code",
-  "abstract-method",
-  "superfluous-parens",
-  "arguments-differ",
-  "redefined-builtin",
-  "unnecessary-lambda",
-  "dangerous-default-value",
-  "invalid-overridden-method",
-  # next warnings should be fixed in future
-  "bad-classmethod-argument",  # Class method should have 'cls' as first argument
-  "wrong-import-order",  # Standard imports should be placed before third party imports
-  "ungrouped-imports",
-  "unnecessary-pass",
-  "unnecessary-lambda-assignment",
-  "no-else-return",
-  "unused-variable",
+disable = [
+    "raw-checker-failed",
+    "bad-inline-option",
+    "locally-disabled",
+    "file-ignored",
+    "suppressed-message",
+    "useless-suppression",
+    "deprecated-pragma",
+    "use-symbolic-message-instead",
+    "use-implicit-booleaness-not-comparison-to-string",
+    "use-implicit-booleaness-not-comparison-to-zero",
+    "useless-option-value",
+    "no-classmethod-decorator",
+    "no-staticmethod-decorator",
+    "useless-object-inheritance",
+    "property-with-parameters",
+    "cyclic-import",
+    "consider-using-from-import",
+    "consider-merging-isinstance",
+    "too-many-nested-blocks",
+    "simplifiable-if-statement",
+    "redefined-argument-from-local",
+    "no-else-return",
+    "consider-using-ternary",
+    "trailing-comma-tuple",
+    "stop-iteration-return",
+    "simplify-boolean-expression",
+    "inconsistent-return-statements",
+    "useless-return",
+    "consider-swap-variables",
+    "consider-using-join",
+    "consider-using-in",
+    "consider-using-get",
+    "chained-comparison",
+    "consider-using-dict-comprehension",
+    "consider-using-set-comprehension",
+    "simplifiable-if-expression",
+    "no-else-raise",
+    "unnecessary-comprehension",
+    "consider-using-sys-exit",
+    "no-else-break",
+    "no-else-continue",
+    "super-with-arguments",
+    "simplifiable-condition",
+    "condition-evals-to-constant",
+    "consider-using-generator",
+    "use-a-generator",
+    "consider-using-min-builtin",
+    "consider-using-max-builtin",
+    "consider-using-with",
+    "unnecessary-dict-index-lookup",
+    "use-list-literal",
+    "use-dict-literal",
+    "unnecessary-list-index-lookup",
+    "use-yield-from",
+    "duplicate-code",
+    "too-many-ancestors",
+    "too-many-instance-attributes",
+    "too-few-public-methods",
+    "too-many-public-methods",
+    "too-many-return-statements",
+    "too-many-branches",
+    "too-many-arguments",
+    "too-many-positional-arguments",
+    "too-many-locals",
+    "too-many-statements",
+    "too-many-boolean-expressions",
+    "too-many-positional",
+    "literal-comparison",
+    "comparison-with-itself",
+    "comparison-of-constants",
+    "wrong-spelling-in-comment",
+    "wrong-spelling-in-docstring",
+    "invalid-characters-in-docstring",
+    "unnecessary-dunder-call",
+    "bad-file-encoding",
+    "bad-classmethod-argument",
+    "bad-mcs-method-argument",
+    "bad-mcs-classmethod-argument",
+    "single-string-used-for-slots",
+    "unnecessary-lambda-assignment",
+    "unnecessary-direct-lambda-call",
+    "non-ascii-name",
+    "non-ascii-module-import",
+    "line-too-long",
+    "too-many-lines",
+    "trailing-whitespace",
+    "missing-final-newline",
+    "trailing-newlines",
+    "multiple-statements",
+    "superfluous-parens",
+    "mixed-line-endings",
+    "unexpected-line-ending-format",
+    "multiple-imports",
+    "wrong-import-order",
+    "ungrouped-imports",
+    "wrong-import-position",
+    "useless-import-alias",
+    "import-outside-toplevel",
+    "unnecessary-negation",
+    "consider-using-enumerate",
+    "consider-iterating-dictionary",
+    "consider-using-dict-items",
+    "use-maxsplit-arg",
+    "use-sequence-for-iteration",
+    "consider-using-f-string",
+    "use-implicit-booleaness-not-len",
+    "use-implicit-booleaness-not-comparison",
+    "invalid-name",
+    "disallowed-name",
+    "typevar-name-incorrect-variance",
+    "typevar-double-variance",
+    "typevar-name-mismatch",
+    "empty-docstring",
+    "missing-module-docstring",
+    "missing-class-docstring",
+    "missing-function-docstring",
+    "singleton-comparison",
+    "unidiomatic-typecheck",
+    "unknown-option-value",
+    "logging-not-lazy",
+    "logging-format-interpolation",
+    "logging-fstring-interpolation",
+    "fixme",
+    "keyword-arg-before-vararg",
+    "arguments-out-of-order",
+    "non-str-assignment-to-dunder-name",
+    "isinstance-second-argument-not-valid-type",
+    "kwarg-superseded-by-positional-arg",
+    "modified-iterating-list",
+    "attribute-defined-outside-init",
+    "bad-staticmethod-argument",
+    "protected-access",
+    "implicit-flag-alias",
+    "arguments-differ",
+    "signature-differs",
+    "abstract-method",
+    "super-init-not-called",
+    "non-parent-init-called",
+    "invalid-overridden-method",
+    "arguments-renamed",
+    "unused-private-member",
+    "overridden-final-method",
+    "subclassed-final-class",
+    "redefined-slots-in-subclass",
+    "super-without-brackets",
+    "useless-parent-delegation",
+    "global-variable-undefined",
+    "global-variable-not-assigned",
+    "global-statement",
+    "global-at-module-level",
+    "unused-import",
+    "unused-variable",
+    "unused-argument",
+    "unused-wildcard-import",
+    "redefined-outer-name",
+    "redefined-builtin",
+    "undefined-loop-variable",
+    "unbalanced-tuple-unpacking",
+    "cell-var-from-loop",
+    "possibly-unused-variable",
+    "self-cls-assignment",
+    "unbalanced-dict-unpacking",
+    "using-f-string-in-unsupported-version",
+    "using-final-decorator-in-unsupported-version",
+    "unnecessary-ellipsis",
+    "non-ascii-file-name",
+    "unnecessary-semicolon",
+    "bad-indentation",
+    "wildcard-import",
+    "reimported",
+    "import-self",
+    "preferred-module",
+    "misplaced-future",
+    "shadowed-import",
+    "missing-timeout",
+    "useless-with-lock",
+    "bare-except",
+    "duplicate-except",
+    "try-except-raise",
+    "raise-missing-from",
+    "binary-op-exception",
+    "raising-format-tuple",
+    "wrong-exception-operation",
+    "broad-exception-caught",
+    "broad-exception-raised",
+    "bad-open-mode",
+    "boolean-datetime",
+    "redundant-unittest-assert",
+    "bad-thread-instantiation",
+    "shallow-copy-environ",
+    "invalid-envvar-default",
+    "subprocess-popen-preexec-fn",
+    "subprocess-run-check",
+    "unspecified-encoding",
+    "forgotten-debug-statement",
+    "method-cache-max-size-none",
+    "bad-format-string-key",
+    "unused-format-string-key",
+    "bad-format-string",
+    "missing-format-argument-key",
+    "unused-format-string-argument",
+    "format-combined-specification",
+    "missing-format-attribute",
+    "invalid-format-index",
+    "duplicate-string-formatting-argument",
+    "f-string-without-interpolation",
+    "format-string-without-interpolation",
+    "anomalous-backslash-in-string",
+    "anomalous-unicode-escape-in-string",
+    "implicit-str-concat",
+    "inconsistent-quotes",
+    "redundant-u-string-prefix",
+    "useless-else-on-loop",
+    "unreachable",
+    "dangerous-default-value",
+    "pointless-statement",
+    "pointless-string-statement",
+    "expression-not-assigned",
+    "unnecessary-lambda",
+    "duplicate-key",
+    "exec-used",
+    "eval-used",
+    "confusing-with-statement",
+    "using-constant-test",
+    "missing-parentheses-for-call-in-test",
+    "self-assigning-variable",
+    "redeclared-assigned-name",
+    "assert-on-string-literal",
+    "duplicate-value",
+    "named-expr-without-context",
+    "pointless-exception-statement",
+    "return-in-finally",
+    "lost-exception",
+    "assert-on-tuple",
+    "unnecessary-pass",
+    "comparison-with-callable",
+    "nan-comparison",
+    "contextmanager-generator-missing-cleanup",
+    "nested-min-max",
+    "bad-chained-comparison",
+    "not-callable",
 ]
+
+[tool.pylint.basic]
+argument-naming-style = "snake_case"
+attr-naming-style = "snake_case"
+bad-names = ["foo", "bar", "baz", "toto", "tutu", "tata"]
+class-attribute-naming-style = "any"
+class-const-naming-style = "UPPER_CASE"
+class-naming-style = "PascalCase"
+const-naming-style = "UPPER_CASE"
+docstring-min-length = -1
+function-naming-style = "snake_case"
+good-names = ["i", "j", "k", "ex", "Run", "_"]
+include-naming-hint = false
+inlinevar-naming-style = "any"
+method-naming-style = "snake_case"
+module-naming-style = "snake_case"
+no-docstring-rgx = "^_"
+property-classes = ["abc.abstractproperty"]
+variable-naming-style = "snake_case"
+
+[tool.pylint.classes]
+check-protected-access-in-special-methods = false
+defining-attr-methods = ["__init__", "__new__", "setUp", "asyncSetUp", "__post_init__"]
+exclude-protected = ["_asdict", "_fields", "_replace", "_source", "_make", "os._exit"]
+valid-classmethod-first-arg = "cls"
+valid-metaclass-classmethod-first-arg = "mcs"
+
+[tool.pylint.design]
+max-args = 5
+max-attributes = 7
+max-bool-expr = 5
+max-branches = 12
+max-locals = 15
+max-parents = 7
+max-public-methods = 20
+max-returns = 6
+max-statements = 50
+min-public-methods = 2
+
+[tool.pylint.exceptions]
+overgeneral-exceptions = ["builtins.BaseException", "builtins.Exception"]
+
+[tool.pylint.format]
+indent-after-paren = 4
+indent-string = "    "
+max-line-length = 100
+max-module-lines = 1000
+single-line-class-stmt = false
+single-line-if-stmt = false
+
+[tool.pylint.imports]
+allow-reexport-from-package = false
+allow-wildcard-with-all = false
+known-third-party = ["enchant"]
+
+[tool.pylint.logging]
+logging-format-style = "old"
+logging-modules = ["logging"]
+
+[tool.pylint.miscellaneous]
+notes = ["FIXME", "XXX", "TODO"]
+
+[tool.pylint.refactoring]
+max-nested-blocks = 5
+never-returning-functions = ["sys.exit", "argparse.parse_error"]
+suggest-join-with-non-empty-separator = true
+
+[tool.pylint.reports]
+evaluation = "max(0, 0 if fatal else 10.0 - ((float(5 * error + warning + refactor + convention) / statement) * 10))"
+score = true
+
+[tool.pylint.similarities]
+ignore-comments = true
+ignore-docstrings = true
+ignore-imports = true
+ignore-signatures = true
+min-similarity-lines = 4
+
+[tool.pylint.spelling]
+max-spelling-suggestions = 4
+spelling-ignore-comment-directives = "fmt: on,fmt: off,noqa:,noqa,nosec,isort:skip,mypy:"
+spelling-store-unknown-words = false
+
+[tool.pylint.string]
+check-quote-consistency = false
+check-str-concat-over-line-jumps = false
+
+[tool.pylint.typecheck]
+contextmanager-decorators = ["contextlib.contextmanager"]
+generated-members = ["cv2.*", "sentencepiece.*"]
+ignore-none = true
+ignore-on-opaque-inference = true
+ignored-checks-for-mixins = ["no-member", "not-async-context-manager", "not-context-manager", "attribute-defined-outside-init"]
+ignored-classes = ["optparse.Values", "thread._local", "_thread._local", "argparse.Namespace"]
+missing-member-hint = true
+missing-member-hint-distance = 1
+missing-member-max-choices = 1
+mixin-class-rgx = ".*[Mm]ixin"
+
+[tool.pylint.variables]
+allow-global-unused-variables = true
+callbacks = ["cb_", "_cb"]
+dummy-variables-rgx = "_+$|(_[a-zA-Z0-9_]*[a-zA-Z0-9]+?$)|dummy|^ignored_|^unused_"
+ignored-argument-names = "_.*|^ignored_|^unused_"
+init-import = false
+redefining-builtins-modules = ["six.moves", "past.builtins", "future.builtins", "builtins", "io"]

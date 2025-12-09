@@ -788,7 +788,7 @@ def model_config_from_unet(state_dict, unet_key_prefix, use_base_if_no_match=Fal
     quant_config = detect_layer_quantization(state_dict, unet_key_prefix)
     if quant_config:
         model_config.quant_config = quant_config
-        logging.info("Detected mixed precision quantization")
+        logger.info("Detected mixed precision quantization")
 
     if metadata is not None and "format" in metadata and metadata["format"] == "gguf":
         model_config.custom_operations = GGMLOps

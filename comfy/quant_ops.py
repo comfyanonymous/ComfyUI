@@ -1,5 +1,6 @@
 import torch
 import logging
+logger = logging.getLogger(__name__)
 from typing import Tuple, Dict
 import comfy.float
 
@@ -213,7 +214,7 @@ class QuantizedTensor(torch.Tensor):
 
         # Step 3: Fallback to dequantization
         if isinstance(args[0] if args else None, QuantizedTensor):
-            logging.info(f"QuantizedTensor: Unhandled operation {func}, falling back to dequantization. kwargs={kwargs}")
+            logger.info(f"QuantizedTensor: Unhandled operation {func}, falling back to dequantization. kwargs={kwargs}")
         return cls._dequant_and_fallback(func, args, kwargs)
 
     @classmethod
@@ -253,7 +254,7 @@ def _create_transformed_qtensor(qt, transform_fn):
 
 def _handle_device_transfer(qt, target_device, target_dtype=None, target_layout=None, op_name="to"):
     if target_layout is not None and target_layout != torch.strided:
-        logging.warning(
+        logger.warning(
             f"QuantizedTensor: layout change requested to {target_layout}, "
             f"but not supported. Ignoring layout."
         )
@@ -268,16 +269,16 @@ def _handle_device_transfer(qt, target_device, target_dtype=None, target_layout=
             current_device = torch.device(current_device)
 
         if target_device != current_device:
-            logging.debug(f"QuantizedTensor.{op_name}: Moving from {current_device} to {target_device}")
+            logger.debug(f"QuantizedTensor.{op_name}: Moving from {current_device} to {target_device}")
             new_q_data = qt._qdata.to(device=target_device)
             new_params = _move_layout_params_to_device(qt._layout_params, target_device)
             if target_dtype is not None:
                 new_params["orig_dtype"] = target_dtype
             new_qt = QuantizedTensor(new_q_data, qt._layout_type, new_params)
-            logging.debug(f"QuantizedTensor.{op_name}: Created new tensor on {target_device}")
+            logger.debug(f"QuantizedTensor.{op_name}: Created new tensor on {target_device}")
             return new_qt
 
-    logging.debug(f"QuantizedTensor.{op_name}: No device change needed, returning original")
+    logger.debug(f"QuantizedTensor.{op_name}: No device change needed, returning original")
     return qt
 
 

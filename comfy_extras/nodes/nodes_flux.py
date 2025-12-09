@@ -9,7 +9,7 @@ from comfy.nodes.common import MAX_RESOLUTION
 import comfy.model_management
 import torch
 import math
-import nodes
+from comfy.nodes import base_nodes as nodes
 
 class CLIPTextEncodeFlux(io.ComfyNode):
     @classmethod

@@ -1,9 +1,7 @@
 from __future__ import annotations
-
-import typing
-
 from ..cmd.main_pre import tracer
 
+import typing
 import asyncio
 import time
 import uuid

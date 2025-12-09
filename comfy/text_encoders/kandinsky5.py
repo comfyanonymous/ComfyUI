@@ -1,4 +1,4 @@
-from comfy import sd1_clip
+from .. import sd1_clip
 from .qwen_image import QwenImageTokenizer, QwenImageTEModel
 from .llama import Qwen25_7BVLI
 

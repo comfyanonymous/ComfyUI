@@ -14,6 +14,7 @@ from . import model_management
 from . import model_patcher
 from . import patcher_extension
 from . import sampler_helpers
+from .nested_tensor import NestedTensor
 from .component_model.deprecation import _deprecate_method
 from .controlnet import ControlBase
 from .extra_samplers import uni_pc
@@ -755,7 +756,7 @@ def encode_model_conds(model_function, conds, noise, device, prompt_type, **kwar
 
 
 class Sampler:
-    def sample(self):
+    def sample(self, *args, **kwargs):
         pass
 
     def max_denoise(self, model_wrap, sigmas):

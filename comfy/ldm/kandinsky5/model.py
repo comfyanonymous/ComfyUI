@@ -2,12 +2,16 @@ import torch
 from torch import nn
 import math
 
-import comfy.ldm.common_dit
-from comfy.ldm.modules.attention import optimized_attention
-from comfy.ldm.flux.math import apply_rope1
-from comfy.ldm.flux.layers import EmbedND
+from ..common_dit import pad_to_patch_size
+from ..modules.attention import optimized_attention
+from ..flux.math import apply_rope1
+from ..flux.layers import EmbedND
+from ... import patcher_extension
 
-def attention(q, k, v, heads, transformer_options={}):
+
+def attention(q, k, v, heads, transformer_options=None):
+    if transformer_options is None:
+        transformer_options = {}
     return optimized_attention(
         q.transpose(1, 2),
         k.transpose(1, 2),
@@ -17,15 +21,19 @@ def attention(q, k, v, heads, transformer_options={}):
         transformer_options=transformer_options
     )
 
+
 def apply_scale_shift_norm(norm, x, scale, shift):
     return torch.addcmul(shift, norm(x), scale + 1.0)
+
 
 def apply_gate_sum(x, out, gate):
     return torch.addcmul(x, gate, out)
 
+
 def get_shift_scale_gate(params):
     shift, scale, gate = torch.chunk(params, 3, dim=-1)
     return tuple(x.unsqueeze(1) for x in (shift, scale, gate))
+
 
 def get_freqs(dim, max_period=10000.0):
     return torch.exp(-math.log(max_period) * torch.arange(start=0, end=dim, dtype=torch.float32) / dim)
@@ -116,14 +124,19 @@ class SelfAttention(nn.Module):
         result = proj_fn(x).view(*x.shape[:-1], self.num_heads, -1)
         return apply_rope1(norm_fn(result), freqs)
 
-    def _forward(self, x, freqs, transformer_options={}):
+    def _forward(self, x, freqs, transformer_options=None):
+        if transformer_options is None:
+            transformer_options = {}
         q = self._compute_qk(x, freqs, self.to_query, self.query_norm)
         k = self._compute_qk(x, freqs, self.to_key, self.key_norm)
         v = self.to_value(x).view(*x.shape[:-1], self.num_heads, -1)
         out = attention(q, k, v, self.num_heads, transformer_options=transformer_options)
         return self.out_layer(out)
 
-    def _forward_chunked(self, x, freqs, transformer_options={}):
+    def _forward_chunked(self, x, freqs, transformer_options=None):
+        if transformer_options is None:
+            transformer_options = {}
+
         def process_chunks(proj_fn, norm_fn):
             x_chunks = torch.chunk(x, self.num_chunks, dim=1)
             freqs_chunks = torch.chunk(freqs, self.num_chunks, dim=1)
@@ -138,7 +151,9 @@ class SelfAttention(nn.Module):
         out = attention(q, k, v, self.num_heads, transformer_options=transformer_options)
         return self.out_layer(out)
 
-    def forward(self, x, freqs, transformer_options={}):
+    def forward(self, x, freqs, transformer_options=None):
+        if transformer_options is None:
+            transformer_options = {}
         if x.shape[1] > 8192:
             return self._forward_chunked(x, freqs, transformer_options=transformer_options)
         else:
@@ -152,7 +167,9 @@ class CrossAttention(SelfAttention):
         v = self.to_value(context).view(*context.shape[:-1], self.num_heads, -1)
         return q, k, v
 
-    def forward(self, x, context, transformer_options={}):
+    def forward(self, x, context, transformer_options=None):
+        if transformer_options is None:
+            transformer_options = {}
         q, k, v = self.get_qkv(x, context)
         out = attention(self.query_norm(q), self.key_norm(k), v, self.num_heads, transformer_options=transformer_options)
         return self.out_layer(out)
@@ -222,7 +239,9 @@ class TransformerEncoderBlock(nn.Module):
         self.feed_forward_norm = operations.LayerNorm(model_dim, elementwise_affine=False, device=operation_settings.get("device"), dtype=operation_settings.get("dtype"))
         self.feed_forward = FeedForward(model_dim, ff_dim, operation_settings=operation_settings)
 
-    def forward(self, x, time_embed, freqs, transformer_options={}):
+    def forward(self, x, time_embed, freqs, transformer_options=None):
+        if transformer_options is None:
+            transformer_options = {}
         self_attn_params, ff_params = torch.chunk(self.text_modulation(time_embed), 2, dim=-1)
         shift, scale, gate = get_shift_scale_gate(self_attn_params)
         out = apply_scale_shift_norm(self.self_attention_norm, x, scale, shift)
@@ -251,7 +270,9 @@ class TransformerDecoderBlock(nn.Module):
         self.feed_forward_norm = operations.LayerNorm(model_dim, elementwise_affine=False, device=operation_settings.get("device"), dtype=operation_settings.get("dtype"))
         self.feed_forward = FeedForward(model_dim, ff_dim, operation_settings=operation_settings)
 
-    def forward(self, visual_embed, text_embed, time_embed, freqs, transformer_options={}):
+    def forward(self, visual_embed, text_embed, time_embed, freqs, transformer_options=None):
+        if transformer_options is None:
+            transformer_options = {}
         self_attn_params, cross_attn_params, ff_params = torch.chunk(self.visual_modulation(time_embed), 3, dim=-1)
         # self attention
         shift, scale, gate = get_shift_scale_gate(self_attn_params)
@@ -273,11 +294,11 @@ class TransformerDecoderBlock(nn.Module):
 
 class Kandinsky5(nn.Module):
     def __init__(
-        self,
-        in_visual_dim=16, out_visual_dim=16, in_text_dim=3584, in_text_dim2=768, time_dim=512,
-        model_dim=1792, ff_dim=7168, visual_embed_dim=132, patch_size=(1, 2, 2), num_text_blocks=2, num_visual_blocks=32,
-        axes_dims=(16, 24, 24), rope_scale_factor=(1.0, 2.0, 2.0),
-        dtype=None, device=None, operations=None, **kwargs
+            self,
+            in_visual_dim=16, out_visual_dim=16, in_text_dim=3584, in_text_dim2=768, time_dim=512,
+            model_dim=1792, ff_dim=7168, visual_embed_dim=132, patch_size=(1, 2, 2), num_text_blocks=2, num_visual_blocks=32,
+            axes_dims=(16, 24, 24), rope_scale_factor=(1.0, 2.0, 2.0),
+            dtype=None, device=None, operations=None, **kwargs
     ):
         super().__init__()
         head_dim = sum(axes_dims)
@@ -308,15 +329,19 @@ class Kandinsky5(nn.Module):
         self.rope_embedder_3d = EmbedND(dim=head_dim, theta=10000.0, axes_dim=axes_dims)
         self.rope_embedder_1d = EmbedND(dim=head_dim, theta=10000.0, axes_dim=[head_dim])
 
-    def rope_encode_1d(self, seq_len, seq_start=0, steps=None, device=None, dtype=None, transformer_options={}):
+    def rope_encode_1d(self, seq_len, seq_start=0, steps=None, device=None, dtype=None, transformer_options=None):
+        if transformer_options is None:
+            transformer_options = {}
         steps = seq_len if steps is None else steps
         seq_ids = torch.linspace(seq_start, seq_start + (seq_len - 1), steps=steps, device=device, dtype=dtype)
         seq_ids = seq_ids.reshape(-1, 1).unsqueeze(0)  # Shape: (1, steps, 1)
         freqs = self.rope_embedder_1d(seq_ids).movedim(1, 2)
         return freqs
 
-    def rope_encode_3d(self, t, h, w, t_start=0, steps_t=None, steps_h=None, steps_w=None, device=None, dtype=None, transformer_options={}):
+    def rope_encode_3d(self, t, h, w, t_start=0, steps_t=None, steps_h=None, steps_w=None, device=None, dtype=None, transformer_options=None):
 
+        if transformer_options is None:
+            transformer_options = {}
         patch_size = self.patch_size
         t_len = ((t + (patch_size[0] // 2)) // patch_size[0])
         h_len = ((h + (patch_size[1] // 2)) // patch_size[1])
@@ -342,7 +367,7 @@ class Kandinsky5(nn.Module):
             w_start += rope_options.get("shift_x", 0.0)
         else:
             rope_scale_factor = self.rope_scale_factor
-            if self.model_dim == 4096: # pro video model uses different rope scaling at higher resolutions
+            if self.model_dim == 4096:  # pro video model uses different rope scaling at higher resolutions
                 if h * w >= 14080:
                     rope_scale_factor = (1.0, 3.16, 3.16)
 
@@ -359,7 +384,9 @@ class Kandinsky5(nn.Module):
         freqs = self.rope_embedder_3d(img_ids).movedim(1, 2)
         return freqs
 
-    def forward_orig(self, x, timestep, context, y, freqs, freqs_text, transformer_options={}, **kwargs):
+    def forward_orig(self, x, timestep, context, y, freqs, freqs_text, transformer_options=None, **kwargs):
+        if transformer_options is None:
+            transformer_options = {}
         patches_replace = transformer_options.get("patches_replace", {})
         context = self.text_embeddings(context)
         time_embed = self.time_embeddings(timestep, x.dtype) + self.pooled_text_embeddings(y)
@@ -379,6 +406,7 @@ class Kandinsky5(nn.Module):
             if ("double_block", i) in blocks_replace:
                 def block_wrap(args):
                     return block(x=args["x"], context=args["context"], time_embed=args["time_embed"], freqs=args["freqs"], transformer_options=args.get("transformer_options"))
+
                 visual_embed = blocks_replace[("double_block", i)]({"x": visual_embed, "context": context, "time_embed": time_embed, "freqs": freqs, "transformer_options": transformer_options}, {"original_block": block_wrap})["x"]
             else:
                 visual_embed = block(visual_embed, context, time_embed, freqs=freqs, transformer_options=transformer_options)
@@ -386,15 +414,17 @@ class Kandinsky5(nn.Module):
         visual_embed = visual_embed.reshape(*visual_shape, -1)
         return self.out_layer(visual_embed, time_embed)
 
-    def _forward(self, x, timestep, context, y, time_dim_replace=None, transformer_options={}, **kwargs):
+    def _forward(self, x, timestep, context, y, time_dim_replace=None, transformer_options=None, **kwargs):
+        if transformer_options is None:
+            transformer_options = {}
         original_dims = x.ndim
         if original_dims == 4:
             x = x.unsqueeze(2)
         bs, c, t_len, h, w = x.shape
-        x = comfy.ldm.common_dit.pad_to_patch_size(x, self.patch_size)
+        x = pad_to_patch_size(x, self.patch_size)
 
         if time_dim_replace is not None:
-            time_dim_replace = comfy.ldm.common_dit.pad_to_patch_size(time_dim_replace, self.patch_size)
+            time_dim_replace = pad_to_patch_size(time_dim_replace, self.patch_size)
             x[:, :time_dim_replace.shape[1], :time_dim_replace.shape[2]] = time_dim_replace
 
         freqs = self.rope_encode_3d(t_len, h, w, device=x.device, dtype=x.dtype, transformer_options=transformer_options)
@@ -405,9 +435,11 @@ class Kandinsky5(nn.Module):
             out = out.squeeze(2)
         return out
 
-    def forward(self, x, timestep, context, y, time_dim_replace=None, transformer_options={}, **kwargs):
-        return comfy.patcher_extension.WrapperExecutor.new_class_executor(
+    def forward(self, x, timestep, context, y, time_dim_replace=None, transformer_options=None, **kwargs):
+        if transformer_options is None:
+            transformer_options = {}
+        return patcher_extension.WrapperExecutor.new_class_executor(
             self._forward,
             self,
-            comfy.patcher_extension.get_all_wrappers(comfy.patcher_extension.WrappersMP.DIFFUSION_MODEL, transformer_options)
+            patcher_extension.get_all_wrappers(patcher_extension.WrappersMP.DIFFUSION_MODEL, transformer_options)
         ).execute(x, timestep, context, y, time_dim_replace=time_dim_replace, transformer_options=transformer_options, **kwargs)

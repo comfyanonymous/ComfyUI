@@ -19,6 +19,7 @@ from typing import Optional
 
 import torch
 import logging
+logger = logging.getLogger(__name__)
 from . import model_base
 from . import utils
 from . import latent_formats
@@ -123,5 +124,5 @@ class BASE:
         self.manual_cast_dtype = manual_cast_dtype
 
     def __getattr__(self, name):
-        logging.warning("\nWARNING, you accessed {} from the model config object which doesn't exist. Please fix your code.\n".format(name))
+        logger.warning("\nWARNING, you accessed {} from the model config object which doesn't exist. Please fix your code.\n".format(name))
         return None

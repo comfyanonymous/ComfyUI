@@ -6,6 +6,8 @@ import collections
 from dataclasses import dataclass
 from abc import ABC, abstractmethod
 import logging
+
+from . import patcher_extension
 from .model_management import throw_exception_if_processing_interrupted
 from .patcher_extension import get_all_callbacks, WrappersMP
 
@@ -132,7 +134,7 @@ class IndexListContextHandler(ContextHandlerABC):
         if x_in.size(self.dim) > self.context_length:
             logger.info(f"Using context windows {self.context_length} with overlap {self.context_overlap} for {x_in.size(self.dim)} frames.")
             if self.cond_retain_index_list:
-                logging.info(f"Retaining original cond for indexes: {self.cond_retain_index_list}")
+                logger.info(f"Retaining original cond for indexes: {self.cond_retain_index_list}")
             return True
         return False
 
@@ -149,7 +151,7 @@ class IndexListContextHandler(ContextHandlerABC):
         # if multiple conds, split based on primary region
         if self.split_conds_to_windows and len(cond_in) > 1:
             region = window.get_region_index(len(cond_in))
-            logging.info(f"Splitting conds to windows; using region {region} for window {window[0]}-{window[-1]} with center ratio {window.center_ratio:.3f}")
+            logger.info(f"Splitting conds to windows; using region {region} for window {window[0]}-{window[-1]} with center ratio {window.center_ratio:.3f}")
             cond_in = [cond_in[region]]
         # cond object is a list containing a dict - outer list is irrelevant, so just loop through it
         for actual_cond in cond_in:
@@ -337,7 +339,7 @@ def _sampler_sample_wrapper(executor, guider, sigmas, extra_args, callback, nois
 
 def create_sampler_sample_wrapper(model: ModelPatcher):
     model.add_wrapper_with_key(
-        comfy.patcher_extension.WrappersMP.SAMPLER_SAMPLE,
+        patcher_extension.WrappersMP.SAMPLER_SAMPLE,
         "ContextWindows_sampler_sample",
         _sampler_sample_wrapper
     )
@@ -606,7 +608,7 @@ def shift_window_to_end(window: list[int], num_frames: int):
 
 # https://github.com/Kosinkadink/ComfyUI-AnimateDiff-Evolved/blob/90fb1331201a4b29488089e4fbffc0d82cc6d0a9/animatediff/sample_settings.py#L465
 def apply_freenoise(noise: torch.Tensor, dim: int, context_length: int, context_overlap: int, seed: int):
-    logging.info("Context windows: Applying FreeNoise")
+    logger.info("Context windows: Applying FreeNoise")
     generator = torch.Generator(device='cpu').manual_seed(seed)
     latent_video_length = noise.shape[dim]
     delta = context_length - context_overlap

@@ -3,6 +3,7 @@ from __future__ import annotations
 import copy
 import dataclasses
 from abc import ABCMeta, abstractmethod
+import weakref
 from typing import Any, Callable, Protocol, runtime_checkable, Optional, TypeVar, NamedTuple, TYPE_CHECKING
 
 import torch
@@ -344,17 +345,19 @@ class ModelManageableStub(HooksSupportStub, TrainingSupportStub, ModelManageable
         return copy.copy(self)
 
 
-@dataclasses.dataclass
 class MemoryMeasurements:
-    model: torch.nn.Module | DeviceSettable
-    model_loaded_weight_memory: int = 0
-    lowvram_patch_counter: int = 0
-    model_lowvram: bool = False
-    current_weight_patches_uuid: Any = None
-    _device: torch.device | None = None
-
-    def __init__(self):
+    def __init__(self, model):
+        self.model_loaded_weight_memory: int = 0
+        self.lowvram_patch_counter: int = 0
+        self.model_lowvram: bool = False
+        self.current_weight_patches_uuid: Any = None
+        self._device: torch.device | None = None
         self.model_offload_buffer_memory = None
+        self._model_ref = weakref.ref(model)
+
+    @property
+    def model(self):
+        return self._model_ref()
 
     @property
     def device(self) -> torch.device:

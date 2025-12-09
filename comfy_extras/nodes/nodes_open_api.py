@@ -766,7 +766,7 @@ class SaveImagesResponse(CustomNode):
                         json.dump(fsspec_metadata, f)
 
             except Exception as e:
-                logging.error(f"Error while trying to save file with fsspec_url {uri}", exc_info=e)
+                logger.error(f"Error while trying to save file with fsspec_url {uri}", exc_info=e)
                 abs_path = "" if local_path is None else os.path.abspath(local_path)
 
             if is_null_uri(local_path):
@@ -774,7 +774,7 @@ class SaveImagesResponse(CustomNode):
                 subfolder = ""
             # this results in a second file being saved - when a local path
             elif uri_is_remote:
-                logging.debug(f"saving this uri locally : {local_path}")
+                logger.debug(f"saving this uri locally : {local_path}")
                 os.makedirs(os.path.dirname(local_path), exist_ok=True)
 
                 if save_method == 'pil':
