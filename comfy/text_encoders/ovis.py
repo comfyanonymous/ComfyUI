@@ -55,12 +55,9 @@ class OvisTEModel(sd1_clip.SD1ClipModel):
         return out, pooled, {}
 
 
-def te(dtype_llama=None, llama_scaled_fp8=None, llama_quantization_metadata=None):
+def te(dtype_llama=None, llama_quantization_metadata=None):
     class OvisTEModel_(OvisTEModel):
         def __init__(self, device="cpu", dtype=None, model_options={}):
-            if llama_scaled_fp8 is not None and "scaled_fp8" not in model_options:
-                model_options = model_options.copy()
-                model_options["scaled_fp8"] = llama_scaled_fp8
             if dtype_llama is not None:
                 dtype = dtype_llama
             if llama_quantization_metadata is not None:

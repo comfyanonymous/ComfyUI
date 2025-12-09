@@ -92,6 +92,7 @@ class PikaImageToVideo(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
+            is_deprecated=True,
         )
 
     @classmethod
@@ -152,6 +153,7 @@ class PikaTextToVideoNode(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
+            is_deprecated=True,
         )
 
     @classmethod
@@ -239,6 +241,7 @@ class PikaScenes(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
+            is_deprecated=True,
         )
 
     @classmethod
@@ -323,6 +326,7 @@ class PikAdditionsNode(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
+            is_deprecated=True,
         )
 
     @classmethod
@@ -399,6 +403,7 @@ class PikaSwapsNode(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
+            is_deprecated=True,
         )
 
     @classmethod
@@ -466,6 +471,7 @@ class PikaffectsNode(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
+            is_deprecated=True,
         )
 
     @classmethod
@@ -515,6 +521,7 @@ class PikaStartEndFrameNode(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
+            is_deprecated=True,
         )
 
     @classmethod
