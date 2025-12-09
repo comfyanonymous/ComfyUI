@@ -119,14 +119,7 @@ def cast_bias_weight(s, input=None, dtype=None, device=None, bias_dtype=None, of
         offload_stream = model_management.get_offload_stream(device)
     else:
         offload_stream = None
-    if offload_stream is not None:
-        wf_context = offload_stream
-        if hasattr(wf_context, "as_context"):
-            wf_context = wf_context.as_context(offload_stream)
-    else:
-        wf_context = contextlib.nullcontext()
 
-    # todo: how is wf_context used?
     non_blocking = model_management.device_supports_non_blocking(device)
 
     weight_has_function = len(s.weight_function) > 0
