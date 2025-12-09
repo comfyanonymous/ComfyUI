@@ -160,7 +160,6 @@ class ChromaRadiance(Chroma):
         self.lite = False
 
         if params.use_x0:
-            print("the model is using x0 prediction")
             self.register_buffer("__x0__", torch.tensor([]))
 
     @property
