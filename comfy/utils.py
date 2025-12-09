@@ -803,12 +803,17 @@ def safetensors_header(safetensors_path, max_size=100*1024*1024):
             return None
         return f.read(length_of_header)
 
+ATTR_UNSET={}
+
 def set_attr(obj, attr, value):
     attrs = attr.split(".")
     for name in attrs[:-1]:
         obj = getattr(obj, name)
-    prev = getattr(obj, attrs[-1])
-    setattr(obj, attrs[-1], value)
+    prev = getattr(obj, attrs[-1], ATTR_UNSET)
+    if value is ATTR_UNSET:
+        delattr(obj, attrs[-1])
+    else:
+        setattr(obj, attrs[-1], value)
     return prev
 
 def set_attr_param(obj, attr, value):
