@@ -127,6 +127,8 @@ class CLIP:
 
         self.tokenizer = tokenizer(embedding_directory=embedding_directory, tokenizer_data=tokenizer_data)
         self.patcher = comfy.model_patcher.ModelPatcher(self.cond_stage_model, load_device=load_device, offload_device=offload_device)
+        #Match torch.float32 hardcode upcast in TE implemention
+        self.patcher.set_model_compute_dtype(torch.float32)
         self.patcher.hook_mode = comfy.hooks.EnumHookMode.MinVram
         self.patcher.is_clip = True
         self.apply_hooks_to_conds = None
