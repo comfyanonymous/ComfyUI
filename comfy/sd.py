@@ -536,6 +536,21 @@ class VAE:
                     self.working_dtypes = [torch.bfloat16, torch.float16, torch.float32]
                     self.memory_used_encode = lambda shape, dtype: 3300 * shape[3] * shape[4] * model_management.dtype_size(dtype)
                     self.memory_used_decode = lambda shape, dtype: 8000 * shape[3] * shape[4] * (16 * 16) * model_management.dtype_size(dtype)
+                elif "qwen_image" in sd:  # Qwen-Image-Edit/Qwen-Image
+                    logging.info("qwen-image tag detected, loaded vae in qwen-image memory_used.")
+                    self.upscale_ratio = (lambda a: max(0, a * 4 - 3), 8, 8)
+                    self.upscale_index_formula = (4, 8, 8)
+                    self.downscale_ratio = (lambda a: max(0, math.floor((a + 3) / 4)), 8, 8)
+                    self.downscale_index_formula = (4, 8, 8)
+                    self.latent_dim = 3
+                    self.latent_channels = 16
+                    ddconfig = {"dim": 96, "z_dim": self.latent_channels, "dim_mult": [1, 2, 4, 4], "num_res_blocks": 2, "attn_scales": [], "temperal_downsample": [False, True, True], "dropout": 0.0}
+                    self.first_stage_model = comfy.ldm.wan.vae.WanVAE(**ddconfig)
+                    self.working_dtypes = [torch.bfloat16, torch.float16, torch.float32]
+                    # One Picture Minimum limit value 1496.23
+                    self.memory_used_encode = lambda shape, dtype: 1500 * shape[3] * shape[4] * model_management.dtype_size(dtype)
+                    # One Picture Minimum limit value 2164
+                    self.memory_used_decode = lambda shape, dtype: 2200 * shape[3] * shape[4] * (8 * 8) * model_management.dtype_size(dtype)
                 else:  # Wan 2.1 VAE
                     dim = sd["decoder.head.0.gamma"].shape[0]
                     self.upscale_ratio = (lambda a: max(0, a * 4 - 3), 8, 8)
