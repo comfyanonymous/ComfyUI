@@ -22,7 +22,6 @@ import comfy.model_management
 from comfy.cli_args import args, PerformanceFeature
 import comfy.float
 import comfy.rmsnorm
-import contextlib
 import json
 
 def run_every_op():
@@ -93,13 +92,6 @@ def cast_bias_weight(s, input=None, dtype=None, device=None, bias_dtype=None, of
         offload_stream = comfy.model_management.get_offload_stream(device)
     else:
         offload_stream = None
-
-    if offload_stream is not None:
-        wf_context = offload_stream
-        if hasattr(wf_context, "as_context"):
-            wf_context = wf_context.as_context(offload_stream)
-    else:
-        wf_context = contextlib.nullcontext()
 
     non_blocking = comfy.model_management.device_supports_non_blocking(device)
 
