@@ -105,27 +105,46 @@ class SeedVR2InputProcessing(io.ComfyNode):
             category="image/video",
             inputs = [
                 io.Image.Input("images"),
-                io.Int.Input("resolution_height"),
-                io.Int.Input("resolution_width")
+                io.Vae.Input("vae"),
+                io.Int.Input("resolution_height", default = 1280, min = 120), # //
+                io.Int.Input("resolution_width", default = 720, min = 120) # just non-zero value
             ],
             outputs = [
-                io.Image.Output("processed_images")
+                io.Latent.Output("vae_conditioning")
             ]
         )
     
     @classmethod
-    def execute(cls, images, resolution_height, resolution_width):
-        images = images.permute(0, 3, 1, 2) 
+    def execute(cls, images, vae, resolution_height, resolution_width):
+        vae = vae.first_stage_model
+        scale = 0.9152; shift = 0
+
+        if images.dim() != 5: # add the t dim
+            images = images.unsqueeze(0)
+        images = images.permute(0, 1, 4, 2, 3) 
+
+        b, t, c, h, w = images.shape
+        images = images.reshape(b * t, c, h, w)
+
         max_area = ((resolution_height * resolution_width)** 0.5) ** 2
         clip = Lambda(lambda x: torch.clamp(x, 0.0, 1.0))
         normalize = Normalize(0.5, 0.5)
         images = area_resize(images, max_area)
+
         images = clip(images)
         images = crop(images, (16, 16))
         images = normalize(images)
-        images = rearrange(images, "t c h w -> c t h w")
+        _, _, new_h, new_w = images.shape
+
+        images = images.reshape(b, t, c, new_h, new_w)
         images = cut_videos(images)
-        return io.NodeOutput(images)
+
+        images = rearrange(images, "b t c h w -> b c t h w")
+        latent = vae.encode(images)[0]
+
+        latent = (latent - shift) * scale
+
+        return io.NodeOutput({"samples": latent})
 
 class SeedVR2Conditioning(io.ComfyNode):
     @classmethod
@@ -150,8 +169,8 @@ class SeedVR2Conditioning(io.ComfyNode):
         pos_cond = text_positive_conditioning[0][0]
         neg_cond = text_negative_conditioning[0][0]
 
-        noises = [torch.randn_like(latent) for latent in vae_conditioning]
-        aug_noises = [torch.randn_like(latent) for latent in vae_conditioning]
+        noises = torch.randn_like(vae_conditioning)
+        aug_noises =  torch.randn_like(vae_conditioning)
 
         cond_noise_scale = 0.0
         t = (
@@ -165,8 +184,8 @@ class SeedVR2Conditioning(io.ComfyNode):
 
         pos_shape = pos_cond.shape[1]
         neg_shape = neg_shape.shape[1]
-        diff = abs(pos_shape.shape[1] - neg_shape.shape[1])
-        if pos_shape.shape[1] > neg_shape.shape[1]:
+        diff = abs(pos_shape - neg_shape)
+        if pos_shape > neg_shape:
             neg_cond = F.pad(neg_cond, (0, 0, 0, diff))
         else:
             pos_cond = F.pad(pos_cond, (0, 0, 0, diff))
