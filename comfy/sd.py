@@ -548,7 +548,7 @@ class VAE:
                     self.first_stage_model = comfy.ldm.wan.vae.WanVAE(**ddconfig)
                     self.working_dtypes = [torch.bfloat16, torch.float16, torch.float32]
                     self.memory_used_encode = lambda shape, dtype: (1500 if shape[2]<=4 else 6000) * shape[3] * shape[4] * model_management.dtype_size(dtype)
-                    self.memory_used_decode = lambda shape, dtype: (2050 if shape[2]<=4 else 7000) * shape[3] * shape[4] * (8*8) * model_management.dtype_size(dtype)
+                    self.memory_used_decode = lambda shape, dtype: (2200 if shape[2]<=4 else 7000) * shape[3] * shape[4] * (8*8) * model_management.dtype_size(dtype)
 
 
             # Hunyuan 3d v2 2.0 & 2.1
