@@ -1,11 +1,8 @@
-import unittest
-import torch
-import sys
-import os
 import json
+import unittest
 
-# Add comfy to path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
+import torch
+
 
 def has_gpu():
     return torch.cuda.is_available()

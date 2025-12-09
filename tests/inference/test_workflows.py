@@ -2,6 +2,7 @@ import importlib.resources
 import json
 import logging
 from importlib.abc import Traversable
+from typing import Any, AsyncGenerator
 
 import pytest
 
@@ -16,7 +17,7 @@ logger = logging.getLogger(__name__)
 
 
 @pytest.fixture(scope="function", autouse=False)
-async def client(tmp_path_factory) -> Comfy:
+async def client(tmp_path_factory) -> AsyncGenerator[Any, Any]:
     async with Comfy() as client:
         yield client
 

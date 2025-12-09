@@ -1,21 +1,20 @@
 from __future__ import annotations
 
 import argparse
+import importlib.metadata
 import importlib.resources
 import logging
 import os
 import re
 import tempfile
 import zipfile
-import importlib.metadata
 from dataclasses import dataclass
 from functools import cached_property
 from pathlib import Path
 from typing import Dict, TypedDict, Optional
-from aiohttp import web
-from importlib.metadata import version
 
 import requests
+from aiohttp import web
 from typing_extensions import NotRequired
 
 from ..cli_args import DEFAULT_VERSION_STRING
