@@ -57,7 +57,7 @@ def to_mmap(t: torch.Tensor, filename: Optional[str] = None) -> torch.Tensor:
     """
     # Create temporary file
     if filename is None:
-        temp_file = tempfile.mktemp(suffix='.pt', prefix='comfy_mmap_')
+        temp_file = tempfile.mkstemp(suffix='.pt', prefix='comfy_mmap_')[1]
     else:
         temp_file = filename
     
@@ -65,12 +65,10 @@ def to_mmap(t: torch.Tensor, filename: Optional[str] = None) -> torch.Tensor:
     cpu_tensor = t.cpu()
     torch.save(cpu_tensor, temp_file)
     
-    # If we created a CPU copy from CUDA, delete it to free memory
-    if t.is_cuda:
+    # If we created a CPU copy from other device, delete it to free memory
+    if not t.device.type == 'cpu':
         del cpu_tensor
         gc.collect()
-        if torch.cuda.is_available():
-            torch.cuda.empty_cache()
     
     # Load with mmap - this doesn't load all data into RAM
     mmap_tensor = torch.load(temp_file, map_location='cpu', mmap=True, weights_only=False)
@@ -110,15 +108,9 @@ def model_to_mmap(model: torch.nn.Module):
     logging.debug(f"Converting model {model.__class__.__name__} to mmap, current free cpu memory: {free_cpu_mem/(1024*1024*1024)} GB")
     
     def convert_fn(t):
-        """Convert function for _apply()
-        
-        - For Parameters: modify .data and return the Parameter object
-        - For buffers (plain Tensors): return new MemoryMappedTensor
-        """
         if isinstance(t, QuantizedTensor):
-            logging.debug(f"QuantizedTensor detected, skipping mmap conversion, tensor meta info: size {t.size()}, dtype {t.dtype}, device {t.device}, is_contiguous {t.is_contiguous()}")
-            return t
-        elif isinstance(t, torch.nn.Parameter):
+            logging.debug(f"QuantizedTensor detected, tensor meta info: size {t.size()}, dtype {t.dtype}, device {t.device}, is_contiguous {t.is_contiguous()}")
+        if isinstance(t, torch.nn.Parameter):
             new_tensor = to_mmap(t.detach())
             return torch.nn.Parameter(new_tensor, requires_grad=t.requires_grad)
         elif isinstance(t, torch.Tensor):

@@ -5,6 +5,11 @@ import psutil
 import os
 import gc
 import tempfile
+import sys
+
+# Ensure the project root is on the Python path (so `import comfy` works when running tests from this folder)
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
+
 from comfy.model_patcher import model_to_mmap, to_mmap
 
 
