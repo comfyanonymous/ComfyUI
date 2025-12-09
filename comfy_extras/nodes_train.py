@@ -341,7 +341,7 @@ class TrainSampler(comfy.samplers.Sampler):
             if (i + 1) % self.grad_acc == 0:
                 self.optimizer.step()
                 self.optimizer.zero_grad()
-                ui_pbar.update(1)
+            ui_pbar.update(1)
         torch.cuda.empty_cache()
         return torch.zeros_like(latent_image)
 
