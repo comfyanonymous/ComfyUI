@@ -257,6 +257,8 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
                 dit_config["nerf_tile_size"] = 512
                 dit_config["nerf_final_head_type"] = "conv" if f"{key_prefix}nerf_final_layer_conv.norm.scale" in state_dict_keys else "linear"
                 dit_config["nerf_embedder_dtype"] = torch.float32
+            if "__x0__" in state_dict_keys: # x0 pred
+                dit_config["use_x0"] = True
         else:
             dit_config["guidance_embed"] = "{}guidance_in.in_layer.weight".format(key_prefix) in state_dict_keys
             dit_config["yak_mlp"] = '{}double_blocks.0.img_mlp.gate_proj.weight'.format(key_prefix) in state_dict_keys
@@ -423,6 +425,9 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
             dit_config["axes_lens"] = [300, 512, 512]
             dit_config["rope_theta"] = 10000.0
             dit_config["ffn_dim_multiplier"] = 4.0
+            ctd_weight = state_dict.get('{}clip_text_pooled_proj.0.weight'.format(key_prefix), None)
+            if ctd_weight is not None:
+                dit_config["clip_text_dim"] = ctd_weight.shape[0]
         elif dit_config["dim"] == 3840:  # Z image
             dit_config["n_heads"] = 30
             dit_config["n_kv_heads"] = 30
