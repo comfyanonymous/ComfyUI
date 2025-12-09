@@ -164,6 +164,7 @@ def low_vram_patch_estimate_vram(model, key):
     if model_dtype is None:
         model_dtype = weight.dtype
 
+    # todo: model_dtype is an instance of Elipses, so you really shouldn't do this
     return weight.numel() * model_dtype.itemsize * LOWVRAM_PATCH_ESTIMATE_MATH_FACTOR
 
 
@@ -780,6 +781,7 @@ class ModelPatcher(ModelManageable, PatchSupport):
                         if (weight.dtype != model_dtype or isinstance(weight, QuantizedTensor)):
                             return weight.numel() * model_dtype.itemsize
                         return 0
+
                     module_offload_mem += check_module_offload_mem("{}.weight".format(n))
                     module_offload_mem += check_module_offload_mem("{}.bias".format(n))
                 loading.append(LoadingListItem(module_offload_mem, module_mem, n, m, params))
