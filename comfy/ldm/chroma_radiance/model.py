@@ -284,7 +284,7 @@ class ChromaRadiance(Chroma):
         # non zero during training to prevent 0 div
         eps = 0.0
         return (noisy - predicted) / (timesteps.view(-1,1,1,1) + eps)
-    
+
     def _forward(
         self,
         x: Tensor,
