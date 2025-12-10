@@ -1109,7 +1109,7 @@ class DynamicSlot(ComfyTypeI):
             return [self.slot] + self.inputs
 
         def get_all(self) -> list[Input]:
-            return [self] + [self.slot] + self.inputs
+            return [self.slot] + self.inputs
 
         def as_dict(self):
             return super().as_dict() | prune_dict({
