@@ -307,7 +307,7 @@ packages = ["comfy/", "comfy_extras/", "comfy_api/", "comfy_api_nodes/", "comfy_
 
 [tool.pylint.master]
 py-version = "3.10"
-extension-pkg-allow-list = ["pydantic", "cv2"]
+extension-pkg-allow-list = ["pydantic", "cv2", "transformers"]
 ignore-paths = ["^comfy/api/.*$"]
 ignored-modules = ["sentencepiece.*", "comfy.api", "comfy.cmd.folder_paths"]
 init-hook = 'import sys; sys.path.insert(0, ".")'

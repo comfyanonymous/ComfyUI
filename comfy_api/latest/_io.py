@@ -1,4 +1,5 @@
 from __future__ import annotations
+# pylint: disable=no-self-argument, unexpected-keyword-arg
 
 import copy
 import inspect
