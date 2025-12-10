@@ -5,11 +5,11 @@ from typing import Type, TYPE_CHECKING
 from comfy_api.internal import ComfyAPIBase
 from comfy_api.internal.singleton import ProxiedSingleton
 from comfy_api.internal.async_to_sync import create_sync_class
-from comfy_api.latest._input import ImageInput, AudioInput, MaskInput, LatentInput, VideoInput
-from comfy_api.latest._input_impl import VideoFromFile, VideoFromComponents
-from comfy_api.latest._util import VideoCodec, VideoContainer, VideoComponents, MESH, VOXEL
-from . import _io as io
-from . import _ui as ui
+from ._input import ImageInput, AudioInput, MaskInput, LatentInput, VideoInput
+from ._input_impl import VideoFromFile, VideoFromComponents
+from ._util import VideoCodec, VideoContainer, VideoComponents, MESH, VOXEL
+from . import _io_public as io
+from . import _ui_public as ui
 # from comfy_api.latest._resources import _RESOURCES as resources  #noqa: F401
 from comfy_execution.utils import get_executing_context
 from comfy_execution.progress import get_progress_state, PreviewImageTuple
@@ -80,7 +80,7 @@ class ComfyExtension(ABC):
     async def on_load(self) -> None:
         """
         Called when an extension is loaded.
-        This should be used to initialize any global resources neeeded by the extension.
+        This should be used to initialize any global resources needed by the extension.
         """
 
     @abstractmethod
