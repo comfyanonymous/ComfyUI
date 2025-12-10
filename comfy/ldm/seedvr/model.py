@@ -1300,8 +1300,7 @@ class NaDiT(nn.Module):
         **kwargs
     ):  
         transformer_options = kwargs.get("transformer_options", {})
-        c_or_u_list = transformer_options.get("cond_or_uncond", [])
-        cond_latent = c_or_u_list[0]["condition"]
+        conditions = kwargs.get("condition")
 
         pos_cond, neg_cond = context.chunk(2, dim=0)
         # txt_shape should be the same for both
@@ -1312,11 +1311,16 @@ class NaDiT(nn.Module):
 
         vid = x
         vid, vid_shape = flatten(x)
+        cond_latent, _ = flatten(conditions)
 
-        vid = torch.cat([cond_latent, vid])
+        vid = torch.cat([cond_latent, vid], dim=-1)
         if txt_shape.size(-1) == 1 and self.need_txt_repeat:
             txt, txt_shape = repeat(txt, txt_shape, "l c -> t l c", t=vid_shape[:, 0])
 
+        device = next(self.parameters()).device
+        dtype = next(self.parameters()).dtype
+        txt = txt.to(device).to(dtype)
+        vid = vid.to(device).to(dtype)
         txt = self.txt_in(txt)
 
         vid, vid_shape = self.vid_in(vid, vid_shape)

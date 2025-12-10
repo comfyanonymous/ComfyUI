@@ -39,7 +39,7 @@ def timestep_transform(timesteps, latents_shapes):
         frames > 1,
         vid_shift_fn(heights * widths * frames),
         img_shift_fn(heights * widths),
-    )
+    ).to(timesteps.device)
 
     # Shift timesteps.
     T = 1000.0
@@ -116,6 +116,7 @@ class SeedVR2InputProcessing(io.ComfyNode):
     
     @classmethod
     def execute(cls, images, vae, resolution_height, resolution_width):
+        device = vae.patcher.load_device
         vae = vae.first_stage_model
         scale = 0.9152; shift = 0
 
@@ -140,6 +141,8 @@ class SeedVR2InputProcessing(io.ComfyNode):
         images = cut_videos(images)
 
         images = rearrange(images, "b t c h w -> b c t h w")
+        vae = vae.to(device)
+        images = images.to(device)
         latent = vae.encode(images)[0]
 
         latent = (latent - shift) * scale
@@ -166,24 +169,25 @@ class SeedVR2Conditioning(io.ComfyNode):
     def execute(cls, text_positive_conditioning, text_negative_conditioning, vae_conditioning) -> io.NodeOutput:
         
         vae_conditioning = vae_conditioning["samples"]
+        device = vae_conditioning.device
         pos_cond = text_positive_conditioning[0][0]
         neg_cond = text_negative_conditioning[0][0]
 
-        noises = torch.randn_like(vae_conditioning)
-        aug_noises =  torch.randn_like(vae_conditioning)
+        noises = torch.randn_like(vae_conditioning).to(device)
+        aug_noises =  torch.randn_like(vae_conditioning).to(device)
 
         cond_noise_scale = 0.0
         t = (
             torch.tensor([1000.0])
             * cond_noise_scale
-        )
-        shape = torch.tensor(vae_conditioning.shape[1:])[None]
+        ).to(device)
+        shape = torch.tensor(vae_conditioning.shape[1:]).to(device)[None]
         t = timestep_transform(t, shape)
         cond = inter(vae_conditioning, aug_noises, t)
         condition = get_conditions(noises, cond)
 
         pos_shape = pos_cond.shape[1]
-        neg_shape = neg_shape.shape[1]
+        neg_shape = neg_cond.shape[1]
         diff = abs(pos_shape - neg_shape)
         if pos_shape > neg_shape:
             neg_cond = F.pad(neg_cond, (0, 0, 0, diff))

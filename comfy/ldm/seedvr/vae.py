@@ -330,6 +330,17 @@ def safe_interpolate_operation(x, size=None, scale_factor=None, mode='nearest', 
 
 _receptive_field_t = Literal["half", "full"]
 
+def extend_head(tensor, times: int = 2, memory = None):
+    if memory is not None:
+        return torch.cat((memory.to(tensor), tensor), dim=2)
+    assert times >= 0, "Invalid input for function 'extend_head'!"
+    if times == 0:
+        return tensor
+    else:
+        tile_repeat = [1] * tensor.ndim
+        tile_repeat[2] = times
+        return torch.cat(tensors=(torch.tile(tensor[:, :, :1], tile_repeat), tensor), dim=2)
+
 class InflatedCausalConv3d(nn.Conv3d):
     def __init__(
         self,
@@ -348,6 +359,7 @@ class InflatedCausalConv3d(nn.Conv3d):
         self,
         input,
     ):
+        input = extend_head(input, times=self.temporal_padding * 2)
         return super().forward(input)
 
     def _load_from_state_dict(
@@ -514,6 +526,8 @@ class Downsample3D(nn.Module):
         self.out_channels = out_channels or channels
         self.temporal_down = temporal_down
         self.spatial_down = spatial_down
+        self.use_conv = use_conv
+        self.padding = padding
 
         self.temporal_ratio = 2 if temporal_down else 1
         self.spatial_ratio = 2 if spatial_down else 1
@@ -630,6 +644,7 @@ class ResnetBlock3D(nn.Module):
             inflation_mode=inflation_mode,
         )
 
+        self.upsample = self.downsample = None
         if self.up:
             self.upsample = Upsample3D(
                 self.in_channels,
@@ -646,6 +661,7 @@ class ResnetBlock3D(nn.Module):
                 inflation_mode=inflation_mode,
             )
 
+        self.conv_shortcut = None
         if self.use_in_shortcut:
             self.conv_shortcut = InflatedCausalConv3d(
                 self.in_channels,
@@ -1093,6 +1109,7 @@ class Encoder3D(nn.Module):
         extra_cond=None,
     ) -> torch.FloatTensor:
         r"""The forward method of the `Encoder` class."""
+        sample = sample.to(next(self.parameters()).device)
         sample = self.conv_in(sample)
         if self.training and self.gradient_checkpointing:
 
@@ -1450,8 +1467,9 @@ class VideoAutoencoderKLWrapper(VideoAutoencoderKL):
         if x.ndim == 4:
             x = x.unsqueeze(2)
         x = x.to(next(self.parameters()).dtype)
-        p = super().encode(x).latent_dist
-        z = p.sample().squeeze(2)
+        x = x.to(next(self.parameters()).device)
+        p = super().encode(x)
+        z = p.squeeze(2)
         return z, p
 
     def decode(self, z: torch.FloatTensor):

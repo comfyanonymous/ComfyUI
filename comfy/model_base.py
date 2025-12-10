@@ -798,7 +798,11 @@ class HunyuanDiT(BaseModel):
 class SeedVR2(BaseModel):
     def __init__(self, model_config, model_type=ModelType.FLOW, device=None):
         super().__init__(model_config, model_type, device, comfy.ldm.seedvr.model.NaDiT)
-    # TODO: extra_conds could be needed to add
+    def extra_conds(self, **kwargs):
+        out = super().extra_conds(**kwargs)
+        condition = kwargs.get("condition", None)
+        out["condition"] = comfy.conds.CONDRegular(condition)
+        return out
 
 class PixArt(BaseModel):
     def __init__(self, model_config, model_type=ModelType.EPS, device=None):
