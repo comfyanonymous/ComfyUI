@@ -27,7 +27,7 @@ dependencies = [
     "torchsde>=0.2.6",
     "einops>=0.6.0",
     "open-clip-torch>=2.24.0",
-    "transformers>=4.57.1",
+    "transformers>=4.57.1,<5",
     "tokenizers>=0.13.3",
     "sentencepiece",
     "peft>=0.10.0",
