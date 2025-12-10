@@ -86,14 +86,12 @@ async def _prompt_worker(q: AbstractPromptQueue, server_instance: server_module.
             for k in sensitive:
                 extra_data[k] = sensitive[k]
 
-            e.execute(item[2], prompt_id, extra_data, item[4])
-
+            # todo: ??? what jank
             remove_sensitive = lambda prompt: prompt[:5] + prompt[6:]
 
             await e.execute_async(item[2], prompt_id, item[3], item[4])
             need_gc = True
 
-            # Extract error details from status_messages if there's an error
             error_details = None
             if not e.success:
                 for event, data in e.status_messages:
@@ -101,7 +99,6 @@ async def _prompt_worker(q: AbstractPromptQueue, server_instance: server_module.
                         error_details = data
                         break
 
-            # Convert status_messages tuples to string messages for backward compatibility
             messages = [f"{event}: {data.get('exception_message', str(data))}" if isinstance(data, dict) and 'exception_message' in data else f"{event}" for event, data in e.status_messages]
 
             q.task_done(item_id,
@@ -150,8 +147,8 @@ async def _prompt_worker(q: AbstractPromptQueue, server_instance: server_module.
                 hook_breaker_ac10a0.restore_functions()
 
 
-def prompt_worker(q, server):
-    asyncio.run(_prompt_worker(q, server))
+def prompt_worker(q: AbstractPromptQueue, server_instance: server_module.PromptServer):
+    asyncio.run(_prompt_worker(q, server_instance))
 
 
 async def run(server_instance, address='', port=8188, call_on_start=None):

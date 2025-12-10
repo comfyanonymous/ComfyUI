@@ -25,8 +25,8 @@ def _generate_config_params():
         "use_pytorch_cross_attention",
         # "use_split_cross_attention",
         # "use_quad_cross_attention",
-        "use_sage_attention",
-        "use_flash_attention"
+        # "use_sage_attention",
+        # "use_flash_attention"
     ]
     attn_options = [
         {k: (k == target_key) for k in attn_keys}
@@ -35,17 +35,17 @@ def _generate_config_params():
 
     async_options = [
         {"disable_async_offload": False},
-        {"disable_async_offload": True},
+        # {"disable_async_offload": True},
     ]
     pinned_options = [
         {"disable_pinned_memory": False},
-        {"disable_pinned_memory": True},
+        # {"disable_pinned_memory": True},
     ]
     fast_options = [
         {"fast": set()},
-        {"fast": {PerformanceFeature.Fp16Accumulation}},
-        {"fast": {PerformanceFeature.Fp8MatrixMultiplication}},
-        {"fast": {PerformanceFeature.CublasOps}},
+        # {"fast": {PerformanceFeature.Fp16Accumulation}},
+        # {"fast": {PerformanceFeature.Fp8MatrixMultiplication}},
+        # {"fast": {PerformanceFeature.CublasOps}},
     ]
 
     for attn, asnc, pinned, fst in itertools.product(attn_options, async_options, pinned_options, fast_options):
