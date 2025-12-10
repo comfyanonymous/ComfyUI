@@ -2056,7 +2056,7 @@ class KlingExtension(ComfyExtension):
             OmniProImageToVideoNode,
             OmniProVideoToVideoNode,
             OmniProEditVideoNode,
-            # OmniProImageNode,  # need support from backend
+            OmniProImageNode,
         ]
 
 
