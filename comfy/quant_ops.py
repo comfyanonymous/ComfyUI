@@ -2,7 +2,7 @@ import torch
 import logging
 logger = logging.getLogger(__name__)
 from typing import Tuple, Dict
-import comfy.float
+from .float import stochastic_rounding as stochastic_rounding_fn
 
 _LAYOUT_REGISTRY = {}
 _GENERIC_UTILS = {}
@@ -400,7 +400,10 @@ class TensorCoreFP8Layout(QuantizedLayout):
         orig_dtype = tensor.dtype
 
         if isinstance(scale, str) and scale == "recalculate":
-            scale = torch.amax(tensor.abs()) / torch.finfo(dtype).max
+            scale = torch.amax(tensor.abs()).to(dtype=torch.float32) / torch.finfo(dtype).max
+            if tensor.dtype not in [torch.float32, torch.bfloat16]:  # Prevent scale from being too small
+                tensor_info = torch.finfo(tensor.dtype)
+                scale = (1.0 / torch.clamp((1.0 / scale), min=tensor_info.min, max=tensor_info.max))
 
         if scale is not None:
             if not isinstance(scale, torch.Tensor):
@@ -415,7 +418,7 @@ class TensorCoreFP8Layout(QuantizedLayout):
             scale = torch.ones((), device=tensor.device, dtype=torch.float32)
 
         if stochastic_rounding > 0:
-            tensor = comfy.float.stochastic_rounding(tensor, dtype=dtype, seed=stochastic_rounding)
+            tensor = stochastic_rounding_fn(tensor, dtype=dtype, seed=stochastic_rounding)
         else:
             lp_amax = torch.finfo(dtype).max
             torch.clamp(tensor, min=-lp_amax, max=lp_amax, out=tensor)

@@ -189,8 +189,10 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
             dit_config["use_cond_type_embedding"] = False
         if '{}vision_in.proj.0.weight'.format(key_prefix) in state_dict_keys:
             dit_config["vision_in_dim"] = state_dict['{}vision_in.proj.0.weight'.format(key_prefix)].shape[0]
+            dit_config["meanflow_sum"] = True
         else:
             dit_config["vision_in_dim"] = None
+            dit_config["meanflow_sum"] = False
         return dit_config
 
     if '{}double_blocks.0.img_attn.norm.key_norm.scale'.format(key_prefix) in state_dict_keys and ('{}img_in.weight'.format(key_prefix) in state_dict_keys or f"{key_prefix}distilled_guidance_layer.norms.0.scale" in state_dict_keys):  # Flux, Chroma or Chroma Radiance (has no img_in.weight)
