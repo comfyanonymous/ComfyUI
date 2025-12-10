@@ -259,6 +259,7 @@ class WanMoveTracksFromCoords(io.ComfyNode):
             ],
             outputs=[
                 io.Tracks.Output(),
+                io.Int.Output(display_name="track_length"),
             ],
         )
 
@@ -284,7 +285,7 @@ class WanMoveTracksFromCoords(io.ComfyNode):
         out_track_info = {}
         out_track_info["track_path"] = tracks
         out_track_info["track_visibility"] = track_visibility
-        return io.NodeOutput(out_track_info)
+        return io.NodeOutput(out_track_info, track_length)
 
 
 class WanMoveConcatTrack(io.ComfyNode):
