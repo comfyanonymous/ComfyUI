@@ -237,7 +237,10 @@ class WanMoveVisualizeTracks(io.ComfyNode):
 
         track_path = tracks["track_path"].unsqueeze(0)
         track_visibility = tracks["track_visibility"].unsqueeze(0)
-        images_in = images.repeat(tracks["track_path"].shape[0], 1, 1, 1) * 255.0
+        images_in = images * 255.0
+        if images_in.shape[0] != track_path.shape[1]:
+            repeat_count = track_path.shape[1] // images.shape[0]
+            images_in = images_in.repeat(repeat_count, 1, 1, 1)
         track_video = draw_tracks_on_video(images_in, track_path, track_visibility, track_frame=line_resolution, circle_size=circle_size, opacity=opacity, line_width=line_width)
         track_video = torch.stack([TF.to_tensor(frame) for frame in track_video], dim=0).movedim(1, -1).float()
 
