@@ -1815,7 +1815,7 @@ class NodeOutput(_NodeOutputInternal):
             ui = data["ui"]
         if "expand" in data:
             expand = data["expand"]
-        return cls(args=args, ui=ui, expand=expand)
+        return cls(*args, ui=ui, expand=expand)
 
     def __getitem__(self, index) -> Any:
         return self.args[index]
