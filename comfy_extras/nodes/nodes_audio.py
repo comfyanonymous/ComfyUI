@@ -34,7 +34,7 @@ class EmptyLatentAudio(IO.ComfyNode):
         )
 
     @classmethod
-    def execute(cls, seconds, batch_size) -> IO.NodeOutput:
+    def execute(cls, seconds=47.6, batch_size=1) -> IO.NodeOutput:
         length = round((seconds * 44100 / 2048) / 2) * 2
         latent = torch.zeros([batch_size, 64, length], device=comfy.model_management.intermediate_device())
         return IO.NodeOutput({"samples": latent, "type": "audio"})

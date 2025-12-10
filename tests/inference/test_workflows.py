@@ -60,7 +60,12 @@ def _generate_config_params():
 @pytest.fixture(scope="function", autouse=False, params=_generate_config_params())
 async def client(tmp_path_factory, request) -> AsyncGenerator[Any, Any]:
     config = default_configuration()
+    # this should help things go a little faster
+    config.disable_all_custom_nodes = True
+    # this enables compilation
+    config.disable_pinned_memory = True
     config.update(request.param)
+    # use ProcessPoolExecutor to respect various config settings
     async with Comfy(configuration=config, executor=ProcessPoolExecutor(max_workers=1)) as client:
         yield client
 
