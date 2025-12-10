@@ -40,19 +40,14 @@ def add_missing_tag_for_asset_id(
             )
         )
     )
-    dialect = session.bind.dialect.name
-    if dialect == "sqlite":
-        ins = (
-            sqlite.insert(AssetInfoTag)
-            .from_select(
-                ["asset_info_id", "tag_name", "origin", "added_at"],
-                select_rows,
-            )
-            .on_conflict_do_nothing(index_elements=[AssetInfoTag.asset_info_id, AssetInfoTag.tag_name])
+    session.execute(
+        sqlite.insert(AssetInfoTag)
+        .from_select(
+            ["asset_info_id", "tag_name", "origin", "added_at"],
+            select_rows,
         )
-    else:
-        raise NotImplementedError(f"Unsupported database dialect: {dialect}")
-    session.execute(ins)
+        .on_conflict_do_nothing(index_elements=[AssetInfoTag.asset_info_id, AssetInfoTag.tag_name])
+    )
 
 def remove_missing_tag_for_asset_id(
     session: Session,

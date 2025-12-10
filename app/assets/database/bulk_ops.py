@@ -43,10 +43,6 @@ def seed_from_paths_batch(
         return {"inserted_infos": 0, "won_states": 0, "lost_states": 0}
 
     now = utcnow()
-    dialect = session.bind.dialect.name
-    if dialect not in ("sqlite", "postgresql"):
-        raise NotImplementedError(f"Unsupported database dialect: {dialect}")
-
     asset_rows: list[dict] = []
     state_rows: list[dict] = []
     path_to_asset: dict[str, str] = {}
@@ -174,26 +170,19 @@ def bulk_insert_tags_and_meta(
     - tag_rows keys: asset_info_id, tag_name, origin, added_at
     - meta_rows keys: asset_info_id, key, ordinal, val_str, val_num, val_bool, val_json
     """
-    dialect = session.bind.dialect.name
     if tag_rows:
-        if dialect == "sqlite":
-            ins_links = (
-                sqlite.insert(AssetInfoTag)
-                .on_conflict_do_nothing(index_elements=[AssetInfoTag.asset_info_id, AssetInfoTag.tag_name])
-            )
-        else:
-            raise NotImplementedError(f"Unsupported database dialect: {dialect}")
+        ins_links = (
+            sqlite.insert(AssetInfoTag)
+            .on_conflict_do_nothing(index_elements=[AssetInfoTag.asset_info_id, AssetInfoTag.tag_name])
+        )
         for chunk in _chunk_rows(tag_rows, cols_per_row=4, max_bind_params=max_bind_params):
             session.execute(ins_links, chunk)
     if meta_rows:
-        if dialect == "sqlite":
-            ins_meta = (
-                sqlite.insert(AssetInfoMeta)
-                .on_conflict_do_nothing(
-                    index_elements=[AssetInfoMeta.asset_info_id, AssetInfoMeta.key, AssetInfoMeta.ordinal]
-                )
+        ins_meta = (
+            sqlite.insert(AssetInfoMeta)
+            .on_conflict_do_nothing(
+                index_elements=[AssetInfoMeta.asset_info_id, AssetInfoMeta.key, AssetInfoMeta.ordinal]
             )
-        else:
-            raise NotImplementedError(f"Unsupported database dialect: {dialect}")
+        )
         for chunk in _chunk_rows(meta_rows, cols_per_row=7, max_bind_params=max_bind_params):
             session.execute(ins_meta, chunk)

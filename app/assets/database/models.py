@@ -18,29 +18,10 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
 )
-from sqlalchemy.orm import DeclarativeBase, Mapped, foreign, mapped_column, relationship
+from sqlalchemy.orm import Mapped, foreign, mapped_column, relationship
 
 from app.assets.helpers import utcnow
-
-
-def to_dict(obj: Any, include_none: bool = False) -> dict[str, Any]:
-    fields = obj.__table__.columns.keys()
-    out: dict[str, Any] = {}
-    for field in fields:
-        val = getattr(obj, field)
-        if val is None and not include_none:
-            continue
-        if isinstance(val, datetime):
-            out[field] = val.isoformat()
-        else:
-            out[field] = val
-    return out
-
-
-JSONB_V = JSON(none_as_null=True)
-
-class Base(DeclarativeBase):
-    pass
+from app.database.models import to_dict, Base
 
 
 class Asset(Base):
@@ -192,7 +173,7 @@ class AssetInfoMeta(Base):
     val_str: Mapped[str | None] = mapped_column(String(2048), nullable=True)
     val_num: Mapped[float | None] = mapped_column(Numeric(38, 10), nullable=True)
     val_bool: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
-    val_json: Mapped[Any | None] = mapped_column(JSONB_V, nullable=True)
+    val_json: Mapped[Any | None] = mapped_column(JSON(none_as_null=True), nullable=True)
 
     asset_info: Mapped[AssetInfo] = relationship(back_populates="metadata_entries")
 
