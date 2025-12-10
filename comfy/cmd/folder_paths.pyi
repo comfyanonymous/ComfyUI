@@ -16,7 +16,7 @@ temp_directory: str
 input_directory: str
 supported_pt_extensions: set[str]
 extension_mimetypes_cache: dict[str, str]
-
+SYSTEM_USER_PREFIX: str
 
 # Functions
 def init_default_paths(folder_names_and_paths: FolderNames, configuration: Optional[Configuration] = None, create_all_directories: bool = ..., replace_existing: bool = ..., base_paths_from_configuration: bool = ...): ...

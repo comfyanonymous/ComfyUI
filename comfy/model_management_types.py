@@ -408,6 +408,7 @@ class ModelOptions(TypedDict, total=False):
 
 
 class LoadingListItem(NamedTuple):
+    module_offload_mem: int
     module_size: int
     name: str
     module: torch.nn.Module

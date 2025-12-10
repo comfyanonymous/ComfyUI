@@ -12,8 +12,6 @@ import socket
 import struct
 import sys
 import traceback
-import time
-
 import typing
 import urllib
 import uuid
@@ -42,9 +40,9 @@ from .. import node_helpers
 from .. import utils
 from ..api_server.routes.internal.internal_routes import InternalRoutes
 from ..app.custom_node_manager import CustomNodeManager
-from ..app.subgraph_manager import SubgraphManager
 from ..app.frontend_management import FrontendManager
 from ..app.model_manager import ModelFileManager
+from ..app.subgraph_manager import SubgraphManager
 from ..app.user_manager import UserManager
 from ..cli_args import args
 from ..client.client_types import FileOutput
@@ -56,13 +54,13 @@ from ..component_model.executor_types import ExecutorToClientProgress, StatusMes
     UnencodedPreviewImageMessage, PreviewImageWithMetadataMessage
 from ..component_model.file_output_path import file_output_path
 from ..component_model.queue_types import QueueItem, HistoryEntry, BinaryEventTypes, TaskInvocation, ExecutionError, \
-    ExecutionStatus
+    ExecutionStatus, QueueTuple, ExtraData
 from ..digest import digest
 from ..images import open_image
+from ..middleware.cache_middleware import cache_control
 from ..model_management import get_torch_device, get_torch_device_name, get_total_memory, get_free_memory, torch_version
 from ..nodes.package_typing import ExportedNodes
 from ..progress_types import PreviewImageMetadata
-from ..middleware.cache_middleware import cache_control
 
 logger = logging.getLogger(__name__)
 
@@ -821,13 +819,8 @@ class PromptServer(ExecutorToClientProgress):
                     extra_data["client_id"] = json_data["client_id"]
                 if valid[0]:
                     outputs_to_execute = valid[2]
-                    sensitive = {}
-                    for sensitive_val in execution.SENSITIVE_EXTRA_DATA_KEYS:
-                        if sensitive_val in extra_data:
-                            sensitive[sensitive_val] = extra_data.pop(sensitive_val)
-                    extra_data["create_time"] = int(time.time() * 1000)  # timestamp in milliseconds
                     self.prompt_queue.put(
-                        QueueItem(queue_tuple=(number, prompt_id, prompt, extra_data, outputs_to_execute, sensitive),
+                        QueueItem(queue_tuple=QueueTuple(number, prompt_id, prompt, extra_data, outputs_to_execute, None),
                                   completed=None))
                     response = {"prompt_id": prompt_id, "number": number, "node_errors": valid[3]}
                     return web.json_response(response)
@@ -1012,7 +1005,8 @@ class PromptServer(ExecutorToClientProgress):
             completed: Future[TaskInvocation | dict] = self.loop.create_future()
             # todo: actually implement idempotency keys
             # we would need some kind of more durable, distributed task queue
-            item = QueueItem(queue_tuple=(number, task_id, prompt_dict, {}, valid[2]), completed=completed)
+            # QueueItem deals with sensitive data uniformly now
+            item = QueueItem(queue_tuple=QueueTuple(number, task_id, prompt_dict, ExtraData(), valid[2], None), completed=completed)
 
             try:
                 if hasattr(self.prompt_queue, "put_async") or isinstance(self.prompt_queue, AsyncAbstractPromptQueue):

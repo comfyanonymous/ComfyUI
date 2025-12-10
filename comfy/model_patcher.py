@@ -46,6 +46,7 @@ from .model_base import BaseModel
 from .model_management import lora_compute_dtype
 from .model_management_types import ModelManageable, MemoryMeasurements, ModelOptions, LatentFormatT, LoadingListItem, TrainingSupport, HooksSupport
 from .patcher_extension import CallbacksMP, WrappersMP, PatcherInjection
+from .quant_ops import QuantizedTensor
 
 logger = logging.getLogger(__name__)
 
@@ -807,7 +808,7 @@ class ModelPatcher(ModelManageable, PatchSupport):
             loading = self._load_list()
 
             load_completely: list[LoadingListItem] = []
-            offloaded = []
+            offloaded: list[LoadingListItem] = []
             offload_buffer = 0
             loading.sort(reverse=True)
             for i, x in enumerate(loading):
@@ -854,14 +855,14 @@ class ModelPatcher(ModelManageable, PatchSupport):
                             patch_counter += 1
 
                     cast_weight = True
-                    offloaded.append((module_mem, n, m, params))
+                    offloaded.append(LoadingListItem(0, module_mem, n, m, params))
                 else:
                     if hasattr(m, "comfy_cast_weights"):
                         wipe_lowvram_weight(m)
 
                     if full_load or lowvram_fits:
                         mem_counter += module_mem
-                        load_completely.append(LoadingListItem(module_mem, n, m, params))
+                        load_completely.append(LoadingListItem(0, module_mem, n, m, params))
                     else:
                         offload_buffer = potential_offload
 
@@ -901,8 +902,8 @@ class ModelPatcher(ModelManageable, PatchSupport):
                 x.module.to(device_to)
 
             for x in offloaded:
-                n = x[1]
-                params = x[3]
+                n = x.name
+                params = x.params
                 for param in params:
                     self.pin_weight_to_device("{}.{}".format(n, param))
 
@@ -943,7 +944,6 @@ class ModelPatcher(ModelManageable, PatchSupport):
                 self.gguf.mmap_released = True
 
         self._memory_measurements.lowvram_patch_counter += patch_counter
-
         self.model_device = device_to
         self._memory_measurements.model_loaded_weight_memory = mem_counter
         self._memory_measurements.model_offload_buffer_memory = offload_buffer

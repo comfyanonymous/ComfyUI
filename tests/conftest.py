@@ -3,6 +3,7 @@ import multiprocessing
 import os
 import pathlib
 import subprocess
+import tempfile
 import urllib
 from contextvars import ContextVar
 from multiprocessing import Process
@@ -12,7 +13,6 @@ import pytest
 import requests
 import sys
 import time
-
 
 os.environ['OTEL_METRICS_EXPORTER'] = 'none'
 os.environ["OPENCV_IO_ENABLE_OPENEXR"] = "1"
@@ -31,6 +31,18 @@ def run_server(server_arguments: Configuration):
     from comfy.cmd.main import _start_comfyui
     import asyncio
     asyncio.run(_start_comfyui(configuration=server_arguments))
+
+
+@pytest.fixture
+def mock_user_directory():
+    from comfy.component_model.folder_path_types import FolderNames
+    from comfy.cmd.folder_paths import get_user_directory
+    from comfy.execution_context import context_folder_names_and_paths
+    """Create a temporary user directory."""
+    with tempfile.TemporaryDirectory() as temp_dir:
+        fn = FolderNames(base_paths=[pathlib.Path(temp_dir)])
+        with context_folder_names_and_paths(fn):
+            yield get_user_directory()
 
 
 @pytest.fixture(scope="function", autouse=False)

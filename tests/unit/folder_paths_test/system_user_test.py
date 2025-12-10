@@ -6,27 +6,15 @@ Tests cover:
 - Backward compatibility: Existing APIs unchanged
 - Security: Path traversal and injection prevention
 """
+import os
 
 import pytest
-import os
-import tempfile
 
-from folder_paths import (
+from comfy.cmd.folder_paths import (
     get_system_user_directory,
     get_public_user_directory,
     get_user_directory,
-    set_user_directory,
 )
-
-
-@pytest.fixture(scope="module")
-def mock_user_directory():
-    """Create a temporary user directory for testing."""
-    with tempfile.TemporaryDirectory() as temp_dir:
-        original_dir = get_user_directory()
-        set_user_directory(temp_dir)
-        yield temp_dir
-        set_user_directory(original_dir)
 
 
 class TestGetSystemUserDirectory:

@@ -5,6 +5,7 @@ from unittest.mock import patch
 from comfy import cli_args
 from comfy import cli_args_types
 
+@pytest.mark.skip(reason="interacts with custom nodes")
 def test_cli_args_types_completeness():
     """
     Verify that cli_args_types.Configuration matches the actual arguments defined in cli_args.

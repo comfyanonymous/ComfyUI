@@ -546,6 +546,7 @@ KNOWN_APPROX_VAES: Final[KnownDownloadables] = KnownDownloadables([
     UrlFile("https://raw.githubusercontent.com/madebyollin/taesd/main/taesd3_decoder.pth", show_in_ui=False),
     UrlFile("https://raw.githubusercontent.com/madebyollin/taesd/main/taef1_encoder.pth", show_in_ui=False),
     UrlFile("https://raw.githubusercontent.com/madebyollin/taesd/main/taef1_decoder.pth", show_in_ui=False),
+    # todo: update this with the video VAEs
 ], folder_name="vae_approx")
 
 KNOWN_VAES: Final[KnownDownloadables] = KnownDownloadables([

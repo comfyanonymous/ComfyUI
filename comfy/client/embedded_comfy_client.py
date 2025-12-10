@@ -12,24 +12,24 @@ import threading
 import uuid
 from asyncio import get_event_loop
 from multiprocessing import RLock
-from typing import Optional, Generator
+from typing import Optional
 
 from opentelemetry import context, propagate
 from opentelemetry.context import Context, attach, detach
 from opentelemetry.trace import Status, StatusCode
-from .async_progress_iterable import _ProgressHandler, QueuePromptWithProgress
+
+from .async_progress_iterable import QueuePromptWithProgress
 from .client_types import V1QueuePromptResponse
 from ..api.components.schema.prompt import PromptDict
 from ..cli_args_types import Configuration
 from ..cmd.folder_paths import init_default_paths  # pylint: disable=import-error
 from ..component_model.executor_types import ExecutorToClientProgress
 from ..component_model.make_mutable import make_mutable
-from ..component_model.queue_types import QueueItem, ExecutionStatus, TaskInvocation
+from ..component_model.queue_types import QueueItem, ExecutionStatus, TaskInvocation, QueueTuple, ExtraData
 from ..distributed.executors import ContextVarExecutor
 from ..distributed.history import History
 from ..distributed.process_pool_executor import ProcessPoolExecutor
 from ..distributed.server_stub import ServerStub
-from ..execution_context import current_execution_context, context_configuration
 
 _prompt_executor = threading.local()
 
@@ -45,6 +45,7 @@ def _execute_prompt(
         configuration: Configuration | None,
         partial_execution_targets: Optional[list[str]] = None) -> dict:
     configuration = copy.deepcopy(configuration) if configuration is not None else None
+    from ..execution_context import current_execution_context
     execution_context = current_execution_context()
     if len(execution_context.folder_names_and_paths) == 0 or configuration is not None:
         init_default_paths(execution_context.folder_names_and_paths, configuration, replace_existing=True)
@@ -66,6 +67,7 @@ async def __execute_prompt(
         progress_handler: ExecutorToClientProgress | None,
         configuration: Configuration | None,
         partial_execution_targets: list[str] | None) -> dict:
+    from ..execution_context import context_configuration
     with context_configuration(configuration):
         return await ___execute_prompt(prompt, prompt_id, client_id, span_context, progress_handler, partial_execution_targets)
 
@@ -193,6 +195,7 @@ class Comfy:
 
     def __enter__(self):
         self._is_running = True
+        from ..execution_context import context_configuration
         cm = context_configuration(self._configuration)
         cm.__enter__()
         self._context_stack.append(cm)
@@ -213,6 +216,7 @@ class Comfy:
 
     async def __aenter__(self):
         self._is_running = True
+        from ..execution_context import context_configuration
         cm = context_configuration(self._configuration)
         cm.__enter__()
         self._context_stack.append(cm)
@@ -304,12 +308,12 @@ class Comfy:
 
             fut = concurrent.futures.Future()
             fut.set_result(TaskInvocation(prompt_id, copy.deepcopy(outputs), ExecutionStatus('success', True, [])))
-            self._history.put(QueueItem(queue_tuple=(float(self._task_count), prompt_id, prompt, {}, []), completed=fut), outputs, ExecutionStatus('success', True, []))
+            self._history.put(QueueItem(queue_tuple=QueueTuple(float(self._task_count), prompt_id, prompt, ExtraData(), [], {}), completed=fut), outputs, ExecutionStatus('success', True, []))
             return outputs
         except Exception as exc_info:
             fut = concurrent.futures.Future()
             fut.set_exception(exc_info)
-            self._history.put(QueueItem(queue_tuple=(float(self._task_count), prompt_id, prompt, {}, []), completed=fut), {}, ExecutionStatus('error', False, [str(exc_info)]))
+            self._history.put(QueueItem(queue_tuple=QueueTuple(float(self._task_count), prompt_id, prompt, ExtraData(), [], {}), completed=fut), {}, ExecutionStatus('error', False, [str(exc_info)]))
             raise exc_info
         finally:
             with self._task_count_lock:

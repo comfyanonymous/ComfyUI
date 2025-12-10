@@ -28,7 +28,7 @@ logger = logging.getLogger(__name__)
 # System User Protection - Protects system directories from HTTP endpoint access
 # System Users are internal-only users that cannot be accessed via HTTP endpoints.
 # They use the '__' prefix convention (similar to Python's private member convention).
-_SYSTEM_USER_PREFIX = "__"
+SYSTEM_USER_PREFIX = "__"
 
 
 @_module_properties.getter
@@ -92,7 +92,7 @@ def get_system_user_directory(name: str = "system") -> str:
         raise ValueError(f"Invalid system user name: '{name}'")
     if name.startswith("_"):
         raise ValueError("System user name should not start with underscore")
-    return os.path.join(get_user_directory(), f"{_SYSTEM_USER_PREFIX}{name}")
+    return os.path.join(get_user_directory(), f"{SYSTEM_USER_PREFIX}{name}")
 
 
 def get_public_user_directory(user_id: str) -> str | None:
@@ -118,7 +118,7 @@ def get_public_user_directory(user_id: str) -> str | None:
     """
     if not user_id or not isinstance(user_id, str):
         return None
-    if user_id.startswith(_SYSTEM_USER_PREFIX):
+    if user_id.startswith(SYSTEM_USER_PREFIX):
         return None
     return os.path.join(get_user_directory(), user_id)
 
@@ -593,4 +593,8 @@ __all__ = [
     "invalidate_cache",
     "filter_files_content_types",
     "get_input_subfolders",
+    "get_system_user_directory",
+    "get_public_user_directory",
+    # todo: why? what is the purpose?
+    "SYSTEM_USER_PREFIX",
 ]

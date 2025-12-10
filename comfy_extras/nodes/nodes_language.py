@@ -361,7 +361,10 @@ class OneShotInstructTokenize(CustomNode):
 
     def execute(self, model: LanguageModel, prompt: str, images: List[torch.Tensor] | torch.Tensor = None, videos: list | object = None, chat_template: Optional[str] = _AUTO_CHAT_TEMPLATE, system_prompt: str = "") -> ValidatedNodeResult:
         if chat_template == _AUTO_CHAT_TEMPLATE:
-            model_name = os.path.basename(model.repo_id)
+            try:
+                model_name = os.path.basename(str(model.repo_id))
+            except TypeError:
+                model_name = str(model.repo_id)
             if model_name in KNOWN_CHAT_TEMPLATES:
                 chat_template = KNOWN_CHAT_TEMPLATES[model_name]
             else:

@@ -748,7 +748,7 @@ class VAELoader:
     video_taes = ["taehv", "lighttaew2_2", "lighttaew2_1", "lighttaehy1_5"]
     image_taes = ["taesd", "taesdxl", "taesd3", "taef1"]
     @staticmethod
-    def vae_list(s):
+    def vae_list(s=None):
         vaes = get_filename_list_with_downloadable("vae", KNOWN_VAES)
         approx_vaes = get_filename_list_with_downloadable("vae_approx", KNOWN_APPROX_VAES)
         sdxl_taesd_enc = False
@@ -778,7 +778,7 @@ class VAELoader:
             elif v.startswith("taef1_decoder."):
                 f1_taesd_enc = True
             else:
-                for tae in s.video_taes:
+                for tae in VAELoader.video_taes:
                     if v.startswith(tae):
                         vaes.append(v)
 

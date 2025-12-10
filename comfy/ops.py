@@ -51,7 +51,7 @@ def _scaled_dot_product_attention(q, k, v, *args, **kwargs):
 
 
 try:
-    if torch.cuda.is_available() and model_management.WINDOWS:
+    if torch.cuda.is_available():
         from torch.nn.attention import SDPBackend, sdpa_kernel  # pylint: disable=import-error
         import inspect
 

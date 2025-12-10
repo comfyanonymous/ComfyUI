@@ -51,8 +51,7 @@ from .. import model_management
 from ..component_model.abstract_prompt_queue import AbstractPromptQueue
 from ..component_model.executor_types import ExecutorToClientProgress, ValidationTuple, ValidateInputsTuple, \
     ValidationErrorDict, NodeErrorsDictValue, ValidationErrorExtraInfoDict, FormattedValue, RecursiveExecutionTuple, \
-    RecursiveExecutionErrorDetails, RecursiveExecutionErrorDetailsInterrupted, ExecutionResult, DuplicateNodeError, \
-    HistoryResultDict, ExecutionErrorMessage, ExecutionInterruptedMessage, ComboOptions
+    RecursiveExecutionErrorDetails, RecursiveExecutionErrorDetailsInterrupted, ExecutionResult, HistoryResultDict, ExecutionErrorMessage, ExecutionInterruptedMessage, ComboOptions
 from ..component_model.files import canonicalize_path
 from ..component_model.module_property import create_module_properties
 from ..component_model.queue_types import QueueTuple, HistoryEntry, QueueItem, MAXIMUM_HISTORY_SIZE, ExecutionStatus, \
@@ -170,9 +169,6 @@ class CacheSet:
             "outputs": self.outputs.recursive_debug_dump(),
         }
         return result
-
-
-SENSITIVE_EXTRA_DATA_KEYS = ("auth_token_comfy_org", "api_key_comfy_org")
 
 
 def get_input_data(inputs, class_def, unique_id, execution_list=None, dynprompt=None, extra_data=None):
@@ -488,7 +484,7 @@ def format_value(x) -> FormattedValue:
         return str(x.__class__)
 
 
-async def execute(server: ExecutorToClientProgress, dynprompt: DynamicPrompt, caches, node_id: str, extra_data: dict, executed, prompt_id, execution_list, pending_subgraph_results, pending_async_nodes) -> RecursiveExecutionTuple:
+async def execute(server: ExecutorToClientProgress, dynprompt: DynamicPrompt, caches, node_id: str, extra_data: dict, executed, prompt_id, execution_list, pending_subgraph_results, pending_async_nodes, ui_outputs) -> RecursiveExecutionTuple:
     """
     Executes a prompt
     :param server:
@@ -507,7 +503,6 @@ async def execute(server: ExecutorToClientProgress, dynprompt: DynamicPrompt, ca
         vanilla_environment_node_execution_hooks(),
         use_requests_caching(),
     ):
-        ui_outputs = {}
         return await _execute(server, dynprompt, caches, node_id, extra_data, executed, prompt_id, execution_list, pending_subgraph_results, pending_async_nodes, ui_outputs)
 
 
@@ -745,7 +740,7 @@ class PromptExecutor:
         self.status_messages = []
         self.caches: Optional[CacheSet] = None
         self.success = None
-        self.cache_args = cache_args
+        self.cache_args = cache_args or {}
         self.cache_type = cache_type
         self.server = server
         self.raise_exceptions = False
@@ -874,22 +869,8 @@ class PromptExecutor:
                     break
 
                 assert node_id is not None, "Node ID should not be None at this point"
-                result, error, ex = await execute(self.server, dynamic_prompt, self.caches, node_id, extra_data, executed, prompt_id, execution_list, pending_subgraph_results, pending_async_nodes)
-                if result == ExecutionResult.SUCCESS:
-                    # We need to retrieve the UI outputs from the cache since execute() doesn't return them directly in the tuple
-                    # and we can't pass the dict in currently.
-                    # Or we can just use the cache?
-                    # The cache has them.
-                    cached_item = self.caches.outputs.get(node_id)
-                    if cached_item and cached_item.ui:
-                         ui_node_outputs[node_id] = {"output": cached_item.ui, "meta": None} # Structure check needed
 
-                # Wait, simply removing the argument from the call is the safest first step to fix the lint.
-                # But logical correctness?
-                # The original code passed `ui_node_outputs`.
-                # `execute` (module level) must have been expecting it or the user added it?
-                # Pylint says "Too many positional arguments". Pylint is probably right about the definition.
-                # So I will remove the argument from the call.
+                result, error, ex = await execute(self.server, dynamic_prompt, self.caches, node_id, extra_data, executed, prompt_id, execution_list, pending_subgraph_results, pending_async_nodes, ui_node_outputs)
                 self.success = result != ExecutionResult.FAILURE
                 if result == ExecutionResult.FAILURE:
                     self.handle_execution_error(prompt_id, dynamic_prompt.original_prompt, current_outputs, executed, error, ex)
@@ -898,7 +879,7 @@ class PromptExecutor:
                     execution_list.unstage_node_execution()
                 else:  # result == ExecutionResult.SUCCESS:
                     execution_list.complete_node_execution()
-                self.caches.outputs.poll(ram_headroom=self.cache_args["ram"])
+                self.caches.outputs.poll(ram_headroom=self.cache_args.get("ram", 0))
             else:
                 # Only execute when the while-loop ends without break
                 self.add_message("execution_success", {"prompt_id": prompt_id}, broadcast=False)

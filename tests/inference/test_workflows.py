@@ -8,17 +8,60 @@ import pytest
 
 from comfy.api.components.schema.prompt import Prompt
 from comfy.client.embedded_comfy_client import Comfy
+from comfy.distributed.process_pool_executor import ProcessPoolExecutor
 from comfy.model_downloader import add_known_models, KNOWN_LORAS
 from comfy.model_downloader_types import CivitFile, HuggingFile
 from comfy_extras.nodes.nodes_audio import TorchAudioNotFoundError
 from . import workflows
+import itertools
+from comfy.cli_args import default_configuration
+from comfy.cli_args_types import PerformanceFeature
 
 logger = logging.getLogger(__name__)
 
 
-@pytest.fixture(scope="function", autouse=False)
-async def client(tmp_path_factory) -> AsyncGenerator[Any, Any]:
-    async with Comfy() as client:
+def _generate_config_params():
+    attn_keys = [
+        "use_pytorch_cross_attention",
+        # "use_split_cross_attention",
+        # "use_quad_cross_attention",
+        "use_sage_attention",
+        "use_flash_attention"
+    ]
+    attn_options = [
+        {k: (k == target_key) for k in attn_keys}
+        for target_key in attn_keys
+    ]
+
+    async_options = [
+        {"disable_async_offload": False},
+        {"disable_async_offload": True},
+    ]
+    pinned_options = [
+        {"disable_pinned_memory": False},
+        {"disable_pinned_memory": True},
+    ]
+    fast_options = [
+        {"fast": set()},
+        {"fast": {PerformanceFeature.Fp16Accumulation}},
+        {"fast": {PerformanceFeature.Fp8MatrixMultiplication}},
+        {"fast": {PerformanceFeature.CublasOps}},
+    ]
+
+    for attn, asnc, pinned, fst in itertools.product(attn_options, async_options, pinned_options, fast_options):
+        config_update = {}
+        config_update.update(attn)
+        config_update.update(asnc)
+        config_update.update(pinned)
+        config_update.update(fst)
+        yield config_update
+
+
+@pytest.fixture(scope="function", autouse=False, params=_generate_config_params())
+async def client(tmp_path_factory, request) -> AsyncGenerator[Any, Any]:
+    config = default_configuration()
+    config.update(request.param)
+    async with Comfy(configuration=config, executor=ProcessPoolExecutor(max_workers=1)) as client:
         yield client
 
 
