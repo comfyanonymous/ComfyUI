@@ -1332,7 +1332,7 @@ class Omnigen2(supported_models_base.BASE):
         "shift": 2.6,
     }
 
-    memory_usage_factor = 1.65 #TODO
+    memory_usage_factor = 1.95 #TODO
 
     unet_extra_config = {}
     latent_format = latent_formats.Flux
@@ -1397,7 +1397,7 @@ class HunyuanImage21(HunyuanVideo):
 
     latent_format = latent_formats.HunyuanImage21
 
-    memory_usage_factor = 7.7
+    memory_usage_factor = 8.7
 
     supported_inference_dtypes = [torch.bfloat16, torch.float32]
 
@@ -1488,7 +1488,7 @@ class Kandinsky5(supported_models_base.BASE):
     unet_extra_config = {}
     latent_format = latent_formats.HunyuanVideo
 
-    memory_usage_factor = 1.1 #TODO
+    memory_usage_factor = 1.25 #TODO
 
     supported_inference_dtypes = [torch.bfloat16, torch.float32]
 
@@ -1517,7 +1517,7 @@ class Kandinsky5Image(Kandinsky5):
     }
 
     latent_format = latent_formats.Flux
-    memory_usage_factor = 1.1 #TODO
+    memory_usage_factor = 1.25 #TODO
 
     def get_model(self, state_dict, prefix="", device=None):
         out = model_base.Kandinsky5Image(self, device=device)
