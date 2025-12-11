@@ -526,7 +526,7 @@ class AnimateWanModel(WanModel):
         transformer_options["total_blocks"] = len(self.blocks)
         transformer_options["block_type"] = "double"
         for i, block in enumerate(self.blocks):
-            transformer_options["block_index"] = torch.tensor(i, dtype=torch.uint8, device=x.device)
+            transformer_options["block_index"] = torch.tensor(i, dtype=torch.uint8, device="cpu")
             if ("double_block", i) in blocks_replace:
                 def block_wrap(args):
                     out = {}
