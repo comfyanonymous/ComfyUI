@@ -965,7 +965,7 @@ class CosmosT2IPredict2(supported_models_base.BASE):
 
     def __init__(self, unet_config):
         super().__init__(unet_config)
-        self.memory_usage_factor = (unet_config.get("model_channels", 2048) / 2048) * 0.9
+        self.memory_usage_factor = (unet_config.get("model_channels", 2048) / 2048) * 0.95
 
     def get_model(self, state_dict, prefix="", device=None):
         out = model_base.CosmosPredict2(self, device=device)
@@ -1289,7 +1289,7 @@ class ChromaRadiance(Chroma):
     latent_format = comfy.latent_formats.ChromaRadiance
 
     # Pixel-space model, no spatial compression for model input.
-    memory_usage_factor = 0.038
+    memory_usage_factor = 0.044
 
     def get_model(self, state_dict, prefix="", device=None):
         return model_base.ChromaRadiance(self, device=device)
