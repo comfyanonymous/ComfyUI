@@ -801,7 +801,8 @@ class SeedVR2(BaseModel):
     def extra_conds(self, **kwargs):
         out = super().extra_conds(**kwargs)
         condition = kwargs.get("condition", None)
-        out["condition"] = comfy.conds.CONDRegular(condition)
+        if condition is not None:
+            out["condition"] = comfy.conds.CONDRegular(condition)
         return out
 
 class PixArt(BaseModel):

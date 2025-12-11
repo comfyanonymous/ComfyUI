@@ -1,10 +1,10 @@
 from dataclasses import dataclass
 from typing import Optional, Tuple, Union, List, Dict, Any, Callable
 import einops
-from einops import rearrange, einsum
+from einops import rearrange, einsum, repeat
 from torch import nn
 import torch.nn.functional as F
-from math import ceil, sqrt, pi
+from math import ceil, pi
 import torch
 from itertools import chain
 from comfy.ldm.modules.diffusionmodules.model import get_timestep_embedding
@@ -12,6 +12,7 @@ from comfy.ldm.modules.attention import optimized_attention
 from comfy.rmsnorm import RMSNorm
 from torch.nn.modules.utils import _triple
 from torch import nn
+import math
 
 class Cache:
     def __init__(self, disable=False, prefix="", cache=None):
@@ -354,8 +355,8 @@ class RotaryEmbedding(nn.Module):
 
         freqs = self.freqs
 
-        freqs = einsum('..., f -> ... f', t.type(freqs.dtype), freqs)
-        freqs = repeat(freqs, '... n -> ... (n r)', r = 2)
+        freqs = torch.einsum('..., f -> ... f', t.type(freqs.dtype), freqs)
+        freqs = einops.repeat(freqs, '... n -> ... (n r)', r = 2)
 
         if should_cache and offset == 0:
             self.cached_freqs[:seq_len] = freqs.detach()
@@ -460,6 +461,7 @@ def apply_rotary_emb(
     t_middle = t[..., start_index:end_index]
     t_right = t[..., end_index:]
 
+    freqs = freqs.to(t_middle.device)
     t_transformed = (t_middle * freqs.cos() * scale) + (rotate_half(t_middle) * freqs.sin() * scale)
         
     out = torch.cat((t_left, t_transformed, t_right), dim=-1)
@@ -560,6 +562,7 @@ class MMModule(nn.Module):
         vid = vid_module(vid, *get_args("vid", args), **get_kwargs("vid", kwargs))
         if not self.vid_only:
             txt_module = self.txt if not self.shared_weights else self.all
+            txt = txt.to(device=vid.device, dtype=vid.dtype)
             txt = txt_module(txt, *get_args("txt", args), **get_kwargs("txt", kwargs))
         return vid, txt
 
@@ -747,6 +750,7 @@ class NaSwinAttention(NaMMAttention):
         txt_len = cache("txt_len", lambda: txt_shape.prod(-1))
 
         vid_len_win = cache_win("vid_len", lambda: window_shape.prod(-1))
+        txt_len = txt_len.to(window_count.device)
         txt_len_win = cache_win("txt_len", lambda: txt_len.repeat_interleave(window_count))
         all_len_win = cache_win("all_len", lambda: vid_len_win + txt_len_win)
         concat_win, unconcat_win = cache_win(
@@ -1122,8 +1126,12 @@ class TimeEmbedding(nn.Module):
         emb = emb.to(dtype)
         emb = self.proj_in(emb)
         emb = self.act(emb)
+        device = next(self.proj_hid.parameters()).device
+        emb = emb.to(device)
         emb = self.proj_hid(emb)
         emb = self.act(emb)
+        device = next(self.proj_out.parameters()).device
+        emb = emb.to(device)
         emb = self.proj_out(emb)
         return emb
 
@@ -1206,6 +1214,8 @@ class NaDiT(nn.Module):
         elif len(block_type) != num_layers:
             raise ValueError("The ``block_type`` list should equal to ``num_layers``.")
         super().__init__()
+        self.register_parameter("positive_conditioning", torch.empty((58, 5120)))
+        self.register_parameter("negative_conditioning", torch.empty((64, 5120)))
         self.vid_in = NaPatchIn(
             in_channels=vid_in_channels,
             patch_size=patch_size,
@@ -1303,11 +1313,9 @@ class NaDiT(nn.Module):
         conditions = kwargs.get("condition")
 
         pos_cond, neg_cond = context.chunk(2, dim=0)
-        # txt_shape should be the same for both
-        pos_cond, txt_shape = flatten(pos_cond)
-        neg_cond, _ = flatten(neg_cond)
+        pos_cond, txt_shape = flatten([pos_cond])
+        neg_cond, _ = flatten([neg_cond])
         txt = torch.cat([pos_cond, neg_cond], dim = 0)
-        txt_shape[0] *= 2
 
         vid = x
         vid, vid_shape = flatten(x)
@@ -1321,7 +1329,7 @@ class NaDiT(nn.Module):
         dtype = next(self.parameters()).dtype
         txt = txt.to(device).to(dtype)
         vid = vid.to(device).to(dtype)
-        txt = self.txt_in(txt)
+        txt = self.txt_in(txt.to(next(self.txt_in.parameters()).device))
 
         vid, vid_shape = self.vid_in(vid, vid_shape)
 

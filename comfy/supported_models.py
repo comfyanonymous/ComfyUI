@@ -1168,7 +1168,7 @@ class SeedVR2(supported_models_base.BASE):
         out = model_base.SeedVR2(self, device=device)
         return out
     def clip_target(self, state_dict={}):
-        return supported_models_base.ClipTarget(comfy.text_encoders.sd3_clip.SD3Tokenizer, comfy.text_encoders.sd3_clip.SD3ClipModel)
+        return None
 
 class ACEStep(supported_models_base.BASE):
     unet_config = {

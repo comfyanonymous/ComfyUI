@@ -15,9 +15,9 @@ def expand_dims(tensor, ndim):
 
 def get_conditions(latent, latent_blur):
     t, h, w, c = latent.shape
-    cond = torch.zeros([t, h, w, c + 1], device=latent.device, dtype=latent.dtype)
-    cond[:, ..., :-1] = latent_blur[:]
-    cond[:, ..., -1:] = 1.0
+    cond = torch.ones([t, h, w, 1], device=latent.device, dtype=latent.dtype)
+    #cond[:, ..., :-1] = latent_blur[:]
+    #cond[:, ..., -1:] = 1.0
     return cond
 
 def timestep_transform(timesteps, latents_shapes):
@@ -144,6 +144,8 @@ class SeedVR2InputProcessing(io.ComfyNode):
         vae = vae.to(device)
         images = images.to(device)
         latent = vae.encode(images)[0]
+        latent = latent.unsqueeze(2) if latent.ndim == 4 else latent
+        latent = rearrange(latent, "b c ... -> b ... c")
 
         latent = (latent - shift) * scale
 
@@ -156,9 +158,8 @@ class SeedVR2Conditioning(io.ComfyNode):
             node_id="SeedVR2Conditioning",
             category="image/video",
             inputs=[
-                io.Conditioning.Input("text_positive_conditioning"),
-                io.Conditioning.Input("text_negative_conditioning"),
-                io.Latent.Input("vae_conditioning")
+                io.Latent.Input("vae_conditioning"),
+                io.Model.Input("model"),
             ],
             outputs=[io.Conditioning.Output(display_name = "positive"),
                      io.Conditioning.Output(display_name = "negative"),
@@ -166,12 +167,13 @@ class SeedVR2Conditioning(io.ComfyNode):
         )
 
     @classmethod
-    def execute(cls, text_positive_conditioning, text_negative_conditioning, vae_conditioning) -> io.NodeOutput:
+    def execute(cls, vae_conditioning, model) -> io.NodeOutput:
         
         vae_conditioning = vae_conditioning["samples"]
         device = vae_conditioning.device
-        pos_cond = text_positive_conditioning[0][0]
-        neg_cond = text_negative_conditioning[0][0]
+        model = model.model.diffusion_model
+        pos_cond = model.positive_conditioning
+        neg_cond = model.negative_conditioning
 
         noises = torch.randn_like(vae_conditioning).to(device)
         aug_noises =  torch.randn_like(vae_conditioning).to(device)
@@ -181,21 +183,21 @@ class SeedVR2Conditioning(io.ComfyNode):
             torch.tensor([1000.0])
             * cond_noise_scale
         ).to(device)
-        shape = torch.tensor(vae_conditioning.shape[1:]).to(device)[None]
+        shape = torch.tensor(vae_conditioning.shape[1:]).to(device)[None] # avoid batch dim
         t = timestep_transform(t, shape)
         cond = inter(vae_conditioning, aug_noises, t)
-        condition = get_conditions(noises, cond)
+        condition = torch.stack([get_conditions(noise, c) for noise, c in zip(noises, cond)])
 
-        pos_shape = pos_cond.shape[1]
-        neg_shape = neg_cond.shape[1]
+        pos_shape = pos_cond.shape[0]
+        neg_shape = neg_cond.shape[0]
         diff = abs(pos_shape - neg_shape)
         if pos_shape > neg_shape:
             neg_cond = F.pad(neg_cond, (0, 0, 0, diff))
         else:
             pos_cond = F.pad(pos_cond, (0, 0, 0, diff))
 
-        negative = [[pos_cond, {"condition": condition}]]
-        positive = [[neg_cond, {"condition": condition}]]
+        negative = [[neg_cond, {"condition": condition}]]
+        positive = [[pos_cond, {"condition": condition}]]
 
         return io.NodeOutput(positive, negative, {"samples": noises})
 
