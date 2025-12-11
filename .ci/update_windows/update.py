@@ -53,6 +53,16 @@ try:
     repo.stash(ident)
 except KeyError:
     print("nothing to stash")  # noqa: T201
+except:
+    print("Could not stash, cleaning index and trying again.")
+    repo.state_cleanup()
+    repo.index.read_tree(repo.head.peel().tree)
+    repo.index.write()
+    try:
+        repo.stash(ident)
+    except KeyError:
+        print("nothing to stash.")  # noqa: T201
+
 backup_branch_name = 'backup_branch_{}'.format(datetime.today().strftime('%Y-%m-%d_%H_%M_%S'))
 print("creating backup branch: {}".format(backup_branch_name))  # noqa: T201
 try:
@@ -151,4 +161,5 @@ try:
         shutil.copy(stable_update_script, stable_update_script_to)
 except:
     pass
+
 
