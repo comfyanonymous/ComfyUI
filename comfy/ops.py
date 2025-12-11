@@ -523,6 +523,8 @@ class fp8_ops(manual_cast):
                 except Exception as e:
                     logger.info("Exception during fp8 op: {}".format(e))
 
+            if input.dtype == torch.float32 and (self.weight.dtype == torch.float16 or self.weight.dtype == torch.bfloat16):
+                input = input.to(self.weight.dtype)
             weight, bias, offload_stream = cast_bias_weight(self, input, offloadable=True)
             x = torch.nn.functional.linear(input, weight, bias)
             uncast_bias_weight(self, weight, bias, offload_stream)
@@ -564,7 +566,10 @@ Operations = Type[Union[manual_cast, fp8_ops, disable_weight_init, skip_init, sc
 from .quant_ops import QuantizedTensor, QUANT_ALGOS
 
 
-def mixed_precision_ops(quant_config={}, compute_dtype=torch.bfloat16, full_precision_mm=False):
+def mixed_precision_ops(quant_config=None, compute_dtype=torch.bfloat16, full_precision_mm=False):
+    if quant_config is None:
+        quant_config = {}
+
     class MixedPrecisionOps(manual_cast):
         _quant_config = quant_config
         _compute_dtype = compute_dtype
@@ -581,7 +586,7 @@ def mixed_precision_ops(quant_config={}, compute_dtype=torch.bfloat16, full_prec
             ) -> None:
                 super().__init__()
 
-                self.factory_kwargs = {"device": device, "dtype": MixedPrecisionOps._compute_dtype}
+                self.factory_kwargs = {"device": device, "dtype": dtype if dtype is not None else MixedPrecisionOps._compute_dtype}
                 # self.factory_kwargs = {"device": device, "dtype": dtype}
 
                 self.in_features = in_features
@@ -614,7 +619,7 @@ def mixed_precision_ops(quant_config={}, compute_dtype=torch.bfloat16, full_prec
                     layer_conf = json.loads(layer_conf.numpy().tobytes())
 
                 if layer_conf is None:
-                    self.weight = torch.nn.Parameter(weight.to(device=device, dtype=MixedPrecisionOps._compute_dtype), requires_grad=False)
+                    self.weight = torch.nn.Parameter(weight.to(device=device, dtype=self.factory_kwargs["dtype"]), requires_grad=False)
                 else:
                     self.quant_format = layer_conf.get("format", None)
                     if not self._full_precision_mm:
@@ -672,6 +677,8 @@ def mixed_precision_ops(quant_config={}, compute_dtype=torch.bfloat16, full_prec
                 return torch.nn.functional.linear(input, weight, bias)
 
             def forward_comfy_cast_weights(self, input):
+                if input.dtype == torch.float32 and (self.weight.dtype == torch.float16 or self.weight.dtype == torch.bfloat16):
+                    input = input.to(self.weight.dtype)
                 weight, bias, offload_stream = cast_bias_weight(self, input, offloadable=True)
                 x = self._forward(input, weight, bias)
                 uncast_bias_weight(self, weight, bias, offload_stream)

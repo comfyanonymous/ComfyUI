@@ -12,25 +12,22 @@ from typing import Optional, Any, Callable
 
 import torch
 import transformers
-from huggingface_hub.errors import EntryNotFoundError
 from transformers import PreTrainedModel, PreTrainedTokenizerBase, ProcessorMixin, AutoProcessor, AutoTokenizer, \
-    BatchFeature, AutoModelForVision2Seq, AutoModelForSeq2SeqLM, AutoModelForCausalLM, AutoModel, \
+    BatchFeature, AutoModelForSeq2SeqLM, AutoModelForCausalLM, AutoModel, \
     PretrainedConfig, TextStreamer, LogitsProcessor
-from huggingface_hub import hf_api
-from huggingface_hub.file_download import hf_hub_download
 from transformers.models.auto.modeling_auto import MODEL_FOR_VISION_2_SEQ_MAPPING_NAMES, \
     MODEL_FOR_SEQ_TO_SEQ_CAUSAL_LM_MAPPING_NAMES, MODEL_FOR_CAUSAL_LM_MAPPING_NAMES, AutoModelForImageTextToText
 
 from .chat_templates import KNOWN_CHAT_TEMPLATES
 from .language_types import ProcessorResult, TOKENS_TYPE, GENERATION_KWARGS_TYPE, TransformerStreamedProgress, \
-    LLaVAProcessor, LanguageModel, LanguagePrompt
+    LanguageModel, LanguagePrompt
 from .. import model_management
+from ..cli_args import args
 from ..component_model.tensor_types import RGBImageBatch
 from ..model_downloader import get_or_download_huggingface_repo
 from ..model_management import unet_offload_device, get_torch_device, unet_dtype, load_models_gpu
 from ..model_management_types import ModelManageableStub
 from ..utils import comfy_tqdm, ProgressBar, comfy_progress, seed_for_block
-from ..cli_args import args
 
 logger = logging.getLogger(__name__)
 
@@ -135,7 +132,7 @@ class TransformersManagedModel(ModelManageableStub, LanguageModel):
     @property
     def model_options(self):
         return self._model_options
-    
+
     @model_options.setter
     def model_options(self, value):
         self._model_options = value
@@ -143,7 +140,7 @@ class TransformersManagedModel(ModelManageableStub, LanguageModel):
     @property
     def diffusion_model(self):
         return self.model
-    
+
     @diffusion_model.setter
     def diffusion_model(self, value):
         self.add_object_patch("model", value)
@@ -345,9 +342,9 @@ class TransformersManagedModel(ModelManageableStub, LanguageModel):
             with seed_for_block(seed), torch.inference_mode(mode=True) if has_triton else contextlib.nullcontext():
                 if hasattr(inputs, "encodings") and inputs.encodings is not None and all(hasattr(encoding, "attention_mask") for encoding in inputs.encodings) and "attention_mask" in inputs:
                     inputs.pop("attention_mask")
-                
+
                 from ..patcher_extension import WrapperExecutor, WrappersMP, get_all_wrappers
-                
+
                 def _generate(inputs, streamer, max_new_tokens, **generate_kwargs):
                     return transformers_model.generate(
                         **inputs,
@@ -355,7 +352,7 @@ class TransformersManagedModel(ModelManageableStub, LanguageModel):
                         max_new_tokens=max_new_tokens,
                         **generate_kwargs
                     )
-                
+
                 output_ids = WrapperExecutor.new_class_executor(
                     _generate,
                     self,
@@ -393,7 +390,7 @@ class TransformersManagedModel(ModelManageableStub, LanguageModel):
         return self._tokenizer
 
     @property
-    def processor(self) -> AutoProcessor | ProcessorMixin | LLaVAProcessor | None:
+    def processor(self) -> AutoProcessor | ProcessorMixin | None:
         return self._processor
 
     @property
@@ -542,7 +539,7 @@ class TransformersManagedModel(ModelManageableStub, LanguageModel):
                 self.processor.to(device=self.load_device)
             # convert tuple to list from images.unbind() for paligemma workaround
             image_tensor_list = list(images.unbind()) if images is not None and len(images) > 0 else None
-            
+
             # Convert videos to list of list of frames (uint8)
             if videos is not None and len(videos) > 0:
                 new_videos = []
@@ -554,7 +551,7 @@ class TransformersManagedModel(ModelManageableStub, LanguageModel):
                     if v.ndim == 4:
                         new_videos.append(list(v))
                     else:
-                        new_videos.append([v]) # Fallback if not 4D
+                        new_videos.append([v])  # Fallback if not 4D
                 videos = new_videos
 
             # Check if processor accepts 'videos' argument
@@ -569,10 +566,12 @@ class TransformersManagedModel(ModelManageableStub, LanguageModel):
                 "padding": True,
             }
 
-            if has_videos_arg:
+            if videos is None or len(videos) == 0:
+                pass
+            elif has_videos_arg:
                 kwargs["videos"] = videos
                 if "input_data_format" in processor_params:
-                     kwargs["input_data_format"] = "channels_last"
+                    kwargs["input_data_format"] = "channels_last"
             elif videos is not None and len(videos) > 0:
                 if args.enable_video_to_image_fallback:
                     # Fallback: flatten video frames into images if processor doesn't support 'videos'
@@ -580,12 +579,12 @@ class TransformersManagedModel(ModelManageableStub, LanguageModel):
                     flattened_frames = []
                     for video in videos:
                         flattened_frames.extend(video)
-                    
+
                     # Convert list of frames to list of tensors if needed, or just append to images list
                     # images is currently a list of tensors
                     if kwargs["images"] is None:
                         kwargs["images"] = []
-                    
+
                     # Ensure frames are in the same format as images (tensors)
                     # Frames in videos are already tensors (uint8)
                     kwargs["images"].extend(flattened_frames)

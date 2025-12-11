@@ -740,7 +740,7 @@ class ModelPatcher(ModelManageable, PatchSupport):
         if self.gguf.loaded_from_gguf and key not in self.patches:
             weight = utils.get_attr(self.model, key)
             if is_quantized(weight):
-                weight.detach_mmap()
+                # weight.detach_mmap()
                 return
 
         weight, set_func, convert_func = get_key_weight(self.model, key)
@@ -796,7 +796,8 @@ class ModelPatcher(ModelManageable, PatchSupport):
             for n, m in self.model.named_modules():
                 if hasattr(m, "weight"):
                     if is_quantized(m.weight):
-                        m.weight.detach_mmap()
+                        pass
+                        # m.weight.detach_mmap()
             self.gguf.mmap_released = True
 
         with self.use_ejected():
@@ -1205,9 +1206,11 @@ class ModelPatcher(ModelManageable, PatchSupport):
         w.append(wrapper)
 
     def remove_wrappers_with_key(self, wrapper_type: str, key: str):
+        wrappers_removed = []
         w = self.wrappers.get(wrapper_type, {})
         if key in w:
-            w.pop(key)
+            wrappers_removed.append(w.pop(key))
+        return wrappers_removed
 
     def get_wrappers(self, wrapper_type: str, key: str):
         return self.wrappers.get(wrapper_type, {}).get(key, [])

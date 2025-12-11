@@ -53,6 +53,8 @@ class HooksSupport(Protocol):
 
     def add_wrapper_with_key(self, wrapper_type: str, key: str, wrapper: Callable): ...
 
+    def remove_wrappers_with_key(self, wrapper_type: str, key: str) -> list: ...
+
 
 class HooksSupportStub(HooksSupport, metaclass=ABCMeta):
     def prepare_hook_patches_current_keyframe(self, t, hook_group, model_options):
@@ -80,7 +82,7 @@ class HooksSupportStub(HooksSupport, metaclass=ABCMeta):
         return
 
     @property
-    def wrappers(self):
+    def wrappers(self) -> dict:
         if not hasattr(self, "_wrappers"):
             setattr(self, "_wrappers", {})
         return getattr(self, "_wrappers")
@@ -128,6 +130,11 @@ class HooksSupportStub(HooksSupport, metaclass=ABCMeta):
     def add_wrapper_with_key(self, wrapper_type: str, key: str, wrapper: Callable):
         w = self.wrappers.setdefault(wrapper_type, {}).setdefault(key, [])
         w.append(wrapper)
+
+    def remove_wrappers_with_key(self, wrapper_type: str, key: str) -> list:
+        w = self.wrappers.get(wrapper_type, {}).get(key, [])
+        del self.wrappers[wrapper_type][key]
+        return w
 
 
 @runtime_checkable

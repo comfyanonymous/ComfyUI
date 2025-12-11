@@ -161,9 +161,12 @@ class Flux2Tokenizer(sd1_clip.SD1Tokenizer):
 
 
 class Mistral3_24BModel(sd1_clip.SDClipModel):
-    def __init__(self, device="cpu", layer=None, layer_idx=None, dtype=None, attention_mask=True, model_options={}):
+    def __init__(self, device="cpu", layer=None, layer_idx=None, dtype=None, attention_mask=True, model_options=None, textmodel_json_config=None):
+        if model_options is None:
+            model_options = {}
         if layer is None:
             layer = [10, 20, 30]
+        # textmodel_json_config is IGNORED
         textmodel_json_config = {}
         num_layers = model_options.get("num_layers", None)
         if num_layers is not None:
@@ -175,7 +178,9 @@ class Mistral3_24BModel(sd1_clip.SDClipModel):
 
 
 class Flux2TEModel(sd1_clip.SD1ClipModel):
-    def __init__(self, device="cpu", dtype=None, model_options={}, name="mistral3_24b", clip_model=Mistral3_24BModel):
+    def __init__(self, device="cpu", dtype=None, model_options=None, name="mistral3_24b", clip_model=Mistral3_24BModel):
+        if model_options is None:
+            model_options = {}
         super().__init__(device=device, dtype=dtype, name=name, clip_model=clip_model, model_options=model_options)
 
     def encode_token_weights(self, token_weight_pairs):
@@ -189,7 +194,9 @@ class Flux2TEModel(sd1_clip.SD1ClipModel):
 
 def flux2_te(dtype_llama=None, llama_quantization_metadata=None, pruned=False):
     class Flux2TEModel_(Flux2TEModel):
-        def __init__(self, device="cpu", dtype=None, model_options={}):
+        def __init__(self, device="cpu", dtype=None, model_options=None):
+            if model_options is None:
+                model_options = {}
             if dtype_llama is not None:
                 dtype = dtype_llama
             if llama_quantization_metadata is not None:

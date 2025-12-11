@@ -782,7 +782,16 @@ class PromptServer(ExecutorToClientProgress):
         async def get_queue(request):
             queue_info = {}
             current_queue = self.prompt_queue.get_current_queue_volatile()
-            remove_sensitive = lambda queue: [x[:5] for x in queue]
+
+            def remove_sensitive(queue: List[QueueItem]):
+                items = []
+                for item in queue:
+                    items.append({
+                        **item,
+                        "sensitive": None,
+                    })
+                return items
+
             queue_info['queue_running'] = remove_sensitive(current_queue[0])
             queue_info['queue_pending'] = remove_sensitive(current_queue[1])
             return web.json_response(queue_info)
@@ -865,8 +874,7 @@ class PromptServer(ExecutorToClientProgress):
                 # Check if the prompt_id matches any currently running prompt
                 should_interrupt = False
                 for item in currently_running:
-                    # item structure: (number, prompt_id, prompt, extra_data, outputs_to_execute)
-                    if item[1] == prompt_id:
+                    if item.prompt_id == prompt_id:
                         logger.debug(f"Interrupting prompt {prompt_id}")
                         should_interrupt = True
                         break

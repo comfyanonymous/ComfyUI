@@ -238,7 +238,8 @@ class StringEnumRequestParameter(CustomNode):
     def INPUT_TYPES(cls) -> InputTypes:
         return StringRequestParameter.INPUT_TYPES()
 
-    RETURN_TYPES = (IO.COMBO,)
+    # todo: not sure how we're supposed to deal with combo inputs, it's not IO.COMBO
+    RETURN_TYPES = (IO.ANY,)
     FUNCTION = "execute"
     CATEGORY = "api/openapi"
 

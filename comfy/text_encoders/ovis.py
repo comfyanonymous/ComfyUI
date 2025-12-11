@@ -1,13 +1,16 @@
+import numbers
+
+import torch
 from transformers import Qwen2Tokenizer
+
 from . import llama
 from .. import sd1_clip
-import os
-import torch
-import numbers
+from ..component_model import files
+
 
 class Qwen3Tokenizer(sd1_clip.SDTokenizer):
     def __init__(self, embedding_directory=None, tokenizer_data={}):
-        tokenizer_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "qwen25_tokenizer")
+        tokenizer_path = files.get_package_as_path("comfy.text_encoders.qwen25_tokenizer")
         super().__init__(tokenizer_path, pad_with_end=False, embedding_size=2048, embedding_key='qwen3_2b', tokenizer_class=Qwen2Tokenizer, has_start_token=False, has_end_token=False, pad_to_max_length=False, max_length=99999999, min_length=284, pad_token=151643, tokenizer_data=tokenizer_data)
 
 
@@ -25,9 +28,14 @@ class OvisTokenizer(sd1_clip.SD1Tokenizer):
         tokens = super().tokenize_with_weights(llama_text, return_word_ids=return_word_ids, disable_weights=True, **kwargs)
         return tokens
 
+
 class Ovis25_2BModel(sd1_clip.SDClipModel):
-    def __init__(self, device="cpu", layer="last", layer_idx=None, dtype=None, attention_mask=True, model_options={}):
-        super().__init__(device=device, layer=layer, layer_idx=layer_idx, textmodel_json_config={}, dtype=dtype, special_tokens={"pad": 151643}, layer_norm_hidden_state=False, model_class=llama.Ovis25_2B, enable_attention_masks=attention_mask, return_attention_masks=False, zero_out_masked=True, model_options=model_options)
+    def __init__(self, device="cpu", layer="last", layer_idx=None, dtype=None, attention_mask=True, model_options=None, textmodel_json_config=None):
+        if model_options is None:
+            model_options = {}
+        # textmodel_json_config is IGNORED
+        textmodel_json_config = {}
+        super().__init__(device=device, layer=layer, layer_idx=layer_idx, textmodel_json_config=textmodel_json_config, dtype=dtype, special_tokens={"pad": 151643}, layer_norm_hidden_state=False, model_class=llama.Ovis25_2B, enable_attention_masks=attention_mask, return_attention_masks=False, zero_out_masked=True, model_options=model_options)
 
 
 class OvisTEModel(sd1_clip.SD1ClipModel):
@@ -63,4 +71,5 @@ def te(dtype_llama=None, llama_quantization_metadata=None):
             if llama_quantization_metadata is not None:
                 model_options["quantization_metadata"] = llama_quantization_metadata
             super().__init__(device=device, dtype=dtype, model_options=model_options)
+
     return OvisTEModel_

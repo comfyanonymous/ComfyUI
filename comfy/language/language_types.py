@@ -50,19 +50,6 @@ class TransformerStreamedProgress(TypedDict):
     next_token: str
 
 
-LLaVAProcessor = Callable[
-    [
-        Union[TextInput, PreTokenizedInput, List[TextInput], List[PreTokenizedInput]],  # text parameter
-        Union[Image, np.ndarray, torch.Tensor, List[Image], List[np.ndarray], List[torch.Tensor]],  # images parameter
-        Union[bool, str, PaddingStrategy],  # padding parameter
-        Union[bool, str, TruncationStrategy],  # truncation parameter
-        Optional[int],  # max_length parameter
-        Optional[Union[str, TensorType]]  # return_tensors parameter
-    ],
-    BatchFeature
-]
-
-
 class LanguageMessage(TypedDict):
     role: Literal["system", "user", "assistant"]
     content: str | MessageContent

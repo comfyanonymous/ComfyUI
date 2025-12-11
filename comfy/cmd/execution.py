@@ -55,7 +55,7 @@ from ..component_model.executor_types import ExecutorToClientProgress, Validatio
 from ..component_model.files import canonicalize_path
 from ..component_model.module_property import create_module_properties
 from ..component_model.queue_types import QueueTuple, HistoryEntry, QueueItem, MAXIMUM_HISTORY_SIZE, ExecutionStatus, \
-    ExecutionStatusAsDict
+    ExecutionStatusAsDict, AbstractPromptQueueGetCurrentQueueItems
 from ..execution_context import context_execute_node, context_execute_prompt
 from ..execution_context import current_execution_context, context_set_execution_list_and_inputs
 from ..execution_ext import should_panic_on_exception
@@ -1385,19 +1385,19 @@ class PromptQueue(AbstractPromptQueue):
                 queue_item.completed.set_result(outputs_)
 
     # Note: slow
-    def get_current_queue(self) -> Tuple[typing.List[QueueTuple], typing.List[QueueTuple]]:
+    def get_current_queue(self) -> AbstractPromptQueueGetCurrentQueueItems:
         with self.mutex:
-            out: typing.List[QueueTuple] = []
+            out: typing.List[QueueItem] = []
             for x in self.currently_running.values():
-                out += [x.queue_tuple]
-            return out, copy.deepcopy([item.queue_tuple for item in self.queue])
+                out += [x]
+            return out, copy.deepcopy(self.queue)
 
     # read-safe as long as queue items are immutable
-    def get_current_queue_volatile(self):
+    def get_current_queue_volatile(self) -> AbstractPromptQueueGetCurrentQueueItems:
         with self.mutex:
             running = [x for x in self.currently_running.values()]
             queued = copy.copy(self.queue)
-            return (running, queued)
+            return running, queued
 
     def get_tasks_remaining(self):
         with self.mutex:

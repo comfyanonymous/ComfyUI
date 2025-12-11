@@ -33,7 +33,7 @@ class FluxParams:
     axes_dim: list
     theta: int
     patch_size: int
-    qkv_bias: bool
+    qkv_bias: bool 
     guidance_embed: bool
     txt_ids_dims: list
     global_modulation: bool = False

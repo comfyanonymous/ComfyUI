@@ -160,7 +160,9 @@ class QueueDict(dict):
             return self.queue_tuple[5]
         return None
 
+
 NamedQueueTuple = QueueDict
+
 
 class QueueItem(QueueDict):
     """
@@ -198,4 +200,4 @@ class ExecutorToClientMessage(TypedDict, total=False):
     output: NotRequired[str]
 
 
-AbstractPromptQueueGetCurrentQueueItems = tuple[list[QueueTuple], list[QueueTuple]]
+AbstractPromptQueueGetCurrentQueueItems = tuple[list[QueueItem], list[QueueItem]]

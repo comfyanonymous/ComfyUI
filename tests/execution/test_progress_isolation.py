@@ -19,7 +19,7 @@ from PIL import Image
 from comfy.cli_args import default_configuration
 from comfy.cli_args_types import Configuration
 from comfy_execution.graph_utils import GraphBuilder
-from .test_execution import ComfyClient, RunResult
+from .common import RunResult, ComfyClient
 from ..conftest import comfy_background_server_from_config
 
 

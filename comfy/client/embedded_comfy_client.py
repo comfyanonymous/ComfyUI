@@ -4,6 +4,7 @@ from ..cmd.main_pre import tracer
 
 import asyncio
 import concurrent.futures
+import contextlib
 import copy
 import gc
 import json
@@ -12,7 +13,7 @@ import threading
 import uuid
 from asyncio import get_event_loop
 from multiprocessing import RLock
-from typing import Optional
+from typing import Optional, Literal
 
 from opentelemetry import context, propagate
 from opentelemetry.context import Context, attach, detach
@@ -175,15 +176,25 @@ class Comfy:
     In order to use this in blocking methods, learn more about asyncio online.
     """
 
-    def __init__(self, configuration: Optional[Configuration] = None, progress_handler: Optional[ExecutorToClientProgress] = None, max_workers: int = 1, executor: ProcessPoolExecutor | ContextVarExecutor = None):
+    def __init__(self, configuration: Optional[Configuration] = None, progress_handler: Optional[ExecutorToClientProgress] = None, max_workers: int = 1, executor: ProcessPoolExecutor | ContextVarExecutor | Literal["ProcessPoolExecutor","ContextVarExecutor"] = None):
         self._progress_handler = progress_handler or ServerStub()
-        self._executor = executor or ContextVarExecutor(max_workers=max_workers)
+        self._owns_executor = executor is None or isinstance(executor, str)
+        if self._owns_executor:
+            if isinstance(executor, str):
+                if executor == "ProcessPoolExecutor":
+                    self._executor = ProcessPoolExecutor(max_workers=max_workers)
+                else:
+                    self._executor = ContextVarExecutor(max_workers=max_workers)
+        else:
+            assert not isinstance(executor, str)
+            self._executor = executor
         self._configuration = configuration
         self._is_running = False
         self._task_count_lock = RLock()
         self._task_count = 0
         self._history = History()
-        self._context_stack = []
+        self._exit_stack = None
+        self._async_exit_stack = None
 
     @property
     def is_running(self) -> bool:
@@ -194,11 +205,13 @@ class Comfy:
         return self._task_count
 
     def __enter__(self):
+        self._exit_stack = contextlib.ExitStack()
         self._is_running = True
         from ..execution_context import context_configuration
         cm = context_configuration(self._configuration)
-        cm.__enter__()
-        self._context_stack.append(cm)
+        self._exit_stack.enter_context(cm)
+        if self._owns_executor:
+            self._exit_stack.enter_context(self._executor)
         return self
 
     @property
@@ -210,16 +223,17 @@ class Comfy:
 
     def __exit__(self, *args):
         get_event_loop().run_in_executor(self._executor, _cleanup)
-        self._executor.shutdown(wait=True)
         self._is_running = False
-        self._context_stack.pop().__exit__(*args)
+        self._exit_stack.__exit__(*args)
 
     async def __aenter__(self):
+        self._async_exit_stack = contextlib.AsyncExitStack()
         self._is_running = True
         from ..execution_context import context_configuration
         cm = context_configuration(self._configuration)
-        cm.__enter__()
-        self._context_stack.append(cm)
+        self._async_exit_stack.enter_context(cm)
+        if self._owns_executor:
+            self._async_exit_stack.enter_context(self._executor)
         return self
 
     async def __aexit__(self, *args):
@@ -229,9 +243,8 @@ class Comfy:
 
         await get_event_loop().run_in_executor(self._executor, _cleanup)
 
-        self._executor.shutdown(wait=True)
         self._is_running = False
-        self._context_stack.pop().__exit__(*args)
+        await self._async_exit_stack.__aexit__(*args)
 
     async def queue_prompt_api(self,
                                prompt: PromptDict | str | dict,

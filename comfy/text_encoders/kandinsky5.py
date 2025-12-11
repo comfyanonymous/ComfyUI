@@ -23,12 +23,14 @@ class Kandinsky5TokenizerImage(Kandinsky5Tokenizer):
 
 
 class Qwen25_7BVLIModel(sd1_clip.SDClipModel):
-    def __init__(self, device="cpu", layer="hidden", layer_idx=-1, dtype=None, attention_mask=True, model_options={}):
+    def __init__(self, device="cpu", layer="hidden", layer_idx=-1, dtype=None, attention_mask=True, model_options={}, textmodel_json_config=None):
         llama_quantization_metadata = model_options.get("llama_quantization_metadata", None)
         if llama_quantization_metadata is not None:
             model_options = model_options.copy()
             model_options["quantization_metadata"] = llama_quantization_metadata
-        super().__init__(device=device, layer=layer, layer_idx=layer_idx, textmodel_json_config={}, dtype=dtype, special_tokens={"pad": 151643}, layer_norm_hidden_state=False, model_class=Qwen25_7BVLI, enable_attention_masks=attention_mask, return_attention_masks=attention_mask, model_options=model_options)
+        if textmodel_json_config is None:
+            textmodel_json_config = {}
+        super().__init__(device=device, layer=layer, layer_idx=layer_idx, textmodel_json_config=textmodel_json_config, dtype=dtype, special_tokens={"pad": 151643}, layer_norm_hidden_state=False, model_class=Qwen25_7BVLI, enable_attention_masks=attention_mask, return_attention_masks=attention_mask, model_options=model_options)
 
 
 class Kandinsky5TEModel(QwenImageTEModel):

@@ -827,13 +827,13 @@ class DualCFGGuider(io.ComfyNode):
                 io.Conditioning.Input("negative"),
                 io.Float.Input("cfg_conds", default=8.0, min=0.0, max=100.0, step=0.1, round=0.01),
                 io.Float.Input("cfg_cond2_negative", default=8.0, min=0.0, max=100.0, step=0.1, round=0.01),
-                io.Combo.Input("style", options=["regular", "nested"]),
+                io.Combo.Input("style", options=["regular", "nested"], optional=True, default="regular"),
             ],
             outputs=[io.Guider.Output()]
         )
 
     @classmethod
-    def execute(cls, model, cond1, cond2, negative, cfg_conds, cfg_cond2_negative, style) -> io.NodeOutput:
+    def execute(cls, model, cond1, cond2, negative, cfg_conds, cfg_cond2_negative, style="regular") -> io.NodeOutput:
         guider = Guider_DualCFG(model)
         guider.set_conds(cond1, cond2, negative)
         guider.set_cfg(cfg_conds, cfg_cond2_negative, nested=(style == "nested"))

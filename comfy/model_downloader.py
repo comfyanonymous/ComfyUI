@@ -561,6 +561,13 @@ KNOWN_VAES: Final[KnownDownloadables] = KnownDownloadables([
     HuggingFile("Comfy-Org/Wan_2.1_ComfyUI_repackaged", "split_files/vae/wan_2.1_vae.safetensors"),
     HuggingFile("Comfy-Org/Wan_2.2_ComfyUI_Repackaged", "split_files/vae/wan2.2_vae.safetensors"),
     HuggingFile("Comfy-Org/Qwen-Image_ComfyUI", "split_files/vae/qwen_image_vae.safetensors"),
+    # Flux 2
+    HuggingFile("Comfy-Org/flux2-dev", "split_files/vae/flux2-vae.safetensors"),
+    # Z Image Turbo
+    HuggingFile("Comfy-Org/z_image_turbo", "split_files/vae/ae.safetensors", save_with_filename="z_image_turbo_vae.safetensors"),
+    # Hunyuan Image
+    HuggingFile("Comfy-Org/HunyuanImage_2.1_ComfyUI", "split_files/vae/hunyuan_image_2.1_vae_fp16.safetensors"),
+    HuggingFile("Comfy-Org/HunyuanImage_2.1_ComfyUI", "split_files/vae/hunyuan_image_refiner_vae_fp16.safetensors"),
 ], folder_name="vae")
 
 KNOWN_HUGGINGFACE_MODEL_REPOS: Final[Set[str]] = {
@@ -645,8 +652,18 @@ KNOWN_UNET_MODELS: Final[KnownDownloadables] = KnownDownloadables([
     HuggingFile("Comfy-Org/Qwen-Image-Edit_ComfyUI", "split_files/diffusion_models/qwen_image_edit_2509_fp8_e4m3fn.safetensors"),
     HuggingFile("Comfy-Org/Qwen-Image-Edit_ComfyUI", "split_files/diffusion_models/qwen_image_edit_bf16.safetensors"),
     HuggingFile("Comfy-Org/Qwen-Image-Edit_ComfyUI", "split_files/diffusion_models/qwen_image_edit_fp8_e4m3fn.safetensors"),
+    # Flux 2
+    HuggingFile("Comfy-Org/flux2-dev", "split_files/diffusion_models/flux2_dev_fp8mixed.safetensors"),
+    # Z Image Turbo
+    HuggingFile("Comfy-Org/z_image_turbo", "split_files/diffusion_models/z_image_turbo_bf16.safetensors"),
+    # Omnigen 2
+    HuggingFile("Comfy-Org/Omnigen2_ComfyUI_repackaged", "split_files/diffusion_models/omnigen2_fp16.safetensors"),
+    # Hunyuan Image
+    HuggingFile("Comfy-Org/HunyuanImage_2.1_ComfyUI", "split_files/diffusion_models/hunyuanimage2.1_bf16.safetensors"),
+    HuggingFile("Comfy-Org/HunyuanImage_2.1_ComfyUI", "split_files/diffusion_models/hunyuanimage2.1_refiner_bf16.safetensors"),
+    # Ovis
+    HuggingFile("Comfy-Org/Ovis-Image", "split_files/diffusion_models/ovis_image_bf16.safetensors"),
 ], folder_names=["diffusion_models", "unet"])
-
 KNOWN_CLIP_MODELS: Final[KnownDownloadables] = KnownDownloadables([
     # todo: is this correct?
     HuggingFile("comfyanonymous/flux_text_encoders", "t5xxl_fp16.safetensors"),
@@ -669,6 +686,16 @@ KNOWN_CLIP_MODELS: Final[KnownDownloadables] = KnownDownloadables([
     HuggingFile("Comfy-Org/HiDream-I1_ComfyUI", "split_files/text_encoders/llama_3.1_8b_instruct_fp8_scaled.safetensors"),
     HuggingFile("Comfy-Org/Qwen-Image_ComfyUI", "split_files/text_encoders/qwen_2.5_vl_7b.safetensors"),
     HuggingFile("Comfy-Org/Qwen-Image_ComfyUI", "split_files/text_encoders/qwen_2.5_vl_7b_fp8_scaled.safetensors"),
+    # Flux 2
+    HuggingFile("Comfy-Org/flux2-dev", "split_files/text_encoders/mistral_3_small_flux2_fp8.safetensors"),
+    HuggingFile("Comfy-Org/flux2-dev", "split_files/text_encoders/mistral_3_small_flux2_bf16.safetensors"),
+    # Z Image Turbo
+    HuggingFile("Comfy-Org/z_image_turbo", "split_files/text_encoders/qwen_3_4b.safetensors"),
+    # Omnigen 2
+    HuggingFile("Comfy-Org/Omnigen2_ComfyUI_repackaged", "split_files/text_encoders/qwen_2.5_vl_fp16.safetensors"),
+    # Hunyuan Image
+    HuggingFile("Comfy-Org/HunyuanImage_2.1_ComfyUI", "split_files/text_encoders/byt5_small_glyphxl_fp16.safetensors"),
+    HuggingFile("Comfy-Org/HunyuanImage_2.1_ComfyUI", "split_files/text_encoders/qwen_2.5_vl_7b.safetensors"),
 ], folder_names=["clip", "text_encoders"])
 
 KNOWN_STYLE_MODELS: Final[KnownDownloadables] = KnownDownloadables([

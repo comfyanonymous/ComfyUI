@@ -1,24 +1,11 @@
-import json
-import logging
 import time
-import urllib.request
-import uuid
-from typing import Dict, Optional, AsyncGenerator
 
 import numpy
 import pytest
-from PIL import Image
 from pytest import fixture
 
-from comfy.cli_args import default_configuration
-from comfy.client.embedded_comfy_client import Comfy
-from comfy.component_model.executor_types import SendSyncEvent, SendSyncData, ExecutingMessage, ExecutionErrorMessage, \
-    DependencyCycleError
-from comfy.distributed.server_stub import ServerStub
-from comfy.execution_context import context_add_custom_nodes
-from comfy.nodes.package_typing import ExportedNodes
-from comfy_execution.graph_utils import GraphBuilder, Node
-from ..conftest import current_test_name
+from comfy_execution.graph_utils import GraphBuilder
+from .common import ComfyClient, client_fixture
 
 
 async def run_warmup(client, prefix="warmup"):
@@ -29,115 +16,16 @@ async def run_warmup(client, prefix="warmup"):
     await client.run(warmup_g)
 
 
-class RunResult:
-    def __init__(self, prompt_id: str):
-        self.outputs: Dict[str, Dict] = {}
-        self.runs: Dict[str, bool] = {}
-        self.cached: Dict[str, bool] = {}
-        self.prompt_id: str = prompt_id
-
-    def get_output(self, node: Node):
-        return self.outputs.get(node.id, None)
-
-    def did_run(self, node: Node):
-        return self.runs.get(node.id, False)
-
-    def was_cached(self, node: Node):
-        return self.cached.get(node.id, False)
-
-    def was_executed(self, node: Node):
-        """Returns True if node was either run or cached"""
-        return self.did_run(node) or self.was_cached(node)
-
-    def get_images(self, node: Node):
-        output = self.get_output(node)
-        if output is None:
-            return []
-        return output.get('image_objects', [])
-
-    def get_prompt_id(self):
-        return self.prompt_id
-
-
-class _ProgressHandler(ServerStub):
-    def __init__(self):
-        super().__init__()
-        self.tuples: list[tuple[SendSyncEvent, SendSyncData, str]] = []
-
-    def send_sync(self,
-                  event: SendSyncEvent,
-                  data: SendSyncData,
-                  sid: Optional[str] = None):
-        self.tuples.append((event, data, sid))
-
-
-class ComfyClient:
-    def __init__(self, embedded_client: Comfy, progress_handler: _ProgressHandler):
-        self.embedded_client = embedded_client
-        self.progress_handler = progress_handler
-
-    async def run(self, graph: GraphBuilder, partial_execution_targets=None) -> RunResult:
-        self.progress_handler.tuples = []
-        # todo: what is a partial_execution_targets ???
-        for node in graph.nodes.values():
-            if node.class_type == 'SaveImage':
-                node.inputs['filename_prefix'] = current_test_name.get()
-
-        prompt_id = str(uuid.uuid4())
-        try:
-            outputs = await self.embedded_client.queue_prompt(graph.finalize(), prompt_id=prompt_id, partial_execution_targets=partial_execution_targets)
-        except (RuntimeError, DependencyCycleError) as exc_info:
-            logging.warning("error when queueing prompt", exc_info=exc_info)
-            outputs = {}
-        result = RunResult(prompt_id=prompt_id)
-        result.outputs = outputs
-        result.runs = {}
-        send_sync_event: SendSyncEvent
-        send_sync_data: SendSyncData
-        for send_sync_event, send_sync_data, _ in self.progress_handler.tuples:
-            if send_sync_event == "executing":
-                send_sync_data: ExecutingMessage
-                result.runs[send_sync_data["node"]] = True
-            elif send_sync_event == "execution_error":
-                send_sync_data: ExecutionErrorMessage
-                raise Exception(send_sync_data)
-            elif send_sync_event == 'execution_cached':
-                if send_sync_data['prompt_id'] == prompt_id:
-                    cached_nodes = send_sync_data.get('nodes', [])
-                    for node_id in cached_nodes:
-                        result.cached[node_id] = True
-
-        for node in outputs.values():
-            if "images" in node:
-                image_objects = node["image_objects"] = []
-                for image in node["images"]:
-                    image_objects.append(Image.open(image["abs_path"]))
-        return result
-
-    def get_all_history(self, *args, **kwargs):
-        return self.embedded_client.history.copy(*args, **kwargs)
-
-
 # Loop through these variables
 @pytest.mark.execution
 class TestExecution:
     # Initialize server and client
-    @fixture(scope="class", autouse=True, params=[
-        { "extra_args" : [], "should_cache_results" : True },
-        { "extra_args" : ["--cache-lru", 0], "should_cache_results" : True },
-        { "extra_args" : ["--cache-lru", 100], "should_cache_results" : True },
-        { "extra_args" : ["--cache-none"], "should_cache_results" : False },
+    client = fixture(client_fixture, scope="class", autouse=True, params=[
+        {"extra_args": {}, "should_cache_results": True},
+        {"extra_args": {"cache_lru": 0}, "should_cache_results": True},
+        {"extra_args": {"cache_lru": 100}, "should_cache_results": True},
+        {"extra_args": {"cache_none": True}, "should_cache_results": False},
     ])
-    async def client(self, request):
-        from ..inference.testing_pack import NODE_CLASS_MAPPINGS, NODE_DISPLAY_NAME_MAPPINGS
-
-        configuration = default_configuration()
-        configuration.update(request.param["extra_args"])
-
-        progress_handler = _ProgressHandler()
-        with context_add_custom_nodes(ExportedNodes(NODE_CLASS_MAPPINGS=NODE_CLASS_MAPPINGS, NODE_DISPLAY_NAME_MAPPINGS=NODE_DISPLAY_NAME_MAPPINGS)):
-            async with Comfy(configuration, progress_handler=progress_handler) as embedded_client:
-                yield ComfyClient(embedded_client, progress_handler)
 
     @fixture
     def builder(self, request):
@@ -160,7 +48,7 @@ class TestExecution:
         assert result.did_run(mask)
         assert result.did_run(lazy_mix)
 
-    async def test_full_cache(self, client: ComfyClient, builder: GraphBuilder, server):
+    async def test_full_cache(self, client: ComfyClient, builder: GraphBuilder):
         g = builder
         input1 = g.node("StubImage", content="BLACK", height=512, width=512, batch_size=1)
         input2 = g.node("StubImage", content="NOISE", height=512, width=512, batch_size=1)
@@ -172,12 +60,12 @@ class TestExecution:
         await client.run(g)
         result2 = await client.run(g)
         for node_id, node in g.nodes.items():
-            if server["should_cache_results"]:
+            if client.should_cache_results:
                 assert not result2.did_run(node), f"Node {node_id} ran, but should have been cached"
             else:
                 assert result2.did_run(node), f"Node {node_id} was cached, but should have been run"
 
-    async def test_partial_cache(self, client: ComfyClient, builder: GraphBuilder, server):
+    async def test_partial_cache(self, client: ComfyClient, builder: GraphBuilder):
         g = builder
         input1 = g.node("StubImage", content="BLACK", height=512, width=512, batch_size=1)
         input2 = g.node("StubImage", content="NOISE", height=512, width=512, batch_size=1)
@@ -189,7 +77,7 @@ class TestExecution:
         await client.run(g)
         mask.inputs['value'] = 0.4
         result2 = await client.run(g)
-        if server["should_cache_results"]:
+        if client.should_cache_results:
             assert not result2.did_run(input1), "Input1 should have been cached"
             assert not result2.did_run(input2), "Input2 should have been cached"
         else:
@@ -318,7 +206,7 @@ class TestExecution:
             assert 'prompt_id' in e.args[0], f"Did not get back a proper error message: {e}"
             assert e.args[0]['node_id'] == generator.id, "Error should have been on the generator node"
 
-    async def test_custom_is_changed(self, client: ComfyClient, builder: GraphBuilder, server):
+    async def test_custom_is_changed(self, client: ComfyClient, builder: GraphBuilder):
         g = builder
         # Creating the nodes in this specific order previously caused a bug
         save = g.node("SaveImage")
@@ -334,7 +222,7 @@ class TestExecution:
         result3 = await client.run(g)
         result4 = await client.run(g)
         assert result1.did_run(is_changed), "is_changed should have been run"
-        if server["should_cache_results"]:
+        if client.should_cache_results:
             assert not result2.did_run(is_changed), "is_changed should have been cached"
         else:
             assert result2.did_run(is_changed), "is_changed should have been re-run"
@@ -443,7 +331,7 @@ class TestExecution:
         assert len(images2) == 1, "Should have 1 image"
 
     # This tests that only constant outputs are used in the call to `IS_CHANGED`
-    async def test_is_changed_with_outputs(self, client: ComfyClient, builder: GraphBuilder, server):
+    async def test_is_changed_with_outputs(self, client: ComfyClient, builder: GraphBuilder):
         g = builder
         input1 = g.node("StubConstantImage", value=0.5, height=512, width=512, batch_size=1)
         test_node = g.node("TestIsChangedWithConstants", image=input1.out(0), value=0.5)
@@ -459,11 +347,10 @@ class TestExecution:
         images = result.get_images(output)
         assert len(images) == 1, "Should have 1 image"
         assert numpy.array(images[0]).min() == 63 and numpy.array(images[0]).max() == 63, "Image should have value 0.25"
-        if server["should_cache_results"]:
+        if client.should_cache_results:
             assert not result.did_run(test_node), "The execution should have been cached"
         else:
             assert result.did_run(test_node), "The execution should have been re-run"
-
 
     async def test_parallel_sleep_nodes(self, client: ComfyClient, builder: GraphBuilder, skip_timing_checks):
         # Warmup execution to ensure server is fully initialized

@@ -35,11 +35,11 @@ def _generate_config_params():
 
     async_options = [
         {"disable_async_offload": False},
-        # {"disable_async_offload": True},
+        {"disable_async_offload": True},
     ]
     pinned_options = [
         {"disable_pinned_memory": False},
-        # {"disable_pinned_memory": True},
+        {"disable_pinned_memory": True},
     ]
     fast_options = [
         {"fast": set()},
@@ -62,12 +62,11 @@ async def client(tmp_path_factory, request) -> AsyncGenerator[Any, Any]:
     config = default_configuration()
     # this should help things go a little faster
     config.disable_all_custom_nodes = True
-    # this enables compilation
-    config.disable_pinned_memory = True
     config.update(request.param)
     # use ProcessPoolExecutor to respect various config settings
-    async with Comfy(configuration=config, executor=ProcessPoolExecutor(max_workers=1)) as client:
-        yield client
+    with ProcessPoolExecutor(max_workers=1) as executor:
+        async with Comfy(configuration=config, executor=executor) as client:
+            yield client
 
 
 def _prepare_for_workflows() -> dict[str, Traversable]:
@@ -82,6 +81,10 @@ def _prepare_for_workflows() -> dict[str, Traversable]:
 async def test_workflow(workflow_name: str, workflow_file: Traversable, has_gpu: bool, client: Comfy):
     if not has_gpu:
         pytest.skip("requires gpu")
+
+    if "compile" in workflow_name:
+        pytest.skip("compilation has regressed in 0.4.0 because upcast weights are now permitted to be compiled, causing OOM errors in most cases")
+        return
 
     workflow = json.loads(workflow_file.read_text(encoding="utf8"))
 

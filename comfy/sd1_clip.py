@@ -138,7 +138,7 @@ class SDClipModel(torch.nn.Module, ClipTokenWeightEncoder):
         if operations is None:
             if quant_config is not None:
                 operations = ops.mixed_precision_ops(quant_config, dtype, full_precision_mm=True)
-                logger.info("Using MixedPrecisionOps for text encoder")
+                logger.debug("Using MixedPrecisionOps for text encoder")
             else:
                 operations = ops.manual_cast
 
