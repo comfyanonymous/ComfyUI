@@ -377,6 +377,7 @@ class NextDiT(nn.Module):
         z_image_modulation=False,
         time_scale=1.0,
         pad_tokens_multiple=None,
+        clip_text_dim=None,
         image_model=None,
         device=None,
         dtype=None,
@@ -446,6 +447,31 @@ class NextDiT(nn.Module):
                 dtype=operation_settings.get("dtype"),
             ),
         )
+
+        self.clip_text_pooled_proj = None
+
+        if clip_text_dim is not None:
+            self.clip_text_dim = clip_text_dim
+            self.clip_text_pooled_proj = nn.Sequential(
+                operation_settings.get("operations").RMSNorm(clip_text_dim, eps=norm_eps, elementwise_affine=True, device=operation_settings.get("device"), dtype=operation_settings.get("dtype")),
+                operation_settings.get("operations").Linear(
+                    clip_text_dim,
+                    clip_text_dim,
+                    bias=True,
+                    device=operation_settings.get("device"),
+                    dtype=operation_settings.get("dtype"),
+                ),
+            )
+            self.time_text_embed = nn.Sequential(
+                nn.SiLU(),
+                operation_settings.get("operations").Linear(
+                    min(dim, 1024) + clip_text_dim,
+                    min(dim, 1024),
+                    bias=True,
+                    device=operation_settings.get("device"),
+                    dtype=operation_settings.get("dtype"),
+                ),
+            )
 
         self.layers = nn.ModuleList(
             [
@@ -585,8 +611,16 @@ class NextDiT(nn.Module):
 
         cap_feats = self.cap_embedder(cap_feats)  # (N, L, D)  # todo check if able to batchify w.o. redundant compute
 
+        if self.clip_text_pooled_proj is not None:
+            pooled = kwargs.get("clip_text_pooled", None)
+            if pooled is not None:
+                pooled = self.clip_text_pooled_proj(pooled)
+            else:
+                pooled = torch.zeros((1, self.clip_text_dim), device=x.device, dtype=x.dtype)
+
+            adaln_input = self.time_text_embed(torch.cat((t, pooled), dim=-1))
+
         patches = transformer_options.get("patches", {})
-        transformer_options = kwargs.get("transformer_options", {})
         x_is_tensor = isinstance(x, torch.Tensor)
         img, mask, img_size, cap_size, freqs_cis = self.patchify_and_embed(x, cap_feats, cap_mask, t, num_tokens, transformer_options=transformer_options)
         freqs_cis = freqs_cis.to(img.device)

@@ -26,7 +26,7 @@ if TYPE_CHECKING:
     from comfy_api.input import VideoInput
 from comfy_api.internal import (_ComfyNodeInternal, _NodeOutputInternal, classproperty, copy_class, first_real_override, is_class,
     prune_dict, shallow_clone_class)
-from comfy_api.latest._resources import Resources, ResourcesLocal
+from ._resources import Resources, ResourcesLocal
 from comfy_execution.graph_utils import ExecutionBlocker
 from ._util import MESH, VOXEL
 
@@ -568,6 +568,8 @@ class Conditioning(ComfyTypeIO):
         '''Used by WAN Camera.'''
         time_dim_concat: NotRequired[torch.Tensor]
         '''Used by WAN Phantom Subject.'''
+        time_dim_replace: NotRequired[torch.Tensor]
+        '''Used by Kandinsky5 I2V.'''
 
     CondList = list[tuple[torch.Tensor, PooledDict]]
     Type = CondList
@@ -1813,7 +1815,7 @@ class NodeOutput(_NodeOutputInternal):
             ui = data["ui"]
         if "expand" in data:
             expand = data["expand"]
-        return cls(args=args, ui=ui, expand=expand)
+        return cls(*args, ui=ui, expand=expand)
 
     def __getitem__(self, index) -> Any:
         return self.args[index]
