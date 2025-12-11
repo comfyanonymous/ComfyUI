@@ -1026,7 +1026,7 @@ class ZImage(Lumina2):
         "shift": 3.0,
     }
 
-    memory_usage_factor = 1.7
+    memory_usage_factor = 2.0
 
     supported_inference_dtypes = [torch.bfloat16, torch.float16, torch.float32]
 
