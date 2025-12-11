@@ -541,7 +541,7 @@ class SD3(supported_models_base.BASE):
     unet_extra_config = {}
     latent_format = latent_formats.SD3
 
-    memory_usage_factor = 1.2
+    memory_usage_factor = 1.6
 
     text_encoder_key_prefix = ["text_encoders."]
 
