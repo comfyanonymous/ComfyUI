@@ -138,7 +138,7 @@ class CLIP:
 
         self.tokenizer: "sd1_clip.SD1Tokenizer" = tokenizer(embedding_directory=embedding_directory, tokenizer_data=tokenizer_data)
         self.patcher = model_patcher.ModelPatcher(self.cond_stage_model, load_device=load_device, offload_device=offload_device)
-        #Match torch.float32 hardcode upcast in TE implemention
+        # Match torch.float32 hardcode upcast in TE implemention
         self.patcher.set_model_compute_dtype(torch.float32)
         self.patcher.hook_mode = EnumHookMode.MinVram
         self.patcher.is_clip = True
@@ -565,16 +565,10 @@ class VAE:
                     ddconfig = {"dim": dim, "z_dim": self.latent_channels, "dim_mult": [1, 2, 4, 4], "num_res_blocks": 2, "attn_scales": [], "temperal_downsample": [False, True, True], "dropout": 0.0}
                     self.first_stage_model = wan_vae.WanVAE(**ddconfig)
                     self.working_dtypes = [torch.bfloat16, torch.float16, torch.float32]
+                    self.memory_used_encode = lambda shape, dtype: (1500 if shape[2] <= 4 else 6000) * shape[3] * shape[4] * model_management.dtype_size(dtype)
+                    self.memory_used_decode = lambda shape, dtype: (2200 if shape[2] <= 4 else 7000) * shape[3] * shape[4] * (8 * 8) * model_management.dtype_size(dtype)
 
-                    # todo: not sure how to detect qwen here
-                    wan_21_decode = 7000
-                    wan_21_encode = wan_21_decode - 1000
-                    qwen_vae_decode = int(wan_21_decode / 3)
-                    qwen_vae_encode = int(wan_21_encode / 3)
-                    encode_const = qwen_vae_encode if "qwen" in self.ckpt_name.lower() else wan_21_encode
-                    decode_const = qwen_vae_decode if "qwen" in self.ckpt_name.lower() else wan_21_decode
-                    self.memory_used_encode = lambda shape, dtype: encode_const * shape[3] * shape[4] * model_management.dtype_size(dtype)
-                    self.memory_used_decode = lambda shape, dtype: decode_const * shape[3] * shape[4] * (8 * 8) * model_management.dtype_size(dtype)
+
             # Hunyuan 3d v2 2.0 & 2.1
             elif "geo_decoder.cross_attn_decoder.ln_1.bias" in sd:
 

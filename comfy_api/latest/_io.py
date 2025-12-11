@@ -1818,7 +1818,7 @@ class NodeOutput(_NodeOutputInternal):
         if "expand" in data:
             expand = data["expand"]
         # todo: this is being called incorrectly, but since it's untested and unused anyway, maybe we'll wait for upstream to fix it
-        return cls(args=args, ui=ui, expand=expand)  # pylint: disable=unexpected-keyword-arg
+        return cls(*args, ui=ui, expand=expand)  # pylint: disable=unexpected-keyword-arg
 
     def __getitem__(self, index) -> Any:
         return self.args[index]
