@@ -186,7 +186,7 @@ class Flux(nn.Module):
         transformer_options["total_blocks"] = len(self.double_blocks)
         transformer_options["block_type"] = "double"
         for i, block in enumerate(self.double_blocks):
-            transformer_options["block_index"] = torch.tensor(i, dtype=torch.uint8, device=img.device)
+            transformer_options["block_index"] = torch.tensor(i, dtype=torch.uint8, device="cpu")
             if ("double_block", i) in blocks_replace:
                 def block_wrap(args):
                     out = {}
@@ -233,7 +233,7 @@ class Flux(nn.Module):
         transformer_options["total_blocks"] = len(self.single_blocks)
         transformer_options["block_type"] = "single"
         for i, block in enumerate(self.single_blocks):
-            transformer_options["block_index"] = torch.tensor(i, dtype=torch.uint8, device=img.device)
+            transformer_options["block_index"] = torch.tensor(i, dtype=torch.uint8, device="cpu")
             if ("single_block", i) in blocks_replace:
                 def block_wrap(args):
                     out = {}

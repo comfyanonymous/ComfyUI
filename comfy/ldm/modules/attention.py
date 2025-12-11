@@ -921,7 +921,7 @@ class SpatialTransformer(nn.Module):
         if self.use_linear:
             x = self.proj_in(x)
         for i, block in enumerate(self.transformer_blocks):
-            transformer_options["block_index"] = torch.tensor(i, dtype=torch.uint8, device=x.device)
+            transformer_options["block_index"] = torch.tensor(i, dtype=torch.uint8, device="cpu")
             x = block(x, context=context[i], transformer_options=transformer_options)
         if self.use_linear:
             x = self.proj_out(x)
@@ -1067,7 +1067,7 @@ class SpatialVideoTransformer(SpatialTransformer):
         for it_, (block, mix_block) in enumerate(
             zip(self.transformer_blocks, self.time_stack)
         ):
-            transformer_options["block_index"] = torch.tensor(it_, dtype=torch.uint8, device=x.device)
+            transformer_options["block_index"] = torch.tensor(it_, dtype=torch.uint8, device="cpu")
             x = block(
                 x,
                 context=spatial_context,

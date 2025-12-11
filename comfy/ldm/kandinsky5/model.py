@@ -375,7 +375,7 @@ class Kandinsky5(nn.Module):
         transformer_options["total_blocks"] = len(self.visual_transformer_blocks)
         transformer_options["block_type"] = "double"
         for i, block in enumerate(self.visual_transformer_blocks):
-            transformer_options["block_index"] = torch.tensor(i, dtype=torch.uint8, device=visual_embed.device)
+            transformer_options["block_index"] = torch.tensor(i, dtype=torch.uint8, device="cpu")
             if ("double_block", i) in blocks_replace:
                 def block_wrap(args):
                     return block(x=args["x"], context=args["context"], time_embed=args["time_embed"], freqs=args["freqs"], transformer_options=args.get("transformer_options"))
