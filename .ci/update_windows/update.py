@@ -54,7 +54,7 @@ try:
 except KeyError:
     print("nothing to stash")  # noqa: T201
 except:
-    print("Could not stash, cleaning index and trying again.")
+    print("Could not stash, cleaning index and trying again.")  # noqa: T201
     repo.state_cleanup()
     repo.index.read_tree(repo.head.peel().tree)
     repo.index.write()
@@ -161,5 +161,6 @@ try:
         shutil.copy(stable_update_script, stable_update_script_to)
 except:
     pass
+
 
 
