@@ -43,6 +43,7 @@ from protocol import BinaryEventTypes
 
 # Import cache control middleware
 from middleware.cache_middleware import cache_control
+from middleware.auth_middleware import create_api_key_middleware
 
 if args.enable_manager:
     import comfyui_manager
@@ -204,6 +205,17 @@ class PromptServer():
         self.number = 0
 
         middlewares = [cache_control, deprecation_warning]
+        
+        # Add API key authentication middleware if enabled
+        if args.api_key:
+            # Define paths that don't require authentication
+            # Note: Static files (.js, .css, .html, etc.) and root "/" are automatically exempted
+            exempt_paths = {
+                "/health",  # Health check endpoint
+                "/ws",  # WebSocket endpoint
+            }
+            middlewares.append(create_api_key_middleware(args.api_key, exempt_paths))
+        
         if args.enable_compress_response_body:
             middlewares.append(compress_body)
 
@@ -302,6 +314,50 @@ class PromptServer():
             response.headers["Pragma"] = "no-cache"
             response.headers["Expires"] = "0"
             return response
+
+        @routes.get("/health")
+        async def get_health(request):
+            """Health check endpoint that returns the status of the server"""
+            try:
+                # Basic health information
+                health_data = {
+                    "status": "healthy",
+                    "version": __version__,
+                    "timestamp": time.time(),
+                    "queue": {
+                        "pending": len(self.prompt_queue.queue),
+                        "running": len(self.prompt_queue.currently_running)
+                    }
+                }
+                
+                # Add device info if available
+                try:
+                    device = comfy.model_management.get_torch_device()
+                    health_data["device"] = str(device)
+                    
+                    # Add VRAM info if GPU is available
+                    if comfy.model_management.vram_state != comfy.model_management.VRAMState.DISABLED:
+                        vram_total = comfy.model_management.get_total_memory()
+                        vram_free = comfy.model_management.get_free_memory()
+                        health_data["vram"] = {
+                            "total": vram_total,
+                            "free": vram_free,
+                            "used": vram_total - vram_free
+                        }
+                except Exception as e:
+                    logging.debug(f"Could not get device info for health check: {e}")
+                
+                return web.json_response(health_data)
+            except Exception as e:
+                logging.error(f"Health check failed: {e}")
+                return web.json_response(
+                    {
+                        "status": "unhealthy",
+                        "error": str(e),
+                        "timestamp": time.time()
+                    },
+                    status=503
+                )
 
         @routes.get("/embeddings")
         def get_embeddings(request):

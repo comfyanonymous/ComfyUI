@@ -42,6 +42,9 @@ parser.add_argument("--tls-certfile", type=str, help="Path to TLS (SSL) certific
 parser.add_argument("--enable-cors-header", type=str, default=None, metavar="ORIGIN", nargs="?", const="*", help="Enable CORS (Cross-Origin Resource Sharing) with optional origin or allow all with default '*'.")
 parser.add_argument("--max-upload-size", type=float, default=100, help="Set the maximum upload size in MB.")
 
+parser.add_argument("--api-key", type=str, default=None, help="Require API key authentication for all API endpoints except health check. Provide the key via 'Authorization: Bearer <key>' or 'X-API-Key: <key>' header.")
+parser.add_argument("--api-key-file", type=str, default=None, help="Path to a file containing the API key. Alternative to --api-key for better security.")
+
 parser.add_argument("--base-directory", type=str, default=None, help="Set the ComfyUI base directory for models, custom_nodes, input, output, temp, and user directories.")
 parser.add_argument("--extra-model-paths-config", type=str, default=None, metavar="PATH", nargs='+', action='append', help="Load one or more extra_model_paths.yaml files.")
 parser.add_argument("--output-directory", type=str, default=None, help="Set the ComfyUI output directory. Overrides --base-directory.")
@@ -239,6 +242,14 @@ if args.disable_auto_launch:
 if args.force_fp16:
     args.fp16_unet = True
 
+# Load API key from file if specified
+if args.api_key_file and not args.api_key:
+    try:
+        with open(args.api_key_file, 'r') as f:
+            args.api_key = f.read().strip()
+    except Exception as e:
+        print(f"Error reading API key from file {args.api_key_file}: {e}")
+        args.api_key = None
 
 # '--fast' is not provided, use an empty set
 if args.fast is None:
