@@ -87,7 +87,7 @@ ZLUDA, MIOpen, and Triton will rebuild everything from scratch, making future op
 ## Dependencies
 
 * Install GIT from `https://git-scm.com/download/win` During installation don't forget to check the box for "Use Git from the Windows Command line and also from 3rd-party-software" to add Git to your system's PATH.
-* Install python 3.11.9 or higher from python website `https://www.python.org/downloads/windows/` (not from Microsoft Store on Windows) Make sure you check the box for "Add Python to PATH when you are at the "Customize Python" screen.
+* Install python 3.11.9 or higher(min 3.10, max 3.13 is supported) from python website `https://www.python.org/downloads/windows/` (not from Microsoft Store on Windows) Make sure you check the box for "Add Python to PATH when you are at the "Customize Python" screen.
 * Install visual c++ runtime library from `https://aka.ms/vs/17/release/vc_redist.x64.exe`
 
 ## Setup (Windows-Only)
