@@ -35,12 +35,7 @@ try:
     from sageattn3 import sageattn3_blackwell
     SAGE_ATTENTION3_IS_AVAILABLE = True
 except ImportError as e:
-    if model_management.sage_attention3_enabled():
-        if e.name == "sageattn3":
-            logging.error(f"\n\nTo use the `--use-sage-attention3` feature, the `sageattn3` package must be installed first.\nPlease check https://github.com/thu-ml/SageAttention/tree/main/sageattention3_blackwell")
-        else:
-            raise e
-        exit(-1)
+    pass
 
 FLASH_ATTENTION_IS_AVAILABLE = False
 try:
@@ -589,7 +584,7 @@ def attention3_sage(q, k, v, heads, mask=None, attn_precision=None, skip_reshape
             skip_output_reshape=skip_output_reshape,
             **kwargs
         )
-    
+
     if skip_reshape:
         B, H, L, D = q.shape
         if H != heads:
@@ -626,16 +621,16 @@ def attention3_sage(q, k, v, heads, mask=None, attn_precision=None, skip_reshape
                 skip_output_reshape=skip_output_reshape,
                 **kwargs
             )
-    
+
     if not skip_reshape:
         q_s, k_s, v_s = map(
             lambda t: t.view(B, -1, heads, dim_head).permute(0, 2, 1, 3).contiguous(),
             (q, k, v),
         )
         B, H, L, D = q_s.shape
-    
+
     try:
-        out = sageattn3_blackwell(q_s, k_s, v_s, is_causal=False)        
+        out = sageattn3_blackwell(q_s, k_s, v_s, is_causal=False)
     except Exception as e:
         exception_fallback = True
         logging.error("Error running SageAttention3: %s, falling back to pytorch attention.", e)
@@ -655,7 +650,7 @@ def attention3_sage(q, k, v, heads, mask=None, attn_precision=None, skip_reshape
     if skip_reshape:
         if not skip_output_reshape:
             out = out.permute(0, 2, 1, 3).reshape(B, L, H * D)
-    else:        
+    else:
         if skip_output_reshape:
             pass
         else:
@@ -726,9 +721,6 @@ optimized_attention = attention_basic
 if model_management.sage_attention_enabled():
     logging.info("Using sage attention")
     optimized_attention = attention_sage
-if model_management.sage_attention3_enabled():
-    logging.info("Using sage attention 3")
-    optimized_attention = attention3_sage
 elif model_management.xformers_enabled():
     logging.info("Using xformers attention")
     optimized_attention = attention_xformers
