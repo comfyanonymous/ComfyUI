@@ -15,9 +15,9 @@ def expand_dims(tensor, ndim):
 
 def get_conditions(latent, latent_blur):
     t, h, w, c = latent.shape
-    cond = torch.ones([t, h, w, 1], device=latent.device, dtype=latent.dtype)
-    #cond[:, ..., :-1] = latent_blur[:]
-    #cond[:, ..., -1:] = 1.0
+    cond = torch.ones([t, h, w, c + 1], device=latent.device, dtype=latent.dtype)
+    cond[:, ..., :-1] = latent_blur[:]
+    cond[:, ..., -1:] = 1.0
     return cond
 
 def timestep_transform(timesteps, latents_shapes):
@@ -117,6 +117,7 @@ class SeedVR2InputProcessing(io.ComfyNode):
     @classmethod
     def execute(cls, images, vae, resolution_height, resolution_width):
         device = vae.patcher.load_device
+        offload_device = vae.patcher.offload_device
         vae = vae.first_stage_model
         scale = 0.9152; shift = 0
 
@@ -144,6 +145,7 @@ class SeedVR2InputProcessing(io.ComfyNode):
         vae = vae.to(device)
         images = images.to(device)
         latent = vae.encode(images)[0]
+        vae = vae.to(offload_device)
         latent = latent.unsqueeze(2) if latent.ndim == 4 else latent
         latent = rearrange(latent, "b c ... -> b ... c")
 
@@ -196,8 +198,9 @@ class SeedVR2Conditioning(io.ComfyNode):
         else:
             pos_cond = F.pad(pos_cond, (0, 0, 0, diff))
 
-        negative = [[neg_cond, {"condition": condition}]]
-        positive = [[pos_cond, {"condition": condition}]]
+        cond = torch.cat([pos_cond.unsqueeze(0), neg_cond.unsqueeze(0)]).unsqueeze(0)
+        negative = [[cond, {"condition": condition}]]
+        positive = [[cond, {"condition": condition}]]
 
         return io.NodeOutput(positive, negative, {"samples": noises})
 

@@ -6,8 +6,30 @@ import torch.nn.functional as F
 from einops import rearrange
 
 from comfy.ldm.seedvr.model import safe_pad_operation
-from comfy.ldm.hunyuan3d.vae import DiagonalGaussianDistribution
 from comfy.ldm.modules.attention import optimized_attention
+
+class DiagonalGaussianDistribution(object):
+    def __init__(self, parameters: torch.Tensor, deterministic: bool = False):
+        self.parameters = parameters
+        self.mean, self.logvar = torch.chunk(parameters, 2, dim=1)
+        self.logvar = torch.clamp(self.logvar, -30.0, 20.0)
+        self.deterministic = deterministic
+        self.std = torch.exp(0.5 * self.logvar)
+        self.var = torch.exp(self.logvar)
+        if self.deterministic:
+            self.var = self.std = torch.zeros_like(
+                self.mean, device=self.parameters.device, dtype=self.parameters.dtype
+            )
+
+    def sample(self, generator: Optional[torch.Generator] = None) -> torch.Tensor:
+        sample = torch.randn(
+            self.mean.shape,
+            generator=generator,
+            device=self.parameters.device,
+            dtype=self.parameters.dtype,
+        )
+        x = self.mean + self.std * sample
+        return x
 
 class SpatialNorm(nn.Module):
     def __init__(
@@ -453,7 +475,7 @@ class Upsample3D(nn.Module):
         else:
             self.Conv2d_0 = conv
 
-        self.norm = False
+        self.norm = None
 
     def forward(
         self,
@@ -1255,6 +1277,7 @@ class Decoder3D(nn.Module):
         latent_embeds: Optional[torch.FloatTensor] = None,
     ) -> torch.FloatTensor:
 
+        sample = sample.to(next(self.parameters()).device)
         sample = self.conv_in(sample)
 
         upscale_dtype = next(iter(self.up_blocks.parameters())).dtype
@@ -1397,10 +1420,10 @@ class VideoAutoencoderKL(nn.Module):
     def _decode(
         self, z: torch.Tensor
     ) -> torch.Tensor:
-        _z = z.to(self.device)
+        latent = z.to(self.device)
         if self.post_quant_conv is not None:
-            _z = self.post_quant_conv(_z)
-        output = self.decoder(_z)
+            latent = self.post_quant_conv(latent)
+        output = self.decoder(latent)
         return output.to(z.device)
 
     def slicing_encode(self, x: torch.Tensor) -> torch.Tensor:
@@ -1473,9 +1496,15 @@ class VideoAutoencoderKLWrapper(VideoAutoencoderKL):
         return z, p
 
     def decode(self, z: torch.FloatTensor):
+        latent = z.unsqueeze(0)
+        scale = 0.9152
+        shift = 0
+        latent = latent / scale + shift
+        latent = rearrange(latent, "b ... c -> b c ...")
+        latent = latent.squeeze(2)
         if z.ndim == 4:
             z = z.unsqueeze(2)
-        x = super().decode(z).sample.squeeze(2)
+        x = super().decode(latent).squeeze(2)
         return x
 
     def preprocess(self, x: torch.Tensor):
