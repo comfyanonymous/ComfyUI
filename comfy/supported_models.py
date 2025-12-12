@@ -1036,20 +1036,20 @@ class ZImage(Lumina2):
         return supported_models_base.ClipTarget(comfy.text_encoders.z_image.ZImageTokenizer, comfy.text_encoders.z_image.te(**hunyuan_detect))
 
 class NewBieImageModel(supported_models_base.BASE):
-        unet_config = {
-            "image_model": "NewBieImage",
-            "model_type": "newbie_dit",
-        }
-        sampling_settings = {
-            "multiplier": 1.0,
-            "shift": 6.0,
-        }
-        memory_usage_factor = 1.5
-        unet_extra_config = {}
-        latent_format = latent_formats.Flux
-        supported_inference_dtypes = [torch.bfloat16, torch.float16, torch.float32]
-        vae_key_prefix = ["vae."]
-        text_encoder_key_prefix = ["text_encoders."]
+    unet_config = {
+        "image_model": "NewBieImage",
+        "model_type": "newbie_dit",
+    }
+    sampling_settings = {
+        "multiplier": 1.0,
+        "shift": 6.0,
+    }
+    memory_usage_factor = 1.5
+    unet_extra_config = {}
+    latent_format = latent_formats.Flux
+    supported_inference_dtypes = [torch.bfloat16, torch.float16, torch.float32]
+    vae_key_prefix = ["vae."]
+    text_encoder_key_prefix = ["text_encoders."]
 
     def get_model(self, state_dict, prefix="", device=None):
         out = model_base.NewBieImage(self, device=device)
