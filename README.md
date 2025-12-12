@@ -306,10 +306,19 @@ choco install -y vcredist2010 vcredist2013 vcredist140
 
 Then, visit [NVIDIA.com's CUDA Toolkit Download Page](https://developer.nvidia.com/cuda-12-6-0-download-archive?target_os=Windows&target_arch=x86_64&target_version=Server2022&target_type=exe_network) and download and install the CUDA Toolkit. Verify it is correctly installed by running `nvcc --version`.
 
-You are now ready to install Sage Attention 2 and Triton:
+You are now ready to install Sage Attention 2 and Flash Attention.
+
+### Linux
 
 ```shell
-uv pip install --torch-backend=auto "comfyui[attention]@git+https://github.com/hiddenswitch/ComfyUI.git"
+uv pip install --no-build-isolation "sageattention@git+https://github.com/thu-ml/SageAttention.git"
+uv pip install --no-build-isolation flash_attn
+```
+
+### Windows
+
+```powershell
+uv pip install --find-links https://raw.githubusercontent.com/hiddenswitch/ComfyUI/main/pypi/sageattention_index.html sageattention
 ```
 
 To start ComfyUI with it:

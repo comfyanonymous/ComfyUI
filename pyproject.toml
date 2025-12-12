@@ -186,10 +186,7 @@ mps = [
     #    "torchaudio",
 ]
 
-attention = [
-    "sageattention==2.2.0 ; sys_platform == 'Linux' or sys_platform == 'win32'",
-    "flash_attn ; sys_platform == 'Linux'",
-]
+
 
 comfyui-manager = [
     "GitPython",
@@ -202,7 +199,7 @@ comfyui-manager = [
     "chardet",
     "pip",
     # todo: bold move
-    "comfyui_manager==4.0.3b4",
+#    "comfyui_manager==4.0.3b4",
 ]
 
 [project.scripts]
@@ -218,11 +215,7 @@ Repository = "https://github.com/comfyanonymous/ComfyUI"
 conflicts = [
     [{ extra = "cpu" }, { extra = "cu126" }, { extra = "cu128" }, { extra = "rocm" }, { extra = "mps" }],
 ]
-no-build-isolation-package = [
-    "sageattention",
-    "sage-attention",
-    "flash_attn",
-]
+no-build-isolation-package = []
 prerelease = "allow"
 
 [[tool.uv.index]]
@@ -273,20 +266,7 @@ torchaudio = [
     #    { index = "pytorch-rocm", extra = "rocm", marker = "sys_platform == 'Linux'" },
     #    { index = "pytorch-nightly-cpu", extra = "mps", marker = "sys_platform == 'darwin'" },
 ]
-sageattention = [
-    { git = "https://github.com/thu-ml/SageAttention.git", marker = "sys_platform == 'Linux'", extra = "attention" },
-    { url = "https://github.com/woct0rdho/SageAttention/releases/download/v2.2.0-windows.post1/sageattention-2.2.0+cu128torch2.7.1.post1-cp39-abi3-win_amd64.whl", marker = "sys_platform == 'win32'", extra = "attention" },
-]
 
-[[tool.uv.dependency-metadata]]
-name = "flash-attn"
-version = "2.6.3"
-requires-dist = ["torch", "einops"]
-
-[[tool.uv.dependency-metadata]]
-name = "sageattention"
-version = "2.2.0"
-requires-dist = ["torch"]
 
 [tool.ruff]
 lint.select = [
