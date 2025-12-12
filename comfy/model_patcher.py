@@ -89,15 +89,6 @@ def to_mmap(t: torch.Tensor, filename: Optional[str] = None) -> torch.Tensor:
 def model_to_mmap(model: torch.nn.Module):
     """Convert all parameters and buffers to memory-mapped tensors
     
-    This function mimics PyTorch's Module.to() behavior but converts
-    tensors to memory-mapped format instead, using _apply() method.
-    
-    Reference: https://github.com/pytorch/pytorch/blob/0fabc3ba44823f257e70ce397d989c8de5e362c1/torch/nn/modules/module.py#L1244
-    
-    Note: For Parameters, we modify .data in-place because 
-    MemoryMappedTensor cannot be wrapped in torch.nn.Parameter.
-    For buffers, _apply() will automatically update the reference.
-    
     Args:
         model: PyTorch module to convert
         
@@ -108,8 +99,6 @@ def model_to_mmap(model: torch.nn.Module):
     logging.debug(f"Converting model {model.__class__.__name__} to mmap, current free cpu memory: {free_cpu_mem/(1024*1024*1024)} GB")
     
     def convert_fn(t):
-        if isinstance(t, QuantizedTensor):
-            logging.debug(f"QuantizedTensor detected, tensor meta info: size {t.size()}, dtype {t.dtype}, device {t.device}, is_contiguous {t.is_contiguous()}")
         if isinstance(t, torch.nn.Parameter):
             new_tensor = to_mmap(t.detach())
             return torch.nn.Parameter(new_tensor, requires_grad=t.requires_grad)
