@@ -1,4 +1,4 @@
-import nodes
+from comfy.nodes import base_nodes as nodes
 from comfy import node_helpers
 import torch
 import torchvision.transforms.functional as TF
@@ -7,7 +7,7 @@ import comfy.utils
 import numpy as np
 from typing_extensions import override
 from comfy_api.latest import ComfyExtension, io
-from comfy_extras.nodes.nodes_wan import parse_json_tracks
+from .nodes_wan import parse_json_tracks
 
 # https://github.com/ali-vilab/Wan-Move/blob/main/wan/modules/trajectory.py
 from PIL import Image, ImageDraw
@@ -372,6 +372,7 @@ class GenerateTracks(io.ComfyNode):
         track_spread_px = track_spread * (width + height) / 2  # Use average of width/height for spread to keep it proportional
 
         t = torch.linspace(0, 1, num_frames, device=device)
+        interp_values = None
         if interpolation == "constant":  # All points stay at start position
             interp_values = torch.zeros_like(t)
         elif interpolation == "linear":
