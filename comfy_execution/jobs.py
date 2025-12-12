@@ -64,8 +64,11 @@ def is_previewable(media_type: str, item: dict) -> bool:
 
 
 def normalize_queue_item(item: tuple, status: str) -> dict:
-    """Convert queue item tuple to unified job dict."""
-    priority, prompt_id, _, extra_data, _ = item[:5]
+    """Convert queue item tuple to unified job dict.
+
+    Expects item with sensitive data already removed (5 elements).
+    """
+    priority, prompt_id, _, extra_data, _ = item
     create_time, workflow_id = _extract_job_metadata(extra_data)
 
     return prune_dict({
@@ -79,9 +82,12 @@ def normalize_queue_item(item: tuple, status: str) -> dict:
 
 
 def normalize_history_item(prompt_id: str, history_item: dict, include_outputs: bool = False) -> dict:
-    """Convert history item dict to unified job dict."""
+    """Convert history item dict to unified job dict.
+
+    History items have sensitive data already removed (prompt tuple has 5 elements).
+    """
     prompt_tuple = history_item['prompt']
-    priority, _, prompt, extra_data, _ = prompt_tuple[:5]
+    priority, _, prompt, extra_data, _ = prompt_tuple
     create_time, workflow_id = _extract_job_metadata(extra_data)
 
     status_info = history_item.get('status', {})
