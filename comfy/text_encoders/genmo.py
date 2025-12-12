@@ -1,4 +1,4 @@
-from transformers import T5TokenizerFast
+from ..transformers_compat import T5TokenizerFast
 
 from .. import sd1_clip
 from . import sd3_clip

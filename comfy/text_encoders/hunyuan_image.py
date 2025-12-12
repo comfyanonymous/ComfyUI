@@ -1,6 +1,6 @@
 import re
 
-from transformers import ByT5Tokenizer
+from ..transformers_compat import ByT5Tokenizer
 
 from .llama import Qwen25_7BVLI
 from .qwen_image import QwenImageTokenizer, QwenImageTEModel

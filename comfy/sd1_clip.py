@@ -12,7 +12,10 @@ from pathlib import Path
 from typing import Tuple, Sequence, TypeVar, Callable, Optional, Union
 
 import torch
-from transformers import CLIPTokenizer, PreTrainedTokenizerBase
+try:
+    from transformers import CLIPTokenizer, PreTrainedTokenizerBase
+except ImportError:
+    from .transformers_compat import CLIPTokenizerFast as CLIPTokenizer, PreTrainedTokenizerBase
 
 from . import clip_model
 from . import model_management

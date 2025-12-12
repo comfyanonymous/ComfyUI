@@ -1,4 +1,4 @@
-from transformers import T5TokenizerFast
+from ..transformers_compat import T5TokenizerFast
 
 from . import sd3_clip
 from .. import sd1_clip
@@ -38,7 +38,6 @@ class PixArtTokenizer(sd1_clip.SD1Tokenizer):
         if tokenizer_data is None:
             tokenizer_data = {}
         super().__init__(embedding_directory=embedding_directory, tokenizer_data=tokenizer_data, clip_name="t5xxl", tokenizer=T5XXLTokenizer)
-
 
 
 def pixart_te(dtype_t5=None, t5_quantization_metadata=None):

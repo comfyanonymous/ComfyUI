@@ -1,6 +1,6 @@
 import numbers
 import torch
-from transformers import Qwen2Tokenizer
+from ..transformers_compat import Qwen2Tokenizer
 
 from .llama import Qwen25_7BVLI
 from .. import sd1_clip

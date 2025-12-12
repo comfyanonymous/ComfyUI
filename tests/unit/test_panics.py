@@ -6,6 +6,7 @@ import pytest
 import torch
 import pebble.common.types
 
+from comfy.cli_args import default_configuration
 from comfy.cli_args_types import Configuration
 from comfy.client.embedded_comfy_client import Comfy
 from comfy.component_model.make_mutable import make_mutable
@@ -143,7 +144,7 @@ def create_failing_workflow():
 async def test_panic_on_exception_with_executor(executor_cls, executor_kwargs):
     """Test panic behavior with different executor types"""
     # Create configuration with our test exception in panic_when
-    config = Configuration()
+    config = default_configuration()
     config.panic_when = [f"{__name__}.UnrecoverableError"]
 
     # Initialize the specific executor
@@ -179,7 +180,7 @@ async def test_no_panic_when_disabled_with_executor(executor_cls, executor_kwarg
     """Test no-panic behavior with different executor types"""
 
     # Create configuration without the exception in panic_when
-    config = Configuration()
+    config = default_configuration()
 
     # Initialize the specific executor
     executor = executor_cls(**executor_kwargs)

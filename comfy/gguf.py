@@ -987,7 +987,13 @@ def gguf_tekken_tokenizer_loader(path, temb_shape):
     logger.info("Attempting to recreate tekken tokenizer from GGUF file metadata...")
     import json
     import base64
-    from transformers.convert_slow_tokenizer import bytes_to_unicode
+    try:
+        from transformers.convert_slow_tokenizer import bytes_to_unicode
+    except ImportError:
+        try:
+            from transformers.models.gpt2.tokenization_gpt2 import bytes_to_unicode
+        except ImportError:
+            raise NotImplementedError("Could not import bytes_to_unicode from transformers")
 
     reader = gguf.GGUFReader(path)
 

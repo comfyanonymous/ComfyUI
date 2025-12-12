@@ -1,4 +1,4 @@
-from transformers import Qwen2Tokenizer
+from ..transformers_compat import Qwen2Tokenizer
 
 from . import llama
 from .. import sd1_clip

@@ -1,7 +1,7 @@
 import copy
 
 import torch
-from transformers import T5TokenizerFast, LlamaTokenizerFast
+from ..transformers_compat import T5TokenizerFast, LlamaTokenizerFast
 
 from .sd3_clip import T5XXLModel
 from .. import sd1_clip, model_management

@@ -1,6 +1,6 @@
 import torch
 import numbers
-from transformers import LlamaTokenizerFast
+from ..transformers_compat import LlamaTokenizerFast
 
 from .hunyuan_image import HunyuanImageTokenizer
 from .llama import Llama2
