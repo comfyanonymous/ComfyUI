@@ -1,9 +1,11 @@
 # Original code can be found on: https://github.com/black-forest-labs/flux
 
-import torch
 from dataclasses import dataclass
-from einops import rearrange, repeat
+
+import torch
 from torch import Tensor, nn
+from einops import rearrange, repeat
+from ..common_dit import pad_to_patch_size
 from ...patcher_extension import WrapperExecutor, get_all_wrappers, WrappersMP
 
 from .layers import (
@@ -16,7 +18,6 @@ from .layers import (
     Modulation,
     RMSNorm
 )
-from .. import common_dit
 
 
 @dataclass
@@ -33,7 +34,7 @@ class FluxParams:
     axes_dim: list
     theta: int
     patch_size: int
-    qkv_bias: bool 
+    qkv_bias: bool
     guidance_embed: bool
     txt_ids_dims: list
     global_modulation: bool = False
@@ -52,8 +53,6 @@ class Flux(nn.Module):
 
     def __init__(self, image_model=None, final_layer=True, dtype=None, device=None, operations=None, **kwargs):
         super().__init__()
-        # todo: should this be here?
-        self.device = device
         self.dtype = dtype
         params = FluxParams(**kwargs)
         self.params = params
@@ -147,9 +146,6 @@ class Flux(nn.Module):
 
         if transformer_options is None:
             transformer_options = {}
-        if y is None:
-            y = torch.zeros((img.shape[0], self.params.vec_in_dim), device=img.device, dtype=img.dtype)
-
         patches = transformer_options.get("patches", {})
         patches_replace = transformer_options.get("patches_replace", {})
         if img.ndim != 3 or txt.ndim != 3:
@@ -273,10 +269,12 @@ class Flux(nn.Module):
         img = self.final_layer(img, vec_orig)  # (N, T, patch_size ** 2 * out_channels)
         return img
 
-    def process_img(self, x, index=0, h_offset=0, w_offset=0, transformer_options={}):
+    def process_img(self, x, index=0, h_offset=0, w_offset=0, transformer_options=None):
+        if transformer_options is None:
+            transformer_options = {}
         bs, c, h, w = x.shape
         patch_size = self.patch_size
-        x = common_dit.pad_to_patch_size(x, (patch_size, patch_size))
+        x = pad_to_patch_size(x, (patch_size, patch_size))
 
         img = rearrange(x, "b c (h ph) (w pw) -> b (h w) (c ph pw)", ph=patch_size, pw=patch_size)
         h_len = ((h + (patch_size // 2)) // patch_size)

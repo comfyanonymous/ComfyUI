@@ -116,7 +116,6 @@ class SDClipModel(torch.nn.Module, ClipTokenWeightEncoder):
             model_options = {}
         if special_tokens is None:
             special_tokens = {"start": 49406, "end": 49407, "pad": 49407}
-        assert layer in self.LAYERS
 
         if textmodel_json_config is None and "model_name" not in model_options:
             model_options = {**model_options, "model_name": "clip_l"}

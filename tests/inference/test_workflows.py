@@ -1,6 +1,7 @@
 import importlib.resources
 import json
 import logging
+import time
 from importlib.abc import Traversable
 from typing import Any, AsyncGenerator
 
@@ -45,7 +46,7 @@ def _generate_config_params():
         {"fast": set()},
         # {"fast": {PerformanceFeature.Fp16Accumulation}},
         # {"fast": {PerformanceFeature.Fp8MatrixMultiplication}},
-        # {"fast": {PerformanceFeature.CublasOps}},
+        {"fast": {PerformanceFeature.CublasOps}},
     ]
 
     for attn, asnc, pinned, fst in itertools.product(attn_options, async_options, pinned_options, fast_options):
@@ -57,7 +58,7 @@ def _generate_config_params():
         yield config_update
 
 
-@pytest.fixture(scope="function", autouse=False, params=_generate_config_params())
+@pytest.fixture(scope="function", autouse=False, params=_generate_config_params(), ids=lambda p: ",".join(f"{k}={v}" for k, v in p.items()))
 async def client(tmp_path_factory, request) -> AsyncGenerator[Any, Any]:
     config = default_configuration()
     # this should help things go a little faster
@@ -91,10 +92,15 @@ async def test_workflow(workflow_name: str, workflow_file: Traversable, has_gpu:
     prompt = Prompt.validate(workflow)
     # todo: add all the models we want to test a bit m2ore elegantly
     outputs = {}
+    
+    start_time = time.time()
     try:
         outputs = await client.queue_prompt(prompt)
     except TorchAudioNotFoundError:
         pytest.skip("requires torchaudio")
+    finally:
+        end_time = time.time()
+        logger.info(f"Test {workflow_name} with client {client} took {end_time - start_time:.4f}s")
 
     if any(v.class_type == "SaveImage" for v in prompt.values()):
         save_image_node_id = next(key for key in prompt if prompt[key].class_type == "SaveImage")

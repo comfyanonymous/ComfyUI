@@ -23,6 +23,7 @@ from .async_progress_iterable import QueuePromptWithProgress
 from .client_types import V1QueuePromptResponse
 from ..api.components.schema.prompt import PromptDict
 from ..cli_args_types import Configuration
+from ..cli_args import default_configuration
 from ..cmd.folder_paths import init_default_paths  # pylint: disable=import-error
 from ..component_model.executor_types import ExecutorToClientProgress
 from ..component_model.make_mutable import make_mutable
@@ -176,7 +177,7 @@ class Comfy:
     In order to use this in blocking methods, learn more about asyncio online.
     """
 
-    def __init__(self, configuration: Optional[Configuration] = None, progress_handler: Optional[ExecutorToClientProgress] = None, max_workers: int = 1, executor: ProcessPoolExecutor | ContextVarExecutor | Literal["ProcessPoolExecutor","ContextVarExecutor"] = None):
+    def __init__(self, configuration: Optional[Configuration] = None, progress_handler: Optional[ExecutorToClientProgress] = None, max_workers: int = 1, executor: ProcessPoolExecutor | ContextVarExecutor | Literal["ProcessPoolExecutor", "ContextVarExecutor"] = None):
         self._progress_handler = progress_handler or ServerStub()
         self._owns_executor = executor is None or isinstance(executor, str)
         if self._owns_executor:
@@ -188,6 +189,7 @@ class Comfy:
         else:
             assert not isinstance(executor, str)
             self._executor = executor
+        self._default_configuration = default_configuration()
         self._configuration = configuration
         self._is_running = False
         self._task_count_lock = RLock()
@@ -331,6 +333,10 @@ class Comfy:
         finally:
             with self._task_count_lock:
                 self._task_count -= 1
+
+    def __str__(self):
+        diff = {k: v for k, v in (self._configuration or {}).items() if v != self._default_configuration.get(k)}
+        return f"<Comfy task_count={self.task_count} configuration={diff} executor={self._executor}>"
 
 
 EmbeddedComfyClient = Comfy

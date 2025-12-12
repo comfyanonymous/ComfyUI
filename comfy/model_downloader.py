@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import List, Optional, Final, Set
 
 import requests
+import requests_cache
 import tqdm
 from huggingface_hub import dump_environment_info, hf_hub_download, scan_cache_dir, snapshot_download, HfFileSystem, CacheNotFound
 from huggingface_hub.utils import GatedRepoError, LocalEntryNotFoundError
@@ -137,37 +138,39 @@ def get_or_download(folder_name: str, filename: str, known_files: Optional[List[
                     path = None
 
                     cache_hit = False
-                    try:
-                        # always retrieve this from the cache if it already exists there
-                        path = hf_hub_download(repo_id=known_file.repo_id,
-                                               filename=known_file.filename,
-                                               repo_type=known_file.repo_type,
-                                               revision=known_file.revision,
-                                               local_files_only=True,
-                                               local_dir=hf_destination_dir if args.force_hf_local_dir_mode else None,
-                                               )
-                        logger.debug(f"hf_hub_download cache hit for {known_file.repo_id}/{known_file.filename}")
-                        cache_hit = True
-                    except LocalEntryNotFoundError:
+                    hf_hub_download_kwargs = dict(repo_id=known_file.repo_id,
+                                  filename=known_file.filename,
+                                  repo_type=known_file.repo_type,
+                                  revision=known_file.revision,
+                                  local_files_only=True,
+                                  local_dir=hf_destination_dir if args.force_hf_local_dir_mode else None,
+                                  token=True,
+                                                  )
+
+                    with requests_cache.disabled():
                         try:
-                            logger.debug(f"{folder_name}/{filename} is being downloaded from {known_file.repo_id}/{known_file.filename} candidate_str_match={candidate_str_match} candidate_filename_match={candidate_filename_match} candidate_alternate_filenames_match={candidate_alternate_filenames_match} candidate_save_filename_match={candidate_save_filename_match}")
-                            path = hf_hub_download(repo_id=known_file.repo_id,
-                                                   filename=known_file.filename,
-                                                   repo_type=known_file.repo_type,
-                                                   revision=known_file.revision,
-                                                   local_dir=hf_destination_dir if args.force_hf_local_dir_mode else None,
-                                                   )
-                        except requests.exceptions.HTTPError as exc_info:
-                            if exc_info.response.status_code == 401:
-                                raise GatedRepoError(f"{known_file.repo_id}/{known_file.filename}", response=exc_info.response)
-                        except IOError as exc_info:
-                            logger.error(f"cannot reach huggingface {known_file.repo_id}/{known_file.filename}", exc_info=exc_info)
-                        except Exception as exc_info:
-                            logger.error(f"an exception occurred while downloading {known_file.repo_id}/{known_file.filename}", exc_info=exc_info)
-                            dump_environment_info()
-                            for key, value in os.environ.items():
-                                if key.startswith("HF_XET"):
-                                    print(f"{key}={value}", file=sys.stderr)
+                            # always retrieve this from the cache if it already exists there
+                            path = hf_hub_download(**hf_hub_download_kwargs)
+                            logger.debug(f"hf_hub_download cache hit for {known_file.repo_id}/{known_file.filename}")
+                            cache_hit = True
+                        except LocalEntryNotFoundError:
+                            try:
+                                logger.debug(f"{folder_name}/{filename} is being downloaded from {known_file.repo_id}/{known_file.filename} candidate_str_match={candidate_str_match} candidate_filename_match={candidate_filename_match} candidate_alternate_filenames_match={candidate_alternate_filenames_match} candidate_save_filename_match={candidate_save_filename_match}")
+                                hf_hub_download_kwargs.pop("local_files_only")
+                                path = hf_hub_download(**hf_hub_download_kwargs)
+                            except requests.exceptions.HTTPError as exc_info:
+                                if exc_info.response.status_code == 401:
+                                    raise GatedRepoError(f"{known_file.repo_id}/{known_file.filename}", response=exc_info.response)
+                            except IOError as exc_info:
+                                logger.error(f"cannot reach huggingface {known_file.repo_id}/{known_file.filename}", exc_info=exc_info)
+                            except Exception as exc_info:
+                                logger.error(f"an exception occurred while downloading {known_file.repo_id}/{known_file.filename}. hf_hub_download kwargs={hf_hub_download_kwargs}", exc_info=exc_info)
+                                dump_environment_info()
+                                for key, value in os.environ.items():
+                                    if key.startswith("HF_"):
+                                        if key == "HF_TOKEN":
+                                            value = "*****"
+                                        print(f"{key}={value}", file=sys.stderr)
 
                     if path is not None and known_file.convert_to_16_bit and file_size is not None and file_size != 0:
                         tensors = {}
