@@ -16,7 +16,7 @@ from comfy.client.embedded_comfy_client import Comfy
 from comfy.client.sdxl_with_refiner_workflow import sdxl_workflow_with_refiner
 from comfy.component_model.executor_types import Executor
 from comfy.component_model.make_mutable import make_mutable
-from comfy.component_model.queue_types import QueueItem, QueueTuple, TaskInvocation, NamedQueueTuple, ExecutionStatus
+from comfy.component_model.queue_types import QueueItem, QueueTuple, TaskInvocation, QueueDict, ExecutionStatus
 from comfy.distributed.distributed_prompt_worker import DistributedPromptWorker
 from comfy.distributed.executors import ContextVarExecutor
 from comfy.distributed.process_pool_executor import ProcessPoolExecutor
@@ -85,7 +85,7 @@ async def test_distributed_prompt_queues_same_process():
                 async def in_thread():
                     incoming, incoming_prompt_id = worker.get()
                     assert incoming is not None
-                    incoming_named = NamedQueueTuple(incoming)
+                    incoming_named = QueueDict(incoming)
                     assert incoming_named.prompt_id == incoming_prompt_id
                     async with Comfy() as embedded_comfy_client:
                         outputs = await embedded_comfy_client.queue_prompt(incoming_named.prompt,

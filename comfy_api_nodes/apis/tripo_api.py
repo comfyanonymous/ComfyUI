@@ -1,12 +1,19 @@
 from __future__ import annotations
-from comfy_api_nodes.apis import (
-    TripoModelVersion,
-    TripoTextureQuality,
-)
 from enum import Enum
 from typing import Optional, List, Dict, Any, Union
 
 from pydantic import BaseModel, Field, RootModel
+
+class TripoModelVersion(str, Enum):
+    v2_5_20250123 = 'v2.5-20250123'
+    v2_0_20240919 = 'v2.0-20240919'
+    v1_4_20240625 = 'v1.4-20240625'
+
+
+class TripoTextureQuality(str, Enum):
+    standard = 'standard'
+    detailed = 'detailed'
+
 
 class TripoStyle(str, Enum):
     PERSON_TO_CARTOON = "person:person2cartoon"

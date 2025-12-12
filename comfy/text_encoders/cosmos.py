@@ -1,4 +1,4 @@
-from transformers import T5TokenizerFast
+from ..transformers_compat import T5TokenizerFast
 
 from .t5 import T5
 from .. import sd1_clip
@@ -11,10 +11,10 @@ class T5XXLModel(sd1_clip.SDClipModel):
         if model_options is None:
             model_options = {}
         textmodel_json_config = get_path_as_dict(textmodel_json_config, "t5_old_config_xxl.json", package=__package__)
-        t5xxl_scaled_fp8 = model_options.get("t5xxl_scaled_fp8", None)
-        if t5xxl_scaled_fp8 is not None:
+        t5xxl_quantization_metadata = model_options.get("t5xxl_quantization_metadata", None)
+        if t5xxl_quantization_metadata is not None:
             model_options = model_options.copy()
-            model_options["scaled_fp8"] = t5xxl_scaled_fp8
+            model_options["quantization_metadata"] = t5xxl_quantization_metadata
 
         super().__init__(device=device, layer=layer, layer_idx=layer_idx, textmodel_json_config=textmodel_json_config, dtype=dtype, special_tokens={"end": 1, "pad": 0}, model_class=T5, enable_attention_masks=attention_mask, return_attention_masks=attention_mask, zero_out_masked=attention_mask, model_options=model_options)
 
@@ -43,14 +43,14 @@ class CosmosT5Tokenizer(sd1_clip.SD1Tokenizer):
 
 
 
-def te(dtype_t5=None, t5xxl_scaled_fp8=None):
+def te(dtype_t5=None, t5_quantization_metadata=None):
     class CosmosTEModel_(CosmosT5XXL):
         def __init__(self, device="cpu", dtype=None, model_options=None):
             if model_options is None:
                 model_options = {}
-            if t5xxl_scaled_fp8 is not None and "t5xxl_scaled_fp8" not in model_options:
+            if t5_quantization_metadata is not None:
                 model_options = model_options.copy()
-                model_options["t5xxl_scaled_fp8"] = t5xxl_scaled_fp8
+                model_options["t5xxl_quantization_metadata"] = t5_quantization_metadata
             if dtype is None:
                 dtype = dtype_t5
             super().__init__(device=device, dtype=dtype, model_options=model_options)

@@ -1,30 +1,30 @@
 from .main_pre import tracer
-
 import asyncio
 import contextvars
 import gc
-
 import logging
 import os
 import shutil
+import sys
 import threading
 import time
 from pathlib import Path
 from typing import Optional
-from ..cli_args_types import Configuration
-from ..component_model.file_counter import cleanup_temp as fc_cleanup_temp
-from ..execution_context import current_execution_context
+
+from ..component_model.abstract_prompt_queue import AbstractPromptQueue
 from . import hook_breaker_ac10a0
 from .extra_model_paths import load_extra_path_config
 from .. import model_management
 from ..analytics.analytics import initialize_event_tracking
-from ..cmd import cuda_malloc
-from ..cmd import folder_paths
-from ..cmd import server as server_module
-from ..component_model.abstract_prompt_queue import AbstractPromptQueue
+from ..cli_args_types import Configuration
+from . import cuda_malloc
+from . import folder_paths
+from . import server as server_module
 from ..component_model.entrypoints_common import configure_application_paths, executor_from_args
+from ..component_model.file_counter import cleanup_temp as fc_cleanup_temp
 from ..distributed.distributed_prompt_queue import DistributedPromptQueue
 from ..distributed.server_stub import ServerStub
+from ..execution_context import current_execution_context
 from ..nodes.package import import_all_nodes_in_workspace
 from ..nodes_context import get_nodes
 
@@ -44,22 +44,27 @@ def cuda_malloc_warning():
                 "\nWARNING: this card most likely does not support cuda-malloc, if you get \"CUDA error\" please run ComfyUI with: --disable-cuda-malloc\n")
 
 
-def prompt_worker(q: AbstractPromptQueue, server_instance: server_module.PromptServer):
-    asyncio.run(_prompt_worker(q, server_instance))
+def handle_comfyui_manager_unavailable(args: Configuration):
+    if not args.windows_standalone_build:
+        logger.warning(f"\n\nYou appear to be running comfyui-manager from source, this is not recommended. Please install comfyui-manager using the following command:\ncommand:\n\t{sys.executable} -m pip install --pre comfyui_manager\n")
+    args.enable_manager = False
 
 
 async def _prompt_worker(q: AbstractPromptQueue, server_instance: server_module.PromptServer):
-    from ..cmd import execution
+    from . import execution
     from ..component_model import queue_types
     from .. import model_management
+
     args = current_execution_context().configuration
     cache_type = execution.CacheType.CLASSIC
     if args.cache_lru > 0:
         cache_type = execution.CacheType.LRU
+    elif args.cache_ram > 0:
+        cache_type = execution.CacheType.RAM_PRESSURE
     elif args.cache_none:
-        cache_type = execution.CacheType.DEPENDENCY_AWARE
+        cache_type = execution.CacheType.NONE
 
-    e = execution.PromptExecutor(server_instance, cache_type=cache_type, cache_size=args.cache_lru)
+    e = execution.PromptExecutor(server_instance, cache_type=cache_type, cache_args={"lru": args.cache_lru, "ram": args.cache_ram})
     last_gc_collect = 0
     need_gc = False
     gc_collect_interval = 10.0
@@ -76,10 +81,17 @@ async def _prompt_worker(q: AbstractPromptQueue, server_instance: server_module.
             prompt_id = item[1]
             server_instance.last_prompt_id = prompt_id
 
+            sensitive = item[5]
+            extra_data = item[3].copy()
+            for k in sensitive:
+                extra_data[k] = sensitive[k]
+
+            # todo: ??? what jank
+            remove_sensitive = lambda prompt: prompt[:5] + prompt[6:]
+
             await e.execute_async(item[2], prompt_id, item[3], item[4])
             need_gc = True
 
-            # Extract error details from status_messages if there's an error
             error_details = None
             if not e.success:
                 for event, data in e.status_messages:
@@ -87,7 +99,6 @@ async def _prompt_worker(q: AbstractPromptQueue, server_instance: server_module.
                         error_details = data
                         break
 
-            # Convert status_messages tuples to string messages for backward compatibility
             messages = [f"{event}: {data.get('exception_message', str(data))}" if isinstance(data, dict) and 'exception_message' in data else f"{event}" for event, data in e.status_messages]
 
             q.task_done(item_id,
@@ -96,13 +107,16 @@ async def _prompt_worker(q: AbstractPromptQueue, server_instance: server_module.
                             status_str='success' if e.success else 'error',
                             completed=e.success,
                             messages=messages),
-                        error_details=error_details)
+                        error_details=error_details,
+                        process_item=remove_sensitive,
+                        )
+
             if server_instance.client_id is not None:
-                server_instance.send_sync("executing", {"node": None, "prompt_id": prompt_id},
-                                          server_instance.client_id)
+                server_instance.send_sync("executing", {"node": None, "prompt_id": prompt_id}, server_instance.client_id)
 
             current_time = time.perf_counter()
             execution_time = current_time - execution_start_time
+
             # Log Time in a more readable way after 10 minutes
             if execution_time > 600:
                 execution_time = time.strftime("%H:%M:%S", time.gmtime(execution_time))
@@ -133,7 +147,11 @@ async def _prompt_worker(q: AbstractPromptQueue, server_instance: server_module.
                 hook_breaker_ac10a0.restore_functions()
 
 
-async def run(server_instance, address='', port=8188, verbose=True, call_on_start=None):
+def prompt_worker(q: AbstractPromptQueue, server_instance: server_module.PromptServer):
+    asyncio.run(_prompt_worker(q, server_instance))
+
+
+async def run(server_instance, address='', port=8188, call_on_start=None):
     addresses = []
     for addr in address.split(","):
         addresses.append((addr, port))
@@ -173,6 +191,7 @@ async def _start_comfyui(from_script_dir: Optional[Path] = None, configuration: 
         await __start_comfyui(from_script_dir=from_script_dir)
 
 
+@tracer.start_as_current_span("Start ComfyUI")
 async def __start_comfyui(from_script_dir: Optional[Path] = None):
     """
     Runs ComfyUI's frontend and backend like upstream.
@@ -193,6 +212,23 @@ async def __start_comfyui(from_script_dir: Optional[Path] = None):
         user_dir = os.path.abspath(args.user_directory)
         logger.info(f"Setting user directory to: {user_dir}")
         folder_paths.set_user_directory(user_dir)
+
+    # todo: the manager code has to live inside vanilla_node_importing, it has to deal with a git repo already being in custom_nodes
+    # if args.enable_manager:
+    #     if importlib.util.find_spec("comfyui_manager"):
+    #         import comfyui_manager
+    #
+    #         if not comfyui_manager.__file__ or not comfyui_manager.__file__.endswith('__init__.py'):
+    #             handle_comfyui_manager_unavailable(args)
+    #     else:
+    #         handle_comfyui_manager_unavailable(args)
+    #
+    # if args.enable_manager:
+    #     try:
+    #          import comfyui_manager
+    #          comfyui_manager.prestartup()
+    #     except:
+    #          pass
 
     # configure extra model paths earlier
     try:
@@ -224,6 +260,15 @@ async def __start_comfyui(from_script_dir: Optional[Path] = None):
 
     loop = asyncio.get_event_loop()
     server = server_module.PromptServer(loop)
+
+    # todo: the manager code has to live inside vanilla_node_importing, it has to deal with a git repo already being in custom_nodes
+    # if args.enable_manager and not args.disable_manager_ui:
+    #     try:
+    #         import comfyui_manager
+    #         comfyui_manager.start()
+    #     except:
+    #          pass
+
     if args.external_address is not None:
         server.external_address = args.external_address
 
@@ -317,8 +362,7 @@ async def __start_comfyui(from_script_dir: Optional[Path] = None):
 
     try:
         await server.setup()
-        await run(server, address=first_listen_addr, port=args.port, verbose=not args.dont_print_server,
-                  call_on_start=call_on_start)
+        await run(server, address=first_listen_addr, port=args.port, call_on_start=call_on_start)
     except (asyncio.CancelledError, KeyboardInterrupt):
         logger.debug("Stopped server")
     finally:

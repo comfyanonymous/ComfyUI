@@ -28,6 +28,7 @@ from PIL import Image, ImageOps
 from PIL.PngImagePlugin import PngInfo
 from aiohttp import web
 from can_ada import URL, parse as urlparse  # pylint: disable=no-name-in-module
+from packaging import version
 from typing_extensions import NamedTuple
 
 from comfy_api import feature_flags
@@ -41,6 +42,7 @@ from ..api_server.routes.internal.internal_routes import InternalRoutes
 from ..app.custom_node_manager import CustomNodeManager
 from ..app.frontend_management import FrontendManager
 from ..app.model_manager import ModelFileManager
+from ..app.subgraph_manager import SubgraphManager
 from ..app.user_manager import UserManager
 from ..cli_args import args
 from ..client.client_types import FileOutput
@@ -52,9 +54,10 @@ from ..component_model.executor_types import ExecutorToClientProgress, StatusMes
     UnencodedPreviewImageMessage, PreviewImageWithMetadataMessage
 from ..component_model.file_output_path import file_output_path
 from ..component_model.queue_types import QueueItem, HistoryEntry, BinaryEventTypes, TaskInvocation, ExecutionError, \
-    ExecutionStatus
+    ExecutionStatus, QueueTuple, ExtraData
 from ..digest import digest
 from ..images import open_image
+from ..middleware.cache_middleware import cache_control
 from ..model_management import get_torch_device, get_torch_device_name, get_total_memory, get_free_memory, torch_version
 from ..nodes.package_typing import ExportedNodes
 from ..progress_types import PreviewImageMetadata
@@ -67,8 +70,17 @@ class HeuristicPath(NamedTuple):
     abs_path: str
 
 
-# Import cache control middleware
-from ..middleware.cache_middleware import cache_control
+# todo: what is this really trying to do?
+LOADED_MODULE_DIRS = {}
+
+
+# todo: is this really how we want to enable the manager? we will have to deal with this later
+# if args.enable_manager:
+#     try:
+#         import comfyui_manager
+#     except ImportError:
+#         logger.warning("ComfyUI Manager not found but enabled in args.")
+
 
 async def send_socket_catch_exception(function, message):
     try:
@@ -84,6 +96,7 @@ def get_comfyui_version():
 # Track deprecated paths that have been warned about to only warn once per file
 _deprecated_paths_warned = set()
 
+
 @web.middleware
 async def deprecation_warning(request: web.Request, handler):
     """Middleware to warn about deprecated frontend API paths"""
@@ -93,7 +106,7 @@ async def deprecation_warning(request: web.Request, handler):
         # Only warn once per unique file path
         if path not in _deprecated_paths_warned:
             _deprecated_paths_warned.add(path)
-            logging.warning(
+            logger.warning(
                 f"[DEPRECATION WARNING] Detected import of deprecated legacy API: {path}. "
                 f"This is likely caused by a custom node extension using outdated APIs. "
                 f"Please update your extensions or contact the extension author for an updated version."
@@ -144,7 +157,7 @@ def create_cors_middleware(allowed_origin: str):
             response = await handler(request)
 
         response.headers['Access-Control-Allow-Origin'] = allowed_origin
-        response.headers['Access-Control-Allow-Methods'] = 'POST, GET, DELETE, PUT, OPTIONS'
+        response.headers['Access-Control-Allow-Methods'] = 'POST, GET, DELETE, PUT, OPTIONS, PATCH'
         response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, traceparent, tracestate'
         response.headers['Access-Control-Allow-Credentials'] = 'true'
         return response
@@ -215,6 +228,21 @@ def create_origin_only_middleware():
     return origin_only_middleware
 
 
+def create_block_external_middleware():
+    @web.middleware
+    async def block_external_middleware(request: web.Request, handler):
+        if request.method == "OPTIONS":
+            # Pre-flight request. Reply successfully:
+            response = web.Response()
+        else:
+            response = await handler(request)
+
+        response.headers['Content-Security-Policy'] = "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; frame-src 'self'; object-src 'self';"
+        return response
+
+    return block_external_middleware
+
+
 class PromptServer(ExecutorToClientProgress):
     instance: Optional['PromptServer'] = None
 
@@ -230,6 +258,7 @@ class PromptServer(ExecutorToClientProgress):
         self.user_manager = UserManager()
         self.model_file_manager = ModelFileManager()
         self.custom_node_manager = CustomNodeManager()
+        self.subgraph_manager = SubgraphManager()
         self.internal_routes = InternalRoutes(self)
         # todo: this is probably read by custom nodes elsewhere
         self.supports: List[str] = ["custom_nodes_from_web"]
@@ -250,6 +279,13 @@ class PromptServer(ExecutorToClientProgress):
             middlewares.append(create_cors_middleware(args.enable_cors_header))
         else:
             middlewares.append(create_origin_only_middleware())
+
+        if args.disable_api_nodes:
+            middlewares.append(create_block_external_middleware())
+
+        # todo: enable the package-installed manager later
+        # if args.enable_manager:
+        #     middlewares.append(comfyui_manager.create_middleware())
 
         max_upload_size = round(args.max_upload_size * 1024 * 1024)
         self.app: web.Application = web.Application(client_max_size=max_upload_size,
@@ -634,7 +670,7 @@ class PromptServer(ExecutorToClientProgress):
 
             system_stats = {
                 "system": {
-                    "os": os.name,
+                    "os": sys.platform,
                     "ram_total": ram_total,
                     "ram_free": ram_free,
                     "comfyui_version": __version__,
@@ -746,8 +782,18 @@ class PromptServer(ExecutorToClientProgress):
         async def get_queue(request):
             queue_info = {}
             current_queue = self.prompt_queue.get_current_queue_volatile()
-            queue_info['queue_running'] = current_queue[0]
-            queue_info['queue_pending'] = current_queue[1]
+
+            def remove_sensitive(queue: List[QueueItem]):
+                items = []
+                for item in queue:
+                    items.append({
+                        **item,
+                        "sensitive": None,
+                    })
+                return items
+
+            queue_info['queue_running'] = remove_sensitive(current_queue[0])
+            queue_info['queue_pending'] = remove_sensitive(current_queue[1])
             return web.json_response(queue_info)
 
         @routes.post("/prompt")
@@ -783,7 +829,7 @@ class PromptServer(ExecutorToClientProgress):
                 if valid[0]:
                     outputs_to_execute = valid[2]
                     self.prompt_queue.put(
-                        QueueItem(queue_tuple=(number, prompt_id, prompt, extra_data, outputs_to_execute),
+                        QueueItem(queue_tuple=QueueTuple(number, prompt_id, prompt, extra_data, outputs_to_execute, None),
                                   completed=None))
                     response = {"prompt_id": prompt_id, "number": number, "node_errors": valid[3]}
                     return web.json_response(response)
@@ -828,8 +874,7 @@ class PromptServer(ExecutorToClientProgress):
                 # Check if the prompt_id matches any currently running prompt
                 should_interrupt = False
                 for item in currently_running:
-                    # item structure: (number, prompt_id, prompt, extra_data, outputs_to_execute)
-                    if item[1] == prompt_id:
+                    if item.prompt_id == prompt_id:
                         logger.debug(f"Interrupting prompt {prompt_id}")
                         should_interrupt = True
                         break
@@ -968,7 +1013,8 @@ class PromptServer(ExecutorToClientProgress):
             completed: Future[TaskInvocation | dict] = self.loop.create_future()
             # todo: actually implement idempotency keys
             # we would need some kind of more durable, distributed task queue
-            item = QueueItem(queue_tuple=(number, task_id, prompt_dict, {}, valid[2]), completed=completed)
+            # QueueItem deals with sensitive data uniformly now
+            item = QueueItem(queue_tuple=QueueTuple(number, task_id, prompt_dict, ExtraData(), valid[2], None), completed=completed)
 
             try:
                 if hasattr(self.prompt_queue, "put_async") or isinstance(self.prompt_queue, AsyncAbstractPromptQueue):
@@ -1112,6 +1158,7 @@ class PromptServer(ExecutorToClientProgress):
         self.model_file_manager.add_routes(self.routes)
         # todo: needs to use module directories
         self.custom_node_manager.add_routes(self.routes, self.app, {})
+        self.subgraph_manager.add_routes(self.routes, LOADED_MODULE_DIRS.items())
         self.app.add_subapp('/internal', self.internal_routes.get_app())
 
         # Prefix every route with /api for easier matching for delegation.
@@ -1132,11 +1179,31 @@ class PromptServer(ExecutorToClientProgress):
         for name, dir in self.nodes.EXTENSION_WEB_DIRS.items():
             self.app.add_routes([web.static('/extensions/' + name, dir, follow_symlinks=True)])
 
-        workflow_templates_path = FrontendManager.templates_path()
-        if workflow_templates_path:
-            self.app.add_routes([
-                web.static('/templates', workflow_templates_path)
-            ])
+        installed_templates_version = FrontendManager.get_installed_templates_version()
+        use_legacy_templates = True
+        if installed_templates_version:
+            try:
+                use_legacy_templates = (
+                        version.parse(installed_templates_version)
+                        < version.parse("0.3.0")
+                )
+            except Exception as exc:
+                logger.warning(
+                    "Unable to parse templates version '%s': %s",
+                    installed_templates_version,
+                    exc,
+                )
+
+        if use_legacy_templates:
+            workflow_templates_path = FrontendManager.legacy_templates_path()
+            if workflow_templates_path:
+                self.app.add_routes([
+                    web.static('/templates', workflow_templates_path)
+                ])
+        else:
+            handler = FrontendManager.template_asset_handler()
+            if handler:
+                self.app.router.add_get("/templates/{path:.*}", handler)
 
         # Serve embedded documentation from the package
         embedded_docs_path = FrontendManager.embedded_docs_path()
@@ -1161,8 +1228,12 @@ class PromptServer(ExecutorToClientProgress):
             await self.send_image(data, sid=sid)
         elif event == BinaryEventTypes.PREVIEW_IMAGE_WITH_METADATA:
             # data is (preview_image, metadata)
+
             data: PreviewImageWithMetadataMessage
             preview_image, metadata = data
+            if isinstance(preview_image, dict):
+                # todo: this has to be fixed from transformers loader for previewing tokens in real time
+                return
             await self.send_image_with_metadata(preview_image, metadata, sid=sid)
         elif isinstance(data, (bytes, bytearray)):
             await self.send_bytes(event, data, sid)

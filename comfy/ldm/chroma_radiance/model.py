@@ -10,10 +10,10 @@ from torch import Tensor, nn
 from einops import repeat
 from ..common_dit import pad_to_patch_size
 
-from ..flux.layers import EmbedND
+from ..flux.layers import EmbedND, DoubleStreamBlock, SingleStreamBlock
 
 from ..chroma.model import Chroma, ChromaParams
-from ..chroma.layers import DoubleStreamBlock, SingleStreamBlock, Approximator
+from ..chroma.layers import Approximator
 from .layers import (
     NerfEmbedder,
     NerfGLUBlock,
@@ -35,7 +35,7 @@ class ChromaRadianceParams(ChromaParams):
     nerf_final_head_type: str
     # None means use the same dtype as the model.
     nerf_embedder_dtype: Optional[torch.dtype]
-
+    use_x0: bool
 
 class ChromaRadiance(Chroma):
     """
@@ -94,6 +94,7 @@ class ChromaRadiance(Chroma):
                     self.num_heads,
                     mlp_ratio=params.mlp_ratio,
                     qkv_bias=params.qkv_bias,
+                    modulation=False,
                     dtype=dtype, device=device, operations=operations
                 )
                 for _ in range(params.depth)
@@ -106,6 +107,7 @@ class ChromaRadiance(Chroma):
                     self.hidden_size,
                     self.num_heads,
                     mlp_ratio=params.mlp_ratio,
+                    modulation=False,
                     dtype=dtype, device=device, operations=operations,
                 )
                 for _ in range(params.depth_single_blocks)
@@ -156,6 +158,9 @@ class ChromaRadiance(Chroma):
         self.skip_mmdit = []
         self.skip_dit = []
         self.lite = False
+
+        if params.use_x0:
+            self.register_buffer("__x0__", torch.tensor([]))
 
     @property
     def _nerf_final_layer(self) -> nn.Module:
@@ -274,6 +279,12 @@ class ChromaRadiance(Chroma):
         params_dict |= overrides
         return params.__class__(**params_dict)
 
+    def _apply_x0_residual(self, predicted, noisy, timesteps):
+
+        # non zero during training to prevent 0 div
+        eps = 0.0
+        return (noisy - predicted) / (timesteps.view(-1,1,1,1) + eps)
+
     def _forward(
             self,
             x: Tensor,
@@ -314,4 +325,11 @@ class ChromaRadiance(Chroma):
             transformer_options,
             attn_mask=kwargs.get("attention_mask", None),
         )
-        return self.forward_nerf(img, img_out, params)[:, :, :h, :w]
+
+        out = self.forward_nerf(img, img_out, params)[:, :, :h, :w]
+
+        # If x0 variant → v-pred, just return this instead
+        if hasattr(self, "__x0__"):
+            out = self._apply_x0_residual(out, img, timestep)
+        return out
+

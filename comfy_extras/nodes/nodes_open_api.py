@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import dataclasses
-import io
 import json
 import logging
 import os
@@ -16,6 +15,7 @@ from typing import Sequence, Optional, TypedDict, List, Literal, Tuple, Any, Dic
 
 import PIL
 import aiohttp
+import av
 import certifi
 import cv2
 import fsspec
@@ -238,7 +238,8 @@ class StringEnumRequestParameter(CustomNode):
     def INPUT_TYPES(cls) -> InputTypes:
         return StringRequestParameter.INPUT_TYPES()
 
-    RETURN_TYPES = ([],)
+    # todo: not sure how we're supposed to deal with combo inputs, it's not IO.COMBO
+    RETURN_TYPES = (IO.ANY,)
     FUNCTION = "execute"
     CATEGORY = "api/openapi"
 
@@ -766,7 +767,7 @@ class SaveImagesResponse(CustomNode):
                         json.dump(fsspec_metadata, f)
 
             except Exception as e:
-                logging.error(f"Error while trying to save file with fsspec_url {uri}", exc_info=e)
+                logger.error(f"Error while trying to save file with fsspec_url {uri}", exc_info=e)
                 abs_path = "" if local_path is None else os.path.abspath(local_path)
 
             if is_null_uri(local_path):
@@ -774,7 +775,7 @@ class SaveImagesResponse(CustomNode):
                 subfolder = ""
             # this results in a second file being saved - when a local path
             elif uri_is_remote:
-                logging.debug(f"saving this uri locally : {local_path}")
+                logger.debug(f"saving this uri locally : {local_path}")
                 os.makedirs(os.path.dirname(local_path), exist_ok=True)
 
                 if save_method == 'pil':
@@ -870,6 +871,164 @@ class ImageRequestParameter(CustomNode):
         output_masks_batched: MaskBatch = torch.cat(output_masks, dim=0)
 
         return ImageMaskTuple(output_images_batched, output_masks_batched)
+
+
+class LoadImageFromURL(ImageRequestParameter):
+    @classmethod
+    def INPUT_TYPES(cls) -> InputTypes:
+        return {
+            "required": {
+                "value": ("STRING", {"default": ""})
+            },
+            "optional": {
+                "default_if_empty": ("IMAGE",),
+                "alpha_is_transparency": ("BOOLEAN", {"default": False}),
+            }
+        }
+
+    def execute(self, value: str = "", default_if_empty=None, alpha_is_transparency=False, *args, **kwargs) -> ImageMaskTuple:
+        return super().execute(value, default_if_empty, alpha_is_transparency, *args, **kwargs)
+
+
+class VideoRequestParameter(CustomNode):
+    @classmethod
+    def INPUT_TYPES(cls) -> InputTypes:
+        return {
+            "required": {
+                "value": ("STRING", {"default": ""})
+            },
+            "optional": {
+                **_open_api_common_schema,
+                "default_if_empty": ("VIDEO",),
+                "frame_load_cap": ("INT", {"default": 0, "min": 0, "step": 1, "tooltip": "0 for no limit, otherwise stop loading after N frames"}),
+                "skip_first_frames": ("INT", {"default": 0, "min": 0, "step": 1}),
+                "select_every_nth": ("INT", {"default": 1, "min": 1, "step": 1}),
+            }
+        }
+
+    RETURN_TYPES = ("VIDEO", "MASK", "INT", "FLOAT")
+    RETURN_NAMES = ("VIDEO", "MASK", "frame_count", "fps")
+    FUNCTION = "execute"
+    CATEGORY = "api/openapi"
+
+    def execute(self, value: str = "", default_if_empty=None, frame_load_cap=0, skip_first_frames=0, select_every_nth=1, *args, **kwargs) -> tuple[Tensor, Tensor, int, float]:
+        if value.strip() == "":
+            if default_if_empty is None:
+                return (torch.zeros((0, 1, 1, 3)), torch.zeros((0, 1, 1)), 0, 0.0)
+
+            frames = default_if_empty.shape[0] if isinstance(default_if_empty, torch.Tensor) else 0
+            height = default_if_empty.shape[1] if frames > 0 else 1
+            width = default_if_empty.shape[2] if frames > 0 else 1
+
+            default_mask = torch.ones((frames, height, width), dtype=torch.float32)
+            return (default_if_empty, default_mask, frames, 0.0)
+
+        output_videos = []
+        output_masks = []
+        total_frames_loaded = 0
+        fps = 0.0
+
+        fsspec_kwargs = {}
+        if value.startswith('http'):
+            fsspec_kwargs.update({
+                "headers": {
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/113.0.5672.64 Safari/537.36'
+                },
+                'get_client': get_client
+            })
+
+        with fsspec.open_files(value, mode="rb", **fsspec_kwargs) as files:
+            for f in files:
+                try:
+                    container = av.open(f)
+                except Exception as e:
+                    logger.error(f"VideoRequestParameter: Failed to open video container for {value}: {e}")
+                    continue
+
+                if len(container.streams.video) == 0:
+                    continue
+
+                stream = container.streams.video[0]
+                stream.thread_type = "AUTO"
+
+                if fps == 0.0:
+                    fps = float(stream.average_rate)
+
+                frames_list = []
+                masks_list = []
+                frames_processed = 0
+                frames_kept = 0
+
+                for frame in container.decode(stream):
+                    frames_processed += 1
+
+                    if frames_processed <= skip_first_frames:
+                        continue
+
+                    if (frames_processed - skip_first_frames - 1) % select_every_nth != 0:
+                        continue
+
+                    np_frame = frame.to_ndarray(format="rgba")
+                    tensor_img = torch.from_numpy(np_frame[..., :3]).float() / 255.0
+                    frames_list.append(tensor_img)
+                    tensor_mask = torch.from_numpy(np_frame[..., 3]).float() / 255.0
+                    masks_list.append(tensor_mask)
+
+                    frames_kept += 1
+
+                    if frame_load_cap > 0 and frames_kept >= frame_load_cap:
+                        break
+
+                container.close()
+
+                if frames_list:
+                    video_tensor = torch.stack(frames_list)
+                    mask_tensor = torch.stack(masks_list)
+
+                    output_videos.append(video_tensor)
+                    output_masks.append(mask_tensor)
+                    total_frames_loaded += frames_kept
+
+        if not output_videos:
+            if default_if_empty is not None:
+                frames = default_if_empty.shape[0]
+                height = default_if_empty.shape[1]
+                width = default_if_empty.shape[2]
+                return (default_if_empty, torch.ones((frames, height, width), dtype=torch.float32), frames, 0.0)
+            return (torch.zeros((0, 1, 1, 3)), torch.zeros((0, 1, 1)), 0, 0.0)
+
+        try:
+            final_video = torch.cat(output_videos, dim=0)
+            final_mask = torch.cat(output_masks, dim=0)
+        except RuntimeError:
+            logger.warning("VideoRequestParameter: Video resolutions mismatch in input list. Returning only the first video.")
+            final_video = output_videos[0]
+            final_mask = output_masks[0]
+            total_frames_loaded = final_video.shape[0]
+
+        return (final_video, final_mask, total_frames_loaded, fps)
+
+
+class LoadVideoFromURL(VideoRequestParameter):
+    @classmethod
+    def INPUT_TYPES(cls) -> InputTypes:
+        return {
+            "required": {
+                "value": ("STRING", {"default": ""})
+            },
+            "optional": {
+                "default_if_empty": ("VIDEO",),
+                "frame_load_cap": ("INT", {"default": 0, "min": 0, "step": 1}),
+                "skip_first_frames": ("INT", {"default": 0, "min": 0, "step": 1}),
+                "select_every_nth": ("INT", {"default": 1, "min": 1, "step": 1}),
+            }
+        }
+
+    RETURN_TYPES = ("VIDEO", "MASK", "INT", "FLOAT")
+    RETURN_NAMES = ("VIDEO", "MASK", "frame_count", "fps")
+
+    def execute(self, value: str = "", default_if_empty=None, frame_load_cap=0, skip_first_frames=0, select_every_nth=1, *args, **kwargs):
+        return super().execute(value, default_if_empty, frame_load_cap, skip_first_frames, select_every_nth, *args, **kwargs)
 
 
 export_custom_nodes()

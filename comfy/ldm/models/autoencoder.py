@@ -1,16 +1,19 @@
 import logging
 import math
 from contextlib import contextmanager
-from typing import Any, Dict, Tuple, Union, Callable
+from typing import Any, Dict, Tuple, Union, Callable, Optional
 
 import torch
 
+from einops import rearrange
+from ...model_management import cast_to
 from ..modules.distributions.distributions import DiagonalGaussianDistribution
 from ..modules.ema import LitEma
 from ..util import instantiate_from_config, get_obj_from_str
 from ... import ops
 
 logger = logging.getLogger(__name__)
+
 
 class DiagonalGaussianRegularizer(torch.nn.Module):
     def __init__(self, sample: bool = False):
@@ -20,7 +23,7 @@ class DiagonalGaussianRegularizer(torch.nn.Module):
     def get_trainable_parameters(self) -> Any:
         yield from ()
 
-    def forward(self, z: torch.Tensor) -> Tuple[torch.Tensor, dict]:
+    def forward(self, z: torch.Tensor) -> Tuple[torch.Tensor, Optional[dict]]:
         posterior = DiagonalGaussianDistribution(z)
         if self.sample:
             z = posterior.sample()
@@ -28,12 +31,14 @@ class DiagonalGaussianRegularizer(torch.nn.Module):
             z = posterior.mode()
         return z, None
 
+
 class EmptyRegularizer(torch.nn.Module):
     def __init__(self):
         super().__init__()
 
-    def forward(self, z: torch.Tensor) -> Tuple[torch.Tensor, dict]:
+    def forward(self, z: torch.Tensor) -> Tuple[torch.Tensor, Optional[dict]]:
         return z, None
+
 
 class AbstractAutoencoder(torch.nn.Module):
     """
@@ -181,8 +186,26 @@ class AutoencodingEngineLegacy(AutoencodingEngine):
         self.post_quant_conv = conv_op(embed_dim, ddconfig["z_channels"], 1)
         self.embed_dim = embed_dim
 
+        if ddconfig.get("batch_norm_latent", False):
+            self.bn_eps = 1e-4
+            self.bn_momentum = 0.1
+            self.ps = [2, 2]
+            self.bn = torch.nn.BatchNorm2d(math.prod(self.ps) * ddconfig["z_channels"],
+                                           eps=self.bn_eps,
+                                           momentum=self.bn_momentum,
+                                           affine=False,
+                                           track_running_stats=True,
+                                           )
+            self.bn.eval()
+        else:
+            self.bn = None
+
+    def get_autoencoder_params(self) -> list:
+        return list(self.parameters())
+
     def encode(
-            self, x: torch.Tensor, return_reg_log: bool = False
+            self, x: torch.Tensor, return_reg_log: bool = False,
+            unregularized: bool = False,
     ) -> Union[torch.Tensor, Tuple[torch.Tensor, dict]]:
         if self.max_batch_size is None:
             z = self.encoder(x)
@@ -199,11 +222,36 @@ class AutoencodingEngineLegacy(AutoencodingEngine):
             z = torch.cat(z, 0)
 
         z, reg_log = self.regularization(z)
+
+        if self.bn is not None:
+            z = rearrange(z,
+                          "... c (i pi) (j pj)  -> ... (c pi pj) i j",
+                          pi=self.ps[0],
+                          pj=self.ps[1],
+                          )
+
+            z = torch.nn.functional.batch_norm(z,
+                                               cast_to(self.bn.running_mean, dtype=z.dtype, device=z.device),
+                                               cast_to(self.bn.running_var, dtype=z.dtype, device=z.device),
+                                               momentum=self.bn_momentum,
+                                               eps=self.bn_eps)
+
         if return_reg_log:
             return z, reg_log
         return z
 
     def decode(self, z: torch.Tensor, **decoder_kwargs) -> torch.Tensor:
+        if self.bn is not None:
+            s = torch.sqrt(cast_to(self.bn.running_var.view(1, -1, 1, 1), dtype=z.dtype, device=z.device) + self.bn_eps)
+            m = cast_to(self.bn.running_mean.view(1, -1, 1, 1), dtype=z.dtype, device=z.device)
+            z = z * s + m
+            z = rearrange(
+                z,
+                "... (c pi pj) i j -> ... c (i pi) (j pj)",
+                pi=self.ps[0],
+                pj=self.ps[1],
+            )
+
         if self.max_batch_size is None:
             dec = self.post_quant_conv(z)
             dec = self.decoder(dec, **decoder_kwargs)

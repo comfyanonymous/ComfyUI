@@ -1,7 +1,7 @@
 from __future__ import annotations
-
 from ..cmd.main_pre import tracer
 
+import typing
 import asyncio
 import time
 import uuid
@@ -22,7 +22,7 @@ from .server_stub import ServerStub
 from ..auth.permissions import jwt_decode
 from ..cmd.server import PromptServer
 from ..component_model.abstract_prompt_queue import AsyncAbstractPromptQueue, AbstractPromptQueue
-from ..component_model.executor_types import ExecutorToClientProgress, SendSyncEvent, SendSyncData, HistoryResultDict
+from ..component_model.executor_types import ExecutorToClientProgress, SendSyncEvent, SendSyncData, HistoryResultDict, ExecutionErrorMessage
 from ..component_model.queue_types import Flags, HistoryEntry, QueueTuple, QueueItem, ExecutionStatus, TaskInvocation, \
     ExecutionError
 
@@ -163,7 +163,8 @@ class DistributedPromptQueue(AbstractPromptQueue, AsyncAbstractPromptQueue):
 
         return item, item[1]
 
-    def task_done(self, item_id: int, outputs: dict, status: Optional[ExecutionStatus], error_details: Optional['ExecutionErrorMessage'] = None):
+    def task_done(self, item_id: int, outputs: dict, status: Optional[ExecutionStatus], error_details: Optional[ExecutionErrorMessage] = None, process_item: typing.Optional[typing.Callable[[QueueTuple], QueueItem]] = None):
+        # todo: should we do the process_item? it's clearing sensitive data. but what is the idea? why do things this way, it's crazy
         # callee: executed on the worker thread
         if "outputs" in outputs:
             outputs: HistoryResultDict

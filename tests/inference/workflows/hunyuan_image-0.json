@@ -1,0 +1,164 @@
+{
+    "6": {
+        "inputs": {
+            "text": "cute anime girl with gigantic fennec ears and a big fluffy fox tail with long wavy blonde hair and large blue eyes blonde colored eyelashes wearing a pink sweater a large oversized gold trimmed black winter coat and a long blue maxi skirt and a red scarf, she is happy while singing on stage like an idol while holding a microphone, there are colorful lights, it is a postcard held by a hand in front of a beautiful city at sunset and there is cursive writing that says \"Hunyuan Image\"",
+            "clip": [
+                "38",
+                0
+            ]
+        },
+        "class_type": "CLIPTextEncode",
+        "_meta": {
+            "title": "CLIP Text Encode (Positive Prompt)"
+        }
+    },
+    "8": {
+        "inputs": {
+            "samples": [
+                "13",
+                0
+            ],
+            "vae": [
+                "10",
+                0
+            ]
+        },
+        "class_type": "VAEDecode",
+        "_meta": {
+            "title": "VAE Decode"
+        }
+    },
+    "9": {
+        "inputs": {
+            "filename_prefix": "ComfyUI",
+            "images": [
+                "8",
+                0
+            ]
+        },
+        "class_type": "SaveImage",
+        "_meta": {
+            "title": "Save Image"
+        }
+    },
+    "10": {
+        "inputs": {
+            "vae_name": "hunyuan_image_2.1_vae_fp16.safetensors"
+        },
+        "class_type": "VAELoader",
+        "_meta": {
+            "title": "Load VAE"
+        }
+    },
+    "12": {
+        "inputs": {
+            "unet_name": "hunyuanimage2.1_bf16.safetensors",
+            "weight_dtype": "default"
+        },
+        "class_type": "UNETLoader",
+        "_meta": {
+            "title": "Load Diffusion Model"
+        }
+    },
+    "13": {
+        "inputs": {
+            "noise": [
+                "25",
+                0
+            ],
+            "guider": [
+                "22",
+                0
+            ],
+            "sampler": [
+                "16",
+                0
+            ],
+            "sigmas": [
+                "17",
+                0
+            ],
+            "latent_image": [
+                "27",
+                0
+            ]
+        },
+        "class_type": "SamplerCustomAdvanced",
+        "_meta": {
+            "title": "SamplerCustomAdvanced"
+        }
+    },
+    "16": {
+        "inputs": {
+            "sampler_name": "euler"
+        },
+        "class_type": "KSamplerSelect",
+        "_meta": {
+            "title": "KSamplerSelect"
+        }
+    },
+    "17": {
+        "inputs": {
+            "scheduler": "simple",
+            "steps": 20,
+            "denoise": 1.0,
+            "model": [
+                "12",
+                0
+            ]
+        },
+        "class_type": "BasicScheduler",
+        "_meta": {
+            "title": "BasicScheduler"
+        }
+    },
+    "22": {
+        "inputs": {
+            "model": [
+                "12",
+                0
+            ],
+            "conditioning": [
+                "6",
+                0
+            ]
+        },
+        "class_type": "BasicGuider",
+        "_meta": {
+            "title": "BasicGuider"
+        }
+    },
+    "25": {
+        "inputs": {
+            "noise_seed": 435922656034510
+        },
+        "class_type": "RandomNoise",
+        "_meta": {
+            "title": "RandomNoise"
+        }
+    },
+    "27": {
+        "inputs": {
+            "width": 1024,
+            "height": 1024,
+            "batch_size": 1,
+            "color": 0
+        },
+        "class_type": "EmptyLatentImage",
+        "_meta": {
+            "title": "Empty Latent Image"
+        }
+    },
+    "38": {
+        "inputs": {
+            "clip_name1": "qwen_2.5_vl_7b.safetensors",
+            "clip_name2": "byt5_small_glyphxl_fp16.safetensors",
+            "type": "sdxl",
+            "device": "default"
+        },
+        "class_type": "DualCLIPLoader",
+        "_meta": {
+            "title": "DualCLIPLoader"
+        }
+    }
+}

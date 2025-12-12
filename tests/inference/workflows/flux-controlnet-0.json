@@ -93,11 +93,11 @@
     "inputs": {
       "width": [
         "27",
-        4
+        0
       ],
       "height": [
         "27",
-        5
+        1
       ],
       "batch_size": 1
     },
@@ -281,7 +281,7 @@
         0
       ]
     },
-    "class_type": "Image Size to Number",
+    "class_type": "ImageShape",
     "_meta": {
       "title": "Image Size to Number"
     }

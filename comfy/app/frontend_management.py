@@ -1,23 +1,25 @@
 from __future__ import annotations
 
 import argparse
+import importlib.metadata
 import importlib.resources
 import logging
 import os
 import re
 import tempfile
 import zipfile
-import importlib.metadata
 from dataclasses import dataclass
 from functools import cached_property
 from pathlib import Path
-from typing import TypedDict, Optional
+from typing import Dict, TypedDict, Optional
 
 import requests
+from aiohttp import web
 from typing_extensions import NotRequired
 
 from ..cli_args import DEFAULT_VERSION_STRING
 from ..cmd.folder_paths import add_model_folder_path  # pylint: disable=import-error
+
 logger = logging.getLogger(__name__)
 REQUEST_TIMEOUT = 10  # seconds
 
@@ -145,7 +147,7 @@ class FrontendManager:
             # this isn't used the way it says
             return importlib.metadata.version("comfyui_frontend_package")
         except Exception as exc_info:
-            return "1.23.4"
+            return "1.33.10"
 
     @classmethod
     def get_installed_templates_version(cls) -> str:
@@ -154,12 +156,12 @@ class FrontendManager:
             templates_version_str = importlib.metadata.version("comfyui-workflow-templates")
             return templates_version_str
         except Exception:
-            return None
+            return ""
 
     @classmethod
     def get_required_templates_version(cls) -> str:
         # returns a stub, since this isn't a helpful check in this environment
-        return "0.1.95"
+        return "0.7.51"
 
     @classmethod
     def default_frontend_path(cls) -> str:
@@ -172,7 +174,45 @@ class FrontendManager:
             return ""
 
     @classmethod
-    def templates_path(cls) -> str:
+    def template_asset_map(cls) -> Optional[Dict[str, str]]:
+        """Return a mapping of template asset names to their absolute paths."""
+        try:
+            from comfyui_workflow_templates import (
+                get_asset_path,
+                iter_templates,
+            )
+        except ImportError:
+            logger.error(
+                f"comfyui-workflow-templates is not installed. {frontend_install_warning_message()}"
+            )
+            return None
+
+        try:
+            template_entries = list(iter_templates())
+        except Exception as exc:
+            logger.error(f"Failed to enumerate workflow templates: {exc}")
+            return None
+
+        asset_map: Dict[str, str] = {}
+        try:
+            for entry in template_entries:
+                for asset in entry.assets:
+                    asset_map[asset.filename] = get_asset_path(
+                        entry.template_id, asset.filename
+                    )
+        except Exception as exc:
+            logger.error(f"Failed to resolve template asset paths: {exc}")
+            return None
+
+        if not asset_map:
+            logger.error("No workflow template assets found. Did the packages install correctly?")
+            return None
+
+        return asset_map
+
+    @classmethod
+    def legacy_templates_path(cls) -> Optional[str]:
+        """Return the legacy templates directory shipped inside the meta package."""
         try:
             import comfyui_workflow_templates
 
@@ -299,3 +339,18 @@ class FrontendManager:
             logger.info("Falling back to the default frontend.")
             check_frontend_version()
             return cls.default_frontend_path()
+
+    @classmethod
+    def template_asset_handler(cls):
+        assets = cls.template_asset_map()
+        if not assets:
+            return None
+
+        async def serve_template(request: web.Request) -> web.StreamResponse:
+            rel_path = request.match_info.get("path", "")
+            target = assets.get(rel_path)
+            if target is None:
+                raise web.HTTPNotFound()
+            return web.FileResponse(target)
+
+        return serve_template

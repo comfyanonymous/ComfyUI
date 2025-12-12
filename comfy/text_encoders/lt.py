@@ -1,4 +1,4 @@
-from transformers import T5TokenizerFast
+from ..transformers_compat import T5TokenizerFast
 
 from .genmo import mochi_te
 from .. import sd1_clip

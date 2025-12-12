@@ -62,7 +62,7 @@ jobs:
           uv pip install --torch-backend=auto ".[dev]" --inexact
       - name: Lint for errors
         run: |
-          pylint --rcfile=.pylintrc comfy/ comfy_extras/ comfy_api/ comfy_api_nodes/
+          pylint comfy/ comfy_extras/ comfy_api/ comfy_api_nodes/
       - name: Run unit tests
         run: |
           pytest -v tests/unit
@@ -108,7 +108,7 @@ jobs:
       - name: Lint for errors
         run: |
           cd ${GITHUB_WORKSPACE}/src
-          pylint --rcfile=.pylintrc comfy/ comfy_extras/ comfy_api/ comfy_api_nodes/
+          pylint comfy/ comfy_extras/ comfy_api/ comfy_api_nodes/
       - name: Run unit tests
         run: |
           # only use dGPU

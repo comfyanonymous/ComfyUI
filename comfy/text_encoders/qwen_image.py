@@ -1,6 +1,6 @@
 import numbers
 import torch
-from transformers import Qwen2Tokenizer
+from ..transformers_compat import Qwen2Tokenizer
 
 from .llama import Qwen25_7BVLI
 from .. import sd1_clip
@@ -12,7 +12,7 @@ class Qwen25_7BVLITokenizer(sd1_clip.SDTokenizer):
         if tokenizer_data is None:
             tokenizer_data = {}
         tokenizer_path = files.get_package_as_path("comfy.text_encoders.qwen25_tokenizer")
-        super().__init__(tokenizer_path, pad_with_end=False, embedding_size=3584, embedding_key='qwen25_7b', tokenizer_class=Qwen2Tokenizer, has_start_token=False, has_end_token=False, pad_to_max_length=False, max_length=99999999, min_length=1, pad_token=151643, tokenizer_data=tokenizer_data)
+        super().__init__(tokenizer_path, pad_with_end=False, embedding_directory=embedding_directory, embedding_size=3584, embedding_key='qwen25_7b', tokenizer_class=Qwen2Tokenizer, has_start_token=False, has_end_token=False, pad_to_max_length=False, max_length=99999999, min_length=1, pad_token=151643, tokenizer_data=tokenizer_data)
 
 
 class QwenImageTokenizer(sd1_clip.SD1Tokenizer):
@@ -23,12 +23,14 @@ class QwenImageTokenizer(sd1_clip.SD1Tokenizer):
         self.llama_template = "<|im_start|>system\nDescribe the image by detailing the color, shape, size, texture, quantity, text, spatial relationships of the objects and background:<|im_end|>\n<|im_start|>user\n{}<|im_end|>\n<|im_start|>assistant\n"
         self.llama_template_images = "<|im_start|>system\nDescribe the key features of the input image (color, shape, size, texture, objects, background), then explain how the user's text instruction should alter or modify the image. Generate a new image that meets the user's requirements while maintaining consistency with the original input where appropriate.<|im_end|>\n<|im_start|>user\n<|vision_start|><|image_pad|><|vision_end|>{}<|im_end|>\n<|im_start|>assistant\n"
 
-    def tokenize_with_weights(self, text, return_word_ids=False, llama_template=None, images=[], **kwargs):
+    def tokenize_with_weights(self, text, return_word_ids=False, llama_template=None, images=[], prevent_empty_text=False, **kwargs):
         skip_template = False
         if text.startswith('<|im_start|>'):
             skip_template = True
         if text.startswith('<|start_header_id|>'):
             skip_template = True
+        if prevent_empty_text and text == '':
+            text = ' '
 
         if skip_template:
             llama_text = text
@@ -94,14 +96,14 @@ class QwenImageTEModel(sd1_clip.SD1ClipModel):
         return out, pooled, extra
 
 
-def te(dtype_llama=None, llama_scaled_fp8=None):
+def te(dtype_llama=None, llama_quantization_metadata=None):
     class QwenImageTEModel_(QwenImageTEModel):
         def __init__(self, device="cpu", dtype=None, model_options=None):
             if model_options is None:
                 model_options = {}
-            if llama_scaled_fp8 is not None and "scaled_fp8" not in model_options:
+            if llama_quantization_metadata is not None:
                 model_options = model_options.copy()
-                model_options["scaled_fp8"] = llama_scaled_fp8
+                model_options["quantization_metadata"] = llama_quantization_metadata
             if dtype_llama is not None:
                 dtype = dtype_llama
             super().__init__(device=device, dtype=dtype, model_options=model_options)

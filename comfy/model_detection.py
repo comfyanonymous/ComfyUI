@@ -8,6 +8,7 @@ import torch
 from . import supported_models, utils
 from . import supported_models_base
 from .gguf import GGMLOps
+from .utils import detect_layer_quantization
 
 logger = logging.getLogger(__name__)
 
@@ -180,30 +181,73 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
 
         guidance_keys = list(filter(lambda a: a.startswith("{}guidance_in.".format(key_prefix)), state_dict_keys))
         dit_config["guidance_embed"] = len(guidance_keys) > 0
+
+        # HunyuanVideo 1.5
+        if '{}cond_type_embedding.weight'.format(key_prefix) in state_dict_keys:
+            dit_config["use_cond_type_embedding"] = True
+        else:
+            dit_config["use_cond_type_embedding"] = False
+        if '{}vision_in.proj.0.weight'.format(key_prefix) in state_dict_keys:
+            dit_config["vision_in_dim"] = state_dict['{}vision_in.proj.0.weight'.format(key_prefix)].shape[0]
+            dit_config["meanflow_sum"] = True
+        else:
+            dit_config["vision_in_dim"] = None
+            dit_config["meanflow_sum"] = False
         return dit_config
 
     if '{}double_blocks.0.img_attn.norm.key_norm.scale'.format(key_prefix) in state_dict_keys and ('{}img_in.weight'.format(key_prefix) in state_dict_keys or f"{key_prefix}distilled_guidance_layer.norms.0.scale" in state_dict_keys):  # Flux, Chroma or Chroma Radiance (has no img_in.weight)
         dit_config = {}
-        dit_config["image_model"] = "flux"
+        if '{}double_stream_modulation_img.lin.weight'.format(key_prefix) in state_dict_keys:
+            dit_config["image_model"] = "flux2"
+            dit_config["axes_dim"] = [32, 32, 32, 32]
+            dit_config["num_heads"] = 48
+            dit_config["mlp_ratio"] = 3.0
+            dit_config["theta"] = 2000
+            dit_config["out_channels"] = 128
+            dit_config["global_modulation"] = True
+            dit_config["mlp_silu_act"] = True
+            dit_config["qkv_bias"] = False
+            dit_config["ops_bias"] = False
+            dit_config["default_ref_method"] = "index"
+            dit_config["ref_index_scale"] = 10.0
+            dit_config["txt_ids_dims"] = [3]
+            patch_size = 1
+        else:
+            dit_config["image_model"] = "flux"
+            dit_config["axes_dim"] = [16, 56, 56]
+            dit_config["num_heads"] = 24
+            dit_config["mlp_ratio"] = 4.0
+            dit_config["theta"] = 10000
+            dit_config["out_channels"] = 16
+            dit_config["qkv_bias"] = True
+            dit_config["txt_ids_dims"] = []
+            patch_size = 2
+
         dit_config["in_channels"] = 16
-        patch_size = 2
+        dit_config["hidden_size"] = 3072
+        dit_config["context_in_dim"] = 4096
+
         dit_config["patch_size"] = patch_size
         in_key = "{}img_in.weight".format(key_prefix)
         if in_key in state_dict_keys:
-            dit_config["in_channels"] = state_dict[in_key].shape[1] // (patch_size * patch_size)
-        dit_config["out_channels"] = 16
+            w = state_dict[in_key]
+            dit_config["in_channels"] = w.shape[1] // (patch_size * patch_size)
+            dit_config["hidden_size"] = w.shape[0]
+
+        txt_in_key = "{}txt_in.weight".format(key_prefix)
+        if txt_in_key in state_dict_keys:
+            w = state_dict[txt_in_key]
+            dit_config["context_in_dim"] = w.shape[1]
+            dit_config["hidden_size"] = w.shape[0]
+
         vec_in_key = '{}vector_in.in_layer.weight'.format(key_prefix)
         if vec_in_key in state_dict_keys:
             dit_config["vec_in_dim"] = state_dict[vec_in_key].shape[1]
-        dit_config["context_in_dim"] = 4096
-        dit_config["hidden_size"] = 3072
-        dit_config["mlp_ratio"] = 4.0
-        dit_config["num_heads"] = 24
+        else:
+            dit_config["vec_in_dim"] = None
+
         dit_config["depth"] = count_blocks(state_dict_keys, '{}double_blocks.'.format(key_prefix) + '{}.')
         dit_config["depth_single_blocks"] = count_blocks(state_dict_keys, '{}single_blocks.'.format(key_prefix) + '{}.')
-        dit_config["axes_dim"] = [16, 56, 56]
-        dit_config["theta"] = 10000
-        dit_config["qkv_bias"] = True
         if '{}distilled_guidance_layer.0.norms.0.scale'.format(key_prefix) in state_dict_keys or '{}distilled_guidance_layer.norms.0.scale'.format(key_prefix) in state_dict_keys:  # Chroma
             dit_config["image_model"] = "chroma"
             dit_config["in_channels"] = 64
@@ -224,8 +268,17 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
                 dit_config["nerf_tile_size"] = 512
                 dit_config["nerf_final_head_type"] = "conv" if f"{key_prefix}nerf_final_layer_conv.norm.scale" in state_dict_keys else "linear"
                 dit_config["nerf_embedder_dtype"] = torch.float32
+                if "__x0__" in state_dict_keys: # x0 pred
+                    dit_config["use_x0"] = True
+                else:
+                    dit_config["use_x0"] = False
         else:
             dit_config["guidance_embed"] = "{}guidance_in.in_layer.weight".format(key_prefix) in state_dict_keys
+            dit_config["yak_mlp"] = '{}double_blocks.0.img_mlp.gate_proj.weight'.format(key_prefix) in state_dict_keys
+            dit_config["txt_norm"] = "{}txt_norm.scale".format(key_prefix) in state_dict_keys
+            if dit_config["yak_mlp"] and dit_config["txt_norm"]:  # Ovis model
+                dit_config["txt_ids_dims"] = [1, 2]
+
         return dit_config
 
     if '{}t5_yproj.weight'.format(key_prefix) in state_dict_keys:  # Genmo mochi preview
@@ -372,14 +425,34 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
         dit_config["image_model"] = "lumina2"
         dit_config["patch_size"] = 2
         dit_config["in_channels"] = 16
-        dit_config["dim"] = 2304
-        dit_config["cap_feat_dim"] = state_dict['{}cap_embedder.1.weight'.format(key_prefix)].shape[1]
+        w = state_dict['{}cap_embedder.1.weight'.format(key_prefix)]
+        dit_config["dim"] = w.shape[0]
+        dit_config["cap_feat_dim"] = w.shape[1]
         dit_config["n_layers"] = count_blocks(state_dict_keys, '{}layers.'.format(key_prefix) + '{}.')
-        dit_config["n_heads"] = 24
-        dit_config["n_kv_heads"] = 8
         dit_config["qk_norm"] = True
-        dit_config["axes_dims"] = [32, 32, 32]
-        dit_config["axes_lens"] = [300, 512, 512]
+
+        if dit_config["dim"] == 2304: # Original Lumina 2
+            dit_config["n_heads"] = 24
+            dit_config["n_kv_heads"] = 8
+            dit_config["axes_dims"] = [32, 32, 32]
+            dit_config["axes_lens"] = [300, 512, 512]
+            dit_config["rope_theta"] = 10000.0
+            dit_config["ffn_dim_multiplier"] = 4.0
+            ctd_weight = state_dict.get('{}clip_text_pooled_proj.0.weight'.format(key_prefix), None)
+            if ctd_weight is not None:
+                dit_config["clip_text_dim"] = ctd_weight.shape[0]
+        elif dit_config["dim"] == 3840:  # Z image
+            dit_config["n_heads"] = 30
+            dit_config["n_kv_heads"] = 30
+            dit_config["axes_dims"] = [32, 48, 48]
+            dit_config["axes_lens"] = [1536, 512, 512]
+            dit_config["rope_theta"] = 256.0
+            dit_config["ffn_dim_multiplier"] = (8.0 / 3.0)
+            dit_config["z_image_modulation"] = True
+            dit_config["time_scale"] = 1000.0
+            if '{}cap_pad_token'.format(key_prefix) in state_dict_keys:
+                dit_config["pad_tokens_multiple"] = 32
+
         return dit_config
 
     if '{}head.modulation'.format(key_prefix) in state_dict_keys:  # Wan 2.1
@@ -556,6 +629,24 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
         dit_config["num_layers"] = count_blocks(state_dict_keys, '{}transformer_blocks.'.format(key_prefix) + '{}.')
         return dit_config
 
+    if '{}visual_transformer_blocks.0.cross_attention.key_norm.weight'.format(key_prefix) in state_dict_keys: # Kandinsky 5
+        dit_config = {}
+        model_dim = state_dict['{}visual_embeddings.in_layer.bias'.format(key_prefix)].shape[0]
+        dit_config["model_dim"] = model_dim
+        if model_dim in [4096, 2560]: # pro video and lite image
+            dit_config["axes_dims"] = (32, 48, 48)
+            if model_dim == 2560: # lite image
+                dit_config["rope_scale_factor"] = (1.0, 1.0, 1.0)
+        elif model_dim == 1792: # lite video
+            dit_config["axes_dims"] = (16, 24, 24)
+        dit_config["time_dim"] = state_dict['{}time_embeddings.in_layer.bias'.format(key_prefix)].shape[0]
+        dit_config["image_model"] = "kandinsky5"
+        dit_config["ff_dim"] = state_dict['{}visual_transformer_blocks.0.feed_forward.in_layer.weight'.format(key_prefix)].shape[0]
+        dit_config["visual_embed_dim"] = state_dict['{}visual_embeddings.in_layer.weight'.format(key_prefix)].shape[1]
+        dit_config["num_text_blocks"] = count_blocks(state_dict_keys, '{}text_transformer_blocks.'.format(key_prefix) + '{}.')
+        dit_config["num_visual_blocks"] = count_blocks(state_dict_keys, '{}visual_transformer_blocks.'.format(key_prefix) + '{}.')
+        return dit_config
+
     if '{}input_blocks.0.0.weight'.format(key_prefix) not in state_dict_keys:
         return None
 
@@ -699,16 +790,11 @@ def model_config_from_unet(state_dict, unet_key_prefix, use_base_if_no_match=Fal
     if model_config is None and use_base_if_no_match:
         model_config = supported_models_base.BASE(unet_config)
 
-    scaled_fp8_key = "{}scaled_fp8".format(unet_key_prefix)
-    if scaled_fp8_key in state_dict:
-        scaled_fp8_weight = state_dict.pop(scaled_fp8_key)
-        model_config.scaled_fp8 = scaled_fp8_weight.dtype
-        if model_config.scaled_fp8 == torch.float32:
-            model_config.scaled_fp8 = torch.float8_e4m3fn
-        if scaled_fp8_weight.nelement() == 2:
-            model_config.optimizations["fp8"] = False
-        else:
-            model_config.optimizations["fp8"] = True
+    # Detect per-layer quantization (mixed precision)
+    quant_config = detect_layer_quantization(state_dict, unet_key_prefix)
+    if quant_config:
+        model_config.quant_config = quant_config
+        logger.debug("Detected mixed precision quantization")
 
     if metadata is not None and "format" in metadata and metadata["format"] == "gguf":
         model_config.custom_operations = GGMLOps

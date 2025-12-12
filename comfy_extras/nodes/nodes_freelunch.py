@@ -26,6 +26,9 @@ SOFTWARE.
 
 import torch
 import logging
+logger = logging.getLogger(__name__)
+from typing_extensions import override
+from comfy_api.latest import ComfyExtension, IO
 
 def Fourier_filter(x, threshold, scale):
     # FFT
@@ -46,21 +49,26 @@ def Fourier_filter(x, threshold, scale):
     return x_filtered.to(x.dtype)
 
 
-class FreeU:
+class FreeU(IO.ComfyNode):
     @classmethod
-    def INPUT_TYPES(s):
-        return {"required": { "model": ("MODEL",),
-                             "b1": ("FLOAT", {"default": 1.1, "min": 0.0, "max": 10.0, "step": 0.01}),
-                             "b2": ("FLOAT", {"default": 1.2, "min": 0.0, "max": 10.0, "step": 0.01}),
-                             "s1": ("FLOAT", {"default": 0.9, "min": 0.0, "max": 10.0, "step": 0.01}),
-                             "s2": ("FLOAT", {"default": 0.2, "min": 0.0, "max": 10.0, "step": 0.01}),
-                              }}
-    RETURN_TYPES = ("MODEL",)
-    FUNCTION = "patch"
+    def define_schema(cls):
+        return IO.Schema(
+            node_id="FreeU",
+            category="model_patches/unet",
+            inputs=[
+                IO.Model.Input("model"),
+                IO.Float.Input("b1", default=1.1, min=0.0, max=10.0, step=0.01),
+                IO.Float.Input("b2", default=1.2, min=0.0, max=10.0, step=0.01),
+                IO.Float.Input("s1", default=0.9, min=0.0, max=10.0, step=0.01),
+                IO.Float.Input("s2", default=0.2, min=0.0, max=10.0, step=0.01),
+            ],
+            outputs=[
+                IO.Model.Output(),
+            ],
+        )
 
-    CATEGORY = "model_patches/unet"
-
-    def patch(self, model, b1, b2, s1, s2):
+    @classmethod
+    def execute(cls, model, b1, b2, s1, s2) -> IO.NodeOutput:
         model_channels = model.model.model_config.unet_config["model_channels"]
         scale_dict = {model_channels * 4: (b1, s1), model_channels * 2: (b2, s2)}
         on_cpu_devices = {}
@@ -73,7 +81,7 @@ class FreeU:
                     try:
                         hsp = Fourier_filter(hsp, threshold=1, scale=scale[1])
                     except:
-                        logging.warning("Device {} does not support the torch.fft functions used in the FreeU node, switching to CPU.".format(hsp.device))
+                        logger.warning("Device {} does not support the torch.fft functions used in the FreeU node, switching to CPU.".format(hsp.device))
                         on_cpu_devices[hsp.device] = True
                         hsp = Fourier_filter(hsp.cpu(), threshold=1, scale=scale[1]).to(hsp.device)
                 else:
@@ -83,23 +91,31 @@ class FreeU:
 
         m = model.clone()
         m.set_model_output_block_patch(output_block_patch)
-        return (m, )
+        return IO.NodeOutput(m)
 
-class FreeU_V2:
+    patch = execute  # TODO: remove
+
+
+class FreeU_V2(IO.ComfyNode):
     @classmethod
-    def INPUT_TYPES(s):
-        return {"required": { "model": ("MODEL",),
-                             "b1": ("FLOAT", {"default": 1.3, "min": 0.0, "max": 10.0, "step": 0.01}),
-                             "b2": ("FLOAT", {"default": 1.4, "min": 0.0, "max": 10.0, "step": 0.01}),
-                             "s1": ("FLOAT", {"default": 0.9, "min": 0.0, "max": 10.0, "step": 0.01}),
-                             "s2": ("FLOAT", {"default": 0.2, "min": 0.0, "max": 10.0, "step": 0.01}),
-                              }}
-    RETURN_TYPES = ("MODEL",)
-    FUNCTION = "patch"
+    def define_schema(cls):
+        return IO.Schema(
+            node_id="FreeU_V2",
+            category="model_patches/unet",
+            inputs=[
+                IO.Model.Input("model"),
+                IO.Float.Input("b1", default=1.3, min=0.0, max=10.0, step=0.01),
+                IO.Float.Input("b2", default=1.4, min=0.0, max=10.0, step=0.01),
+                IO.Float.Input("s1", default=0.9, min=0.0, max=10.0, step=0.01),
+                IO.Float.Input("s2", default=0.2, min=0.0, max=10.0, step=0.01),
+            ],
+            outputs=[
+                IO.Model.Output(),
+            ],
+        )
 
-    CATEGORY = "model_patches/unet"
-
-    def patch(self, model, b1, b2, s1, s2):
+    @classmethod
+    def execute(cls, model, b1, b2, s1, s2) -> IO.NodeOutput:
         model_channels = model.model.model_config.unet_config["model_channels"]
         scale_dict = {model_channels * 4: (b1, s1), model_channels * 2: (b2, s2)}
         on_cpu_devices = {}
@@ -119,7 +135,7 @@ class FreeU_V2:
                     try:
                         hsp = Fourier_filter(hsp, threshold=1, scale=scale[1])
                     except:
-                        logging.warning("Device {} does not support the torch.fft functions used in the FreeU node, switching to CPU.".format(hsp.device))
+                        logger.warning("Device {} does not support the torch.fft functions used in the FreeU node, switching to CPU.".format(hsp.device))
                         on_cpu_devices[hsp.device] = True
                         hsp = Fourier_filter(hsp.cpu(), threshold=1, scale=scale[1]).to(hsp.device)
                 else:
@@ -129,9 +145,19 @@ class FreeU_V2:
 
         m = model.clone()
         m.set_model_output_block_patch(output_block_patch)
-        return (m, )
+        return IO.NodeOutput(m)
 
-NODE_CLASS_MAPPINGS = {
-    "FreeU": FreeU,
-    "FreeU_V2": FreeU_V2,
-}
+    patch = execute  # TODO: remove
+
+
+class FreelunchExtension(ComfyExtension):
+    @override
+    async def get_node_list(self) -> list[type[IO.ComfyNode]]:
+        return [
+            FreeU,
+            FreeU_V2,
+        ]
+
+
+async def comfy_entrypoint() -> FreelunchExtension:
+    return FreelunchExtension()

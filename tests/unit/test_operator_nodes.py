@@ -1,5 +1,5 @@
 import pytest
-from comfy_extras.nodes.nodes_logic import LazySwitch, UnaryOperation, BooleanUnaryOperation, BinaryOperation, \
+from comfy_extras.nodes.nodes_logic_hs import LazySwitch, UnaryOperation, BooleanUnaryOperation, BinaryOperation, \
     BooleanBinaryOperation
 
 

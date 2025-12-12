@@ -5,7 +5,7 @@ from typing import Tuple, Literal, List
 
 from ..api.components.schema.prompt import PromptDict, Prompt
 from ..auth.permissions import ComfyJwt, jwt_decode
-from ..component_model.queue_types import NamedQueueTuple, TaskInvocation, ExecutionStatus
+from ..component_model.queue_types import QueueDict, TaskInvocation, ExecutionStatus, QueueTuple, ExtraData
 
 
 @dataclass
@@ -26,14 +26,14 @@ class DistributedBase:
 class RpcRequest(DistributedBase):
     prompt: dict | PromptDict
 
-    async def as_queue_tuple(self) -> NamedQueueTuple:
+    async def as_queue_tuple(self) -> QueueDict:
         # this loads the nodes in this instance
         # should always be okay to call in an executor
         from ..cmd.execution import validate_prompt
         from ..component_model.make_mutable import make_mutable
         mutated_prompt_dict = make_mutable(self.prompt)
         validation_tuple = await validate_prompt(self.prompt_id, mutated_prompt_dict)
-        return NamedQueueTuple(queue_tuple=(0, self.prompt_id, mutated_prompt_dict, {}, validation_tuple[2]))
+        return QueueDict(queue_tuple=QueueTuple(0, self.prompt_id, mutated_prompt_dict, ExtraData(), validation_tuple[2]))
 
     @classmethod
     def from_dict(cls, request_dict):

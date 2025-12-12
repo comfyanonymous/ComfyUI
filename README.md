@@ -306,16 +306,54 @@ choco install -y vcredist2010 vcredist2013 vcredist140
 
 Then, visit [NVIDIA.com's CUDA Toolkit Download Page](https://developer.nvidia.com/cuda-12-6-0-download-archive?target_os=Windows&target_arch=x86_64&target_version=Server2022&target_type=exe_network) and download and install the CUDA Toolkit. Verify it is correctly installed by running `nvcc --version`.
 
-You are now ready to install Sage Attention 2 and Triton:
+You are now ready to install Sage Attention 2.
+
+### Linux
 
 ```shell
-uv pip install --torch-backend=auto "comfyui[attention]@git+https://github.com/hiddenswitch/ComfyUI.git"
+uv pip install --no-build-isolation "sageattention@git+https://github.com/thu-ml/SageAttention.git"
+```
+
+### Windows
+
+Run this PowerShell script to install the correct version of Sage Attention for your installed PyTorch version:
+
+```powershell
+$torch_version = (uv pip freeze | Select-String "torch==").ToString().Trim()
+$cuda_version = $torch_version -replace ".*(cu\d+).*", "`$1"
+if ($torch_version -match "\+cu") {
+    $v = $torch_version -replace "torch==", ""
+    $package_specifier = "sageattention==2.2.0+$($cuda_version)torch$v"
+    uv pip install --find-links https://raw.githubusercontent.com/hiddenswitch/ComfyUI/main/pypi/sageattention_index.html $package_specifier
+} else {
+    Write-Host "Could not determine CUDA version from torch version: $torch_version"
+}
 ```
 
 To start ComfyUI with it:
 
 ```shell
 uv run comfyui --use-sage-attention
+```
+
+![with_sage_attention.webp](./docs/assets/with_sage_attention.webp)
+**With SageAttention**
+
+![with_pytorch_attention](./docs/assets/with_pytorch_attention.webp)
+**With PyTorch Attention**
+
+## Flash Attention
+
+Flash Attention 2 is supported on Linux only.
+
+```shell
+uv pip install --no-build-isolation flash_attn
+```
+
+To start ComfyUI with it:
+
+```shell
+uv run comfyui --use-flash-attention
 ```
 
 ![with_sage_attention.webp](./docs/assets/with_sage_attention.webp)
@@ -359,6 +397,8 @@ There are two kinds of custom nodes: vanilla custom nodes, which generally expec
 
 ComfyUI-Manager is a popular extension to help you install and manage other custom nodes. To install it, you will need `git` on your system.
 
+#### Manual Install
+
 The installation process for ComfyUI-Manager requires two steps: installing its Python dependencies, and then cloning its code into the `custom_nodes` directory.
 
 1.  **Install dependencies.**
@@ -380,6 +420,34 @@ The installation process for ComfyUI-Manager requires two steps: installing its 
 
 3.  **Restart ComfyUI.**
     After the cloning is complete, restart ComfyUI. You should now see a "Manager" button in the menu.
+
+### PyPi Install
+
+[ComfyUI-Manager](https://github.com/Comfy-Org/ComfyUI-Manager/tree/manager-v4)
+
+**ComfyUI-Manager** is an extension that allows you to easily install, update, and manage custom nodes for ComfyUI.
+
+### Setup
+
+1. Install the manager dependencies:
+   ```bash
+   pip install -r manager_requirements.txt
+   ```
+
+2. Enable the manager with the `--enable-manager` flag when running ComfyUI:
+   ```bash
+   python main.py --enable-manager
+   ```
+
+### Command Line Options
+
+| Flag | Description |
+|------|-------------|
+| `--enable-manager` | Enable ComfyUI-Manager |
+| `--enable-manager-legacy-ui` | Use the legacy manager UI instead of the new UI (requires `--enable-manager`) |
+| `--disable-manager-ui` | Disable the manager UI and endpoints while keeping background features like security checks and scheduled installation completion (requires `--enable-manager`) |
+
+
 
 ### Vanilla Custom Nodes
 

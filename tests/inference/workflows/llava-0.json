@@ -1,7 +1,7 @@
 {
   "1": {
     "inputs": {
-      "ckpt_name": "llava-hf/llava-v1.6-mistral-7b-hf",
+      "ckpt_name": "llava-hf/llava-onevision-qwen2-7b-si-hf",
       "subfolder": ""
     },
     "class_type": "TransformersLoader",
@@ -33,7 +33,7 @@
   "4": {
     "inputs": {
       "prompt": "Who is this?",
-      "chat_template": "llava-v1.6-mistral-7b-hf",
+      "chat_template": "default",
       "model": [
         "1",
         0

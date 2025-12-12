@@ -50,19 +50,6 @@ class TransformerStreamedProgress(TypedDict):
     next_token: str
 
 
-LLaVAProcessor = Callable[
-    [
-        Union[TextInput, PreTokenizedInput, List[TextInput], List[PreTokenizedInput]],  # text parameter
-        Union[Image, np.ndarray, torch.Tensor, List[Image], List[np.ndarray], List[torch.Tensor]],  # images parameter
-        Union[bool, str, PaddingStrategy],  # padding parameter
-        Union[bool, str, TruncationStrategy],  # truncation parameter
-        Optional[int],  # max_length parameter
-        Optional[Union[str, TensorType]]  # return_tensors parameter
-    ],
-    BatchFeature
-]
-
-
 class LanguageMessage(TypedDict):
     role: Literal["system", "user", "assistant"]
     content: str | MessageContent
@@ -92,14 +79,13 @@ class LanguageModel(Protocol):
 
     def generate(self, tokens: TOKENS_TYPE = None,
                  max_new_tokens: int = 512,
-                 repetition_penalty: float = 0.0,
                  seed: int = 0,
                  sampler: Optional[GENERATION_KWARGS_TYPE] = None,
                  *args,
                  **kwargs) -> str:
         ...
 
-    def tokenize(self, prompt: str | LanguagePrompt, images: RGBImageBatch | None, chat_template: str | None = None) -> ProcessorResult:
+    def tokenize(self, prompt: str | LanguagePrompt, images: RGBImageBatch | None, videos: list[torch.Tensor] | None, chat_template: str | None = None) -> ProcessorResult:
         ...
 
     @property

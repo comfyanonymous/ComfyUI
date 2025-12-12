@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import List, Optional, Final, Set
 
 import requests
+import requests_cache
 import tqdm
 from huggingface_hub import dump_environment_info, hf_hub_download, scan_cache_dir, snapshot_download, HfFileSystem, CacheNotFound
 from huggingface_hub.utils import GatedRepoError, LocalEntryNotFoundError
@@ -137,37 +138,39 @@ def get_or_download(folder_name: str, filename: str, known_files: Optional[List[
                     path = None
 
                     cache_hit = False
-                    try:
-                        # always retrieve this from the cache if it already exists there
-                        path = hf_hub_download(repo_id=known_file.repo_id,
-                                               filename=known_file.filename,
-                                               repo_type=known_file.repo_type,
-                                               revision=known_file.revision,
-                                               local_files_only=True,
-                                               local_dir=hf_destination_dir if args.force_hf_local_dir_mode else None,
-                                               )
-                        logger.debug(f"hf_hub_download cache hit for {known_file.repo_id}/{known_file.filename}")
-                        cache_hit = True
-                    except LocalEntryNotFoundError:
+                    hf_hub_download_kwargs = dict(repo_id=known_file.repo_id,
+                                  filename=known_file.filename,
+                                  repo_type=known_file.repo_type,
+                                  revision=known_file.revision,
+                                  local_files_only=True,
+                                  local_dir=hf_destination_dir if args.force_hf_local_dir_mode else None,
+                                  token=True,
+                                                  )
+
+                    with requests_cache.disabled():
                         try:
-                            logger.debug(f"{folder_name}/{filename} is being downloaded from {known_file.repo_id}/{known_file.filename} candidate_str_match={candidate_str_match} candidate_filename_match={candidate_filename_match} candidate_alternate_filenames_match={candidate_alternate_filenames_match} candidate_save_filename_match={candidate_save_filename_match}")
-                            path = hf_hub_download(repo_id=known_file.repo_id,
-                                                   filename=known_file.filename,
-                                                   repo_type=known_file.repo_type,
-                                                   revision=known_file.revision,
-                                                   local_dir=hf_destination_dir if args.force_hf_local_dir_mode else None,
-                                                   )
-                        except requests.exceptions.HTTPError as exc_info:
-                            if exc_info.response.status_code == 401:
-                                raise GatedRepoError(f"{known_file.repo_id}/{known_file.filename}", response=exc_info.response)
-                        except IOError as exc_info:
-                            logger.error(f"cannot reach huggingface {known_file.repo_id}/{known_file.filename}", exc_info=exc_info)
-                        except Exception as exc_info:
-                            logger.error(f"an exception occurred while downloading {known_file.repo_id}/{known_file.filename}", exc_info=exc_info)
-                            dump_environment_info()
-                            for key, value in os.environ.items():
-                                if key.startswith("HF_XET"):
-                                    print(f"{key}={value}", file=sys.stderr)
+                            # always retrieve this from the cache if it already exists there
+                            path = hf_hub_download(**hf_hub_download_kwargs)
+                            logger.debug(f"hf_hub_download cache hit for {known_file.repo_id}/{known_file.filename}")
+                            cache_hit = True
+                        except LocalEntryNotFoundError:
+                            try:
+                                logger.debug(f"{folder_name}/{filename} is being downloaded from {known_file.repo_id}/{known_file.filename} candidate_str_match={candidate_str_match} candidate_filename_match={candidate_filename_match} candidate_alternate_filenames_match={candidate_alternate_filenames_match} candidate_save_filename_match={candidate_save_filename_match}")
+                                hf_hub_download_kwargs.pop("local_files_only")
+                                path = hf_hub_download(**hf_hub_download_kwargs)
+                            except requests.exceptions.HTTPError as exc_info:
+                                if exc_info.response.status_code == 401:
+                                    raise GatedRepoError(f"{known_file.repo_id}/{known_file.filename}", response=exc_info.response)
+                            except IOError as exc_info:
+                                logger.error(f"cannot reach huggingface {known_file.repo_id}/{known_file.filename}", exc_info=exc_info)
+                            except Exception as exc_info:
+                                logger.error(f"an exception occurred while downloading {known_file.repo_id}/{known_file.filename}. hf_hub_download kwargs={hf_hub_download_kwargs}", exc_info=exc_info)
+                                dump_environment_info()
+                                for key, value in os.environ.items():
+                                    if key.startswith("HF_"):
+                                        if key == "HF_TOKEN":
+                                            value = "*****"
+                                        print(f"{key}={value}", file=sys.stderr)
 
                     if path is not None and known_file.convert_to_16_bit and file_size is not None and file_size != 0:
                         tensors = {}
@@ -546,6 +549,7 @@ KNOWN_APPROX_VAES: Final[KnownDownloadables] = KnownDownloadables([
     UrlFile("https://raw.githubusercontent.com/madebyollin/taesd/main/taesd3_decoder.pth", show_in_ui=False),
     UrlFile("https://raw.githubusercontent.com/madebyollin/taesd/main/taef1_encoder.pth", show_in_ui=False),
     UrlFile("https://raw.githubusercontent.com/madebyollin/taesd/main/taef1_decoder.pth", show_in_ui=False),
+    # todo: update this with the video VAEs
 ], folder_name="vae_approx")
 
 KNOWN_VAES: Final[KnownDownloadables] = KnownDownloadables([
@@ -560,6 +564,13 @@ KNOWN_VAES: Final[KnownDownloadables] = KnownDownloadables([
     HuggingFile("Comfy-Org/Wan_2.1_ComfyUI_repackaged", "split_files/vae/wan_2.1_vae.safetensors"),
     HuggingFile("Comfy-Org/Wan_2.2_ComfyUI_Repackaged", "split_files/vae/wan2.2_vae.safetensors"),
     HuggingFile("Comfy-Org/Qwen-Image_ComfyUI", "split_files/vae/qwen_image_vae.safetensors"),
+    # Flux 2
+    HuggingFile("Comfy-Org/flux2-dev", "split_files/vae/flux2-vae.safetensors"),
+    # Z Image Turbo
+    HuggingFile("Comfy-Org/z_image_turbo", "split_files/vae/ae.safetensors", save_with_filename="z_image_turbo_vae.safetensors"),
+    # Hunyuan Image
+    HuggingFile("Comfy-Org/HunyuanImage_2.1_ComfyUI", "split_files/vae/hunyuan_image_2.1_vae_fp16.safetensors"),
+    HuggingFile("Comfy-Org/HunyuanImage_2.1_ComfyUI", "split_files/vae/hunyuan_image_refiner_vae_fp16.safetensors"),
 ], folder_name="vae")
 
 KNOWN_HUGGINGFACE_MODEL_REPOS: Final[Set[str]] = {
@@ -644,8 +655,18 @@ KNOWN_UNET_MODELS: Final[KnownDownloadables] = KnownDownloadables([
     HuggingFile("Comfy-Org/Qwen-Image-Edit_ComfyUI", "split_files/diffusion_models/qwen_image_edit_2509_fp8_e4m3fn.safetensors"),
     HuggingFile("Comfy-Org/Qwen-Image-Edit_ComfyUI", "split_files/diffusion_models/qwen_image_edit_bf16.safetensors"),
     HuggingFile("Comfy-Org/Qwen-Image-Edit_ComfyUI", "split_files/diffusion_models/qwen_image_edit_fp8_e4m3fn.safetensors"),
+    # Flux 2
+    HuggingFile("Comfy-Org/flux2-dev", "split_files/diffusion_models/flux2_dev_fp8mixed.safetensors"),
+    # Z Image Turbo
+    HuggingFile("Comfy-Org/z_image_turbo", "split_files/diffusion_models/z_image_turbo_bf16.safetensors"),
+    # Omnigen 2
+    HuggingFile("Comfy-Org/Omnigen2_ComfyUI_repackaged", "split_files/diffusion_models/omnigen2_fp16.safetensors"),
+    # Hunyuan Image
+    HuggingFile("Comfy-Org/HunyuanImage_2.1_ComfyUI", "split_files/diffusion_models/hunyuanimage2.1_bf16.safetensors"),
+    HuggingFile("Comfy-Org/HunyuanImage_2.1_ComfyUI", "split_files/diffusion_models/hunyuanimage2.1_refiner_bf16.safetensors"),
+    # Ovis
+    HuggingFile("Comfy-Org/Ovis-Image", "split_files/diffusion_models/ovis_image_bf16.safetensors"),
 ], folder_names=["diffusion_models", "unet"])
-
 KNOWN_CLIP_MODELS: Final[KnownDownloadables] = KnownDownloadables([
     # todo: is this correct?
     HuggingFile("comfyanonymous/flux_text_encoders", "t5xxl_fp16.safetensors"),
@@ -668,6 +689,16 @@ KNOWN_CLIP_MODELS: Final[KnownDownloadables] = KnownDownloadables([
     HuggingFile("Comfy-Org/HiDream-I1_ComfyUI", "split_files/text_encoders/llama_3.1_8b_instruct_fp8_scaled.safetensors"),
     HuggingFile("Comfy-Org/Qwen-Image_ComfyUI", "split_files/text_encoders/qwen_2.5_vl_7b.safetensors"),
     HuggingFile("Comfy-Org/Qwen-Image_ComfyUI", "split_files/text_encoders/qwen_2.5_vl_7b_fp8_scaled.safetensors"),
+    # Flux 2
+    HuggingFile("Comfy-Org/flux2-dev", "split_files/text_encoders/mistral_3_small_flux2_fp8.safetensors"),
+    HuggingFile("Comfy-Org/flux2-dev", "split_files/text_encoders/mistral_3_small_flux2_bf16.safetensors"),
+    # Z Image Turbo
+    HuggingFile("Comfy-Org/z_image_turbo", "split_files/text_encoders/qwen_3_4b.safetensors"),
+    # Omnigen 2
+    HuggingFile("Comfy-Org/Omnigen2_ComfyUI_repackaged", "split_files/text_encoders/qwen_2.5_vl_fp16.safetensors"),
+    # Hunyuan Image
+    HuggingFile("Comfy-Org/HunyuanImage_2.1_ComfyUI", "split_files/text_encoders/byt5_small_glyphxl_fp16.safetensors"),
+    HuggingFile("Comfy-Org/HunyuanImage_2.1_ComfyUI", "split_files/text_encoders/qwen_2.5_vl_7b.safetensors"),
 ], folder_names=["clip", "text_encoders"])
 
 KNOWN_STYLE_MODELS: Final[KnownDownloadables] = KnownDownloadables([

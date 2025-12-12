@@ -2,7 +2,7 @@ from __future__ import annotations  # for Python 3.7-3.9
 
 import concurrent.futures
 from enum import Enum
-from typing import Optional, Literal, Protocol, Union, NamedTuple, List, runtime_checkable, Iterable, Dict, Any
+from typing import Optional, Literal, Protocol, Union, NamedTuple, List, runtime_checkable, Dict, Any
 
 import PIL.Image
 from typing_extensions import NotRequired, TypedDict, Never

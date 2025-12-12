@@ -1,19 +1,16 @@
 from __future__ import annotations
 
-import collections
 import dataclasses
 import functools
 from os.path import split
 from pathlib import PurePosixPath
-from typing import Optional, List, Sequence, Union, Iterable, Protocol
+from typing import Optional, List, Sequence, Union, Iterable
 
 from can_ada import parse, URL  # pylint: disable=no-name-in-module
-from typing_extensions import TypedDict, NotRequired, runtime_checkable
+from typing_extensions import TypedDict, NotRequired
 
 from .component_model.executor_types import ComboOptions
 from .component_model.files import canonicalize_path
-
-
 
 
 @dataclasses.dataclass(frozen=True)

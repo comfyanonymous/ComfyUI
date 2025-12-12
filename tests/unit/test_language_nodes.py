@@ -33,7 +33,7 @@ def test_save_string_single(save_string_node, mock_get_save_path):
     assert result == {"ui": {"string": [test_string]}}
     mock_get_save_path.assert_called_once_with("test_prefix")
 
-    saved_file_path = os.path.join(tempfile.gettempdir(), "test_00000_.txt")
+    saved_file_path = os.path.join(tempfile.gettempdir(), "test_00000.txt")
     assert os.path.exists(saved_file_path)
     with open(saved_file_path, "r") as f:
         assert f.read() == test_string
@@ -47,7 +47,7 @@ def test_save_string_list(save_string_node, mock_get_save_path):
     mock_get_save_path.assert_called_once_with("test_prefix")
 
     for i, test_string in enumerate(test_strings):
-        saved_file_path = os.path.join(tempfile.gettempdir(), f"test_00000_{i:02d}_.txt")
+        saved_file_path = os.path.join(tempfile.gettempdir(), f"test_00000_{i:02d}.txt")
         assert os.path.exists(saved_file_path)
         with open(saved_file_path, "r") as f:
             assert f.read() == test_string
@@ -60,7 +60,7 @@ def test_save_string_default_extension(save_string_node, mock_get_save_path):
     assert result == {"ui": {"string": [test_string]}}
     mock_get_save_path.assert_called_once_with("test_prefix")
 
-    saved_file_path = os.path.join(tempfile.gettempdir(), "test_00000_.json")
+    saved_file_path = os.path.join(tempfile.gettempdir(), "test_00000.txt")
     assert os.path.exists(saved_file_path)
     with open(saved_file_path, "r") as f:
         assert f.read() == test_string
@@ -89,8 +89,8 @@ def test_one_shot_instruct_tokenize(mocker):
     mock_model = mocker.Mock()
     mock_model.tokenize.return_value = {"input_ids": torch.tensor([[1, 2, 3]])}
 
-    tokens, = tokenize.execute(mock_model, "What comes after apple?", [], "phi-3")
-    mock_model.tokenize.assert_called_once_with("What comes after apple?", [], mocker.ANY)
+    tokens, = tokenize.execute(mock_model, "What comes after apple?", [], chat_template="phi-3")
+    mock_model.tokenize.assert_called_once_with("What comes after apple?", [], mocker.ANY, mocker.ANY)
     assert "input_ids" in tokens
 
 
@@ -100,7 +100,7 @@ def test_transformers_generate(mocker):
     mock_model.generate.return_value = "The letter B comes after A in the alphabet."
 
     tokens: ProcessorResult = {"inputs": torch.tensor([[1, 2, 3]])}
-    result, = generate.execute(mock_model, tokens, 512, 0, 42)
+    result, = generate.execute(mock_model, tokens, 512, 0)
     mock_model.generate.assert_called_once()
     assert isinstance(result, str)
     assert "letter B" in result

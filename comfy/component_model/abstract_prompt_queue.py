@@ -3,7 +3,7 @@ from __future__ import annotations
 import typing
 from abc import ABCMeta, abstractmethod
 
-from .executor_types import HistoryResultDict
+from .executor_types import HistoryResultDict, ExecutionErrorMessage
 from .queue_types import QueueTuple, HistoryEntry, QueueItem, Flags, ExecutionStatus, TaskInvocation, AbstractPromptQueueGetCurrentQueueItems
 
 
@@ -43,10 +43,11 @@ class AbstractPromptQueue(metaclass=ABCMeta):
         pass
 
     @abstractmethod
-    def task_done(self, item_id: str, outputs: HistoryResultDict,
-                  status: typing.Optional[ExecutionStatus]):
+    def task_done(self, item_id: str, outputs: HistoryResultDict, status: typing.Optional[ExecutionStatus], error_details: typing.Optional[ExecutionErrorMessage] = None, process_item: typing.Optional[typing.Callable[[QueueTuple], QueueItem]] = None):
         """
         Signals to the user interface that the task with the specified id is completed
+        :param error_details:
+        :param process_item:
         :param item_id: the ID of the task that should be marked as completed
         :param outputs: an opaque dictionary of outputs
         :param status:

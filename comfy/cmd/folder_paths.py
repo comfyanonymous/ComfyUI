@@ -24,6 +24,12 @@ _module_properties = create_module_properties()
 
 logger = logging.getLogger(__name__)
 
+# todo: investigate what this is actually trying to do
+# System User Protection - Protects system directories from HTTP endpoint access
+# System Users are internal-only users that cannot be accessed via HTTP endpoints.
+# They use the '__' prefix convention (similar to Python's private member convention).
+SYSTEM_USER_PREFIX = "__"
+
 
 @_module_properties.getter
 def _supported_pt_extensions() -> set[str]:
@@ -56,6 +62,65 @@ def _resolve_path_with_compatibility(path: Path | str) -> PurePosixPath | Path:
         else:
             return Path.resolve(_base_path() / path)
     return Path(path).resolve()
+
+
+def get_system_user_directory(name: str = "system") -> str:
+    """
+    Get the path to a System User directory.
+
+    System User directories (prefixed with '__') are only accessible via internal API,
+    not through HTTP endpoints. Use this for storing system-internal data that
+    should not be exposed to users.
+
+    Args:
+        name: System user name (e.g., "system", "cache"). Must be alphanumeric
+              with underscores allowed, but cannot start with underscore.
+
+    Returns:
+        Absolute path to the system user directory.
+
+    Raises:
+        ValueError: If name is empty, invalid, or starts with underscore.
+
+    Example:
+        >>> get_system_user_directory("cache")
+        '/path/to/user/__cache'
+    """
+    if not name or not isinstance(name, str):
+        raise ValueError("System user name cannot be empty")
+    if not name.replace("_", "").isalnum():
+        raise ValueError(f"Invalid system user name: '{name}'")
+    if name.startswith("_"):
+        raise ValueError("System user name should not start with underscore")
+    return os.path.join(get_user_directory(), f"{SYSTEM_USER_PREFIX}{name}")
+
+
+def get_public_user_directory(user_id: str) -> str | None:
+    """
+    Get the path to a Public User directory for HTTP endpoint access.
+
+    This function provides structural security by returning None for any
+    System User (prefixed with '__'). All HTTP endpoints should use this
+    function instead of directly constructing user paths.
+
+    Args:
+        user_id: User identifier from HTTP request.
+
+    Returns:
+        Absolute path to the user directory, or None if user_id is invalid
+        or refers to a System User.
+
+    Example:
+        >>> get_public_user_directory("default")
+        '/path/to/user/default'
+        >>> get_public_user_directory("__system")
+        None
+    """
+    if not user_id or not isinstance(user_id, str):
+        return None
+    if user_id.startswith(SYSTEM_USER_PREFIX):
+        return None
+    return os.path.join(get_user_directory(), user_id)
 
 
 def init_default_paths(folder_names_and_paths: FolderNames, configuration: Optional[Configuration] = None, create_all_directories=False, replace_existing=True, base_paths_from_configuration=True):
@@ -111,6 +176,7 @@ def init_default_paths(folder_names_and_paths: FolderNames, configuration: Optio
         ModelPaths(["huggingface"], supported_extensions=set()),
         ModelPaths(["model_patches"], supported_extensions=set(supported_pt_extensions)),
         ModelPaths(["audio_encoders"], supported_extensions=set(supported_pt_extensions)),
+        ModelPaths(["latent_upscale_models"], supported_extensions=set(supported_pt_extensions)),
         hf_cache_paths,
         hf_xet,
     ]
@@ -527,4 +593,8 @@ __all__ = [
     "invalidate_cache",
     "filter_files_content_types",
     "get_input_subfolders",
+    "get_system_user_directory",
+    "get_public_user_directory",
+    # todo: why? what is the purpose?
+    "SYSTEM_USER_PREFIX",
 ]

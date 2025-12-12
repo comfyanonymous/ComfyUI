@@ -4,6 +4,7 @@ import pathlib
 import requests_cache
 from contextlib import contextmanager
 
+from .cli_args import args
 
 @contextmanager
 def use_requests_caching(
@@ -34,6 +35,10 @@ def use_requests_caching(
     path_provided = isinstance(cache_name, pathlib.PurePath) or os.path.sep in str(cache_name) or '.' == str(cache_name)[0]
     kwargs.setdefault('use_cache_dir', not path_provided)
     kwargs.setdefault('cache_control', cache_control)
+
+    if args.disable_requests_caching:
+        yield
+        return
 
     with requests_cache.enabled(cache_name, **kwargs):
         yield

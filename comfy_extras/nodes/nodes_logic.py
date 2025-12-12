@@ -1,178 +1,155 @@
-import inspect
-import operator
-from typing import OrderedDict, Callable, Any
-
-from comfy.comfy_types import IO
-from comfy.lazy_helpers import is_input_pending
-from comfy.node_helpers import export_custom_nodes
-from comfy.nodes.package_typing import CustomNode, InputTypes
+from typing import TypedDict
+from typing_extensions import override
+from comfy_api.latest import ComfyExtension, io
+from comfy_api.latest import _io
 
 
-def takes_n_args(obj, n):
-    if not callable(obj):
-        return False
 
-    try:
-        sig = inspect.signature(obj)
-    except (TypeError, ValueError):
-        return False
-
-    params = sig.parameters.values()
-
-    named_param_count = sum(
-        1 for p in params
-        if p.kind not in (inspect.Parameter.VAR_POSITIONAL,
-                          inspect.Parameter.VAR_KEYWORD)
-    )
-
-    return named_param_count == n
-
-
-_BINARY_OPS: dict[str, Callable[[Any, Any], Any]] = OrderedDict({
-    **{op: getattr(operator, op) for op in dir(operator) if takes_n_args(getattr(operator, op), 2)},
-    "and": lambda a, b: a and b,
-    "or": lambda a, b: a or b,
-})
-_UNARY_OPS: dict[str, Callable[[Any], Any]] = {
-    **{op: getattr(operator, op) for op in dir(operator) if takes_n_args(getattr(operator, op), 1)},
-    "not": lambda a: not a
-}
-
-
-class IsNone(CustomNode):
+class SwitchNode(io.ComfyNode):
     @classmethod
-    def INPUT_TYPES(cls) -> InputTypes:
-        return {
-            "required": {},
-            "optional": {
-                "value": (IO.ANY, {}),
-            }
-        }
-
-    RETURN_TYPES = (IO.BOOLEAN,)
-    FUNCTION = "execute"
-    CATEGORY = "logic"
-
-    def execute(self, value=None):
-        return (value is None,)
-
-
-class LazySwitch(CustomNode):
-    """
-    sherlocked from KJ nodes with fixes
-    """
+    def define_schema(cls):
+        template = io.MatchType.Template("switch")
+        return io.Schema(
+            node_id="ComfySwitchNode",
+            display_name="Switch",
+            category="logic",
+            is_experimental=True,
+            inputs=[
+                io.Boolean.Input("switch"),
+                io.MatchType.Input("on_false", template=template, lazy=True, optional=True),
+                io.MatchType.Input("on_true", template=template, lazy=True, optional=True),
+            ],
+            outputs=[
+                io.MatchType.Output(template=template, display_name="output"),
+            ],
+        )
 
     @classmethod
-    def INPUT_TYPES(cls):
-        return {
-            "required": {
-                "switch": ("BOOLEAN",),
-            },
-            "optional": {
-                "on_false": (IO.ANY, {"lazy": True}),
-                "on_true": (IO.ANY, {"lazy": True}),
-            },
-        }
+    def check_lazy_status(cls, switch, on_false=..., on_true=...):
+        # We use ... instead of None, as None is passed for connected-but-unevaluated inputs.
+        # This trick allows us to ignore the value of the switch and still be able to run execute().
 
-    RETURN_TYPES = (IO.ANY,)
-    FUNCTION = "execute"
-    CATEGORY = "logic"
-    DESCRIPTION = "Controls flow of execution based on a boolean switch."
-
-    def check_lazy_status(self, switch, on_false=None, on_true=None):
-        try:
-            on_false_not_evaluated, on_true_not_evaluated = is_input_pending("on_false", "on_true")
-        except LookupError:
-            on_false_not_evaluated, on_true_not_evaluated = on_false is None, on_true is None
-        if switch and on_true_not_evaluated:
+        # One of the inputs may be missing, in which case we need to evaluate the other input
+        if on_false is ...:
             return ["on_true"]
-        if not switch and on_false_not_evaluated:
+        if on_true is ...:
+            return ["on_false"]
+        # Normal lazy switch operation
+        if switch and on_true is None:
+            return ["on_true"]
+        if not switch and on_false is None:
             return ["on_false"]
 
-    def execute(self, switch, on_false=None, on_true=None):
-        value = on_true if switch else on_false
-        return (value,)
-
-
-class UnaryOperation(CustomNode):
     @classmethod
-    def INPUT_TYPES(cls) -> InputTypes:
-        return {
-            "required": {},
-            "optional": {
-                "value": (IO.ANY, {}),
-                "op": (list(_UNARY_OPS.keys()), {"default": "not"})
-            }
-        }
+    def validate_inputs(cls, switch, on_false=..., on_true=...):
+        # This check happens before check_lazy_status(), so we can eliminate the case where
+        # both inputs are missing.
+        if on_false is ... and on_true is ...:
+            return "At least one of on_false or on_true must be connected to Switch node"
+        return True
 
-    RETURN_TYPES = (IO.ANY,)
-    FUNCTION = "execute"
-    CATEGORY = "logic"
-
-    def execute(self, value, op):
-        return _UNARY_OPS[op](value),
-
-
-class BooleanUnaryOperation(UnaryOperation):
-    RETURN_TYPES = (IO.BOOLEAN,)
-
-    def execute(self, value, op):
-        return bool(super().execute(value, op)[0]),
-
-
-class BinaryOperation(CustomNode):
     @classmethod
-    def INPUT_TYPES(cls) -> InputTypes:
-        return {
-            "required": {},
-            "optional": OrderedDict({
-                "lhs": (IO.ANY, {"lazy": True}),
-                "op": (list(_BINARY_OPS.keys()), {"default": "eq"}),
-                "rhs": (IO.ANY, {"lazy": True}),
-            })
-        }
-
-    RETURN_TYPES = (IO.ANY,)
-    FUNCTION = "execute"
-    CATEGORY = "logic"
-    DESCRIPTION = ""
-
-    def check_lazy_status(self, lhs=None, op=None, rhs=None) -> list[str]:
-        try:
-            lhs_not_evaluated, rhs_not_evaluated = is_input_pending("lhs", "rhs")
-        except LookupError:
-            lhs_not_evaluated, rhs_not_evaluated = lhs is None, rhs is None
-        lhs_evaluated, rhs_evaluated = not lhs_not_evaluated, not rhs_not_evaluated
-        match op:
-            case "and":
-                if lhs_not_evaluated:
-                    return ["lhs"]
-                if lhs_evaluated and lhs is not False and rhs_not_evaluated:
-                    return ["rhs"]
-                return []
-            case "or":
-                if lhs_not_evaluated:
-                    return ["lhs"]
-                if lhs_evaluated and lhs is not True and rhs_not_evaluated:
-                    return ["rhs"]
-                return []
-            case _:
-                to_eval = []
-                if lhs_not_evaluated:
-                    to_eval.append("lhs")
-                if rhs_not_evaluated:
-                    to_eval.append("rhs")
-                return to_eval
-
-    def execute(self, lhs, op, rhs):
-        return _BINARY_OPS[op](lhs, rhs),
+    def execute(cls, switch, on_true=..., on_false=...) -> io.NodeOutput:
+        if on_true is ...:
+            return io.NodeOutput(on_false)
+        if on_false is ...:
+            return io.NodeOutput(on_true)
+        return io.NodeOutput(on_true if switch else on_false)
 
 
-class BooleanBinaryOperation(BinaryOperation):
-    RETURN_TYPES = (IO.BOOLEAN,)
+class DCTestNode(io.ComfyNode):
+    class DCValues(TypedDict):
+        combo: str
+        string: str
+        integer: int
+        image: io.Image.Type
+        subcombo: dict[str]
 
-    def execute(self, lhs, op, rhs):
-        return bool(super().execute(lhs, op, rhs)[0]),
+    @classmethod
+    def define_schema(cls):
+        return io.Schema(
+            node_id="DCTestNode",
+            display_name="DCTest",
+            category="logic",
+            is_output_node=True,
+            inputs=[_io.DynamicCombo.Input("combo", options=[
+                _io.DynamicCombo.Option("option1", [io.String.Input("string")]),
+                _io.DynamicCombo.Option("option2", [io.Int.Input("integer")]),
+                _io.DynamicCombo.Option("option3", [io.Image.Input("image")]),
+                _io.DynamicCombo.Option("option4", [
+                    _io.DynamicCombo.Input("subcombo", options=[
+                        _io.DynamicCombo.Option("opt1", [io.Float.Input("float_x"), io.Float.Input("float_y")]),
+                        _io.DynamicCombo.Option("opt2", [io.Mask.Input("mask1", optional=True)]),
+                    ])
+                ])]
+            )],
+            outputs=[io.AnyType.Output()],
+        )
+
+    @classmethod
+    def execute(cls, combo: DCValues) -> io.NodeOutput:
+        combo_val = combo["combo"]
+        if combo_val == "option1":
+            return io.NodeOutput(combo["string"])
+        elif combo_val == "option2":
+            return io.NodeOutput(combo["integer"])
+        elif combo_val == "option3":
+            return io.NodeOutput(combo["image"])
+        elif combo_val == "option4":
+            return io.NodeOutput(f"{combo['subcombo']}")
+        else:
+            raise ValueError(f"Invalid combo: {combo_val}")
 
 
-export_custom_nodes()
+class AutogrowNamesTestNode(io.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        template = _io.Autogrow.TemplateNames(input=io.Float.Input("float"), names=["a", "b", "c"])
+        return io.Schema(
+            node_id="AutogrowNamesTestNode",
+            display_name="AutogrowNamesTest",
+            category="logic",
+            inputs=[
+                _io.Autogrow.Input("autogrow", template=template)
+            ],
+            outputs=[io.String.Output()],
+        )
+
+    @classmethod
+    def execute(cls, autogrow: _io.Autogrow.Type) -> io.NodeOutput:
+        vals = list(autogrow.values())
+        combined = ",".join([str(x) for x in vals])
+        return io.NodeOutput(combined)
+
+class AutogrowPrefixTestNode(io.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        template = _io.Autogrow.TemplatePrefix(input=io.Float.Input("float"), prefix="float", min=1, max=10)
+        return io.Schema(
+            node_id="AutogrowPrefixTestNode",
+            display_name="AutogrowPrefixTest",
+            category="logic",
+            inputs=[
+                _io.Autogrow.Input("autogrow", template=template)
+            ],
+            outputs=[io.String.Output()],
+        )
+
+    @classmethod
+    def execute(cls, autogrow: _io.Autogrow.Type) -> io.NodeOutput:
+        vals = list(autogrow.values())
+        combined = ",".join([str(x) for x in vals])
+        return io.NodeOutput(combined)
+
+class LogicExtension(ComfyExtension):
+    @override
+    async def get_node_list(self) -> list[type[io.ComfyNode]]:
+        return [
+            # SwitchNode,
+            # DCTestNode,
+            # AutogrowNamesTestNode,
+            # AutogrowPrefixTestNode,
+        ]
+
+async def comfy_entrypoint() -> LogicExtension:
+    return LogicExtension()

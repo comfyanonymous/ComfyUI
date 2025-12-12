@@ -3,7 +3,8 @@ from __future__ import annotations
 import copy
 import dataclasses
 from abc import ABCMeta, abstractmethod
-from typing import Protocol, Optional, TypeVar, runtime_checkable, Callable, Any, NamedTuple, TYPE_CHECKING
+import weakref
+from typing import Any, Callable, Protocol, runtime_checkable, Optional, TypeVar, NamedTuple, TYPE_CHECKING
 
 import torch
 import torch.nn
@@ -26,8 +27,8 @@ class DeviceSettable(Protocol):
 
 @runtime_checkable
 class HooksSupport(Protocol):
-    wrappers: dict[str, dict[str, list[Callable]]]
-    callbacks: dict[str, dict[str, list[Callable]]]
+    wrappers: dict[str, list[Callable]]
+    callbacks: dict[str, list[Callable]]
     hook_mode: "EnumHookMode"
 
     def prepare_hook_patches_current_keyframe(self, t, hook_group, model_options): ...
@@ -51,6 +52,8 @@ class HooksSupport(Protocol):
     def add_wrapper(self, wrapper_type: str, wrapper: Callable): ...
 
     def add_wrapper_with_key(self, wrapper_type: str, key: str, wrapper: Callable): ...
+
+    def remove_wrappers_with_key(self, wrapper_type: str, key: str) -> list: ...
 
 
 class HooksSupportStub(HooksSupport, metaclass=ABCMeta):
@@ -79,7 +82,7 @@ class HooksSupportStub(HooksSupport, metaclass=ABCMeta):
         return
 
     @property
-    def wrappers(self):
+    def wrappers(self) -> dict:
         if not hasattr(self, "_wrappers"):
             setattr(self, "_wrappers", {})
         return getattr(self, "_wrappers")
@@ -127,6 +130,11 @@ class HooksSupportStub(HooksSupport, metaclass=ABCMeta):
     def add_wrapper_with_key(self, wrapper_type: str, key: str, wrapper: Callable):
         w = self.wrappers.setdefault(wrapper_type, {}).setdefault(key, [])
         w.append(wrapper)
+
+    def remove_wrappers_with_key(self, wrapper_type: str, key: str) -> list:
+        w = self.wrappers.get(wrapper_type, {}).get(key, [])
+        del self.wrappers[wrapper_type][key]
+        return w
 
 
 @runtime_checkable
@@ -344,14 +352,19 @@ class ModelManageableStub(HooksSupportStub, TrainingSupportStub, ModelManageable
         return copy.copy(self)
 
 
-@dataclasses.dataclass
 class MemoryMeasurements:
-    model: torch.nn.Module | DeviceSettable
-    model_loaded_weight_memory: int = 0
-    lowvram_patch_counter: int = 0
-    model_lowvram: bool = False
-    current_weight_patches_uuid: Any = None
-    _device: torch.device | None = None
+    def __init__(self, model):
+        self.model_loaded_weight_memory: int = 0
+        self.lowvram_patch_counter: int = 0
+        self.model_lowvram: bool = False
+        self.current_weight_patches_uuid: Any = None
+        self._device: torch.device | None = None
+        self.model_offload_buffer_memory = None
+        self._model_ref = weakref.ref(model)
+
+    @property
+    def model(self):
+        return self._model_ref()
 
     @property
     def device(self) -> torch.device:
@@ -402,6 +415,7 @@ class ModelOptions(TypedDict, total=False):
 
 
 class LoadingListItem(NamedTuple):
+    module_offload_mem: int
     module_size: int
     name: str
     module: torch.nn.Module

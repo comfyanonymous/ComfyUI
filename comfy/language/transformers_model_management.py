@@ -12,19 +12,17 @@ from typing import Optional, Any, Callable
 
 import torch
 import transformers
-from huggingface_hub.errors import EntryNotFoundError
 from transformers import PreTrainedModel, PreTrainedTokenizerBase, ProcessorMixin, AutoProcessor, AutoTokenizer, \
-    BatchFeature, AutoModelForVision2Seq, AutoModelForSeq2SeqLM, AutoModelForCausalLM, AutoModel, \
+    BatchFeature, AutoModelForSeq2SeqLM, AutoModelForCausalLM, AutoModel, \
     PretrainedConfig, TextStreamer, LogitsProcessor
-from huggingface_hub import hf_api
-from huggingface_hub.file_download import hf_hub_download
 from transformers.models.auto.modeling_auto import MODEL_FOR_VISION_2_SEQ_MAPPING_NAMES, \
-    MODEL_FOR_SEQ_TO_SEQ_CAUSAL_LM_MAPPING_NAMES, MODEL_FOR_CAUSAL_LM_MAPPING_NAMES
+    MODEL_FOR_SEQ_TO_SEQ_CAUSAL_LM_MAPPING_NAMES, MODEL_FOR_CAUSAL_LM_MAPPING_NAMES, AutoModelForImageTextToText
 
 from .chat_templates import KNOWN_CHAT_TEMPLATES
 from .language_types import ProcessorResult, TOKENS_TYPE, GENERATION_KWARGS_TYPE, TransformerStreamedProgress, \
-    LLaVAProcessor, LanguageModel, LanguagePrompt
+    LanguageModel, LanguagePrompt
 from .. import model_management
+from ..cli_args import args
 from ..component_model.tensor_types import RGBImageBatch
 from ..model_downloader import get_or_download_huggingface_repo
 from ..model_management import unet_offload_device, get_torch_device, unet_dtype, load_models_gpu
@@ -62,11 +60,93 @@ class TransformersManagedModel(ModelManageableStub, LanguageModel):
         self._on_set_processor(self._processor)
         self._model_type = ""
         self._original_transformers_managed_model: weakref.ReferenceType["TransformersManagedModel"] = weakref.ref(self)
+        self.wrappers = {}
+        self.callbacks = {}
+        self._hook_mode = None
+        self._model_options = {"transformer_options": {}}
+
         if model.device != self.offload_device:
             model.to(device=self.offload_device)
 
+    @property
+    def hook_mode(self):
+        from ..hooks import EnumHookMode
+        if self._hook_mode is None:
+            self._hook_mode = EnumHookMode.MaxSpeed
+        return self._hook_mode
+
+    @hook_mode.setter
+    def hook_mode(self, value):
+        self._hook_mode = value
+
+    def prepare_hook_patches_current_keyframe(self, t, hook_group, model_options):
+        return
+
+    def model_patches_models(self):
+        return []
+
+    def restore_hook_patches(self):
+        return
+
+    def cleanup(self):
+        pass
+
+    def pre_run(self):
+        pass
+
+    def prepare_state(self, *args, **kwargs):
+        pass
+
+    def register_all_hook_patches(self, a, b, c, d):
+        pass
+
+    def get_nested_additional_models(self):
+        return []
+
+    def apply_hooks(self, *args, **kwargs):
+        return {}
+
+    def add_wrapper(self, wrapper_type: str, wrapper: Callable):
+        self.add_wrapper_with_key(wrapper_type, None, wrapper)
+
+    def add_wrapper_with_key(self, wrapper_type: str, key: str, wrapper: Callable):
+        w = self.wrappers.setdefault(wrapper_type, {}).setdefault(key, [])
+        w.append(wrapper)
+
+    def remove_wrappers_with_key(self, wrapper_type: str, key: str):
+        w = self.wrappers.get(wrapper_type, {})
+        if key in w:
+            w.pop(key)
+
+    def get_wrappers_with_key(self, wrapper_type: str, key: str):
+        w_list = []
+        w_list.extend(self.wrappers.get(wrapper_type, {}).get(key, []))
+        return w_list
+
+    def get_all_wrappers(self, wrapper_type: str):
+        w_list = []
+        for w in self.wrappers.get(wrapper_type, {}).values():
+            w_list.extend(w)
+        return w_list
+
+    @property
+    def model_options(self):
+        return self._model_options
+
+    @model_options.setter
+    def model_options(self, value):
+        self._model_options = value
+
+    @property
+    def diffusion_model(self):
+        return self.model
+
+    @diffusion_model.setter
+    def diffusion_model(self, value):
+        self.add_object_patch("model", value)
+
     @staticmethod
-    def from_pretrained(ckpt_name: str, subfolder: Optional[str] = None, config_dict: PretrainedConfig | dict | None = None) -> "TransformersManagedModel":
+    def from_pretrained(ckpt_name: str, subfolder: Optional[str] = None, config_dict: PretrainedConfig | dict | None = None, **kwargs) -> "TransformersManagedModel":
         hub_kwargs = {}
         if subfolder is not None and subfolder.strip() != "":
             hub_kwargs["subfolder"] = subfolder
@@ -89,7 +169,8 @@ class TransformersManagedModel(ModelManageableStub, LanguageModel):
 
             from_pretrained_kwargs = {
                 "pretrained_model_name_or_path": ckpt_name,
-                **hub_kwargs
+                **hub_kwargs,
+                **kwargs,
             }
 
             # language models prefer to use bfloat16 over float16
@@ -122,7 +203,7 @@ class TransformersManagedModel(ModelManageableStub, LanguageModel):
             for i, kwargs_to_try in enumerate(kwargses_to_try):
                 try:
                     if model_type in MODEL_FOR_VISION_2_SEQ_MAPPING_NAMES:
-                        model = AutoModelForVision2Seq.from_pretrained(**from_pretrained_kwargs, **kwargs_to_try)
+                        model = AutoModelForImageTextToText.from_pretrained(**from_pretrained_kwargs, **kwargs_to_try)
                     elif model_type in MODEL_FOR_SEQ_TO_SEQ_CAUSAL_LM_MAPPING_NAMES:
                         model = AutoModelForSeq2SeqLM.from_pretrained(**from_pretrained_kwargs, **kwargs_to_try)
                     elif model_type in _OVERRIDDEN_MODEL_FOR_CAUSAL_LM_MAPPING_NAMES:
@@ -149,7 +230,16 @@ class TransformersManagedModel(ModelManageableStub, LanguageModel):
                         tokenizer = processor
                         processor = None
                     else:
-                        tokenizer = getattr(processor, "tokenizer") if processor is not None and hasattr(processor, "tokenizer") else AutoTokenizer.from_pretrained(ckpt_name, **hub_kwargs, **kwargs_to_try)
+                        try:
+                            tokenizer = getattr(processor, "tokenizer") if processor is not None and hasattr(processor, "tokenizer") else AutoTokenizer.from_pretrained(ckpt_name, **hub_kwargs, **kwargs_to_try)
+                        except Exception:
+                            try:
+                                tokenizer = AutoTokenizer.from_pretrained(ckpt_name, use_fast=True, legacy=False, **hub_kwargs, **kwargs_to_try)
+                            except Exception:
+                                if repo_id != ckpt_name:
+                                    tokenizer = AutoTokenizer.from_pretrained(repo_id, use_fast=True, legacy=False, **hub_kwargs, **kwargs_to_try)
+                                else:
+                                    raise
                     if tokenizer is not None or processor is not None:
                         break
                 except Exception as exc_info:
@@ -176,7 +266,6 @@ class TransformersManagedModel(ModelManageableStub, LanguageModel):
 
     def generate(self, tokens: TOKENS_TYPE = None,
                  max_new_tokens: int = 512,
-                 repetition_penalty: float = 0.0,
                  seed: int = 0,
                  sampler: Optional[GENERATION_KWARGS_TYPE] = None,
                  *args,
@@ -253,13 +342,22 @@ class TransformersManagedModel(ModelManageableStub, LanguageModel):
             with seed_for_block(seed), torch.inference_mode(mode=True) if has_triton else contextlib.nullcontext():
                 if hasattr(inputs, "encodings") and inputs.encodings is not None and all(hasattr(encoding, "attention_mask") for encoding in inputs.encodings) and "attention_mask" in inputs:
                     inputs.pop("attention_mask")
-                output_ids = transformers_model.generate(
-                    **inputs,
-                    streamer=text_streamer if num_beams <= 1 else None,
-                    max_new_tokens=max_new_tokens,
-                    repetition_penalty=repetition_penalty if repetition_penalty != 0 else None,
-                    **generate_kwargs
-                )
+
+                from ..patcher_extension import WrapperExecutor, WrappersMP, get_all_wrappers
+
+                def _generate(inputs, streamer, max_new_tokens, **generate_kwargs):
+                    return transformers_model.generate(
+                        **inputs,
+                        streamer=streamer,
+                        max_new_tokens=max_new_tokens,
+                        **generate_kwargs
+                    )
+
+                output_ids = WrapperExecutor.new_class_executor(
+                    _generate,
+                    self,
+                    get_all_wrappers(WrappersMP.APPLY_MODEL, self.model_options)
+                ).execute(inputs, text_streamer if num_beams <= 1 else None, max_new_tokens, **generate_kwargs)
 
                 if not transformers_model.config.is_encoder_decoder:
                     start_position = inputs["input_ids" if "input_ids" in inputs else "inputs"].shape[1]
@@ -292,7 +390,7 @@ class TransformersManagedModel(ModelManageableStub, LanguageModel):
         return self._tokenizer
 
     @property
-    def processor(self) -> AutoProcessor | ProcessorMixin | LLaVAProcessor | None:
+    def processor(self) -> AutoProcessor | ProcessorMixin | None:
         return self._processor
 
     @property
@@ -338,6 +436,9 @@ class TransformersManagedModel(ModelManageableStub, LanguageModel):
         return self._size
 
     def model_patches_to(self, arg: torch.device | torch.dtype):
+        if getattr(self.model, "is_loaded_in_4bit", False) or getattr(self.model, "is_loaded_in_8bit", False):
+            return
+
         if isinstance(arg, torch.device):
             self.model.to(device=arg)
         else:
@@ -364,7 +465,7 @@ class TransformersManagedModel(ModelManageableStub, LanguageModel):
         if processor is not None and hasattr(processor, "image_processor") and hasattr(processor.image_processor, "do_rescale"):
             processor.image_processor.do_rescale = False
 
-    def tokenize(self, prompt: str | LanguagePrompt, images: RGBImageBatch | None, chat_template: str | None = None) -> ProcessorResult:
+    def tokenize(self, prompt: str | LanguagePrompt, images: RGBImageBatch | None, videos: list[torch.Tensor] | None = None, chat_template: str | None = None) -> ProcessorResult:
         tokenizer = self.processor if self.processor is not None else self.tokenizer
         assert tokenizer is not None
         assert hasattr(tokenizer, "decode")
@@ -391,16 +492,18 @@ class TransformersManagedModel(ModelManageableStub, LanguageModel):
                 messages: LanguagePrompt
                 if isinstance(prompt, list) and len(prompt) > 0 and isinstance(prompt[0], dict):
                     messages = prompt
-                elif "content[" in chat_template:
+                elif images is not None and len(images) > 0 or videos is not None and len(videos) > 0:
                     messages = [
                         {"role": "user",
                          "content": [
                                         {
                                             "type": "text",
-                                            "text": prompt
+                                            "text": prompt if isinstance(prompt, str) else ""
                                         }
                                     ] + [
                                         {"type": "image"} for _ in range(len(images))
+                                    ] + [
+                                        {"type": "video"} for _ in range(len(videos))
                                     ]
 
                          }
@@ -409,9 +512,24 @@ class TransformersManagedModel(ModelManageableStub, LanguageModel):
                     messages = [
                         {"role": "user", "content": prompt},
                     ]
+
                 prompt = tokenizer.apply_chat_template(messages, chat_template=chat_template, add_generation_prompt=True, tokenize=False)
         except Exception as exc:
             logger.debug("Could not apply chat template", exc_info=exc)
+
+        if isinstance(prompt, list):
+            # Fallback: extract text from messages if chat template application failed or wasn't available
+            extracted_text = []
+            for message in prompt:
+                if isinstance(message, dict) and "content" in message:
+                    content = message["content"]
+                    if isinstance(content, str):
+                        extracted_text.append(content)
+                    elif isinstance(content, list):
+                        for item in content:
+                            if isinstance(item, dict) and item.get("type") == "text":
+                                extracted_text.append(item.get("text", ""))
+            prompt = "\n".join(extracted_text)
 
         if self.processor is None and isinstance(prompt, str):
             batch_encoding = tokenizer(prompt, return_tensors="pt").to(device=self.load_device)
@@ -421,8 +539,60 @@ class TransformersManagedModel(ModelManageableStub, LanguageModel):
                 self.processor.to(device=self.load_device)
             # convert tuple to list from images.unbind() for paligemma workaround
             image_tensor_list = list(images.unbind()) if images is not None and len(images) > 0 else None
+
+            # Convert videos to list of list of frames (uint8)
+            if videos is not None and len(videos) > 0:
+                new_videos = []
+                for v in videos:
+                    # Convert to uint8 0-255 if float
+                    if v.dtype == torch.float32 or v.dtype == torch.float16 or v.dtype == torch.bfloat16:
+                        v = (v * 255).to(torch.uint8)
+                    # Convert (T, H, W, C) tensor to list of (H, W, C) tensors
+                    if v.ndim == 4:
+                        new_videos.append(list(v))
+                    else:
+                        new_videos.append([v])  # Fallback if not 4D
+                videos = new_videos
+
+            # Check if processor accepts 'videos' argument
+            import inspect
+            processor_params = inspect.signature(self.processor).parameters
+            has_videos_arg = "videos" in processor_params
+
+            kwargs = {
+                "text": [prompt],
+                "images": image_tensor_list,
+                "return_tensors": "pt",
+                "padding": True,
+            }
+
+            if videos is None or len(videos) == 0:
+                pass
+            elif has_videos_arg:
+                kwargs["videos"] = videos
+                if "input_data_format" in processor_params:
+                    kwargs["input_data_format"] = "channels_last"
+            elif videos is not None and len(videos) > 0:
+                if args.enable_video_to_image_fallback:
+                    # Fallback: flatten video frames into images if processor doesn't support 'videos'
+                    # videos is List[List[Frame]] where Frame is (H, W, C)
+                    flattened_frames = []
+                    for video in videos:
+                        flattened_frames.extend(video)
+
+                    # Convert list of frames to list of tensors if needed, or just append to images list
+                    # images is currently a list of tensors
+                    if kwargs["images"] is None:
+                        kwargs["images"] = []
+
+                    # Ensure frames are in the same format as images (tensors)
+                    # Frames in videos are already tensors (uint8)
+                    kwargs["images"].extend(flattened_frames)
+                else:
+                    logger.warning(f"Model {self.model.name_or_path} does not support video inputs and video-to-image fallback is disabled. Use --enable-video-to-image-fallback to enable it.")
+
             try:
-                batch_feature: BatchFeature = self.processor(text=[prompt], images=image_tensor_list, return_tensors="pt", padding=True)
+                batch_feature: BatchFeature = self.processor(**kwargs)
             except TypeError as exc_info:
                 logger.warning(f"Exception while trying to run processor. Your transformers package is version {transformers.__version__} and may need to be updated")
                 raise exc_info

@@ -73,6 +73,7 @@ class Configuration(dict):
         temp_directory (Optional[str]): Temporary directory for processing.
         input_directory (Optional[str]): Directory for input files. When this is a relative path, it will be looked up relative to the cwd (current working directory) and all of the base_paths.
         auto_launch (bool): Auto-launch UI in the default browser. Defaults to False.
+        disable_auto_launch (bool): Disable auto launching the browser.
         cuda_device (Optional[int]): CUDA device ID. None means default device.
         cuda_malloc (bool): Enable cudaMallocAsync. Defaults to True in applicable setups.
         disable_cuda_malloc (bool): Disable cudaMallocAsync.
@@ -100,6 +101,7 @@ class Configuration(dict):
         disable_ipex_optimize (bool): Disable IPEX optimization for Intel GPUs.
         preview_method (LatentPreviewMethod): Method for generating previews. Defaults to "auto".
         cache_lru (int): Use LRU caching with a maximum of N node results cached. May use more RAM/VRAM.
+        cache_ram (float): Use RAM pressure caching with the specified headroom threshold.
         use_split_cross_attention (bool): Use split cross-attention optimization.
         use_quad_cross_attention (bool): Use sub-quadratic cross-attention optimization.
         use_pytorch_cross_attention (bool): Use PyTorch's cross-attention function.
@@ -147,14 +149,19 @@ class Configuration(dict):
         user_directory (Optional[str]): Set the ComfyUI user directory with an absolute path.
         log_stdout (bool): Send normal process output to stdout instead of stderr (default)
         panic_when (list[str]): List of fully qualified exception class names to panic (sys.exit(1)) when a workflow raises it.
+        enable_manager (bool): Enable the ComfyUI-Manager feature.
+        disable_manager_ui (bool): Disables only the ComfyUI-Manager UI.
+        enable_manager_legacy_ui (bool): Enables the legacy UI of ComfyUI-Manager.
         enable_compress_response_body (bool): Enable compressing response body.
         workflows (list[str]): Execute the API workflow(s) specified in the provided files. For each workflow, its outputs will be printed to a line to standard out. Application logging will be redirected to standard error. Use `-` to signify standard in.
+        disable_pinned_memory (bool): Disable pinned memory use.
         fp8_e8m0fnu_unet (bool): Store unet weights in fp8_e8m0fnu.
         bf16_text_enc (bool): Store text encoder weights in bf16.
         supports_fp8_compute (bool): ComfyUI will act like if the device supports fp8 compute.
         cache_classic (bool): WARNING: Unused. Use the old style (aggressive) caching.
         cache_none (bool): Reduced RAM/VRAM usage at the expense of executing every node for each run.
-        async_offload (bool): Use async weight offloading.
+        async_offload (Optional[int]): Use async weight offloading. An optional argument controls the amount of offload streams.
+        disable_async_offload (bool): Disable async weight offloading.
         force_non_blocking (bool): Force ComfyUI to use non-blocking operations for all applicable tensors. This may improve performance on some non-Nvidia systems but can cause issues with some workflows.
         default_hashing_function (str): Allows you to choose the hash function to use for duplicate filename / contents comparison. Default is sha256.
         mmap_torch_files (bool): Use mmap when loading ckpt/pt files.
@@ -189,6 +196,7 @@ class Configuration(dict):
         self.temp_directory: Optional[str] = None
         self.input_directory: Optional[str] = None
         self.auto_launch: bool = False
+        self.disable_auto_launch: bool = False
         self.cuda_device: Optional[int] = None
         self.cuda_malloc: bool = True
         self.disable_cuda_malloc: bool = True
@@ -227,7 +235,8 @@ class Configuration(dict):
         self.novram: bool = False
         self.cpu: bool = False
         self.fast: set[PerformanceFeature] = set()
-        self.reserve_vram: Optional[float] = None
+        # reserve 0, because this has been exceptionally buggy
+        self.reserve_vram: float = 0.0
         self.disable_smart_memory: bool = False
         self.deterministic: bool = False
         self.dont_print_server: bool = False
@@ -250,6 +259,7 @@ class Configuration(dict):
         self.external_address: Optional[str] = None
         self.disable_known_models: bool = False
         self.max_queue_size: int = 65536
+        self.disable_requests_caching: bool = False
         self.force_channels_last: bool = False
         self.force_hf_local_dir_mode = False
         self.preview_size: int = 512
@@ -271,13 +281,19 @@ class Configuration(dict):
         self.user_directory: Optional[str] = None
         self.panic_when: list[str] = []
         self.workflows: list[str] = []
+        self.enable_manager: bool = False
+        self.disable_manager_ui: bool = False
+        self.enable_manager_legacy_ui: bool = False
+        self.disable_pinned_memory: bool = False
 
         self.fp8_e8m0fnu_unet: bool = False
         self.bf16_text_enc: bool = False
         self.supports_fp8_compute: bool = False
         self.cache_classic: bool = False
         self.cache_none: bool = False
-        self.async_offload: bool = False
+        self.cache_ram: float = 0.0
+        self.async_offload: Optional[int] = None
+        self.disable_async_offload: bool = False
         self.force_non_blocking: bool = False
         self.default_hashing_function: str = 'sha256'
         self.mmap_torch_files: bool = False
@@ -288,8 +304,9 @@ class Configuration(dict):
         self.comfy_api_base: str = "https://api.comfy.org"
         self.database_url: str = db_config()
         self.default_device: Optional[int] = None
-        self.block_runtime_package_installation = None
+        self.block_runtime_package_installation: bool = False
         self.enable_eval: Optional[bool] = False
+        self.enable_video_to_image_fallback: bool = False
 
         for key, value in kwargs.items():
             self[key] = value

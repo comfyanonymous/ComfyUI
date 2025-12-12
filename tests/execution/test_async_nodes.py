@@ -11,31 +11,15 @@ from comfy.execution_context import context_add_custom_nodes
 from comfy.nodes.package_typing import ExportedNodes
 from comfy_execution.graph_utils import GraphBuilder
 from .test_execution import run_warmup
-from .test_execution import ComfyClient, _ProgressHandler
+from .common import _ProgressHandler, ComfyClient, client_fixture
 
 
 @pytest.mark.execution
 class TestAsyncNodes:
-    # Initialize server and client
-    @fixture(scope="class", params=[
-        # (lru_size)
-        (0,),
-        (100,),
+    client = fixture(client_fixture, scope="class", autouse=True, params=[
+        {"extra_args": {"cache_lru": 0}, "should_cache_results": True},
+        {"extra_args": {"cache_lru": 100}, "should_cache_results": True},
     ])
-    async def shared_client(self, request) -> AsyncGenerator[ComfyClient, Any]:
-        from ..inference.testing_pack import NODE_CLASS_MAPPINGS, NODE_DISPLAY_NAME_MAPPINGS
-
-        lru_size, = request.param
-        configuration = default_configuration()
-        configuration.cache_lru = lru_size
-        progress_handler = _ProgressHandler()
-        with context_add_custom_nodes(ExportedNodes(NODE_CLASS_MAPPINGS=NODE_CLASS_MAPPINGS, NODE_DISPLAY_NAME_MAPPINGS=NODE_DISPLAY_NAME_MAPPINGS)):
-            async with Comfy(configuration, progress_handler=progress_handler) as embedded_client:
-                yield ComfyClient(embedded_client, progress_handler)
-
-    @fixture
-    async def client(self, shared_client: ComfyClient, request, set_test_name):
-        yield shared_client
 
     @fixture
     def builder(self, request):

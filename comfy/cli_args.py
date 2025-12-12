@@ -105,6 +105,7 @@ def _create_parser() -> EnhancedConfigArgParser:
     cache_group.add_argument("--cache-classic", action="store_true", help="WARNING: Unused. Use the old style (aggressive) caching.")
     cache_group.add_argument("--cache-lru", type=int, default=0, help="Use LRU caching with a maximum of N node results cached. May use more RAM/VRAM.")
     cache_group.add_argument("--cache-none", action="store_true", help="Reduced RAM/VRAM usage at the expense of executing every node for each run.")
+    cache_group.add_argument("--cache-ram", nargs='?', const=4.0, type=float, default=0, help="Use RAM pressure caching with the specified headroom threshold. If available RAM drops below the threhold the cache remove large items to free RAM. Default 4GB")
     attn_group = parser.add_mutually_exclusive_group()
     attn_group.add_argument("--use-split-cross-attention", action="store_true",
                             help="Use the split cross attention optimization. Ignored when xformers is used.")
@@ -120,6 +121,10 @@ def _create_parser() -> EnhancedConfigArgParser:
     upcast = parser.add_mutually_exclusive_group()
     upcast.add_argument("--force-upcast-attention", action="store_true", help="Force enable attention upcasting, please report if it fixes black images.")
     upcast.add_argument("--dont-upcast-attention", action="store_true", help="Disable all upcasting of attention. Should be unnecessary except for debugging.")
+    parser.add_argument("--enable-manager", action="store_true", help="Enable the ComfyUI-Manager feature.")
+    manager_group = parser.add_mutually_exclusive_group()
+    manager_group.add_argument("--disable-manager-ui", action="store_true", help="Disables only the ComfyUI-Manager UI and endpoints. Scheduled installations and similar background tasks will still operate.")
+    manager_group.add_argument("--enable-manager-legacy-ui", action="store_true", help="Enables the legacy UI of ComfyUI-Manager")
     vram_group = parser.add_mutually_exclusive_group()
     vram_group.add_argument("--gpu-only", action="store_true",
                             help="Store and run everything (text encoders/CLIP models, etc... on the GPU).")
@@ -131,8 +136,9 @@ def _create_parser() -> EnhancedConfigArgParser:
     vram_group.add_argument("--novram", action="store_true", help="When lowvram isn't enough.")
     vram_group.add_argument("--cpu", action="store_true", help="To use the CPU for everything (slow).")
 
-    parser.add_argument("--reserve-vram", type=float, default=None, help="Set the amount of vram in GB you want to reserve for use by your OS/other software. By default some amount is reserved depending on your OS.")
-    parser.add_argument("--async-offload", action="store_true", help="Use async weight offloading.")
+    parser.add_argument("--reserve-vram", type=float, default=0, help="Set the amount of vram in GB you want to reserve for use by your OS/other software. Defaults to 0.0, since this isn't conceptually robust anyway.")
+    parser.add_argument("--async-offload", nargs='?', const=2, type=int, default=None, metavar="NUM_STREAMS", help="Use async weight offloading. An optional argument controls the amount of offload streams. Default is 2. Enabled by default on Nvidia.")
+    parser.add_argument("--disable-async-offload", action="store_true", help="Disable async weight offloading.")
     parser.add_argument("--force-non-blocking", action="store_true", help="Force ComfyUI to use non-blocking operations for all applicable tensors. This may improve performance on some non-Nvidia systems but can cause issues with some workflows.")
     parser.add_argument("--default-hashing-function", type=str, choices=['md5', 'sha1', 'sha256', 'sha512'], default='sha256', help="Allows you to choose the hash function to use for duplicate filename / contents comparison. Default is sha256.")
     parser.add_argument("--disable-smart-memory", action="store_true",
@@ -141,6 +147,7 @@ def _create_parser() -> EnhancedConfigArgParser:
                         help="Make pytorch use slower deterministic algorithms when it can. Note that this might not make images deterministic in all cases.")
 
     parser.add_argument("--fast", nargs="*", type=PerformanceFeature, help=f"Enable some untested and potentially quality deteriorating optimizations. Pass a list specific optimizations if you only want to enable specific ones. Current valid optimizations: {' '.join([f.value for f in PerformanceFeature])}", default=set())
+    parser.add_argument("--disable-pinned-memory", action="store_true", help="Disable pinned memory use.")
 
     parser.add_argument("--mmap-torch-files", action="store_true", help="Use mmap when loading ckpt/pt files.")
     parser.add_argument("--disable-mmap", action="store_true", help="Don't use mmap when loading safetensors.")
@@ -155,7 +162,7 @@ def _create_parser() -> EnhancedConfigArgParser:
     parser.add_argument("--disable-all-custom-nodes", action="store_true", help="Disable loading all custom nodes.")
     parser.add_argument("--whitelist-custom-nodes", type=str, action=FlattenAndAppendAction, nargs='+', default=[], help="Specify custom node folders to load even when --disable-all-custom-nodes is enabled.")
     parser.add_argument("--blacklist-custom-nodes", type=str, action=FlattenAndAppendAction, nargs='+', default=[], help="Specify custom node folders to never load. Accepts shell-style globs.")
-    parser.add_argument("--disable-api-nodes", action="store_true", help="Disable loading all api nodes.")
+    parser.add_argument("--disable-api-nodes", action="store_true", help="Disable loading all api nodes. Also prevents the frontend from communicating with the internet.")
     parser.add_argument("--enable-eval", action="store_true", help="Enable nodes that can evaluate Python code in workflows.")
 
     parser.add_argument("--multi-user", action="store_true", help="Enables per-user storage.")
@@ -196,6 +203,7 @@ def _create_parser() -> EnhancedConfigArgParser:
     parser.add_argument("--otel-exporter-otlp-endpoint", type=str, default=None, env_var="OTEL_EXPORTER_OTLP_ENDPOINT", help="A base endpoint URL for any signal type, with an optionally-specified port number. Helpful for when you're sending more than one signal to the same endpoint and want one environment variable to control the endpoint.")
     parser.add_argument("--force-channels-last", action="store_true", help="Force channels last format when inferencing the models.")
     parser.add_argument("--force-hf-local-dir-mode", action="store_true", help="Download repos from huggingface.co to the models/huggingface directory with the \"local_dir\" argument instead of models/huggingface_cache with the \"cache_dir\" argument, recreating the traditional file structure.")
+    parser.add_argument("--enable-video-to-image-fallback", action="store_true", help="Enable fallback to convert video frames to images for models that do not natively support video inputs.")
 
     parser.add_argument(
         "--front-end-version",
@@ -298,6 +306,7 @@ def _create_parser() -> EnhancedConfigArgParser:
         except Exception as exc:
             logger.error("Failed to load custom config plugin", exc_info=exc)
 
+    parser.add_argument("--disable-requests-caching", action="store_true", help="Disable requests caching (useful for testing)")
     return parser
 
 

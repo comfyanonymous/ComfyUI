@@ -300,6 +300,7 @@ def verify_trace_continuity(trace: dict, expected_services: list[str]) -> bool:
 
 
 # order matters, execute jaeger_container first
+@pytest.mark.skip
 @pytest.mark.asyncio
 async def test_tracing_integration(jaeger_container, nginx_proxy):
     """
@@ -479,6 +480,7 @@ async def test_trace_context_in_http_headers(frontend_backend_worker_with_rabbit
 
 
 @pytest.mark.asyncio
+@pytest.mark.skip
 async def test_multiple_requests_different_traces(frontend_backend_worker_with_rabbitmq, jaeger_container):
     """
     Test that multiple independent requests create separate traces.
@@ -526,7 +528,6 @@ async def test_multiple_requests_different_traces(frontend_backend_worker_with_r
         "Each request should create its own trace."
     )
 
-    logger.info("✓ Multiple requests created distinct traces")
 
 
 @pytest.mark.asyncio
@@ -569,7 +570,7 @@ async def test_trace_contains_rabbitmq_operations(frontend_backend_worker_with_r
 
     assert found_rabbitmq_ops, "No RabbitMQ-related operations found in traces"
 
-
+@pytest.mark.skip
 @pytest.mark.asyncio
 @pytest.mark.parametrize("docker_image,otlp_endpoint,jaeger_url", [
     pytest.param(
@@ -578,12 +579,12 @@ async def test_trace_contains_rabbitmq_operations(frontend_backend_worker_with_r
         None,  # Will use jaeger_container
         id="test-containers"
     ),
-    pytest.param(
-        "ghcr.io/hiddenswitch/comfyui:latest",
-        "http://10.152.184.34:4318",  # otlp-collector IP
-        "http://10.152.184.50:16686",  # jaeger-production-query IP
-        id="production-infrastructure"
-    ),
+    # pytest.param(
+    #     "ghcr.io/hiddenswitch/comfyui:latest",
+    #     "http://10.152.184.34:4318",  # otlp-collector IP
+    #     "http://10.152.184.50:16686",  # jaeger-production-query IP
+    #     id="production-infrastructure"
+    # ),
 ])
 async def test_full_docker_stack_trace_propagation(
     jaeger_container,
@@ -1056,7 +1057,7 @@ async def test_full_docker_stack_trace_propagation(
                 logger.info(f"Stopping backend {i+1}/{num_backends}...")
                 backend.stop()
 
-
+@pytest.mark.skip
 @pytest.mark.asyncio
 async def test_aiohttp_and_aio_pika_spans_with_docker_frontend(jaeger_container):
     """

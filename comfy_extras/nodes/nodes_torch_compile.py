@@ -9,6 +9,7 @@ from torch.nn import LayerNorm
 
 from comfy import model_management
 from comfy.language.transformers_model_management import TransformersManagedModel
+from comfy.model_management_types import HooksSupport
 from comfy.model_patcher import ModelPatcher
 from comfy.nodes.package_typing import CustomNode, InputTypes
 from comfy.sd import VAE
@@ -46,6 +47,8 @@ def write_atomic(
 
 
 torch._inductor.codecache.write_atomic = write_atomic
+
+
 # torch._inductor.utils.is_big_gpu = lambda *args: True
 
 
@@ -98,7 +101,8 @@ class TorchCompileModel(CustomNode):
                     "make_refittable": True,
                 }
                 del compile_kwargs["mode"]
-            if isinstance(model, (ModelPatcher, TransformersManagedModel, VAE)):
+
+            if isinstance(model, HooksSupport):
                 to_return = model.clone()
                 object_patches = [p.strip() for p in object_patch.split(",")]
                 patcher: ModelPatcher

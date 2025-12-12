@@ -2,15 +2,29 @@ from __future__ import annotations
 
 import asyncio
 import copy
+import time
+import typing
 from enum import Enum
 from typing import NamedTuple, Optional, List, Literal, Sequence
-from typing import Tuple
 
 from typing_extensions import NotRequired, TypedDict
 
 from .outputs_types import OutputsDict
+from .sensitive_data import SENSITIVE_EXTRA_DATA_KEYS
 
-QueueTuple = Tuple[float, str, dict, dict, list]
+if typing.TYPE_CHECKING:
+    from .executor_types import ExecutionErrorMessage
+
+
+class QueueTuple(NamedTuple):
+    priority: float
+    prompt_id: str
+    prompt: dict
+    extra_data: Optional[ExtraData] = None
+    good_outputs: Optional[List[str]] = None
+    sensitive: Optional[dict] = None
+
+
 MAXIMUM_HISTORY_SIZE = 10000
 
 
@@ -63,6 +77,7 @@ class ExecutionStatusAsDict(TypedDict):
     status_str: Literal['success', 'error']
     completed: bool
     messages: List[str]
+    error_details: NotRequired[ExecutionErrorMessage]
 
 
 class Flags(TypedDict, total=False):
@@ -82,7 +97,7 @@ class ExtraData(TypedDict):
     token: NotRequired[str]
 
 
-class NamedQueueTuple(dict):
+class QueueDict(dict):
     """
     A wrapper class for a queue tuple, the object that is given to executors.
 
@@ -92,13 +107,25 @@ class NamedQueueTuple(dict):
     __slots__ = ('queue_tuple',)
 
     def __init__(self, queue_tuple: QueueTuple):
-        # Initialize the dictionary superclass with the data we want to serialize.
+        # initialize the dictionary superclass with the data we want to serialize.
+        # populate the queue tuple with the appropriate dummy fields
+        queue_tuple = QueueTuple(*queue_tuple)
+        if queue_tuple.sensitive is None:
+            sensitive = {}
+            extra_data = queue_tuple.extra_data or {}
+            for sensitive_val in SENSITIVE_EXTRA_DATA_KEYS:
+                if sensitive_val in extra_data:
+                    sensitive[sensitive_val] = extra_data.pop(sensitive_val)
+            extra_data["create_time"] = int(time.time() * 1000)  # timestamp in milliseconds
+            queue_tuple = QueueTuple(queue_tuple.priority, queue_tuple.prompt_id, queue_tuple.prompt, extra_data, queue_tuple.good_outputs, sensitive)
+
         super().__init__(
             priority=queue_tuple[0],
             prompt_id=queue_tuple[1],
             prompt=queue_tuple[2],
-            extra_data=queue_tuple[3] if len(queue_tuple) > 3 else None,
-            good_outputs=queue_tuple[4] if len(queue_tuple) > 4 else None
+            extra_data=queue_tuple[3],
+            good_outputs=queue_tuple[4],
+            sensitive=queue_tuple[5],
         )
         # Store the original tuple in a slot, making it invisible to json.dumps.
         self.queue_tuple = queue_tuple
@@ -127,8 +154,17 @@ class NamedQueueTuple(dict):
             return self.queue_tuple[4]
         return None
 
+    @property
+    def sensitive(self) -> Optional[dict]:
+        if len(self.queue_tuple) > 5:
+            return self.queue_tuple[5]
+        return None
 
-class QueueItem(NamedQueueTuple):
+
+NamedQueueTuple = QueueDict
+
+
+class QueueItem(QueueDict):
     """
     An item awaiting processing in the queue: a NamedQueueTuple with a future that is completed when the item is done
     processing.
@@ -164,4 +200,4 @@ class ExecutorToClientMessage(TypedDict, total=False):
     output: NotRequired[str]
 
 
-AbstractPromptQueueGetCurrentQueueItems = tuple[list[QueueTuple], list[QueueTuple]]
+AbstractPromptQueueGetCurrentQueueItems = tuple[list[QueueItem], list[QueueItem]]

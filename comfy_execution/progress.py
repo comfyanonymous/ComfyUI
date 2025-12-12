@@ -65,7 +65,7 @@ class ProgressHandler(ABC):
             max_value: float,
             state: NodeProgressState,
             prompt_id: str,
-            image: PreviewImageTuple | None = None,
+            image: PreviewImageTuple | dict | None = None,
     ):
         """Called when a node's progress is updated"""
         pass
@@ -210,7 +210,7 @@ class WebUIProgressHandler(ProgressHandler):
             max_value: float,
             state: NodeProgressState,
             prompt_id: str,
-            image: PreviewImageTuple | None = None,
+            image: PreviewImageTuple | dict | None = None,
     ):
         # Send progress state of all nodes
         if self.registry:
@@ -233,6 +233,7 @@ class WebUIProgressHandler(ProgressHandler):
                     ),
                     "real_node_id": self.registry.dynprompt.get_real_node_id(node_id),
                 }
+                # todo: image can be a dict because of transformers loader, do we have to deal with this specially? things just work
                 message: PreviewImageWithMetadataMessage = (image, metadata)
                 self.server_instance.send_sync(
                     BinaryEventTypes.PREVIEW_IMAGE_WITH_METADATA,
@@ -300,7 +301,7 @@ class ProgressRegistry(AbstractProgressRegistry):
                 handler.start_handler(node_id, entry, self.prompt_id)
 
     def update_progress(
-            self, node_id: str, value: float, max_value: float, image: PreviewImageTuple | None = None
+            self, node_id: str, value: float, max_value: float, image: PreviewImageTuple | dict | None = None
     ) -> None:
         """Update progress for a node"""
         entry = self.ensure_entry(node_id)
