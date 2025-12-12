@@ -1466,7 +1466,6 @@ def load_diffusion_model_state_dict(sd, model_options={}, metadata=None):
                     logging.warning("{} {}".format(diffusers_keys[k], k))
 
     offload_device = model_management.unet_offload_device()
-    logging.debug(f"loader load model to offload device: {offload_device}")
     unet_weight_dtype = list(model_config.supported_inference_dtypes)
     if model_config.quant_config is not None:
         weight_dtype = None

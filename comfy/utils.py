@@ -61,8 +61,6 @@ def load_torch_file(ckpt, safe_load=False, device=None, return_metadata=False):
     metadata = None
     if ckpt.lower().endswith(".safetensors") or ckpt.lower().endswith(".sft"):
         try:
-            if not DISABLE_MMAP:
-                logging.debug(f"load_torch_file of safetensors into mmap True")
             with safetensors.safe_open(ckpt, framework="pt", device=device.type) as f:
                 sd = {}
                 for k in f.keys():
@@ -83,7 +81,6 @@ def load_torch_file(ckpt, safe_load=False, device=None, return_metadata=False):
     else:
         torch_args = {}
         if MMAP_TORCH_FILES:
-            logging.debug(f"load_torch_file of torch state dict into mmap True")
             torch_args["mmap"] = True
 
         if safe_load or ALWAYS_SAFE_LOAD:
