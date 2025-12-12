@@ -928,6 +928,90 @@ class Flux2(Flux):
                 cross_attn = torch.nn.functional.pad(cross_attn, (0, 0, target_text_len - cross_attn.shape[1], 0))
             out['c_crossattn'] = comfy.conds.CONDRegular(cross_attn)
         return out
+    
+class NewBieImage(BaseModel):
+    def __init__(self, model_config, model_type=ModelType.FLOW, device=None):
+        import comfy.ldm.newbie.model as nb
+        super().__init__(model_config, model_type, device=device, unet_model=nb.NewBieNextDiT)
+
+    def extra_conds(self, **kwargs):
+        out = super().extra_conds(**kwargs)
+        cross_attn = kwargs.get("cross_attn", None)
+        if cross_attn is not None:
+            out["c_crossattn"] = comfy.conds.CONDCrossAttn(cross_attn)
+        attention_mask = kwargs.get("attention_mask", None)
+        if attention_mask is not None:
+            out["attention_mask"] = comfy.conds.CONDRegular(attention_mask)
+        cap_feats = kwargs.get("cap_feats", None)
+        if cap_feats is not None:
+            out["cap_feats"] = comfy.conds.CONDRegular(cap_feats)
+        cap_mask = kwargs.get("cap_mask", None)
+        if cap_mask is not None:
+            out["cap_mask"] = comfy.conds.CONDRegular(cap_mask)
+        clip_text_pooled = kwargs.get("clip_text_pooled", None)
+        if clip_text_pooled is not None:
+            out["clip_text_pooled"] = comfy.conds.CONDRegular(clip_text_pooled)
+        clip_img_pooled = kwargs.get("clip_img_pooled", None)
+        if clip_img_pooled is not None:
+            out["clip_img_pooled"] = comfy.conds.CONDRegular(clip_img_pooled)
+        return out
+
+    def extra_conds_shapes(self, **kwargs):
+        out = super().extra_conds_shapes(**kwargs)
+        cap_feats = kwargs.get("cap_feats", None)
+        if cap_feats is not None:
+            out["cap_feats"] = list(cap_feats.shape)
+        clip_text_pooled = kwargs.get("clip_text_pooled", None)
+        if clip_text_pooled is not None:
+            out["clip_text_pooled"] = list(clip_text_pooled.shape)
+        clip_img_pooled = kwargs.get("clip_img_pooled", None)
+        if clip_img_pooled is not None:
+            out["clip_img_pooled"] = list(clip_img_pooled.shape)
+        return out
+
+    def apply_model(
+            self, x, t,
+            c_concat=None, c_crossattn=None,
+            control=None, transformer_options={}, **kwargs
+    ):
+        sigma = t
+        try:
+            model_device = next(self.diffusion_model.parameters()).device
+        except StopIteration:
+            model_device = x.device
+        x_in = x.to(device=model_device)
+        sigma_in = sigma.to(device=model_device)
+        xc = self.model_sampling.calculate_input(sigma_in, x_in)
+        if c_concat is not None:
+            xc = torch.cat([xc] + [c_concat.to(device=model_device)], dim=1)
+        dtype = self.get_dtype()
+        if self.manual_cast_dtype is not None:
+            dtype = self.manual_cast_dtype
+        xc = xc.to(dtype=dtype)
+        t_val = (1.0 - sigma_in).to(dtype=torch.float32)
+        cap_feats = kwargs.get("cap_feats", kwargs.get("cross_attn", c_crossattn))
+        cap_mask = kwargs.get("cap_mask", kwargs.get("attention_mask"))
+        clip_text_pooled = kwargs.get("clip_text_pooled")
+        clip_img_pooled = kwargs.get("clip_img_pooled")
+        if cap_feats is not None:
+            cap_feats = cap_feats.to(device=model_device, dtype=dtype)
+        if cap_mask is None and cap_feats is not None:
+            cap_mask = torch.ones(cap_feats.shape[:2], dtype=torch.bool, device=model_device)
+        elif cap_mask is not None:
+            cap_mask = cap_mask.to(device=model_device)
+            if cap_mask.dtype != torch.bool:
+                cap_mask = cap_mask != 0
+        model_kwargs = {}
+        if clip_text_pooled is not None:
+            model_kwargs["clip_text_pooled"] = clip_text_pooled.to(device=model_device, dtype=dtype)
+        if clip_img_pooled is not None:
+            model_kwargs["clip_img_pooled"] = clip_img_pooled.to(device=model_device, dtype=dtype)
+        model_output = self.diffusion_model(xc, t_val, cap_feats, cap_mask, **model_kwargs).float()
+        model_output = -model_output
+        denoised = self.model_sampling.calculate_denoised(sigma_in, model_output, x_in)
+        if denoised.device != x.device:
+            denoised = denoised.to(device=x.device)
+        return denoised
 
 class GenmoMochi(BaseModel):
     def __init__(self, model_config, model_type=ModelType.FLOW, device=None):
@@ -1109,10 +1193,6 @@ class Lumina2(BaseModel):
             out['c_crossattn'] = comfy.conds.CONDRegular(cross_attn)
             if 'num_tokens' not in out:
                 out['num_tokens'] = comfy.conds.CONDConstant(cross_attn.shape[1])
-
-        clip_text_pooled = kwargs["pooled_output"]  # Newbie
-        if clip_text_pooled is not None:
-            out['clip_text_pooled'] = comfy.conds.CONDRegular(clip_text_pooled)
 
         return out
 

@@ -6,6 +6,26 @@ import math
 import logging
 import torch
 
+def is_newbie_unet_state_dict(state_dict, key_prefix): 
+    state_dict_keys = state_dict.keys()
+    try:
+        x_embed = state_dict[f"{key_prefix}x_embedder.weight"]
+        final = state_dict[f"{key_prefix}final_layer.linear.weight"]
+    except KeyError:
+        return False
+    if x_embed.ndim != 2:
+        return False
+    dim = x_embed.shape[0]
+    patch_dim = x_embed.shape[1]
+    if dim != 2304 or patch_dim != 64:
+        return False
+    if final.shape[0] != patch_dim or final.shape[1] != dim:
+        return False
+    n_layers = count_blocks(state_dict_keys, f"{key_prefix}layers." + "{}.")
+    if n_layers != 36:
+        return False
+    return True
+
 def count_blocks(state_dict_keys, prefix_string):
     count = 0
     while True:
@@ -411,7 +431,7 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
             dit_config["extra_per_block_abs_pos_emb_type"] = "learnable"
         return dit_config
 
-    if '{}cap_embedder.1.weight'.format(key_prefix) in state_dict_keys:  # Lumina 2
+    if '{}cap_embedder.1.weight'.format(key_prefix) in state_dict_keys:  # Lumina 2 / NewBie image
         dit_config = {}
         dit_config["image_model"] = "lumina2"
         dit_config["patch_size"] = 2
@@ -422,6 +442,16 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
         dit_config["n_layers"] = count_blocks(state_dict_keys, '{}layers.'.format(key_prefix) + '{}.')
         dit_config["qk_norm"] = True
 
+        if dit_config["dim"] == 2304 and is_newbie_unet_state_dict(state_dict, key_prefix):  # NewBie image
+            dit_config["n_heads"] = 24
+            dit_config["n_kv_heads"] = 8
+            dit_config["axes_dims"] = [32, 32, 32]
+            dit_config["axes_lens"] = [1024, 512, 512]
+            dit_config["rope_theta"] = 10000.0
+            dit_config["model_type"] = "newbie_dit"
+            dit_config["image_model"] = "NewBieImage"
+            return dit_config
+
         if dit_config["dim"] == 2304: # Original Lumina 2
             dit_config["n_heads"] = 24
             dit_config["n_kv_heads"] = 8
@@ -429,9 +459,6 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
             dit_config["axes_lens"] = [300, 512, 512]
             dit_config["rope_theta"] = 10000.0
             dit_config["ffn_dim_multiplier"] = 4.0
-            ctd_weight = state_dict.get('{}clip_text_pooled_proj.0.weight'.format(key_prefix), None)
-            if ctd_weight is not None:
-                dit_config["clip_text_dim"] = ctd_weight.shape[0]
         elif dit_config["dim"] == 3840:  # Z image
             dit_config["n_heads"] = 30
             dit_config["n_kv_heads"] = 30
