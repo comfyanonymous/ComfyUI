@@ -1,14 +1,27 @@
 import contextlib
 import os
-from pathlib import Path
-from typing import Literal
+from aiohttp import web
 from datetime import datetime, timezone
+from pathlib import Path
+from typing import Literal, Any
 
 import folder_paths
 
 
 RootType = Literal["models", "input", "output"]
 ALLOWED_ROOTS: tuple[RootType, ...] = ("models", "input", "output")
+
+def get_query_dict(request: web.Request) -> dict[str, Any]:
+    """
+    Gets a dictionary of query parameters from the request.
+
+    'request.query' is a MultiMapping[str], needs to be converted to a dictionary to be validated by Pydantic.
+    """
+    query_dict = {
+        key: request.query.getall(key) if len(request.query.getall(key)) > 1 else request.query.get(key)
+        for key in request.query.keys()
+    }
+    return query_dict
 
 def list_tree(base_dir: str) -> list[str]:
     out: list[str] = []
