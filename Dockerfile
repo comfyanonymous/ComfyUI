@@ -12,7 +12,7 @@ ENV PYTHONUNBUFFERED=1
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
-    python3.12 python3.12-venv git git-lfs wget \
+    python3.12 python3.12-venv python3-pip git git-lfs wget \
     libgl1 libglib2.0-0 libsm6 libxext6 libxrender1 \
     ffmpeg \
     espeak-ng libespeak-ng1 \
@@ -22,8 +22,7 @@ RUN apt-get update && apt-get install -y \
     && ln -sf /usr/bin/pip3 /usr/bin/pip \
     && apt-get autoremove -y && apt-get clean -y && rm -rf /var/lib/apt/lists/*
 
-# Install OpenTelemetry packages for optional instrumentation
-RUN pip install --no-cache-dir opentelemetry-distro opentelemetry-exporter-otlp
+# OpenTelemetry packages will be installed in the venv by entrypoint script if needed
 
 WORKDIR /app/ComfyUI
 

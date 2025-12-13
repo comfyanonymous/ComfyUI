@@ -1,0 +1,12 @@
+# Example override file to disable GPU for testing
+# Copy this to docker-compose.override.yml to use CPU-only mode
+services:
+  comfyui:
+    deploy:
+      resources:
+        reservations:
+          devices: []
+    # Remove ipc: host if not using GPU
+    # ipc: host
+
+
