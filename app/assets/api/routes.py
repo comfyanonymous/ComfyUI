@@ -28,24 +28,6 @@ def _validation_error_response(code: str, ve: ValidationError) -> web.Response:
     return _error_response(400, code, "Validation failed.", {"errors": ve.json()})
 
 
-@ROUTES.head("/api/assets/hash/{hash}")
-async def head_asset_by_hash(request: web.Request) -> web.Response:
-    """
-    HEAD request to check if an asset with hash exists; does not care about type of asset.
-    """
-    # get hash value from url path
-    hash_str = request.match_info.get("hash", "").strip().lower()
-    if not hash_str or ":" not in hash_str:
-        return _error_response(400, "INVALID_HASH", "hash must be in format 'blake3:<hex>'")
-    algo, digest = hash_str.split(":", 1)
-    # ensure hash type + uuid is valid
-    if algo != "blake3" or not digest or any(c for c in digest if c not in "0123456789abcdef"):
-        return _error_response(400, "INVALID_HASH", "hash must be in format 'blake3:<hex>'")
-
-    exists = manager.asset_exists(asset_hash=hash_str)
-    return web.Response(status=200 if exists else 404)
-
-
 @ROUTES.get("/api/assets")
 async def list_assets(request: web.Request) -> web.Response:
     """
@@ -87,37 +69,6 @@ async def get_asset(request: web.Request) -> web.Response:
     except Exception:
         logging.exception(
             "get_asset failed for asset_info_id=%s, owner_id=%s",
-            asset_info_id,
-            USER_MANAGER.get_request_user_id(request),
-        )
-        return _error_response(500, "INTERNAL", "Unexpected server error.")
-    return web.json_response(result.model_dump(mode="json"), status=200)
-
-
-@ROUTES.put(f"/api/assets/{{id:{UUID_RE}}}/preview")
-async def set_asset_preview(request: web.Request) -> web.Response:
-    """
-    PUT request to set or clear an asset's preview image.
-    """
-    asset_info_id = str(uuid.UUID(request.match_info["id"]))
-    try:
-        body = schemas_in.SetPreviewBody.model_validate(await request.json())
-    except ValidationError as e:
-        return _validation_error_response("INVALID_BODY", e)
-    except Exception:
-        return _error_response(400, "INVALID_JSON", "Request body must be valid JSON.")
-
-    try:
-        result = manager.set_asset_preview(
-            asset_info_id=asset_info_id,
-            preview_asset_id=body.preview_id,
-            owner_id=USER_MANAGER.get_request_user_id(request),
-        )
-    except (PermissionError, ValueError) as e:
-        return _error_response(404, "ASSET_NOT_FOUND", str(e), {"id": asset_info_id})
-    except Exception:
-        logging.exception(
-            "set_asset_preview failed for asset_info_id=%s, owner_id=%s",
             asset_info_id,
             USER_MANAGER.get_request_user_id(request),
         )
