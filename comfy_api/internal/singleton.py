@@ -1,4 +1,4 @@
-from typing import Type, TypeVar
+from typing import TypeVar
 
 class SingletonMetaclass(type):
     T = TypeVar("T", bound="SingletonMetaclass")
@@ -11,13 +11,13 @@ class SingletonMetaclass(type):
             )
         return cls._instances[cls]
 
-    def inject_instance(cls: Type[T], instance: T) -> None:
+    def inject_instance(cls: type[T], instance: T) -> None:
         assert cls not in SingletonMetaclass._instances, (
             "Cannot inject instance after first instantiation"
         )
         SingletonMetaclass._instances[cls] = instance
 
-    def get_instance(cls: Type[T], *args, **kwargs) -> T:
+    def get_instance(cls: type[T], *args, **kwargs) -> T:
         """
         Gets the singleton instance of the class, creating it if it doesn't exist.
         """

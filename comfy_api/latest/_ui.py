@@ -5,7 +5,6 @@ import os
 import random
 import uuid
 from io import BytesIO
-from typing import Type
 
 import av
 import numpy as np
@@ -83,7 +82,7 @@ class ImageSaveHelper:
         return PILImage.fromarray(np.clip(255.0 * image_tensor.cpu().numpy(), 0, 255).astype(np.uint8))
 
     @staticmethod
-    def _create_png_metadata(cls: Type[ComfyNode] | None) -> PngInfo | None:
+    def _create_png_metadata(cls: type[ComfyNode] | None) -> PngInfo | None:
         """Creates a PngInfo object with prompt and extra_pnginfo."""
         if args.disable_metadata or cls is None or not cls.hidden:
             return None
@@ -96,7 +95,7 @@ class ImageSaveHelper:
         return metadata
 
     @staticmethod
-    def _create_animated_png_metadata(cls: Type[ComfyNode] | None) -> PngInfo | None:
+    def _create_animated_png_metadata(cls: type[ComfyNode] | None) -> PngInfo | None:
         """Creates a PngInfo object with prompt and extra_pnginfo for animated PNGs (APNG)."""
         if args.disable_metadata or cls is None or not cls.hidden:
             return None
@@ -121,7 +120,7 @@ class ImageSaveHelper:
         return metadata
 
     @staticmethod
-    def _create_webp_metadata(pil_image: PILImage.Image, cls: Type[ComfyNode] | None) -> PILImage.Exif:
+    def _create_webp_metadata(pil_image: PILImage.Image, cls: type[ComfyNode] | None) -> PILImage.Exif:
         """Creates EXIF metadata bytes for WebP images."""
         exif_data = pil_image.getexif()
         if args.disable_metadata or cls is None or cls.hidden is None:
@@ -137,7 +136,7 @@ class ImageSaveHelper:
 
     @staticmethod
     def save_images(
-        images, filename_prefix: str, folder_type: FolderType, cls: Type[ComfyNode] | None, compress_level = 4,
+        images, filename_prefix: str, folder_type: FolderType, cls: type[ComfyNode] | None, compress_level = 4,
     ) -> list[SavedResult]:
         """Saves a batch of images as individual PNG files."""
         full_output_folder, filename, counter, subfolder, _ = folder_paths.get_save_image_path(
@@ -155,7 +154,7 @@ class ImageSaveHelper:
         return results
 
     @staticmethod
-    def get_save_images_ui(images, filename_prefix: str, cls: Type[ComfyNode] | None, compress_level=4) -> SavedImages:
+    def get_save_images_ui(images, filename_prefix: str, cls: type[ComfyNode] | None, compress_level=4) -> SavedImages:
         """Saves a batch of images and returns a UI object for the node output."""
         return SavedImages(
                 ImageSaveHelper.save_images(
@@ -169,7 +168,7 @@ class ImageSaveHelper:
 
     @staticmethod
     def save_animated_png(
-        images, filename_prefix: str, folder_type: FolderType, cls: Type[ComfyNode] | None, fps: float, compress_level: int
+        images, filename_prefix: str, folder_type: FolderType, cls: type[ComfyNode] | None, fps: float, compress_level: int
     ) -> SavedResult:
         """Saves a batch of images as a single animated PNG."""
         full_output_folder, filename, counter, subfolder, _ = folder_paths.get_save_image_path(
@@ -191,7 +190,7 @@ class ImageSaveHelper:
 
     @staticmethod
     def get_save_animated_png_ui(
-        images, filename_prefix: str, cls: Type[ComfyNode] | None, fps: float, compress_level: int
+        images, filename_prefix: str, cls: type[ComfyNode] | None, fps: float, compress_level: int
     ) -> SavedImages:
         """Saves an animated PNG and returns a UI object for the node output."""
         result = ImageSaveHelper.save_animated_png(
@@ -209,7 +208,7 @@ class ImageSaveHelper:
         images,
         filename_prefix: str,
         folder_type: FolderType,
-        cls: Type[ComfyNode] | None,
+        cls: type[ComfyNode] | None,
         fps: float,
         lossless: bool,
         quality: int,
@@ -238,7 +237,7 @@ class ImageSaveHelper:
     def get_save_animated_webp_ui(
         images,
         filename_prefix: str,
-        cls: Type[ComfyNode] | None,
+        cls: type[ComfyNode] | None,
         fps: float,
         lossless: bool,
         quality: int,
@@ -267,7 +266,7 @@ class AudioSaveHelper:
         audio: dict,
         filename_prefix: str,
         folder_type: FolderType,
-        cls: Type[ComfyNode] | None,
+        cls: type[ComfyNode] | None,
         format: str = "flac",
         quality: str = "128k",
     ) -> list[SavedResult]:
@@ -372,7 +371,7 @@ class AudioSaveHelper:
 
     @staticmethod
     def get_save_audio_ui(
-        audio, filename_prefix: str, cls: Type[ComfyNode] | None, format: str = "flac", quality: str = "128k",
+        audio, filename_prefix: str, cls: type[ComfyNode] | None, format: str = "flac", quality: str = "128k",
     ) -> SavedAudios:
         """Save and instantly wrap for UI."""
         return SavedAudios(
@@ -388,7 +387,7 @@ class AudioSaveHelper:
 
 
 class PreviewImage(_UIOutput):
-    def __init__(self, image: Image.Type, animated: bool = False, cls: Type[ComfyNode] = None, **kwargs):
+    def __init__(self, image: Image.Type, animated: bool = False, cls: type[ComfyNode] = None, **kwargs):
         self.values = ImageSaveHelper.save_images(
             image,
             filename_prefix="ComfyUI_temp_" + ''.join(random.choice("abcdefghijklmnopqrstupvxyz") for _ in range(5)),
@@ -412,7 +411,7 @@ class PreviewMask(PreviewImage):
 
 
 class PreviewAudio(_UIOutput):
-    def __init__(self, audio: dict, cls: Type[ComfyNode] = None, **kwargs):
+    def __init__(self, audio: dict, cls: type[ComfyNode] = None, **kwargs):
         self.values = AudioSaveHelper.save_audio(
             audio,
             filename_prefix="ComfyUI_temp_" + "".join(random.choice("abcdefghijklmnopqrstuvwxyz") for _ in range(5)),
