@@ -5,7 +5,7 @@ import os
 import sqlalchemy
 
 import folder_paths
-from app.database.db import create_session
+from app.database.db import create_session, dependencies_available
 from app.assets.helpers import (
     collect_models_files, compute_relative_filename, fast_asset_file_check, get_name_and_tags_from_asset_path,
     list_tree,prefixes_for_root, escape_like_prefix,
@@ -16,10 +16,14 @@ from app.assets.database.bulk_ops import seed_from_paths_batch
 from app.assets.database.models import Asset, AssetCacheState, AssetInfo
 
 
-def seed_assets(roots: tuple[RootType, ...]) -> None:
+def seed_assets(roots: tuple[RootType, ...], enable_logging: bool = False) -> None:
     """
     Scan the given roots and seed the assets into the database.
     """
+    if not dependencies_available():
+        if enable_logging:
+            logging.warning("Database dependencies not available, skipping assets scan")
+        return
     t_start = time.perf_counter()
     created = 0
     skipped_existing = 0
@@ -79,14 +83,15 @@ def seed_assets(roots: tuple[RootType, ...]) -> None:
             created += result["inserted_infos"]
             sess.commit()
     finally:
-        logging.info(
-            "Assets scan(roots=%s) completed in %.3fs (created=%d, skipped_existing=%d, total_seen=%d)",
-            roots,
-            time.perf_counter() - t_start,
-            created,
-            skipped_existing,
-            len(paths),
-        )
+        if enable_logging:
+            logging.info(
+                "Assets scan(roots=%s) completed in %.3fs (created=%d, skipped_existing=%d, total_seen=%d)",
+                roots,
+                time.perf_counter() - t_start,
+                created,
+                skipped_existing,
+                len(paths),
+            )
 
 
 def _fast_db_consistency_pass(
