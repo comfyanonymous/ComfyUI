@@ -11,7 +11,7 @@ WORKDIR="${COMFYUI_DIR}"
 cd "${WORKDIR}"
 
 # Create virtual environment if it doesn't exist
-if [ ! -d "${VENV_DIR}" ]; then
+if [ ! -f "${VENV_DIR}/bin/activate" ]; then
     echo "Creating virtual environment..."
     python -m venv "${VENV_DIR}"
 fi
@@ -57,6 +57,13 @@ if [ "${INSTALL_CURATED_NODES:-false}" = "true" ]; then
         https://github.com/giriss/comfy-image-saver || echo "Warning: Some custom nodes failed to install"
 fi
 
+# Optional: Install Nano Banana node (can be enabled via environment variable)
+if [ "${INSTALL_NANO_BANANA:-false}" = "true" ]; then
+    echo "Installing Nano Banana custom node..."
+    export COMFYUI_DIR="${COMFYUI_DIR}"
+    comfy-node-install https://github.com/jeffy5/ComfyUI-Nano-Banana || echo "Warning: Nano Banana installation failed"
+fi
+
 # Check if OpenTelemetry endpoint is configured
 if [ -n "${OTEL_EXPORTER_OTLP_ENDPOINT}" ]; then
     echo "OpenTelemetry endpoint detected, enabling instrumentation..."
@@ -64,9 +71,9 @@ if [ -n "${OTEL_EXPORTER_OTLP_ENDPOINT}" ]; then
         --traces_exporter otlp \
         --metrics_exporter otlp \
         --logs_exporter otlp \
-        python main.py --listen 0.0.0.0 --port 8188 "$@"
+        python main.py --listen 0.0.0.0 --port 8188 ${COMFYUI_ARGS:-} "$@"
 else
     echo "Starting ComfyUI without OpenTelemetry instrumentation..."
-    exec python main.py --listen 0.0.0.0 --port 8188 "$@"
+    exec python main.py --listen 0.0.0.0 --port 8188 ${COMFYUI_ARGS:-} "$@"
 fi
 

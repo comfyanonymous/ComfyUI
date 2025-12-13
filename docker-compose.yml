@@ -5,7 +5,7 @@ services:
       dockerfile: Dockerfile
     container_name: comfyui
     ports:
-      - "8188:8188"
+      - "8189:8188"
     # Temporarily disabled for testing without GPU
     # deploy:
     #   resources:
@@ -30,6 +30,8 @@ services:
       - TZ=America/Chicago
       - PUID=1000
       - PGID=1000
+      - COMFYUI_ARGS=--cpu
+      - INSTALL_NANO_BANANA=true
       # OpenTelemetry environment variables (optional - set if you want OTEL)
       # - OTEL_EXPORTER_OTLP_ENDPOINT=http://your-otel-collector:4317
       # - OTEL_SERVICE_NAME=comfyui

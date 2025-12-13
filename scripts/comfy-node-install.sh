@@ -37,9 +37,9 @@ install_node() {
 
     # Clone the repository
     if [ -n "${GIT_LFS_SKIP_SMUDGE}" ]; then
-        GIT_LFS_SKIP_SMUDGE=1 git clone --depth 1 "${repo_url}" "${target_dir}"
+        GIT_TERMINAL_PROMPT=0 GIT_LFS_SKIP_SMUDGE=1 git clone --depth 1 "${repo_url}" "${target_dir}"
     else
-        git clone --depth 1 "${repo_url}" "${target_dir}"
+        GIT_TERMINAL_PROMPT=0 git clone --depth 1 "${repo_url}" "${target_dir}"
     fi
 
     echo "  Successfully installed ${repo_name}"
