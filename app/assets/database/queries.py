@@ -208,27 +208,6 @@ def fetch_asset_info_asset_and_tags(
             tags.append(tag_name)
     return first_info, first_asset, tags
 
-def set_asset_info_preview(
-    session: Session,
-    asset_info_id: str,
-    preview_asset_id: str | None,
-) -> None:
-    """Set or clear preview_id and bump updated_at. Raises on unknown IDs."""
-    info = session.get(AssetInfo, asset_info_id)
-    if not info:
-        raise ValueError(f"AssetInfo {asset_info_id} not found")
-
-    if preview_asset_id is None:
-        info.preview_id = None
-    else:
-        # validate preview asset exists
-        if not session.get(Asset, preview_asset_id):
-            raise ValueError(f"Preview Asset {preview_asset_id} not found")
-        info.preview_id = preview_asset_id
-
-    info.updated_at = utcnow()
-    session.flush()
-
 def list_tags_with_usage(
     session: Session,
     prefix: str | None = None,
