@@ -1331,15 +1331,14 @@ class NaDiT(nn.Module):
         **kwargs
     ):  
         transformer_options = kwargs.get("transformer_options", {})
+        patches_replace = transformer_options.get("patches_replace", {})
+        blocks_replace = patches_replace.get("dit", {})
         conditions = kwargs.get("condition")
 
-        pos_cond, neg_cond = context.squeeze(0).chunk(2, dim=0)
+        pos_cond, neg_cond = context.chunk(2, dim=0)
         pos_cond, neg_cond = pos_cond.squeeze(0), neg_cond.squeeze(0)
-        pos_cond, txt_shape = flatten([pos_cond])
-        neg_cond, _ = flatten([neg_cond])
-        txt = torch.cat([pos_cond, neg_cond], dim = 0)
+        txt, txt_shape = flatten([pos_cond, neg_cond])
 
-        vid = x
         vid, vid_shape = flatten(x)
         cond_latent, _ = flatten(conditions)
 
@@ -1360,14 +1359,36 @@ class NaDiT(nn.Module):
 
         cache = Cache(disable=disable_cache)
         for i, block in enumerate(self.blocks):
-            vid, txt, vid_shape, txt_shape = block(
-                vid=vid,
-                txt=txt,
-                vid_shape=vid_shape,
-                txt_shape=txt_shape,
-                emb=emb,
-                cache=cache,
-            )
+            if ("block", i) in blocks_replace:
+                def block_wrap(args):
+                    out = {}
+                    out["vid"], out["txt"], out["vid_shape"], out["txt_shape"] = block(
+                            vid=args["vid"],
+                            txt=args["txt"],
+                            vid_shape=args["vid_shape"],
+                            txt_shape=args["txt_shape"],
+                            emb=args["emb"],
+                            cache=args["cache"],
+                        )
+                    return out
+                out = blocks_replace[("block", i)]({
+                        "vid":vid,
+                        "txt":txt,
+                        "vid_shape":vid_shape,
+                        "txt_shape":txt_shape,
+                        "emb":emb,
+                        "cache":cache,
+                    }, {"original_block": block_wrap})
+                vid, txt, vid_shape, txt_shape = out["vid"], out["txt"], out["vid_shape"], out["txt_shape"]
+            else:
+                vid, txt, vid_shape, txt_shape = block(
+                    vid=vid,
+                    txt=txt,
+                    vid_shape=vid_shape,
+                    txt_shape=txt_shape,
+                    emb=emb,
+                    cache=cache,
+                )
 
         if self.vid_out_norm:
             vid = self.vid_out_norm(vid)
@@ -1383,4 +1404,4 @@ class NaDiT(nn.Module):
 
         vid, vid_shape = self.vid_out(vid, vid_shape, cache, vid_shape_before_patchify = vid_shape_before_patchify)
         vid = unflatten(vid, vid_shape)
-        return vid[0]
+        return torch.stack(vid)

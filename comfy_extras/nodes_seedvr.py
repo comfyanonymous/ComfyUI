@@ -198,9 +198,8 @@ class SeedVR2Conditioning(io.ComfyNode):
         else:
             pos_cond = F.pad(pos_cond, (0, 0, 0, diff))
 
-        cond = torch.cat([pos_cond.unsqueeze(0), neg_cond.unsqueeze(0)]).unsqueeze(0)
-        negative = [[cond, {"condition": condition}]]
-        positive = [[cond, {"condition": condition}]]
+        negative = [[neg_cond.unsqueeze(0), {"condition": condition}]]
+        positive = [[pos_cond.unsqueeze(0), {"condition": condition}]]
 
         return io.NodeOutput(positive, negative, {"samples": noises})
 

@@ -1163,6 +1163,9 @@ class SeedVR2(supported_models_base.BASE):
     vae_key_prefix = ["vae."]
     text_encoder_key_prefix = ["text_encoders."]
     supported_inference_dtypes = [torch.bfloat16, torch.float32]
+    sampling_settings = {
+        "shift": 1.0,
+    }
 
     def get_model(self, state_dict, prefix = "", device=None):
         out = model_base.SeedVR2(self, device=device)
