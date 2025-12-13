@@ -1,6 +1,6 @@
 import json
 import uuid
-from typing import Any, Literal, Optional
+from typing import Any, Literal
 
 from pydantic import (
     BaseModel,
@@ -14,10 +14,10 @@ from pydantic import (
 class ListAssetsQuery(BaseModel):
     include_tags: list[str] = Field(default_factory=list)
     exclude_tags: list[str] = Field(default_factory=list)
-    name_contains: Optional[str] = None
+    name_contains: str | None = None
 
     # Accept either a JSON string (query param) or a dict
-    metadata_filter: Optional[dict[str, Any]] = None
+    metadata_filter: dict[str, Any] | None = None
 
     limit: conint(ge=1, le=500) = 20
     offset: conint(ge=0) = 0
@@ -60,7 +60,7 @@ class ListAssetsQuery(BaseModel):
 class TagsListQuery(BaseModel):
     model_config = ConfigDict(extra="ignore", str_strip_whitespace=True)
 
-    prefix: Optional[str] = Field(None, min_length=1, max_length=256)
+    prefix: str | None = Field(None, min_length=1, max_length=256)
     limit: int = Field(100, ge=1, le=1000)
     offset: int = Field(0, ge=0, le=10_000_000)
     order: Literal["count_desc", "name_asc"] = "count_desc"
@@ -68,7 +68,7 @@ class TagsListQuery(BaseModel):
 
     @field_validator("prefix")
     @classmethod
-    def normalize_prefix(cls, v: Optional[str]) -> Optional[str]:
+    def normalize_prefix(cls, v: str | None) -> str | None:
         if v is None:
             return v
         v = v.strip()
@@ -77,7 +77,7 @@ class TagsListQuery(BaseModel):
 
 class SetPreviewBody(BaseModel):
     """Set or clear the preview for an AssetInfo. Provide an Asset.id or null."""
-    preview_id: Optional[str] = None
+    preview_id: str | None = None
 
     @field_validator("preview_id", mode="before")
     @classmethod
