@@ -592,7 +592,7 @@ def mixed_precision_ops(quant_config={}, compute_dtype=torch.bfloat16, full_prec
                     quant_conf = {"format": self.quant_format}
                     if self._full_precision_mm:
                         quant_conf["full_precision_matrix_mult"] = True
-                    sd["{}comfy_quant".format(prefix)] = torch.frombuffer(json.dumps(quant_conf).encode('utf-8'), dtype=torch.uint8)
+                    sd["{}comfy_quant".format(prefix)] = torch.tensor(list(json.dumps(quant_conf).encode('utf-8')), dtype=torch.uint8)
                 return sd
 
             def _forward(self, input, weight, bias):
