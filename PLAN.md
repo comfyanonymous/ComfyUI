@@ -123,6 +123,12 @@
 **IMPLEMENTATION:**
 - Update PR description with RunPod env var setup instructions
 - Add note: Set `GOOGLE_API_KEY` in RunPod template env vars (no `.env` file needed)
+- RunPod specific configuration instructions:
+  - Go to RunPod console -> Templates -> [Your Template] -> Edit
+  - Scroll to Environment Variables
+  - Key: `GOOGLE_API_KEY`, Value: [Your API Key]
+  - No need for `.env` file in the container image
+  - Code reads `os.environ` which works for both methods
 - Expected outcome: Clear instructions for RunPod deployment
 - Success criteria: PR description has RunPod section with env var guidance
 
