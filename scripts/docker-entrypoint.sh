@@ -7,6 +7,7 @@ set -e
 COMFYUI_DIR="/app/ComfyUI"
 VENV_DIR="/app/venv"
 WORKDIR="${COMFYUI_DIR}"
+CUSTOM_NODES_DIR="${COMFYUI_DIR}/custom_nodes"
 
 cd "${WORKDIR}"
 
@@ -61,7 +62,13 @@ fi
 if [ "${INSTALL_NANO_BANANA:-false}" = "true" ]; then
     echo "Installing Nano Banana custom node..."
     export COMFYUI_DIR="${COMFYUI_DIR}"
-    comfy-node-install https://github.com/jeffy5/ComfyUI-Nano-Banana || echo "Warning: Nano Banana installation failed"
+    comfy-node-install https://github.com/ru4ls/ComfyUI_Nano_Banana || echo "Warning: Nano Banana clone failed"
+    
+    # Install Nano Banana dependencies if requirements.txt exists
+    if [ -f "${CUSTOM_NODES_DIR}/ComfyUI_Nano_Banana/requirements.txt" ]; then
+        echo "Installing Nano Banana dependencies..."
+        pip install --no-cache-dir -r "${CUSTOM_NODES_DIR}/ComfyUI_Nano_Banana/requirements.txt" || echo "Warning: Nano Banana dependencies installation failed"
+    fi
 fi
 
 # Check if OpenTelemetry endpoint is configured
