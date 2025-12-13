@@ -14,6 +14,8 @@ services:
               count: all
               capabilities: [gpu]
     ipc: host
+    env_file:
+      - .env
     volumes:
       - .:/app/ComfyUI                    # Mount local repo (for git checkout updates)
       - comfyui-models:/app/ComfyUI/models      # Persist models
@@ -23,6 +25,7 @@ services:
       - comfyui-user:/app/ComfyUI/user          # Persist user settings/workflows
       - comfyui-venv:/app/venv                  # Cache virtualenv
     environment:
+      - GOOGLE_API_KEY=${GOOGLE_API_KEY}
       - TZ=America/Chicago
       - PUID=1000
       - PGID=1000
