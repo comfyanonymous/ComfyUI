@@ -28,3 +28,7 @@ uv.lock
 # Docker
 .dockerignore
 docker-compose.override.yml
+
+# Environment variables
+.env
+!.env.example
