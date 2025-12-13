@@ -6,14 +6,15 @@ services:
     container_name: comfyui
     ports:
       - "8188:8188"
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: all
-              capabilities: [gpu]
-    ipc: host
+    # Temporarily disabled for testing without GPU
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: all
+    #           capabilities: [gpu]
+    # ipc: host
     env_file:
       - .env
     volumes:
