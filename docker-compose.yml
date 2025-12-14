@@ -1,0 +1,48 @@
+services:
+  comfyui:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: comfyui
+    ports:
+      - "8189:8188"
+    # Temporarily disabled for testing without GPU
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: all
+    #           capabilities: [gpu]
+    # ipc: host
+    env_file:
+      - .env
+    volumes:
+      - .:/app/ComfyUI                    # Mount local repo (for git checkout updates)
+      - comfyui-models:/app/ComfyUI/models      # Persist models
+      - comfyui-output:/app/ComfyUI/output      # Persist outputs
+      - comfyui-input:/app/ComfyUI/input        # Persist inputs
+      - comfyui-custom-nodes:/app/ComfyUI/custom_nodes  # Persist custom nodes
+      - comfyui-user:/app/ComfyUI/user          # Persist user settings/workflows
+      - comfyui-venv:/app/venv                  # Cache virtualenv
+    environment:
+      - GOOGLE_API_KEY=${GOOGLE_API_KEY}
+      - TZ=America/Chicago
+      - PUID=1000
+      - PGID=1000
+      - COMFYUI_ARGS=--cpu
+      - INSTALL_NANO_BANANA=true
+      # OpenTelemetry environment variables (optional - set if you want OTEL)
+      # - OTEL_EXPORTER_OTLP_ENDPOINT=http://your-otel-collector:4317
+      # - OTEL_SERVICE_NAME=comfyui
+      # - OTEL_RESOURCE_ATTRIBUTES=service.name=comfyui
+    restart: unless-stopped
+
+volumes:
+  comfyui-models:
+  comfyui-output:
+  comfyui-input:
+  comfyui-custom-nodes:
+  comfyui-user:
+  comfyui-venv:
+
