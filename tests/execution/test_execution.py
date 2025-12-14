@@ -99,6 +99,37 @@ class ComfyClient:
         with urllib.request.urlopen(url) as response:
             return json.loads(response.read())
 
+    def get_jobs(self, status=None, limit=None, offset=None, sort_by=None, sort_order=None):
+        url = "http://{}/api/jobs".format(self.server_address)
+        params = {}
+        if status is not None:
+            params["status"] = status
+        if limit is not None:
+            params["limit"] = limit
+        if offset is not None:
+            params["offset"] = offset
+        if sort_by is not None:
+            params["sort_by"] = sort_by
+        if sort_order is not None:
+            params["sort_order"] = sort_order
+
+        if params:
+            url_values = urllib.parse.urlencode(params)
+            url = "{}?{}".format(url, url_values)
+
+        with urllib.request.urlopen(url) as response:
+            return json.loads(response.read())
+
+    def get_job(self, job_id):
+        url = "http://{}/api/jobs/{}".format(self.server_address, job_id)
+        try:
+            with urllib.request.urlopen(url) as response:
+                return json.loads(response.read())
+        except urllib.error.HTTPError as e:
+            if e.code == 404:
+                return None
+            raise
+
     def set_test_name(self, name):
         self.test_name = name
 
@@ -877,3 +908,106 @@ class TestExecution:
         result = client.get_all_history(max_items=5, offset=len(all_history) - 1)
 
         assert len(result) <= 1, "Should return at most 1 item when offset is near end"
+
+    # Jobs API tests
+    def test_jobs_api_job_structure(
+        self, client: ComfyClient, builder: GraphBuilder
+    ):
+        """Test that job objects have required fields"""
+        self._create_history_item(client, builder)
+
+        jobs_response = client.get_jobs(status="completed", limit=1)
+        assert len(jobs_response["jobs"]) > 0, "Should have at least one job"
+
+        job = jobs_response["jobs"][0]
+        assert "id" in job, "Job should have id"
+        assert "status" in job, "Job should have status"
+        assert "create_time" in job, "Job should have create_time"
+        assert "outputs_count" in job, "Job should have outputs_count"
+        assert "preview_output" in job, "Job should have preview_output"
+
+    def test_jobs_api_preview_output_structure(
+        self, client: ComfyClient, builder: GraphBuilder
+    ):
+        """Test that preview_output has correct structure"""
+        self._create_history_item(client, builder)
+
+        jobs_response = client.get_jobs(status="completed", limit=1)
+        job = jobs_response["jobs"][0]
+
+        if job["preview_output"] is not None:
+            preview = job["preview_output"]
+            assert "filename" in preview, "Preview should have filename"
+            assert "nodeId" in preview, "Preview should have nodeId"
+            assert "mediaType" in preview, "Preview should have mediaType"
+
+    def test_jobs_api_pagination(
+        self, client: ComfyClient, builder: GraphBuilder
+    ):
+        """Test jobs API pagination"""
+        for _ in range(5):
+            self._create_history_item(client, builder)
+
+        first_page = client.get_jobs(limit=2, offset=0)
+        second_page = client.get_jobs(limit=2, offset=2)
+
+        assert len(first_page["jobs"]) <= 2, "First page should have at most 2 jobs"
+        assert len(second_page["jobs"]) <= 2, "Second page should have at most 2 jobs"
+
+        first_ids = {j["id"] for j in first_page["jobs"]}
+        second_ids = {j["id"] for j in second_page["jobs"]}
+        assert first_ids.isdisjoint(second_ids), "Pages should have different jobs"
+
+    def test_jobs_api_sorting(
+        self, client: ComfyClient, builder: GraphBuilder
+    ):
+        """Test jobs API sorting"""
+        for _ in range(3):
+            self._create_history_item(client, builder)
+
+        desc_jobs = client.get_jobs(sort_order="desc")
+        asc_jobs = client.get_jobs(sort_order="asc")
+
+        if len(desc_jobs["jobs"]) >= 2:
+            desc_times = [j["create_time"] for j in desc_jobs["jobs"] if j["create_time"]]
+            asc_times = [j["create_time"] for j in asc_jobs["jobs"] if j["create_time"]]
+            if len(desc_times) >= 2:
+                assert desc_times == sorted(desc_times, reverse=True), "Desc should be newest first"
+            if len(asc_times) >= 2:
+                assert asc_times == sorted(asc_times), "Asc should be oldest first"
+
+    def test_jobs_api_status_filter(
+        self, client: ComfyClient, builder: GraphBuilder
+    ):
+        """Test jobs API status filtering"""
+        self._create_history_item(client, builder)
+
+        completed_jobs = client.get_jobs(status="completed")
+        assert len(completed_jobs["jobs"]) > 0, "Should have completed jobs from history"
+
+        for job in completed_jobs["jobs"]:
+            assert job["status"] == "completed", "Should only return completed jobs"
+
+        # Pending jobs are transient - just verify filter doesn't error
+        pending_jobs = client.get_jobs(status="pending")
+        for job in pending_jobs["jobs"]:
+            assert job["status"] == "pending", "Should only return pending jobs"
+
+    def test_get_job_by_id(
+        self, client: ComfyClient, builder: GraphBuilder
+    ):
+        """Test getting a single job by ID"""
+        result = self._create_history_item(client, builder)
+        prompt_id = result.get_prompt_id()
+
+        job = client.get_job(prompt_id)
+        assert job is not None, "Should find the job"
+        assert job["id"] == prompt_id, "Job ID should match"
+        assert "outputs" in job, "Single job should include outputs"
+
+    def test_get_job_not_found(
+        self, client: ComfyClient, builder: GraphBuilder
+    ):
+        """Test getting a non-existent job returns 404"""
+        job = client.get_job("nonexistent-job-id")
+        assert job is None, "Non-existent job should return None"
