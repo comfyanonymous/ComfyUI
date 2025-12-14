@@ -77,16 +77,6 @@ class NumberDisplay(str, Enum):
     slider = "slider"
 
 
-class _StringIOType(str):
-    def __ne__(self, value: object) -> bool:
-        if self == "*" or value == "*":
-            return False
-        if not isinstance(value, str):
-            return True
-        a = frozenset(self.split(","))
-        b = frozenset(value.split(","))
-        return not (b.issubset(a) or a.issubset(b))
-
 class _ComfyType(ABC):
     Type = Any
     io_type: str = None
@@ -126,8 +116,7 @@ def comfytype(io_type: str, **kwargs):
             new_cls.__module__ = cls.__module__
             new_cls.__doc__ = cls.__doc__
             # assign ComfyType attributes, if needed
-        # NOTE: use __ne__ trick for io_type (see node_typing.IO.__ne__ for details)
-        new_cls.io_type = _StringIOType(io_type)
+        new_cls.io_type = io_type
         if hasattr(new_cls, "Input") and new_cls.Input is not None:
             new_cls.Input.Parent = new_cls
         if hasattr(new_cls, "Output") and new_cls.Output is not None:
@@ -186,7 +175,7 @@ class Input(_IO_V3):
         }) | prune_dict(self.extra_dict)
 
     def get_io_type(self):
-        return _StringIOType(self.io_type)
+        return self.io_type
 
     def get_all(self) -> list[Input]:
         return [self]
