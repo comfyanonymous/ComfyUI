@@ -1575,8 +1575,6 @@ class _ComfyNodeBaseInternal(_ComfyNodeInternal):
     @final
     @classmethod
     def EXECUTE_NORMALIZED(cls, *args, **kwargs) -> NodeOutput:
-        _args = args
-        _kwargs = kwargs
         to_return = cls.execute(*args, **kwargs)
         if to_return is None:
             to_return = NodeOutput()
