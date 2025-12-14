@@ -871,9 +871,6 @@ class DynamicInput(Input, ABC):
     def get_dynamic(self) -> list[Input]:
         return []
 
-    def expand_schema_for_dynamic(self, d: dict[str, Any], live_inputs: dict[str, Any], curr_prefix: list[str] | None=None):
-        pass
-
 
 class DynamicOutput(Output, ABC):
     '''
