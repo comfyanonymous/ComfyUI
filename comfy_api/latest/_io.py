@@ -868,22 +868,17 @@ class DynamicInput(Input, ABC):
     '''
     Abstract class for dynamic input registration.
     '''
-    def get_dynamic(self) -> list[Input]:
-        return []
+    pass
 
 
 class DynamicOutput(Output, ABC):
     '''
     Abstract class for dynamic output registration.
     '''
-    def __init__(self, id: str=None, display_name: str=None, tooltip: str=None,
-                 is_output_list=False):
-        super().__init__(id, display_name, tooltip, is_output_list)
+    pass
 
-    def get_dynamic(self) -> list[Output]:
-        return []
 
-def handle_prefix(prefix_list: list | None, id: str | None = None) -> list[str]:
+def handle_prefix(prefix_list: list[str] | None, id: str | None = None) -> list[str]:
     if prefix_list is None:
         prefix_list = []
     if id is not None:
@@ -977,9 +972,6 @@ class Autogrow(ComfyTypeI):
                 "template": self.template.as_dict(),
             })
 
-        def get_dynamic(self) -> list[Input]:
-            return self.template.get_all()
-
         def get_all(self) -> list[Input]:
             return [self] + self.template.get_all()
 
@@ -1041,9 +1033,6 @@ class DynamicCombo(ComfyTypeI):
             super().__init__(id, display_name, optional, tooltip, lazy, extra_dict)
             self.options = options
 
-        def get_dynamic(self) -> list[Input]:
-            return [input for option in self.options for input in option.inputs]
-
         def get_all(self) -> list[Input]:
             return [self] + [input for option in self.options for input in option.inputs]
 
@@ -1097,9 +1086,6 @@ class DynamicSlot(ComfyTypeI):
             if isinstance(self.slot, WidgetInput):
                 self.force_input = True
                 self.slot.force_input = True
-
-        def get_dynamic(self) -> list[Input]:
-            return [self.slot] + self.inputs
 
         def get_all(self) -> list[Input]:
             return [self.slot] + self.inputs
