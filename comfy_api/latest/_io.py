@@ -774,6 +774,13 @@ class AudioEncoder(ComfyTypeIO):
 class AudioEncoderOutput(ComfyTypeIO):
     Type = Any
 
+@comfytype(io_type="TRACKS")
+class Tracks(ComfyTypeIO):
+    class TrackDict(TypedDict):
+        track_path: torch.Tensor
+        track_visibility: torch.Tensor
+    Type = TrackDict
+
 @comfytype(io_type="COMFY_MULTITYPED_V3")
 class MultiType:
     Type = Any
@@ -1815,7 +1822,7 @@ class NodeOutput(_NodeOutputInternal):
             ui = data["ui"]
         if "expand" in data:
             expand = data["expand"]
-        return cls(args=args, ui=ui, expand=expand)
+        return cls(*args, ui=ui, expand=expand)
 
     def __getitem__(self, index) -> Any:
         return self.args[index]
@@ -1894,6 +1901,7 @@ __all__ = [
     "SEGS",
     "AnyType",
     "MultiType",
+    "Tracks",
     # Dynamic Types
     "MatchType",
     # "DynamicCombo",
