@@ -727,29 +727,6 @@ class RandomCropImagesNode(ImageProcessingNode):
         return pil_to_tensor(img)
 
 
-class FlipImagesNode(ImageProcessingNode):
-    node_id = "FlipImages"
-    display_name = "Flip Images"
-    description = "Flip all images horizontally or vertically."
-    extra_inputs = [
-        io.Combo.Input(
-            "direction",
-            options=["horizontal", "vertical"],
-            default="horizontal",
-            tooltip="Flip direction.",
-        ),
-    ]
-
-    @classmethod
-    def _process(cls, image, direction):
-        img = tensor_to_pil(image)
-        if direction == "horizontal":
-            img = img.transpose(Image.FLIP_LEFT_RIGHT)
-        else:
-            img = img.transpose(Image.FLIP_TOP_BOTTOM)
-        return pil_to_tensor(img)
-
-
 class NormalizeImagesNode(ImageProcessingNode):
     node_id = "NormalizeImages"
     display_name = "Normalize Images"
@@ -1519,7 +1496,6 @@ class DatasetExtension(ComfyExtension):
             ResizeImagesByLongerEdgeNode,
             CenterCropImagesNode,
             RandomCropImagesNode,
-            FlipImagesNode,
             NormalizeImagesNode,
             AdjustBrightnessNode,
             AdjustContrastNode,
