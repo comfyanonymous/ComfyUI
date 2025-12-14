@@ -32,6 +32,8 @@ import node_helpers
 from comfyui_version import __version__
 from app.frontend_management import FrontendManager, parse_version
 from comfy_api.internal import _ComfyNodeInternal
+from app.assets.scanner import seed_assets
+from app.assets.api.routes import register_assets_system
 
 from app.user_manager import UserManager
 from app.model_manager import ModelFileManager
@@ -228,6 +230,7 @@ class PromptServer():
             else args.front_end_root
         )
         logging.info(f"[Prompt Server] web root: {self.web_root}")
+        register_assets_system(self.app, self.user_manager)
         routes = web.RouteTableDef()
         self.routes = routes
         self.last_node_id = None
@@ -676,6 +679,7 @@ class PromptServer():
 
         @routes.get("/object_info")
         async def get_object_info(request):
+            seed_assets(["models"])
             with folder_paths.cache_helper:
                 out = {}
                 for x in nodes.NODE_CLASS_MAPPINGS:
