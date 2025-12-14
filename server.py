@@ -43,6 +43,7 @@ from protocol import BinaryEventTypes
 
 # Import cache control middleware
 from middleware.cache_middleware import cache_control
+from middleware.auth_middleware import create_api_key_middleware
 
 if args.enable_manager:
     import comfyui_manager
@@ -204,6 +205,17 @@ class PromptServer():
         self.number = 0
 
         middlewares = [cache_control, deprecation_warning]
+        
+        # Add API key authentication middleware if enabled
+        if args.api_key:
+            # Define paths that don't require authentication
+            # Note: Static files (.js, .css, .html, etc.) and root "/" are automatically exempted
+            exempt_paths = {
+                "/health",  # Health check endpoint
+                "/ws",  # WebSocket endpoint
+            }
+            middlewares.append(create_api_key_middleware(args.api_key, exempt_paths))
+        
         if args.enable_compress_response_body:
             middlewares.append(compress_body)
 
@@ -297,11 +309,119 @@ class PromptServer():
 
         @routes.get("/")
         async def get_root(request):
+            # If API key is enabled and not provided, redirect to login
+            if args.api_key:
+                auth_header = request.headers.get("Authorization", "")
+                api_key_header = request.headers.get("X-API-Key", "")
+                api_key_query = request.query.get("api_key", "")
+                
+                has_valid_key = False
+                if auth_header.startswith("Bearer "):
+                    provided_key = auth_header[7:]
+                    has_valid_key = (provided_key == args.api_key)
+                elif api_key_header:
+                    has_valid_key = (api_key_header == args.api_key)
+                elif api_key_query:
+                    has_valid_key = (api_key_query == args.api_key)
+                
+                # If no valid key, check if coming from login page, otherwise show login
+                if not has_valid_key:
+                    # Serve modified index.html with auth script injected
+                    index_path = os.path.join(self.web_root, "index.html")
+                    if os.path.exists(index_path):
+                        with open(index_path, 'r', encoding='utf-8') as f:
+                            html_content = f.read()
+                        
+                        # Inject auth script before closing </head> tag
+                        auth_script = '<script src="/auth_inject.js"></script>'
+                        if '</head>' in html_content:
+                            html_content = html_content.replace('</head>', f'{auth_script}\n</head>')
+                        else:
+                            # Fallback: add at the beginning of body
+                            html_content = html_content.replace('<body>', f'<body>\n{auth_script}')
+                        
+                        response = web.Response(text=html_content, content_type='text/html')
+                    else:
+                        response = web.FileResponse(index_path)
+                    
+                    response.headers['Cache-Control'] = 'no-cache'
+                    response.headers["Pragma"] = "no-cache"
+                    response.headers["Expires"] = "0"
+                    return response
+            
+            # No auth required or valid key provided
             response = web.FileResponse(os.path.join(self.web_root, "index.html"))
             response.headers['Cache-Control'] = 'no-cache'
             response.headers["Pragma"] = "no-cache"
             response.headers["Expires"] = "0"
             return response
+
+        @routes.get("/auth_login.html")
+        async def get_login_page(request):
+            """Serve the login page"""
+            login_page_path = os.path.join(os.path.dirname(__file__), "auth_login.html")
+            if os.path.exists(login_page_path):
+                response = web.FileResponse(login_page_path)
+            else:
+                # Fallback if file doesn't exist
+                response = web.Response(text="Login page not found", status=404)
+            response.headers['Cache-Control'] = 'no-cache'
+            return response
+
+        @routes.get("/auth_inject.js")
+        async def get_auth_script(request):
+            """Serve the auth injection script"""
+            script_path = os.path.join(os.path.dirname(__file__), "auth_inject.js")
+            if os.path.exists(script_path):
+                response = web.FileResponse(script_path, headers={'Content-Type': 'application/javascript'})
+            else:
+                response = web.Response(text="// Auth script not found", status=404, content_type='application/javascript')
+            response.headers['Cache-Control'] = 'no-cache'
+            return response
+
+        @routes.get("/health")
+        async def get_health(request):
+            """Health check endpoint that returns the status of the server"""
+            try:
+                # Basic health information
+                health_data = {
+                    "status": "healthy",
+                    "version": __version__,
+                    "timestamp": time.time(),
+                    "queue": {
+                        "pending": len(self.prompt_queue.queue),
+                        "running": len(self.prompt_queue.currently_running)
+                    }
+                }
+                
+                # Add device info if available
+                try:
+                    device = comfy.model_management.get_torch_device()
+                    health_data["device"] = str(device)
+                    
+                    # Add VRAM info if GPU is available
+                    if comfy.model_management.vram_state != comfy.model_management.VRAMState.DISABLED:
+                        vram_total = comfy.model_management.get_total_memory()
+                        vram_free = comfy.model_management.get_free_memory()
+                        health_data["vram"] = {
+                            "total": vram_total,
+                            "free": vram_free,
+                            "used": vram_total - vram_free
+                        }
+                except Exception as e:
+                    logging.debug(f"Could not get device info for health check: {e}")
+                
+                return web.json_response(health_data)
+            except Exception as e:
+                logging.error(f"Health check failed: {e}")
+                return web.json_response(
+                    {
+                        "status": "unhealthy",
+                        "error": str(e),
+                        "timestamp": time.time()
+                    },
+                    status=503
+                )
 
         @routes.get("/embeddings")
         def get_embeddings(request):
