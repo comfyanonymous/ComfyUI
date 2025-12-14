@@ -53,7 +53,7 @@ if hasattr(torch.serialization, "add_safe_globals"):  # TODO: this was added in 
     ALWAYS_SAFE_LOAD = True
     logging.info("Checkpoint files will always be loaded safely.")
 else:
-    logging.info("Warning, you are using an old pytorch version and some ckpt/pt files might be loaded unsafely. Upgrading to 2.4 or above is recommended.")
+    logging.warning("Warning, you are using an old pytorch version and some ckpt/pt files might be loaded unsafely. Upgrading to 2.4 or above is recommended as older versions of pytorch are no longer supported.")
 
 def load_torch_file(ckpt, safe_load=False, device=None, return_metadata=False):
     if device is None:
