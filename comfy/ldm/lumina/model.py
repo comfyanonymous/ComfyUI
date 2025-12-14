@@ -119,6 +119,9 @@ class JointAttention(nn.Module):
             xv = xv.unsqueeze(3).repeat(1, 1, 1, n_rep, 1).flatten(2, 3)
         output = optimized_attention_masked(xq.movedim(1, 2), xk.movedim(1, 2), xv.movedim(1, 2), self.n_local_heads, x_mask, skip_reshape=True, transformer_options=transformer_options)
 
+        if output.dtype == torch.float16:
+            output.div_(4)
+
         return self.out(output)
 
 
@@ -175,8 +178,12 @@ class FeedForward(nn.Module):
     def _forward_silu_gating(self, x1, x3):
         return clamp_fp16(F.silu(x1) * x3)
 
-    def forward(self, x):
-        return self.w2(self._forward_silu_gating(self.w1(x), self.w3(x)))
+    def forward(self, x, apply_fp16_downscale=False):
+        x3 = self.w3(x)
+        if x.dtype == torch.float16 and apply_fp16_downscale:
+            x3.div_(32)
+
+        return self.w2(self._forward_silu_gating(self.w1(x), x3))
 
 
 class JointTransformerBlock(nn.Module):
@@ -287,6 +294,7 @@ class JointTransformerBlock(nn.Module):
             x = x + gate_mlp.unsqueeze(1).tanh() * self.ffn_norm2(
                 clamp_fp16(self.feed_forward(
                     modulate(self.ffn_norm1(x), scale_mlp),
+                    apply_fp16_downscale=True,
                 ))
             )
         else:
