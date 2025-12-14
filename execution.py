@@ -914,8 +914,11 @@ async def validate_inputs(prompt_id, prompt, item, validated):
                     errors.append(error)
                     continue
 
-                if isinstance(input_type, list):
-                    combo_options = input_type
+                if isinstance(input_type, list) or input_type == io.Combo.io_type:
+                    if input_type == io.Combo.io_type:
+                        combo_options = extra_info.get("options", [])
+                    else:
+                        combo_options = input_type
                     if val not in combo_options:
                         input_config = info
                         list_info = ""
