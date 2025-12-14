@@ -1557,10 +1557,13 @@ def sample_er_sde(model, x, sigmas, extra_args=None, callback=None, disable=None
 
 
 @torch.no_grad()
-def sample_seeds_2(model, x, sigmas, extra_args=None, callback=None, disable=None, eta=1., s_noise=1., noise_sampler=None, r=0.5):
+def sample_seeds_2(model, x, sigmas, extra_args=None, callback=None, disable=None, eta=1., s_noise=1., noise_sampler=None, r=0.5, solver_type="phi_1"):
     """SEEDS-2 - Stochastic Explicit Exponential Derivative-free Solvers (VP Data Prediction) stage 2.
     arXiv: https://arxiv.org/abs/2305.14267 (NeurIPS 2023)
     """
+    if solver_type not in {"phi_1", "phi_2"}:
+        raise ValueError("solver_type must be 'phi_1' or 'phi_2'")
+
     extra_args = {} if extra_args is None else extra_args
     seed = extra_args.get("seed", None)
     noise_sampler = default_noise_sampler(x, seed=seed) if noise_sampler is None else noise_sampler
@@ -1600,8 +1603,14 @@ def sample_seeds_2(model, x, sigmas, extra_args=None, callback=None, disable=Non
         denoised_2 = model(x_2, sigma_s_1 * s_in, **extra_args)
 
         # Step 2
-        denoised_d = torch.lerp(denoised, denoised_2, fac)
-        x = sigmas[i + 1] / sigmas[i] * (-h * eta).exp() * x - alpha_t * ei_h_phi_1(-h_eta) * denoised_d
+        if solver_type == "phi_1":
+            denoised_d = torch.lerp(denoised, denoised_2, fac)
+            x = sigmas[i + 1] / sigmas[i] * (-h * eta).exp() * x - alpha_t * ei_h_phi_1(-h_eta) * denoised_d
+        elif solver_type == "phi_2":
+            b2 = ei_h_phi_2(-h_eta) / r
+            b1 = ei_h_phi_1(-h_eta) - b2
+            x = sigmas[i + 1] / sigmas[i] * (-h * eta).exp() * x - alpha_t * (b1 * denoised + b2 * denoised_2)
+
         if inject_noise:
             segment_factor = (r - 1) * h * eta
             sde_noise = sde_noise * segment_factor.exp()

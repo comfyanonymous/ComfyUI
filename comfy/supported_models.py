@@ -541,7 +541,7 @@ class SD3(supported_models_base.BASE):
     unet_extra_config = {}
     latent_format = latent_formats.SD3
 
-    memory_usage_factor = 1.2
+    memory_usage_factor = 1.6
 
     text_encoder_key_prefix = ["text_encoders."]
 
@@ -965,7 +965,7 @@ class CosmosT2IPredict2(supported_models_base.BASE):
 
     def __init__(self, unet_config):
         super().__init__(unet_config)
-        self.memory_usage_factor = (unet_config.get("model_channels", 2048) / 2048) * 0.9
+        self.memory_usage_factor = (unet_config.get("model_channels", 2048) / 2048) * 0.95
 
     def get_model(self, state_dict, prefix="", device=None):
         out = model_base.CosmosPredict2(self, device=device)
@@ -1026,7 +1026,7 @@ class ZImage(Lumina2):
         "shift": 3.0,
     }
 
-    memory_usage_factor = 1.7
+    memory_usage_factor = 2.0
 
     supported_inference_dtypes = [torch.bfloat16, torch.float16, torch.float32]
 
@@ -1289,7 +1289,7 @@ class ChromaRadiance(Chroma):
     latent_format = comfy.latent_formats.ChromaRadiance
 
     # Pixel-space model, no spatial compression for model input.
-    memory_usage_factor = 0.038
+    memory_usage_factor = 0.044
 
     def get_model(self, state_dict, prefix="", device=None):
         return model_base.ChromaRadiance(self, device=device)
@@ -1332,7 +1332,7 @@ class Omnigen2(supported_models_base.BASE):
         "shift": 2.6,
     }
 
-    memory_usage_factor = 1.65 #TODO
+    memory_usage_factor = 1.95 #TODO
 
     unet_extra_config = {}
     latent_format = latent_formats.Flux
@@ -1397,7 +1397,7 @@ class HunyuanImage21(HunyuanVideo):
 
     latent_format = latent_formats.HunyuanImage21
 
-    memory_usage_factor = 7.7
+    memory_usage_factor = 8.7
 
     supported_inference_dtypes = [torch.bfloat16, torch.float32]
 
@@ -1488,7 +1488,7 @@ class Kandinsky5(supported_models_base.BASE):
     unet_extra_config = {}
     latent_format = latent_formats.HunyuanVideo
 
-    memory_usage_factor = 1.1 #TODO
+    memory_usage_factor = 1.25 #TODO
 
     supported_inference_dtypes = [torch.bfloat16, torch.float32]
 
@@ -1517,7 +1517,7 @@ class Kandinsky5Image(Kandinsky5):
     }
 
     latent_format = latent_formats.Flux
-    memory_usage_factor = 1.1 #TODO
+    memory_usage_factor = 1.25 #TODO
 
     def get_model(self, state_dict, prefix="", device=None):
         out = model_base.Kandinsky5Image(self, device=device)
