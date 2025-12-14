@@ -1351,10 +1351,9 @@ class Schema:
             if output.id is None:
                 output.id = f"_{i}_{output.io_type}_"
 
-    def get_v1_info(self, cls, live_inputs: dict[str, Any]=None) -> NodeInfoV1:
-        # NOTE: live_inputs will not be used anymore very soon and this will be done another way
+    def get_v1_info(self, cls) -> NodeInfoV1:
         # get V1 inputs
-        input = create_input_dict_v1(self.inputs, live_inputs)
+        input = create_input_dict_v1(self.inputs)
         if self.hidden:
             for hidden in self.hidden:
                 input.setdefault("hidden", {})[hidden.name] = (hidden.value,)
@@ -1468,33 +1467,20 @@ def parse_class_inputs(out_dict: dict[str, Any], live_inputs: dict[str, Any], cu
                 if curr_prefix:
                     out_dict["dynamic_paths"][finalized_id] = finalized_id
 
-def create_input_dict_v1(inputs: list[Input], live_inputs: dict[str, Any]=None) -> dict:
+def create_input_dict_v1(inputs: list[Input]) -> dict:
     input = {
         "required": {}
     }
-    add_to_input_dict_v1(input, inputs, live_inputs)
+    for i in inputs:
+        add_to_dict_v1(i, input)
     return input
 
-def add_to_input_dict_v1(d: dict[str, Any], inputs: list[Input], live_inputs: dict[str, Any]=None, curr_prefix: list[str] | None=None):
-    for i in inputs:
-        if isinstance(i, DynamicInput):
-            add_to_dict_v1(i, d, curr_prefix=curr_prefix)
-            if live_inputs is not None:
-                i.expand_schema_for_dynamic(d, live_inputs, curr_prefix)
-        else:
-            add_to_dict_v1(i, d, curr_prefix=curr_prefix)
-
-def add_to_dict_v1(i: Input, d: dict, dynamic_dict: dict=None, curr_prefix: list[str] | None=None):
+def add_to_dict_v1(i: Input, d: dict):
     key = "optional" if i.optional else "required"
     as_dict = i.as_dict()
     # for v1, we don't want to include the optional key
     as_dict.pop("optional", None)
-    if dynamic_dict is None:
-        value = (i.get_io_type(), as_dict)
-    else:
-        value = (i.get_io_type(), as_dict, dynamic_dict)
-    actual_id = finalize_prefix(curr_prefix, i.id)
-    d.setdefault(key, {})[actual_id] = value
+    d.setdefault(key, {})[i.id] = (i.get_io_type(), as_dict)
 
 def add_to_dict_v3(io: Input | Output, d: dict):
     d[io.id] = (io.get_io_type(), io.as_dict())
