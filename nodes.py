@@ -2384,7 +2384,6 @@ async def init_builtin_api_nodes():
         "nodes_recraft.py",
         "nodes_pixverse.py",
         "nodes_stability.py",
-        "nodes_pika.py",
         "nodes_runway.py",
         "nodes_sora.py",
         "nodes_topaz.py",
