@@ -4,15 +4,13 @@ import logging
 import time
 import uuid
 from io import BytesIO
-from typing import Optional
 from urllib.parse import urlparse
 
 import aiohttp
 import torch
 from pydantic import BaseModel, Field
 
-from comfy_api.latest import IO, Input
-from comfy_api.util import VideoCodec, VideoContainer
+from comfy_api.latest import IO, Input, Types
 
 from . import request_logger
 from ._helpers import is_processing_interrupted, sleep_with_interrupt
@@ -32,7 +30,7 @@ from .conversions import (
 
 class UploadRequest(BaseModel):
     file_name: str = Field(..., description="Filename to upload")
-    content_type: Optional[str] = Field(
+    content_type: str | None = Field(
         None,
         description="Mime type of the file. For example: image/png, image/jpeg, video/mp4, etc.",
     )
@@ -56,7 +54,7 @@ async def upload_images_to_comfyapi(
     Uploads images to ComfyUI API and returns download URLs.
     To upload multiple images, stack them in the batch dimension first.
     """
-    # if batch, try to upload each file if max_images is greater than 0
+    # if batched, try to upload each file if max_images is greater than 0
     download_urls: list[str] = []
     is_batch = len(image.shape) > 3
     batch_len = image.shape[0] if is_batch else 1
@@ -100,9 +98,10 @@ async def upload_video_to_comfyapi(
     cls: type[IO.ComfyNode],
     video: Input.Video,
     *,
-    container: VideoContainer = VideoContainer.MP4,
-    codec: VideoCodec = VideoCodec.H264,
-    max_duration: Optional[int] = None,
+    container: Types.VideoContainer = Types.VideoContainer.MP4,
+    codec: Types.VideoCodec = Types.VideoCodec.H264,
+    max_duration: int | None = None,
+    wait_label: str | None = "Uploading",
 ) -> str:
     """
     Uploads a single video to ComfyUI API and returns its download URL.
@@ -127,7 +126,7 @@ async def upload_video_to_comfyapi(
     video.save_to(video_bytes_io, format=container, codec=codec)
     video_bytes_io.seek(0)
 
-    return await upload_file_to_comfyapi(cls, video_bytes_io, filename, upload_mime_type)
+    return await upload_file_to_comfyapi(cls, video_bytes_io, filename, upload_mime_type, wait_label)
 
 
 async def upload_file_to_comfyapi(
@@ -219,7 +218,7 @@ async def upload_file(
                 return
 
         monitor_task = asyncio.create_task(_monitor())
-        sess: Optional[aiohttp.ClientSession] = None
+        sess: aiohttp.ClientSession | None = None
         try:
             try:
                 request_logger.log_request_response(

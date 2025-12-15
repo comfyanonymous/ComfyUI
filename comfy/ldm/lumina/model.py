@@ -22,6 +22,10 @@ def modulate(x, scale):
 #                               Core NextDiT Model                              #
 #############################################################################
 
+def clamp_fp16(x):
+    if x.dtype == torch.float16:
+        return torch.nan_to_num(x, nan=0.0, posinf=65504, neginf=-65504)
+    return x
 
 class JointAttention(nn.Module):
     """Multi-head attention module."""
@@ -169,7 +173,7 @@ class FeedForward(nn.Module):
 
     # @torch.compile
     def _forward_silu_gating(self, x1, x3):
-        return F.silu(x1) * x3
+        return clamp_fp16(F.silu(x1) * x3)
 
     def forward(self, x):
         return self.w2(self._forward_silu_gating(self.w1(x), self.w3(x)))
@@ -273,27 +277,27 @@ class JointTransformerBlock(nn.Module):
             scale_msa, gate_msa, scale_mlp, gate_mlp = self.adaLN_modulation(adaln_input).chunk(4, dim=1)
 
             x = x + gate_msa.unsqueeze(1).tanh() * self.attention_norm2(
-                self.attention(
+                clamp_fp16(self.attention(
                     modulate(self.attention_norm1(x), scale_msa),
                     x_mask,
                     freqs_cis,
                     transformer_options=transformer_options,
-                )
+                ))
             )
             x = x + gate_mlp.unsqueeze(1).tanh() * self.ffn_norm2(
-                self.feed_forward(
+                clamp_fp16(self.feed_forward(
                     modulate(self.ffn_norm1(x), scale_mlp),
-                )
+                ))
             )
         else:
             assert adaln_input is None
             x = x + self.attention_norm2(
-                self.attention(
+                clamp_fp16(self.attention(
                     self.attention_norm1(x),
                     x_mask,
                     freqs_cis,
                     transformer_options=transformer_options,
-                )
+                ))
             )
             x = x + self.ffn_norm2(
                 self.feed_forward(
@@ -373,6 +377,7 @@ class NextDiT(nn.Module):
         z_image_modulation=False,
         time_scale=1.0,
         pad_tokens_multiple=None,
+        clip_text_dim=None,
         image_model=None,
         device=None,
         dtype=None,
@@ -443,6 +448,31 @@ class NextDiT(nn.Module):
             ),
         )
 
+        self.clip_text_pooled_proj = None
+
+        if clip_text_dim is not None:
+            self.clip_text_dim = clip_text_dim
+            self.clip_text_pooled_proj = nn.Sequential(
+                operation_settings.get("operations").RMSNorm(clip_text_dim, eps=norm_eps, elementwise_affine=True, device=operation_settings.get("device"), dtype=operation_settings.get("dtype")),
+                operation_settings.get("operations").Linear(
+                    clip_text_dim,
+                    clip_text_dim,
+                    bias=True,
+                    device=operation_settings.get("device"),
+                    dtype=operation_settings.get("dtype"),
+                ),
+            )
+            self.time_text_embed = nn.Sequential(
+                nn.SiLU(),
+                operation_settings.get("operations").Linear(
+                    min(dim, 1024) + clip_text_dim,
+                    min(dim, 1024),
+                    bias=True,
+                    device=operation_settings.get("device"),
+                    dtype=operation_settings.get("dtype"),
+                ),
+            )
+
         self.layers = nn.ModuleList(
             [
                 JointTransformerBlock(
@@ -506,6 +536,7 @@ class NextDiT(nn.Module):
         bsz = len(x)
         pH = pW = self.patch_size
         device = x[0].device
+        orig_x = x
 
         if self.pad_tokens_multiple is not None:
             pad_extra = (-cap_feats.shape[1]) % self.pad_tokens_multiple
@@ -542,13 +573,21 @@ class NextDiT(nn.Module):
 
         freqs_cis = self.rope_embedder(torch.cat((cap_pos_ids, x_pos_ids), dim=1)).movedim(1, 2)
 
+        patches = transformer_options.get("patches", {})
+
         # refine context
         for layer in self.context_refiner:
             cap_feats = layer(cap_feats, cap_mask, freqs_cis[:, :cap_pos_ids.shape[1]], transformer_options=transformer_options)
 
         padded_img_mask = None
-        for layer in self.noise_refiner:
+        x_input = x
+        for i, layer in enumerate(self.noise_refiner):
             x = layer(x, padded_img_mask, freqs_cis[:, cap_pos_ids.shape[1]:], t, transformer_options=transformer_options)
+            if "noise_refiner" in patches:
+                for p in patches["noise_refiner"]:
+                    out = p({"img": x, "img_input": x_input, "txt": cap_feats, "pe": freqs_cis[:, cap_pos_ids.shape[1]:], "vec": t, "x": orig_x, "block_index": i, "transformer_options": transformer_options, "block_type": "noise_refiner"})
+                    if "img" in out:
+                        x = out["img"]
 
         padded_full_embed = torch.cat((cap_feats, x), dim=1)
         mask = None
@@ -564,7 +603,7 @@ class NextDiT(nn.Module):
         ).execute(x, timesteps, context, num_tokens, attention_mask, **kwargs)
 
     # def forward(self, x, t, cap_feats, cap_mask):
-    def _forward(self, x, timesteps, context, num_tokens, attention_mask=None, **kwargs):
+    def _forward(self, x, timesteps, context, num_tokens, attention_mask=None, transformer_options={}, **kwargs):
         t = 1.0 - timesteps
         cap_feats = context
         cap_mask = attention_mask
@@ -581,16 +620,33 @@ class NextDiT(nn.Module):
 
         cap_feats = self.cap_embedder(cap_feats)  # (N, L, D)  # todo check if able to batchify w.o. redundant compute
 
-        transformer_options = kwargs.get("transformer_options", {})
+        if self.clip_text_pooled_proj is not None:
+            pooled = kwargs.get("clip_text_pooled", None)
+            if pooled is not None:
+                pooled = self.clip_text_pooled_proj(pooled)
+            else:
+                pooled = torch.zeros((1, self.clip_text_dim), device=x.device, dtype=x.dtype)
+
+            adaln_input = self.time_text_embed(torch.cat((t, pooled), dim=-1))
+
+        patches = transformer_options.get("patches", {})
         x_is_tensor = isinstance(x, torch.Tensor)
-        x, mask, img_size, cap_size, freqs_cis = self.patchify_and_embed(x, cap_feats, cap_mask, t, num_tokens, transformer_options=transformer_options)
-        freqs_cis = freqs_cis.to(x.device)
+        img, mask, img_size, cap_size, freqs_cis = self.patchify_and_embed(x, cap_feats, cap_mask, adaln_input, num_tokens, transformer_options=transformer_options)
+        freqs_cis = freqs_cis.to(img.device)
 
-        for layer in self.layers:
-            x = layer(x, mask, freqs_cis, adaln_input, transformer_options=transformer_options)
+        img_input = img
+        for i, layer in enumerate(self.layers):
+            img = layer(img, mask, freqs_cis, adaln_input, transformer_options=transformer_options)
+            if "double_block" in patches:
+                for p in patches["double_block"]:
+                    out = p({"img": img[:, cap_size[0]:], "img_input": img_input[:, cap_size[0]:], "txt": img[:, :cap_size[0]], "pe": freqs_cis[:, cap_size[0]:], "vec": adaln_input, "x": x, "block_index": i, "transformer_options": transformer_options})
+                    if "img" in out:
+                        img[:, cap_size[0]:] = out["img"]
+                    if "txt" in out:
+                        img[:, :cap_size[0]] = out["txt"]
 
-        x = self.final_layer(x, adaln_input)
-        x = self.unpatchify(x, img_size, cap_size, return_tensor=x_is_tensor)[:,:,:h,:w]
+        img = self.final_layer(img, adaln_input)
+        img = self.unpatchify(img, img_size, cap_size, return_tensor=x_is_tensor)[:, :, :h, :w]
 
-        return -x
+        return -img
 

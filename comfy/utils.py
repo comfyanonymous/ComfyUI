@@ -29,6 +29,7 @@ import itertools
 from torch.nn.functional import interpolate
 from einops import rearrange
 from comfy.cli_args import args
+import json
 
 MMAP_TORCH_FILES = args.mmap_torch_files
 DISABLE_MMAP = args.disable_mmap
@@ -52,7 +53,7 @@ if hasattr(torch.serialization, "add_safe_globals"):  # TODO: this was added in 
     ALWAYS_SAFE_LOAD = True
     logging.info("Checkpoint files will always be loaded safely.")
 else:
-    logging.info("Warning, you are using an old pytorch version and some ckpt/pt files might be loaded unsafely. Upgrading to 2.4 or above is recommended.")
+    logging.warning("Warning, you are using an old pytorch version and some ckpt/pt files might be loaded unsafely. Upgrading to 2.4 or above is recommended as older versions of pytorch are no longer supported.")
 
 def load_torch_file(ckpt, safe_load=False, device=None, return_metadata=False):
     if device is None:
@@ -802,12 +803,17 @@ def safetensors_header(safetensors_path, max_size=100*1024*1024):
             return None
         return f.read(length_of_header)
 
+ATTR_UNSET={}
+
 def set_attr(obj, attr, value):
     attrs = attr.split(".")
     for name in attrs[:-1]:
         obj = getattr(obj, name)
-    prev = getattr(obj, attrs[-1])
-    setattr(obj, attrs[-1], value)
+    prev = getattr(obj, attrs[-1], ATTR_UNSET)
+    if value is ATTR_UNSET:
+        delattr(obj, attrs[-1])
+    else:
+        setattr(obj, attrs[-1], value)
     return prev
 
 def set_attr_param(obj, attr, value):
@@ -1194,3 +1200,68 @@ def unpack_latents(combined_latent, latent_shapes):
     else:
         output_tensors = combined_latent
     return output_tensors
+
+def detect_layer_quantization(state_dict, prefix):
+    for k in state_dict:
+        if k.startswith(prefix) and k.endswith(".comfy_quant"):
+            logging.info("Found quantization metadata version 1")
+            return {"mixed_ops": True}
+    return None
+
+def convert_old_quants(state_dict, model_prefix="", metadata={}):
+    if metadata is None:
+        metadata = {}
+
+    quant_metadata = None
+    if "_quantization_metadata" not in metadata:
+        scaled_fp8_key = "{}scaled_fp8".format(model_prefix)
+
+        if scaled_fp8_key in state_dict:
+            scaled_fp8_weight = state_dict[scaled_fp8_key]
+            scaled_fp8_dtype = scaled_fp8_weight.dtype
+            if scaled_fp8_dtype == torch.float32:
+                scaled_fp8_dtype = torch.float8_e4m3fn
+
+            if scaled_fp8_weight.nelement() == 2:
+                full_precision_matrix_mult = True
+            else:
+                full_precision_matrix_mult = False
+
+            out_sd = {}
+            layers = {}
+            for k in list(state_dict.keys()):
+                if not k.startswith(model_prefix):
+                    out_sd[k] = state_dict[k]
+                    continue
+                k_out = k
+                w = state_dict.pop(k)
+                layer = None
+                if k_out.endswith(".scale_weight"):
+                    layer = k_out[:-len(".scale_weight")]
+                    k_out = "{}.weight_scale".format(layer)
+
+                if layer is not None:
+                    layer_conf = {"format": "float8_e4m3fn"}  # TODO: check if anyone did some non e4m3fn scaled checkpoints
+                    if full_precision_matrix_mult:
+                        layer_conf["full_precision_matrix_mult"] = full_precision_matrix_mult
+                    layers[layer] = layer_conf
+
+                if k_out.endswith(".scale_input"):
+                    layer = k_out[:-len(".scale_input")]
+                    k_out = "{}.input_scale".format(layer)
+                    if w.item() == 1.0:
+                        continue
+
+                out_sd[k_out] = w
+
+            state_dict = out_sd
+            quant_metadata = {"layers": layers}
+    else:
+        quant_metadata = json.loads(metadata["_quantization_metadata"])
+
+    if quant_metadata is not None:
+        layers = quant_metadata["layers"]
+        for k, v in layers.items():
+            state_dict["{}.comfy_quant".format(k)] = torch.tensor(list(json.dumps(v).encode('utf-8')), dtype=torch.uint8)
+
+    return state_dict, metadata
