@@ -31,10 +31,20 @@ import os
 from functools import lru_cache
 
 @lru_cache(maxsize=1)
-def get_mmap_mem_threshold_gb():
-    mmap_mem_threshold_gb = int(os.environ.get("MMAP_MEM_THRESHOLD_GB", "0"))
-    logging.debug(f"MMAP_MEM_THRESHOLD_GB: {mmap_mem_threshold_gb}")
-    return mmap_mem_threshold_gb
+def get_offload_reserve_ram_gb():
+    offload_reserve_ram_gb = 0
+    try:
+        val = getattr(args, 'offload-reserve-ram-gb', None)
+    except Exception:
+        val = None
+
+    if val is not None:
+        try:
+            offload_reserve_ram_gb = int(val)
+        except Exception:
+            logging.warning(f"Invalid args.offload-reserve-ram-gb value: {val}, defaulting to 0")
+            offload_reserve_ram_gb= 0
+    return offload_reserve_ram_gb 
 
 def get_free_disk():
     return psutil.disk_usage("/").free
@@ -613,7 +623,7 @@ def free_memory(memory_required, device, keep_loaded=[]):
     can_unload = []
     unloaded_models = []
 
-    for i in range(len(current_loaded_models) -1, -1, -1):
+    for i in range(len(current_loaded_models) -1, -1):
         shift_model = current_loaded_models[i]
         if shift_model.device == device:
             if shift_model not in keep_loaded and not shift_model.is_dead():

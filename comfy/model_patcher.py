@@ -40,15 +40,19 @@ import comfy.patcher_extension
 import comfy.utils
 from comfy.comfy_types import UnetWrapperFunction
 from comfy.patcher_extension import CallbacksMP, PatcherInjection, WrappersMP
-from comfy.model_management import get_free_memory, get_mmap_mem_threshold_gb, get_free_disk
+from comfy.model_management import get_free_memory, get_offload_reserve_ram_gb, get_free_disk
 from comfy.quant_ops import QuantizedTensor
 
-def need_mmap() -> bool:
+def enable_offload_to_mmap() -> bool:
+    if comfy.utils.DISABLE_MMAP:
+        return False
+
     free_cpu_mem = get_free_memory(torch.device("cpu"))
-    mmap_mem_threshold_gb = get_mmap_mem_threshold_gb()
-    if free_cpu_mem < mmap_mem_threshold_gb * 1024 * 1024 * 1024:
-        logging.debug(f"Enabling mmap, current free cpu memory {free_cpu_mem/(1024*1024*1024)} GB < {mmap_mem_threshold_gb} GB")
+    offload_reserve_ram_gb = get_offload_reserve_ram_gb()
+    if free_cpu_mem <= offload_reserve_ram_gb * 1024 * 1024 * 1024:
+        logging.debug(f"Enabling offload to mmap, current free cpu memory {free_cpu_mem/(1024*1024*1024)} GB < {offload_reserve_ram_gb} GB")
         return True
+
     return False
 
 def to_mmap(t: torch.Tensor, filename: Optional[str] = None) -> torch.Tensor:
@@ -917,7 +921,7 @@ class ModelPatcher:
 
                 
             if device_to is not None:
-                if need_mmap():
+                if enable_offload_to_mmap():
                     # offload to mmap
                     model_to_mmap(self.model)
                 else:
@@ -982,7 +986,7 @@ class ModelPatcher:
                     bias_key = "{}.bias".format(n)
                     if move_weight:
                         cast_weight = self.force_cast_weights
-                        if need_mmap():
+                        if enable_offload_to_mmap():
                             if get_free_disk() < module_mem:
                                 logging.warning(f"Not enough disk space to offload {n} to mmap, current free disk space {get_free_disk()/(1024*1024*1024)} GB < {module_mem/(1024*1024*1024)} GB")
                                 break
