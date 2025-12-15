@@ -307,7 +307,8 @@ class BaseModel(torch.nn.Module):
         to_load = self.model_config.process_unet_state_dict(to_load)
         # assign=True will reuse the tensor storage in state dict, this will avoid copy and saving CPU memory
         # when loading large models with mmap. 
-        m, u = self.diffusion_model.load_state_dict(to_load, strict=False, assign=True)
+        delay_copy_with_assign = utils.MMAP_TORCH_FILES or not utils.DISABLE_MMAP
+        m, u = self.diffusion_model.load_state_dict(to_load, strict=False, assign=delay_copy_with_assign)
         if len(m) > 0:
             logging.warning("unet missing: {}".format(m))
 
