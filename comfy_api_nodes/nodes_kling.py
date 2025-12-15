@@ -105,10 +105,6 @@ AVERAGE_DURATION_VIDEO_EXTEND = 320
 
 
 MODE_TEXT2VIDEO = {
-    "standard mode / 5s duration / kling-v1": ("std", "5", "kling-v1"),
-    "standard mode / 10s duration / kling-v1": ("std", "10", "kling-v1"),
-    "pro mode / 5s duration / kling-v1": ("pro", "5", "kling-v1"),
-    "pro mode / 10s duration / kling-v1": ("pro", "10", "kling-v1"),
     "standard mode / 5s duration / kling-v1-6": ("std", "5", "kling-v1-6"),
     "standard mode / 10s duration / kling-v1-6": ("std", "10", "kling-v1-6"),
     "pro mode / 5s duration / kling-v2-master": ("pro", "5", "kling-v2-master"),
@@ -129,8 +125,6 @@ See: [Kling API Docs Capability Map](https://app.klingai.com/global/dev/document
 
 
 MODE_START_END_FRAME = {
-    "standard mode / 5s duration / kling-v1": ("std", "5", "kling-v1"),
-    "pro mode / 5s duration / kling-v1": ("pro", "5", "kling-v1"),
     "pro mode / 5s duration / kling-v1-5": ("pro", "5", "kling-v1-5"),
     "pro mode / 10s duration / kling-v1-5": ("pro", "10", "kling-v1-5"),
     "pro mode / 5s duration / kling-v1-6": ("pro", "5", "kling-v1-6"),
@@ -754,7 +748,7 @@ class KlingTextToVideoNode(IO.ComfyNode):
                 IO.Combo.Input(
                     "mode",
                     options=modes,
-                    default=modes[4],
+                    default=modes[8],
                     tooltip="The configuration to use for the video generation following the format: mode / duration / model_name.",
                 ),
             ],
@@ -1489,7 +1483,7 @@ class KlingStartEndFrameNode(IO.ComfyNode):
                 IO.Combo.Input(
                     "mode",
                     options=modes,
-                    default=modes[8],
+                    default=modes[6],
                     tooltip="The configuration to use for the video generation following the format: mode / duration / model_name.",
                 ),
             ],
@@ -1952,7 +1946,7 @@ class KlingImageGenerationNode(IO.ComfyNode):
                 IO.Combo.Input(
                     "model_name",
                     options=[i.value for i in KlingImageGenModelName],
-                    default="kling-v1",
+                    default="kling-v2",
                 ),
                 IO.Combo.Input(
                     "aspect_ratio",
