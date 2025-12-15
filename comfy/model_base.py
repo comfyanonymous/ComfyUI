@@ -1484,6 +1484,19 @@ class QwenImage(BaseModel):
             ref_latents_method = kwargs.get("reference_latents_method", None)
             if ref_latents_method is not None:
                 out['ref_latents_method'] = comfy.conds.CONDConstant(ref_latents_method)
+
+        # Handle EliGen entity data
+        entity_prompt_emb = kwargs.get("entity_prompt_emb", None)
+        if entity_prompt_emb is not None:
+            out['entity_prompt_emb'] = comfy.conds.CONDList(entity_prompt_emb)
+
+        entity_prompt_emb_mask = kwargs.get("entity_prompt_emb_mask", None)
+        if entity_prompt_emb_mask is not None:
+            out['entity_prompt_emb_mask'] = comfy.conds.CONDList(entity_prompt_emb_mask)
+
+        entity_masks = kwargs.get("entity_masks", None)
+        if entity_masks is not None:
+            out['entity_masks'] = comfy.conds.CONDRegular(entity_masks)
         return out
 
     def extra_conds_shapes(self, **kwargs):
