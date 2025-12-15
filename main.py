@@ -138,6 +138,9 @@ import threading
 import gc
 
 
+import faulthandler, signal
+faulthandler.register(signal.SIGUSR1)
+
 if os.name == "nt":
     os.environ['MIMALLOC_PURGE_DELAY'] = '0'
 
