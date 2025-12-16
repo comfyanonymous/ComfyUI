@@ -248,7 +248,10 @@ class ModelPatchLoader:
                 config['n_control_layers'] = 15
                 config['additional_in_dim'] = 17
                 config['refiner_control'] = True
-                config['broken'] = True
+                ref_weight = sd.get("control_noise_refiner.0.after_proj.weight", None)
+                if ref_weight is not None:
+                    if torch.count_nonzero(ref_weight) == 0:
+                        config['broken'] = True
             model = comfy.ldm.lumina.controlnet.ZImage_Control(device=comfy.model_management.unet_offload_device(), dtype=dtype, operations=comfy.ops.manual_cast, **config)
 
         model.load_state_dict(sd)
