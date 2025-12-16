@@ -7,19 +7,18 @@ from torch.nn.attention.flex_attention import BlockMask, flex_attention
 
 def fractal_flatten(x, rope, shape):
     pixel_size = 8
-    x = local_patching(x, shape, (1, pixel_size, pixel_size), dim=0)
-    rope = local_patching(rope, shape, (1, pixel_size, pixel_size), dim=0)
-    x = x.flatten(0, 1)
-    rope = rope.flatten(0, 1)
+    x = local_patching(x, shape, (1, pixel_size, pixel_size), dim=1)
+    rope = local_patching(rope, shape, (1, pixel_size, pixel_size), dim=1)
+    x = x.flatten(1, 2)
+    rope = rope.flatten(1, 2)
     return x, rope
 
 
 def fractal_unflatten(x, shape):
     pixel_size = 8
-    x = x.reshape(-1, pixel_size**2, x.shape[-1])
-    x = local_merge(x, shape, (1, pixel_size, pixel_size), dim=0)
+    x = x.reshape(x.shape[0], -1, pixel_size**2, x.shape[-1])
+    x = local_merge(x, shape, (1, pixel_size, pixel_size), dim=1)
     return x
-
 
 def local_patching(x, shape, group_size, dim=0):
     duration, height, width = shape

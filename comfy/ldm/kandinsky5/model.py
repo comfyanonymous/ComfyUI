@@ -387,13 +387,12 @@ class Kandinsky5(nn.Module):
         transformer_options["block_type"] = "double"
 
         B, _, T, H, W = x.shape
-        if T > 30: # 10 sec generation
+        NABLA_THR = 40 # long (10 sec) generation
+        if T > NABLA_THR:
             assert self.patch_size[0] == 1
 
-            freqs = freqs.view(freqs.shape[0], *visual_shape[1:], *freqs.shape[2:])[0]
-            visual_embed_4d, freqs = fractal_flatten(visual_embed[0], freqs, visual_shape[1:])
-            visual_embed, freqs = visual_embed_4d.unsqueeze(0), freqs.unsqueeze(0)
-
+            freqs = freqs.view(freqs.shape[0], *visual_shape[1:], *freqs.shape[2:])
+            visual_embed, freqs = fractal_flatten(visual_embed, freqs, visual_shape[1:])
             pt, ph, pw = self.patch_size
             T, H, W = T // pt, H // ph, W // pw
 
@@ -447,11 +446,11 @@ class Kandinsky5(nn.Module):
                     transformer_options=transformer_options,
                 )
 
-        if T > 30:
+        if T > NABLA_THR:
             visual_embed = fractal_unflatten(
-                visual_embed[0],
+                visual_embed,
                 visual_shape[1:],
-            ).unsqueeze(0)
+            )
         else:
             visual_embed = visual_embed.reshape(*visual_shape, -1)
 
