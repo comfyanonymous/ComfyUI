@@ -497,15 +497,14 @@ def mixed_precision_ops(quant_config={}, compute_dtype=torch.bfloat16, full_prec
             ) -> None:
                 super().__init__()
 
-                self.factory_kwargs = {"device": device, "dtype": MixedPrecisionOps._compute_dtype}
-                # self.factory_kwargs = {"device": device, "dtype": dtype}
+                if dtype is None:
+                    dtype = MixedPrecisionOps._compute_dtype
+
+                self.factory_kwargs = {"device": device, "dtype": dtype}
 
                 self.in_features = in_features
                 self.out_features = out_features
-                if bias:
-                    self.bias = torch.nn.Parameter(torch.empty(out_features, **self.factory_kwargs))
-                else:
-                    self.register_parameter("bias", None)
+                self._has_bias = bias
 
                 self.tensor_class = None
                 self._full_precision_mm = MixedPrecisionOps._full_precision_mm
@@ -530,7 +529,14 @@ def mixed_precision_ops(quant_config={}, compute_dtype=torch.bfloat16, full_prec
                     layer_conf = json.loads(layer_conf.numpy().tobytes())
 
                 if layer_conf is None:
-                    self.weight = torch.nn.Parameter(weight.to(device=device, dtype=MixedPrecisionOps._compute_dtype), requires_grad=False)
+                    dtype = self.factory_kwargs["dtype"]
+                    self.weight = torch.nn.Parameter(weight.to(device=device, dtype=dtype), requires_grad=False)
+                    if dtype != MixedPrecisionOps._compute_dtype:
+                        self.comfy_cast_weights = True
+                    if self._has_bias:
+                        self.bias = torch.nn.Parameter(torch.empty(self.out_features, device=device, dtype=dtype))
+                    else:
+                        self.register_parameter("bias", None)
                 else:
                     self.quant_format = layer_conf.get("format", None)
                     if not self._full_precision_mm:
@@ -560,6 +566,11 @@ def mixed_precision_ops(quant_config={}, compute_dtype=torch.bfloat16, full_prec
                         requires_grad=False
                     )
 
+                    if self._has_bias:
+                        self.bias = torch.nn.Parameter(torch.empty(self.out_features, device=device, dtype=MixedPrecisionOps._compute_dtype))
+                    else:
+                        self.register_parameter("bias", None)
+
                     for param_name in qconfig["parameters"]:
                         param_key = f"{prefix}{param_name}"
                         _v = state_dict.pop(param_key, None)
@@ -581,7 +592,7 @@ def mixed_precision_ops(quant_config={}, compute_dtype=torch.bfloat16, full_prec
                     quant_conf = {"format": self.quant_format}
                     if self._full_precision_mm:
                         quant_conf["full_precision_matrix_mult"] = True
-                    sd["{}comfy_quant".format(prefix)] = torch.frombuffer(json.dumps(quant_conf).encode('utf-8'), dtype=torch.uint8)
+                    sd["{}comfy_quant".format(prefix)] = torch.tensor(list(json.dumps(quant_conf).encode('utf-8')), dtype=torch.uint8)
                 return sd
 
             def _forward(self, input, weight, bias):
