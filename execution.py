@@ -760,7 +760,7 @@ async def validate_inputs(prompt_id, prompt, item, validated):
     if issubclass(obj_class, _ComfyNodeInternal):
         obj_class: _io._ComfyNodeBaseInternal
         class_inputs = obj_class.INPUT_TYPES()
-        class_inputs, _, _ = _io.get_finalized_class_inputs(class_inputs, inputs)
+        class_inputs, _, v3_data = _io.get_finalized_class_inputs(class_inputs, inputs)
         validate_function_name = "validate_inputs"
         validate_function = first_real_override(obj_class, validate_function_name)
     else:
@@ -780,10 +780,11 @@ async def validate_inputs(prompt_id, prompt, item, validated):
         assert extra_info is not None
         if x not in inputs:
             if input_category == "required":
+                details = f"{x}" if not v3_data else x.split(".")[-1]
                 error = {
                     "type": "required_input_missing",
                     "message": "Required input is missing",
-                    "details": f"{x}",
+                    "details": details,
                     "extra_info": {
                         "input_name": x
                     }
