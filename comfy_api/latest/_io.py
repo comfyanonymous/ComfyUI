@@ -1100,6 +1100,18 @@ class DynamicSlot(ComfyTypeI):
             for input in self.inputs:
                 input.validate()
 
+@comfytype(io_type="IMAGECOMPARE")
+class ImageCompare(ComfyTypeI):
+  Type = dict
+
+  class Input(WidgetInput):
+      def __init__(self, id: str, display_name: str=None, optional=False, tooltip: str=None,
+                   socketless: bool=True):
+          super().__init__(id, display_name, optional, tooltip, None, None, socketless)
+
+      def as_dict(self):
+          return super().as_dict()
+
 def add_dynamic_id_mapping(d: dict[str, Any], inputs: list[Input], curr_prefix: str, self: DynamicInput=None):
     dynamic = d.setdefault("dynamic_paths", {})
     if self is not None:
@@ -1917,4 +1929,5 @@ __all__ = [
     "add_to_dict_v1",
     "add_to_dict_v3",
     "V3Data",
+    "ImageCompare",
 ]
