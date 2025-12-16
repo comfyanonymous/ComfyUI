@@ -70,6 +70,7 @@ See what ComfyUI can do with the [example workflows](https://comfyanonymous.gith
    - [Flux 2](https://comfyanonymous.github.io/ComfyUI_examples/flux2/)
    - [Z Image](https://comfyanonymous.github.io/ComfyUI_examples/z_image/)
    - [Chroma](https://comfyanonymous.github.io/ComfyUI_examples/chroma/)
+   - [Ovis Image](https://docs.comfy.org/tutorials/image/ovis/ovis-image)
 - Image Editing Models
    - [Omnigen 2](https://comfyanonymous.github.io/ComfyUI_examples/omnigen/)
    - [Flux Kontext](https://comfyanonymous.github.io/ComfyUI_examples/flux/#flux-kontext-image-editing-model)
