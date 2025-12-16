@@ -259,7 +259,7 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
                 dit_config["nerf_tile_size"] = 512
                 dit_config["nerf_final_head_type"] = "conv" if f"{key_prefix}nerf_final_layer_conv.norm.scale" in state_dict_keys else "linear"
                 dit_config["nerf_embedder_dtype"] = torch.float32
-                if "__x0__" in state_dict_keys: # x0 pred
+                if "{}__x0__".format(key_prefix) in state_dict_keys: # x0 pred
                     dit_config["use_x0"] = True
                 else:
                     dit_config["use_x0"] = False
@@ -618,6 +618,8 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
         dit_config["image_model"] = "qwen_image"
         dit_config["in_channels"] = state_dict['{}img_in.weight'.format(key_prefix)].shape[1]
         dit_config["num_layers"] = count_blocks(state_dict_keys, '{}transformer_blocks.'.format(key_prefix) + '{}.')
+        if "{}__index_timestep_zero__".format(key_prefix) in state_dict_keys:  # 2511
+            dit_config["default_ref_method"] = "index_timestep_zero"
         return dit_config
 
     if '{}visual_transformer_blocks.0.cross_attention.key_norm.weight'.format(key_prefix) in state_dict_keys: # Kandinsky 5
