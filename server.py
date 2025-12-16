@@ -2,6 +2,7 @@ import os
 import sys
 import asyncio
 import traceback
+import time
 
 import nodes
 import folder_paths
@@ -26,20 +27,25 @@ import mimetypes
 from comfy.cli_args import args
 import comfy.utils
 import comfy.model_management
+from comfy_api import feature_flags
 import node_helpers
 from comfyui_version import __version__
-from app.frontend_management import FrontendManager
+from app.frontend_management import FrontendManager, parse_version
+from comfy_api.internal import _ComfyNodeInternal
 
 from app.user_manager import UserManager
 from app.model_manager import ModelFileManager
 from app.custom_node_manager import CustomNodeManager
+from app.subgraph_manager import SubgraphManager
 from typing import Optional, Union
 from api_server.routes.internal.internal_routes import InternalRoutes
+from protocol import BinaryEventTypes
 
-class BinaryEventTypes:
-    PREVIEW_IMAGE = 1
-    UNENCODED_PREVIEW_IMAGE = 2
-    TEXT = 3
+# Import cache control middleware
+from middleware.cache_middleware import cache_control
+
+if args.enable_manager:
+    import comfyui_manager
 
 async def send_socket_catch_exception(function, message):
     try:
@@ -47,11 +53,25 @@ async def send_socket_catch_exception(function, message):
     except (aiohttp.ClientError, aiohttp.ClientPayloadError, ConnectionResetError, BrokenPipeError, ConnectionError) as err:
         logging.warning("send error: {}".format(err))
 
+# Track deprecated paths that have been warned about to only warn once per file
+_deprecated_paths_warned = set()
+
 @web.middleware
-async def cache_control(request: web.Request, handler):
+async def deprecation_warning(request: web.Request, handler):
+    """Middleware to warn about deprecated frontend API paths"""
+    path = request.path
+
+    if path.startswith("/scripts/ui") or path.startswith("/extensions/core/"):
+        # Only warn once per unique file path
+        if path not in _deprecated_paths_warned:
+            _deprecated_paths_warned.add(path)
+            logging.warning(
+                f"[DEPRECATION WARNING] Detected import of deprecated legacy API: {path}. "
+                f"This is likely caused by a custom node extension using outdated APIs. "
+                f"Please update your extensions or contact the extension author for an updated version."
+            )
+
     response: web.Response = await handler(request)
-    if request.path.endswith('.js') or request.path.endswith('.css') or request.path.endswith('index.json'):
-        response.headers.setdefault('Cache-Control', 'no-cache')
     return response
 
 
@@ -78,7 +98,7 @@ def create_cors_middleware(allowed_origin: str):
             response = await handler(request)
 
         response.headers['Access-Control-Allow-Origin'] = allowed_origin
-        response.headers['Access-Control-Allow-Methods'] = 'POST, GET, DELETE, PUT, OPTIONS'
+        response.headers['Access-Control-Allow-Methods'] = 'POST, GET, DELETE, PUT, OPTIONS, PATCH'
         response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization'
         response.headers['Access-Control-Allow-Credentials'] = 'true'
         return response
@@ -147,6 +167,22 @@ def create_origin_only_middleware():
 
     return origin_only_middleware
 
+
+def create_block_external_middleware():
+    @web.middleware
+    async def block_external_middleware(request: web.Request, handler):
+        if request.method == "OPTIONS":
+            # Pre-flight request. Reply successfully:
+            response = web.Response()
+        else:
+            response = await handler(request)
+
+        response.headers['Content-Security-Policy'] = "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; frame-src 'self'; object-src 'self';"
+        return response
+
+    return block_external_middleware
+
+
 class PromptServer():
     def __init__(self, loop):
         PromptServer.instance = self
@@ -158,6 +194,7 @@ class PromptServer():
         self.user_manager = UserManager()
         self.model_file_manager = ModelFileManager()
         self.custom_node_manager = CustomNodeManager()
+        self.subgraph_manager = SubgraphManager()
         self.internal_routes = InternalRoutes(self)
         self.supports = ["custom_nodes_from_web"]
         self.prompt_queue = execution.PromptQueue(self)
@@ -166,7 +203,7 @@ class PromptServer():
         self.client_session:Optional[aiohttp.ClientSession] = None
         self.number = 0
 
-        middlewares = [cache_control]
+        middlewares = [cache_control, deprecation_warning]
         if args.enable_compress_response_body:
             middlewares.append(compress_body)
 
@@ -175,9 +212,16 @@ class PromptServer():
         else:
             middlewares.append(create_origin_only_middleware())
 
+        if args.disable_api_nodes:
+            middlewares.append(create_block_external_middleware())
+
+        if args.enable_manager:
+            middlewares.append(comfyui_manager.create_middleware())
+
         max_upload_size = round(args.max_upload_size * 1024 * 1024)
         self.app = web.Application(client_max_size=max_upload_size, middlewares=middlewares)
         self.sockets = dict()
+        self.sockets_metadata = dict()
         self.web_root = (
             FrontendManager.init_frontend(args.front_end_version)
             if args.front_end_root is None
@@ -202,20 +246,53 @@ class PromptServer():
             else:
                 sid = uuid.uuid4().hex
 
+            # Store WebSocket for backward compatibility
             self.sockets[sid] = ws
+            # Store metadata separately
+            self.sockets_metadata[sid] = {"feature_flags": {}}
 
             try:
                 # Send initial state to the new client
-                await self.send("status", { "status": self.get_queue_info(), 'sid': sid }, sid)
+                await self.send("status", {"status": self.get_queue_info(), "sid": sid}, sid)
                 # On reconnect if we are the currently executing client send the current node
                 if self.client_id == sid and self.last_node_id is not None:
                     await self.send("executing", { "node": self.last_node_id }, sid)
 
+                # Flag to track if we've received the first message
+                first_message = True
+
                 async for msg in ws:
                     if msg.type == aiohttp.WSMsgType.ERROR:
                         logging.warning('ws connection closed with exception %s' % ws.exception())
+                    elif msg.type == aiohttp.WSMsgType.TEXT:
+                        try:
+                            data = json.loads(msg.data)
+                            # Check if first message is feature flags
+                            if first_message and data.get("type") == "feature_flags":
+                                # Store client feature flags
+                                client_flags = data.get("data", {})
+                                self.sockets_metadata[sid]["feature_flags"] = client_flags
+
+                                # Send server feature flags in response
+                                await self.send(
+                                    "feature_flags",
+                                    feature_flags.get_server_features(),
+                                    sid,
+                                )
+
+                                logging.debug(
+                                    f"Feature flags negotiated for client {sid}: {client_flags}"
+                                )
+                            first_message = False
+                        except json.JSONDecodeError:
+                            logging.warning(
+                                f"Invalid JSON received from client {sid}: {msg.data}"
+                            )
+                        except Exception as e:
+                            logging.error(f"Error processing WebSocket message: {e}")
             finally:
                 self.sockets.pop(sid, None)
+                self.sockets_metadata.pop(sid, None)
             return ws
 
         @routes.get("/")
@@ -522,13 +599,19 @@ class PromptServer():
             ram_free = comfy.model_management.get_free_memory(cpu_device)
             vram_total, torch_vram_total = comfy.model_management.get_total_memory(device, torch_total_too=True)
             vram_free, torch_vram_free = comfy.model_management.get_free_memory(device, torch_free_too=True)
+            required_frontend_version = FrontendManager.get_required_frontend_version()
+            installed_templates_version = FrontendManager.get_installed_templates_version()
+            required_templates_version = FrontendManager.get_required_templates_version()
 
             system_stats = {
                 "system": {
-                    "os": os.name,
+                    "os": sys.platform,
                     "ram_total": ram_total,
                     "ram_free": ram_free,
                     "comfyui_version": __version__,
+                    "required_frontend_version": required_frontend_version,
+                    "installed_templates_version": installed_templates_version,
+                    "required_templates_version": required_templates_version,
                     "python_version": sys.version,
                     "pytorch_version": comfy.model_management.torch_version,
                     "embedded_python": os.path.split(os.path.split(sys.executable)[0])[1] == "python_embeded",
@@ -548,12 +631,18 @@ class PromptServer():
             }
             return web.json_response(system_stats)
 
+        @routes.get("/features")
+        async def get_features(request):
+            return web.json_response(feature_flags.get_server_features())
+
         @routes.get("/prompt")
         async def get_prompt(request):
             return web.json_response(self.get_queue_info())
 
         def node_info(node_class):
             obj_class = nodes.NODE_CLASS_MAPPINGS[node_class]
+            if issubclass(obj_class, _ComfyNodeInternal):
+                return obj_class.GET_NODE_INFO_V1()
             info = {}
             info['input'] = obj_class.INPUT_TYPES()
             info['input_order'] = {key: list(value.keys()) for (key, value) in obj_class.INPUT_TYPES().items()}
@@ -610,7 +699,14 @@ class PromptServer():
             max_items = request.rel_url.query.get("max_items", None)
             if max_items is not None:
                 max_items = int(max_items)
-            return web.json_response(self.prompt_queue.get_history(max_items=max_items))
+
+            offset = request.rel_url.query.get("offset", None)
+            if offset is not None:
+                offset = int(offset)
+            else:
+                offset = -1
+
+            return web.json_response(self.prompt_queue.get_history(max_items=max_items, offset=offset))
 
         @routes.get("/history/{prompt_id}")
         async def get_history_prompt_id(request):
@@ -621,8 +717,9 @@ class PromptServer():
         async def get_queue(request):
             queue_info = {}
             current_queue = self.prompt_queue.get_current_queue_volatile()
-            queue_info['queue_running'] = current_queue[0]
-            queue_info['queue_pending'] = current_queue[1]
+            remove_sensitive = lambda queue: [x[:5] for x in queue]
+            queue_info['queue_running'] = remove_sensitive(current_queue[0])
+            queue_info['queue_pending'] = remove_sensitive(current_queue[1])
             return web.json_response(queue_info)
 
         @routes.post("/prompt")
@@ -643,7 +740,13 @@ class PromptServer():
 
             if "prompt" in json_data:
                 prompt = json_data["prompt"]
-                valid = execution.validate_prompt(prompt)
+                prompt_id = str(json_data.get("prompt_id", uuid.uuid4()))
+
+                partial_execution_targets = None
+                if "partial_execution_targets" in json_data:
+                    partial_execution_targets = json_data["partial_execution_targets"]
+
+                valid = await execution.validate_prompt(prompt_id, prompt, partial_execution_targets)
                 extra_data = {}
                 if "extra_data" in json_data:
                     extra_data = json_data["extra_data"]
@@ -651,9 +754,13 @@ class PromptServer():
                 if "client_id" in json_data:
                     extra_data["client_id"] = json_data["client_id"]
                 if valid[0]:
-                    prompt_id = str(uuid.uuid4())
                     outputs_to_execute = valid[2]
-                    self.prompt_queue.put((number, prompt_id, prompt, extra_data, outputs_to_execute))
+                    sensitive = {}
+                    for sensitive_val in execution.SENSITIVE_EXTRA_DATA_KEYS:
+                        if sensitive_val in extra_data:
+                            sensitive[sensitive_val] = extra_data.pop(sensitive_val)
+                    extra_data["create_time"] = int(time.time() * 1000)  # timestamp in milliseconds
+                    self.prompt_queue.put((number, prompt_id, prompt, extra_data, outputs_to_execute, sensitive))
                     response = {"prompt_id": prompt_id, "number": number, "node_errors": valid[3]}
                     return web.json_response(response)
                 else:
@@ -684,7 +791,34 @@ class PromptServer():
 
         @routes.post("/interrupt")
         async def post_interrupt(request):
-            nodes.interrupt_processing()
+            try:
+                json_data = await request.json()
+            except json.JSONDecodeError:
+                json_data = {}
+
+            # Check if a specific prompt_id was provided for targeted interruption
+            prompt_id = json_data.get('prompt_id')
+            if prompt_id:
+                currently_running, _ = self.prompt_queue.get_current_queue()
+
+                # Check if the prompt_id matches any currently running prompt
+                should_interrupt = False
+                for item in currently_running:
+                    # item structure: (number, prompt_id, prompt, extra_data, outputs_to_execute)
+                    if item[1] == prompt_id:
+                        logging.info(f"Interrupting prompt {prompt_id}")
+                        should_interrupt = True
+                        break
+
+                if should_interrupt:
+                    nodes.interrupt_processing()
+                else:
+                    logging.info(f"Prompt {prompt_id} is not currently running, skipping interrupt")
+            else:
+                # No prompt_id provided, do a global interrupt
+                logging.info("Global interrupt (no prompt_id specified)")
+                nodes.interrupt_processing()
+
             return web.Response(status=200)
 
         @routes.post("/free")
@@ -719,6 +853,7 @@ class PromptServer():
         self.user_manager.add_routes(self.routes)
         self.model_file_manager.add_routes(self.routes)
         self.custom_node_manager.add_routes(self.routes, self.app, nodes.LOADED_MODULE_DIRS.items())
+        self.subgraph_manager.add_routes(self.routes, nodes.LOADED_MODULE_DIRS.items())
         self.app.add_subapp('/internal', self.internal_routes.get_app())
 
         # Prefix every route with /api for easier matching for delegation.
@@ -739,11 +874,31 @@ class PromptServer():
         for name, dir in nodes.EXTENSION_WEB_DIRS.items():
             self.app.add_routes([web.static('/extensions/' + name, dir)])
 
-        workflow_templates_path = FrontendManager.templates_path()
-        if workflow_templates_path:
-            self.app.add_routes([
-                web.static('/templates', workflow_templates_path)
-            ])
+        installed_templates_version = FrontendManager.get_installed_templates_version()
+        use_legacy_templates = True
+        if installed_templates_version:
+            try:
+                use_legacy_templates = (
+                    parse_version(installed_templates_version)
+                    < parse_version("0.3.0")
+                )
+            except Exception as exc:
+                logging.warning(
+                    "Unable to parse templates version '%s': %s",
+                    installed_templates_version,
+                    exc,
+                )
+
+        if use_legacy_templates:
+            workflow_templates_path = FrontendManager.legacy_templates_path()
+            if workflow_templates_path:
+                self.app.add_routes([
+                    web.static('/templates', workflow_templates_path)
+                ])
+        else:
+            handler = FrontendManager.template_asset_handler()
+            if handler:
+                self.app.router.add_get("/templates/{path:.*}", handler)
 
         # Serve embedded documentation from the package
         embedded_docs_path = FrontendManager.embedded_docs_path()
@@ -766,6 +921,10 @@ class PromptServer():
     async def send(self, event, data, sid=None):
         if event == BinaryEventTypes.UNENCODED_PREVIEW_IMAGE:
             await self.send_image(data, sid=sid)
+        elif event == BinaryEventTypes.PREVIEW_IMAGE_WITH_METADATA:
+            # data is (preview_image, metadata)
+            preview_image, metadata = data
+            await self.send_image_with_metadata(preview_image, metadata, sid=sid)
         elif isinstance(data, (bytes, bytearray)):
             await self.send_bytes(event, data, sid)
         else:
@@ -803,6 +962,43 @@ class PromptServer():
         image.save(bytesIO, format=image_type, quality=95, compress_level=1)
         preview_bytes = bytesIO.getvalue()
         await self.send_bytes(BinaryEventTypes.PREVIEW_IMAGE, preview_bytes, sid=sid)
+
+    async def send_image_with_metadata(self, image_data, metadata=None, sid=None):
+        image_type = image_data[0]
+        image = image_data[1]
+        max_size = image_data[2]
+        if max_size is not None:
+            if hasattr(Image, 'Resampling'):
+                resampling = Image.Resampling.BILINEAR
+            else:
+                resampling = Image.Resampling.LANCZOS
+
+            image = ImageOps.contain(image, (max_size, max_size), resampling)
+
+        mimetype = "image/png" if image_type == "PNG" else "image/jpeg"
+
+        # Prepare metadata
+        if metadata is None:
+            metadata = {}
+        metadata["image_type"] = mimetype
+
+        # Serialize metadata as JSON
+        import json
+        metadata_json = json.dumps(metadata).encode('utf-8')
+        metadata_length = len(metadata_json)
+
+        # Prepare image data
+        bytesIO = BytesIO()
+        image.save(bytesIO, format=image_type, quality=95, compress_level=1)
+        image_bytes = bytesIO.getvalue()
+
+        # Combine metadata and image
+        combined_data = bytearray()
+        combined_data.extend(struct.pack(">I", metadata_length))
+        combined_data.extend(metadata_json)
+        combined_data.extend(image_bytes)
+
+        await self.send_bytes(BinaryEventTypes.PREVIEW_IMAGE_WITH_METADATA, combined_data, sid=sid)
 
     async def send_bytes(self, event, data, sid=None):
         message = self.encode_bytes(event, data)
@@ -845,10 +1041,10 @@ class PromptServer():
         ssl_ctx = None
         scheme = "http"
         if args.tls_keyfile and args.tls_certfile:
-                ssl_ctx = ssl.SSLContext(protocol=ssl.PROTOCOL_TLS_SERVER, verify_mode=ssl.CERT_NONE)
-                ssl_ctx.load_cert_chain(certfile=args.tls_certfile,
+            ssl_ctx = ssl.SSLContext(protocol=ssl.PROTOCOL_TLS_SERVER, verify_mode=ssl.CERT_NONE)
+            ssl_ctx.load_cert_chain(certfile=args.tls_certfile,
                                 keyfile=args.tls_keyfile)
-                scheme = "https"
+            scheme = "https"
 
         if verbose:
             logging.info("Starting server\n")

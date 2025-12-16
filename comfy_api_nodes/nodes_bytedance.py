@@ -1,0 +1,963 @@
+import logging
+import math
+
+import torch
+from typing_extensions import override
+
+from comfy_api.latest import IO, ComfyExtension, Input
+from comfy_api_nodes.apis.bytedance_api import (
+    RECOMMENDED_PRESETS,
+    RECOMMENDED_PRESETS_SEEDREAM_4,
+    VIDEO_TASKS_EXECUTION_TIME,
+    Image2ImageTaskCreationRequest,
+    Image2VideoTaskCreationRequest,
+    ImageTaskCreationResponse,
+    Seedream4Options,
+    Seedream4TaskCreationRequest,
+    TaskCreationResponse,
+    TaskImageContent,
+    TaskImageContentUrl,
+    TaskStatusResponse,
+    TaskTextContent,
+    Text2ImageTaskCreationRequest,
+    Text2VideoTaskCreationRequest,
+)
+from comfy_api_nodes.util import (
+    ApiEndpoint,
+    download_url_to_image_tensor,
+    download_url_to_video_output,
+    get_number_of_images,
+    image_tensor_pair_to_batch,
+    poll_op,
+    sync_op,
+    upload_images_to_comfyapi,
+    validate_image_aspect_ratio,
+    validate_image_dimensions,
+    validate_string,
+)
+
+BYTEPLUS_IMAGE_ENDPOINT = "/proxy/byteplus/api/v3/images/generations"
+
+# Long-running tasks endpoints(e.g., video)
+BYTEPLUS_TASK_ENDPOINT = "/proxy/byteplus/api/v3/contents/generations/tasks"
+BYTEPLUS_TASK_STATUS_ENDPOINT = "/proxy/byteplus/api/v3/contents/generations/tasks"  # + /{task_id}
+
+
+def get_image_url_from_response(response: ImageTaskCreationResponse) -> str:
+    if response.error:
+        error_msg = f"ByteDance request failed. Code: {response.error['code']}, message: {response.error['message']}"
+        logging.info(error_msg)
+        raise RuntimeError(error_msg)
+    logging.info("ByteDance task succeeded, image URL: %s", response.data[0]["url"])
+    return response.data[0]["url"]
+
+
+class ByteDanceImageNode(IO.ComfyNode):
+
+    @classmethod
+    def define_schema(cls):
+        return IO.Schema(
+            node_id="ByteDanceImageNode",
+            display_name="ByteDance Image",
+            category="api node/image/ByteDance",
+            description="Generate images using ByteDance models via api based on prompt",
+            inputs=[
+                IO.Combo.Input("model", options=["seedream-3-0-t2i-250415"]),
+                IO.String.Input(
+                    "prompt",
+                    multiline=True,
+                    tooltip="The text prompt used to generate the image",
+                ),
+                IO.Combo.Input(
+                    "size_preset",
+                    options=[label for label, _, _ in RECOMMENDED_PRESETS],
+                    tooltip="Pick a recommended size. Select Custom to use the width and height below",
+                ),
+                IO.Int.Input(
+                    "width",
+                    default=1024,
+                    min=512,
+                    max=2048,
+                    step=64,
+                    tooltip="Custom width for image. Value is working only if `size_preset` is set to `Custom`",
+                ),
+                IO.Int.Input(
+                    "height",
+                    default=1024,
+                    min=512,
+                    max=2048,
+                    step=64,
+                    tooltip="Custom height for image. Value is working only if `size_preset` is set to `Custom`",
+                ),
+                IO.Int.Input(
+                    "seed",
+                    default=0,
+                    min=0,
+                    max=2147483647,
+                    step=1,
+                    display_mode=IO.NumberDisplay.number,
+                    control_after_generate=True,
+                    tooltip="Seed to use for generation",
+                    optional=True,
+                ),
+                IO.Float.Input(
+                    "guidance_scale",
+                    default=2.5,
+                    min=1.0,
+                    max=10.0,
+                    step=0.01,
+                    display_mode=IO.NumberDisplay.number,
+                    tooltip="Higher value makes the image follow the prompt more closely",
+                    optional=True,
+                ),
+                IO.Boolean.Input(
+                    "watermark",
+                    default=True,
+                    tooltip='Whether to add an "AI generated" watermark to the image',
+                    optional=True,
+                ),
+            ],
+            outputs=[
+                IO.Image.Output(),
+            ],
+            hidden=[
+                IO.Hidden.auth_token_comfy_org,
+                IO.Hidden.api_key_comfy_org,
+                IO.Hidden.unique_id,
+            ],
+            is_api_node=True,
+        )
+
+    @classmethod
+    async def execute(
+        cls,
+        model: str,
+        prompt: str,
+        size_preset: str,
+        width: int,
+        height: int,
+        seed: int,
+        guidance_scale: float,
+        watermark: bool,
+    ) -> IO.NodeOutput:
+        validate_string(prompt, strip_whitespace=True, min_length=1)
+        w = h = None
+        for label, tw, th in RECOMMENDED_PRESETS:
+            if label == size_preset:
+                w, h = tw, th
+                break
+
+        if w is None or h is None:
+            w, h = width, height
+            if not (512 <= w <= 2048) or not (512 <= h <= 2048):
+                raise ValueError(
+                    f"Custom size out of range: {w}x{h}. " "Both width and height must be between 512 and 2048 pixels."
+                )
+
+        payload = Text2ImageTaskCreationRequest(
+            model=model,
+            prompt=prompt,
+            size=f"{w}x{h}",
+            seed=seed,
+            guidance_scale=guidance_scale,
+            watermark=watermark,
+        )
+        response = await sync_op(
+            cls,
+            ApiEndpoint(path=BYTEPLUS_IMAGE_ENDPOINT, method="POST"),
+            data=payload,
+            response_model=ImageTaskCreationResponse,
+        )
+        return IO.NodeOutput(await download_url_to_image_tensor(get_image_url_from_response(response)))
+
+
+class ByteDanceImageEditNode(IO.ComfyNode):
+
+    @classmethod
+    def define_schema(cls):
+        return IO.Schema(
+            node_id="ByteDanceImageEditNode",
+            display_name="ByteDance Image Edit",
+            category="api node/image/ByteDance",
+            description="Edit images using ByteDance models via api based on prompt",
+            inputs=[
+                IO.Combo.Input("model", options=["seededit-3-0-i2i-250628"]),
+                IO.Image.Input(
+                    "image",
+                    tooltip="The base image to edit",
+                ),
+                IO.String.Input(
+                    "prompt",
+                    multiline=True,
+                    default="",
+                    tooltip="Instruction to edit image",
+                ),
+                IO.Int.Input(
+                    "seed",
+                    default=0,
+                    min=0,
+                    max=2147483647,
+                    step=1,
+                    display_mode=IO.NumberDisplay.number,
+                    control_after_generate=True,
+                    tooltip="Seed to use for generation",
+                    optional=True,
+                ),
+                IO.Float.Input(
+                    "guidance_scale",
+                    default=5.5,
+                    min=1.0,
+                    max=10.0,
+                    step=0.01,
+                    display_mode=IO.NumberDisplay.number,
+                    tooltip="Higher value makes the image follow the prompt more closely",
+                    optional=True,
+                ),
+                IO.Boolean.Input(
+                    "watermark",
+                    default=True,
+                    tooltip='Whether to add an "AI generated" watermark to the image',
+                    optional=True,
+                ),
+            ],
+            outputs=[
+                IO.Image.Output(),
+            ],
+            hidden=[
+                IO.Hidden.auth_token_comfy_org,
+                IO.Hidden.api_key_comfy_org,
+                IO.Hidden.unique_id,
+            ],
+            is_api_node=True,
+        )
+
+    @classmethod
+    async def execute(
+        cls,
+        model: str,
+        image: Input.Image,
+        prompt: str,
+        seed: int,
+        guidance_scale: float,
+        watermark: bool,
+    ) -> IO.NodeOutput:
+        validate_string(prompt, strip_whitespace=True, min_length=1)
+        if get_number_of_images(image) != 1:
+            raise ValueError("Exactly one input image is required.")
+        validate_image_aspect_ratio(image, (1, 3), (3, 1))
+        source_url = (await upload_images_to_comfyapi(cls, image, max_images=1, mime_type="image/png"))[0]
+        payload = Image2ImageTaskCreationRequest(
+            model=model,
+            prompt=prompt,
+            image=source_url,
+            seed=seed,
+            guidance_scale=guidance_scale,
+            watermark=watermark,
+        )
+        response = await sync_op(
+            cls,
+            ApiEndpoint(path=BYTEPLUS_IMAGE_ENDPOINT, method="POST"),
+            data=payload,
+            response_model=ImageTaskCreationResponse,
+        )
+        return IO.NodeOutput(await download_url_to_image_tensor(get_image_url_from_response(response)))
+
+
+class ByteDanceSeedreamNode(IO.ComfyNode):
+
+    @classmethod
+    def define_schema(cls):
+        return IO.Schema(
+            node_id="ByteDanceSeedreamNode",
+            display_name="ByteDance Seedream 4",
+            category="api node/image/ByteDance",
+            description="Unified text-to-image generation and precise single-sentence editing at up to 4K resolution.",
+            inputs=[
+                IO.Combo.Input(
+                    "model",
+                    options=["seedream-4-5-251128", "seedream-4-0-250828"],
+                    tooltip="Model name",
+                ),
+                IO.String.Input(
+                    "prompt",
+                    multiline=True,
+                    default="",
+                    tooltip="Text prompt for creating or editing an image.",
+                ),
+                IO.Image.Input(
+                    "image",
+                    tooltip="Input image(s) for image-to-image generation. "
+                    "List of 1-10 images for single or multi-reference generation.",
+                    optional=True,
+                ),
+                IO.Combo.Input(
+                    "size_preset",
+                    options=[label for label, _, _ in RECOMMENDED_PRESETS_SEEDREAM_4],
+                    tooltip="Pick a recommended size. Select Custom to use the width and height below.",
+                ),
+                IO.Int.Input(
+                    "width",
+                    default=2048,
+                    min=1024,
+                    max=4096,
+                    step=8,
+                    tooltip="Custom width for image. Value is working only if `size_preset` is set to `Custom`",
+                    optional=True,
+                ),
+                IO.Int.Input(
+                    "height",
+                    default=2048,
+                    min=1024,
+                    max=4096,
+                    step=8,
+                    tooltip="Custom height for image. Value is working only if `size_preset` is set to `Custom`",
+                    optional=True,
+                ),
+                IO.Combo.Input(
+                    "sequential_image_generation",
+                    options=["disabled", "auto"],
+                    tooltip="Group image generation mode. "
+                    "'disabled' generates a single image. "
+                    "'auto' lets the model decide whether to generate multiple related images "
+                    "(e.g., story scenes, character variations).",
+                    optional=True,
+                ),
+                IO.Int.Input(
+                    "max_images",
+                    default=1,
+                    min=1,
+                    max=15,
+                    step=1,
+                    display_mode=IO.NumberDisplay.number,
+                    tooltip="Maximum number of images to generate when sequential_image_generation='auto'. "
+                    "Total images (input + generated) cannot exceed 15.",
+                    optional=True,
+                ),
+                IO.Int.Input(
+                    "seed",
+                    default=0,
+                    min=0,
+                    max=2147483647,
+                    step=1,
+                    display_mode=IO.NumberDisplay.number,
+                    control_after_generate=True,
+                    tooltip="Seed to use for generation.",
+                    optional=True,
+                ),
+                IO.Boolean.Input(
+                    "watermark",
+                    default=True,
+                    tooltip='Whether to add an "AI generated" watermark to the image.',
+                    optional=True,
+                ),
+                IO.Boolean.Input(
+                    "fail_on_partial",
+                    default=True,
+                    tooltip="If enabled, abort execution if any requested images are missing or return an error.",
+                    optional=True,
+                ),
+            ],
+            outputs=[
+                IO.Image.Output(),
+            ],
+            hidden=[
+                IO.Hidden.auth_token_comfy_org,
+                IO.Hidden.api_key_comfy_org,
+                IO.Hidden.unique_id,
+            ],
+            is_api_node=True,
+        )
+
+    @classmethod
+    async def execute(
+        cls,
+        model: str,
+        prompt: str,
+        image: Input.Image | None = None,
+        size_preset: str = RECOMMENDED_PRESETS_SEEDREAM_4[0][0],
+        width: int = 2048,
+        height: int = 2048,
+        sequential_image_generation: str = "disabled",
+        max_images: int = 1,
+        seed: int = 0,
+        watermark: bool = True,
+        fail_on_partial: bool = True,
+    ) -> IO.NodeOutput:
+        validate_string(prompt, strip_whitespace=True, min_length=1)
+        w = h = None
+        for label, tw, th in RECOMMENDED_PRESETS_SEEDREAM_4:
+            if label == size_preset:
+                w, h = tw, th
+                break
+
+        if w is None or h is None:
+            w, h = width, height
+            if not (1024 <= w <= 4096) or not (1024 <= h <= 4096):
+                raise ValueError(
+                    f"Custom size out of range: {w}x{h}. " "Both width and height must be between 1024 and 4096 pixels."
+                )
+        out_num_pixels = w * h
+        mp_provided = out_num_pixels / 1_000_000.0
+        if "seedream-4-5" in model and out_num_pixels < 3686400:
+            raise ValueError(
+                f"Minimum image resolution that Seedream 4.5 can generate is 3.68MP, "
+                f"but {mp_provided:.2f}MP provided."
+            )
+        if "seedream-4-0" in model and out_num_pixels < 921600:
+            raise ValueError(
+                f"Minimum image resolution that the selected model can generate is 0.92MP, "
+                f"but {mp_provided:.2f}MP provided."
+            )
+        n_input_images = get_number_of_images(image) if image is not None else 0
+        if n_input_images > 10:
+            raise ValueError(f"Maximum of 10 reference images are supported, but {n_input_images} received.")
+        if sequential_image_generation == "auto" and n_input_images + max_images > 15:
+            raise ValueError(
+                "The maximum number of generated images plus the number of reference images cannot exceed 15."
+            )
+        reference_images_urls = []
+        if n_input_images:
+            for i in image:
+                validate_image_aspect_ratio(i, (1, 3), (3, 1))
+            reference_images_urls = await upload_images_to_comfyapi(
+                cls,
+                image,
+                max_images=n_input_images,
+                mime_type="image/png",
+            )
+        response = await sync_op(
+            cls,
+            ApiEndpoint(path=BYTEPLUS_IMAGE_ENDPOINT, method="POST"),
+            response_model=ImageTaskCreationResponse,
+            data=Seedream4TaskCreationRequest(
+                model=model,
+                prompt=prompt,
+                image=reference_images_urls,
+                size=f"{w}x{h}",
+                seed=seed,
+                sequential_image_generation=sequential_image_generation,
+                sequential_image_generation_options=Seedream4Options(max_images=max_images),
+                watermark=watermark,
+            ),
+        )
+        if len(response.data) == 1:
+            return IO.NodeOutput(await download_url_to_image_tensor(get_image_url_from_response(response)))
+        urls = [str(d["url"]) for d in response.data if isinstance(d, dict) and "url" in d]
+        if fail_on_partial and len(urls) < len(response.data):
+            raise RuntimeError(f"Only {len(urls)} of {len(response.data)} images were generated before error.")
+        return IO.NodeOutput(torch.cat([await download_url_to_image_tensor(i) for i in urls]))
+
+
+class ByteDanceTextToVideoNode(IO.ComfyNode):
+
+    @classmethod
+    def define_schema(cls):
+        return IO.Schema(
+            node_id="ByteDanceTextToVideoNode",
+            display_name="ByteDance Text to Video",
+            category="api node/video/ByteDance",
+            description="Generate video using ByteDance models via api based on prompt",
+            inputs=[
+                IO.Combo.Input(
+                    "model",
+                    options=["seedance-1-0-pro-250528", "seedance-1-0-lite-t2v-250428", "seedance-1-0-pro-fast-251015"],
+                    default="seedance-1-0-pro-fast-251015",
+                ),
+                IO.String.Input(
+                    "prompt",
+                    multiline=True,
+                    tooltip="The text prompt used to generate the video.",
+                ),
+                IO.Combo.Input(
+                    "resolution",
+                    options=["480p", "720p", "1080p"],
+                    tooltip="The resolution of the output video.",
+                ),
+                IO.Combo.Input(
+                    "aspect_ratio",
+                    options=["16:9", "4:3", "1:1", "3:4", "9:16", "21:9"],
+                    tooltip="The aspect ratio of the output video.",
+                ),
+                IO.Int.Input(
+                    "duration",
+                    default=5,
+                    min=3,
+                    max=12,
+                    step=1,
+                    tooltip="The duration of the output video in seconds.",
+                    display_mode=IO.NumberDisplay.slider,
+                ),
+                IO.Int.Input(
+                    "seed",
+                    default=0,
+                    min=0,
+                    max=2147483647,
+                    step=1,
+                    display_mode=IO.NumberDisplay.number,
+                    control_after_generate=True,
+                    tooltip="Seed to use for generation.",
+                    optional=True,
+                ),
+                IO.Boolean.Input(
+                    "camera_fixed",
+                    default=False,
+                    tooltip="Specifies whether to fix the camera. The platform appends an instruction "
+                    "to fix the camera to your prompt, but does not guarantee the actual effect.",
+                    optional=True,
+                ),
+                IO.Boolean.Input(
+                    "watermark",
+                    default=True,
+                    tooltip='Whether to add an "AI generated" watermark to the video.',
+                    optional=True,
+                ),
+            ],
+            outputs=[
+                IO.Video.Output(),
+            ],
+            hidden=[
+                IO.Hidden.auth_token_comfy_org,
+                IO.Hidden.api_key_comfy_org,
+                IO.Hidden.unique_id,
+            ],
+            is_api_node=True,
+        )
+
+    @classmethod
+    async def execute(
+        cls,
+        model: str,
+        prompt: str,
+        resolution: str,
+        aspect_ratio: str,
+        duration: int,
+        seed: int,
+        camera_fixed: bool,
+        watermark: bool,
+    ) -> IO.NodeOutput:
+        validate_string(prompt, strip_whitespace=True, min_length=1)
+        raise_if_text_params(prompt, ["resolution", "ratio", "duration", "seed", "camerafixed", "watermark"])
+
+        prompt = (
+            f"{prompt} "
+            f"--resolution {resolution} "
+            f"--ratio {aspect_ratio} "
+            f"--duration {duration} "
+            f"--seed {seed} "
+            f"--camerafixed {str(camera_fixed).lower()} "
+            f"--watermark {str(watermark).lower()}"
+        )
+        return await process_video_task(
+            cls,
+            payload=Text2VideoTaskCreationRequest(model=model, content=[TaskTextContent(text=prompt)]),
+            estimated_duration=max(1, math.ceil(VIDEO_TASKS_EXECUTION_TIME[model][resolution] * (duration / 10.0))),
+        )
+
+
+class ByteDanceImageToVideoNode(IO.ComfyNode):
+
+    @classmethod
+    def define_schema(cls):
+        return IO.Schema(
+            node_id="ByteDanceImageToVideoNode",
+            display_name="ByteDance Image to Video",
+            category="api node/video/ByteDance",
+            description="Generate video using ByteDance models via api based on image and prompt",
+            inputs=[
+                IO.Combo.Input(
+                    "model",
+                    options=["seedance-1-0-pro-250528", "seedance-1-0-lite-t2v-250428", "seedance-1-0-pro-fast-251015"],
+                    default="seedance-1-0-pro-fast-251015",
+                ),
+                IO.String.Input(
+                    "prompt",
+                    multiline=True,
+                    tooltip="The text prompt used to generate the video.",
+                ),
+                IO.Image.Input(
+                    "image",
+                    tooltip="First frame to be used for the video.",
+                ),
+                IO.Combo.Input(
+                    "resolution",
+                    options=["480p", "720p", "1080p"],
+                    tooltip="The resolution of the output video.",
+                ),
+                IO.Combo.Input(
+                    "aspect_ratio",
+                    options=["adaptive", "16:9", "4:3", "1:1", "3:4", "9:16", "21:9"],
+                    tooltip="The aspect ratio of the output video.",
+                ),
+                IO.Int.Input(
+                    "duration",
+                    default=5,
+                    min=3,
+                    max=12,
+                    step=1,
+                    tooltip="The duration of the output video in seconds.",
+                    display_mode=IO.NumberDisplay.slider,
+                ),
+                IO.Int.Input(
+                    "seed",
+                    default=0,
+                    min=0,
+                    max=2147483647,
+                    step=1,
+                    display_mode=IO.NumberDisplay.number,
+                    control_after_generate=True,
+                    tooltip="Seed to use for generation.",
+                    optional=True,
+                ),
+                IO.Boolean.Input(
+                    "camera_fixed",
+                    default=False,
+                    tooltip="Specifies whether to fix the camera. The platform appends an instruction "
+                    "to fix the camera to your prompt, but does not guarantee the actual effect.",
+                    optional=True,
+                ),
+                IO.Boolean.Input(
+                    "watermark",
+                    default=True,
+                    tooltip='Whether to add an "AI generated" watermark to the video.',
+                    optional=True,
+                ),
+            ],
+            outputs=[
+                IO.Video.Output(),
+            ],
+            hidden=[
+                IO.Hidden.auth_token_comfy_org,
+                IO.Hidden.api_key_comfy_org,
+                IO.Hidden.unique_id,
+            ],
+            is_api_node=True,
+        )
+
+    @classmethod
+    async def execute(
+        cls,
+        model: str,
+        prompt: str,
+        image: Input.Image,
+        resolution: str,
+        aspect_ratio: str,
+        duration: int,
+        seed: int,
+        camera_fixed: bool,
+        watermark: bool,
+    ) -> IO.NodeOutput:
+        validate_string(prompt, strip_whitespace=True, min_length=1)
+        raise_if_text_params(prompt, ["resolution", "ratio", "duration", "seed", "camerafixed", "watermark"])
+        validate_image_dimensions(image, min_width=300, min_height=300, max_width=6000, max_height=6000)
+        validate_image_aspect_ratio(image, (2, 5), (5, 2), strict=False)  # 0.4 to 2.5
+
+        image_url = (await upload_images_to_comfyapi(cls, image, max_images=1))[0]
+        prompt = (
+            f"{prompt} "
+            f"--resolution {resolution} "
+            f"--ratio {aspect_ratio} "
+            f"--duration {duration} "
+            f"--seed {seed} "
+            f"--camerafixed {str(camera_fixed).lower()} "
+            f"--watermark {str(watermark).lower()}"
+        )
+
+        return await process_video_task(
+            cls,
+            payload=Image2VideoTaskCreationRequest(
+                model=model,
+                content=[TaskTextContent(text=prompt), TaskImageContent(image_url=TaskImageContentUrl(url=image_url))],
+            ),
+            estimated_duration=max(1, math.ceil(VIDEO_TASKS_EXECUTION_TIME[model][resolution] * (duration / 10.0))),
+        )
+
+
+class ByteDanceFirstLastFrameNode(IO.ComfyNode):
+
+    @classmethod
+    def define_schema(cls):
+        return IO.Schema(
+            node_id="ByteDanceFirstLastFrameNode",
+            display_name="ByteDance First-Last-Frame to Video",
+            category="api node/video/ByteDance",
+            description="Generate video using prompt and first and last frames.",
+            inputs=[
+                IO.Combo.Input(
+                    "model",
+                    options=["seedance-1-0-pro-250528", "seedance-1-0-lite-i2v-250428"],
+                    default="seedance-1-0-lite-i2v-250428",
+                ),
+                IO.String.Input(
+                    "prompt",
+                    multiline=True,
+                    tooltip="The text prompt used to generate the video.",
+                ),
+                IO.Image.Input(
+                    "first_frame",
+                    tooltip="First frame to be used for the video.",
+                ),
+                IO.Image.Input(
+                    "last_frame",
+                    tooltip="Last frame to be used for the video.",
+                ),
+                IO.Combo.Input(
+                    "resolution",
+                    options=["480p", "720p", "1080p"],
+                    tooltip="The resolution of the output video.",
+                ),
+                IO.Combo.Input(
+                    "aspect_ratio",
+                    options=["adaptive", "16:9", "4:3", "1:1", "3:4", "9:16", "21:9"],
+                    tooltip="The aspect ratio of the output video.",
+                ),
+                IO.Int.Input(
+                    "duration",
+                    default=5,
+                    min=3,
+                    max=12,
+                    step=1,
+                    tooltip="The duration of the output video in seconds.",
+                    display_mode=IO.NumberDisplay.slider,
+                ),
+                IO.Int.Input(
+                    "seed",
+                    default=0,
+                    min=0,
+                    max=2147483647,
+                    step=1,
+                    display_mode=IO.NumberDisplay.number,
+                    control_after_generate=True,
+                    tooltip="Seed to use for generation.",
+                    optional=True,
+                ),
+                IO.Boolean.Input(
+                    "camera_fixed",
+                    default=False,
+                    tooltip="Specifies whether to fix the camera. The platform appends an instruction "
+                    "to fix the camera to your prompt, but does not guarantee the actual effect.",
+                    optional=True,
+                ),
+                IO.Boolean.Input(
+                    "watermark",
+                    default=True,
+                    tooltip='Whether to add an "AI generated" watermark to the video.',
+                    optional=True,
+                ),
+            ],
+            outputs=[
+                IO.Video.Output(),
+            ],
+            hidden=[
+                IO.Hidden.auth_token_comfy_org,
+                IO.Hidden.api_key_comfy_org,
+                IO.Hidden.unique_id,
+            ],
+            is_api_node=True,
+        )
+
+    @classmethod
+    async def execute(
+        cls,
+        model: str,
+        prompt: str,
+        first_frame: Input.Image,
+        last_frame: Input.Image,
+        resolution: str,
+        aspect_ratio: str,
+        duration: int,
+        seed: int,
+        camera_fixed: bool,
+        watermark: bool,
+    ) -> IO.NodeOutput:
+        validate_string(prompt, strip_whitespace=True, min_length=1)
+        raise_if_text_params(prompt, ["resolution", "ratio", "duration", "seed", "camerafixed", "watermark"])
+        for i in (first_frame, last_frame):
+            validate_image_dimensions(i, min_width=300, min_height=300, max_width=6000, max_height=6000)
+            validate_image_aspect_ratio(i, (2, 5), (5, 2), strict=False)  # 0.4 to 2.5
+
+        download_urls = await upload_images_to_comfyapi(
+            cls,
+            image_tensor_pair_to_batch(first_frame, last_frame),
+            max_images=2,
+            mime_type="image/png",
+        )
+
+        prompt = (
+            f"{prompt} "
+            f"--resolution {resolution} "
+            f"--ratio {aspect_ratio} "
+            f"--duration {duration} "
+            f"--seed {seed} "
+            f"--camerafixed {str(camera_fixed).lower()} "
+            f"--watermark {str(watermark).lower()}"
+        )
+
+        return await process_video_task(
+            cls,
+            payload=Image2VideoTaskCreationRequest(
+                model=model,
+                content=[
+                    TaskTextContent(text=prompt),
+                    TaskImageContent(image_url=TaskImageContentUrl(url=str(download_urls[0])), role="first_frame"),
+                    TaskImageContent(image_url=TaskImageContentUrl(url=str(download_urls[1])), role="last_frame"),
+                ],
+            ),
+            estimated_duration=max(1, math.ceil(VIDEO_TASKS_EXECUTION_TIME[model][resolution] * (duration / 10.0))),
+        )
+
+
+class ByteDanceImageReferenceNode(IO.ComfyNode):
+
+    @classmethod
+    def define_schema(cls):
+        return IO.Schema(
+            node_id="ByteDanceImageReferenceNode",
+            display_name="ByteDance Reference Images to Video",
+            category="api node/video/ByteDance",
+            description="Generate video using prompt and reference images.",
+            inputs=[
+                IO.Combo.Input(
+                    "model",
+                    options=["seedance-1-0-pro-250528", "seedance-1-0-lite-i2v-250428"],
+                    default="seedance-1-0-lite-i2v-250428",
+                ),
+                IO.String.Input(
+                    "prompt",
+                    multiline=True,
+                    tooltip="The text prompt used to generate the video.",
+                ),
+                IO.Image.Input(
+                    "images",
+                    tooltip="One to four images.",
+                ),
+                IO.Combo.Input(
+                    "resolution",
+                    options=["480p", "720p"],
+                    tooltip="The resolution of the output video.",
+                ),
+                IO.Combo.Input(
+                    "aspect_ratio",
+                    options=["adaptive", "16:9", "4:3", "1:1", "3:4", "9:16", "21:9"],
+                    tooltip="The aspect ratio of the output video.",
+                ),
+                IO.Int.Input(
+                    "duration",
+                    default=5,
+                    min=3,
+                    max=12,
+                    step=1,
+                    tooltip="The duration of the output video in seconds.",
+                    display_mode=IO.NumberDisplay.slider,
+                ),
+                IO.Int.Input(
+                    "seed",
+                    default=0,
+                    min=0,
+                    max=2147483647,
+                    step=1,
+                    display_mode=IO.NumberDisplay.number,
+                    control_after_generate=True,
+                    tooltip="Seed to use for generation.",
+                    optional=True,
+                ),
+                IO.Boolean.Input(
+                    "watermark",
+                    default=True,
+                    tooltip='Whether to add an "AI generated" watermark to the video.',
+                    optional=True,
+                ),
+            ],
+            outputs=[
+                IO.Video.Output(),
+            ],
+            hidden=[
+                IO.Hidden.auth_token_comfy_org,
+                IO.Hidden.api_key_comfy_org,
+                IO.Hidden.unique_id,
+            ],
+            is_api_node=True,
+        )
+
+    @classmethod
+    async def execute(
+        cls,
+        model: str,
+        prompt: str,
+        images: Input.Image,
+        resolution: str,
+        aspect_ratio: str,
+        duration: int,
+        seed: int,
+        watermark: bool,
+    ) -> IO.NodeOutput:
+        validate_string(prompt, strip_whitespace=True, min_length=1)
+        raise_if_text_params(prompt, ["resolution", "ratio", "duration", "seed", "watermark"])
+        for image in images:
+            validate_image_dimensions(image, min_width=300, min_height=300, max_width=6000, max_height=6000)
+            validate_image_aspect_ratio(image, (2, 5), (5, 2), strict=False)  # 0.4 to 2.5
+
+        image_urls = await upload_images_to_comfyapi(cls, images, max_images=4, mime_type="image/png")
+        prompt = (
+            f"{prompt} "
+            f"--resolution {resolution} "
+            f"--ratio {aspect_ratio} "
+            f"--duration {duration} "
+            f"--seed {seed} "
+            f"--watermark {str(watermark).lower()}"
+        )
+        x = [
+            TaskTextContent(text=prompt),
+            *[TaskImageContent(image_url=TaskImageContentUrl(url=str(i)), role="reference_image") for i in image_urls],
+        ]
+        return await process_video_task(
+            cls,
+            payload=Image2VideoTaskCreationRequest(model=model, content=x),
+            estimated_duration=max(1, math.ceil(VIDEO_TASKS_EXECUTION_TIME[model][resolution] * (duration / 10.0))),
+        )
+
+
+async def process_video_task(
+    cls: type[IO.ComfyNode],
+    payload: Text2VideoTaskCreationRequest | Image2VideoTaskCreationRequest,
+    estimated_duration: int | None,
+) -> IO.NodeOutput:
+    initial_response = await sync_op(
+        cls,
+        ApiEndpoint(path=BYTEPLUS_TASK_ENDPOINT, method="POST"),
+        data=payload,
+        response_model=TaskCreationResponse,
+    )
+    response = await poll_op(
+        cls,
+        ApiEndpoint(path=f"{BYTEPLUS_TASK_STATUS_ENDPOINT}/{initial_response.id}"),
+        status_extractor=lambda r: r.status,
+        estimated_duration=estimated_duration,
+        response_model=TaskStatusResponse,
+    )
+    return IO.NodeOutput(await download_url_to_video_output(response.content.video_url))
+
+
+def raise_if_text_params(prompt: str, text_params: list[str]) -> None:
+    for i in text_params:
+        if f"--{i} " in prompt:
+            raise ValueError(
+                f"--{i} is not allowed in the prompt, use the appropriated widget input to change this value."
+            )
+
+
+class ByteDanceExtension(ComfyExtension):
+    @override
+    async def get_node_list(self) -> list[type[IO.ComfyNode]]:
+        return [
+            ByteDanceImageNode,
+            ByteDanceImageEditNode,
+            ByteDanceSeedreamNode,
+            ByteDanceTextToVideoNode,
+            ByteDanceImageToVideoNode,
+            ByteDanceFirstLastFrameNode,
+            ByteDanceImageReferenceNode,
+        ]
+
+
+async def comfy_entrypoint() -> ByteDanceExtension:
+    return ByteDanceExtension()

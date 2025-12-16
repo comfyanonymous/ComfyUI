@@ -66,8 +66,8 @@ class LoRAAdapter(WeightAdapterBase):
     def create_train(cls, weight, rank=1, alpha=1.0):
         out_dim = weight.shape[0]
         in_dim = weight.shape[1:].numel()
-        mat1 = torch.empty(out_dim, rank, device=weight.device, dtype=weight.dtype)
-        mat2 = torch.empty(rank, in_dim, device=weight.device, dtype=weight.dtype)
+        mat1 = torch.empty(out_dim, rank, device=weight.device, dtype=torch.float32)
+        mat2 = torch.empty(rank, in_dim, device=weight.device, dtype=torch.float32)
         torch.nn.init.kaiming_uniform_(mat1, a=5**0.5)
         torch.nn.init.constant_(mat2, 0.0)
         return LoraDiff(
@@ -96,6 +96,7 @@ class LoRAAdapter(WeightAdapterBase):
         diffusers3_lora = "{}.lora.up.weight".format(x)
         mochi_lora = "{}.lora_B".format(x)
         transformers_lora = "{}.lora_linear_layer.up.weight".format(x)
+        qwen_default_lora = "{}.lora_B.default.weight".format(x)
         A_name = None
 
         if regular_lora in lora.keys():
@@ -121,6 +122,10 @@ class LoRAAdapter(WeightAdapterBase):
         elif transformers_lora in lora.keys():
             A_name = transformers_lora
             B_name = "{}.lora_linear_layer.down.weight".format(x)
+            mid_name = None
+        elif qwen_default_lora in lora.keys():
+            A_name = qwen_default_lora
+            B_name = "{}.lora_A.default.weight".format(x)
             mid_name = None
 
         if A_name is not None:
@@ -189,6 +194,7 @@ class LoRAAdapter(WeightAdapterBase):
             lora_diff = torch.mm(
                 mat1.flatten(start_dim=1), mat2.flatten(start_dim=1)
             ).reshape(weight.shape)
+            del mat1, mat2
             if dora_scale is not None:
                 weight = weight_decompose(
                     dora_scale,
