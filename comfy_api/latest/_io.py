@@ -1933,7 +1933,7 @@ __all__ = [
     "Tracks",
     # Dynamic Types
     "MatchType",
-    # "DynamicCombo",
+    "DynamicCombo",
     # "Autogrow",
     # Other classes
     "HiddenHolder",
