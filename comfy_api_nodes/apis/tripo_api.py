@@ -5,9 +5,15 @@ from typing import Optional, List, Dict, Any, Union
 from pydantic import BaseModel, Field, RootModel
 
 class TripoModelVersion(str, Enum):
+    v3_0_20250812 = 'v3.0-20250812'
     v2_5_20250123 = 'v2.5-20250123'
     v2_0_20240919 = 'v2.0-20240919'
     v1_4_20240625 = 'v1.4-20240625'
+
+
+class TripoGeometryQuality(str, Enum):
+    standard = 'standard'
+    detailed = 'detailed'
 
 
 class TripoTextureQuality(str, Enum):
@@ -61,14 +67,20 @@ class TripoSpec(str, Enum):
 class TripoAnimation(str, Enum):
     IDLE = "preset:idle"
     WALK = "preset:walk"
+    RUN = "preset:run"
+    DIVE = "preset:dive"
     CLIMB = "preset:climb"
     JUMP = "preset:jump"
-    RUN = "preset:run"
     SLASH = "preset:slash"
     SHOOT = "preset:shoot"
     HURT = "preset:hurt"
     FALL = "preset:fall"
     TURN = "preset:turn"
+    QUADRUPED_WALK = "preset:quadruped:walk"
+    HEXAPOD_WALK = "preset:hexapod:walk"
+    OCTOPOD_WALK = "preset:octopod:walk"
+    SERPENTINE_MARCH = "preset:serpentine:march"
+    AQUATIC_MARCH = "preset:aquatic:march"
 
 class TripoStylizeStyle(str, Enum):
     LEGO = "lego"
@@ -104,6 +116,11 @@ class TripoTaskStatus(str, Enum):
     UNKNOWN = "unknown"
     BANNED = "banned"
     EXPIRED = "expired"
+
+class TripoFbxPreset(str, Enum):
+    BLENDER = "blender"
+    MIXAMO = "mixamo"
+    _3DSMAX = "3dsmax"
 
 class TripoFileTokenReference(BaseModel):
     type: Optional[str] = Field(None, description='The type of the reference')
@@ -142,6 +159,7 @@ class TripoTextToModelRequest(BaseModel):
     model_seed: Optional[int] = Field(None, description='The seed for the model')
     texture_seed: Optional[int] = Field(None, description='The seed for the texture')
     texture_quality: Optional[TripoTextureQuality] = TripoTextureQuality.standard
+    geometry_quality: Optional[TripoGeometryQuality] = TripoGeometryQuality.standard
     style: Optional[TripoStyle] = None
     auto_size: Optional[bool] = Field(False, description='Whether to auto-size the model')
     quad: Optional[bool] = Field(False, description='Whether to apply quad to the generated model')
@@ -156,6 +174,7 @@ class TripoImageToModelRequest(BaseModel):
     model_seed: Optional[int] = Field(None, description='The seed for the model')
     texture_seed: Optional[int] = Field(None, description='The seed for the texture')
     texture_quality: Optional[TripoTextureQuality] = TripoTextureQuality.standard
+    geometry_quality: Optional[TripoGeometryQuality] = TripoGeometryQuality.standard
     texture_alignment: Optional[TripoTextureAlignment] = Field(TripoTextureAlignment.ORIGINAL_IMAGE, description='The texture alignment method')
     style: Optional[TripoStyle] = Field(None, description='The style to apply to the generated model')
     auto_size: Optional[bool] = Field(False, description='Whether to auto-size the model')
@@ -173,6 +192,7 @@ class TripoMultiviewToModelRequest(BaseModel):
     model_seed: Optional[int] = Field(None, description='The seed for the model')
     texture_seed: Optional[int] = Field(None, description='The seed for the texture')
     texture_quality: Optional[TripoTextureQuality] = TripoTextureQuality.standard
+    geometry_quality: Optional[TripoGeometryQuality] = TripoGeometryQuality.standard
     texture_alignment: Optional[TripoTextureAlignment] = TripoTextureAlignment.ORIGINAL_IMAGE
     auto_size: Optional[bool] = Field(False, description='Whether to auto-size the model')
     orientation: Optional[TripoOrientation] = Field(TripoOrientation.DEFAULT, description='The orientation for the model')
@@ -219,14 +239,24 @@ class TripoConvertModelRequest(BaseModel):
     type: TripoTaskType = Field(TripoTaskType.CONVERT_MODEL, description='Type of task')
     format: TripoConvertFormat = Field(..., description='The format to convert to')
     original_model_task_id: str = Field(..., description='The task ID of the original model')
-    quad: Optional[bool] = Field(False, description='Whether to apply quad to the model')
-    force_symmetry: Optional[bool] = Field(False, description='Whether to force symmetry')
-    face_limit: Optional[int] = Field(10000, description='The number of faces to limit the conversion to')
-    flatten_bottom: Optional[bool] = Field(False, description='Whether to flatten the bottom of the model')
-    flatten_bottom_threshold: Optional[float] = Field(0.01, description='The threshold for flattening the bottom')
-    texture_size: Optional[int] = Field(4096, description='The size of the texture')
+    quad: Optional[bool] = Field(None, description='Whether to apply quad to the model')
+    force_symmetry: Optional[bool] = Field(None, description='Whether to force symmetry')
+    face_limit: Optional[int] = Field(None, description='The number of faces to limit the conversion to')
+    flatten_bottom: Optional[bool] = Field(None, description='Whether to flatten the bottom of the model')
+    flatten_bottom_threshold: Optional[float] = Field(None, description='The threshold for flattening the bottom')
+    texture_size: Optional[int] = Field(None, description='The size of the texture')
     texture_format: Optional[TripoTextureFormat] = Field(TripoTextureFormat.JPEG, description='The format of the texture')
-    pivot_to_center_bottom: Optional[bool] = Field(False, description='Whether to pivot to the center bottom')
+    pivot_to_center_bottom: Optional[bool] = Field(None, description='Whether to pivot to the center bottom')
+    scale_factor: Optional[float] = Field(None, description='The scale factor for the model')
+    with_animation: Optional[bool] = Field(None, description='Whether to include animations')
+    pack_uv: Optional[bool] = Field(None, description='Whether to pack the UVs')
+    bake: Optional[bool] = Field(None, description='Whether to bake the model')
+    part_names: Optional[List[str]] = Field(None, description='The names of the parts to include')
+    fbx_preset: Optional[TripoFbxPreset] = Field(None, description='The preset for the FBX export')
+    export_vertex_colors: Optional[bool] = Field(None, description='Whether to export the vertex colors')
+    export_orientation: Optional[TripoOrientation] = Field(None, description='The orientation for the export')
+    animate_in_place: Optional[bool] = Field(None, description='Whether to animate in place')
+
 
 class TripoTaskRequest(RootModel):
     root: Union[
