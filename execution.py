@@ -257,7 +257,7 @@ async def _async_map_node_over_list(prompt_id, unique_id, obj, input_data_all, f
                 pre_execute_cb(index)
             # V3
             if isinstance(obj, _ComfyNodeInternal) or (is_class(obj) and issubclass(obj, _ComfyNodeInternal)):
-                # if is just a class, then assign no resources or state, just create clone
+                # if is just a class, then assign no state, just create clone
                 if is_class(obj):
                     type_obj = obj
                     obj.VALIDATE_CLASS()

@@ -26,7 +26,6 @@ if TYPE_CHECKING:
     from comfy_api.input import VideoInput
 from comfy_api.internal import (_ComfyNodeInternal, _NodeOutputInternal, classproperty, copy_class, first_real_override, is_class,
     prune_dict, shallow_clone_class)
-from ._resources import Resources, ResourcesLocal
 from comfy_execution.graph_utils import ExecutionBlocker
 from ._util import MESH, VOXEL
 
@@ -1487,7 +1486,6 @@ class _ComfyNodeBaseInternal(_ComfyNodeInternal):
     SCHEMA = None
 
     # filled in during execution
-    resources: Resources = None
     hidden: HiddenHolder = None
 
     @classmethod
@@ -1534,7 +1532,6 @@ class _ComfyNodeBaseInternal(_ComfyNodeInternal):
         return [name for name in kwargs if kwargs[name] is None]
 
     def __init__(self):
-        self.local_resources: ResourcesLocal = None
         self.__class__.VALIDATE_CLASS()
 
     @classmethod
