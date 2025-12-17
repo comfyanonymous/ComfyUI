@@ -1167,6 +1167,10 @@ class HiddenHolder:
             api_key_comfy_org=d.get(Hidden.api_key_comfy_org, None),
         )
 
+    @classmethod
+    def from_v3_data(cls, v3_data: V3Data | None) -> HiddenHolder:
+        return cls.from_dict(v3_data["hidden_inputs"] if v3_data else None)
+
 class Hidden(str, Enum):
     '''
     Enumerator for requesting hidden variables in nodes.
@@ -1599,7 +1603,7 @@ class _ComfyNodeBaseInternal(_ComfyNodeInternal):
         c_type: type[ComfyNode] = cls if is_class(cls) else type(cls)
         type_clone: type[ComfyNode] = shallow_clone_class(c_type)
         # set hidden
-        type_clone.hidden = HiddenHolder.from_dict(v3_data["hidden_inputs"] if v3_data else None)
+        type_clone.hidden = HiddenHolder.from_v3_data(v3_data)
         return type_clone
 
     @final
