@@ -7,6 +7,37 @@ from comfy_api.latest import _io
 MISSING = object()
 
 
+class SwitchNode(io.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        template = io.MatchType.Template("switch")
+        return io.Schema(
+            node_id="ComfySwitchNode",
+            display_name="Switch",
+            category="logic",
+            is_experimental=True,
+            inputs=[
+                io.Boolean.Input("switch"),
+                io.MatchType.Input("on_false", template=template, lazy=True),
+                io.MatchType.Input("on_true", template=template, lazy=True),
+            ],
+            outputs=[
+                io.MatchType.Output(template=template, display_name="output"),
+            ],
+        )
+
+    @classmethod
+    def check_lazy_status(cls, switch, on_false=None, on_true=None):
+        if switch and on_true is None:
+            return ["on_true"]
+        if not switch and on_false is None:
+            return ["on_false"]
+
+    @classmethod
+    def execute(cls, switch, on_true, on_false) -> io.NodeOutput:
+        return io.NodeOutput(on_true if switch else on_false)
+
+
 class SoftSwitchNode(io.ComfyNode):
     @classmethod
     def define_schema(cls):
@@ -56,36 +87,6 @@ class SoftSwitchNode(io.ComfyNode):
             return io.NodeOutput(on_false)
         if on_false is MISSING:
             return io.NodeOutput(on_true)
-        return io.NodeOutput(on_true if switch else on_false)
-
-class SwitchNode(io.ComfyNode):
-    @classmethod
-    def define_schema(cls):
-        template = io.MatchType.Template("switch")
-        return io.Schema(
-            node_id="ComfySwitchNode",
-            display_name="Switch",
-            category="logic",
-            is_experimental=True,
-            inputs=[
-                io.Boolean.Input("switch"),
-                io.MatchType.Input("on_false", template=template, lazy=True),
-                io.MatchType.Input("on_true", template=template, lazy=True),
-            ],
-            outputs=[
-                io.MatchType.Output(template=template, display_name="output"),
-            ],
-        )
-
-    @classmethod
-    def check_lazy_status(cls, switch, on_false=None, on_true=None):
-        if switch and on_true is None:
-            return ["on_true"]
-        if not switch and on_false is None:
-            return ["on_false"]
-
-    @classmethod
-    def execute(cls, switch, on_true, on_false) -> io.NodeOutput:
         return io.NodeOutput(on_true if switch else on_false)
 
 
