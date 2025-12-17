@@ -7,7 +7,7 @@ from typing import Optional, Final
 
 from comfy_execution.graph_types import FrozenTopologicalSort
 from .cli_args import cli_args_configuration
-from .cli_args_types import Configuration
+from .cli_args_types import Configuration, LatentPreviewMethod
 from .component_model import cvpickle
 from .component_model.executor_types import ExecutorToClientProgress
 from .component_model.folder_path_types import FolderNames
@@ -26,6 +26,7 @@ class ExecutionContext:
 
     # during prompt execution
     progress_registry: Optional[AbstractProgressRegistry] = None
+    preview_method_override: Optional[LatentPreviewMethod] = None
 
     # during node execution
     node_id: Optional[str] = None
@@ -49,7 +50,7 @@ class ExecutionContext:
         yield self.list_index
 
 
-comfyui_execution_context: Final[ContextVar] = ContextVar("comfyui_execution_context", default=ExecutionContext(server=ServerStub(), folder_names_and_paths=FolderNames(is_root=True), custom_nodes=ExportedNodes(), progress_registry=ProgressRegistryStub(), configuration=cli_args_configuration()))
+comfyui_execution_context: Final[ContextVar] = ContextVar("comfyui_execution_context", default=ExecutionContext(server=ServerStub(), folder_names_and_paths=FolderNames(is_root=True), custom_nodes=ExportedNodes(), progress_registry=ProgressRegistryStub(), configuration=cli_args_configuration(), preview_method_override=None))
 # enables context var propagation across process boundaries for process pool executors
 cvpickle.register_contextvar(comfyui_execution_context, __name__)
 
@@ -87,9 +88,9 @@ def context_folder_names_and_paths(folder_names_and_paths: FolderNames):
 
 
 @contextmanager
-def context_execute_prompt(server: ExecutorToClientProgress, prompt_id: str, progress_registry: AbstractProgressRegistry, inference_mode: bool = True):
+def context_execute_prompt(server: ExecutorToClientProgress, prompt_id: str, progress_registry: AbstractProgressRegistry, inference_mode: bool = True, preview_method_override=None):
     current_ctx = current_execution_context()
-    new_ctx = replace(current_ctx, server=server, task_id=prompt_id, inference_mode=inference_mode, progress_registry=progress_registry)
+    new_ctx = replace(current_ctx, server=server, task_id=prompt_id, inference_mode=inference_mode, progress_registry=progress_registry, preview_method_override=preview_method_override)
     with _new_execution_context(new_ctx):
         yield new_ctx
 

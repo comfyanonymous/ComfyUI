@@ -47,9 +47,9 @@ from comfy_execution.progress import get_progress_state, reset_progress_state, a
     ProgressRegistry
 from comfy_execution.utils import CurrentNodeContext
 from comfy_execution.validation import validate_node_input
-from .latent_preview import set_preview_method
 from .. import interruption
 from .. import model_management
+from ..cli_args_types import LatentPreviewMethod
 from ..component_model.abstract_prompt_queue import AbstractPromptQueue
 from ..component_model.executor_types import ExecutorToClientProgress, ValidationTuple, ValidateInputsTuple, \
     ValidationErrorDict, NodeErrorsDictValue, ValidationErrorExtraInfoDict, FormattedValue, RecursiveExecutionTuple, \
@@ -812,13 +812,19 @@ class PromptExecutor:
             extra_data = {}
         asyncio.run(self.execute_async(prompt, prompt_id, extra_data, execute_outputs))
 
-    async def execute_async(self, prompt, prompt_id, extra_data={}, execute_outputs=[]):
+    async def execute_async(self, prompt, prompt_id, extra_data=None, execute_outputs=None):
         # torchao and potentially other optimization approaches break when the models are created in inference mode
         # todo: this should really be backpropagated to code which creates ModelPatchers via lazy evaluation rather than globally checked here
+        if execute_outputs is None:
+            execute_outputs = []
+        if extra_data is None:
+            extra_data = {}
         inference_mode = all(not hasattr(node_class, "INFERENCE_MODE") or node_class.INFERENCE_MODE for node_class in iterate_obj_classes(prompt))
         dynamic_prompt = DynamicPrompt(prompt)
         reset_progress_state(prompt_id, dynamic_prompt)
-        with context_execute_prompt(self.server, prompt_id, progress_registry=ProgressRegistry(prompt_id, dynamic_prompt), inference_mode=inference_mode):
+        extra_data_preview_method = extra_data.get("preview_method", None)
+        preview_method_override = LatentPreviewMethod.from_string(extra_data_preview_method) if extra_data_preview_method is not None else None
+        with context_execute_prompt(self.server, prompt_id, progress_registry=ProgressRegistry(prompt_id, dynamic_prompt), inference_mode=inference_mode, preview_method_override=preview_method_override):
             await self._execute_async(dynamic_prompt, prompt_id, extra_data, execute_outputs)
 
     async def _execute_async(self, prompt: DynamicPrompt, prompt_id, extra_data=None, execute_outputs: list[str] = None, inference_mode: bool = True):
@@ -827,9 +833,6 @@ class PromptExecutor:
         if extra_data is None:
             extra_data = {}
 
-        extra_data_preview_method = extra_data.get("preview_method", None)
-        if extra_data_preview_method is not None:
-            set_preview_method(extra_data_preview_method)
         interruption.interrupt_current_processing(False)
 
         if "client_id" in extra_data:

@@ -18,8 +18,10 @@ from ..taesd.taesd import TAESD
 from ..sd import VAE
 from ..utils import load_torch_file
 
+# todo: should not have been introduced
 default_preview_method = args.preview_method
 
+# needs to come from context, which it sort of does here
 MAX_PREVIEW_RESOLUTION = args.preview_size
 VIDEO_TAES = ["taehv", "lighttaew2_2", "lighttaew2_1", "lighttaehy1_5"]
 
@@ -95,8 +97,9 @@ class Latent2RGBPreviewer(LatentPreviewer):
 
 def get_previewer(device, latent_format):
     previewer = None
-    method = args.preview_method
-    if method != LatentPreviewMethod.NoPreviews:
+    override = current_execution_context().preview_method_override
+    method: LatentPreviewMethod = override if override is not None else args.preview_method
+    if method is not None and method != LatentPreviewMethod.NoPreviews:
         # TODO previewer methods
         taesd_decoder_path = None
         if latent_format.taesd_decoder_name is not None:
@@ -148,9 +151,10 @@ def prepare_callback(model, steps, x0_output_dict=None):
 
     return callback
 
+
 def set_preview_method(override: str = None):
     # todo: this should set a context var where it is called, which is exactly one place
-    return
+    raise RuntimeError("not supported")
 
     # if override and override != "default":
     #     method = LatentPreviewMethod.from_string(override)
@@ -160,4 +164,3 @@ def set_preview_method(override: str = None):
     #
     #
     # args.preview_method = default_preview_method
-
