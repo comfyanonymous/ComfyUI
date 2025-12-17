@@ -159,6 +159,7 @@ def get_outputs_summary(outputs: dict) -> tuple[int, Optional[dict]]:
         if not isinstance(node_outputs, dict):
             continue
         for media_type, items in node_outputs.items():
+            # 'animated' is a boolean flag, not actual output items
             if media_type == 'animated' or not isinstance(items, list):
                 continue
 
