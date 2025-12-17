@@ -387,7 +387,7 @@ class Kandinsky5(nn.Module):
         transformer_options["block_type"] = "double"
 
         B, _, T, H, W = x.shape
-        NABLA_THR = 40 # long (10 sec) generation
+        NABLA_THR = 31 # long (10 sec) generation
         if T > NABLA_THR:
             assert self.patch_size[0] == 1
 
@@ -481,5 +481,3 @@ class Kandinsky5(nn.Module):
             self,
             comfy.patcher_extension.get_all_wrappers(comfy.patcher_extension.WrappersMP.DIFFUSION_MODEL, transformer_options)
         ).execute(x, timestep, context, y, time_dim_replace=time_dim_replace, transformer_options=transformer_options, **kwargs)
-
-
