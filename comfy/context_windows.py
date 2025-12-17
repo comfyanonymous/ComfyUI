@@ -178,7 +178,7 @@ class IndexListContextHandler(ContextHandlerABC):
                         for cond_key, cond_value in new_cond_item.items():
                             # Allow callbacks to handle custom conditioning items
                             handled = False
-                            for callback in comfy.patcher_extension.get_all_callbacks(
+                            for callback in patcher_extension.get_all_callbacks(
                                 IndexListCallbacks.RESIZE_COND_ITEM, self.callbacks
                             ):
                                 result = callback(cond_key, cond_value, window, x_in, device, new_cond_item)
