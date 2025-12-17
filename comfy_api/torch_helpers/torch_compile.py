@@ -37,7 +37,7 @@ def apply_torch_compile_factory(compiled_module_dict: dict[str, Callable]) -> Ca
 
 def set_torch_compile_wrapper(model: ModelPatcher, backend: str, options: Optional[dict[str, str]] = None,
                               mode: Optional[str] = None, fullgraph=False, dynamic: Optional[bool] = None,
-                              keys: list[str] = ["diffusion_model"], *args, **kwargs):
+                              keys: list[str] = None, *args, **kwargs):
     '''
     Perform torch.compile that will be applied at sample time for either the whole model or specific params of the BaseModel instance.
 

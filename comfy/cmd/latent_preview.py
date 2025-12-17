@@ -18,6 +18,8 @@ from ..taesd.taesd import TAESD
 from ..sd import VAE
 from ..utils import load_torch_file
 
+default_preview_method = args.preview_method
+
 MAX_PREVIEW_RESOLUTION = args.preview_size
 VIDEO_TAES = ["taehv", "lighttaew2_2", "lighttaew2_1", "lighttaehy1_5"]
 
@@ -145,3 +147,17 @@ def prepare_callback(model, steps, x0_output_dict=None):
         pbar.update_absolute(step + 1, total_steps, preview_bytes)
 
     return callback
+
+def set_preview_method(override: str = None):
+    # todo: this should set a context var where it is called, which is exactly one place
+    return
+
+    # if override and override != "default":
+    #     method = LatentPreviewMethod.from_string(override)
+    #     if method is not None:
+    #         args.preview_method = method
+    #         return
+    #
+    #
+    # args.preview_method = default_preview_method
+

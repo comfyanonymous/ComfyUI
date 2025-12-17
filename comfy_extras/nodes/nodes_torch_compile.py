@@ -51,6 +51,8 @@ torch._inductor.codecache.write_atomic = write_atomic
 
 # torch._inductor.utils.is_big_gpu = lambda *args: True
 
+def skip_torch_compile_dict(guard_entries):
+    return [("transformer_options" not in entry.name) for entry in guard_entries]
 
 class TorchCompileModel(CustomNode):
     @classmethod
@@ -113,7 +115,7 @@ class TorchCompileModel(CustomNode):
                     patcher = to_return
                 if object_patch is None or len(object_patches) == 0 or len(object_patches) == 1 and object_patches[0].strip() == "":
                     object_patches = [DIFFUSION_MODEL]
-                set_torch_compile_wrapper(patcher, keys=object_patches, **compile_kwargs)
+                set_torch_compile_wrapper(patcher, keys=object_patches, options={"guard_filter_fn": skip_torch_compile_dict}, **compile_kwargs)
                 return to_return,
             elif isinstance(model, torch.nn.Module):
                 model_management.unload_all_models()

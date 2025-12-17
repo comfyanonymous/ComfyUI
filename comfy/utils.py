@@ -1539,6 +1539,5 @@ def convert_old_quants(state_dict, model_prefix="", metadata={}):
     if quant_metadata is not None:
         layers = quant_metadata["layers"]
         for k, v in layers.items():
-            state_dict["{}.comfy_quant".format(k)] = torch.frombuffer(bytearray(json.dumps(v).encode('utf-8')), dtype=torch.uint8)
-
+            state_dict["{}.comfy_quant".format(k)] = torch.tensor(list(json.dumps(v).encode('utf-8')), dtype=torch.uint8)
     return state_dict, metadata

@@ -8,7 +8,7 @@ import os
 import textwrap
 import threading
 from enum import Enum
-from typing import Optional, Type, get_origin, get_args, get_type_hints
+from typing import Optional, get_origin, get_args, get_type_hints
 
 
 class TypeTracker:
@@ -198,7 +198,7 @@ class AsyncToSyncConverter:
         return result_container["result"]
 
     @classmethod
-    def create_sync_class(cls, async_class: Type, thread_pool_size=10) -> Type:
+    def create_sync_class(cls, async_class: type, thread_pool_size=10) -> type:
         """
         Creates a new class with synchronous versions of all async methods.
 
@@ -568,7 +568,7 @@ class AsyncToSyncConverter:
 
     @classmethod
     def _generate_imports(
-        cls, async_class: Type, type_tracker: TypeTracker
+        cls, async_class: type, type_tracker: TypeTracker
     ) -> list[str]:
         """Generate import statements for the stub file."""
         imports = []
@@ -633,7 +633,7 @@ class AsyncToSyncConverter:
         return imports
 
     @classmethod
-    def _get_class_attributes(cls, async_class: Type) -> list[tuple[str, Type]]:
+    def _get_class_attributes(cls, async_class: type) -> list[tuple[str, type]]:
         """Extract class attributes that are classes themselves."""
         class_attributes = []
 
@@ -659,7 +659,7 @@ class AsyncToSyncConverter:
     def _generate_inner_class_stub(
         cls,
         name: str,
-        attr: Type,
+        attr: type,
         indent: str = "    ",
         type_tracker: Optional[TypeTracker] = None,
     ) -> list[str]:
@@ -787,7 +787,7 @@ class AsyncToSyncConverter:
         return processed
 
     @classmethod
-    def generate_stub_file(cls, async_class: Type, sync_class: Type) -> None:
+    def generate_stub_file(cls, async_class: type, sync_class: type) -> None:
         """
         Generate a .pyi stub file for the sync class to help IDEs with type checking.
         """
@@ -993,7 +993,7 @@ class AsyncToSyncConverter:
             logging.error(traceback.format_exc())
 
 
-def create_sync_class(async_class: Type, thread_pool_size=10) -> Type:
+def create_sync_class(async_class: type, thread_pool_size=10) -> type:
     """
     Creates a sync version of an async class
 

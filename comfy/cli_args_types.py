@@ -17,6 +17,13 @@ class LatentPreviewMethod(enum.Enum):
     Latent2RGB = "latent2rgb"
     TAESD = "taesd"
 
+    @classmethod
+    def from_string(cls, value: str):
+        for member in cls:
+            if member.value == value:
+                return member
+        return None
+
 
 ConfigObserver = Callable[[str, Any], None]
 

@@ -10,6 +10,7 @@ from . import sd1_clip
 from . import sdxl_clip
 from . import supported_models_base
 from . import utils
+from .model_management import extended_fp16_support
 from .text_encoders import ace
 from .text_encoders import aura_t5
 from .text_encoders import cosmos
@@ -1110,7 +1111,13 @@ class ZImage(Lumina2):
 
     memory_usage_factor = 2.0
 
-    supported_inference_dtypes = [torch.bfloat16, torch.float16, torch.float32]
+    supported_inference_dtypes = [torch.bfloat16, torch.float32]
+
+    def __init__(self, unet_config):
+        super().__init__(unet_config)
+        if extended_fp16_support():
+            self.supported_inference_dtypes = self.supported_inference_dtypes.copy()
+            self.supported_inference_dtypes.insert(1, torch.float16)
 
     def clip_target(self, state_dict={}):
         pref = self.text_encoder_key_prefix[0]

@@ -1,27 +1,28 @@
 from __future__ import annotations
 from .main_pre import tracer
 
-from typing_extensions import NotRequired, TypedDict, NamedTuple
 import asyncio
 import copy
 import heapq
 import inspect
 import json
 import logging
-import sys
 import threading
-import time
 import traceback
 import typing
 from contextlib import nullcontext
 from enum import Enum
 from os import PathLike
-from typing import List, Optional, Tuple, Literal
+from typing import List, Optional, Literal
 
+import sys
+import time
 import torch
 from opentelemetry.trace import get_current_span, StatusCode, Status
+from typing_extensions import NotRequired, TypedDict, NamedTuple
 
-from comfy_api.internal import _ComfyNodeInternal, _NodeOutputInternal, first_real_override, is_class, make_locked_method_func
+from comfy_api.internal import _ComfyNodeInternal, _NodeOutputInternal, first_real_override, is_class, \
+    make_locked_method_func
 from comfy_api.latest import io, _io
 from comfy_compatibility.vanilla import vanilla_environment_node_execution_hooks
 from comfy_execution.caching import (
@@ -46,12 +47,14 @@ from comfy_execution.progress import get_progress_state, reset_progress_state, a
     ProgressRegistry
 from comfy_execution.utils import CurrentNodeContext
 from comfy_execution.validation import validate_node_input
+from .latent_preview import set_preview_method
 from .. import interruption
 from .. import model_management
 from ..component_model.abstract_prompt_queue import AbstractPromptQueue
 from ..component_model.executor_types import ExecutorToClientProgress, ValidationTuple, ValidateInputsTuple, \
     ValidationErrorDict, NodeErrorsDictValue, ValidationErrorExtraInfoDict, FormattedValue, RecursiveExecutionTuple, \
-    RecursiveExecutionErrorDetails, RecursiveExecutionErrorDetailsInterrupted, ExecutionResult, HistoryResultDict, ExecutionErrorMessage, ExecutionInterruptedMessage, ComboOptions
+    RecursiveExecutionErrorDetails, RecursiveExecutionErrorDetailsInterrupted, ExecutionResult, HistoryResultDict, \
+    ExecutionErrorMessage, ExecutionInterruptedMessage, ComboOptions
 from ..component_model.files import canonicalize_path
 from ..component_model.module_property import create_module_properties
 from ..component_model.queue_types import QueueTuple, HistoryEntry, QueueItem, MAXIMUM_HISTORY_SIZE, ExecutionStatus, \
@@ -824,6 +827,9 @@ class PromptExecutor:
         if extra_data is None:
             extra_data = {}
 
+        extra_data_preview_method = extra_data.get("preview_method", None)
+        if extra_data_preview_method is not None:
+            set_preview_method(extra_data_preview_method)
         interruption.interrupt_current_processing(False)
 
         if "client_id" in extra_data:
