@@ -26,6 +26,7 @@ import importlib
 import platform
 import weakref
 import gc
+import os
 
 class VRAMState(Enum):
     DISABLED = 0    #No vram present: no need to move models to vram
@@ -337,10 +338,6 @@ AMD_RDNA2_AND_OLDER_ARCH = ["gfx1030", "gfx1031", "gfx1010", "gfx1011", "gfx1012
 try:
     if is_amd():
         arch = torch.cuda.get_device_properties(get_torch_device()).gcnArchName
-        if not (any((a in arch) for a in AMD_RDNA2_AND_OLDER_ARCH)):
-            torch.backends.cudnn.enabled = False  # Seems to improve things a lot on AMD
-            logging.info("Set: torch.backends.cudnn.enabled = False for better AMD performance.")
-
         try:
             rocm_version = tuple(map(int, str(torch.version.hip).split(".")[:2]))
         except:
@@ -348,6 +345,16 @@ try:
 
         logging.info("AMD arch: {}".format(arch))
         logging.info("ROCm version: {}".format(rocm_version))
+
+        if os.getenv('MIOPEN_FIND_MODE') is None:
+            # MIOpen default search mode can cause significant slowdowns without much benefit
+            os.environ['MIOPEN_FIND_MODE'] = "FAST"
+            logging.info("Set: MIOPEN_FIND_MODE=FAST for better AMD performance, change by setting MIOPEN_FIND_MODE.")
+        if os.getenv('PYTORCH_MIOPEN_SUGGEST_NHWC') is None:
+            # See https://github.com/ROCm/TheRock/issues/2485#issuecomment-3666986174
+            os.environ['PYTORCH_MIOPEN_SUGGEST_NHWC'] = "0"
+            logging.info("Set: PYTORCH_MIOPEN_SUGGEST_NHWC=0 for better AMD performance, change by setting PYTORCH_MIOPEN_SUGGEST_NHWC.")
+
         if args.use_split_cross_attention == False and args.use_quad_cross_attention == False:
             if importlib.util.find_spec('triton') is not None:  # AMD efficient attention implementation depends on triton. TODO: better way of detecting if it's compiled in or not.
                 if torch_version_numeric >= (2, 7):  # works on 2.6 but doesn't actually seem to improve much
