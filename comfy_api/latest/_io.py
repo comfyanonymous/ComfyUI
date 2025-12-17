@@ -1838,7 +1838,7 @@ class NodeOutput(_NodeOutputInternal):
         return self.args if len(self.args) > 0 else None
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "NodeOutput":
+    def from_dict(cls, data: dict[str, Any]) -> NodeOutput:
         args = ()
         ui = None
         expand = None

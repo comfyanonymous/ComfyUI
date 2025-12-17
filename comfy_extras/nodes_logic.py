@@ -7,13 +7,13 @@ from comfy_api.latest import _io
 MISSING = object()
 
 
-class SwitchNode(io.ComfyNode):
+class SoftSwitchNode(io.ComfyNode):
     @classmethod
     def define_schema(cls):
         template = io.MatchType.Template("switch")
         return io.Schema(
-            node_id="ComfySwitchNode",
-            display_name="Switch",
+            node_id="ComfySoftSwitchNode",
+            display_name="Soft Switch",
             category="logic",
             is_experimental=True,
             inputs=[
@@ -58,14 +58,15 @@ class SwitchNode(io.ComfyNode):
             return io.NodeOutput(on_true)
         return io.NodeOutput(on_true if switch else on_false)
 
-class SwitchNode2(io.ComfyNode):
+class SwitchNode(io.ComfyNode):
     @classmethod
     def define_schema(cls):
         template = io.MatchType.Template("switch")
         return io.Schema(
-            node_id="ComfySwitchNode2",
-            display_name="Switch2",
+            node_id="ComfySwitchNode",
+            display_name="Switch",
             category="logic",
+            is_experimental=True,
             inputs=[
                 io.Boolean.Input("switch"),
                 io.MatchType.Input("on_false", template=template, lazy=True),
@@ -214,7 +215,7 @@ class LogicExtension(ComfyExtension):
     async def get_node_list(self) -> list[type[io.ComfyNode]]:
         return [
             SwitchNode,
-            SwitchNode2,
+            SoftSwitchNode,
             CustomComboNode,
             DCTestNode,
             AutogrowNamesTestNode,
