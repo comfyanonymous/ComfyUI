@@ -453,3 +453,5 @@ This will use a snapshot of the legacy frontend preserved in the [ComfyUI Legacy
 ### Which GPU should I buy for this?
 
 [See this page for some recommendations](https://github.com/comfyanonymous/ComfyUI/wiki/Which-GPU-should-I-buy-for-ComfyUI)
+
+# to trigger a build
