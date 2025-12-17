@@ -109,7 +109,7 @@ class PatchEmbed(nn.Module):
 def modulate(x, shift, scale):
     if shift is None:
         shift = torch.zeros_like(scale)
-    return x * (1 + scale.unsqueeze(1)) + shift.unsqueeze(1)
+    return torch.addcmul(shift.unsqueeze(1), x, 1+ scale.unsqueeze(1))
 
 
 #################################################################################
@@ -211,12 +211,14 @@ class TimestepEmbedder(nn.Module):
     Embeds scalar timesteps into vector representations.
     """
 
-    def __init__(self, hidden_size, frequency_embedding_size=256, dtype=None, device=None, operations=None):
+    def __init__(self, hidden_size, frequency_embedding_size=256, output_size=None, dtype=None, device=None, operations=None):
         super().__init__()
+        if output_size is None:
+            output_size = hidden_size
         self.mlp = nn.Sequential(
             operations.Linear(frequency_embedding_size, hidden_size, bias=True, dtype=dtype, device=device),
             nn.SiLU(),
-            operations.Linear(hidden_size, hidden_size, bias=True, dtype=dtype, device=device),
+            operations.Linear(hidden_size, output_size, bias=True, dtype=dtype, device=device),
         )
         self.frequency_embedding_size = frequency_embedding_size
 
@@ -564,10 +566,7 @@ class DismantledBlock(nn.Module):
         assert not self.pre_only
         attn1 = self.attn.post_attention(attn)
         attn2 = self.attn2.post_attention(attn2)
-        out1 = gate_msa.unsqueeze(1) * attn1
-        out2 = gate_msa2.unsqueeze(1) * attn2
-        x = x + out1
-        x = x + out2
+        x = gate_cat(x, gate_msa, gate_msa2, attn1, attn2)
         x = x + gate_mlp.unsqueeze(1) * self.mlp(
             modulate(self.norm2(x), shift_mlp, scale_mlp)
         )
@@ -594,6 +593,11 @@ class DismantledBlock(nn.Module):
             )
             return self.post_attention(attn, *intermediates)
 
+def gate_cat(x, gate_msa, gate_msa2, attn1, attn2):
+    out1 = gate_msa.unsqueeze(1) * attn1
+    out2 = gate_msa2.unsqueeze(1) * attn2
+    x = torch.stack([x, out1, out2], dim=0).sum(dim=0)
+    return x
 
 def block_mixing(*args, use_checkpoint=True, **kwargs):
     if use_checkpoint:
@@ -604,7 +608,7 @@ def block_mixing(*args, use_checkpoint=True, **kwargs):
         return _block_mixing(*args, **kwargs)
 
 
-def _block_mixing(context, x, context_block, x_block, c):
+def _block_mixing(context, x, context_block, x_block, c, transformer_options={}):
     context_qkv, context_intermediates = context_block.pre_attention(context, c)
 
     if x_block.x_block_self_attn:
@@ -620,6 +624,7 @@ def _block_mixing(context, x, context_block, x_block, c):
     attn = optimized_attention(
         qkv[0], qkv[1], qkv[2],
         heads=x_block.attn.num_heads,
+        transformer_options=transformer_options,
     )
     context_attn, x_attn = (
         attn[:, : context_qkv[0].shape[1]],
@@ -635,6 +640,7 @@ def _block_mixing(context, x, context_block, x_block, c):
         attn2 = optimized_attention(
                 x_qkv2[0], x_qkv2[1], x_qkv2[2],
                 heads=x_block.attn2.num_heads,
+                transformer_options=transformer_options,
             )
         x = x_block.post_attention_x(x_attn, attn2, *x_intermediates)
     else:
@@ -956,10 +962,10 @@ class MMDiT(nn.Module):
             if ("double_block", i) in blocks_replace:
                 def block_wrap(args):
                     out = {}
-                    out["txt"], out["img"] = self.joint_blocks[i](args["txt"], args["img"], c=args["vec"])
+                    out["txt"], out["img"] = self.joint_blocks[i](args["txt"], args["img"], c=args["vec"], transformer_options=args["transformer_options"])
                     return out
 
-                out = blocks_replace[("double_block", i)]({"img": x, "txt": context, "vec": c_mod}, {"original_block": block_wrap})
+                out = blocks_replace[("double_block", i)]({"img": x, "txt": context, "vec": c_mod, "transformer_options": transformer_options}, {"original_block": block_wrap})
                 context = out["txt"]
                 x = out["img"]
             else:
@@ -968,6 +974,7 @@ class MMDiT(nn.Module):
                     x,
                     c=c_mod,
                     use_checkpoint=self.use_checkpoint,
+                    transformer_options=transformer_options,
                 )
             if control is not None:
                 control_o = control.get("output")

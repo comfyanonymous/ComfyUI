@@ -17,19 +17,19 @@ on:
         description: 'cuda version'
         required: true
         type: string
-        default: "128"
+        default: "130"
 
       python_minor:
         description: 'python minor version'
         required: true
         type: string
-        default: "12"
+        default: "13"
 
       python_patch:
         description: 'python patch version'
         required: true
         type: string
-        default: "10"
+        default: "9"
 #  push:
 #    branches:
 #      - master
@@ -56,7 +56,8 @@ jobs:
             ..\python_embeded\python.exe -s -m pip install --upgrade torch torchvision torchaudio ${{ inputs.xformers }} --extra-index-url https://download.pytorch.org/whl/cu${{ inputs.cu }} -r ../ComfyUI/requirements.txt pygit2
             pause" > update_comfyui_and_python_dependencies.bat
 
-            python -m pip wheel --no-cache-dir torch torchvision torchaudio ${{ inputs.xformers }} ${{ inputs.extra_dependencies }} --extra-index-url https://download.pytorch.org/whl/cu${{ inputs.cu }} -r requirements.txt pygit2 -w ./temp_wheel_dir
+            grep -v comfyui requirements.txt > requirements_nocomfyui.txt
+            python -m pip wheel --no-cache-dir torch torchvision torchaudio ${{ inputs.xformers }} ${{ inputs.extra_dependencies }} --extra-index-url https://download.pytorch.org/whl/cu${{ inputs.cu }} -r requirements_nocomfyui.txt pygit2 -w ./temp_wheel_dir
             python -m pip install --no-cache-dir ./temp_wheel_dir/*
             echo installed basic
             ls -lah temp_wheel_dir

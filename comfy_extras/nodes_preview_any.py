@@ -25,7 +25,7 @@ class PreviewAny():
             value = str(source)
         elif source is not None:
             try:
-                value = json.dumps(source)
+                value = json.dumps(source, indent=4)
             except Exception:
                 try:
                     value = str(source)
@@ -39,5 +39,5 @@ NODE_CLASS_MAPPINGS = {
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
-    "PreviewAny": "Preview Any",
+    "PreviewAny": "Preview as Text",
 }
