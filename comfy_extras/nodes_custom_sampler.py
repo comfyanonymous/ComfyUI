@@ -671,7 +671,16 @@ class SamplerSEEDS2(io.ComfyNode):
                 io.Float.Input("s_noise", default=1.0, min=0.0, max=100.0, step=0.01, round=False, tooltip="SDE noise multiplier"),
                 io.Float.Input("r", default=0.5, min=0.01, max=1.0, step=0.01, round=False, tooltip="Relative step size for the intermediate stage (c2 node)"),
             ],
-            outputs=[io.Sampler.Output()]
+            outputs=[io.Sampler.Output()],
+            description=(
+                "This sampler node can represent multiple samplers:\n\n"
+                "seeds_2\n"
+                "- default setting\n\n"
+                "exp_heun_2_x0\n"
+                "- solver_type=phi_2, r=1.0, eta=0.0\n\n"
+                "exp_heun_2_x0_sde\n"
+                "- solver_type=phi_2, r=1.0, eta=1.0, s_noise=1.0"
+            )
         )
 
     @classmethod
