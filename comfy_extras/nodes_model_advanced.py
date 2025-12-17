@@ -5,6 +5,22 @@ import nodes
 import torch
 import node_helpers
 
+class CFGCutoff:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": {"model": ("MODEL",), "cfg_stop_index": ("INT", {"default": -1, "min": -1, })}}
+
+    RETURN_TYPES = ("MODEL",)
+    FUNCTION = "patch"
+
+    CATEGORY = "advanced/model"
+
+    def patch(self, model, cfg_stop_index):
+        diff_model = model.model.diffusion_model
+        if hasattr(diff_model, "set_cfg_stop_index"):
+            diff_model.set_cfg_stop_index(cfg_stop_index)
+
+        return (model,)
 
 class LCM(comfy.model_sampling.EPS):
     def calculate_denoised(self, sigma, model_output, model_input):
@@ -326,4 +342,5 @@ NODE_CLASS_MAPPINGS = {
     "ModelSamplingFlux": ModelSamplingFlux,
     "RescaleCFG": RescaleCFG,
     "ModelComputeDtype": ModelComputeDtype,
+    "CFGCutoff": CFGCutoff
 }

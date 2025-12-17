@@ -1321,6 +1321,14 @@ class NaDiT(nn.Module):
                 layers=["out"],
                 modes=["in"],
             )
+    
+        self.stop_cfg_index = -1
+
+    def set_cfg_stop_index(self, cfg):
+        self.stop_cfg_index = cfg
+
+    def get_cfg_stop_index(self):
+        return self.stop_cfg_index
 
     def forward(
         self,
@@ -1335,14 +1343,17 @@ class NaDiT(nn.Module):
         blocks_replace = patches_replace.get("dit", {})
         conditions = kwargs.get("condition")
 
-        pos_cond, neg_cond = context.chunk(2, dim=0)
-        pos_cond, neg_cond = pos_cond.squeeze(0), neg_cond.squeeze(0)
-        txt, txt_shape = flatten([pos_cond, neg_cond])
+        try:
+            neg_cond, pos_cond = context.chunk(2, dim=0)
+            pos_cond, neg_cond = pos_cond.squeeze(0), neg_cond.squeeze(0)
+            txt, txt_shape = flatten([pos_cond, neg_cond])
+        except:
+            txt, txt_shape = flatten([context.squeeze(0)])
 
         vid, vid_shape = flatten(x)
         cond_latent, _ = flatten(conditions)
 
-        vid = torch.cat([cond_latent, vid], dim=-1)
+        vid = torch.cat([vid, cond_latent], dim=-1)
         if txt_shape.size(-1) == 1 and self.need_txt_repeat:
             txt, txt_shape = repeat(txt, txt_shape, "l c -> t l c", t=vid_shape[:, 0])
 
@@ -1404,4 +1415,9 @@ class NaDiT(nn.Module):
 
         vid, vid_shape = self.vid_out(vid, vid_shape, cache, vid_shape_before_patchify = vid_shape_before_patchify)
         vid = unflatten(vid, vid_shape)
-        return torch.stack(vid)
+        out =  torch.stack(vid)
+        try:
+            pos, neg = out.chunk(2)
+            return torch.cat([neg, pos])
+        except:
+            return out

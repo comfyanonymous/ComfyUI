@@ -947,8 +947,21 @@ class CFGGuider:
 
     def __call__(self, *args, **kwargs):
         return self.predict_noise(*args, **kwargs)
+    
+    def handle_dynamic_cfg(self, timestep, model_options):
+        if hasattr(self.model_patcher.model.diffusion_model, "stop_cfg_index"):
+            stop_index = self.model_patcher.model.diffusion_model.stop_cfg_index
+            transformer_options = model_options.get("transformer_options", {})
+            sigmas = transformer_options.get("sample_sigmas", None)            
+            if sigmas is not None or self.cfg != 1.0:
+                dist = torch.abs(sigmas - timestep)
+                i = torch.argmin(dist).item()
+
+                if stop_index == i or (stop_index == -1 and i == len(sigmas) - 2):
+                    self.set_cfg(1.0)
 
     def predict_noise(self, x, timestep, model_options={}, seed=None):
+        self.handle_dynamic_cfg(timestep, model_options)
         return sampling_function(self.inner_model, x, timestep, self.conds.get("negative", None), self.conds.get("positive", None), self.cfg, model_options=model_options, seed=seed)
 
     def inner_sample(self, noise, latent_image, device, sampler, sigmas, denoise_mask, callback, disable_pbar, seed):
