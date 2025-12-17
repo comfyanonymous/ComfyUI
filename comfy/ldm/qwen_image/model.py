@@ -322,6 +322,7 @@ class QwenImageTransformer2DModel(nn.Module):
         pooled_projection_dim: int = 768,
         guidance_embeds: bool = False,
         axes_dims_rope: Tuple[int, int, int] = (16, 56, 56),
+        default_ref_method="index",
         image_model=None,
         final_layer=True,
         dtype=None,
@@ -334,6 +335,7 @@ class QwenImageTransformer2DModel(nn.Module):
         self.in_channels = in_channels
         self.out_channels = out_channels or in_channels
         self.inner_dim = num_attention_heads * attention_head_dim
+        self.default_ref_method = default_ref_method
 
         self.pe_embedder = EmbedND(dim=attention_head_dim, theta=10000, axes_dim=list(axes_dims_rope))
 
@@ -360,6 +362,9 @@ class QwenImageTransformer2DModel(nn.Module):
             )
             for _ in range(num_layers)
         ])
+
+        if self.default_ref_method == "index_timestep_zero":
+            self.register_buffer("__index_timestep_zero__", torch.tensor([]))
 
         if final_layer:
             self.norm_out = LastLayer(self.inner_dim, self.inner_dim, dtype=dtype, device=device, operations=operations)
@@ -416,7 +421,7 @@ class QwenImageTransformer2DModel(nn.Module):
             h = 0
             w = 0
             index = 0
-            ref_method = kwargs.get("ref_latents_method", "index")
+            ref_method = kwargs.get("ref_latents_method", self.default_ref_method)
             index_ref_method = (ref_method == "index") or (ref_method == "index_timestep_zero")
             timestep_zero = ref_method == "index_timestep_zero"
             for ref in ref_latents:
