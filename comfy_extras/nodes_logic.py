@@ -1,3 +1,4 @@
+from __future__ import annotations
 from typing import TypedDict
 from typing_extensions import override
 from comfy_api.latest import ComfyExtension, io
@@ -36,6 +37,28 @@ class SwitchNode(io.ComfyNode):
     @classmethod
     def execute(cls, switch, on_true, on_false) -> io.NodeOutput:
         return io.NodeOutput(on_true if switch else on_false)
+
+
+class MatchTypeTestNode(io.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        template = io.MatchType.Template("switch", [io.Image, io.Mask, io.Latent])
+        return io.Schema(
+            node_id="MatchTypeTestNode",
+            display_name="MatchTypeTest",
+            category="logic",
+            is_experimental=True,
+            inputs=[
+                io.MatchType.Input("input", template=template),
+            ],
+            outputs=[
+                io.MatchType.Output(template=template, display_name="output"),
+            ],
+        )
+
+    @classmethod
+    def execute(cls, input) -> io.NodeOutput:
+        return io.NodeOutput(input)
 
 
 class SoftSwitchNode(io.ComfyNode):
@@ -222,6 +245,7 @@ class LogicExtension(ComfyExtension):
             AutogrowNamesTestNode,
             AutogrowPrefixTestNode,
             ComboOutputTestNode,
+            MatchTypeTestNode,
         ]
 
 async def comfy_entrypoint() -> LogicExtension:
