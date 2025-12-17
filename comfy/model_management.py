@@ -1202,7 +1202,7 @@ def get_offload_stream(device):
     if NUM_STREAMS == 0:
         return None
 
-    if torch.compiler.is_compiling():
+    if hasattr(torch.compiler, "is_compiling") and torch.compiler.is_compiling():  # pylint: disable=no-member
         return None
 
     if device in STREAMS:
