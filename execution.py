@@ -755,6 +755,7 @@ async def validate_inputs(prompt_id, prompt, item, validated):
     errors = []
     valid = True
 
+    v3_data = None
     validate_function_inputs = []
     validate_has_kwargs = False
     if issubclass(obj_class, _ComfyNodeInternal):
