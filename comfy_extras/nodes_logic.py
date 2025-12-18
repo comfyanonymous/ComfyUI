@@ -234,6 +234,21 @@ class ComboOutputTestNode(io.ComfyNode):
     def execute(cls, combo: io.Combo.Type, combo2: io.Combo.Type) -> io.NodeOutput:
         return io.NodeOutput(combo, combo2)
 
+class AnyTypeTestNode(io.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return io.Schema(
+            node_id="AnyNodeTestNode",
+            display_name="AnyNodeTest",
+            category="logic",
+            inputs=[io.AnyType.Input("any")],
+            outputs=[io.AnyType.Output()],
+        )
+
+    @classmethod
+    def execute(cls, any: io.AnyType.Type) -> io.NodeOutput:
+        return io.NodeOutput(any)
+
 class LogicExtension(ComfyExtension):
     @override
     async def get_node_list(self) -> list[type[io.ComfyNode]]:
@@ -246,6 +261,7 @@ class LogicExtension(ComfyExtension):
             AutogrowPrefixTestNode,
             ComboOutputTestNode,
             MatchTypeTestNode,
+            AnyTypeTestNode,
         ]
 
 async def comfy_entrypoint() -> LogicExtension:
