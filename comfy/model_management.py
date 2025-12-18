@@ -504,6 +504,7 @@ class LoadedModel:
         if use_more_vram == 0:
             use_more_vram = 1e32
         self.model_use_more_vram(use_more_vram, force_patch_weights=force_patch_weights)
+
         real_model = self.model.model
 
         if is_intel_xpu() and not args.disable_ipex_optimize and 'ipex' in globals() and real_model is not None:
@@ -688,8 +689,11 @@ def load_models_gpu(models, memory_required=0, force_patch_weights=False, minimu
             loaded_memory = loaded_model.model_loaded_memory()
             current_free_mem = get_free_memory(torch_dev) + loaded_memory
 
-            lowvram_model_memory = max(128 * 1024 * 1024, (current_free_mem - minimum_memory_required), min(current_free_mem * MIN_WEIGHT_MEMORY_RATIO, current_free_mem - minimum_inference_memory()))
-            lowvram_model_memory = max(0.1, lowvram_model_memory - loaded_memory)
+            lowvram_model_memory = max(0, (current_free_mem - minimum_memory_required), min(current_free_mem * MIN_WEIGHT_MEMORY_RATIO, current_free_mem - minimum_inference_memory()))
+            lowvram_model_memory = lowvram_model_memory - loaded_memory
+
+            if lowvram_model_memory == 0:
+                lowvram_model_memory = 0.1
 
         if vram_set_state == VRAMState.NO_VRAM:
             lowvram_model_memory = 0.1
@@ -1008,9 +1012,18 @@ def force_channels_last():
 
 
 STREAMS = {}
-NUM_STREAMS = 1
-if args.async_offload:
-    NUM_STREAMS = 2
+NUM_STREAMS = 0
+if args.async_offload is not None:
+    NUM_STREAMS = args.async_offload
+else:
+    #  Enable by default on Nvidia
+    if is_nvidia():
+        NUM_STREAMS = 2
+
+if args.disable_async_offload:
+    NUM_STREAMS = 0
+
+if NUM_STREAMS > 0:
     logging.info("Using async weight offloading with {} streams".format(NUM_STREAMS))
 
 def current_stream(device):
@@ -1026,7 +1039,10 @@ def current_stream(device):
 stream_counters = {}
 def get_offload_stream(device):
     stream_counter = stream_counters.get(device, 0)
-    if NUM_STREAMS <= 1:
+    if NUM_STREAMS == 0:
+        return None
+
+    if torch.compiler.is_compiling():
         return None
 
     if device in STREAMS:
@@ -1039,7 +1055,9 @@ def get_offload_stream(device):
     elif is_device_cuda(device):
         ss = []
         for k in range(NUM_STREAMS):
-            ss.append(torch.cuda.Stream(device=device, priority=0))
+            s1 = torch.cuda.Stream(device=device, priority=0)
+            s1.as_context = torch.cuda.stream
+            ss.append(s1)
         STREAMS[device] = ss
         s = ss[stream_counter]
         stream_counters[device] = stream_counter
@@ -1047,7 +1065,9 @@ def get_offload_stream(device):
     elif is_device_xpu(device):
         ss = []
         for k in range(NUM_STREAMS):
-            ss.append(torch.xpu.Stream(device=device, priority=0))
+            s1 = torch.xpu.Stream(device=device, priority=0)
+            s1.as_context = torch.xpu.stream
+            ss.append(s1)
         STREAMS[device] = ss
         s = ss[stream_counter]
         stream_counters[device] = stream_counter
@@ -1065,12 +1085,19 @@ def cast_to(weight, dtype=None, device=None, non_blocking=False, copy=False, str
             if dtype is None or weight.dtype == dtype:
                 return weight
         if stream is not None:
-            with stream:
+            wf_context = stream
+            if hasattr(wf_context, "as_context"):
+                wf_context = wf_context.as_context(stream)
+            with wf_context:
                 return weight.to(dtype=dtype, copy=copy)
         return weight.to(dtype=dtype, copy=copy)
 
+
     if stream is not None:
-        with stream:
+        wf_context = stream
+        if hasattr(wf_context, "as_context"):
+            wf_context = wf_context.as_context(stream)
+        with wf_context:
             r = torch.empty_like(weight, dtype=dtype, device=device)
             r.copy_(weight, non_blocking=non_blocking)
     else:
@@ -1085,23 +1112,35 @@ def cast_to_device(tensor, device, dtype, copy=False):
 
 PINNED_MEMORY = {}
 TOTAL_PINNED_MEMORY = 0
-if PerformanceFeature.PinnedMem in args.fast:
-    if WINDOWS:
-        MAX_PINNED_MEMORY = get_total_memory(torch.device("cpu")) * 0.45  # Windows limit is apparently 50%
-    else:
-        MAX_PINNED_MEMORY = get_total_memory(torch.device("cpu")) * 0.95
-else:
-    MAX_PINNED_MEMORY = -1
+MAX_PINNED_MEMORY = -1
+if not args.disable_pinned_memory:
+    if is_nvidia() or is_amd():
+        if WINDOWS:
+            MAX_PINNED_MEMORY = get_total_memory(torch.device("cpu")) * 0.45  # Windows limit is apparently 50%
+        else:
+            MAX_PINNED_MEMORY = get_total_memory(torch.device("cpu")) * 0.95
+        logging.info("Enabled pinned memory {}".format(MAX_PINNED_MEMORY // (1024 * 1024)))
+
+PINNING_ALLOWED_TYPES = set(["Parameter", "QuantizedTensor"])
 
 def pin_memory(tensor):
     global TOTAL_PINNED_MEMORY
     if MAX_PINNED_MEMORY <= 0:
         return False
 
-    if not is_nvidia():
+    if type(tensor).__name__ not in PINNING_ALLOWED_TYPES:
         return False
 
     if not is_device_cpu(tensor.device):
+        return False
+
+    if tensor.is_pinned():
+        #NOTE: Cuda does detect when a tensor is already pinned and would
+        #error below, but there are proven cases where this also queues an error
+        #on the GPU async. So dont trust the CUDA API and guard here
+        return False
+
+    if not tensor.is_contiguous():
         return False
 
     size = tensor.numel() * tensor.element_size()
@@ -1109,6 +1148,9 @@ def pin_memory(tensor):
         return False
 
     ptr = tensor.data_ptr()
+    if ptr == 0:
+        return False
+
     if torch.cuda.cudart().cudaHostRegister(ptr, size, 1) == 0:
         PINNED_MEMORY[ptr] = size
         TOTAL_PINNED_MEMORY += size
@@ -1121,13 +1163,21 @@ def unpin_memory(tensor):
     if MAX_PINNED_MEMORY <= 0:
         return False
 
-    if not is_nvidia():
-        return False
-
     if not is_device_cpu(tensor.device):
         return False
 
     ptr = tensor.data_ptr()
+    size = tensor.numel() * tensor.element_size()
+
+    size_stored = PINNED_MEMORY.get(ptr, None)
+    if size_stored is None:
+        logging.warning("Tried to unpin tensor not pinned by ComfyUI")
+        return False
+
+    if size != size_stored:
+        logging.warning("Size of pinned tensor changed")
+        return False
+
     if torch.cuda.cudart().cudaHostUnregister(ptr) == 0:
         TOTAL_PINNED_MEMORY -= PINNED_MEMORY.pop(ptr)
         if len(PINNED_MEMORY) == 0:

@@ -8,13 +8,15 @@ body:
         Before submitting a **Bug Report**, please ensure the following:
 
         - **1:** You are running the latest version of ComfyUI.
-        - **2:** You have looked at the existing bug reports and made sure this isn't already reported.
+        - **2:** You have your ComfyUI logs and relevant workflow on hand and will post them in this bug report.
         - **3:** You confirmed that the bug is not caused by a custom node. You can disable all custom nodes by passing
-        `--disable-all-custom-nodes` command line argument.
+        `--disable-all-custom-nodes` command line argument. If you have custom node try updating them to the latest version.
         - **4:** This is an actual bug in ComfyUI, not just a support question. A bug is when you can specify exact
         steps to replicate what went wrong and others will be able to repeat your steps and see the same issue happen.
 
-        If unsure, ask on the [ComfyUI Matrix Space](https://app.element.io/#/room/%23comfyui_space%3Amatrix.org) or the [Comfy Org Discord](https://discord.gg/comfyorg) first.
+        ## Very Important
+
+        Please make sure that you post ALL your ComfyUI logs in the bug report. A bug report without logs will likely be ignored.
   - type: checkboxes
     id: custom-nodes-test
     attributes:
