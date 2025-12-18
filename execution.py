@@ -13,6 +13,7 @@ import asyncio
 import torch
 
 import comfy.model_management
+from latent_preview import set_preview_method
 import nodes
 from comfy_execution.caching import (
     BasicCache,
@@ -669,6 +670,8 @@ class PromptExecutor:
         asyncio.run(self.execute_async(prompt, prompt_id, extra_data, execute_outputs))
 
     async def execute_async(self, prompt, prompt_id, extra_data={}, execute_outputs=[]):
+        set_preview_method(extra_data.get("preview_method"))
+
         nodes.interrupt_processing(False)
 
         if "client_id" in extra_data:
