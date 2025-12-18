@@ -44,7 +44,7 @@ class TrainGuider(comfy_extras.nodes_custom_sampler.Guider_Basic):
                 noise.shape,
                 self.conds,
                 self.model_options,
-                skip_load_model=True, # skip load model as we manage it in TrainLoraNode.execute()
+                force_full_load=True,  # mirror behavior in TrainLoraNode.execute() to keep model loaded
             )
         )
         device = self.model_patcher.load_device
