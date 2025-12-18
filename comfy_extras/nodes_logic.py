@@ -149,14 +149,14 @@ class DCTestNode(io.ComfyNode):
             display_name="DCTest",
             category="logic",
             is_output_node=True,
-            inputs=[_io.DynamicCombo.Input("combo", options=[
-                _io.DynamicCombo.Option("option1", [io.String.Input("string")]),
-                _io.DynamicCombo.Option("option2", [io.Int.Input("integer")]),
-                _io.DynamicCombo.Option("option3", [io.Image.Input("image")]),
-                _io.DynamicCombo.Option("option4", [
-                    _io.DynamicCombo.Input("subcombo", options=[
-                        _io.DynamicCombo.Option("opt1", [io.Float.Input("float_x"), io.Float.Input("float_y")]),
-                        _io.DynamicCombo.Option("opt2", [io.Mask.Input("mask1", optional=True)]),
+            inputs=[io.DynamicCombo.Input("combo", options=[
+                io.DynamicCombo.Option("option1", [io.String.Input("string")]),
+                io.DynamicCombo.Option("option2", [io.Int.Input("integer")]),
+                io.DynamicCombo.Option("option3", [io.Image.Input("image")]),
+                io.DynamicCombo.Option("option4", [
+                    io.DynamicCombo.Input("subcombo", options=[
+                        io.DynamicCombo.Option("opt1", [io.Float.Input("float_x"), io.Float.Input("float_y")]),
+                        io.DynamicCombo.Option("opt2", [io.Mask.Input("mask1", optional=True)]),
                     ])
                 ])]
             )],
