@@ -117,7 +117,7 @@ class SeedVR2InputProcessing(io.ComfyNode):
     
     @classmethod
     def execute(cls, images, vae, resolution_height, resolution_width):
-        comfy.model_management.load_models_gpu([vae.patcher], force_full_load=True)
+        comfy.model_management.load_models_gpu([vae.patcher])
         device = vae.patcher.load_device
 
         offload_device = comfy.model_management.intermediate_device()
