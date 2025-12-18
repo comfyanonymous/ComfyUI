@@ -129,7 +129,7 @@ def pil_to_bytesio(img: Image.Image, mime_type: str = "image/png") -> BytesIO:
     return img_byte_arr
 
 
-def downscale_image_tensor(image, total_pixels=1536 * 1024) -> torch.Tensor:
+def downscale_image_tensor(image: torch.Tensor, total_pixels: int = 1536 * 1024) -> torch.Tensor:
     """Downscale input image tensor to roughly the specified total pixels."""
     samples = image.movedim(-1, 1)
     total = int(total_pixels)
