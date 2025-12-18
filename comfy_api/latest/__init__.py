@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import Type, TYPE_CHECKING
+from typing import TYPE_CHECKING
 from comfy_api.internal import ComfyAPIBase
 from comfy_api.internal.singleton import ProxiedSingleton
 from comfy_api.internal.async_to_sync import create_sync_class
@@ -113,7 +113,7 @@ ComfyAPI = ComfyAPI_latest
 if TYPE_CHECKING:
     import comfy_api.latest.generated.ComfyAPISyncStub  # type: ignore
 
-    ComfyAPISync: Type[comfy_api.latest.generated.ComfyAPISyncStub.ComfyAPISyncStub]
+    ComfyAPISync: type[comfy_api.latest.generated.ComfyAPISyncStub.ComfyAPISyncStub]
 ComfyAPISync = create_sync_class(ComfyAPI_latest)
 
 # create new aliases for io and ui

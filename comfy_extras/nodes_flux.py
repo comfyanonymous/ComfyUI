@@ -154,12 +154,13 @@ class FluxKontextMultiReferenceLatentMethod(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="FluxKontextMultiReferenceLatentMethod",
+            display_name="Edit Model Reference Method",
             category="advanced/conditioning/flux",
             inputs=[
                 io.Conditioning.Input("conditioning"),
                 io.Combo.Input(
                     "reference_latents_method",
-                    options=["offset", "index", "uxo/uno"],
+                    options=["offset", "index", "uxo/uno", "index_timestep_zero"],
                 ),
             ],
             outputs=[
