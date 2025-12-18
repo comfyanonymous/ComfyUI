@@ -1277,7 +1277,8 @@ class Schema:
         '''
         nested_inputs: list[Input] = []
         for input in self.inputs:
-            nested_inputs.extend(input.get_all())
+            if not isinstance(input, DynamicInput):
+                nested_inputs.extend(input.get_all())
         input_ids = [i.id for i in nested_inputs]
         output_ids = [o.id for o in self.outputs]
         input_set = set(input_ids)
