@@ -127,6 +127,8 @@ class CLIP:
 
         self.tokenizer = tokenizer(embedding_directory=embedding_directory, tokenizer_data=tokenizer_data)
         self.patcher = comfy.model_patcher.ModelPatcher(self.cond_stage_model, load_device=load_device, offload_device=offload_device)
+        #Match torch.float32 hardcode upcast in TE implemention
+        self.patcher.set_model_compute_dtype(torch.float32)
         self.patcher.hook_mode = comfy.hooks.EnumHookMode.MinVram
         self.patcher.is_clip = True
         self.apply_hooks_to_conds = None
@@ -547,8 +549,10 @@ class VAE:
                     ddconfig = {"dim": dim, "z_dim": self.latent_channels, "dim_mult": [1, 2, 4, 4], "num_res_blocks": 2, "attn_scales": [], "temperal_downsample": [False, True, True], "dropout": 0.0}
                     self.first_stage_model = comfy.ldm.wan.vae.WanVAE(**ddconfig)
                     self.working_dtypes = [torch.bfloat16, torch.float16, torch.float32]
-                    self.memory_used_encode = lambda shape, dtype: 6000 * shape[3] * shape[4] * model_management.dtype_size(dtype)
-                    self.memory_used_decode = lambda shape, dtype: 7000 * shape[3] * shape[4] * (8 * 8) * model_management.dtype_size(dtype)
+                    self.memory_used_encode = lambda shape, dtype: (1500 if shape[2]<=4 else 6000) * shape[3] * shape[4] * model_management.dtype_size(dtype)
+                    self.memory_used_decode = lambda shape, dtype: (2200 if shape[2]<=4 else 7000) * shape[3] * shape[4] * (8*8) * model_management.dtype_size(dtype)
+
+
             # Hunyuan 3d v2 2.0 & 2.1
             elif "geo_decoder.cross_attn_decoder.ln_1.bias" in sd:
 
