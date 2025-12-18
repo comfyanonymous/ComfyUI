@@ -4,7 +4,7 @@ import os
 import time
 import mimetypes
 import logging
-from typing import Literal
+from typing import Literal, List
 from collections.abc import Collection
 
 from comfy.cli_args import args
@@ -38,6 +38,8 @@ folder_names_and_paths["gligen"] = ([os.path.join(models_dir, "gligen")], suppor
 
 folder_names_and_paths["upscale_models"] = ([os.path.join(models_dir, "upscale_models")], supported_pt_extensions)
 
+folder_names_and_paths["latent_upscale_models"] = ([os.path.join(models_dir, "latent_upscale_models")], supported_pt_extensions)
+
 folder_names_and_paths["custom_nodes"] = ([os.path.join(base_path, "custom_nodes")], set())
 
 folder_names_and_paths["hypernetworks"] = ([os.path.join(models_dir, "hypernetworks")], supported_pt_extensions)
@@ -45,6 +47,10 @@ folder_names_and_paths["hypernetworks"] = ([os.path.join(models_dir, "hypernetwo
 folder_names_and_paths["photomaker"] = ([os.path.join(models_dir, "photomaker")], supported_pt_extensions)
 
 folder_names_and_paths["classifiers"] = ([os.path.join(models_dir, "classifiers")], {""})
+
+folder_names_and_paths["model_patches"] = ([os.path.join(models_dir, "model_patches")], supported_pt_extensions)
+
+folder_names_and_paths["audio_encoders"] = ([os.path.join(models_dir, "audio_encoders")], supported_pt_extensions)
 
 output_directory = os.path.join(base_path, "output")
 temp_directory = os.path.join(base_path, "temp")
@@ -131,6 +137,71 @@ def set_user_directory(user_dir: str) -> None:
     user_directory = user_dir
 
 
+# System User Protection - Protects system directories from HTTP endpoint access
+# System Users are internal-only users that cannot be accessed via HTTP endpoints.
+# They use the '__' prefix convention (similar to Python's private member convention).
+SYSTEM_USER_PREFIX = "__"
+
+
+def get_system_user_directory(name: str = "system") -> str:
+    """
+    Get the path to a System User directory.
+
+    System User directories (prefixed with '__') are only accessible via internal API,
+    not through HTTP endpoints. Use this for storing system-internal data that
+    should not be exposed to users.
+
+    Args:
+        name: System user name (e.g., "system", "cache"). Must be alphanumeric
+              with underscores allowed, but cannot start with underscore.
+
+    Returns:
+        Absolute path to the system user directory.
+
+    Raises:
+        ValueError: If name is empty, invalid, or starts with underscore.
+
+    Example:
+        >>> get_system_user_directory("cache")
+        '/path/to/user/__cache'
+    """
+    if not name or not isinstance(name, str):
+        raise ValueError("System user name cannot be empty")
+    if not name.replace("_", "").isalnum():
+        raise ValueError(f"Invalid system user name: '{name}'")
+    if name.startswith("_"):
+        raise ValueError("System user name should not start with underscore")
+    return os.path.join(get_user_directory(), f"{SYSTEM_USER_PREFIX}{name}")
+
+
+def get_public_user_directory(user_id: str) -> str | None:
+    """
+    Get the path to a Public User directory for HTTP endpoint access.
+
+    This function provides structural security by returning None for any
+    System User (prefixed with '__'). All HTTP endpoints should use this
+    function instead of directly constructing user paths.
+
+    Args:
+        user_id: User identifier from HTTP request.
+
+    Returns:
+        Absolute path to the user directory, or None if user_id is invalid
+        or refers to a System User.
+
+    Example:
+        >>> get_public_user_directory("default")
+        '/path/to/user/default'
+        >>> get_public_user_directory("__system")
+        None
+    """
+    if not user_id or not isinstance(user_id, str):
+        return None
+    if user_id.startswith(SYSTEM_USER_PREFIX):
+        return None
+    return os.path.join(get_user_directory(), user_id)
+
+
 #NOTE: used in http server so don't put folders that should not be accessed remotely
 def get_directory_by_type(type_name: str) -> str | None:
     if type_name == "output":
@@ -141,7 +212,7 @@ def get_directory_by_type(type_name: str) -> str | None:
         return get_input_directory()
     return None
 
-def filter_files_content_types(files: list[str], content_types: Literal["image", "video", "audio", "model"]) -> list[str]:
+def filter_files_content_types(files: list[str], content_types: List[Literal["image", "video", "audio", "model"]]) -> list[str]:
     """
     Example:
         files = os.listdir(folder_paths.get_input_directory())
@@ -276,6 +347,9 @@ def filter_files_extensions(files: Collection[str], extensions: Collection[str])
 
 
 def get_full_path(folder_name: str, filename: str) -> str | None:
+    """
+    Get the full path of a file in a folder, has to be a file
+    """
     global folder_names_and_paths
     folder_name = map_legacy(folder_name)
     if folder_name not in folder_names_and_paths:
@@ -293,6 +367,9 @@ def get_full_path(folder_name: str, filename: str) -> str | None:
 
 
 def get_full_path_or_raise(folder_name: str, filename: str) -> str:
+    """
+    Get the full path of a file in a folder, has to be a file
+    """
     full_path = get_full_path(folder_name, filename)
     if full_path is None:
         raise FileNotFoundError(f"Model in folder '{folder_name}' with filename '{filename}' not found.")
@@ -394,3 +471,26 @@ def get_save_image_path(filename_prefix: str, output_dir: str, image_width=0, im
         os.makedirs(full_output_folder, exist_ok=True)
         counter = 1
     return full_output_folder, filename, counter, subfolder, filename_prefix
+
+def get_input_subfolders() -> list[str]:
+    """Returns a list of all subfolder paths in the input directory, recursively.
+
+    Returns:
+        List of folder paths relative to the input directory, excluding the root directory
+    """
+    input_dir = get_input_directory()
+    folders = []
+
+    try:
+        if not os.path.exists(input_dir):
+            return []
+
+        for root, dirs, _ in os.walk(input_dir):
+            rel_path = os.path.relpath(root, input_dir)
+            if rel_path != ".":  # Only include non-root directories
+                # Normalize path separators to forward slashes
+                folders.append(rel_path.replace(os.sep, '/'))
+
+        return sorted(folders)
+    except FileNotFoundError:
+        return []

@@ -10,46 +10,70 @@ import importlib
 from dataclasses import dataclass
 from functools import cached_property
 from pathlib import Path
-from typing import TypedDict, Optional
+from typing import Dict, TypedDict, Optional
+from aiohttp import web
 from importlib.metadata import version
 
 import requests
 from typing_extensions import NotRequired
 
+from utils.install_util import get_missing_requirements_message, requirements_path
+
 from comfy.cli_args import DEFAULT_VERSION_STRING
 import app.logger
 
-# The path to the requirements.txt file
-req_path = Path(__file__).parents[1] / "requirements.txt"
-
 
 def frontend_install_warning_message():
-    """The warning message to display when the frontend version is not up to date."""
-
-    extra = ""
-    if sys.flags.no_user_site:
-        extra = "-s "
     return f"""
-Please install the updated requirements.txt file by running:
-{sys.executable} {extra}-m pip install -r {req_path}
+{get_missing_requirements_message()}
 
 This error is happening because the ComfyUI frontend is no longer shipped as part of the main repo but as a pip package instead.
-
-If you are on the portable package you can run: update\\update_comfyui.bat to solve this problem
 """.strip()
+
+def parse_version(version: str) -> tuple[int, int, int]:
+        return tuple(map(int, version.split(".")))
+
+def is_valid_version(version: str) -> bool:
+    """Validate if a string is a valid semantic version (X.Y.Z format)."""
+    pattern = r"^(\d+)\.(\d+)\.(\d+)$"
+    return bool(re.match(pattern, version))
+
+def get_installed_frontend_version():
+    """Get the currently installed frontend package version."""
+    frontend_version_str = version("comfyui-frontend-package")
+    return frontend_version_str
+
+
+def get_required_frontend_version():
+    """Get the required frontend version from requirements.txt."""
+    try:
+        with open(requirements_path, "r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if line.startswith("comfyui-frontend-package=="):
+                    version_str = line.split("==")[-1]
+                    if not is_valid_version(version_str):
+                        logging.error(f"Invalid version format in requirements.txt: {version_str}")
+                        return None
+                    return version_str
+            logging.error("comfyui-frontend-package not found in requirements.txt")
+            return None
+    except FileNotFoundError:
+        logging.error("requirements.txt not found. Cannot determine required frontend version.")
+        return None
+    except Exception as e:
+        logging.error(f"Error reading requirements.txt: {e}")
+        return None
 
 
 def check_frontend_version():
     """Check if the frontend version is up to date."""
 
-    def parse_version(version: str) -> tuple[int, int, int]:
-        return tuple(map(int, version.split(".")))
-
     try:
-        frontend_version_str = version("comfyui-frontend-package")
+        frontend_version_str = get_installed_frontend_version()
         frontend_version = parse_version(frontend_version_str)
-        with open(req_path, "r", encoding="utf-8") as f:
-            required_frontend = parse_version(f.readline().split("=")[-1])
+        required_frontend_str = get_required_frontend_version()
+        required_frontend = parse_version(required_frontend_str)
         if frontend_version < required_frontend:
             app.logger.log_startup_warning(
                 f"""
@@ -121,9 +145,22 @@ class FrontEndProvider:
         response.raise_for_status()  # Raises an HTTPError if the response was an error
         return response.json()
 
+    @cached_property
+    def latest_prerelease(self) -> Release:
+        """Get the latest pre-release version - even if it's older than the latest release"""
+        release = [release for release in self.all_releases if release["prerelease"]]
+
+        if not release:
+            raise ValueError("No pre-releases found")
+
+        # GitHub returns releases in reverse chronological order, so first is latest
+        return release[0]
+
     def get_release(self, version: str) -> Release:
         if version == "latest":
             return self.latest_release
+        elif version == "prerelease":
+            return self.latest_prerelease
         else:
             for release in self.all_releases:
                 if release["tag_name"] in [version, f"v{version}"]:
@@ -165,6 +202,42 @@ class FrontendManager:
     CUSTOM_FRONTENDS_ROOT = str(Path(__file__).parents[1] / "web_custom_versions")
 
     @classmethod
+    def get_required_frontend_version(cls) -> str:
+        """Get the required frontend package version."""
+        return get_required_frontend_version()
+
+    @classmethod
+    def get_installed_templates_version(cls) -> str:
+        """Get the currently installed workflow templates package version."""
+        try:
+            templates_version_str = version("comfyui-workflow-templates")
+            return templates_version_str
+        except Exception:
+            return None
+
+    @classmethod
+    def get_required_templates_version(cls) -> str:
+        """Get the required workflow templates version from requirements.txt."""
+        try:
+            with open(requirements_path, "r", encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    if line.startswith("comfyui-workflow-templates=="):
+                        version_str = line.split("==")[-1]
+                        if not is_valid_version(version_str):
+                            logging.error(f"Invalid templates version format in requirements.txt: {version_str}")
+                            return None
+                        return version_str
+                logging.error("comfyui-workflow-templates not found in requirements.txt")
+                return None
+        except FileNotFoundError:
+            logging.error("requirements.txt not found. Cannot determine required templates version.")
+            return None
+        except Exception as e:
+            logging.error(f"Error reading requirements.txt: {e}")
+            return None
+
+    @classmethod
     def default_frontend_path(cls) -> str:
         try:
             import comfyui_frontend_package
@@ -185,6 +258,88 @@ comfyui-frontend-package is not installed.
             sys.exit(-1)
 
     @classmethod
+    def template_asset_map(cls) -> Optional[Dict[str, str]]:
+        """Return a mapping of template asset names to their absolute paths."""
+        try:
+            from comfyui_workflow_templates import (
+                get_asset_path,
+                iter_templates,
+            )
+        except ImportError:
+            logging.error(
+                f"""
+********** ERROR ***********
+
+comfyui-workflow-templates is not installed.
+
+{frontend_install_warning_message()}
+
+********** ERROR ***********
+""".strip()
+            )
+            return None
+
+        try:
+            template_entries = list(iter_templates())
+        except Exception as exc:
+            logging.error(f"Failed to enumerate workflow templates: {exc}")
+            return None
+
+        asset_map: Dict[str, str] = {}
+        try:
+            for entry in template_entries:
+                for asset in entry.assets:
+                    asset_map[asset.filename] = get_asset_path(
+                        entry.template_id, asset.filename
+                    )
+        except Exception as exc:
+            logging.error(f"Failed to resolve template asset paths: {exc}")
+            return None
+
+        if not asset_map:
+            logging.error("No workflow template assets found. Did the packages install correctly?")
+            return None
+
+        return asset_map
+
+
+    @classmethod
+    def legacy_templates_path(cls) -> Optional[str]:
+        """Return the legacy templates directory shipped inside the meta package."""
+        try:
+            import comfyui_workflow_templates
+
+            return str(
+                importlib.resources.files(comfyui_workflow_templates) / "templates"
+            )
+        except ImportError:
+            logging.error(
+                f"""
+********** ERROR ***********
+
+comfyui-workflow-templates is not installed.
+
+{frontend_install_warning_message()}
+
+********** ERROR ***********
+""".strip()
+            )
+            return None
+
+    @classmethod
+    def embedded_docs_path(cls) -> str:
+        """Get the path to embedded documentation"""
+        try:
+            import comfyui_embedded_docs
+
+            return str(
+                importlib.resources.files(comfyui_embedded_docs) / "docs"
+            )
+        except ImportError:
+            logging.info("comfyui-embedded-docs package not found")
+            return None
+
+    @classmethod
     def parse_version_string(cls, value: str) -> tuple[str, str, str]:
         """
         Args:
@@ -196,7 +351,7 @@ comfyui-frontend-package is not installed.
         Raises:
             argparse.ArgumentTypeError: If the version string is invalid.
         """
-        VERSION_PATTERN = r"^([a-zA-Z0-9][a-zA-Z0-9-]{0,38})/([a-zA-Z0-9_.-]+)@(v?\d+\.\d+\.\d+|latest)$"
+        VERSION_PATTERN = r"^([a-zA-Z0-9][a-zA-Z0-9-]{0,38})/([a-zA-Z0-9_.-]+)@(v?\d+\.\d+\.\d+[-._a-zA-Z0-9]*|latest|prerelease)$"
         match_result = re.match(VERSION_PATTERN, value)
         if match_result is None:
             raise argparse.ArgumentTypeError(f"Invalid version string: {value}")
@@ -286,3 +441,17 @@ comfyui-frontend-package is not installed.
             logging.info("Falling back to the default frontend.")
             check_frontend_version()
             return cls.default_frontend_path()
+    @classmethod
+    def template_asset_handler(cls):
+        assets = cls.template_asset_map()
+        if not assets:
+            return None
+
+        async def serve_template(request: web.Request) -> web.StreamResponse:
+            rel_path = request.match_info.get("path", "")
+            target = assets.get(rel_path)
+            if target is None:
+                raise web.HTTPNotFound()
+            return web.FileResponse(target)
+
+        return serve_template

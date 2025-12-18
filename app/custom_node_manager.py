@@ -93,16 +93,20 @@ class CustomNodeManager:
 
     def add_routes(self, routes, webapp, loadedModules):
 
+        example_workflow_folder_names = ["example_workflows", "example", "examples", "workflow", "workflows"]
+
         @routes.get("/workflow_templates")
         async def get_workflow_templates(request):
             """Returns a web response that contains the map of custom_nodes names and their associated workflow templates. The ones without templates are omitted."""
-            files = [
-                file
-                for folder in folder_paths.get_folder_paths("custom_nodes")
-                for file in glob.glob(
-                    os.path.join(folder, "*/example_workflows/*.json")
-                )
-            ]
+
+            files = []
+
+            for folder in folder_paths.get_folder_paths("custom_nodes"):
+                for folder_name in example_workflow_folder_names:
+                    pattern = os.path.join(folder, f"*/{folder_name}/*.json")
+                    matched_files = glob.glob(pattern)
+                    files.extend(matched_files)
+
             workflow_templates_dict = (
                 {}
             )  # custom_nodes folder name -> example workflow names
@@ -118,15 +122,22 @@ class CustomNodeManager:
 
         # Serve workflow templates from custom nodes.
         for module_name, module_dir in loadedModules:
-            workflows_dir = os.path.join(module_dir, "example_workflows")
-            if os.path.exists(workflows_dir):
-                webapp.add_routes(
-                    [
-                        web.static(
-                            "/api/workflow_templates/" + module_name, workflows_dir
-                        )
-                    ]
-                )
+            for folder_name in example_workflow_folder_names:
+                workflows_dir = os.path.join(module_dir, folder_name)
+
+                if os.path.exists(workflows_dir):
+                    if folder_name != "example_workflows":
+                        logging.debug(
+                            "Found example workflow folder '%s' for custom node '%s', consider renaming it to 'example_workflows'",
+                            folder_name, module_name)
+
+                    webapp.add_routes(
+                        [
+                            web.static(
+                                "/api/workflow_templates/" + module_name, workflows_dir
+                            )
+                        ]
+                    )
 
         @routes.get("/i18n")
         async def get_i18n(request):

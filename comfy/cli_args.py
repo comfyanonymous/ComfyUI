@@ -49,7 +49,8 @@ parser.add_argument("--temp-directory", type=str, default=None, help="Set the Co
 parser.add_argument("--input-directory", type=str, default=None, help="Set the ComfyUI input directory. Overrides --base-directory.")
 parser.add_argument("--auto-launch", action="store_true", help="Automatically launch ComfyUI in the default browser.")
 parser.add_argument("--disable-auto-launch", action="store_true", help="Disable auto launching the browser.")
-parser.add_argument("--cuda-device", type=int, default=None, metavar="DEVICE_ID", help="Set the id of the cuda device this instance will use.")
+parser.add_argument("--cuda-device", type=int, default=None, metavar="DEVICE_ID", help="Set the id of the cuda device this instance will use. All other devices will not be visible.")
+parser.add_argument("--default-device", type=int, default=None, metavar="DEFAULT_DEVICE_ID", help="Set the id of the default device, all other devices will stay visible.")
 cm_group = parser.add_mutually_exclusive_group()
 cm_group.add_argument("--cuda-malloc", action="store_true", help="Enable cudaMallocAsync (enabled by default for torch 2.0 and up).")
 cm_group.add_argument("--disable-cuda-malloc", action="store_true", help="Disable cudaMallocAsync.")
@@ -66,6 +67,7 @@ fpunet_group.add_argument("--bf16-unet", action="store_true", help="Run the diff
 fpunet_group.add_argument("--fp16-unet", action="store_true", help="Run the diffusion model in fp16")
 fpunet_group.add_argument("--fp8_e4m3fn-unet", action="store_true", help="Store unet weights in fp8_e4m3fn.")
 fpunet_group.add_argument("--fp8_e5m2-unet", action="store_true", help="Store unet weights in fp8_e5m2.")
+fpunet_group.add_argument("--fp8_e8m0fnu-unet", action="store_true", help="Store unet weights in fp8_e8m0fnu.")
 
 fpvae_group = parser.add_mutually_exclusive_group()
 fpvae_group.add_argument("--fp16-vae", action="store_true", help="Run the VAE in fp16, might cause black images.")
@@ -87,12 +89,20 @@ parser.add_argument("--directml", type=int, nargs="?", metavar="DIRECTML_DEVICE"
 
 parser.add_argument("--oneapi-device-selector", type=str, default=None, metavar="SELECTOR_STRING", help="Sets the oneAPI device(s) this instance will use.")
 parser.add_argument("--disable-ipex-optimize", action="store_true", help="Disables ipex.optimize default when loading models with Intel's Extension for Pytorch.")
+parser.add_argument("--supports-fp8-compute", action="store_true", help="ComfyUI will act like if the device supports fp8 compute.")
 
 class LatentPreviewMethod(enum.Enum):
     NoPreviews = "none"
     Auto = "auto"
     Latent2RGB = "latent2rgb"
     TAESD = "taesd"
+
+    @classmethod
+    def from_string(cls, value: str):
+        for member in cls:
+            if member.value == value:
+                return member
+        return None
 
 parser.add_argument("--preview-method", type=LatentPreviewMethod, default=LatentPreviewMethod.NoPreviews, help="Default preview method for sampler nodes.", action=EnumAction)
 
@@ -102,6 +112,7 @@ cache_group = parser.add_mutually_exclusive_group()
 cache_group.add_argument("--cache-classic", action="store_true", help="Use the old style (aggressive) caching.")
 cache_group.add_argument("--cache-lru", type=int, default=0, help="Use LRU caching with a maximum of N node results cached. May use more RAM/VRAM.")
 cache_group.add_argument("--cache-none", action="store_true", help="Reduced RAM/VRAM usage at the expense of executing every node for each run.")
+cache_group.add_argument("--cache-ram", nargs='?', const=4.0, type=float, default=0, help="Use RAM pressure caching with the specified headroom threshold. If available RAM drops below the threhold the cache remove large items to free RAM. Default 4GB")
 
 attn_group = parser.add_mutually_exclusive_group()
 attn_group.add_argument("--use-split-cross-attention", action="store_true", help="Use the split cross attention optimization. Ignored when xformers is used.")
@@ -117,6 +128,12 @@ upcast.add_argument("--force-upcast-attention", action="store_true", help="Force
 upcast.add_argument("--dont-upcast-attention", action="store_true", help="Disable all upcasting of attention. Should be unnecessary except for debugging.")
 
 
+parser.add_argument("--enable-manager", action="store_true", help="Enable the ComfyUI-Manager feature.")
+manager_group = parser.add_mutually_exclusive_group()
+manager_group.add_argument("--disable-manager-ui", action="store_true", help="Disables only the ComfyUI-Manager UI and endpoints. Scheduled installations and similar background tasks will still operate.")
+manager_group.add_argument("--enable-manager-legacy-ui", action="store_true", help="Enables the legacy UI of ComfyUI-Manager")
+
+
 vram_group = parser.add_mutually_exclusive_group()
 vram_group.add_argument("--gpu-only", action="store_true", help="Store and run everything (text encoders/CLIP models, etc... on the GPU).")
 vram_group.add_argument("--highvram", action="store_true", help="By default models will be unloaded to CPU memory after being used. This option keeps them in GPU memory.")
@@ -127,6 +144,10 @@ vram_group.add_argument("--cpu", action="store_true", help="To use the CPU for e
 
 parser.add_argument("--reserve-vram", type=float, default=None, help="Set the amount of vram in GB you want to reserve for use by your OS/other software. By default some amount is reserved depending on your OS.")
 
+parser.add_argument("--async-offload", nargs='?', const=2, type=int, default=None, metavar="NUM_STREAMS", help="Use async weight offloading. An optional argument controls the amount of offload streams. Default is 2. Enabled by default on Nvidia.")
+parser.add_argument("--disable-async-offload", action="store_true", help="Disable async weight offloading.")
+
+parser.add_argument("--force-non-blocking", action="store_true", help="Force ComfyUI to use non-blocking operations for all applicable tensors. This may improve performance on some non-Nvidia systems but can cause issues with some workflows.")
 
 parser.add_argument("--default-hashing-function", type=str, choices=['md5', 'sha1', 'sha256', 'sha512'], default='sha256', help="Allows you to choose the hash function to use for duplicate filename / contents comparison. Default is sha256.")
 
@@ -137,8 +158,14 @@ class PerformanceFeature(enum.Enum):
     Fp16Accumulation = "fp16_accumulation"
     Fp8MatrixMultiplication = "fp8_matrix_mult"
     CublasOps = "cublas_ops"
+    AutoTune = "autotune"
 
-parser.add_argument("--fast", nargs="*", type=PerformanceFeature, help="Enable some untested and potentially quality deteriorating optimizations. --fast with no arguments enables everything. You can pass a list specific optimizations if you only want to enable specific ones. Current valid optimizations: fp16_accumulation fp8_matrix_mult cublas_ops")
+parser.add_argument("--fast", nargs="*", type=PerformanceFeature, help="Enable some untested and potentially quality deteriorating optimizations. This is used to test new features so using it might crash your comfyui. --fast with no arguments enables everything. You can pass a list specific optimizations if you only want to enable specific ones. Current valid optimizations: {}".format(" ".join(map(lambda c: c.value, PerformanceFeature))))
+
+parser.add_argument("--disable-pinned-memory", action="store_true", help="Disable pinned memory use.")
+
+parser.add_argument("--mmap-torch-files", action="store_true", help="Use mmap when loading ckpt/pt files.")
+parser.add_argument("--disable-mmap", action="store_true", help="Don't use mmap when loading safetensors.")
 
 parser.add_argument("--dont-print-server", action="store_true", help="Don't print server output.")
 parser.add_argument("--quick-test-for-ci", action="store_true", help="Quick test for CI.")
@@ -146,11 +173,14 @@ parser.add_argument("--windows-standalone-build", action="store_true", help="Win
 
 parser.add_argument("--disable-metadata", action="store_true", help="Disable saving prompt metadata in files.")
 parser.add_argument("--disable-all-custom-nodes", action="store_true", help="Disable loading all custom nodes.")
+parser.add_argument("--whitelist-custom-nodes", type=str, nargs='+', default=[], help="Specify custom node folders to load even when --disable-all-custom-nodes is enabled.")
+parser.add_argument("--disable-api-nodes", action="store_true", help="Disable loading all api nodes. Also prevents the frontend from communicating with the internet.")
 
 parser.add_argument("--multi-user", action="store_true", help="Enables per-user storage.")
 
 parser.add_argument("--verbose", default='INFO', const='DEBUG', nargs="?", choices=['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'], help='Set the logging level')
 parser.add_argument("--log-stdout", action="store_true", help="Send normal process output to stdout instead of stderr (default).")
+
 
 # The default built-in provider hosted under web/
 DEFAULT_VERSION_STRING = "comfyanonymous/ComfyUI@latest"
@@ -189,6 +219,18 @@ parser.add_argument(
 parser.add_argument("--user-directory", type=is_valid_directory, default=None, help="Set the ComfyUI user directory with an absolute path. Overrides --base-directory.")
 
 parser.add_argument("--enable-compress-response-body", action="store_true", help="Enable compressing response body.")
+
+parser.add_argument(
+    "--comfy-api-base",
+    type=str,
+    default="https://api.comfy.org",
+    help="Set the base URL for the ComfyUI API.  (default: https://api.comfy.org)",
+)
+
+database_default_path = os.path.abspath(
+    os.path.join(os.path.dirname(__file__), "..", "user", "comfyui.db")
+)
+parser.add_argument("--database-url", type=str, default=f"sqlite:///{database_default_path}", help="Specify the database URL, e.g. for an in-memory database you can use 'sqlite:///:memory:'.")
 
 if comfy.options.args_parsing:
     args = parser.parse_args()
