@@ -8,7 +8,7 @@ DEFAULT_CHUNK = 8 * 1024 *1024 # 8MB
 
 # NOTE: this allows hashing different representations of a file-like object
 def blake3_hash(
-    fp: Union[str, bytes, os.PathLike[str], os.PathLike[bytes], IO[bytes]],
+    fp: str | IO[bytes],
     chunk_size: int = DEFAULT_CHUNK,
 ) -> str:
     """
@@ -19,6 +19,7 @@ def blake3_hash(
     ``read``, ``seek``, and ``tell``. The function will seek to the start before
     reading and will attempt to restore the original position afterward.
     """
+    # duck typing to check if input is a file-like object
     if hasattr(fp, "read"):
         return _hash_file_obj(fp, chunk_size)
 
@@ -27,7 +28,7 @@ def blake3_hash(
 
 
 async def blake3_hash_async(
-    fp: Union[str, bytes, os.PathLike[str], os.PathLike[bytes], IO[bytes]],
+    fp: str | IO[bytes],
     chunk_size: int = DEFAULT_CHUNK,
 ) -> str:
     """Async wrapper for ``blake3_hash_sync``.
@@ -54,13 +55,11 @@ def _hash_file_obj(file_obj: IO, chunk_size: int = DEFAULT_CHUNK) -> str:
         chunk_size = DEFAULT_CHUNK
 
     # in case file object is already open and not at the beginning, track so can be restored after hashing
-    orig_pos = None
-    if hasattr(file_obj, "tell"):
-        orig_pos = file_obj.tell()
+    orig_pos = file_obj.tell()
 
     try:
-        if hasattr(file_obj, "seek"):
-            # seek to the beginning before reading
+        # seek to the beginning before reading
+        if orig_pos != 0:
             file_obj.seek(0)
 
         h = blake3()
@@ -72,5 +71,5 @@ def _hash_file_obj(file_obj: IO, chunk_size: int = DEFAULT_CHUNK) -> str:
         return h.hexdigest()
     finally:
         # restore original position in file object, if needed
-        if hasattr(file_obj, "seek") and orig_pos is not None:
+        if orig_pos != 0:
             file_obj.seek(orig_pos)
