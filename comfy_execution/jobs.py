@@ -51,7 +51,7 @@ def is_previewable(media_type: str, item: dict) -> bool:
     if media_type in PREVIEWABLE_MEDIA_TYPES:
         return True
 
-    # Check format field (MIME type). 
+    # Check format field (MIME type).
     # Maintains backwards compatibility with how custom node outputs are handled in the frontend.
     fmt = item.get('format', '')
     if fmt and (fmt.startswith('video/') or fmt.startswith('audio/')):
