@@ -4,6 +4,7 @@ import torch
 import math
 from einops import rearrange
 
+import comfy.model_management
 import torch.nn.functional as F
 from torchvision.transforms import functional as TVF
 from torchvision.transforms import Lambda, Normalize
@@ -116,11 +117,12 @@ class SeedVR2InputProcessing(io.ComfyNode):
     
     @classmethod
     def execute(cls, images, vae, resolution_height, resolution_width):
+        comfy.model_management.load_models_gpu([vae.patcher], force_full_load=True)
         device = vae.patcher.load_device
-        offload_device = vae.patcher.offload_device
-        vae = vae.first_stage_model
-        scale = 0.9152; shift = 0
 
+        offload_device = comfy.model_management.intermediate_device()
+        vae_model = vae.first_stage_model
+        scale = 0.9152; shift = 0
         if images.dim() != 5: # add the t dim
             images = images.unsqueeze(0)
         images = images.permute(0, 1, 4, 2, 3) 
@@ -142,14 +144,14 @@ class SeedVR2InputProcessing(io.ComfyNode):
         images = cut_videos(images)
 
         images = rearrange(images, "b t c h w -> b c t h w")
-        vae = vae.to(device)
         images = images.to(device)
-        latent = vae.encode(images)[0]
-        vae = vae.to(offload_device)
+        latent = vae_model.encode(images)[0]
+
         latent = latent.unsqueeze(2) if latent.ndim == 4 else latent
         latent = rearrange(latent, "b c ... -> b ... c")
 
         latent = (latent - shift) * scale
+        latent = latent.to(offload_device)
 
         return io.NodeOutput({"samples": latent})
 
@@ -189,6 +191,8 @@ class SeedVR2Conditioning(io.ComfyNode):
         t = timestep_transform(t, shape)
         cond = inter(vae_conditioning, aug_noises, t)
         condition = torch.stack([get_conditions(noise, c) for noise, c in zip(noises, cond)])
+        condition = condition.movedim(-1, 1)
+        noises = noises.movedim(-1, 1)
 
         pos_shape = pos_cond.shape[0]
         neg_shape = neg_cond.shape[0]

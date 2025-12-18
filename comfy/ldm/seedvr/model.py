@@ -1342,6 +1342,8 @@ class NaDiT(nn.Module):
         patches_replace = transformer_options.get("patches_replace", {})
         blocks_replace = patches_replace.get("dit", {})
         conditions = kwargs.get("condition")
+        x = x.movedim(1, -1)
+        conditions = conditions.movedim(1, -1)
 
         try:
             neg_cond, pos_cond = context.chunk(2, dim=0)
@@ -1418,6 +1420,9 @@ class NaDiT(nn.Module):
         out =  torch.stack(vid)
         try:
             pos, neg = out.chunk(2)
-            return torch.cat([neg, pos])
+            ut = torch.cat([neg, pos])
+            out = out.movedim(-1, 1)
+            return out
         except:
+            out = out.movedim(-1, 1)
             return out

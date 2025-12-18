@@ -6,6 +6,7 @@ import torch.nn.functional as F
 from einops import rearrange
 from torch import Tensor
 
+import comfy.model_management
 from comfy.ldm.seedvr.model import safe_pad_operation
 from comfy.ldm.modules.attention import optimized_attention
 
@@ -1552,15 +1553,19 @@ class VideoAutoencoderKLWrapper(VideoAutoencoderKL):
         return z, p
 
     def decode(self, z: torch.FloatTensor):
+        z = z.movedim(1, -1)
         latent = z.unsqueeze(0)
         scale = 0.9152
         shift = 0
         latent = latent / scale + shift
         latent = rearrange(latent, "b ... c -> b c ...")
         latent = latent.squeeze(2)
+        
+        if latent.ndim == 4:
+            latent = latent.unsqueeze(2)
 
-        if z.ndim == 4:
-            z = z.unsqueeze(2)
+        target_device = comfy.model_management.get_torch_device()
+        self.to(target_device)
         x = super().decode(latent).squeeze(2)
 
         input = rearrange(self.original_image_video[0], "c t h w -> t c h w")
