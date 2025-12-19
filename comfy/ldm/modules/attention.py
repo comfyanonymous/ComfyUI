@@ -32,7 +32,7 @@ except ImportError as e:
 
 FLASH_ATTENTION_IS_AVAILABLE = False
 try:
-    from flash_attn import flash_attn_func
+    from flash_attn import flash_attn_func, flash_attn_varlen_func
     FLASH_ATTENTION_IS_AVAILABLE = True
 except ImportError:
     if model_management.flash_attention_enabled():
@@ -473,8 +473,29 @@ else:
     SDP_BATCH_LIMIT = 2**31
 
 @wrap_attn
-def attention_pytorch(q, k, v, heads, mask=None, attn_precision=None, skip_reshape=False, skip_output_reshape=False, **kwargs):
-    if skip_reshape:
+def attention_pytorch(q, k, v, heads, mask=None, attn_precision=None, skip_reshape=False, skip_output_reshape=False, var_length=False, **kwargs):
+    if var_length:
+        cu_seqlens_q = kwargs.get("cu_seqlens_q", None)
+        cu_seqlens_k = kwargs.get("cu_seqlens_k", cu_seqlens_q)
+        assert cu_seqlens_q != None, "cu_seqlens_q shouldn't be None when var_length is True"
+        if not skip_reshape:
+            # assumes 2D q, k,v [total_tokens, embed_dim]
+            total_tokens, embed_dim = q.shape
+            head_dim = embed_dim // heads
+            q = q.view(total_tokens, heads, head_dim)
+            k = k.view(k.shape[0], heads, head_dim)
+            v = v.view(v.shape[0], heads, head_dim)
+
+        b = q.size(0); dim_head = q.shape[-1]
+        q = torch.nested.nested_tensor_from_jagged(q, offsets=cu_seqlens_q.long())
+        k = torch.nested.nested_tensor_from_jagged(k, offsets=cu_seqlens_k.long())
+        v = torch.nested.nested_tensor_from_jagged(v, offsets=cu_seqlens_k.long())
+
+        mask = None
+        q = q.transpose(1, 2)
+        k = k.transpose(1, 2)
+        v = v.transpose(1, 2)
+    elif skip_reshape:
         b, _, _, dim_head = q.shape
     else:
         b, _, dim_head = q.shape
@@ -492,8 +513,10 @@ def attention_pytorch(q, k, v, heads, mask=None, attn_precision=None, skip_resha
         if mask.ndim == 3:
             mask = mask.unsqueeze(1)
 
-    if SDP_BATCH_LIMIT >= b:
+    if SDP_BATCH_LIMIT >= b or var_length:
         out = comfy.ops.scaled_dot_product_attention(q, k, v, attn_mask=mask, dropout_p=0.0, is_causal=False)
+        if var_length:
+            return out.contiguous().transpose(1, 2).values()
         if not skip_output_reshape:
             out = (
                 out.transpose(1, 2).reshape(b, -1, heads * dim_head)
@@ -583,7 +606,20 @@ except AttributeError as error:
         assert False, f"Could not define flash_attn_wrapper: {FLASH_ATTN_ERROR}"
 
 @wrap_attn
-def attention_flash(q, k, v, heads, mask=None, attn_precision=None, skip_reshape=False, skip_output_reshape=False, **kwargs):
+def attention_flash(q, k, v, heads, mask=None, attn_precision=None, skip_reshape=False, skip_output_reshape=False, var_length=False, **kwargs):
+    if var_length:
+        cu_seqlens_q = kwargs.get("cu_seqlens_q", None)
+        cu_seqlens_k = kwargs.get("cu_seqlens_k", cu_seqlens_q)
+        max_seqlen_q = kwargs.get("max_seqlen_q", None)
+        max_seqlen_k = kwargs.get("max_seqlen_k", max_seqlen_q)
+        assert max_seqlen_q != None, "max_seqlen_q shouldn't be None when var_length is True"
+        assert cu_seqlens_q != None, "cu_seqlens_q shouldn't be None when var_length is True"
+        return flash_attn_varlen_func(
+            q=q, k=k, v=v,
+            cu_seqlens_q=cu_seqlens_q, cu_seqlens_k=cu_seqlens_k,
+            max_seqlen_q=max_seqlen_q, max_seqlen_k=max_seqlen_k,
+            dropout_p=0.0, softmax_scale=None, causal=False
+        )
     if skip_reshape:
         b, _, _, dim_head = q.shape
     else:

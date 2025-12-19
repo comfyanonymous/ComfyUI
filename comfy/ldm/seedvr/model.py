@@ -15,6 +15,11 @@ from comfy.rmsnorm import RMSNorm
 from torch.nn.modules.utils import _triple
 from torch import nn
 import math
+import logging
+try:
+    from flash_attn import flash_attn_varlen_func
+except:
+    logging.warning("Best results will be achieved with flash attention enabled for SeedVR2")
 
 class Cache:
     def __init__(self, disable=False, prefix="", cache=None):
@@ -735,70 +740,21 @@ class NaSwinAttention(NaMMAttention):
                 )
             else:
                 vid_q, vid_k = self.rope(vid_q, vid_k, window_shape, cache_win)
-        
-        # TODO: continue testing
-        v_lens = vid_len_win.cpu().tolist()
-        t_lens_batch = txt_len.cpu().tolist()
-        win_counts = window_count.cpu().tolist()
 
-        vq_l = torch.split(vid_q, v_lens)
-        vk_l = torch.split(vid_k, v_lens)
-        vv_l = torch.split(vid_v, v_lens) 
-
-        tv_batch = torch.split(txt_v, t_lens_batch)
-        tv_l = []
-        for i, count in enumerate(win_counts):
-            tv_l.extend([tv_batch[i]] * count)
-
-        current_txt_len = txt_q.shape[0]
-        expected_batch_len = sum(t_lens_batch)
-
-        if current_txt_len != expected_batch_len:
-            t_lens_win = txt_len_win.cpu().tolist()
-            
-            tq_l = torch.split(txt_q, t_lens_win)
-            tk_l = torch.split(txt_k, t_lens_win)
-        else:
-            tq_batch = torch.split(txt_q, t_lens_batch)
-            tk_batch = torch.split(txt_k, t_lens_batch)
-            
-            tq_l = []
-            tk_l = []
-            for i, count in enumerate(win_counts):
-                tq_l.extend([tq_batch[i]] * count)
-                tk_l.extend([tk_batch[i]] * count)
-
-        q_list = [torch.cat([v, t], dim=0) for v, t in zip(vq_l, tq_l)]
-        k_list = [torch.cat([v, t], dim=0) for v, t in zip(vk_l, tk_l)]
-        v_list = [torch.cat([v, t], dim=0) for v, t in zip(vv_l, tv_l)]
-        
-        q = rnn_utils.pad_sequence(q_list, batch_first=True)
-        k = rnn_utils.pad_sequence(k_list, batch_first=True)
-        v = rnn_utils.pad_sequence(v_list, batch_first=True)
-        
-        q = q.transpose(1, 2)
-        k = k.transpose(1, 2)
-        v = v.transpose(1, 2)
-        
-        B, Heads, Max_L, _ = q.shape
-        combined_lens = [v.shape[0] + t.shape[0] for v, t in zip(vq_l, tq_l)]
-        
-        attn_mask = torch.zeros((B, 1, 1, Max_L), device=q.device, dtype=q.dtype)
-        idx = torch.arange(Max_L, device=q.device).unsqueeze(0).expand(B, Max_L)
-        len_tensor = torch.tensor(combined_lens, device=q.device).unsqueeze(1)
-        
-        padding_mask = idx >= len_tensor
-        attn_mask.masked_fill_(padding_mask.unsqueeze(1).unsqueeze(1), float('-inf'))
-
-        out = optimized_attention(q, k, v, heads=self.heads, mask=attn_mask, skip_reshape=True, skip_output_reshape=True)
-        
-        out = out.transpose(1, 2)
-        
-        out_flat_list = []
-        for i, length in enumerate(combined_lens):
-            out_flat_list.append(out[i, :length])
-        
-        out = torch.cat(out_flat_list, dim=0)
+        out = optimized_attention(
+            q=concat_win(vid_q, txt_q).bfloat16(),
+            k=concat_win(vid_k, txt_k).bfloat16(),
+            v=concat_win(vid_v, txt_v).bfloat16(),
+            heads=self.heads, skip_reshape=True, var_length = True,
+            cu_seqlens_q=cache_win(
+                "vid_seqlens_q", lambda: safe_pad_operation(all_len_win.cumsum(0), (1, 0)).int()
+            ),
+            cu_seqlens_k=cache_win(
+                "vid_seqlens_k", lambda: safe_pad_operation(all_len_win.cumsum(0), (1, 0)).int()
+            ),
+            max_seqlen_q=cache_win("vid_max_seqlen_q", lambda: all_len_win.max().item()),
+            max_seqlen_k=cache_win("vid_max_seqlen_k", lambda: all_len_win.max().item()),
+        )
 
         vid_out, txt_out = unconcat_win(out)
 
@@ -807,7 +763,8 @@ class NaSwinAttention(NaMMAttention):
         vid_out = window_reverse(vid_out)
 
         device = comfy.model_management.get_torch_device()
-        vid_out, txt_out = vid_out.to(device), txt_out.to(device)
+        dtype = next(self.proj_out.parameters()).dtype
+        vid_out, txt_out = vid_out.to(device=device, dtype=dtype), txt_out.to(device=device, dtype=dtype)
         self.proj_out = self.proj_out.to(device)
         vid_out, txt_out = self.proj_out(vid_out, txt_out)
 

@@ -1565,7 +1565,7 @@ class VideoAutoencoderKLWrapper(VideoAutoencoderKL):
             latent = latent.unsqueeze(2)
 
         target_device = comfy.model_management.get_torch_device()
-        self.to(target_device)
+        self.decoder.to(target_device)
         x = super().decode(latent).squeeze(2)
 
         input = rearrange(self.original_image_video[0], "c t h w -> t c h w")
