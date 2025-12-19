@@ -47,6 +47,29 @@ class TestQuantizedTensor(unittest.TestCase):
         self.assertEqual(dequantized.dtype, torch.float32)
         self.assertTrue(torch.allclose(dequantized, torch.ones(10, 20) * 3.0, rtol=0.1))
 
+    def test_save_load(self):
+        """Test creating a QuantizedTensor with TensorCoreFP8Layout"""
+        fp8_data = torch.randn(256, 128, dtype=torch.float32).to(torch.float8_e4m3fn)
+        scale = torch.tensor(2.0)
+        layout_params = {'scale': scale, 'orig_dtype': torch.bfloat16}
+
+        qt = QuantizedTensor(fp8_data, "TensorCoreFP8Layout", layout_params)
+
+        self.assertIsInstance(qt, QuantizedTensor)
+        self.assertEqual(qt.shape, (256, 128))
+        self.assertEqual(qt.dtype, torch.float8_e4m3fn)
+        self.assertEqual(qt._layout_params['scale'], scale)
+        self.assertEqual(qt._layout_params['orig_dtype'], torch.bfloat16)
+        self.assertEqual(qt._layout_type, "TensorCoreFP8Layout")
+
+        torch.save(qt, "test.pt")
+        loaded_qt = torch.load("test.pt", weights_only=False)
+        # loaded_qt = torch.load("test.pt", map_location='cpu', mmap=True, weights_only=False)
+
+        self.assertEqual(loaded_qt._layout_type, "TensorCoreFP8Layout")
+        self.assertEqual(loaded_qt._layout_params['scale'], scale)
+        self.assertEqual(loaded_qt._layout_params['orig_dtype'], torch.bfloat16)
+
     def test_from_float(self):
         """Test creating QuantizedTensor from float tensor"""
         float_tensor = torch.randn(64, 32, dtype=torch.float32)
