@@ -620,6 +620,9 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
         dit_config["num_layers"] = count_blocks(state_dict_keys, '{}transformer_blocks.'.format(key_prefix) + '{}.')
         if "{}__index_timestep_zero__".format(key_prefix) in state_dict_keys:  # 2511
             dit_config["default_ref_method"] = "index_timestep_zero"
+        if "{}time_text_embed.addition_t_embedding.weight".format(key_prefix) in state_dict_keys:  # Layered
+            dit_config["use_additional_t_cond"] = True
+            dit_config["default_ref_method"] = "negative_index"
         return dit_config
 
     if '{}visual_transformer_blocks.0.cross_attention.key_norm.weight'.format(key_prefix) in state_dict_keys: # Kandinsky 5
