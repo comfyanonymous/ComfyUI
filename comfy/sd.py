@@ -1272,7 +1272,7 @@ def load_text_encoder_state_dicts(state_dicts=[], embedding_directory=None, clip
             clip_target.clip = comfy.text_encoders.kandinsky5.te(**llama_detect(clip_data))
             clip_target.tokenizer = comfy.text_encoders.kandinsky5.Kandinsky5TokenizerImage
         elif clip_type == CLIPType.NEWBIE:
-            clip_target.clip = comfy.text_encoders.newbie.NewBieClipModel
+            clip_target.clip = comfy.text_encoders.newbie.te(**llama_detect(clip_data))
             clip_target.tokenizer = comfy.text_encoders.newbie.NewBieTokenizer
             if "model.layers.0.self_attn.q_norm.weight" in clip_data[0]:
                 clip_data_gemma = clip_data[0]
