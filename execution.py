@@ -428,7 +428,10 @@ async def execute(server, dynprompt, caches, current_item, extra_data, executed,
 
     input_data_all = None
     try:
-        if unique_id in pending_async_nodes:
+        if execution_list.is_barrier(unique_id):
+            execution_list.unbarrier(unique_id)
+            return (ExecutionResult.PENDING, None, None)
+        elif unique_id in pending_async_nodes:
             results = []
             for r in pending_async_nodes[unique_id]:
                 if isinstance(r, asyncio.Task):
