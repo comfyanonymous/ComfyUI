@@ -26,6 +26,7 @@ import importlib
 import platform
 import weakref
 import gc
+import os
 
 class VRAMState(Enum):
     DISABLED = 0    #No vram present: no need to move models to vram
@@ -338,8 +339,11 @@ try:
     if is_amd():
         arch = torch.cuda.get_device_properties(get_torch_device()).gcnArchName
         if not (any((a in arch) for a in AMD_RDNA2_AND_OLDER_ARCH)):
-            torch.backends.cudnn.enabled = False  # Seems to improve things a lot on AMD
-            logging.info("Set: torch.backends.cudnn.enabled = False for better AMD performance.")
+            torch.backends.cudnn.enabled = os.environ.get("TORCH_AMD_CUDNN_ENABLED", "0").strip().lower() not in {
+                "0", "off", "false", "disable", "disabled", "no"}
+            if not torch.backends.cudnn.enabled:
+                logging.info(
+                    "ComfyUI has set torch.backends.cudnn.enabled to False for better AMD performance. Set environment var TORCH_AMD_CUDNN_ENABLED=1 to enable it again.")
 
         try:
             rocm_version = tuple(map(int, str(torch.version.hip).split(".")[:2]))
