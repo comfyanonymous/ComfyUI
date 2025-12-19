@@ -18,7 +18,7 @@ class BasicScheduler(io.ComfyNode):
             node_id="BasicScheduler",
             category="sampling/custom_sampling/schedulers",
             inputs=[
-                io.Model.Input("model"),
+                io.Model.Input("model", extra_dict={"cache-barrier":True}),
                 io.Combo.Input("scheduler", options=comfy.samplers.SCHEDULER_NAMES),
                 io.Int.Input("steps", default=20, min=1, max=10000),
                 io.Float.Input("denoise", default=1.0, min=0.0, max=1.0, step=0.01),
@@ -137,7 +137,7 @@ class SDTurboScheduler(io.ComfyNode):
             node_id="SDTurboScheduler",
             category="sampling/custom_sampling/schedulers",
             inputs=[
-                io.Model.Input("model"),
+                io.Model.Input("model", extra_dict={"cache-barrier":True}),
                 io.Int.Input("steps", default=1, min=1, max=10),
                 io.Float.Input("denoise", default=1.0, min=0, max=1.0, step=0.01),
             ],
@@ -161,7 +161,7 @@ class BetaSamplingScheduler(io.ComfyNode):
             node_id="BetaSamplingScheduler",
             category="sampling/custom_sampling/schedulers",
             inputs=[
-                io.Model.Input("model"),
+                io.Model.Input("model", extra_dict={"cache-barrier":True}),
                 io.Int.Input("steps", default=20, min=1, max=10000),
                 io.Float.Input("alpha", default=0.6, min=0.0, max=50.0, step=0.01, round=False),
                 io.Float.Input("beta", default=0.6, min=0.0, max=50.0, step=0.01, round=False),
@@ -351,7 +351,7 @@ class SamplingPercentToSigma(io.ComfyNode):
             node_id="SamplingPercentToSigma",
             category="sampling/custom_sampling/sigmas",
             inputs=[
-                io.Model.Input("model"),
+                io.Model.Input("model", extra_dict={"cache-barrier":True}),
                 io.Float.Input("sampling_percent", default=0.0, min=0.0, max=1.0, step=0.0001),
                 io.Boolean.Input("return_actual_sigma", default=False, tooltip="Return the actual sigma value instead of the value used for interval checks.\nThis only affects results at 0.0 and 1.0."),
             ],
@@ -622,7 +622,7 @@ class SamplerSASolver(io.ComfyNode):
             node_id="SamplerSASolver",
             category="sampling/custom_sampling/samplers",
             inputs=[
-                io.Model.Input("model"),
+                io.Model.Input("model", extra_dict={"cache-barrier":True}),
                 io.Float.Input("eta", default=1.0, min=0.0, max=10.0, step=0.01, round=False),
                 io.Float.Input("sde_start_percent", default=0.2, min=0.0, max=1.0, step=0.001),
                 io.Float.Input("sde_end_percent", default=0.8, min=0.0, max=1.0, step=0.001),
@@ -718,7 +718,7 @@ class SamplerCustom(io.ComfyNode):
             node_id="SamplerCustom",
             category="sampling/custom_sampling",
             inputs=[
-                io.Model.Input("model"),
+                io.Model.Input("model", extra_dict={"cache-barrier":True}),
                 io.Boolean.Input("add_noise", default=True),
                 io.Int.Input("noise_seed", default=0, min=0, max=0xffffffffffffffff, control_after_generate=True),
                 io.Float.Input("cfg", default=8.0, min=0.0, max=100.0, step=0.1, round=0.01),
@@ -779,7 +779,7 @@ class BasicGuider(io.ComfyNode):
             node_id="BasicGuider",
             category="sampling/custom_sampling/guiders",
             inputs=[
-                io.Model.Input("model"),
+                io.Model.Input("model", extra_dict={"cache-barrier":True}),
                 io.Conditioning.Input("conditioning"),
             ],
             outputs=[io.Guider.Output()]
@@ -800,7 +800,7 @@ class CFGGuider(io.ComfyNode):
             node_id="CFGGuider",
             category="sampling/custom_sampling/guiders",
             inputs=[
-                io.Model.Input("model"),
+                io.Model.Input("model", extra_dict={"cache-barrier":True}),
                 io.Conditioning.Input("positive"),
                 io.Conditioning.Input("negative"),
                 io.Float.Input("cfg", default=8.0, min=0.0, max=100.0, step=0.1, round=0.01),
@@ -853,7 +853,7 @@ class DualCFGGuider(io.ComfyNode):
             node_id="DualCFGGuider",
             category="sampling/custom_sampling/guiders",
             inputs=[
-                io.Model.Input("model"),
+                io.Model.Input("model", extra_dict={"cache-barrier":True}),
                 io.Conditioning.Input("cond1"),
                 io.Conditioning.Input("cond2"),
                 io.Conditioning.Input("negative"),
@@ -964,7 +964,7 @@ class AddNoise(io.ComfyNode):
             category="_for_testing/custom_sampling/noise",
             is_experimental=True,
             inputs=[
-                io.Model.Input("model"),
+                io.Model.Input("model", extra_dict={"cache-barrier":True}),
                 io.Noise.Input("noise"),
                 io.Sigmas.Input("sigmas"),
                 io.Latent.Input("latent_image"),
