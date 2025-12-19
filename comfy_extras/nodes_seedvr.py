@@ -117,7 +117,6 @@ class SeedVR2InputProcessing(io.ComfyNode):
     
     @classmethod
     def execute(cls, images, vae, resolution_height, resolution_width):
-        comfy.model_management.load_models_gpu([vae.patcher])
         device = vae.patcher.load_device
 
         offload_device = comfy.model_management.intermediate_device()
@@ -145,7 +144,9 @@ class SeedVR2InputProcessing(io.ComfyNode):
 
         images = rearrange(images, "b t c h w -> b c t h w")
         images = images.to(device)
+        vae_model = vae_model.to(device)
         latent = vae_model.encode(images)[0]
+        vae_model = vae_model.to(offload_device)
 
         latent = latent.unsqueeze(2) if latent.ndim == 4 else latent
         latent = rearrange(latent, "b c ... -> b ... c")
