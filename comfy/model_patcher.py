@@ -454,6 +454,9 @@ class ModelPatcher:
     def set_model_post_input_patch(self, patch):
         self.set_model_patch(patch, "post_input")
 
+    def set_model_noise_refiner_patch(self, patch):
+        self.set_model_patch(patch, "noise_refiner")
+
     def set_model_rope_options(self, scale_x, shift_x, scale_y, shift_y, scale_t, shift_t, **kwargs):
         rope_options = self.model_options["transformer_options"].get("rope_options", {})
         rope_options["scale_x"] = scale_x
