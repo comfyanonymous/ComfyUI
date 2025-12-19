@@ -1131,7 +1131,11 @@ if len(DYNAMIC_INPUT_LOOKUP) == 0:
 
 class V3Data(TypedDict):
     hidden_inputs: dict[str, Any]
+    'Dictionary where the keys are the hidden input ids and the values are the values of the hidden inputs.'
     dynamic_paths: dict[str, Any]
+    'Dictionary where the keys are the input ids and the values dictate how to turn the inputs into a nested dictionary.'
+    create_dynamic_tuple: bool
+    'When True, the value of the dynamic input will be in the format (value, path_key).'
 
 class HiddenHolder:
     def __init__(self, unique_id: str, prompt: Any,
@@ -1468,6 +1472,8 @@ def build_nested_inputs(values: dict[str, Any], v3_data: V3Data):
     values = values.copy()
     result = {}
 
+    create_tuple = v3_data.get("create_dynamic_tuple", False)
+
     for key, path in paths.items():
         parts = path.split(".")
         current = result
@@ -1476,7 +1482,10 @@ def build_nested_inputs(values: dict[str, Any], v3_data: V3Data):
             is_last = (i == len(parts) - 1)
 
             if is_last:
-                current[p] = values.pop(key, None)
+                value = values.pop(key, None)
+                if create_tuple:
+                    value = (value, key)
+                current[p] = value
             else:
                 current = current.setdefault(p, {})
 

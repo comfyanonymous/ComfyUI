@@ -480,7 +480,10 @@ async def execute(server, dynprompt, caches, current_item, extra_data, executed,
             else:
                 lazy_status_present = getattr(obj, "check_lazy_status", None) is not None
             if lazy_status_present:
-                required_inputs = await _async_map_node_over_list(prompt_id, unique_id, obj, input_data_all, "check_lazy_status", allow_interrupt=True, v3_data=v3_data)
+                # for check_lazy_status, the returned data should include the original key of the input
+                v3_data_lazy = v3_data.copy()
+                v3_data_lazy["create_dynamic_tuple"] = True
+                required_inputs = await _async_map_node_over_list(prompt_id, unique_id, obj, input_data_all, "check_lazy_status", allow_interrupt=True, v3_data=v3_data_lazy)
                 required_inputs = await resolve_map_node_over_list_results(required_inputs)
                 required_inputs = set(sum([r for r in required_inputs if isinstance(r,list)], []))
                 required_inputs = [x for x in required_inputs if isinstance(x,str) and (
