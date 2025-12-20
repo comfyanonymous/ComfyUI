@@ -1146,7 +1146,7 @@ def pin_memory(tensor):
     if not tensor.is_contiguous():
         return False
 
-    size = tensor.numel() * tensor.element_size()
+    size = tensor.nbytes
     if (TOTAL_PINNED_MEMORY + size) > MAX_PINNED_MEMORY:
         return False
 
@@ -1170,7 +1170,7 @@ def unpin_memory(tensor):
         return False
 
     ptr = tensor.data_ptr()
-    size = tensor.numel() * tensor.element_size()
+    size = tensor.nbytes
 
     size_stored = PINNED_MEMORY.get(ptr, None)
     if size_stored is None:
