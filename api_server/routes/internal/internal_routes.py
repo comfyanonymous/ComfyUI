@@ -82,3 +82,42 @@ class InternalRoutes:
             self.setup_routes()
             self._app.add_routes(self.routes)
         return self._app
+
+class InternalRoutesV2:
+    '''
+    V2 internal routes with structured responses.
+    '''
+
+    def __init__(self, prompt_server):
+        self.routes: web.RouteTableDef = web.RouteTableDef()
+        self._app: Optional[web.Application] = None
+        self.prompt_server = prompt_server
+
+    def setup_routes(self):
+        @self.routes.get('/files/{directory_type}')
+        async def get_files(request: web.Request) -> web.Response:
+            directory_type = request.match_info['directory_type']
+            directory = get_directory_for_type(directory_type)
+            if directory is None:
+                return web.json_response({"error": "Invalid directory type"}, status=400)
+
+            files = []
+            for entry in os.scandir(directory):
+                if not is_visible_file(entry):
+                    continue
+                stat = entry.stat()
+                files.append({
+                    "name": entry.name,
+                    "modified": stat.st_mtime,
+                    "size": stat.st_size
+                })
+
+            files.sort(key=lambda item: -item["modified"])
+            return web.json_response(files, status=200)
+
+    def get_app(self):
+        if self._app is None:
+            self._app = web.Application()
+            self.setup_routes()
+            self._app.add_routes(self.routes)
+        return self._app
