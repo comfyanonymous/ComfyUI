@@ -130,6 +130,10 @@ class CustomComboNode(io.ComfyNode):
         )
 
     @classmethod
+    def validate_inputs(cls, choice: io.Combo.Type) -> bool:
+        return True
+
+    @classmethod
     def execute(cls, choice: io.Combo.Type) -> io.NodeOutput:
         return io.NodeOutput(choice)
 
@@ -234,6 +238,21 @@ class ComboOutputTestNode(io.ComfyNode):
     def execute(cls, combo: io.Combo.Type, combo2: io.Combo.Type) -> io.NodeOutput:
         return io.NodeOutput(combo, combo2)
 
+class ConvertStringToComboNode(io.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return io.Schema(
+            node_id="ConvertStringToComboNode",
+            display_name="Convert String to Combo",
+            category="logic",
+            inputs=[io.String.Input("string")],
+            outputs=[io.Combo.Output()],
+        )
+
+    @classmethod
+    def execute(cls, string: str) -> io.NodeOutput:
+        return io.NodeOutput(string)
+
 class AnyTypeTestNode(io.ComfyNode):
     @classmethod
     def define_schema(cls):
@@ -249,6 +268,21 @@ class AnyTypeTestNode(io.ComfyNode):
     def execute(cls, any: io.AnyType.Type) -> io.NodeOutput:
         return io.NodeOutput(any)
 
+class InvertBooleanNode(io.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return io.Schema(
+            node_id="InvertBooleanNode",
+            display_name="Invert Boolean",
+            category="logic",
+            inputs=[io.Boolean.Input("boolean")],
+            outputs=[io.Boolean.Output()],
+        )
+
+    @classmethod
+    def execute(cls, boolean: bool) -> io.NodeOutput:
+        return io.NodeOutput(not boolean)
+
 class LogicExtension(ComfyExtension):
     @override
     async def get_node_list(self) -> list[type[io.ComfyNode]]:
@@ -256,10 +290,12 @@ class LogicExtension(ComfyExtension):
             SwitchNode,
             # SoftSwitchNode,
             # CustomComboNode,
+            # ConvertStringToComboNode,
             # DCTestNode,
             # AutogrowNamesTestNode,
             # AutogrowPrefixTestNode,
             # ComboOutputTestNode,
+            # InvertBooleanNode,
             # MatchTypeTestNode,
             # AnyTypeTestNode,
         ]
