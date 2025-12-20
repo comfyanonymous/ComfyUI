@@ -3,7 +3,6 @@ import torch.nn as nn
 from dataclasses import dataclass
 from typing import Optional, Any
 import math
-import logging
 
 from comfy.ldm.modules.attention import optimized_attention_for_device
 import comfy.model_management
