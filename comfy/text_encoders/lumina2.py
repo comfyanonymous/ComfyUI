@@ -33,6 +33,11 @@ class Gemma2_2BModel(sd1_clip.SDClipModel):
 
 class Gemma3_4BModel(sd1_clip.SDClipModel):
     def __init__(self, device="cpu", layer="hidden", layer_idx=-2, dtype=None, attention_mask=True, model_options={}):
+        llama_quantization_metadata = model_options.get("llama_quantization_metadata", None)
+        if llama_quantization_metadata is not None:
+            model_options = model_options.copy()
+            model_options["quantization_metadata"] = llama_quantization_metadata
+
         super().__init__(device=device, layer=layer, layer_idx=layer_idx, textmodel_json_config={}, dtype=dtype, special_tokens={"start": 2, "pad": 0}, layer_norm_hidden_state=False, model_class=comfy.text_encoders.llama.Gemma3_4B, enable_attention_masks=attention_mask, return_attention_masks=attention_mask, model_options=model_options)
 
 class LuminaModel(sd1_clip.SD1ClipModel):
