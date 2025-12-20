@@ -101,6 +101,34 @@ class InternalRoutesV2:
             if directory is None:
                 return web.json_response({"error": "Invalid directory type"}, status=400)
 
+            query = request.rel_url.query
+            limit = None
+            if 'limit' in query:
+                try:
+                    limit = int(query.get('limit'))
+                    if limit <= 0:
+                        return web.json_response(
+                            {"error": "limit must be a positive integer"},
+                            status=400
+                        )
+                except (ValueError, TypeError):
+                    return web.json_response(
+                        {"error": "limit must be an integer"},
+                        status=400
+                    )
+
+            offset = 0
+            if 'offset' in query:
+                try:
+                    offset = int(query.get('offset'))
+                    if offset < 0:
+                        offset = 0
+                except (ValueError, TypeError):
+                    return web.json_response(
+                        {"error": "offset must be an integer"},
+                        status=400
+                    )
+
             files = []
             for entry in os.scandir(directory):
                 if not is_visible_file(entry):
@@ -112,8 +140,22 @@ class InternalRoutesV2:
                     "size": stat.st_size
                 })
 
-            files.sort(key=lambda item: -item["modified"])
-            return web.json_response(files, status=200)
+            files.sort(key=lambda item: (-item["modified"], item["name"]))
+            total = len(files)
+            if offset:
+                files = files[offset:]
+            if limit is not None:
+                files = files[:limit]
+            has_more = (offset + len(files)) < total
+            return web.json_response({
+                "files": files,
+                "pagination": {
+                    "offset": offset,
+                    "limit": limit,
+                    "total": total,
+                    "has_more": has_more
+                }
+            }, status=200)
 
     def get_app(self):
         if self._app is None:
