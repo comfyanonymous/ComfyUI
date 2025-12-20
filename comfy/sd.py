@@ -386,6 +386,8 @@ class VAE:
                 self.downscale_index_formula = (4, 8, 8)
                 self.upscale_ratio = (lambda a: max(0, a * 4 - 3), 8, 8)
                 self.upscale_index_formula = (4, 8, 8)
+                self.process_input = lambda image: image
+                self.crop_input = False
             elif "decoder.conv_in.weight" in sd:
                 if sd['decoder.conv_in.weight'].shape[1] == 64:
                     ddconfig = {"block_out_channels": [128, 256, 512, 512, 1024, 1024], "in_channels": 3, "out_channels": 3, "num_res_blocks": 2, "ffactor_spatial": 32, "downsample_match_channel": True, "upsample_match_channel": True}

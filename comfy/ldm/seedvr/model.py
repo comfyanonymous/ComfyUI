@@ -1377,7 +1377,7 @@ class NaDiT(nn.Module):
         out =  torch.stack(vid)
         try:
             pos, neg = out.chunk(2)
-            ut = torch.cat([neg, pos])
+            out = torch.cat([neg, pos])
             out = out.movedim(-1, 1)
             return out
         except:

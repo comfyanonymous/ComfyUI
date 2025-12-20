@@ -68,14 +68,21 @@ def area_resize(image, max_area):
         interpolation=InterpolationMode.BICUBIC,
     )
 
-def crop(image, factor):
+def div_pad(image, factor):
+
     height_factor, width_factor = factor
     height, width = image.shape[-2:]
 
-    cropped_height = height - (height % height_factor)
-    cropped_width = width - (width % width_factor)
+    pad_height = (height_factor - (height % height_factor)) % height_factor
+    pad_width = (width_factor - (width % width_factor)) % width_factor
 
-    image = TVF.center_crop(img=image, output_size=(cropped_height, cropped_width))
+    if pad_height == 0 and pad_width == 0:
+        return image
+
+    if isinstance(image, torch.Tensor):
+        padding = (0, pad_width, 0, pad_height)
+        image = torch.nn.functional.pad(image, padding, mode='constant', value=0.0)
+
     return image
 
 def cut_videos(videos):
@@ -120,6 +127,8 @@ class SeedVR2InputProcessing(io.ComfyNode):
         device = vae.patcher.load_device
 
         offload_device = comfy.model_management.intermediate_device()
+        main_device = comfy.model_management.get_torch_device()
+        images = images.to(main_device)
         vae_model = vae.first_stage_model
         scale = 0.9152; shift = 0
         if images.dim() != 5: # add the t dim
@@ -135,7 +144,8 @@ class SeedVR2InputProcessing(io.ComfyNode):
         images = area_resize(images, max_area)
 
         images = clip(images)
-        images = crop(images, (16, 16))
+        o_h, o_w = images.shape[-2:]
+        images = div_pad(images, (16, 16))
         images = normalize(images)
         _, _, new_h, new_w = images.shape
 
@@ -145,7 +155,7 @@ class SeedVR2InputProcessing(io.ComfyNode):
         images = rearrange(images, "b t c h w -> b c t h w")
         images = images.to(device)
         vae_model = vae_model.to(device)
-        latent = vae_model.encode(images)[0]
+        latent = vae_model.encode(images, [o_h, o_w])[0]
         vae_model = vae_model.to(offload_device)
 
         latent = latent.unsqueeze(2) if latent.ndim == 4 else latent

@@ -1541,9 +1541,10 @@ class VideoAutoencoderKLWrapper(VideoAutoencoderKL):
         x = self.decode(z).sample
         return x, z, p
 
-    def encode(self, x: torch.FloatTensor):
+    def encode(self, x, orig_dims):
         # we need to keep a reference to the image/video so we later can do a colour fix later
         self.original_image_video = x
+        self.img_dims = orig_dims
         if x.ndim == 4:
             x = x.unsqueeze(2)
         x = x.to(next(self.parameters()).dtype)
@@ -1570,6 +1571,8 @@ class VideoAutoencoderKLWrapper(VideoAutoencoderKL):
 
         input = rearrange(self.original_image_video[0], "c t h w -> t c h w")
         x = wavelet_reconstruction(x, input)
+        o_h, o_w = self.img_dims
+        x = x[..., :o_h, :o_w]
         return x
 
     def set_memory_limit(self, conv_max_mem: Optional[float], norm_max_mem: Optional[float]):
