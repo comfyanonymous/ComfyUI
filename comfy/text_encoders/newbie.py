@@ -57,6 +57,6 @@ def te(dtype_llama=None, llama_quantization_metadata=None):
         def __init__(self, device="cpu", dtype=None, model_options={}):
             if llama_quantization_metadata is not None:
                 model_options = model_options.copy()
-                model_options["quantization_metadata"] = llama_quantization_metadata
+                model_options["llama_quantization_metadata"] = llama_quantization_metadata
             super().__init__(dtype_gemma=dtype_llama, device=device, dtype=dtype, model_options=model_options)
     return NewBieTEModel_
