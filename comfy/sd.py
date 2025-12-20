@@ -55,6 +55,8 @@ import comfy.text_encoders.hunyuan_image
 import comfy.text_encoders.z_image
 import comfy.text_encoders.ovis
 import comfy.text_encoders.kandinsky5
+import comfy.text_encoders.jina_clip_2
+import comfy.text_encoders.newbie
 
 import comfy.model_patcher
 import comfy.lora
@@ -1008,6 +1010,7 @@ class CLIPType(Enum):
     OVIS = 21
     KANDINSKY5 = 22
     KANDINSKY5_IMAGE = 23
+    NEWBIE = 24
 
 
 def load_clip(ckpt_paths, embedding_directory=None, clip_type=CLIPType.STABLE_DIFFUSION, model_options={}):
@@ -1038,6 +1041,7 @@ class TEModel(Enum):
     MISTRAL3_24B_PRUNED_FLUX2 = 15
     QWEN3_4B = 16
     QWEN3_2B = 17
+    JINA_CLIP_2 = 18
 
 
 def detect_te_model(sd):
@@ -1047,6 +1051,8 @@ def detect_te_model(sd):
         return TEModel.CLIP_H
     if "text_model.encoder.layers.0.mlp.fc1.weight" in sd:
         return TEModel.CLIP_L
+    if "model.encoder.layers.0.mixer.Wqkv.weight" in sd:
+        return TEModel.JINA_CLIP_2
     if "encoder.block.23.layer.1.DenseReluDense.wi_1.weight" in sd:
         weight = sd["encoder.block.23.layer.1.DenseReluDense.wi_1.weight"]
         if weight.shape[-1] == 4096:
@@ -1207,6 +1213,9 @@ def load_text_encoder_state_dicts(state_dicts=[], embedding_directory=None, clip
         elif te_model == TEModel.QWEN3_2B:
             clip_target.clip = comfy.text_encoders.ovis.te(**llama_detect(clip_data))
             clip_target.tokenizer = comfy.text_encoders.ovis.OvisTokenizer
+        elif te_model == TEModel.JINA_CLIP_2:
+            clip_target.clip = comfy.text_encoders.jina_clip_2.JinaClip2TextModelWrapper
+            clip_target.tokenizer = comfy.text_encoders.jina_clip_2.JinaClip2TokenizerWrapper
         else:
             # clip_l
             if clip_type == CLIPType.SD3:
@@ -1262,6 +1271,17 @@ def load_text_encoder_state_dicts(state_dicts=[], embedding_directory=None, clip
         elif clip_type == CLIPType.KANDINSKY5_IMAGE:
             clip_target.clip = comfy.text_encoders.kandinsky5.te(**llama_detect(clip_data))
             clip_target.tokenizer = comfy.text_encoders.kandinsky5.Kandinsky5TokenizerImage
+        elif clip_type == CLIPType.NEWBIE:
+            clip_target.clip = comfy.text_encoders.newbie.te(**llama_detect(clip_data))
+            clip_target.tokenizer = comfy.text_encoders.newbie.NewBieTokenizer
+            if "model.layers.0.self_attn.q_norm.weight" in clip_data[0]:
+                clip_data_gemma = clip_data[0]
+                clip_data_jina = clip_data[1]
+            else:
+                clip_data_gemma = clip_data[1]
+                clip_data_jina = clip_data[0]
+            tokenizer_data["gemma_spiece_model"] = clip_data_gemma.get("spiece_model", None)
+            tokenizer_data["jina_spiece_model"] = clip_data_jina.get("spiece_model", None)
         else:
             clip_target.clip = sdxl_clip.SDXLClipModel
             clip_target.tokenizer = sdxl_clip.SDXLTokenizer
