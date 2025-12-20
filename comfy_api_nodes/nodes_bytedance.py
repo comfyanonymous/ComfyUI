@@ -112,7 +112,7 @@ class ByteDanceImageNode(IO.ComfyNode):
                 ),
                 IO.Boolean.Input(
                     "watermark",
-                    default=True,
+                    default=False,
                     tooltip='Whether to add an "AI generated" watermark to the image',
                     optional=True,
                 ),
@@ -215,7 +215,7 @@ class ByteDanceImageEditNode(IO.ComfyNode):
                 ),
                 IO.Boolean.Input(
                     "watermark",
-                    default=True,
+                    default=False,
                     tooltip='Whether to add an "AI generated" watermark to the image',
                     optional=True,
                 ),
@@ -346,7 +346,7 @@ class ByteDanceSeedreamNode(IO.ComfyNode):
                 ),
                 IO.Boolean.Input(
                     "watermark",
-                    default=True,
+                    default=False,
                     tooltip='Whether to add an "AI generated" watermark to the image.',
                     optional=True,
                 ),
@@ -380,7 +380,7 @@ class ByteDanceSeedreamNode(IO.ComfyNode):
         sequential_image_generation: str = "disabled",
         max_images: int = 1,
         seed: int = 0,
-        watermark: bool = True,
+        watermark: bool = False,
         fail_on_partial: bool = True,
     ) -> IO.NodeOutput:
         validate_string(prompt, strip_whitespace=True, min_length=1)
@@ -507,7 +507,7 @@ class ByteDanceTextToVideoNode(IO.ComfyNode):
                 ),
                 IO.Boolean.Input(
                     "watermark",
-                    default=True,
+                    default=False,
                     tooltip='Whether to add an "AI generated" watermark to the video.',
                     optional=True,
                 ),
@@ -617,7 +617,7 @@ class ByteDanceImageToVideoNode(IO.ComfyNode):
                 ),
                 IO.Boolean.Input(
                     "watermark",
-                    default=True,
+                    default=False,
                     tooltip='Whether to add an "AI generated" watermark to the video.',
                     optional=True,
                 ),
@@ -739,7 +739,7 @@ class ByteDanceFirstLastFrameNode(IO.ComfyNode):
                 ),
                 IO.Boolean.Input(
                     "watermark",
-                    default=True,
+                    default=False,
                     tooltip='Whether to add an "AI generated" watermark to the video.',
                     optional=True,
                 ),
@@ -862,7 +862,7 @@ class ByteDanceImageReferenceNode(IO.ComfyNode):
                 ),
                 IO.Boolean.Input(
                     "watermark",
-                    default=True,
+                    default=False,
                     tooltip='Whether to add an "AI generated" watermark to the video.',
                     optional=True,
                 ),
