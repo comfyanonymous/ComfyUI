@@ -5,6 +5,17 @@ from api_server.services.terminal_service import TerminalService
 import app.logger
 import os
 
+VALID_DIRECTORY_TYPES = ("output", "input", "temp")
+
+def get_directory_for_type(directory_type: str) -> Optional[str]:
+    if directory_type not in VALID_DIRECTORY_TYPES:
+        return None
+    return get_directory_by_type(directory_type)
+
+def is_visible_file(entry: os.DirEntry) -> bool:
+    """Filter out hidden files (e.g., .DS_Store on macOS)."""
+    return entry.is_file() and not entry.name.startswith('.')
+
 class InternalRoutes:
     '''
     The top level web router for internal routes: /internal/*
@@ -54,14 +65,9 @@ class InternalRoutes:
         @self.routes.get('/files/{directory_type}')
         async def get_files(request: web.Request) -> web.Response:
             directory_type = request.match_info['directory_type']
-            if directory_type not in ("output", "input", "temp"):
+            directory = get_directory_for_type(directory_type)
+            if directory is None:
                 return web.json_response({"error": "Invalid directory type"}, status=400)
-
-            directory = get_directory_by_type(directory_type)
-
-            def is_visible_file(entry: os.DirEntry) -> bool:
-                """Filter out hidden files (e.g., .DS_Store on macOS)."""
-                return entry.is_file() and not entry.name.startswith('.')
 
             sorted_files = sorted(
                 (entry for entry in os.scandir(directory) if is_visible_file(entry)),
