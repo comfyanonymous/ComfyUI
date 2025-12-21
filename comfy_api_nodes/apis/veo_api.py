@@ -85,7 +85,7 @@ class Response1(BaseModel):
     raiMediaFilteredReasons: Optional[list[str]] = Field(
         None, description='Reasons why media was filtered by responsible AI policies'
     )
-    videos: Optional[list[Video]] = None
+    videos: Optional[list[Video]] = Field(None)
 
 
 class VeoGenVidPollResponse(BaseModel):

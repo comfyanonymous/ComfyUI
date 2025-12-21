@@ -1,5 +1,5 @@
 import torch
-from typing import TypedDict, List, Optional
+from typing import TypedDict, Optional
 
 ImageInput = torch.Tensor
 """
@@ -39,4 +39,4 @@ class LatentInput(TypedDict):
     Optional noise mask tensor in the same format as samples.
     """
 
-    batch_index: Optional[List[int]]
+    batch_index: Optional[list[int]]

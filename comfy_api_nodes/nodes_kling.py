@@ -50,6 +50,7 @@ from comfy_api_nodes.apis import (
     KlingSingleImageEffectModelName,
 )
 from comfy_api_nodes.apis.kling_api import (
+    ImageToVideoWithAudioRequest,
     OmniImageParamImage,
     OmniParamImage,
     OmniParamVideo,
@@ -57,7 +58,8 @@ from comfy_api_nodes.apis.kling_api import (
     OmniProImageRequest,
     OmniProReferences2VideoRequest,
     OmniProText2VideoRequest,
-    OmniTaskStatusResponse,
+    TaskStatusResponse,
+    TextToVideoWithAudioRequest,
 )
 from comfy_api_nodes.util import (
     ApiEndpoint,
@@ -103,10 +105,6 @@ AVERAGE_DURATION_VIDEO_EXTEND = 320
 
 
 MODE_TEXT2VIDEO = {
-    "standard mode / 5s duration / kling-v1": ("std", "5", "kling-v1"),
-    "standard mode / 10s duration / kling-v1": ("std", "10", "kling-v1"),
-    "pro mode / 5s duration / kling-v1": ("pro", "5", "kling-v1"),
-    "pro mode / 10s duration / kling-v1": ("pro", "10", "kling-v1"),
     "standard mode / 5s duration / kling-v1-6": ("std", "5", "kling-v1-6"),
     "standard mode / 10s duration / kling-v1-6": ("std", "10", "kling-v1-6"),
     "pro mode / 5s duration / kling-v2-master": ("pro", "5", "kling-v2-master"),
@@ -127,8 +125,6 @@ See: [Kling API Docs Capability Map](https://app.klingai.com/global/dev/document
 
 
 MODE_START_END_FRAME = {
-    "standard mode / 5s duration / kling-v1": ("std", "5", "kling-v1"),
-    "pro mode / 5s duration / kling-v1": ("pro", "5", "kling-v1"),
     "pro mode / 5s duration / kling-v1-5": ("pro", "5", "kling-v1-5"),
     "pro mode / 10s duration / kling-v1-5": ("pro", "10", "kling-v1-5"),
     "pro mode / 5s duration / kling-v1-6": ("pro", "5", "kling-v1-6"),
@@ -242,7 +238,7 @@ def normalize_omni_prompt_references(prompt: str) -> str:
     return re.sub(r"(?<!\w)@video(?P<idx>\d*)(?!\w)", _video_repl, prompt)
 
 
-async def finish_omni_video_task(cls: type[IO.ComfyNode], response: OmniTaskStatusResponse) -> IO.NodeOutput:
+async def finish_omni_video_task(cls: type[IO.ComfyNode], response: TaskStatusResponse) -> IO.NodeOutput:
     if response.code:
         raise RuntimeError(
             f"Kling request failed. Code: {response.code}, Message: {response.message}, Data: {response.data}"
@@ -250,7 +246,7 @@ async def finish_omni_video_task(cls: type[IO.ComfyNode], response: OmniTaskStat
     final_response = await poll_op(
         cls,
         ApiEndpoint(path=f"/proxy/kling/v1/videos/omni-video/{response.data.task_id}"),
-        response_model=OmniTaskStatusResponse,
+        response_model=TaskStatusResponse,
         status_extractor=lambda r: (r.data.task_status if r.data else None),
         max_poll_attempts=160,
     )
@@ -483,12 +479,12 @@ async def execute_image2video(
     task_id = task_creation_response.data.task_id
 
     final_response = await poll_op(
-            cls,
-            ApiEndpoint(path=f"{PATH_IMAGE_TO_VIDEO}/{task_id}"),
-            response_model=KlingImage2VideoResponse,
-            estimated_duration=AVERAGE_DURATION_I2V,
-            status_extractor=lambda r: (r.data.task_status.value if r.data and r.data.task_status else None),
-        )
+        cls,
+        ApiEndpoint(path=f"{PATH_IMAGE_TO_VIDEO}/{task_id}"),
+        response_model=KlingImage2VideoResponse,
+        estimated_duration=AVERAGE_DURATION_I2V,
+        status_extractor=lambda r: (r.data.task_status.value if r.data and r.data.task_status else None),
+    )
     validate_video_result_response(final_response)
 
     video = get_video_from_response(final_response)
@@ -752,7 +748,7 @@ class KlingTextToVideoNode(IO.ComfyNode):
                 IO.Combo.Input(
                     "mode",
                     options=modes,
-                    default=modes[4],
+                    default=modes[8],
                     tooltip="The configuration to use for the video generation following the format: mode / duration / model_name.",
                 ),
             ],
@@ -834,7 +830,7 @@ class OmniProTextToVideoNode(IO.ComfyNode):
         response = await sync_op(
             cls,
             ApiEndpoint(path="/proxy/kling/v1/videos/omni-video", method="POST"),
-            response_model=OmniTaskStatusResponse,
+            response_model=TaskStatusResponse,
             data=OmniProText2VideoRequest(
                 model_name=model_name,
                 prompt=prompt,
@@ -929,7 +925,7 @@ class OmniProFirstLastFrameNode(IO.ComfyNode):
         response = await sync_op(
             cls,
             ApiEndpoint(path="/proxy/kling/v1/videos/omni-video", method="POST"),
-            response_model=OmniTaskStatusResponse,
+            response_model=TaskStatusResponse,
             data=OmniProFirstLastFrameRequest(
                 model_name=model_name,
                 prompt=prompt,
@@ -997,7 +993,7 @@ class OmniProImageToVideoNode(IO.ComfyNode):
         response = await sync_op(
             cls,
             ApiEndpoint(path="/proxy/kling/v1/videos/omni-video", method="POST"),
-            response_model=OmniTaskStatusResponse,
+            response_model=TaskStatusResponse,
             data=OmniProReferences2VideoRequest(
                 model_name=model_name,
                 prompt=prompt,
@@ -1081,7 +1077,7 @@ class OmniProVideoToVideoNode(IO.ComfyNode):
         response = await sync_op(
             cls,
             ApiEndpoint(path="/proxy/kling/v1/videos/omni-video", method="POST"),
-            response_model=OmniTaskStatusResponse,
+            response_model=TaskStatusResponse,
             data=OmniProReferences2VideoRequest(
                 model_name=model_name,
                 prompt=prompt,
@@ -1162,7 +1158,7 @@ class OmniProEditVideoNode(IO.ComfyNode):
         response = await sync_op(
             cls,
             ApiEndpoint(path="/proxy/kling/v1/videos/omni-video", method="POST"),
-            response_model=OmniTaskStatusResponse,
+            response_model=TaskStatusResponse,
             data=OmniProReferences2VideoRequest(
                 model_name=model_name,
                 prompt=prompt,
@@ -1237,7 +1233,7 @@ class OmniProImageNode(IO.ComfyNode):
         response = await sync_op(
             cls,
             ApiEndpoint(path="/proxy/kling/v1/images/omni-image", method="POST"),
-            response_model=OmniTaskStatusResponse,
+            response_model=TaskStatusResponse,
             data=OmniProImageRequest(
                 model_name=model_name,
                 prompt=prompt,
@@ -1253,7 +1249,7 @@ class OmniProImageNode(IO.ComfyNode):
         final_response = await poll_op(
             cls,
             ApiEndpoint(path=f"/proxy/kling/v1/images/omni-image/{response.data.task_id}"),
-            response_model=OmniTaskStatusResponse,
+            response_model=TaskStatusResponse,
             status_extractor=lambda r: (r.data.task_status if r.data else None),
         )
         return IO.NodeOutput(await download_url_to_image_tensor(final_response.data.task_result.images[0].url))
@@ -1328,9 +1324,8 @@ class KlingImage2VideoNode(IO.ComfyNode):
     def define_schema(cls) -> IO.Schema:
         return IO.Schema(
             node_id="KlingImage2VideoNode",
-            display_name="Kling Image to Video",
+            display_name="Kling Image(First Frame) to Video",
             category="api node/video/Kling",
-            description="Kling Image to Video Node",
             inputs=[
                 IO.Image.Input("start_frame", tooltip="The reference image used to generate the video."),
                 IO.String.Input("prompt", multiline=True, tooltip="Positive text prompt"),
@@ -1488,7 +1483,7 @@ class KlingStartEndFrameNode(IO.ComfyNode):
                 IO.Combo.Input(
                     "mode",
                     options=modes,
-                    default=modes[8],
+                    default=modes[6],
                     tooltip="The configuration to use for the video generation following the format: mode / duration / model_name.",
                 ),
             ],
@@ -1951,7 +1946,7 @@ class KlingImageGenerationNode(IO.ComfyNode):
                 IO.Combo.Input(
                     "model_name",
                     options=[i.value for i in KlingImageGenModelName],
-                    default="kling-v1",
+                    default="kling-v2",
                 ),
                 IO.Combo.Input(
                     "aspect_ratio",
@@ -2034,6 +2029,136 @@ class KlingImageGenerationNode(IO.ComfyNode):
         return IO.NodeOutput(await image_result_to_node_output(images))
 
 
+class TextToVideoWithAudio(IO.ComfyNode):
+
+    @classmethod
+    def define_schema(cls) -> IO.Schema:
+        return IO.Schema(
+            node_id="KlingTextToVideoWithAudio",
+            display_name="Kling Text to Video with Audio",
+            category="api node/video/Kling",
+            inputs=[
+                IO.Combo.Input("model_name", options=["kling-v2-6"]),
+                IO.String.Input("prompt", multiline=True, tooltip="Positive text prompt."),
+                IO.Combo.Input("mode", options=["pro"]),
+                IO.Combo.Input("aspect_ratio", options=["16:9", "9:16", "1:1"]),
+                IO.Combo.Input("duration", options=[5, 10]),
+                IO.Boolean.Input("generate_audio", default=True),
+            ],
+            outputs=[
+                IO.Video.Output(),
+            ],
+            hidden=[
+                IO.Hidden.auth_token_comfy_org,
+                IO.Hidden.api_key_comfy_org,
+                IO.Hidden.unique_id,
+            ],
+            is_api_node=True,
+        )
+
+    @classmethod
+    async def execute(
+        cls,
+        model_name: str,
+        prompt: str,
+        mode: str,
+        aspect_ratio: str,
+        duration: int,
+        generate_audio: bool,
+    ) -> IO.NodeOutput:
+        validate_string(prompt, min_length=1, max_length=2500)
+        response = await sync_op(
+            cls,
+            ApiEndpoint(path="/proxy/kling/v1/videos/text2video", method="POST"),
+            response_model=TaskStatusResponse,
+            data=TextToVideoWithAudioRequest(
+                model_name=model_name,
+                prompt=prompt,
+                mode=mode,
+                aspect_ratio=aspect_ratio,
+                duration=str(duration),
+                sound="on" if generate_audio else "off",
+            ),
+        )
+        if response.code:
+            raise RuntimeError(
+                f"Kling request failed. Code: {response.code}, Message: {response.message}, Data: {response.data}"
+            )
+        final_response = await poll_op(
+            cls,
+            ApiEndpoint(path=f"/proxy/kling/v1/videos/text2video/{response.data.task_id}"),
+            response_model=TaskStatusResponse,
+            status_extractor=lambda r: (r.data.task_status if r.data else None),
+        )
+        return IO.NodeOutput(await download_url_to_video_output(final_response.data.task_result.videos[0].url))
+
+
+class ImageToVideoWithAudio(IO.ComfyNode):
+
+    @classmethod
+    def define_schema(cls) -> IO.Schema:
+        return IO.Schema(
+            node_id="KlingImageToVideoWithAudio",
+            display_name="Kling Image(First Frame) to Video with Audio",
+            category="api node/video/Kling",
+            inputs=[
+                IO.Combo.Input("model_name", options=["kling-v2-6"]),
+                IO.Image.Input("start_frame"),
+                IO.String.Input("prompt", multiline=True, tooltip="Positive text prompt."),
+                IO.Combo.Input("mode", options=["pro"]),
+                IO.Combo.Input("duration", options=[5, 10]),
+                IO.Boolean.Input("generate_audio", default=True),
+            ],
+            outputs=[
+                IO.Video.Output(),
+            ],
+            hidden=[
+                IO.Hidden.auth_token_comfy_org,
+                IO.Hidden.api_key_comfy_org,
+                IO.Hidden.unique_id,
+            ],
+            is_api_node=True,
+        )
+
+    @classmethod
+    async def execute(
+        cls,
+        model_name: str,
+        start_frame: Input.Image,
+        prompt: str,
+        mode: str,
+        duration: int,
+        generate_audio: bool,
+    ) -> IO.NodeOutput:
+        validate_string(prompt, min_length=1, max_length=2500)
+        validate_image_dimensions(start_frame, min_width=300, min_height=300)
+        validate_image_aspect_ratio(start_frame, (1, 2.5), (2.5, 1))
+        response = await sync_op(
+            cls,
+            ApiEndpoint(path="/proxy/kling/v1/videos/image2video", method="POST"),
+            response_model=TaskStatusResponse,
+            data=ImageToVideoWithAudioRequest(
+                model_name=model_name,
+                image=(await upload_images_to_comfyapi(cls, start_frame))[0],
+                prompt=prompt,
+                mode=mode,
+                duration=str(duration),
+                sound="on" if generate_audio else "off",
+            ),
+        )
+        if response.code:
+            raise RuntimeError(
+                f"Kling request failed. Code: {response.code}, Message: {response.message}, Data: {response.data}"
+            )
+        final_response = await poll_op(
+            cls,
+            ApiEndpoint(path=f"/proxy/kling/v1/videos/image2video/{response.data.task_id}"),
+            response_model=TaskStatusResponse,
+            status_extractor=lambda r: (r.data.task_status if r.data else None),
+        )
+        return IO.NodeOutput(await download_url_to_video_output(final_response.data.task_result.videos[0].url))
+
+
 class KlingExtension(ComfyExtension):
     @override
     async def get_node_list(self) -> list[type[IO.ComfyNode]]:
@@ -2056,7 +2181,9 @@ class KlingExtension(ComfyExtension):
             OmniProImageToVideoNode,
             OmniProVideoToVideoNode,
             OmniProEditVideoNode,
-            # OmniProImageNode,  # need support from backend
+            OmniProImageNode,
+            TextToVideoWithAudio,
+            ImageToVideoWithAudio,
         ]
 
 

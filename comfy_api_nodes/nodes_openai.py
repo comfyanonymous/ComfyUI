@@ -1,45 +1,44 @@
-from io import BytesIO
+import base64
 import os
 from enum import Enum
-from inspect import cleandoc
+from io import BytesIO
+
 import numpy as np
 import torch
 from PIL import Image
-import folder_paths
-import base64
-from comfy_api.latest import IO, ComfyExtension
 from typing_extensions import override
 
-
+import folder_paths
+from comfy_api.latest import IO, ComfyExtension, Input
 from comfy_api_nodes.apis import (
-    OpenAIImageGenerationRequest,
-    OpenAIImageEditRequest,
-    OpenAIImageGenerationResponse,
-    OpenAICreateResponse,
-    OpenAIResponse,
     CreateModelResponseProperties,
-    Item,
-    OutputContent,
-    InputImageContent,
     Detail,
-    InputTextContent,
-    InputMessage,
-    InputMessageContentList,
     InputContent,
     InputFileContent,
+    InputImageContent,
+    InputMessage,
+    InputMessageContentList,
+    InputTextContent,
+    Item,
+    OpenAICreateResponse,
+    OpenAIResponse,
+    OutputContent,
 )
-
+from comfy_api_nodes.apis.openai_api import (
+    OpenAIImageEditRequest,
+    OpenAIImageGenerationRequest,
+    OpenAIImageGenerationResponse,
+)
 from comfy_api_nodes.util import (
-    downscale_image_tensor,
-    download_url_to_bytesio,
-    validate_string,
-    tensor_to_base64_string,
     ApiEndpoint,
-    sync_op,
+    download_url_to_bytesio,
+    downscale_image_tensor,
     poll_op,
+    sync_op,
+    tensor_to_base64_string,
     text_filepath_to_data_uri,
+    validate_string,
 )
-
 
 RESPONSES_ENDPOINT = "/proxy/openai/v1/responses"
 STARTING_POINT_ID_PATTERN = r"<starting_point_id:(.*)>"
@@ -98,9 +97,6 @@ async def validate_and_cast_response(response, timeout: int = None) -> torch.Ten
 
 
 class OpenAIDalle2(IO.ComfyNode):
-    """
-    Generates images synchronously via OpenAI's DALL·E 2 endpoint.
-    """
 
     @classmethod
     def define_schema(cls):
@@ -108,7 +104,7 @@ class OpenAIDalle2(IO.ComfyNode):
             node_id="OpenAIDalle2",
             display_name="OpenAI DALL·E 2",
             category="api node/image/OpenAI",
-            description=cleandoc(cls.__doc__ or ""),
+            description="Generates images synchronously via OpenAI's DALL·E 2 endpoint.",
             inputs=[
                 IO.String.Input(
                     "prompt",
@@ -234,9 +230,6 @@ class OpenAIDalle2(IO.ComfyNode):
 
 
 class OpenAIDalle3(IO.ComfyNode):
-    """
-    Generates images synchronously via OpenAI's DALL·E 3 endpoint.
-    """
 
     @classmethod
     def define_schema(cls):
@@ -244,7 +237,7 @@ class OpenAIDalle3(IO.ComfyNode):
             node_id="OpenAIDalle3",
             display_name="OpenAI DALL·E 3",
             category="api node/image/OpenAI",
-            description=cleandoc(cls.__doc__ or ""),
+            description="Generates images synchronously via OpenAI's DALL·E 3 endpoint.",
             inputs=[
                 IO.String.Input(
                     "prompt",
@@ -326,10 +319,16 @@ class OpenAIDalle3(IO.ComfyNode):
         return IO.NodeOutput(await validate_and_cast_response(response))
 
 
+def calculate_tokens_price_image_1(response: OpenAIImageGenerationResponse) -> float | None:
+    # https://platform.openai.com/docs/pricing
+    return ((response.usage.input_tokens * 10.0) + (response.usage.output_tokens * 40.0)) / 1_000_000.0
+
+
+def calculate_tokens_price_image_1_5(response: OpenAIImageGenerationResponse) -> float | None:
+    return ((response.usage.input_tokens * 8.0) + (response.usage.output_tokens * 32.0)) / 1_000_000.0
+
+
 class OpenAIGPTImage1(IO.ComfyNode):
-    """
-    Generates images synchronously via OpenAI's GPT Image 1 endpoint.
-    """
 
     @classmethod
     def define_schema(cls):
@@ -337,13 +336,13 @@ class OpenAIGPTImage1(IO.ComfyNode):
             node_id="OpenAIGPTImage1",
             display_name="OpenAI GPT Image 1",
             category="api node/image/OpenAI",
-            description=cleandoc(cls.__doc__ or ""),
+            description="Generates images synchronously via OpenAI's GPT Image 1 endpoint.",
             inputs=[
                 IO.String.Input(
                     "prompt",
                     default="",
                     multiline=True,
-                    tooltip="Text prompt for GPT Image 1",
+                    tooltip="Text prompt for GPT Image",
                 ),
                 IO.Int.Input(
                     "seed",
@@ -365,8 +364,8 @@ class OpenAIGPTImage1(IO.ComfyNode):
                 ),
                 IO.Combo.Input(
                     "background",
-                    default="opaque",
-                    options=["opaque", "transparent"],
+                    default="auto",
+                    options=["auto", "opaque", "transparent"],
                     tooltip="Return image with or without background",
                     optional=True,
                 ),
@@ -397,6 +396,11 @@ class OpenAIGPTImage1(IO.ComfyNode):
                     tooltip="Optional mask for inpainting (white areas will be replaced)",
                     optional=True,
                 ),
+                IO.Combo.Input(
+                    "model",
+                    options=["gpt-image-1", "gpt-image-1.5"],
+                    optional=True,
+                ),
             ],
             outputs=[
                 IO.Image.Output(),
@@ -412,32 +416,34 @@ class OpenAIGPTImage1(IO.ComfyNode):
     @classmethod
     async def execute(
         cls,
-        prompt,
-        seed=0,
-        quality="low",
-        background="opaque",
-        image=None,
-        mask=None,
-        n=1,
-        size="1024x1024",
+        prompt: str,
+        seed: int = 0,
+        quality: str = "low",
+        background: str = "opaque",
+        image: Input.Image | None = None,
+        mask: Input.Image | None = None,
+        n: int = 1,
+        size: str = "1024x1024",
+        model: str = "gpt-image-1",
     ) -> IO.NodeOutput:
         validate_string(prompt, strip_whitespace=False)
-        model = "gpt-image-1"
-        path = "/proxy/openai/images/generations"
-        content_type = "application/json"
-        request_class = OpenAIImageGenerationRequest
-        files = []
+
+        if mask is not None and image is None:
+            raise ValueError("Cannot use a mask without an input image")
+
+        if model == "gpt-image-1":
+            price_extractor = calculate_tokens_price_image_1
+        elif model == "gpt-image-1.5":
+            price_extractor = calculate_tokens_price_image_1_5
+        else:
+            raise ValueError(f"Unknown model: {model}")
 
         if image is not None:
-            path = "/proxy/openai/images/edits"
-            request_class = OpenAIImageEditRequest
-            content_type = "multipart/form-data"
-
+            files = []
             batch_size = image.shape[0]
-
             for i in range(batch_size):
-                single_image = image[i : i + 1]
-                scaled_image = downscale_image_tensor(single_image).squeeze()
+                single_image = image[i: i + 1]
+                scaled_image = downscale_image_tensor(single_image, total_pixels=2048*2048).squeeze()
 
                 image_np = (scaled_image.numpy() * 255).astype(np.uint8)
                 img = Image.fromarray(image_np)
@@ -450,44 +456,59 @@ class OpenAIGPTImage1(IO.ComfyNode):
                 else:
                     files.append(("image[]", (f"image_{i}.png", img_byte_arr, "image/png")))
 
-        if mask is not None:
-            if image is None:
-                raise Exception("Cannot use a mask without an input image")
-            if image.shape[0] != 1:
-                raise Exception("Cannot use a mask with multiple image")
-            if mask.shape[1:] != image.shape[1:-1]:
-                raise Exception("Mask and Image must be the same size")
-            batch, height, width = mask.shape
-            rgba_mask = torch.zeros(height, width, 4, device="cpu")
-            rgba_mask[:, :, 3] = 1 - mask.squeeze().cpu()
+            if mask is not None:
+                if image.shape[0] != 1:
+                    raise Exception("Cannot use a mask with multiple image")
+                if mask.shape[1:] != image.shape[1:-1]:
+                    raise Exception("Mask and Image must be the same size")
+                _, height, width = mask.shape
+                rgba_mask = torch.zeros(height, width, 4, device="cpu")
+                rgba_mask[:, :, 3] = 1 - mask.squeeze().cpu()
 
-            scaled_mask = downscale_image_tensor(rgba_mask.unsqueeze(0)).squeeze()
+                scaled_mask = downscale_image_tensor(rgba_mask.unsqueeze(0), total_pixels=2048*2048).squeeze()
 
-            mask_np = (scaled_mask.numpy() * 255).astype(np.uint8)
-            mask_img = Image.fromarray(mask_np)
-            mask_img_byte_arr = BytesIO()
-            mask_img.save(mask_img_byte_arr, format="PNG")
-            mask_img_byte_arr.seek(0)
-            files.append(("mask", ("mask.png", mask_img_byte_arr, "image/png")))
+                mask_np = (scaled_mask.numpy() * 255).astype(np.uint8)
+                mask_img = Image.fromarray(mask_np)
+                mask_img_byte_arr = BytesIO()
+                mask_img.save(mask_img_byte_arr, format="PNG")
+                mask_img_byte_arr.seek(0)
+                files.append(("mask", ("mask.png", mask_img_byte_arr, "image/png")))
 
-        # Build the operation
-        response = await sync_op(
-            cls,
-            ApiEndpoint(path=path, method="POST"),
-            response_model=OpenAIImageGenerationResponse,
-            data=request_class(
-                model=model,
-                prompt=prompt,
-                quality=quality,
-                background=background,
-                n=n,
-                seed=seed,
-                size=size,
-            ),
-            files=files if files else None,
-            content_type=content_type,
-        )
-
+            response = await sync_op(
+                cls,
+                ApiEndpoint(path="/proxy/openai/images/edits", method="POST"),
+                response_model=OpenAIImageGenerationResponse,
+                data=OpenAIImageEditRequest(
+                    model=model,
+                    prompt=prompt,
+                    quality=quality,
+                    background=background,
+                    n=n,
+                    seed=seed,
+                    size=size,
+                    moderation="low",
+                ),
+                content_type="multipart/form-data",
+                files=files,
+                price_extractor=price_extractor,
+            )
+        else:
+            response = await sync_op(
+                cls,
+                ApiEndpoint(path="/proxy/openai/images/generations", method="POST"),
+                response_model=OpenAIImageGenerationResponse,
+                data=OpenAIImageGenerationRequest(
+                    model=model,
+                    prompt=prompt,
+                    quality=quality,
+                    background=background,
+                    n=n,
+                    seed=seed,
+                    size=size,
+                    moderation="low",
+                ),
+                price_extractor=price_extractor,
+            )
         return IO.NodeOutput(await validate_and_cast_response(response))
 
 
