@@ -428,7 +428,7 @@ class Stable_Cascade_C(supported_models_base.BASE):
     unet_extra_config = {}
 
     latent_format = latent_formats.SC_Prior
-    supported_inference_dtypes = [torch.float16, torch.float32]
+    supported_inference_dtypes = [torch.bfloat16, torch.float32]
 
     sampling_settings = {
         "shift": 2.0,
@@ -474,7 +474,7 @@ class Stable_Cascade_B(Stable_Cascade_C):
     unet_extra_config = {}
 
     latent_format = latent_formats.SC_B
-    supported_inference_dtypes = [torch.float16, torch.float32]
+    supported_inference_dtypes = [torch.float16, torch.bfloat16, torch.float32]
 
     sampling_settings = {
         "shift": 1.0,
@@ -706,7 +706,7 @@ class Flux(supported_models_base.BASE):
 
     memory_usage_factor = 3.1 # TODO: debug why flux mem usage is so weird on windows.
 
-    supported_inference_dtypes = [torch.float16, torch.float32]
+    supported_inference_dtypes = [torch.bfloat16, torch.float16, torch.float32]
 
     vae_key_prefix = ["vae."]
     text_encoder_key_prefix = ["text_encoders."]
