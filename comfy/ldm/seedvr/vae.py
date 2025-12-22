@@ -9,6 +9,7 @@ from torch import Tensor
 import comfy.model_management
 from comfy.ldm.seedvr.model import safe_pad_operation
 from comfy.ldm.modules.attention import optimized_attention
+from comfy_extras.nodes_seedvr import tiled_vae
 
 class DiagonalGaussianDistribution(object):
     def __init__(self, parameters: torch.Tensor, deterministic: bool = False):
@@ -1450,7 +1451,7 @@ class VideoAutoencoderKL(nn.Module):
 
         return posterior
 
-    def decode(
+    def decode_(
         self, z: torch.Tensor, return_dict: bool = True
     ):
         decoded = self.slicing_decode(z)
@@ -1541,10 +1542,11 @@ class VideoAutoencoderKLWrapper(VideoAutoencoderKL):
         x = self.decode(z).sample
         return x, z, p
 
-    def encode(self, x, orig_dims):
+    def encode(self, x, orig_dims=None):
         # we need to keep a reference to the image/video so we later can do a colour fix later
-        self.original_image_video = x
-        self.img_dims = orig_dims
+        #self.original_image_video = x
+        if orig_dims is not None:
+            self.img_dims = orig_dims
         if x.ndim == 4:
             x = x.unsqueeze(2)
         x = x.to(next(self.parameters()).dtype)
@@ -1554,6 +1556,8 @@ class VideoAutoencoderKLWrapper(VideoAutoencoderKL):
         return z, p
 
     def decode(self, z: torch.FloatTensor):
+        b, tc, h, w = z.shape
+        z = z.view(b, 16, -1, h, w)
         z = z.movedim(1, -1)
         latent = z.unsqueeze(0)
         scale = 0.9152
@@ -1567,12 +1571,31 @@ class VideoAutoencoderKLWrapper(VideoAutoencoderKL):
 
         target_device = comfy.model_management.get_torch_device()
         self.decoder.to(target_device)
-        x = super().decode(latent).squeeze(2)
+        x = tiled_vae(latent, self, **self.tiled_args, encode=False).squeeze(2)
+        #x = super().decode(latent).squeeze(2)
 
-        input = rearrange(self.original_image_video[0], "c t h w -> t c h w")
+        input = rearrange(self.original_image_video, "b c t h w -> (b t) c h w")
+        if x.ndim == 4:
+            x = x.unsqueeze(0)
+
+        # in case of padded frames
+        t = input.size(0)
+        x = x[:, :, :t]
+
+        x = rearrange(x, "b c t h w -> (b t) c h w")
+
         x = wavelet_reconstruction(x, input)
+        x = x.unsqueeze(0)
         o_h, o_w = self.img_dims
         x = x[..., :o_h, :o_w]
+        x = rearrange(x, "b t c h w -> b c t h w")
+
+        # ensure even dims for save video
+        h, w = x.shape[-2:]
+        w2 = w - (w % 2)
+        h2 = h - (h % 2)
+        x = x[..., :h2, :w2]
+
         return x
 
     def set_memory_limit(self, conv_max_mem: Optional[float], norm_max_mem: Optional[float]):

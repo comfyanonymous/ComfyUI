@@ -16,10 +16,6 @@ from torch.nn.modules.utils import _triple
 from torch import nn
 import math
 import logging
-try:
-    from flash_attn import flash_attn_varlen_func
-except:
-    logging.warning("Best results will be achieved with flash attention enabled for SeedVR2")
 
 class Cache:
     def __init__(self, disable=False, prefix="", cache=None):
@@ -1299,6 +1295,9 @@ class NaDiT(nn.Module):
         patches_replace = transformer_options.get("patches_replace", {})
         blocks_replace = patches_replace.get("dit", {})
         conditions = kwargs.get("condition")
+        b, tc, h, w = x.shape
+        x = x.view(b, 16, -1, h, w)
+        conditions = conditions.view(b, 17, -1, h, w)
         x = x.movedim(1, -1)
         conditions = conditions.movedim(1, -1)
 
@@ -1375,11 +1374,11 @@ class NaDiT(nn.Module):
         vid, vid_shape = self.vid_out(vid, vid_shape, cache, vid_shape_before_patchify = vid_shape_before_patchify)
         vid = unflatten(vid, vid_shape)
         out =  torch.stack(vid)
+        out = out.movedim(-1, 1)
+        out = rearrange(out, "b c t h w -> b (c t) h w")
         try:
             pos, neg = out.chunk(2)
             out = torch.cat([neg, pos])
-            out = out.movedim(-1, 1)
             return out
         except:
-            out = out.movedim(-1, 1)
             return out
