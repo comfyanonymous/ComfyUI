@@ -760,8 +760,12 @@ class SamplerCustom(io.ComfyNode):
         out = latent.copy()
         out["samples"] = samples
         if "x0" in x0_output:
+            x0_out = model.model.process_latent_out(x0_output["x0"].cpu())
+            if samples.is_nested:
+                latent_shapes = [x.shape for x in samples.unbind()]
+                x0_out = comfy.nested_tensor.NestedTensor(comfy.utils.unpack_latents(x0_out, latent_shapes))
             out_denoised = latent.copy()
-            out_denoised["samples"] = model.model.process_latent_out(x0_output["x0"].cpu())
+            out_denoised["samples"] = x0_out
         else:
             out_denoised = out
         return io.NodeOutput(out, out_denoised)
@@ -948,8 +952,12 @@ class SamplerCustomAdvanced(io.ComfyNode):
         out = latent.copy()
         out["samples"] = samples
         if "x0" in x0_output:
+            x0_out = guider.model_patcher.model.process_latent_out(x0_output["x0"].cpu())
+            if samples.is_nested:
+                latent_shapes = [x.shape for x in samples.unbind()]
+                x0_out = comfy.nested_tensor.NestedTensor(comfy.utils.unpack_latents(x0_out, latent_shapes))
             out_denoised = latent.copy()
-            out_denoised["samples"] = guider.model_patcher.model.process_latent_out(x0_output["x0"].cpu())
+            out_denoised["samples"] = x0_out
         else:
             out_denoised = out
         return io.NodeOutput(out, out_denoised)
