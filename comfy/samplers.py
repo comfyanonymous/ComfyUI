@@ -949,19 +949,8 @@ class CFGGuider:
         for k in conds:
             self.original_conds[k] = comfy.sampler_helpers.convert_cond(conds[k])
 
-    def __call__(self, *args, **kwargs):   
+    def __call__(self, *args, **kwargs):
         return self.outer_predict_noise(*args, **kwargs)
-    def handle_dynamic_cfg(self, timestep, model_options):
-        if hasattr(self.model_patcher.model.diffusion_model, "stop_cfg_index"):
-            stop_index = self.model_patcher.model.diffusion_model.stop_cfg_index
-            transformer_options = model_options.get("transformer_options", {})
-            sigmas = transformer_options.get("sample_sigmas", None)            
-            if sigmas is not None or self.cfg != 1.0:
-                dist = torch.abs(sigmas - timestep)
-                i = torch.argmin(dist).item()
-
-                if stop_index == i or (stop_index == -1 and i == len(sigmas) - 2):
-                    self.set_cfg(1.0)
 
     def outer_predict_noise(self, x, timestep, model_options={}, seed=None):
         return comfy.patcher_extension.WrapperExecutor.new_class_executor(
@@ -971,7 +960,6 @@ class CFGGuider:
         ).execute(x, timestep, model_options, seed)
 
     def predict_noise(self, x, timestep, model_options={}, seed=None):
-        self.handle_dynamic_cfg(timestep, model_options)
         return sampling_function(self.inner_model, x, timestep, self.conds.get("negative", None), self.conds.get("positive", None), self.cfg, model_options=model_options, seed=seed)
 
     def inner_sample(self, noise, latent_image, device, sampler, sigmas, denoise_mask, callback, disable_pbar, seed, latent_shapes=None):
@@ -995,9 +983,6 @@ class CFGGuider:
     def outer_sample(self, noise, latent_image, sampler, sigmas, denoise_mask=None, callback=None, disable_pbar=False, seed=None, latent_shapes=None):
         self.inner_model, self.conds, self.loaded_models = comfy.sampler_helpers.prepare_sampling(self.model_patcher, noise.shape, self.conds, self.model_options)
         device = self.model_patcher.load_device
-
-        if denoise_mask is not None:
-            denoise_mask = comfy.sampler_helpers.prepare_mask(denoise_mask, noise.shape, device)
 
         noise = noise.to(device)
         latent_image = latent_image.to(device)
