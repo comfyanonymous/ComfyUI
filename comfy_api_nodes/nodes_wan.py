@@ -46,14 +46,14 @@ class Txt2ImageParametersField(BaseModel):
     n: int = Field(1, description="Number of images to generate.")  # we support only value=1
     seed: int = Field(..., ge=0, le=2147483647)
     prompt_extend: bool = Field(True)
-    watermark: bool = Field(True)
+    watermark: bool = Field(False)
 
 
 class Image2ImageParametersField(BaseModel):
     size: str | None = Field(None)
     n: int = Field(1, description="Number of images to generate.")  # we support only value=1
     seed: int = Field(..., ge=0, le=2147483647)
-    watermark: bool = Field(True)
+    watermark: bool = Field(False)
 
 
 class Text2VideoParametersField(BaseModel):
@@ -61,7 +61,7 @@ class Text2VideoParametersField(BaseModel):
     seed: int = Field(..., ge=0, le=2147483647)
     duration: int = Field(5, ge=5, le=15)
     prompt_extend: bool = Field(True)
-    watermark: bool = Field(True)
+    watermark: bool = Field(False)
     audio: bool = Field(False, description="Whether to generate audio automatically.")
     shot_type: str = Field("single")
 
@@ -71,7 +71,7 @@ class Image2VideoParametersField(BaseModel):
     seed: int = Field(..., ge=0, le=2147483647)
     duration: int = Field(5, ge=5, le=15)
     prompt_extend: bool = Field(True)
-    watermark: bool = Field(True)
+    watermark: bool = Field(False)
     audio: bool = Field(False, description="Whether to generate audio automatically.")
     shot_type: str = Field("single")
 
@@ -208,7 +208,7 @@ class WanTextToImageApi(IO.ComfyNode):
                 ),
                 IO.Boolean.Input(
                     "watermark",
-                    default=True,
+                    default=False,
                     tooltip="Whether to add an AI-generated watermark to the result.",
                     optional=True,
                 ),
@@ -234,7 +234,7 @@ class WanTextToImageApi(IO.ComfyNode):
         height: int = 1024,
         seed: int = 0,
         prompt_extend: bool = True,
-        watermark: bool = True,
+        watermark: bool = False,
     ):
         initial_response = await sync_op(
             cls,
@@ -327,7 +327,7 @@ class WanImageToImageApi(IO.ComfyNode):
                 ),
                 IO.Boolean.Input(
                     "watermark",
-                    default=True,
+                    default=False,
                     tooltip="Whether to add an AI-generated watermark to the result.",
                     optional=True,
                 ),
@@ -353,7 +353,7 @@ class WanImageToImageApi(IO.ComfyNode):
         # width: int = 1024,
         # height: int = 1024,
         seed: int = 0,
-        watermark: bool = True,
+        watermark: bool = False,
     ):
         n_images = get_number_of_images(image)
         if n_images not in (1, 2):
@@ -476,7 +476,7 @@ class WanTextToVideoApi(IO.ComfyNode):
                 ),
                 IO.Boolean.Input(
                     "watermark",
-                    default=True,
+                    default=False,
                     tooltip="Whether to add an AI-generated watermark to the result.",
                     optional=True,
                 ),
@@ -512,7 +512,7 @@ class WanTextToVideoApi(IO.ComfyNode):
         seed: int = 0,
         generate_audio: bool = False,
         prompt_extend: bool = True,
-        watermark: bool = True,
+        watermark: bool = False,
         shot_type: str = "single",
     ):
         if "480p" in size and model == "wan2.6-t2v":
@@ -637,7 +637,7 @@ class WanImageToVideoApi(IO.ComfyNode):
                 ),
                 IO.Boolean.Input(
                     "watermark",
-                    default=True,
+                    default=False,
                     tooltip="Whether to add an AI-generated watermark to the result.",
                     optional=True,
                 ),
@@ -674,7 +674,7 @@ class WanImageToVideoApi(IO.ComfyNode):
         seed: int = 0,
         generate_audio: bool = False,
         prompt_extend: bool = True,
-        watermark: bool = True,
+        watermark: bool = False,
         shot_type: str = "single",
     ):
         if get_number_of_images(image) != 1:

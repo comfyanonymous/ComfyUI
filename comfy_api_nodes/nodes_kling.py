@@ -858,7 +858,7 @@ class OmniProFirstLastFrameNode(IO.ComfyNode):
                     tooltip="A text prompt describing the video content. "
                     "This can include both positive and negative descriptions.",
                 ),
-                IO.Combo.Input("duration", options=["5", "10"]),
+                IO.Int.Input("duration", default=5, min=3, max=10, display_mode=IO.NumberDisplay.slider),
                 IO.Image.Input("first_frame"),
                 IO.Image.Input(
                     "end_frame",
@@ -897,6 +897,10 @@ class OmniProFirstLastFrameNode(IO.ComfyNode):
         validate_string(prompt, min_length=1, max_length=2500)
         if end_frame is not None and reference_images is not None:
             raise ValueError("The 'end_frame' input cannot be used simultaneously with 'reference_images'.")
+        if duration not in (5, 10) and end_frame is None and reference_images is None:
+            raise ValueError(
+                "Duration is only supported for 5 or 10 seconds if there is no end frame or reference images."
+            )
         validate_image_dimensions(first_frame, min_width=300, min_height=300)
         validate_image_aspect_ratio(first_frame, (1, 2.5), (2.5, 1))
         image_list: list[OmniParamImage] = [
