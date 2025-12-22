@@ -984,6 +984,9 @@ class CFGGuider:
         self.inner_model, self.conds, self.loaded_models = comfy.sampler_helpers.prepare_sampling(self.model_patcher, noise.shape, self.conds, self.model_options)
         device = self.model_patcher.load_device
 
+        if denoise_mask is not None:
+            denoise_mask = comfy.sampler_helpers.prepare_mask(denoise_mask, noise.shape, device)
+
         noise = noise.to(device)
         latent_image = latent_image.to(device)
         sigmas = sigmas.to(device)
