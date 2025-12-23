@@ -2135,18 +2135,42 @@ async def load_custom_node(module_path: str, ignore=set(), module_parent="custom
     elif os.path.isdir(module_path):
         sys_module_name = module_path.replace(".", "_x_")
 
+    # Check if module is already loaded to prevent duplicate imports
+    # This can happen when one custom node imports another custom node
+    standard_module_name = f"{module_parent}.{get_module_name(module_path)}"
+    already_loaded = False
+    module = None
+    
+    if sys_module_name in sys.modules:
+        logging.debug("Custom node %s already loaded, reusing existing module", sys_module_name)
+        module = sys.modules[sys_module_name]
+        already_loaded = True
+    elif standard_module_name in sys.modules:
+        logging.debug("Custom node %s already loaded via standard import, reusing existing module", standard_module_name)
+        module = sys.modules[standard_module_name]
+        # Register the module under sys_module_name as well to avoid future conflicts
+        sys.modules[sys_module_name] = module
+        already_loaded = True
+
     try:
         logging.debug("Trying to load custom node {}".format(module_path))
+        
+        # Determine module_dir regardless of whether module is already loaded
         if os.path.isfile(module_path):
-            module_spec = importlib.util.spec_from_file_location(sys_module_name, module_path)
             module_dir = os.path.split(module_path)[0]
         else:
-            module_spec = importlib.util.spec_from_file_location(sys_module_name, os.path.join(module_path, "__init__.py"))
             module_dir = module_path
+        
+        # Only execute module loading if not already loaded
+        if not already_loaded:
+            if os.path.isfile(module_path):
+                module_spec = importlib.util.spec_from_file_location(sys_module_name, module_path)
+            else:
+                module_spec = importlib.util.spec_from_file_location(sys_module_name, os.path.join(module_path, "__init__.py"))
 
-        module = importlib.util.module_from_spec(module_spec)
-        sys.modules[sys_module_name] = module
-        module_spec.loader.exec_module(module)
+            module = importlib.util.module_from_spec(module_spec)
+            sys.modules[sys_module_name] = module
+            module_spec.loader.exec_module(module)
 
         LOADED_MODULE_DIRS[module_name] = os.path.abspath(module_dir)
 
