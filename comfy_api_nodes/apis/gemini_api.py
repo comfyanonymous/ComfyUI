@@ -133,6 +133,7 @@ class GeminiImageGenerateContentRequest(BaseModel):
     systemInstruction: GeminiSystemInstructionContent | None = Field(None)
     tools: list[GeminiTool] | None = Field(None)
     videoMetadata: GeminiVideoMetadata | None = Field(None)
+    uploadImagesToStorage: bool = Field(True)
 
 
 class GeminiGenerateContentRequest(BaseModel):
