@@ -23,6 +23,7 @@ from comfy.cli_args import args, PerformanceFeature
 import comfy.float
 import comfy.rmsnorm
 import json
+import comfy.memory_management
 
 def run_every_op():
     if torch.compiler.is_compiling():
@@ -93,16 +94,29 @@ def cast_bias_weight(s, input=None, dtype=None, device=None, bias_dtype=None, of
     else:
         offload_stream = None
 
+    bias = None
+    weight = None
+
+    if offload_stream is not None and not args.cuda_malloc:
+        cast_buffer_size = comfy.memory_management.vram_aligned_size([ s.weight, s.bias ])
+        cast_buffer = comfy.model_management.get_cast_buffer(offload_stream, device, cast_buffer_size, s)
+        #The streams can be uneven in buffer capability and reject us. Retry to get the other stream
+        if cast_buffer is None:
+            offload_stream = comfy.model_management.get_offload_stream(device)
+            cast_buffer = comfy.model_management.get_cast_buffer(offload_stream, device, cast_buffer_size, s)
+        params = interpret_gathered_like([ s.weight, s.bias ], cast_buffer)
+        weight = params[0]
+        bias = params[1]
+
     non_blocking = comfy.model_management.device_supports_non_blocking(device)
 
     weight_has_function = len(s.weight_function) > 0
     bias_has_function = len(s.bias_function) > 0
 
-    weight = comfy.model_management.cast_to(s.weight, None, device, non_blocking=non_blocking, copy=weight_has_function, stream=offload_stream)
+    weight = comfy.model_management.cast_to(s.weight, None, device, non_blocking=non_blocking, copy=weight_has_function, stream=offload_stream, r=weight)
 
-    bias = None
     if s.bias is not None:
-        bias = comfy.model_management.cast_to(s.bias, None, device, non_blocking=non_blocking, copy=bias_has_function, stream=offload_stream)
+        bias = comfy.model_management.cast_to(s.bias, None, device, non_blocking=non_blocking, copy=bias_has_function, stream=offload_stream, r=bias)
 
     comfy.model_management.sync_stream(device, offload_stream)
 

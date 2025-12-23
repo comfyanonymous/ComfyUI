@@ -26,6 +26,8 @@ import platform
 import weakref
 import gc
 import os
+from contextlib import nullcontext
+import comfy.quant_ops
 
 class VRAMState(Enum):
     DISABLED = 0    #No vram present: no need to move models to vram
@@ -732,6 +734,9 @@ def loaded_models(only_currently_used=False):
 
 def cleanup_models_gc():
     do_gc = False
+
+    reset_cast_buffers()
+
     for i in range(len(current_loaded_models)):
         cur = current_loaded_models[i]
         if cur.is_dead():
@@ -1051,6 +1056,49 @@ def current_stream(device):
         return None
 
 stream_counters = {}
+
+STREAM_CAST_BUFFERS = {}
+LARGEST_CASTED_WEIGHT = (None, 0)
+
+def get_cast_buffer(offload_stream, device, size, ref):
+    global LARGEST_CASTED_WEIGHT
+
+    if offload_stream is not None:
+        wf_context = offload_stream
+        if hasattr(wf_context, "as_context"):
+            wf_context = wf_context.as_context(offload_stream)
+    else:
+        wf_context = nullcontext()
+
+    cast_buffer = STREAM_CAST_BUFFERS.get(offload_stream, None)
+    if cast_buffer is None or cast_buffer.numel() < size:
+        if ref is LARGEST_CASTED_WEIGHT[0]:
+            #If there is one giant weight we do not want both streams to
+            #allocate a buffer for it. It's up to the caster to get the other
+            #offload stream in this corner case
+            return None
+        if cast_buffer is not None and cast_buffer.numel() > 50 * (1024 ** 2):
+            #I want my wrongly sized 50MB+ of VRAM back from the caching allocator right now
+            del STREAM_CAST_BUFFERS[offload_stream]
+            del cast_buffer
+            torch.cuda.synchronize()
+            torch.cuda.empty_cache()
+        with wf_context:
+            cast_buffer = torch.empty((size), dtype=torch.int8, device=device)
+            STREAM_CAST_BUFFERS[offload_stream] = cast_buffer
+
+        if  size > LARGEST_CASTED_WEIGHT[1]:
+            LARGEST_CASTED_WEIGHT = (ref, size)
+
+    return cast_buffer
+
+def reset_cast_buffers():
+    global LARGEST_CASTED_WEIGHT
+    LARGEST_CASTED_WEIGHT = (None, 0)
+    STREAM_CAST_BUFFERS.clear()
+    torch.cuda.synchronize()
+    torch.cuda.empty_cache()
+
 def get_offload_stream(device):
     stream_counter = stream_counters.get(device, 0)
     if NUM_STREAMS == 0:
@@ -1093,7 +1141,7 @@ def sync_stream(device, stream):
         return
     current_stream(device).wait_stream(stream)
 
-def cast_to(weight, dtype=None, device=None, non_blocking=False, copy=False, stream=None):
+def cast_to(weight, dtype=None, device=None, non_blocking=False, copy=False, stream=None, r=None):
     if device is None or weight.device == device:
         if not copy:
             if dtype is None or weight.dtype == dtype:
@@ -1112,10 +1160,12 @@ def cast_to(weight, dtype=None, device=None, non_blocking=False, copy=False, str
         if hasattr(wf_context, "as_context"):
             wf_context = wf_context.as_context(stream)
         with wf_context:
-            r = torch.empty_like(weight, dtype=dtype, device=device)
+            if r is None:
+                r = torch.empty_like(weight, dtype=dtype, device=device)
             r.copy_(weight, non_blocking=non_blocking)
     else:
-        r = torch.empty_like(weight, dtype=dtype, device=device)
+        if r is None:
+            r = torch.empty_like(weight, dtype=dtype, device=device)
         r.copy_(weight, non_blocking=non_blocking)
     return r
 
@@ -1557,6 +1607,7 @@ def soft_empty_cache(force=False):
     elif is_mlu():
         torch.mlu.empty_cache()
     elif torch.cuda.is_available():
+        torch.cuda.synchronize()
         torch.cuda.empty_cache()
         torch.cuda.ipc_collect()
 
