@@ -381,7 +381,7 @@ class ResizeImageMaskNode(io.ComfyNode):
     @classmethod
     def define_schema(cls):
         template = io.MatchType.Template("input_type", [io.Image, io.Mask])
-        crop_combo = io.Combo.Input("crop", options=cls.crop_methods)
+        crop_combo = io.Combo.Input("crop", options=cls.crop_methods, default="center")
         return io.Schema(
             node_id="ResizeImageMaskNode",
             display_name="Resize Image/Mask",
