@@ -15,7 +15,7 @@ from torchvision.transforms.functional import InterpolationMode
 
 @torch.inference_mode()
 def tiled_vae(x, vae_model, tile_size=(512, 512), tile_overlap=(64, 64), temporal_size=16, temporal_overlap=4, encode=True):
-    
+
     gc.collect()
     torch.cuda.empty_cache()
 
@@ -23,7 +23,7 @@ def tiled_vae(x, vae_model, tile_size=(512, 512), tile_overlap=(64, 64), tempora
         x = x.unsqueeze(2)
 
     b, c, d, h, w = x.shape
-    
+
     sf_s = getattr(vae_model, "spatial_downsample_factor", 8)
     sf_t = getattr(vae_model, "temporal_downsample_factor", 4)
 
@@ -32,7 +32,7 @@ def tiled_vae(x, vae_model, tile_size=(512, 512), tile_overlap=(64, 64), tempora
         ov_h, ov_w = tile_overlap
         ti_t = temporal_size
         ov_t = temporal_overlap
-        
+
         target_d = (d + sf_t - 1) // sf_t
         target_h = (h + sf_s - 1) // sf_s
         target_w = (w + sf_s - 1) // sf_s
@@ -55,7 +55,7 @@ def tiled_vae(x, vae_model, tile_size=(512, 512), tile_overlap=(64, 64), tempora
     storage_device = torch.device("cpu")
     result = None
     count = None
-    
+
     ramp_cache = {}
     def get_ramp(steps):
         if steps not in ramp_cache:
@@ -66,10 +66,10 @@ def tiled_vae(x, vae_model, tile_size=(512, 512), tile_overlap=(64, 64), tempora
     bar = ProgressBar(d // stride_t)
     for t_idx in range(0, d, stride_t):
         t_end = min(t_idx + ti_t, d)
-        
+
         for y_idx in range(0, h, stride_h):
             y_end = min(y_idx + ti_h, h)
-            
+
             for x_idx in range(0, w, stride_w):
                 x_end = min(x_idx + ti_w, w)
 
@@ -94,7 +94,7 @@ def tiled_vae(x, vae_model, tile_size=(512, 512), tile_overlap=(64, 64), tempora
                     ts, te = t_idx // sf_t, (t_idx // sf_t) + tile_out.shape[2]
                     ys, ye = y_idx // sf_s, (y_idx // sf_s) + tile_out.shape[3]
                     xs, xe = x_idx // sf_s, (x_idx // sf_s) + tile_out.shape[4]
-                    
+
                     cur_ov_t = max(0, min(ov_t // sf_t, tile_out.shape[2] // 2))
                     cur_ov_h = max(0, min(ov_h // sf_s, tile_out.shape[3] // 2))
                     cur_ov_w = max(0, min(ov_w // sf_s, tile_out.shape[4] // 2))
@@ -115,7 +115,7 @@ def tiled_vae(x, vae_model, tile_size=(512, 512), tile_overlap=(64, 64), tempora
                     r = get_ramp(cur_ov_t)
                     if t_idx > 0: w_t[:cur_ov_t] = r
                     if t_end < d: w_t[-cur_ov_t:] = 1.0 - r
-                
+
                 if cur_ov_h > 0:
                     r = get_ramp(cur_ov_h)
                     if y_idx > 0: w_h[:cur_ov_h] = r
@@ -131,11 +131,11 @@ def tiled_vae(x, vae_model, tile_size=(512, 512), tile_overlap=(64, 64), tempora
                 tile_out.mul_(final_weight)
                 result[:, :, ts:te, ys:ye, xs:xe] += tile_out
                 count[:, :, ts:te, ys:ye, xs:xe] += final_weight
-                
+
                 del tile_out, final_weight, tile_x, w_t, w_h, w_w
         bar.update(1)
     result.div_(count.clamp(min=1e-6))
-    
+
     if result.device != x.device:
         result = result.to(x.device).to(x.dtype)
 
@@ -238,7 +238,7 @@ def cut_videos(videos):
         videos = torch.cat([videos, padding], dim=1)
         assert (videos.size(1) - 1) % (4) == 0
         return videos
-    
+
 class SeedVR2InputProcessing(io.ComfyNode):
     @classmethod
     def define_schema(cls):
@@ -259,7 +259,7 @@ class SeedVR2InputProcessing(io.ComfyNode):
                 io.Latent.Output("vae_conditioning")
             ]
         )
-    
+
     @classmethod
     def execute(cls, images, vae, resolution_height, resolution_width, spatial_tile_size, temporal_tile_size, spatial_overlap, temporal_overlap):
         device = vae.patcher.load_device
@@ -271,7 +271,7 @@ class SeedVR2InputProcessing(io.ComfyNode):
         scale = 0.9152; shift = 0
         if images.dim() != 5: # add the t dim
             images = images.unsqueeze(0)
-        images = images.permute(0, 1, 4, 2, 3) 
+        images = images.permute(0, 1, 4, 2, 3)
 
         b, t, c, h, w = images.shape
         images = images.reshape(b * t, c, h, w)
@@ -328,7 +328,7 @@ class SeedVR2Conditioning(io.ComfyNode):
 
     @classmethod
     def execute(cls, vae_conditioning, model) -> io.NodeOutput:
-        
+
         vae_conditioning = vae_conditioning["samples"]
         device = vae_conditioning.device
         model = model.model.diffusion_model

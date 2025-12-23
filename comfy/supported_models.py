@@ -1287,7 +1287,7 @@ class Chroma(supported_models_base.BASE):
         pref = self.text_encoder_key_prefix[0]
         t5_detect = comfy.text_encoders.sd3_clip.t5_xxl_detect(state_dict, "{}t5xxl.transformer.".format(pref))
         return supported_models_base.ClipTarget(comfy.text_encoders.pixart_t5.PixArtTokenizer, comfy.text_encoders.pixart_t5.pixart_te(**t5_detect))
-    
+
 class SeedVR2(supported_models_base.BASE):
     unet_config = {
         "image_model": "seedvr2"

@@ -815,7 +815,7 @@ class HunyuanDiT(BaseModel):
 
         out['image_meta_size'] = comfy.conds.CONDRegular(torch.FloatTensor([[height, width, target_height, target_width, 0, 0]]))
         return out
-    
+
 class SeedVR2(BaseModel):
     def __init__(self, model_config, model_type=ModelType.FLOW, device=None):
         super().__init__(model_config, model_type, device, comfy.ldm.seedvr.model.NaDiT)

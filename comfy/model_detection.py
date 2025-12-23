@@ -445,7 +445,7 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
                 dit_config["pad_tokens_multiple"] = 32
 
         return dit_config
-    
+
     elif "{}blocks.36.mlp.all.proj_in_gate.weight".format(key_prefix) in state_dict_keys: # seedvr2 7b
         dit_config = {}
         dit_config["image_model"] = "seedvr2"

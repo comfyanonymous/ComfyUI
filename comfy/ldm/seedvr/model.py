@@ -1,10 +1,8 @@
 from dataclasses import dataclass
 from typing import Optional, Tuple, Union, List, Dict, Any, Callable
 import einops
-from einops import rearrange, repeat
+from einops import rearrange
 import comfy.model_management
-from torch import nn
-import torch.nn.utils.rnn as rnn_utils
 import torch.nn.functional as F
 from math import ceil, pi
 import torch
@@ -15,7 +13,6 @@ from comfy.rmsnorm import RMSNorm
 from torch.nn.modules.utils import _triple
 from torch import nn
 import math
-import logging
 
 class Cache:
     def __init__(self, disable=False, prefix="", cache=None):
@@ -126,7 +123,7 @@ def safe_pad_operation(x, padding, mode='constant', value=0.0):
     """Safe padding operation that handles Half precision only for problematic modes"""
     # Modes qui nécessitent le fix Half precision
     problematic_modes = ['replicate', 'reflect', 'circular']
-    
+
     if mode in problematic_modes:
         try:
             return F.pad(x, padding, mode=mode, value=value)
@@ -189,7 +186,7 @@ def make_shifted_720Pwindows_bysize(size: Tuple[int, int, int], num_windows: Tup
     resized_h, resized_w = round(h * scale), round(w * scale)
     wh, ww = ceil(resized_h / resized_nh), ceil(resized_w / resized_nw)  # window size.
     wt = ceil(min(t, 30) / resized_nt)  # window size.
-    
+
     st, sh, sw = (  # shift size.
         0.5 if wt < t else 0,
         0.5 if wh < h else 0,
@@ -466,7 +463,7 @@ def apply_rotary_emb(
 
     freqs = freqs.to(t_middle.device)
     t_transformed = (t_middle * freqs.cos() * scale) + (rotate_half(t_middle) * freqs.sin() * scale)
-        
+
     out = torch.cat((t_left, t_transformed, t_right), dim=-1)
 
     return out.type(dtype)
@@ -655,7 +652,7 @@ class NaSwinAttention(NaMMAttention):
         self,
         *args,
         window: Union[int, Tuple[int, int, int]],
-        window_method: bool, # shifted or not 
+        window_method: bool, # shifted or not
         **kwargs,
     ):
         super().__init__(*args, **kwargs)
@@ -765,7 +762,7 @@ class NaSwinAttention(NaMMAttention):
         vid_out, txt_out = self.proj_out(vid_out, txt_out)
 
         return vid_out, txt_out
-    
+
 class MLP(nn.Module):
     def __init__(
         self,
@@ -1274,7 +1271,7 @@ class NaDiT(nn.Module):
                 layers=["out"],
                 modes=["in"],
             )
-    
+
         self.stop_cfg_index = -1
 
     def set_cfg_stop_index(self, cfg):
@@ -1290,7 +1287,7 @@ class NaDiT(nn.Module):
         context,  # l c
         disable_cache: bool = False,  # for test # TODO ? // gives an error when set to True
         **kwargs
-    ):  
+    ):
         transformer_options = kwargs.get("transformer_options", {})
         patches_replace = transformer_options.get("patches_replace", {})
         blocks_replace = patches_replace.get("dit", {})

@@ -317,26 +317,26 @@ def safe_interpolate_operation(x, size=None, scale_factor=None, mode='nearest', 
     """Safe interpolate operation that handles Half precision for problematic modes"""
     # Modes qui peuvent causer des problèmes avec Half precision
     problematic_modes = ['bilinear', 'bicubic', 'trilinear']
-    
+
     if mode in problematic_modes:
         try:
             return F.interpolate(
-                x, 
-                size=size, 
-                scale_factor=scale_factor, 
-                mode=mode, 
+                x,
+                size=size,
+                scale_factor=scale_factor,
+                mode=mode,
                 align_corners=align_corners,
                 recompute_scale_factor=recompute_scale_factor
             )
         except RuntimeError as e:
-            if ("not implemented for 'Half'" in str(e) or 
+            if ("not implemented for 'Half'" in str(e) or
                 "compute_indices_weights" in str(e)):
                 original_dtype = x.dtype
                 return F.interpolate(
-                    x.float(), 
-                    size=size, 
-                    scale_factor=scale_factor, 
-                    mode=mode, 
+                    x.float(),
+                    size=size,
+                    scale_factor=scale_factor,
+                    mode=mode,
                     align_corners=align_corners,
                     recompute_scale_factor=recompute_scale_factor
                 ).to(original_dtype)
@@ -345,10 +345,10 @@ def safe_interpolate_operation(x, size=None, scale_factor=None, mode='nearest', 
     else:
         # Pour 'nearest' et autres modes compatibles, pas de fix nécessaire
         return F.interpolate(
-            x, 
-            size=size, 
-            scale_factor=scale_factor, 
-            mode=mode, 
+            x,
+            size=size,
+            scale_factor=scale_factor,
+            mode=mode,
             align_corners=align_corners,
             recompute_scale_factor=recompute_scale_factor
         )
@@ -426,7 +426,7 @@ class Upsample3D(nn.Module):
         **kwargs,
     ):
         super().__init__()
-        self.interpolate = interpolate 
+        self.interpolate = interpolate
         self.channels = channels
         self.out_channels = out_channels or channels
         self.use_conv_transpose = use_conv_transpose
@@ -444,7 +444,7 @@ class Upsample3D(nn.Module):
             if kernel_size is None:
                 kernel_size = 3
             self.conv = nn.Conv2d(self.channels, self.out_channels, kernel_size=kernel_size, padding=padding, bias=bias)
-        
+
         conv = self.conv if self.name == "conv" else self.Conv2d_0
 
         assert type(conv) is not nn.ConvTranspose2d
@@ -587,7 +587,7 @@ class Downsample3D(nn.Module):
                 kernel_size=(self.temporal_ratio, self.spatial_ratio, self.spatial_ratio),
                 stride=(self.temporal_ratio, self.spatial_ratio, self.spatial_ratio),
             )
-        
+
         self.conv = conv
 
 
@@ -1565,7 +1565,7 @@ class VideoAutoencoderKLWrapper(VideoAutoencoderKL):
         latent = latent / scale + shift
         latent = rearrange(latent, "b ... c -> b c ...")
         latent = latent.squeeze(2)
-        
+
         if latent.ndim == 4:
             latent = latent.unsqueeze(2)
 
