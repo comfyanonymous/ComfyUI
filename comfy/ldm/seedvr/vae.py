@@ -962,10 +962,6 @@ class UNetMidBlock3D(nn.Module):
         attentions = []
 
         if attention_head_dim is None:
-            print(
-                f"It is not recommend to pass `attention_head_dim=None`. "
-                f"Defaulting `attention_head_dim` to `in_channels`: {in_channels}."
-            )
             attention_head_dim = in_channels
 
         for _ in range(num_layers):
