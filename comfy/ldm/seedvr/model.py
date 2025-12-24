@@ -491,6 +491,11 @@ class NaMMRotaryEmbedding3d(MMRotaryEmbeddingBase):
             "mmrope_freqs_3d",
             lambda: self.get_freqs(vid_shape, txt_shape),
         )
+        target_device = vid_q.device
+        if vid_freqs.device != target_device:
+            vid_freqs = vid_freqs.to(target_device)
+        if txt_freqs.device != target_device:
+            txt_freqs = txt_freqs.to(target_device)
         vid_q = rearrange(vid_q, "L h d -> h L d")
         vid_k = rearrange(vid_k, "L h d -> h L d")
         vid_q = apply_rotary_emb(vid_freqs, vid_q.float()).to(vid_q.dtype)
@@ -506,6 +511,7 @@ class NaMMRotaryEmbedding3d(MMRotaryEmbeddingBase):
         txt_k = rearrange(txt_k, "h L d -> L h d")
         return vid_q, vid_k, txt_q, txt_k
 
+    @torch._dynamo.disable  # Disable compilation: .tolist() is data-dependent and causes graph breaks
     def get_freqs(
         self,
         vid_shape: torch.LongTensor,
@@ -514,8 +520,29 @@ class NaMMRotaryEmbedding3d(MMRotaryEmbeddingBase):
         torch.Tensor,
         torch.Tensor,
     ]:
-        vid_freqs = self.get_axial_freqs(1024, 128, 128)
-        txt_freqs = self.get_axial_freqs(1024)
+
+        # Calculate actual max dimensions needed for this batch
+        max_temporal = 0
+        max_height = 0
+        max_width = 0
+        max_txt_len = 0
+        
+        for (f, h, w), l in zip(vid_shape.tolist(), txt_shape[:, 0].tolist()):
+            max_temporal = max(max_temporal, l + f)  # Need up to l+f for temporal
+            max_height = max(max_height, h)
+            max_width = max(max_width, w)
+            max_txt_len = max(max_txt_len, l)
+        
+        # Compute frequencies for actual max dimensions needed
+        # Add small buffer to improve cache hits across similar batches
+        vid_freqs = self.get_axial_freqs(
+            min(max_temporal + 16, 1024),  # Cap at 1024, add small buffer
+            min(max_height + 4, 128),      # Cap at 128, add small buffer  
+            min(max_width + 4, 128)        # Cap at 128, add small buffer
+        )
+        txt_freqs = self.get_axial_freqs(min(max_txt_len + 16, 1024))
+        
+        # Now slice as before
         vid_freq_list, txt_freq_list = [], []
         for (f, h, w), l in zip(vid_shape.tolist(), txt_shape[:, 0].tolist()):
             vid_freq = vid_freqs[l : l + f, :h, :w].reshape(-1, vid_freqs.size(-1))

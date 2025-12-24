@@ -65,9 +65,9 @@ def tiled_vae(x, vae_model, tile_size=(512, 512), tile_overlap=(64, 64), tempora
             t_chunk = spatial_tile[:, :, i : i + input_chunk, :, :]
             
             if encode:
-                out = vae_model.encode(t_chunk)
+                out = vae_model.slicing_encode(t_chunk)
             else:
-                out = vae_model.decode_(t_chunk)
+                out = vae_model.slicing_decode(t_chunk)
             
             if isinstance(out, (tuple, list)): out = out[0]
             
@@ -245,6 +245,11 @@ def cut_videos(videos):
         assert (videos.size(1) - 1) % (4) == 0
         return videos
 
+def side_resize(image, size):
+    antialias = not (isinstance(image, torch.Tensor) and image.device.type == 'mps')
+    resized = TVF.resize(image, size, InterpolationMode.BICUBIC, antialias=antialias)
+    return resized
+
 class SeedVR2InputProcessing(io.ComfyNode):
     @classmethod
     def define_schema(cls):
@@ -285,7 +290,8 @@ class SeedVR2InputProcessing(io.ComfyNode):
         max_area = ((resolution_height * resolution_width)** 0.5) ** 2
         clip = Lambda(lambda x: torch.clamp(x, 0.0, 1.0))
         normalize = Normalize(0.5, 0.5)
-        images = area_resize(images, max_area)
+        #images = area_resize(images, max_area)
+        images = side_resize(images, resolution_height)
 
         images = clip(images)
         o_h, o_w = images.shape[-2:]
@@ -348,7 +354,7 @@ class SeedVR2Conditioning(io.ComfyNode):
 
         noises = torch.randn_like(vae_conditioning).to(device)
         aug_noises =  torch.randn_like(vae_conditioning).to(device)
-
+        aug_noises = noises * 0.1 + aug_noises * 0.05
         cond_noise_scale = 0.0
         t = (
             torch.tensor([1000.0])
