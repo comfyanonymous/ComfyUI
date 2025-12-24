@@ -1,5 +1,5 @@
 from blake3 import blake3
-from typing import IO, Union
+from typing import IO
 import os
 import asyncio
 
