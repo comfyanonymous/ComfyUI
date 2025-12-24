@@ -1419,7 +1419,7 @@ def get_finalized_class_inputs(d: dict[str, Any], live_inputs: dict[str, Any], i
         "optional": {},
         "dynamic_paths": {},
     }
-    d = copy.copy(d)
+    d = d.copy()
     # ignore hidden for parsing
     hidden = d.pop("hidden", None)
     parse_class_inputs(out_dict, live_inputs, d)
