@@ -22,6 +22,9 @@ from server import PromptServer
 MAX_RESOLUTION = nodes.MAX_RESOLUTION
 
 class ImageCrop:
+    ALLOW_LIVE_PREVIEW = True
+    WANT_LIVE_PREVIEW = True
+
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "image": ("IMAGE",),

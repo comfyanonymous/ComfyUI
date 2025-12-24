@@ -679,6 +679,12 @@ class PromptServer():
 
             if hasattr(obj_class, 'API_NODE'):
                 info['api_node'] = obj_class.API_NODE
+
+            if getattr(obj_class, "WANT_LIVE_PREVIEW", False):
+                info['want_live_preview'] = True
+            if getattr(obj_class, "ALLOW_LIVE_PREVIEW", False):
+                info['allow_live_preview'] = True
+
             return info
 
         @routes.get("/object_info")
