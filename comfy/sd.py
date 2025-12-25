@@ -804,7 +804,9 @@ class VAE:
                 if pixel_samples is None:
                     pixel_samples = torch.empty((samples_in.shape[0],) + tuple(out.shape[1:]), device=self.output_device)
                 pixel_samples[x:x+batch_number] = out
-        except model_management.OOM_EXCEPTION:
+        except Exception as ex:
+            if not model_management.is_oom_exception(ex):
+                raise
             logging.warning("Warning: Ran out of memory when regular VAE decoding, retrying with tiled VAE decoding.")
             #NOTE: We don't know what tensors were allocated to stack variables at the time of the
             #exception and the exception itself refs them all until we get out of this except block.
@@ -878,8 +880,9 @@ class VAE:
                 if samples is None:
                     samples = torch.empty((pixel_samples.shape[0],) + tuple(out.shape[1:]), device=self.output_device)
                 samples[x:x + batch_number] = out
-
-        except model_management.OOM_EXCEPTION:
+        except Exception as ex:
+            if not model_management.is_oom_exception(ex):
+                raise
             logging.warning("Warning: Ran out of memory when regular VAE encoding, retrying with tiled VAE encoding.")
             #NOTE: We don't know what tensors were allocated to stack variables at the time of the
             #exception and the exception itself refs them all until we get out of this except block.
