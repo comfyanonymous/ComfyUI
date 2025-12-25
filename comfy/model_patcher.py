@@ -1361,7 +1361,7 @@ class ModelPatcher:
         try:
             if hasattr(self, 'pinned'):
                 self.unpin_all_weights()
-            # Existing code...
+                self.detach(unpatch_all=False)
         except Exception as e:
             # Suppress errors in destructor to avoid noise
             pass
