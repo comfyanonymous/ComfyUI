@@ -30,6 +30,9 @@ from torch.nn.functional import interpolate
 from einops import rearrange
 from comfy.cli_args import args
 import json
+import time
+import inspect
+import os
 
 MMAP_TORCH_FILES = args.mmap_torch_files
 DISABLE_MMAP = args.disable_mmap
@@ -1097,13 +1100,67 @@ def set_progress_bar_global_hook(function):
     global PROGRESS_BAR_HOOK
     PROGRESS_BAR_HOOK = function
 
+class ProgressPriority:
+    CRITICAL = 0  # No throttling (previews)
+    HIGH = 1      # Core ComfyUI - light throttling
+    LOW = 2       # Custom nodes - aggressive throttling
+
+PROGRESS_THROTTLE_SETTINGS = {
+    ProgressPriority.CRITICAL: {"min_interval": 0.0, "min_percent": 0.0},
+    ProgressPriority.HIGH: {"min_interval": 0.1, "min_percent": 0.5},
+    ProgressPriority.LOW: {"min_interval": 0.2, "min_percent": 2.0},
+}
+
+_COMFY_CORE_PATHS = None
+
+def _get_comfy_core_paths():
+    global _COMFY_CORE_PATHS
+    if _COMFY_CORE_PATHS is None:
+        utils_dir = os.path.dirname(os.path.abspath(__file__))
+        comfy_dir = utils_dir
+        comfyui_root = os.path.dirname(comfy_dir)
+        _COMFY_CORE_PATHS = {
+            os.path.normpath(comfy_dir),
+            os.path.normpath(os.path.join(comfyui_root, "comfy_extras")),
+            os.path.normpath(os.path.join(comfyui_root, "comfy_api")),
+            os.path.normpath(os.path.join(comfyui_root, "comfy_api_nodes")),
+            os.path.normpath(os.path.join(comfyui_root, "comfy_execution")),
+            os.path.normpath(os.path.join(comfyui_root, "latent_preview.py")),
+            os.path.normpath(os.path.join(comfyui_root, "nodes.py")),
+        }
+    return _COMFY_CORE_PATHS
+
+def _is_core_comfyui_caller():
+    core_paths = _get_comfy_core_paths()
+    for frame_info in inspect.stack():
+        filepath = os.path.normpath(os.path.abspath(frame_info.filename))
+        if "utils.py" in filepath and "comfy" in filepath:
+            continue
+        if "site-packages" in filepath or "lib" + os.sep + "python" in filepath:
+            continue
+        if "custom_nodes" in filepath:
+            return False
+        for core_path in core_paths:
+            if filepath.startswith(core_path) or filepath == core_path:
+                return True
+        break
+    return False
+
 class ProgressBar:
-    def __init__(self, total, node_id=None):
+    def __init__(self, total, node_id=None, priority=None):
         global PROGRESS_BAR_HOOK
         self.total = total
         self.current = 0
         self.hook = PROGRESS_BAR_HOOK
         self.node_id = node_id
+        self._last_update_time = 0.0
+        self._last_sent_value = -1
+        if priority is not None:
+            self._priority = priority
+        elif _is_core_comfyui_caller():
+            self._priority = ProgressPriority.HIGH
+        else:
+            self._priority = ProgressPriority.LOW
 
     def update_absolute(self, value, total=None, preview=None):
         if total is not None:
@@ -1112,7 +1169,27 @@ class ProgressBar:
             value = self.total
         self.current = value
         if self.hook is not None:
-            self.hook(self.current, self.total, preview, node_id=self.node_id)
+            current_time = time.perf_counter()
+            is_first = (self._last_sent_value < 0)
+            is_final = (value >= self.total)
+            has_preview = (preview is not None)
+            if has_preview:
+                priority = ProgressPriority.CRITICAL
+            else:
+                priority = self._priority
+            settings = PROGRESS_THROTTLE_SETTINGS[priority]
+            min_interval = settings["min_interval"]
+            min_percent = settings["min_percent"]
+            if self.total > 0:
+                percent_changed = ((value - max(0, self._last_sent_value)) / self.total) * 100
+            else:
+                percent_changed = 100
+            time_elapsed = current_time - self._last_update_time
+            should_send = (is_first or is_final or (time_elapsed >= min_interval and percent_changed >= min_percent))
+            if should_send:
+                self.hook(self.current, self.total, preview, node_id=self.node_id)
+                self._last_update_time = current_time
+                self._last_sent_value = value
 
     def update(self, value):
         self.update_absolute(self.current + value)
