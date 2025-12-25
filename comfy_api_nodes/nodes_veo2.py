@@ -168,6 +168,8 @@ class VeoVideoGenerationNode(IO.ComfyNode):
         # Only add generateAudio for Veo 3 models
         if model.find("veo-2.0") == -1:
             parameters["generateAudio"] = generate_audio
+            # force "enhance_prompt" to True for Veo3 models
+            parameters["enhancePrompt"] = True
 
         initial_response = await sync_op(
             cls,
@@ -291,7 +293,7 @@ class Veo3VideoGenerationNode(VeoVideoGenerationNode):
                 IO.Boolean.Input(
                     "enhance_prompt",
                     default=True,
-                    tooltip="Whether to enhance the prompt with AI assistance",
+                    tooltip="This parameter is deprecated and ignored.",
                     optional=True,
                 ),
                 IO.Combo.Input(
