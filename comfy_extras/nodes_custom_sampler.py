@@ -9,6 +9,7 @@ import comfy.utils
 import node_helpers
 from typing_extensions import override
 from comfy_api.latest import ComfyExtension, io
+import re
 
 
 class BasicScheduler(io.ComfyNode):
@@ -1013,6 +1014,25 @@ class AddNoise(io.ComfyNode):
 
     add_noise = execute
 
+class ManualSigmas(io.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return io.Schema(
+            node_id="ManualSigmas",
+            category="_for_testing/custom_sampling",
+            is_experimental=True,
+            inputs=[
+                io.String.Input("sigmas", default="1, 0.5", multiline=False)
+            ],
+            outputs=[io.Sigmas.Output()]
+        )
+
+    @classmethod
+    def execute(cls, sigmas) -> io.NodeOutput:
+        sigmas = re.findall(r"[-+]?(?:\d*\.*\d+)", sigmas)
+        sigmas = [float(i) for i in sigmas]
+        sigmas = torch.FloatTensor(sigmas)
+        return io.NodeOutput(sigmas)
 
 class CustomSamplersExtension(ComfyExtension):
     @override
@@ -1052,6 +1072,7 @@ class CustomSamplersExtension(ComfyExtension):
             DisableNoise,
             AddNoise,
             SamplerCustomAdvanced,
+            ManualSigmas,
         ]
 
 
