@@ -1,6 +1,6 @@
 import copy
 import logging
-import comfy.utils
+from ..utils import detect_layer_quantization
 
 import torch
 from ..transformers_compat import T5TokenizerFast
@@ -33,7 +33,7 @@ def t5_xxl_detect(state_dict, prefix=""):
     if t5_key in state_dict:
         out["dtype_t5"] = state_dict[t5_key].dtype
 
-    quant = comfy.utils.detect_layer_quantization(state_dict, prefix)
+    quant = detect_layer_quantization(state_dict, prefix)
     if quant is not None:
         out["t5_quantization_metadata"] = quant
 

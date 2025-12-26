@@ -5,7 +5,8 @@ from typing_extensions import override
 from comfy_api.latest import ComfyExtension, io
 import comfy.model_management
 import torch
-import nodes
+from comfy.nodes import base_nodes as nodes
+
 
 class TextEncodeQwenImageEdit(io.ComfyNode):
     @classmethod

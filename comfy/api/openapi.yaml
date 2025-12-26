@@ -414,20 +414,6 @@ paths:
       responses:
         200:
           headers:
-            Idempotency-Key:
-              description: |
-                The API supports idempotency for safely retrying requests without accidentally performing the same operation twice. When creating or updating an object, use an idempotency key. Then, if a connection error occurs, you can safely repeat the request without risk of creating a second object or performing the update twice.
-
-                To perform an idempotent request, provide an additional IdempotencyKey element to the request options.
-
-                Idempotency works by saving the resulting status code and body of the first request made for any given idempotency key, regardless of whether it succeeds or fails. Subsequent requests with the same key return the same result, including 500 errors.
-
-                A client generates an idempotency key, which is a unique key that the server uses to recognize subsequent retries of the same request. How you create unique keys is up to you, but we suggest using V4 UUIDs, or another random string with enough entropy to avoid collisions. Idempotency keys are up to 255 characters long.
-
-                You can remove keys from the system automatically after they’re at least 24 hours old. We generate a new request if a key is reused after the original is pruned. The idempotency layer compares incoming parameters to those of the original request and errors if they’re the same to prevent accidental misuse.
-              example: XFDSF000213
-              schema:
-                type: string
             Digest:
               description: The digest of the request body
               example: SHA256=e5187160a7b2c496773c1c5a45bfd3ffbf25eaa5969328e6469d36f31cf240a3
@@ -439,6 +425,10 @@ paths:
               schema:
                 type: string
                 pattern: '^filename=.+'
+            Location:
+              description: The relative URL to revisit this request
+              schema:
+                type: string
           description: |
             The content of the last SaveImage node.
           content:
@@ -467,6 +457,10 @@ paths:
                     type: array
                     items:
                       type: string
+                  prompt_id:
+                    type: string
+                    description:
+                      The ID of the prompt that was queued and executed
                   outputs:
                     $ref: "#/components/schemas/Outputs"
               example:

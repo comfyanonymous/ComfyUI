@@ -1,15 +1,18 @@
 import torch
 
-import comfy.model_management
-import comfy.text_encoders.jina_clip_2
-import comfy.text_encoders.lumina2
+from ..model_management import pick_weight_dtype
+from .jina_clip_2 import JinaClip2TextModel, JinaClip2Tokenizer
+from .lumina2 import Gemma3_4BTokenizer, Gemma3_4BModel
+
 
 class NewBieTokenizer:
-    def __init__(self, embedding_directory=None, tokenizer_data={}):
-        self.gemma = comfy.text_encoders.lumina2.Gemma3_4BTokenizer(embedding_directory=embedding_directory, tokenizer_data={"spiece_model": tokenizer_data["gemma_spiece_model"]})
-        self.jina = comfy.text_encoders.jina_clip_2.JinaClip2Tokenizer(embedding_directory=embedding_directory, tokenizer_data={"spiece_model": tokenizer_data["jina_spiece_model"]})
+    def __init__(self, embedding_directory=None, tokenizer_data=None):
+        if tokenizer_data is None:
+            tokenizer_data = {}
+        self.gemma = Gemma3_4BTokenizer(embedding_directory=embedding_directory, tokenizer_data={"spiece_model": tokenizer_data["gemma_spiece_model"]})
+        self.jina = JinaClip2Tokenizer(embedding_directory=embedding_directory, tokenizer_data={"spiece_model": tokenizer_data["jina_spiece_model"]})
 
-    def tokenize_with_weights(self, text:str, return_word_ids=False, **kwargs):
+    def tokenize_with_weights(self, text: str, return_word_ids=False, **kwargs):
         out = {}
         out["gemma"] = self.gemma.tokenize_with_weights(text, return_word_ids, **kwargs)
         out["jina"] = self.jina.tokenize_with_weights(text, return_word_ids, **kwargs)
@@ -21,12 +24,15 @@ class NewBieTokenizer:
     def state_dict(self):
         return {}
 
+
 class NewBieTEModel(torch.nn.Module):
-    def __init__(self, dtype_gemma=None, device="cpu", dtype=None, model_options={}):
+    def __init__(self, dtype_gemma=None, device="cpu", dtype=None, model_options=None):
         super().__init__()
-        dtype_gemma = comfy.model_management.pick_weight_dtype(dtype_gemma, dtype, device)
-        self.gemma = comfy.text_encoders.lumina2.Gemma3_4BModel(device=device, dtype=dtype_gemma, model_options=model_options)
-        self.jina = comfy.text_encoders.jina_clip_2.JinaClip2TextModel(device=device, dtype=dtype, model_options=model_options)
+        if model_options is None:
+            model_options = {}
+        dtype_gemma = pick_weight_dtype(dtype_gemma, dtype, device)
+        self.gemma = Gemma3_4BModel(device=device, dtype=dtype_gemma, model_options=model_options)
+        self.jina = JinaClip2TextModel(device=device, dtype=dtype, model_options=model_options)
         self.dtypes = {dtype, dtype_gemma}
 
     def set_clip_options(self, options):
@@ -52,11 +58,15 @@ class NewBieTEModel(torch.nn.Module):
         else:
             return self.jina.load_sd(sd)
 
+
 def te(dtype_llama=None, llama_quantization_metadata=None):
     class NewBieTEModel_(NewBieTEModel):
-        def __init__(self, device="cpu", dtype=None, model_options={}):
+        def __init__(self, device="cpu", dtype=None, model_options=None):
+            if model_options is None:
+                model_options = {}
             if llama_quantization_metadata is not None:
                 model_options = model_options.copy()
                 model_options["llama_quantization_metadata"] = llama_quantization_metadata
             super().__init__(dtype_gemma=dtype_llama, device=device, dtype=dtype, model_options=model_options)
+
     return NewBieTEModel_

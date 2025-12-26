@@ -1,3 +1,4 @@
+from __future__ import annotations
 import asyncio
 import uuid
 from asyncio import AbstractEventLoop
@@ -65,7 +66,7 @@ class AsyncRemoteComfyClient:
         return headers
 
     @tracer.start_as_current_span("Post Prompt")
-    async def _post_prompt(self, prompt: PromptDict, endpoint: str, accept_header: str, prefer_header: Optional[str] = None) -> ClientResponse:
+    async def _post_prompt(self, prompt: PromptDict | dict, endpoint: str, accept_header: str, prefer_header: Optional[str] = None) -> ClientResponse:
         """
         Common method to POST a prompt to a given endpoint.
         :param prompt: The prompt to send
@@ -101,7 +102,7 @@ class AsyncRemoteComfyClient:
             else:
                 raise RuntimeError(f"could not prompt: {response.status}, reason={response.reason}: {await response.text()}")
 
-    async def queue_prompt_api(self, prompt: PromptDict, prefer_header: Optional[str] = None, accept_header: str = "application/json") -> V1QueuePromptResponse:
+    async def queue_prompt_api(self, prompt: PromptDict | dict, prefer_header: Optional[str] = None, accept_header: str = "application/json") -> V1QueuePromptResponse:
         """
         Calls the API to queue a prompt.
         :param prompt:
@@ -211,3 +212,50 @@ class AsyncRemoteComfyClient:
                     return response.status, None
         # Timeout
         return 408, None
+
+    async def get_jobs(self, status: Optional[str] = None, workflow_id: Optional[str] = None,
+                       limit: Optional[int] = None, offset: Optional[int] = None,
+                       sort_by: Optional[str] = None, sort_order: Optional[str] = None) -> dict:
+        """
+        List all jobs with filtering, sorting, and pagination.
+        :param status: Filter by status (comma-separated): pending, in_progress, completed, failed
+        :param workflow_id: Filter by workflow ID
+        :param limit: Max items to return
+        :param offset: Items to skip
+        :param sort_by: Sort field: created_at (default), execution_duration
+        :param sort_order: Sort direction: asc, desc (default)
+        :return: Dictionary containing jobs list and pagination info
+        """
+        params = {}
+        if status is not None:
+            params["status"] = status
+        if workflow_id is not None:
+            params["workflow_id"] = workflow_id
+        if limit is not None:
+            params["limit"] = str(limit)
+        if offset is not None:
+            params["offset"] = str(offset)
+        if sort_by is not None:
+            params["sort_by"] = sort_by
+        if sort_order is not None:
+            params["sort_order"] = sort_order
+
+        async with self.session.get(urljoin(self.server_address, "/api/jobs"), params=params) as response:
+            if response.status == 200:
+                return await response.json()
+            else:
+                raise RuntimeError(f"could not get jobs: {response.status}: {await response.text()}")
+
+    async def get_job(self, job_id: str) -> Optional[dict]:
+        """
+        Get a single job by ID.
+        :param job_id: The job ID
+        :return: Job dictionary or None if not found
+        """
+        async with self.session.get(urljoin(self.server_address, f"/api/jobs/{job_id}")) as response:
+            if response.status == 200:
+                return await response.json()
+            elif response.status == 404:
+                return None
+            else:
+                raise RuntimeError(f"could not get job: {response.status}: {await response.text()}")

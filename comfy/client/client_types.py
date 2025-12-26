@@ -24,6 +24,7 @@ class Output(TypedDict, total=False):
 class V1QueuePromptResponse:
     urls: List[str]
     outputs: dict[str, Output]
+    prompt_id: str
 
 
 class ProgressNotification(NamedTuple):

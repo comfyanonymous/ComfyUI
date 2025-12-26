@@ -23,6 +23,7 @@ from .k_diffusion import sampling as k_diffusion_sampling
 from .model_base import BaseModel
 from .model_management_types import ModelOptions
 from .model_patcher import ModelPatcher
+from .sampler_helpers import prepare_mask
 from .sampler_names import SCHEDULER_NAMES, SAMPLER_NAMES, KSAMPLER_NAMES
 from .context_windows import ContextHandlerABC
 from .utils import common_upscale, pack_latents, unpack_latents
@@ -1068,10 +1069,10 @@ class CFGGuider:
                 denoise_masks.append(torch.ones(latent_shapes[i]))
 
             for i in range(len(denoise_masks)):
-                denoise_masks[i] = comfy.sampler_helpers.prepare_mask(denoise_masks[i], latent_shapes[i], self.model_patcher.load_device)
+                denoise_masks[i] = prepare_mask(denoise_masks[i], latent_shapes[i], self.model_patcher.load_device)
 
             if len(denoise_masks) > 1:
-                denoise_mask, _ = comfy.utils.pack_latents(denoise_masks)
+                denoise_mask, _ = pack_latents(denoise_masks)
             else:
                 denoise_mask = denoise_masks[0]
 

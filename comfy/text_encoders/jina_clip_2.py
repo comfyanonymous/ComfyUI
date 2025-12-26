@@ -8,13 +8,15 @@ import torch
 from torch import nn as nn
 from torch.nn import functional as F
 
-import comfy.model_management
-import comfy.ops
-from comfy import sd1_clip
 from .spiece_tokenizer import SPieceTokenizer
+from .. import sd1_clip
+from ..ldm.modules.attention import optimized_attention_for_device
+
 
 class JinaClip2Tokenizer(sd1_clip.SDTokenizer):
-    def __init__(self, embedding_directory=None, tokenizer_data={}):
+    def __init__(self, embedding_directory=None, tokenizer_data=None):
+        if tokenizer_data is None:
+            tokenizer_data = {}
         tokenizer = tokenizer_data.get("spiece_model", None)
         # The official NewBie uses max_length=8000, but Jina Embeddings v3 actually supports 8192
         super().__init__(tokenizer, pad_with_end=False, embedding_size=1024, embedding_key='jina_clip_2', tokenizer_class=SPieceTokenizer, has_start_token=True, has_end_token=True, pad_to_max_length=False, max_length=8192, min_length=1, pad_token=1, end_token=2, tokenizer_args={"add_bos": True, "add_eos": True}, tokenizer_data=tokenizer_data)
@@ -22,9 +24,13 @@ class JinaClip2Tokenizer(sd1_clip.SDTokenizer):
     def state_dict(self):
         return {"spiece_model": self.tokenizer.serialize_model()}
 
+
 class JinaClip2TokenizerWrapper(sd1_clip.SD1Tokenizer):
-    def __init__(self, embedding_directory=None, tokenizer_data={}):
+    def __init__(self, embedding_directory=None, tokenizer_data=None):
+        if tokenizer_data is None:
+            tokenizer_data = {}
         super().__init__(embedding_directory=embedding_directory, tokenizer_data=tokenizer_data, tokenizer=JinaClip2Tokenizer, name="jina_clip_2")
+
 
 # https://huggingface.co/jinaai/jina-embeddings-v3/blob/343dbf534c76fe845f304fa5c2d1fd87e1e78918/config.json
 @dataclass
@@ -44,6 +50,7 @@ class XLMRobertaConfig:
     eos_token_id: int = 2
     pad_token_id: int = 1
 
+
 class XLMRobertaEmbeddings(nn.Module):
     def __init__(self, config, device=None, dtype=None, ops=None):
         super().__init__()
@@ -60,6 +67,7 @@ class XLMRobertaEmbeddings(nn.Module):
             token_type_embeddings = self.token_type_embeddings(token_type_ids)
             embeddings = embeddings + token_type_embeddings
         return embeddings
+
 
 class RotaryEmbedding(nn.Module):
     def __init__(self, dim, base, device=None):
@@ -95,6 +103,7 @@ class RotaryEmbedding(nn.Module):
         k_embed = (k * cos) + (rotate_half(k) * sin)
         return q_embed, k_embed
 
+
 class MHA(nn.Module):
     def __init__(self, config, device=None, dtype=None, ops=None):
         super().__init__()
@@ -122,6 +131,7 @@ class MHA(nn.Module):
         out = optimized_attention(q, k, v, heads=self.num_heads, mask=mask, skip_reshape=True)
         return self.out_proj(out)
 
+
 class MLP(nn.Module):
     def __init__(self, config, device=None, dtype=None, ops=None):
         super().__init__()
@@ -134,6 +144,7 @@ class MLP(nn.Module):
         x = self.activation(x)
         x = self.fc2(x)
         return x
+
 
 class Block(nn.Module):
     def __init__(self, config, device=None, dtype=None, ops=None):
@@ -152,16 +163,18 @@ class Block(nn.Module):
         hidden_states = self.norm2(self.dropout2(mlp_out) + hidden_states)
         return hidden_states
 
+
 class XLMRobertaEncoder(nn.Module):
     def __init__(self, config, device=None, dtype=None, ops=None):
         super().__init__()
         self.layers = nn.ModuleList([Block(config, device=device, dtype=dtype, ops=ops) for _ in range(config.num_hidden_layers)])
 
     def forward(self, hidden_states, attention_mask=None):
-        optimized_attention = comfy.ldm.modules.attention.optimized_attention_for_device(hidden_states.device, mask=attention_mask is not None, small_input=True)
+        optimized_attention = optimized_attention_for_device(hidden_states.device, mask=attention_mask is not None, small_input=True)
         for layer in self.layers:
             hidden_states = layer(hidden_states, mask=attention_mask, optimized_attention=optimized_attention)
         return hidden_states
+
 
 class XLMRobertaModel_(nn.Module):
     def __init__(self, config, device=None, dtype=None, ops=None):
@@ -171,7 +184,9 @@ class XLMRobertaModel_(nn.Module):
         self.emb_drop = nn.Dropout(config.hidden_dropout_prob)
         self.encoder = XLMRobertaEncoder(config, device=device, dtype=dtype, ops=ops)
 
-    def forward(self, input_ids, attention_mask=None, embeds=None, num_tokens=None, intermediate_output=None, final_layer_norm_intermediate=True, dtype=None, embeds_info=[]):
+    def forward(self, input_ids, attention_mask=None, embeds=None, num_tokens=None, intermediate_output=None, final_layer_norm_intermediate=True, dtype=None, embeds_info=None):
+        if embeds_info is None:
+            embeds_info = []
         x = self.embeddings(input_ids=input_ids, embeddings=embeds)
         x = self.emb_ln(x)
         x = self.emb_drop(x)
@@ -194,6 +209,7 @@ class XLMRobertaModel_(nn.Module):
         # Intermediate output is not yet implemented, use None for placeholder
         return sequence_output, None, pooled_output
 
+
 class XLMRobertaModel(nn.Module):
     def __init__(self, config_dict, dtype, device, operations):
         super().__init__()
@@ -210,10 +226,17 @@ class XLMRobertaModel(nn.Module):
     def forward(self, *args, **kwargs):
         return self.model(*args, **kwargs)
 
+
 class JinaClip2TextModel(sd1_clip.SDClipModel):
-    def __init__(self, device="cpu", dtype=None, model_options={}):
+    def __init__(self, device="cpu", dtype=None, model_options=None, textmodel_json_config=None):
+        if model_options is None:
+            model_options = {}
         super().__init__(device=device, dtype=dtype, textmodel_json_config={}, model_class=XLMRobertaModel, special_tokens={"start": 0, "end": 2, "pad": 1}, enable_attention_masks=True, return_attention_masks=True, model_options=model_options)
 
+
 class JinaClip2TextModelWrapper(sd1_clip.SD1ClipModel):
-    def __init__(self, device="cpu", dtype=None, model_options={}):
+    def __init__(self, device="cpu", dtype=None, model_options=None):
+        if model_options is None:
+            model_options = {}
         super().__init__(device=device, dtype=dtype, clip_model=JinaClip2TextModel, name="jina_clip_2", model_options=model_options)
+

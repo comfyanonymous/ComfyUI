@@ -1193,6 +1193,7 @@ class PromptServer(ExecutorToClientProgress):
                 filename = main_image["filename"]
                 digest_headers_ = {
                     "Digest": f"SHA-256={content_digest}",
+                    "Location": f"/api/v1/prompts/{task_id}"
                 }
                 urls_ = []
                 if len(output_images) == 1:
@@ -1224,8 +1225,10 @@ class PromptServer(ExecutorToClientProgress):
                                         headers=digest_headers_,
                                         body=json.dumps({
                                             'urls': urls_,
-                                            'outputs': result.outputs
+                                            'outputs': result.outputs,
+                                            'prompt_id': task_id,
                                         }))
+                # todo: provide more ways to accept these, or support multiple file returns easily
                 elif accept == "image/png" or accept == "image/jpeg":
                     return web.FileResponse(main_image["abs_path"],
                                             headers=digest_headers_)

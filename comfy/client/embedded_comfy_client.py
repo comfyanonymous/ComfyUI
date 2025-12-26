@@ -382,19 +382,21 @@ class Comfy:
 
     async def queue_prompt_api(self,
                                prompt: PromptDict | str | dict,
-                               progress_handler: Optional[ExecutorToClientProgress] = None) -> V1QueuePromptResponse:
+                               progress_handler: Optional[ExecutorToClientProgress] = None,
+                               prompt_id: Optional[str] = None) -> V1QueuePromptResponse:
         """
         Queues a prompt for execution, returning the output when it is complete.
         :param prompt: a PromptDict, string or dictionary containing a so-called Workflow API prompt
         :return: a response of URLs for Save-related nodes and the node outputs
         """
+        prompt_id = prompt_id or str(uuid.uuid4())
         if isinstance(prompt, str):
             prompt = json.loads(prompt)
         if isinstance(prompt, dict):
             from ..api.components.schema.prompt import Prompt
             prompt = Prompt.validate(prompt)
-        outputs = await self.queue_prompt(prompt, progress_handler=progress_handler)
-        return V1QueuePromptResponse(urls=[], outputs=outputs)
+        outputs = await self.queue_prompt(prompt, progress_handler=progress_handler, prompt_id=prompt_id)
+        return V1QueuePromptResponse(urls=[], outputs=outputs, prompt_id=prompt_id)
 
     def queue_with_progress(self, prompt: PromptDict | str | dict) -> QueuePromptWithProgress:
         """
