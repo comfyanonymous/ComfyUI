@@ -24,7 +24,7 @@ def tiled_vae(x, vae_model, tile_size=(512, 512), tile_overlap=(64, 64), tempora
         x = x.unsqueeze(2)
 
     b, c, d, h, w = x.shape
-    
+
     sf_s = getattr(vae_model, "spatial_downsample_factor", 8)
     sf_t = getattr(vae_model, "temporal_downsample_factor", 4)
 
@@ -39,7 +39,7 @@ def tiled_vae(x, vae_model, tile_size=(512, 512), tile_overlap=(64, 64), tempora
         ti_w = max(1, tile_size[1] // sf_s)
         ov_h = max(0, tile_overlap[0] // sf_s)
         ov_w = max(0, tile_overlap[1] // sf_s)
-        
+
         target_d = d * sf_t
         target_h = h * sf_s
         target_w = w * sf_s
@@ -47,15 +47,14 @@ def tiled_vae(x, vae_model, tile_size=(512, 512), tile_overlap=(64, 64), tempora
     stride_h = max(1, ti_h - ov_h)
     stride_w = max(1, ti_w - ov_w)
 
-    storage_device = torch.device("cpu")
-    
+    storage_device = vae_model.device
     result = None
     count = None
 
     def run_temporal_chunks(spatial_tile):
         chunk_results = []
         t_dim_size = spatial_tile.shape[2]
-        
+
         if encode:
             input_chunk = temporal_size
         else:
@@ -63,18 +62,18 @@ def tiled_vae(x, vae_model, tile_size=(512, 512), tile_overlap=(64, 64), tempora
 
         for i in range(0, t_dim_size, input_chunk):
             t_chunk = spatial_tile[:, :, i : i + input_chunk, :, :]
-            
+
             if encode:
-                out = vae_model.slicing_encode(t_chunk)
+                out = vae_model.encode(t_chunk)
             else:
-                out = vae_model.slicing_decode(t_chunk)
-            
+                out = vae_model.decode_(t_chunk)
+
             if isinstance(out, (tuple, list)): out = out[0]
-            
+
             if out.ndim == 4: out = out.unsqueeze(2)
-            
-            chunk_results.append(out.to(storage_device)) 
-        
+
+            chunk_results.append(out.to(storage_device))
+
         return torch.cat(chunk_results, dim=2)
 
     ramp_cache = {}
@@ -89,7 +88,7 @@ def tiled_vae(x, vae_model, tile_size=(512, 512), tile_overlap=(64, 64), tempora
 
     for y_idx in range(0, h, stride_h):
         y_end = min(y_idx + ti_h, h)
-        
+
         for x_idx in range(0, w, stride_w):
             x_end = min(x_idx + ti_w, w)
 
@@ -131,9 +130,9 @@ def tiled_vae(x, vae_model, tile_size=(512, 512), tile_overlap=(64, 64), tempora
 
             valid_d = min(tile_out.shape[2], result.shape[2])
             tile_out = tile_out[:, :, :valid_d, :, :]
-            
+
             tile_out.mul_(final_weight)
-            
+
             result[:, :, :valid_d, ys:ye, xs:xe] += tile_out
             count[:, :, :, ys:ye, xs:xe] += final_weight
 
@@ -141,7 +140,7 @@ def tiled_vae(x, vae_model, tile_size=(512, 512), tile_overlap=(64, 64), tempora
             bar.update(1)
 
     result.div_(count.clamp(min=1e-6))
-    
+
     if result.device != x.device:
         result = result.to(x.device).to(x.dtype)
 
@@ -149,6 +148,18 @@ def tiled_vae(x, vae_model, tile_size=(512, 512), tile_overlap=(64, 64), tempora
         result = result.squeeze(2)
 
     return result
+
+def clear_vae_memory(vae_model):
+    for module in vae_model.modules():
+        if hasattr(module, "memory"):
+            module.memory = None
+    if hasattr(vae_model, "original_image_video"):
+        del vae_model.original_image_video
+
+    if hasattr(vae_model, "tiled_args"):
+        del vae_model.tiled_args
+    gc.collect()
+    torch.cuda.empty_cache()
 
 def expand_dims(tensor, ndim):
     shape = tensor.shape + (1,) * (ndim - tensor.ndim)
@@ -261,9 +272,9 @@ class SeedVR2InputProcessing(io.ComfyNode):
                 io.Vae.Input("vae"),
                 io.Int.Input("resolution_height", default = 1280, min = 120), # //
                 io.Int.Input("resolution_width", default = 720, min = 120), # just non-zero value
-                io.Int.Input("spatial_tile_size", default = 512, min = -1),
-                io.Int.Input("temporal_tile_size", default = 8, min = -1),
-                io.Int.Input("spatial_overlap", default = 64, min = -1),
+                io.Int.Input("spatial_tile_size", default = 512, min = 1),
+                io.Int.Input("temporal_tile_size", default = 8, min = 1),
+                io.Int.Input("spatial_overlap", default = 64, min = 1),
                 io.Boolean.Input("enable_tiling", default=False)
             ],
             outputs = [
@@ -305,7 +316,6 @@ class SeedVR2InputProcessing(io.ComfyNode):
         images = rearrange(images, "b t c h w -> b c t h w")
         images = images.to(device)
         vae_model = vae_model.to(device)
-        vae_model.original_image_video = images
 
         args = {"tile_size": (spatial_tile_size, spatial_tile_size), "tile_overlap": (spatial_overlap, spatial_overlap),
                 "temporal_size":temporal_tile_size}
@@ -314,11 +324,14 @@ class SeedVR2InputProcessing(io.ComfyNode):
         else:
             latent = vae_model.encode(images, orig_dims = [o_h, o_w])[0]
 
+        clear_vae_memory(vae_model)
+        #images = images.to(offload_device)
+        #vae_model = vae_model.to(offload_device)
+
+        vae_model.img_dims = [o_h, o_w]
         args["enable_tiling"] = enable_tiling
         vae_model.tiled_args = args
-
-        vae_model = vae_model.to(offload_device)
-        vae_model.img_dims = [o_h, o_w]
+        vae_model.original_image_video = images
 
         latent = latent.unsqueeze(2) if latent.ndim == 4 else latent
         latent = rearrange(latent, "b c ... -> b ... c")

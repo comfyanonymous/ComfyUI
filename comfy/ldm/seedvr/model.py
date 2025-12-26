@@ -526,22 +526,22 @@ class NaMMRotaryEmbedding3d(MMRotaryEmbeddingBase):
         max_height = 0
         max_width = 0
         max_txt_len = 0
-        
+
         for (f, h, w), l in zip(vid_shape.tolist(), txt_shape[:, 0].tolist()):
             max_temporal = max(max_temporal, l + f)  # Need up to l+f for temporal
             max_height = max(max_height, h)
             max_width = max(max_width, w)
             max_txt_len = max(max_txt_len, l)
-        
+
         # Compute frequencies for actual max dimensions needed
         # Add small buffer to improve cache hits across similar batches
         vid_freqs = self.get_axial_freqs(
             min(max_temporal + 16, 1024),  # Cap at 1024, add small buffer
-            min(max_height + 4, 128),      # Cap at 128, add small buffer  
+            min(max_height + 4, 128),      # Cap at 128, add small buffer
             min(max_width + 4, 128)        # Cap at 128, add small buffer
         )
         txt_freqs = self.get_axial_freqs(min(max_txt_len + 16, 1024))
-        
+
         # Now slice as before
         vid_freq_list, txt_freq_list = [], []
         for (f, h, w), l in zip(vid_shape.tolist(), txt_shape[:, 0].tolist()):
@@ -615,6 +615,7 @@ class NaMMAttention(nn.Module):
         rope_type: Optional[str],
         rope_dim: int,
         shared_weights: bool,
+        device, dtype, operations,
         **kwargs,
     ):
         super().__init__()
@@ -624,15 +625,16 @@ class NaMMAttention(nn.Module):
         qkv_dim = inner_dim * 3
         self.head_dim = head_dim
         self.proj_qkv = MMModule(
-            nn.Linear, dim, qkv_dim, bias=qk_bias, shared_weights=shared_weights
+            operations.Linear, dim, qkv_dim, bias=qk_bias, shared_weights=shared_weights, device=device, dtype=dtype
         )
-        self.proj_out = MMModule(nn.Linear, inner_dim, dim, shared_weights=shared_weights)
+        self.proj_out = MMModule(operations.Linear, inner_dim, dim, shared_weights=shared_weights, device=device, dtype=dtype)
         self.norm_q = MMModule(
             qk_norm,
             normalized_shape=head_dim,
             eps=qk_norm_eps,
             elementwise_affine=True,
             shared_weights=shared_weights,
+            device=device, dtype=dtype
         )
         self.norm_k = MMModule(
             qk_norm,
@@ -640,6 +642,7 @@ class NaMMAttention(nn.Module):
             eps=qk_norm_eps,
             elementwise_affine=True,
             shared_weights=shared_weights,
+            device=device, dtype=dtype
         )
 
 
@@ -795,11 +798,12 @@ class MLP(nn.Module):
         self,
         dim: int,
         expand_ratio: int,
+        device, dtype, operations
     ):
         super().__init__()
-        self.proj_in = nn.Linear(dim, dim * expand_ratio)
+        self.proj_in = operations.Linear(dim, dim * expand_ratio, device=device, dtype=dtype)
         self.act = nn.GELU("tanh")
-        self.proj_out = nn.Linear(dim * expand_ratio, dim)
+        self.proj_out = operations.Linear(dim * expand_ratio, dim, device=device, dtype=dtype)
 
     def forward(self, x: torch.FloatTensor) -> torch.FloatTensor:
         x = self.proj_in(x)
@@ -814,13 +818,14 @@ class SwiGLUMLP(nn.Module):
         dim: int,
         expand_ratio: int,
         multiple_of: int = 256,
+        device=None, dtype=None, operations=None
     ):
         super().__init__()
         hidden_dim = int(2 * dim * expand_ratio / 3)
         hidden_dim = multiple_of * ((hidden_dim + multiple_of - 1) // multiple_of)
-        self.proj_in_gate = nn.Linear(dim, hidden_dim, bias=False)
-        self.proj_out = nn.Linear(hidden_dim, dim, bias=False)
-        self.proj_in = nn.Linear(dim, hidden_dim, bias=False)
+        self.proj_in_gate = operations.Linear(dim, hidden_dim, bias=False, device=device, dtype=dtype)
+        self.proj_out = operations.Linear(hidden_dim, dim, bias=False, device=device, dtype=dtype)
+        self.proj_in = operations.Linear(dim, hidden_dim, bias=False, device=device, dtype=dtype)
 
     def forward(self, x: torch.FloatTensor) -> torch.FloatTensor:
         x = x.to(next(self.proj_in.parameters()).device)
@@ -855,11 +860,12 @@ class NaMMSRTransformerBlock(nn.Module):
         rope_type: str,
         rope_dim: int,
         is_last_layer: bool,
+        device, dtype, operations,
         **kwargs,
     ):
         super().__init__()
         dim = MMArg(vid_dim, txt_dim)
-        self.attn_norm = MMModule(norm, normalized_shape=dim, eps=norm_eps, elementwise_affine=False, shared_weights=shared_weights,)
+        self.attn_norm = MMModule(norm, normalized_shape=dim, eps=norm_eps, elementwise_affine=False, shared_weights=shared_weights, device=device, dtype=dtype)
 
         self.attn = NaSwinAttention(
             vid_dim=vid_dim,
@@ -874,17 +880,19 @@ class NaMMSRTransformerBlock(nn.Module):
             shared_weights=shared_weights,
             window=kwargs.pop("window", None),
             window_method=kwargs.pop("window_method", None),
+            device=device, dtype=dtype, operations=operations
         )
 
-        self.mlp_norm = MMModule(norm, normalized_shape=dim, eps=norm_eps, elementwise_affine=False, shared_weights=shared_weights, vid_only=is_last_layer)
+        self.mlp_norm = MMModule(norm, normalized_shape=dim, eps=norm_eps, elementwise_affine=False, shared_weights=shared_weights, vid_only=is_last_layer, device=device, dtype=dtype)
         self.mlp = MMModule(
             get_mlp(mlp_type),
             dim=dim,
             expand_ratio=expand_ratio,
             shared_weights=shared_weights,
-            vid_only=is_last_layer
+            vid_only=is_last_layer,
+            device=device, dtype=dtype, operations=operations
         )
-        self.ada = MMModule(ada, dim=dim, emb_dim=emb_dim, layers=["attn", "mlp"], shared_weights=shared_weights, vid_only=is_last_layer)
+        self.ada = MMModule(ada, dim=dim, emb_dim=emb_dim, layers=["attn", "mlp"], shared_weights=shared_weights, vid_only=is_last_layer, device=device, dtype=dtype)
         self.is_last_layer = is_last_layer
 
     def forward(
@@ -933,11 +941,12 @@ class PatchOut(nn.Module):
         out_channels: int,
         patch_size: Union[int, Tuple[int, int, int]],
         dim: int,
+        device, dtype, operations
     ):
         super().__init__()
         t, h, w = _triple(patch_size)
         self.patch_size = t, h, w
-        self.proj = nn.Linear(dim, out_channels * t * h * w)
+        self.proj = operations.Linear(dim, out_channels * t * h * w, device=device, dtype=dtype)
 
     def forward(
         self,
@@ -981,11 +990,12 @@ class PatchIn(nn.Module):
         in_channels: int,
         patch_size: Union[int, Tuple[int, int, int]],
         dim: int,
+        device, dtype, operations
     ):
         super().__init__()
         t, h, w = _triple(patch_size)
         self.patch_size = t, h, w
-        self.proj = nn.Linear(in_channels * t * h * w, dim)
+        self.proj = operations.Linear(in_channels * t * h * w, dim, device=device, dtype=dtype)
 
     def forward(
         self,
@@ -1033,6 +1043,7 @@ class AdaSingle(nn.Module):
         emb_dim: int,
         layers: List[str],
         modes: List[str] = ["in", "out"],
+        device = None, dtype = None,
     ):
         assert emb_dim == 6 * dim, "AdaSingle requires emb_dim == 6 * dim"
         super().__init__()
@@ -1041,12 +1052,12 @@ class AdaSingle(nn.Module):
         self.layers = layers
         for l in layers:
             if "in" in modes:
-                self.register_parameter(f"{l}_shift", nn.Parameter(torch.randn(dim) / dim**0.5))
+                self.register_parameter(f"{l}_shift", nn.Parameter(torch.randn(dim, device=device, dtype=dtype) / dim**0.5))
                 self.register_parameter(
                     f"{l}_scale", nn.Parameter(torch.randn(dim) / dim**0.5 + 1)
                 )
             if "out" in modes:
-                self.register_parameter(f"{l}_gate", nn.Parameter(torch.randn(dim) / dim**0.5))
+                self.register_parameter(f"{l}_gate", nn.Parameter(torch.randn(dim, device=device, dtype=dtype) / dim**0.5))
 
     def forward(
         self,
@@ -1096,12 +1107,13 @@ class TimeEmbedding(nn.Module):
         sinusoidal_dim: int,
         hidden_dim: int,
         output_dim: int,
+        device, dtype, operations
     ):
         super().__init__()
         self.sinusoidal_dim = sinusoidal_dim
-        self.proj_in = nn.Linear(sinusoidal_dim, hidden_dim)
-        self.proj_hid = nn.Linear(hidden_dim, hidden_dim)
-        self.proj_out = nn.Linear(hidden_dim, output_dim)
+        self.proj_in = operations.Linear(sinusoidal_dim, hidden_dim, device=device, dtype=dtype)
+        self.proj_hid = operations.Linear(hidden_dim, hidden_dim, device=device, dtype=dtype)
+        self.proj_out = operations.Linear(hidden_dim, output_dim, device=device, dtype=dtype)
         self.act = nn.SiLU()
 
     def forward(
@@ -1199,6 +1211,7 @@ class NaDiT(nn.Module):
         **kwargs,
     ):
         self.dtype = dtype
+        factory_kwargs = {"device": device, "dtype": dtype}
         window_method = num_layers // 2 * ["720pwin_by_size_bysize","720pswin_by_size_bysize"]
         txt_dim = vid_dim
         emb_dim = vid_dim * 6
@@ -1212,15 +1225,16 @@ class NaDiT(nn.Module):
         elif len(block_type) != num_layers:
             raise ValueError("The ``block_type`` list should equal to ``num_layers``.")
         super().__init__()
-        self.register_buffer("positive_conditioning", torch.empty((58, 5120)))
-        self.register_buffer("negative_conditioning", torch.empty((64, 5120)))
+        self.register_buffer("positive_conditioning", torch.empty((58, 5120), device=device, dtype=dtype))
+        self.register_buffer("negative_conditioning", torch.empty((64, 5120), device=device, dtype=dtype))
         self.vid_in = NaPatchIn(
             in_channels=vid_in_channels,
             patch_size=patch_size,
             dim=vid_dim,
+            device=device, dtype=dtype, operations=operations
         )
         self.txt_in = (
-            nn.Linear(txt_in_dim, txt_dim)
+            operations.Linear(txt_in_dim, txt_dim, **factory_kwargs)
             if txt_in_dim and txt_in_dim != txt_dim
             else nn.Identity()
         )
@@ -1228,6 +1242,7 @@ class NaDiT(nn.Module):
             sinusoidal_dim=256,
             hidden_dim=max(vid_dim, txt_dim),
             output_dim=emb_dim,
+            device=device, dtype=dtype, operations=operations
         )
 
         if window is None or isinstance(window[0], int):
@@ -1268,7 +1283,9 @@ class NaDiT(nn.Module):
                     shared_weights=not (
                         (i < mm_layers) if isinstance(mm_layers, int) else mm_layers[i]
                     ),
+                    operations = operations,
                     **kwargs,
+                    **factory_kwargs
                 )
                 for i in range(num_layers)
             ]
@@ -1277,6 +1294,7 @@ class NaDiT(nn.Module):
             out_channels=vid_out_channels,
             patch_size=patch_size,
             dim=vid_dim,
+            device=device, dtype=dtype, operations=operations
         )
 
         self.need_txt_repeat = block_type[0] in [
@@ -1291,12 +1309,14 @@ class NaDiT(nn.Module):
                 normalized_shape=vid_dim,
                 eps=norm_eps,
                 elementwise_affine=True,
+                device=device, dtype=dtype
             )
             self.vid_out_ada = ada(
                 dim=vid_dim,
                 emb_dim=emb_dim,
                 layers=["out"],
                 modes=["in"],
+                device=device, dtype=dtype
             )
 
         self.stop_cfg_index = -1

@@ -16,6 +16,9 @@ import math
 from enum import Enum
 from comfy.ops import NVIDIA_MEMORY_CONV_BUG_WORKAROUND
 
+import comfy.ops
+ops = comfy.ops.disable_weight_init
+
 _NORM_LIMIT = float("inf")
 
 
@@ -89,9 +92,9 @@ class SpatialNorm(nn.Module):
         zq_channels: int,
     ):
         super().__init__()
-        self.norm_layer = nn.GroupNorm(num_channels=f_channels, num_groups=32, eps=1e-6, affine=True)
-        self.conv_y = nn.Conv2d(zq_channels, f_channels, kernel_size=1, stride=1, padding=0)
-        self.conv_b = nn.Conv2d(zq_channels, f_channels, kernel_size=1, stride=1, padding=0)
+        self.norm_layer = ops.GroupNorm(num_channels=f_channels, num_groups=32, eps=1e-6, affine=True)
+        self.conv_y = ops.Conv2d(zq_channels, f_channels, kernel_size=1, stride=1, padding=0)
+        self.conv_b = ops.Conv2d(zq_channels, f_channels, kernel_size=1, stride=1, padding=0)
 
     def forward(self, f: torch.Tensor, zq: torch.Tensor) -> torch.Tensor:
         f_size = f.shape[-2:]
@@ -164,7 +167,7 @@ class Attention(nn.Module):
         self.only_cross_attention = only_cross_attention
 
         if norm_num_groups is not None:
-            self.group_norm = nn.GroupNorm(num_channels=query_dim, num_groups=norm_num_groups, eps=eps, affine=True)
+            self.group_norm = ops.GroupNorm(num_channels=query_dim, num_groups=norm_num_groups, eps=eps, affine=True)
         else:
             self.group_norm = None
 
@@ -177,22 +180,22 @@ class Attention(nn.Module):
         self.norm_k = None
 
         self.norm_cross = None
-        self.to_q = nn.Linear(query_dim, self.inner_dim, bias=bias)
+        self.to_q = ops.Linear(query_dim, self.inner_dim, bias=bias)
 
         if not self.only_cross_attention:
             # only relevant for the `AddedKVProcessor` classes
-            self.to_k = nn.Linear(self.cross_attention_dim, self.inner_kv_dim, bias=bias)
-            self.to_v = nn.Linear(self.cross_attention_dim, self.inner_kv_dim, bias=bias)
+            self.to_k = ops.Linear(self.cross_attention_dim, self.inner_kv_dim, bias=bias)
+            self.to_v = ops.Linear(self.cross_attention_dim, self.inner_kv_dim, bias=bias)
         else:
             self.to_k = None
             self.to_v = None
 
         self.added_proj_bias = added_proj_bias
         if self.added_kv_proj_dim is not None:
-            self.add_k_proj = nn.Linear(added_kv_proj_dim, self.inner_kv_dim, bias=added_proj_bias)
-            self.add_v_proj = nn.Linear(added_kv_proj_dim, self.inner_kv_dim, bias=added_proj_bias)
+            self.add_k_proj = ops.Linear(added_kv_proj_dim, self.inner_kv_dim, bias=added_proj_bias)
+            self.add_v_proj = ops.Linear(added_kv_proj_dim, self.inner_kv_dim, bias=added_proj_bias)
             if self.context_pre_only is not None:
-                self.add_q_proj = nn.Linear(added_kv_proj_dim, self.inner_dim, bias=added_proj_bias)
+                self.add_q_proj = ops.Linear(added_kv_proj_dim, self.inner_dim, bias=added_proj_bias)
         else:
             self.add_q_proj = None
             self.add_k_proj = None
@@ -200,13 +203,13 @@ class Attention(nn.Module):
 
         if not self.pre_only:
             self.to_out = nn.ModuleList([])
-            self.to_out.append(nn.Linear(self.inner_dim, self.out_dim, bias=out_bias))
+            self.to_out.append(ops.Linear(self.inner_dim, self.out_dim, bias=out_bias))
             self.to_out.append(nn.Dropout(dropout))
         else:
             self.to_out = None
 
         if self.context_pre_only is not None and not self.context_pre_only:
-            self.to_add_out = nn.Linear(self.inner_dim, self.out_context_dim, bias=out_bias)
+            self.to_add_out = ops.Linear(self.inner_dim, self.out_context_dim, bias=out_bias)
         else:
             self.to_add_out = None
 
@@ -325,7 +328,7 @@ def modify_state_dict(layer, state_dict, prefix, inflate_weight_fn, inflate_bias
 
 def causal_norm_wrapper(norm_layer: nn.Module, x: torch.Tensor) -> torch.Tensor:
     input_dtype = x.dtype
-    if isinstance(norm_layer, (nn.LayerNorm, nn.RMSNorm)):
+    if isinstance(norm_layer, (ops.LayerNorm, ops.RMSNorm)):
         if x.ndim == 4:
             x = rearrange(x, "b c h w -> b h w c")
             x = norm_layer(x)
@@ -336,14 +339,14 @@ def causal_norm_wrapper(norm_layer: nn.Module, x: torch.Tensor) -> torch.Tensor:
             x = norm_layer(x)
             x = rearrange(x, "b t h w c -> b c t h w")
             return x.to(input_dtype)
-    if isinstance(norm_layer, (nn.GroupNorm, nn.BatchNorm2d, nn.SyncBatchNorm)):
+    if isinstance(norm_layer, (ops.GroupNorm, nn.BatchNorm2d, nn.SyncBatchNorm)):
         if x.ndim <= 4:
             return norm_layer(x).to(input_dtype)
         if x.ndim == 5:
             t = x.size(2)
             x = rearrange(x, "b c t h w -> (b t) c h w")
             memory_occupy = x.numel() * x.element_size() / 1024**3
-            if isinstance(norm_layer, nn.GroupNorm) and memory_occupy > float("inf"): # TODO: this may be set dynamically from the vae
+            if isinstance(norm_layer, ops.GroupNorm) and memory_occupy > float("inf"): # TODO: this may be set dynamically from the vae
                 num_chunks = min(4 if x.element_size() == 2 else 2, norm_layer.num_groups)
                 assert norm_layer.num_groups % num_chunks == 0
                 num_groups_per_chunk = norm_layer.num_groups // num_chunks
@@ -428,7 +431,7 @@ def cache_send_recv(tensor, cache_size, times, memory=None):
 
     return recv_buffer
 
-class InflatedCausalConv3d(torch.nn.Conv3d):
+class InflatedCausalConv3d(ops.Conv3d):
     def __init__(
         self,
         *args,
@@ -677,17 +680,16 @@ class Upsample3D(nn.Module):
         if use_conv_transpose:
             if kernel_size is None:
                 kernel_size = 4
-            self.conv = nn.ConvTranspose2d(
+            self.conv = ops.ConvTranspose2d(
                 channels, self.out_channels, kernel_size=kernel_size, stride=2, padding=padding, bias=bias
             )
         elif use_conv:
             if kernel_size is None:
                 kernel_size = 3
-            self.conv = nn.Conv2d(self.channels, self.out_channels, kernel_size=kernel_size, padding=padding, bias=bias)
+            self.conv = ops.Conv2d(self.channels, self.out_channels, kernel_size=kernel_size, padding=padding, bias=bias)
 
         conv = self.conv if self.name == "conv" else self.Conv2d_0
 
-        assert type(conv) is not nn.ConvTranspose2d
         # Note: lora_layer is not passed into constructor in the original implementation.
         # So we make a simplification.
         conv = InflatedCausalConv3d(
@@ -708,7 +710,7 @@ class Upsample3D(nn.Module):
         # [Override] MAGViT v2 implementation
         if not self.interpolate:
             upscale_ratio = (self.spatial_ratio**2) * self.temporal_ratio
-            self.upscale_conv = nn.Conv3d(
+            self.upscale_conv = ops.Conv3d(
                 self.channels, self.channels * upscale_ratio, kernel_size=1, padding=0
             )
             identity = (
@@ -892,13 +894,13 @@ class ResnetBlock3D(nn.Module):
         self.skip_time_act = skip_time_act
         self.nonlinearity = nn.SiLU()
         if temb_channels is not None:
-            self.time_emb_proj = nn.Linear(temb_channels, out_channels)
+            self.time_emb_proj = ops.Linear(temb_channels, out_channels)
         else:
             self.time_emb_proj = None
-        self.norm1 = torch.nn.GroupNorm(num_groups=groups, num_channels=in_channels, eps=eps, affine=True)
+        self.norm1 = ops.GroupNorm(num_groups=groups, num_channels=in_channels, eps=eps, affine=True)
         if groups_out is None:
             groups_out = groups
-        self.norm2 = torch.nn.GroupNorm(num_groups=groups_out, num_channels=out_channels, eps=eps, affine=True)
+        self.norm2 = ops.GroupNorm(num_groups=groups_out, num_channels=out_channels, eps=eps, affine=True)
         self.use_in_shortcut = self.in_channels != out_channels
         self.dropout = torch.nn.Dropout(dropout)
         self.conv1 = InflatedCausalConv3d(
@@ -1342,7 +1344,7 @@ class Encoder3D(nn.Module):
 
             self.conv_extra_cond.append(
                 zero_module(
-                    nn.Conv3d(extra_cond_dim, output_channel, kernel_size=1, stride=1, padding=0)
+                    ops.Conv3d(extra_cond_dim, output_channel, kernel_size=1, stride=1, padding=0)
                 )
                 if self.extra_cond_dim is not None and self.extra_cond_dim > 0
                 else None
@@ -1364,7 +1366,7 @@ class Encoder3D(nn.Module):
         )
 
         # out
-        self.conv_norm_out = nn.GroupNorm(
+        self.conv_norm_out = ops.GroupNorm(
             num_channels=block_out_channels[-1], num_groups=norm_num_groups, eps=1e-6
         )
         self.conv_act = nn.SiLU()
@@ -1512,7 +1514,7 @@ class Decoder3D(nn.Module):
         if norm_type == "spatial":
             self.conv_norm_out = SpatialNorm(block_out_channels[0], temb_channels)
         else:
-            self.conv_norm_out = nn.GroupNorm(
+            self.conv_norm_out = ops.GroupNorm(
                 num_channels=block_out_channels[0], num_groups=norm_num_groups, eps=1e-6
             )
         self.conv_act = nn.SiLU()
@@ -1553,9 +1555,9 @@ def wavelet_blur(image: Tensor, radius):
     max_safe_radius = max(1, min(image.shape[-2:]) // 8)
     if radius > max_safe_radius:
         radius = max_safe_radius
-    
+
     num_channels = image.shape[1]
-    
+
     kernel_vals = [
         [0.0625, 0.125, 0.0625],
         [0.125,  0.25,  0.125],
@@ -1563,21 +1565,21 @@ def wavelet_blur(image: Tensor, radius):
     ]
     kernel = torch.tensor(kernel_vals, dtype=image.dtype, device=image.device)
     kernel = kernel[None, None].repeat(num_channels, 1, 1, 1)
-    
+
     image = safe_pad_operation(image, (radius, radius, radius, radius), mode='replicate')
     output = F.conv2d(image, kernel, groups=num_channels, dilation=radius)
-    
+
     return output
 
 def wavelet_decomposition(image: Tensor, levels: int = 5):
     high_freq = torch.zeros_like(image)
-    
+
     for i in range(levels):
         radius = 2 ** i
         low_freq = wavelet_blur(image, radius)
         high_freq.add_(image).sub_(low_freq)
         image = low_freq
-    
+
     return high_freq, low_freq
 
 def wavelet_reconstruction(content_feat: Tensor, style_feat: Tensor) -> Tensor:
@@ -1587,19 +1589,19 @@ def wavelet_reconstruction(content_feat: Tensor, style_feat: Tensor) -> Tensor:
         if len(content_feat.shape) >= 3:
             # safe_interpolate_operation handles FP16 conversion automatically
             style_feat = safe_interpolate_operation(
-                style_feat, 
+                style_feat,
                 size=content_feat.shape[-2:],
-                mode='bilinear', 
+                mode='bilinear',
                 align_corners=False
             )
-    
+
     # Decompose both features into frequency components
     content_high_freq, content_low_freq = wavelet_decomposition(content_feat)
     del content_low_freq  # Free memory immediately
-    
-    style_high_freq, style_low_freq = wavelet_decomposition(style_feat)  
+
+    style_high_freq, style_low_freq = wavelet_decomposition(style_feat)
     del style_high_freq  # Free memory immediately
-    
+
     if content_high_freq.shape != style_low_freq.shape:
         style_low_freq = safe_interpolate_operation(
             style_low_freq,
@@ -1607,9 +1609,9 @@ def wavelet_reconstruction(content_feat: Tensor, style_feat: Tensor) -> Tensor:
             mode='bilinear',
             align_corners=False
         )
-    
+
     content_high_freq.add_(style_low_freq)
-    
+
     return content_high_freq.clamp_(-1.0, 1.0)
 
 class VideoAutoencoderKL(nn.Module):
@@ -1894,6 +1896,7 @@ class VideoAutoencoderKLWrapper(VideoAutoencoderKL):
 
         x = rearrange(x, "b c t h w -> (b t) c h w")
 
+        input = input.to(x.device)
         x = wavelet_reconstruction(x, input)
 
         x = x.unsqueeze(0)
