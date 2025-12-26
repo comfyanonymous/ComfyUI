@@ -499,6 +499,8 @@ class InflatedCausalConv3d(ops.Conv3d):
 
             def pad_and_forward():
                 padded = safe_pad_operation(x_concat, padding, mode='constant', value=0.0)
+                if not padded.is_contiguous():
+                    padded = padded.contiguous()
                 with ignore_padding(self):
                     return torch.nn.Conv3d.forward(self, padded)
 
@@ -1726,7 +1728,7 @@ class VideoAutoencoderKL(nn.Module):
         return decoded
 
     def _encode(
-        self, x, memory_state
+        self, x, memory_state = MemoryState.DISABLED
     ) -> torch.Tensor:
         _x = x.to(self.device)
         h = self.encoder(_x, memory_state=memory_state)
@@ -1737,7 +1739,7 @@ class VideoAutoencoderKL(nn.Module):
         return output.to(x.device)
 
     def _decode(
-        self, z, memory_state
+        self, z, memory_state = MemoryState.DISABLED
     ) -> torch.Tensor:
         _z = z.to(self.device)
 
@@ -1892,9 +1894,16 @@ class VideoAutoencoderKLWrapper(VideoAutoencoderKL):
 
         # in case of padded frames
         t = input.size(0)
-        x = x[:, :, :t]
+        if t != 1:
+            x = x[:, :, :t]
+        if t == 1 and x.size(2) == 4:
+            x = x[:, :, :t]
 
-        x = rearrange(x, "b c t h w -> (b t) c h w")
+        if x.size(1) == 1:
+            exp = "b t c h w -> (b t) c h w"
+        else:
+            exp = "b c t h w -> (b t) c h w"
+        x = rearrange(x, exp)
 
         input = input.to(x.device)
         x = wavelet_reconstruction(x, input)

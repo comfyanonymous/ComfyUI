@@ -270,12 +270,11 @@ class SeedVR2InputProcessing(io.ComfyNode):
             inputs = [
                 io.Image.Input("images"),
                 io.Vae.Input("vae"),
-                io.Int.Input("resolution_height", default = 1280, min = 120), # //
-                io.Int.Input("resolution_width", default = 720, min = 120), # just non-zero value
+                io.Int.Input("resolution", default = 1280, min = 120), # just non-zero value
                 io.Int.Input("spatial_tile_size", default = 512, min = 1),
-                io.Int.Input("temporal_tile_size", default = 8, min = 1),
                 io.Int.Input("spatial_overlap", default = 64, min = 1),
-                io.Boolean.Input("enable_tiling", default=False)
+                io.Int.Input("temporal_tile_size", default = 8, min = 1),
+                io.Boolean.Input("enable_tiling", default=False),
             ],
             outputs = [
                 io.Latent.Output("vae_conditioning")
@@ -283,7 +282,7 @@ class SeedVR2InputProcessing(io.ComfyNode):
         )
 
     @classmethod
-    def execute(cls, images, vae, resolution_height, resolution_width, spatial_tile_size, temporal_tile_size, spatial_overlap, enable_tiling):
+    def execute(cls, images, vae, resolution, spatial_tile_size, temporal_tile_size, spatial_overlap, enable_tiling):
         device = vae.patcher.load_device
 
         offload_device = comfy.model_management.intermediate_device()
@@ -298,11 +297,9 @@ class SeedVR2InputProcessing(io.ComfyNode):
         b, t, c, h, w = images.shape
         images = images.reshape(b * t, c, h, w)
 
-        #max_area = ((resolution_height * resolution_width)** 0.5) ** 2
         clip = Lambda(lambda x: torch.clamp(x, 0.0, 1.0))
         normalize = Normalize(0.5, 0.5)
-        #images = area_resize(images, max_area)
-        images = side_resize(images, resolution_height)
+        images = side_resize(images, resolution)
 
         images = clip(images)
         o_h, o_w = images.shape[-2:]
@@ -316,6 +313,17 @@ class SeedVR2InputProcessing(io.ComfyNode):
         images = rearrange(images, "b t c h w -> b c t h w")
         images = images.to(device)
         vae_model = vae_model.to(device)
+
+        # in case users a non-compatiable number for tiling
+        def make_divisible(val, divisor):
+            return max(divisor, round(val / divisor) * divisor)
+
+        temporal_tile_size = make_divisible(temporal_tile_size, 4)
+        spatial_tile_size = make_divisible(spatial_tile_size, 32)
+        spatial_overlap = make_divisible(spatial_overlap, 32)
+
+        if spatial_overlap >= spatial_tile_size:
+            spatial_overlap = max(0, spatial_tile_size - 8)
 
         args = {"tile_size": (spatial_tile_size, spatial_tile_size), "tile_overlap": (spatial_overlap, spatial_overlap),
                 "temporal_size":temporal_tile_size}
