@@ -1031,9 +1031,6 @@ class CFGGuider:
         self.inner_model, self.conds, self.loaded_models = sampler_helpers.prepare_sampling(self.model_patcher, noise.shape, self.conds, self.model_options)
         device = self.model_patcher.load_device
 
-        if denoise_mask is not None:
-            denoise_mask = sampler_helpers.prepare_mask(denoise_mask, noise.shape, device)
-
         noise = noise.to(device)
         latent_image = latent_image.to(device)
         sigmas = sigmas.to(device)
@@ -1059,6 +1056,24 @@ class CFGGuider:
             noise, _ = pack_latents(noise.unbind())
         else:
             latent_shapes = [latent_image.shape]
+
+        if denoise_mask is not None:
+            if denoise_mask.is_nested:
+                denoise_masks = denoise_mask.unbind()
+                denoise_masks = denoise_masks[:len(latent_shapes)]
+            else:
+                denoise_masks = [denoise_mask]
+
+            for i in range(len(denoise_masks), len(latent_shapes)):
+                denoise_masks.append(torch.ones(latent_shapes[i]))
+
+            for i in range(len(denoise_masks)):
+                denoise_masks[i] = comfy.sampler_helpers.prepare_mask(denoise_masks[i], latent_shapes[i], self.model_patcher.load_device)
+
+            if len(denoise_masks) > 1:
+                denoise_mask, _ = comfy.utils.pack_latents(denoise_masks)
+            else:
+                denoise_mask = denoise_masks[0]
 
         self.conds = {}
         for k in self.original_conds:

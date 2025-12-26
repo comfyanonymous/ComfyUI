@@ -643,7 +643,7 @@ class NextDiT(nn.Module):
             if pooled is not None:
                 pooled = self.clip_text_pooled_proj(pooled)
             else:
-                pooled = torch.zeros((1, self.clip_text_dim), device=x.device, dtype=x.dtype)
+                pooled = torch.zeros((x.shape[0], self.clip_text_dim), device=x.device, dtype=x.dtype)
 
             adaln_input = self.time_text_embed(torch.cat((t, pooled), dim=-1))
 

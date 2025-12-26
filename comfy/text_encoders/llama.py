@@ -185,7 +185,7 @@ class Gemma3_4B_Config:
     num_key_value_heads: int = 4
     max_position_embeddings: int = 131072
     rms_norm_eps: float = 1e-6
-    rope_theta = [10000.0, 1000000.0]
+    rope_theta = [1000000.0, 10000.0]
     transformer_type: str = "gemma3"
     head_dim = 256
     rms_norm_add = True
@@ -194,8 +194,8 @@ class Gemma3_4B_Config:
     rope_dims = None
     q_norm = "gemma3"
     k_norm = "gemma3"
-    sliding_attention = [False, False, False, False, False, 1024]
-    rope_scale = [1.0, 8.0]
+    sliding_attention = [1024, 1024, 1024, 1024, 1024, False]
+    rope_scale = [8.0, 1.0]
     final_norm: bool = True
 
 
@@ -381,7 +381,7 @@ class TransformerBlockGemma2(nn.Module):
         self.pre_feedforward_layernorm = RMSNorm(config.hidden_size, eps=config.rms_norm_eps, add=config.rms_norm_add, device=device, dtype=dtype)
         self.post_feedforward_layernorm = RMSNorm(config.hidden_size, eps=config.rms_norm_eps, add=config.rms_norm_add, device=device, dtype=dtype)
 
-        if config.sliding_attention is not None:  # TODO: implement. (Not that necessary since models are trained on less than 1024 tokens)
+        if config.sliding_attention is not None:
             self.sliding_attention = config.sliding_attention[index % len(config.sliding_attention)]
         else:
             self.sliding_attention = False
@@ -398,7 +398,12 @@ class TransformerBlockGemma2(nn.Module):
         if self.transformer_type == 'gemma3':
             if self.sliding_attention:
                 if x.shape[1] > self.sliding_attention:
-                    logger.warning("Warning: sliding attention not implemented, results may be incorrect")
+                    sliding_mask = torch.full((x.shape[1], x.shape[1]), float("-inf"), device=x.device, dtype=x.dtype)
+                    sliding_mask.tril_(diagonal=-self.sliding_attention)
+                    if attention_mask is not None:
+                        attention_mask = attention_mask + sliding_mask
+                    else:
+                        attention_mask = sliding_mask
                 freqs_cis = freqs_cis[1]
             else:
                 freqs_cis = freqs_cis[0]

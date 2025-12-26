@@ -152,7 +152,7 @@ class IndexListContextHandler(ContextHandlerABC):
         # if multiple conds, split based on primary region
         if self.split_conds_to_windows and len(cond_in) > 1:
             region = window.get_region_index(len(cond_in))
-            logger.info(f"Splitting conds to windows; using region {region} for window {window[0]}-{window[-1]} with center ratio {window.center_ratio:.3f}")
+            logger.info(f"Splitting conds to windows; using region {region} for window {window.index_list[0]}-{window.index_list[-1]} with center ratio {window.center_ratio:.3f}")
             cond_in = [cond_in[region]]
         # cond object is a list containing a dict - outer list is irrelevant, so just loop through it
         for actual_cond in cond_in:

@@ -1819,7 +1819,7 @@ def sample_sa_solver(model, x, sigmas, extra_args=None, callback=None, disable=F
         # Predictor
         if sigmas[i + 1] == 0:
             # Denoising step
-            x = denoised
+            x_pred = denoised
         else:
             tau_t = tau_func(sigmas[i + 1])
             curr_lambdas = lambdas[i - predictor_order_used + 1:i + 1]
@@ -1840,7 +1840,7 @@ def sample_sa_solver(model, x, sigmas, extra_args=None, callback=None, disable=F
             if tau_t > 0 and s_noise > 0:
                 noise = noise_sampler(sigmas[i], sigmas[i + 1]) * sigmas[i + 1] * (-2 * tau_t ** 2 * h).expm1().neg().sqrt() * s_noise
                 x_pred = x_pred + noise
-    return x
+    return x_pred
 
 
 @torch.no_grad()

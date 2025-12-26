@@ -1154,7 +1154,7 @@ class Lumina2(BaseModel):
             if 'num_tokens' not in out:
                 out['num_tokens'] = conds.CONDConstant(cross_attn.shape[1])
 
-        clip_text_pooled = kwargs["pooled_output"]  # Newbie
+        clip_text_pooled = kwargs.get("pooled_output", None)  # NewBie
         if clip_text_pooled is not None:
             out['clip_text_pooled'] = conds.CONDRegular(clip_text_pooled)
         return out

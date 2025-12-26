@@ -66,6 +66,8 @@ from .text_encoders import sd2_clip
 from .text_encoders import sd3_clip
 from .text_encoders import wan
 from .text_encoders import z_image
+from .text_encoders import jina_clip_2
+from .text_encoders import newbie
 from .utils import ProgressBar, FileMetadata, state_dict_prefix_replace
 from .taesd.taehv import TAEHV
 from .latent_formats import HunyuanVideo15, HunyuanVideo
@@ -337,6 +339,7 @@ class VAE:
         self.latent_channels = 4
         self.latent_dim = 2
         self.output_channels = 3
+        self.pad_channel_value = None
         self.process_input = lambda image: image * 2.0 - 1.0
         self.process_output = lambda image: torch.clamp((image + 1.0) / 2.0, min=0.0, max=1.0)
         self.working_dtypes = [torch.bfloat16, torch.float32]
@@ -451,6 +454,7 @@ class VAE:
                 self.memory_used_decode = lambda shape, dtype: (1000 * shape[2] * 2048) * model_management.dtype_size(dtype)
                 self.latent_channels = 64
                 self.output_channels = 2
+                self.pad_channel_value = "replicate"
                 self.upscale_ratio = 2048
                 self.downscale_ratio = 2048
                 self.latent_dim = 1
@@ -562,7 +566,9 @@ class VAE:
                     self.downscale_index_formula = (4, 8, 8)
                     self.latent_dim = 3
                     self.latent_channels = 16
-                    ddconfig = {"dim": dim, "z_dim": self.latent_channels, "dim_mult": [1, 2, 4, 4], "num_res_blocks": 2, "attn_scales": [], "temperal_downsample": [False, True, True], "dropout": 0.0}
+                    self.output_channels = sd["encoder.conv1.weight"].shape[1]
+                    self.pad_channel_value = 1.0
+                    ddconfig = {"dim": dim, "z_dim": self.latent_channels, "dim_mult": [1, 2, 4, 4], "num_res_blocks": 2, "attn_scales": [], "temperal_downsample": [False, True, True], "image_channels": self.output_channels, "dropout": 0.0}
                     self.first_stage_model = wan_vae.WanVAE(**ddconfig)
                     self.working_dtypes = [torch.bfloat16, torch.float16, torch.float32]
                     self.memory_used_encode = lambda shape, dtype: (1500 if shape[2] <= 4 else 6000) * shape[3] * shape[4] * model_management.dtype_size(dtype)
@@ -598,6 +604,7 @@ class VAE:
                 self.memory_used_decode = lambda shape, dtype: (shape[2] * shape[3] * 87000) * model_management.dtype_size(dtype)
                 self.latent_channels = 8
                 self.output_channels = 2
+                self.pad_channel_value = "replicate"
                 self.upscale_ratio = 4096
                 self.downscale_ratio = 4096
                 self.latent_dim = 2
@@ -730,17 +737,28 @@ class VAE:
             raise RuntimeError("ERROR: VAE is invalid: None\n\nIf the VAE is from a checkpoint loader node your checkpoint does not contain a valid VAE.")
 
     def vae_encode_crop_pixels(self, pixels):
-        if not self.crop_input:
-            return pixels
+        if self.crop_input:
+            downscale_ratio = self.spacial_compression_encode()
 
-        downscale_ratio = self.spacial_compression_encode()
+            dims = pixels.shape[1:-1]
+            for d in range(len(dims)):
+                x = (dims[d] // downscale_ratio) * downscale_ratio
+                x_offset = (dims[d] % downscale_ratio) // 2
+                if x != dims[d]:
+                    pixels = pixels.narrow(d + 1, x_offset, x)
 
-        dims = pixels.shape[1:-1]
-        for d in range(len(dims)):
-            x = (dims[d] // downscale_ratio) * downscale_ratio
-            x_offset = (dims[d] % downscale_ratio) // 2
-            if x != dims[d]:
-                pixels = pixels.narrow(d + 1, x_offset, x)
+        if pixels.shape[-1] > self.output_channels:
+            pixels = pixels[..., :self.output_channels]
+        elif pixels.shape[-1] < self.output_channels:
+            if self.pad_channel_value is not None:
+                if isinstance(self.pad_channel_value, str):
+                    mode = self.pad_channel_value
+                    value = None
+                else:
+                    mode = "constant"
+                    value = self.pad_channel_value
+
+                pixels = torch.nn.functional.pad(pixels, (0, self.output_channels - pixels.shape[-1]), mode=mode, value=value)
         return pixels
 
     def decode_tiled_(self, samples, tile_x=64, tile_y=64, overlap=16):
@@ -1048,6 +1066,7 @@ class CLIPType(Enum):
     OVIS = 21
     KANDINSKY5 = 22
     KANDINSKY5_IMAGE = 23
+    NEWBIE = 24
 
 
 @dataclasses.dataclass
@@ -1088,6 +1107,7 @@ class TEModel(Enum):
     MISTRAL3_24B_PRUNED_FLUX2 = 15
     QWEN3_4B = 16
     QWEN3_2B = 17
+    JINA_CLIP_2 = 18
 
 
 def detect_te_model(sd):
@@ -1097,6 +1117,8 @@ def detect_te_model(sd):
         return TEModel.CLIP_H
     if "text_model.encoder.layers.0.mlp.fc1.weight" in sd:
         return TEModel.CLIP_L
+    if "model.encoder.layers.0.mixer.Wqkv.weight" in sd:
+        return TEModel.JINA_CLIP_2
     if "encoder.block.23.layer.1.DenseReluDense.wi_1.weight" in sd:
         weight = sd["encoder.block.23.layer.1.DenseReluDense.wi_1.weight"]
         if weight.shape[-1] == 4096:
@@ -1259,6 +1281,9 @@ def load_text_encoder_state_dicts(state_dicts=[], embedding_directory=None, clip
         elif te_model == TEModel.QWEN3_2B:
             clip_target.clip = ovis.te(**llama_detect(clip_data))
             clip_target.tokenizer = ovis.OvisTokenizer
+        elif te_model == TEModel.JINA_CLIP_2:
+            clip_target.clip = jina_clip_2.JinaClip2TextModelWrapper
+            clip_target.tokenizer = jina_clip_2.JinaClip2TokenizerWrapper
         else:
             # clip_l
             if clip_type == CLIPType.SD3:
@@ -1314,6 +1339,17 @@ def load_text_encoder_state_dicts(state_dicts=[], embedding_directory=None, clip
         elif clip_type == CLIPType.KANDINSKY5_IMAGE:
             clip_target.clip = kandinsky5.te(**llama_detect(clip_data))
             clip_target.tokenizer = kandinsky5.Kandinsky5TokenizerImage
+        elif clip_type == CLIPType.NEWBIE:
+            clip_target.clip = newbie.te(**llama_detect(clip_data))
+            clip_target.tokenizer = newbie.NewBieTokenizer
+            if "model.layers.0.self_attn.q_norm.weight" in clip_data[0]:
+                clip_data_gemma = clip_data[0]
+                clip_data_jina = clip_data[1]
+            else:
+                clip_data_gemma = clip_data[1]
+                clip_data_jina = clip_data[0]
+            tokenizer_data["gemma_spiece_model"] = clip_data_gemma.get("spiece_model", None)
+            tokenizer_data["jina_spiece_model"] = clip_data_jina.get("spiece_model", None)
         else:
             clip_target.clip = sdxl_clip.SDXLClipModel
             clip_target.tokenizer = sdxl_clip.SDXLTokenizer

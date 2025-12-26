@@ -1,6 +1,6 @@
 [project]
 name = "comfyui"
-version = "0.5.0"
+version = "0.6.0"
 description = "An installable version of ComfyUI"
 readme = "README.md"
 authors = [
@@ -18,8 +18,8 @@ classifiers = [
 ]
 
 dependencies = [
-    "comfyui-frontend-package>=1.33.13",
-    "comfyui-workflow-templates>=0.7.54",
+    "comfyui-frontend-package>=1.35.9",
+    "comfyui-workflow-templates>=0.7.64",
     "comfyui-embedded-docs>=0.3.1",
     "torch",
     "torchvision",
@@ -199,7 +199,7 @@ comfyui-manager = [
     "chardet",
     "pip",
     # todo: bold move
-#    "comfyui_manager==4.0.3b4",
+#    "comfyui_manager==4.0.3b7",
 ]
 
 [project.scripts]

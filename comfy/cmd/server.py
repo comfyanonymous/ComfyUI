@@ -33,6 +33,7 @@ from typing_extensions import NamedTuple
 
 from comfy_api import feature_flags
 from comfy_api.internal import _ComfyNodeInternal
+from comfy_execution.jobs import JobStatus, get_job, get_all_jobs
 from .latent_preview_image_encoding import encode_preview_image
 from .. import __version__
 from .. import interruption, model_management
@@ -80,6 +81,21 @@ LOADED_MODULE_DIRS = {}
 #         import comfyui_manager
 #     except ImportError:
 #         logger.warning("ComfyUI Manager not found but enabled in args.")
+
+
+
+def _remove_sensitive_from_queue(queue: list) -> list:
+    """Remove sensitive data (index 5) from queue item tuples."""
+    items = []
+    for item in queue:
+        if isinstance(item, tuple) or isinstance(item, list) and len(item) >= 5:
+            items.append(item[:5])
+        else:
+            items.append({
+                **item,
+                "sensitive": None,
+            })
+    return items
 
 
 async def send_socket_catch_exception(function, message):
@@ -759,6 +775,129 @@ class PromptServer(ExecutorToClientProgress):
                 out[node_class] = node_info(node_class)
             return web.json_response(out)
 
+        @routes.get("/api/jobs")
+        async def get_jobs(request):
+            """List all jobs with filtering, sorting, and pagination.
+
+            Query parameters:
+                status: Filter by status (comma-separated): pending, in_progress, completed, failed
+                workflow_id: Filter by workflow ID
+                sort_by: Sort field: created_at (default), execution_duration
+                sort_order: Sort direction: asc, desc (default)
+                limit: Max items to return (positive integer)
+                offset: Items to skip (non-negative integer, default 0)
+            """
+            query = request.rel_url.query
+
+            status_param = query.get('status')
+            workflow_id = query.get('workflow_id')
+            sort_by = query.get('sort_by', 'created_at').lower()
+            sort_order = query.get('sort_order', 'desc').lower()
+
+            status_filter = None
+            if status_param:
+                status_filter = [s.strip().lower() for s in status_param.split(',') if s.strip()]
+                invalid_statuses = [s for s in status_filter if s not in JobStatus.ALL]
+                if invalid_statuses:
+                    return web.json_response(
+                        {"error": f"Invalid status value(s): {', '.join(invalid_statuses)}. Valid values: {', '.join(JobStatus.ALL)}"},
+                        status=400
+                    )
+
+            if sort_by not in {'created_at', 'execution_duration'}:
+                return web.json_response(
+                    {"error": "sort_by must be 'created_at' or 'execution_duration'"},
+                    status=400
+                )
+
+            if sort_order not in {'asc', 'desc'}:
+                return web.json_response(
+                    {"error": "sort_order must be 'asc' or 'desc'"},
+                    status=400
+                )
+
+            limit = None
+
+            # If limit is provided, validate that it is a positive integer, else continue without a limit
+            if 'limit' in query:
+                try:
+                    limit = int(query.get('limit'))
+                    if limit <= 0:
+                        return web.json_response(
+                            {"error": "limit must be a positive integer"},
+                            status=400
+                        )
+                except (ValueError, TypeError):
+                    return web.json_response(
+                        {"error": "limit must be an integer"},
+                        status=400
+                    )
+
+            offset = 0
+            if 'offset' in query:
+                try:
+                    offset = int(query.get('offset'))
+                    if offset < 0:
+                        offset = 0
+                except (ValueError, TypeError):
+                    return web.json_response(
+                        {"error": "offset must be an integer"},
+                        status=400
+                    )
+
+            running, queued = self.prompt_queue.get_current_queue_volatile()
+            history = self.prompt_queue.get_history()
+
+            running = _remove_sensitive_from_queue(running)
+            queued = _remove_sensitive_from_queue(queued)
+
+            jobs, total = get_all_jobs(
+                running, queued, history,
+                status_filter=status_filter,
+                workflow_id=workflow_id,
+                sort_by=sort_by,
+                sort_order=sort_order,
+                limit=limit,
+                offset=offset
+            )
+
+            has_more = (offset + len(jobs)) < total
+
+            return web.json_response({
+                'jobs': jobs,
+                'pagination': {
+                    'offset': offset,
+                    'limit': limit,
+                    'total': total,
+                    'has_more': has_more
+                }
+            })
+
+        @routes.get("/api/jobs/{job_id}")
+        async def get_job_by_id(request):
+            """Get a single job by ID."""
+            job_id = request.match_info.get("job_id", None)
+            if not job_id:
+                return web.json_response(
+                    {"error": "job_id is required"},
+                    status=400
+                )
+
+            running, queued = self.prompt_queue.get_current_queue_volatile()
+            history = self.prompt_queue.get_history(prompt_id=job_id)
+
+            running = _remove_sensitive_from_queue(running)
+            queued = _remove_sensitive_from_queue(queued)
+
+            job = get_job(job_id, running, queued, history)
+            if job is None:
+                return web.json_response(
+                    {"error": "Job not found"},
+                    status=404
+                )
+
+            return web.json_response(job)
+
         @routes.get("/history")
         async def get_history(request):
             max_items = request.rel_url.query.get("max_items", None)
@@ -782,18 +921,8 @@ class PromptServer(ExecutorToClientProgress):
         async def get_queue(request):
             queue_info = {}
             current_queue = self.prompt_queue.get_current_queue_volatile()
-
-            def remove_sensitive(queue: List[QueueItem]):
-                items = []
-                for item in queue:
-                    items.append({
-                        **item,
-                        "sensitive": None,
-                    })
-                return items
-
-            queue_info['queue_running'] = remove_sensitive(current_queue[0])
-            queue_info['queue_pending'] = remove_sensitive(current_queue[1])
+            queue_info['queue_running'] = _remove_sensitive_from_queue(current_queue[0])
+            queue_info['queue_pending'] = _remove_sensitive_from_queue(current_queue[1])
             return web.json_response(queue_info)
 
         @routes.post("/prompt")

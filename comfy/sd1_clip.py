@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Tuple, Sequence, TypeVar, Callable, Optional, Union
 
 import torch
+
 try:
     from transformers import CLIPTokenizer, PreTrainedTokenizerBase
 except ImportError:
@@ -557,7 +558,7 @@ SDTokenizerT = TypeVar('SDTokenizerT', bound='SDTokenizer')
 
 
 class SDTokenizer:
-    def __init__(self, tokenizer_path: Optional[Union[torch.Tensor, bytes, bytearray, memoryview, str, Path, Traversable]] = None, max_length=77, pad_with_end=True, embedding_directory=None, embedding_size=768, embedding_key='clip_l', tokenizer_class=CLIPTokenizer, has_start_token=True, has_end_token=True, pad_to_max_length=True, min_length=None, pad_token=None, end_token=None, min_padding=None, pad_left=False, tokenizer_data=None, tokenizer_args=None):
+    def __init__(self, tokenizer_path: Optional[Union[torch.Tensor, bytes, bytearray, memoryview, str, Path, Traversable]] = None, max_length=77, pad_with_end=True, embedding_directory=None, embedding_size=768, embedding_key='clip_l', tokenizer_class=CLIPTokenizer, has_start_token=True, has_end_token=True, pad_to_max_length=True, min_length=None, pad_token=None, end_token=None, min_padding=None, pad_left=False, disable_weights=False, tokenizer_data=None, tokenizer_args=None):
         if tokenizer_data is None:
             tokenizer_data = dict()
         if tokenizer_args is None:
@@ -617,6 +618,8 @@ class SDTokenizer:
         self.embedding_size = embedding_size
         self.embedding_key = embedding_key
 
+        self.disable_weights = disable_weights
+
     def clone(self) -> SDTokenizerT:
         sd_tokenizer = copy.copy(self)
         # correctly copy additional vocab
@@ -665,7 +668,7 @@ class SDTokenizer:
         min_padding = tokenizer_options.get("{}_min_padding".format(self.embedding_key), self.min_padding)
 
         text = escape_important(text)
-        if kwargs.get("disable_weights", False):
+        if kwargs.get("disable_weights", self.disable_weights):
             parsed_weights = [(text, 1.0)]
         else:
             parsed_weights = token_weights(text, 1.0)
