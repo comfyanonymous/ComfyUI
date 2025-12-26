@@ -298,7 +298,7 @@ class SeedVR2InputProcessing(io.ComfyNode):
         b, t, c, h, w = images.shape
         images = images.reshape(b * t, c, h, w)
 
-        max_area = ((resolution_height * resolution_width)** 0.5) ** 2
+        #max_area = ((resolution_height * resolution_width)** 0.5) ** 2
         clip = Lambda(lambda x: torch.clamp(x, 0.0, 1.0))
         normalize = Normalize(0.5, 0.5)
         #images = area_resize(images, max_area)
