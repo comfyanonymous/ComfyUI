@@ -1647,14 +1647,17 @@ class LoadImage:
         files = [f for f in os.listdir(input_dir) if os.path.isfile(os.path.join(input_dir, f))]
         files = folder_paths.filter_files_content_types(files, ["image"])
         return {"required":
-                    {"image": (sorted(files), {"image_upload": True})},
+                    {
+                        "image": (sorted(files), {"image_upload": True}),
+                        "out_alpha": ("BOOLEAN", {"default": False}),
+                    }
                 }
 
     CATEGORY = "image"
 
     RETURN_TYPES = ("IMAGE", "MASK")
     FUNCTION = "load_image"
-    def load_image(self, image):
+    def load_image(self, image, out_alpha):
         image_path = folder_paths.get_annotated_filepath(image)
 
         img = node_helpers.pillow(Image.open, image_path)
@@ -1670,7 +1673,7 @@ class LoadImage:
 
             if i.mode == 'I':
                 i = i.point(lambda i: i * (1 / 255))
-            image = i.convert("RGB")
+            image = i.convert("RGBA" if out_alpha else "RGB")
 
             if len(output_images) == 0:
                 w = image.size[0]
