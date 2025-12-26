@@ -332,7 +332,7 @@ def prompt_worker_failfast(*args, **kwargs):
     try:
         return prompt_worker(*args, **kwargs)
     except Exception:
-        logging.critical("Fatal: prompt_worker crashed", exc_info=True)
+        logging.critical("Unhandled exception in prompt_worker; exiting process.", exc_info=True)
         os._exit(1)
 
 
