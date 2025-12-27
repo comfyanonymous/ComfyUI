@@ -60,7 +60,7 @@ class CLIPTextEncode(ComfyNodeABC):
         return {
             "required": {
                 "text": (IO.STRING, {"multiline": True, "dynamicPrompts": True, "tooltip": "The text to be encoded."}),
-                "clip": (IO.CLIP, {"tooltip": "The CLIP model used for encoding the text."})
+                "clip": (IO.CLIP, {"tooltip": "The CLIP model used for encoding the text.", "cache-barrier" : True})
             }
         }
     RETURN_TYPES = (IO.CONDITIONING,)
@@ -1514,7 +1514,7 @@ class KSampler:
     def INPUT_TYPES(s):
         return {
             "required": {
-                "model": ("MODEL", {"tooltip": "The model used for denoising the input latent."}),
+                "model": ("MODEL", {"tooltip": "The model used for denoising the input latent.", "cache-barrier": True}),
                 "seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff, "control_after_generate": True, "tooltip": "The random seed used for creating the noise."}),
                 "steps": ("INT", {"default": 20, "min": 1, "max": 10000, "tooltip": "The number of steps used in the denoising process."}),
                 "cfg": ("FLOAT", {"default": 8.0, "min": 0.0, "max": 100.0, "step":0.1, "round": 0.01, "tooltip": "The Classifier-Free Guidance scale balances creativity and adherence to the prompt. Higher values result in images more closely matching the prompt however too high values will negatively impact quality."}),
@@ -1541,7 +1541,7 @@ class KSamplerAdvanced:
     @classmethod
     def INPUT_TYPES(s):
         return {"required":
-                    {"model": ("MODEL",),
+                    {"model": ("MODEL", {"cache-barrier": True}),
                     "add_noise": (["enable", "disable"], ),
                     "noise_seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff, "control_after_generate": True}),
                     "steps": ("INT", {"default": 20, "min": 1, "max": 10000}),
