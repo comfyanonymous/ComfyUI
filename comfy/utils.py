@@ -56,6 +56,18 @@ else:
     logging.warning("Warning, you are using an old pytorch version and some ckpt/pt files might be loaded unsafely. Upgrading to 2.4 or above is recommended as older versions of pytorch are no longer supported.")
 
 def load_torch_file(ckpt, safe_load=False, device=None, return_metadata=False):
+    # Try GDS loading first if available and device is GPU
+    if device is not None and device.type == 'cuda':
+        try:
+            from . import gds_loader
+            gds_result = gds_loader.load_torch_file_gds(ckpt, safe_load=safe_load, device=device)
+            if return_metadata:
+                # For GDS, we return empty metadata for now (can be enhanced)
+                return (gds_result, {})
+            return gds_result
+        except Exception as e:
+            logging.debug(f"GDS loading failed, using fallback: {e}")
+    
     if device is None:
         device = torch.device("cpu")
     metadata = None
