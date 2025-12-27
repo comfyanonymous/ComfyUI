@@ -2348,6 +2348,7 @@ async def init_builtin_extra_nodes():
         "nodes_camera_trajectory.py",
         "nodes_edit_model.py",
         "nodes_tcfg.py",
+        "nodes_seedvr.py",
         "nodes_context_windows.py",
         "nodes_qwen.py",
         "nodes_chroma_radiance.py",
