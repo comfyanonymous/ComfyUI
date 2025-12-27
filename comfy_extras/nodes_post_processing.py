@@ -542,7 +542,7 @@ class PostProcessingExtension(ComfyExtension):
             Sharpen,
             ImageScaleToTotalPixels,
             ResizeImageMaskNode,
-            BatchImagesMasksLatentsNode,
+            # BatchImagesMasksLatentsNode,
         ]
 
 async def comfy_entrypoint() -> PostProcessingExtension:
