@@ -39,28 +39,6 @@ class SwitchNode(io.ComfyNode):
         return io.NodeOutput(on_true if switch else on_false)
 
 
-class MatchTypeTestNode(io.ComfyNode):
-    @classmethod
-    def define_schema(cls):
-        template = io.MatchType.Template("switch", [io.Image, io.Mask, io.Latent])
-        return io.Schema(
-            node_id="MatchTypeTestNode",
-            display_name="MatchTypeTest",
-            category="logic",
-            is_experimental=True,
-            inputs=[
-                io.MatchType.Input("input", template=template),
-            ],
-            outputs=[
-                io.MatchType.Output(template=template, display_name="output"),
-            ],
-        )
-
-    @classmethod
-    def execute(cls, input) -> io.NodeOutput:
-        return io.NodeOutput(input)
-
-
 class SoftSwitchNode(io.ComfyNode):
     @classmethod
     def define_schema(cls):
@@ -256,21 +234,6 @@ class ConvertStringToComboNode(io.ComfyNode):
     def execute(cls, string: str) -> io.NodeOutput:
         return io.NodeOutput(string)
 
-class AnyTypeTestNode(io.ComfyNode):
-    @classmethod
-    def define_schema(cls):
-        return io.Schema(
-            node_id="AnyNodeTestNode",
-            display_name="AnyNodeTest",
-            category="logic",
-            inputs=[io.AnyType.Input("any")],
-            outputs=[io.AnyType.Output()],
-        )
-
-    @classmethod
-    def execute(cls, any: io.AnyType.Type) -> io.NodeOutput:
-        return io.NodeOutput(any)
-
 class InvertBooleanNode(io.ComfyNode):
     @classmethod
     def define_schema(cls):
@@ -299,8 +262,6 @@ class LogicExtension(ComfyExtension):
             # AutogrowPrefixTestNode,
             # ComboOutputTestNode,
             # InvertBooleanNode,
-            # MatchTypeTestNode,
-            # AnyTypeTestNode,
         ]
 
 async def comfy_entrypoint() -> LogicExtension:
