@@ -1,0 +1,7 @@
+torch
+transformers
+numpy
+scipy
+soundfile
+librosa
+huggingface-hub
