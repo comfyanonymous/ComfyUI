@@ -101,7 +101,7 @@ class FluxDisableGuidance(io.ComfyNode):
     append = execute  # TODO: remove
 
 
-PREFERED_KONTEXT_RESOLUTIONS = [
+PREFERRED_KONTEXT_RESOLUTIONS = [
     (672, 1568),
     (688, 1504),
     (720, 1456),
@@ -142,7 +142,7 @@ class FluxKontextImageScale(io.ComfyNode):
         width = image.shape[2]
         height = image.shape[1]
         aspect_ratio = width / height
-        _, width, height = min((abs(aspect_ratio - w / h), w, h) for w, h in PREFERED_KONTEXT_RESOLUTIONS)
+        _, width, height = min((abs(aspect_ratio - w / h), w, h) for w, h in PREFERRED_KONTEXT_RESOLUTIONS)
         image = comfy.utils.common_upscale(image.movedim(-1, 1), width, height, "lanczos", "center").movedim(1, -1)
         return io.NodeOutput(image)
 
