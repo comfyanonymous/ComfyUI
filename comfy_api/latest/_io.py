@@ -208,7 +208,7 @@ class Output(_IO_V3):
     def __init__(self, id: str=None, display_name: str=None, tooltip: str=None,
                  is_output_list=False):
         self.id = id
-        self.display_name = display_name
+        self.display_name = display_name if display_name else id
         self.tooltip = tooltip
         self.is_output_list = is_output_list
 
@@ -854,8 +854,10 @@ class MatchType(ComfyTypeIO):
             })
 
     class Output(Output):
-        def __init__(self, template: MatchType.Template, id: str=None, display_name: str="MATCHTYPE", tooltip: str=None,
+        def __init__(self, template: MatchType.Template, id: str=None, display_name: str=None, tooltip: str=None,
                      is_output_list=False):
+            if not id and not display_name:
+                display_name = "MATCHTYPE"
             super().__init__(id, display_name, tooltip, is_output_list)
             self.template = template
 
