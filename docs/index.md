@@ -2,6 +2,7 @@
 
 ## Core
 - [Installation & Getting Started](installing.md)
+- [Hardware Compatibility](compatibility.md)
 - [Configuration](configuration.md)
 - [Troubleshooting](troubleshooting.md)
 

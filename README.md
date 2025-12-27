@@ -2,6 +2,25 @@
 
 A vanilla, up-to-date fork of [ComfyUI](https://github.com/comfyanonymous/comfyui) intended for long term support (LTS) from [AppMana](https://appmana.com) and [Hidden Switch](https://hiddenswitch.com).
 
+## Key Features and Differences
+
+This LTS fork enhances vanilla ComfyUI with enterprise-grade features, focusing on stability, ease of deployment, and scalability while maintaining full compatibility.
+
+### Deployment and Installation
+- **Pip and UV Installable:** Install via `pip` or `uv` directly from GitHub. No manual cloning required for users.
+- **Automatic Model Downloading:** Missing models (e.g., Stable Diffusion, FLUX, LLMs) are downloaded on-demand from Hugging Face or CivitAI.
+- **Docker and Containers:** First-class support for Docker and Kubernetes with optimized containers for NVIDIA and AMD.
+
+### Scalability and Performance
+- **Distributed Inference:** Run scalable inference clusters with multiple workers and frontends using RabbitMQ.
+- **Embedded Mode:** Use ComfyUI as a Python library (`import comfy`) inside your own applications without the web server.
+- **LTS Custom Nodes:** A curated set of "Installable" custom nodes (ControlNet, AnimateDiff, IPAdapter) optimized for this fork.
+
+### Enhanced Capabilities
+- **LLM Support:** Native support for Large Language Models (LLaMA, Phi-3, etc.) and multi-modal workflows.
+- **API and Configuration:** Enhanced API endpoints and extensive configuration options via CLI args, env vars, and config files.
+- **Tests:** Automated test suite ensuring stability for new features.
+
 ## Quickstart (Linux)
 
 ### UI Users
@@ -60,17 +79,21 @@ For developers contributing to the codebase or building on top of it.
 
 Full documentation is available in [docs/index.md](docs/index.md).
 
-### Table of Contents
+### Core
+- [Installation & Getting Started](docs/installing.md)
+- [Hardware Compatibility](docs/compatibility.md)
+- [Configuration](docs/configuration.md)
+- [Troubleshooting](docs/troubleshooting.md)
 
-- [New Features Compared to Upstream](docs/index.md#new-features-compared-to-upstream)
-- [Getting Started](docs/index.md#getting-started)
-    - [Installing](docs/index.md#installing)
-    - [Model Downloading](docs/index.md#model-downloading)
-- [LTS Custom Nodes](docs/index.md#lts-custom-nodes)
-- [Large Language Models](docs/index.md#large-language-models)
-- [Video Workflows](docs/index.md#video-workflows)
-- [Custom Nodes](docs/index.md#custom-nodes)
-- [Configuration](docs/index.md#configuration)
-- [API Usage](docs/index.md#using-comfyui-as-an-api--programmatically)
-- [Distributed / Multi-GPU](docs/index.md#distributed-multi-process-and-multi-gpu-comfy)
-- [Docker Compose](docs/index.md#docker-compose)
+### Features & Workflows
+- [Large Language Models](docs/llm.md)
+- [Video Workflows](docs/video.md) (AnimateDiff, SageAttention, etc.)
+- [Other Features](docs/other_features.md) (SVG, Ideogram)
+
+### Extending ComfyUI
+- [Custom Nodes](docs/custom_nodes.md) (Installing & Authoring)
+- [API Usage](docs/api.md) (Python, REST, Embedded)
+
+### Deployment
+- [Distributed / Multi-GPU](docs/distributed.md)
+- [Docker & Containers](docs/docker.md)
