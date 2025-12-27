@@ -23,7 +23,7 @@ args: Configuration
 _module_properties = create_module_properties()
 
 
-def _create_parser() -> EnhancedConfigArgParser:
+def _create_parser(enable_custom_nodes_configuration=True) -> EnhancedConfigArgParser:
     parser = EnhancedConfigArgParser(default_config_files=['config.yaml', 'config.json', 'config.cfg', 'config.ini'],
                                      auto_env_var_prefix='COMFYUI_',
                                      args_for_setting_config_path=["-c", "--config"],
@@ -293,31 +293,34 @@ def _create_parser() -> EnhancedConfigArgParser:
     parser.add_argument("--workflows", type=str, action=FlattenAndAppendAction, nargs='+', default=[], help="Execute the API workflow(s) specified in the provided files. For each workflow, its outputs will be printed to a line to standard out. Application logging will be redirected to standard error. Use `-` to signify standard in.")
 
     # now give plugins a chance to add configuration
-    for entry_point in entry_points().select(group='comfyui.custom_config'):
-        try:
-            plugin_callable: ConfigurationExtender | ModuleType = entry_point.load()
-            if isinstance(plugin_callable, ModuleType):
-                # todo: find the configuration extender in the module
-                raise ValueError("unexpected or unsupported plugin configuration type")
-            else:
-                parser_result = plugin_callable(parser)
-                if parser_result is not None:
-                    parser = parser_result
-        except Exception as exc:
-            logger.error("Failed to load custom config plugin", exc_info=exc)
+    if enable_custom_nodes_configuration:
+        for entry_point in entry_points().select(group='comfyui.custom_config'):
+            try:
+                plugin_callable: ConfigurationExtender | ModuleType = entry_point.load()
+                if isinstance(plugin_callable, ModuleType):
+                    # todo: find the configuration extender in the module
+                    raise ValueError("unexpected or unsupported plugin configuration type")
+                else:
+                    parser_result = plugin_callable(parser)
+                    if parser_result is not None:
+                        parser = parser_result
+            except Exception as exc:
+                logger.error("Failed to load custom config plugin", exc_info=exc)
 
     parser.add_argument("--disable-requests-caching", action="store_true", help="Disable requests caching (useful for testing)")
     return parser
 
 
 def _parse_args(parser: Optional[argparse.ArgumentParser] = None, args_parsing: bool = False) -> Configuration:
-    if parser is None:
-        parser = _create_parser()
-
     if args_parsing:
-        args, _, config_files = parser.parse_known_args_with_config_files()
+        args = sys.argv[1:]
     else:
-        args, _, config_files = parser.parse_known_args_with_config_files([])
+        args = []
+    if parser is None:
+        parser = _create_parser('--disable-all-custom-nodes' not in frozenset(arg.lower() for arg in args))
+
+    args, _, config_files = parser.parse_known_args_with_config_files(args)
+
 
     if args.windows_standalone_build:
         args.auto_launch = True

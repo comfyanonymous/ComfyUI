@@ -39,22 +39,25 @@ usage: comfyui [-h] [-c CONFIG_FILE]
                [--disable-ipex-optimize] [--supports-fp8-compute]
                [--preview-method [none,auto,latent2rgb,taesd]]
                [--preview-size PREVIEW_SIZE]
-               [--cache-classic | --cache-lru CACHE_LRU | --cache-none]
+               [--cache-classic | --cache-lru CACHE_LRU | --cache-none | --cache-ram [CACHE_RAM]]
                [--use-split-cross-attention | --use-quad-cross-attention | --use-pytorch-cross-attention | --use-sage-attention | --use-flash-attention]
                [--disable-xformers]
                [--force-upcast-attention | --dont-upcast-attention]
+               [--enable-manager]
+               [--disable-manager-ui | --enable-manager-legacy-ui]
                [--gpu-only | --highvram | --normalvram | --lowvram | --novram | --cpu]
-               [--reserve-vram RESERVE_VRAM] [--async-offload]
-               [--force-non-blocking]
+               [--reserve-vram RESERVE_VRAM] [--async-offload [NUM_STREAMS]]
+               [--disable-async-offload] [--force-non-blocking]
                [--default-hashing-function {md5,sha1,sha256,sha512}]
                [--disable-smart-memory] [--deterministic] [--fast [FAST ...]]
-               [--mmap-torch-files] [--disable-mmap] [--dont-print-server]
-               [--quick-test-for-ci] [--windows-standalone-build]
-               [--disable-metadata] [--disable-all-custom-nodes]
+               [--disable-pinned-memory] [--mmap-torch-files] [--disable-mmap]
+               [--dont-print-server] [--quick-test-for-ci]
+               [--windows-standalone-build] [--disable-metadata]
+               [--disable-all-custom-nodes]
                [--whitelist-custom-nodes WHITELIST_CUSTOM_NODES [WHITELIST_CUSTOM_NODES ...]]
                [--blacklist-custom-nodes BLACKLIST_CUSTOM_NODES [BLACKLIST_CUSTOM_NODES ...]]
-               [--disable-api-nodes] [--multi-user] [--create-directories]
-               [--log-stdout]
+               [--disable-api-nodes] [--enable-eval] [--multi-user]
+               [--create-directories] [--log-stdout]
                [--plausible-analytics-base-url PLAUSIBLE_ANALYTICS_BASE_URL]
                [--plausible-analytics-domain PLAUSIBLE_ANALYTICS_DOMAIN]
                [--analytics-use-identity-provider]
@@ -68,6 +71,7 @@ usage: comfyui [-h] [-c CONFIG_FILE]
                [--otel-service-version OTEL_SERVICE_VERSION]
                [--otel-exporter-otlp-endpoint OTEL_EXPORTER_OTLP_ENDPOINT]
                [--force-channels-last] [--force-hf-local-dir-mode]
+               [--enable-video-to-image-fallback]
                [--front-end-version FRONT_END_VERSION]
                [--panic-when PANIC_WHEN [PANIC_WHEN ...]]
                [--front-end-root FRONT_END_ROOT]
@@ -81,6 +85,7 @@ usage: comfyui [-h] [-c CONFIG_FILE]
                [--block-runtime-package-installation]
                [--database-url DATABASE_URL]
                [--workflows WORKFLOWS [WORKFLOWS ...]]
+               [--disable-requests-caching]
 
 options:
   -h, --help            show this help message and exit
@@ -207,6 +212,11 @@ options:
                         COMFYUI_CACHE_LRU]
   --cache-none          Reduced RAM/VRAM usage at the expense of executing
                         every node for each run. [env var: COMFYUI_CACHE_NONE]
+  --cache-ram [CACHE_RAM]
+                        Use RAM pressure caching with the specified headroom
+                        threshold. If available RAM drops below the threhold
+                        the cache remove large items to free RAM. Default 4GB
+                        [env var: COMFYUI_CACHE_RAM]
   --use-split-cross-attention
                         Use the split cross attention optimization. Ignored
                         when xformers is used. [env var:
@@ -233,6 +243,15 @@ options:
                         Disable all upcasting of attention. Should be
                         unnecessary except for debugging. [env var:
                         COMFYUI_DONT_UPCAST_ATTENTION]
+  --enable-manager      Enable the ComfyUI-Manager feature. [env var:
+                        COMFYUI_ENABLE_MANAGER]
+  --disable-manager-ui  Disables only the ComfyUI-Manager UI and endpoints.
+                        Scheduled installations and similar background tasks
+                        will still operate. [env var:
+                        COMFYUI_DISABLE_MANAGER_UI]
+  --enable-manager-legacy-ui
+                        Enables the legacy UI of ComfyUI-Manager [env var:
+                        COMFYUI_ENABLE_MANAGER_LEGACY_UI]
   --gpu-only            Store and run everything (text encoders/CLIP models,
                         etc... on the GPU). [env var: COMFYUI_GPU_ONLY]
   --highvram            By default models will be unloaded to CPU memory after
@@ -247,11 +266,17 @@ options:
                         COMFYUI_CPU]
   --reserve-vram RESERVE_VRAM
                         Set the amount of vram in GB you want to reserve for
-                        use by your OS/other software. By default some amount
-                        is reserved depending on your OS. [env var:
+                        use by your OS/other software. Defaults to 0.0, since
+                        this isn't conceptually robust anyway. [env var:
                         COMFYUI_RESERVE_VRAM]
-  --async-offload       Use async weight offloading. [env var:
+  --async-offload [NUM_STREAMS]
+                        Use async weight offloading. An optional argument
+                        controls the amount of offload streams. Default is 2.
+                        Enabled by default on Nvidia. [env var:
                         COMFYUI_ASYNC_OFFLOAD]
+  --disable-async-offload
+                        Disable async weight offloading. [env var:
+                        COMFYUI_DISABLE_ASYNC_OFFLOAD]
   --force-non-blocking  Force ComfyUI to use non-blocking operations for all
                         applicable tensors. This may improve performance on
                         some non-Nvidia systems but can cause issues with some
@@ -274,6 +299,9 @@ options:
                         ones. Current valid optimizations: fp16_accumulation
                         fp8_matrix_mult cublas_ops autotune [env var:
                         COMFYUI_FAST]
+  --disable-pinned-memory
+                        Disable pinned memory use. [env var:
+                        COMFYUI_DISABLE_PINNED_MEMORY]
   --mmap-torch-files    Use mmap when loading ckpt/pt files. [env var:
                         COMFYUI_MMAP_TORCH_FILES]
   --disable-mmap        Don't use mmap when loading safetensors. [env var:
@@ -300,8 +328,11 @@ options:
                         Specify custom node folders to never load. Accepts
                         shell-style globs. [env var:
                         COMFYUI_BLACKLIST_CUSTOM_NODES]
-  --disable-api-nodes   Disable loading all api nodes. [env var:
-                        COMFYUI_DISABLE_API_NODES]
+  --disable-api-nodes   Disable loading all api nodes. Also prevents the
+                        frontend from communicating with the internet. [env
+                        var: COMFYUI_DISABLE_API_NODES]
+  --enable-eval         Enable nodes that can evaluate Python code in
+                        workflows. [env var: COMFYUI_ENABLE_EVAL]
   --multi-user          Enables per-user storage. [env var:
                         COMFYUI_MULTI_USER]
   --create-directories  Creates the default models/, input/, output/ and temp/
@@ -376,6 +407,10 @@ options:
                         argument instead of models/huggingface_cache with the
                         "cache_dir" argument, recreating the traditional file
                         structure. [env var: COMFYUI_FORCE_HF_LOCAL_DIR_MODE]
+  --enable-video-to-image-fallback
+                        Enable fallback to convert video frames to images for
+                        models that do not natively support video inputs. [env
+                        var: COMFYUI_ENABLE_VIDEO_TO_IMAGE_FALLBACK]
   --front-end-version FRONT_END_VERSION
                         Specifies the version of the frontend to be used. This
                         command needs internet connectivity to query and
@@ -442,6 +477,9 @@ options:
                         to a line to standard out. Application logging will be
                         redirected to standard error. Use `-` to signify
                         standard in. [env var: COMFYUI_WORKFLOWS]
+  --disable-requests-caching
+                        Disable requests caching (useful for testing) [env
+                        var: COMFYUI_DISABLE_REQUESTS_CACHING]
 
 Args that start with '--' can also be set in a config file (config.yaml or
 config.json or config.cfg or config.ini or specified via -c). Config file
