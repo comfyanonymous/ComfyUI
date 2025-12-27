@@ -28,9 +28,8 @@ from comfy_api.internal import (_ComfyNodeInternal, _NodeOutputInternal, classpr
     prune_dict, shallow_clone_class)
 from ._resources import Resources, ResourcesLocal
 from comfy_execution.graph_utils import ExecutionBlocker
-from ._util import MESH, VOXEL
+from ._util import MESH, VOXEL, SVG as _SVG
 
-# from comfy_extras.nodes_images import SVG as SVG_ # NOTE: needs to be moved before can be imported due to circular reference
 
 class FolderType(str, Enum):
     input = "input"
@@ -656,7 +655,7 @@ class Video(ComfyTypeIO):
 
 @comfytype(io_type="SVG")
 class SVG(ComfyTypeIO):
-    Type = Any # TODO: SVG class is defined in comfy_extras/nodes_images.py, causing circular reference; should be moved to somewhere else before referenced directly in v3
+    Type = _SVG
 
 @comfytype(io_type="LORA_MODEL")
 class LoraModel(ComfyTypeIO):
