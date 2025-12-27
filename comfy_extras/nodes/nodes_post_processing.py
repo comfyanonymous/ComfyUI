@@ -228,7 +228,7 @@ class ImageScaleToTotalPixels(io.ComfyNode):
                 io.Image.Input("image"),
                 io.Combo.Input("upscale_method", options=cls.upscale_methods),
                 io.Float.Input("megapixels", default=1.0, min=0.01, max=16.0, step=0.01),
-                io.Int.Input("resolution_steps", default=1, min=1, max=256),
+                io.Int.Input("resolution_steps", default=1, min=1, max=256, optional=True),
             ],
             outputs=[
                 io.Image.Output(),
@@ -236,7 +236,7 @@ class ImageScaleToTotalPixels(io.ComfyNode):
         )
 
     @classmethod
-    def execute(cls, image, upscale_method, megapixels, resolution_steps) -> io.NodeOutput:
+    def execute(cls, image, upscale_method, megapixels, resolution_steps=1) -> io.NodeOutput:
         samples = image.movedim(-1, 1)
         total = megapixels * 1024 * 1024
 
