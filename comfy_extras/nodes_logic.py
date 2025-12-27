@@ -131,6 +131,9 @@ class CustomComboNode(io.ComfyNode):
 
     @classmethod
     def validate_inputs(cls, choice: io.Combo.Type) -> bool:
+        # NOTE: DO NOT DO THIS unless you want to skip validation entirely on the node's inputs.
+        # I am doing that here because the widgets (besides the combo dropdown) on this node are fully frontend defined.
+        # I need to skip checking that the chosen combo option is in the options list, since those are defined by the user.
         return True
 
     @classmethod
@@ -288,8 +291,8 @@ class LogicExtension(ComfyExtension):
     async def get_node_list(self) -> list[type[io.ComfyNode]]:
         return [
             SwitchNode,
+            CustomComboNode,
             # SoftSwitchNode,
-            # CustomComboNode,
             # ConvertStringToComboNode,
             # DCTestNode,
             # AutogrowNamesTestNode,
