@@ -6,6 +6,7 @@ class LatentFormat:
     latent_dimensions = 2
     latent_rgb_factors = None
     latent_rgb_factors_bias = None
+    latent_rgb_factors_reshape = None
     taesd_decoder_name = None
 
     def process_in(self, latent):
@@ -177,6 +178,54 @@ class Flux(SD3):
 
     def process_out(self, latent):
         return (latent / self.scale_factor) + self.shift_factor
+
+class Flux2(LatentFormat):
+    latent_channels = 128
+
+    def __init__(self):
+        self.latent_rgb_factors =[
+            [0.0058, 0.0113, 0.0073],
+            [0.0495, 0.0443, 0.0836],
+            [-0.0099, 0.0096, 0.0644],
+            [0.2144, 0.3009, 0.3652],
+            [0.0166, -0.0039, -0.0054],
+            [0.0157, 0.0103, -0.0160],
+            [-0.0398, 0.0902, -0.0235],
+            [-0.0052, 0.0095, 0.0109],
+            [-0.3527, -0.2712, -0.1666],
+            [-0.0301, -0.0356, -0.0180],
+            [-0.0107, 0.0078, 0.0013],
+            [0.0746, 0.0090, -0.0941],
+            [0.0156, 0.0169, 0.0070],
+            [-0.0034, -0.0040, -0.0114],
+            [0.0032, 0.0181, 0.0080],
+            [-0.0939, -0.0008, 0.0186],
+            [0.0018, 0.0043, 0.0104],
+            [0.0284, 0.0056, -0.0127],
+            [-0.0024, -0.0022, -0.0030],
+            [0.1207, -0.0026, 0.0065],
+            [0.0128, 0.0101, 0.0142],
+            [0.0137, -0.0072, -0.0007],
+            [0.0095, 0.0092, -0.0059],
+            [0.0000, -0.0077, -0.0049],
+            [-0.0465, -0.0204, -0.0312],
+            [0.0095, 0.0012, -0.0066],
+            [0.0290, -0.0034, 0.0025],
+            [0.0220, 0.0169, -0.0048],
+            [-0.0332, -0.0457, -0.0468],
+            [-0.0085, 0.0389, 0.0609],
+            [-0.0076, 0.0003, -0.0043],
+            [-0.0111, -0.0460, -0.0614],
+        ]
+
+        self.latent_rgb_factors_bias = [-0.0329, -0.0718, -0.0851]
+        self.latent_rgb_factors_reshape = lambda t: t.reshape(t.shape[0], 32, 2, 2, t.shape[-2], t.shape[-1]).permute(0, 1, 4, 2, 5, 3).reshape(t.shape[0], 32, t.shape[-2] * 2, t.shape[-1] * 2)
+
+    def process_in(self, latent):
+        return latent
+
+    def process_out(self, latent):
+        return latent
 
 class Mochi(LatentFormat):
     latent_channels = 12
@@ -382,6 +431,7 @@ class HunyuanVideo(LatentFormat):
     ]
 
     latent_rgb_factors_bias = [ 0.0259, -0.0192, -0.0761]
+    taesd_decoder_name = "taehv"
 
 class Cosmos1CV8x8x8(LatentFormat):
     latent_channels = 16
@@ -445,7 +495,7 @@ class Wan21(LatentFormat):
         ]).view(1, self.latent_channels, 1, 1, 1)
 
 
-        self.taesd_decoder_name = None #TODO
+        self.taesd_decoder_name = "lighttaew2_1"
 
     def process_in(self, latent):
         latents_mean = self.latents_mean.to(latent.device, latent.dtype)
@@ -516,6 +566,7 @@ class Wan22(Wan21):
 
     def __init__(self):
         self.scale_factor = 1.0
+        self.taesd_decoder_name = "lighttaew2_2"
         self.latents_mean = torch.tensor([
                 -0.2289, -0.0052, -0.1323, -0.2339, -0.2799, 0.0174, 0.1838, 0.1557,
                 -0.1382, 0.0542, 0.2813, 0.0891, 0.1570, -0.0098, 0.0375, -0.1825,
@@ -533,10 +584,154 @@ class Wan22(Wan21):
                 0.3971, 1.0600, 0.3943, 0.5537, 0.5444, 0.4089, 0.7468, 0.7744
             ]).view(1, self.latent_channels, 1, 1, 1)
 
+class HunyuanImage21(LatentFormat):
+    latent_channels = 64
+    latent_dimensions = 2
+    scale_factor = 0.75289
+
+    latent_rgb_factors = [
+        [-0.0154, -0.0397, -0.0521],
+        [ 0.0005,  0.0093,  0.0006],
+        [-0.0805, -0.0773, -0.0586],
+        [-0.0494, -0.0487, -0.0498],
+        [-0.0212, -0.0076, -0.0261],
+        [-0.0179, -0.0417, -0.0505],
+        [ 0.0158,  0.0310,  0.0239],
+        [ 0.0409,  0.0516,  0.0201],
+        [ 0.0350,  0.0553,  0.0036],
+        [-0.0447, -0.0327, -0.0479],
+        [-0.0038, -0.0221, -0.0365],
+        [-0.0423, -0.0718, -0.0654],
+        [ 0.0039,  0.0368,  0.0104],
+        [ 0.0655,  0.0217,  0.0122],
+        [ 0.0490,  0.1638,  0.2053],
+        [ 0.0932,  0.0829,  0.0650],
+        [-0.0186, -0.0209, -0.0135],
+        [-0.0080, -0.0076, -0.0148],
+        [-0.0284, -0.0201,  0.0011],
+        [-0.0642, -0.0294, -0.0777],
+        [-0.0035,  0.0076, -0.0140],
+        [ 0.0519,  0.0731,  0.0887],
+        [-0.0102,  0.0095,  0.0704],
+        [ 0.0068,  0.0218, -0.0023],
+        [-0.0726, -0.0486, -0.0519],
+        [ 0.0260,  0.0295,  0.0263],
+        [ 0.0250,  0.0333,  0.0341],
+        [ 0.0168, -0.0120, -0.0174],
+        [ 0.0226,  0.1037,  0.0114],
+        [ 0.2577,  0.1906,  0.1604],
+        [-0.0646, -0.0137, -0.0018],
+        [-0.0112,  0.0309,  0.0358],
+        [-0.0347,  0.0146, -0.0481],
+        [ 0.0234,  0.0179,  0.0201],
+        [ 0.0157,  0.0313,  0.0225],
+        [ 0.0423,  0.0675,  0.0524],
+        [-0.0031,  0.0027, -0.0255],
+        [ 0.0447,  0.0555,  0.0330],
+        [-0.0152,  0.0103,  0.0299],
+        [-0.0755, -0.0489, -0.0635],
+        [ 0.0853,  0.0788,  0.1017],
+        [-0.0272, -0.0294, -0.0471],
+        [ 0.0440,  0.0400, -0.0137],
+        [ 0.0335,  0.0317, -0.0036],
+        [-0.0344, -0.0621, -0.0984],
+        [-0.0127, -0.0630, -0.0620],
+        [-0.0648,  0.0360,  0.0924],
+        [-0.0781, -0.0801, -0.0409],
+        [ 0.0363,  0.0613,  0.0499],
+        [ 0.0238,  0.0034,  0.0041],
+        [-0.0135,  0.0258,  0.0310],
+        [ 0.0614,  0.1086,  0.0589],
+        [ 0.0428,  0.0350,  0.0205],
+        [ 0.0153,  0.0173, -0.0018],
+        [-0.0288, -0.0455, -0.0091],
+        [ 0.0344,  0.0109, -0.0157],
+        [-0.0205, -0.0247, -0.0187],
+        [ 0.0487,  0.0126,  0.0064],
+        [-0.0220, -0.0013,  0.0074],
+        [-0.0203, -0.0094, -0.0048],
+        [-0.0719,  0.0429, -0.0442],
+        [ 0.1042,  0.0497,  0.0356],
+        [-0.0659, -0.0578, -0.0280],
+        [-0.0060, -0.0322, -0.0234]]
+
+    latent_rgb_factors_bias = [0.0007, -0.0256, -0.0206]
+
+class HunyuanImage21Refiner(LatentFormat):
+    latent_channels = 64
+    latent_dimensions = 3
+    scale_factor = 1.03682
+
+    def process_in(self, latent):
+        out = latent * self.scale_factor
+        out = torch.cat((out[:, :, :1], out), dim=2)
+        out = out.permute(0, 2, 1, 3, 4)
+        b, f_times_2, c, h, w = out.shape
+        out = out.reshape(b, f_times_2 // 2, 2 * c, h, w)
+        out = out.permute(0, 2, 1, 3, 4).contiguous()
+        return out
+
+    def process_out(self, latent):
+        z = latent / self.scale_factor
+        z = z.permute(0, 2, 1, 3, 4)
+        b, f, c, h, w = z.shape
+        z = z.reshape(b, f, 2, c // 2, h, w)
+        z = z.permute(0, 1, 2, 3, 4, 5).reshape(b, f * 2, c // 2, h, w)
+        z = z.permute(0, 2, 1, 3, 4)
+        z = z[:, :, 1:]
+        return z
+
+class HunyuanVideo15(LatentFormat):
+    latent_rgb_factors = [
+        [ 0.0568, -0.0521, -0.0131],
+        [ 0.0014,  0.0735,  0.0326],
+        [ 0.0186,  0.0531, -0.0138],
+        [-0.0031,  0.0051,  0.0288],
+        [ 0.0110,  0.0556,  0.0432],
+        [-0.0041, -0.0023, -0.0485],
+        [ 0.0530,  0.0413,  0.0253],
+        [ 0.0283,  0.0251,  0.0339],
+        [ 0.0277, -0.0372, -0.0093],
+        [ 0.0393,  0.0944,  0.1131],
+        [ 0.0020,  0.0251,  0.0037],
+        [-0.0017,  0.0012,  0.0234],
+        [ 0.0468,  0.0436,  0.0203],
+        [ 0.0354,  0.0439, -0.0233],
+        [ 0.0090,  0.0123,  0.0346],
+        [ 0.0382,  0.0029,  0.0217],
+        [ 0.0261, -0.0300,  0.0030],
+        [-0.0088, -0.0220, -0.0283],
+        [-0.0272, -0.0121, -0.0363],
+        [-0.0664, -0.0622,  0.0144],
+        [ 0.0414,  0.0479,  0.0529],
+        [ 0.0355,  0.0612, -0.0247],
+        [ 0.0147,  0.0264,  0.0174],
+        [ 0.0438,  0.0038,  0.0542],
+        [ 0.0431, -0.0573, -0.0033],
+        [-0.0162, -0.0211, -0.0406],
+        [-0.0487, -0.0295, -0.0393],
+        [ 0.0005, -0.0109,  0.0253],
+        [ 0.0296,  0.0591,  0.0353],
+        [ 0.0119,  0.0181, -0.0306],
+        [-0.0085, -0.0362,  0.0229],
+        [ 0.0005, -0.0106,  0.0242]
+    ]
+
+    latent_rgb_factors_bias = [ 0.0456, -0.0202, -0.0644]
+    latent_channels = 32
+    latent_dimensions = 3
+    scale_factor = 1.03682
+    taesd_decoder_name = "lighttaehy1_5"
+
 class Hunyuan3Dv2(LatentFormat):
     latent_channels = 64
     latent_dimensions = 1
     scale_factor = 0.9990943042622529
+
+class Hunyuan3Dv2_1(LatentFormat):
+    scale_factor = 1.0039506158752403
+    latent_channels = 64
+    latent_dimensions = 1
 
 class Hunyuan3Dv2mini(LatentFormat):
     latent_channels = 64
@@ -546,3 +741,20 @@ class Hunyuan3Dv2mini(LatentFormat):
 class ACEAudio(LatentFormat):
     latent_channels = 8
     latent_dimensions = 2
+
+class ChromaRadiance(LatentFormat):
+    latent_channels = 3
+
+    def __init__(self):
+        self.latent_rgb_factors = [
+            # R    G    B
+            [ 1.0, 0.0, 0.0 ],
+            [ 0.0, 1.0, 0.0 ],
+            [ 0.0, 0.0, 1.0 ]
+        ]
+
+    def process_in(self, latent):
+        return latent
+
+    def process_out(self, latent):
+        return latent

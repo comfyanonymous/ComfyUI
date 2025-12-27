@@ -1,56 +1,37 @@
-import io
-import logging
 import base64
-import aiohttp
-import torch
-from typing import Optional
+from io import BytesIO
 
-from comfy.comfy_types.node_typing import IO, ComfyNodeABC
-from comfy_api.input_impl.video_types import VideoFromFile
-from comfy_api_nodes.apis import (
+from typing_extensions import override
+
+from comfy_api.latest import IO, ComfyExtension, Input, InputImpl
+from comfy_api_nodes.apis.veo_api import (
+    VeoGenVidPollRequest,
+    VeoGenVidPollResponse,
     VeoGenVidRequest,
     VeoGenVidResponse,
-    VeoGenVidPollRequest,
-    VeoGenVidPollResponse
+    VeoRequestInstance,
+    VeoRequestInstanceImage,
+    VeoRequestParameters,
 )
-from comfy_api_nodes.apis.client import (
+from comfy_api_nodes.util import (
     ApiEndpoint,
-    HttpMethod,
-    SynchronousOperation,
-    PollingOperation,
-)
-
-from comfy_api_nodes.apinode_utils import (
-    downscale_image_tensor,
-    tensor_to_base64_string
+    download_url_to_video_output,
+    poll_op,
+    sync_op,
+    tensor_to_base64_string,
 )
 
 AVERAGE_DURATION_VIDEO_GEN = 32
-
-def convert_image_to_base64(image: torch.Tensor):
-    if image is None:
-        return None
-
-    scaled_image = downscale_image_tensor(image, total_pixels=2048*2048)
-    return tensor_to_base64_string(scaled_image)
-
-
-def get_video_url_from_response(poll_response: VeoGenVidPollResponse) -> Optional[str]:
-    if (
-        poll_response.response
-        and hasattr(poll_response.response, "videos")
-        and poll_response.response.videos
-        and len(poll_response.response.videos) > 0
-    ):
-        video = poll_response.response.videos[0]
-    else:
-        return None
-    if hasattr(video, "gcsUri") and video.gcsUri:
-        return str(video.gcsUri)
-    return None
+MODELS_MAP = {
+    "veo-2.0-generate-001": "veo-2.0-generate-001",
+    "veo-3.1-generate": "veo-3.1-generate-preview",
+    "veo-3.1-fast-generate": "veo-3.1-fast-generate-preview",
+    "veo-3.0-generate-001": "veo-3.0-generate-001",
+    "veo-3.0-fast-generate-001": "veo-3.0-fast-generate-001",
+}
 
 
-class VeoVideoGenerationNode(ComfyNodeABC):
+class VeoVideoGenerationNode(IO.ComfyNode):
     """
     Generates videos from text prompts using Google's Veo API.
 
@@ -59,101 +40,93 @@ class VeoVideoGenerationNode(ComfyNodeABC):
     """
 
     @classmethod
-    def INPUT_TYPES(s):
-        return {
-            "required": {
-                "prompt": (
-                    IO.STRING,
-                    {
-                        "multiline": True,
-                        "default": "",
-                        "tooltip": "Text description of the video",
-                    },
+    def define_schema(cls):
+        return IO.Schema(
+            node_id="VeoVideoGenerationNode",
+            display_name="Google Veo 2 Video Generation",
+            category="api node/video/Veo",
+            description="Generates videos from text prompts using Google's Veo 2 API",
+            inputs=[
+                IO.String.Input(
+                    "prompt",
+                    multiline=True,
+                    default="",
+                    tooltip="Text description of the video",
                 ),
-                "aspect_ratio": (
-                    IO.COMBO,
-                    {
-                        "options": ["16:9", "9:16"],
-                        "default": "16:9",
-                        "tooltip": "Aspect ratio of the output video",
-                    },
+                IO.Combo.Input(
+                    "aspect_ratio",
+                    options=["16:9", "9:16"],
+                    default="16:9",
+                    tooltip="Aspect ratio of the output video",
                 ),
-            },
-            "optional": {
-                "negative_prompt": (
-                    IO.STRING,
-                    {
-                        "multiline": True,
-                        "default": "",
-                        "tooltip": "Negative text prompt to guide what to avoid in the video",
-                    },
+                IO.String.Input(
+                    "negative_prompt",
+                    multiline=True,
+                    default="",
+                    tooltip="Negative text prompt to guide what to avoid in the video",
+                    optional=True,
                 ),
-                "duration_seconds": (
-                    IO.INT,
-                    {
-                        "default": 5,
-                        "min": 5,
-                        "max": 8,
-                        "step": 1,
-                        "display": "number",
-                        "tooltip": "Duration of the output video in seconds",
-                    },
+                IO.Int.Input(
+                    "duration_seconds",
+                    default=5,
+                    min=5,
+                    max=8,
+                    step=1,
+                    display_mode=IO.NumberDisplay.number,
+                    tooltip="Duration of the output video in seconds",
+                    optional=True,
                 ),
-                "enhance_prompt": (
-                    IO.BOOLEAN,
-                    {
-                        "default": True,
-                        "tooltip": "Whether to enhance the prompt with AI assistance",
-                    }
+                IO.Boolean.Input(
+                    "enhance_prompt",
+                    default=True,
+                    tooltip="Whether to enhance the prompt with AI assistance",
+                    optional=True,
                 ),
-                "person_generation": (
-                    IO.COMBO,
-                    {
-                        "options": ["ALLOW", "BLOCK"],
-                        "default": "ALLOW",
-                        "tooltip": "Whether to allow generating people in the video",
-                    },
+                IO.Combo.Input(
+                    "person_generation",
+                    options=["ALLOW", "BLOCK"],
+                    default="ALLOW",
+                    tooltip="Whether to allow generating people in the video",
+                    optional=True,
                 ),
-                "seed": (
-                    IO.INT,
-                    {
-                        "default": 0,
-                        "min": 0,
-                        "max": 0xFFFFFFFF,
-                        "step": 1,
-                        "display": "number",
-                        "control_after_generate": True,
-                        "tooltip": "Seed for video generation (0 for random)",
-                    },
+                IO.Int.Input(
+                    "seed",
+                    default=0,
+                    min=0,
+                    max=0xFFFFFFFF,
+                    step=1,
+                    display_mode=IO.NumberDisplay.number,
+                    control_after_generate=True,
+                    tooltip="Seed for video generation (0 for random)",
+                    optional=True,
                 ),
-                "image": (IO.IMAGE, {
-                    "default": None,
-                    "tooltip": "Optional reference image to guide video generation",
-                }),
-                "model": (
-                    IO.COMBO,
-                    {
-                        "options": ["veo-2.0-generate-001"],
-                        "default": "veo-2.0-generate-001",
-                        "tooltip": "Veo 2 model to use for video generation",
-                    },
+                IO.Image.Input(
+                    "image",
+                    tooltip="Optional reference image to guide video generation",
+                    optional=True,
                 ),
-            },
-            "hidden": {
-                "auth_token": "AUTH_TOKEN_COMFY_ORG",
-                "comfy_api_key": "API_KEY_COMFY_ORG",
-                "unique_id": "UNIQUE_ID",
-            },
-        }
+                IO.Combo.Input(
+                    "model",
+                    options=["veo-2.0-generate-001"],
+                    default="veo-2.0-generate-001",
+                    tooltip="Veo 2 model to use for video generation",
+                    optional=True,
+                ),
+            ],
+            outputs=[
+                IO.Video.Output(),
+            ],
+            hidden=[
+                IO.Hidden.auth_token_comfy_org,
+                IO.Hidden.api_key_comfy_org,
+                IO.Hidden.unique_id,
+            ],
+            is_api_node=True,
+        )
 
-    RETURN_TYPES = (IO.VIDEO,)
-    FUNCTION = "generate_video"
-    CATEGORY = "api node/video/Veo"
-    DESCRIPTION = "Generates videos from text prompts using Google's Veo 2 API"
-    API_NODE = True
-
-    async def generate_video(
-        self,
+    @classmethod
+    async def execute(
+        cls,
         prompt,
         aspect_ratio="16:9",
         negative_prompt="",
@@ -164,24 +137,18 @@ class VeoVideoGenerationNode(ComfyNodeABC):
         image=None,
         model="veo-2.0-generate-001",
         generate_audio=False,
-        unique_id: Optional[str] = None,
-        **kwargs,
     ):
+        model = MODELS_MAP[model]
         # Prepare the instances for the request
         instances = []
 
-        instance = {
-            "prompt": prompt
-        }
+        instance = {"prompt": prompt}
 
         # Add image if provided
         if image is not None:
-            image_base64 = convert_image_to_base64(image)
+            image_base64 = tensor_to_base64_string(image)
             if image_base64:
-                instance["image"] = {
-                    "bytesBase64Encoded": image_base64,
-                    "mimeType": "image/png"
-                }
+                instance["image"] = {"bytesBase64Encoded": image_base64, "mimeType": "image/png"}
 
         instances.append(instance)
 
@@ -199,115 +166,77 @@ class VeoVideoGenerationNode(ComfyNodeABC):
         if seed > 0:
             parameters["seed"] = seed
         # Only add generateAudio for Veo 3 models
-        if "veo-3.0" in model:
+        if model.find("veo-2.0") == -1:
             parameters["generateAudio"] = generate_audio
 
-        # Initial request to start video generation
-        initial_operation = SynchronousOperation(
-            endpoint=ApiEndpoint(
-                path=f"/proxy/veo/{model}/generate",
-                method=HttpMethod.POST,
-                request_model=VeoGenVidRequest,
-                response_model=VeoGenVidResponse
-            ),
-            request=VeoGenVidRequest(
+        initial_response = await sync_op(
+            cls,
+            ApiEndpoint(path=f"/proxy/veo/{model}/generate", method="POST"),
+            response_model=VeoGenVidResponse,
+            data=VeoGenVidRequest(
                 instances=instances,
-                parameters=parameters
+                parameters=parameters,
             ),
-            auth_kwargs=kwargs,
         )
 
-        initial_response = await initial_operation.execute()
-        operation_name = initial_response.name
-
-        logging.info(f"Veo generation started with operation name: {operation_name}")
-
-        # Define status extractor function
         def status_extractor(response):
             # Only return "completed" if the operation is done, regardless of success or failure
             # We'll check for errors after polling completes
             return "completed" if response.done else "pending"
 
-        # Define progress extractor function
-        def progress_extractor(response):
-            # Could be enhanced if the API provides progress information
-            return None
-
-        # Define the polling operation
-        poll_operation = PollingOperation(
-            poll_endpoint=ApiEndpoint(
-                path=f"/proxy/veo/{model}/poll",
-                method=HttpMethod.POST,
-                request_model=VeoGenVidPollRequest,
-                response_model=VeoGenVidPollResponse
-            ),
-            completed_statuses=["completed"],
-            failed_statuses=[],  # No failed statuses, we'll handle errors after polling
+        poll_response = await poll_op(
+            cls,
+            ApiEndpoint(path=f"/proxy/veo/{model}/poll", method="POST"),
+            response_model=VeoGenVidPollResponse,
             status_extractor=status_extractor,
-            progress_extractor=progress_extractor,
-            request=VeoGenVidPollRequest(
-                operationName=operation_name
+            data=VeoGenVidPollRequest(
+                operationName=initial_response.name,
             ),
-            auth_kwargs=kwargs,
             poll_interval=5.0,
-            result_url_extractor=get_video_url_from_response,
-            node_id=unique_id,
             estimated_duration=AVERAGE_DURATION_VIDEO_GEN,
         )
 
-        # Execute the polling operation
-        poll_response = await poll_operation.execute()
-
         # Now check for errors in the final response
         # Check for error in poll response
-        if hasattr(poll_response, 'error') and poll_response.error:
-            error_message = f"Veo API error: {poll_response.error.message} (code: {poll_response.error.code})"
-            logging.error(error_message)
-            raise Exception(error_message)
+        if poll_response.error:
+            raise Exception(f"Veo API error: {poll_response.error.message} (code: {poll_response.error.code})")
 
         # Check for RAI filtered content
-        if (hasattr(poll_response.response, 'raiMediaFilteredCount') and
-            poll_response.response.raiMediaFilteredCount > 0):
+        if (
+            hasattr(poll_response.response, "raiMediaFilteredCount")
+            and poll_response.response.raiMediaFilteredCount > 0
+        ):
 
             # Extract reason message if available
-            if (hasattr(poll_response.response, 'raiMediaFilteredReasons') and
-                poll_response.response.raiMediaFilteredReasons):
+            if (
+                hasattr(poll_response.response, "raiMediaFilteredReasons")
+                and poll_response.response.raiMediaFilteredReasons
+            ):
                 reason = poll_response.response.raiMediaFilteredReasons[0]
                 error_message = f"Content filtered by Google's Responsible AI practices: {reason} ({poll_response.response.raiMediaFilteredCount} videos filtered.)"
             else:
                 error_message = f"Content filtered by Google's Responsible AI practices ({poll_response.response.raiMediaFilteredCount} videos filtered.)"
 
-            logging.error(error_message)
             raise Exception(error_message)
 
         # Extract video data
-        if poll_response.response and hasattr(poll_response.response, 'videos') and poll_response.response.videos and len(poll_response.response.videos) > 0:
+        if (
+            poll_response.response
+            and hasattr(poll_response.response, "videos")
+            and poll_response.response.videos
+            and len(poll_response.response.videos) > 0
+        ):
             video = poll_response.response.videos[0]
 
             # Check if video is provided as base64 or URL
-            if hasattr(video, 'bytesBase64Encoded') and video.bytesBase64Encoded:
-                # Decode base64 string to bytes
-                video_data = base64.b64decode(video.bytesBase64Encoded)
-            elif hasattr(video, 'gcsUri') and video.gcsUri:
-                # Download from URL
-                async with aiohttp.ClientSession() as session:
-                    async with session.get(video.gcsUri) as video_response:
-                        video_data = await video_response.content.read()
-            else:
-                raise Exception("Video returned but no data or URL was provided")
-        else:
-            raise Exception("Video generation completed but no video was returned")
+            if hasattr(video, "bytesBase64Encoded") and video.bytesBase64Encoded:
+                return IO.NodeOutput(InputImpl.VideoFromFile(BytesIO(base64.b64decode(video.bytesBase64Encoded))))
 
-        if not video_data:
-            raise Exception("No video data was returned")
+            if hasattr(video, "gcsUri") and video.gcsUri:
+                return IO.NodeOutput(await download_url_to_video_output(video.gcsUri))
 
-        logging.info("Video generation completed successfully")
-
-        # Convert video data to BytesIO object
-        video_io = io.BytesIO(video_data)
-
-        # Return VideoFromFile object
-        return (VideoFromFile(video_io),)
+            raise Exception("Video returned but no data or URL was provided")
+        raise Exception("Video generation completed but no video was returned")
 
 
 class Veo3VideoGenerationNode(VeoVideoGenerationNode):
@@ -323,51 +252,261 @@ class Veo3VideoGenerationNode(VeoVideoGenerationNode):
     """
 
     @classmethod
-    def INPUT_TYPES(s):
-        parent_input = super().INPUT_TYPES()
-
-        # Update model options for Veo 3
-        parent_input["optional"]["model"] = (
-            IO.COMBO,
-            {
-                "options": ["veo-3.0-generate-001", "veo-3.0-fast-generate-001"],
-                "default": "veo-3.0-generate-001",
-                "tooltip": "Veo 3 model to use for video generation",
-            },
+    def define_schema(cls):
+        return IO.Schema(
+            node_id="Veo3VideoGenerationNode",
+            display_name="Google Veo 3 Video Generation",
+            category="api node/video/Veo",
+            description="Generates videos from text prompts using Google's Veo 3 API",
+            inputs=[
+                IO.String.Input(
+                    "prompt",
+                    multiline=True,
+                    default="",
+                    tooltip="Text description of the video",
+                ),
+                IO.Combo.Input(
+                    "aspect_ratio",
+                    options=["16:9", "9:16"],
+                    default="16:9",
+                    tooltip="Aspect ratio of the output video",
+                ),
+                IO.String.Input(
+                    "negative_prompt",
+                    multiline=True,
+                    default="",
+                    tooltip="Negative text prompt to guide what to avoid in the video",
+                    optional=True,
+                ),
+                IO.Int.Input(
+                    "duration_seconds",
+                    default=8,
+                    min=8,
+                    max=8,
+                    step=1,
+                    display_mode=IO.NumberDisplay.number,
+                    tooltip="Duration of the output video in seconds (Veo 3 only supports 8 seconds)",
+                    optional=True,
+                ),
+                IO.Boolean.Input(
+                    "enhance_prompt",
+                    default=True,
+                    tooltip="Whether to enhance the prompt with AI assistance",
+                    optional=True,
+                ),
+                IO.Combo.Input(
+                    "person_generation",
+                    options=["ALLOW", "BLOCK"],
+                    default="ALLOW",
+                    tooltip="Whether to allow generating people in the video",
+                    optional=True,
+                ),
+                IO.Int.Input(
+                    "seed",
+                    default=0,
+                    min=0,
+                    max=0xFFFFFFFF,
+                    step=1,
+                    display_mode=IO.NumberDisplay.number,
+                    control_after_generate=True,
+                    tooltip="Seed for video generation (0 for random)",
+                    optional=True,
+                ),
+                IO.Image.Input(
+                    "image",
+                    tooltip="Optional reference image to guide video generation",
+                    optional=True,
+                ),
+                IO.Combo.Input(
+                    "model",
+                    options=[
+                        "veo-3.1-generate",
+                        "veo-3.1-fast-generate",
+                        "veo-3.0-generate-001",
+                        "veo-3.0-fast-generate-001",
+                    ],
+                    default="veo-3.0-generate-001",
+                    tooltip="Veo 3 model to use for video generation",
+                    optional=True,
+                ),
+                IO.Boolean.Input(
+                    "generate_audio",
+                    default=False,
+                    tooltip="Generate audio for the video. Supported by all Veo 3 models.",
+                    optional=True,
+                ),
+            ],
+            outputs=[
+                IO.Video.Output(),
+            ],
+            hidden=[
+                IO.Hidden.auth_token_comfy_org,
+                IO.Hidden.api_key_comfy_org,
+                IO.Hidden.unique_id,
+            ],
+            is_api_node=True,
         )
 
-        # Add generateAudio parameter
-        parent_input["optional"]["generate_audio"] = (
-            IO.BOOLEAN,
-            {
-                "default": False,
-                "tooltip": "Generate audio for the video. Supported by all Veo 3 models.",
-            }
+
+class Veo3FirstLastFrameNode(IO.ComfyNode):
+
+    @classmethod
+    def define_schema(cls):
+        return IO.Schema(
+            node_id="Veo3FirstLastFrameNode",
+            display_name="Google Veo 3 First-Last-Frame to Video",
+            category="api node/video/Veo",
+            description="Generate video using prompt and first and last frames.",
+            inputs=[
+                IO.String.Input(
+                    "prompt",
+                    multiline=True,
+                    default="",
+                    tooltip="Text description of the video",
+                ),
+                IO.String.Input(
+                    "negative_prompt",
+                    multiline=True,
+                    default="",
+                    tooltip="Negative text prompt to guide what to avoid in the video",
+                ),
+                IO.Combo.Input("resolution", options=["720p", "1080p"]),
+                IO.Combo.Input(
+                    "aspect_ratio",
+                    options=["16:9", "9:16"],
+                    default="16:9",
+                    tooltip="Aspect ratio of the output video",
+                ),
+                IO.Int.Input(
+                    "duration",
+                    default=8,
+                    min=4,
+                    max=8,
+                    step=2,
+                    display_mode=IO.NumberDisplay.slider,
+                    tooltip="Duration of the output video in seconds",
+                ),
+                IO.Int.Input(
+                    "seed",
+                    default=0,
+                    min=0,
+                    max=0xFFFFFFFF,
+                    step=1,
+                    display_mode=IO.NumberDisplay.number,
+                    control_after_generate=True,
+                    tooltip="Seed for video generation",
+                ),
+                IO.Image.Input("first_frame", tooltip="Start frame"),
+                IO.Image.Input("last_frame", tooltip="End frame"),
+                IO.Combo.Input(
+                    "model",
+                    options=["veo-3.1-generate", "veo-3.1-fast-generate"],
+                    default="veo-3.1-fast-generate",
+                ),
+                IO.Boolean.Input(
+                    "generate_audio",
+                    default=True,
+                    tooltip="Generate audio for the video.",
+                ),
+            ],
+            outputs=[
+                IO.Video.Output(),
+            ],
+            hidden=[
+                IO.Hidden.auth_token_comfy_org,
+                IO.Hidden.api_key_comfy_org,
+                IO.Hidden.unique_id,
+            ],
+            is_api_node=True,
         )
 
-        # Update duration constraints for Veo 3 (only 8 seconds supported)
-        parent_input["optional"]["duration_seconds"] = (
-            IO.INT,
-            {
-                "default": 8,
-                "min": 8,
-                "max": 8,
-                "step": 1,
-                "display": "number",
-                "tooltip": "Duration of the output video in seconds (Veo 3 only supports 8 seconds)",
-            },
+    @classmethod
+    async def execute(
+        cls,
+        prompt: str,
+        negative_prompt: str,
+        resolution: str,
+        aspect_ratio: str,
+        duration: int,
+        seed: int,
+        first_frame: Input.Image,
+        last_frame: Input.Image,
+        model: str,
+        generate_audio: bool,
+    ):
+        model = MODELS_MAP[model]
+        initial_response = await sync_op(
+            cls,
+            ApiEndpoint(path=f"/proxy/veo/{model}/generate", method="POST"),
+            response_model=VeoGenVidResponse,
+            data=VeoGenVidRequest(
+                instances=[
+                    VeoRequestInstance(
+                        prompt=prompt,
+                        image=VeoRequestInstanceImage(
+                            bytesBase64Encoded=tensor_to_base64_string(first_frame), mimeType="image/png"
+                        ),
+                        lastFrame=VeoRequestInstanceImage(
+                            bytesBase64Encoded=tensor_to_base64_string(last_frame), mimeType="image/png"
+                        ),
+                    ),
+                ],
+                parameters=VeoRequestParameters(
+                    aspectRatio=aspect_ratio,
+                    personGeneration="ALLOW",
+                    durationSeconds=duration,
+                    enhancePrompt=True,  # cannot be False for Veo3
+                    seed=seed,
+                    generateAudio=generate_audio,
+                    negativePrompt=negative_prompt,
+                    resolution=resolution,
+                ),
+            ),
+        )
+        poll_response = await poll_op(
+            cls,
+            ApiEndpoint(path=f"/proxy/veo/{model}/poll", method="POST"),
+            response_model=VeoGenVidPollResponse,
+            status_extractor=lambda r: "completed" if r.done else "pending",
+            data=VeoGenVidPollRequest(
+                operationName=initial_response.name,
+            ),
+            poll_interval=5.0,
+            estimated_duration=AVERAGE_DURATION_VIDEO_GEN,
         )
 
-        return parent_input
+        if poll_response.error:
+            raise Exception(f"Veo API error: {poll_response.error.message} (code: {poll_response.error.code})")
+
+        response = poll_response.response
+        filtered_count = response.raiMediaFilteredCount
+        if filtered_count:
+            reasons = response.raiMediaFilteredReasons or []
+            reason_part = f": {reasons[0]}" if reasons else ""
+            raise Exception(
+                f"Content blocked by Google's Responsible AI filters{reason_part} "
+                f"({filtered_count} video{'s' if filtered_count != 1 else ''} filtered)."
+            )
+
+        if response.videos:
+            video = response.videos[0]
+            if video.bytesBase64Encoded:
+                return IO.NodeOutput(InputImpl.VideoFromFile(BytesIO(base64.b64decode(video.bytesBase64Encoded))))
+            if video.gcsUri:
+                return IO.NodeOutput(await download_url_to_video_output(video.gcsUri))
+            raise Exception("Video returned but no data or URL was provided")
+        raise Exception("Video generation completed but no video was returned")
 
 
-# Register the nodes
-NODE_CLASS_MAPPINGS = {
-    "VeoVideoGenerationNode": VeoVideoGenerationNode,
-    "Veo3VideoGenerationNode": Veo3VideoGenerationNode,
-}
+class VeoExtension(ComfyExtension):
+    @override
+    async def get_node_list(self) -> list[type[IO.ComfyNode]]:
+        return [
+            VeoVideoGenerationNode,
+            Veo3VideoGenerationNode,
+            Veo3FirstLastFrameNode,
+        ]
 
-NODE_DISPLAY_NAME_MAPPINGS = {
-    "VeoVideoGenerationNode": "Google Veo 2 Video Generation",
-    "Veo3VideoGenerationNode": "Google Veo 3 Video Generation",
-}
+
+async def comfy_entrypoint() -> VeoExtension:
+    return VeoExtension()

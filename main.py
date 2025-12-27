@@ -15,12 +15,62 @@ from comfy_execution.progress import get_progress_state
 from comfy_execution.utils import get_executing_context
 from comfy_api import feature_flags
 
+
 if __name__ == "__main__":
     #NOTE: These do not do anything on core ComfyUI, they are for custom nodes.
     os.environ['HF_HUB_DISABLE_TELEMETRY'] = '1'
     os.environ['DO_NOT_TRACK'] = '1'
 
 setup_logger(log_level=args.verbose, use_stdout=args.log_stdout)
+
+if os.name == "nt":
+    os.environ['MIMALLOC_PURGE_DELAY'] = '0'
+
+if __name__ == "__main__":
+    os.environ['TORCH_ROCM_AOTRITON_ENABLE_EXPERIMENTAL'] = '1'
+    if args.default_device is not None:
+        default_dev = args.default_device
+        devices = list(range(32))
+        devices.remove(default_dev)
+        devices.insert(0, default_dev)
+        devices = ','.join(map(str, devices))
+        os.environ['CUDA_VISIBLE_DEVICES'] = str(devices)
+        os.environ['HIP_VISIBLE_DEVICES'] = str(devices)
+
+    if args.cuda_device is not None:
+        os.environ['CUDA_VISIBLE_DEVICES'] = str(args.cuda_device)
+        os.environ['HIP_VISIBLE_DEVICES'] = str(args.cuda_device)
+        os.environ["ASCEND_RT_VISIBLE_DEVICES"] = str(args.cuda_device)
+        logging.info("Set cuda device to: {}".format(args.cuda_device))
+
+    if args.oneapi_device_selector is not None:
+        os.environ['ONEAPI_DEVICE_SELECTOR'] = args.oneapi_device_selector
+        logging.info("Set oneapi device selector to: {}".format(args.oneapi_device_selector))
+
+    if args.deterministic:
+        if 'CUBLAS_WORKSPACE_CONFIG' not in os.environ:
+            os.environ['CUBLAS_WORKSPACE_CONFIG'] = ":4096:8"
+
+    import cuda_malloc
+    if "rocm" in cuda_malloc.get_torch_version_noimport():
+        os.environ['OCL_SET_SVM_SIZE'] = '262144'  # set at the request of AMD
+
+
+def handle_comfyui_manager_unavailable():
+    if not args.windows_standalone_build:
+        logging.warning(f"\n\nYou appear to be running comfyui-manager from source, this is not recommended. Please install comfyui-manager using the following command:\ncommand:\n\t{sys.executable} -m pip install --pre comfyui_manager\n")
+    args.enable_manager = False
+
+
+if args.enable_manager:
+    if importlib.util.find_spec("comfyui_manager"):
+        import comfyui_manager
+
+        if not comfyui_manager.__file__ or not comfyui_manager.__file__.endswith('__init__.py'):
+            handle_comfyui_manager_unavailable()
+    else:
+        handle_comfyui_manager_unavailable()
+
 
 def apply_custom_paths():
     # extra model paths
@@ -79,6 +129,11 @@ def execute_prestartup_script():
 
         for possible_module in possible_modules:
             module_path = os.path.join(custom_node_path, possible_module)
+
+            if args.enable_manager:
+                if comfyui_manager.should_be_disabled(module_path):
+                    continue
+
             if os.path.isfile(module_path) or module_path.endswith(".disabled") or module_path == "__pycache__":
                 continue
 
@@ -101,6 +156,10 @@ def execute_prestartup_script():
         logging.info("")
 
 apply_custom_paths()
+
+if args.enable_manager:
+    comfyui_manager.prestartup()
+
 execute_prestartup_script()
 
 
@@ -109,35 +168,6 @@ import asyncio
 import shutil
 import threading
 import gc
-
-
-if os.name == "nt":
-    logging.getLogger("xformers").addFilter(lambda record: 'A matching Triton is not available' not in record.getMessage())
-
-if __name__ == "__main__":
-    if args.default_device is not None:
-        default_dev = args.default_device
-        devices = list(range(32))
-        devices.remove(default_dev)
-        devices.insert(0, default_dev)
-        devices = ','.join(map(str, devices))
-        os.environ['CUDA_VISIBLE_DEVICES'] = str(devices)
-        os.environ['HIP_VISIBLE_DEVICES'] = str(devices)
-
-    if args.cuda_device is not None:
-        os.environ['CUDA_VISIBLE_DEVICES'] = str(args.cuda_device)
-        os.environ['HIP_VISIBLE_DEVICES'] = str(args.cuda_device)
-        logging.info("Set cuda device to: {}".format(args.cuda_device))
-
-    if args.oneapi_device_selector is not None:
-        os.environ['ONEAPI_DEVICE_SELECTOR'] = args.oneapi_device_selector
-        logging.info("Set oneapi device selector to: {}".format(args.oneapi_device_selector))
-
-    if args.deterministic:
-        if 'CUBLAS_WORKSPACE_CONFIG' not in os.environ:
-            os.environ['CUBLAS_WORKSPACE_CONFIG'] = ":4096:8"
-
-    import cuda_malloc
 
 if 'torch' in sys.modules:
     logging.warning("WARNING: Potential Error in code: Torch already imported, torch should never be imported before this point.")
@@ -170,10 +200,12 @@ def prompt_worker(q, server_instance):
     cache_type = execution.CacheType.CLASSIC
     if args.cache_lru > 0:
         cache_type = execution.CacheType.LRU
+    elif args.cache_ram > 0:
+        cache_type = execution.CacheType.RAM_PRESSURE
     elif args.cache_none:
-        cache_type = execution.CacheType.DEPENDENCY_AWARE
+        cache_type = execution.CacheType.NONE
 
-    e = execution.PromptExecutor(server_instance, cache_type=cache_type, cache_size=args.cache_lru)
+    e = execution.PromptExecutor(server_instance, cache_type=cache_type, cache_args={ "lru" : args.cache_lru, "ram" : args.cache_ram } )
     last_gc_collect = 0
     need_gc = False
     gc_collect_interval = 10.0
@@ -190,14 +222,21 @@ def prompt_worker(q, server_instance):
             prompt_id = item[1]
             server_instance.last_prompt_id = prompt_id
 
-            e.execute(item[2], prompt_id, item[3], item[4])
+            sensitive = item[5]
+            extra_data = item[3].copy()
+            for k in sensitive:
+                extra_data[k] = sensitive[k]
+
+            e.execute(item[2], prompt_id, extra_data, item[4])
             need_gc = True
+
+            remove_sensitive = lambda prompt: prompt[:5] + prompt[6:]
             q.task_done(item_id,
                         e.history_result,
                         status=execution.PromptQueue.ExecutionStatus(
                             status_str='success' if e.success else 'error',
                             completed=e.success,
-                            messages=e.status_messages))
+                            messages=e.status_messages), process_item=remove_sensitive)
             if server_instance.client_id is not None:
                 server_instance.send_sync("executing", {"node": None, "prompt_id": prompt_id}, server_instance.client_id)
 
@@ -311,6 +350,9 @@ def start_comfyui(asyncio_loop=None):
         asyncio_loop = asyncio.new_event_loop()
         asyncio.set_event_loop(asyncio_loop)
     prompt_server = server.PromptServer(asyncio_loop)
+
+    if args.enable_manager and not args.disable_manager_ui:
+        comfyui_manager.start()
 
     hook_breaker_ac10a0.save_functions()
     asyncio_loop.run_until_complete(nodes.init_extra_nodes(

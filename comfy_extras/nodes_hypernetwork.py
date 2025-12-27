@@ -2,6 +2,9 @@ import comfy.utils
 import folder_paths
 import torch
 import logging
+from comfy_api.latest import IO, ComfyExtension
+from typing_extensions import override
+
 
 def load_hypernetwork_patch(path, strength):
     sd = comfy.utils.load_torch_file(path, safe_load=True)
@@ -94,27 +97,42 @@ def load_hypernetwork_patch(path, strength):
 
     return hypernetwork_patch(out, strength)
 
-class HypernetworkLoader:
+class HypernetworkLoader(IO.ComfyNode):
     @classmethod
-    def INPUT_TYPES(s):
-        return {"required": { "model": ("MODEL",),
-                              "hypernetwork_name": (folder_paths.get_filename_list("hypernetworks"), ),
-                              "strength": ("FLOAT", {"default": 1.0, "min": -10.0, "max": 10.0, "step": 0.01}),
-                              }}
-    RETURN_TYPES = ("MODEL",)
-    FUNCTION = "load_hypernetwork"
+    def define_schema(cls):
+        return IO.Schema(
+            node_id="HypernetworkLoader",
+            category="loaders",
+            inputs=[
+                IO.Model.Input("model"),
+                IO.Combo.Input("hypernetwork_name", options=folder_paths.get_filename_list("hypernetworks")),
+                IO.Float.Input("strength", default=1.0, min=-10.0, max=10.0, step=0.01),
+            ],
+            outputs=[
+                IO.Model.Output(),
+            ],
+        )
 
-    CATEGORY = "loaders"
-
-    def load_hypernetwork(self, model, hypernetwork_name, strength):
+    @classmethod
+    def execute(cls, model, hypernetwork_name, strength) -> IO.NodeOutput:
         hypernetwork_path = folder_paths.get_full_path_or_raise("hypernetworks", hypernetwork_name)
         model_hypernetwork = model.clone()
         patch = load_hypernetwork_patch(hypernetwork_path, strength)
         if patch is not None:
             model_hypernetwork.set_model_attn1_patch(patch)
             model_hypernetwork.set_model_attn2_patch(patch)
-        return (model_hypernetwork,)
+        return IO.NodeOutput(model_hypernetwork)
 
-NODE_CLASS_MAPPINGS = {
-    "HypernetworkLoader": HypernetworkLoader
-}
+    load_hypernetwork = execute  # TODO: remove
+
+
+class HyperNetworkExtension(ComfyExtension):
+    @override
+    async def get_node_list(self) -> list[type[IO.ComfyNode]]:
+        return [
+            HypernetworkLoader,
+        ]
+
+
+async def comfy_entrypoint() -> HyperNetworkExtension:
+    return HyperNetworkExtension()

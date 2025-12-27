@@ -1,10 +1,10 @@
 #Based on Flux code because of weird hunyuan video code license.
 
 import torch
+import comfy.patcher_extension
 import comfy.ldm.flux.layers
 import comfy.ldm.modules.diffusionmodules.mmdit
 from comfy.ldm.modules.attention import optimized_attention
-
 
 from dataclasses import dataclass
 from einops import repeat
@@ -39,6 +39,11 @@ class HunyuanVideoParams:
     patch_size: list
     qkv_bias: bool
     guidance_embed: bool
+    byt5: bool
+    meanflow: bool
+    use_cond_type_embedding: bool
+    vision_in_dim: int
+    meanflow_sum: bool
 
 
 class SelfAttentionRef(nn.Module):
@@ -77,13 +82,13 @@ class TokenRefinerBlock(nn.Module):
             operations.Linear(mlp_hidden_dim, hidden_size, bias=True, dtype=dtype, device=device),
         )
 
-    def forward(self, x, c, mask):
+    def forward(self, x, c, mask, transformer_options={}):
         mod1, mod2 = self.adaLN_modulation(c).chunk(2, dim=1)
 
         norm_x = self.norm1(x)
         qkv = self.self_attn.qkv(norm_x)
         q, k, v = qkv.reshape(qkv.shape[0], qkv.shape[1], 3, self.heads, -1).permute(2, 0, 3, 1, 4)
-        attn = optimized_attention(q, k, v, self.heads, mask=mask, skip_reshape=True)
+        attn = optimized_attention(q, k, v, self.heads, mask=mask, skip_reshape=True, transformer_options=transformer_options)
 
         x = x + self.self_attn.proj(attn) * mod1.unsqueeze(1)
         x = x + self.mlp(self.norm2(x)) * mod2.unsqueeze(1)
@@ -114,14 +119,14 @@ class IndividualTokenRefiner(nn.Module):
             ]
         )
 
-    def forward(self, x, c, mask):
+    def forward(self, x, c, mask, transformer_options={}):
         m = None
         if mask is not None:
             m = mask.view(mask.shape[0], 1, 1, mask.shape[1]).repeat(1, 1, mask.shape[1], 1)
             m = m + m.transpose(2, 3)
 
         for block in self.blocks:
-            x = block(x, c, m)
+            x = block(x, c, m, transformer_options=transformer_options)
         return x
 
 
@@ -149,16 +154,44 @@ class TokenRefiner(nn.Module):
         x,
         timesteps,
         mask,
+        transformer_options={},
     ):
         t = self.t_embedder(timestep_embedding(timesteps, 256, time_factor=1.0).to(x.dtype))
         # m = mask.float().unsqueeze(-1)
         # c = (x.float() * m).sum(dim=1) / m.sum(dim=1) #TODO: the following works when the x.shape is the same length as the tokens but might break otherwise
-        c = x.sum(dim=1) / x.shape[1]
+        if x.dtype == torch.float16:
+            c = x.float().sum(dim=1) / x.shape[1]
+        else:
+            c = x.sum(dim=1) / x.shape[1]
 
         c = t + self.c_embedder(c.to(x.dtype))
         x = self.input_embedder(x)
-        x = self.individual_token_refiner(x, c, mask)
+        x = self.individual_token_refiner(x, c, mask, transformer_options=transformer_options)
         return x
+
+
+class ByT5Mapper(nn.Module):
+    def __init__(self, in_dim, out_dim, hidden_dim, out_dim1, use_res=False, dtype=None, device=None, operations=None):
+        super().__init__()
+        self.layernorm = operations.LayerNorm(in_dim, dtype=dtype, device=device)
+        self.fc1 = operations.Linear(in_dim, hidden_dim, dtype=dtype, device=device)
+        self.fc2 = operations.Linear(hidden_dim, out_dim, dtype=dtype, device=device)
+        self.fc3 = operations.Linear(out_dim, out_dim1, dtype=dtype, device=device)
+        self.use_res = use_res
+        self.act_fn = nn.GELU()
+
+    def forward(self, x):
+        if self.use_res:
+            res = x
+        x = self.layernorm(x)
+        x = self.fc1(x)
+        x = self.act_fn(x)
+        x = self.fc2(x)
+        x2 = self.act_fn(x)
+        x2 = self.fc3(x2)
+        if self.use_res:
+            x2 = x2 + res
+        return x2
 
 class HunyuanVideo(nn.Module):
     """
@@ -168,11 +201,15 @@ class HunyuanVideo(nn.Module):
     def __init__(self, image_model=None, final_layer=True, dtype=None, device=None, operations=None, **kwargs):
         super().__init__()
         self.dtype = dtype
+        operation_settings = {"operations": operations, "device": device, "dtype": dtype}
+
         params = HunyuanVideoParams(**kwargs)
         self.params = params
         self.patch_size = params.patch_size
         self.in_channels = params.in_channels
         self.out_channels = params.out_channels
+        self.use_cond_type_embedding = params.use_cond_type_embedding
+        self.vision_in_dim = params.vision_in_dim
         if params.hidden_size % params.num_heads != 0:
             raise ValueError(
                 f"Hidden size {params.hidden_size} must be divisible by num_heads {params.num_heads}"
@@ -184,9 +221,13 @@ class HunyuanVideo(nn.Module):
         self.num_heads = params.num_heads
         self.pe_embedder = EmbedND(dim=pe_dim, theta=params.theta, axes_dim=params.axes_dim)
 
-        self.img_in = comfy.ldm.modules.diffusionmodules.mmdit.PatchEmbed(None, self.patch_size, self.in_channels, self.hidden_size, conv3d=True, dtype=dtype, device=device, operations=operations)
+        self.img_in = comfy.ldm.modules.diffusionmodules.mmdit.PatchEmbed(None, self.patch_size, self.in_channels, self.hidden_size, conv3d=len(self.patch_size) == 3, dtype=dtype, device=device, operations=operations)
         self.time_in = MLPEmbedder(in_dim=256, hidden_dim=self.hidden_size, dtype=dtype, device=device, operations=operations)
-        self.vector_in = MLPEmbedder(params.vec_in_dim, self.hidden_size, dtype=dtype, device=device, operations=operations)
+        if params.vec_in_dim is not None:
+            self.vector_in = MLPEmbedder(params.vec_in_dim, self.hidden_size, dtype=dtype, device=device, operations=operations)
+        else:
+            self.vector_in = None
+
         self.guidance_in = (
             MLPEmbedder(in_dim=256, hidden_dim=self.hidden_size, dtype=dtype, device=device, operations=operations) if params.guidance_embed else nn.Identity()
         )
@@ -214,8 +255,37 @@ class HunyuanVideo(nn.Module):
             ]
         )
 
+        if params.byt5:
+            self.byt5_in = ByT5Mapper(
+                in_dim=1472,
+                out_dim=2048,
+                hidden_dim=2048,
+                out_dim1=self.hidden_size,
+                use_res=False,
+                dtype=dtype, device=device, operations=operations
+            )
+        else:
+            self.byt5_in = None
+
+        if params.meanflow:
+            self.time_r_in = MLPEmbedder(in_dim=256, hidden_dim=self.hidden_size, dtype=dtype, device=device, operations=operations)
+        else:
+            self.time_r_in = None
+
         if final_layer:
             self.final_layer = LastLayer(self.hidden_size, self.patch_size[-1], self.out_channels, dtype=dtype, device=device, operations=operations)
+
+        # HunyuanVideo 1.5 specific modules
+        if self.vision_in_dim is not None:
+            from comfy.ldm.wan.model import MLPProj
+            self.vision_in = MLPProj(in_dim=self.vision_in_dim, out_dim=self.hidden_size, operation_settings=operation_settings)
+        else:
+            self.vision_in = None
+        if self.use_cond_type_embedding:
+            # 0: text_encoder feature 1: byt5 feature 2: vision_encoder feature
+            self.cond_type_embedding = nn.Embedding(3, self.hidden_size)
+        else:
+            self.cond_type_embedding = None
 
     def forward_orig(
         self,
@@ -225,10 +295,13 @@ class HunyuanVideo(nn.Module):
         txt_ids: Tensor,
         txt_mask: Tensor,
         timesteps: Tensor,
-        y: Tensor,
+        y: Tensor = None,
+        txt_byt5=None,
+        clip_fea=None,
         guidance: Tensor = None,
         guiding_frame_index=None,
         ref_latent=None,
+        disable_time_r=False,
         control=None,
         transformer_options={},
     ) -> Tensor:
@@ -238,6 +311,14 @@ class HunyuanVideo(nn.Module):
         # running on sequences img
         img = self.img_in(img)
         vec = self.time_in(timestep_embedding(timesteps, 256, time_factor=1.0).to(img.dtype))
+
+        if (self.time_r_in is not None) and (not disable_time_r):
+            w = torch.where(transformer_options['sigmas'][0] == transformer_options['sample_sigmas'])[0]  # This most likely could be improved
+            if len(w) > 0:
+                timesteps_r = transformer_options['sample_sigmas'][w[0] + 1]
+                timesteps_r = timesteps_r.unsqueeze(0).to(device=timesteps.device, dtype=timesteps.dtype)
+                vec_r = self.time_r_in(timestep_embedding(timesteps_r, 256, time_factor=1000.0).to(img.dtype))
+                vec = (vec + vec_r) if self.params.meanflow_sum else (vec + vec_r) / 2
 
         if ref_latent is not None:
             ref_latent_ids = self.img_ids(ref_latent)
@@ -249,13 +330,17 @@ class HunyuanVideo(nn.Module):
 
         if guiding_frame_index is not None:
             token_replace_vec = self.time_in(timestep_embedding(guiding_frame_index, 256, time_factor=1.0))
-            vec_ = self.vector_in(y[:, :self.params.vec_in_dim])
-            vec = torch.cat([(vec_ + token_replace_vec).unsqueeze(1), (vec_ + vec).unsqueeze(1)], dim=1)
+            if self.vector_in is not None:
+                vec_ = self.vector_in(y[:, :self.params.vec_in_dim])
+                vec = torch.cat([(vec_ + token_replace_vec).unsqueeze(1), (vec_ + vec).unsqueeze(1)], dim=1)
+            else:
+                vec = torch.cat([(token_replace_vec).unsqueeze(1), (vec).unsqueeze(1)], dim=1)
             frame_tokens = (initial_shape[-1] // self.patch_size[-1]) * (initial_shape[-2] // self.patch_size[-2])
             modulation_dims = [(0, frame_tokens, 0), (frame_tokens, None, 1)]
             modulation_dims_txt = [(0, None, 1)]
         else:
-            vec = vec + self.vector_in(y[:, :self.params.vec_in_dim])
+            if self.vector_in is not None:
+                vec = vec + self.vector_in(y[:, :self.params.vec_in_dim])
             modulation_dims = None
             modulation_dims_txt = None
 
@@ -266,7 +351,32 @@ class HunyuanVideo(nn.Module):
         if txt_mask is not None and not torch.is_floating_point(txt_mask):
             txt_mask = (txt_mask - 1).to(img.dtype) * torch.finfo(img.dtype).max
 
-        txt = self.txt_in(txt, timesteps, txt_mask)
+        txt = self.txt_in(txt, timesteps, txt_mask, transformer_options=transformer_options)
+
+        if self.cond_type_embedding is not None:
+            self.cond_type_embedding.to(txt.device)
+            cond_emb = self.cond_type_embedding(torch.zeros_like(txt[:, :, 0], device=txt.device, dtype=torch.long))
+            txt = txt + cond_emb.to(txt.dtype)
+
+        if self.byt5_in is not None and txt_byt5 is not None:
+            txt_byt5 = self.byt5_in(txt_byt5)
+            if self.cond_type_embedding is not None:
+                cond_emb = self.cond_type_embedding(torch.ones_like(txt_byt5[:, :, 0], device=txt_byt5.device, dtype=torch.long))
+                txt_byt5 = txt_byt5 + cond_emb.to(txt_byt5.dtype)
+                txt = torch.cat((txt_byt5, txt), dim=1) # byt5 first for HunyuanVideo1.5
+            else:
+                txt = torch.cat((txt, txt_byt5), dim=1)
+            txt_byt5_ids = torch.zeros((txt_ids.shape[0], txt_byt5.shape[1], txt_ids.shape[-1]), device=txt_ids.device, dtype=txt_ids.dtype)
+            txt_ids = torch.cat((txt_ids, txt_byt5_ids), dim=1)
+
+        if clip_fea is not None:
+            txt_vision_states = self.vision_in(clip_fea)
+            if self.cond_type_embedding is not None:
+                cond_emb = self.cond_type_embedding(2 * torch.ones_like(txt_vision_states[:, :, 0], dtype=torch.long, device=txt_vision_states.device))
+                txt_vision_states = txt_vision_states + cond_emb
+            txt = torch.cat((txt_vision_states.to(txt.dtype), txt), dim=1)
+            extra_txt_ids = torch.zeros((txt_ids.shape[0], txt_vision_states.shape[1], txt_ids.shape[-1]), device=txt_ids.device, dtype=txt_ids.dtype)
+            txt_ids = torch.cat((txt_ids, extra_txt_ids), dim=1)
 
         ids = torch.cat((img_ids, txt_ids), dim=1)
         pe = self.pe_embedder(ids)
@@ -280,18 +390,21 @@ class HunyuanVideo(nn.Module):
             attn_mask = None
 
         blocks_replace = patches_replace.get("dit", {})
+        transformer_options["total_blocks"] = len(self.double_blocks)
+        transformer_options["block_type"] = "double"
         for i, block in enumerate(self.double_blocks):
+            transformer_options["block_index"] = i
             if ("double_block", i) in blocks_replace:
                 def block_wrap(args):
                     out = {}
-                    out["img"], out["txt"] = block(img=args["img"], txt=args["txt"], vec=args["vec"], pe=args["pe"], attn_mask=args["attention_mask"], modulation_dims_img=args["modulation_dims_img"], modulation_dims_txt=args["modulation_dims_txt"])
+                    out["img"], out["txt"] = block(img=args["img"], txt=args["txt"], vec=args["vec"], pe=args["pe"], attn_mask=args["attention_mask"], modulation_dims_img=args["modulation_dims_img"], modulation_dims_txt=args["modulation_dims_txt"], transformer_options=args["transformer_options"])
                     return out
 
-                out = blocks_replace[("double_block", i)]({"img": img, "txt": txt, "vec": vec, "pe": pe, "attention_mask": attn_mask, 'modulation_dims_img': modulation_dims, 'modulation_dims_txt': modulation_dims_txt}, {"original_block": block_wrap})
+                out = blocks_replace[("double_block", i)]({"img": img, "txt": txt, "vec": vec, "pe": pe, "attention_mask": attn_mask, 'modulation_dims_img': modulation_dims, 'modulation_dims_txt': modulation_dims_txt, 'transformer_options': transformer_options}, {"original_block": block_wrap})
                 txt = out["txt"]
                 img = out["img"]
             else:
-                img, txt = block(img=img, txt=txt, vec=vec, pe=pe, attn_mask=attn_mask, modulation_dims_img=modulation_dims, modulation_dims_txt=modulation_dims_txt)
+                img, txt = block(img=img, txt=txt, vec=vec, pe=pe, attn_mask=attn_mask, modulation_dims_img=modulation_dims, modulation_dims_txt=modulation_dims_txt, transformer_options=transformer_options)
 
             if control is not None: # Controlnet
                 control_i = control.get("input")
@@ -302,17 +415,20 @@ class HunyuanVideo(nn.Module):
 
         img = torch.cat((img, txt), 1)
 
+        transformer_options["total_blocks"] = len(self.single_blocks)
+        transformer_options["block_type"] = "single"
         for i, block in enumerate(self.single_blocks):
+            transformer_options["block_index"] = i
             if ("single_block", i) in blocks_replace:
                 def block_wrap(args):
                     out = {}
-                    out["img"] = block(args["img"], vec=args["vec"], pe=args["pe"], attn_mask=args["attention_mask"], modulation_dims=args["modulation_dims"])
+                    out["img"] = block(args["img"], vec=args["vec"], pe=args["pe"], attn_mask=args["attention_mask"], modulation_dims=args["modulation_dims"], transformer_options=args["transformer_options"])
                     return out
 
-                out = blocks_replace[("single_block", i)]({"img": img, "vec": vec, "pe": pe, "attention_mask": attn_mask, 'modulation_dims': modulation_dims}, {"original_block": block_wrap})
+                out = blocks_replace[("single_block", i)]({"img": img, "vec": vec, "pe": pe, "attention_mask": attn_mask, 'modulation_dims': modulation_dims, 'transformer_options': transformer_options}, {"original_block": block_wrap})
                 img = out["img"]
             else:
-                img = block(img, vec=vec, pe=pe, attn_mask=attn_mask, modulation_dims=modulation_dims)
+                img = block(img, vec=vec, pe=pe, attn_mask=attn_mask, modulation_dims=modulation_dims, transformer_options=transformer_options)
 
             if control is not None: # Controlnet
                 control_o = control.get("output")
@@ -327,12 +443,16 @@ class HunyuanVideo(nn.Module):
 
         img = self.final_layer(img, vec, modulation_dims=modulation_dims)  # (N, T, patch_size ** 2 * out_channels)
 
-        shape = initial_shape[-3:]
+        shape = initial_shape[-len(self.patch_size):]
         for i in range(len(shape)):
             shape[i] = shape[i] // self.patch_size[i]
         img = img.reshape([img.shape[0]] + shape + [self.out_channels] + self.patch_size)
-        img = img.permute(0, 4, 1, 5, 2, 6, 3, 7)
-        img = img.reshape(initial_shape[0], self.out_channels, initial_shape[2], initial_shape[3], initial_shape[4])
+        if img.ndim == 8:
+            img = img.permute(0, 4, 1, 5, 2, 6, 3, 7)
+            img = img.reshape(initial_shape[0], self.out_channels, initial_shape[2], initial_shape[3], initial_shape[4])
+        else:
+            img = img.permute(0, 3, 1, 4, 2, 5)
+            img = img.reshape(initial_shape[0], self.out_channels, initial_shape[2], initial_shape[3])
         return img
 
     def img_ids(self, x):
@@ -347,9 +467,30 @@ class HunyuanVideo(nn.Module):
         img_ids[:, :, :, 2] = img_ids[:, :, :, 2] + torch.linspace(0, w_len - 1, steps=w_len, device=x.device, dtype=x.dtype).reshape(1, 1, -1)
         return repeat(img_ids, "t h w c -> b (t h w) c", b=bs)
 
-    def forward(self, x, timestep, context, y, guidance=None, attention_mask=None, guiding_frame_index=None, ref_latent=None, control=None, transformer_options={}, **kwargs):
-        bs, c, t, h, w = x.shape
-        img_ids = self.img_ids(x)
-        txt_ids = torch.zeros((bs, context.shape[1], 3), device=x.device, dtype=x.dtype)
-        out = self.forward_orig(x, img_ids, context, txt_ids, attention_mask, timestep, y, guidance, guiding_frame_index, ref_latent, control=control, transformer_options=transformer_options)
+    def img_ids_2d(self, x):
+        bs, c, h, w = x.shape
+        patch_size = self.patch_size
+        h_len = ((h + (patch_size[0] // 2)) // patch_size[0])
+        w_len = ((w + (patch_size[1] // 2)) // patch_size[1])
+        img_ids = torch.zeros((h_len, w_len, 2), device=x.device, dtype=x.dtype)
+        img_ids[:, :, 0] = img_ids[:, :, 0] + torch.linspace(0, h_len - 1, steps=h_len, device=x.device, dtype=x.dtype).unsqueeze(1)
+        img_ids[:, :, 1] = img_ids[:, :, 1] + torch.linspace(0, w_len - 1, steps=w_len, device=x.device, dtype=x.dtype).unsqueeze(0)
+        return repeat(img_ids, "h w c -> b (h w) c", b=bs)
+
+    def forward(self, x, timestep, context, y=None, txt_byt5=None, clip_fea=None, guidance=None, attention_mask=None, guiding_frame_index=None, ref_latent=None, disable_time_r=False, control=None, transformer_options={}, **kwargs):
+        return comfy.patcher_extension.WrapperExecutor.new_class_executor(
+            self._forward,
+            self,
+            comfy.patcher_extension.get_all_wrappers(comfy.patcher_extension.WrappersMP.DIFFUSION_MODEL, transformer_options)
+        ).execute(x, timestep, context, y, txt_byt5, clip_fea, guidance, attention_mask, guiding_frame_index, ref_latent, disable_time_r, control, transformer_options, **kwargs)
+
+    def _forward(self, x, timestep, context, y=None, txt_byt5=None, clip_fea=None, guidance=None, attention_mask=None, guiding_frame_index=None, ref_latent=None, disable_time_r=False, control=None, transformer_options={}, **kwargs):
+        bs = x.shape[0]
+        if len(self.patch_size) == 3:
+            img_ids = self.img_ids(x)
+            txt_ids = torch.zeros((bs, context.shape[1], 3), device=x.device, dtype=x.dtype)
+        else:
+            img_ids = self.img_ids_2d(x)
+            txt_ids = torch.zeros((bs, context.shape[1], 2), device=x.device, dtype=x.dtype)
+        out = self.forward_orig(x, img_ids, context, txt_ids, attention_mask, timestep, y, txt_byt5, clip_fea, guidance, guiding_frame_index, ref_latent, disable_time_r=disable_time_r, control=control, transformer_options=transformer_options)
         return out

@@ -2,15 +2,15 @@ name: Unit Tests
 
 on:
   push:
-    branches: [ main, master ]
+    branches: [ main, master, release/** ]
   pull_request:
-    branches: [ main, master ]
+    branches: [ main, master, release/** ]
 
 jobs:
   test:
     strategy:
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
+        os: [ubuntu-latest, windows-2022, macos-latest]
     runs-on: ${{ matrix.os }}
     continue-on-error: true
     steps:
