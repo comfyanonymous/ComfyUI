@@ -213,8 +213,9 @@ class Output(_IO_V3):
         self.is_output_list = is_output_list
 
     def as_dict(self):
+        display_name = self.display_name if self.display_name else self.id
         return prune_dict({
-            "display_name": self.display_name,
+            "display_name": display_name,
             "tooltip": self.tooltip,
             "is_output_list": self.is_output_list,
         })
@@ -1287,16 +1288,12 @@ class Schema:
         output_ids = [o.id for o in self.outputs]
         input_set = set(input_ids)
         output_set = set(output_ids)
-        issues = []
+        issues: list[str] = []
         # verify ids are unique per list
         if len(input_set) != len(input_ids):
             issues.append(f"Input ids must be unique, but {[item for item, count in Counter(input_ids).items() if count > 1]} are not.")
         if len(output_set) != len(output_ids):
             issues.append(f"Output ids must be unique, but {[item for item, count in Counter(output_ids).items() if count > 1]} are not.")
-        # verify ids are unique between lists
-        intersection = input_set & output_set
-        if len(intersection) > 0:
-            issues.append(f"Ids must be unique between inputs and outputs, but {intersection} are not.")
         if len(issues) > 0:
             raise ValueError("\n".join(issues))
         # validate inputs and outputs
