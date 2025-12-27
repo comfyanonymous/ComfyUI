@@ -1948,7 +1948,7 @@ __all__ = [
     # Dynamic Types
     "MatchType",
     "DynamicCombo",
-    # "Autogrow",
+    "Autogrow",
     # Other classes
     "HiddenHolder",
     "Hidden",
