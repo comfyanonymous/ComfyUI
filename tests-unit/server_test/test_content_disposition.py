@@ -15,8 +15,8 @@ def create_content_disposition_header(filename: str) -> str:
     """
     # ASCII-safe filename for legacy clients (replace non-ASCII with ?)
     ascii_filename = filename.encode('ascii', 'replace').decode('ascii')
-    # Escape quotes to prevent malformed header (e.g., filename="file"name.png")
-    ascii_filename = ascii_filename.replace('"', "'")
+    # RFC 2183: escape backslashes and quotes within quoted-string
+    ascii_filename = ascii_filename.replace('\\', '\\\\').replace('"', '\\"')
     # RFC 5987 percent-encoded filename for UTF-8 support
     encoded_filename = quote(filename, safe='')
     return f"attachment; filename=\"{ascii_filename}\"; filename*=UTF-8''{encoded_filename}"
@@ -81,15 +81,24 @@ class TestContentDispositionHeader:
         assert 'filename=""' in result
 
     def test_filename_with_quotes(self):
-        """Test that quotes in filename don't break the header."""
-        # Quotes in filenames must be escaped to prevent malformed headers
+        """Test that quotes in filename are properly escaped per RFC 2183."""
         result = create_content_disposition_header('file"name.png')
 
         assert result.startswith("attachment;")
-        # Quotes should be replaced with single quotes in ASCII fallback
-        assert "filename=\"file'name.png\"" in result
+        # RFC 2183: quotes must be backslash-escaped within quoted-string
+        assert 'filename="file\\"name.png"' in result
         # UTF-8 version should have percent-encoded quote
         assert "filename*=UTF-8''file%22name.png" in result
+
+    def test_filename_with_backslash(self):
+        """Test that backslashes in filename are properly escaped per RFC 2183."""
+        result = create_content_disposition_header('file\\name.png')
+
+        assert result.startswith("attachment;")
+        # RFC 2183: backslashes must be escaped as \\
+        assert 'filename="file\\\\name.png"' in result
+        # UTF-8 version should have percent-encoded backslash
+        assert "filename*=UTF-8''file%5Cname.png" in result
 
     def test_mixed_ascii_unicode(self):
         """Test filenames with both ASCII and Unicode characters."""

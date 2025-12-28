@@ -200,8 +200,8 @@ def create_content_disposition_header(filename: str) -> str:
     """
     # ASCII-safe filename for legacy clients (replace non-ASCII with ?)
     ascii_filename = filename.encode('ascii', 'replace').decode('ascii')
-    # Escape quotes to prevent malformed header (e.g., filename="file"name.png")
-    ascii_filename = ascii_filename.replace('"', "'")
+    # RFC 2183: escape backslashes and quotes within quoted-string
+    ascii_filename = ascii_filename.replace('\\', '\\\\').replace('"', '\\"')
     # RFC 5987 percent-encoded filename for UTF-8 support
     encoded_filename = quote(filename, safe='')
     return f"attachment; filename=\"{ascii_filename}\"; filename*=UTF-8''{encoded_filename}"
