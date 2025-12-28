@@ -169,6 +169,47 @@ class TestLogInterceptorFlush:
         # Logs should be preserved for retry on next flush
         assert interceptor._logs_since_flush == original_logs
 
+    def test_flush_protects_logs_from_callback_mutation(self):
+        """Test that callback mutations don't affect preserved logs on failure."""
+        from app.logger import LogInterceptor
+
+        class MockStream:
+            def __init__(self):
+                self._buffer = io.BytesIO()
+                self.encoding = 'utf-8'
+                self.line_buffering = False
+
+            @property
+            def buffer(self):
+                return self._buffer
+
+        mock_stream = MockStream()
+        interceptor = LogInterceptor(mock_stream)
+
+        # First callback mutates the list, second raises
+        def mutating_callback(logs):
+            logs.clear()  # Mutate the passed list
+
+        def raising_callback(logs):
+            raise ValueError("Callback error")
+
+        interceptor.on_flush(mutating_callback)
+        interceptor.on_flush(raising_callback)
+
+        # Add some logs
+        original_logs = [
+            {"t": "test", "m": "message1"},
+            {"t": "test", "m": "message2"}
+        ]
+        interceptor._logs_since_flush = original_logs.copy()
+
+        # Flush should raise
+        with pytest.raises(ValueError, match="Callback error"):
+            interceptor.flush()
+
+        # Logs should be preserved despite mutation by first callback
+        assert interceptor._logs_since_flush == original_logs
+
     def test_flush_clears_logs_after_all_callbacks_succeed(self):
         """Test that logs are cleared only after all callbacks execute successfully."""
         from app.logger import LogInterceptor

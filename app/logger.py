@@ -48,7 +48,8 @@ class LogInterceptor(io.TextIOWrapper):
                 raise
         if not self._logs_since_flush:
             return
-        logs_to_send = self._logs_since_flush
+        # Copy to prevent callback mutations from affecting retry on failure
+        logs_to_send = list(self._logs_since_flush)
         for cb in self._flush_callbacks:
             cb(logs_to_send)
         # Only clear after all callbacks succeed - if any raises, logs remain for retry
