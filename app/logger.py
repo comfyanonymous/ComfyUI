@@ -39,9 +39,10 @@ class LogInterceptor(io.TextIOWrapper):
             # This is safe to ignore as write() already succeeded
             if e.errno != 22:
                 raise
-        for cb in self._flush_callbacks:
-            cb(self._logs_since_flush)
+        logs_to_send = self._logs_since_flush
         self._logs_since_flush = []
+        for cb in self._flush_callbacks:
+            cb(logs_to_send)
 
     def on_flush(self, callback):
         self._flush_callbacks.append(callback)
