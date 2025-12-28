@@ -92,6 +92,46 @@ class TestLogInterceptorFlush:
         # Logs should be cleared
         assert interceptor._logs_since_flush == []
 
+    def test_flush_multiple_callbacks_receive_same_logs(self):
+        """Test that all callbacks receive the same logs, not just the first one."""
+        from app.logger import LogInterceptor
+
+        class MockStream:
+            def __init__(self):
+                self._buffer = io.BytesIO()
+                self.encoding = 'utf-8'
+                self.line_buffering = False
+
+            @property
+            def buffer(self):
+                return self._buffer
+
+        mock_stream = MockStream()
+        interceptor = LogInterceptor(mock_stream)
+
+        # Register multiple callbacks
+        callback1_results = []
+        callback2_results = []
+        callback3_results = []
+        interceptor.on_flush(lambda logs: callback1_results.append(len(logs)))
+        interceptor.on_flush(lambda logs: callback2_results.append(len(logs)))
+        interceptor.on_flush(lambda logs: callback3_results.append(len(logs)))
+
+        # Add some logs
+        interceptor._logs_since_flush = [
+            {"t": "test", "m": "message1"},
+            {"t": "test", "m": "message2"},
+            {"t": "test", "m": "message3"}
+        ]
+
+        # Flush should execute all callbacks with the same logs
+        interceptor.flush()
+
+        # All callbacks should have received 3 log entries
+        assert callback1_results == [3]
+        assert callback2_results == [3]
+        assert callback3_results == [3]
+
 
 class TestLogInterceptorWrite:
     """Test that LogInterceptor.write() works correctly."""

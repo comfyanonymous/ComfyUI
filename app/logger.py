@@ -41,7 +41,7 @@ class LogInterceptor(io.TextIOWrapper):
                 raise
         for cb in self._flush_callbacks:
             cb(self._logs_since_flush)
-            self._logs_since_flush = []
+        self._logs_since_flush = []
 
     def on_flush(self, callback):
         self._flush_callbacks.append(callback)
