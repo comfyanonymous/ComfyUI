@@ -15,6 +15,8 @@ def create_content_disposition_header(filename: str) -> str:
     """
     # ASCII-safe filename for legacy clients (replace non-ASCII with ?)
     ascii_filename = filename.encode('ascii', 'replace').decode('ascii')
+    # Escape quotes to prevent malformed header (e.g., filename="file"name.png")
+    ascii_filename = ascii_filename.replace('"', "'")
     # RFC 5987 percent-encoded filename for UTF-8 support
     encoded_filename = quote(filename, safe='')
     return f"attachment; filename=\"{ascii_filename}\"; filename*=UTF-8''{encoded_filename}"
@@ -80,12 +82,14 @@ class TestContentDispositionHeader:
 
     def test_filename_with_quotes(self):
         """Test that quotes in filename don't break the header."""
-        # Note: Quotes in filenames are edge cases but should not crash
+        # Quotes in filenames must be escaped to prevent malformed headers
         result = create_content_disposition_header('file"name.png')
 
         assert result.startswith("attachment;")
-        # The function should still produce valid output
-        assert "filename*=UTF-8''" in result
+        # Quotes should be replaced with single quotes in ASCII fallback
+        assert "filename=\"file'name.png\"" in result
+        # UTF-8 version should have percent-encoded quote
+        assert "filename*=UTF-8''file%22name.png" in result
 
     def test_mixed_ascii_unicode(self):
         """Test filenames with both ASCII and Unicode characters."""
