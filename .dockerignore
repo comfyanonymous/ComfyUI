@@ -1,0 +1,6 @@
+__pycache__/
+*.py[cod]
+input
+models
+notebooks
+output
