@@ -132,8 +132,8 @@ class TestLogInterceptorFlush:
         assert callback2_results == [3]
         assert callback3_results == [3]
 
-    def test_flush_clears_logs_even_if_callback_raises(self):
-        """Test that logs are cleared even if a callback raises an exception."""
+    def test_flush_preserves_logs_when_callback_raises(self):
+        """Test that logs are preserved for retry if a callback raises an exception."""
         from app.logger import LogInterceptor
 
         class MockStream:
@@ -156,16 +156,56 @@ class TestLogInterceptorFlush:
         interceptor.on_flush(raising_callback)
 
         # Add some logs
+        original_logs = [
+            {"t": "test", "m": "message1"},
+            {"t": "test", "m": "message2"}
+        ]
+        interceptor._logs_since_flush = original_logs.copy()
+
+        # Flush should raise
+        with pytest.raises(ValueError, match="Callback error"):
+            interceptor.flush()
+
+        # Logs should be preserved for retry on next flush
+        assert interceptor._logs_since_flush == original_logs
+
+    def test_flush_clears_logs_after_all_callbacks_succeed(self):
+        """Test that logs are cleared only after all callbacks execute successfully."""
+        from app.logger import LogInterceptor
+
+        class MockStream:
+            def __init__(self):
+                self._buffer = io.BytesIO()
+                self.encoding = 'utf-8'
+                self.line_buffering = False
+
+            @property
+            def buffer(self):
+                return self._buffer
+
+        mock_stream = MockStream()
+        interceptor = LogInterceptor(mock_stream)
+
+        # Register multiple callbacks
+        callback1_results = []
+        callback2_results = []
+        interceptor.on_flush(lambda logs: callback1_results.append(len(logs)))
+        interceptor.on_flush(lambda logs: callback2_results.append(len(logs)))
+
+        # Add some logs
         interceptor._logs_since_flush = [
             {"t": "test", "m": "message1"},
             {"t": "test", "m": "message2"}
         ]
 
-        # Flush should raise but logs should still be cleared
-        with pytest.raises(ValueError, match="Callback error"):
-            interceptor.flush()
+        # Flush should succeed
+        interceptor.flush()
 
-        # Logs should be cleared to prevent duplicates on next flush
+        # All callbacks should have executed
+        assert callback1_results == [2]
+        assert callback2_results == [2]
+
+        # Logs should be cleared after success
         assert interceptor._logs_since_flush == []
 
 
