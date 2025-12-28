@@ -25,6 +25,7 @@ from aiohttp import web
 import logging
 
 import mimetypes
+from urllib.parse import quote
 from comfy.cli_args import args
 import comfy.utils
 import comfy.model_management
@@ -188,6 +189,20 @@ def create_block_external_middleware():
         return response
 
     return block_external_middleware
+
+
+def create_content_disposition_header(filename: str) -> str:
+    """
+    Generate RFC 2183/5987 compliant Content-Disposition header value.
+
+    Provides both ASCII fallback (filename=) and UTF-8 encoded (filename*=)
+    for international filename support across all clients.
+    """
+    # ASCII-safe filename for legacy clients (replace non-ASCII with ?)
+    ascii_filename = filename.encode('ascii', 'replace').decode('ascii')
+    # RFC 5987 percent-encoded filename for UTF-8 support
+    encoded_filename = quote(filename, safe='')
+    return f"attachment; filename=\"{ascii_filename}\"; filename*=UTF-8''{encoded_filename}"
 
 
 class PromptServer():
@@ -518,7 +533,7 @@ class PromptServer():
                             buffer.seek(0)
 
                             return web.Response(body=buffer.read(), content_type=f'image/{image_format}',
-                                                headers={"Content-Disposition": f"filename=\"{filename}\""})
+                                                headers={"Content-Disposition": create_content_disposition_header(filename)})
 
                     if 'channel' not in request.rel_url.query:
                         channel = 'rgba'
@@ -538,7 +553,7 @@ class PromptServer():
                             buffer.seek(0)
 
                             return web.Response(body=buffer.read(), content_type='image/png',
-                                                headers={"Content-Disposition": f"filename=\"{filename}\""})
+                                                headers={"Content-Disposition": create_content_disposition_header(filename)})
 
                     elif channel == 'a':
                         with Image.open(file) as img:
@@ -555,7 +570,7 @@ class PromptServer():
                             alpha_buffer.seek(0)
 
                             return web.Response(body=alpha_buffer.read(), content_type='image/png',
-                                                headers={"Content-Disposition": f"filename=\"{filename}\""})
+                                                headers={"Content-Disposition": create_content_disposition_header(filename)})
                     else:
                         # Get content type from mimetype, defaulting to 'application/octet-stream'
                         content_type = mimetypes.guess_type(filename)[0] or 'application/octet-stream'
@@ -567,7 +582,7 @@ class PromptServer():
                         return web.FileResponse(
                             file,
                             headers={
-                                "Content-Disposition": f"filename=\"{filename}\"",
+                                "Content-Disposition": create_content_disposition_header(filename),
                                 "Content-Type": content_type
                             }
                         )
