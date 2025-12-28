@@ -32,7 +32,13 @@ class LogInterceptor(io.TextIOWrapper):
         super().write(data)
 
     def flush(self):
-        super().flush()
+        try:
+            super().flush()
+        except OSError as e:
+            # errno 22 (EINVAL) can occur on Windows with piped/redirected streams
+            # This is safe to ignore as write() already succeeded
+            if e.errno != 22:
+                raise
         for cb in self._flush_callbacks:
             cb(self._logs_since_flush)
             self._logs_since_flush = []
