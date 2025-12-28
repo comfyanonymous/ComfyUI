@@ -11,6 +11,10 @@ stderr_interceptor = None
 
 
 class LogInterceptor(io.TextIOWrapper):
+    # Maximum logs to buffer between flushes to prevent unbounded memory growth
+    # if callbacks persistently fail. 10000 entries is ~2-5MB depending on message size.
+    MAX_PENDING_LOGS = 10000
+
     def __init__(self, stream,  *args, **kwargs):
         buffer = stream.buffer
         encoding = stream.encoding
@@ -23,6 +27,9 @@ class LogInterceptor(io.TextIOWrapper):
         entry = {"t": datetime.now().isoformat(), "m": data}
         with self._lock:
             self._logs_since_flush.append(entry)
+            # Enforce max size to prevent OOM if callbacks persistently fail
+            if len(self._logs_since_flush) > self.MAX_PENDING_LOGS:
+                self._logs_since_flush = self._logs_since_flush[-self.MAX_PENDING_LOGS:]
 
             # Simple handling for cr to overwrite the last output if it isnt a full line
             # else logs just get full of progress messages

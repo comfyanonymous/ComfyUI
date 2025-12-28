@@ -240,3 +240,41 @@ class TestLogInterceptorWrite:
         # Check that it was added to _logs_since_flush
         assert len(interceptor._logs_since_flush) == 1
         assert interceptor._logs_since_flush[0]["m"] == "test message"
+
+    def test_write_enforces_max_pending_logs(self):
+        """Test that write() enforces MAX_PENDING_LOGS to prevent OOM."""
+        from app.logger import LogInterceptor
+
+        class MockStream:
+            def __init__(self):
+                self._buffer = io.BytesIO()
+                self.encoding = 'utf-8'
+                self.line_buffering = False
+
+            @property
+            def buffer(self):
+                return self._buffer
+
+        mock_stream = MockStream()
+        interceptor = LogInterceptor(mock_stream)
+
+        # Initialize the global logs
+        import app.logger
+        from collections import deque
+        app.logger.logs = deque(maxlen=100)
+
+        # Manually set _logs_since_flush to be at the limit
+        interceptor._logs_since_flush = [
+            {"t": "test", "m": f"old_message_{i}"}
+            for i in range(LogInterceptor.MAX_PENDING_LOGS)
+        ]
+
+        # Write one more message - should trigger trimming
+        interceptor.write("new_message")
+
+        # Should still be at MAX_PENDING_LOGS, oldest dropped
+        assert len(interceptor._logs_since_flush) == LogInterceptor.MAX_PENDING_LOGS
+        # The new message should be at the end
+        assert interceptor._logs_since_flush[-1]["m"] == "new_message"
+        # The oldest message should have been dropped (old_message_0)
+        assert interceptor._logs_since_flush[0]["m"] == "old_message_1"
