@@ -74,6 +74,9 @@ def get_ancestral_step(sigma_from, sigma_to, eta=1.):
 
 def default_noise_sampler(x, seed=None):
     if seed is not None:
+        if x.device == torch.device("cpu"):
+            seed += 1
+
         generator = torch.Generator(device=x.device)
         generator.manual_seed(seed)
     else:

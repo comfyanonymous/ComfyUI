@@ -51,6 +51,7 @@ from comfy_api_nodes.apis import (
 )
 from comfy_api_nodes.apis.kling_api import (
     ImageToVideoWithAudioRequest,
+    MotionControlRequest,
     OmniImageParamImage,
     OmniParamImage,
     OmniParamVideo,
@@ -2163,6 +2164,91 @@ class ImageToVideoWithAudio(IO.ComfyNode):
         return IO.NodeOutput(await download_url_to_video_output(final_response.data.task_result.videos[0].url))
 
 
+class MotionControl(IO.ComfyNode):
+
+    @classmethod
+    def define_schema(cls) -> IO.Schema:
+        return IO.Schema(
+            node_id="KlingMotionControl",
+            display_name="Kling Motion Control",
+            category="api node/video/Kling",
+            inputs=[
+                IO.String.Input("prompt", multiline=True),
+                IO.Image.Input("reference_image"),
+                IO.Video.Input(
+                    "reference_video",
+                    tooltip="Motion reference video used to drive movement/expression.\n"
+                    "Duration limits depend on character_orientation:\n"
+                    " - image: 3–10s (max 10s)\n"
+                    " - video: 3–30s (max 30s)",
+                ),
+                IO.Boolean.Input("keep_original_sound", default=True),
+                IO.Combo.Input(
+                    "character_orientation",
+                    options=["video", "image"],
+                    tooltip="Controls where the character's facing/orientation comes from.\n"
+                    "video: movements, expressions, camera moves, and orientation "
+                    "follow the motion reference video (other details via prompt).\n"
+                    "image: movements and expressions still follow the motion reference video, "
+                    "but the character orientation matches the reference image (camera/other details via prompt).",
+                ),
+                IO.Combo.Input("mode", options=["pro", "std"]),
+            ],
+            outputs=[
+                IO.Video.Output(),
+            ],
+            hidden=[
+                IO.Hidden.auth_token_comfy_org,
+                IO.Hidden.api_key_comfy_org,
+                IO.Hidden.unique_id,
+            ],
+            is_api_node=True,
+        )
+
+    @classmethod
+    async def execute(
+        cls,
+        prompt: str,
+        reference_image: Input.Image,
+        reference_video: Input.Video,
+        keep_original_sound: bool,
+        character_orientation: str,
+        mode: str,
+    ) -> IO.NodeOutput:
+        validate_string(prompt, max_length=2500)
+        validate_image_dimensions(reference_image, min_width=340, min_height=340)
+        validate_image_aspect_ratio(reference_image, (1, 2.5), (2.5, 1))
+        if character_orientation == "image":
+            validate_video_duration(reference_video, min_duration=3, max_duration=10)
+        else:
+            validate_video_duration(reference_video, min_duration=3, max_duration=30)
+        validate_video_dimensions(reference_video, min_width=340, min_height=340, max_width=3850, max_height=3850)
+        response = await sync_op(
+            cls,
+            ApiEndpoint(path="/proxy/kling/v1/videos/motion-control", method="POST"),
+            response_model=TaskStatusResponse,
+            data=MotionControlRequest(
+                prompt=prompt,
+                image_url=(await upload_images_to_comfyapi(cls, reference_image))[0],
+                video_url=await upload_video_to_comfyapi(cls, reference_video),
+                keep_original_sound="yes" if keep_original_sound else "no",
+                character_orientation=character_orientation,
+                mode=mode,
+            ),
+        )
+        if response.code:
+            raise RuntimeError(
+                f"Kling request failed. Code: {response.code}, Message: {response.message}, Data: {response.data}"
+            )
+        final_response = await poll_op(
+            cls,
+            ApiEndpoint(path=f"/proxy/kling/v1/videos/motion-control/{response.data.task_id}"),
+            response_model=TaskStatusResponse,
+            status_extractor=lambda r: (r.data.task_status if r.data else None),
+        )
+        return IO.NodeOutput(await download_url_to_video_output(final_response.data.task_result.videos[0].url))
+
+
 class KlingExtension(ComfyExtension):
     @override
     async def get_node_list(self) -> list[type[IO.ComfyNode]]:
@@ -2188,6 +2274,7 @@ class KlingExtension(ComfyExtension):
             OmniProImageNode,
             TextToVideoWithAudio,
             ImageToVideoWithAudio,
+            MotionControl,
         ]
 
 

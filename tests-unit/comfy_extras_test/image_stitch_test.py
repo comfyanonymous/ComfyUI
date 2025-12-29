@@ -25,7 +25,7 @@ class TestImageStitch:
 
         result = node.stitch(image1, "right", True, 0, "white", image2=None)
 
-        assert len(result) == 1
+        assert len(result.result) == 1
         assert torch.equal(result[0], image1)
 
     def test_basic_horizontal_stitch_right(self):
