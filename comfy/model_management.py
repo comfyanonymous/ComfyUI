@@ -1126,6 +1126,16 @@ if not args.disable_pinned_memory:
 
 PINNING_ALLOWED_TYPES = set(["Parameter", "QuantizedTensor"])
 
+def discard_cuda_async_error():
+    try:
+        a = torch.tensor([1], dtype=torch.uint8, device=get_torch_device())
+        b = torch.tensor([1], dtype=torch.uint8, device=get_torch_device())
+        _ = a + b
+        torch.cuda.synchronize()
+    except torch.AcceleratorError:
+        #Dump it! We already know about it from the synchronous return
+        pass
+
 def pin_memory(tensor):
     global TOTAL_PINNED_MEMORY
     if MAX_PINNED_MEMORY <= 0:
@@ -1158,6 +1168,8 @@ def pin_memory(tensor):
         PINNED_MEMORY[ptr] = size
         TOTAL_PINNED_MEMORY += size
         return True
+    else:
+        discard_cuda_async_error()
 
     return False
 
@@ -1186,6 +1198,8 @@ def unpin_memory(tensor):
         if len(PINNED_MEMORY) == 0:
             TOTAL_PINNED_MEMORY = 0
         return True
+    else:
+        discard_cuda_async_error()
 
     return False
 
