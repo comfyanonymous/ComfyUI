@@ -1,18 +1,15 @@
 # Based on Flux code because of weird hunyuan video code license.
 
-import torch
-
-from ..modules.attention import optimized_attention
-
-from ...patcher_extension import WrapperExecutor, get_all_wrappers, WrappersMP
-
 from dataclasses import dataclass
-from einops import repeat
 
+import torch
+from einops import repeat
 from torch import Tensor, nn
 
 from ..flux.layers import DoubleStreamBlock, EmbedND, LastLayer, MLPEmbedder, SingleStreamBlock, timestep_embedding
+from ..modules.attention import optimized_attention
 from ..modules.diffusionmodules.mmdit import PatchEmbed
+from ...patcher_extension import WrapperExecutor, get_all_wrappers, WrappersMP
 
 
 @dataclass
@@ -74,9 +71,7 @@ class TokenRefinerBlock(nn.Module):
             operations.Linear(mlp_hidden_dim, hidden_size, bias=True, dtype=dtype, device=device),
         )
 
-    def forward(self, x, c, mask, transformer_options=None):
-        if transformer_options is None:
-            transformer_options = {}
+    def forward(self, x, c, mask, transformer_options={}):
         mod1, mod2 = self.adaLN_modulation(c).chunk(2, dim=1)
 
         norm_x = self.norm1(x)
@@ -113,9 +108,7 @@ class IndividualTokenRefiner(nn.Module):
             ]
         )
 
-    def forward(self, x, c, mask, transformer_options=None):
-        if transformer_options is None:
-            transformer_options = {}
+    def forward(self, x, c, mask, transformer_options={}):
         m = None
         if mask is not None:
             m = mask.view(mask.shape[0], 1, 1, mask.shape[1]).repeat(1, 1, mask.shape[1], 1)
@@ -149,10 +142,8 @@ class TokenRefiner(nn.Module):
             x,
             timesteps,
             mask,
-            transformer_options=None,
+            transformer_options={},
     ):
-        if transformer_options is None:
-            transformer_options = {}
         t = self.t_embedder(timestep_embedding(timesteps, 256, time_factor=1.0).to(x.dtype))
         # m = mask.float().unsqueeze(-1)
         # c = (x.float() * m).sum(dim=1) / m.sum(dim=1) #TODO: the following works when the x.shape is the same length as the tokens but might break otherwise
@@ -295,15 +286,14 @@ class HunyuanVideo(nn.Module):
             timesteps: Tensor,
             y: Tensor = None,
             txt_byt5=None,
-            clip_fea=None,guidance: Tensor = None,
+            clip_fea=None,
+            guidance: Tensor = None,
             guiding_frame_index=None,
             ref_latent=None,
             disable_time_r=False,
             control=None,
-            transformer_options=None,
+            transformer_options={},
     ) -> Tensor:
-        if transformer_options is None:
-            transformer_options = {}
         patches_replace = transformer_options.get("patches_replace", {})
 
         initial_shape = list(img.shape)
@@ -362,7 +352,7 @@ class HunyuanVideo(nn.Module):
             if self.cond_type_embedding is not None:
                 cond_emb = self.cond_type_embedding(torch.ones_like(txt_byt5[:, :, 0], device=txt_byt5.device, dtype=torch.long))
                 txt_byt5 = txt_byt5 + cond_emb.to(txt_byt5.dtype)
-                txt = torch.cat((txt_byt5, txt), dim=1) # byt5 first for HunyuanVideo1.5
+                txt = torch.cat((txt_byt5, txt), dim=1)  # byt5 first for HunyuanVideo1.5
             else:
                 txt = torch.cat((txt, txt_byt5), dim=1)
             txt_byt5_ids = torch.zeros((txt_ids.shape[0], txt_byt5.shape[1], txt_ids.shape[-1]), device=txt_ids.device, dtype=txt_ids.dtype)
@@ -476,18 +466,14 @@ class HunyuanVideo(nn.Module):
         img_ids[:, :, 1] = img_ids[:, :, 1] + torch.linspace(0, w_len - 1, steps=w_len, device=x.device, dtype=x.dtype).unsqueeze(0)
         return repeat(img_ids, "h w c -> b (h w) c", b=bs)
 
-    def forward(self, x, timestep, context, y=None, txt_byt5=None, clip_fea=None, guidance=None, attention_mask=None, guiding_frame_index=None, ref_latent=None, disable_time_r=False, control=None, transformer_options=None, **kwargs):
-        if transformer_options is None:
-            transformer_options = {}
+    def forward(self, x, timestep, context, y=None, txt_byt5=None, clip_fea=None, guidance=None, attention_mask=None, guiding_frame_index=None, ref_latent=None, disable_time_r=False, control=None, transformer_options={}, **kwargs):
         return WrapperExecutor.new_class_executor(
             self._forward,
             self,
             get_all_wrappers(WrappersMP.DIFFUSION_MODEL, transformer_options)
         ).execute(x, timestep, context, y, txt_byt5, clip_fea, guidance, attention_mask, guiding_frame_index, ref_latent, disable_time_r, control, transformer_options, **kwargs)
 
-    def _forward(self, x, timestep, context, y=None, txt_byt5=None, clip_fea=None, guidance=None, attention_mask=None, guiding_frame_index=None, ref_latent=None, disable_time_r=False, control=None, transformer_options=None, **kwargs):
-        if transformer_options is None:
-            transformer_options = {}
+    def _forward(self, x, timestep, context, y=None, txt_byt5=None, clip_fea=None, guidance=None, attention_mask=None, guiding_frame_index=None, ref_latent=None, disable_time_r=False, control=None, transformer_options={}, **kwargs):
         bs = x.shape[0]
         if len(self.patch_size) == 3:
             img_ids = self.img_ids(x)

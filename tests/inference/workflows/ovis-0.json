@@ -1,175 +1,141 @@
 {
-    "1": {
-        "inputs": {
-            "noise": [
-                "2",
-                0
-            ],
-            "guider": [
-                "3",
-                0
-            ],
-            "sampler": [
-                "6",
-                0
-            ],
-            "sigmas": [
-                "7",
-                0
-            ],
-            "latent_image": [
-                "9",
-                0
-            ]
-        },
-        "class_type": "SamplerCustomAdvanced",
-        "_meta": {
-            "title": "SamplerCustomAdvanced"
-        }
+  "9": {
+    "inputs": {
+      "filename_prefix": "Ovis_2.5",
+      "images": [
+        "57:43",
+        0
+      ]
     },
-    "2": {
-        "inputs": {
-            "noise_seed": 1038979
-        },
-        "class_type": "RandomNoise",
-        "_meta": {
-            "title": "RandomNoise"
-        }
-    },
-    "3": {
-        "inputs": {
-            "model": [
-                "12",
-                0
-            ],
-            "conditioning": [
-                "4",
-                0
-            ]
-        },
-        "class_type": "BasicGuider",
-        "_meta": {
-            "title": "BasicGuider"
-        }
-    },
-    "4": {
-        "inputs": {
-            "guidance": 3,
-            "conditioning": [
-                "13",
-                0
-            ]
-        },
-        "class_type": "FluxGuidance",
-        "_meta": {
-            "title": "FluxGuidance"
-        }
-    },
-    "6": {
-        "inputs": {
-            "sampler_name": "euler"
-        },
-        "class_type": "KSamplerSelect",
-        "_meta": {
-            "title": "KSamplerSelect"
-        }
-    },
-    "7": {
-        "inputs": {
-            "scheduler": "ddim_uniform",
-            "steps": 1,
-            "denoise": 1,
-            "model": [
-                "12",
-                0
-            ]
-        },
-        "class_type": "BasicScheduler",
-        "_meta": {
-            "title": "BasicScheduler"
-        }
-    },
-    "9": {
-        "inputs": {
-            "width": 1024,
-            "height": 1024,
-            "batch_size": 1
-        },
-        "class_type": "EmptySD3LatentImage",
-        "_meta": {
-            "title": "EmptySD3LatentImage"
-        }
-    },
-    "10": {
-        "inputs": {
-            "samples": [
-                "1",
-                0
-            ],
-            "vae": [
-                "11",
-                0
-            ]
-        },
-        "class_type": "VAEDecode",
-        "_meta": {
-            "title": "VAE Decode"
-        }
-    },
-    "11": {
-        "inputs": {
-            "vae_name": "ae.safetensors"
-        },
-        "class_type": "VAELoader",
-        "_meta": {
-            "title": "Load VAE"
-        }
-    },
-    "12": {
-        "inputs": {
-            "unet_name": "ovis_image_bf16.safetensors",
-            "weight_dtype": "default"
-        },
-        "class_type": "UNETLoader",
-        "_meta": {
-            "title": "Load Diffusion Model"
-        }
-    },
-    "13": {
-        "inputs": {
-            "text": "A photograph of a sheep (Ovis aries) valid for testing.",
-            "clip": [
-                "15",
-                0
-            ]
-        },
-        "class_type": "CLIPTextEncode",
-        "_meta": {
-            "title": "CLIP Text Encode (Prompt)"
-        }
-    },
-    "15": {
-        "inputs": {
-            "clip_name1": "clip_l.safetensors",
-            "clip_name2": "t5xxl_fp16.safetensors",
-            "type": "flux"
-        },
-        "class_type": "DualCLIPLoader",
-        "_meta": {
-            "title": "DualCLIPLoader"
-        }
-    },
-    "16": {
-        "inputs": {
-            "filename_prefix": "ComfyUI",
-            "images": [
-                "10",
-                0
-            ]
-        },
-        "class_type": "SaveImage",
-        "_meta": {
-            "title": "Save Image"
-        }
+    "class_type": "SaveImage",
+    "_meta": {
+      "title": "Save Image"
     }
+  },
+  "57:43": {
+    "inputs": {
+      "samples": [
+        "57:44",
+        0
+      ],
+      "vae": [
+        "57:40",
+        0
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "VAE Decode"
+    }
+  },
+  "57:46": {
+    "inputs": {
+      "unet_name": "ovis_image_bf16.safetensors",
+      "weight_dtype": "default"
+    },
+    "class_type": "UNETLoader",
+    "_meta": {
+      "title": "Load Diffusion Model"
+    }
+  },
+  "57:39": {
+    "inputs": {
+      "clip_name": "ovis_2.5.safetensors",
+      "type": "ovis",
+      "device": "default"
+    },
+    "class_type": "CLIPLoader",
+    "_meta": {
+      "title": "Load CLIP"
+    }
+  },
+  "57:41": {
+    "inputs": {
+      "width": 1024,
+      "height": 1024,
+      "batch_size": 1
+    },
+    "class_type": "EmptySD3LatentImage",
+    "_meta": {
+      "title": "EmptySD3LatentImage"
+    }
+  },
+  "57:49": {
+    "inputs": {
+      "text": "",
+      "clip": [
+        "57:39",
+        0
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "CLIP Text Encode (Prompt)"
+    }
+  },
+  "57:47": {
+    "inputs": {
+      "shift": 3,
+      "model": [
+        "57:46",
+        0
+      ]
+    },
+    "class_type": "ModelSamplingAuraFlow",
+    "_meta": {
+      "title": "ModelSamplingAuraFlow"
+    }
+  },
+  "57:45": {
+    "inputs": {
+      "text": "Child lying on bed with balloons, streamers, and plush toys, surreal dreamlike scene. Close-up, centered on the child and surrounding objects. Soft, diffused lighting.",
+      "clip": [
+        "57:39",
+        0
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "CLIP Text Encode (Prompt)"
+    }
+  },
+  "57:44": {
+    "inputs": {
+      "seed": 775709856082329,
+      "steps": 1,
+      "cfg": 5,
+      "sampler_name": "euler",
+      "scheduler": "simple",
+      "denoise": 1,
+      "model": [
+        "57:47",
+        0
+      ],
+      "positive": [
+        "57:45",
+        0
+      ],
+      "negative": [
+        "57:49",
+        0
+      ],
+      "latent_image": [
+        "57:41",
+        0
+      ]
+    },
+    "class_type": "KSampler",
+    "_meta": {
+      "title": "KSampler"
+    }
+  },
+  "57:40": {
+    "inputs": {
+      "vae_name": "ae.safetensors"
+    },
+    "class_type": "VAELoader",
+    "_meta": {
+      "title": "Load VAE"
+    }
+  }
 }

@@ -1,164 +1,276 @@
 {
-    "6": {
-        "inputs": {
-            "text": "cute anime girl with gigantic fennec ears and a big fluffy fox tail with long wavy blonde hair and large blue eyes blonde colored eyelashes wearing a pink sweater a large oversized gold trimmed black winter coat and a long blue maxi skirt and a red scarf, she is happy while singing on stage like an idol while holding a microphone, there are colorful lights, it is a postcard held by a hand in front of a beautiful city at sunset and there is cursive writing that says \"Hunyuan Image\"",
-            "clip": [
-                "38",
-                0
-            ]
-        },
-        "class_type": "CLIPTextEncode",
-        "_meta": {
-            "title": "CLIP Text Encode (Positive Prompt)"
-        }
+  "3": {
+    "inputs": {
+      "seed": 215668140279030,
+      "steps": 1,
+      "cfg": 3.5,
+      "sampler_name": "euler",
+      "scheduler": "simple",
+      "denoise": 1,
+      "model": [
+        "13",
+        0
+      ],
+      "positive": [
+        "6",
+        0
+      ],
+      "negative": [
+        "7",
+        0
+      ],
+      "latent_image": [
+        "29",
+        0
+      ]
     },
-    "8": {
-        "inputs": {
-            "samples": [
-                "13",
-                0
-            ],
-            "vae": [
-                "10",
-                0
-            ]
-        },
-        "class_type": "VAEDecode",
-        "_meta": {
-            "title": "VAE Decode"
-        }
-    },
-    "9": {
-        "inputs": {
-            "filename_prefix": "ComfyUI",
-            "images": [
-                "8",
-                0
-            ]
-        },
-        "class_type": "SaveImage",
-        "_meta": {
-            "title": "Save Image"
-        }
-    },
-    "10": {
-        "inputs": {
-            "vae_name": "hunyuan_image_2.1_vae_fp16.safetensors"
-        },
-        "class_type": "VAELoader",
-        "_meta": {
-            "title": "Load VAE"
-        }
-    },
-    "12": {
-        "inputs": {
-            "unet_name": "hunyuanimage2.1_bf16.safetensors",
-            "weight_dtype": "default"
-        },
-        "class_type": "UNETLoader",
-        "_meta": {
-            "title": "Load Diffusion Model"
-        }
-    },
-    "13": {
-        "inputs": {
-            "noise": [
-                "25",
-                0
-            ],
-            "guider": [
-                "22",
-                0
-            ],
-            "sampler": [
-                "16",
-                0
-            ],
-            "sigmas": [
-                "17",
-                0
-            ],
-            "latent_image": [
-                "27",
-                0
-            ]
-        },
-        "class_type": "SamplerCustomAdvanced",
-        "_meta": {
-            "title": "SamplerCustomAdvanced"
-        }
-    },
-    "16": {
-        "inputs": {
-            "sampler_name": "euler"
-        },
-        "class_type": "KSamplerSelect",
-        "_meta": {
-            "title": "KSamplerSelect"
-        }
-    },
-    "17": {
-        "inputs": {
-            "scheduler": "simple",
-            "steps": 20,
-            "denoise": 1.0,
-            "model": [
-                "12",
-                0
-            ]
-        },
-        "class_type": "BasicScheduler",
-        "_meta": {
-            "title": "BasicScheduler"
-        }
-    },
-    "22": {
-        "inputs": {
-            "model": [
-                "12",
-                0
-            ],
-            "conditioning": [
-                "6",
-                0
-            ]
-        },
-        "class_type": "BasicGuider",
-        "_meta": {
-            "title": "BasicGuider"
-        }
-    },
-    "25": {
-        "inputs": {
-            "noise_seed": 435922656034510
-        },
-        "class_type": "RandomNoise",
-        "_meta": {
-            "title": "RandomNoise"
-        }
-    },
-    "27": {
-        "inputs": {
-            "width": 1024,
-            "height": 1024,
-            "batch_size": 1,
-            "color": 0
-        },
-        "class_type": "EmptyLatentImage",
-        "_meta": {
-            "title": "Empty Latent Image"
-        }
-    },
-    "38": {
-        "inputs": {
-            "clip_name1": "qwen_2.5_vl_7b.safetensors",
-            "clip_name2": "byt5_small_glyphxl_fp16.safetensors",
-            "type": "sdxl",
-            "device": "default"
-        },
-        "class_type": "DualCLIPLoader",
-        "_meta": {
-            "title": "DualCLIPLoader"
-        }
+    "class_type": "KSampler",
+    "_meta": {
+      "title": "KSampler"
     }
+  },
+  "6": {
+    "inputs": {
+      "text": "cute anime girl with massive fennec ears and a big fluffy fox tail with long wavy blonde hair between eyes and large blue eyes blonde colored eyelashes chubby wearing oversized clothes summer uniform large black coat long blue maxi skirt muddy clothes happy sitting on the side of the road in a run down dark gritty cyberpunk city with neon and a crumbling skyscraper in the rain at night while dipping her feet in a river of water she is holding a sign that says \"ComfyUI is the best\" and another one that says \"The Future is Comfy\"",
+      "clip": [
+        "26",
+        0
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "CLIP Text Encode (Prompt)"
+    }
+  },
+  "7": {
+    "inputs": {
+      "text": "low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs",
+      "clip": [
+        "26",
+        0
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "CLIP Text Encode (Prompt)"
+    }
+  },
+  "8": {
+    "inputs": {
+      "samples": [
+        "3",
+        0
+      ],
+      "vae": [
+        "15",
+        0
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "VAE Decode"
+    }
+  },
+  "13": {
+    "inputs": {
+      "unet_name": "hunyuanimage2.1_bf16.safetensors",
+      "weight_dtype": "default"
+    },
+    "class_type": "UNETLoader",
+    "_meta": {
+      "title": "Load Diffusion Model"
+    }
+  },
+  "15": {
+    "inputs": {
+      "vae_name": "hunyuan_image_2.1_vae_fp16.safetensors"
+    },
+    "class_type": "VAELoader",
+    "_meta": {
+      "title": "Load VAE"
+    }
+  },
+  "26": {
+    "inputs": {
+      "clip_name1": "qwen_2.5_vl_7b.safetensors",
+      "clip_name2": "byt5_small_glyphxl_fp16.safetensors",
+      "type": "hunyuan_image",
+      "device": "default"
+    },
+    "class_type": "DualCLIPLoader",
+    "_meta": {
+      "title": "DualCLIPLoader"
+    }
+  },
+  "29": {
+    "inputs": {
+      "width": 2048,
+      "height": 2048,
+      "batch_size": 1
+    },
+    "class_type": "EmptyHunyuanImageLatent",
+    "_meta": {
+      "title": "EmptyHunyuanImageLatent"
+    }
+  },
+  "41": {
+    "inputs": {
+      "filename_prefix": "ComfyUI",
+      "images": [
+        "66:61",
+        0
+      ]
+    },
+    "class_type": "SaveImage",
+    "_meta": {
+      "title": "Save Image"
+    }
+  },
+  "67": {
+    "inputs": {},
+    "class_type": "GroupOffload",
+    "_meta": {
+      "title": "GroupOffload"
+    }
+  },
+  "66:58": {
+    "inputs": {
+      "vae_name": "hunyuan_image_refiner_vae_fp16.safetensors"
+    },
+    "class_type": "VAELoader",
+    "_meta": {
+      "title": "Load VAE"
+    }
+  },
+  "66:59": {
+    "inputs": {
+      "pixels": [
+        "8",
+        0
+      ],
+      "vae": [
+        "66:58",
+        0
+      ]
+    },
+    "class_type": "VAEEncode",
+    "_meta": {
+      "title": "VAE Encode"
+    }
+  },
+  "66:61": {
+    "inputs": {
+      "samples": [
+        "66:63",
+        0
+      ],
+      "vae": [
+        "66:58",
+        0
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "VAE Decode"
+    }
+  },
+  "66:62": {
+    "inputs": {
+      "noise_augmentation": 0.1,
+      "positive": [
+        "66:64",
+        0
+      ],
+      "negative": [
+        "66:65",
+        0
+      ],
+      "latent": [
+        "66:59",
+        0
+      ]
+    },
+    "class_type": "HunyuanRefinerLatent",
+    "_meta": {
+      "title": "HunyuanRefinerLatent"
+    }
+  },
+  "66:64": {
+    "inputs": {
+      "text": "<|start_header_id|>system<|end_header_id|>\n\nDescribe the image by detailing the color, shape, size, texture, quantity, text, spatial relationships of the objects and background:\n\n<|eot_id|><|start_header_id|>user<|end_header_id|>\n\nMake the image high quality\n<|eot_id|>",
+      "clip": [
+        "26",
+        0
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "CLIP Text Encode (Prompt)"
+    }
+  },
+  "66:65": {
+    "inputs": {
+      "text": "<|start_header_id|>system<|end_header_id|>\n\nDescribe the image by detailing the color, shape, size, texture, quantity, text, spatial relationships of the objects and background:\n\n<|eot_id|><|start_header_id|>user<|end_header_id|>\n\n\n<|eot_id|>",
+      "clip": [
+        "26",
+        0
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "CLIP Text Encode (Prompt)"
+    }
+  },
+  "66:60": {
+    "inputs": {
+      "unet_name": "hunyuanimage2.1_refiner_bf16.safetensors",
+      "weight_dtype": "default"
+    },
+    "class_type": "UNETLoader",
+    "_meta": {
+      "title": "Load Diffusion Model"
+    }
+  },
+  "66:66": {
+    "inputs": {
+      "model": [
+        "66:60",
+        0
+      ]
+    },
+    "class_type": "GroupOffload",
+    "_meta": {
+      "title": "GroupOffload"
+    }
+  },
+  "66:63": {
+    "inputs": {
+      "seed": 770039891896361,
+      "steps": 1,
+      "cfg": 1,
+      "sampler_name": "euler",
+      "scheduler": "simple",
+      "denoise": 1,
+      "model": [
+        "66:66",
+        0
+      ],
+      "positive": [
+        "66:62",
+        0
+      ],
+      "negative": [
+        "66:62",
+        1
+      ],
+      "latent_image": [
+        "66:62",
+        2
+      ]
+    },
+    "class_type": "KSampler",
+    "_meta": {
+      "title": "KSampler"
+    }
+  }
 }

@@ -156,7 +156,8 @@ async def client(tmp_path_factory, request) -> AsyncGenerator[Any, Any]:
 
 
 def _prepare_for_workflows() -> dict[str, Traversable]:
-    add_known_models("loras", KNOWN_LORAS, CivitFile(13941, 16576, "epi_noiseoffset2.safetensors"))
+
+    add_known_models("loras", HuggingFile("artificialguybr/pixelartredmond-1-5v-pixel-art-loras-for-sd-1-5", "PixelArtRedmond15V-PixelArt-PIXARFK.safetensors"))
     add_known_models("checkpoints", HuggingFile("autismanon/modeldump", "cardosAnime_v20.safetensors"))
 
     return {f.name: f for f in importlib.resources.files(workflows).iterdir() if f.is_file() and f.name.endswith(".json")}
@@ -169,7 +170,7 @@ async def test_workflow(workflow_name: str, workflow_file: Traversable, has_gpu:
         pytest.skip("requires gpu")
 
     if "compile" in workflow_name:
-        pytest.skip("compilation has regressed in 0.4.0 because upcast weights are now permitted to be compiled, causing OOM errors in most cases")
+        pytest.skip("compilation has regressed in 0.4.0 and later because upcast weights are now permitted to be compiled, causing OOM errors in most cases")
         return
 
     workflow = json.loads(workflow_file.read_text(encoding="utf8"))

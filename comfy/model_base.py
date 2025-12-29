@@ -1019,7 +1019,7 @@ class LTXV(BaseModel):
 
 
 class HunyuanVideo(BaseModel):
-    def __init__(self, model_config, model_type=ModelType.FLOW, device=None, image_model=None):
+    def __init__(self, model_config, model_type=ModelType.FLOW, device=None):
         super().__init__(model_config, model_type, device=device, unet_model=HunyuanVideoModel)
 
     def encode_adm(self, **kwargs):
@@ -1552,7 +1552,7 @@ class QwenImage(BaseModel):
 
 class HunyuanImage21(BaseModel):
     def __init__(self, model_config, model_type=ModelType.FLOW, device=None):
-        super().__init__(model_config, model_type, device=device, unet_model=HunyuanVideo)
+        super().__init__(model_config, model_type, device=device, unet_model=HunyuanVideoModel)
 
     def extra_conds(self, **kwargs):
         out = super().extra_conds(**kwargs)

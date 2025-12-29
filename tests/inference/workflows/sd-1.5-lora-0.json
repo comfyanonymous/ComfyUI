@@ -106,7 +106,7 @@
   },
   "10": {
     "inputs": {
-      "lora_name": "epi_noiseoffset2.safetensors",
+      "lora_name": "PixelArtRedmond15V-PixelArt-PIXARFK.safetensors",
       "strength_model": 1,
       "strength_clip": 1,
       "model": [

@@ -590,6 +590,7 @@ KNOWN_HUGGINGFACE_MODEL_REPOS: Final[Set[str]] = {
     'appmana/Cosmos-1.0-Prompt-Upsampler-12B-Text2World-hf',
     'llava-hf/llava-onevision-qwen2-7b-si-hf',
     'llava-hf/llama3-llava-next-8b-hf',
+    'PromptEnhancer/PromptEnhancer-32B',
 }
 
 KNOWN_UNET_MODELS: Final[KnownDownloadables] = KnownDownloadables([
@@ -699,6 +700,7 @@ KNOWN_CLIP_MODELS: Final[KnownDownloadables] = KnownDownloadables([
     # Hunyuan Image
     HuggingFile("Comfy-Org/HunyuanImage_2.1_ComfyUI", "split_files/text_encoders/byt5_small_glyphxl_fp16.safetensors"),
     HuggingFile("Comfy-Org/HunyuanImage_2.1_ComfyUI", "split_files/text_encoders/qwen_2.5_vl_7b.safetensors"),
+    HuggingFile("Comfy-Org/Ovis-Image", "split_files/text_encoders/ovis_2.5.safetensors"),
 ], folder_names=["clip", "text_encoders"])
 
 KNOWN_STYLE_MODELS: Final[KnownDownloadables] = KnownDownloadables([
@@ -731,7 +733,7 @@ def _get_known_models_for_folder_name(folder_name: str) -> List[Downloadable]:
     return list(chain.from_iterable([candidate for candidate in _known_models_db if folder_name in candidate]))
 
 
-def add_known_models(folder_name: str, known_models: Optional[List[Downloadable]] | Downloadable = None, *models: Downloadable) -> MutableSequence[Downloadable]:
+def add_known_models(folder_name: str, known_models: KnownDownloadables | Optional[List[Downloadable]] | Downloadable = None, *models: Downloadable) -> MutableSequence[Downloadable]:
     if isinstance(known_models, Downloadable):
         models = [known_models] + list(models) or []
         known_models = None

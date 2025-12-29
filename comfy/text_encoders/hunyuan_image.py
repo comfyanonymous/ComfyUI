@@ -13,7 +13,7 @@ class ByT5SmallTokenizer(sd1_clip.SDTokenizer):
     def __init__(self, embedding_directory=None, tokenizer_data=None):
         if tokenizer_data is None:
             tokenizer_data = {}
-        tokenizer_path = files.get_package_as_path("byt5_tokenizer")
+        tokenizer_path = files.get_package_as_path(f"{__package__}.byt5_tokenizer")
         super().__init__(tokenizer_path, embedding_directory=None, pad_with_end=False, embedding_size=1472, embedding_key='byt5_small', tokenizer_class=ByT5Tokenizer, has_start_token=False, pad_to_max_length=False, max_length=99999999, min_length=1, tokenizer_data=tokenizer_data)
 
 
