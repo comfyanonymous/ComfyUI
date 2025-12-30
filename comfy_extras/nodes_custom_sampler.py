@@ -9,6 +9,7 @@ import comfy.utils
 import node_helpers
 from typing_extensions import override
 from comfy_api.latest import ComfyExtension, io
+import re
 
 
 class BasicScheduler(io.ComfyNode):
@@ -671,7 +672,16 @@ class SamplerSEEDS2(io.ComfyNode):
                 io.Float.Input("s_noise", default=1.0, min=0.0, max=100.0, step=0.01, round=False, tooltip="SDE noise multiplier"),
                 io.Float.Input("r", default=0.5, min=0.01, max=1.0, step=0.01, round=False, tooltip="Relative step size for the intermediate stage (c2 node)"),
             ],
-            outputs=[io.Sampler.Output()]
+            outputs=[io.Sampler.Output()],
+            description=(
+                "This sampler node can represent multiple samplers:\n\n"
+                "seeds_2\n"
+                "- default setting\n\n"
+                "exp_heun_2_x0\n"
+                "- solver_type=phi_2, r=1.0, eta=0.0\n\n"
+                "exp_heun_2_x0_sde\n"
+                "- solver_type=phi_2, r=1.0, eta=1.0, s_noise=1.0"
+            )
         )
 
     @classmethod
@@ -751,8 +761,12 @@ class SamplerCustom(io.ComfyNode):
         out = latent.copy()
         out["samples"] = samples
         if "x0" in x0_output:
+            x0_out = model.model.process_latent_out(x0_output["x0"].cpu())
+            if samples.is_nested:
+                latent_shapes = [x.shape for x in samples.unbind()]
+                x0_out = comfy.nested_tensor.NestedTensor(comfy.utils.unpack_latents(x0_out, latent_shapes))
             out_denoised = latent.copy()
-            out_denoised["samples"] = model.model.process_latent_out(x0_output["x0"].cpu())
+            out_denoised["samples"] = x0_out
         else:
             out_denoised = out
         return io.NodeOutput(out, out_denoised)
@@ -939,8 +953,12 @@ class SamplerCustomAdvanced(io.ComfyNode):
         out = latent.copy()
         out["samples"] = samples
         if "x0" in x0_output:
+            x0_out = guider.model_patcher.model.process_latent_out(x0_output["x0"].cpu())
+            if samples.is_nested:
+                latent_shapes = [x.shape for x in samples.unbind()]
+                x0_out = comfy.nested_tensor.NestedTensor(comfy.utils.unpack_latents(x0_out, latent_shapes))
             out_denoised = latent.copy()
-            out_denoised["samples"] = guider.model_patcher.model.process_latent_out(x0_output["x0"].cpu())
+            out_denoised["samples"] = x0_out
         else:
             out_denoised = out
         return io.NodeOutput(out, out_denoised)
@@ -996,6 +1014,25 @@ class AddNoise(io.ComfyNode):
 
     add_noise = execute
 
+class ManualSigmas(io.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return io.Schema(
+            node_id="ManualSigmas",
+            category="_for_testing/custom_sampling",
+            is_experimental=True,
+            inputs=[
+                io.String.Input("sigmas", default="1, 0.5", multiline=False)
+            ],
+            outputs=[io.Sigmas.Output()]
+        )
+
+    @classmethod
+    def execute(cls, sigmas) -> io.NodeOutput:
+        sigmas = re.findall(r"[-+]?(?:\d*\.*\d+)", sigmas)
+        sigmas = [float(i) for i in sigmas]
+        sigmas = torch.FloatTensor(sigmas)
+        return io.NodeOutput(sigmas)
 
 class CustomSamplersExtension(ComfyExtension):
     @override
@@ -1035,6 +1072,7 @@ class CustomSamplersExtension(ComfyExtension):
             DisableNoise,
             AddNoise,
             SamplerCustomAdvanced,
+            ManualSigmas,
         ]
 
 
