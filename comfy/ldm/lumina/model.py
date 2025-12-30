@@ -491,7 +491,8 @@ class NextDiT(nn.Module):
                 for layer_id in range(n_layers)
             ]
         )
-        self.norm_final = operation_settings.get("operations").RMSNorm(dim, eps=norm_eps, elementwise_affine=True, device=operation_settings.get("device"), dtype=operation_settings.get("dtype"))
+        # This norm final is in the lumina 2.0 code but isn't actually used for anything.
+        # self.norm_final = operation_settings.get("operations").RMSNorm(dim, eps=norm_eps, elementwise_affine=True, device=operation_settings.get("device"), dtype=operation_settings.get("dtype"))
         self.final_layer = FinalLayer(dim, patch_size, self.out_channels, z_image_modulation=z_image_modulation, operation_settings=operation_settings)
 
         if self.pad_tokens_multiple is not None:
