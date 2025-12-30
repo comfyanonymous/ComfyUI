@@ -17,6 +17,7 @@ Base models and diffusion checkpoints for FLUX-based generation.
 - [Flux.1 Dev Asian FP16](#flux1-dev-asian-fp16)
 - [Fluxcstasy v1](#fluxcstasy-v1)
 - [FluxUnchained NF4](#fluxunchained-nf4)
+- [SlimNudeGirls Flux FP8 NSFW](#slimnudegirls-flux-fp8-nsfw)
 
 ---
 
@@ -427,6 +428,72 @@ Photo of a 30 year old Indian++ female with a fair complexion with long hair. Fe
 - Optimized for GPUs with limited VRAM
 - Faster than Q4/Q5 GGUF with similar quality
 - All Flux.1 Dev license terms apply
+
+---
+
+## SlimNudeGirls Flux FP8 NSFW
+
+| Parameter | Value |
+|-----------|-------|
+| **File** | `slimnudegirlsFluxFp8Nsfw_v099ReleaseCandidate.safetensors` |
+| **Location** | `models\unet\` |
+| **Civitai** | https://civitai.com/models/855390/slimnudegirls-flux-fp8-nsfw-release-candidate |
+| **Type** | Unet (FP8) - requires VAE and CLIP |
+| **Version** | v0.9.9 Release Candidate |
+
+### Description
+Specialized checkpoint for slim nude/topless girls. Merge of Flux base model with specially trained LoRAs. Created because the author couldn't find a Flux checkpoint creating slim nude girls with tiny breasts. This model creates erotic images but no sexual pictures.
+
+### Required components
+- Flux VAE: `ae.safetensors`
+- Flux Text Encoders: `clip_l.safetensors` and `t5xxl_fp8_e4m3fn.safetensors`
+
+### Key features
+- Optimized for slim body types with tiny breasts
+- Trained on poses: standing, sitting, kneeling, squatting, lying, on all fours
+- Supports fully/mostly shaved or hairy vagina
+- Better compatible with riding, sitting and lying positions (v0.9.9)
+
+### Version hints (v0.9.9)
+- This version might be a bit strong
+- When using LoRAs, you might need to increase LoRA strength by 10%
+
+### Prompting tips
+- Use `slim nude/topless girl` or `slim nude/topless woman`
+- For difficult situations, enforce with:
+  - `with visible vagina/breasts`
+  - `with fully/mostly shaved/hairy visible vagina`
+  - Use weight syntax: `(nude:1.3)`
+
+### Sample prompts
+
+**Prompt 1 (Garter belt cafe):**
+```
+front view, gartbt, (slim nude girl) with black stockings and garters and high heels, standing in a crowded street cafe, serving drinks, necklace, short brunette wild hair style <lora:GarterBeltFlux1.0:1.2>
+```
+
+**Prompt 2 (Mall walking):**
+```
+(slim 25yo nude girl) in boots walking in crowded mall. holds hair. mkpotail. long blonde hair. (visible fully shaved pussy) <lora:MakePonytailFlux:1.1>
+```
+
+### Recommended use cases
+- Slim female models with cars/automotive
+- Fashion model style workflows
+- Nude photography with petite body types
+- LoRA sample generation (non-nude training images)
+
+### Tested combinations
+```
+<lora:GarterBeltFlux1.0:1.2>
+<lora:MakePonytailFlux:1.1>
+```
+
+### Notes
+- Early preview version - further enhancements planned
+- Not designed for sexual content, only erotic/nude
+- Great for workflows with slim models (automotive, fashion)
+- When combining with LoRAs, increase LoRA strength by ~10%
 
 ---
 

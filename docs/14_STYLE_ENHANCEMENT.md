@@ -25,6 +25,9 @@ This section covers LoRAs specifically designed for improving image quality, enh
 - [FLUX Cum on Face](#flux-cum-on-face) - Facial/cum effect without face alteration
 - [Game of Cum V2](#game-of-cum-v2) - Best cum effect LoRA (face, breasts, body)
 - [Realistic People Photograph FLUX](#realistic-people-photograph-flux) - Hyper-realistic professional photo style
+- [CumHereV1](#cumherev1) - Non-facial cum (clothes, hair, body, creampie)
+- [Amsterdam Red Light District](#amsterdam-red-light-district) - RLD window rooms environment
+- [Beautiful Girls' Faces - PrettyNova](#beautiful-girls-faces---prettynova) - Elegant diverse female faces
 
 ---
 
@@ -1078,6 +1081,316 @@ Base: FLUX Dev
 - Works great with NSFW_master and XLabs Realism
 - Combine with film stock LoRAs for analog look
 - Lower strength (0.5-0.6) when stacking multiple LoRAs
+
+---
+
+## CumHereV1
+
+| Parameter | Value |
+|-----------|-------|
+| **File** | `CumHereV1.safetensors` |
+| **Civitai** | https://civitai.com/models/730199/cumherev1-flux-cum-lora-clothes-hair-non-facials |
+| **Trigger word** | None (understands "cum" naturally) |
+| **Strength** | 0.8-1.0 |
+| **Type** | Effect / NSFW |
+| **Training** | 7h on RTX 4090, 4000 steps, 34 images |
+
+### Description
+Non-facial cumshot LoRA focused on realistic cum on clothes (sweaters, panties, swimsuits), breasts, tummy, hair, legs, feet, creampie, and more. Complements facial cum LoRAs. No trigger word needed - just describe what you want specifically.
+
+### Target areas
+- Clothes (sweaters, panties, swimsuits)
+- Breasts and nipples
+- Tummy/belly
+- Hair
+- Legs and feet
+- Ass and panties
+- Body (full coverage)
+- Creampie/cum in pussy
+
+### Usage tips
+- Weight 1.0 works well, reduce to 0.8 if too much cum
+- No need for "white cum" - already understands cum is white
+- Be very specific: "There is cum on her ass and panties"
+- Use "a lot of cum" for more quantity
+- Not trained on facials but may randomly add them
+
+### Tested resolutions
+- 832 x 1216
+- 896 x 1152
+- 1024 x 1024
+
+### Sample prompts
+
+**Prompt 1 (Creampie library):**
+```
+Young nude skinny 25 year old woman smiling while on a mat spreading legs, creampie, cum in her pussy, she is wearing a silver necklace, sharp focus on her pussy, cum is dripping down her ass onto the floor. sunlight is coming in trough the window in a library. she has a slim naked body. She is holding a sign that says 'Cum inside me!' with a heart on it.
+```
+
+**Prompt 2 (Cowgirl cum covered):**
+```
+full body shot of a slim and slender young cowgirl with large breasts. she is a blonde with freckles. sitting, spreading her legs, showing her pussy, creampie, cum drip, cum in pussy. her face and body are covered in loads of cum, cum shot. she is wearing a typical classic cowboy outfit and hat, white boots with spurs. her cowboy clothes have been ripped and torn apart, revealing her body, panties pulled aside. she is leaning back with her back on the wall, head down, looking away. she is sad, embarrassed, lost, open mouth. in an empty pub in the wild west, after hours, dimmed light, shadows.. <lora:legspread-flux:0.5> <lora:CumHereV1:0.5>
+```
+
+**Prompt 3 (Snapchat style):**
+```
+<lora:[FLUX]Noisify:0.8>, low light, noise, grain, jpeg artifacts, night, A low-quality 2015 Snapchat photo depicts a smiling woman in bed wearing a bra with cum on her mouth, cum drips, <lora:CumHereV1:1>
+```
+
+**Prompt 4 (Egyptian palace):**
+```
+Naked slender Egyptian girl with small perky breasts is lying on her back, wearing intricate golden Egyptian jewelry, exhausted, looking at viewer, scenic palace in Ancient Egypt, there is cum all over her body
+```
+
+**Prompt 5 (Amsterdam red light):**
+```
+half bodyshot photography from street at window, girl displayed behind behind window, view through glass, reflections in window, laughing hysterically, girl is a shy and ashamed brunette girl with big boobs, choker, wearing a neon pink skirt and black see through tube top, big breasts, huge cleavage, wearing clear pleaser 10inch plattform heels, garter, fishnet thigh high stockings, she is sitting on red bed between two old men touching her thigh and breast:1.6, in red light district street in amsterdam, she has cum on her face and chest, bukkake, she feels sad, feeling uncomfortable and shocked, she has a lot of cum on her face, facial cumshot, vertical purple neon tube lights along windows, pink neon letters "happy hour bukkake", spotlight on girl
+```
+
+### Prompting examples
+- `There is cum on her ass and panties`
+- `There is cum all over the front of her swimsuit`
+- `There is cum on her tummy`
+- `There is a lot of cum on her breasts and nipples`
+- `There is cum all over her body`
+- `creampie, cum in her pussy, cum drip`
+
+### Tested combinations
+
+**Combination 1 (Creampie focus):**
+```
+Checkpoint: UltraReal Fine-Tune v2.0
+<lora:Creampie_Flux:0.5>
+<lora:CumHereV1:1>
+```
+
+**Combination 2 (Full cum scene):**
+```
+Checkpoint: STOIQO Afrodite FLUX
+<lora:Perfect_Full_Round_Breasts:1>
+<lora:Cum_On_Face_FLUX:1>
+<lora:CumHereV1:1>
+<lora:NippleDiffusion-Flux:1>
+```
+
+**Combination 3 (Legspread + creampie):**
+```
+Checkpoint: Real Horny Pro V3
+<lora:CumHereV1:1>
+<lora:Legspread_Flux:1>
+```
+
+**Combination 4 (Noisy/amateur):**
+```
+<lora:Noisify:0.8>
+<lora:CumHereV1:1>
+```
+
+**Combination 5 (Skinny body):**
+```
+Base: FLUX Dev
+<lora:CumHereV1:1>
+<lora:Flux_Skinny_Thinspo_Petite:1>
+```
+
+**Combination 6 (Amateur style):**
+```
+Base: FLUX Dev
+<lora:Amateur_Flux:0.7>
+<lora:Huge_cumshot_facial:0.85>
+<lora:CumHereV1:0.9>
+```
+
+### Compatible checkpoints
+- flux1-dev-fp8
+- flux1-dev-fp16
+- flux1-schnell (adjust weight)
+- UltraReal Fine-Tune
+- STOIQO Afrodite
+- Real Horny Pro V3
+- Fluxmania Kreamania
+
+### Notes
+- Complements facial cum LoRAs (use both for full coverage)
+- Trained on realistic images, anime/cartoon results are hit or miss
+- Works well with legspread, creampie, and body type LoRAs
+- Lower weight if cum looks unnatural
+
+---
+
+## Amsterdam Red Light District
+
+| Parameter | Value |
+|-----------|-------|
+| **File** | `Rldstreet.safetensors` |
+| **Civitai** | https://civitai.com/models/784975/amsterdam-redlight-district-outside-rooms |
+| **Trigger word** | `rldstreet` |
+| **Strength** | 1.0-2.0 |
+| **CFG** | 7.5 |
+| **Type** | Environment / Location |
+| **Version** | V1 |
+
+### Description
+Amsterdam Red Light District street environment LoRA. Based on Office 52 outside rooms photos. Creates authentic RLD window room scenes with neon lighting, window displays, and street atmosphere.
+
+### Environment features
+- Window displays with girls
+- Neon tube lights (purple, red, blue)
+- Street view through glass
+- Reflections in windows
+- Red/pink lighting
+- Signboards with neon accents
+
+### Recommended settings
+- **Weight:** 2.0 (high weight recommended)
+- **CFG:** 7.5
+- **Style:** `rldstreet style`
+
+### Sample prompts
+
+**Prompt 1 (Nerdy girl bukkake):**
+```
+view from above, Homely very nerdy girl with thin metallic black rimmed glasses, grey eyes, she looks very insecure and naive, ponytail light brown-blonde ponytail hair, black pvc halter top, large breasts, huge cleavage, neutral background, cum on face, cum facial. darkbrown lipstick, bukkake. cumshot, jizz she is giggling histerically (horse faced) but almost cries, very emotional
+```
+
+**Prompt 2 (Spanish woman neon city):**
+```
+This is a high-resolution photograph featuring A young brunette spanish woman posed. curly hair, She is wearing SGWN19clothing, a tight, cut-out pink bodysuit. squeezing breasts, thigh high boots. This photograph captures with backdrop of a city with neon light. there are a lot of signboard behind that use red and blue accent.
+```
+
+**Prompt 3 (Living room with students):**
+```
+half bodyshot photography of a brunette spanish girl with big boobs, wearing a pure pvc skirt with purple-black snake print, and black laced blouse, shiny dark lipstick, big breasts, huge cleavage, she is wearing a pair of hot black overknee boots, and the plattform base is 10inch, in living room sitting on a blue sofa in amsterdam, rldstreet style, girl sitting in between two horny male students in casual outfit, trying to kiss and touch
+```
+
+**Prompt 4 (Window bukkake scene):**
+```
+half bodyshot photography of a shy and ashamed brunette girl with big boobs, heavy makeup, dark eyeliner and eyeshadow, choker, wearing a black pleated skirt and black laced blouse, big breasts, huge cleavage, h33l wearing clear:1.6 pleaser 10inch plattform heels, garter, fishnet thigh high stockings, sitting on bed with crossed legs, behind a window in red light district street in amsterdam, rldstreet style, she is very shy and ashamed, she has cum on her face and chest, bukkake, she feels sad, feeling uncomfortable and shocked by old men starring at her through the window from street, feeling helpless and ashamed, she has a lot of cum on her face, facial cumshot, vertical purple neon tube lights along windows, spotlight on girl, girl surrounded by old men:1.6, old men are horny and touchy, talking to girl, old man trying to kiss her:1.6, old man reaches under her skirt:1.6
+```
+
+**Prompt 5 (Leopard print window):**
+```
+half bodyshot photography of a brunette girl with big boobs, wearing a pure pvc mini skirt with abstract black leopard print, and black lingerie blouse, big breasts, huge cleavage, she is wearing a pair of hot black overknee boots, the plattform base is 10inch posing behind a window in red light district street in amsterdam, rldstreet style, girl surrounded by old men, horny and touchy
+```
+
+### Keywords
+- `rldstreet` - **REQUIRED** trigger word
+- `rldstreet style`
+- `behind a window in red light district street in amsterdam`
+- `vertical purple neon tube lights along windows`
+- `spotlight on girl`
+- `view through glass`
+- `reflections in window`
+
+### Tested combinations
+
+**Combination 1 (Cum facial + glasses):**
+```
+Base: FLUX Dev
+<lora:Rldstreet:1>
+<lora:Cum_Facial_FLUX:1.4>
+<lora:cum_on_glasses_FLUX:1.3>
+```
+
+**Combination 2 (Bodysuit + cum):**
+```
+Base: FLUX Dev
+<lora:Rldstreet:1>
+<lora:Cut-out_Pink_Bodysuit:1>
+<lora:Cum_on_face_FLUX:1>
+```
+
+**Combination 3 (Amateur + heels):**
+```
+Base: FLUX Dev
+<lora:Amateur_Flux:0.4-0.7>
+<lora:Pleaser_Brand_Shoes:0.9-1.2>
+<lora:Rldstreet:1>
+```
+
+### Works well with
+- Cum LoRAs (Cum on Face, CumHereV1)
+- Pleaser Brand Shoes
+- Amateur Flux
+- Clothing LoRAs (bodysuits, PVC)
+- Cum on glasses FLUX
+
+### Notes
+- Use high weight (2.0) for strong RLD atmosphere
+- CFG 7.5 recommended
+- Great for window display scenes
+- Combines well with cum and clothing LoRAs
+- Based on real Office 52 RLD rooms
+
+---
+
+## Beautiful Girls' Faces - PrettyNova
+
+| Parameter | Value |
+|-----------|-------|
+| **File** | `PrettyNova_Beautiful_Faces.safetensors` |
+| **Original filename** | `lora.TA_trained.safetensors` |
+| **Civitai** | https://civitai.com/models/1154025/beautiful-girls-faces-nova-of-elegance-and-diversity-without-limits |
+| **Trigger word** | `PrettyNova` |
+| **Strength** | 0.95-1.0 |
+| **Type** | Style / Face Enhancement |
+| **Version** | v1.5 |
+
+### Description
+Nova LoRA offers a practical tool for generating beautiful and diverse female faces with precise details. Perfect for designers and artists seeking a blend of elegance and variety to meet their project needs. Brings creations to life with a unique touch of beauty.
+
+### Features
+- Beautiful, elegant female faces
+- Diverse facial features
+- Precise facial details
+- Works well with various styles
+
+### Sample prompts
+
+**Prompt 1 (Perfection style combo):**
+```
+ultra detailed and realistic photograph of perfection style PrettyNova ultra realistic photograph highly detailed perfect composition <lora:perfection_style_v2d:1> <lora:PrettyNova_Beautiful_Faces:0.95>
+```
+
+**Prompt 2 (Fantasy dancer):**
+```
+She is the girl I dreamed of, hair platinum-blonde wild pigtails, dancer, Petite, Futuristic, Fantasy forest, Ravenous, You can tell she's not really human, She has every attribute of human in physical form, perfect, Alluring demure attractive beautiful, Action pose, Dancing, Dramatic lighting, Cinematic, Epic composition, PrettyNova, Perfect hand
+```
+
+### Keywords
+- `PrettyNova` - **REQUIRED** trigger word
+- `beautiful face`
+- `elegant`
+- `diverse`
+- `precise details`
+- `perfection style`
+
+### Tested combinations
+
+**Combination 1 (Perfection style):**
+```
+<lora:perfection_style_v2d:1>
+<lora:PrettyNova_Beautiful_Faces:0.95>
+```
+
+**Combination 2 (Cyber + Hands):**
+```
+<lora:Cyber_Flux:0.25>
+<lora:Hand_F1D_v2:1>
+<lora:PrettyNova_Beautiful_Faces:1>
+```
+
+**Combination 3 (GarterBelt):**
+```
+<lora:GarterBeltFlux1.0:1>
+<lora:PrettyNova_Beautiful_Faces:1>
+```
+
+### Notes
+- Use trigger word `PrettyNova` for best face results
+- Works great with Detailed Perfection Style LoRA
+- Enhances facial beauty without altering overall style
+- Good for fantasy, fashion, and portrait work
 
 ---
 

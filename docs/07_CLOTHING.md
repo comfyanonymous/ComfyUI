@@ -20,6 +20,9 @@ LoRAs for clothing effects, fashion styles, and outfit-related generation.
 - [FLUX Sequin Dress](#flux-sequin-dress)
 - [FLUX Cutout Off-Shoulder Crop Top](#flux-cutout-off-shoulder-crop-top)
 - [FLUX Racequeens 4 Everyone](#flux-racequeens-4-everyone)
+- [Pleaser Brand Shoes](#pleaser-brand-shoes)
+- [GarterBelt Flux Dev](#garterbelt-flux-dev)
+- [Nude in Garters - Fully Fashioned Stockings](#nude-in-garters---fully-fashioned-stockings)
 
 ---
 
@@ -833,6 +836,488 @@ The vehicle is the 2026 Toyota GR Supra Mk5, a high-performance 2-Door sports ca
 - Supports NSFW variations (crotchless pants)
 - Great for automotive promotional photography
 - Add photographer style references for quality boost
+
+---
+
+## Pleaser Brand Shoes
+
+| Parameter | Value |
+|-----------|-------|
+| **File** | `Pleaser_Brand_Shoes-000001.safetensors` |
+| **Civitai** | https://civitai.com/models/752583/pleaser-brand-shoes |
+| **Trigger word** | `h33l` (use for heels) |
+| **Strength** | 0.65-1.95 |
+| **Type** | Clothing / Footwear |
+| **Version** | V1 |
+
+### Description
+FLUX LoRA for Pleaser brand style platform stilettos. Generates a wide variety of platform heels: pumps, sandals, booties, peep toes, mules. Trained to recognize embellishments (pyramid studs, rhinestones), materials (patent leather, acrylic), and can create cutout soles.
+
+### Shoe styles
+- Platform pumps
+- Platform sandals
+- Booties
+- Peep toes
+- Mules
+- Thigh high boots
+- Ankle strap heels
+
+### Materials & features
+- Patent leather
+- Acrylic/transparent/clear
+- Rhinestones
+- Pyramid studs
+- Cutout soles
+- Crisscrossed straps
+
+### Usage tips
+- Use `h33l` trigger word
+- Refer to sole as "base" (e.g., "10inch platform base")
+- Specify material: "clear", "patent leather", "acrylic transparent"
+- Describe strap style: "crisscrossed straps", "ankle strap"
+
+### Sample prompts
+
+**Prompt 1 (Abandoned car park):**
+```
+The image is a high-resolution full body view photograph featuring a woman in a bright and sunny abandonned car park with car wrecks. she is bending over car hood and downblouse. wears transparent platform heels. She is a white woman with long, straight blonde hair, styled straight. big breasts. Her skin tone is fair, and she has a slender, athletic build with moderate breast size. She is wearing a provocative, she has heavy makeup, tight black mini dress with a plunging neckline featuring a series of cutouts and silver chains running along the neckline, revealing a considerable amount of skin. she wears black fishnet stockings with laced trim,
+```
+
+**Prompt 2 (Whaletail street):**
+```
+view from the back:1.6, visible thong above pants:1.6, <lora:amateur:1>, amateurlora, latina girl, long brown hair, heavy black eyeliner, amateur photography of a pale woman, very white skin, h33l, full body, inviting pose, large perky breasts, backside view:1.6, amateur photograph, she wears low-rise black pants, The pants are revealing pslip and the top whaletail of a black thong around her waist, wearing a pair of hot clear peep toe h33ls, the plattform base is 10inch high transparent and the straps are crisscrossed, wearing a strapless black tube top, she walks hand in hand in the same direction with her boyfriend on a crowded road, garbage laying around, sunlight, bright sunlight and shadows on girl, old and ugly men watching from background, cityscape background
+```
+
+**Prompt 3 (Vienna stockings):**
+```
+ultra detailed cinematic film still enviroment: The scene takes place on the square in front of the stephansdom in vienna., action: Photo shows extremely pretty and sexy arab woman wearing fully fashioned nylon stockings, ffstockings, and black garters (suspenders), she is standing. detailed erect nipples extremely beautiful and sexy dressed woman has glossy skin and short black hair. in in a park wearing white gartbt front view stockings garters and high heels patent leather boots h33l highly detailed perfect composition, ultra realistic photograph <lora:ffstockings8_DEV-000100:0.9> <lora:nipplediffusion-f1:1> <lora:GarterBeltFlux1.0:1> <lora:Pleaser_Brand_Shoes-000001:1>
+```
+
+**Prompt 4 (Student living room):**
+```
+<lora:amateur:1>, amateurlora, chubby brunette amateur photography of a pale woman, white skin, h33l, full body, dynamic inviting pose, big perky breasts, side view, amateur photograph, wearing black thigh high boots, the base is 10inch high, wearing a black micro skirt and a light strapless pink tube top, natural lighting, standing in student living room before sofa and window
+```
+
+**Prompt 5 (RLD Amsterdam):**
+```
+half bodyshot photography of a German brunette girl with big boobs, she is ashamed and embarrassed:1.6, she is standing stiff and covering her body with her arms, wearing a pure top with black leopard print, big breasts, huge cleavage, she wears low-rise black pants, The pants are pulled down slightly, revealing the top of a black thong, she is wearing a pair of h33l wearing clear pleaser 10inch plattform heels, standing in front of street cafe in red light district street in amsterdam, rldstreet style, girl surrounded by ol men, horny and starring lusty at girl
+```
+
+**Prompt 6 (Night bench):**
+```
+h33l, Full body cinematic still frame of a black haired white woman sitting down on a bench next to the sidewalk at night fixing her shoe. The woman has a short choppy hairstyle with wispy bangs. She's leaning down to adjust the ankle strap on her golden yellow patent leather h33ls, peep toe, she's wearing a navy blue fitted cropped blazer and a yellow blouse with form fitting stretchy skinny jeans in a dark blue denim. On her head she wears a navy cabbie hat cocked slightly to the side, big silver hoop earrings, yellow handbag
+```
+
+### Keywords
+- `h33l` - trigger word for heels
+- `platform heels` / `platform stilettos`
+- `10inch platform base`
+- `clear pleaser heels`
+- `transparent platform`
+- `peep toe`
+- `patent leather`
+- `acrylic transparent clear`
+- `crisscrossed straps`
+- `ankle strap`
+- `thigh high boots`
+
+### Tested combinations
+
+**Combination 1 (Downblouse + dress):**
+```
+Base: FLUX Dev
+<lora:RealDownblouse:1>
+<lora:Pleaser_Brand_Shoes:0.65>
+<lora:black_sexy_dress:1.4>
+<lora:cutout_dress_with_straps:1>
+```
+
+**Combination 2 (Whaletail):**
+```
+Base: FLUX Dev
+<lora:Pleaser_Brand_Shoes:1.3>
+<lora:Panty_Slip_Whaletail:1.2>
+<lora:whaletail_thong:1>
+```
+
+**Combination 3 (Stockings + garters):**
+```
+Base: FLUX Dev
+<lora:Pleaser_Brand_Shoes:1>
+<lora:NippleDiffusion-Flux:1>
+<lora:GarterBelt_Flux:1>
+<lora:ffstockings:0.9>
+```
+
+**Combination 4 (Amateur + chubby):**
+```
+Base: FLUX Dev
+<lora:Amateur_Flux:1>
+<lora:Pleaser_Brand_Shoes:1.3>
+<lora:Chubby_Body_Type:0.15>
+<lora:Thigh_high_boots:0.25>
+```
+
+**Combination 5 (RLD + Amateur):**
+```
+Base: FLUX Dev
+<lora:Amateur_Flux:0.7>
+<lora:Pleaser_Brand_Shoes:0.9>
+<lora:Rldstreet:1>
+```
+
+**Combination 6 (Microskirt + Amateur):**
+```
+Base: FLUX Dev
+<lora:MicroSkirt_FLUX:0.45>
+<lora:Amateur_Flux:1>
+<lora:Pleaser_Brand_Shoes:1.3>
+```
+
+### Works well with
+- Amateur Flux
+- Whaletail / Panty Slip LoRAs
+- Amsterdam RLD
+- Stockings / Garter Belt LoRAs
+- Downblouse LoRA
+- Body type LoRAs (chubby, etc.)
+- Thigh high boots
+
+### Notes
+- Very versatile - works with many clothing combinations
+- Higher weight (1.3-1.95) for more prominent shoes
+- Lower weight (0.65-0.9) when combining with many LoRAs
+- Use "base" instead of "sole" for platform height
+- Specify platform height: "10inch platform base"
+
+---
+
+## GarterBelt Flux Dev
+
+| Parameter | Value |
+|-----------|-------|
+| **File** | `GarterBeltFlux1.0.safetensors` |
+| **Civitai** | https://civitai.com/models/992358/garterbelt-flux-dev-option-nude-girl |
+| **Trigger word** | `gartbt` |
+| **Strength** | 1.0 (1.2 for forced nudity) |
+| **Type** | Clothing / Stockings / Garters |
+| **Compatibility** | FLUX Dev only (not Schnell) |
+
+### Description
+Garter belt for stockings with garters w/o anything else. This LoRA can create nude girls (also with thigh high boots or holdup stockings w/o garters) without an NSFW Checkpoint. All sample images can be created with FLUX 1 Dev and only this LoRA.
+
+**Other versions available:**
+- GarterBelt Flux Schnell - for Schnell
+- GarterBelt XL - for SDXL
+- GarterBelt Pony - for Pony
+
+### Prompt structure
+Build your prompt like this:
+```
+'gartbt', <'front'|'side'> 'view', <'slim nude girl'> in red 'stockings' and 'garters' ...
+```
+
+### Sample prompts
+
+**Prompt 1 (Front view street):**
+```
+gartbt, front view, slim nude girl in red stockings and garters standing in a crowded street,
+```
+
+**Prompt 2 (Side view mall):**
+```
+gartbt, side view, girl in red stockings and garters standing in a crowded mall,
+```
+
+**Prompt 3 (Thigh high boots):**
+```
+gartbt, front view, slim nude girl in black (thigh high boots) in a crowded park
+```
+
+**Prompt 4 (Vienna with Pleaser heels):**
+```
+ultra detailed cinematic film still enviroment: The scene takes place on the square in front of the stephansdom in vienna., action: Photo shows extremely pretty and sexy arab woman wearing fully fashioned nylon stockings, ffstockings, and black garters (suspenders), she is standing. detailed erect nipples extremely beautiful and sexy dressed woman has glossy skin and short black hair. in in a park wearing white gartbt front view stockings garters and high heels patent leather boots h33l highly detailed perfect composition, ultra realistic photograph <lora:ffstockings8_DEV-000100:0.9> <lora:nipplediffusion-f1:1> <lora:GarterBeltFlux1.0:1> <lora:Pleaser_Brand_Shoes-000001:1>
+```
+
+**Prompt 5 (Crossfit girl):**
+```
+naked nude crossfit girl, pull-ups, large breasts, shaved pussy, visible labia, wearing a black garter belt <lora:GarterBeltFlux1.0:0.5>
+```
+
+**Prompt 6 (Street cafe):**
+```
+front view, gartbt, (slim nude girl) with black stockings and garters and high heels serving food on a plate in a crowded street cafe, necklace, short brunette wild hair style <lora:GarterBeltFlux1.0:1.2>
+```
+
+**Prompt 7 (Christmas watercolor):**
+```
+A watercolor painting of a heartbreakingly beautiful tall 21 year old woman with long platinum blonde hair styled in long braided pigtails. She has heavy makeup with dramatic smokey eyeshadow and winged mascara and glossy blood red lips. She has piercing ice-blue eyes and a seductive smile on her face. She has a fit, toned and very tanned body with 36D natural breasts. She is wearing reij-rxmslb outfit, reij-rxmslb hat with a white pom-pom, reij-rxmslb bandeau top, red thong, gartbt, white stockings. She stands in the doorway to the living room. There is a Christmas tree, decorations and presents behind her.
+```
+
+**Prompt 8 (Romania roadside):**
+```
+woman, cute shy, younger and slim body with tender thin figure, small naked nude body, platinum blonde ponytail hair, cute and soft face, deeply suntanned seemless naked skin, naked pussy, red fishnet stockings, red high shiny heels, red transparent bra, large breasts, cleavage, midriff, little bag strapped over shoulder, standing at roadside, lot, old worn down van, worn down gas station parking lot of a rest area in romania at daytime, littered unpaved dusty road, hot summer day, prostitutes in latex dress standing in distance background
+```
+
+### Keywords
+- `gartbt` - **REQUIRED** trigger word
+- `front view` / `side view`
+- `slim nude girl`
+- `garters`
+- `stockings`
+- `garter belt`
+- `thigh high boots`
+- `fully fashioned nylon stockings`
+- `holdup stockings`
+
+### Tested combinations
+
+**Combination 1 (Stockings + Heels + Nipples):**
+```
+<lora:ffstockings8_DEV-000100:0.9>
+<lora:nipplediffusion-f1:1>
+<lora:GarterBeltFlux1.0:1>
+<lora:Pleaser_Brand_Shoes-000001:1>
+```
+
+**Combination 2 (getphat Reality NSFW):**
+```
+Checkpoint: getphat FLUX Reality NSFW v3.0
+<lora:GarterBeltFlux1.0:0.5>
+```
+
+**Combination 3 (Mystic XXX):**
+```
+<lora:GarterBeltFlux1.0:1>
+<lora:MysticXXX-v7:1>
+```
+
+**Combination 4 (FluxUnchained):**
+```
+<lora:FluxUnchained:1>
+<lora:GarterBeltFlux1.0:1>
+```
+
+**Combination 5 (Beautiful Faces):**
+```
+<lora:GarterBeltFlux1.0:1>
+<lora:Beautiful_Girls_Faces:1>
+```
+
+**Combination 6 (Watercolor + Christmas):**
+```
+<lora:AirKiss_Flux:1>
+<lora:Watercolor_Flux:1>
+<lora:GarterBeltFlux1.0:1>
+<lora:Reij_Xmas_lingerie:0.7>
+```
+
+### Notes
+- Use strength 1.0 for standard shots
+- Increase to 1.2 for forced/more prominent nudity
+- Lower strength (0.5) works well with NSFW checkpoints
+- Works with thigh high boots or holdup stockings without garters
+- Compatible with watercolor and artistic styles
+- Does NOT work with Flux Schnell - use Schnell version instead
+
+---
+
+## Nude in Garters - Fully Fashioned Stockings
+
+| Parameter | Value |
+|-----------|-------|
+| **File** | `ffstockings8_DEV-000100.safetensors` |
+| **Civitai** | https://civitai.com/models/1201918/nude-in-garters-fully-fashioned-stockings |
+| **Trigger word** | `ffstockings` |
+| **Strength** | 0.7-1.0 |
+| **Type** | Clothing / Stockings / Garters |
+| **Version** | V2 (ffs v1.08) |
+
+### Description
+Black fully fashioned vintage-style stockings with garters/suspenders. Worn nude or with panties. V2 is more flexible and supports garters/suspenders/corsets of any color. Training data does not contain hands or faces - should not be face or hand altering.
+
+### Prompt structure
+
+**V2 (current):**
+```
+(slim) woman wearing blackffstockings and <color> garters (suspenders), fully fashioned stockings
+we look at her front / side / back (in angular view)
+```
+
+**V1:**
+```
+woman wearing ffstockings and black garters (suspenders), fully fashioned nylon stockings
+we look at her front / side / back
+```
+
+### Sample prompts
+
+**Prompt 1 (Korean theater stage):**
+```
+Photo shows a very pretty slim korean woman in on a big stage of a theater wearing ffstockings and black garters (suspenders), we look at her back (angular back view) standing. she is smiling, fully fashioned nylon stockings, she wears a lace bra, ultra realistic photograph <lora:ffstockings8_DEV-000100:1>
+```
+
+**Prompt 2 (Vietnamese desert):**
+```
+Photo shows a very pretty slim vietnamese woman woman with huge breasts wearing ffstockings and black garters (suspenders), she is high angle, fully fashioned nylon stockings, she wears a latex corset, front view in the dessert, aesthetic realistic masterpiece <lora:ffstockings8_DEV-000100:1> <lora:AstroMorphV1:0.8>
+```
+
+**Prompt 3 (Indian street corner):**
+```
+Photo shows a very pretty slim indian woman woman with huge breasts wearing ffstockings and black garters (suspenders), she is low angle, fully fashioned nylon stockings, she wears a corset, back view on a busy street corner, realistic movie scene <lora:ffstockings8_DEV-000100:1> <lora:horror_cctv_flux:0.9>
+```
+
+**Prompt 4 (Cyborg Japanese):**
+```
+CyberBotGirlz, Her body is a fusion of human and robotic features, with a curvy, voluptuous figure and prominent breasts., Photo shows a very pretty slim japanese woman woman with huge breasts wearing ffstockings and black garters (suspenders), she is wearing high heels, fully fashioned nylon stockings, she wears a latex corset, back view on an empty street, extremely detailed, ideal for wallpaper art <lora:ffstockings8_DEV-000100:1> <lora:CyberBotGirlzFlux:1>
+```
+
+**Prompt 5 (Mature woman whiskey):**
+```
+A calm scene of a mature woman in her 40s, sitting alone in her living room, enjoying a double whiskey. She is seated on a brown leather armchair, holding a crystal-cut whiskey glass. The main light source comes from a lamp placed right next to her, while candles scattered around the room provide soft ambient lighting. The woman is brunette, slim body, her legs crossed. She has elegant makeup, with red nail polish on both her hands and feet, creating a sophisticated yet understated look. The setting is warm and intimate, captured in a landscape format. <lora:ffstockings8_DEV-000100:1> <lora:warm_light_style:1>
+```
+
+**Prompt 6 (Hungarian street dramatic makeup):**
+```
+makeup drmtcmkp style extremely beautiful hungarian woman in fully fashioned nylon stockings, Photo shows woman wearing ffstockings and black garters (suspenders), fully fashioned nylon stockings, Photo shows woman wearing ffstockings and black garters (suspenders) in The street is broad and filled with people. Some have stopped and stare at what is happening. It's evening, but the street lamps light up the area. It's cold and people are wearing coats. <lora:ffstockings8_DEV-000100:0.9> <lora:Dramatic_Makeup_FLUX:0.85>
+```
+
+**Prompt 7 (Latex bodysuit dark background):**
+```
+aesthetic realistic masterpiece enviroment: dark background, action: Photo shows extremely pretty and sexy young woman wearing fully fashioned nylon stockings, ffstockings, and black garters (suspenders), she is standing. latex, bodysuit, long, glossy black latex gloves ultra realistic photograph <lora:ffstockings8_DEV-000100:0.9> <lora:latex_clothes_v1:0.9>
+```
+
+**Prompt 8 (Prison doorway with Caira character):**
+```
+cinematic film still <lora:Caira_Flux:1.2> A photorealistic profile angle photograph of a woman in lingerie standing in a doorway, looking over her shoulder with a confident expression. The woman is wearing black lingerie, including a bra and panties. The background is a prison cell, the wall is a dirty, concrete floor. <lora:ffstockings8_DEV-000100:0.8> ffstockings, fully fashioned stockings. shallow depth of field, vignette, highly detailed, high budget, bokeh, cinemascope, moody, epic, gorgeous, film grain, grainy
+```
+
+**Prompt 9 (Neon glow):**
+```
+Noc-glowingneon, glowing neon, Photo shows a very pretty slim blond woman wearing ffstockings and black garters (suspenders), she is high angle, fully fashioned nylon stockings, she wears pvcgarters, extremely detailed, ideal for wallpaper art <lora:ffstockings8_DEV-000100:1> <lora:noc-glowingneon:1.1>
+```
+
+**Prompt 10 (High-tech robot):**
+```
+the woman is a female high-tech robot with lots of cables, wires and led. stylehghtc, Photo shows a very pretty slim blond woman wearing ffstockings and black garters (suspenders), she is smiling, fully fashioned nylon stockings, she wears a lace bra, extremely detailed, ideal for wallpaper art <lora:ffstockings8_DEV-000100:1> <lora:hghtc_style:0.8>
+```
+
+### Keywords
+- `ffstockings` - **REQUIRED** trigger word
+- `fully fashioned stockings` / `fully fashioned nylon stockings`
+- `black garters (suspenders)`
+- `<color> garters` - any color supported in V2
+- `we look at her front` / `side` / `back` / `angular view`
+- `latex corset` / `lace bra` / `pvcgarters`
+- `shiny garters` / `opaque garters`
+
+### Tested combinations
+
+**Combination 1 (Character LoRA):**
+```
+<lora:Caira_Flux:1.2>
+<lora:ffstockings8_DEV-000100:0.8>
+```
+
+**Combination 2 (AstroMorph sci-fi):**
+```
+<lora:ffstockings8_DEV-000100:1>
+<lora:AstroMorphV1:0.8>
+```
+
+**Combination 3 (Horror CCTV):**
+```
+<lora:ffstockings8_DEV-000100:1>
+<lora:horror_cctv_flux:0.9>
+```
+
+**Combination 4 (CyberBot Girls):**
+```
+<lora:ffstockings8_DEV-000100:1>
+<lora:CyberBotGirlzFlux:1>
+```
+
+**Combination 5 (Aesthetic details):**
+```
+<lora:ffstockings8_DEV-000100:1>
+<lora:kicezaesthetics_V1:1.1>
+```
+
+**Combination 6 (FLUX Pro 1.1 detailer):**
+```
+<lora:ffstockings8_DEV-000100:1>
+<lora:aidmaFLUXPro1.1:0.9>
+```
+
+**Combination 7 (Dramatic Makeup):**
+```
+<lora:ffstockings8_DEV-000100:0.9>
+<lora:Dramatic_Makeup_FLUX:0.85>
+```
+
+**Combination 8 (Latex clothes):**
+```
+<lora:ffstockings8_DEV-000100:0.9>
+<lora:latex_clothes_v1:0.9>
+```
+
+**Combination 9 (Glowing Neon):**
+```
+<lora:ffstockings8_DEV-000100:1>
+<lora:noc-glowingneon:1.1>
+```
+
+**Combination 10 (NippleDiffusion):**
+```
+<lora:ffstockings8_DEV-000100:1>
+<lora:nipplediffusion-f1:0.7>
+```
+
+**Combination 11 (GarterBelt + Pleaser Shoes):**
+```
+<lora:ffstockings8_DEV-000100:0.9>
+<lora:nipplediffusion-f1:1>
+<lora:GarterBeltFlux1.0:1>
+<lora:Pleaser_Brand_Shoes:1>
+```
+
+**Combination 12 (Warm light style):**
+```
+<lora:ffstockings8_DEV-000100:1>
+<lora:warm_light_style:1>
+<lora:FLUX_thinspo_skinny:0.5>
+```
+
+**Combination 13 (3D Wave + FLUX Pro):**
+```
+<lora:ffstockings8_DEV-000100:0.9>
+<lora:ral-3dwvz-sdxl:1>
+<lora:aidmaFLUXPro1.1:1>
+```
+
+**Combination 14 (Overgrowth style):**
+```
+<lora:ffstockings8_DEV-000100:0.9>
+<lora:ral-ovrgrwth-flux:0.95>
+<lora:aidmaFLUXpro1.1:0.7>
+```
+
+### View angles
+- `front view` - looking at her from front
+- `back view` - looking at her from back
+- `side view` - looking at her from side
+- `angular front view` - angled front
+- `angular back view` - angled back
+- `high angle` - camera above
+- `low angle` - camera below
+
+### Notes
+- Use strength 0.7-1.0 (lower when combining with other LoRAs)
+- V2 supports any color garters/suspenders/corsets
+- Does not affect face or hands (not in training data)
+- Works well with many other LoRAs (character, style, effect)
+- Supports various ethnicities and body types
+- Great for cinematic, sci-fi, and artistic styles
 
 ---
 
