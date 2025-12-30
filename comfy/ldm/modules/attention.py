@@ -34,7 +34,7 @@ SAGE_ATTENTION3_IS_AVAILABLE = False
 try:
     from sageattn3 import sageattn3_blackwell
     SAGE_ATTENTION3_IS_AVAILABLE = True
-except ImportError as e:
+except ImportError:
     pass
 
 FLASH_ATTENTION_IS_AVAILABLE = False
