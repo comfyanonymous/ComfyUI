@@ -102,3 +102,12 @@ class ImageToVideoWithAudioRequest(BaseModel):
     prompt: str = Field(...)
     mode: str = Field("pro")
     sound: str = Field(..., description="'on' or 'off'")
+
+
+class MotionControlRequest(BaseModel):
+    prompt: str = Field(...)
+    image_url: str = Field(...)
+    video_url: str = Field(...)
+    keep_original_sound: str = Field(...)
+    character_orientation: str = Field(...)
+    mode: str = Field(..., description="'pro' or 'std'")
