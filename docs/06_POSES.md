@@ -15,6 +15,11 @@ LoRAs for specific poses, camera angles, and positioning.
 - [AssUp FLUX](#assup-flux)
 - [PulledTopOff (Over Head) Flux](#pulledtopoff-over-head-flux)
 - [PullingDownJeans Flux (Configurator)](#pullingdownjeans-flux-configurator)
+- [PulledDownJeans Flux (Configurator)](#pulleddownjeans-flux-configurator)
+- [GetOutOfCar Flux](#getoutofcar-flux)
+- [Tongue Kissing FLUX](#tongue-kissing-flux)
+- [POV Mouth Open Tongue Out SOLO](#pov-mouth-open-tongue-out-solo)
+- [Amateur Girls Sticking Out Tongue](#amateur-girls-sticking-out-tongue)
 ---
 
 ## Flux: POV Licking Pussy (Oral)
@@ -545,6 +550,463 @@ A photo of a young woman taking a selfie in a medical setting. She is wearing li
 - Combine switches as needed for different variations
 - Works well with location descriptions (pub, park, mall, street)
 - Can combine with character LoRAs
+
+---
+
+## PulledDownJeans Flux (Configurator)
+
+| Parameter | Value |
+|-----------|-------|
+| **File** | `PulledDownJeansFlux.1.0.safetensors` |
+| **Civitai** | https://civitai.com/models/868630/pulleddownjeans-flux-configurator |
+| **Trigger word** | `pudoje` + optional switches |
+| **Strength** | 1.0 |
+| **Type** | Pose / Action / Configurator |
+| **Version** | v1.0 |
+
+### Description
+Better poses for **already pulled down** jeans/denim shorts (with free hands). Configurable LoRA with multiple switches for different variations.
+
+**Key difference from PullingDownJeans:**
+- **PulledDownJeans** (this) = jeans already down, hands FREE
+- **PullingDownJeans** = actively pulling, hands OCCUPIED
+
+Can be combined with PulledTopOffOverHead Flux since hands are free.
+
+**Other versions available:**
+- PulledDownJeans XL - for SDXL
+- PulledDownJeans Pony - for Pony
+
+### Trigger words / Switches
+
+| Switch | Trigger | Effect |
+|--------|---------|--------|
+| **Main trigger** | `pudoje` | **REQUIRED** - activates the LoRA |
+| **Far down** | `pufado` | Pulled jeans far down (on thighs) |
+| **Completely down** | `pfcomp` | Pulled jeans completely down (at ankles) |
+| **Denim shorts** | `densho` | Shows short denim shorts (Hot-pants) instead of long jeans |
+| **No panties** | `nopaun` | No panties underneath |
+| **Panties also down** | `pandow` | Panties also pulled down |
+
+### Prompt structure
+```
+pudoje, (optional: pufado/pfcomp, densho, nopaun/pandow), <person description> <pulled action> (, panty state)
+```
+
+**Pulled action options:**
+- `pulled down jeans trousers a little` - slight pull (default)
+- `pulled jeans trousers far down` - on thighs (requires `pufado`)
+- `pulled jeans trousers completely down` - at ankles (requires `pfcomp`)
+- `pulled down denim shorts a little` - slight pull, shorts (requires `densho`)
+- `pulled denim shorts far down` - on thighs, shorts (requires `pufado` + `densho`)
+- `pulled denim shorts completely down` - at ankles, shorts (requires `pfcomp` + `densho`)
+
+**Panty state options:**
+- (none) - panties visible
+- `no panties underneath` - no panties (requires `nopaun`)
+- `panties also pulled down` - panties down too (requires `pandow`)
+
+### Sample prompts
+
+**Prompt 1 (Denim shorts, far down, no panties - pub):**
+```
+pudoje, pufado, densho, nopaun, slim 25yo girl pulled denim shorts far down, no panties underneath, in a pub. sneakers, long blonde ponytail.
+```
+
+**Prompt 2 (Denim shorts, far down, panties also down - restaurant):**
+```
+pudoje, pufado, densho, pandow, slim 25yo girl pulled denim shorts far down, panties also pulled down, in a fast food restaurant. sneakers, long brunette ponytail.
+```
+
+**Prompt 3 (Denim shorts, completely down, no panties - pub):**
+```
+pudoje, pfcomp, densho, nopaun, slim 25yo girl pulled denim shorts completely down, no panties underneath, in a pub. sneakers, short blonde ponytail.
+```
+
+**Prompt 4 (Jeans trousers, a little - park):**
+```
+pudoje, slim 25yo girl pulled down jeans trousers a little, in a park, boots, short brunette hair.
+```
+
+**Prompt 5 (Jeans trousers, far down - mall):**
+```
+pudoje, pufado, slim 25yo girl pulled jeans trousers far down, in a mall. sneakers, long blonde hair.
+```
+
+**Prompt 6 (Jeans trousers, completely down - mall):**
+```
+pudoje, pfcomp, slim 25yo girl pulled jeans trousers completely down, in a mall. sneakers, long blonde hair.
+```
+
+**Prompt 7 (Side view, completely down, panties down, arms up):**
+```
+pudoje, pfcomp, densho, pandow, side view (naked slim 25yo girl) pulled denim shorts completely down, panties also pulled down, (arms up:2), in a crowded park. sneakers, necklace, short brunette ponytail <lora:PulledDownJeansFlux:1>
+```
+
+**Prompt 8 (Medical selfie):**
+```
+A photo of a young woman taking a selfie in a medical setting. She is wearing light blue scrubs that accentuate her curves. Her hair is pulled back into a high ponytail. She is wearing a colorful medical face mask and latex gloves. A stethoscope is hanging around her neck. She is posing from the side, showcasing her fit figure and her nice cleavage. She is holding a smartphone in one hand, capturing the image in the reflection of a bathroom mirror. Paper towels are visible in the background. pulled jeans trousers completely down, panties also pulled down,
+```
+
+**Prompt 9 (Fitness cowgirl from behind):**
+```
+fitness girl, slutty, seductive, braided braids, ginger hair, grey-green eyes, cowboy white hat, round ass, wide hips, spread ass, ass focus, nude, parted lips, pussy, gape anus, looking back, nail polish, from behind, lips, uncensored, makeup, fingernails, wearing crop sleeveless denim vest and brown chaps, realistic, on the farm, lower back tattoo horseshoe, oiled skin, provocative pose, surrounded by a crowd of different men, in the spotlight, smirk, dynamic, highly detailed, intricate details, below pov from behind, <lora:PulledDownJeansFlux:1.0> denim shorts pulled down, panties also pulled down
+```
+
+### Keywords
+- `pudoje` - **REQUIRED** main trigger
+- `pufado` - far down (on thighs)
+- `pfcomp` - completely down (at ankles)
+- `densho` - denim shorts / Hot-pants
+- `nopaun` - no panties underneath
+- `pandow` - panties also pulled down
+- `pulled down jeans trousers a little`
+- `pulled jeans trousers far down`
+- `pulled jeans trousers completely down`
+- `pulled denim shorts far down`
+- `no panties underneath`
+- `panties also pulled down`
+
+### Combination with PulledTopOffOverHead Flux
+
+Since hands are free, this LoRA can be combined with PulledTopOffOverHead:
+
+**Usage order:**
+1. First specify PulledDownJeans triggers
+2. Then specify PulledTopOffOverHead triggers
+
+**Combined example:**
+```
+pudoje, putoof, pufado, nopaun, front view (naked slim 25yo girl) pulled jeans trousers far down, no panties underneath, po_swe, pulled blue sweater off, standing in a park. sneakers, necklace, short brunette ponytail
+```
+
+**Strength:** Use 1.3 for PulledTopOffOverHead when combining.
+
+### Tested combinations
+
+**Combination 1 (TopOff + JeansDown):**
+```
+<lora:PulledDownJeansFlux:1>
+<lora:PulledTopOffOverHeadFlux:1.3>
+```
+
+**Combination 2 (Style + Detail):**
+```
+<lora:PulledDownJeansFlux:1>
+<lora:SinfullyStylish:1> (dramatic lighting)
+<lora:DetailedPerfection:1>
+```
+
+**Combination 3 (Bokeh + Anatomy):**
+```
+<lora:PulledDownJeansFlux:1>
+<lora:aidmaBokeh:0.6>
+<lora:Flux_Pussy_Anus_HD:0.7>
+<lora:Flux_Prone_Ass_Spread:0.7>
+```
+
+**Combination 4 (Amateur + Realistic Pussy):**
+```
+<lora:PulledDownJeansFlux:1>
+<lora:Amateur_Nudes_Flux:1>
+<lora:Realistic_Pussy_FLUX:1>
+```
+
+### Notes
+- ForgeUI users: Set 'Diffusion in Low Bits' to 'Automatic (fp16 LoRA)'
+- **IMPORTANT:** Follow the prompt schema exactly for useful results
+- Use strength 1.0
+- Unlike PullingDownJeans, hands are FREE - can combine with other actions
+- Supports three pull-down levels: a little, far, completely
+- Works well with location descriptions
+- Great for combining with PulledTopOffOverHead
+
+---
+
+## GetOutOfCar Flux
+
+| Parameter | Value |
+|-----------|-------|
+| **File** | `GetOutOfCarFlux.0.9.2.safetensors` |
+| **Civitai** | https://civitai.com/models/837811/getoutofcar-flux |
+| **Trigger word** | `getoocar` |
+| **Strength** | 1.0 |
+| **Type** | Pose / Automotive |
+| **Version** | v0.9.2 |
+
+### Description
+Better poses for person getting out of car. Creates natural "exiting vehicle" poses with subject sitting in car with door open or legs out.
+
+**Other versions available:**
+- GetOutOfCar XL - for SDXL
+- GetOutOfCar Pony - for Pony
+
+### Prompt structure
+```
+<person description> sitting in a <color> car. getoocar. <clothing> <footwear>, <hair description>
+```
+
+### Sample prompts
+
+**Prompt 1 (Simple):**
+```
+Slim girl sitting in a white car. getoocar.
+```
+
+**Prompt 2 (Wildcard randomizer):**
+```
+(slim 25yo girl) sitting in {black|red|blue|white|silver} car, getoocar, {green|red|blue|yellow|purple} {short skirt, {green|red|blue|yellow|purple} blouse|short dress|top and denim shorts} {boots|high heels|sneakers}, {long|short} {blonde|brunette} {hair|ponytail}
+```
+
+**Prompt 3 (Red car with dress):**
+```
+slim 25yo girl sitting in red car, getoocar, blue short dress, high heels, long blonde ponytail
+```
+
+**Prompt 4 (Sports car):**
+```
+slim 25yo girl sitting in silver sports car, getoocar, black top and denim shorts, sneakers, short brunette hair
+```
+
+### Keywords
+- `getoocar` - **REQUIRED** trigger word
+- `sitting in a <color> car`
+- `car door open`
+- `legs out of car`
+- `exiting vehicle`
+
+### Car colors
+- black
+- red
+- blue
+- white
+- silver
+
+### Clothing suggestions
+- short skirt + blouse
+- short dress
+- top and denim shorts
+
+### Footwear
+- boots
+- high heels
+- sneakers
+
+### Notes
+- ForgeUI users: Set 'Diffusion in Low Bits' to 'Automatic (fp16 LoRA)'
+- Always include `sitting in a ... car` and `getoocar` in prompt
+- Works with various car colors
+- Good for automotive/glamour photography
+- Combine with clothing and character LoRAs
+
+---
+
+## Tongue Kissing FLUX
+
+| Parameter | Value |
+|-----------|-------|
+| **File** | `TongueKissing-Flux-v1.safetensors` |
+| **Civitai** | https://civitai.com/models/858773/tongue-kissing-flux |
+| **Trigger word** | `Tongue kissing` |
+| **Strength** | 0.9-1.1 |
+| **Type** | Pose / Action |
+| **Version** | v1.0 |
+
+### Description
+Tongue kissing/French kissing pose LoRA for FLUX. Works very well with character LoRAs without affecting their appearance. Creates passionate kissing scenes between subjects.
+
+### Key features
+- Does not alter character appearance
+- Works with character LoRAs
+- Supports 2+ subjects
+- Good for intimate scenes
+
+### Sample prompts
+
+**Prompt 1 (Two women in sweaters with bondage):**
+```
+A hyperdetailed photo of two beautiful attractive 25 years woman, they standing pressed their chests to each other and Tongue kissing, both woman wearing a detailed chunky aran mohair turtleneck sweater dress with Norwegian knit patterns and an enormous turtleneck collar, knitwear is realistic, hyperdetailed and fuzzy. both women are tightly bound with hemp ropes, takate-kote, shibari rope bondage, (hands bound behind back). Warm lighting from behind emphasizes the fuzzy texture of her detailed knitwear. Photo taken with a Nikon z9 50mm 1.2f camera. <lora:TongueKissing-Flux-v1:1>
+```
+
+**Prompt 2 (Holographic duplicate cyberpunk):**
+```
+A tasteful art photography of a sexy woman, wearing a laced corset, tight mini skirt and thigh-high stiletto boots with modern elements, and her (virtual vector holographic duplicate:1.3) embracing and passionately tongue kissing in a futuristic virtual cyberspace environment, surrounded by glowing digital particles and geometric patterns, cyberpunk style, neon lighting, clean lines, artistic composition, ethereal atmosphere, 8k resolution. <lora:TongueKissing-Flux-v1:1>
+```
+
+**Prompt 3 (Amsterdam RLD with old man):**
+```
+half bodyshot photography of a brunette girl with big boobs, wearing a pure pvc mini skirt with black leopard print, and black lingerie blouse, big breasts, huge cleavage, she is wearing a pair of hot black overknee boots, and the plattform base is 10inch, posing behind a window in red light district street in amsterdam, rldstreet style, girl surrounded by old men, horny and touchy, she reaches for mans dick:1.6, she is locked in passionate kiss to old man with tongue, Tongue kissing <lora:TongueKissing-Flux-v1:1.05>
+```
+
+**Prompt 4 (Group scene):**
+```
+highly detailed realistic raw analog style concept art, (wide shot:1.5) of a group of 18 year old women. 11Girls, beg for attention from the viewer. pov, Showing breasts and competing for sex. Very serious, horny expressions, 2girls tongue kissing passionately in the background, open mouth, tongue out, from above, a woman 3girls pulling other's hair, biting lip, frustration, (Beautiful Girl:1.2), incredibly hot, huge breasts, large breasts, perfect body, narrow waist, (wide hips:0.6), breathtaking, highly detailed, ultra high quality <lora:TongueKissing-Flux-v1:1.05>
+```
+
+### Keywords
+- `Tongue kissing` - **TRIGGER WORD**
+- `passionately tongue kissing`
+- `French kiss`
+- `locked in passionate kiss`
+- `embracing`
+
+### Tested combinations
+- Takate Kote / Shibari LoRA
+- Amsterdam RLD LoRA
+- Amateur Flux LoRA
+- Pleaser Brand Shoes LoRA
+- Character LoRAs (no face alteration)
+- BreastShaper LoRA
+- POV mouth open and tongue out LoRA
+
+### Compatible checkpoints
+- FLUX Dev
+- Jib Mix Flux
+
+### Notes
+- Use trigger word `Tongue kissing` in prompt
+- Works with character LoRAs without altering appearance
+- Strength 0.9-1.1 recommended
+- Good for intimate/romantic scenes
+- Supports multiple subjects
+
+---
+
+## POV Mouth Open Tongue Out SOLO
+
+| Parameter | Value |
+|-----------|-------|
+| **File** | `0pen_flux.safetensors` |
+| **Civitai** | https://civitai.com/models/778636/pov-mouth-open-and-tongue-out-solo-flux |
+| **Trigger word** | `0pen` (zero, not letter O) |
+| **Strength** | 0.8-1.0 |
+| **Type** | Pose / POV |
+| **Version** | v1.0 |
+
+### Description
+POV mouth open and tongue out pose LoRA for FLUX. Not overtrained - works well combined with character and style LoRAs. Creates "ahegao-like" or submissive facial expressions with open mouth and tongue out.
+
+### Key features
+- Not overtrained - merges well with other LoRAs
+- Works with character LoRAs
+- POV perspective
+- Good for cum/facial scenes
+
+### Sample prompts
+
+**Prompt 1 (Simple):**
+```
+mouth open, tongue out, a woman kneeling <lora:0pen_flux:1>
+```
+
+**Prompt 2 (With character LoRA):**
+```
+0pen photorealistic kneeling naked DittersGurl with mouth open and tongue out. She has cinnamon skin and blonde wavy hair with bright orange streaks. She kneels on a bearskin rug in a rustic cabin with a fireplace burning warmly in the background. <lora:0pen_flux:1>
+```
+
+**Prompt 3 (Hippie 60s style):**
+```
+Closeup of a hippie looking 24yo woman sitting on lawn, Intense blue eyes, small breasts, eyeshadow, looking at viewer, looking up, smirking, mole, pov, solo focus, uncensored, long blonde messy hair, hair strands on eyes, tired look, looking at viewer, happy, sleeveless shirt strap falling off shoulder, shorts, 60s photography, 35mm film, grainy, kodak film. Shallow depth of field, dappled sunlight, award winning photo, 0pen, tongue out, mouth open, from above, a woman <lora:0pen_flux:0.47>
+```
+
+**Prompt 4 (Gokkun Queen):**
+```
+Professional DSLR photo, Young, pale-skinned woman kneeling on a tile floor, knees spread, wearing a dark grey crop top with the words "Gokkun Queen" printed in medium italic white letters on it and light wash denim shorts. She holds a large, empty clear glass bowl just under her chin. Her brown hair is in a high ponytail style. She has an eager, joyful, and excited expression on her face as she positions the bowl carefully beneath her chin and holds her tongue out of her wide open mouth. 0pen, tongue out, mouth open <lora:0pen_flux:1>
+```
+
+**Prompt 5 (Bimbo from above):**
+```
+0pen, mouth open, tongue out, a brunette bimbo woman kneeling, from above, saliva, huge breasts, pov, ((chubby)), (((hand bra))), ((cleavage)), bra, bikini, pasties <lora:0pen_flux:1>
+```
+
+**Prompt 6 (Asian at pool):**
+```
+(pretty) asian woman, (on her knees, mouth open, tongue out), long black pigtails, sweet, innocent, badly fitting bikini, wet sheer bikini, skinny, small breasts, large nipples, (pubic hair), large eyes, holding a single condom, standing male pov, holding cash, medium shot, public pool, crowd <lora:0pen_flux:1>
+```
+
+### Keywords
+- `0pen` - **TRIGGER WORD** (zero, not O)
+- `mouth open`
+- `tongue out`
+- `from above`
+- `pov`
+- `kneeling`
+- `saliva`
+- `looking up`
+
+### Tested combinations
+- DittersGurl character LoRA
+- BreastShaper LoRA
+- UltraRealistic LoRA
+- Vantablack LoRA
+- Tongue Kissing LoRA
+- Cum LoRAs (works well for facial scenes)
+
+### Compatible checkpoints
+- FLUX Dev
+- FLUX.DEV DEDISTILLED
+- hypersense
+
+### Notes
+- Trigger word is `0pen` with ZERO, not letter O
+- Weight 0.8-1.0 works best
+- Not overtrained - combines well with other LoRAs
+- Great for POV facial/cum scenes
+- Works with `from above` perspective
+
+---
+
+## Amateur Girls Sticking Out Tongue
+
+| Parameter | Value |
+|-----------|-------|
+| **File** | `sticking_tongue_out.safetensors` |
+| **Original filename** | `sticking tongue out.safetensors` |
+| **Civitai** | https://civitai.com/models/1195461/amateur-girls-sticking-out-their-tongue-flux-or-concept-or-tongue-out |
+| **Trigger word** | `tngout` |
+| **Strength** | 1.0-1.2 (1.0 better in 90% cases) |
+| **Type** | Pose / Expression |
+| **Version** | v1.0 |
+
+### Description
+Amateur-style tongue out pose LoRA for FLUX. Creates playful, candid-looking images of girls sticking out their tongue. Works well with Improved Amateur Realism LoRA.
+
+### Key features
+- Amateur/candid style
+- Playful expressions
+- Works with character and ethnicity LoRAs
+- No upscale needed - good results out of box
+
+### Sample prompts
+
+**Prompt 1 (Pakistani mirror selfie):**
+```
+tngout dark-skinned pakistani hijabi girl sticking out her tongue. <lora:sticking_tongue_out:1>. she is wearing an ornately embroidered sequined red chiffon longsleeve kameez with high side slits showing her bare hips, bare thighs and bare legs. with the word "JUICY" printed in large fun eye-catching exciting style on her panties. she has a wide flirtatious sexy smile, thick lips, winged eyeliner and big, almond-shaped eyes. She has a petite slim diminutive body with wide hips and thick thighs. she is holding her phone and taking a mirror selfie. she is scrunching her face and laughing in mock disgust. The mirror frame is visible on the sides of the photo. there're finger smudges and playful cartoon and heart stickers on the mirror glass along with small photos showing the same woman with her friends in various playful fun settings. A natural and unposed amateur candid photo capturing a genuine moment, framed with slight imperfection for authenticity.
+```
+
+**Prompt 2 (Chinese lingerie studio):**
+```
+tngout Amateur girls sticking out their tongue, low resolution image, upper body shot of a sexy chinese girl who is 21 years old sticking her tongue out, her arms up, her armpits are milky white and smooth, her tongue pink and healthy, she sitting on a couch in a seductive lingerie, her lingerie is slightly see thru, professional studio, soft lighting, portrait photography, she has a tight and slender body, she has medium tits, asian girl, detail-oriented, RAW photo, highest quality, shot using sony a7riv, 50mm lens <lora:sticking_tongue_out:1>
+```
+
+### Keywords
+- `tngout` - **TRIGGER WORD**
+- `sticking out her tongue`
+- `tongue out`
+- `amateur`
+- `candid photo`
+- `playful`
+- `mirror selfie`
+
+### Tested combinations
+- Improved Amateur Realism LoRA (recommended)
+- Ethnicity LoRAs (Pakistani, Chinese, etc.)
+
+### Notes
+- Use trigger word `tngout` for activation
+- Weight 1.0 works best in most cases
+- Combine with Amateur Realism for best results
+- Good for playful/candid style images
 
 ---
 

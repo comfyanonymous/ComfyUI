@@ -11,13 +11,15 @@ Base models and diffusion checkpoints for FLUX-based generation.
 - [GGUF FLUX.1 Dev Q8](#gguf-flux1-dev-q8)
 - [Flux ArtFusion 4-steps](#flux-artfusion-4-steps)
 - [Real Horny Pro V3](#real-horny-pro-v3)
-- [Jib Mix Flux v8.5](#jib-mix-flux-v85)
+- [Jib Mix Flux](#jib-mix-flux)
 - [8 Steps CreArt-Hyper-Flux-Dev](#8-steps-creart-hyper-flux-dev)
 - [Flux1-DedistilledMixTuned v4.0](#flux1-dedistilledmixtuned-v40)
 - [Flux.1 Dev Asian FP16](#flux1-dev-asian-fp16)
 - [Fluxcstasy v1](#fluxcstasy-v1)
 - [FluxUnchained NF4](#fluxunchained-nf4)
 - [SlimNudeGirls Flux FP8 NSFW](#slimnudegirls-flux-fp8-nsfw)
+- [Flux Real NSFW | Lluminartis](#flux-real-nsfw--lluminartis)
+- [Fluxed Up NSFW Checkpoint (Nunchaku INT4)](#fluxed-up-nsfw-checkpoint-nunchaku-int4)
 
 ---
 
@@ -106,46 +108,141 @@ oil painting of a a lecherous nun in an open cassock, full body, wide angle, A 2
 
 ---
 
-## Jib Mix Flux v8.5
+## Jib Mix Flux
 
 | Parameter | Value |
 |-----------|-------|
-| **File** | `jibMixFlux_v85Consisteight.safetensors` |
-| **Location** | `models\diffusion_models\` |
-| **Civitai** | https://civitai.com/models/686814/jib-mix-flux?modelVersionId=1755367 |
+| **Files** | `jibMixFlux_v8Accentueight.safetensors`, `jibMixFlux_v85Consisteight.safetensors` |
+| **Location** | `models\unet\` |
+| **Civitai** | https://civitai.com/models/686814/jib-mix-flux |
 | **Type** | Diffusion Model (FLUX merge) |
-| **Versions** | v8.5 ConsistEight, v8-Flash SVDQuant-4bit, v8 AccentuEight, v7.8, v7.2, v6.1, v5 |
+| **Versions** | v12, v8.5 ConsistEight, v8 AccentuEight (installed), v8-Flash SVDQuant-4bit, v7.8, v7.2, v6.1, v5 |
 
 ### Description
-FLUX Dev trained on SDXL dataset with merged LoRAs, correcting anatomy censorship and excessive bokeh/blurred backgrounds. V8.5 is a merge with SRPO model - cleaner looking, may need grain LoRAs for amateur look.
+FLUX Dev trained on SDXL dataset with merged LoRAs, correcting anatomy censorship and excessive bokeh/blurred backgrounds.
+
+**Version differences:**
+- **v12** - Merge with SRPO model, cleaner looking, may need grain LoRAs for amateur look
+- **v8.5 ConsistEight** - More consistent outputs
+- **v8 AccentuEight** - Much better skin texture than v7, without bad Flux Lines of v6. NSFW slightly lacking - use Jibs Flux Nipple Fix LoRA
+- **v8-Flash SVDQuant-4bit** - Super fast (5s on 3090, 2.5s on 4090, 0.8s on 5090 at 10 steps). Requires Nunchaku
+- **v7.8 Clear Text Focus** - Better readable text, less nipple flashing through clothes
+- **v7.2 Pixel Heaven** - Fixes Flux Lines, better drawn/concept ability, tones down freckles
+- **v6.1 Real Pix Fixed** - Most detailed backgrounds, fixed hand issues
 
 ### Recommended settings
-- **Guidance scale:** 2.5-3.5
+- **Guidance scale:** 2.5-3.5 (or 2 for version 2)
 - **Sampler:** dpmpp_2m
 - **Scheduler:** Sgm_uniform, Beta or Custom Stigmas
 - **CFG:** 2.8
+- **Steps:** 8-14 (with Hyper), 20-40 (standard)
+- **Resolution:** ~1280x1344 recommended
 
 ### Sample prompts
 
-**Prompt 1 (Beach goddess):**
+**Prompt 1 (Swedish woman bar):**
 ```
-The image becomes a sunstruck tableau of longing and myth, transforming Catherine Holly into a figure sculpted from light and surf. Kneeling on the warm sand, she appears caught between vulnerability and defiant beauty, her white swimsuit gleaming like a shard of moonlight against the golden shore. The sea behind her stretches outward in soft gradients—turquoise melting into deep cerulean—its gentle waves brushing the beach with the quiet rhythm of breath.
-```
-
-**Prompt 2 (Cooking breakfast):**
-```
-(best quality:1.1), (masterpiece:1.2), (realistic:1.2), (detailed:1.1), (highres, best quality:1.2), 1girl, beautiful face, cooking breakfast, after long night,( only wearing an apron:1.2), side boob, topless, side view, perfect breasts, perfect eyes, highly detailed beautiful expressive eyes, detailed eyes, (highly detailed skin:1.1), professional photoshoot, distance view, (wide angle view:1.4), Intricate details, RAW, analog style, sharp focus, 8k, high resolution, canon dslr, 35mm photograph, film, bokeh, professional, 4k, highly detailed dynamic lighting, photorealistic
+An incredibly sexy blond 21 year old Swedish woman in a laced latex corset and very high heels sits in a provocative pose sat on a wooden bar stool, legs spread wide, knees up, busy bar at night in the background, a fan ruffles her hair.
 ```
 
-**Prompt 3 (Bimbo cowgirl):**
+**Prompt 2 (Beach volley group):**
 ```
-Girl bimbo big ass big breasts naked thin waist wide hips abs punk hair style tall legs wearing only cowgirl boots
+naked playing beach volley group of s, realistic, water, blonde, huge perky breasts, skinny, slender, narrow waist, naked
+```
+
+**Prompt 3 (Webcam gamer girl):**
+```
+Professional photograph of naked webcam girl, sitting on her gamer chair in her bedroom legs spread wide showing off her hairy pussy, smiling at the viewer, a beautiful smile. She has long wavy hair, neon lights, cyberpunk bedroom <lora:nude_FLUX_man_woman_v4:.7>
+```
+
+**Prompt 4 (Leather punk):**
+```
+Fallon leans against a brick wall tagged with local band flyers and graffiti, rainwater darkening her long black hair. She's nude beneath an oversized leather jacket, fishnets torn around her thighs. Her Doc Martens stomp cigarette butts into the concrete. Vintage erotic art, RAW photo, Kodak Portra 800
+```
+
+**Prompt 5 (Futuristic nude crowd):**
+```
+(completely nude:1.1), futuristic interior, crowded room, brutalist architecture, concrete plates, very hazy room, indoor waterfall, indirect light, diffuse light, sharp photo, professional photography, 4k, vogue photography, feet style, perfect feet, soles, toes, BREAK. , (background is filled with nude athletic females:1.1), female fitness models in the background, BREAK. 1 is very skinny, she is resting on a glowing cube, athletic, (very lean:1.2), she spreads her legs, leg up, tan, beautiful vagina, very long hair, medium breasts, slim waist, erect nipples
+```
+
+**Prompt 6 (Spanish influencer):**
+```
+sexy naked coach influencer tanned spanish 1 on a terrace, brunette, tan lines, skinny, narrow waist, wide hips, large breasts
+```
+
+**Prompt 7 (Ice skating):**
+```
+A ((totally naked short 18 year old blonde slim women)), ice skating at an indoor skate rink, shot on Kodak Portra 400 film with a Hasselblad 500C camera, moody lighting, ultra fine detail, cinematic. zavy-rghflt, (flat chest) smiling at the camera, shaved pussy.
+```
+
+**Prompt 8 (Forest birch trees):**
+```
+Full-length shot of a young woman girl with a slim figure, small breasts and visible pubic hair, standing against a backdrop of birch trees in a sunlit forest. She is wearing only a black short-sleeved top that partially covers her torso and white sneakers. The background features lush greenery and diffused sunlight shining through the trees.
+```
+
+**Prompt 9 (Tattoo fantasy):**
+```
+RAW full body analogue photo of a beautiful 25 years old woman, ((20yo Yakuza)), ultra-seductive, full tattooed, top soft light, highly detailed, (((Oleg Dou photography style))), full body photo, ((Nude)), (((tattoos))), film grain, Fujifilm XT3, 8k uhd
+```
+
+**Prompt 10 (Lace lingerie couch):**
+```
+A photo-realistic shoot from the side about a young woman in black lace lingerie lounging on a white couch in a softly lit room. a 20-year-old woman with fair skin and long, wavy brown hair, lying on her stomach, wearing a black lace bra and matching panties. she has blue eyes and is looking directly at the camera with a sultry expression.
+```
+
+### Tested combinations
+
+**Combination 1 (Sevenof9 Nude):**
+```
+Checkpoint: Jib Mix Flux v8 AccentuEight
+<lora:nude_FLUX_man_woman_v4:0.7>
+```
+
+**Combination 2 (Mystic XXX):**
+```
+Checkpoint: Jib Mix Flux v8 AccentuEight
+<lora:MysticXXX-v4:1>
+```
+
+**Combination 3 (MoreFace + Hands):**
+```
+Checkpoint: Jib Mix Flux v8 AccentuEight
+<lora:MoreFaceV2-lora:1>
+<lora:Hand_F1D_v2:1>
+```
+
+**Combination 4 (PussyDiffusion):**
+```
+Checkpoint: Jib Mix Flux v8 AccentuEight
+<lora:MoreFaceV2-lora:1>
+<lora:pussydiffusion-f1:1>
+```
+
+**Combination 5 (Curvy Natural):**
+```
+Checkpoint: Jib Mix Flux v8 AccentuEight
+<lora:Curvy_Natural:0.6>
+```
+
+**Combination 6 (Small Breasts + Hands):**
+```
+Checkpoint: Jib Mix Flux v8 AccentuEight
+<lora:breast-size2:-1> or <lora:breast-size2:-2>
+<lora:Hand_F1D_v2:1>
+```
+
+### Negative prompt template
+```
+Orange peel skin, hairy face, ((Red spots on face)), ((red freckles)), ((shiny Skin)), ((bad hands)), ((cartoon)), ((bokeh)), Deviantart, jpeg, (worst quality, low quality), (watermark, signature), (blur, blurry, grainy), morbid, ugly, mutated, poorly lit, bad shadow, cropped, out of frame, (airbrushed, cartoon, anime, semi-realistic, cgi, render, blender, digital art, manga, amateur:1.3), (3D, 3D Game:1.1), (bad hands, bad anatomy, bad body, bad face, bad teeth:1.3), ((bokeh))
 ```
 
 ### Notes
-- NSFW capabilities may be reduced - use Jibs Flux Nipple Fix LoRA for enhancement
-- SVDQuant-4bit version available for faster generation (requires Nunchaku)
-- v8-Flash: 5 seconds on 3090, 2.5 seconds on 4090, 0.8 seconds on 5090 at 10 steps
+- NSFW capabilities may be reduced in some versions - use Jibs Flux Nipple Fix LoRA
+- SVDQuant-4bit version requires Nunchaku for fast generation
+- v8 AccentuEight has best skin texture balance
+- v6 has most detailed backgrounds
+- For hand issues at low step count, increase steps or use Hyper Flux LoRA at <0.10
+- Works great with Sevenof9 Nude, MysticXXX, MoreFace LoRAs
 
 ---
 
@@ -494,6 +591,106 @@ front view, gartbt, (slim nude girl) with black stockings and garters and high h
 - Not designed for sexual content, only erotic/nude
 - Great for workflows with slim models (automotive, fashion)
 - When combining with LoRAs, increase LoRA strength by ~10%
+
+---
+
+## Flux Real NSFW | Lluminartis
+
+| Parameter | Value |
+|-----------|-------|
+| **File** | `fluxRealNSFW_v20.safetensors` |
+| **Location** | `models\unet\` |
+| **Civitai** | https://civitai.com/models/1316180/flux-real-nsfw-or-lluminartis |
+| **Type** | BASE MODEL (FLUX) |
+| **Version** | 2.0 |
+
+### Description
+Version 2 is not very good for explicit NSFW poses, but it does produce good nudes.
+
+### Recommended settings
+- Steps: 20
+- CFG: 1.0
+- Sampler: euler
+- Scheduler: normal
+- Denoise: 1.00
+
+### Sample prompts
+
+**Prompt 1 (Beach):**
+```
+A confident completely naked young woman standing ankle-deep in crystal-clear ocean waves, wearing fashionable oversized sunglasses. Her natural, genuine smile reflects joy and contentment. Golden sunlight creates a warm backlight effect, highlighting her silhouette. <lora:tiny_waist_flux_v1:0.25> <lora:Big_Boobs:0.2>
+```
+
+**Prompt 2 (Minimalist room):**
+```
+A nude, slender woman with small breasts and visible genitals stands confidently, hands behind her head, in a modern, minimalist room.
+```
+
+**Prompt 3 (Evening dress):**
+```
+A stunning 45-year-old woman, dressed in a short cold shoulder velvet dress with a deep cleavage trimmed with fur, matching elbow gloves and knee-high strapped stiletto obsidian glass platform sandals, leans on the railing of the embankment and looks erotique straight at the viewer. The soft light of the setting sun creates an atmosphere of coziness.
+```
+
+### Notes
+- Version 2 works well for nudes but not explicit poses
+- Good for natural-looking erotic photography
+
+---
+
+## Fluxed Up NSFW Checkpoint (Nunchaku INT4)
+
+| Parameter | Value |
+|-----------|-------|
+| **File** | `fluxedUpFluxNSFWCheckpoint_51INT4.safetensors` |
+| **Location** | `models\unet\` |
+| **Civitai** | https://civitai.com/models/1967499/fluxed-up-flux-nsfw-checkpoint-nunchaku-int4fp4 |
+| **Type** | BASE MODEL (FLUX) |
+| **Version** | 5.1 INT4 (Nunchaku) |
+| **Format** | Nunchaku NVFP4 |
+
+### Description
+Nunchaku INT4 version of the Fluxed Up 5.1 model. Some quality issues - legs can get weird sometimes. Can use with turbo LoRA for faster generation.
+
+### Recommended settings
+
+**With Turbo LoRA:**
+- Sampler: Euler/Simple
+- Steps: 8
+
+**Without Turbo LoRA:**
+- Sampler: DPM++ 2M/Beta
+- Steps: 30
+
+### Sample prompts
+
+**Prompt 1 (Coffee shop):**
+```
+A professional realistic photo of a woman. The woman has K-beauty straight brows, Rounded (diamond:0.25) face, (puffy cheek:0.3), happy, auburn Illusion Ponytail hair, red eyes, overlined lips with subtle outline, portrait shot, upper body. The woman is happy and smiling. A (solo:1.4) woman slouching, wrapping her arms around her legs, surprised, legs together, pussy peek, holding one leg. Viewed from above, warm coffee shop window seat
+```
+
+**Prompt 2 (Shadow Muse penthouse):**
+```
+Shadow Muse, A soft-focus, hyper-realistic shot of a 29-year-old supermodel with ivory skin, ash-blonde hair in a low bun, green eyes sultry with intent. She wears a sheer black lace bustier, revealing her busty figure, paired with a velvet choker. Leaning against a frosted glass partition in a dimly lit penthouse, city lights blurred, her gaze piercing, ultra-detailed, mysterious allure.
+```
+
+**Prompt 3 (Winter Eastern European):**
+```
+photo of a young white eastern european woman, mid-20s. She has straight, shoulder-length dark hair with purple highlights and big perky breast. Light snowflakes rest on her hair, suggesting a cold, snowy day. Blue-gray eyes are prominent, minimal makeup visible. She is outdoors, urban background with a brick wall and bare trees, winter season is evident, her face very underexposed and shadowed
+```
+
+**Prompt 4 (Redhead gamer):**
+```
+Redhead AI Babe, Rua Aingeal, Red Angel, Freckles, Curly Red Hair, Ginger, Green Eyes, Irish Redhead, Fair Skin Tone, Silky red Hair, Light green Eyes, brushing long wavy thick red hair with a hairbrush, large pale bare breasts, athletic, fit, colorful striped sweatpants, topless, Scr33nLum, indoors, shadows, dim monitor lighting, old bedroom, looking at gaming monitor, sitting on gaming chair, bored, messy room, Interior, relaxing, brushing hair, lounging
+```
+
+### Known issues
+- Legs can sometimes look weird
+- Reduced smoothing grids for faster processing
+
+### Notes
+- Nunchaku INT4 format for lower VRAM usage
+- Works with turbo LoRA for 8-step generation
+- Good for NSFW content generation
 
 ---
 

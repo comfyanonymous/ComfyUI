@@ -28,6 +28,23 @@ This section covers LoRAs specifically designed for improving image quality, enh
 - [CumHereV1](#cumherev1) - Non-facial cum (clothes, hair, body, creampie)
 - [Amsterdam Red Light District](#amsterdam-red-light-district) - RLD window rooms environment
 - [Beautiful Girls' Faces - PrettyNova](#beautiful-girls-faces---prettynova) - Elegant diverse female faces
+- [Naked/Nude for FLUX Sevenof9](#nakednude-for-flux-sevenof9) - Strong NSFW nude push
+- [Flux Lustly.ai Uncensored v1](#flux-lustlyai-uncensored-v1) - Male and female nudity
+- [Flux Skin Texture](#flux-skin-texture) - Removes plastic look, adds skin detail
+- [Eros v06](#eros-v06) - Human nudity with accuracy and controllability
+- [FLUX Naked Female](#flux-naked-female) - Realistic naked females with pubic hair
+- [FLUX NSFW LoRA](#flux-nsfw-lora) - General NSFW for FLUX
+- [Flux-Cameltoe NSFW](#flux-cameltoe-nsfw) - Cameltoe effect for clothed models
+- [NSFW FLUX LoRA (AiArtV)](#nsfw-flux-lora-aiartv) - NSFW with trigger word
+- [Cum and play with FLUX](#cum-and-play-with-flux) - Facial cumshot/semen effects
+- [Cum On Feet - FLUX](#cum-on-feet---flux) - Cum on feet effect
+- [Cum Facial / Cum on face - FLUX](#cum-facial--cum-on-face---flux) - Cum facial/bukkake effects
+- [Facial cum massive FLUX](#facial-cum-massive-flux) - Massive facial cum with trigger word FCLHGE
+- [Cumbubbles FLUX](#cumbubbles-flux) - Cum bubbles on mouth and nose
+- [Cum on face - Non-Face Altering](#cum-on-face---non-face-altering) - Cum on face without altering character face
+- [Bukkake / Realistic Cum Facial Flux](#bukkake--realistic-cum-facial-flux) - Realistic bukkake facials
+- [Universal Cum Enhancer](#universal-cum-enhancer) - Enhances other cum LoRAs with texture/shape
+- [FLUX Gone Wild](#flux-gone-wild) - Top-tier NSFW style enhancer
 
 ---
 
@@ -1391,6 +1408,951 @@ She is the girl I dreamed of, hair platinum-blonde wild pigtails, dancer, Petite
 - Works great with Detailed Perfection Style LoRA
 - Enhances facial beauty without altering overall style
 - Good for fantasy, fashion, and portrait work
+
+---
+
+## Naked/Nude for FLUX Sevenof9
+
+| Parameter | Value |
+|-----------|-------|
+| **File** | `Sevenof9_nude_FLUX_man_woman_v4.safetensors` |
+| **Civitai** | https://civitai.com/models/660029/nakednudeforfluxsevenof9nsfw |
+| **Trigger word** | None |
+| **Strength** | 0.7-1.0 |
+| **Type** | NSFW / Nudity Enhancement |
+| **Version** | v4 |
+
+### Description
+Another naked FLUX LoRA that actually "pushes" nudity better than most alternatives. Works with both men and women. Uses joy-captioning for detailed descriptions. Some poses work better than others - not all anatomically correct (no sex poses).
+
+### Recommended settings
+- **Sampler:** EULER with Beta or Forge-Flux with Beta
+- **Steps:** At least 25 steps
+- **Strength:** 0.7-1.0
+
+### Tips
+- For big breasts, use "skinny woman" in the same prompt
+- Never trained on "woman on escalator from behind" - works anyway
+- Man's part works somewhat
+- Use very detailed descriptions (joy-captioning style)
+
+### Sample prompts
+
+**Prompt 1 (Lavender field):**
+```
+Full length body shot using a nikon d850, 20 year old women has long corkscrew curly cinnamon hair with tightly coiled orange tips curly hair, pale skin, enchanting aqua marine eyes, full lips, cute nose. Naked with perfect large breasts, shaved pussy, medium labia, dark eyeliner and eyeshadow, limbal rings, in a field of lavender, sunny day, highly detailed, fashion photoshoot <lora:nude_FLUX_man_woman_v4:.7>
+```
+
+**Prompt 2 (Lake morning light):**
+```
+A photo of a woman standing in a serene lake, her slim, toned body illuminated by morning lighting that enhances her poised and striking stance. The lake's calm water ripples gently around her legs, adding depth to the scene. Her smooth caramel skin glows in the light, and her long, white-braided hair cascades down her back, complementing her sensuous grey eyes that gaze directly at the viewer. The dramatic angle highlights her perky medium breasts and topless confidence, capturing a natural yet powerful elegance. Subtle details, including pubic hair, add to the realistic portrayal of this full-body view. the background suggest a Wooden footbridge. <lora:nude_FLUX_man_woman_v4:1>
+```
+
+**Prompt 3 (Three oriental women ocean):**
+```
+masterpiece, three stunning oriental women, standing knee-deep in a tropical ocean, wet hair, wet skin, naked, middle girl blonde, detailed nipples, detailed areolae, no underwear, direct flirty gaze, sensual, erotic, posing. Perfect composition, perfect lighting, photorealistic, highly detailed, perfect hands, IMG_5150.CR2, analog film photo, cinematic film still, shallow depth of field, vignette, highly detailed, high budget Hollywood film, moody, epic, film grain, faded film, desaturated, 35mm photo, grainy, vignette, vintage, Kodachrome, stained, highly detailed, found footage, realist detail <lora:nude_FLUX_man_woman_v4:.7>
+```
+
+**Prompt 4 (Escalator from behind):**
+```
+low angle photo of a nude woman on an escalator, exposing her buttocks, one breast and looking back at camera. <lora:Sevenof9_nude_FLUX_man_woman_v4:1>
+```
+
+**Prompt 5 (Artistic dream mood):**
+```
+alone and abandoned like a lost soul in a blonde woman's body and devoid of will and feelings she dreams of love and hopes for a miracle that will turn back the time and brighten the gloomy clouds detailifier
+```
+
+**Prompt 6 (Red couch squatting):**
+```
+photo of A nude woman with a slender build, small breasts, and a shaved pubic area, squatting on a red couch, legs spread, hands over her head, revealing her vulva. She has long brown hair, fair skin, and a relaxed expression. The background shows a modern, well-lit room with a blue and white color scheme. <lora:Sevenof9_nude_FLUX_man_woman_v4:1>
+```
+
+**Prompt 7 (Webcam gamer girl):**
+```
+Professional photograph of naked webcam girl, sitting on her gamer chair in her bedroom legs spread wide showing off her hairy pussy, smiling at the viewer, a beautiful smile. She has long wavy hair, neon lights, cyberpunk bedroom <lora:nude_FLUX_man_woman_v4:.7>
+```
+
+**Prompt 8 (Avant-garde pixie cut):**
+```
+avant-garde, thrilling, and visually stunning high-fashion photograph of an ethereal, breathtakingly beautiful 20-year-old blonde woman with shorter pixiecut hairstyle, she is styled with bold, artistic flair, her body subtly and tastefully adorned with translucent fabrics, she has exposed nude naked perfect natural breasts boobs, cinematic mysterious and emotionally intense composition, set in a dramatic and abstract environment, a futuristic dreamscape, surreal wilderness, moody and dramatic lighting with deep shadows and sharp contrasts, her expression is fierce yet enigmatic, embodying confidence, vulnerability, and timeless beauty all at once, the highly detailed 16K RAW UHD arousing sensual explicit photo evokes the feeling of a revolutionary art piece, bold and unforgettable and emotionally resonant, pushing the limits of modern erotic visual storytelling, masterpiece by Loyd
+```
+
+**Prompt 9 (Grey couch blonde):**
+```
+photo of A nude adorable girl with a slim waist, huge natural breasts, and a shaved pubic area, squatting on a grey couch, legs spread, hands over her head, revealing her vulva. 18 yo young face, Hourglass figure, She has blond wavy hair, fair skin, normal amount of freckles and moles, a relaxed expression. Round face, small mouth and nose, no strong cheekbones, The background shows a modern, well-lit sun lit room with a red colour scheme. <lora:nude_FLUX_man_woman_v4:1>
+```
+
+**Prompt 10 (Norwegian supermodel):**
+```
+Realistic full-length DLSR photograph of a fit, slim, 175 cm height, extremely beautiful, sexy 22 year old Norwegian supermodel with medium very light blonde sidecut hair and striking light grey-blue eyes, freckles and realistic detailed skin texture including pores, she has a very pale skin color, body freckles and a few moles, a seductive confident look, smiling, nude with small perky breasts, light pink nipples and areolas, a white fashion necklace, a white silk shirt drapes over her shoulders. Her modern, stylish, chic modern Nordic style apartment is in the background, styled with vibrant Nordic accents, reflecting her hip personality, photographed in dramatic golden hour light. cinematic lighting
+```
+
+**Prompt 11 (Thong detailed):**
+```
+the image, a 1 woman, who appears to be in her early twenties, is standing with her full body facing the viewer, looking directly at the camera with a neutral expression. she has short, wavy brown hair and fair skin. her body is slim and athletic, with medium-sized breasts and a small waist. she is wearing a thong that is tied around her waist, accentuating her curves. the thong is red in color and has a knot detail at the front, adding a touch of elegance to her overall appearance. the lighting is soft and natural, casting gentle shadows on her body. the background is a simple beige wall with minimal details, and the overall atmosphere is minimalistic and intimate. breasts with perfect areolas and nipples, pubis, vulva, parted lips
+```
+
+**Prompt 12 (Shy Kitty quantum physics):**
+```
+incredibly realistic high resolution photorealistic UHD photograph of attractive blonde shy 19-year-old Kitty presenting her beautiful body, textless wordless photo capturing the following: why is it important that we seek to solve the mysteries of quantum physics? professional lighting
+```
+
+### Keywords
+- `naked` / `nude`
+- `shaved pussy` / `medium labia`
+- `perfect large breasts` / `small perky breasts`
+- `detailed nipples` / `detailed areolae`
+- `vulva` / `pubic hair`
+- `full body shot` / `full length body shot`
+- `revealing her vulva`
+- `legs spread`
+- `topless`
+
+### Tested combinations
+
+**Combination 1 (Jib Mix + Nude):**
+```
+Checkpoint: Jib Mix Flux v8 - AccentuEight
+<lora:nude_FLUX_man_woman_v4:0.7>
+```
+
+**Combination 2 (Mystic XXX + Nude):**
+```
+Checkpoint: FLUX Dev
+<lora:nude_FLUX_man_woman_v4:0.9>
+<lora:MysticXXX-v7:0.8>
+```
+
+**Combination 3 (Ultima + Detailifier):**
+```
+Checkpoint: FLUX Dev
+<lora:Ultima_Flux:0.15>
+<lora:Detailifier_Flux:0.55>
+<lora:nude_FLUX_man_woman_v4:0.9>
+```
+
+**Combination 4 (Extreme Detailer):**
+```
+Checkpoint: FLUX Dev
+<lora:nude_FLUX_man_woman_v4:0.85>
+<lora:FLUX_Pro_1.1_Extreme_Detailer:0.25>
+```
+
+**Combination 5 (Nude Girls):**
+```
+Checkpoint: FLUX Dev
+<lora:nude_FLUX_man_woman_v4:1>
+<lora:Nude_Girls:1>
+```
+
+### Compatible checkpoints
+- FLUX Dev
+- Jib Mix Flux v8 - AccentuEight
+- Flux Fusion V2
+
+### Notes
+- Use 25+ steps with EULER Beta or Forge-Flux Beta
+- Works better than many other nude LoRAs for "pushing" nudity
+- Joy-captioning style prompts work well (detailed descriptions)
+- Some poses anatomically imperfect - experiment
+- No sex poses trained
+- For big breasts combine with "skinny woman"
+- Works on both men and women
+
+---
+
+## Flux Lustly.ai Uncensored v1
+
+| Parameter | Value |
+|-----------|-------|
+| **File** | `flux_lustly-ai_v1.safetensors` |
+| **Civitai** | https://civitai.com/models/875879/flux-lustlyai-uncensored-v1-nsfw-lora-with-male-and-female-nudity |
+| **Trigger word** | None |
+| **Strength** | 1.0 |
+| **Type** | NSFW Unlock / Full Nudity |
+| **Version** | v1 (Alpha) |
+
+### Description
+Full frontal nudity LoRA supporting both male AND female nudity. One of the few LoRAs that properly handles male anatomy (penis). Reliable on Flux Dev, promising on Schnell (slightly less stable).
+
+### Key features
+- Female nudity (full frontal)
+- **Male nudity** (including erect penis) - rare feature
+- Works on both Dev and Schnell models
+- Cinematic and realistic styles
+
+### Planned roadmap
+- More diverse poses
+- Dynamic interactions between individuals
+- Various kinks
+
+### Sample prompts
+
+**Prompt 1 (Game of Thrones fantasy):**
+```
+Game of Thrones cinematic scene: a Night Watch knight, no pants, with a huge hard cock out, holding a giant sword in his hand, standing next to a naked red haired wildling young female, wearing only red medieval fur coat, flashing her boobs, in a medieval fantasy town, in the snow, huge live dragon flying in the air behind them, breathing fire
+```
+
+**Prompt 2 (Snowy forest lingerie):**
+```
+A young woman with long dark hair stands in a snowy forest, her seductive smile illuminated by soft, warm lighting. She wears a white fur coat with a large hood, draped over her shoulders, and a black lingerie set with thigh-high stockings. One hand rests on her hip, the other on her thigh, as she poses confidently. Snowflakes gently fall, creating a dreamy, ethereal atmosphere. The scene is framed with a shallow depth of field, emphasizing her expression and the intricate details of her attire. The lighting is moody and atmospheric, with a soft, diffused key light from the front and a subtle rim light from behind, casting a gentle glow on her skin. Film grain and a slightly desaturated color grading enhance the cinematic quality.
+```
+
+**Prompt 3 (Pool scene with male):**
+```
+Realistic high quality image of 55 years old blonde german woman, nude, curvy body, small perky boobs, high heels standing and talking with a naked 20 years old male, normal penis on side of interior swimming pool
+```
+
+**Prompt 4 (Backyard laundry):**
+```
+A young Russian woman with blonde hair, seen from the front, standing in a backyard hanging freshly washed clothes on a clothesline. She is nude and has wet body, and sunlight softly illuminates her and the surrounding garden. The scene captures a realistic, everyday moment with attention to natural lighting, textures of the fabric, and subtle expressions on her face. Background includes a wooden fence, green plants, and a few household items typical of a backyard.
+```
+
+**Prompt 5 (Beach hidden camera style):**
+```
+The image is taken from a hidden camera, captures a 19 years old girl, tall, covering boobs with a white towel, skinny body, clean shaved pussy, calm face, standing on sandy public beach. In the background are visible other nude women
+```
+
+### Keywords
+- `nude` / `naked`
+- `full frontal nudity`
+- `penis` / `cock` / `hard cock`
+- `flashing boobs`
+- `shaved pussy`
+- `wet body`
+- Male/female anatomy terms
+
+### Compatibility
+- **Flux Dev** - Reliable, recommended
+- **Flux Schnell** - Promising, slightly less stable
+- Works with diffusers
+- ComfyUI/Forge - community testing in progress
+
+### Use cases
+- Couples/male+female scenes
+- Male nudity (rare capability)
+- Fantasy/cinematic NSFW
+- Realistic everyday nudity
+- Hidden camera / voyeur style
+
+### Notes
+- One of few LoRAs supporting male anatomy
+- Alpha version - more features planned
+- Works well for cinematic and realistic styles
+- Can generate couples/multi-person scenes
+- Good for fantasy themes (Game of Thrones style)
+
+---
+
+## Flux Skin Texture
+
+| Parameter | Value |
+|-----------|-------|
+| **File** | `Flux_Skin_Texture_V2.safetensors` |
+| **Civitai** | https://civitai.com/models/1186433/flux-skin-texture |
+| **Trigger word** | `skntxtr` (optional) |
+| **Strength** | 0.6-1.0 |
+| **Type** | Style / Enhancement / Realism |
+| **Version** | v2.0 |
+
+### Description
+LoRA to improve the infamous plastic look we sometimes get with Flux.1-Dev. Trained on professional beauty shots and general photography where skin texture was prominent. Works with both men and women.
+
+Improves:
+- Skin texture and pores
+- General photorealism
+- Removes "plastic" Flux look
+- Adds natural skin detail
+
+### Sample prompts
+
+**Prompt 1 (Malaysian woman bar):**
+```
+A close up photo of a young (Malaysian woman:1.4), nude side profile, her shirt is open in the middle exposing her small breasts for the viewer, she has a look of surprise and embarrassment on her face, winter day in the city bar, moody lighting, erotic photograph, sexy revealing pose, she is (topless:1.4), her hair is short and messy, expressive facial features and body language, she is leaning against the wall with her chest pressed out <lora:Flux_Skin_Texture_V2:1>
+```
+
+**Prompt 2 (Cowgirl on horse):**
+```
+A gorgeous Caucasian cowgirl with a supermodel physique, riding a horse bareback, back arched, with perfect posture, looking seductively at the viewer with a seductive, sultry and aroused yet confident expression. She has long, wavy blonde hair blowing in the wind, striking honey colored eyes, and luscious plump lips. Her skin is sun-kissed with visible tan lines, with a perfect detailed skin texture style, realism, detailed. She has a slim, toned body with defined abs and strong shoulders. She is wearing only a cowboy hat and boots, and a black and white striped shirt that is wide open, fully revealing her perky bare breasts and hard nipples, skntxtr, PerkyCTits, and a neatly trimmed triangle patch of pubic hair above her pussy. The setting is a dynamic ranch on a hot sunny day with a bright blue sky at the golden hour. 8k resolution, sharp focus.
+```
+
+**Prompt 3 (Arctic portrait with glasses):**
+```
+A hyper-realistic portrait. cinematic upper body photo, Dramatic Shadow with a Bold Look, A brunette woman, her hair neatly styled with subtle highlights that catch the light softly, beam of light on her, She wears round, silver-framed glasses perched elegantly on the bridge of her nose, excellent dynamic range, makeup, natural youthful glow. White modern clothes, straight white hair cascading down her shoulders, Her eyes are almond-shaped and striking blue, accentuated by thick eyeliner. arctic circle snow drift, snowing, snowflakes, cold, chill bumps, approaching perfection, dynamic, highly detailed, smooth, sharp focus, intricate details, shallow depth of field, vignette, bokeh, cinemascope, moody, epic, gorgeous, film grain, grainy, (skin texture:1.4)
+```
+
+### Keywords
+- `skntxtr` - optional trigger word
+- `skin texture`
+- `detailed skin`
+- `realistic skin`
+- `natural skin`
+- `pores`
+- `photorealistic`
+
+### Tested combinations
+
+**Combination 1 (PixelWave + Eros):**
+```
+Checkpoint: PixelWave FLUX.1-dev 03
+<lora:Flux_Skin_Texture_V2:1>
+<lora:nudes_v06:1>
+```
+
+**Combination 2 (CyberRealistic + Perky Tits):**
+```
+Checkpoint: CyberRealistic Flux v2.5
+<lora:Flux_Skin_Texture_V2:0.8>
+<lora:Perky_C_Tits:1>
+```
+
+**Combination 3 (XLabs Realism + Makeup):**
+```
+Checkpoint: FLUX Dev
+<lora:XLabs_Flux_Realism:1>
+<lora:Esc_Makeup:0.6>
+<lora:Flux_Skin_Texture_V2:0.6>
+<lora:Iphone_quality_FLUX:0.8>
+```
+
+### Compatible checkpoints
+- FLUX Dev
+- PixelWave FLUX.1-dev
+- CyberRealistic Flux v2.5
+
+### Notes
+- Fixes the "plastic" Flux look
+- Works with both male and female subjects
+- Trained on professional beauty photography
+- Best at 0.6-1.0 strength
+- Combine with realism LoRAs for best results
+- Optional trigger word `skntxtr` for stronger effect
+
+---
+
+## Eros v06
+
+| Parameter | Value |
+|-----------|-------|
+| **File** | `eros_v06.safetensors` |
+| **Civitai** | https://civitai.com/models/1063613/eros?modelVersionId=1364408 |
+| **Trigger word** | `topless`, `nude`, `naked` |
+| **Strength** | 0.8-1.0 |
+| **Type** | CONCEPT / Nudity |
+
+### Description
+Reproduce human nudity with high accuracy and controllability on various body types, ethnicities, styles without shifting the base model too much.
+
+### Recommended settings
+- Steps: 20-40 (weird pose = more steps)
+- CFG: 2.5-5
+- Samplers: Euler/Simple, Beta, DDEIS/DDIM, Flux realistic
+
+### Supported features
+- **Poses:** standing, sitting, squatting, resting, lying, crouching, on all fours
+- **Camera angles:** selfie, from behind, profile, top view, rear view, high/low angle
+- **Close-up:** chest, lower body, pussy, breasts, buttocks, feet, hands
+- **Breasts sizes:** tiny to enormous
+- **Ethnicity:** Caucasian, Asian, Korean, Japanese, African, European, etc.
+- **Skin color:** pale, fair, light, olive, medium, dark
+- **Pubic hair:** hairy, trimmed, shaved
+
+### Sample prompts
+
+**Prompt 1 (Mountain nude):**
+```
+A full body photo of an 18 year old Russian woman, nude side profile, she has small pointy breasts which sag gently, she is standing on top on a mountain with the clouds below her, moody lighting, (she is wearing thigh-high stockings:1.2), erotic photograph, sexy revealing pose <lora:eros_v06:1>
+```
+
+**Prompt 2 (Forest path):**
+```
+The image shows a young woman standing on a rocky path in a forest. She is wearing a lower down gray dress, exposing her breasts, with a belt around her waist. She has shoulder-length blonde hair and is looking directly at the camera with a serious expression. <lora:eros_v06:1>
+```
+
+---
+
+## FLUX Naked Female
+
+| Parameter | Value |
+|-----------|-------|
+| **File** | `flux_naked_female_v1.safetensors` |
+| **Original filename** | `b13313a36212c9637d8cc8f50a2ab96b.safetensors` |
+| **Civitai** | https://civitai.com/models/938709/flux-naked-female |
+| **Trigger word** | None |
+| **Strength** | 1.0-1.45 |
+| **Type** | CONCEPT / Nudity |
+
+### Description
+Generate realistic naked females with pubic hair. Different faces, hair colors, ethnicities.
+
+### Known issues & solutions
+- **Face out of frame:** Add hair color (Redhead, Brunette, Blonde)
+- **Full body shot:** Add hair color + shoe type (e.g., "Full body shot, Woman, Blonde, white shoes")
+
+### Sample prompts
+
+**Prompt 1 (Crowd):**
+```
+Crowd of naked women, blonde, redhead, brunette, on street, celebrating, happy, celebrating party <lora:flux_naked_female_v1:1>
+```
+
+**Prompt 2 (Beach group):**
+```
+three (fully naked:2.5) women bright skin, very bright blond hair, different hairstyles, unique faces, scandinavian look, walking along a beach holding hands, (tall:1.4), slender, happy faces, smiling at viewer, (pubic hair, large labia clearly visible:1.2) <lora:flux_naked_female_v1:1.45>
+```
+
+---
+
+## FLUX NSFW LoRA
+
+| Parameter | Value |
+|-----------|-------|
+| **File** | `FLUX_NSFW.safetensors` |
+| **Civitai** | https://civitai.com/models/742936/flux-nsfw |
+| **Trigger word** | None |
+| **Strength** | 0.8 |
+| **Type** | CONCEPT / NSFW |
+
+### Description
+General NSFW content generation for FLUX.
+
+### Sample prompts
+
+**Prompt 1 (Bed):**
+```
+Naked woman, on bed, legs spread wide, pussy visible <lora:FLUX_NSFW:0.8>
+```
+
+**Prompt 2 (Korean woman):**
+```
+A 21-year-old South Korean woman walking confidently among the high-rise buildings, in 8K-quality. She has a great body, with huge breasts, a very slim waist. She is wearing a loose suit open enough to show her chest and navel. <lora:FLUX_NSFW:0.8>
+```
+
+---
+
+## Flux-Cameltoe NSFW
+
+| Parameter | Value |
+|-----------|-------|
+| **File** | `Flux-CamelToe.safetensors` |
+| **Civitai** | https://civitai.com/models/748078/flux-cameltoe-nsfw |
+| **Trigger word** | `cameltoe`, `v-shape` |
+| **Strength** | 1.0 |
+| **Type** | CONCEPT / Clothing effect |
+
+### Description
+Cameltoe effect for clothed models. Works with Flux DEV and Flux Schnell.
+
+### Usage tips
+- For clothed models: use this LoRA alone
+- For NSFW/Nude: combine with other NSFW LoRAs
+
+### Sample prompts
+
+**Prompt 1 (Pool):**
+```
+a full body photo of butifull young women next to the pool, she has thight white leggings on pulling a cameltoe in a v-shape. Her light pink tank top is partially covered with her long blond hair. <lora:Flux-CamelToe:1>
+```
+
+**Prompt 2 (Forest bikini):**
+```
+a photo of tow girls, one blond and one redhead doing a topless bikini photoshoot in the forrest at a green sunny spot. both of them have cameltoe pulling a v-shape on their random color bikini bottoms. <lora:Flux-CamelToe:1>
+```
+
+### Good combinations
+- JK Perfect Breasts for Flux
+- Cameltoe Panties (Flux)
+
+---
+
+## NSFW FLUX LoRA (AiArtV)
+
+| Parameter | Value |
+|-----------|-------|
+| **File** | `nsfw_flux_lora_v1.safetensors` |
+| **Civitai** | https://civitai.com/models/655753/nsfw-flux-lora |
+| **Trigger word** | `AiArtV` |
+| **Strength** | 0.5-1.0 |
+| **Type** | CONCEPT / NSFW |
+
+### Description
+NSFW content generation for FLUX (experimental). Trained on 600 images, 18k steps.
+
+### Recommended settings
+- Sampler: euler
+- Steps: 20
+- CFG: 1
+
+### Sample prompts
+
+**Prompt 1 (Portrait):**
+```
+AiArtV, woman, open mouth, blue hair, earrings, teeth, choker, tongue, tongue out, mole, black choker, makeup, portrait, realistic, long tongue <lora:nsfw_flux_lora_v1:0.8>
+```
+
+**Prompt 2 (Changing room):**
+```
+18yo, light brown hair, long hair, low body fat, skinny, abs, medium breast, nude, naked, stunning girl, showing her pussy, in a changing room, petite, skinny, AiArtV <lora:nsfw_flux_lora_v1:0.8>
+```
+
+### Good combinations
+- MysticXXX LoRA
+- Huge cumshot facial LoRA
+- Breast size slider
+
+---
+
+## Cum and play with FLUX
+
+| Parameter | Value |
+|-----------|-------|
+| **File** | `Semen_flux_lora_v2.safetensors` |
+| **Civitai** | https://civitai.com/models/664287/cum-and-play-with-flux |
+| **Trigger word** | None (describe effect in detail) |
+| **Strength** | 0.35-1.05 |
+| **Type** | CONCEPT / Cum effect |
+
+### Description
+Facial cumshot/semen effects for FLUX. Best results when describing the facial in detail.
+
+### Best practice
+Describe the effect explicitly:
+> her face is covered with semen which is a thick, viscous white substance. The substance is smeared across her forehead, cheeks, nose, and chin, with some droplets on her lips.
+
+### Sample prompts
+
+**Prompt 1 (Brazilian):**
+```
+Raw, 8k, dramatic lighting, a profetonal photo of a cute young brasilian woman after giving a blowjob, large amounts of thick white liquid semen are in lines on her her face after a facial cumshot, shes kneeling on the floor looking up at the viewer <lora:Semen_flux_lora_v2:1>
+```
+
+**Prompt 2 (College selfie):**
+```
+A selfie photo of a female college student in her dorm room. She is taking a messy and gooey realistic semen facial cumshot across her face. She is dripping with cum, and a shy, surprised smile appears on her face as she blushes. <lora:Semen_flux_lora_v2:1>
+```
+
+### Good combinations
+- Huge cumshot facial LoRA
+- Boreal-FD (Boring Reality)
+- Real Nipples and Areola Textures
+
+---
+
+## Cum On Feet - FLUX
+
+| Parameter | Value |
+|-----------|-------|
+| **File** | `Cum_On_Feet_-_FLUX_r1.safetensors` |
+| **Civitai** | https://civitai.com/models/1583418/cum-on-feet-flux |
+| **Trigger word** | `cum on feet`, `cumshot on feet` |
+| **Strength** | 1.0 |
+| **Type** | CONCEPT / Cum effect |
+
+### Description
+Cum on feet effect for FLUX. Works better with just feet and no face.
+
+### Sample prompts
+
+**Prompt 1 (Closeup):**
+```
+closeup, rainbow nail polish, cum on feet, feet, cumshot on feet <lora:Cum_On_Feet_-_FLUX_r1:1>
+```
+
+**Prompt 2 (Chair):**
+```
+Asian woman sitting on a chair, showing feet to the viewer, cum on feet, feet, cumshot on feet <lora:Cum_On_Feet_-_FLUX_r1:1>
+```
+
+### Good combinations
+- Slingback Pumps LoRA
+- POV Sockjob, Shoejob, Footjob [Flux]
+
+---
+
+## Cum Facial / Cum on face - FLUX
+
+| Parameter | Value |
+|-----------|-------|
+| **File** | `Cum_Facial_-_FLUX-000009.safetensors` |
+| **Civitai** | https://civitai.com/models/1240792/cum-facial-cum-on-face-flux |
+| **Trigger word** | `cum facial`, `cum on face`, `bukkake` |
+| **Strength** | 1.0-1.25 |
+| **Type** | CONCEPT / Cum effect |
+
+### Description
+Cum facial/bukkake effects for FLUX. More visible effect than other cum LoRAs.
+
+### Sample prompts
+
+**Prompt 1 (Tanktop):**
+```
+Asian girl with a yellow tanktop with the text "Cumslut" and a black choker. On her knees with fishnet stockings. Looking up with open mouth, smiling, tongue out. Cum facial, cum on face, bukkake <lora:Cum_Facial_-_FLUX-000009:1>
+```
+
+**Prompt 2 (Pigtails):**
+```
+Cute blonde girl with braces and pigtails, facial, cum on face, cum facial. bukkake. thumb up, smile <lora:Cum_Facial_-_FLUX-000009:1>
+```
+
+**Prompt 3 (Group):**
+```
+4 smiling Asian girls next to each other, with huge cum facial, alot of cum on face, massive cumshot, bukkake <lora:Cum_Facial_-_FLUX-000009:1.25>
+```
+
+### Good combinations
+- XLabs Flux Realism LoRA
+- Perfect Full Round Breasts & Slim Waist
+- UltraRealistic Lora Project
+
+---
+
+## Facial cum massive FLUX
+
+| Parameter | Value |
+|-----------|-------|
+| **File** | `facialcummassive_FLUX.safetensors` |
+| **Original filename** | `9cd3fddff95e898ea5534c4eb6a6509b.safetensors` |
+| **Civitai** | https://civitai.com/models/866273/facial-cum-massive-flux |
+| **Trigger word** | `FCLHGE`, `Facial cum massive`, `cum on nose`, `cum on forehead`, `cum drips`, `bukkake` |
+| **Strength** | 1.0-2.0 (up to 2 without subject LoRA) |
+| **Clipskip** | 1 |
+| **Type** | CONCEPT / Cum effect |
+
+### Description
+Massive facial cum effect LoRA for FLUX. Uses trigger word FCLHGE for activation. Produces heavy cum effects on face including nose, forehead, and dripping effects. Can use higher strength (up to 2.0) when not combining with subject LoRAs.
+
+### Sample prompts
+
+**Prompt 1 (Basic facial):**
+```
+FCLHGE, Facial cum massive, woman with cum on face, cum on nose, cum on forehead, cum drips <lora:facialcummassive_FLUX:1>
+```
+
+**Prompt 2 (Bukkake):**
+```
+FCLHGE, bukkake, massive facial, cum drips down face, cum on forehead, cum on nose <lora:facialcummassive_FLUX:1.5>
+```
+
+### Keywords
+- `FCLHGE` - **TRIGGER WORD**
+- `Facial cum massive`
+- `cum on nose`
+- `cum on forehead`
+- `cum drips`
+- `bukkake`
+- `massive facial`
+
+### Notes
+- Use trigger word `FCLHGE` for best results
+- Can increase strength to 2.0 when not using subject LoRAs
+- Use Clipskip 1
+- Combines well with other NSFW LoRAs
+
+---
+
+## Cumbubbles FLUX
+
+| Parameter | Value |
+|-----------|-------|
+| **File** | `Cumbubbles_FLUX.safetensors` |
+| **Civitai** | https://civitai.com/models/1406617/cumbubbles-flux |
+| **Trigger word** | `cumbubbles` |
+| **Strength** | 1.0 |
+| **Type** | CONCEPT / Cum effect |
+
+### Description
+Simple LoRA to add cum bubbles effect on mouth and nose. Creates frothy bubble effect with cum.
+
+### Sample prompts
+
+**Prompt 1 (Bukkake with bubbles):**
+```
+bukkake and cum everywhere, a woman with a white substance like cum on her face, closed eyes and raised foreskin, a woman with a lot of white stuff on her face and eyes, penis with cum fontain, gagging cum, face drenched in cum, a woman with a lot of white stuff on her face and nose like cum, cum drenched lips. <lora:Cumbubbles_FLUX:1> cumbubbles. bubbles on mouth and nose.
+```
+
+**Prompt 2 (Festival foam):**
+```
+cumbubbles The popular Japanese actress is enjoying the festival at a winter festival in Tokyo. She is caught in a joyous moment spraying herself with artificial snow made from cum foam. cum foam falls on her face, covering her cheeks, nose and lips, giving her a surprised yet amused look. She has her eyes closed and is smiling, as cum foam creates a frothy effect around her mouth and nose. The scene is vibrant and captures the atmosphere of the festival.
+```
+
+### Keywords
+- `cumbubbles` - **TRIGGER WORD**
+- `bubbles on mouth and nose`
+- `cum foam`
+- `frothy effect`
+
+### Compatible checkpoints
+- FLUX Dev
+- AsianBeautyFlux
+
+### Notes
+- Use trigger word `cumbubbles` for activation
+- Creates bubble/foam effect with cum
+- Works well with bukkake prompts
+
+---
+
+## Cum on face - Non-Face Altering
+
+| Parameter | Value |
+|-----------|-------|
+| **File** | `cumonfacelorav2.safetensors` |
+| **Civitai** | https://civitai.com/models/858262/cum-on-face-flux-non-face-altering |
+| **Trigger word** | `COF` |
+| **Strength** | 0.8-1.0 |
+| **Type** | CONCEPT / Cum effect |
+| **Version** | v2.0 |
+
+### Description
+Cum on face LoRA that does NOT alter character faces - allows using with favorite character LoRAs. V2 retrained using De-distilled Flux with recaptioned dataset for better efficiency.
+
+### Important: Distilled vs Dedistilled
+- **Dedistilled models**: Full cum effect, works extremely well
+- **Distilled models**: Less cum, need to max CFG and use all reinforcing words
+- Recommended: Use Dedistilled models for best results
+
+### Key features
+- Non-face altering - safe for character LoRAs
+- Works on face, body, mouth with Dedistilled
+- V2 improved over V1
+
+### Reinforcing words (important for Distilled)
+```
+she has clear sticky cum with white reflections over her face, dripping cum, cum on forehead, cum on cheeks, cum on chin, cum on eyes, cum on lips, cum dripping from chin, cum on tongue
+```
+
+### Alternative reinforcing words
+```
+white sticky cum on face, white sticky semen on face, white sticky sperm on face, face covered with white sticky cum
+```
+
+### Sample prompts
+
+**Prompt 1 (Emo punk girl):**
+```
+<lora:cumonfacelorav2:1>COF, Above view of 18 years-old smiling emo punk girl with pink colored hairstyle, tongue out, above view, she has clear sticky cum with white reflections over her face, dripping cum, cum on forehead, cum on cheeks, cum on chin, cum on eyes, cum on lips, cum dripping from chin, cum on tongue. The scene happens in a rave during night
+```
+
+**Prompt 2 (Christmas market):**
+```
+Close-up Portrait of a very beautiful smiling woman called Elle wearing a super nice knitted white hat, knitted white gloves and a winter outfit, is standing on a christmas market and holding a Norwegian mulled wine mug in her hands. She has clear sticky cum with white reflections over her face. Her face is covered in cum after an enormous ejaculation. Christmas mood, love, fantasy, dreaming, cinematic <lora:cumonfacelorav2:1>
+```
+
+**Prompt 3 (Motorhead fan):**
+```
+A closeup photo of a gorgeous dark haired fan girl of the heavy metal band Motörhead is kneeling, mouth open, eyes closed. The point of view is from above her head, her face is towards the viewer. Her face is completely covered by cum, She has clear sticky cum with white reflections over her face, cum on nose, cum on lips, cum on chin, dripping cum, cum on eyes, cum on cheeks, cum on teeth, cum on forehead, cum dripping from cheeks, cum dripping from chin, cum on hair, front view, view from above, cum dripping from lips. Her face is almost completely covered by semen. Huge amount of sperm. She has a black "Motörhead Overkill" fan t-shirt on <lora:cumonfacelorav2:1>
+```
+
+**Prompt 4 (Satin maid):**
+```
+satin maid uniform, short-sleeve satin dress, white peterpan collar, white satin apron, skirtlift, a woman is lifting her dress to show her crotch area and vagina, COF, She has clear sticky cum with white reflections over her face, cum on nose <lora:cumonfacelorav2:1>
+```
+
+**Prompt 5 (Cumzilla style - works well):**
+```
+cumface woman with lots of white, thick, gooey cum all over and covering her face, cheeks, hair and forehead. The cum coats her face in a thick layer <lora:cumonfacelorav2:1>
+```
+
+### Keywords
+- `COF` - **TRIGGER WORD**
+- `clear sticky cum with white reflections`
+- `dripping cum`
+- `cum on forehead/cheeks/chin/eyes/lips/tongue`
+- `cum dripping from chin`
+- `face covered with cum`
+
+### Prompting tip
+Link reinforcing words with "with":
+- GOOD: "Young woman face with sticky cum on face"
+- BAD: "Young woman, sticky cum"
+
+### Tested combinations
+- MysticXXX LoRA
+- Missionary POV LoRA
+- Character LoRAs (Elle from Rick & Morty, etc.)
+- Satin Maid LoRA
+- Skirt Lift Concept LoRA
+- Desi Espresso LoRA
+
+### Compatible checkpoints
+- FLUX Dev
+- Fluxmania
+- De-distilled Flux (RECOMMENDED)
+
+### Notes
+- Use trigger word `COF`
+- Does NOT alter character face - safe for character combos
+- Much better results with Dedistilled models
+- For Distilled: max CFG, use ALL reinforcing words
+- Can generate cum on other body parts with Dedistilled
+
+---
+
+## Bukkake / Realistic Cum Facial Flux
+
+| Parameter | Value |
+|-----------|-------|
+| **File** | `Bukkake_Flux.safetensors` |
+| **Civitai** | https://civitai.com/models/1346321/bukkake-realistic-cum-facial-flux |
+| **Trigger word** | None (use keywords) |
+| **Strength** | 1.0 |
+| **Type** | CONCEPT / Cum effect |
+
+### Description
+Creates realistic bukkake facials for Flux. Works with single or multiple subjects.
+
+### Sample prompts
+
+**Prompt 1 (Single woman):**
+```
+A sexy woman is drenched in cum, she is smiling happily, bukkake, cum facial, cum on face, thick cum on face, semen on face, semen facial <lora:Bukkake_Flux:1>
+```
+
+**Prompt 2 (Two women):**
+```
+2 sexy women are drenched in cum, they are smiling happily, They don't look alike, bukkake, cum facial, cum on face, thick cum on face, semen on face, semen facial <lora:Bukkake_Flux:1>
+```
+
+**Prompt 3 (Ahegao bunny):**
+```
+a cinematic high def picture of a skinny slim cute cumface Woman age21, ahegao, ahegao face, tongue out, pink hair, bunny ears, bunny costume, (White thick choker with a pink plastic heart), lots of white sticky semen on her face, streams of semen pouring down her face and dripping down, cum on forehead cum on face, cum on tongue, pink neon light background, bedroom <lora:Bukkake_Flux:1>
+```
+
+### Keywords
+- `bukkake`
+- `cum facial`
+- `cum on face`
+- `thick cum on face`
+- `semen on face`
+- `semen facial`
+- `drenched in cum`
+
+### Notes
+- No trigger word needed - use descriptive keywords
+- Works with multiple subjects
+- Good for realistic bukkake scenes
+
+---
+
+## Universal Cum Enhancer
+
+| Parameter | Value |
+|-----------|-------|
+| **File** | `Cum_as_a_Concept_V1.safetensors` |
+| **Civitai** | https://civitai.com/models/1494887/universal-cum-enhancer-cum-as-a-concept-flux |
+| **Trigger word** | `cum on floor`, or just `cum` |
+| **Strength** | 0.6-1.5 |
+| **Type** | CONCEPT / Cum enhancer |
+| **Version** | v1.0 |
+
+### Description
+Universal cum enhancer that boosts other cum LoRAs by adding better texture and shape. Designed to work alongside other NSFW/cum LoRAs for improved results. The word "cum" is the key trigger - add descriptors to match your needs.
+
+### Key features
+- Enhances other cum LoRAs
+- Adds texture and shape to cum effects
+- Works best with Flux Dev
+- Adjustable strength (0.6-1.5)
+
+### Known limitations
+- Sometimes generates less cum than expected - tweak prompts
+- Quality may dip if prompts stray too far from trained data
+- Works best when combined with other cum LoRAs
+
+### Sample prompts
+
+**Prompt 1 (Snapchat style with Noisify):**
+```
+a low light 2015 snapchat quality realistic iphone photo taken from above with her mouth slightly open, in a dark bedroom with the lights off, her face is covered in long strands of stringy white semen and cum. There are thin sticky strands stretching from her chin to small tiny globs on her neck and chest. the strands of cum and semen are shot diagonally across her face, in almost parallel strands. There is no top or clothing visible. She looks like she has been roughed up, her hair is messy and her makeup is smudged, her eyeliner is running. low light, noise, film grain. The photo is taken from above, as if the viewer is positioned on top of her as she is lying down. <lora:Cum_as_a_Concept_V1:1>
+```
+
+**Prompt 2 (Close-up with realism):**
+```
+An image of a close-up shot of a Caucasian woman's face with cum on it. She is wearing a camisole. Her eyes are closed, and her expression is neutral. The background is minimal, showing a light-colored floor and part of a wall. The lighting is bright, suggesting daytime. <lora:Cum_as_a_Concept_V1:1> <lora:flux_realism_lora:1>
+```
+
+### Negative prompt (recommended)
+```
+ugly face, mutated hands, low res, blurry face, pumped body, athletic body, black and white, text, big head
+```
+
+### Keywords
+- `cum` - **KEY TRIGGER**
+- `cum on floor`
+- `stringy white semen`
+- `strands of cum`
+- `sticky strands`
+
+### Tested combinations
+- Noisify LoRA
+- Character LoRAs (Anna, etc.)
+- Flux Realism LoRA
+
+### Notes
+- Use as enhancer WITH other cum LoRAs for best results
+- Adjust weight 0.6-1.5 depending on desired intensity
+- Stick close to trained prompts for quality
+
+---
+
+## FLUX Gone Wild
+
+| Parameter | Value |
+|-----------|-------|
+| **File** | `FLUX_Gone_Wild.safetensors` |
+| **Original filename** | `FLUX_Gone_Wild-000003.safetensors` |
+| **Civitai** | https://civitai.com/models/1188155/flux-gone-wild |
+| **Trigger word** | None |
+| **Strength** | 1.0 |
+| **Type** | STYLE / NSFW Enhancement |
+| **Version** | v1.0 |
+
+### Description
+One of the best FLUX NSFW models available. Enhances overall NSFW quality and explicit content generation. Works great with Instagram model and character LoRAs.
+
+### Key features
+- High quality NSFW generation
+- Works well with other LoRAs
+- Good for explicit content (masturbation, nudity)
+- Snapchat/Instagram selfie style support
+
+### Sample prompts
+
+**Prompt 1 (Bathroom mirror selfie):**
+```
+Perfect Eyes, perspective, score_9, score_8_up, score_7_up, masterpiece, high quality, realistic, detailed, (photorealistic:1.4), navel focus, Natural skin), 1girl, 25year old, slut, gorgeous girl, (cute girl), tanned, makeup, long haircut straight hair, ((black thick hair:1.7)), suntan skin, (hourglass body), natural breast, athletic girl, big lips, soft lips, big mouth, nipples, supermodel body, slutty face, big eyes, black eyes, gorgeous perfect face, big natural breasts, (((((naked:1.2, breasts revealed, nipples revealed)))) ((((A Snapchat selfie with pink iPhone in the mirror of a beautiful woman with tanned skin taking a selfie while masturbating in the bathroom, fingering vagina, pussy revealed)))). The overall mood is playful and theatrical, with a focus on performance art. The lighting emphasizes the performer, creating a dynamic and engaging composition. masterwork, masterpiece, best quality, detailed, depth of field, high detail, best quality, very aesthetic, 8k, dynamic pose, depth of field, dynamic angle, instagirl <lora:FLUX_Gone_Wild:1>
+```
+
+**Prompt 2 (With RNAT and Instagram):**
+```
+Perfect Eyes, perspective, score_9, score_8_up, score_7_up, masterpiece, high quality, realistic, detailed, (photorealistic:1.4), navel focus, Natural skin), 1girl, 25year old, slut, gorgeous girl, (cute girl), tanned, makeup, long haircut straight hair, ((black thick hair:1.7)), suntan skin, (hourglass body), natural breast, athletic girl, big lips, soft lips, big mouth, nipples, supermodel body, slutty face, big eyes, black eyes, gorgeous perfect face, big natural breasts, (((((naked:1.2, breasts revealed, nipples revealed)))) ((((A Snapchat selfie with pink iPhone in the mirror of a beautiful woman with tanned skin taking a selfie while masturbating in the bathroom, fingering vagina, pussy revealed)))). masterwork, masterpiece, best quality, detailed, depth of field, high detail, best quality, very aesthetic, 8k, dynamic pose, depth of field, dynamic angle, instagirl, Ona_model, RNAT, Mirror selfie, holding cellphone <lora:FLUX_Gone_Wild:1>
+```
+
+### Keywords
+- `score_9`, `score_8_up`, `score_7_up`
+- `masterpiece`, `high quality`, `realistic`
+- `photorealistic`
+- `naked`, `breasts revealed`, `nipples revealed`
+- `Snapchat selfie`, `mirror selfie`
+- `fingering vagina`, `pussy revealed`
+- `instagirl`
+
+### Tested combinations
+- Real Nipples and Areola Textures (RNAT) LoRA
+- Instagram Girl LoRA
+- Ona Instagram Model LoRA
+- Mirror Selfie FLUX LoRA
+
+### Compatible checkpoints
+- FLUX Dev
+- Jib Mix Flux
+
+### Notes
+- One of the best NSFW LoRAs available
+- Works great with Instagram/selfie style LoRAs
+- Good for explicit masturbation scenes
+- Combine with RNAT for realistic nipples
 
 ---
 
