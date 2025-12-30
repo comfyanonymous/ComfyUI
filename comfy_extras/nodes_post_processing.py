@@ -498,6 +498,66 @@ def batch_latents(latents: list[dict[str, torch.Tensor]]) -> dict[str, torch.Ten
     samples_out["samples"] = torch.cat(tensors, dim=0)
     return samples_out
 
+class BatchImagesNode(io.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        autogrow_template = io.Autogrow.TemplatePrefix(io.Image.Input("image"), prefix="image", min=2, max=50)
+        return io.Schema(
+            node_id="BatchImagesNode",
+            display_name="Batch Images",
+            category="image",
+            inputs=[
+                io.Autogrow.Input("images", template=autogrow_template)
+            ],
+            outputs=[
+                io.Image.Output()
+            ]
+        )
+
+    @classmethod
+    def execute(cls, images: io.Autogrow.Type) -> io.NodeOutput:
+        return io.NodeOutput(batch_images(list(images.values())))
+
+class BatchMasksNode(io.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        autogrow_template = io.Autogrow.TemplatePrefix(io.Mask.Input("mask"), prefix="mask", min=2, max=50)
+        return io.Schema(
+            node_id="BatchMasksNode",
+            display_name="Batch Masks",
+            category="mask",
+            inputs=[
+                io.Autogrow.Input("masks", template=autogrow_template)
+            ],
+            outputs=[
+                io.Mask.Output()
+            ]
+        )
+
+    @classmethod
+    def execute(cls, masks: io.Autogrow.Type) -> io.NodeOutput:
+        return io.NodeOutput(batch_masks(list(masks.values())))
+
+class BatchLatentsNode(io.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        autogrow_template = io.Autogrow.TemplatePrefix(io.Latent.Input("latent"), prefix="latent", min=2, max=50)
+        return io.Schema(
+            node_id="BatchLatentsNode",
+            display_name="Batch Latents",
+            category="latent",
+            inputs=[
+                io.Autogrow.Input("latents", template=autogrow_template)
+            ],
+            outputs=[
+                io.Latent.Output()
+            ]
+        )
+
+    @classmethod
+    def execute(cls, latents: io.Autogrow.Type) -> io.NodeOutput:
+        return io.NodeOutput(batch_latents(list(latents.values())))
+
 class BatchImagesMasksLatentsNode(io.ComfyNode):
     @classmethod
     def define_schema(cls):
@@ -542,6 +602,9 @@ class PostProcessingExtension(ComfyExtension):
             Sharpen,
             ImageScaleToTotalPixels,
             ResizeImageMaskNode,
+            BatchImagesNode,
+            BatchMasksNode,
+            BatchLatentsNode,
             # BatchImagesMasksLatentsNode,
         ]
 
