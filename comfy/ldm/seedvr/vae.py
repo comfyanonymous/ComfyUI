@@ -1878,8 +1878,6 @@ class VideoAutoencoderKLWrapper(VideoAutoencoderKL):
         if latent.ndim == 4:
             latent = latent.unsqueeze(2)
 
-        target_device = comfy.model_management.get_torch_device()
-        self.decoder.to(target_device)
         if self.tiled_args.get("enable_tiling", None) is not None:
             self.enable_tiling = self.tiled_args.pop("enable_tiling", False)
 

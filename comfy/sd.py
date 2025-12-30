@@ -379,8 +379,8 @@ class VAE:
                 self.latent_channels = 16
             elif "decoder.up_blocks.2.upsamplers.0.upscale_conv.weight" in sd: # seedvr2
                 self.first_stage_model = comfy.ldm.seedvr.vae.VideoAutoencoderKLWrapper()
-                self.memory_used_decode = lambda shape, dtype: (2000 * shape[1] * shape[2] * shape[3] * (4 * 8 * 8)) * model_management.dtype_size(dtype)
-                self.memory_used_encode = lambda shape, dtype: (1000 * max(shape[1], 5) * shape[2] * shape[3]) * model_management.dtype_size(dtype)
+                self.memory_used_decode = lambda shape, dtype: (10 * shape[1] * shape[2] * shape[3] * (4 * 8 * 8)) * model_management.dtype_size(dtype)
+                self.memory_used_encode = lambda shape, dtype: (10 * max(shape[1], 5) * shape[2] * shape[3]) * model_management.dtype_size(dtype)
                 self.working_dtypes = [torch.bfloat16, torch.float32]
                 self.downscale_ratio = (lambda a: max(0, math.floor((a + 3) / 4)), 8, 8)
                 self.downscale_index_formula = (4, 8, 8)

@@ -332,11 +332,8 @@ class SeedVR2InputProcessing(io.ComfyNode):
 
     @classmethod
     def execute(cls, images, vae, resolution, spatial_tile_size, temporal_tile_size, spatial_overlap, enable_tiling):
-        device = vae.patcher.load_device
 
-        offload_device = comfy.model_management.intermediate_device()
-        main_device = comfy.model_management.get_torch_device()
-        images = images.to(main_device)
+        comfy.model_management.load_models_gpu([vae.patcher])
         vae_model = vae.first_stage_model
         scale = 0.9152; shift = 0
         if images.dim() != 5: # add the t dim
@@ -360,8 +357,6 @@ class SeedVR2InputProcessing(io.ComfyNode):
         images = cut_videos(images)
 
         images = rearrange(images, "b t c h w -> b c t h w")
-        images = images.to(device)
-        vae_model = vae_model.to(device)
 
         # in case users a non-compatiable number for tiling
         def make_divisible(val, divisor):
@@ -393,7 +388,6 @@ class SeedVR2InputProcessing(io.ComfyNode):
         latent = rearrange(latent, "b c ... -> b ... c")
 
         latent = (latent - shift) * scale
-        latent = latent.to(offload_device)
 
         return io.NodeOutput({"samples": latent})
 
