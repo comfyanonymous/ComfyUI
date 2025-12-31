@@ -309,6 +309,22 @@ class GeminiNode(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
+            price_badge=IO.PriceBadge(
+                depends_on=IO.PriceBadgeDepends(widgets=["model"]),
+                expr="""
+                (
+                  $m := w.model.s;
+
+                  $contains($m, "gemini-2.5-flash")
+                    ? {"type":"list_usd","usd":[0.0003,0.0025]}
+                    : $contains($m, "gemini-2.5-pro")
+                      ? {"type":"list_usd","usd":[0.00125,0.01]}
+                      : $contains($m, "gemini-3-pro-preview")
+                        ? {"type":"list_usd","usd":[0.002,0.012]}
+                        : {"type":"text","text":"Token-based"}
+                )
+                """,
+            ),
         )
 
     @classmethod
@@ -570,6 +586,9 @@ class GeminiImage(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
+            price_badge=IO.PriceBadge(
+                expr="""{"type":"usd","usd":0.039,"format":{"suffix":"/Image (1K)","approximate":true}}""",
+            ),
         )
 
     @classmethod
@@ -700,6 +719,19 @@ class GeminiImage2(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
+            price_badge=IO.PriceBadge(
+                depends_on=IO.PriceBadgeDepends(widgets=["resolution"]),
+                expr="""
+                (
+                  $r := w.resolution.s;
+                  ($contains($r,"1k") or $contains($r,"2k"))
+                    ? {"type":"usd","usd":0.134,"format":{"suffix":"/Image","approximate":true}}
+                    : $contains($r,"4k")
+                      ? {"type":"usd","usd":0.24,"format":{"suffix":"/Image","approximate":true}}
+                      : {"type":"text","text":"Token-based"}
+                )
+                """,
+            ),
         )
 
     @classmethod
