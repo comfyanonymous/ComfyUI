@@ -212,6 +212,8 @@ Python 3.14 works but you may encounter issues with the torch compile node. The 
 
 Python 3.13 is very well supported. If you have trouble with some custom node dependencies on 3.13 you can try 3.12
 
+torch 2.4 and above is supported but some features might only work on newer versions. We generally recommend using the latest major version of pytorch unless it is less than 2 weeks old.
+
 ### Instructions:
 
 Git clone this repo.
