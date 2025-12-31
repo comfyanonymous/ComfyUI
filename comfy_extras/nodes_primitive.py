@@ -66,7 +66,7 @@ class Float(io.ComfyNode):
             display_name="Float",
             category="utils/primitive",
             inputs=[
-                io.Float.Input("value", min=float(-sys.maxsize), max=float(sys.maxsize)),
+                io.Float.Input("value", min=float(-sys.maxsize), max=float(sys.maxsize), step=0.1),
             ],
             outputs=[io.Float.Output()],
         )

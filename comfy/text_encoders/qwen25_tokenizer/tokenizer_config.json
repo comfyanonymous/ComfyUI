@@ -179,36 +179,36 @@
       "special": false
     },
     "151665": {
-      "content": "<|img|>",
+      "content": "<tool_response>",
       "lstrip": false,
       "normalized": false,
       "rstrip": false,
       "single_word": false,
-      "special": true
+      "special": false
     },
     "151666": {
-      "content": "<|endofimg|>",
+      "content": "</tool_response>",
       "lstrip": false,
       "normalized": false,
       "rstrip": false,
       "single_word": false,
-      "special": true
+      "special": false
     },
     "151667": {
-      "content": "<|meta|>",
+      "content": "<think>",
       "lstrip": false,
       "normalized": false,
       "rstrip": false,
       "single_word": false,
-      "special": true
+      "special": false
     },
     "151668": {
-      "content": "<|endofmeta|>",
+      "content": "</think>",
       "lstrip": false,
       "normalized": false,
       "rstrip": false,
       "single_word": false,
-      "special": true
+      "special": false
     }
   },
   "additional_special_tokens": [

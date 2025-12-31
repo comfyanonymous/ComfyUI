@@ -1,11 +1,9 @@
-from __future__ import annotations
-
-import os
 import datetime
+import hashlib
 import json
 import logging
+import os
 import re
-import hashlib
 from typing import Any
 
 import folder_paths
@@ -21,7 +19,7 @@ def get_log_directory():
     try:
         os.makedirs(log_dir, exist_ok=True)
     except Exception as e:
-        logger.error(f"Error creating API log directory {log_dir}: {e}")
+        logger.error("Error creating API log directory %s: %s", log_dir, str(e))
         # Fallback to base temp directory if sub-directory creation fails
         return base_temp_dir
     return log_dir
@@ -122,9 +120,9 @@ def log_request_response(
     try:
         with open(filepath, "w", encoding="utf-8") as f:
             f.write("\n".join(log_content))
-        logger.debug(f"API log saved to: {filepath}")
+        logger.debug("API log saved to: %s", filepath)
     except Exception as e:
-        logger.error(f"Error writing API log to {filepath}: {e}")
+        logger.error("Error writing API log to %s: %s", filepath, str(e))
 
 
 if __name__ == '__main__':

@@ -74,6 +74,9 @@ def get_ancestral_step(sigma_from, sigma_to, eta=1.):
 
 def default_noise_sampler(x, seed=None):
     if seed is not None:
+        if x.device == torch.device("cpu"):
+            seed += 1
+
         generator = torch.Generator(device=x.device)
         generator.manual_seed(seed)
     else:
@@ -1557,10 +1560,13 @@ def sample_er_sde(model, x, sigmas, extra_args=None, callback=None, disable=None
 
 
 @torch.no_grad()
-def sample_seeds_2(model, x, sigmas, extra_args=None, callback=None, disable=None, eta=1., s_noise=1., noise_sampler=None, r=0.5):
+def sample_seeds_2(model, x, sigmas, extra_args=None, callback=None, disable=None, eta=1., s_noise=1., noise_sampler=None, r=0.5, solver_type="phi_1"):
     """SEEDS-2 - Stochastic Explicit Exponential Derivative-free Solvers (VP Data Prediction) stage 2.
     arXiv: https://arxiv.org/abs/2305.14267 (NeurIPS 2023)
     """
+    if solver_type not in {"phi_1", "phi_2"}:
+        raise ValueError("solver_type must be 'phi_1' or 'phi_2'")
+
     extra_args = {} if extra_args is None else extra_args
     seed = extra_args.get("seed", None)
     noise_sampler = default_noise_sampler(x, seed=seed) if noise_sampler is None else noise_sampler
@@ -1600,14 +1606,31 @@ def sample_seeds_2(model, x, sigmas, extra_args=None, callback=None, disable=Non
         denoised_2 = model(x_2, sigma_s_1 * s_in, **extra_args)
 
         # Step 2
-        denoised_d = torch.lerp(denoised, denoised_2, fac)
-        x = sigmas[i + 1] / sigmas[i] * (-h * eta).exp() * x - alpha_t * ei_h_phi_1(-h_eta) * denoised_d
+        if solver_type == "phi_1":
+            denoised_d = torch.lerp(denoised, denoised_2, fac)
+            x = sigmas[i + 1] / sigmas[i] * (-h * eta).exp() * x - alpha_t * ei_h_phi_1(-h_eta) * denoised_d
+        elif solver_type == "phi_2":
+            b2 = ei_h_phi_2(-h_eta) / r
+            b1 = ei_h_phi_1(-h_eta) - b2
+            x = sigmas[i + 1] / sigmas[i] * (-h * eta).exp() * x - alpha_t * (b1 * denoised + b2 * denoised_2)
+
         if inject_noise:
             segment_factor = (r - 1) * h * eta
             sde_noise = sde_noise * segment_factor.exp()
             sde_noise = sde_noise + segment_factor.mul(2).expm1().neg().sqrt() * noise_sampler(sigma_s_1, sigmas[i + 1])
             x = x + sde_noise * sigmas[i + 1] * s_noise
     return x
+
+@torch.no_grad()
+def sample_exp_heun_2_x0(model, x, sigmas, extra_args=None, callback=None, disable=None, solver_type="phi_2"):
+    """Deterministic exponential Heun second order method in data prediction (x0) and logSNR time."""
+    return sample_seeds_2(model, x, sigmas, extra_args=extra_args, callback=callback, disable=disable, eta=0.0, s_noise=0.0, noise_sampler=None, r=1.0, solver_type=solver_type)
+
+
+@torch.no_grad()
+def sample_exp_heun_2_x0_sde(model, x, sigmas, extra_args=None, callback=None, disable=None, eta=1., s_noise=1., noise_sampler=None, solver_type="phi_2"):
+    """Stochastic exponential Heun second order method in data prediction (x0) and logSNR time."""
+    return sample_seeds_2(model, x, sigmas, extra_args=extra_args, callback=callback, disable=disable, eta=eta, s_noise=s_noise, noise_sampler=noise_sampler, r=1.0, solver_type=solver_type)
 
 
 @torch.no_grad()
@@ -1756,7 +1779,7 @@ def sample_sa_solver(model, x, sigmas, extra_args=None, callback=None, disable=F
         # Predictor
         if sigmas[i + 1] == 0:
             # Denoising step
-            x = denoised
+            x_pred = denoised
         else:
             tau_t = tau_func(sigmas[i + 1])
             curr_lambdas = lambdas[i - predictor_order_used + 1:i + 1]
@@ -1777,7 +1800,7 @@ def sample_sa_solver(model, x, sigmas, extra_args=None, callback=None, disable=F
             if tau_t > 0 and s_noise > 0:
                 noise = noise_sampler(sigmas[i], sigmas[i + 1]) * sigmas[i + 1] * (-2 * tau_t ** 2 * h).expm1().neg().sqrt() * s_noise
                 x_pred = x_pred + noise
-    return x
+    return x_pred
 
 
 @torch.no_grad()

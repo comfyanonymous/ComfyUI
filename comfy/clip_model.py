@@ -2,6 +2,25 @@ import torch
 from comfy.ldm.modules.attention import optimized_attention_for_device
 import comfy.ops
 
+def clip_preprocess(image, size=224, mean=[0.48145466, 0.4578275, 0.40821073], std=[0.26862954, 0.26130258, 0.27577711], crop=True):
+    image = image[:, :, :, :3] if image.shape[3] > 3 else image
+    mean = torch.tensor(mean, device=image.device, dtype=image.dtype)
+    std = torch.tensor(std, device=image.device, dtype=image.dtype)
+    image = image.movedim(-1, 1)
+    if not (image.shape[2] == size and image.shape[3] == size):
+        if crop:
+            scale = (size / min(image.shape[2], image.shape[3]))
+            scale_size = (round(scale * image.shape[2]), round(scale * image.shape[3]))
+        else:
+            scale_size = (size, size)
+
+        image = torch.nn.functional.interpolate(image, size=scale_size, mode="bicubic", antialias=True)
+        h = (image.shape[2] - size)//2
+        w = (image.shape[3] - size)//2
+        image = image[:,:,h:h+size,w:w+size]
+    image = torch.clip((255. * image), 0, 255).round() / 255.0
+    return (image - mean.view([3,1,1])) / std.view([3,1,1])
+
 class CLIPAttention(torch.nn.Module):
     def __init__(self, embed_dim, heads, dtype, device, operations):
         super().__init__()
