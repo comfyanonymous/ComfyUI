@@ -322,7 +322,7 @@ class BaseModel(torch.nn.Module):
     def process_latent_out(self, latent):
         return self.latent_format.process_out(latent)
 
-    def state_dict_for_saving(self, clip_state_dict=None, vae_state_dict=None, clip_vision_state_dict=None):
+    def state_dict_for_saving(self, unet_state_dict, clip_state_dict=None, vae_state_dict=None, clip_vision_state_dict=None):
         extra_sds = []
         if clip_state_dict is not None:
             extra_sds.append(self.model_config.process_clip_state_dict_for_saving(clip_state_dict))
@@ -330,10 +330,7 @@ class BaseModel(torch.nn.Module):
             extra_sds.append(self.model_config.process_vae_state_dict_for_saving(vae_state_dict))
         if clip_vision_state_dict is not None:
             extra_sds.append(self.model_config.process_clip_vision_state_dict_for_saving(clip_vision_state_dict))
-
-        unet_state_dict = self.diffusion_model.state_dict()
         unet_state_dict = self.model_config.process_unet_state_dict_for_saving(unet_state_dict)
-
         if self.model_type == ModelType.V_PREDICTION:
             unet_state_dict["v_pred"] = torch.tensor([])
 
@@ -776,8 +773,8 @@ class StableAudio1(BaseModel):
             out['c_crossattn'] = comfy.conds.CONDRegular(cross_attn)
         return out
 
-    def state_dict_for_saving(self, clip_state_dict=None, vae_state_dict=None, clip_vision_state_dict=None):
-        sd = super().state_dict_for_saving(clip_state_dict=clip_state_dict, vae_state_dict=vae_state_dict, clip_vision_state_dict=clip_vision_state_dict)
+    def state_dict_for_saving(self, unet_state_dict, clip_state_dict=None, vae_state_dict=None, clip_vision_state_dict=None):
+        sd = super().state_dict_for_saving(unet_state_dict, clip_state_dict=clip_state_dict, vae_state_dict=vae_state_dict, clip_vision_state_dict=clip_vision_state_dict)
         d = {"conditioner.conditioners.seconds_start.": self.seconds_start_embedder.state_dict(), "conditioner.conditioners.seconds_total.": self.seconds_total_embedder.state_dict()}
         for k in d:
             s = d[k]

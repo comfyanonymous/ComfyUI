@@ -24,6 +24,7 @@ import inspect
 import logging
 import math
 import uuid
+import types
 from typing import Callable, Optional
 
 import torch
@@ -211,6 +212,27 @@ class MemoryCounter:
 
     def decrement(self, used: int):
         self.value -= used
+
+CustomTorchDevice = collections.namedtuple("FakeDevice", ["type", "index"])("comfy-lazy-caster", 0)
+
+class LazyCastingParam(torch.nn.Parameter):
+    def __new__(cls, model, key, tensor):
+        return super().__new__(cls, tensor)
+
+    def __init__(self, model, key, tensor):
+        self.model = model
+        self.key = key
+
+    @property
+    def device(self):
+        return CustomTorchDevice
+
+    #safetensors will .to() us to the cpu which we catch here to cast on demand. The returned tensor is
+    #then just a short lived thing in the safetensors serialization logic inside its big for loop over
+    #all weights getting garbage collected per-weight
+    def to(self, *args, **kwargs):
+        return self.model.patch_weight_to_device(self.key, device_to=self.model.load_device, return_weight=True).to("cpu")
+
 
 class ModelPatcher:
     def __init__(self, model, load_device, offload_device, size=0, weight_inplace_update=False):
@@ -611,14 +633,14 @@ class ModelPatcher:
                         sd.pop(k)
             return sd
 
-    def patch_weight_to_device(self, key, device_to=None, inplace_update=False):
-        if key not in self.patches:
-            return
-
+    def patch_weight_to_device(self, key, device_to=None, inplace_update=False, return_weight=False):
         weight, set_func, convert_func = get_key_weight(self.model, key)
+        if key not in self.patches:
+            return weight
+
         inplace_update = self.weight_inplace_update or inplace_update
 
-        if key not in self.backup:
+        if key not in self.backup and not return_weight:
             self.backup[key] = collections.namedtuple('Dimension', ['weight', 'inplace_update'])(weight.to(device=self.offload_device, copy=inplace_update), inplace_update)
 
         temp_dtype = comfy.model_management.lora_compute_dtype(device_to)
@@ -632,12 +654,14 @@ class ModelPatcher:
         out_weight = comfy.lora.calculate_weight(self.patches[key], temp_weight, key)
         if set_func is None:
             out_weight = comfy.float.stochastic_rounding(out_weight, weight.dtype, seed=string_to_seed(key))
-            if inplace_update:
+            if return_weight:
+                return out_weight
+            elif inplace_update:
                 comfy.utils.copy_to_param(self.model, key, out_weight)
             else:
                 comfy.utils.set_attr_param(self.model, key, out_weight)
         else:
-            set_func(out_weight, inplace_update=inplace_update, seed=string_to_seed(key))
+            return set_func(out_weight, inplace_update=inplace_update, seed=string_to_seed(key), return_weight=return_weight)
 
     def pin_weight_to_device(self, key):
         weight, set_func, convert_func = get_key_weight(self.model, key)
@@ -1354,6 +1378,23 @@ class ModelPatcher:
     def clean_hooks(self):
         self.unpatch_hooks()
         self.clear_cached_hook_weights()
+
+    def state_dict_for_saving(self, clip_state_dict=None, vae_state_dict=None, clip_vision_state_dict=None):
+        unet_state_dict = self.model.diffusion_model.state_dict()
+        for k, v in unet_state_dict.items():
+            op_keys = k.rsplit('.', 1)
+            if (len(op_keys) < 2) or not op_keys[1] in ["weight", "bias"]:
+                continue
+            try:
+                op = comfy.utils.get_attr(self.model.diffusion_model, op_keys[0])
+            except:
+                continue
+            if not op or not hasattr(op, "comfy_cast_weights") or \
+                (hasattr(op, "comfy_patched_weights") and op.comfy_patched_weights == True):
+                continue
+            key = "diffusion_model." + k
+            unet_state_dict[k] = LazyCastingParam(self, key, comfy.utils.get_attr(self.model, key))
+        return self.model.state_dict_for_saving(unet_state_dict)
 
     def __del__(self):
         self.unpin_all_weights()
