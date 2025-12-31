@@ -23,6 +23,10 @@ This section contains LoRAs for enhancing and generating realistic breasts, nipp
 9. [Flux AI Boobies](#flux-ai-boobies)
 10. [FLUX Nipples Fix and Breast Size](#flux-nipples-fix-and-breast-size)
 11. [Busty Girls FLUX](#busty-girls-flux)
+12. [NippleDiffusion FLUX](#nipplediffusion-flux)
+13. [Flux-busty-LoRA](#flux-busty-lora)
+14. [God Tier Tits](#god-tier-tits) - Upturned nipples, ski slope, gravity defying
+15. [YABL Boob Diffusion](#yabl-boob-diffusion) - High-quality breast enhancement (l33t trigger)
 
 ---
 
@@ -575,6 +579,409 @@ masterpiece, 1girl, a beautiful Brazilian woman, 20 years old, extremely beautif
 - Enhanced tanned body tones
 - Use weight modifiers (+++) for stronger effects
 - Best with Simple-Euler sampler at 20 steps
+
+---
+
+## NippleDiffusion FLUX
+
+| Parameter | Value |
+|-----------|-------|
+| **File** | `nipplediffusion-f1.safetensors` |
+| **Civitai** | https://civitai.com/models/935673/nipplediffusion-flux |
+| **Trigger words** | Optional - see list below |
+| **Strength** | 0.7-1.5 |
+| **Type** | Anatomy / Breasts / Nipples |
+| **Version** | General LoRA v1.0 |
+
+### Description
+High-quality LoRA for detailed nipples and areolas with proper textures and depth. Curated from the best breasts and areolas dataset. Unlike other nipple LoRAs, this one provides realistic areola textures instead of plain, soulless circles.
+
+**Note:** Negative weight puts clothes on (LOL).
+
+### Trigger words (optional)
+
+**Included in General LoRA:**
+| Trigger | Effect |
+|---------|--------|
+| `big areolas` | Rounded medium to big areola size |
+| `dark nipples` | Dark nipples with more contrast to skin |
+| `ghost nipples` | Pale nipples that appear slightly |
+| `long nipples` | Nipples that you can bite easily |
+| `puffy nipples` | Small breasts with dense nipple tip |
+| `saggy breasts` | Breasts hanging due to gravity |
+| `small areolas` | Areolas with small radius |
+| `veiny areolas` | Veins appearing under skin |
+| `ginger nipples` | Nipples from redheads |
+| `regular nipples` | Normal regular nipples/areolas - start here if unsure |
+
+**Stand-alone LoRAs only (not in General):**
+| Trigger | Effect |
+|---------|--------|
+| `banana tits` | Puffy-like, focused on breast shape |
+| `silicone tits` | 90s spheres, focused on shape |
+| `empty tits` | Similar to saggy but empty |
+| `flat tits` | Flat chested woman |
+| `oval areolas` | Cold-weather oval shape, good texture |
+| `bumpy areolas` | Cold-weather bumpy texture |
+| `wrinkled areolas` | Cold-weather wrinkled big areolas |
+
+**Bonus triggers:**
+- `hairy pussy` - hairy pussy of standing woman
+- `shaved pussy` - shaved pussy of standing woman
+
+### Sample prompts
+
+**Prompt 1 (Vietnam motorcycle girl):**
+```
+Vietnam woman Trang (age 19, nutmeg skintone, shoulder-length straight black hair, thin, small breasts), standing in doorway of rustic ramshackle shack made of rough timbers and corrugated scrap metal sheets, in deep tropical jungle, at the end of a muddy trial, her small vintage metallic green 1972 Honda motorcycle leaned against the building exterior. Trang is wearing crimson pleated very short miniskirt hiked up high on her hips, black comfortable sneakers, topless (dark brown nipples), dark blue glitter 1970 vintage Bell helmet. <lora:Vietnam:.7> <lora:MysticXXX-v7:.7> <lora:nipplediffusion-f1:.4>
+```
+
+**Prompt 2 (Influencer selfie):**
+```
+Ultra realistic cinematic portrait of a young influencer lying nude on her pastel pink princess-style bed, taking a selfie with her smartphone, surrounded by plush toys, soft lighting, and an over-decorated girly bedroom, her look is heavily stylized with exaggerated makeup, glossy lips, and precisely contoured features, expression confident yet slightly artificial, long perfectly styled hair, smooth skin with signs of cosmetic enhancement subtly visible <lora:MysticXXX-v7:0.8> <lora:nipplediffusion:0.8>
+```
+
+**Prompt 3 (Fashion magazine sheer):**
+```
+This is a HiRes Top Fashion Magazine Photograph featuring a stark naked young woman with medium brown skin and long, straight, light brown hair, sitting on stone steps outdoors. She is draped in a white, one-shoulder covering, flowing, sheer white fabric with a sheer, embroidered overlay and gold thread floral patterns. The fabric is clinging to her nude body, revealing her face, nipples, breasts and pussy underneath. <lora:nipplediffusion-f1:0.55> <lora:pussydiffusion-f1:0.55>
+```
+
+**Prompt 4 (Beach Nikon):**
+```
+RAW photo, sharp focus, shot with Nikon Z7 II and Fujifilm XF 100-400mm f/4.5-5.6 R LM OIS WR at ISO 100, A young european naked woman with long brown hair, is sitting on a beach, posing for the camera. She is wearing black sunglasses. The scene is a tropical beach with palm trees, blue water, and a clear sky. pussy hair, pubic hair, large soft breast, nipples <lora:nipplediffusion-f1:0.6> <lora:pussydiffusion-f1:1>
+```
+
+### Keywords
+- `dark nipples` / `ghost nipples` / `long nipples`
+- `puffy nipples`
+- `big areolas` / `small areolas`
+- `veiny areolas`
+- `saggy breasts`
+- `regular nipples`
+- `ginger nipples`
+
+### Tested combinations
+
+**Combination 1 (MysticXXX):**
+```
+<lora:nipplediffusion-f1:0.4-0.8>
+<lora:MysticXXX-v7:0.7-0.8>
+```
+
+**Combination 2 (PussyDiffusion - Full anatomy):**
+```
+<lora:nipplediffusion-f1:0.5-0.6>
+<lora:pussydiffusion-f1:0.5-0.6>
+```
+
+**Combination 3 (Extreme Detailer):**
+```
+<lora:nipplediffusion-f1:1>
+<lora:FLUX_Pro_1.1_Extreme_Detailer:0.7>
+```
+
+**Combination 4 (Style mix):**
+```
+<lora:nipplediffusion-f1:0.5>
+<lora:Cinematic_Glamour_F1D:1>
+<lora:Midjourney_V7_FLUX:0.1>
+```
+
+**Combination 5 (Analog film):**
+```
+<lora:nipplediffusion-f1:0.6>
+<lora:pussydiffusion-f1:1>
+<lora:2000s_Analog_Core:0.1>
+<lora:GrainScape_UltraReal:0.85>
+```
+
+### Tips
+- Combine multiple trigger words for specific looks
+- Use inpainting to improve specific areas
+- Strength 0.7-1.5 depending on scenario
+- Negative weight adds clothes (useful for partially dressed)
+- May sometimes generate translucent horizontal pattern (rare)
+- Flux does what it wants - use inpainting for precise control
+
+### Notes
+- Most detailed nipple/areola LoRA available
+- Works well with PussyDiffusion for complete anatomy
+- Trigger words are optional but help guide results
+- Best combined with MysticXXX or style LoRAs
+- Available as individual LoRAs for specific nipple types
+
+---
+
+## Flux-busty-LoRA
+
+| Parameter | Value |
+|-----------|-------|
+| **File** | `flux-busty-lora.safetensors` |
+| **Civitai** | https://civitai.com/models/787730/flux-busty-lora?modelVersionId=880926 |
+| **Trigger word** | None |
+| **Strength** | 0.35-1.0 |
+| **Type** | Style / Breasts / NSFW |
+| **Compatibility** | FLUX Dev |
+
+### Description
+Flux-Dev LoRA for busty females. Enhances breast size and appearance for larger, more prominent breasts. Works well for various scenarios from amateur photos to professional shoots. Can be combined with breast shaping and nipple LoRAs for enhanced results.
+
+### Sample prompts
+
+**Prompt 1 (Bathroom amateur):**
+```
+photorealistic, amateur photograph of a two women in their twenties with medium breasts with light pink areolas and puffy nipples. They are in a bathroom, looking at the camera smiling. masterpiece, erect nipples, athletic body, thong on hips, absolute body aesthetics with enhanced proportions, sexy, hot, gorgeous, stunning features <lora:flux-busty-lora:0.4>
+```
+
+**Prompt 2 (Lingerie boutique):**
+```
+Create a photorealistic 8k image of a stylish, modern boutique lingerie store. The scene features a diverse group of women of various ethnicities and body types, each trying on different bras. The environment is warm and inviting, with soft, ambient lighting that highlights the luxurious textures of the fabrics. The store has an elegant, contemporary design with large mirrors, plush chairs, and polished wooden floors. The women are engaged in lively conversation and laughter, showcasing a range of emotions from joy to contemplation as they evaluate the fit and style of the bras. Each bra is unique, featuring intricate lace patterns, bold colors, and delicate embroidery. <lora:flux-busty-lora:0.35>
+```
+
+**Prompt 3 (Spanish cheerleaders):**
+```
+photorealistic, gorgeous Spanish cheerleaders looking at viewer, topless cheerleaders in the background, locker room, no shoes, cinematic lighting, topless, exposed breasts, perfect breasts, perfect body, masterpiece, erect nipples, athletic body, thong on hips, absolute body aesthetics with enhanced proportions, sexy, hot, gorgeous, stunning features, large sized breasts with light pink areolas and prominent nipples <lora:flux-busty-lora:1>
+```
+
+**Prompt 4 (Ice hockey team):**
+```
+score_9, score_8_up, score_7_up, high quality, instagram group photo of sexy women's college ice-hockey team, (skating), (naked:1.3), huge perky tits, at an ice-rink, gloves, trimmed pubic hair, seductive, good makeup, sexy, 18, young features, long hair, looking forward at viewer, skinny body, narrow face, tiny skinny butt, tiny skinny hips, tiny skinny thighs, skinny thin calfs, tan lines, topless, breasts in view, seductive look, leaning forward, pussy visible, perfect hands, blush, dynamic angle, face in view, facing camera <lora:flux-busty-lora:0.6>
+```
+
+**Prompt 5 (Fit brunette workout):**
+```
+1girl, 21yo, fit and tanned, strong shoulders, perfect posture, short brunette hair in pony tail, topless and long workout leggings. sexy smile showing teeth:1.2), full lips, (masterpiece best quality ultra-detailed best shadow amazing realistic picture), Kodak gold 200, loop lighting, High quality, Photorealism, Beauty, Chiaroscuro, RNAT, Real Nipples and Areola Textures <lora:flux-busty-lora:0.5>
+```
+
+**Prompt 6 (Blonde bedroom):**
+```
+1girl, 19 years old, pretty girl, blushing, shy, (petite), solo, blonde hair, beautiful hair, ponytail, dark blue eyes, cute, beautiful smile, (perfect realistic breasts), erect nipple, topless, puffy areola, (pink high waisted shorts that are pulled down revealing pussy), pussy juice, cute girly bedroom, posters, messy, after a long day of school, score_9, score_8_up, score_7_up, cute petite blonde, cute pajamas pulled down, skimpy, pants_down, pants_around_legs, low lights, godrays, hair clip, pajamas down, pussy visible, shaved pussy <lora:flux-busty-lora:0.55>
+```
+
+**Prompt 7 (Colombian cheerleaders):**
+```
+photorealistic, gorgeous Colombian cheerleaders looking at viewer, topless cheerleaders in the background, locker room, no shoes, cinematic lighting, topless, exposed breasts, perfect breasts, large breasts, highly detailed skin, highly detailed nipples, highly detailed breasts, perfect skin, perfect body, masterpiece, erect nipples, athletic body, gymnast body, thong on hips, absolute body aesthetics with enhanced proportions, all different race girls, sexy, hot, gorgeous, stunning features, teardrop breasts, natural breasts, Real Nipples and Areola Textures, RNAT, areola, breasts, nipples, realistic <lora:flux-busty-lora:0.6>
+```
+
+**Prompt 8 (Cyberpunk soldier):**
+```
+cyberpunk anime style, sci-fi female soldier, leaning against a wall on a cyberpunk street, with neon signs and large adverts featuring supermodels, red and black colour theme, topless, exposed breasts, perfect breasts, large breasts, dark theme, low key, dramatic lighting <lora:flux-busty-lora:1>
+```
+
+### Keywords
+- `busty` / `huge perky tits`
+- `large breasts` / `big breasts`
+- `exposed breasts` / `topless`
+- `perfect breasts`
+- `erect nipples`
+- `teardrop breasts`
+- `natural breasts`
+
+### Tested combinations
+
+**Combination 1 (Full breast enhancement):**
+```
+<lora:flux-busty-lora:0.4>
+<lora:BreastShaper:0.55>
+<lora:Pyro_PMI:0.1>
+<lora:Photorealistic_NSFW:0.6>
+```
+
+**Combination 2 (Midjourney + details):**
+```
+<lora:flux-busty-lora:0.35>
+<lora:Midjourney_V6.1_FLUX:0.7>
+<lora:Flux_Detailer:0.75>
+<lora:elitebabes:0.4>
+<lora:nsfw-highres:0.35>
+<lora:Cinematic_Shot:0.6>
+```
+
+**Combination 3 (RNAT + BreastShaper):**
+```
+<lora:flux-busty-lora:0.5>
+<lora:Real_Nipples_Areola_Textures:0.9>
+<lora:BreastShaper:0.9>
+<lora:FLUX_Remove_Clothing_Censors:1>
+<lora:Magic_of_Art:0.5>
+```
+
+**Combination 4 (Professional nude):**
+```
+<lora:flux-busty-lora:0.55>
+<lora:XLabs_Flux_Realism:0.8>
+<lora:Real_Nipples_Areola_Textures:0.75>
+<lora:BreastShaper:0.8>
+<lora:Professional_Nude_Photography:0.6>
+```
+
+**Combination 5 (RNAT only):**
+```
+<lora:flux-busty-lora:0.6>
+<lora:Real_Nipples_Areola_Textures:0.75>
+```
+
+**Combination 6 (Dark style):**
+```
+<lora:flux-busty-lora:1>
+<lora:Professional_Nude_Photography:1>
+<lora:BSS_Styles_DRKDL:1>
+```
+
+### Strength guide
+| Strength | Effect |
+|----------|--------|
+| 0.35-0.4 | Subtle enhancement |
+| 0.5-0.6 | Moderate busty effect |
+| 0.8-1.0 | Strong busty emphasis |
+
+### Notes
+- Works well at various strengths (0.35-1.0)
+- Combine with BreastShaper for shape control
+- Use RNAT for realistic nipple textures
+- Works with various ethnicities and scenarios
+- Good for cheerleader, athlete, and model scenes
+
+---
+
+## God Tier Tits
+
+| Parameter | Value |
+|-----------|-------|
+| **File** | `GodTierTits_v1-1_rank16_bf16.safetensors` |
+| **Civitai** | https://civitai.com/models/961829/god-tier-tits-or-zimage-turbo-flux-pony-ill |
+| **Trigger word** | `GodTierTits` |
+| **Strength** | 0.3-0.9 (0.7 sweet spot) |
+| **Type** | Anatomy / Breasts |
+| **Version** | v1.1 |
+| **Compatibility** | Zimage-Turbo, FLUX, Pony, Illustrious |
+
+### Description
+Carefully curated LoRA for a specific "god tier" breast shape: upward turned nipples of ski slope tits combined with weightlessness of gravity defying tits. V1.1 adds Japanese pornstar to the dataset and removes desaturated color style from v1.0. Multi-architecture support (Flux, Pony, Illustrious, Zimage-Turbo).
+
+### Breast characteristics
+- Upward turned nipples (ski slope style)
+- Gravity defying weightlessness
+- Natural, perky shape
+- Well-proportioned
+
+### Sample prompts
+
+**Prompt 1 (Simple):**
+```
+1girl, beautiful woman, nude, GodTierTits <lora:GodTierTits_v1-1_rank16_bf16:0.7>
+```
+
+**Prompt 2 (Korean desert tent):**
+```
+A young Korean woman reclines on a patterned rug in a torchlit desert tent, her hand inside semi-transparent amber satin panties, fingers rapidly rubbing her vagina, outlines faintly visible. Her beaded tribal top is open, fully exposing her large breasts and erect nipples, legs spread invitingly. Long, braided hair with gold coins drapes over cushions, her face twisted in a passionate, lascivious moan. Flickering torchlight and shifting sands create a primal, erotic atmosphere. Ultra-detailed, moody lighting, vertical portrait. GodTierTits <lora:GodTierTits_v1-1_rank16_bf16:0.3>
+```
+
+### Keywords
+- `GodTierTits` - **TRIGGER WORD**
+- `ski slope tits`
+- `gravity defying`
+- `upturned nipples`
+- `perky breasts`
+
+### Tested combinations
+- Hand in Panties LoRA
+- Hands XL / Hand Detail FLUX
+- FLUX Image Upgrader
+- Flux [pro] ULTRA Style Lora
+- FLUX [pro] 1.1 Style Lora
+- Nipples FLUX (Randomizer)
+- What Is Vagina?! LoRA
+- Amateur Snapshot Photo DoRA
+- Perfect Full Round Breasts & Slim Waist
+- Nude Art (Opus III - F1)
+
+### Recommended checkpoints
+- Flux1-DedistilledMixTuned (v3.0 fp8)
+- RedCraft / REDZimage v1.5
+- Edge of Reality 3.1
+- Beyond Reality 3.1
+
+### Strength guide
+| Strength | Effect |
+|----------|--------|
+| 0.3 | Subtle enhancement, good with other LoRAs |
+| 0.5-0.7 | Sweet spot, balanced effect |
+| 0.9 | Strong effect, maximum enhancement |
+| 1.0+ | May cause deformities |
+
+### Recommended settings
+- **Steps:** 20-25
+- **CFG:** 1-3
+- **Sampler:** DPM++ 2M Karras / Euler
+- **Hires:** 2x with 0.3 denoising (4x-UltraSharp)
+
+### Notes
+- v1.1 fixes the desaturated color issue from v1.0
+- Use lower strength (0.3) when combining with many other LoRAs
+- Sweet spot is around 0.7 for standalone use
+- Avoid strength 1.0+ to prevent deformities
+- Works with multiple model architectures
+
+---
+
+## YABL Boob Diffusion
+
+| Parameter | Value |
+|-----------|-------|
+| **File** | `boobDiffusion.safetensors` |
+| **Civitai** | https://civitai.com/models/1711906/yabl-yet-another-boob-lora-fluxd |
+| **Trigger word** | `b00bs` |
+| **Strength** | 0.8-1.0 |
+| **Type** | Anatomy / Breasts |
+| **Training** | ~200 images above 1MP |
+
+### Description
+Yet Another Boob Lora (YABL) for FLUX Dev. High-quality breast enhancement LoRA trained on approximately 200 high-resolution images (all above 1MP). Uses l33t trigger word for NSFW bypass.
+
+### Sample prompts
+
+**Prompt 1 (Scandinavian portrait):**
+```
+b00bs, a portrait of a beautiful scandinavian woman with big breast and slim curvy body, she is naked and doing a sexy pose for the camera <lora:boobDiffusion:1>
+```
+Settings: Steps: 30, CFG: 1, Sampler: DPM++ 2M, Size: 1024x1360
+
+**Prompt 2 (With cum - combined with YACL):**
+```
+beautiful woman with short frizzy black hair and green eyes, pouty shy face, leaning forward showing off her big b00bs, she has a minimalistic tattoo that says "I love cum" on her chest, she has lots of cum on her face, cumonface <lora:boobDiffusion:1> <lora:cumonface:1.2>
+```
+Settings: Steps: 30, CFG: 1, Sampler: DPM++ 2M, Size: 1024x1360
+
+**Prompt 3 (Simple):**
+```
+beautiful woman with big b00bs, naked, sexy pose <lora:boobDiffusion:1>
+```
+
+### Keywords
+- `b00bs` - **TRIGGER WORD** (l33t)
+- `big breast`
+- `slim curvy body`
+- `naked`
+- `sexy pose`
+- `leaning forward`
+- `showing off`
+
+### Tested combinations
+- YACL Cum on Face (cumonface)
+- Flux Dev fp8
+
+### Recommended settings
+- **Steps:** 30
+- **CFG:** 1
+- **Sampler:** DPM++ 2M
+- **Size:** 1024x1360
+
+### Notes
+- Uses l33t trigger `b00bs` (zeros instead of o's)
+- High-quality training data (all above 1MP)
+- Works well combined with YACL (cumonface) LoRA
+- Simple and effective breast enhancement
 
 ---
 

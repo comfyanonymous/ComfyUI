@@ -138,7 +138,8 @@ wide angle candid amateur photo from behind of a naked brownskinned pakistani wo
 
 | Parameter | Value |
 |-----------|-------|
-| **File** | `Perfect_Big_Round_Ass.safetensors` |
+| **File** | `PerfectBigRoundAss.safetensors` |
+| **Original filename** | `26b72fcf-4156-403b-a901-aac648be4122.TA_trained.safetensors` (renamed) |
 | **Civitai** | https://civitai.com/models/958789/perfect-big-round-ass |
 | **Strength** | 0.7-1.0 (**DO NOT exceed 1.0!**) |
 | **Type** | Anatomy / Body Shape |

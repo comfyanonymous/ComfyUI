@@ -23,6 +23,16 @@ LoRAs for clothing effects, fashion styles, and outfit-related generation.
 - [Pleaser Brand Shoes](#pleaser-brand-shoes)
 - [GarterBelt Flux Dev](#garterbelt-flux-dev)
 - [Nude in Garters - Fully Fashioned Stockings](#nude-in-garters---fully-fashioned-stockings)
+- [Sheer Clothes, Pull Down and More](#sheer-clothes-pull-down-and-more)
+- [FLUX Longsleeve Bandage Dress](#flux-longsleeve-bandage-dress)
+- [Modern Puffer Jacket with Fur Hood](#modern-puffer-jacket-with-fur-hood)
+- [Blue Jeans Down](#blue-jeans-down)
+- [Patent Leather Pants](#patent-leather-pants)
+- [One Shoulder Cutout Bandage Dress](#one-shoulder-cutout-bandage-dress)
+- [RealTanFFStockings](#realtanffstockings) - Tan back seam fully fashioned stockings
+- [Slingback Pumps](#slingback-pumps) - Pointy toe high heels slingbacks
+- [Flux Bra Pull](#flux-bra-pull) - Bra removal/undressing
+- [Back Zipper](#back-zipper) - Back zipper on dress/jeans, unzipped
 
 ---
 
@@ -1318,6 +1328,729 @@ the woman is a female high-tech robot with lots of cables, wires and led. styleh
 - Works well with many other LoRAs (character, style, effect)
 - Supports various ethnicities and body types
 - Great for cinematic, sci-fi, and artistic styles
+
+---
+
+## Sheer Clothes, Pull Down and More
+
+| Parameter | Value |
+|-----------|-------|
+| **File** | `FLUX_sexy_clothes_v3_Sevenof9.safetensors` |
+| **Civitai** | https://civitai.com/models/987388/sheer-clothes-pull-down-and-more |
+| **Trigger word** | None (use keywords) |
+| **Strength** | 1.0 |
+| **Type** | Clothing / Lingerie / NSFW |
+| **Version** | v3 |
+
+### Description
+Hand-picked 450 images trained LoRA for sheer/revealing clothing effects. Content: mostly lingerie, some latex, fishnet, leather harness - from front and behind. Very good nipples.
+
+**Important:** Be careful with the word "wearing" - better to use action words like `pull down panties`, `exposing`, `revealing`.
+
+### Version history
+- **v3** - more training steps (current, recommended)
+- **v2** - better buttocks, panties aside, amateur photograph
+- **v1** - first version
+
+### Tips
+- Push it with `revealing` or `exposing`
+- Use with Forge-Real (DPM++ 2M) and Beta ~25 Steps
+- Can segment face with swarm-ui or use adetailer in Forge
+- Works with all ages
+
+### Sample prompts
+
+**Prompt 1 (Leather harness):**
+```
+A photograph of a slender woman with long brown hair, wearing a black leather harness with straps and metal rings that exposes her breasts, standing confidently with a seductive expression. She has fair skin and is wearing black leather wrist cuffs. The background is a minimalist room with a modern design. The lighting is soft and warm, highlighting her figure.
+```
+
+**Prompt 2 (Fishnet bodysuit):**
+```
+A photograph of a slim woman with long black hair and fair skin, wearing a revealing wide meshed black fishnet bodysuit that see through her big breasts and nipples. She has a petite physique and is standing in a bright room with soft lighting. Her expression is confident, and she is posing with her hands on her hips. The image is sharp and clear
+```
+
+**Prompt 3 (Amateur nightshirt pull down):**
+```
+An amateur photo depicts a seductive blond woman who is looking mischievously at the camera. she has some cute body freckles. she has pulled down the thin fabric of her sheer lace Nightshirt to reveal one breast with nipple. she lifting up her lace dress with her hand to reveal her pubic area. She has half closed lips and appears in a dimly lit bedroom. <lora:FLUX_sexy_clothes_v3_Sevenof9:1>
+```
+
+**Prompt 4 (Silhouette window):**
+```
+The in the photo has a slender physique with a light skin tone. Her hair is medium-length and slightly wavy, framing her face. Her eyes are closed, giving a serene expression. Her cheeks are softly rounded, and her lips are slightly parted. Her posture is relaxed, with one leg slightly bent. The light source creates a silhouette effect, highlighting her curves and casting subtle shadows. The background features a window with curtains, allowing soft natural light to filter through. The room appears to be dimly lit, adding to the intimate and contemplative mood.
+```
+
+**Prompt 5 (Harness with Small Breasts LoRA):**
+```
+A photograph of a slender woman with long blonde hair, wearing a black leather harness with straps and metal rings that exposes her breasts, standing confidently with an inviting emotion. She has fair skin and is wearing black leather wrist cuffs. The scenery is a minimalist room with a modern design. The lighting is soft and warm, highlighting her figure.
+```
+
+**Prompt 6 (Seductive blonde):**
+```
+The has a fair skin tone with a slight blush on her cheeks. She has long, wavy blonde hair that falls over her shoulders. Her eyes are a light shade of blue or green and are framed by long eyelashes. She has a subtle, natural makeup look with a hint of pink lipstick on her lips. Her expression is calm and slightly seductive, with a faint, closed-mouth smile. Her body is slender and toned, with small breasts and a flat stomach. The lighting in the photo highlights the curves of her body and creates soft shadows that add depth to her form. The photo is taken from a low angle, looking up at her, which gives a sense of intimacy and closeness. The background is blurred, but it appears to be a dimly lit room with a dark wooden piece of furniture, possibly a bed or a dresser. The focus is entirely on the, and the background is out of focus to emphasize her presence in the image.
+```
+
+**Prompt 7 (Bed sultry):**
+```
+The is a woman with light skin and long, straight brown hair that falls over her shoulders. She has a slender, athletic build with a small waist and curvaceous hips and buttocks. Her breasts are small to medium in size. She is posed on a bed with white sheets, facing the camera with a sultry expression. Her lips are full and slightly parted, and she is wearing subtle makeup that enhances her natural features. The background is a plain, light-colored wall, which helps to focus attention on the subject. The lighting is soft and even, creating a gentle, flattering effect on her skin. The overall mood of the image is sensual and intimate.
+```
+
+**Prompt 8 (Winter blue hair):**
+```
+The girl in the photo has a fair complexion with a light dusting of freckles across her cheeks and nose. Her eyes are a striking light brown, framed by long, dark lashes. She has a small, rounded nose and full, slightly parted lips painted in a natural pink shade. Her makeup is minimal, with a focus on her eyes and lips. She wears a white knit beanie with a large, fluffy pom-pom on top, adding a playful touch to her look. Her hair is a vibrant, bright blue, cascading in loose waves past her shoulders. She has a slender physique with a flat stomach and small breasts. The photo is taken from a slightly low angle, emphasizing her height and the winter setting. The girl is smiling warmly, creating a sense of approachability and friendliness. The background is a snowy landscape with evergreen trees and a clear blue sky, suggesting a cold, winter day. The image captures a moment of casual, carefree enjoyment of the season.
+```
+
+### Keywords
+- `sheer` / `see through`
+- `revealing` / `exposing`
+- `pull down` / `pulled down`
+- `lingerie` / `lace`
+- `fishnet` / `mesh`
+- `leather harness` / `straps`
+- `latex`
+- `panties aside`
+- `buttocks`
+- `amateur photograph`
+- `freckles`
+
+### Tested combinations
+
+**Combination 1 (Small Breasts):**
+```
+Checkpoint: FLUX Dev
+<lora:FLUX_sexy_clothes_v3_Sevenof9:1>
+<lora:Breast_size_slider_Small_breasts:-3.1> (v4.0)
+```
+
+**Combination 2 (Character + Style):**
+```
+Checkpoint: FLUX Dev
+<lora:FLUX_sexy_clothes_v3_Sevenof9:1>
+<lora:Isabella_Flux_CFH:0.8>
+```
+
+**Combination 3 (Detailed Perfection):**
+```
+<lora:FLUX_sexy_clothes_v3_Sevenof9:1>
+<lora:Detailed_Perfection_Hands_Feet_Face_Body:1>
+```
+
+### Content types
+- Lingerie (mostly)
+- Latex
+- Fishnet
+- Leather harness
+- Sheer/see-through fabrics
+
+### Notes
+- Avoid using "wearing" - use action verbs instead
+- Best with FORGE-Real sampler (DPM++ 2M)
+- ~25 steps recommended with Beta scheduler
+- Works with various body types and ages
+- Push with `revealing` or `exposing` for more explicit results
+- Good nipple rendering
+- Supports front and behind views
+
+---
+
+## FLUX Longsleeve Bandage Dress
+
+| Parameter | Value |
+|-----------|-------|
+| **File** | `CrunchyBanana_FLUX_Long_Sleeve_Cutout_Bandage_Dress.safetensors` |
+| **Civitai** | https://civitai.com/models/1129939/flux-longsleeve-bandage-dress |
+| **Trigger word** | `long sleeve cutout bandage dress` |
+| **Strength** | 0.6-1.0 |
+| **Type** | Clothing / Dress |
+| **Version** | v1.0 |
+
+### Description
+Longsleeve cutout bandage dress LoRA for FLUX. Creates sexy, form-fitting bandage dresses with cutout details. At 0.6-0.7 strength it's more flexible with fabric variations.
+
+### Strength tips
+- **0.6-0.7**: More flexible with fabrics
+- **1.0**: Full bandage dress effect
+
+### Sample prompts
+
+**Prompt 1 (Amateur bedroom):**
+```
+amateur photo, overexposure, Low-resolution photo, shot on a mobile phone. young woman, 18 yo (european:1.6) girl, blonde, grey eyes, small breasts, perky breast, perky nipples, skinny, thin, petite blonde, grey eyes, long hair, ponytail, dark eyeliner, natural lip color, wearing long sleeve cutout bandage mini dress, thighhighs, platform heels. Girl standing seductive, looking at viewer seductive. The background shows modern bedroom <lora:CrunchyBanana_FLUX_Long_Sleeve_Cutout_Bandage_Dress:1>
+```
+
+**Prompt 2 (Beach cabin):**
+```
+Photograph of a slender woman with blonde ponytail hair, wearing a black long sleeve cutout bandage dress while posing in a beach cabin. <lora:CrunchyBanana_FLUX_Long_Sleeve_Cutout_Bandage_Dress:0.7>
+```
+
+### Keywords
+- `long sleeve cutout bandage dress`
+- `long sleeve cutout bandage mini dress`
+- `bandage dress`
+- `cutout dress`
+
+### Tested combinations
+- Thin Legs Skinny Ass LoRA
+- Character LoRAs (Anitka, etc.)
+
+### Notes
+- Use 0.6-0.7 for more fabric flexibility
+- Works well with thighhighs and platform heels
+- Good for sexy/seductive poses
+
+---
+
+## Modern Puffer Jacket with Fur Hood
+
+| Parameter | Value |
+|-----------|-------|
+| **File** | `pff3rf0r-v1.safetensors` |
+| **Civitai** | https://civitai.com/models/841517/flux-or-lora-modern-puffer-jacket-with-fur-hood |
+| **Trigger word** | `pff3rf0r jacket` |
+| **Strength** | 0.5-0.7 (recommended 0.65) |
+| **Type** | Clothing / Outerwear |
+| **Compatibility** | FLUX |
+
+### Description
+LoRA for generating a specific style of puffer jacket with big fur hood. Creates modern, stylish puffer jackets with oversized faux fur-lined hoods. Works well for winter scenes and outdoor photography.
+
+### Sample prompts
+
+**Prompt 1 (Manhattan apartment):**
+```
+A portrait of a young petite woman standing in her modern manhattan appartment in front of a window where the skyline is visible at sunset. photo is taken from the front, natural light. She is wearing a ((black matte pff3rf0r jacket with a fur hood)) and a tight black jeans and a white cropped satin top. the jacket is opened, and the hood of the jacket is up on her head and she is holding it with both her hands. On the left arm of the jacket is no logo. she has big tits and perfect white teeth. Her long, red hair is tied into two braided pigtails, adding a sense of playfullness and solitude. She is striking a sexy pose for the camera. She is looking lustful into the camera, signaling her need for attention and love. In the background, is a modern bedroom with a white bed, a dark green velvet armchair and a glass table. Subtle shadows and natural lighting create a natural atmosphere. she has the body of a super hot pornstar. ((low contrast, low saturation)). <lora:pff3rf0r-v1:0.65>
+```
+
+**Prompt 2 (Park winter with old man):**
+```
+amateur selfie, selfie shot on a mobile phone, young woman, 18 yo (european:1.6) girl, Anitka, grey eyes, medium breasts, skinny, thin, petite blonde, grey eyes, messy ponytail, dark eyeliner, natural lip color, black collar, tight bandeau minidress, revealing, black stockings, black matte pff3rf0r jacket with a fur hood, boots on high heels, seductive pose, Girl smiles, sitting cudle with old man, on man's laps, park bench, snugles, looking at man seductive, detailed hands. Man keep hand on girl's butt, The background shows park, snow, winter. Midday. <lora:pff3rf0r-v1:0.7>
+```
+
+**Prompt 3 (Forest on all fours):**
+```
+young Caucasian woman in her mid-20s is positioned on all fours outdoors in a natural setting. Her long blonde hair is pulled back into a high ponytail with a red hair tie, neatly framing her youthful face. She wears minimal makeup, with well-defined eyebrows, subtle eyeliner, and light pink lipstick that enhances her natural beauty. She is dressed in a shiny black puffer jacket with a large, oversized faux fur-lined hood that adds volume and texture to her appearance. Her tight black leather leggings emphasize her curvy silhouette as she poses on all fours, her gaze directed toward the camera with a confident, intense expression. The background features a late winter or early spring forest, with patches of snow, dried grass, and towering evergreen trees. A still pond reflects the cold, serene scenery in the distance. The low lighting and underexposed quality of the image create an eerie atmosphere, while the amateurish framing adds a raw, candid feel to the scene. wide-angle GoPro lens, amateurish quality, overexposed light, and slight blur in motion, giving the background a smeared, pff3rf0r jacket <lora:pff3rf0r-v1:0.65>
+```
+
+**Prompt 4 (Swiss mountains snowball):**
+```
+a full body photography, feet focus, of a swiss woman, named Erin, 35 yo, glamours, (masterpiece), best quality, expressive eyes, perfect face, sharp focus, attractive women, highly detailed face, brown eyes, open eyes, freckles, dark brown hair, long ponytail hair, ideal face, beautiful lips, ideal legs, beautiful stature, hourglass body, nice breasts, wearing a black shiny pff3rf0r jacket, offwhite leggings, black leather gloves, (showing her shiny black Thigh high platform boots to the viewer), is walking in the swiss mountains, smiling cheeky and throws a snowball at the camera, evening, snow is falling, Christmas, <lora:RealisticPeoplev0.2:0.8> aidmaRealisticPeoplePhotograph <lora:flux-patent-leather-pants:0.6> <lora:pff3rf0r-v1:0.5> <lora:Thigh_high_boots-_Flux:0.8>
+```
+
+### Keywords
+- `pff3rf0r jacket` - **trigger word**
+- `black matte pff3rf0r jacket with a fur hood`
+- `shiny black puffer jacket`
+- `oversized faux fur-lined hood`
+- `puffer jacket`
+- `fur hood`
+
+### Tested combinations
+
+**Combination 1 (Petite character + body):**
+```
+<lora:pff3rf0r-v1:0.7>
+<lora:thin_skinny_legs_ass_flux-gmr:0.6>
+<lora:Anitka:0.9>
+<lora:Hand_Detail_FLUX:0.85>
+```
+
+**Combination 2 (Swiss mountains style):**
+```
+<lora:pff3rf0r-v1:0.5>
+<lora:RealisticPeoplev0.2:0.8>
+<lora:flux-patent-leather-pants:0.6>
+<lora:Thigh_high_boots-_Flux:0.8>
+```
+
+### Notes
+- Experiment with strength (0.5-0.7 recommended)
+- Works well for winter/snow scenes
+- Hood can be up or down
+- Combines well with leather pants, boots, stockings
+- Good for both amateur selfie and professional photography styles
+
+---
+
+## Blue Jeans Down
+
+| Parameter | Value |
+|-----------|-------|
+| **File** | `woman_with_jeans_down_flux.safetensors` |
+| **Civitai** | https://civitai.com/models/686599/blue-jeans-down-flux-dev |
+| **Trigger word** | None (use `jeans down` in prompt) |
+| **Strength** | 1.0-1.5 |
+| **Type** | Clothing / Pose / NSFW |
+| **Compatibility** | FLUX Dev |
+
+### Description
+LoRA for creating images of women having jeans stripped down, exposing lower body. Results are surprisingly good and consistent with mostly perfect hands. Currently produces standing pose, front view.
+
+### Prompt template
+```
+photo of naked cute [age]yo woman with jeans down exposing her pussy wearing a [top] is posing [location], shaved, naked breasts, [background], medium shot
+```
+
+### Sample prompts
+
+**Prompt 1 (Outdoor basic):**
+```
+photo of naked cute 21yo woman with jeans down exposing her pussy wearing a white shirt is posing outdoors, shaved, naked breasts, grass and trees, medium shot <lora:woman_with_jeans_down_flux:1>
+```
+
+**Prompt 2 (Danish classroom instagram):**
+```
+instagram photo of naked natural looking 19yo Danish woman with jeans down exposing her pussy looking into camera, shaved, stripping down, naked breasts, full body shot, sweat on body, classroom, long hair, (messy hair:0.3), earrings, young looking, slight smile, small breast, (makeup:0), amateur iphone photography, casual, noise, vivid colors, high contrast, slight motion blur, jpeg artifact, on flickr in 2007, 2005 blog, 2007 blog <lora:woman_with_jeans_down_flux:1.5>
+```
+
+### Keywords
+- `jeans down`
+- `exposing her pussy`
+- `stripping down`
+- `naked breasts`
+- `shaved`
+
+### Tested combinations
+```
+<lora:woman_with_jeans_down_flux:1.5>
+<lora:Flux_Skin_Texture:0.75>
+```
+
+### Recommended settings
+- **Sampler:** Euler
+- **Steps:** 20
+- **CFG:** 1
+- **Distilled CFG:** 3.5
+- **Size:** 896x1152
+- **Hires upscale:** 1.6 with denoising 0.3
+
+### Notes
+- Use strength 1.0-1.5
+- Good hand quality
+- Standing pose, front view works best
+- Combine with Flux Skin Texture for better skin
+- Works with various ethnicities and ages
+
+---
+
+## Patent Leather Pants
+
+| Parameter | Value |
+|-----------|-------|
+| **File** | `flux-patent-leather-pants.safetensors` |
+| **Civitai** | https://civitai.com/models/1010232/patent-leather-pants?modelVersionId=1132382 |
+| **Trigger word** | `piku001` |
+| **Strength** | 0.8-1.0 |
+| **Type** | Clothing |
+| **Version** | v1.0 |
+
+### Description
+Shiny patent leather pants LoRA for FLUX. Best showcases curves of girl's lower body. Creates smooth, translucent leather pants that tightly wrap leg curves.
+
+### Key features
+- Shiny patent leather material
+- Tight-fitting style
+- Shows off leg and hip curves
+- Various colors supported
+
+### Sample prompts
+
+**Prompt 1 (Gym Japanese girl):**
+```
+piku001, A cute Japanese girl at the gym, wearing tight black patent leather pants that shine under the gym lights. She is turning her upper body to look back over her shoulder, smiling warmly and confidently at the camera. Her long dark hair is tied in a neat ponytail, and she has a sporty, energetic vibe. The gym background includes weight racks, mirrors, and workout equipment, with a soft focus to emphasize the girl as the main subject. Her expression is cheerful and inviting, with natural makeup and a healthy glow. The lighting is bright but natural, highlighting the glossy texture of her pants and the contours of her athletic figure. <lora:flux-patent-leather-pants:1>
+```
+
+**Prompt 2 (Swiss mountain with boots):**
+```
+a full body photography, feet focus, of a swiss woman, named Erin, 35 yo, glamours, (masterpiece), best quality, expressive eyes, perfect face, sharp focus, attractive women, highly detailed face, brown eyes, open eyes, freckles, long dark brown ponytail hair, ideal face, beautiful lips, ideal legs, realistic detailed skin, detailed face, beautiful stature, hourglass body, nice breasts, wearing a black shiny cropped biker leather jacket over a anthracite bodysuit, offwhite high rise leggings, wide black leather belt, black leather gloves, (showing her shiny black Thigh high platform boots to the viewer), is walking in the swiss mountain village in snow, holds a snowball ready to throw at the viewer in her right hand, great winter day, sun is shining <lora:flux-patent-leather-pants:0.8>
+```
+
+**Prompt 3 (Looking back Niagara Falls):**
+```
+A 26-year-old girl stands tall, [Looking back], wearing turtleneck long-sleeved of various colors, with a pair of black skinny leather pants made of smooth and translucent material that tightly wraps the curves of the woman's legs. The back of the pants is tight, accentuating the woman's rounded and sexy hips. Leather pants are very fashionable and show off the charm of a woman. piku001, high heels, thin waist, full breasts, large and round hips, wearing a necklace and simple jewelry around his neck, his skin is fair and smooth, and his long black hair is draped over his shoulders, which sets off his sexy figure. In the background is Niagara Falls, USA, the waterfall is roaring, stirring up many splashes, water mist, blue sky and white clouds, and lush trees around <lora:flux-patent-leather-pants:1>
+```
+
+### Keywords
+- `piku001` - **TRIGGER WORD**
+- `patent leather pants`
+- `shiny leather pants`
+- `skinny leather pants`
+- `smooth and translucent material`
+- `tightly wraps the curves`
+- `rounded and sexy hips`
+
+### Tested combinations
+- Thigh high boots LoRA
+- Realistic People Photograph LoRA
+- Hourglass Body Shape LoRA
+
+### Recommended settings
+- **Steps:** 24-35
+- **CFG:** 1-3.5
+- **Sampler:** Euler
+- **Checkpoint:** FLUX Dev
+
+### Notes
+- Use trigger word `piku001`
+- Weight 0.8-1.0 recommended
+- Highlights leg curves well
+- Combines well with boots and body shape LoRAs
+- Works with various poses (standing, looking back)
+
+---
+
+## One Shoulder Cutout Bandage Dress
+
+| Parameter | Value |
+|-----------|-------|
+| **File** | `CrunchyBanana_FLUX_One_Shoulder_Cutout_Bandage_Dress.safetensors` |
+| **Civitai** | https://civitai.com/models/1152207/flux-one-shoulder-cutout-bandage-dress |
+| **Trigger word** | `one shoulder cutout bandage dress` |
+| **Strength** | 0.8-1.0 |
+| **Type** | Clothing / Dress |
+| **Creator** | CrunchyBanana |
+
+### Description
+LoRA for generating one-shoulder cutout bandage dresses. Very flexible and follows many prompts - experiment beyond the trigger word. Creates sexy, form-fitting bandage dresses with asymmetric one-shoulder design and cutout details.
+
+### Sample prompts
+
+**Prompt 1 (Pedestrian zone - simple):**
+```
+A slim woman with dark long hair, wearing a red one shoulder cutout bandage dress standing in a public pedestrian zone. <lora:CrunchyBanana_FLUX_One_Shoulder_Cutout_Bandage_Dress:1>
+```
+
+**Prompt 2 (Art gallery - detailed):**
+```
+Create a photorealistic image of a woman with very long, wavy dark-brown hair cascading over her shoulders and down her back, the glossy chestnut waves accentuating her soft, round feminine face. Her gentle, curved features glow with warmth—full cheeks blooming naturally, a smooth, rounded jawline framing her tender beauty, her eyes twinkling with quiet allure. She wears a One Shoulder Cutout Bandage Dress in a striking coral pink, crafted from a stretchy, matte knit that wraps tightly around her body from the waist up, hugging her curves and covering her breasts with a single shoulder strap on the left. Cutouts on both sides reveal her waist in a bold, asymmetrical design, the dress ending at mid-thigh in a fitted, sculptural hem. She stands in a trendy art gallery during an evening opening, surrounded by abstract paintings in vivid reds and blues on stark white walls. one shoulder cutout bandage dress <lora:CrunchyBanana_FLUX_One_Shoulder_Cutout_Bandage_Dress:1>
+```
+
+**Prompt 3 (Night market - leatherette):**
+```
+Create a photorealistic image of a woman with very long, wavy dark-brown hair cascading over her shoulders and down her back. She wears a One Shoulder Cutout Bandage Dress in a deep midnight blue, made from a luxurious, slightly glossy leatherette that wraps around her torso from the waist up, molding to her form and covering her breasts with a single strap over the right shoulder. Cutouts on the sides expose her midriff, adding an edgy flair, while the dress flows to her ankles in a sleek, body-hugging column. She stands in a bustling outdoor night market, vibrant stalls draped in colorful fabrics selling handmade jewelry and street food. one shoulder cutout bandage dress <lora:CrunchyBanana_FLUX_One_Shoulder_Cutout_Bandage_Dress:1>
+```
+
+**Prompt 4 (Historic bank hall - Druuna character):**
+```
+Masterpiece high-resolution photo of Druuna, a playful woman in her mid twenties, with realistic skin texture, slim frame, natural curves, expressive brown eyes, luxurious dark brown hair, cut into a sharp layered shag with uneven bangs and subtle highlight streaks. She is standing confidently with more weight on right leg and left hand on hip. Set in a restored historic bank hall repurposed for events. She is wearing one shoulder cutout bandage dress, red and blue ombre silk. Torso-up composition with partial legs. Medium-format realistic capture, true skin texture, smooth tonal transitions. <lora:CrunchyBanana_FLUX_One_Shoulder_Cutout_Bandage_Dress:1>
+```
+
+### Keywords
+- `one shoulder cutout bandage dress`
+- `bandage dress`
+- `cutout dress`
+- `one shoulder dress`
+- `mini dress`
+- `asymmetric dress`
+
+### Related LoRAs
+- FLUX Longsleeve Bandage Dress (same creator)
+- FLUX Sequin Dress (CrunchyBanana)
+- FLUX Cutout Off-Shoulder Crop Top (CrunchyBanana)
+
+### Notes
+- Very flexible - experiment with variations
+- Works well with various poses and settings
+- Combine with body shape LoRAs for enhanced curves
+- Good for nightclub, fashion, and glamour shots
+
+---
+
+## RealTanFFStockings
+
+| Parameter | Value |
+|-----------|-------|
+| **File** | `RealTanFFStocking_FL.safetensors` |
+| **Civitai** | https://civitai.com/models/1103587/realtanffstockings-for-flux-back-seam-tan-fully-fashioned-stockings |
+| **Trigger word** | `RealTanFFStocking` |
+| **Strength** | 0.7-0.9 (0.8 recommended) |
+| **Type** | Clothing / Stockings / Hosiery |
+| **Compatibility** | FLUX Dev |
+
+### Description
+FLUX LoRA for vintage tan (skin color) back seam fully fashioned stockings with garters. Creates detailed stockings with reinforcements on heel and top, plus the iconic back seam. Part of the RealStocking package for authentic vintage hosiery.
+
+### Keyword combinations
+
+**Full garter view (may show nude waist):**
+```
+RealTanFFStocking, garter, suspenders
+```
+
+**Subtle clips only:**
+```
+RealTanFFStocking, suspenders
+```
+
+**Back seam visible (back view):**
+```
+back view, RealTanFFStocking, garter, suspenders
+```
+
+### Sample prompts
+
+**Prompt 1 (Back view lower body):**
+```
+<lora:RealTanFFStocking_FL:0.9>, back view of lower body, legs apart, RealTanFFStocking, black garter, black thong, visible feet, indoor background,
+```
+
+**Prompt 2 (Vintage bedroom):**
+```
+a young woman in her cozy, softly lit bedroom, exudes a vintage charm. She's wearing delicate vintage underwear—an intricately embroidered lace bra paired with high-waisted, satin briefs. Her legs are elegantly encased in RealTanFFStocking, their seam tracing a perfect line along the back of her legs, creating a look of timeless allure. The room around her is a blend of retro and modern, with soft pastel walls, antique furniture, and a collection of classic records on a nearby shelf. <lora:RealTanFFStocking_FL:0.8>
+```
+
+**Prompt 3 (Red vintage lingerie):**
+```
+A young blonde lady in red vintage lingerie and ankle-strap pumps looks over her shoulder, laughs and clicks her fingers twice. RealTanFFStocking, garter, suspenders <lora:RealTanFFStocking_FL:0.7>
+```
+
+### Keywords
+- `RealTanFFStocking` - **TRIGGER WORD**
+- `garter` - shows garter belt (may trigger nude waist)
+- `suspenders` - stocking clips
+- `back view` - shows back seam
+- `fully fashioned stockings`
+- `back seam`
+- `vintage stockings`
+- `tan stockings` / `skin color stockings`
+
+### Tested combinations
+- Pleaser Brand Shoes LoRA (1.0)
+- GarterBelt Flux Dev
+- Nude in Garters - Fully Fashioned Stockings
+
+### Recommended settings
+- **Steps:** 30-40
+- **CFG:** 1-3.5
+- **Sampler:** Euler
+- **Inpainting:** Recommended for complex prompts
+
+### Notes
+- Strength 0.7-0.9 recommended - higher may cause artifacts
+- Use `back view` keyword to show the iconic back seam
+- `garter` keyword often triggers nude waist output
+- Use only `suspenders` for subtle clip visibility
+- Further inpainting step suggested for detailed stocking results
+- Related to ffstockings (black version) LoRA
+
+---
+
+## Slingback Pumps
+
+| Parameter | Value |
+|-----------|-------|
+| **File** | `Slingback_Pumps-000001.safetensors` |
+| **Civitai** | https://civitai.com/models/819060/slingback-pumps |
+| **Trigger word** | `Pointy toe high heels slingbacks` |
+| **Strength** | 0.5-0.85 |
+| **Type** | Clothing / Footwear |
+| **Version** | Ver.2 |
+
+### Description
+LoRA for pointy toe high heels and slingback pumps. Trained specifically for accurate high heel generation. Slingbacks are harder to generate without accurate prompting. Best combined with realism LoRA at lower guidance to avoid plastic look.
+
+### Heel styles
+- Pointy toe high heels
+- Slingback pumps
+- Various heel heights (can specify, e.g., "18-cm heels")
+- Colors: black, red, nude, etc.
+
+### Sample prompts
+
+**Prompt 1 (Nude catwalk from behind):**
+```
+1girl,solo, view from behind, big butt, toned ass, sideboobs, hyper realistic, back view, showing the back view of a magnificent fully nude body of a soft athletic godly fit tall sexy nudist completely nude on the city street in only Red Slingback Pumps with 18-cm heels, extremely long hair, big firm ass, tight butt, large saggy huge natural massive pointy bulging breasts, abs, topless, bottomless, fully nude, fancy catwalk in background with futuristic gold and black motifs, blonde hair with black roots, soft athletic body, long slender legs, Real Nipples and Areola Textures, RNAT <lora:Slingback_Pumps-000001:0.8>
+```
+
+**Prompt 2 (Simple legs):**
+```
+women legs, Pointy toe high heels slingbacks. <lora:Slingback_Pumps-000001:0.7>
+```
+Settings: Steps: 15, CFG: 1, Sampler: Euler
+
+**Prompt 3 (Athletic nude):**
+```
+neutral grey background, high definition, realistic, athletic, Sweaty, 1girl, naked, strings tan lines, ((tied full hair in a bun)), (((black Pointy toe high heels slingbacks))). <lora:Slingback_Pumps-000001:0.7>
+```
+
+**Prompt 4 (Office shoejob):**
+```
+Black pointy toe high heels, black slingback high heels, shoejob. male pov frontal shot of a young blonde woman seated on a office chair at a busy office, giving a footjob. She has a pale skin and her body build is very skinny. She wears an tight white button shirt with a cleavage. She wears a skirt. She wears black pointy slingbacks high heels on her veiny feet. Her legs are slightly extended towards the viewer. <lora:Slingback_Pumps-000001:0.75>
+```
+
+### Keywords
+- `Pointy toe high heels slingbacks` - **TRIGGER WORD**
+- `slingback pumps`
+- `pointy toe high heels`
+- `black slingback high heels`
+- `Red Slingback Pumps`
+- `18-cm heels` (or other height)
+- `shoejob`
+
+### Negative prompt (recommended)
+```
+bad anatomy, ugly, poorly drawn hands, poorly drawn feet, poorly drawn face, pubic hair, out of frame, extra limbs, disfigured, deformed, blurry, watermark, grainy, signature
+```
+
+### Tested combinations
+- Realism LoRAs (at lower guidance)
+- RNAT (Real Nipples and Areola Textures)
+- Athletic body LoRAs
+- Pleaser Brand Shoes (similar category)
+
+### Recommended settings
+- **Steps:** 15-50
+- **CFG:** 1-3.5
+- **Sampler:** Euler / DPM++ 2M Karras
+- **Strength:** 0.5-0.85 (0.7-0.8 typical)
+
+### Notes
+- Slingbacks require accurate prompting to generate correctly
+- Use realism LoRA at lower guidance to avoid plastic look
+- Photoshop can help add filmic look
+- Specify heel color and height for best results
+- Works with nudity, fashion, and fetish scenes
+- Similar to Pleaser Brand Shoes LoRA
+
+---
+
+## Flux Bra Pull
+
+| Parameter | Value |
+|-----------|-------|
+| **File** | `flux_bra_pull_lora_v1.safetensors` |
+| **Civitai** | https://civitai.com/models/903896/flux-bra-pull |
+| **Trigger word** | `starting to remove her bra` |
+| **Strength** | 0.8-1.0 |
+| **Type** | Clothing / Undressing |
+| **Training** | 36 hires images, natural language prompts |
+
+### Description
+LoRA for bra removal / undressing poses. Trained on girls undressing their bras but generalizes well to other clothing. Captures realism while remaining flexible. Quick to activate concept - bras pulled down to reveal breasts.
+
+### Prompting
+- Always include: `starting to remove her bra`
+- For other clothing: mention wearing it, e.g., `starting to remove her dress, wearing a red strapless dress`
+
+### Sample prompts
+
+**Prompt 1 (Pakistani hijabi penthouse):**
+```
+highly detailed candid amateur photo of a cute brown-skinned pakistani hijabi woman. she is unbuttoning and starting to remove her bra and she is wearing low-waist thong, revealing bare shoulders, small saggy breasts and dark nipples. She has thick lips and almond-shaped eyes. her mood is playful and seductive, enjoying surprising the viewer with her naughty behaviour. She has a slim petite small body, delicate and dainty and she is barefoot. A highly detailed view of a modern penthouse apartment in London, bathed in natural light streaming through floor-to-ceiling glass windows. <lora:flux_bra_pull_lora_v1:1>
+```
+Settings: Steps: 45, CFG: 1, Sampler: DPM++ 2M, Size: 768x1024
+
+**Prompt 2 (Black woman pool):**
+```
+A topless black biracial woman is standing in front of a swimming pool starting to remove her bra to flash her saggy breasts and show her dark nipples. You can see pubic hair sticking out from the bottom of her swim suit. She is directly facing the camera so we can see her whole body which is shapely and curvy realistic body shape. she has thick thighs and a small gut. Her hair is short, curly, and black. She is about 45 years old with strong arms. There are naked women in the pool facing the viewer. It looks like a formal portrait with a film camera, very realistic and photogenic. <lora:flux_bra_pull_lora_v1:1>
+```
+Settings: Steps: 24, CFG: 7, Size: 832x1216
+
+**Prompt 3 (Pakistani living room):**
+```
+highly detailed candid amateur photo of a cute brown-skinned pakistani hijabi woman. she is unbuttoning and starting to remove her bra and she is wearing high-waist panties, revealing bare shoulders, small saggy breasts and dark nipples. She has thick lips and almond-shaped eyes. her mood is playful and seductive. She has a slim petite small body. A cozy Pakistani family living room in England, blending traditional and modern styles. The theme of the photo is playful and carefree with a hint of seduction and sensuality. <lora:flux_bra_pull_lora_v1:1>
+```
+Settings: Steps: 45, CFG: 1, Sampler: DPM++ 2M
+
+### Keywords
+- `starting to remove her bra` - **KEY PHRASE**
+- `unbuttoning`
+- `revealing bare shoulders`
+- `small saggy breasts`
+- `dark nipples`
+- `playful and seductive`
+- `candid amateur photo`
+
+### Tested combinations
+- desiespresso-v2-flux (0.4)
+- Character/ethnicity LoRAs
+- Flux Dev fp8
+
+### Recommended settings
+- **Steps:** 24-45
+- **CFG:** 1-7
+- **Sampler:** DPM++ 2M
+- **Schedule:** Beta (alpha: 0.6, beta: 0.6) or Simple
+- **Size:** 768x1024, 832x1216
+
+### Notes
+- Generalizes beyond bras to other clothing removal
+- For other clothing: specify what she's wearing
+- Trained with natural language - use descriptive prompts
+- Works well with candid/amateur photo style
+- Flexible with body types and ethnicities
+
+---
+
+## Back Zipper
+
+| Parameter | Value |
+|-----------|-------|
+| **File** | `back_zipper_1.1.safetensors` |
+| **Civitai** | N/A (custom LoRA) |
+| **Trigger word** | None (use descriptive prompt) |
+| **Strength** | 0.8-1.0 |
+| **Type** | Clothing / Undressing |
+| **Version** | 1.1 |
+
+### Description
+LoRA for back zippers on dresses, jeans, and other clothing. Focus on unzipped zipper exposing skin on the back. Works with various clothing types - cocktail dresses, jeans, etc. Creates sensual "falling open" effect.
+
+### Key concepts
+- Zip down center line of back
+- Dress/jeans unzipped and falling open
+- Exposing back and top of buttocks
+- Over-the-shoulder backview poses
+
+### Sample prompts
+
+**Prompt 1 (Pakistani cocktail dress - London alley):**
+```
+highly-detailed 4k hdr photo.
+(high-angle:1.3) over-the-shoulder backview of a mature (small petite:1.2) voluptuous brown-skinned pakistani woman wearing a tight-fitting (knee-length:1.3) stretchy satin (slinky cocktail-dress:1.1) with zip down the center line of the back of the dress. (her dress is unzipped and falling open, exposing her back and the top of her buttocks:1.4). She has a tiny torso, slim waist, incredibly wide and padded hips, thick thighs. She is looking back and she has thick lips and droopy almond-shaped eyes. her hands are pressed against the wall and her back is arched. gritty nighttime scene in london, brick wall, drain pipe. the focus of the photo is how the unzipped zipper exposes the woman's skin. <lora:back_zipper_1.1:1>
+```
+Settings: Steps: 30, CFG: 1, Sampler: DPM++ 2M, Size: 960x1280
+
+**Prompt 2 (Jeans zipper):**
+```
+concept art (masterpiece, cinematic concept art, score_9, score_8_up, score_7_up),
+A beautiful woman in tight blue denim jeans with a long zipper running from the small of her back downward, the zipper half undone. from behind, wearing a tight blue jeans with a zipper running down the front, revealing her bare buttocks. the woman is standing in the middle of the frame, a red thong underneath, which is pulled down to reveal her bare ass. She is wearing a fitted white t-shirt. She leans forward on a table with a subtle, submissive posture, her hips arched back. She looks back over her shoulder directly at the viewer, her expression a mix of vulnerability and anticipation. <lora:back_zipper_1.1:1>
+```
+Settings: Steps: 35, CFG: 3, Sampler: Euler
+
+**Prompt 3 (Simple):**
+```
+She is wearing a fitted white t-shirt, the fabric soft and slightly sheer under the light. She leans forward on a table with a subtle, submissive posture, her hips arched back to emphasize the curve of her body and the teasing zipper. She looks back over her shoulder directly at the viewer, her expression a mix of vulnerability and anticipation. Soft, cinematic lighting highlights the smooth texture of the denim, the contrast of the white top, and the intimate atmosphere. <lora:back_zipper_1.1:1>
+```
+
+### Keywords
+- `zip down the center line of the back`
+- `unzipped and falling open`
+- `exposing her back and the top of her buttocks`
+- `over-the-shoulder backview`
+- `looking back`
+- `back is arched`
+- `the focus of the photo is how the unzipped zipper exposes the woman's skin`
+- `zipper running from the small of her back`
+- `zipper half undone`
+
+### Tested combinations
+- desiespresso-v2-flux (0.2)
+- amateur LoRA (0.2)
+- Character/ethnicity LoRAs
+
+### Recommended settings
+- **Steps:** 30-35
+- **CFG:** 1-3
+- **Sampler:** DPM++ 2M / Euler
+- **Schedule:** Beta (alpha: 0.6, beta: 0.6)
+- **Size:** 960x1280
+
+### Notes
+- Works with dresses, jeans, and other clothing
+- Focus on "falling open" and exposed skin
+- Back arched poses work well
+- Good for sensual/teasing shots
+- Over-the-shoulder looking back is effective
 
 ---
 

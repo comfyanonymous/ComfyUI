@@ -45,6 +45,12 @@ This section covers LoRAs specifically designed for improving image quality, enh
 - [Bukkake / Realistic Cum Facial Flux](#bukkake--realistic-cum-facial-flux) - Realistic bukkake facials
 - [Universal Cum Enhancer](#universal-cum-enhancer) - Enhances other cum LoRAs with texture/shape
 - [FLUX Gone Wild](#flux-gone-wild) - Top-tier NSFW style enhancer
+- [Epic Natural Nudes](#epic-natural-nudes) - Natural nude photography style
+- [Feminine Tanlines eXplicit Edition](#feminine-tanlines-explicit-edition) - Tanlines effect for FLUX
+- [CumTF](#cumtf) - Cum facial with text captions
+- [Nudist Beach Flux](#nudist-beach-flux) - Nudist beach scene concept
+- [Reclining Nude After Sex](#reclining-nude-after-sex) - Detailed anatomy with cum/fluids (l33t keywords)
+- [YACL Cum on Face](#yacl-cum-on-face) - Cum on face with natural language control
 
 ---
 
@@ -2353,6 +2359,554 @@ Perfect Eyes, perspective, score_9, score_8_up, score_7_up, masterpiece, high qu
 - Works great with Instagram/selfie style LoRAs
 - Good for explicit masturbation scenes
 - Combine with RNAT for realistic nipples
+
+---
+
+## Epic Natural Nudes
+
+| Parameter | Value |
+|-----------|-------|
+| **File** | `FLUX_FD-FelldudeNudeMix64.safetensors` |
+| **Civitai** | https://civitai.com/models/777862/epic-natural-nudes-flux-full-rank |
+| **Trigger word** | None (use `naked, nude`) |
+| **Strength** | 0.5-1.0 |
+| **Type** | CONCEPT / NSFW / Nude Photography |
+| **Rank** | Full Rank |
+
+### Description
+Epic Natural Nudes LoRA trained on fully nude and partially nude females. Creates natural-looking nude photography. Tested at 1.0 strength with GGUF FLUX Q-4_0 model. Fully nude is hit or miss - append prompt with `naked, nude` for best results.
+
+### Key features
+- Natural nude photography style
+- Works with various ethnicities
+- Good skin detail and texture
+- Works at 0.5-1.0 strength
+
+### Sample prompts
+
+**Prompt 1 (Asian gamer girl with tanlines):**
+```
+Asian female with tanlines and no clothing other then a cute bunny hat, naked, nude - gamer girl, skin detail, skin texture, human skin, 4k <lora:FLUX_FD-FelldudeNudeMix64:0.5>
+```
+
+**Prompt 2 (Caribbean rock climber):**
+```
+Professional Playboy photographer Ana Dias shooting from below of a 18 year old fit dark-skinned Caribbean smiling with long black hair in a ponytail with enchanting eyes. Naked woman she is topless with perfect small breasts and dark nipples, detailed skin texture, subsurface scattering award-winning, professional, highly detailed, intricate, detailed. Detailed natural skin textures and details in her natural athletic body, topless and bottomless, naked and climbing in a harness, she is holding on to a climbing rope standing legs spread tattooed on a narrow rock ledge, below her is a scenic view of hills and valleys against the vertical rock face she is climbing, sunny day <lora:FLUX_FD-FelldudeNudeMix64:1>
+```
+
+**Prompt 3 (Silver hair selfie):**
+```
+realistic photo of a petite cute naked young woman with a braided silver hair taking a selfie in the mirror, she has purple eyes and pale skin, wearing bikini bottoms, 1girl, perfectly flat chest, tiny perky tits <lora:FLUX_FD-FelldudeNudeMix64:1>
+```
+
+**Prompt 4 (Cruise ship mooning):**
+```
+A group of woman bent over showing their naked butts to the camera, milfs mooning the camera on a cruise ship <lora:FLUX_FD-FelldudeNudeMix64:0.7>
+```
+
+**Prompt 5 (Pole dancer with tanlines):**
+```
+a female pole dancer with tanlines and no clothing other then a cowboy hat, naked, nude <lora:FLUX_FD-FelldudeNudeMix64:0.5>
+```
+
+**Prompt 6 (Mario Testino style):**
+```
+A full body view of 2 [Model] reminiscent of Mario Testino' photo The [Model] should exude confidence and allure, she is ((sitting on a bed with her legs open wide)), ((thigh high sheer stockings)) with a hint of vulnerability in their eyes. neatly trimmed pussy, large pussy lips, The lighting should be soft and diffused, creating a sensual and intimate atmosphere. The background should be simple and uncluttered, allowing the focus to remain on the [Model]'s face and breasts. large breasts, erect nipples, ear rings, nipple rings, lfb, pointy breasts, (triangle pubic hair:1.5). Style: Hyperrealistic, with a touch of fashion editorial flair. Emphasize the model's natural beauty, the texture of the towel, and the interplay of light and shadow. <lora:FLUX_FD-FelldudeNudeMix64:0.7>
+```
+
+**Prompt 7 (Argentinian leather jacket):**
+```
+portrait of a beautiful 21-year-old dark wavy hair Argentinian girl. She wears a leather jacket, no shirt, and ripped jeans., atmospheric, epic, glamour shot, passionate, incredibly detailed, incredibly realistic, maximum landscape details, full body shot, perky breasts, Real Nipples and Areola Textures, RNAT, perfect large breasts, (breasts exposed, topless:1.8) cowboy shot, High Detail, Perfect Composition, dramatic lighting, high contrast, atmospheric lighting, volumetric lighting,. cinematic composition, fit, petite, absolutely gorgeous face <lora:FLUX_FD-FelldudeNudeMix64:0.8>
+```
+
+**Prompt 8 (Dog leash kneeling):**
+```
+beautiful young woman in a seductive pose. We see her face from close. She bits her lips. She is on her knees on a modern white cosy carpet. The viewer stands up in front of her. The viewer look at her from above. High angle photography. She open her mouth wide and have her tongue out. She looks at the viewer lovely. She has big round natural breasts and perfect small nipples. She is small and has a very fit body. The woman has long messy blond hair with a parting side and a lond side braid. She is in modern villa in the living room, sunrise light through windows. She is naked. She gets a full gold dog leash around her neck <lora:FLUX_FD-FelldudeNudeMix64:1>
+```
+
+**Prompt 9 (Latina jungle waterfall):**
+```
+jungle, waterfall, young latina karen who is 21 years old, skinny figure, tall, skinny with big boobs, natural tits, very big breasts, big breast for young woman, sexy pose, very hairy vagina, lots of pubic hair, tiny figure, very skinny, skinny figure, sexy pose <lora:FLUX_FD-FelldudeNudeMix64:1>
+```
+
+**Prompt 10 (Changing room spandex):**
+```
+realistic photo of a young women with messy hair in dark blue spandex running shorts posing in a changing room, naked, nude <lora:FLUX_FD-FelldudeNudeMix64:1>
+```
+
+### Keywords
+- `naked`, `nude`
+- `skin detail`, `skin texture`
+- `natural skin textures`
+- `topless`, `bottomless`
+- `detailed skin texture`
+- `human skin`
+
+### Tested combinations
+
+**Combination 1 (Asian with tanlines):**
+```
+<lora:FLUX_FD-FelldudeNudeMix64:0.5>
+<lora:Asian_Beauties_Devildonia:1>
+<lora:Feminine_Tanlines:0.5>
+```
+
+**Combination 2 (Anus/Vulva helper):**
+```
+<lora:FLUX_FD-FelldudeNudeMix64:0.7>
+<lora:Anus_Vulva_Helper:1>
+```
+
+**Combination 3 (Nipples + breasts):**
+```
+<lora:FLUX_FD-FelldudeNudeMix64:0.8>
+<lora:Real_Nipples_Areola_Textures:0.8>
+<lora:BreastShaper:0.85>
+<lora:Extreme_Detail_Areola_Nipple:0.7>
+<lora:Flux-busty:0.45>
+```
+
+**Combination 4 (Realism + tanlines):**
+```
+<lora:FLUX_FD-FelldudeNudeMix64:0.7>
+<lora:XLabs_Flux_Realism:1>
+<lora:Feminine_Tanlines:0.5>
+```
+
+**Combination 5 (Nude + Sevenof9):**
+```
+<lora:FLUX_FD-FelldudeNudeMix64:1>
+<lora:naked_nude_for_FLUX_Sevenof9:0.8>
+```
+
+### Compatible checkpoints
+- FLUX Dev
+- GGUF FLUX Q-4_0
+- Fluximate
+
+### Notes
+- Fully nude is still hit or miss - append `naked, nude` to prompt
+- Works well with various ethnicities and body types
+- Author: Felldude
+- Good for professional nude photography style
+- Combine with anatomy LoRAs for better results
+
+---
+
+## Feminine Tanlines eXplicit Edition
+
+| Parameter | Value |
+|-----------|-------|
+| **File** | `FLUX_FD-Tanlines-R12.safetensors` |
+| **Civitai** | https://civitai.com/models/789045/feminine-tanlines-explicit-edition-flux?modelVersionId=882366 |
+| **Trigger word** | None (describe tanlines in prompt) |
+| **Strength** | 0.5-1.0 |
+| **Type** | CONCEPT / Tanlines Effect |
+| **Version** | v1.0 |
+
+### Description
+Feminine tanlines LoRA for FLUX. Addresses FLUX's lack of ability to draw tan lines properly. Works at 1.0 strength solo, recommended at 0.5 when used with another nudity LoRA. Can be combined with other explicit LoRAs.
+
+### Key features
+- Adds realistic tanlines to female bodies
+- Works with various body types
+- Compatible with nudity LoRAs
+- Good at 0.5-1.0 strength
+
+### Usage tips
+- **Solo use**: Strength 1.0
+- **With nudity LoRA**: Strength 0.5
+- Describe the tanlines style in prompt if needed
+
+### Sample prompts
+
+**Prompt 1 (Amateur bedroom selfie):**
+```
+An amateur selfie photo of a 19-year-old girl standing in her nicely decorated room. Posted to reddit r/gonewild. Layered dirty blonde hair. Wearing a cute tight fitting blue crop top. She is bottomless, wearing no panties showing her shaved pussy. Light reflects on her smooth and sweaty skin. Her bright bedroom is clean and tidy with lots of light. ray of light from window. She snaps a selfie on the bathroom mirror, low light, jpeg compression, low res, beautiful face, smirking, thicc figure, soft body <lora:FLUX_FD-Tanlines-R12:0.8>
+```
+
+**Prompt 2 (Police mugshot):**
+```
+mugshot style body profile photo of a young woman stripped completely naked and standing straight for a lineup photo at police station. Front view, symmetry, holding up a sign showing her inmate id. Background wall shows measurements. <lora:FLUX_FD-Tanlines-R12:1>
+```
+
+**Prompt 3 (CMNF couple):**
+```
+photo of A beautiful nude shy slender girl with an adorable face and perfect body poses standing next to her husband in a tuxedo, (nude female:1.2), (clothed male:1.2), (front view:1.2), (facing front:1.2), (looking at the camera:1.2), big saggy breasts, her loose hair styled in a low bun, mom body, adorable cute face, standing, cowboy shot, side-by-side, next to each other, his arm around her waist, slender body, busty petite, (softly smiling), mouth closed, prepared for an evening out. Her hairstyle is neat and elegant perfect for going to a semi-formal date. symmetry. naked woman, Real Nipples and Areola Textures, low contrast, fujifilm <lora:FLUX_FD-Tanlines-R12:1>
+```
+
+**Prompt 4 (Mario Testino style):**
+```
+A full body view of 2 [Model] reminiscent of Mario Testino' photo The [Model] should exude confidence and allure, she is ((sitting on a bed with her legs open wide)), ((thigh high sheer stockings)) with a hint of vulnerability in their eyes. neatly trimmed pussy, large pussy lips, The lighting should be soft and diffused, creating a sensual and intimate atmosphere. The background should be simple and uncluttered, allowing the focus to remain on the [Model]'s face and breasts. large breasts, erect nipples, ear rings, nipple rings, lfb, pointy breasts, (triangle pubic hair:1.5). Style: Hyperrealistic, with a touch of fashion editorial flair. <lora:FLUX_FD-Tanlines-R12:0.5>
+```
+
+**Prompt 5 (Dark skin mesh bodysuit):**
+```
+a female with darkskin and tanlines wearing no clothing other then a see through mesh body suit with exotic jewellery, naked, nude <lora:FLUX_FD-Tanlines-R12:1>
+```
+
+### Keywords
+- `tanlines`
+- `tan lines`
+- `bikini tan`
+- `sun tan`
+
+### Tested combinations
+
+**Combination 1 (Amateur Reddit style):**
+```
+<lora:FLUX_FD-Tanlines-R12:0.8>
+<lora:SCG-Anatomy-Flux:1>
+<lora:Amateur_Photography:0.5>
+<lora:Reddit_Nudes:0.5>
+```
+
+**Combination 2 (Minimalist anatomy):**
+```
+<lora:FLUX_FD-Tanlines-R12:1>
+<lora:Minimalist_Female_Anatomy:0.8>
+<lora:Boreal-FD:0.4>
+```
+
+**Combination 3 (Saggy breasts realistic):**
+```
+<lora:FLUX_FD-Tanlines-R12:1>
+<lora:normalnudes:1>
+<lora:Saggy_breasts_Flux:1>
+<lora:Real_Nipples_Areola_Textures:1>
+<lora:Minimalist_Female_Anatomy:1>
+<lora:Boreal-FD:1>
+<lora:Amateur_Photography:1>
+```
+
+**Combination 4 (Epic Nudes + Realism):**
+```
+<lora:FLUX_FD-Tanlines-R12:0.5>
+<lora:FLUX_FD-FelldudeNudeMix64:0.7>
+<lora:XLabs_Flux_Realism:1>
+```
+
+**Combination 5 (Massive breasts):**
+```
+<lora:FLUX_FD-Tanlines-R12:1>
+<lora:FLUX_Realistic_Massive_Breast:0.8>
+```
+
+### Compatible checkpoints
+- FLUX Dev
+
+### Notes
+- FLUX has poor tanline generation by default - this fixes it
+- Use 0.5 strength when combining with nudity LoRAs
+- Use 1.0 strength for standalone tanline effect
+- Works with various skin tones including dark skin
+- Author: Felldude
+
+---
+
+## CumTF
+
+| Parameter | Value |
+|-----------|-------|
+| **File** | `CumTF1_flux_v3.safetensors` |
+| **Civitai** | https://civitai.com/models/2003255/cumtf-flux |
+| **Trigger word** | `CumTF` |
+| **Strength** | 1.3 |
+| **Type** | CONCEPT / Cum Effect / Caption |
+| **Version** | v3.0 |
+
+### Description
+Specialized LoRA for generating provocative images featuring cum facials with text captions. Creates scenes with women's faces smeared with cum and speech bubble text overlays.
+
+### Key features
+- Cum facial effects
+- Text caption integration
+- Works with various character types
+- Speech bubble style text
+
+### Sample prompts
+
+**Prompt 1 (Blonde with text):**
+```
+CumTF. A close-up photo of a blonde woman with fair skin and prominent makeup, including thick eyebrows, dark eyeliner, and mascara, reveals her mouth agape with a white text reading "I THOUGHT YOU WERE GOING TO SWALLOW ME." Her lips are parted, exposing teeth, and she stares directly at the camera. The background is blurred, suggesting an indoor setting with neutral walls. The woman's face is smeared with cum, emphasizing the filthy nature of the text and the scene. <lora:CumTF1_flux_v3:1.3>
+```
+
+### Keywords
+- `CumTF` - **TRIGGER WORD**
+- `face smeared with cum`
+- `text reading "..."` - for captions
+- `mouth agape`
+- `lips parted`
+
+### Notes
+- Use trigger word `CumTF` at start of prompt
+- Strength 1.3 recommended
+- Include text in quotes for captions
+- Works well for close-up face shots
+
+---
+
+## Nudist Beach Flux
+
+| Parameter | Value |
+|-----------|-------|
+| **File** | `Nudist_Beach_Flux_V2.safetensors` |
+| **Civitai** | https://civitai.com/models/657066/nudist-beach-flux?modelVersionId=771531 |
+| **Trigger word** | None |
+| **Strength** | 0.38-1.0 |
+| **Type** | CONCEPT / Environment |
+| **Version** | V2.0 |
+
+### Description
+Nudist beach scene concept LoRA for FLUX. V2.0 tagged with Joy-Caption for fluent natural language prompts. Creates realistic candid nudist beach scenes with multiple people, beach items, and natural lighting.
+
+### Key features
+- Candid nudist beach scenes
+- Natural language prompting (Joy-Caption tagged)
+- Multiple people support
+- Beach environment details (towels, bags, waves)
+- Various skin tones and body types
+
+### Sample prompts
+
+**Prompt 1 (Sunbathing on towel):**
+```
+This photograph captures a woman sunbathing on a sandy beach, with the ocean waves gently crashing in the background. She is seated on a colorful beach towel with a blue and yellow pattern. The woman has a light to medium skin tone, and her hair is tied back under a white baseball cap with a small logo on it. She wears dark sunglasses, which adds a casual, laid-back vibe to her appearance. Her breasts are moderately sized, with visible nipples, and she has a subtle tan. Her legs are spread apart, and her pubic area is exposed, indicating she is completely nude. To her right, a red and white beach bag with a floral pattern lies partially open, with a few items spilling out, such as a beach toy and a snack pack. The beach itself appears to be a typical, sun-kissed spot with fine sand and scattered beach items like towels, bags, and snacks. The overall atmosphere is relaxed and casual, with the warm sunlight casting a golden glow on the scene. <lora:Nudist_Beach_Flux_V2:1>
+```
+
+**Prompt 2 (Simple nude beach walk):**
+```
+a 32yrs woman, wavy brown hair, pale skin, big brown eyes, (realistic photograph:1.4), baggy eyes, strong jawline, (goosebumps), freckles, sideview, she is walking along the beach, woman is nude with huge natural tits, small nipples, full female pubic hair, fully nude, ponytail, hair bangs, beach, ocean waves, sunny day, summer, her whole body is visible, full body, other nude people in background <lora:Nudist_Beach_Flux_V2:0.8>
+```
+
+**Prompt 3 (Japanese woman startled):**
+```
+RAW photo, Young and pretty 20y Japanese woman, (looking viewer), This photograph captures a woman sunbathing on a sandy beach, with the ocean waves gently crashing in the background. She is seated on a colorful beach towel with a blue and yellow pattern. Her legs are spread apart, and her pubic area is exposed, indicating she is completely nude. A Japanese woman is sitting on a beach towel on the sand, relaxing, and is startled to see a middle-aged Japanese man walking by, so she covers her chest with one hand. (The woman's embarrassed expression:1.5), She is Asian, has very small breasts, and is skinny and thin <lora:Nudist_Beach_Flux_V2:0.8>
+```
+
+**Prompt 4 (Bird's eye view):**
+```
+a photograph of a woman with a medium to dark tan, likely of Mediterranean or Latin American descent, sunbathing on a sandy beach. She is positioned on her hands and knees, with her back to the camera, showcasing her bare buttocks and genital area. Her skin is smooth and sun-kissed, with a subtle sheen. She has dark brown hair, tied back. In the background, the ocean waves gently crash onto the shore. The woman's body is positioned on a vibrant, multi-colored beach mat. beach Bird's-eye view, fisheye lens:1.3 <lora:Nudist_Beach_Flux_V2:1>
+```
+
+### Keywords
+- `nudist beach`
+- `sunbathing`
+- `sandy beach`
+- `beach towel`
+- `completely nude`
+- `ocean waves`
+- `candid, unposed shot`
+- `sun-kissed`
+- `other nude people in background`
+
+### Tested combinations
+- FLUX NSFW unlock LoRA
+- Curvy body type LoRA
+- MysticXXX LoRA
+- Flux Realism LoRA
+- Small breasts LoRA
+- Hyper-FLUX LoRA
+
+### Recommended settings
+- **Steps:** 8-52
+- **CFG:** 1-4.6
+- **Sampler:** Euler / DPM++ 2M SDE
+- **Checkpoint:** FLUX Dev, Jib Mix Flux, getphat FLUX Reality
+
+### Notes
+- V2.0 uses natural language prompts (Joy-Caption tagged)
+- Strength 0.38-1.0 depending on scene complexity
+- Works well with detailed descriptive prompts
+- Supports various ethnicities and body types
+- Good for candid, naturalistic beach scenes
+
+---
+
+## Reclining Nude After Sex
+
+| Parameter | Value |
+|-----------|-------|
+| **File** | `reclining-nudes-v3-final.safetensors` |
+| **Civitai** | https://civitai.com/models/720282/reclining-nude-after-sex-qwenflux |
+| **Trigger word** | None (use l33t keywords) |
+| **Strength** | 0.4-0.85 |
+| **Type** | CONCEPT / Anatomy / Pose |
+| **Version** | v3 (v2 beta) |
+
+### Description
+FLUX LoRA for detailed female anatomy in various styles (realistic photography, digital art, anime, cartoon). Features breasts, vaginas, anus with optional cum and sweat. More detailed and flexible than older Flux nudes. V2/V3 improvements: better hands, better prompt adherence, more style support, better LoRA compatibility.
+
+### Supported poses
+- `reclining, on back` - lying down
+- `standing, from front` - front view standing
+- `standing, from behind` - rear view standing
+- `vagina, close up` - detailed close-up
+
+### L33t keywords (recommended)
+This LoRA uses l33t speak keywords for NSFW terms:
+
+| Normal | L33t |
+|--------|------|
+| penis | `p3n1s` |
+| vagina | `v4g1n4` |
+| vaginal sex | `v4g1n4l s3x` |
+| nipple | `n1ppl3` |
+| breast | `br34st` |
+| clitoris | `cl1t0r1s` |
+| clitoral | `cl1t0r4l` |
+| anus | `4nus` |
+| anal | `4n4l` |
+| anal sex | `4n4l s3x` |
+| ass/butt | `4ss` |
+| dildo | `d1ld0` |
+| naked | `n4k3d` |
+| nude | `nud3` |
+| sex | `s3x` |
+| oral | `0r4l` |
+| oral sex | `0r4l s3x` |
+
+### Prompt format
+```
+picture of [pose] woman. [breasts], [vagina] [cum], [background]
+```
+
+### Sample prompts
+
+**Prompt 1 (Reclining corset):**
+```
+picture of reclining sultry woman. medium br34sts in black corset, pretty pink v4g1n4 and 4nus thick black cum <lora:reclining-nudes-v3-final:0.8>
+```
+
+**Prompt 2 (Standing witch):**
+```
+picture of standing s3xy witch. small perky br34sts, tight pink v4g1n4 dripping cum <lora:reclining-nudes-v3-final:0.8>
+```
+
+**Prompt 3 (Ass shot from behind):**
+```
+picture of brunette barmaid's 4ss, from behind, 4ss shot. medium br34sts, thin thong panties <lora:reclining-nudes-v3-final:0.8>
+```
+
+**Prompt 4 (Close-up vagina):**
+```
+a close-up picture of pink v4g1n4 in crotchless panties soaked in white cum. faded background <lora:reclining-nudes-v3-final:0.8>
+```
+
+**Prompt 5 (Gaping):**
+```
+a close-up picture of gaping pink v4g1n4 slightly moist. faded background <lora:reclining-nudes-v3-final:0.8>
+```
+
+**Prompt 6 (Pinup calendar):**
+```
+picture of a standing s3xy woman, spreading her legs. pinup calendar hanging on the wall of an mechanic's shop. automotive garage, car repair. tattered pinup photos in a dirty shop <lora:reclining-nudes-v3-final:0.8>
+```
+
+**Prompt 7 (Korean professional nude):**
+```
+Professional Nude Photography, Korean model, Nudes, smiles, blushing, dimples, most beautiful woman on earth, beautiful detailed nipples, waist up, soft tender belly, toned belly, navel, wide hips, gorgeous face, br34sts, gorgeous young cute lovely adorable woman, medium beautiful perky breasts and nipples. <lora:flux_korean:0.55> <lora:Small_Nipples_-_FLUX:0.50> <lora:reclining-nudes-v3-final:0.6>
+```
+
+**Prompt 8 (Hipster Range Rover):**
+```
+s3xy hipster woman from behind, 4ss shot. she is bending over the hood of a range rover, which is parked in a field of tall grass and trees. her perky br34sts are pressed against the hood of the truck. <lora:reclining-nudes-v3-final:0.85>
+```
+
+### Concepts controllable
+- Cum, sweat, dripping fluids
+- Breast size and shape
+- Nipple modifications (not always reliable)
+- Vaginal opening and spreading
+- Clothing coverage (partial to fully exposed)
+
+### Keywords
+- `reclining` / `on back`
+- `standing` / `from front` / `from behind`
+- `4ss shot` - rear view
+- `br34sts` - breasts
+- `v4g1n4` - vagina
+- `4nus` - anus
+- `dripping cum` / `soaked in cum`
+- `spreading her legs`
+- `perky` / `small` / `medium` / `large`
+
+### Tested combinations
+- NSFW Master FLUX (0.7)
+- Oiled Skin LoRA (0.4)
+- Korean Gone Flux (0.55)
+- Small Nipples FLUX (0.5)
+- Flux Skin Texture
+
+### Recommended settings
+- **Steps:** 20-35
+- **CFG:** 1-3
+- **Sampler:** Euler
+- **Size:** 896x1152
+- **Hires:** 1.75x with 0.7 denoising
+
+### Notes
+- Use l33t keywords for best results (v4g1n4, br34sts, etc.)
+- Trained on ~250 generated images
+- V3 uses Joy captioning for better results
+- Lower strength (0.4-0.6) when combining with other LoRAs
+- Higher strength (0.8-0.85) for dominant anatomy effect
+- Supports multiple styles: realistic, digital art, anime, cartoon
+
+---
+
+## YACL Cum on Face
+
+| Parameter | Value |
+|-----------|-------|
+| **File** | `cumonface.safetensors` |
+| **Civitai** | https://civitai.com/models/1753290/yacl-yet-another-cum-lora-fluxd |
+| **Trigger word** | `cumonface` |
+| **Strength** | 1.0-1.5 |
+| **Type** | Cum Effect |
+| **Training** | 30 high-quality images |
+
+### Description
+Yet Another Cum Lora (YACL) for FLUX Dev. Simple, effective cum on face effect. Trained on 30 carefully selected high-quality images. Amount of cum can be controlled via strength and natural language prompts.
+
+### Cum amount control
+- **Strength 1.0:** Normal amount
+- **Strength 1.5:** More cum
+- Also controllable via natural language in prompt
+
+### Sample prompts
+
+**Prompt 1 (Scandinavian):**
+```
+beautiful scandinavian woman sticking her tongue out for the camera with cum on her face and tongue, excessive amount of cum, huge load of cum, a lot of cum, cumonface <lora:cumonface:1.2>
+```
+Settings: Steps: 30, CFG: 1, Sampler: DPM++ 2M, Size: 1024x1360
+
+**Prompt 2 (Simple):**
+```
+beautiful woman with cum on her face, cumonface <lora:cumonface:1.0>
+```
+
+**Prompt 3 (Heavy):**
+```
+woman covered in cum, excessive amount of cum, huge load, cumonface <lora:cumonface:1.5>
+```
+
+### Keywords
+- `cumonface` - **TRIGGER WORD**
+- `cum on her face`
+- `cum on tongue`
+- `excessive amount of cum`
+- `huge load of cum`
+- `a lot of cum`
+- `sticking tongue out`
+
+### Notes
+- Higher strength (1.5) for more cum
+- Lower strength (1.0) for normal amount
+- Use natural language to describe amount ("excessive", "huge load", etc.)
+- Works well with tongue out poses
+- Simple trigger word, easy to use
 
 ---
 

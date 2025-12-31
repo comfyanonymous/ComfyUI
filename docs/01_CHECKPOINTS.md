@@ -20,6 +20,9 @@ Base models and diffusion checkpoints for FLUX-based generation.
 - [SlimNudeGirls Flux FP8 NSFW](#slimnudegirls-flux-fp8-nsfw)
 - [Flux Real NSFW | Lluminartis](#flux-real-nsfw--lluminartis)
 - [Fluxed Up NSFW Checkpoint (Nunchaku INT4)](#fluxed-up-nsfw-checkpoint-nunchaku-int4)
+- [getphat FLUX Reality NSFW v11 Softcore](#getphat-flux-reality-nsfw-v11-softcore)
+- [RedCraft REDZimage v1.5](#redcraft-redzimage-v15) - Ultra-realistic Asian NSFW checkpoint
+- [Acorn Is Spinning FLUX V1.69](#acorn-is-spinning-flux-v169) - Photorealistic women, nice looking results
 
 ---
 
@@ -691,6 +694,294 @@ Redhead AI Babe, Rua Aingeal, Red Angel, Freckles, Curly Red Hair, Ginger, Green
 - Nunchaku INT4 format for lower VRAM usage
 - Works with turbo LoRA for 8-step generation
 - Good for NSFW content generation
+
+---
+
+## getphat FLUX Reality NSFW v11 Softcore
+
+| Parameter | Value |
+|-----------|-------|
+| **File** | `getphatFLUXReality_v11Softcore.safetensors` |
+| **Location** | `models\unet\` |
+| **Civitai** | https://civitai.com/models/861840/getphat-flux-reality-nsfw |
+| **Type** | BASE MODEL (FLUX Dreambooth fine-tune) |
+| **Version** | v11 Softcore |
+
+### Description
+High quality FLUX Reality checkpoint - softcore version with no hardcore concepts trained. V11 features major boob upgrade with improved nipples, stability improvements, and better variety of breast shapes/sizes. Uses danbooru tags but supports natural language prompting.
+
+### Key features
+- Softcore only (no hardcore trained)
+- Upgraded breast generation (shapes, sizes, nipples)
+- Major stability improvements
+- Supports natural language prompting
+- Excellent prompt adherence
+- Innie pussy by default
+
+### Trained concepts
+
+| Concept | Tags |
+|---------|------|
+| **Big ass** | `big ass` |
+| **G-strings** | `g-string` |
+| **POV Cowgirl** | `vaginal sex, cowgirl, breasts, man, pov, spread legs, male pubic hair, penis, girl on top, straddling, from below, solo focus` |
+| **POV Reverse Cowgirl** | `vaginal sex, reverse cowgirl, ass, pussy, anus, male pov, man, penis, male pubic hair, from behind` |
+| **POV Boobjob** | `male pov, paizuri, breasts squeezed together, nipples, penis, solo focus` |
+| **Anime Style** | `Anime woman, anime style` |
+| **Blowjob/Deepthroat (side)** | `nude woman performing fellatio to a man view from side, male pubic hair, testicles, solo focus, deepthroat, penis, tongue out, fellatio, close-up` |
+| **Facial** | `open mouth, tongue, facial, penis, cum, solo focus, cum on tongue` |
+| **Ahegao** | `ahegao face, tongue sticking out, eyes crossed` |
+| **Missionary** | `missionary, vaginal sex, male POV, spread legs, lying, pussy, penis, hetero, solo focus` |
+| **Doggystyle** | `doggystyle, vaginal sex, male pov, pussy, anus, penis, male pubic hair, solo focus, hetero` |
+| **Cum** | `cum` (specify location/amount) |
+| **POV Blowjobs** | `woman, looking at viewer, man, hetero, nude, penis, solo focus, lips, pov, erection, oral, fellatio, male pubic hair, realistic, pov crotch, male pov` |
+| **Pubic hair** | `pubic hair`, `female pubic hair`, `landing strip pubic hair`, `male pubic hair`, `excessive pubic hair` |
+
+### Recommended settings
+- **Sampler:** dpmpp_2m
+- **Scheduler:** sgm_uniform
+- **Steps:** 35
+- **CFG:** 4
+
+### Sample prompts
+
+**Prompt 1 (Three women beach):**
+```
+A cinematic fullbody photograph of three smiling naked women standing close together at a beach, their faces partially obscured by their vibrant ginger hair. The woman in the center is a pretty young slim woman with a youthful appearance with a round face. They have big striking light blue eyes and big breasts. The hair of the women is blowing in the wind, creating a sense of movement and energy. The smooth vaginas of the three woman are visible. They have long legs. The overall atmosphere of the image is one of intimacy and connection among the three women.
+```
+
+**Prompt 2 (Country farm girl):**
+```
+21 year old big ass country farm girl leaning forward bent over a fence post showing off her ass pussy and anus wearing nothing but cowgirl boots with curly red hair pale skin and freckles, raw photo, 8k, ass focus, view from behind
+```
+
+**Prompt 3 (Japanese graffiti):**
+```
+Imagine a raw 8k photo capturing a beautiful 18-year-old Japanese woman with a radiant smile, posing nude in front of an urban graffiti tag mural. The full-body shot highlights her delicate breasts with visible nipples and artistic details of her pussy, all rendered with a natural yet compelling sensuality. Her charm is emphasized by playful pigtails and a quirky flair added by her thigh-high striped socks, creating a striking contrast between the edgy mural backdrop and her graceful, unfiltered beauty
+```
+
+**Prompt 4 (G-string couch):**
+```
+a woman wearing pink g-string and a pink halter top and jeans pulled down posing for a picture looking behind at viewer indoors by a grey couch, watch
+```
+
+**Prompt 5 (Flat chest):**
+```
+A woman with long brown hair, and brown eyes is looking at the viewer with a smile, and a grin, showing her teeth, she is nude, with her upper body visible, having a flat chest, with small or no breasts, and her nipples visible, her lips are visible, realistic
+```
+
+**Prompt 6 (Iceland hot spring):**
+```
+Stunning 25-year-old blonde woman with icy blue eyes, long platinum hair cascading over her shoulders, standing completely nude in a steaming geothermal hot spring on black volcanic sand, midnight sun casting a surreal orange glow across the barren Icelandic landscape, distant snow-capped mountains and faint green aurora streaks on the horizon, warm steam rising around her flawless body, water lapping gently at her hips, fully exposed perfect breasts with hard pink nipples, right hand gently resting between thighs to modestly cover vulva, glistening wet skin, confident seductive expression, soft rim lighting from the low sun, shallow depth of field with creamy cinematic bokeh melting the dramatic volcanic background into dreamy blur, hyperrealistic skin texture, natural volumetric god rays and steam, ethereal erotic mood, 8k
+```
+
+### Prompting tips
+- Use `realistic` for DSLR photograph effect
+- Use `amateur photo` for amateur quality look
+- Model trained on danbooru tags but works with natural language
+- Can prompt in different languages (French, Italian tested)
+- Use Canny ControlNet for complex poses not trained into model
+
+### LoRA compatibility
+- LoRAs trained ON this model (Flux Reality) work best
+- LoRAs trained on Flux Dev will burn the image - DO NOT USE
+- LoRAs from previous Flux Reality versions work but retraining recommended
+- Softcore LoRAs work better with softcore checkpoint versions
+
+### Notes
+- This is SOFTCORE version - no hardcore concepts
+- Use danbooru tags incorporated into natural language for best results
+- For innie pussy, just use `nude` or `pussy` - no special tags needed
+- Updates posted to Patreon
+
+---
+
+## RedCraft REDZimage v1.5
+
+| Parameter | Value |
+|-----------|-------|
+| **File** | `redcraftRedzimageUpdatedDEC03_realreveal5.safetensors` |
+| **Location** | `models\unet\` |
+| **Civitai** | https://civitai.com/models/958009/redcraft-or-redzimage-or-updated-dec03-or-latest-red-z-v15 |
+| **Version** | RealReveal5 (v1.5 AIO) |
+| **Base** | BEYOND REALITY + ZiTurbo |
+| **Format** | bf16 Checkpoint / Single file transformers fp8 |
+
+### Description
+Ultra-realistic NSFW checkpoint optimized for Asian female anatomy. Based on BEYOND REALITY with ZImageTurboGen-3k synthetic dataset. Produces 2M pixel output with perfect skin texture, lifelike facial expressions, and ultra-fine lighting. Excellent for photorealistic Chinese/Asian women with natural vaginal anatomy.
+
+### Key features
+- Perfect skin textures (pores, blood vessels visible)
+- Deep, soulful eyes
+- Natural body imperfections
+- Excellent vaginal anatomy rendering
+- Great for oral sex, penetration, selfie scenes
+- Superior Asian female rendering
+
+### Technology
+- Distilled from Nano Banana Pro (real user photo data)
+- ZImageTurboGen-3k synthetic dataset
+- Fixes ZiTurbo's AI-generated image style bias
+- Community-sourced training data
+
+### Sample prompts
+
+**Prompt 1 (Chinese student cowgirl):**
+```
+20-year-old Chinese student, fair skin, long hair, large eyes, nude with man, excitement, skirt up, vagina exposed, small breasts, pink nipples, hands on hips, penis inside, sunlight through window, interior setting.
+```
+Settings: Steps: 15, CFG: 1, Sampler: deis, Size: 720x1280
+
+**Prompt 2 (Nude selfie):**
+```
+Chinese woman, 20 years old, Selfie. High-angle shot with slight barrel distortion and subtle motion blur on the subject's hair. An Asian nude young woman with long black hair and bright eyes sits on a bed, holding a pink smartphone. She is smiling at the camera, her breasts prominent, nipples visible, and her pubic hair exposed black and dense. The bed is covered in a white duvet and has two yellow star-shaped pillows.
+```
+Settings: Steps: 15, CFG: 1, Sampler: deis, Size: 936x1664
+
+**Prompt 3 (Oral sex):**
+```
+Medium-angle shot with slight barrel distortion and moderate depth of field. An Asian woman with long black hair, a pink tank top pushed down to expose her breasts, kneels, her eyes closed in concentration. Her nipples are visible. A man stands opposite her, his body partially visible. His penis is erect and visible. The woman is performing oral sex on the man, her mouth wrapped around his penis. The scene is dark and warm. Realistic style.
+```
+Settings: Steps: 15, CFG: 1, Sampler: deis, Size: 936x1664
+
+**Prompt 4 (Vaginal penetration):**
+```
+Vaginal penetration. A nude young asian woman with light brown hair and a relaxed expression lies on a grey couch, her eyes closed. Her breasts are small and her nipples are visible. Her legs are spread, and a man's penis is visible, entering her vagina.
+```
+Settings: Steps: 15, CFG: 1, Sampler: deis, Size: 720x1280
+
+**Prompt 5 (Turquoise cave lingerie):**
+```
+(hidden cave with turquoise waters:1.2) (Transparent chiffon ruched long-sleeve blouse:1.2), (Sheer lace bikini panties:1.2)
+```
+Settings: Steps: 25, CFG: 1, Sampler: deis, Size: 1296x2304
+
+**Prompt 6 (Bar scene):**
+```
+Chinese girl, 25 years old, working for a foreign company in Shanghai, standing barefoot in a bar tonight without wearing high heels. She deliberately leaned her plump breasts in front of the man and his penis - her nipples shimmered with oil under the light; Then he clamped his head with her slender thighs
+```
+Settings: Steps: 15, CFG: 1, Sampler: deis, Size: 936x1664
+
+**Prompt 7 (Malaysian closeup):**
+```
+cinematic still Malaysian 30 y-o woman, cute face, close-up, hip-level view, from side, extreme closeup of vulva, woman spreads her ass cheeks apart with her hands, skindentation, leaking wet pussy, detailed vagina, labia, gaping pussy, perfect hands, bukkake on vagina. In location: bed room detailed background, masterpiece, best quality.
+```
+Settings: Steps: 15, CFG: 1, Sampler: deis, Size: 720x1440
+
+### Tested combinations
+- Flux1-DedistilledMixTuned (v3.0 fp8)
+- FaeTastic Details LoRA
+- Hands XL / Hand Detail FLUX
+- FLUX Image Upgrader
+- Flux [pro] ULTRA / 1.1 Style Lora
+- God Tier Tits LoRA
+- What Is Vagina?! LoRA
+- MoriiMee Gothic Niji Style
+- Velvet's Mythic Fantasy Styles
+
+### Recommended settings
+- **Steps:** 15-25
+- **CFG:** 1-3
+- **Sampler:** deis / DPM++ 2M Karras / Euler
+- **Sizes:** 720x1280, 936x1664, 864x1536, 1296x2304
+
+### Strengths
+- Chinese/Asian women rendering
+- Natural vaginal anatomy
+- Oral sex scenes
+- Selfie/POV shots
+- Penis visibility and positioning
+- Skin texture and lighting
+- Realistic facial expressions
+
+### Notes
+- Use ComfyUI 0.3.73+ for best results
+- Example workflows included in full-size sample images
+- Related models: Dark Beast Z (DBZ) - darker/beast theme
+- Place in checkpoints directory (bf16 version) or unet directory
+- LoRA version (Rank128) also available separately
+
+---
+
+## Acorn Is Spinning FLUX V1.69
+
+| Parameter | Value |
+|-----------|-------|
+| **File** | `acornIsSpinningFLUX_aisfV169.safetensors` |
+| **Location** | `models\loras\` (base model, works as checkpoint) |
+| **Civitai** | https://civitai.com/models/673188?modelVersionId=1656743 |
+| **Type** | BASE MODEL (FLUX merge with LoRAs baked in) |
+| **Version** | V1.69 |
+| **Author** | Acorn |
+| **Variants** | Hyper 8-Step, Schnell, GGUF versions available |
+
+### Description
+Photorealistic FLUX model by Acorn. Merge of flux1-dev-fp8 with baked-in LoRAs for enhanced realism. Produces quite nice looking women - planned for use in future workflows. Goal is best photorealism achievable with FLUX.
+
+### Key features
+- Excellent photorealistic female generation
+- Baked-in realism LoRAs
+- Good skin textures and details
+- Works with additional LoRAs
+- Multiple format options (Hyper, Schnell, GGUF)
+
+### Recommended settings
+
+**For De-Distilled Model:**
+- **Distilled CFG Scale:** 0
+- **CFG:** 3.5-8
+
+**Standard settings:**
+- **Sampler:** Euler, DPM2, DPM++ 2M
+- **Scheduler:** Beta (alpha: 0.6, beta: 0.6) or Simple
+- **Steps:** 24-40 (standard), 8 (Hyper version)
+- **Size:** 1024x1280
+
+### Sample prompts
+
+**Prompt 1 (Bedroom nude):**
+```
+Photo of a nude woman standing in a bedroom, posing with her arms up and her hands behind her head, showing her small breasts and shaved pussy. She has a slim physique, long legs, and fair skin. The room is well-lit with natural light coming from large windows with purple curtains. The bed has a dark wood headboard and is covered with a purple bedspread and red pillows. The composition uses the rule of thirds, with the woman centered. The background is in focus. The lighting is bright and even.
+```
+Settings: Steps: 8, CFG: 1, Sampler: DPM2, Distilled CFG: 0, Schedule: Beta (0.6/0.6)
+
+**Prompt 2 (Indonesian woman):**
+```
+Photograph of a 19 year old (Indonesian:1.4) woman with long loose raven black hair hanging to her hips, (dark brown-yellow skin:1.2), and a slender physique. She has (stunning green eyes:1.1), and three small beauty spots on her cheek. She is topless with (medium natural sagging breasts:1.4), with long hard nipples and (detailed bumpy areolas:1.2). She has a (black hairy pussy:1.4). Very fit soft body. The background shows a rain forest with green thatched huts. detailed face and eyes, eyebrows, natural skin texture, slight skin blemishes, imperfect skin, skin pores, blush, goosebumps, translucent skin
+```
+Settings: Steps: 8, CFG: 1, Sampler: DPM2, Schedule: Beta (0.6/0.6)
+
+**Prompt 3 (Irina Ionesco style):**
+```
+cinematic photo professional erotic art photo, photograph in the style of Irina Ionesco, 19-year-old brunette model sitting sideways in front of a tall antique mirror, illuminated only by candlelight, deep shadows around the body, soft golden light highlighting curves and collarbones, sport-trained feminine body with high skin realism, translucent black lace dress barely covering the form, gothic and romantic mood, ultra quality, ultra detailed, 8k, hdr
+```
+Settings: Steps: 35, CFG: 1, Sampler: DPM++ 2M, Distilled CFG: 3.5, Schedule: Beta
+
+**Prompt 4 (Japanese barista):**
+```
+This is a realistic 8k photo capturing a beautiful 18-year-old Japanese female barista with a radiant smile, looking at viewer. The thigh shot highlights her bare large breasts with visible nipples. Her charm is emphasized by playful ponytail hair with flat bangs. She is taking an order at a register, facing forward, at a coffee shop counter, wearing a waist apron, bare chest. Rating NSFW, explicit
+```
+Settings: Steps: 30, CFG: 1, Sampler: Euler
+
+**Prompt 5 (Gym girl):**
+```
+score_9, score_8_up, score_7_up, flat-chested natural breasts, 18-year-old gorgeous slim caucasian bimbo girl, 1girl, long blonde hair, tight tank top with cleavage, wearing tight black yoga pants, gorgeous girl, big round ass, huge bubble butt, looking over shoulder back at viewer, background is inside a busy workout gym, braless, hard nipples, slight side angle, sexy smile, rear angle, viewed from behind, hands under ass, wearing cute thin frame round glasses, young, photorealistic, 8k, analog style
+```
+Settings: Steps: 25, CFG: 1, Sampler: Euler
+
+### Version notes
+- **V1.69:** Main version, excellent photorealism
+- **Hyper 8-Step:** Much faster (8 steps), works in ForgeUI and ComfyUI
+- **Schnell:** Fastest (1-4 steps), good text consistency
+- **GGUF:** Lower VRAM, ComfyUI only
+- **V1 (European mix):** Has European Flux mixed in, may be too strong
+
+### Notes
+- Generates quite nice looking women - planned for future workflows
+- De-Distilled version: set Distilled CFG to 0, use actual CFG 3.5-8
+- Works with ADetailer for face/body refinement
+- Compatible with additional LoRAs (MysticXXX, character LoRAs, etc.)
+- Author releases in multiple formats for flexibility
 
 ---
 

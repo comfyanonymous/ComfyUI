@@ -20,6 +20,24 @@ LoRAs for specific poses, camera angles, and positioning.
 - [Tongue Kissing FLUX](#tongue-kissing-flux)
 - [POV Mouth Open Tongue Out SOLO](#pov-mouth-open-tongue-out-solo)
 - [Amateur Girls Sticking Out Tongue](#amateur-girls-sticking-out-tongue)
+- [Handjob POV with Cum Shot](#handjob-pov-with-cum-shot)
+- [POV Cowgirl Splits](#pov-cowgirl-splits)
+- [MHB - Licking](#mhb---licking)
+- [Blowjob / Deepthroat FLUX](#blowjob--deepthroat-flux)
+- [POV Blowjob + ASS FLUX](#pov-blowjob--ass-flux)
+- [POV Face Fuck FLUX](#pov-face-fuck-flux)
+- [FLUX Blowjob](#flux-blowjob)
+- [Blowjob PoV FLUX](#blowjob-pov-flux)
+- [Blowjob From Side FLUX](#blowjob-from-side-flux)
+- [POV Deepthroat/Blowjob FLUX](#pov-deepthroatblowjob-flux)
+- [Side View Blowjobs For Flux](#side-view-blowjobs-for-flux)
+- [Blowjob Various](#blowjob-various)
+- [MHB - Tip Sucking](#mhb---tip-sucking)
+- [Yet Another Blowjob Lora V1](#yet-another-blowjob-lora-v1) - JoyCaption trained, flexible prompts
+- [Blowjobs and Co](#blowjobs-and-co) - Blowjobs, handjobs, deepthroats, cumshots
+- [Asian Pussy Spreading](#asian-pussy-spreading) - Asian girls spreading legs/pussy
+- [ShowerGirls Flux](#showergirls-flux) - Realistic women in shower/bathtub settings
+
 ---
 
 ## Flux: POV Licking Pussy (Oral)
@@ -1007,6 +1025,1078 @@ tngout Amateur girls sticking out their tongue, low resolution image, upper body
 - Weight 1.0 works best in most cases
 - Combine with Amateur Realism for best results
 - Good for playful/candid style images
+
+---
+
+## Handjob POV with Cum Shot
+
+| Parameter | Value |
+|-----------|-------|
+| **File** | `Hand_job_POV_with_cum_shot_for_FLUX.safetensors` |
+| **Original filename** | `Hand_job_POV_with_cum_shot_for_FLUX-000013.safetensors` |
+| **Civitai** | https://civitai.com/models/824133/penis-masturbation-and-hand-job-pov-with-cum-shot-for-flux |
+| **Trigger word** | None (use descriptive language) |
+| **Strength** | 1.0 |
+| **Type** | Pose / POV / NSFW |
+| **Compatibility** | FLUX Dev |
+
+### Description
+LoRA trained on typical POV of a woman getting a cum shot on chest and/or face while doing a handjob. Uses descriptive captions rather than typical triggers - FLUX understands better with natural language (hand job = woman holding man's erect penis, cum = white viscous fluid). Unlike similar LoRAs, this works very well when modifying character's ethnicity/age without replicating faces from training dataset.
+
+### Key features
+- Natural language captions work better than triggers
+- Works well with different ethnicities/ages
+- Does not replicate training dataset faces
+- Good for cumshot scenes
+
+### Sample prompts
+
+**Prompt 1 (Blonde with tan lines):**
+```
+The image is a high-resolution photograph depicting a sexually explicit scene. A woman is holding a nude man's erect penis, semen is coming out. The woman has large breasts with erect nipples, with light skin and visible tan lines, she has beautiful eyes as she is looking at the camera. Her blonde hair is attached in a messy bun. She has her mouth open and tongue extended, with semen and white viscous fluid on her face and chest. <lora:Hand_job_POV_with_cum_shot_for_FLUX:1>
+```
+
+**Prompt 2 (Two girls blonde and brunette):**
+```
+2girls, 20 year old, blonde and brunette goddesses, perky breasts, cleavage, pretty face, looking up lustfully, heavy blushing, cute pose, light freckles, 2girls giving handjob, cum on face, cock worship, tongue out, 1male with medium size white cock, cozy bedroom, tongue extended <lora:Hand_job_POV_with_cum_shot_for_FLUX:1>
+```
+
+**Prompt 3 (With viscous fluid):**
+```
+2girls, blonde and brunette goddesses, perky breasts, cleavage, pretty face, looking up lustfully, heavy blushing, cute pose, light freckles, 2girls giving handjob, cum on face, cock worship, tongue out, 1male with medium size white cock, cozy bedroom, tongue extended, white viscous fluid on her face <lora:Hand_job_POV_with_cum_shot_for_FLUX:1>
+```
+
+### Keywords
+- `woman holding man's erect penis`
+- `semen is coming out`
+- `white viscous fluid`
+- `cum on face`
+- `cum on chest`
+- `handjob`
+- `cock worship`
+- `tongue extended`
+- `tongue out`
+- `looking up lustfully`
+
+### Descriptive language tips
+Instead of trigger words, use descriptive language:
+- `hand job` → `woman holding man's erect penis`
+- `cum` → `white viscous fluid`, `semen`
+- `cumshot` → `semen is coming out`
+
+### Recommended settings
+- **Steps:** 30-50
+- **CFG:** 3.5-4
+- **Sampler:** Euler
+
+### Notes
+- Use descriptive captions rather than simple triggers
+- Works well with different ethnicities without face replication
+- Supports 2+ girls scenarios
+- Good for cumshot/facial scenes
+- FLUX understands natural language better
+
+---
+
+## POV Cowgirl Splits
+
+| Parameter | Value |
+|-----------|-------|
+| **File** | `SPLITSPOV.safetensors` |
+| **Civitai** | https://civitai.com/models/793428/flux-pov-cowgirl-splits |
+| **Trigger word** | `SPLITSPOV` |
+| **Strength** | 1.0-1.15 |
+| **Type** | Pose / POV / NSFW |
+| **Compatibility** | FLUX Dev |
+
+### Description
+POV cowgirl splits position LoRA for FLUX. Creates images of woman doing splits on top of man from POV perspective (lying on ground looking up). Use positioning language like "leaning back", "sitting up straight", or "lying on her back" to control pose.
+
+### Key features
+- POV from lying on ground
+- Splits position on top
+- Works with various ethnicities
+- Controllable positioning with language
+
+### Positioning options
+- `leaning back` - woman leaning backwards
+- `sitting up straight` - upright position
+- `lying on her back` - lying down position
+
+### Sample prompts
+
+**Prompt 1 (Indian woman in store):**
+```
+A pov image of a 20 years old indian woman doing the splits SPLITSPOV position on top of a man's penis in a busy store. A mans hands grab her legs. She has medium sized tits. Her hair is long luscious black and straight. (She is sitting up straight). There is a big smile on her face like she is laughing. Her legs are short. The photo is taken from the point of view of lying on the ground. In the background there are clothed people walking around the store. The image is a high quality, high resolution photo. <lora:SPLITSPOV:1.15>
+```
+
+**Prompt 2 (Beach scene):**
+```
+A pov image of a 20 years old indian woman doing the splits SPLITSPOV position on top of a man's penis in a busy store. A mans hands grab her legs. She has medium sized tits. Her hair is long luscious black and straight. (She is sitting up straight). There is a big smile on her face like she is laughing. Her legs are short. The photo is taken from the point of view of lying on the ground. In the background there are on the beach. The image is a high quality, high resolution photo. <lora:SPLITSPOV:1.15>
+```
+
+**Prompt 3 (Beach leaning back):**
+```
+NSFW, A pov photo of a 20 years female doing the splits SPLITSPOV position on top of a man's penis. leaning back, She has medium sized tits. high heels, short hairs, messy hairs. (She is sitting up straight). her face expressing enjoyment. seducing, sex, The photo is taken from the point of view of lying on the ground at beach, ocean background, wet body <lora:SPLITSPOV:1>
+```
+
+### Keywords
+- `SPLITSPOV` - **TRIGGER WORD**
+- `doing the splits`
+- `position on top of a man's penis`
+- `point of view of lying on the ground`
+- `leaning back`
+- `sitting up straight`
+- `mans hands grab her legs`
+
+### Tested combinations
+
+**Combination 1 (With areola):**
+```
+<lora:SPLITSPOV:1.15>
+<lora:Areola_Flux:0.35>
+<lora:Large_Areola:0.8>
+<lora:Tiny_Titz_Flux:1>
+```
+
+**Combination 2 (TWbabe):**
+```
+<lora:SPLITSPOV:1.15>
+<lora:TWbabeFlux:1.5>
+```
+
+### Recommended settings
+- **Steps:** 30
+- **CFG:** 3.5
+- **Size:** 832x1216 (portrait)
+
+### Notes
+- Use trigger word `SPLITSPOV` for activation
+- Strength 1.0-1.15 works well
+- Use positioning language to control pose
+- Works well with ethnicity LoRAs
+- Good for POV sex scenes
+
+---
+
+## MHB - Licking
+
+| Parameter | Value |
+|-----------|-------|
+| **File** | `MHBLicking_FLUX_epoch_18_Shurik.safetensors` |
+| **Civitai** | https://civitai.com/models/810290/mhb-licking-flux |
+| **Trigger word** | `mhblckng` |
+| **Strength** | 0.6-1.0 (0.6-0.8 for licking objects) |
+| **Type** | Pose / Action |
+| **Version** | epoch 18 |
+
+### Description
+LoRA designed specifically for licking action poses. The trigger word is used as the verb in prompts. Mentioning "tongue" in the prompt helps improve results. Works well for various licking scenarios.
+
+### Key features
+- Licking action poses
+- Works with different objects/subjects
+- Good LoRA compatibility
+- Use lower weights (0.6-0.8) for licking objects
+
+### Sample prompts
+
+**Prompt 1 (Goth girl - penis):**
+```
+goth girl using her tongue to mhblckng a penis, black hair in twin buns, black eyeliner with wings, makeup, big breasts hanging, goth clothing <lora:MHBLicking_FLUX_epoch_18_Shurik:1>
+```
+
+**Prompt 2 (Redhead):**
+```
+a redhead woman using her tongue to mhblckng a penis., best quality, 4k, 8k, high resolution, cinematic, vibrant, intricate, Hyperrealistic, high detail <lora:MHBLicking_FLUX_epoch_18_Shurik:1>
+```
+
+**Prompt 3 (Two women):**
+```
+two women using their tongues to mhblckng a penis., best quality, 4k, 8k, high resolution, cinematic, vibrant, intricate, Hyperrealistic, high detail <lora:MHBLicking_FLUX_epoch_18_Shurik:1>
+```
+
+**Prompt 4 (Huge penis):**
+```
+a redhead model using her tongue to mhblckng a huge penis., best quality, 4k, 8k, high resolution, cinematic, vibrant, intricate, Hyperrealistic, high detail <lora:MHBLicking_FLUX_epoch_18_Shurik:1>
+```
+
+### Keywords
+- `mhblckng` - **TRIGGER WORD** (use as verb)
+- `using her tongue to mhblckng`
+- `tongue`
+- `licking`
+
+### Recommended settings
+- **Steps:** 24-30
+- **CFG:** 3.5-7
+- **Checkpoint:** FLUX Dev
+
+### Notes
+- Use trigger word `mhblckng` as the verb in your prompt
+- Mentioning `tongue` in prompt helps results
+- For licking objects/non-standard subjects, use weights 0.6-0.8
+- Good compatibility with other LoRAs
+
+---
+
+## Blowjob / Deepthroat FLUX
+
+| Parameter | Value |
+|-----------|-------|
+| **File** | `dtsvFLUX.safetensors` |
+| **Civitai** | https://civitai.com/models/714477/blowjob-deepthroat-flux |
+| **Trigger word** | `dtsv, girl, boy, penis` |
+| **Strength** | 0.6-0.9 |
+| **Type** | Pose / Action / NSFW |
+| **Version** | v1.0 |
+
+### Description
+High quality blowjob/deepthroat LoRA for FLUX. Generates characters performing oral sex with excellent prompt adherence and clarity. Compatible with both realistic and anime styles. This is a NON-POV version.
+
+**POV version available:** https://civitai.com/models/678730/pov-blowjob-flux
+
+### Key features
+- High quality blowjob/deepthroat poses
+- Works with realistic and anime styles
+- Good prompt adherence
+- NON-POV perspective (third person view)
+- Works with character LoRAs
+
+### Sample prompts
+
+**Prompt 1 (Japanese woman sci-fi):**
+```
+a beautiful huge natural breasts japanese woman with red and black braids, fit body, she is nude, dragon tattoos, nipples exposed, on her knees, she is giving a pov blowjob to a man, bj, fellatio, she is cock sucking, looking at viewer, location sci-fi bedroom, hologram in the background, dtsv, girl, boy, penis, breasts <lora:dtsvFLUX:0.8>
+```
+
+**Prompt 2 (Melody character - side view):**
+```
+Melody has brown hair in an updo and blue eyes and is nude. She is on her knees facing the left side of the frame giving a blowjob to a man that is standing on the edge of the shot. Her mouth is around the tip of his penis, dtsv, girl, boy, penis, large breasts, saggy tits <lora:dtsvFLUX:0.6>
+```
+
+**Prompt 3 (Amateur smartphone photo):**
+```
+amateur smartphone photo, overexposure, Low-resolution photo, shot on a mobile phone. young woman, 18 yo european girl, blonde, grey eyes, small breast, skinny, thin, petite blonde, grey eyes, long hair, dark eyeliner, natural lip color, wearing minidress, leather collar, platform High heels. Girl on wet floor, Cum on face, dtsv, girl, chubby man, penis <lora:dtsvFLUX:0.85>
+```
+
+### Keywords
+- `dtsv` - **TRIGGER WORD**
+- `girl, boy, penis` - required trigger combo
+- `blowjob`
+- `fellatio`
+- `cock sucking`
+- `deepthroat`
+- `on her knees`
+- `mouth around penis`
+
+### Recommended settings
+- **Steps:** 25-40
+- **CFG:** 3.5-4.5
+- **Checkpoint:** FLUX Dev
+
+### Tested combinations
+- NippleDiffusion LoRA
+- Saggy Breasts LoRA
+- Character LoRAs (Melody, etc.)
+- Thin Legs Skinny Ass LoRA
+
+### Notes
+- Use trigger words `dtsv, girl, boy, penis` together
+- Weight 0.9 or lower recommended
+- This is NON-POV version (third person view)
+- For POV version use separate LoRA
+- Works with both realistic and anime styles
+- Compatible with character LoRAs
+
+---
+
+## POV Blowjob + ASS FLUX
+
+| Parameter | Value |
+|-----------|-------|
+| **File** | `pbjaFLUX.safetensors` |
+| **Civitai** | https://civitai.com/models/728870/pov-blowjob-ass-flux |
+| **Trigger word** | `pbja, girl, pov, penis` |
+| **Strength** | 0.9-1.0 |
+| **Type** | Pose / POV / NSFW |
+| **Version** | v1.0 |
+
+### Description
+POV blowjob LoRA that also shows off the butt. Generates high quality scenes of characters giving head while displaying their butts from POV perspective. Compatible mostly with realistic styles, anime works to some degree but is harder to prompt.
+
+### Key features
+- POV blowjob perspective
+- Shows butt/ass in frame
+- High quality prompt adherence
+- Works best with realistic styles
+- Some anime capability
+
+### Sample prompts
+
+**Prompt 1 (Redhead bedroom):**
+```
+score_9, score_8_up, score_7_up, 8k, beautiful, highres image, masterpiece, 20 years old woman wearing skintight leggings, redhead, freckles, round glasses, booty pose, busty breasts, huge bubble butt. In the bedroom, looking at camera, pbja, girl, pov, penis <lora:pbjaFLUX:1>
+```
+
+**Prompt 2 (Lake dock):**
+```
+pbja, girl, penis, pov, raw photo, 8k, realistic, orange bikini, dock, lake <lora:pbjaFLUX:1>
+```
+
+### Keywords
+- `pbja` - **TRIGGER WORD**
+- `girl, pov, penis` - required trigger combo
+- `booty pose`
+- `bubble butt`
+- `looking at camera`
+
+### Recommended settings
+- **Steps:** 30-35
+- **CFG:** 3.5-4
+- **Sampler:** DPM++ 2M
+- **Checkpoint:** FLUX Dev
+
+### Notes
+- Use trigger words `pbja, girl, pov, penis` together
+- Weight 0.9-1.0 recommended
+- Works best with realistic styles
+- Anime possible but harder to achieve
+- Some workflows may need different weights
+
+---
+
+## POV Face Fuck FLUX
+
+| Parameter | Value |
+|-----------|-------|
+| **File** | `ffkFLUX.safetensors` |
+| **Civitai** | https://civitai.com/models/... |
+| **Trigger word** | `ffk, girl, pov, blowjob, penis` |
+| **Strength** | 0.9-0.95 |
+| **Type** | Pose / POV / CONCEPT |
+| **Version** | v1.0 |
+
+### Description
+Rough blowjob/face fuck LoRA for FLUX. Generates high quality POV scenes with forceful oral action. Compatible with both realistic and anime styles. Creates messy, intense scenes with smeared makeup, drool, etc.
+
+### Key features
+- POV face fuck perspective
+- Rough/forced blowjob poses
+- Messy makeup effects (smeared, dripping)
+- Works with realistic and anime styles
+- Good prompt adherence
+
+### Sample prompts
+
+**Prompt 1 (Cheerleader):**
+```
+ffk, girl, pov, blowjob, penis, blond hair, pigtails, cheerleader, bleachers, football field, smeared makeup, spit smeared all over face, mascara, eye liner, dripping makeup, crying <lora:ffkFLUX:0.95>
+```
+
+**Prompt 2 (Warzone - with Facial Cumshots LoRA):**
+```
+photorealistic, realistic photo, ((1boy, perfect beautiful femboy human, femboy, beautiful femboy, cadian soldier, wearing green cadian uniform, wearing cadian armour, blonde hair, short hair, side shaved hair, blue eyes, crying, defeated expression, resigned expression, dead eyes, eyes rolling back, femboys arms restrained behind back, kneeling, restrained arms, drooling,))
+BREAK
+face fuck, brutal, forced, head pressed against crotch, hand gripping hair, hand pulling head, head pulled into man's groin, hands bound behind back, restrained arms, blowjob, penis, pov, ffk, massive cumshot, excessive cum, facial, cum on face,
+BREAK
+battleground background, warzone background, debris, rubble, mud, fire <lora:ffkFLUX:0.8>
+```
+
+### Keywords
+- `ffk` - **TRIGGER WORD**
+- `girl, pov, blowjob, penis` - required trigger combo
+- `face fuck`
+- `smeared makeup`
+- `dripping makeup`
+- `crying`
+- `drooling`
+- `hand gripping hair`
+- `head pressed against crotch`
+
+### Recommended settings
+- **Steps:** 35-50
+- **CFG:** 4-8
+- **Sampler:** DPM++ 2M
+- **Checkpoint:** FLUX Dev
+
+### Tested combinations
+- Facial Cumshots For Flux LoRA (0.6)
+
+### Notes
+- Use trigger words `ffk, girl, pov, blowjob, penis` together
+- Weight 0.9-0.95 recommended (0.8 when combining)
+- Works with both realistic and anime styles
+- Some workflows may need different weights
+- Good for intense/rough scenes
+
+---
+
+## FLUX Blowjob
+
+| Parameter | Value |
+|-----------|-------|
+| **File** | `FLUX_Blowjob.safetensors` |
+| **Original filename** | `170f8f9f81a9b5e22309088e55ec2142.safetensors` |
+| **Civitai** | https://civitai.com/models/921338/flux-blowjob |
+| **Trigger word** | None (use descriptive language) |
+| **Strength** | 1.0 |
+| **Type** | Pose / NSFW |
+| **Version** | v1.0 |
+
+### Description
+General blowjob pose LoRA for FLUX. Works with various blowjob scenarios - kneeling, glory holes, facials, etc. Uses descriptive natural language prompting rather than specific trigger words.
+
+### Key features
+- Versatile blowjob poses
+- Works with various scenarios
+- Natural language prompting
+- Good for messy/facial scenes
+- Combines well with other LoRAs
+
+### Sample prompts
+
+**Prompt 1 (Spanish woman bedroom - with multiple LoRAs):**
+```
+male (man in shirt, pants and shoes) is standing in front of her and has his dick out of his pants and masturbating, she is kneeling in front of him kissing his penis:1.6, A 25-year-old Spanish-arabian woman is in a student bedroom, she is kneeling in front of old man and kissing his penis in front of the bed looking sexy and arrogant and very concerned at the camera. she has dark brown lipstick and very large perky breasts, She has long dark brown hair styled in a long single french braid. Her eyebrows are dark, prominent, and her eyebrows steep arched:1.6 She has bold dark brown glossy lipstick. She has on a cropped, sleeveless striped knit top in olive, orange, and yellow and huge cleavage. She pairs it with a black short skirt covering half her butt and wears straw cork wedges shoes with high heels. (old man is standing next to her and reaching down under her skirt to touch her ass:1.6, POV Butt Grab her ass:1.6), hairy pussy:1.6 she is sweating and looks horny <lora:FLUX_Blowjob:1>
+```
+
+**Prompt 2 (Asian pornstar glory hole):**
+```
+Stunningly beautiful Asian pornstar, detailed background, kneeling staring open mouth, smeared lipstick, messy makeup, cum dripping on face, huge penis in mouth saliva dripping, cum on face, facial, in dark smoky bathroom toilet glory hole, tiny sheer net top, wearing bondage collar, tattoos, embossed letters "SLUT" on collar, lipstick kiss marks, view from above, runny mascara, blush, lewd and slutty graffiti, head tilted seductively, (bright eyes:1.3), blonde updo with buns curls high pigtails and bangs with pink and black streaks, very messy hair, clothes dispelled, half undressed, mascara, coy expression, slutty as fuck, orgasmic expression, sexy shy smile, lip gloss, tied down fuck doll, broad color spectrum, dark lighting, cinematic lighting, medium round breasts dark background, heavy gold jewelry, heart pendant, queen of spades tattoos, high definition photo realistic picture of an attractive Asian 20 year old woman wearing a sheer black skin tight long sleeved nylon bodysuit and firm breasts on her knees licking a penis with drool and cum on her face, cumshot, 128K UHD <lora:FLUX_Blowjob:1>
+```
+
+### Keywords
+- `kneeling`
+- `kissing his penis`
+- `penis in mouth`
+- `blowjob`
+- `oral`
+- `glory hole`
+- `smeared lipstick`
+- `cum on face`
+- `facial`
+- `saliva dripping`
+
+### Recommended settings
+- **Steps:** 20-32
+- **CFG:** 3.5
+- **Checkpoint:** FLUX Dev
+
+### Tested combinations
+- Skirt Lift Concept LoRA
+- Saddlebags Ass for FLUX LoRA
+- Touch people LoRA
+- Natural faces LoRA
+- Expression Helper LoRA
+- FLUX - More Female Anatomy LoRA
+
+### Notes
+- No specific trigger word needed
+- Use descriptive language for blowjob actions
+- Weight 1.0 works well
+- Combines well with many other LoRAs
+- Good for messy/facial scenes
+
+---
+
+## Blowjob PoV FLUX
+
+| Parameter | Value |
+|-----------|-------|
+| **File** | `Blowjob_PoV_FLUX.safetensors` |
+| **Original filename** | `wsssssssssss.safetensors` |
+| **Civitai** | https://civitai.com/models/772444/blowjob-pov-flux-lora |
+| **Trigger word** | None (use descriptive language) |
+| **Strength** | 1.0 |
+| **Type** | Pose / POV / CONCEPT |
+| **Version** | V1 |
+
+### Description
+High quality POV blowjob LoRA for FLUX. Works very well with multiple women in scene and all skin colors. Uses natural language prompting - describe the scene in detail.
+
+### Key features
+- True POV perspective
+- Works with multiple women
+- Works with all skin colors
+- Natural language prompting
+- Good for cum/facial scenes
+
+### Sample prompts
+
+**Prompt 1 (Beach sunset with cum):**
+```
+Male perspective, on beach, sunset, female kneeling, performing oral sex, vainy penis, big penis, penis in mouth, cum on female face and tits, big tits, perky tits, beautyful female model, holding her Breast with one hand, second hand grabbing penis, wavy blonde hair, profesional makeup, blue eyes, big eyes, pov, blowjob, lots of cum <lora:Blowjob_PoV_FLUX:1>
+```
+
+**Prompt 2 (Simple high angle):**
+```
+Stunning girl naked sucking a cock, POV BJ High-angle, from above, hetero, LARGE BREASTS <lora:Blowjob_PoV_FLUX:1>
+```
+
+**Prompt 3 (Pin up bride style):**
+```
+(score_9, score_8_up:1.1), score_7_up, pin up illustration, beautiful women, bride, torn dress, smeared makeup, bdsm, submissive female, ((style of Gil Elvgren)), erotic humiliation, tits focus, dsl, blue eyes <lora:Blowjob_PoV_FLUX:1>
+```
+
+### Keywords
+- `pov`
+- `blowjob`
+- `male perspective`
+- `performing oral sex`
+- `penis in mouth`
+- `sucking a cock`
+- `POV BJ`
+- `from above` / `high-angle`
+- `cum on face`
+- `lots of cum`
+
+### Recommended settings
+- **Steps:** 20-60
+- **CFG:** 1-7
+- **Sampler:** Euler / DPM++ 2M
+- **Checkpoint:** FLUX Dev
+
+### Tested combinations
+- BeautyFlux LoRA
+- Style of Gil Elvgren LoRA
+
+### Notes
+- No specific trigger word needed
+- Describe scene in detail for best results
+- Works with multiple women
+- All skin colors supported
+- Weight 1.0 recommended
+
+---
+
+## Blowjob From Side FLUX
+
+| Parameter | Value |
+|-----------|-------|
+| **File** | `psgrFLUX.safetensors` |
+| **Civitai** | https://civitai.com/models/793577/blowjob-from-side-flux-aka-film-and-flutter |
+| **Trigger word** | `psgr, woman, man, blowjob` |
+| **Strength** | 0.85-0.91 |
+| **Type** | Pose / CONCEPT |
+| **Version** | v1.0 |
+
+### Description
+Side view blowjob LoRA for FLUX. Generates high quality scenes from side perspective. Compatible with realistic styles only - anime does not work well with Flux Dev. May occasionally produce body horror.
+
+### Key features
+- Side view perspective
+- Realistic styles only
+- Detailed scene control
+- Good for intimate details (hands, nails, etc.)
+
+### Sample prompts
+
+**Prompt 1 (Blonde on couch):**
+```
+psgr, woman, man, blowjob, long wavy blond hair, blue eyes, looking at viewer, mouth open, pink and gold glitter nails on female hand, female hand touching penis and testicles, red eye shadow, male hand on female arm, white couch, pink leg warmers, yellow g string, art on wall of fingerprint, orchid, tattoo on fingers <lora:psgrFLUX:0.9>
+```
+
+**Prompt 2 (Brunette striped dress):**
+```
+psgr, woman, man, blowjob, penis sticking out of grey shorts crotch hole, brunette, female dark finger nails, white couch, she is wearing a striped red and pink knotted dress, looking at viewer, brown eyes, lip gloss, female hands on male leg, person barely visible in background <lora:psgrFLUX:0.9>
+```
+
+**Prompt 3 (Pink lingerie on bed):**
+```
+psgr, woman, man, blowjob, brunette hair, pink eye shadow, female hand on male leg and testicles, bracelets, necklace, pink bra, pink panties with white top, knee high white socks with vibrant floral pattern, white sheets on bed, art on wall, beige curtains, lamp, man lying back, male pubic hair <lora:psgrFLUX:0.9>
+```
+
+**Prompt 4 (Nude with spit detail):**
+```
+psgr, woman, man, blowjob, white nails on female hand, female hand on male leg, male pubic hair and male chest hair, man with beard eyes closed making o face, brunette hair on woman with brown eyes and orange gold eye shadow, spit stretching from finger to penis, white couch, pink glass in background with art on wall, nude <lora:psgrFLUX:0.9>
+```
+
+### Keywords
+- `psgr` - **TRIGGER WORD**
+- `woman, man, blowjob` - required trigger combo
+- `female hand touching penis and testicles`
+- `female hand on male leg`
+- `looking at viewer`
+- `male pubic hair`
+- `spit stretching`
+
+### Recommended settings
+- **Steps:** 35
+- **CFG:** 4
+- **Sampler:** DPM++ 2M
+- **Checkpoint:** FLUX Dev
+
+### Notes
+- Use trigger words `psgr, woman, man, blowjob` together
+- Weight 0.85-0.91 recommended
+- Realistic styles only - anime does not work
+- May occasionally produce body horror
+- Great for detailed hand/nail shots
+
+---
+
+## POV Deepthroat/Blowjob FLUX
+
+| Parameter | Value |
+|-----------|-------|
+| **File** | `bj_flux.safetensors` |
+| **Civitai** | https://civitai.com/models/380283/pov-deepthroatblowjob-fluxpony |
+| **Trigger word** | None (use keywords) |
+| **Strength** | 0.8-1.0 |
+| **Type** | Pose / POV / CONCEPT |
+| **Version** | v1.0 |
+
+### Description
+Simple and effective POV deepthroat/blowjob LoRA trained on realistic images. Focus on POV perspective. Clean, straightforward prompting.
+
+### Key features
+- POV perspective
+- Trained on realistic images
+- Simple prompting
+- Works with minimal keywords
+
+### Sample prompts
+
+**Prompt 1 (Simple solo):**
+```
+1girl, solo, blowjob, fellatio, pov <lora:bj_flux:1>
+```
+
+**Prompt 2 (Deepthroat with character LoRA):**
+```
+<lora:boral05:.85>, boral05 In this picture we can see a man bending over on all fours we see him sucking a big black cock., the central figure is a man with short spiky black hair ass up in the air, deepthroat, seductive look, looking up at viewer <lora:bj_flux:1>
+```
+
+### Keywords
+- `blowjob`
+- `fellatio`
+- `pov`
+- `deepthroat`
+- `looking up at viewer`
+- `seductive look`
+- `1girl` / `solo`
+
+### Recommended settings
+- **Steps:** 20
+- **CFG:** 1-3.5
+- **Sampler:** Euler
+- **Checkpoint:** FLUX Dev
+
+### Tested combinations
+- Big cock blow job LoRA
+- Character LoRAs
+
+### Notes
+- Weight 0.8-1.0 recommended
+- Simple keywords work well
+- Trained on realistic images
+- Combines well with character LoRAs
+
+---
+
+## Side View Blowjobs For Flux
+
+| Parameter | Value |
+|-----------|-------|
+| **File** | `Side_View_Blowjobs_For_Flux_Photographic_And_Anime.safetensors` |
+| **Civitai** | https://civitai.com/models/661864/side-view-blowjobs-for-flux-photographic-and-anime |
+| **Trigger word** | None (use `side view, blowjob`) |
+| **Strength** | 1.0 (not higher!) |
+| **Type** | Pose / CONCEPT |
+| **Version** | v1.0 |
+
+### Description
+Side view blowjob LoRA for FLUX. Works for both photorealistic and anime generations. Use `photo, realistic` at front for photo style, `2d, anime` for anime style. Does not have 100% hit rate but works well when it works.
+
+### Key features
+- Side view perspective
+- Works with photorealistic AND anime
+- Supports various ethnicities
+- Kneeling woman / standing man poses
+
+### Style prefixes
+- **Photorealistic:** Start prompt with `photo, realistic`
+- **Anime:** Start prompt with `2d, anime`
+
+### Sample prompts
+
+**Prompt 1 (Interracial):**
+```
+a photo of a caucasian woman on her knees sucking a standing african-american man's cock, from side, blowjob <lora:Side_View_Blowjobs_For_Flux_Photographic_And_Anime:1>
+```
+
+**Prompt 2 (Latino with hand on balls):**
+```
+high-resolution photo of a beautiful Latino woman on her knees sucking a young man's cock, side view, blowjob, her hand on his balls <lora:Side_View_Blowjobs_For_Flux_Photographic_And_Anime:1>
+```
+
+**Prompt 3 (Busty blonde 4K):**
+```
+An image of a busty woman sucking a man's cock, fellatio, oral, from side, blonde hair, woman kneeling, the overall quality is high resolution 4K image, large breasts, nude, a woman is sucking a man's cock, blowjob, fellatio, oral, side view, from side <lora:Side_View_Blowjobs_For_Flux_Photographic_And_Anime:1>
+```
+
+**Prompt 4 (Arabic belly dancer):**
+```
+There is a sultry woman of Arabic descent dressed in a belly dancer outfit, wearing gold armlets and a tight gold choker. The woman is on her knees sucking a man's cock. The man is standing up with his arms at his side. blowjob, side view, photo, realistic <lora:Side_View_Blowjobs_For_Flux_Photographic_And_Anime:1>
+```
+
+### Keywords
+- `side view` / `from side`
+- `blowjob`
+- `fellatio`
+- `oral`
+- `on her knees`
+- `woman kneeling`
+- `man standing`
+- `sucking a man's cock`
+
+### Recommended settings
+- **Steps:** 25-40
+- **CFG:** 3-3.5
+- **Checkpoint:** FLUX Dev
+
+### Notes
+- Weight 1.0 recommended - DO NOT go higher
+- Does not have 100% hit rate
+- Use style prefix for photo vs anime
+- Works with various ethnicities
+- Kneeling/standing composition works best
+
+---
+
+## Blowjob Various
+
+| Parameter | Value |
+|-----------|-------|
+| **File** | `Blowjob_various.safetensors` |
+| **Civitai** | https://civitai.com/models/1631171/blowjob-various |
+| **Trigger word** | Unknown |
+| **Strength** | 0.8-1.0 (test) |
+| **Type** | Pose / CONCEPT |
+
+### Description
+LoRA for various blowjob poses. No examples provided - experiment with standard blowjob keywords.
+
+### Suggested keywords
+- `blowjob`
+- `fellatio`
+- `oral`
+- `sucking cock`
+- `pov`
+- `side view`
+
+### Notes
+- No example prompts available yet
+- Experiment with different blowjob-related keywords
+- Test strength levels 0.8-1.0
+
+---
+
+## MHB - Tip Sucking
+
+| Parameter | Value |
+|-----------|-------|
+| **File** | `MHB_TipSucking_FLUX_Shurik_epoch_18.safetensors` |
+| **Civitai** | https://civitai.com/models/802369/mhb-tip-sucking-flux |
+| **Trigger word** | `mhbsckng` |
+| **Strength** | 0.8-1.0 |
+| **Type** | Pose / CONCEPT |
+| **Creator** | MHB (same as MHB - Licking) |
+
+### Description
+LoRA for tip sucking / penis tip in mouth poses. From the same creator as MHB - Licking. Designed for POV blowjob scenes focusing on the tip. Works with multiple women and can be combined with cum effects.
+
+### Sample prompts
+
+**Prompt 1 (Basic POV):**
+```
+POV of a woman mhbsckng on a man's penis. she is looking at the viewer., best quality, 4k, 8k, high resolution, cinematic, vibrant, intricate, Hyperrealistic, high detail <lora:MHB_TipSucking_FLUX_Shurik_epoch_18:1>
+```
+Settings: Steps: 8, CFG: 7, Size: 768x1024
+
+**Prompt 2 (Two women):**
+```
+POV of two women mhbsckng on a man's penis., best quality, 4k, 8k, high resolution, cinematic, vibrant, intricate, Hyperrealistic, high detail <lora:MHB_TipSucking_FLUX_Shurik_epoch_18:1>
+```
+
+**Prompt 3 (Latina with cum):**
+```
+POV of a woman mhbsckng on a man's penis. She is Latina with olive skin and long black hair. She is looking at the viewer seductively as she winks with one eye, cum covers her face, massive facial as cum drips down her face, best quality, 4k, 8k, high resolution, cinematic, vibrant, intricate, Hyperrealistic, high detail <lora:MHB_TipSucking_FLUX_Shurik_epoch_18:1>
+```
+Settings: Steps: 8, CFG: 3.5, Size: 832x1216
+
+**Prompt 4 (Detailed cinematic):**
+```
+A medium close-up shot frames only the top half of a woman with a focus on her beautiful face as she is looking directly at the camera with a warm, engaging smile. Her lips form a tight seal around the tip of a very large penis - performing fellatio. her breasts are small and perky, with thick and long protruding nipples. The impressive cock has a massive girthy shaft, with a defined head, thick protruding veins. Highlights roll softly across skin, shadows fall with a matte richness, warm, nostalgic color palette inspired by Kodak Portra 400. <lora:MHB_TipSucking_FLUX_Shurik_epoch_18:1>
+```
+Settings: Steps: 50, CFG: 5.5
+
+### Keywords
+- `mhbsckng` - **TRIGGER WORD**
+- `tip sucking`
+- `POV`
+- `looking at the viewer`
+- `penis in mouth`
+- `fellatio`
+- `two women` (for threesome)
+
+### Tested combinations
+- Cum on face LoRAs (YACL, etc.)
+- Ethnicity LoRAs (Latina, etc.)
+
+### Recommended settings
+- **Steps:** 8-50 (8 for quick, 50 for detailed)
+- **CFG:** 3.5-7
+- **Size:** 768x1024, 832x1216
+
+### Notes
+- From same creator as MHB - Licking
+- Works well with cum effects
+- Supports multiple women in scene
+- Looking at viewer works well
+- Good LoRA compatibility
+
+---
+
+## Yet Another Blowjob Lora V1
+
+| Parameter | Value |
+|-----------|-------|
+| **File** | `blowtest_v1_000002750.safetensors` |
+| **Original filename** | `blowtest v1_000002750.safetensors` (renamed) |
+| **Civitai** | https://civitai.com/models/960922/yet-another-blowjob-lora-v1 |
+| **Trigger word** | None (use descriptive prompt) |
+| **Strength** | 0.45-1.0 |
+| **Type** | Pose / CONCEPT |
+| **Training** | JoyCaption dataset |
+
+### Description
+Flexible blowjob LoRA trained with JoyCaption. Understands clothing and various settings. Works well with character LoRAs and Acornisspinning checkpoint (use lower weights 0.45-0.6 for that). V1 release - V2 will have standardized prompts.
+
+### Prompt template
+```
+{angle} photograph depicting a (woman), kneeling in front of a man, performing oral sex on a man, his legs and lower abdomen visible. with the man's large erect penis in her mouth, sucking on the large penis, indoors, {location}, the mans penis centre of frame. she is looking at the viewer with a lustful gaze, long hair
+```
+
+**Customizable parts:**
+- `{angle}` → high-angle, above, low angle pov
+- `{location}` → modern british livingroom, bedroom, office, etc.
+- Add clothing, ethnicity, expressions as needed
+
+### Sample prompts
+
+**Prompt 1 (Detailed Pakistani scene):**
+```
+low angle pov photograph depicting a cute brown-skinned pakistani embroidered hijabi woman, in between the thighs of a (pale-skinned white caucasian albino man:1.1), performing oral sex on a man, his legs and lower abdomen visible. with the man's large erect penis in her mouth, sucking on the thick penis, the mans penis centre of frame. she is looking at the viewer with a lustful gaze. she has a shy embarrassed expression and is blushing deeply, with a naughty seductive mischievous smile. she is wearing an ornately embroidered sequined blue cotton kameez. She has thick lips and almond-shaped eyes. <lora:blowtest_v1_000002750:1>
+```
+Settings: Steps: 45, CFG: 1, Sampler: DPM++ 2M, Size: 768x1024
+
+**Prompt 2 (Simple living room):**
+```
+high-angle photograph depicting a woman, kneeling in front of a man, performing oral sex on a man, his legs and lower abdomen visible. with the man's large erect penis in her mouth, sucking on the large penis, indoors, modern british livingroom, the mans penis centre of frame. she is looking at the viewer with a lustful gaze, long hair <lora:blowtest_v1_000002750:1>
+```
+
+### Keywords
+- `performing oral sex on a man`
+- `kneeling in front of a man`
+- `his legs and lower abdomen visible`
+- `penis in her mouth`
+- `sucking on the large penis`
+- `looking at the viewer with a lustful gaze`
+- `the mans penis centre of frame`
+- `high-angle` / `low angle pov` / `above`
+
+### Tested combinations
+- Acornisspinning checkpoint (use 0.45-0.6 strength)
+- Character LoRAs
+- Realistic FLUX Dick LoRA
+- Ethnicity LoRAs
+
+### Strength guide
+| Checkpoint | Strength |
+|------------|----------|
+| Standard FLUX | 0.8-1.0 |
+| Acornisspinning | 0.45-0.6 |
+
+### Recommended settings
+- **Steps:** 45
+- **CFG:** 1-2
+- **Sampler:** DPM++ 2M
+- **Schedule:** Beta (alpha: 0.6, beta: 0.6)
+- **Size:** 768x1024
+
+### Notes
+- Understands clothing - can specify outfits
+- Flexible with locations and settings
+- Works with character LoRAs
+- Use lower weights on Acornisspinning checkpoint
+- Can add watermark text in prompt (trained on "Badlora.com" watermarks)
+- V1 trained with varied JoyCaption prompts
+
+---
+
+## Blowjobs and Co
+
+| Parameter | Value |
+|-----------|-------|
+| **File** | `blowjobs_co_v025.safetensors` |
+| **Original filename** | `blowjobs&co_v025.safetensors` (renamed) |
+| **Civitai** | https://civitai.com/models/902999/blowjobsandco |
+| **Trigger word** | None (use descriptive prompt) |
+| **Strength** | 0.8-1.0 |
+| **Type** | Pose / CONCEPT |
+| **Version** | v0.25 (beta) |
+
+### Description
+Flexible LoRA for blowjobs, handjobs, deepthroats and cumshots. High fidelity and good flexibility. POV blowjob/sucking tip pictures are easy. POV handjobs work most of the time. Distant blowjobs require precise prompting. Still in beta - can be inconsistent.
+
+### What works well
+- POV blowjob
+- Sucking the tip of the penis
+- Sucking an item
+- POV handjobs (mostly)
+
+### What needs precise prompting
+- Distant blowjobs: "a character is kneeling and performing a blowjob on a standing man"
+
+### Sample prompts
+
+**Prompt 1 (POV close-up):**
+```
+The image is a POV close-up photograph of a young Caucasian woman about to suck a penis, she has her mouth open and she is drooling saliva. She appears to be in her early 20s has fair skin long brown hair and expressive blue eyes. She is positioned on her knees looking up at the camera with a focused expression. The man has a fair skin. The background is blurred but it seems to be an indoor setting possibly a bedroom indicated by the presence of a bed with white sheets and a beige carpeted floor. The lighting is bright and natural suggesting the photograph was taken during the day. <lora:blowjobs_co_v025:1>
+```
+Settings: Steps: 20, CFG: 1, Sampler: Euler, Size: 896x1152
+
+**Prompt 2 (Simple):**
+```
+POV photograph of a woman sucking the tip of a penis, looking up at camera, bedroom setting <lora:blowjobs_co_v025:1>
+```
+
+### Keywords
+- `POV close-up photograph`
+- `about to suck a penis`
+- `mouth open`
+- `drooling saliva`
+- `on her knees`
+- `looking up at the camera`
+- `sucking the tip`
+- `performing a blowjob`
+- `kneeling`
+
+### Recommended settings
+- **Steps:** 20-40
+- **CFG:** 2.5-5 (or 1 with Distilled CFG 3)
+- **Sampler:** Euler/Simple, Beta, DDEIS/DDIM, Flux Realistic
+- **Schedule:** Beta (alpha: 0.6, beta: 0.6) or Simple
+- **Size:** 896x1152
+- **Hires:** 1.5x with 0.5 denoising (optional)
+
+### Known issues (beta)
+- Angle biases
+- Cum/saliva inconsistency
+- Woman and male genitals sometimes off
+- POV can be better on previous versions
+
+### Notes
+- Beta version - beautiful outputs but can be inconsistent
+- Can add "Blowjobs&Co" watermark on forehead (trained feature)
+- Raw gens look good without upscaling
+- Distant blowjobs need precise "kneeling + standing man" prompting
+
+---
+
+## Asian Pussy Spreading
+
+| Parameter | Value |
+|-----------|-------|
+| **File** | `AsianPussySpreadE10V3.safetensors` |
+| **Civitai** | https://civitai.com/models/907925/asian-pussy-spreading |
+| **Trigger word** | `as1anpu55y` |
+| **Strength** | 0.8-1.0 |
+| **Type** | Pose / CONCEPT |
+| **Version** | V3 (50400 steps) |
+
+### Description
+LoRA for generating asian girls spreading their legs and/or using their hands to spread their pussy. Uses l33t trigger word for NSFW bypass.
+
+### Sample prompts
+
+**Prompt 1 (Spreading legs):**
+```
+as1anpu55y, 1girl, asian woman, spreading legs, sitting, bedroom, looking at viewer, realistic photo <lora:AsianPussySpreadE10V3:1>
+```
+
+**Prompt 2 (Hand spreading):**
+```
+as1anpu55y, 1girl, asian woman, spreading pussy with hands, lying on bed, pov, realistic photo <lora:AsianPussySpreadE10V3:1>
+```
+
+### Keywords
+- `as1anpu55y` - required trigger
+- `spreading legs`
+- `spreading pussy`
+- `spreading pussy with hands`
+- `asian woman`
+- `sitting` / `lying`
+- `pov`
+
+### Notes
+- V3 version trained with 50400 steps
+- Uses l33t trigger word `as1anpu55y` for NSFW bypass
+- Works best with asian character prompts
+
+---
+
+## ShowerGirls Flux
+
+| Parameter | Value |
+|-----------|-------|
+| **File** | `ShowerGirlsFlux5000.safetensors` |
+| **Civitai** | https://civitai.com/models/692255/showergirls-flux |
+| **Trigger word** | None (use descriptive prompt) |
+| **Strength** | 0.8 |
+| **Type** | CONCEPT / Setting |
+| **Base** | Flux Dev |
+
+### Description
+LoRA for generating realistic women in various bathroom ablution settings. Dataset was about 70% showers and 30% bathtubs. Author's first LoRA model.
+
+### Sample prompts
+
+**Prompt 1 (Holi paint shower):**
+```
+((Raw Analog Color Photo, full body in frame, head to toe in frame)) of pretty 20yo sexy slim (hourglass figure, slim fit) Korean Indian mixed origin woman covered in paints, powders of different vibrant colors posing for a photo shoot with a very erotic inviting smile taking bath, Wet hair, Wet body, Exposed Belly Button, she is washing off wet paint in shower, stark naked woman, Her confident pose with one arm behind her head highlights her slim yet hourglass physique. Shot on a RED digital cinematic camera, Sigma 85mm f/1.4, pores, highly detailed skin, navel, brown hair, looking at viewer, smiling, She stands under running water in the shower ((soaking wet, her wet hair and wet body covered in vibrant, colorful powders and paints)) smiling <lora:ShowerGirlsFlux5000:0.8>
+```
+Settings: Steps: 50, CFG: 5, Size: 832x1216
+
+**Prompt 2 (Bengali village bathroom):**
+```
+((Raw Analog Color Photo)) of a sexy (hourglass figure, slim, petite, fit) Bengali Indian 18yo with perfect anatomy, beautiful eyes, silky black hair. ((her hair and body are fully soaking wet)), she is fully naked, stark naked, ((parts of her body and hair covered in soap)), standing in an alluring inviting pose facing forward with her both hands raised above revealing her smooth armpits as her wrists are touching her wet hair, she has a naughty smile in her face. she is inside modest village bathroom with a metallic bucket placed on her left, filled with water. wet hair, wet skin, nude <lora:ShowerGirlsFlux5000:0.8>
+```
+Settings: Steps: 50, CFG: 4, Size: 832x1216
+
+**Prompt 3 (Ethiopian bikini shower):**
+```
+A ultra high resolution glamour photography captures a beautiful dark skin Ethiopean Female Model with ((soaking wet hair and skin, very wet bikini)) standing in front of a white wall adorned with a climbing vine and taking a shower. She is wearing a muted lime green bikini with vertical stripes. The bikini top is a classic triangle style, accentuating her medium-sized breasts, while the bottoms are a high-cut style, highlighting her toned midsection and hips. Bob Cut Hair, ((wet hair, wet skin, wet cloth)), solo, realistic, black hair, fine breasts, navel, tattoo, ((dark brown complexion, running water)) <lora:ShowerGirlsFlux5000:0.8>
+```
+Settings: Steps: 20, CFG: 3.5, Size: 832x1216
+
+### Keywords
+- `soaking wet` / `wet hair` / `wet body` / `wet skin`
+- `shower` / `taking a shower` / `running water`
+- `bathtub` / `taking bath`
+- `stark naked` / `fully naked`
+- `soap` / `covered in soap`
+- `bathroom`
+- `Raw Analog Color Photo`
+
+### Notes
+- Dataset: 70% showers, 30% bathtubs
+- Works well with various ethnicities
+- Experiment with strength around 0.8
+- Use detailed prompts describing wet effects
+- Trained on Flux Dev base
 
 ---
 
