@@ -19,6 +19,7 @@ from ._helpers import (
     get_auth_header,
     is_processing_interrupted,
     sleep_with_interrupt,
+    to_aiohttp_url,
 )
 from .client import _diagnose_connectivity
 from .common_exceptions import ApiServerError, LocalNetworkError, ProcessingInterrupted
@@ -94,7 +95,7 @@ async def download_url_to_bytesio(
 
             monitor_task = asyncio.create_task(_monitor())
 
-            req_task = asyncio.create_task(session.get(url, headers=headers))
+            req_task = asyncio.create_task(session.get(to_aiohttp_url(url), headers=headers))
             done, pending = await asyncio.wait({req_task, monitor_task}, return_when=asyncio.FIRST_COMPLETED)
 
             if monitor_task in done and req_task in pending:
