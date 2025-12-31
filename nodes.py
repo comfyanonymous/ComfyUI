@@ -1863,6 +1863,7 @@ class ImageBatch:
     FUNCTION = "batch"
 
     CATEGORY = "image"
+    DEPRECATED = True
 
     def batch(self, image1, image2):
         if image1.shape[-1] != image2.shape[-1]:
