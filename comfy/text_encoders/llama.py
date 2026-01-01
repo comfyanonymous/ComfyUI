@@ -8,7 +8,6 @@ from comfy.ldm.modules.attention import optimized_attention_for_device
 import comfy.model_management
 import comfy.ldm.common_dit
 
-import comfy.model_management
 from . import qwen_vl
 
 @dataclass
