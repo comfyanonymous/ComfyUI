@@ -78,7 +78,7 @@ async def poll_until_finished(
     raise RuntimeError(f"Failed to generate mesh: {response_poll}")
 
 
-class TripoTextToModelNode(IO.ComfyNode):
+class   TripoTextToModelNode(IO.ComfyNode):
     """
     Generates 3D models synchronously based on a text prompt using Tripo's API.
     """
@@ -117,6 +117,38 @@ class TripoTextToModelNode(IO.ComfyNode):
             ],
             is_api_node=True,
             is_output_node=True,
+            price_badge=IO.PriceBadge(
+                depends_on=IO.PriceBadgeDepends(
+                    widgets=[
+                        "model_version",
+                        "style",
+                        "texture",
+                        "pbr",
+                        "quad",
+                        "texture_quality",
+                        "geometry_quality",
+                    ],
+                ),
+                expr="""
+                (
+                  $isV14 := $contains(w.model_version.s,"v1.4");
+                  $style := w.style.s;
+                  $hasStyle := ($style != "" and $style != "none");
+                  $withTexture := w.texture.b or w.pbr.b;
+                  $isHdTexture := (w.texture_quality.s = "detailed");
+                  $isDetailedGeometry := (w.geometry_quality.s = "detailed");
+                  $baseCredits :=
+                    $isV14 ? 20 : ($withTexture ? 20 : 10);
+                  $credits :=
+                    $baseCredits
+                    + ($hasStyle ? 5 : 0)
+                    + (w.quad.b ? 5 : 0)
+                    + ($isHdTexture ? 10 : 0)
+                    + ($isDetailedGeometry ? 20 : 0);
+                  {"type":"usd","usd": $round($credits * 0.01, 2)}
+                )
+                """,
+            ),
         )
 
     @classmethod
@@ -210,6 +242,38 @@ class TripoImageToModelNode(IO.ComfyNode):
             ],
             is_api_node=True,
             is_output_node=True,
+            price_badge=IO.PriceBadge(
+                depends_on=IO.PriceBadgeDepends(
+                    widgets=[
+                        "model_version",
+                        "style",
+                        "texture",
+                        "pbr",
+                        "quad",
+                        "texture_quality",
+                        "geometry_quality",
+                    ],
+                ),
+                expr="""
+                (
+                  $isV14 := $contains(w.model_version.s,"v1.4");
+                  $style := w.style.s;
+                  $hasStyle := ($style != "" and $style != "none");
+                  $withTexture := w.texture.b or w.pbr.b;
+                  $isHdTexture := (w.texture_quality.s = "detailed");
+                  $isDetailedGeometry := (w.geometry_quality.s = "detailed");
+                  $baseCredits :=
+                    $isV14 ? 30 : ($withTexture ? 30 : 20);
+                  $credits :=
+                    $baseCredits
+                    + ($hasStyle ? 5 : 0)
+                    + (w.quad.b ? 5 : 0)
+                    + ($isHdTexture ? 10 : 0)
+                    + ($isDetailedGeometry ? 20 : 0);
+                  {"type":"usd","usd": $round($credits * 0.01, 2)}
+                )
+                """,
+            ),
         )
 
     @classmethod
@@ -314,6 +378,34 @@ class TripoMultiviewToModelNode(IO.ComfyNode):
             ],
             is_api_node=True,
             is_output_node=True,
+            price_badge=IO.PriceBadge(
+                depends_on=IO.PriceBadgeDepends(
+                    widgets=[
+                        "model_version",
+                        "texture",
+                        "pbr",
+                        "quad",
+                        "texture_quality",
+                        "geometry_quality",
+                    ],
+                ),
+                expr="""
+                (
+                  $isV14 := $contains(w.model_version.s,"v1.4");
+                  $withTexture := w.texture.b or w.pbr.b;
+                  $isHdTexture := (w.texture_quality.s = "detailed");
+                  $isDetailedGeometry := (w.geometry_quality.s = "detailed");
+                  $baseCredits :=
+                    $isV14 ? 30 : ($withTexture ? 30 : 20);
+                  $credits :=
+                    $baseCredits
+                    + (w.quad.b ? 5 : 0)
+                    + ($isHdTexture ? 10 : 0)
+                    + ($isDetailedGeometry ? 20 : 0);
+                  {"type":"usd","usd": $round($credits * 0.01, 2)}
+                )
+                """,
+            ),
         )
 
     @classmethod
@@ -405,6 +497,15 @@ class TripoTextureNode(IO.ComfyNode):
             ],
             is_api_node=True,
             is_output_node=True,
+            price_badge=IO.PriceBadge(
+                depends_on=IO.PriceBadgeDepends(widgets=["texture_quality"]),
+                expr="""
+                (
+                  $tq := w.texture_quality.s;
+                  {"type":"usd","usd": ($contains($tq,"detailed") ? 0.2 : 0.1)}
+                )
+                """,
+            ),
         )
 
     @classmethod
@@ -456,6 +557,9 @@ class TripoRefineNode(IO.ComfyNode):
             ],
             is_api_node=True,
             is_output_node=True,
+            price_badge=IO.PriceBadge(
+                expr="""{"type":"usd","usd":0.3}""",
+            ),
         )
 
     @classmethod
@@ -489,6 +593,9 @@ class TripoRigNode(IO.ComfyNode):
             ],
             is_api_node=True,
             is_output_node=True,
+            price_badge=IO.PriceBadge(
+                expr="""{"type":"usd","usd":0.25}""",
+            ),
         )
 
     @classmethod
@@ -545,6 +652,9 @@ class TripoRetargetNode(IO.ComfyNode):
             ],
             is_api_node=True,
             is_output_node=True,
+            price_badge=IO.PriceBadge(
+                expr="""{"type":"usd","usd":0.1}""",
+            ),
         )
 
     @classmethod
@@ -638,6 +748,60 @@ class TripoConversionNode(IO.ComfyNode):
             ],
             is_api_node=True,
             is_output_node=True,
+            price_badge=IO.PriceBadge(
+                depends_on=IO.PriceBadgeDepends(
+                    widgets=[
+                        "quad",
+                        "face_limit",
+                        "texture_size",
+                        "texture_format",
+                        "force_symmetry",
+                        "flatten_bottom",
+                        "flatten_bottom_threshold",
+                        "pivot_to_center_bottom",
+                        "scale_factor",
+                        "with_animation",
+                        "pack_uv",
+                        "bake",
+                        "part_names",
+                        "fbx_preset",
+                        "export_vertex_colors",
+                        "export_orientation",
+                        "animate_in_place",
+                    ],
+                ),
+                expr="""
+                (
+                    $face := (w.face_limit.n != null) ? w.face_limit.n : -1;
+                    $texSize := (w.texture_size.n != null) ? w.texture_size.n : 4096;
+                    $flatThresh := (w.flatten_bottom_threshold.n != null) ? w.flatten_bottom_threshold.n : 0;
+                    $scale := (w.scale_factor.n != null) ? w.scale_factor.n : 1;
+                    $texFmt := (w.texture_format.s != "" ? w.texture_format.s : "jpeg");
+                    $part := w.part_names.s;
+                    $fbx := (w.fbx_preset.s != "" ? w.fbx_preset.s : "blender");
+                    $orient := (w.export_orientation.s != "" ? w.export_orientation.s : "default");
+                    $advanced :=
+                      w.quad.b or
+                      w.force_symmetry.b or
+                      w.flatten_bottom.b or
+                      w.pivot_to_center_bottom.b or
+                      w.with_animation.b or
+                      w.pack_uv.b or
+                      w.bake.b or
+                      w.export_vertex_colors.b or
+                      w.animate_in_place.b or
+                      ($face != -1) or
+                      ($texSize != 4096) or
+                      ($flatThresh != 0) or
+                      ($scale != 1) or
+                      ($texFmt != "jpeg") or
+                      ($part != "") or
+                      ($fbx != "blender") or
+                      ($orient != "default");
+                    {"type":"usd","usd": ($advanced ? 0.1 : 0.05)}
+                )
+                """,
+            ),
         )
 
     @classmethod

@@ -121,6 +121,9 @@ class ViduTextToVideoNode(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
+            price_badge=IO.PriceBadge(
+                expr="""{"type":"usd","usd":0.4}""",
+            ),
         )
 
     @classmethod
@@ -214,6 +217,9 @@ class ViduImageToVideoNode(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
+            price_badge=IO.PriceBadge(
+                expr="""{"type":"usd","usd":0.4}""",
+            ),
         )
 
     @classmethod
@@ -317,6 +323,9 @@ class ViduReferenceVideoNode(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
+            price_badge=IO.PriceBadge(
+                expr="""{"type":"usd","usd":0.4}""",
+            ),
         )
 
     @classmethod
@@ -426,6 +435,9 @@ class ViduStartEndToVideoNode(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
+            price_badge=IO.PriceBadge(
+                expr="""{"type":"usd","usd":0.4}""",
+            ),
         )
 
     @classmethod
