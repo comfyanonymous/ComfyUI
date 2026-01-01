@@ -233,6 +233,15 @@ class MoonvalleyImg2VideoNode(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
+            price_badge=IO.PriceBadge(
+                depends_on=IO.PriceBadgeDepends(widgets=["length"]),
+                expr="""
+                (
+                  $len := w.length.s;
+                  {"type":"usd","usd": ($len = "10s" ? 3.0 : 1.5)}
+                )
+                """,
+            ),  # TO-DO: This is 1:1 code from frontend, but this makes no sense as we don't have `length` widget
         )
 
     @classmethod
@@ -351,6 +360,15 @@ class MoonvalleyVideo2VideoNode(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
+            price_badge=IO.PriceBadge(
+                depends_on=IO.PriceBadgeDepends(widgets=["length"]),
+                expr="""
+                (
+                  $len := w.length.s;
+                  {"type":"usd","usd": ($len = "10s" ? 4.0 : 2.25)}
+                )
+                """,
+            ),  # TO-DO: This is 1:1 code from frontend, but this makes no sense as we don't have `length` widget
         )
 
     @classmethod
@@ -471,6 +489,15 @@ class MoonvalleyTxt2VideoNode(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
+            price_badge=IO.PriceBadge(
+                depends_on=IO.PriceBadgeDepends(widgets=["length"]),
+                expr="""
+                (
+                  $len := w.length.s;
+                  {"type":"usd","usd": ($len = "10s" ? 3.0 : 1.5)}
+                )
+                """,
+            ),  # TO-DO: This is 1:1 code from frontend, but this makes no sense as we don't have `length` widget
         )
 
     @classmethod
