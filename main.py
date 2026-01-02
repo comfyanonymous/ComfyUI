@@ -5,6 +5,7 @@ import os
 import importlib.util
 import folder_paths
 import time
+import socket
 from comfy.cli_args import args
 from app.logger import setup_logger
 import itertools
@@ -62,6 +63,31 @@ def handle_comfyui_manager_unavailable():
     args.enable_manager = False
 
 
+def ensure_ports_available(listen_addresses, port):
+    for raw_addr in listen_addresses.split(","):
+        addr = raw_addr.strip()
+        if addr == "":
+            addr = "0.0.0.0"
+        try:
+            addrinfo = socket.getaddrinfo(addr, port, type=socket.SOCK_STREAM)
+        except socket.gaierror as exc:
+            logging.error(f"Invalid listen address '{raw_addr}': {exc}")
+            raise SystemExit(1)
+
+        last_error = None
+        for family, socktype, proto, _, sockaddr in addrinfo:
+            try:
+                with socket.socket(family, socktype, proto) as sock:
+                    sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+                    sock.bind(sockaddr)
+                    break
+            except OSError as exc:
+                last_error = exc
+        else:
+            logging.error(f"Port {port} unavailable for address '{addr}': {last_error}")
+            raise SystemExit(1)
+
+
 if args.enable_manager:
     if importlib.util.find_spec("comfyui_manager"):
         import comfyui_manager
@@ -70,6 +96,9 @@ if args.enable_manager:
             handle_comfyui_manager_unavailable()
     else:
         handle_comfyui_manager_unavailable()
+
+
+ensure_ports_available(args.listen, args.port)
 
 
 def apply_custom_paths():
