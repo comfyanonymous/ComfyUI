@@ -2251,7 +2251,7 @@ async def init_external_custom_nodes():
                 logging.info(f"Skipping {possible_module} due to disable_all_custom_nodes and whitelist_custom_nodes")
                 continue
 
-            if args.enable_manager:
+            if getattr(args, "enable_manager", False):
                 if comfyui_manager.should_be_disabled(module_path):
                     logging.info(f"Blocked by policy: {module_path}")
                     continue

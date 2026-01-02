@@ -15,7 +15,8 @@
     You should have received a copy of the GNU General Public License
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
-
+import gc
+import torch
 import psutil
 import logging
 from enum import Enum
@@ -1088,10 +1089,9 @@ def cast_to(weight, dtype=None, device=None, non_blocking=False, copy=False, str
             if dtype is None or weight.dtype == dtype:
                 return weight
         if stream is not None:
-            wf_context = stream
-            if hasattr(wf_context, "as_context"):
-                wf_context = wf_context.as_context(stream)
-            with wf_context:
+            if not hasattr(stream, "__enter__"):
+                logging.error(f"Stream object {stream} of type {type(stream)} does not have __enter__ method")
+            with stream:
                 return weight.to(dtype=dtype, copy=copy)
         return weight.to(dtype=dtype, copy=copy)
 
@@ -1571,3 +1571,21 @@ def throw_exception_if_processing_interrupted():
         if interrupt_processing:
             interrupt_processing = False
             raise InterruptProcessingException()
+
+def cleanup_ram():
+    gc.collect()
+    try:
+        torch.cuda.empty_cache()
+    except:
+        pass
+def unload_text_encoder(encoder):
+    if encoder is None:
+        return
+    try:
+        if hasattr(encoder, "model"):
+            del encoder.model
+        del encoder
+    except:
+        pass
+    cleanup_ram()
+

@@ -741,6 +741,31 @@ class PromptExecutor:
                 "outputs": ui_outputs,
                 "meta": meta_outputs,
             }
+                         
+            try:
+                import comfy.model_management as mm
+
+                # If ComfyUI exposes loaded text encoders (most builds do)
+                if hasattr(mm, "loaded_text_encoders"):
+                    for enc in list(mm.loaded_text_encoders.values()):
+                        try:
+                            mm.unload_text_encoder(enc)
+                        except:
+                            pass
+
+                    mm.loaded_text_encoders.clear()
+
+                # Final RAM + VRAM cleanup
+                try:
+                    mm.cleanup_models_gc()
+                except:
+                    pass
+
+                print("[RAM Optimizer] Text encoders unloaded successfully after run.")
+            except Exception as e:
+                print(f"[RAM Optimizer] Failed to unload text encoders: {e}")
+            # --- END: Text Encoder RAM Cleanup Patch ---
+
             self.server.last_node_id = None
             if comfy.model_management.DISABLE_SMART_MEMORY:
                 comfy.model_management.unload_all_models()
