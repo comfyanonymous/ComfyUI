@@ -119,6 +119,9 @@ ComfyUI follows a weekly release cycle targeting Monday but this regularly chang
 
 1. **[ComfyUI Core](https://github.com/comfyanonymous/ComfyUI)**
    - Releases a new stable version (e.g., v0.7.0) roughly every week.
+   - Starting from v0.4.0 patch versions will be used for fixes backported onto the current stable release.
+   - Minor versions will be used for releases off the master branch.
+   - Patch versions may still be used for releases on the master branch in cases where a backport would not make sense.
    - Commits outside of the stable release tags may be very unstable and break many custom nodes.
    - Serves as the foundation for the desktop release
 
@@ -208,6 +211,8 @@ comfy install
 Python 3.14 works but you may encounter issues with the torch compile node. The free threaded variant is still missing some dependencies.
 
 Python 3.13 is very well supported. If you have trouble with some custom node dependencies on 3.13 you can try 3.12
+
+torch 2.4 and above is supported but some features might only work on newer versions. We generally recommend using the latest major version of pytorch unless it is less than 2 weeks old.
 
 ### Instructions:
 
