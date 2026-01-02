@@ -26,16 +26,18 @@ class ImageCrop(IO.ComfyNode):
             category="image/transform",
             inputs=[
                 IO.Image.Input("image"),
-                IO.Int.Input("width", default=512, min=1, max=nodes.MAX_RESOLUTION, step=1),
-                IO.Int.Input("height", default=512, min=1, max=nodes.MAX_RESOLUTION, step=1),
-                IO.Int.Input("x", default=0, min=0, max=nodes.MAX_RESOLUTION, step=1),
-                IO.Int.Input("y", default=0, min=0, max=nodes.MAX_RESOLUTION, step=1),
+                IO.ImageCrop.Input("crop_region"),
             ],
             outputs=[IO.Image.Output()],
         )
 
     @classmethod
-    def execute(cls, image, width, height, x, y) -> IO.NodeOutput:
+    def execute(cls, image, crop_region) -> IO.NodeOutput:
+        x = crop_region.get("x", 0)
+        y = crop_region.get("y", 0)
+        width = crop_region.get("width", 512)
+        height = crop_region.get("height", 512)
+
         x = min(x, image.shape[2] - 1)
         y = min(y, image.shape[1] - 1)
         to_x = width + x
