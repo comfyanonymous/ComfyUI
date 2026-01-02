@@ -324,7 +324,7 @@ class PromptServer():
         @routes.get("/models/{folder}")
         async def get_models(request):
             folder = request.match_info.get("folder", None)
-            if not folder in folder_paths.folder_names_and_paths:
+            if folder not in folder_paths.folder_names_and_paths:
                 return web.Response(status=404)
             files = folder_paths.get_filename_list(folder)
             return web.json_response(files)
@@ -579,7 +579,7 @@ class PromptServer():
             folder_name = request.match_info.get("folder_name", None)
             if folder_name is None:
                 return web.Response(status=404)
-            if not "filename" in request.rel_url.query:
+            if "filename" not in request.rel_url.query:
                 return web.Response(status=404)
 
             filename = request.rel_url.query["filename"]
@@ -593,7 +593,7 @@ class PromptServer():
             if out is None:
                 return web.Response(status=404)
             dt = json.loads(out)
-            if not "__metadata__" in dt:
+            if "__metadata__" not in dt:
                 return web.Response(status=404)
             return web.json_response(dt["__metadata__"])
 
