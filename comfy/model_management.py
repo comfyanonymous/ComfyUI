@@ -193,8 +193,12 @@ def get_total_memory(dev=None, torch_total_too=False):
     if dev is None:
         dev = get_torch_device()
 
-    if hasattr(dev, 'type') and (dev.type == 'cpu' or dev.type == 'mps'):
-        mem_total = psutil.virtual_memory().total
+    if hasattr(dev, "type") and (dev.type == "cpu" or dev.type == "mps"):
+        mem_total = 0
+        if args.total_ram != 0:
+            mem_total = args.total_ram * 1024 * 1024
+        else:
+            mem_total = psutil.virtual_memory().total
         mem_total_torch = mem_total
     else:
         if directml_enabled:
@@ -237,8 +241,15 @@ def mac_version():
         return None
 
 total_vram = get_total_memory(get_torch_device()) / (1024 * 1024)
-total_ram = psutil.virtual_memory().total / (1024 * 1024)
-logging.info("Total VRAM {:0.0f} MB, total RAM {:0.0f} MB".format(total_vram, total_ram))
+
+total_ram = 0
+if args.total_ram != 0:
+    total_ram = args.total_ram * (1024)  # arg in GB
+else:
+    total_ram = psutil.virtual_memory().total / (1024 * 1024)
+logging.info(
+    "Total VRAM {:0.0f} MB, total RAM {:0.0f} MB".format(total_vram, total_ram)
+)
 
 try:
     logging.info("pytorch version: {}".format(torch_version))
