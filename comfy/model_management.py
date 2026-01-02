@@ -1241,7 +1241,7 @@ def pytorch_attention_enabled():
     return ENABLE_PYTORCH_ATTENTION
 
 def pytorch_attention_enabled_vae():
-    if is_amd():
+    if is_amd() and not amd_min_version(device=None, min_rdna_version=4):
         return False  # enabling pytorch attention on AMD currently causes crash when doing high res
     return pytorch_attention_enabled()
 
