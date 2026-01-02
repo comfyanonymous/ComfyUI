@@ -430,7 +430,11 @@ def get_save_image_path(filename_prefix: str, output_dir: str, image_width=0, im
         prefix_len = len(os.path.basename(filename_prefix))
         prefix = filename[:prefix_len + 1]
         try:
-            digits = int(filename[prefix_len + 1:].split('_')[0])
+            # Extract the part after prefix (e.g., "00001_.png" or "00001.png")
+            remainder = filename[prefix_len + 1:]
+            # Try to parse digits - handle both "00001_" and "00001." formats
+            digits_str = remainder.split('_')[0].split('.')[0]
+            digits = int(digits_str)
         except:
             digits = 0
         return digits, prefix
@@ -464,7 +468,18 @@ def get_save_image_path(filename_prefix: str, output_dir: str, image_width=0, im
         raise Exception(err)
 
     try:
-        counter = max(filter(lambda a: os.path.normcase(a[1][:-1]) == os.path.normcase(filename) and a[1][-1] == "_", map(map_filename, os.listdir(full_output_folder))))[0] + 1
+        # Support both old format (filename_) and new format (filename) for backward compatibility
+        def matches_filename(a):
+            prefix = a[1]
+            # Match new format: "filename" (exact match)
+            if os.path.normcase(prefix) == os.path.normcase(filename):
+                return True
+            # Match old format: "filename_" (with trailing underscore)
+            if prefix.endswith("_") and os.path.normcase(prefix[:-1]) == os.path.normcase(filename):
+                return True
+            return False
+
+        counter = max(filter(lambda a: matches_filename(a), map(map_filename, os.listdir(full_output_folder))))[0] + 1
     except ValueError:
         counter = 1
     except FileNotFoundError:
