@@ -1,0 +1,113 @@
+﻿# Realistic People Photograph FLUX
+
+[← Back to INDEX](INDEX.md)
+
+## Stats
+
+| Metric | Value |
+|--------|-------|
+| **Downloads** | 11728 |
+| **👍** | 840 |
+| **Tips** | 20 |
+
+| Parameter | Value |
+|-----------|-------|
+| **File** | `aidmaRealisticPeoplePhotograph-FLUX-V0.1.safetensors` |
+| **Civitai** | https://civitai.com/models/726732/realistic-people-photograph-flux |
+| **Trigger word** | `aidmaRealisticPeoplePhotograph` |
+| **Strength** | 0.5-1.0 |
+| **Type** | Style / Realism / Photography |
+| **Version** | V0.1 |
+
+### Description
+First LoRA in a series aimed at making images hyper-realistic with true photography style. Focused on people photography with professional quality output.
+
+### Features
+- Professional photo style
+- Way more realistic details
+- More sharpness
+- Better and more intense colors
+- Wider variety of faces
+- Cooler image composing
+
+### Sample prompts
+
+**Prompt 1 (Model with sign):**
+```
+photograph, full body photo, a beautiful blonde super model holding up a sing with text:"realistic people", Canon eos 5d mark 4, Depth of field 100mm, lovely, symmetry, photography, aidmaRealisticPeoplePhotograph
+```
+
+**Prompt 2 (Indian goth):**
+```
+modeling photograph, rakshasa, indian beautiful, dark, mysterious, goth makeup, detailed flawless face, dramatic darkroom lighting, high exposure, (bubbly background:0.7), head and shoulders, 80mm camera
+```
+
+**Prompt 3 (OnlyFans style):**
+```
+beautiful woman, brunette, smiling, 21 years old, brown eyes, messy bun, light makeup, hyperdetailed photography, sexy onlyfans post, in hotel room, upper body, red lingerie
+```
+
+**Prompt 4 (Ecuadorean model - detailed):**
+```
+A 19year old Adult Ecuadorean Woman, light Skin, olive green Eyes, ginger Hairs, french Crop Haircut, wearing a Red and cherry ombre Pink satin bodysuit, mesh bustier layer, pearl spaghetti straps, platform boots with buckles, made of Seersucker, Outdoor Sports Room, (full body photo:1.4), (full body:1.4), (full shot:1.4), (full body shot:1.4), Thumbs Across the Neck Gesture, (8k,RAW photo,best quality,masterpiece,realistic,HDR:1.3), incredibly absurdres, ultra high resolution, (1girl,18 years old:1.5), teen, bishoujo, Delicate skin, baby face, extremely beautiful face, big eyes, pink blush, small mouth, cute smile, (short neck:1.3), Perky breasts, slim waist, flat belly, narrow ass, deep cleavage, <lora:aidmaRealisticPeoplePhotograph:0.8> aidmarealisticpeoplephotograph
+```
+
+### Negative prompt (recommended)
+```
+(worst quality:2),(low quality:2),(normal quality:2),Erotic,lowres,bad anatomy,(watermark),(sauteed tap),bad hands,normal quality,((monochrome)),((grayscale)),text,2 faces,cropped image,deformed hands,twisted fingers,long neck,extra limb,poorly drawn hands,missing limb,disfigured,blurry,bad anatomy,mutilated,surreal,extra fingers,distorted face,draft,grainy,watermark,moles,Pregnancy, big belly, bad_prompt_version2-neg, easynegative, negative_hand-neg, ng_deepnegative_v1_75t
+```
+
+### Tested combinations
+
+**Combination 1 (Artistic):**
+```
+<lora:aidmaRealisticPeoplePhotograph:0.5-1.0>
+<lora:NippleDiffusion-Flux:1.0>
+<lora:Style_Santiago_Caruso:1.0>
+<lora:Cinematic_Glamour_Photography_F1D:1.0>
+<lora:Midjourney_V7_FLUX:0.1>
+```
+
+**Combination 2 (NSFW Realism):**
+```
+Base: FLUX Dev
+<lora:XLabs_Flux_Realism:0.6>
+<lora:NSFW_master:0.8>
+<lora:aidmaRealisticPeoplePhotograph:0.5>
+```
+
+**Combination 3 (Film Stock):**
+```
+Base: FLUX Dev
+<lora:XLabs_Flux_Realism:0.6>
+<lora:NSFW_master:0.8>
+<lora:Kodak_Portra_400_F1D:0.4>
+<lora:aidmaRealisticPeoplePhotograph:0.6>
+```
+
+**Combination 4 (Cyberpunk + Film):**
+```
+Base: FLUX Dev
+<lora:XLabs_Flux_Realism:0.4>
+<lora:NSFW_master:0.4>
+<lora:Cyberpunk_Anime_Style_Flux:0.3>
+<lora:Kodak_Portra_400_F1D:0.6>
+<lora:aidmaRealisticPeoplePhotograph:0.5>
+```
+
+### Keywords
+- `aidmaRealisticPeoplePhotograph` - **REQUIRED** trigger word
+- `photograph`
+- `professional photo`
+- `hyperdetailed photography`
+- `RAW photo`
+- `Canon eos 5d mark 4`
+- `Depth of field`
+- `realistic`
+
+### Notes
+- Use trigger word `aidmaRealisticPeoplePhotograph` for best results
+- First in a series of hyper-realistic LoRAs
+- Works great with NSFW_master and XLabs Realism
+- Combine with film stock LoRAs for analog look
+- Lower strength (0.5-0.6) when stacking multiple LoRAs

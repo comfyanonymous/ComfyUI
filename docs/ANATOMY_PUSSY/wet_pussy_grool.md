@@ -1,0 +1,83 @@
+﻿# FLUX Wet Pussy / Grool
+
+[← Back to Index](INDEX.md)
+
+| Parameter | Value |
+|-----------|-------|
+| **File** | `wet-pussy-2.safetensors` |
+| **Civitai** | https://civitai.com/models/1471337/flux-wet-pussy-grool |
+| **Trigger word** | `wet pussy` (recommended) |
+| **Strength** | 0.35-1.0 |
+| **Type** | CONCEPT / Anatomy / Effect |
+| **Version** | v1.0 |
+
+## Description
+
+LoRA for creating wet/glistening pussy effect with grool (arousal fluid). Works with pretty much any art style. Author recommends pairing with Mystic XXX or other NSFW LoRA/Checkpoint to ensure proper anatomy placement.
+
+## Key features
+
+- Wet/glistening pussy effect
+- Grool/arousal fluid rendering
+- Works with any art style
+- Dripping liquid effect
+- Compatible with various poses
+
+## Recommended settings
+
+- **Steps:** 40
+- **CFG:** 5
+- **Size:** 1024x1024
+- **Clip skip:** 2
+
+## Sample prompts
+
+**Prompt 1 (Missionary with wet effect):**
+```
+High quality high resolution photo depicting her fully naked lying on her back on a bed with white sheets in anal missionary, pov anal missionary, legs folded up, penis in ass, anal missionary, pov, male out of frame only penis is visible inside her anus, pov anal missionary, pubic hair, hairy pussy, drenched glistening glazed dripping clear liquid, wet pussy
+```
+Settings: Steps: 40, CFG scale: 5, Size: 1024x1024
+
+**Prompt 2 (Simple wet effect):**
+```
+beautiful woman, nude, spread legs, wet pussy, glistening, dripping arousal fluid, grool, close up, detailed, realistic
+```
+Settings: Steps: 40, CFG scale: 5
+
+## Keywords
+
+- `wet pussy`
+- `grool`
+- `drenched`
+- `glistening`
+- `glazed`
+- `dripping clear liquid`
+- `arousal fluid`
+- `wet`
+
+## Tested combinations
+
+**Combination 1 (With NSFW stack - RECOMMENDED):**
+```
+<lora:wet-pussy-2:0.35>
+<lora:MysticXXX-v6:0.85>
+<lora:Anal_missionary:0.5>
+```
+
+## Important Note
+
+**Highly recommended** to pair with Mystic XXX or other NSFW LoRA/Checkpoint. Without it, pussies may render in wrong places (as noted by author).
+
+## Compatible checkpoints
+
+- FLUX Checkpoint Dev
+- Standard FLUX models
+
+## Notes
+
+- Strength 0.35 recommended when combining with other LoRAs
+- Use up to 1.0 for stronger wet effect
+- CFG 5 works well
+- Steps 40 for quality
+- **Pair with NSFW LoRA** to ensure proper anatomy placement
+- Works with any art style

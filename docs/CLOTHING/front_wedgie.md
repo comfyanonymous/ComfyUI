@@ -1,0 +1,45 @@
+﻿# Front Wedgie FLUX
+
+[← Back to CLOTHING Index](INDEX.md)
+
+| Parameter | Value |
+|-----------|-------|
+| **File** | `Front_Wedgie_FLUX.safetensors` |
+| **Original filename** | `Front Wedgie_epoch_5.safetensors` |
+| **Civitai** | https://civitai.com/models/862538/front-wedgie-fluxsdponysdxl |
+| **Trigger word** | None |
+| **Strength** | 1.1 |
+| **Type** | Clothing / Effect |
+| **Compatibility** | FLUX, SD, PONY, SDXL |
+
+## Description
+LoRA for generating front wedgie effect - panties pulled up tightly creating a visible camel toe effect. Works with multiple model types including FLUX, SD 1.5, Pony, and SDXL.
+
+## Sample prompts
+
+**Prompt 1 (Pakistani woman in lingerie shop):**
+```
+candid amateur style. 1woman, wearing (sheer mesh lacy front-wedgie panties:1.2), cameltoe, (frontwedgie:1.2), pussy, HD, high quality, high_res, anatomically correct. olive-skinned pakistani hijabi woman wearing an embroidered cotton kameez with a high side-slit, bent over on all fours in a sexy lingerie shop dressing room with a mirrored wall and terraced houses in the background <lora:Front_Wedgie_FLUX:1.1>. her labia and anus are darkened, and glistening. her anus is greasy. she has wide hips and a slim petite body and thick thighs. <lora:Flux_Skin_Detailer:0.7>, (aidmaimageupgrader:1.1). her inner labia are heavy and protruding. she is turning her head to the side and she has a knowing smile and is grinning, showing her teeth and blushing. her thighs are spread apart and her back is arched. her knees are spread wide apart. <lora:desiespresso-v2-flux:0.2> (desiespresso:1.2),
+```
+
+## Keywords
+- `front-wedgie panties`
+- `frontwedgie`
+- `cameltoe`
+- `sheer mesh lacy panties`
+- `panties pulled up`
+
+## Recommended combinations
+- `<lora:Flux_Skin_Detailer:0.7>` - Skin texture enhancement
+- `<lora:desiespresso-v2-flux:0.2>` - South Asian ethnicity
+- `<lora:aidmaImageUpraderv0.3:0.5>` - Image quality upgrade
+
+## Notes
+- Works with multiple model architectures: FLUX, SD 1.5, Pony, SDXL
+- Higher strength (1.1) recommended for strong wedgie effect
+- Combine with skin detail LoRAs for realistic texture
+
+## Quality Stats
+- **Downloads:** 725
+- **Rating:** 52
+- **Tips:** $0

@@ -1,0 +1,65 @@
+﻿# Patent Leather Pants
+
+[← Back to CLOTHING Index](INDEX.md)
+
+| Parameter | Value |
+|-----------|-------|
+| **File** | `flux-patent-leather-pants.safetensors` |
+| **Civitai** | https://civitai.com/models/1010232/patent-leather-pants?modelVersionId=1132382 |
+| **Trigger word** | `piku001` |
+| **Strength** | 0.8-1.0 |
+| **Type** | Clothing |
+| **Version** | v1.0 |
+
+## Description
+Shiny patent leather pants LoRA for FLUX. Best showcases curves of girl's lower body. Creates smooth, translucent leather pants that tightly wrap leg curves.
+
+## Key features
+- Shiny patent leather material
+- Tight-fitting style
+- Shows off leg and hip curves
+- Various colors supported
+
+## Sample prompts
+
+**Prompt 1 (Gym Japanese girl):**
+```
+piku001, A cute Japanese girl at the gym, wearing tight black patent leather pants that shine under the gym lights. She is turning her upper body to look back over her shoulder, smiling warmly and confidently at the camera. Her long dark hair is tied in a neat ponytail, and she has a sporty, energetic vibe. The gym background includes weight racks, mirrors, and workout equipment, with a soft focus to emphasize the girl as the main subject. Her expression is cheerful and inviting, with natural makeup and a healthy glow. The lighting is bright but natural, highlighting the glossy texture of her pants and the contours of her athletic figure. <lora:flux-patent-leather-pants:1>
+```
+
+**Prompt 2 (Looking back Niagara Falls):**
+```
+A 26-year-old girl stands tall, [Looking back], wearing turtleneck long-sleeved of various colors, with a pair of black skinny leather pants made of smooth and translucent material that tightly wraps the curves of the woman's legs. The back of the pants is tight, accentuating the woman's rounded and sexy hips. Leather pants are very fashionable and show off the charm of a woman. piku001, high heels, thin waist, full breasts, large and round hips, wearing a necklace and simple jewelry around his neck, his skin is fair and smooth, and his long black hair is draped over his shoulders, which sets off his sexy figure. In the background is Niagara Falls, USA, the waterfall is roaring, stirring up many splashes, water mist, blue sky and white clouds, and lush trees around <lora:flux-patent-leather-pants:1>
+```
+
+## Keywords
+- `piku001` - **TRIGGER WORD**
+- `patent leather pants`
+- `shiny leather pants`
+- `skinny leather pants`
+- `smooth and translucent material`
+- `tightly wraps the curves`
+- `rounded and sexy hips`
+
+## Tested combinations
+- Thigh high boots LoRA
+- Realistic People Photograph LoRA
+- Hourglass Body Shape LoRA
+
+## Recommended settings
+- **Steps:** 24-35
+- **CFG:** 1-3.5
+- **Sampler:** Euler
+- **Checkpoint:** FLUX Dev
+
+## Notes
+- Use trigger word `piku001`
+- Weight 0.8-1.0 recommended
+- Highlights leg curves well
+- Combines well with boots and body shape LoRAs
+- Works with various poses (standing, looking back)
+
+## Quality Stats
+- **Downloads:** 378
+- **Rating:** 34
+- **Tips:** $458

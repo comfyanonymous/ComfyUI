@@ -1,0 +1,112 @@
+﻿# Acorn Marina
+
+[← Back to Index](INDEX.md)
+
+## Civitai Stats
+
+| Metric | Value |
+|--------|-------|
+| **Downloads** | 423 |
+| **👍** | 54 |
+| **Tips** | 592 |
+| **Score** | - |
+
+## Parameters
+
+| Parameter | Value |
+|-----------|-------|
+| **File** | `MarinaA.safetensors` |
+| **Civitai** | https://civitai.com/models/1132169/acorn-marina |
+| **Trigger word** | `MarinaA` (optional but recommended) |
+| **Strength** | 0.25-1.0 (typically 0.6-0.75) |
+| **Type** | Character |
+| **Author** | Acorn |
+
+## Description
+
+Fictional character Marina by Acorn. Not meant to represent any real person. Characterized by fair skin, wavy hair (brown or blonde variations), slim physique. Very versatile LoRA - works great at strength 1.0 but also works down to 0.25. Does not require trigger word but `MarinaA` is recommended.
+
+## Recommended Settings
+
+| Parameter | Value |
+|-----------|-------|
+| **CFG** | **1** |
+| **Steps** | **8** |
+| **Sampler** | **DPM2** |
+| **Scheduler** | **Beta** (alpha: 0.6, beta: 0.6) |
+| **Resolution** | **1024x1280** |
+| **Model** | Acorn Is Spinning Flux Hyper 8 Step |
+| **Distilled CFG** | 0 |
+
+## Sample prompts
+
+**Prompt 1 (Studio nude - dramatic lighting):**
+```
+Photograph of a nude woman with fair skin and light brown wavy hair, sitting on her knees on a wooden surface. She has a slim physique, small breasts, and red lipstick. The lighting is dramatic, casting shadows and highlighting her body. The background is dark and out of focus, with a shallow depth of field. The camera angle is slightly below eye level, and the composition follows the rule of thirds. The image is high quality. (Do not include text or watermarks:1.5) <lora:nipples:0.99> <lora:MarinaA:0.75>
+```
+Negative: `(deformed nipples:1.5)`
+Settings: Steps: 8, CFG: 1, Sampler: DPM2, Size: 1024x1280, Schedule: Beta (0.6/0.6), Distilled CFG: 0
+
+**Prompt 2 (80s Drive-in - rear angle):**
+```
+cinematic photo from rear angle of a busty 18 year old woman with her hands in her hair, her huge sagging breasts stretching her shirt, wearing orange biker shorts and a (tight yellow crop top:1.3). She has silky black hair and pale white skin, toned round ass, gorgeous, narrow waist, slim petite body, average skin, (intricately detailed eyes), she has very massive breasts, turning her head to look back at viewer with a mischievous smile, in direct sun, centered in the image, 1980's drive-in burger place, retro, outdoor, bright sunny day at noon, deep blue sky, dark pavement, very detailed, shallow depth of field, subsurface scattering <lora:MarinaA:0.65>
+```
+Settings: Steps: 8, CFG: 1, Sampler: DPM2, Size: 1024x1280, Schedule: Beta (0.6/0.6), Distilled CFG: 0
+
+**Prompt 3 (Bedroom - Australian blonde):**
+```
+18 years old, (high definition), (cinematic) photo of girl in bedroom, high contrast, soft light, cute, petite, slender, Australian, (very large breasts:1.5), (small detailed nipples:1.5), Petite body, Toned body, (Wearing blue lace bra and gold heart locket necklace:1.4), Long blonde wavy hair, Big blue eyes, Highly detailed eyes, Highly detailed face, Highly detailed body, eyes open, Jewelry, (real skin, textured skin, intricately detailed eyes, perfect lips), (skin textures), (intricately detailed eyes:1.4), narrow hips, slim body, (subsurface scattering), (dim cozy lighting), warm rich dark color palette <lora:MarinaA:0.7>
+```
+Settings: Steps: 30, CFG: 3.5, Size: 832x1216
+
+**Prompt 4 (Window view - topless kneeling):**
+```
+A photograph of a 23 year old topless woman with a slender physique, medium-sized breasts, and long black hair tied in a high ponytail. She is kneeling on a cushioned bench in a side profile, facing left, with her hands on her hips. She is wearing only a black thong. The background features a lush green landscape with hills and trees, visible through a large window. The lighting is natural, with soft shadows. The image uses the rule of thirds composition, with the woman positioned in the left third. The background is in focus. (Do not include text or watermarks:1.5) <lora:nipples:0.99> <lora:MarinaA:0.75>
+```
+Negative: `(deformed nipples:1.5)`
+Settings: Steps: 8, CFG: 1, Sampler: DPM2, Size: 1024x1280, Schedule: Beta (0.6/0.6), Distilled CFG: 0
+
+**Prompt 5 (Mirror selfie - clothed):**
+```
+Glamour Photography of a woman taking a photo with her Samsung Galaxy S24 cell phone of herself in the mirror, she is 24 years old, has straight brown long hair, she is posing and is wearing leggings <lora:MarinaA:0.6> <lora:nipples:-1>
+```
+Settings: Steps: 25, CFG: 3.5, Sampler: DPM2, Size: 1024x1280, Schedule: Beta (0.6/0.6)
+
+**Prompt 6 (80s Drive-in - text on shorts):**
+```
+cinematic photo from rear angle of a busty 18 year old woman with her hands in her hair, her huge sagging breasts stretching her shirt, wearing "orange biker shorts with 'Give Me Anal' in a gothic font across the ass" and wearing a yellow bikini top. She has silky black hair and pale white skin, toned round ass, gorgeous, narrow waist, slim petite body, average skin, (intricately detailed eyes), she has very massive breasts, turning her head to look back at viewer with a mischievous smile, in direct sun, centered in the image, 1980's drive-in burger place, retro, outdoor, bright sunny day at noon, deep blue sky, dark pavement, very detailed, shallow depth of field, subsurface scattering <lora:MarinaA:0.65>
+```
+Settings: Steps: 8, CFG: 1, Sampler: DPM2, Size: 1024x1280, Schedule: Beta (0.6/0.6), Distilled CFG: 0
+
+## Tested combinations
+
+**Combination 1 (With nipples LoRA):**
+```
+<lora:MarinaA:0.75> <lora:nipples:0.99>
+```
+
+**Combination 2 (Hiding nipples for clothed shots):**
+```
+<lora:MarinaA:0.6> <lora:nipples:-1>
+```
+
+## Keywords
+
+- `MarinaA` - recommended trigger word
+- `fair skin`
+- `wavy hair` (brown, blonde, black variations)
+- `slim physique`
+- `small breasts` / `large breasts` (versatile)
+- `dramatic lighting`
+- `shallow depth of field`
+- `subsurface scattering`
+
+## Notes
+
+- Very versatile strength range (0.25-1.0)
+- Does not strictly require trigger word, but `MarinaA` recommended
+- Works with various hair colors (brown, blonde, black)
+- Excellent for dramatic studio lighting
+- Combine with nipples LoRA for better nipple quality
+- Use `<lora:nipples:-1>` to hide nipples in clothed shots
+- Works great with retro/80s aesthetic prompts

@@ -1,0 +1,121 @@
+﻿# Pussy on Display: Nude and Cameltoe
+
+[← Back to Index](INDEX.md)
+
+| Parameter | Value |
+|-----------|-------|
+| **File** | `Showing_pussy.safetensors` |
+| **Civitai** | https://civitai.com/models/699532/pussy-on-display-nude-and-cameltoe |
+| **Trigger word** | None (use descriptive prompt) |
+| **Strength** | 0.6-1.0 |
+| **Type** | CONCEPT / Anatomy / Pose |
+
+## Description
+
+LoRA designed to help FLUX understand nudes competently. All dataset images were individually selected, cropped, resized and labeled. Works for both nude poses and cameltoe effects with spread legs. High quality training for realistic anatomy understanding.
+
+## Key features
+
+- Nude understanding for FLUX
+- Spread legs with visible pussy
+- Cameltoe effect support
+- Works with various art styles (photorealistic, oil painting, digital)
+- Carefully curated dataset
+
+## Recommended settings
+
+- **Steps:** 30-38
+- **CFG:** 1-7 (varies by style)
+- **Sampler:** Euler
+- **Scheduler:** Simple
+- **Size:** 832x1216 or 1216x832
+- **Distilled CFG:** 4
+
+## Sample prompts
+
+**Prompt 1 (Artistic nude - chiaroscuro):**
+```
+a stunning young woman, around 25 years old, with a short bob haircut like Mathilda from "Leon: The Professional"; she has a graceful, aesthetic figure with third-size breasts, narrow waist and wide hips, long legs, pussy and vagina exposed, overall very feminine and noble proportions; her skin is lightly tanned; she is nude, sitting open legs on a chair draped in burgundy fabric, in a poised and confident posture, slightly leaning on one armrest while holding a red apple in one hand; the background is deep black, almost flat, with a focused soft artistic light illuminating her body, emphasizing the curves and beauty of her form; her facial expression is calm, refined, and aristocratic; the whole scene resembles a hyperrealistic painting, with subtle canvas texture around the edges, as if brushed on a light-toned canvas – Flux style, photorealistic painting, chiaroscuro lighting, cinematic composition
+```
+Settings: Steps: 30, CFG scale: 7, Size: 1216x832
+
+**Prompt 2 (Fantasy goth outdoors):**
+```
+Cinematic lighting, Perfect body, Gorgeous goth girl sitting on a rock with leg spread, holding a phone in her hand, sword laying beside her, surrounded by magic, birds, a fox stalks in the background, magical wisps fill the air, flirty, white hair, bright green eyes, pretty, eyeliner, smile, beautiful, (small breasts), ((skinny)), petite, ((young)), nude, petite body, pzzy, wet_pzzy, (((Creampie))), uncensored, pussy, athletic, skinny, model, outdoors in the forest, high detail, realistic, nsfw
+```
+Settings: Steps: 35, CFG scale: 3.5, Size: 832x1216
+
+**Prompt 3 (Pop-art photoshoot):**
+```
+Semi-realistic digital painting of a beautiful and sexy woman sitting nude while spreading her legs and showing her cute pussy. Her skin is oiled and shiny and she has small breasts with perky nipples. She wears thigh straps and a chest harness, and her hair is in a single braid that rests over her shoulder, her makeup is glossy and hints at a high fashion aesthetic, the background is a pop-art inspired photoshoot set, with professional photography lighting <lora:Showing_pussy:1>
+```
+Settings: Steps: 30, CFG scale: 1, Sampler: Euler, Schedule: Simple, Distilled CFG Scale: 4
+
+**Prompt 4 (Oil painting style):**
+```
+A nude woman lying on her back with spread legs and her feet up, showing her pussy and anus, she has perfect medium breasts and nipples, realistic, long hair, full lips, photorealistic oil painting, dreamy, detailed
+```
+Settings: Steps: 38, CFG scale: 4.5, Size: 832x1216
+
+## Keywords
+
+- `showing her pussy`
+- `spread legs`
+- `pussy exposed`
+- `vagina exposed`
+- `nude`
+- `open legs`
+- `sitting open legs`
+- `spreading her legs`
+- `cameltoe`
+- `pzzy` / `wet_pzzy` (alternative triggers)
+
+## Tested combinations
+
+**Combination 1 (Artistic style stack):**
+```
+<lora:Showing_pussy:0.9>
+<lora:MysticXXX-v6:0.7>
+<lora:Pencil_drawing_FLUX:0.6>
+<lora:Hyperdetailed_Colored_Pencil:0.2>
+```
+
+**Combination 2 (Detail + creampie):**
+```
+<lora:Showing_pussy:0.6>
+<lora:Detailifier:0.6>
+<lora:Aesthetic_LoRA:1>
+<lora:Creampie_Flux:0.1>
+<lora:Breast_size_slider:0.6>
+```
+
+**Combination 3 (Character style):**
+```
+<lora:Showing_pussy:1>
+<lora:s1n0z1ck-flux-test-lora:1>
+```
+
+**Combination 4 (Breast shaping - negative weight):**
+```
+<lora:Showing_pussy:-0.35>
+<lora:BreastShaper_splendid_droplets:1>
+<lora:Oiled_Skin:1>
+<lora:Areola_Flux:-0.1>
+<lora:Breast_size_slider:-1.55>
+```
+
+## Compatible checkpoints
+
+- FLUX Checkpoint Dev
+- flux1-dev-fp8
+- Standard FLUX models
+
+## Notes
+
+- Strength 0.6-1.0 (use 0.6 when combining with many LoRAs)
+- Can use negative weight (-0.35) for subtle effect with other LoRAs
+- Works with various art styles (photorealistic, oil painting, digital)
+- CFG 1-7 depending on style (lower for realistic, higher for artistic)
+- Steps 30-38 for quality
+- Carefully curated dataset for accurate anatomy
+- Works well with style LoRAs (Pencil drawing, Sinozick style, etc.)

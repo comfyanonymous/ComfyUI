@@ -1,0 +1,104 @@
+﻿# POV Mouth Open Tongue Out SOLO
+
+[← Back to Index](INDEX.md)
+
+| Parameter | Value |
+|-----------|-------|
+| **File** | `0pen_flux.safetensors` |
+| **Civitai** | https://civitai.com/models/778636/pov-mouth-open-and-tongue-out-solo-flux |
+| **Trigger word** | `0pen` (zero, not letter O) |
+| **Strength** | 0.8-1.0 |
+| **Type** | Pose / POV |
+
+## Description
+
+POV mouth open and tongue out pose LoRA for FLUX. Not overtrained - works well combined with character and style LoRAs. Creates "ahegao-like" or submissive facial expressions with open mouth and tongue out.
+
+**RECOMMENDED** - One of the better tongue LoRAs. Natural results, works well with character LoRAs. Planned for use in future workflows.
+
+### Key features
+- Not overtrained - merges well with other LoRAs
+- Works with character LoRAs
+- POV perspective
+- Good for cum/facial scenes
+
+## Sample prompts
+
+**Prompt 1 (Simple):**
+```
+mouth open, tongue out, a woman kneeling <lora:0pen_flux:1>
+```
+
+**Prompt 2 (With character LoRA):**
+```
+0pen photorealistic kneeling naked DittersGurl with mouth open and tongue out. She has cinnamon skin and blonde wavy hair with bright orange streaks. She kneels on a bearskin rug in a rustic cabin with a fireplace burning warmly in the background. <lora:0pen_flux:1>
+```
+
+**Prompt 3 (Hippie 60s style):**
+```
+Closeup of a hippie looking 24yo woman sitting on lawn, Intense blue eyes, small breasts, eyeshadow, looking at viewer, looking up, smirking, mole, pov, solo focus, uncensored, long blonde messy hair, hair strands on eyes, tired look, looking at viewer, happy, sleeveless shirt strap falling off shoulder, shorts, 60s photography, 35mm film, grainy, kodak film. Shallow depth of field, dappled sunlight, award winning photo, 0pen, tongue out, mouth open, from above, a woman <lora:0pen_flux:0.47>
+```
+
+**Prompt 4 (Gokkun Queen):**
+```
+Professional DSLR photo, Young, pale-skinned woman kneeling on a tile floor, knees spread, wearing a dark grey crop top with the words "Gokkun Queen" printed in medium italic white letters on it and light wash denim shorts. She holds a large, empty clear glass bowl just under her chin. Her brown hair is in a high ponytail style. She has an eager, joyful, and excited expression on her face as she positions the bowl carefully beneath her chin and holds her tongue out of her wide open mouth. 0pen, tongue out, mouth open <lora:0pen_flux:1>
+```
+
+**Prompt 5 (Bimbo from above):**
+```
+0pen, mouth open, tongue out, a brunette bimbo woman kneeling, from above, saliva, huge breasts, pov, ((chubby)), (((hand bra))), ((cleavage)), bra, bikini, pasties <lora:0pen_flux:1>
+```
+
+**Prompt 6 (Asian at pool):**
+```
+(pretty) asian woman, (on her knees, mouth open, tongue out), long black pigtails, sweet, innocent, badly fitting bikini, wet sheer bikini, skinny, small breasts, large nipples, (pubic hair), large eyes, holding a single condom, standing male pov, holding cash, medium shot, public pool, crowd <lora:0pen_flux:1>
+```
+
+**Prompt 7 (Christmas elf - dark skinned):**
+```
+Super cute, (young woman:1.7), (young face:1.9), happy, solo, beautiful dark skinned girl, 1girl, 24 years old, (short dark blonde hair:1.2), (partially dressed:2.2), ((wearing Christmas elf outfit:1.5)), torn tights, perky breasts, on snow, shot from above, sweaty skin, arching back, perfect ass, anal penetration, fit body, cinematic lightings, winter, winter resort, on the street, snow, spotlight, luminsm, polaroid film photography, choose up, vagina flash, In a Christmas village, Christmas style, sideboob, 0pen, 0pen, tongue out, mouth open, from above, a woman <lora:0pen_flux:1>
+```
+
+**Prompt 8 (Amateur smartphone selfie - European blonde):**
+```
+amateur smartphone selfie, overexposure, Low-resolution photo, shot on a mobile phone. young woman, 18 yo (european:1.6) girl, blonde, grey eyes, small breasts, skinny, thin, petite blonde, grey eyes, long hair, dark eyeliner, natural lip color, nude, looks up at viewer. Girl kneels on the floor, 0pen, tongue out, mouth open, from above, Bedroom, morning sun. <lora:0pen_flux:1>
+```
+
+**Prompt 9 (Extreme close-up mouth/throat - rainbow hair):**
+```
+score_9, score_8_up, score_7_up), 1girl, (solo), 20 year old, long hair, narrow waist, pretty face, looking up lustfully, green eyes, seductive look, ((((mouth open, tongue out, drool, throat view, extreme close up on mouth, uvula, inside mouth, detailed mouth, detailed throat, portrait, close up on face, zoom in on face, extreme close up, close up, zoom in, throat view, saliva, drool, saliva strings, wet mouth, saliva in mouth, dripping saliva,)))), OverallDetail, Expressiveh, depth of field, kneeling, view from above), white blonde hair, (pastel rainbow hair highlights), cute, eye contact, looking directly at viewer, cleavage, black choker, fishnets, extremely pale skin, cute face, round face, heart shaped face, 0pen <lora:0pen_flux:1>
+```
+
+## Keywords
+
+- `0pen` - **TRIGGER WORD** (zero, not O)
+- `mouth open`
+- `tongue out`
+- `from above`
+- `pov`
+- `kneeling`
+- `saliva`
+- `looking up`
+
+## Tested combinations
+
+- DittersGurl character LoRA
+- BreastShaper LoRA
+- UltraRealistic LoRA
+- Vantablack LoRA
+- Tongue Kissing LoRA
+- Cum LoRAs (works well for facial scenes)
+
+## Compatible checkpoints
+
+- FLUX Dev
+- FLUX.DEV DEDISTILLED
+- hypersense
+
+## Notes
+
+- Trigger word is `0pen` with ZERO, not letter O
+- Weight 0.8-1.0 works best
+- Not overtrained - combines well with other LoRAs
+- Great for POV facial/cum scenes
+- Works with `from above` perspective

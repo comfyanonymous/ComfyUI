@@ -1,0 +1,103 @@
+﻿# Acorn Foxty
+
+[← Back to Index](INDEX.md)
+
+## Civitai Stats
+
+| Metric | Value |
+|--------|-------|
+| **Downloads** | 269 |
+| **👍** | 34 |
+| **Tips** | 10 |
+| **Score** | - |
+
+## Parameters
+
+| Parameter | Value |
+|-----------|-------|
+| **File** | `Acorn_Foxty_09.safetensors` |
+| **Civitai** | https://civitai.com/models/1347140/acorn-foxty |
+| **Trigger word** | `Foxty` |
+| **Strength** | 0.62-0.75 |
+| **Type** | Character |
+| **Author** | Acorn |
+
+## Description
+
+Fictional character Foxty by Acorn. Flux version of Foxty LoRA. Not intended to represent any real person. Versatile character with typically red or brown wavy hair. Works excellently with Acorn Is Spinning Flux models and can be combined with other character LoRAs.
+
+## Recommended Settings
+
+| Parameter | Value |
+|-----------|-------|
+| **CFG** | **1** |
+| **Steps** | **10-22** |
+| **Sampler** | **DPM2** or **Euler** |
+| **Scheduler** | **Beta** (alpha: 0.6, beta: 0.6) or **Simple** |
+| **Resolution** | **1024x1280** to **1024x1496** |
+| **Model** | Acorn Is Spinning Flux (V1.5 Hyper or V1.69) |
+| **Distilled CFG** | 0-3.5 |
+
+## Sample prompts
+
+**Prompt 1 (Bathroom - bustier and stockings):**
+```
+candid photograph of an alluring young woman, 19 years old, tan skin, dark green eyes, tiny build, medium brown messy bun red hair, wearing classic black Rhinestone-embellished sweetheart bustier, lace panties, Thigh-high black stockings with garter, diamond earrings, lace garter belt, red lipstick, mascara, set in a sophisticated bathroom with dark tiles, a walk-in shower, ambient lighting, Four-Point Lighting, <lora:Acorn_Foxty_09:0.75>
+```
+Negative: `deformed hand`
+Settings: Steps: 10, CFG: 1, Sampler: DPM2, Size: 1024x1496, Schedule: Normal, Distilled CFG: 0
+
+**Prompt 2 (Studio portrait - leather jacket):**
+```
+"A young woman with long, wavy brown hair, a neutral skin tone, and a pleasant expression sits in a studio portrait. She wears a black leather jacket over a red bikini top, paired with distressed, light-wash blue jeans featuring significant rips and holes, especially on the thighs. Her jeans and upper legs are prominently visible in the frame. The dark, black backdrop creates a stark contrast against her attire, allowing her outfit to stand out. The slightly hyperrealistic aesthetic captures intricate details, from the texture of the clothing to the skin's surface. Focused lighting accentuates her features and highlights the garments' texture, with a chain necklace adding a finishing touch. The image subtly embraces an impressionistic style, lending a painterly feel to the overall composition." Foxty, <lora:Acorn_Foxty_09:0.62>
+```
+Settings: Steps: 20, CFG: 1, Sampler: Euler, Size: 1160x1496, Schedule: Simple, Distilled CFG: 3.5
+
+**Prompt 3 (Beach bikini):**
+```
+"A young woman in her late twenties with brown wavy hair and a medium complexion. She wears a vibrant two-toned bikini: a yellow-gold top with matching trim and green bottoms, fitting her physique. Posed relaxed, her body angled toward the camera, she holds sunglasses and gazes playfully at the viewer, exuding confidence and allure. The natural sunlight casts a warm glow on her skin, accentuating her features. Set against a tropical beach, the background features a cerulean sky with scattered clouds and a turquoise ocean with gentle ripples. The three-quarter shot emphasizes her figure and posture, with soft, warm lighting enhancing her skin tones. The colors are bright and saturated, evoking a cheerful, energetic vibe of a tropical summer day. The visible shoreline and ocean waves add a natural, scenic touch, creating a modern, fashion-forward atmosphere." Foxty, <lora:Acorn_Foxty_09:0.73>
+```
+Settings: Steps: 22, CFG: 1, Sampler: Euler, Size: 896x1152, Schedule: Simple, Distilled CFG: 3.5
+
+**Prompt 4 (Necromancer - fantasy):**
+```
+A petite long red haired 22 year old evil and beautiful necromancer, long flowing red hair, (dark serious expression:1.3), bangs, earrings, bone necklaces, dark eye shadow, red lips, vibrant, front-laced sheer, filmy silk blouse, cleavage, (holding human skull:1.3), in a sandstone room lit by candles, (dark theme, smokey air, dim lighting:1.4), High Detail, Perfect Composition, high contrast, <lora:Acorn_Foxty_09:0.75>
+```
+Negative: `deformed hand`
+Settings: Steps: 20, CFG: 1, Sampler: DPM2, Size: 1024x1280, Schedule: Beta (0.6/0.6), Distilled CFG: 0
+
+**Prompt 5 (Gothic parking lot - cinematic):**
+```
+a fierce yet hauntingly innocent young woman with striking blue eyes stands in a dimly lit parking lot at night, aiming a matte black Colt 1911 Pistol with a firm grip, her stance poised and confident; the camera captures her at a slight angle, emphasizing the depth of the scene as neon reflections dance across the wet asphalt; her silky red hair is styled into a sleek high ponytail, with soft, wispy bangs framing her pale face, strands subtly catching the cold glow of distant city lights; her lips are slightly parted, giving her an almost naive yet unsettling expression, as if caught between vulnerability and danger; she wears a gothic-inspired black corset with intricate lace embroidery and silver hook fastenings, cinching tightly at her waist, accentuating her silhouette, her bare shoulders exposed beneath the dim streetlights, adding an element of raw elegance to her presence; fingerless fishnet gloves extend up past her wrists, secured with delicate satin ribbons, while a spiked choker and a silver cross pendant rest against her collarbone, reflecting the flickering neon haze; the blurred background hums with city life, distant headlights streaking past, their glow shimmering across the damp pavement; the gun is slightly out of focus in the foreground, enhancing the cinematic depth, while her piercing gaze remains razor-sharp, locked in determination, poised between control and chaos <lora:Acorn_Foxty_09:0.7>
+```
+Settings: Steps: 10, CFG: 1, Sampler: DPM2, Size: 1920x1024, Schedule: Beta (0.6/0.6), Distilled CFG: 3.5
+
+## Tested combinations
+
+**Combination 1 (With Fictional Pamela):**
+```
+Foxty, FictualPamela <lora:Acorn_Foxty_09:0.62> <lora:Fictional_Model_Pamela_-_FLUX:0.62>
+```
+
+**Combination 2 (Film grain + detail enhancer):**
+```
+<lora:Acorn_Foxty_09:0.73> <lora:cinematic style film grain style film noise style v1:0.52> <lora:flux_train_replicate:0.65>
+```
+
+## Keywords
+
+- `Foxty` - **TRIGGER WORD**
+- `red hair` / `brown wavy hair`
+- `candid photograph`
+- `alluring young woman`
+- `gothic`, `necromancer`
+- `fantasy`, `cinematic`
+
+## Notes
+
+- Versatile character - works for casual, fantasy, gothic, and cinematic scenes
+- Use strength 0.62-0.75 for best results
+- Works great with Acorn Is Spinning Flux models (V1.5 Hyper 8 Step, V1.69)
+- Can be combined with other character LoRAs at reduced strength
+- Good for detailed prompts with atmospheric lighting descriptions
+- Use `<lora:nipples:-1.3>` if nipples need to be hidden in clothed shots

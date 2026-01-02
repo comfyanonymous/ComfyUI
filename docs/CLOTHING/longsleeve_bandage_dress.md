@@ -1,0 +1,51 @@
+﻿# FLUX Longsleeve Bandage Dress
+
+[← Back to CLOTHING Index](INDEX.md)
+
+| Parameter | Value |
+|-----------|-------|
+| **File** | `CrunchyBanana_FLUX_Long_Sleeve_Cutout_Bandage_Dress.safetensors` |
+| **Civitai** | https://civitai.com/models/1129939/flux-longsleeve-bandage-dress |
+| **Trigger word** | `long sleeve cutout bandage dress` |
+| **Strength** | 0.6-1.0 |
+| **Type** | Clothing / Dress |
+| **Version** | v1.0 |
+
+## Description
+Longsleeve cutout bandage dress LoRA for FLUX. Creates sexy, form-fitting bandage dresses with cutout details. At 0.6-0.7 strength it's more flexible with fabric variations.
+
+## Strength tips
+- **0.6-0.7**: More flexible with fabrics
+- **1.0**: Full bandage dress effect
+
+## Sample prompts
+
+**Prompt 1 (Amateur bedroom):**
+```
+amateur photo, overexposure, Low-resolution photo, shot on a mobile phone. young woman, 18 yo (european:1.6) girl, blonde, grey eyes, small breasts, perky breast, perky nipples, skinny, thin, petite blonde, grey eyes, long hair, ponytail, dark eyeliner, natural lip color, wearing long sleeve cutout bandage mini dress, thighhighs, platform heels. Girl standing seductive, looking at viewer seductive. The background shows modern bedroom <lora:CrunchyBanana_FLUX_Long_Sleeve_Cutout_Bandage_Dress:1>
+```
+
+**Prompt 2 (Beach cabin):**
+```
+Photograph of a slender woman with blonde ponytail hair, wearing a black long sleeve cutout bandage dress while posing in a beach cabin. <lora:CrunchyBanana_FLUX_Long_Sleeve_Cutout_Bandage_Dress:0.7>
+```
+
+## Keywords
+- `long sleeve cutout bandage dress`
+- `long sleeve cutout bandage mini dress`
+- `bandage dress`
+- `cutout dress`
+
+## Tested combinations
+- Thin Legs Skinny Ass LoRA
+- Character LoRAs (Anitka, etc.)
+
+## Notes
+- Use 0.6-0.7 for more fabric flexibility
+- Works well with thighhighs and platform heels
+- Good for sexy/seductive poses
+
+## Quality Stats
+- **Downloads:** 416
+- **Rating:** 45
+- **Tips:** $118

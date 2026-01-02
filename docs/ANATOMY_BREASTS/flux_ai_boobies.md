@@ -1,0 +1,92 @@
+﻿# Flux AI Boobies
+
+[← Back to Index](INDEX.md)
+
+## Civitai Stats
+
+| Metric | Value |
+|--------|-------|
+| **Downloads** | 3048 |
+| **👍** | 269 |
+| **Tips** | 100 |
+| **Score** | ⭐⭐ |
+
+## Parameters
+
+| Parameter | Value |
+|-----------|-------|
+| **File** | `ai_boobies.safetensors` |
+| **Civitai** | https://civitai.com/models/794985/flux-ai-boobies |
+| **Trigger words** | `mommymilkers`, `small breasts`, `petit breasts`, `large breasts`, `topless woman` |
+| **Strength** | 0.7-1.0 |
+| **Type** | Anatomy / NSFW / Skin Texture |
+| **Compatibility** | FLUX.1-dev |
+
+## Description
+
+Raw photorealistic amateur AI boobie skin texture LoRA. Combats FLUX Dev's NSFW blockage. Provides small or large nipple tips, areolas, skin wrinkles, tanned skin with bra patterns, and full to naturally saggy breasts. Biased towards younger adult women; leans South East Asian without ethnic indicator but diverse with European and Central/South Indigenous American women.
+
+## Key features
+
+- Realistic nipple and areola textures
+- Skin wrinkles and natural details
+- Tan lines and bra patterns
+- Full to saggy breast variations
+- Diverse ethnicity support
+
+## Sample prompts
+
+**Prompt 1 (Spanish woman):**
+```
+<lora:ai_boobies:0.8> <lora:SameFace_Fix:-0.6> sexy Spanish Olivia Perez, (a 30 year old woman:1.2). She has a tall and lanky body and petit breasts. She has grey hair, medium ombre hair. She is wearing a push-up bra and pleated skirt. She is modeling for you indoors, pulling her clothes off to reveal her breasts and nipples. She is blushing and has a nervous, shy, happy, ecstatic smile. 30mm candid analog film amatuer photo with film grain.
+```
+
+**Prompt 2 (Magazine cover):**
+```
+This is a photograph of a fashion magazine cover featuring a nude woman posing. The name of the magazine is "Tradwife Monthly", in bold. <lora:ai_boobies:.7>
+```
+
+**Prompt 3 (Mexican chola):**
+```
+Cinematic, front-facing view, shot with a 35mm, ultra detailed, ultra realistic colors, mexican woman in the streets, leaning on a low rider car, wearing loose slacks, topless, exposed breasts, glasses on head, sneakers, tattooes cholas style, In the style of cholas, RNAT, Real Nipples and Areola Textures
+```
+
+**Prompt 4 (Nudist beach):**
+```
+40yo Woman on a nudist beach with friends. Beautiful, Shaved pussy, clean pussy. Nude. Perfect vagina. Labia visible. Sexy, Seductive, Sunny day, nudist people in the background. Nudist crowd. Sun hat. water, sand. Dynamic pose, Happy. Smiling. Looking at camera. POV. Detailed skin, perfect skin. Perfect breasts, flat belly, Wet. hot. Long blonde hair in a bun/ponytail. Masterpiece RAW photo, standing, In the Aura of Light, (art by Ellen von Unwerth:1.5), dramatic sky, dark clouds, Depth of field:1.5, breasts <lora:ai_boobies:.7>
+```
+
+**Prompt 5 (Multi-ethnic):**
+```
+a naked black female with dark skin standing next to a naked Caucasian female and a naked Asian female on top of mt. Fuji, large breasts, hairy pussies <lora:ai_boobies:.7>
+```
+
+**Prompt 6 (See-through Mexican):**
+```
+magic seethrough, see-through, style of mstc, cinematic, blue hour lighting, prismatic lens, full body shot, side view, looking at viewer a beautiful mexican short dyed hair woman, hazel eyes, round eyes, small nose, prominent cheekbones, she's flirty and sensual, wearing a red see through fishnet dress, posing in a natural pose, she's outside in mexican street market, ultra detailed, ultra realistic, ultra detailed colors, 8k, film grain, real photography <lora:magic-see-through-clothing:1.2> <lora:ai_boobies:0.95> mommymilkers
+```
+
+**Prompt 7 (Pond bathing):**
+```
+cinematic, cinematic lighting, ultra realistic, ultra detailed skin and textures, add imperfect unique skin details and features, detailed skin with pores and soft natural wrinkles, full body shot of a beautiful cool young woman, beautiful legs, big breasts, big areolas, she has bright beautiful face makeup, beautiful small nose, slanted blue eyes, rosy cheeks, mesmerizing smile, calm and happy expression. Well-lit face showcasing extreme detail. She's looking at the viewer. Her smile is innocent, naive and sincere. High-contrast, beautiful vibrant radiant colors, in a beautiful pond shore sitting on a rock bathing. Canon EOS-1D X Mark III, 85mm lens, f/1.8, high dynamic range <lora:ai_boobies:1> mommymilkers
+```
+
+**Prompt 8 (Chinese tai chi):**
+```
+cinematic sunlight, sun rays lighting, full body shot, ultra detailed textures and colors, 8k, ultra realism, film grain, warm atmosphere, well-lit face, 35mm photography of a beautiful woman in a sexy pose, glow on face, sun bathing face, near a window in a chinese tai chi dojo, wearing chinese clothing: topless, chinese floral skirt, black stockings, nail polished toes, chinese sandals, chinese accessories: hairdress, earrings, necklaces, bracelets, looking at the camera <lora:ai_boobies:1> mommymilkers, detailed skin texture, (blush:0.5), (goosebumps:0.5), subsurface scattering
+```
+
+## Recommended combinations
+
+- `<lora:flux_realism:0.6>` - for enhanced realism
+- `<lora:flux_topless:0.8>` - for topless scenes
+- `<lora:SameFace_Fix:-0.6>` - to vary faces
+- `<lora:magic-see-through-clothing:1.2>` - for see-through effects
+- Acorn is Spinning FLUX checkpoint
+
+## Notes
+
+- Trigger word `mommymilkers` strongly activates the LoRA
+- Biased towards SE Asian without ethnic specification
+- Flexible with European, Central/South American ethnicities
+- Works great with film grain and analog photo styles

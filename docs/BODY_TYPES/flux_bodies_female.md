@@ -1,0 +1,78 @@
+﻿# Flux Bodies Female
+
+[Back to BODY_TYPES Index](INDEX.md)
+
+## Overview
+
+**Type:** Body Shape / Diversity
+**File:** `collbdy.safetensors`
+**Trigger Words:** None (use `<lora:collbdy:1>`)
+**Recommended Strength:** 1.0
+
+## Description
+
+Versatile LoRA celebrating the diversity of female body types. Generates various shapes and sizes with stunning accuracy, from petite to curvy, athletic to full-figured. Perfect for creating realistic and diverse body representations.
+
+## Civitai Stats
+
+- **Downloads:** 7,377
+- **Rating:** 295
+- **Tips:** 0
+- **Score:** ⭐⭐⭐
+- **URL:** https://civitai.com/models/776651/flux-bodies-female
+
+## Usage
+
+### Basic Setup
+```
+Strength: 1.0
+Trigger: None (specify in lora tag: <lora:collbdy:1>)
+```
+
+### Keywords
+- body diversity
+- various body types
+- realistic forms
+- natural proportions
+
+### Example Prompts
+
+**Artistic Portrait:**
+```
+image of a woman with long wavy hair, background blue and red smoke, topless, she is standing on a bear skin rug, she is wearing a fluffy white skirt, light from window is shining down on her, eye level shot, smiles, looking at the viewer
+```
+
+**Natural Body Types:**
+```
+full body portrait of a woman, natural body type, realistic proportions, confident pose, soft lighting, photorealistic
+```
+
+**Diverse Representation:**
+```
+professional photo of a woman, various body types, natural curves, studio lighting, realistic anatomy
+```
+
+## Tips
+
+- Use strength 1.0 for best results
+- Excellent for generating diverse, realistic body types
+- Works well with natural lighting and realistic prompts
+- Celebrates body diversity authentically
+
+## Compatibility
+
+- Works well with anatomy enhancement LoRAs
+- Compatible with most character and style LoRAs
+- Pairs nicely with realistic photography prompts
+
+## Notes
+
+- Focuses on authentic body diversity
+- Generates various shapes and sizes naturally
+- No specific trigger words needed
+- High accuracy in body type representation
+
+---
+
+**Category:** BODY_TYPES
+**Last Updated:** 2025-12-31

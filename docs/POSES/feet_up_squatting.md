@@ -1,0 +1,51 @@
+﻿# Feet Up Squatting
+
+[← Back to Index](INDEX.md)
+
+| Parameter | Value |
+|-----------|-------|
+| **File** | `FeetUp_v3_AIToolKit_000003420.safetensors` |
+| **Civitai** | https://civitai.com/models/1871711/feet-up-squatting |
+| **Trigger word** | `feet up`, `squatting` |
+| **Strength** | 0.8 |
+| **Type** | Pose |
+
+## Description
+
+LoRA for squatting pose with feet up, focusing on feet. Great for feet-focused content with natural squatting positions.
+
+**Note:** Hands were not specifically trained with a dedicated dataset, so artifacts may appear. Describe hand actions as precisely as possible for best results.
+
+### Trigger words
+
+- `feet up` - main pose trigger (weight 1.2 recommended)
+- `squatting` - squatting position (weight 1.2 recommended)
+- `barefoot` - bare feet (weight 0.8)
+- `feet focus` - focus on feet (weight 0.8)
+- `from side` - side angle (weight 1.2)
+
+## Sample prompts
+
+**Prompt 1 (Side view blonde with glasses):**
+```
+(feet up:1.2), (squatting:1.2), (barefoot:0.8), (feet focus:0.8), (from side:1.2), NSFW, nude, hands, Photograph of a nude blonde woman with long hair squating on a concrete surface with her feet up bare feet and feet as the focus. She is viewed from the side wearing glasses with hands resting on her knees. The background includes a weathered white wall with blue window panes and a rusty wooden frame. The lighting is natural highlighting her fair skin and slender curvy physique. The woman's expression is neutral and she is looking slightly to the side. <lora:FeetUp_v3_AIToolKit_000003420:0.8>
+```
+
+## Keywords
+
+- `feet up`
+- `squatting`
+- `barefoot`
+- `feet focus`
+- `from side`
+- `hands resting on knees`
+
+## Notes
+
+- Strength 0.8 recommended
+- Use weighted triggers: (feet up:1.2), (squatting:1.2)
+- Describe hand positions precisely to avoid artifacts
+- Works with Fluxmania/Kreamania checkpoints
+- Size 1216x832 (landscape) typical
+- CFG 3.5 recommended
+- Steps 28 for quality

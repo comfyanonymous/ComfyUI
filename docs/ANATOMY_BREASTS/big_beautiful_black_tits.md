@@ -1,0 +1,54 @@
+﻿# Big Beautiful Black Tits
+
+[← Back to Index](INDEX.md)
+
+## Civitai Stats
+
+| Metric | Value |
+|--------|-------|
+| **Downloads** | 1184 |
+| **👍** | 114 |
+| **Tips** | 0 |
+| **Score** | ⭐ |
+
+## Parameters
+
+| Parameter | Value |
+|-----------|-------|
+| **File** | `BBBTits_rank16_bf16.safetensors` |
+| **Civitai** | https://civitai.com/models/1477319/big-beautiful-black-tits-or-flux-pony-ill |
+| **Trigger word** | `BBBTits` |
+| **Strength** | 0.8 (sweet spot) |
+| **Type** | Anatomy / Breasts |
+
+## Description
+
+LoRA for generating large, natural breasts with realistic gravitational sag. Works with FLUX, Pony and Illustrious. Ideal for topless scenes with natural look.
+
+## Sample prompts
+
+**Prompt 1 (Construction worker):**
+```
+BBBTits, An ultra-high definition and high detailed portrait photograph of a gorgeous construction worker at a job site; she is the pinnacle of beauty. She is topless and is wearing tight jeans. The photo focuses on her face and breasts. The photo has very dramatic lighting and deep shadows. She has large breasts, natural breasts. The photo has sharp vivid colors. She is wearing a tasteful amount of makeup to accentuate her features. Detailed hands.
+```
+
+**Prompt 2 (Theatre stage):**
+```
+nsfw, best quality, masterpiece, photorealistic, uncensored, ((full body in shot)), rating_explicit, (((full shot))), (((head to toe shot))), (((whole body visible)))) nsfw, 22 year old african female, on a theatre stage with a microphone, long split dress, unbuttoned top, large tits, erect nipples, bbtits, one breast exposed, nippleslip, spotlight on her
+```
+
+## Keywords
+
+- `BBBTits`
+- `large breasts`
+- `natural breasts`
+- `topless`
+- `gravity sag`
+- `big tits`
+
+## Notes
+
+- Sweet spot strength is 0.8
+- Works with FLUX, Pony, and Illustrious
+- Focus on natural gravitational sag
+- Good for realistic topless scenes

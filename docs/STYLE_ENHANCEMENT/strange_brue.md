@@ -1,0 +1,116 @@
+﻿# Strange Brue
+
+[← Back to INDEX](INDEX.md)
+
+## Stats
+
+| Metric | Value |
+|--------|-------|
+| **Downloads** | 329 |
+| **👍** | 41 |
+| **Tips** | 10 |
+
+| Parameter | Value |
+|-----------|-------|
+| **File** | `strangebrew11.safetensors` |
+| **Civitai** | https://civitai.com/models/1048364?modelVersionId=1176300 |
+| **Trigger word** | None (use with `sexgames` style prompts) |
+| **Strength** | 0.7-1.0 |
+| **Type** | NSFW / Style Enhancement |
+| **Compatibility** | FLUX (recommend NSFW checkpoints) |
+
+### Description
+
+NSFW LoRA for generating intimate scenes between couples. Works best with:
+- NSFW checkpoints (iNiverse Mix, Acorn Is Spinning, JibMix)
+- Artistic styles (Rembrandt, Norman Rockwell, Soviet Era)
+- Detailed scene descriptions
+
+**WARNING:** NSFW content, use at your own risk.
+
+### Recommended checkpoints
+
+- iNiverse Mix SFW & NSFW
+- Acorn Is Spinning FLUX
+- JibMix FLUX
+- STOIQO Afrodite FLUX
+
+### Sample prompts
+
+**Prompt 1 (Rembrandt style oral scene):**
+```
+full body shot of UHD, 8K, ultra detailed, a cinematic photograph of Rembrandt style <lora:strangebrew11:1>, The image is a high-resolution photograph featuring a close-up, intimate scene between two nude individuals. The background is a stark white, creating a clean, minimalist aesthetic. The focus is on a young woman with fair skin and long, straight brown hair, which falls past her shoulders. She is performing oral sex on a man with a muscular, tanned body. Her eyes are closed, and her lips are wrapped around the man's erect penis. The woman's facial expression suggests pleasure and concentration. The lighting is soft, highlighting the smooth textures of their skin and the natural contours of their bodies. Baroque, chiaroscuro, realistic, emotional, flat lighting, beautiful lighting, great composition. Whole outfit, clear, sharp, balanced
+```
+Negative: `(elongated torso:1.6), (imperfect hands:1.5), (missing fingers:1.5), (extra fingers:1.5), (anime, cartoon), abstract, ugly, deformed, noisy, blurry`
+Settings: Steps: 40, CFG: 1, Sampler: DEIS/Euler, Size: 896x1152, Distilled CFG: 3.5, Schedule: Beta (0.6/0.6)
+
+**Prompt 2 (Soviet Era style):**
+```
+Rembrandt style full body shot of, <lora:strangebrew11:1>, woman and man, intimate scene. Whole outfit, clear, sharp, balanced. Baroque, chiaroscuro, realistic, emotional, prison, Soviet_Era_AHS, The AHGIS Image Style, Soviet era, USSR Retro, Soviet Union, scene of a sovet, Soviet futuristic, sovet style
+```
+Negative: `close up, cropped, blurry, unbalanced, abstract`
+Settings: Steps: 40, CFG: 1, Sampler: Euler, Size: 896x1152, Schedule: Simple, Distilled CFG: 3.5
+
+**Prompt 3 (Mature woman):**
+```
+UHD, 8K, ultra detailed, a cinematic photograph of, <lora:strangebrew11:1>, Rembrandt style, The image is a high-resolution photograph featuring a nude mature woman engaged in a sexual act. Her expression is one of contemplation or mild surprise, with wide, expressive green eyes and slightly parted lips. She has light skin, and is smiling broadly with her mouth open, showing her teeth. Her breasts are medium-sized with visible nipples. Her legs are spread apart. Her pubic hair is natural and dark. The background is a textured, dark brown background, adding a sense of depth and contrast to the scene. Baroque, chiaroscuro, realistic, emotional, flat lighting, beautiful lighting, great composition, full body, full shot
+```
+Settings: Steps: 30, CFG: 1, Sampler: Euler, Size: 896x1152, Schedule: Simple, Distilled CFG: 3.5
+
+**Prompt 4 (Cinematic bed scene):**
+```
+Rembrandt style UHD, 8K, ultra detailed, a cinematic photograph of This is a high-resolution photograph featuring two nude individuals engaged in a sensual pose on a white bed with a plain, light grey background. Whole outfit, clear, sharp, balanced. Baroque, chiaroscuro, realistic, emotional, <lora:strangebrew11:1> with charisma. 50mm lens, f/2.8, focused on eyes, natural lighting, beautiful lighting, great composition. Baroque, chiaroscuro, realistic, emotional, flat lighting
+```
+Negative: `close up, cropped, blurry, unbalanced, abstract, overexposed, underexposed, distorted, overprocessed, ugly, deformed, noisy`
+Settings: Steps: 40, CFG: 1, Sampler: Euler, Size: 896x1152, Schedule: Simple, Distilled CFG: 3.5
+
+**Prompt 5 (Leather bodysuit portrait):**
+```
+cinematic portrait of UHD, 8K, ultra detailed, a cinematic photograph of Rembrandt style, The image is a high-resolution photograph featuring a young woman with short, dark brown hair. She is seated on a light beige, fabric-covered couch with her legs slightly apart, giving a clear view of her pubic hair. She is wearing a black, leather-like bodysuit that is tight-fitting and accentuates her slender physique. The bodysuit has thin straps and a deep V-neckline that reveals her small to medium-sized breasts. She is also wearing black high-heeled shoes. The woman has a fair skin tone and a neutral expression, looking directly at the camera with a slight smile. Her makeup is minimal, with a focus on natural-looking eyes and lips. The background consists of a plain, light brown wall with a subtle, textured pattern. <lora:strangebrew11:0.7> Baroque, chiaroscuro, realistic, emotional, flat lighting, beautiful lighting, great composition. 85mm lens, f/1.8, dramatic side lighting, moody atmosphere
+```
+Negative: `abstract, ugly, deformed, noisy, blurry, NSFW, overblown highlights, noisy, grainy, oversaturated, wide-angle distortion`
+Settings: Steps: 40, CFG: 1, Sampler: Flux Realistic, Size: 1152x896, Schedule: Beta (0.6/0.6), Distilled CFG: 3.5
+
+### Keywords
+- `intimate scene`
+- `Rembrandt style`
+- `Baroque, chiaroscuro`
+- `realistic, emotional`
+- `flat lighting`
+- `UHD, 8K, ultra detailed`
+- `cinematic photograph`
+- `full body shot`
+- `50mm lens, f/2.8`
+- `natural lighting`
+
+### Tested combinations
+
+**Combination 1 (Norman Rockwell + Soviet Era):**
+```
+<lora:strangebrew11:1> <lora:NormanRockwellFlux:0.4-0.5> <lora:Soviet_Era_AHS:0.3-0.5>
+```
+
+**Combination 2 (Artistic mix):**
+```
+<lora:strangebrew11:0.7> <lora:NormanRockwellFlux:0.3> <lora:Watercolor_painting_v2:0.5> <lora:Mezzotint_Artstyle:0.3>
+```
+
+**Combination 3 (With realistic breast):**
+```
+<lora:strangebrew11:1> <lora:flux_train_replicate:0.5>
+```
+
+**Combination 4 (Hairy + oil painting):**
+```
+<lora:strangebrew11:0.7> <lora:h41ry:0.5> <lora:OB_oil_painting:0.3>
+```
+
+### Notes
+- Strength 0.7-1.0 (1.0 for strong effect, 0.7 when mixing styles)
+- Works best with NSFW checkpoints (iNiverse Mix, Acorn, JibMix)
+- Combines well with artistic style LoRAs (Norman Rockwell, Soviet Era)
+- Use detailed scene descriptions for best results
+- CFG 1 with Distilled CFG 3.5 recommended
+- Steps 30-40 for quality
+- Size 896x1152 typical
+- ADetailer recommended for face/hands/eyes refinement

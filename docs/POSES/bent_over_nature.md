@@ -1,0 +1,66 @@
+﻿# Flux: Bent Over (Nature Version)
+
+[← Back to Index](INDEX.md)
+
+| Parameter | Value |
+|-----------|-------|
+| **File** | `Flux_Bent_Over_Nature.safetensors` |
+| **Original filename** | `lora-000005.TA_trained.safetensors` |
+| **Civitai** | https://civitai.com/models/861514/flux-bent-over-nature-version |
+| **Trigger word** | None |
+| **Strength** | 0.9-1.0 |
+| **Type** | Pose / Outdoor |
+
+## Description
+
+LoRA for generating bent over poses in outdoor/nature settings. Best used with "Flux Anus & Pussy HD" LoRA for enhanced anatomy detail.
+
+### Supported locations
+- Grass field
+- Wheat field
+- Hill
+- River
+- Hill + River
+- Terrain
+- Forest
+
+## Sample prompts
+
+**Prompt 1 (Garden scene with desiespresso):**
+```
+candid amateur style. 1woman, from behind, bent over, pussy, anus, ass, nature, grass field, HD, high quality, high_res, anatomically correct. olive-skinned pakistani hijabi woman wearing an embroidered cotton kameez with a high side-slit, bent over on all fours in the garden in london with a wooden fence and terraced houses in the background <lora:Flux_Bent_Over_Nature:1>. her labia and anus are darkened, and glistening. her anus is greasy. she has wide hips and a slim petite body and thick thighs. <lora:Flux_Skin_Detailer:0.7>, <lora:aidmaImageUpraderv0.3:0.5>, (aidmaimageupgrader:1.1). her inner labia are heavy and protruding. she is turning her head to the side and she has a knowing smile and is grinning, showing her teeth and blushing. trellis with creepers and vines growing and legumes plant. potted plants and vegetable patch and tomato and chilli plants. rusty garden tools and dilapidated old garden shed. her thighs are spread apart and her back is arched. her knees are spread wide apart. <lora:desiespresso-v2-flux:0.2> (desiespresso:1.2),
+```
+
+**Prompt 2 (Snowy mountain):**
+```
+a woman outside on a snowy mountain, ice and snow, very pale skin <lora:hd_pussy_anus:0.8> from behind, double package, pussy, anus, high res <lora:Flux_Bent_Over_Nature:0.9> nature,
+```
+
+**Prompt 3 (Music festival):**
+```
+LLW_21, slightly chubby mature woman with blue eyes, long red hair, and big natural breasts, looking back over her shoulder at the viewer, 1woman, hair, from behind, bent over, pussy, anus, ass, nature, on the grass at a crowded outdoor music festival, naked, all fours, white footwear, HD, high quality, high_res, anatomically correct, depth of field, focus, blur background, detailed, 1girl, double package, high res <lora:Flux_Bent_Over_Nature:0.9> <lora:lora-000017.TA_trained:0.5> double package, detailed, pussy, anus, high res, <lora:Launda_v01:1>
+```
+
+## Keywords
+
+- `bent over`
+- `from behind`
+- `on all fours`
+- `nature`
+- `grass field` / `wheat field` / `forest`
+- `pussy` / `anus` / `ass`
+- `anatomically correct`
+- `double package`
+
+## Recommended combinations
+
+- `<lora:hd_pussy_anus:0.8>` - Flux Anus & Pussy HD for anatomy detail
+- `<lora:Flux_Skin_Detailer:0.7>` - Skin texture enhancement
+- `<lora:desiespresso-v2-flux:0.2>` - South Asian ethnicity
+- `<lora:aidmaImageUpraderv0.3:0.5>` - Image quality upgrade
+
+## Notes
+
+- Works best for outdoor/nature scenes
+- Combine with anatomy LoRAs for detailed genitals
+- Supports various outdoor locations

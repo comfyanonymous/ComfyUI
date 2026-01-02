@@ -1,0 +1,50 @@
+﻿# Flux: Panties Pulled To The Side
+
+[← Back to CLOTHING Index](INDEX.md)
+
+| Parameter | Value |
+|-----------|-------|
+| **File** | `Flux_Panties_Pulled_To_Side.safetensors` |
+| **Original filename** | `lora-000010.TA_trained.safetensors` |
+| **Civitai** | https://civitai.com/models/853721/flux-panties-pulled-to-the-side |
+| **Strength** | 0.7-1.0 |
+| **Type** | Clothing / Pose / NSFW |
+
+## Description
+LoRA for generating scenes with panties pulled to the side, exposing intimate areas. Works well for close-up and full body shots with anatomically correct results.
+
+## Sample prompts
+
+**Prompt 1 (Close-up with male hand):**
+```
+1woman, 1man, pussy, panties pulled to the side, male hand pulling panties to the side, close up, anatomically correct
+```
+
+**Negative prompt:**
+```
+cartoon, anime, deformed iris, deformed pupils, cgi, 3d, render, sketch, cartoon, drawing, anime, mutilated, extra fingers, mutated hands, poorly drawn hands, poorly drawn face, mutation, deformed, blurry, bad anatomy
+```
+
+**Settings:** Steps: 25, CFG: 1, Sampler: Euler, Size: 768x1152
+
+**Prompt 2 (Latina portrait):**
+```
+A high quality portrait of a 19 years old latina girl, skinny, tan medium sized breasts. extremely tight lace underwear. ((panties pulled to the side)). perfect body. ((Black bra pulled down around her waist)). tight body with nice abs, athletic body. balayage blonde highlights. perfect makeup, mascara, long fake eyelashes. kneeling on the floor with her legs spread, on her knees in front of black leather couch. completely topless. looking directly at the camera. her back is arched and she is facing the camera. photorealist image, raw photo, 8k uhd. skin looks so real it seems like you can touch it. Skin imperfections
+```
+
+## Keywords
+- `panties pulled to the side`
+- `pussy`
+- `close up`
+- `anatomically correct`
+- `lace underwear`
+
+## Notes
+- Use negative prompt for better anatomy
+- Works well with photorealistic style
+- Good for close-up and full body shots
+
+## Quality Stats
+- **Downloads:** 1,825
+- **Rating:** 147
+- **Tips:** $10

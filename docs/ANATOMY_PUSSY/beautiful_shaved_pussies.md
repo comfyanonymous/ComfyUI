@@ -1,0 +1,56 @@
+﻿# Beautiful Shaved Pussies v3
+
+[← Back to Index](INDEX.md)
+
+| Parameter | Value |
+|-----------|-------|
+| **File** | `beautiful-shavedpussv21.safetensors` |
+| **Civitai** | https://civitai.com/models/976476/beautiful-shaved-pussies-for-flux |
+| **Trigger word** | `shavpuss` |
+| **Strength** | 1.0 |
+| **Type** | CONCEPT |
+
+## Description
+
+LoRA for generating beautiful shaved pussy with realistic appearance. Designed specifically for FLUX models. Creates clean, well-defined anatomy with attention to realistic skin texture and lighting.
+
+## Recommended settings
+
+- **Steps:** 40-60
+- **CFG:** 1
+- **Sampler:** Euler
+- **Scheduler:** Simple
+- **Size:** 896x1152
+- **Distilled CFG:** 3.5-4
+
+## Sample prompts
+
+**Prompt 1 (Sunny morning blonde):**
+```
+In a sunlit bedroom with white linens and soft morning light, a beautiful blonde woman with wavy hair lies relaxed on her back, legs parted. Her skin glows warmly under the natural light. The scene is intimate, capturing subtle shadows and textures across her body. Her expression is content and comfortable. Close-up focus on her feminine curves and the delicate skin of her inner thighs, shavpuss, pussy <lora:beautiful-shavedpussv21:1>
+```
+
+**Prompt 2 (Pool scene brunette):**
+```
+By a sparkling turquoise swimming pool on a summer afternoon, a tanned brunette woman with wet hair sits on the edge with her legs spread casually. Droplets of water glisten on her smooth skin. The camera angle emphasizes her toned body and exposed anatomy, shavpuss, shaved pussy visible <lora:beautiful-shavedpussv21:1>
+```
+
+**Prompt 3 (Studio photography):**
+```
+Professional studio photograph, beautiful nude model with athletic build, sitting on white seamless backdrop, legs open, confident pose looking at camera, soft diffused lighting, high fashion aesthetic, shavpuss, detailed anatomy <lora:beautiful-shavedpussv21:1>
+```
+
+## Keywords
+
+- `shavpuss` - **REQUIRED** trigger word
+- `shaved pussy`
+- `smooth skin`
+- `legs parted`
+- `intimate`
+
+## Notes
+
+- Use trigger word `shavpuss` for best results
+- Works well with realistic lighting prompts
+- Combine with detail enhancers for maximum quality
+- Beta scheduler recommended (alpha: 0.6, beta: 0.6)

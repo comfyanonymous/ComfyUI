@@ -1,0 +1,106 @@
+﻿# Realistic Pussy FLUX
+
+[← Back to Index](INDEX.md)
+
+| Parameter | Value |
+|-----------|-------|
+| **File** | `Realistic_Pussy.safetensors` |
+| **Civitai** | https://civitai.com/models/884641/realistic-pussy-flux |
+| **Trigger word** | None |
+| **Strength** | 0.6-1.0 |
+| **Type** | Anatomy / NSFW |
+| **Version** | V1 |
+
+## Description
+
+LoRA for generating realistic, detailed female anatomy. Creates wet, light-reflecting pussy with natural appearance. Works well with various body types and scenarios. Particularly good for spread legs poses and detailed close-ups.
+
+## Sample prompts
+
+**Prompt 1 (Beach nude - analog film style):**
+```
+This photograph captures a woman lounging on a sandy beach. She has a light to medium skin tone and is of likely European or Mediterranean descent. Her dark hair is tied back with a white headband, and she wears a small nose ring on her left nostril. Her breasts are prominent, with visible nipples. She is completely nude, with her legs spread apart, exposing her genital area. Her expression is relaxed and slightly smiling, with a hint of amusement. The background is a sandy beach, with fine grains and a few scattered beach towels and objects. A bright yellow towel is draped over her right side, partially covering a green bag or blanket. The sunlight casts a warm glow on her skin, suggesting a sunny day. The image is candid and unfiltered, focusing on the natural, unposed setting of a beach. IMG_5150.CR2, analog film photo, cinematic film still, shallow depth of field, vignette, highly detailed, high budget Hollywood film, moody, epic, film grain, faded film, desaturated, 35mm photo, grainy, vignette, vintage, Kodachrome, stained, highly detailed, found footage, realist detail <lora:Jib_Flux_Nipple_Fix_v2:.7> <lora:Realistic_Pussy:.6>
+```
+
+**Prompt 2 (Furry sofa with stockings):**
+```
+1girl naked, spread legs wet pussy that is reflecting some light, sitting on a very soft furry sofa, her long soft legs wear red stockings, her hands tear her pussy a bit to the left and right, smirky aroused face expression, red lips and blue eyes, brunette hair, two red cushions on the sofa, window on the left side, with an autumn view outside, soft warm light shining inside the room, wallpaper with a repetitive simple pattern, on the right side a library stand lamp with a green lampshade, details in the background
+```
+
+**Prompt 3 (Bed orgasm with hairy pussy):**
+```
+female laying on the bed, naked, orgasm face, show her breast and vagina, her legs spread wide, hairypussy
+```
+
+**Prompt 4 (Forest fence - hyperrealistic):**
+```
+A hyperrealistic cinematic vignette of a half-clothed woman perched on a rustic fence in a sunlit forest edge, every skin pore, wood grain, and stray pink hair captured in ultra-HD clarity under dynamic natural lighting.
+```
+
+**Prompt 5 (Simple standing blonde):**
+```
+Woman, blonde, twin braids, totally naked, standing, shaved pussy visible
+```
+
+## Keywords
+
+- `wet pussy`
+- `spread legs`
+- `shaved pussy visible`
+- `pussy reflecting light`
+- `genital area`
+- `legs spread apart`
+- `anatomically correct`
+- `realistic`
+
+## Tested combinations
+
+**Combination 1 (Nipples + Realistic Anatomy):**
+```
+Checkpoint: AGFlux v3 fp8
+<lora:Jib_Flux_Nipple_Fix_v2:0.7>
+<lora:Realistic_Pussy:0.6>
+```
+
+**Combination 2 (Full NSFW stack):**
+```
+Checkpoint: FLUX Dev
+<lora:NSFW_Master_Flux:0.75>
+<lora:Matte_Black:1>
+<lora:Hands_F1D:1>
+<lora:Oiled_Skin:0.5>
+<lora:Realistic_Pussy:0.6>
+<lora:Realistic_Skin_Texture:0.75>
+```
+
+**Combination 3 (Natural breasts + Hairy):**
+```
+<lora:Natural_Breast_Shape_V2:0.8>
+<lora:TWbabeFlux:1>
+<lora:Realistic_Pussy:1>
+<lora:Hairy_Style_FLUX:1>
+```
+
+**Combination 4 (Joy + Realistic):**
+```
+<lora:Realistic_Pussy:1>
+<lora:JOY_V1:0.8>
+```
+
+## Works well with
+
+- Jib Flux Nipple Fix - nipple enhancement
+- NSFW Master Flux - overall NSFW quality
+- Natural Breast Shape - breast realism
+- Hairy Style FLUX - pubic hair
+- Oiled Skin - skin shine
+- Skin Texture LoRAs - skin detail
+
+## Notes
+
+- Use strength 0.6 for subtle effect, 1.0 for strong
+- Works with various ethnicities and body types
+- Good for both close-up and full body shots
+- Creates realistic wet/reflective appearance
+- Combine with nipple fix LoRA for complete anatomy
+- Works with analog film and cinematic styles

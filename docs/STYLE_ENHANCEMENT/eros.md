@@ -1,0 +1,48 @@
+﻿# Eros v06
+
+[← Back to INDEX](INDEX.md)
+
+## Stats
+
+| Metric | Value |
+|--------|-------|
+| **Downloads** | 1654 |
+| **👍** | 133 |
+| **Tips** | 590 |
+
+| Parameter | Value |
+|-----------|-------|
+| **File** | `eros_v06.safetensors` |
+| **Civitai** | https://civitai.com/models/1063613/eros?modelVersionId=1364408 |
+| **Trigger word** | `topless`, `nude`, `naked` |
+| **Strength** | 0.8-1.0 |
+| **Type** | CONCEPT / Nudity |
+
+### Description
+Reproduce human nudity with high accuracy and controllability on various body types, ethnicities, styles without shifting the base model too much.
+
+### Recommended settings
+- Steps: 20-40 (weird pose = more steps)
+- CFG: 2.5-5
+- Samplers: Euler/Simple, Beta, DDEIS/DDIM, Flux realistic
+
+### Supported features
+- **Poses:** standing, sitting, squatting, resting, lying, crouching, on all fours
+- **Camera angles:** selfie, from behind, profile, top view, rear view, high/low angle
+- **Close-up:** chest, lower body, pussy, breasts, buttocks, feet, hands
+- **Breasts sizes:** tiny to enormous
+- **Ethnicity:** Caucasian, Asian, Korean, Japanese, African, European, etc.
+- **Skin color:** pale, fair, light, olive, medium, dark
+- **Pubic hair:** hairy, trimmed, shaved
+
+### Sample prompts
+
+**Prompt 1 (Mountain nude):**
+```
+A full body photo of an 18 year old Russian woman, nude side profile, she has small pointy breasts which sag gently, she is standing on top on a mountain with the clouds below her, moody lighting, (she is wearing thigh-high stockings:1.2), erotic photograph, sexy revealing pose <lora:eros_v06:1>
+```
+
+**Prompt 2 (Forest path):**
+```
+The image shows a young woman standing on a rocky path in a forest. She is wearing a lower down gray dress, exposing her breasts, with a belt around her waist. She has shoulder-length blonde hair and is looking directly at the camera with a serious expression. <lora:eros_v06:1>
+```

@@ -1,0 +1,121 @@
+﻿# AssExpose Flux
+
+[← Back to Index](INDEX.md)
+
+| Parameter | Value |
+|-----------|-------|
+| **File** | `AssExpose_Flux.safetensors` |
+| **Original filename** | `assexpose.safetensors` |
+| **Civitai** | https://civitai.com/models/843795/assexpose-flux |
+| **Trigger word** | None |
+| **Strength** | 0.8-1.2 |
+| **Type** | CONCEPT / Pose |
+
+## Description
+
+LoRA for poses of females showing off their nude ass. Part of "expose" LoRA series. No trigger word needed - use simple prompt like "woman exposing her nude ass". Genitals can be hit or miss, improve with anatomy LoRAs.
+
+### Key features
+
+- Various ass exposure poses
+- Kneeling, lying, all fours positions
+- Looking back at viewer
+- Works with various settings/environments
+- No trigger word required
+
+## Recommended settings
+
+- **Steps:** 20+
+- **CFG:** 1
+- **Distilled CFG:** 2.5-3.5
+- **Sampler:** Euler / DPM++ 2M / DPM2
+- **Scheduler:** Beta / normal / simple / SGM uniform
+- **Size:** 896x1200, 832x1216, 1216x832
+
+**Author's preference:** Dist.CFG: 3 / 22 steps / Euler - Beta / strength 1
+
+## Sample prompts
+
+**Prompt 1 (All fours, countryside):**
+```
+erotic porn photo of a naked ginger woman kneeling on all fours with her ass up facing viewer and exposing her nude ass, she is looking at viewer and wearing nothing. Set at a cozy bed and breakfast tucked away in the countryside, where guests can enjoy intimate moments in their quaint rooms or by the crackling fireplace in the common area. <lora:AssExpose_Flux:1>
+```
+
+**Prompt 2 (Rooftop city):**
+```
+erotic porn photo of a naked dark haired woman lying and exposing her nude ass, she is looking at viewer and wearing sneakers. Set at a rooftop terrace of a skyscraper, overlooking the city skyline, providing an exhilarating rush as you engage in kinky activities amidst the urban landscape.
+```
+
+**Prompt 3 (Celestial sunset):**
+```
+A highly photorealistic image of a celestial and serene scene featuring a beautiful young woman lying on shallow water at sunset, exposing her nude ass and perfect pussy. Her ass is facing viewer and she is looking back at viewer. The photo is taken by a master photographer from behind. She is naked and nude. In the background, a dramatic view of the Milky Way galaxy and nebulae arc across the night sky, its vibrant colors blending into a rich sunset.
+<lora:AssExpose_Flux:1>
+```
+
+**Prompt 4 (Caribbean woman, football field):**
+```
+Dark haired Caribbean woman sexy amateur horny. high res detailed photo woman exposing her nude ass. Dark skinned Detailed natural skin textures and details in her natural athletic body, hairy labia and open pink vaginal hole, highly detailed, intricate, detailed. Bending over with Blue and yellow pom poms in her hands legs spread ass spread pussy shot from behind focus. Looking back at the viewer red lips glisten, pink vaginal hole. puffy nipples, muscular legs ass spread the bright day time sun lighting her as she seductively poses, body paint on her ass (LSU Tiger painted on her ass), she is kneeling on a football field at a LSU college football game in background
+```
+
+**Prompt 5 (Asian office):**
+```
+b1azn erotic porn photo of a naked asian woman kneeling on all fours with her ass up facing viewer and exposing her nude ass, she is looking at viewer and wearing a leather jacket. Set at a sprawling, high-tech security firm with sleek, glass-walled offices overlooking the city, where corporate intrigue unfolds in a sterile environment of chrome and concrete, and every conversation is under surveillance.
+```
+
+**Prompt 6 (Greek nymph, mythological):**
+```
+completely naked, mythological, Raphael style, petite girl, 20yo young ancient Greek Sensual Water Nymph, with perky puffy nipples, with unshaven pussy, emerging from the ocean, Divine, Playful, ethereal, Graceful, Enchanting, Harmonious, Idealized, intricate sheer flowing Garments, breathtaking, wet, untouched beauty, showing her gorgeous butt, dark makeup, masterpiece, best quality, ultra-detailed, very aesthetic, masterwork
+digital artwork, illustrative, painterly, matte painting
+```
+
+## Keywords
+
+- `exposing her nude ass`
+- `woman exposing her nude ass`
+- `ass up facing viewer`
+- `looking back at viewer`
+- `kneeling on all fours`
+- `ass up`
+- `nude ass`
+- `from behind`
+- `ass spread`
+
+## Tested combinations
+
+**Combination 1 (With character LoRA):**
+```
+<lora:AssExpose_Flux:1> <lora:Tiny_Petite_Asian:1>
+```
+
+**Combination 2 (With anatomy LoRAs):**
+```
+<lora:AssExpose_Flux:1> <lora:BetterButts:0.45> <lora:Perfect_Pussy:1>
+```
+
+**Combination 3 (With colorful style):**
+```
+<lora:AssExpose_Flux:1> <lora:flux-colourful:0.8>
+```
+
+**Combination 4 (With realism):**
+```
+<lora:AssExpose_Flux:1> <lora:Realistic_Nudes:1.05>
+```
+
+## Related LoRAs (same author)
+
+- Couple Fingering: https://civitai.com/models/790075
+- Couple Nursing Handjob: https://civitai.com/models/789692
+- Lesbia Play: https://civitai.com/models/820677
+- Expose Flux: https://civitai.com/models/792513
+
+## Notes
+
+- No trigger word needed
+- Simple prompt: "woman exposing her nude ass"
+- Strength 0.8-1.2 works well
+- Genitals can be hit or miss - use anatomy LoRAs
+- Works with various environments
+- Combine with character LoRAs for specific looks
+- Beta scheduler (0.6/0.6) recommended
+- Distilled CFG 2.5-3.5 typical

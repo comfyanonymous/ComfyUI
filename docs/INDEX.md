@@ -1,4 +1,4 @@
-# FLUX NSFW LoRA Documentation
+﻿# FLUX NSFW LoRA Documentation
 
 Documentation for LoRA models used in generating realistic images with female anatomy focus.
 
@@ -8,21 +8,27 @@ Documentation for LoRA models used in generating realistic images with female an
 
 | # | Category | File | Description |
 |---|----------|------|-------------|
-| 1 | [Checkpoints](01_CHECKPOINTS.md) | `01_CHECKPOINTS.md` | Base models and diffusion checkpoints |
-| 2 | [Anatomy - Ass & Butt](02_ANATOMY_ASS.md) | `02_ANATOMY_ASS.md` | LoRAs for buttocks and rear anatomy |
-| 3 | [Anatomy - Pussy & Vagina](03_ANATOMY_PUSSY.md) | `03_ANATOMY_PUSSY.md` | LoRAs for vaginal anatomy |
-| 4 | [Anatomy - Breasts & Nipples](04_ANATOMY_BREASTS.md) | `04_ANATOMY_BREASTS.md` | LoRAs for breast and nipple generation |
-| 5 | [Anatomy - Areolas](05_ANATOMY_AREOLAS.md) | `05_ANATOMY_AREOLAS.md` | LoRAs for areola variations |
-| 6 | [Poses & Angles](06_POSES.md) | `06_POSES.md` | LoRAs for specific poses and camera angles |
-| 7 | [Clothing & Fashion](07_CLOTHING.md) | `07_CLOTHING.md` | LoRAs for clothing effects and styles |
-| 8 | [Ethnicity - Latina](08_ETHNICITY_LATINA.md) | `08_ETHNICITY_LATINA.md` | LoRAs for Latina/Hispanic characters |
-| 9 | [Ethnicity - Asian](09_ETHNICITY_ASIAN.md) | `09_ETHNICITY_ASIAN.md` | LoRAs for Asian characters |
-| 10 | [Ethnicity - Other](10_ETHNICITY_OTHER.md) | `10_ETHNICITY_OTHER.md` | LoRAs for Indian, Polynesian, etc. |
-| 11 | [Characters - Acorn Collection](11_CHARACTERS_ACORN.md) | `11_CHARACTERS_ACORN.md` | Acorn series character LoRAs |
-| 12 | [Characters - Other](12_CHARACTERS_OTHER.md) | `12_CHARACTERS_OTHER.md` | Other character LoRAs |
-| 13 | [Body Types & Shape](13_BODY_TYPES.md) | `13_BODY_TYPES.md` | LoRAs for body shapes and physiques |
-| 14 | [Style & Enhancement](14_STYLE_ENHANCEMENT.md) | `14_STYLE_ENHANCEMENT.md` | Style, realism, and quality enhancers |
+| 1 | [Checkpoints](CHECKPOINTS/INDEX.md) | `CHECKPOINTS/` | Base models and diffusion checkpoints (17 files) |
+| 2 | [Anatomy - Ass & Butt](ANATOMY_ASS/INDEX.md) | `ANATOMY_ASS/` | LoRAs for buttocks and rear anatomy (14 files) |
+| 3 | [Anatomy - Pussy & Vagina](ANATOMY_PUSSY/INDEX.md) | `ANATOMY_PUSSY/` | LoRAs for vaginal anatomy (28 files) |
+| 4 | [Anatomy - Breasts & Nipples](ANATOMY_BREASTS/INDEX.md) | `ANATOMY_BREASTS/` | LoRAs for breast and nipple generation (17 files) |
+| 5 | [Anatomy - Areolas](ANATOMY_AREOLAS/INDEX.md) | `ANATOMY_AREOLAS/` | LoRAs for areola variations (4 files) |
+| 6 | [Poses & Angles](POSES/INDEX.md) | `POSES/` | LoRAs for specific poses and camera angles (42 files) |
+| 7 | [Clothing & Fashion](CLOTHING/INDEX.md) | `CLOTHING/` | LoRAs for clothing effects and styles (30 files) |
+| 8 | [Ethnicity - Latina](ETHNICITY_LATINA/INDEX.md) | `ETHNICITY_LATINA/` | LoRAs for Latina/Hispanic characters (4 files) |
+| 9 | [Ethnicity - Asian](ETHNICITY_ASIAN/INDEX.md) | `ETHNICITY_ASIAN/` | LoRAs for Asian characters (6 files) |
+| 10 | [Ethnicity - Other](ETHNICITY_OTHER/INDEX.md) | `ETHNICITY_OTHER/` | LoRAs for Indian, Polynesian, etc. (2 files) |
+| 11 | [Characters - Acorn Collection](CHARACTERS_ACORN/INDEX.md) | `CHARACTERS_ACORN/` | Acorn series character LoRAs (7 files) |
+| 12 | [Characters - Other](CHARACTERS_OTHER/INDEX.md) | `CHARACTERS_OTHER/` | Other character LoRAs (14 files) |
+| 13 | [Body Types & Shape](BODY_TYPES/INDEX.md) | `BODY_TYPES/` | LoRAs for body shapes and physiques (10 files) |
+| 14 | [Style & Enhancement](STYLE_ENHANCEMENT/INDEX.md) | `STYLE_ENHANCEMENT/` | Style, realism, and quality enhancers (56 files) |
 | 15 | [Combinations & Tips](15_COMBINATIONS_TIPS.md) | `15_COMBINATIONS_TIPS.md` | Recommended combinations and guidelines |
+| 16 | [Upscalers](16_UPSCALERS.md) | `16_UPSCALERS.md` | Image upscaling models (Remacri, UltraSharp, etc.) |
+| 17 | [Hands & Nails](HANDS/INDEX.md) | `HANDS/` | Hand anatomy fix, finger detail, nails (6 files) |
+| 18 | [Characters - WATW](CHARACTERS_WATW/INDEX.md) | `CHARACTERS_WATW/` | Women Around The World character LoRAs |
+| 19 | [Concepts](CONCEPTS/INDEX.md) | `CONCEPTS/` | Concept LoRAs (cum effects, etc.) |
+| 20 | [Animals](ANIMALS/INDEX.md) | `ANIMALS/` | Animal LoRAs (cats, etc.) |
+| 21 | [Video Generation](VIDEO/INDEX.md) | `VIDEO/` | Image-to-Video models (Wan 2.1) |
 
 ---
 
@@ -53,7 +59,8 @@ Documentation for LoRA models used in generating realistic images with female an
 | LoRAs | `ComfyUI\models\loras\` |
 | VAE | `ComfyUI\models\vae\` |
 | CLIP | `ComfyUI\models\clip\` |
+| Upscalers | `ComfyUI\models\upscale_models\` |
 
 ---
 
-*Last updated: 2025-12-30*
+*Last updated: 2025-12-31*

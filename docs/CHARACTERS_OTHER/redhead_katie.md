@@ -1,0 +1,111 @@
+# Redhead Katie
+
+[← Back to CHARACTERS_OTHER Index](INDEX.md)
+
+## Info
+- **File:** `Redhead_Katie.safetensors`
+- **Original filename:** `Redhead_Katie-000004.safetensors`
+- **Civitai:** https://civitai.com/models/1086126/redhead-katie
+- **Trigger:** `katie`
+- **Strength:** 0.95-1.0
+- **Type:** CHARACTER
+
+## Description
+Realistic redhead model character. Beautiful young woman with long wavy red hair, freckles, and natural skin texture. Versatile for various settings - lingerie, office, beach, gym, etc.
+
+## Recommended Settings
+| Parameter | Value |
+|-----------|-------|
+| Steps | 30-50 |
+| CFG | 3-3.5 |
+| Sampler | DDIM / Undefined |
+| Size | 832x1216 / 1024x1024 |
+
+## Example Prompts
+
+### Basic Portrait
+```
+redhead woman, katie, black bra, looking at camera, hair down
+```
+Settings: Steps 30, CFG 7.5, DDIM, 512x512
+
+### Champagne Bar - Elegant
+```
+stunning 27 year old redhead woman, katie, long wavy hair styled with volume and a textured finish, side-swept bangs creating a dramatic look, perfect eyes, large round breasts, wearing a sheer, long mesh gown adorned with cascading gold embellishments, gold thong visible under her dress, high neckline and sleeveless design, perfect legs, realistic skin with pores and freckles, black high heels, photorealistic, high detail, leaning at a luxurious empty champagne bar holding a champagne glass, 8k
+```
+Settings: Steps 44, CFG 3.5, 832x1216
+
+### Red Lace Lingerie - Bedroom
+```
+beautiful young redhead woman, katie, long hairstyle, view from behind, rear view, looking over her shoulder, wearing a red lace lingerie, sheer stockings and garter, floral details with satin bow accents, standing in a luxurious white bedroom with an unmade bed behind her
+```
+Settings: Steps 32, CFG 3.5, 832x1216
+
+### Office - Topless
+```
+score_9, score_8_up, score_7_up, (1female), (katie), depth of field, highly detailed, high contrast, film grain, natural lighting, portrait photo of a sultry redhead woman topless, large round natural breasts with small nipples wearing a black suit jacket perfect body, sitting at a desk in an office looking at the camera sunlight reflecting through a window
+```
+Settings: Steps 30, CFG 3.5, 832x1216, Strength 0.95
+
+### Gym - Sportswear
+```
+beautiful redhead woman, katie, standing on a treadmill facing the viewer in an empty modern gym, white leggings, white nike sports bra, cameltoe, perfect hands
+```
+Settings: Steps 35, CFG 3.5, 1024x1024
+
+### Balcony - Black Bodysuit
+```
+score_9, score_8_up, score_7_up, (1female), (katie), depth of field, highly detailed, high contrast, realism, film grain, natural lighting, a sultry redhead woman with freckles and natural blemishes wearing sexy black lacy bodysuit lingerie and black stockings and high heels and perfect body, deep cleavage, large round breasts, standing on an apartment balcony shes looking at the camera, busy street below her, sunlight behind her
+```
+Settings: Steps 34, CFG 3, 832x1216
+
+### Beach Bar - Bikini
+```
+score_9, score_8_up, score_7_up, (1female), (katie), depth of field, highly detailed, high contrast, film grain, natural lighting, a sultry redhead woman oiled skin with perfect medium breasts, small nipples, tiny barely there black bikini perfect body, black flip flops, standing at a beach bar looking at the camera sunlight reflecting off the calm sea in the background, below view
+```
+Settings: Steps 30, CFG 3.5, 832x1216, Strength 0.95
+
+### Luxury Bed - Lingerie
+```
+score_9, score_8_up, score_7_up, (1female), (katie), depth of field, highly detailed, high contrast, realism, film grain, natural lighting, a sultry redhead woman with freckles and natural blemishes wearing sexy black lacy bodysuit lingerie with perfect hands and perfect feet and perfect body, deep cleavage, large round breasts, lying down on a luxurious white bed in a luxury bedroom with modern art work on the walls shes looking at the camera, sunlight coming through the curtains
+```
+Settings: Steps 34, CFG 3, 1216x832
+
+### Nude - Sofa Selfie
+```
+darkly lit portrait shot looking up at the viewer, overhead shot, large and perfect lifted breasts with small nipples, deep low cleavage, shaved pussy, sitting naked on a black leather sofa in a luxurious living room, with the curtains closed, she's taking a selfie of herself. Her skin is not sweaty or shiny, long wavy hair.
+```
+Settings: Steps 50, CFG 3.5, 832x1216
+
+## Keywords
+- `katie` (trigger)
+- `redhead woman`
+- `freckles`
+- `natural blemishes`
+- `long wavy hair`
+- `sultry`
+- `large round breasts`
+
+## Recommended LoRA Combinations
+- **NSFW_FLUX-1.DEV** (0.7) - NSFW unlock
+- **NippleDiffusion - Flux** (0.7-0.75) - small nipples
+- **Detailed imperfect skin** (0.15-0.2) - realistic skin
+- **Hands XL F1D** (0.25-0.3) - better hands
+- **BreastShaper_splendid_droplets** (0.3-0.7) - breast shape
+- **AnyBra** (0.7) - bra styles
+- **Cameltoe FLUX** (0.55) - cameltoe effect
+- **Realistic Pussy-GMR** (0.7) - anatomy
+- **Outfit 0008** (0.7) - bra and t-string
+- **Outfit 0012 - Crochet Dress** (0.7) - clothing
+- **Clothing Style 007/022** (0.45-0.7) - clothing styles
+
+## Best Checkpoints
+- FLUX Dev (691639)
+
+## Notes
+- Use trigger word `katie` in prompt
+- Works great with score tags (score_9, score_8_up, etc.)
+- Realistic freckles and skin texture
+- Versatile for many settings and outfits
+- Strength 0.95-1.0 recommended
+- Combine with skin detail LoRAs for enhanced realism

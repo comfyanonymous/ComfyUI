@@ -1,0 +1,102 @@
+﻿# Cute Belly Button
+
+[Back to BODY_TYPES Index](INDEX.md)
+
+## Overview
+
+**Type:** Anatomy / Body Feature
+**File:** `Cute_Belly_Button_by_Sarcastic_TOFU.safetensors`
+**Trigger Words:** Cute_Belly_Button, hot navel, natural belly button
+**Recommended Strength:** 0.5-0.7
+
+## Description
+
+Natural belly button/navel fix LoRA. Addresses the common issue of missing or malformed belly buttons in AI-generated images. Ensures proper, natural-looking belly button/navel generation in midriff shots.
+
+## Civitai Stats
+
+- **Downloads:** 260
+- **Rating:** 22
+- **Tips:** 0
+- **Score:** -
+- **URL:** https://civitai.com/models/1175858/cutebellybuttonbysarcastictofu
+
+## Usage
+
+### Basic Setup
+```
+Strength: 0.5-0.7
+Trigger: Cute_Belly_Button, hot navel, natural belly button
+```
+
+### Keywords
+- Cute_Belly_Button (trigger)
+- hot navel (trigger)
+- natural belly button (trigger)
+- midriff
+- navel
+- belly
+- exposed stomach
+
+### Example Prompts
+
+**Basic Belly Button Fix:**
+```
+portrait of a woman showing midriff, Cute_Belly_Button, natural navel, crop top, standing pose
+<lora:Cute_Belly_Button_by_Sarcastic_TOFU:0.6>
+```
+
+**Midriff Fashion:**
+```
+professional photo of a woman, hot navel, midriff, crop top, belly visible, natural belly button, studio lighting
+<lora:Cute_Belly_Button_by_Sarcastic_TOFU:0.5>
+```
+
+**Beach Scene:**
+```
+woman on beach wearing bikini, natural belly button, Cute_Belly_Button, exposed stomach, sunny day, natural lighting
+<lora:Cute_Belly_Button_by_Sarcastic_TOFU:0.6>
+```
+
+**Fitness Portrait:**
+```
+athletic woman in sports bra, midriff showing, hot navel, natural belly button, gym setting, fit body
+<lora:Cute_Belly_Button_by_Sarcastic_TOFU:0.7>
+```
+
+## Tips
+
+- Use strength 0.5-0.6 for subtle, natural results
+- Increase to 0.7 if belly button is still missing
+- Always include at least one trigger word
+- Works best with midriff-showing clothing prompts
+- Combine with crop top, bikini, or belly-exposing outfits
+
+## Common Use Cases
+
+- Fixing missing belly buttons in midriff shots
+- Ensuring natural navel appearance
+- Fashion photography with crop tops
+- Bikini and swimwear images
+- Fitness and athletic poses
+- Any scene where the belly is visible
+
+## Compatibility
+
+- Works well with body shape LoRAs
+- Compatible with clothing and fashion LoRAs
+- Pairs nicely with anatomy enhancement LoRAs
+- Safe to use with character LoRAs
+
+## Notes
+
+- Solves a specific but common generation issue
+- Niche LoRA focused on one anatomical detail
+- Use trigger words for best activation
+- Particularly useful for fashion and swimwear content
+- Strength 0.5-0.7 range provides best results
+
+---
+
+**Category:** BODY_TYPES
+**Last Updated:** 2025-12-31

@@ -1,0 +1,108 @@
+# Outfit 0008 - Sexy Bra and T-String
+
+[← Back to CLOTHING Index](INDEX.md)
+
+## Info
+- **File:** `outfit0008_sexy_bra_tstring.safetensors`
+- **Original filename:** `outfit0008-sexy-bra-and-t-string.safetensors`
+- **Civitai:** https://civitai.com/models/1065647/outfit-0008-sexy-bra-and-t-string
+- **Trigger:** `outfit0008` + `wearing a sexy [color] bra and a [color] t-string`
+- **Strength:** 0.7-1.0
+- **Type:** CLOTHING
+
+## Description
+LoRA for generating sexy bra and t-string lingerie sets. Works with various colors (red, blue, yellow, green, black). Easy to combine with character LoRAs.
+
+## Recommended Settings
+| Parameter | Value |
+|-----------|-------|
+| Steps | 35 |
+| CFG | 3-3.5 |
+| Sampler | euler_sgm_uniform |
+| Size | 832x1216 |
+
+## Prompt Format
+Include in prompt: `wearing a sexy [color] bra and a [color] t-string, outfit0008`
+
+## Example Prompts
+
+### Red - Back View
+```
+High quality photo, a woman wearing a sexy red bra and a red t-string, outfit0008. Back view, she has blue eyes and is looking over her shoulder at viewer. In the background a modern livingroom.
+```
+Settings: Steps 35, euler_sgm_uniform
+
+### Red - Front View
+```
+High quality photo, a woman wearing a sexy red bra and a red t-string, outfit0008. Front view, she has blue eyes and is looking at viewer. In the background a modern livingroom.
+```
+Settings: Steps 35, euler_sgm_uniform
+
+### Blue - Back View
+```
+High quality photo, a woman wearing a sexy blue bra and a blue t-string, outfit0008. Back view, she has blue eyes and is looking over her shoulder at viewer. In the background a modern livingroom.
+```
+Settings: Steps 35, euler_sgm_uniform
+
+### Yellow - Blonde
+```
+High quality photo, a blonde woman wearing a sexy yellow bra and a yellow t-string, outfit0008. Front view, she has blue eyes and is looking at viewer. In the background a modern livingroom.
+```
+Settings: Steps 35, euler_sgm_uniform
+
+### Green - Big Breasts
+```
+High quality photo, a woman wearing a sexy green bra and a green t-string, outfit0008. Front view, she has blue eyes, big breasts and is looking at viewer. In the background a modern livingroom.
+```
+Settings: Steps 35, euler_sgm_uniform
+
+### Black - Luxurious Bedroom
+```
+High quality photo, a redhead woman wearing a sexy black bra and a black t-string, outfit0008. Back view, she is leaning forward looking over her shoulder at viewer. In the background is an empty luxurious dimly lit white bedroom. modern art on the walls, she has freckles and a rough skin texture, detailed hands
+```
+Settings: Steps 35, CFG 3, 832x1216, Strength 0.7
+
+### Rooftop Party - Detailed Scene
+```
+A woman with very long, wavy dark-brown hair cascading over her shoulders and down her back. She bends over to adjust a speaker at a modern private rooftop party in Miami at sunset, wearing a red lace bra with scalloped edges, its sheer fabric outlining her medium breasts from behind, paired with a red T-string that rides high, highlighting her curves. Silver drop earrings, a chunky gold bracelet, and a pearl anklet shimmer softly, reflecting the fading light. outfit0008
+```
+Settings: Steps 35, CFG 3, 832x1216, Strength 0.9
+
+## Color Options
+- Red
+- Blue
+- Yellow
+- Green
+- Black
+- (Other colors should work too)
+
+## Keywords
+- `outfit0008` (trigger)
+- `sexy bra`
+- `t-string`
+- `lace bra`
+- `matching lingerie`
+
+## Recommended LoRA Combinations
+- **Detailed imperfect skin** (0.15) - realistic skin texture
+- **Aunt Cass Hamada** (0.8) - character
+- **Anita beauty** (0.95) - character
+- **Redhead Katie** (1.0) - character
+- **Tiny Petite Asian** (1.0) - body type
+- **Chin Fixer 2000** (0.6) - face fix
+- **Ultima Cine** (0.15) - cinematic look
+- **Kodak Motion Picture Film** (1.0) - film style
+- **Harnessed Women** (1.0) - bondage elements
+- **Schoolgirl** (1.0) - school uniform combo
+
+## Best Checkpoints
+- flux1-dev-fp8
+- FLUX Dev
+- MoP (Mixture of Perverts) DMD
+
+## Notes
+- Always include `outfit0008` trigger in prompt
+- Specify color for both bra and t-string
+- Works well with back view and front view
+- Strength 0.7-1.0 depending on desired effect
+- Combines easily with character LoRAs

@@ -1,0 +1,70 @@
+﻿# Acorn Natty
+
+[← Back to Index](INDEX.md)
+
+## Civitai Stats
+
+| Metric | Value |
+|--------|-------|
+| **Downloads** | 304 |
+| **👍** | 30 |
+| **Tips** | 10 |
+| **Score** | - |
+
+## Parameters
+
+| Parameter | Value |
+|-----------|-------|
+| **File** | `Natalia.safetensors` |
+| **Civitai** | https://civitai.com/models/1347343/acorn-natty |
+| **Trigger word** | None (use LoRA reference) |
+| **Strength** | 0.7 |
+| **Type** | Character |
+| **Author** | Acorn |
+
+## Description
+
+Fictional character Natty (Natalia) by Acorn. Another Acorn Girl. Not intended to represent any real person. Characterized by curly blonde hair, light brown skin, slim/slender build. Works well for beach and outdoor scenes with natural lighting.
+
+## Recommended Settings
+
+| Parameter | Value |
+|-----------|-------|
+| **CFG** | **1** |
+| **Steps** | **12** |
+| **Sampler** | **DPM2** |
+| **Scheduler** | **Normal** |
+| **Resolution** | **1024x1280** |
+| **Model** | Acorn Is Spinning Flux V1.5 Hyper 8 Step |
+| **Distilled CFG** | 0 |
+
+## Sample prompts
+
+**Prompt 1 (Beach nude - natural lighting):**
+```
+A high-resolution photograph of a 20 year old slim, nude, slender woman with medium-sized breasts and light brown skin standing at a beach. Her curly blonde hair is being tousled by the wind as she lifts it with both hands. She wears a gold necklace. The image uses natural lighting, highlighting her physique and the ocean waves in the background. The depth of field is shallow, keeping the woman in sharp focus while the ocean is slightly blurred. The composition follows the rule of thirds, with the woman positioned centrally. There are no watermarks on the image. <lora:Natalia:0.7>
+```
+Settings: Steps: 12, CFG: 1, Sampler: DPM2, Size: 1024x1280, Schedule: Normal, Distilled CFG: 0
+
+**Prompt 2 (Rocky beach - enjoying outdoors):**
+```
+High quality photograph of a 19 year old woman with long blonde hair, enjoying the outdoors on a sunny day. She is taking deep breaths of the fresh ocean air. The background is a rocky beach with a shallow depth of field, keeping the focus on the woman. <lora:Natalia:0.7>
+```
+Settings: Steps: 12, CFG: 1, Sampler: DPM2, Size: 1024x1280
+
+## Keywords
+
+- `curly blonde hair`
+- `light brown skin`
+- `slim`, `slender`
+- `beach`, `ocean`
+- `natural lighting`
+- `shallow depth of field`
+
+## Notes
+
+- No specific trigger word needed - just use the LoRA reference
+- Works great with beach and outdoor scenes
+- Natural lighting prompts produce best results
+- Use with Acorn Is Spinning Flux V1.5 Hyper 8 Step for optimal quality
+- Good for videos with minimax img2vid workflow

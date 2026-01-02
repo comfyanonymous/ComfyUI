@@ -1,0 +1,73 @@
+# African Woman
+
+[← Back to CHARACTERS_OTHER Index](INDEX.md)
+
+## Info
+- **File:** `African_Woman.safetensors`
+- **Original filename:** `african-woman-000012.safetensors`
+- **Civitai:** https://civitai.com/models/1419853/african-woman
+- **Trigger:** `black, woman, african`
+- **Strength:** 0.8-1.5
+- **Type:** CHARACTER
+
+## Description
+LoRA for generating African/Black women with realistic features. Creates beautiful black skin tones, full lips, and natural African features. Works well for various body types and poses.
+
+## Recommended Settings
+| Parameter | Value |
+|-----------|-------|
+| Steps | 25 |
+| CFG | 1 |
+| Sampler | Euler |
+| Scheduler | Simple / Beta (0.6, 0.6) |
+| Distilled CFG | 3.5 |
+| Size | 896x1152 / 832x1216 |
+
+## Example Prompts
+
+### Sexy Lingerie
+```
+(Sexy black woman: 2), (Sexy black: 1.5), (black skin: 1.9), (medium breasts: 1.6), full body, (wide hips: 1.5), white sexy lingerie, lacy lingerie
+black, woman, african
+```
+Settings: Steps 25, CFG 1, Euler, Simple, 896x1152, Distilled CFG 3.5, Strength 1.5
+
+### Wet/River Scene
+```
+Stunningly beautiful 20-year-old black woman, naked, soaked, standing in water, African woman, wet, sweaty, realistic wet, long black hair to waist, full lips, mouth closed, wet small caramel breasts, wet small dark brown nipples, river, lake, rain, facing the viewer, pubic hair,
+black, woman, african
+```
+Settings: Steps 25, CFG 1, Euler, Simple, 896x1152, Distilled CFG 3.5, Strength 1.5
+Combine with: Nipple_v2 (0.8)
+
+### Poolside Bikini
+```
+(full body:1.5), (front view:1.5), photo of curvy african woman wearing a pink thong bikini standing beside a swimming pool. She has long black hair and is wearing sunglasses. She is standing on paving stones with bare feet. There is a swimming pool and luxury mansion behind her.
+```
+Settings: Steps 25, CFG 1, Euler, Beta (0.6, 0.6), 832x1216, Distilled CFG 3.5, Strength 0.8
+
+## Keywords
+- `black`
+- `woman`
+- `african`
+- `black skin`
+- `Sexy black woman`
+- `wide hips`
+- `full lips`
+
+## Recommended LoRA Combinations
+- **Nipple_v2** (0.8) - realistic nipples
+- **Pink_Thong_Bikini** (1.0) - bikini outfit
+
+## Best Checkpoints
+- flux1-dev-bnb-nf4-v2
+- 8StepsCreartHyperFlux_v40HyperDevFp8Unet
+- flux_dev
+
+## Notes
+- Use trigger words: `black, woman, african`
+- Strength 1.5 for strong African features
+- Strength 0.8 for more subtle influence
+- Works well with wet/water scenes
+- Good for lingerie and swimwear
+- Creates realistic black skin tones

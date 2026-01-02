@@ -1,0 +1,66 @@
+# WATW - Malaysia
+
+## Info
+- **File:** `Malaysia.safetensors`
+- **Civitai:** https://civitai.com/models/2008753/watw-malaysia
+- **Trigger:** `Malaysia` or `Malaysia woman`
+- **Strength:** 1.0
+- **Series:** Women Around The World (WATW) - 207 countries
+
+## Description
+Part of the "Women Around The World" (#WATW) series. All WATW LoRAs are a mixture of 2-3 bodies combined with an AI face. The goal is to create unique basic types that can be customized (hair, facial features, etc.).
+
+## Best Checkpoints
+- unStable Evolution KREA
+- unStable Evolution FluXXX
+- Flux.1-Dev Hyper NF4
+- Standard BFL versions
+
+## Recommended Settings
+| Parameter | Value |
+|-----------|-------|
+| CFG | 1 |
+| Sampler | Flux Realistic / Euler |
+| Schedule | Beta (alpha: 0.6, beta: 0.6) |
+| Size | 896x1152 |
+| Steps | 10-25 |
+| Distilled CFG | 2.5-3.5 |
+
+## Example Prompts
+
+### Portrait
+```
+Breathtaking over the shoulder shot photography of Malaysia woman looking at viewer, necklace, looking over shoulders, eyelashes, fine hair detail, entire hairstyle visible, perfect eyes with iris pattern, sensual lips, nose, (perfectly sharp:1.3), realistic textures, (deep focus, focus on background:1.5), 8k uhd, dslr, ultra high quality image, film grain, Fujifilm XT3
+```
+
+### Bikini
+```
+photography of a Malaysia woman, dressed in floral bikini, vibrant colors, textured fabric, seated, relaxed posture, looking forward, rule of thirds, projection lighting, (straight on:1.2), shot on Olympus OM-D E-M1 Mark III with M.Zuiko 12-40mm f-2.8
+```
+
+### Fashion
+```
+A high-resolution Photo of a Malaysia woman. She wears a sleeveless, loose-fitting mini dress with a leopard print. The pattern is in natural tones (brown, beige, black) and is very striking. She pairs it with black, tight-fitting leggings. She wears gray, open-toe high-heeled ankle boots. A wide, light-colored hairband holds back her hair with a center parting. Her makeup is rather subtle, with a focus on the lips and eyes.
+```
+
+### Intimate/Bedroom
+```
+Malaysia woman lies on a bed with floral-patterned bedding in a dimly lit, vintage room with a beige wall and tufted headboard. She wears a short, cropped, light pink ribbed sweater, her legs spread wide. Her expression is neutral to slightly sultry, gazing directly at the camera. Soft, slightly yellowish lighting casts a warm, nostalgic glow, reminiscent of 1980s photography, with a subtle film grain and warm color grading.
+```
+
+### Simple (with Hyper NF4)
+```
+malaysia woman
+```
+Settings: Steps 10, CFG 1, Euler, Beta, Distilled CFG 3.5
+
+## Recommended LoRA Combinations
+- Flux Skin Detailer (1.0)
+- Mystic XXX (1.0)
+- Amateur Snapshot Photo (1.0)
+
+## Notes
+- Use trigger word at strength 1.0
+- Works well for various poses and outfits
+- Can use with hires upscale (1.5x, 4x_NMKD-Superscale)
+- Series covers 207 countries with daily releases

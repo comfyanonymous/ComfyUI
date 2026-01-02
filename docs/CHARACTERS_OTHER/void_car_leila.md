@@ -1,0 +1,53 @@
+﻿# Void Car Leila
+
+[← Back to Index](INDEX.md)
+
+## Civitai Stats
+
+| Metric | Value |
+|--------|-------|
+| **Downloads** | 53 |
+| **👍** | 16 |
+| **Tips** | 0 |
+| **Score** | - |
+
+## Parameters
+
+| Parameter | Value |
+|-----------|-------|
+| **File** | `FluxLeila.safetensors` |
+| **Original filename** | `Flux Leila.safetensors` (renamed) |
+| **Civitai** | https://civitai.com/models/1335682/void-car-leila |
+| **Trigger word** | `leila` |
+| **Strength** | 0.6-1.0 |
+| **Type** | CHARACTER (humorous) |
+
+## Description
+
+Humorous black cat-human character. "Void" refers to the aesthetic of solid black cats. Fun, slightly comedic character for creative/experimental generations.
+
+## Sample prompts
+
+**Prompt 1 (Basic):**
+```
+leila, black cat girl, anthropomorphic, cute, standing in room, looking at viewer <lora:FluxLeila:0.8>
+```
+
+**Prompt 2 (Scene):**
+```
+leila, black cat face, humanoid body, sitting on couch, cozy atmosphere, warm lighting <lora:FluxLeila:0.8>
+```
+
+## Keywords
+
+- `leila` - **TRIGGER WORD**
+- `black cat`
+- `void` (black cat aesthetic)
+- `anthropomorphic`
+
+## Notes
+
+- Fun/humorous character design
+- "Void" = solid black cat aesthetic
+- Works with various settings and poses
+- Good for creative/experimental images

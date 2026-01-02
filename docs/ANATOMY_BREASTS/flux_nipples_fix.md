@@ -1,0 +1,75 @@
+﻿# FLUX Nipples Fix and Breast Size
+
+[← Back to Index](INDEX.md)
+
+## Civitai Stats
+
+| Metric | Value |
+|--------|-------|
+| **Downloads** | 2889 |
+| **👍** | 159 |
+| **Tips** | 68 |
+| **Score** | ⭐⭐ |
+
+## Parameters
+
+| Parameter | Value |
+|-----------|-------|
+| **File** | `Nipples_and_breast_size_slider_FLUX.safetensors` |
+| **Civitai** | https://civitai.com/models/978342/flux-nipples-fix-and-different-breast-size |
+| **Trigger words** | `small breasts`, `medium breasts`, `big breasts` |
+| **Strength** | 0.6-1.0 (reduce to 0.6-0.9 when combining with other LoRAs) |
+| **Type** | Anatomy / Slider |
+
+## Description
+
+LoRA that fixes nipple generation and provides a slider for different breast sizes. Use trigger words to control breast size. When combining with other LoRAs, reduce weight to 0.6-0.9 as weight 1.0 may cause blurry images.
+
+## Trigger words for sizes
+
+- `small breasts` - for small breast size
+- `medium breasts` - for medium breast size
+- `big breasts` - for large breast size
+
+## Sample prompts
+
+**Prompt 1 (Mexican pirate):**
+```
+beautiful sexy 33 years old mexican girl on her knees, view from above, (((sexy expression))), (((seductive expression))), ash black slightly wavy long hair, slender, pear shaped body, (small breasts:1.5), nipples, sexy female pirate captain outfit, on clothes, torn clothes, partially naked, eye contact, close view, face view, front view, on a pirate ship, realistic, intricate details
+```
+
+**Prompt 2 (Simple nude):**
+```
+photo of a woman, hud_g4g4, with bouffant brown hair, side view, (looking at viewer, nude, naked, full body).
+```
+
+**Prompt 3 (Fantasy burlesque):**
+```
+Fantasy Art, professional digital artwork of a beautiful woman with naked breasts, platinum blonde hair, decorated clothing, Perfect hands, perfect anatomy, realistic shadows, intricate details, Seductive, mysterious and erotic, stylish, sensual elegance, aesthetic, extravagant, burlesque, sexy, 8K, sexy pose, best lighting, sunlight, <lora:MS_LCMD_FLUX_V1:1> <lora:MS_Fantasy_Flux_V2:1>
+```
+
+**Prompt 4 (Egyptian queen):**
+```
+full body shot of a beautiful, majestic 20 years old Egyptian queen with long dark hair, adorned with intricate gold jewelry. masterpiece, best quality, amazing quality, absurdres, one girl, solo, 1girl, black hair, In Egypt dungeon, small breast, front view, soft tits, eyes, face, brown skin, Egyptian jewelry, tall girl, horny smile, nude, nipples, pubic hair, The overall lighting is dramatic and ethereal, with strong contrasts between light and shadow, highlighting the gold accents and the queen's features. The atmosphere is mystical, ancient, and powerful
+```
+
+**Prompt 5 (Industrial hall):**
+```
+photorealistic: 1.4), dismantled old industrial hall, old metal bed with dirty mattress. beautiful woman called Elle sits on mattress,((((white slip)))), (((legs spread))), (((naked))), fokus on small tits, nsfw, explicit, from front, perfect body,beautiful face,Bokeh, ((Depth of Field)), long brown wavy hair, bokeh, detailxl, stunning eyes, a masterpiece, award winning,
+```
+
+## Keywords
+
+- `small breasts`
+- `medium breasts`
+- `big breasts`
+- `nipples`
+- `naked breasts`
+- `nude`
+
+## Notes
+
+- Use lower weight (0.6-0.9) when combining with other LoRAs
+- Weight 1.0 may cause blurry images with other LoRAs
+- Works as a slider - use trigger words for different sizes
+- Good for nipple fix in FLUX

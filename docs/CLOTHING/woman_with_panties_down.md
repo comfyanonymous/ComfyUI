@@ -1,0 +1,86 @@
+﻿# Woman with Panties Down
+
+[← Back to CLOTHING Index](INDEX.md)
+
+| Parameter | Value |
+|-----------|-------|
+| **File** | `woman_with_panties_down_flux.safetensors` |
+| **Civitai** | https://civitai.com/models/697401/woman-with-panties-down-flux-dev |
+| **Trigger word** | None (use descriptive prompts) |
+| **Strength** | 1.0-1.5 |
+| **Type** | CONCEPT / Clothing / NSFW |
+| **Compatibility** | FLUX Dev |
+
+## Description
+
+LoRA for creating images of women with panties stripped down, showing pussy. Currently produces standing pose, front view.
+
+## Prompt template
+
+```
+photo of naked [age]yo woman wearing a [top] standing wearing [color] [material] panties stripped down showing her pussy, stripping panties with hands, shaved, [shot type], [location]
+```
+
+## Sample prompts
+
+**Prompt 1 (Eastern European subway):**
+```
+photo of naked supermodel 18yo eastern european woman standing wearing (panties stripped down showing her pussy, stripping panties with hands), shaved, long hair, (messy hair:0.3), (small breast), she have realistic skin texture with some light imperfections and freckless, earrings, young face, happy smile, (waterdrops on body), erotic photo, subject in focus, sharp, full body shot, wide angle, Crowded Sweltering Subway, <lora:woman_with_panties_down_flux:1.5>
+```
+Settings: Steps: 20, CFG: 1, Sampler: Euler, Size: 896x1152, Schedule: Simple, Distilled CFG: 4.5, Hires: 1.5x (denoising 0.25)
+
+**Prompt 2 (Balcony cityscape):**
+```
+wavy Blonde girl in a (panties stripped down showing her pussy, stripping panties with hands), standing on a balcony, ornate open robe, exposed breast, and nipples, glittering jewelry, fake nails, heavy makeup, cityscape background, glowing lights, detailed eyes, soft lighting, gentle breeze, flowing hair, intricate dress details, serene expression, high resolution, evening setting, cinematic lighting, extremely intricate detail character, accurate depiction of character, correct body anatomy, correct hands and fingers, extremely intricate skin and facial texture detail, lifelike potrayal, extrememly realistic lighting, extreme dynamic pose <lora:woman_with_panties_down_flux:1.45>
+```
+Settings: Steps: 25, CFG: 4, Size: 832x1216, Clip skip: 2
+
+**Prompt 3 (Tropical beach girlfriend):**
+```
+score_9_up, score_8_up, score_7_up, 50mm (candid full body photograph), girlfriend 23456, from the front, (nude:1.5) golden hour, oversized translucent white linen dress, dirty tangled hair, blonde eyebrows, assymetrical straight light blonde hair, side parting, narrow almond blue-gray eyes, upturned nose. instagram photograph, highly detailed face, toned, nude under dress, pulling down very intricate white thong, shaved pussy. biting lip shyly, tall, pretty face, cute face, french girlfriend named Aimee, 21 year old, pale skin, leaning slightly forward, on a tropical beach, looking seductively, tropical resort, at sunset, warm lighting, bright volumetric lighting, soft smile, barefoot, background: busy beach, fstyle, fstyle_upgrade, am@t3ur ph0to, Nikon D3500, panties stripped down, showing her pussy, stripping panties with hands, shaved <lora:woman_with_panties_down_flux:1>
+```
+Settings: Steps: 30, CFG: 4, Size: 832x1216, Clip skip: 2
+
+## Keywords
+
+- `panties stripped down`
+- `showing her pussy`
+- `stripping panties with hands`
+- `shaved`
+- `standing`
+- `front view`
+- `pulling down thong`
+
+## Tested combinations
+
+**Combination 1 (With realism):**
+```
+<lora:woman_with_panties_down_flux:1.5> <lora:realism_lora_comfy_flux_converted:0.75>
+```
+
+**Combination 2 (With anatomy):**
+```
+<lora:woman_with_panties_down_flux:1.45> <lora:Full_Female_Anatomy:1>
+```
+
+**Combination 3 (Amateur photo look):**
+```
+Checkpoint: Jib Mix Flux V11
+<lora:woman_with_panties_down_flux:1> <lora:Amateur_photo_look:0.1>
+```
+
+## Notes
+
+- Strength 1.0-1.5 (higher for stronger effect)
+- Currently only standing pose, front view
+- CFG 1-4 works well
+- Distilled CFG 4.5 recommended
+- Steps 20-30 for quality
+- Size 896x1152 or 832x1216 typical
+- Use with realism LoRAs for better skin texture
+- Hires upscale 1.5x with denoising 0.25 for detail
+
+## Quality Stats
+- **Downloads:** 1,892
+- **Rating:** 122
+- **Tips:** $3,939

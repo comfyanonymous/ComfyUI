@@ -1,0 +1,77 @@
+﻿# Beautiful Girls' Faces - PrettyNova
+
+[← Back to INDEX](INDEX.md)
+
+## Stats
+
+| Metric | Value |
+|--------|-------|
+| **Downloads** | 653 |
+| **👍** | 45 |
+| **Tips** | 50 |
+
+| Parameter | Value |
+|-----------|-------|
+| **File** | `PrettyNova_Beautiful_Faces.safetensors` |
+| **Original filename** | `lora.TA_trained.safetensors` |
+| **Civitai** | https://civitai.com/models/1154025/beautiful-girls-faces-nova-of-elegance-and-diversity-without-limits |
+| **Trigger word** | `PrettyNova` |
+| **Strength** | 0.95-1.0 |
+| **Type** | Style / Face Enhancement |
+| **Version** | v1.5 |
+
+### Description
+Nova LoRA offers a practical tool for generating beautiful and diverse female faces with precise details. Perfect for designers and artists seeking a blend of elegance and variety to meet their project needs. Brings creations to life with a unique touch of beauty.
+
+### Features
+- Beautiful, elegant female faces
+- Diverse facial features
+- Precise facial details
+- Works well with various styles
+
+### Sample prompts
+
+**Prompt 1 (Perfection style combo):**
+```
+ultra detailed and realistic photograph of perfection style PrettyNova ultra realistic photograph highly detailed perfect composition <lora:perfection_style_v2d:1> <lora:PrettyNova_Beautiful_Faces:0.95>
+```
+
+**Prompt 2 (Fantasy dancer):**
+```
+She is the girl I dreamed of, hair platinum-blonde wild pigtails, dancer, Petite, Futuristic, Fantasy forest, Ravenous, You can tell she's not really human, She has every attribute of human in physical form, perfect, Alluring demure attractive beautiful, Action pose, Dancing, Dramatic lighting, Cinematic, Epic composition, PrettyNova, Perfect hand
+```
+
+### Keywords
+- `PrettyNova` - **REQUIRED** trigger word
+- `beautiful face`
+- `elegant`
+- `diverse`
+- `precise details`
+- `perfection style`
+
+### Tested combinations
+
+**Combination 1 (Perfection style):**
+```
+<lora:perfection_style_v2d:1>
+<lora:PrettyNova_Beautiful_Faces:0.95>
+```
+
+**Combination 2 (Cyber + Hands):**
+```
+<lora:Cyber_Flux:0.25>
+<lora:Hand_F1D_v2:1>
+<lora:PrettyNova_Beautiful_Faces:1>
+```
+
+**Combination 3 (GarterBelt):**
+```
+<lora:GarterBeltFlux1.0:1>
+<lora:PrettyNova_Beautiful_Faces:1>
+```
+
+### Notes
+- Use trigger word `PrettyNova` for best face results
+- Works great with Detailed Perfection Style LoRA
+- Enhances facial beauty without altering overall style
+- Good for fantasy, fashion, and portrait work

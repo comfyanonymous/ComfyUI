@@ -1,0 +1,143 @@
+﻿# Full Female Anatomy Fineart
+
+[Back to BODY_TYPES Index](INDEX.md)
+
+## Overview
+
+**Type:** Anatomy / NSFW
+**File:** `anatomy_fineart_nudity_by_caith.safetensors`
+**Trigger Words:** None (use keywords)
+**Recommended Strength:** 0.3-1.0
+
+## Description
+
+Full female anatomy LoRA specifically designed for fineart nudity. Trained on 4,000+ high-quality images, this LoRA excels at generating accurate breasts, nipples without dark dots/artifacts, and anatomically correct intimate anatomy. Ideal for artistic nude photography and fineart applications.
+
+## Civitai Stats
+
+- **Downloads:** 18,907
+- **Rating:** 953
+- **Tips:** 240
+- **Score:** ⭐⭐⭐
+- **URL:** https://civitai.com/models/668646/full-female-anatomy-fineart-nudity-flux-lora-nsfw-breastspussyassand-more
+
+## Usage
+
+### Basic Setup
+```
+Strength: 0.3-1.0
+Trigger: None (keyword-based)
+```
+
+### Keywords
+- nude
+- naked
+- topless
+- bottomless
+- correct anatomy
+- fineart
+- artistic nude
+- natural body
+- full body
+- anatomically correct
+
+### Example Prompts
+
+**Classic Fineart Nude:**
+```
+professional fine art nude photography of a beautiful woman, nude, correct anatomy, natural body, studio lighting, elegant pose, artistic composition, high detail
+<lora:anatomy_fineart_nudity_by_caith:0.8>
+```
+
+**Artistic Portrait:**
+```
+artistic nude portrait, naked woman, fineart, natural lighting, anatomically correct, soft shadows, professional photography
+<lora:anatomy_fineart_nudity_by_caith:0.7>
+```
+
+**Full Body Study:**
+```
+full body nude photo, correct anatomy, natural body, artistic pose, dramatic lighting, fineart photography, beautiful composition
+<lora:anatomy_fineart_nudity_by_caith:0.9>
+```
+
+**Partial Nude:**
+```
+topless woman, artistic nude, fineart, correct anatomy, natural breasts, soft lighting, elegant pose, professional photo
+<lora:anatomy_fineart_nudity_by_caith:0.6>
+```
+
+**Dramatic Lighting:**
+```
+artistic nude with dramatic shadows, naked, correct anatomy, fineart photography, chiaroscuro lighting, professional studio
+<lora:anatomy_fineart_nudity_by_caith:0.8>
+```
+
+**Natural Setting:**
+```
+nude woman in natural setting, bottomless, correct anatomy, outdoor lighting, artistic composition, nature photography
+<lora:anatomy_fineart_nudity_by_caith:0.7>
+```
+
+## Strength Guide
+
+| Strength | Use Case |
+|----------|----------|
+| 0.3-0.4 | Subtle anatomy enhancement, minimal effect |
+| 0.5-0.7 | Balanced anatomy improvement, recommended for most uses |
+| 0.8-0.9 | Strong anatomical accuracy, detailed features |
+| 1.0 | Maximum effect, highly detailed anatomy |
+
+## Tips
+
+- Start with strength 0.6-0.8 for balanced results
+- Lower strength (0.3-0.5) for subtle improvements
+- Higher strength (0.9-1.0) for maximum anatomical detail
+- Works exceptionally well with fineart and artistic prompts
+- Trained on 4K images for high-quality output
+- Excels at breast and nipple accuracy
+- No dark dots or artifacts on nipples
+- Use "correct anatomy" keyword for emphasis
+- Pairs beautifully with artistic lighting prompts
+
+## Tested Combinations
+
+**With Lighting Styles:**
+- Studio lighting: Excellent results at 0.7-0.9
+- Natural lighting: Best at 0.6-0.8
+- Dramatic/chiaroscuro: Works well at 0.8-1.0
+
+**With Poses:**
+- Standing poses: 0.7-0.9
+- Sitting/reclining: 0.6-0.8
+- Dynamic poses: 0.8-1.0
+
+**With Camera Angles:**
+- Portrait/close-up: 0.6-0.8
+- Full body: 0.7-0.9
+- Artistic angles: 0.8-1.0
+
+## Compatibility
+
+- Highly compatible with other anatomy LoRAs
+- Works well with body shape LoRAs
+- Excellent with artistic style LoRAs
+- Compatible with lighting and photography LoRAs
+- Pairs nicely with pose and composition LoRAs
+
+## Notes
+
+- Third most popular LoRA in category (18K downloads)
+- Trained on 4,000+ high-quality images
+- Specializes in fineart nudity
+- Exceptional nipple and breast accuracy
+- No dark dots or common artifacts
+- Anatomically correct intimate anatomy
+- Wide strength range for versatility (0.3-1.0)
+- High community rating (953) indicates quality
+- Professional fineart photography focus
+
+---
+
+**Category:** BODY_TYPES
+**Last Updated:** 2025-12-31
