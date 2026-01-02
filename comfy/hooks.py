@@ -527,7 +527,8 @@ class HookKeyframeGroup:
                         if self._current_keyframe.get_effective_guarantee_steps(max_sigma) > 0:
                             break
                     # if eval_c is outside the percent range, stop looking further
-                    else: break
+                    else:
+                        break
         # update steps current context is used
         self._current_used_steps += 1
         # update current timestep this was performed on

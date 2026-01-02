@@ -3,7 +3,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 from comfy.ldm.modules.diffusionmodules.model import ResnetBlock, VideoConv3d
 from comfy.ldm.hunyuan_video.vae_refiner import RMS_norm
-import model_management, model_patcher
+import model_management
+import model_patcher
 
 class SRResidualCausalBlock3D(nn.Module):
     def __init__(self, channels: int):
