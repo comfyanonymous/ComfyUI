@@ -13,13 +13,14 @@ if model_management.xformers_enabled_vae():
     import xformers
     import xformers.ops
 
+
 def torch_cat_if_needed(xl, dim):
     if len(xl) > 1:
         return torch.cat(xl, dim)
     else:
         return xl[0]
 
-def get_timestep_embedding(timesteps, embedding_dim):
+def get_timestep_embedding(timesteps, embedding_dim, flip_sin_to_cos = False, downscale_freq_shift = 1):
     """
     This matches the implementation in Denoising Diffusion Probabilistic Models:
     From Fairseq.
@@ -30,11 +31,13 @@ def get_timestep_embedding(timesteps, embedding_dim):
     assert len(timesteps.shape) == 1
 
     half_dim = embedding_dim // 2
-    emb = math.log(10000) / (half_dim - 1)
+    emb = math.log(10000) / (half_dim - downscale_freq_shift)
     emb = torch.exp(torch.arange(half_dim, dtype=torch.float32) * -emb)
     emb = emb.to(device=timesteps.device)
     emb = timesteps.float()[:, None] * emb[None, :]
     emb = torch.cat([torch.sin(emb), torch.cos(emb)], dim=1)
+    if flip_sin_to_cos:
+        emb = torch.cat([emb[:, half_dim:], emb[:, :half_dim]], dim=-1)
     if embedding_dim % 2 == 1:  # zero pad
         emb = torch.nn.functional.pad(emb, (0,1,0,0))
     return emb

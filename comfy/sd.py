@@ -16,6 +16,7 @@ import comfy.ldm.cosmos.vae
 import comfy.ldm.wan.vae
 import comfy.ldm.wan.vae2_2
 import comfy.ldm.hunyuan3d.vae
+import comfy.ldm.seedvr.vae
 import comfy.ldm.ace.vae.music_dcae_pipeline
 import comfy.ldm.hunyuan_video.vae
 import comfy.ldm.mmaudio.vae.autoencoder
@@ -309,7 +310,10 @@ class CLIP:
 class VAE:
     def __init__(self, sd=None, device=None, config=None, dtype=None, metadata=None):
         if 'decoder.up_blocks.0.resnets.0.norm1.weight' in sd.keys(): #diffusers format
-            sd = diffusers_convert.convert_vae_state_dict(sd)
+            if (metadata is not None and metadata["keep_diffusers_format"] == "true"):
+                pass
+            else:
+                sd = diffusers_convert.convert_vae_state_dict(sd)
 
         if model_management.is_amd():
             VAE_KL_MEM_RATIO = 2.73
@@ -376,6 +380,17 @@ class VAE:
                 self.first_stage_model = StageC_coder()
                 self.downscale_ratio = 32
                 self.latent_channels = 16
+            elif "decoder.up_blocks.2.upsamplers.0.upscale_conv.weight" in sd: # seedvr2
+                self.first_stage_model = comfy.ldm.seedvr.vae.VideoAutoencoderKLWrapper()
+                self.memory_used_decode = lambda shape, dtype: (10 * shape[1] * shape[2] * shape[3] * (4 * 8 * 8)) * model_management.dtype_size(dtype)
+                self.memory_used_encode = lambda shape, dtype: (10 * max(shape[1], 5) * shape[2] * shape[3]) * model_management.dtype_size(dtype)
+                self.working_dtypes = [torch.bfloat16, torch.float32]
+                self.downscale_ratio = (lambda a: max(0, math.floor((a + 3) / 4)), 8, 8)
+                self.downscale_index_formula = (4, 8, 8)
+                self.upscale_ratio = (lambda a: max(0, a * 4 - 3), 8, 8)
+                self.upscale_index_formula = (4, 8, 8)
+                self.process_input = lambda image: image
+                self.crop_input = False
             elif "decoder.conv_in.weight" in sd:
                 if sd['decoder.conv_in.weight'].shape[1] == 64:
                     ddconfig = {"block_out_channels": [128, 256, 512, 512, 1024, 1024], "in_channels": 3, "out_channels": 3, "num_res_blocks": 2, "ffactor_spatial": 32, "downsample_match_channel": True, "upsample_match_channel": True}
@@ -483,6 +498,7 @@ class VAE:
                 self.downscale_ratio = (lambda a: max(0, math.floor((a + 7) / 8)), 32, 32)
                 self.downscale_index_formula = (8, 32, 32)
                 self.working_dtypes = [torch.bfloat16, torch.float32]
+
             elif "decoder.conv_in.conv.weight" in sd and sd['decoder.conv_in.conv.weight'].shape[1] == 32:
                 ddconfig = {"block_out_channels": [128, 256, 512, 1024, 1024], "in_channels": 3, "out_channels": 3, "num_res_blocks": 2, "ffactor_spatial": 16, "ffactor_temporal": 4, "downsample_match_channel": True, "upsample_match_channel": True}
                 ddconfig['z_channels'] = sd["decoder.conv_in.conv.weight"].shape[1]
