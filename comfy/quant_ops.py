@@ -130,7 +130,19 @@ class QuantizedTensor(torch.Tensor):
             layout_type: Layout class (subclass of QuantizedLayout)
             layout_params: Dict with layout-specific parameters
         """
-        return torch.Tensor._make_wrapper_subclass(cls, qdata.shape, device=qdata.device, dtype=qdata.dtype, requires_grad=False)
+        # Use as_subclass so the QuantizedTensor instance shares the same
+        # storage and metadata as the underlying qdata tensor. This ensures
+        # torch.save/torch.load and the torch serialization storage scanning
+        # see a valid underlying storage (fixes data_ptr errors).
+        if not isinstance(qdata, torch.Tensor):
+            raise TypeError("qdata must be a torch.Tensor")
+        obj = qdata.as_subclass(cls)
+        # Ensure grad flag is consistent for quantized tensors
+        try:
+            obj.requires_grad_(False)
+        except Exception:
+            pass
+        return obj
 
     def __init__(self, qdata, layout_type, layout_params):
         self._qdata = qdata
@@ -578,3 +590,34 @@ def fp8_func(func, args, kwargs):
         ar[0] = plain_input
         return QuantizedTensor(func(*ar, **kwargs), "TensorCoreFP8Layout", input_tensor._layout_params)
     return func(*args, **kwargs)
+
+def _rebuild_quantized_tensor(qdata, layout_type, layout_params):
+    """Rebuild QuantizedTensor during unpickling when qdata is already a tensor."""
+    return QuantizedTensor(qdata, layout_type, layout_params)
+
+
+def _rebuild_quantized_tensor_from_base(qdata_reduce, layout_type, layout_params):
+    """Rebuild QuantizedTensor during unpickling given the base tensor's reduce tuple.
+
+    qdata_reduce is the tuple returned by qdata.__reduce_ex__(protocol) on the original
+    inner tensor. We call the provided rebuild function with its args to recreate the
+    inner tensor, then wrap it in QuantizedTensor.
+    """
+    rebuild_fn, rebuild_args = qdata_reduce
+    qdata = rebuild_fn(*rebuild_args)
+    return QuantizedTensor(qdata, layout_type, layout_params)
+
+
+# Register custom globals with torch.serialization so torch.load(..., weights_only=True)
+# accepts these during unpickling. Wrapped in try/except for older PyTorch versions.
+try:
+    import torch as _torch_serial
+    if hasattr(_torch_serial, "serialization") and hasattr(_torch_serial.serialization, "add_safe_globals"):
+        _torch_serial.serialization.add_safe_globals([
+            QuantizedTensor,
+            _rebuild_quantized_tensor,
+            _rebuild_quantized_tensor_from_base,
+        ])
+except Exception:
+    # If add_safe_globals doesn't exist or registration fails, we silently continue.
+    pass

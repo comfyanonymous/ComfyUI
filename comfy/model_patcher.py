@@ -27,6 +27,10 @@ import uuid
 from typing import Callable, Optional
 
 import torch
+import os
+import tempfile
+import weakref
+import gc
 
 import comfy.float
 import comfy.hooks
@@ -37,6 +41,80 @@ import comfy.utils
 from comfy.comfy_types import UnetWrapperFunction
 from comfy.quant_ops import QuantizedTensor
 from comfy.patcher_extension import CallbacksMP, PatcherInjection, WrappersMP
+from comfy.model_management import get_free_memory, get_offload_reserve_ram_gb, get_free_disk
+from comfy.quant_ops import QuantizedTensor
+
+def enable_offload_to_mmap() -> bool:
+    if comfy.utils.DISABLE_MMAP:
+        return False
+
+    free_cpu_mem = get_free_memory(torch.device("cpu"))
+    offload_reserve_ram_gb = get_offload_reserve_ram_gb()
+    if free_cpu_mem <= offload_reserve_ram_gb * 1024 * 1024 * 1024:
+        logging.debug(f"Enabling offload to mmap, current free cpu memory {free_cpu_mem/(1024*1024*1024)} GB < {offload_reserve_ram_gb} GB")
+        return True
+
+    return False
+
+def to_mmap(t: torch.Tensor, filename: Optional[str] = None) -> torch.Tensor:
+    """
+    Convert a tensor to a memory-mapped CPU tensor using PyTorch's native mmap support.
+    """
+    # Create temporary file
+    if filename is None:
+        temp_file = tempfile.mkstemp(suffix='.pt', prefix='comfy_mmap_')[1]
+    else:
+        temp_file = filename
+    
+    # Save tensor to file
+    cpu_tensor = t.cpu()
+    torch.save(cpu_tensor, temp_file)
+    
+    # If we created a CPU copy from other device, delete it to free memory
+    if not t.device.type == 'cpu':
+        del cpu_tensor
+        gc.collect()
+    
+    # Load with mmap - this doesn't load all data into RAM
+    mmap_tensor = torch.load(temp_file, map_location='cpu', mmap=True, weights_only=False)
+    
+    # Register cleanup callback - will be called when tensor is garbage collected
+    def _cleanup():
+        try:
+            if os.path.exists(temp_file):
+                os.remove(temp_file)
+                logging.debug(f"Cleaned up mmap file: {temp_file}")
+        except Exception:
+            pass
+    
+    weakref.finalize(mmap_tensor, _cleanup)
+
+    return mmap_tensor
+                
+def model_to_mmap(model: torch.nn.Module):
+    """Convert all parameters and buffers to memory-mapped tensors
+    
+    Args:
+        model: PyTorch module to convert
+        
+    Returns:
+        The same model with all tensors converted to memory-mapped format
+    """
+    free_cpu_mem = get_free_memory(torch.device("cpu"))
+    logging.debug(f"Converting model {model.__class__.__name__} to mmap, current free cpu memory: {free_cpu_mem/(1024*1024*1024)} GB")
+    
+    def convert_fn(t):
+        if isinstance(t, torch.nn.Parameter):
+            new_tensor = to_mmap(t.detach())
+            return torch.nn.Parameter(new_tensor, requires_grad=t.requires_grad)
+        elif isinstance(t, torch.Tensor):
+            return to_mmap(t)
+        return t
+    
+    new_model = model._apply(convert_fn)
+    free_cpu_mem = get_free_memory(torch.device("cpu"))
+    logging.debug(f"Model {model.__class__.__name__} converted to mmap, current free cpu memory: {free_cpu_mem/(1024*1024*1024)} GB")
+    return new_model
 
 
 def string_to_seed(data):
@@ -506,6 +584,7 @@ class ModelPatcher:
                 return comfy.utils.get_attr(self.model, name)
 
     def model_patches_to(self, device):
+        # TODO(sf): to mmap
         to = self.model_options["transformer_options"]
         if "patches" in to:
             patches = to["patches"]
@@ -853,9 +932,15 @@ class ModelPatcher:
             self.model.current_weight_patches_uuid = None
             self.backup.clear()
 
+                
             if device_to is not None:
-                self.model.to(device_to)
+                if enable_offload_to_mmap():
+                    # offload to mmap
+                    model_to_mmap(self.model)
+                else:
+                    self.model.to(device_to)
                 self.model.device = device_to
+            
             self.model.model_loaded_weight_memory = 0
             self.model.model_offload_buffer_memory = 0
 
@@ -914,7 +999,14 @@ class ModelPatcher:
                     bias_key = "{}.bias".format(n)
                     if move_weight:
                         cast_weight = self.force_cast_weights
-                        m.to(device_to)
+                        if enable_offload_to_mmap():
+                            if get_free_disk() < module_mem:
+                                logging.warning(f"Not enough disk space to offload {n} to mmap, current free disk space {get_free_disk()/(1024*1024*1024)} GB < {module_mem/(1024*1024*1024)} GB")
+                                break
+                            # offload to mmap
+                            model_to_mmap(m)
+                        else:
+                            m.to(device_to)
                         module_mem += move_weight_functions(m, device_to)
                         if lowvram_possible:
                             if weight_key in self.patches:

@@ -28,6 +28,29 @@ import weakref
 import gc
 import os
 
+
+from functools import lru_cache
+
+@lru_cache(maxsize=1)
+def get_offload_reserve_ram_gb():
+    offload_reserve_ram_gb = 0
+    try:
+        val = getattr(args, 'offload-reserve-ram-gb', None)
+    except Exception:
+        val = None
+
+    if val is not None:
+        try:
+            offload_reserve_ram_gb = int(val)
+        except Exception:
+            logging.warning(f"Invalid args.offload-reserve-ram-gb value: {val}, defaulting to 0")
+            offload_reserve_ram_gb= 0
+    return offload_reserve_ram_gb 
+
+def get_free_disk():
+    return psutil.disk_usage("/").free
+
+
 class VRAMState(Enum):
     DISABLED = 0    #No vram present: no need to move models to vram
     NO_VRAM = 1     #Very low vram: enable all the options to save vram
@@ -524,16 +547,33 @@ class LoadedModel:
         return False
 
     def model_unload(self, memory_to_free=None, unpatch_weights=True):
-        if memory_to_free is not None:
-            if memory_to_free < self.model.loaded_size():
-                freed = self.model.partially_unload(self.model.offload_device, memory_to_free)
-                if freed >= memory_to_free:
-                    return False
-        self.model.detach(unpatch_weights)
-        self.model_finalizer.detach()
-        self.model_finalizer = None
-        self.real_model = None
-        return True
+        if memory_to_free is None:
+            # free the full model
+            memory_to_free = self.model.loaded_size()
+
+        available_memory = get_free_memory(self.model.offload_device)
+
+        mmap_mem_threshold = get_mmap_mem_threshold_gb() * 1024 * 1024 * 1024  # this is reserved memory for other system usage
+        if memory_to_free > available_memory - mmap_mem_threshold or memory_to_free < self.model.loaded_size():
+            partially_unload = True
+        else:
+            partially_unload = False
+
+        if partially_unload:
+            freed = self.model.partially_unload(self.model.offload_device, memory_to_free)
+            if freed < memory_to_free:
+                logging.debug(f"Partially unload not enough memory, freed {freed/(1024*1024*1024)} GB, memory_to_free {memory_to_free/(1024*1024*1024)} GB")
+        else:
+            self.model.detach(unpatch_weights)
+            self.model_finalizer.detach()
+            self.model_finalizer = None
+            self.real_model = None
+
+        if partially_unload:
+            return False
+        else:
+            return True
+
 
     def model_use_more_vram(self, extra_memory, force_patch_weights=False):
         return self.model.partially_load(self.device, extra_memory, force_patch_weights=force_patch_weights)
@@ -587,7 +627,7 @@ def free_memory(memory_required, device, keep_loaded=[]):
     can_unload = []
     unloaded_models = []
 
-    for i in range(len(current_loaded_models) -1, -1, -1):
+    for i in range(len(current_loaded_models) -1, -1):
         shift_model = current_loaded_models[i]
         if shift_model.device == device:
             if shift_model not in keep_loaded and not shift_model.is_dead():
