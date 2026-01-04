@@ -6,6 +6,7 @@ from typing import Optional
 from enum import Enum
 from .pixel_norm import PixelNorm
 import comfy.ops
+import logging
 
 ops = comfy.ops.disable_weight_init
 
@@ -400,9 +401,9 @@ def make_attn(in_channels, attn_type="vanilla", norm_type="group"):
     attn_type = AttentionType.str_to_enum(attn_type)
 
     if attn_type != AttentionType.NONE:
-        print(f"making attention of type '{attn_type.value}' with {in_channels} in_channels")
+        logging.info(f"making attention of type '{attn_type.value}' with {in_channels} in_channels")
     else:
-        print(f"making identity attention with {in_channels} in_channels")
+        logging.info(f"making identity attention with {in_channels} in_channels")
 
     match attn_type:
         case AttentionType.VANILLA:
