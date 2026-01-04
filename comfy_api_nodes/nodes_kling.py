@@ -807,6 +807,7 @@ class OmniProTextToVideoNode(IO.ComfyNode):
                 ),
                 IO.Combo.Input("aspect_ratio", options=["16:9", "9:16", "1:1"]),
                 IO.Combo.Input("duration", options=[5, 10]),
+                IO.Combo.Input("resolution", options=["1080p", "720p"], optional=True),
             ],
             outputs=[
                 IO.Video.Output(),
@@ -826,6 +827,7 @@ class OmniProTextToVideoNode(IO.ComfyNode):
         prompt: str,
         aspect_ratio: str,
         duration: int,
+        resolution: str = "1080p",
     ) -> IO.NodeOutput:
         validate_string(prompt, min_length=1, max_length=2500)
         response = await sync_op(
@@ -837,6 +839,7 @@ class OmniProTextToVideoNode(IO.ComfyNode):
                 prompt=prompt,
                 aspect_ratio=aspect_ratio,
                 duration=str(duration),
+                mode="pro" if resolution == "1080p" else "std",
             ),
         )
         return await finish_omni_video_task(cls, response)
@@ -872,6 +875,7 @@ class OmniProFirstLastFrameNode(IO.ComfyNode):
                     optional=True,
                     tooltip="Up to 6 additional reference images.",
                 ),
+                IO.Combo.Input("resolution", options=["1080p", "720p"], optional=True),
             ],
             outputs=[
                 IO.Video.Output(),
@@ -893,6 +897,7 @@ class OmniProFirstLastFrameNode(IO.ComfyNode):
         first_frame: Input.Image,
         end_frame: Input.Image | None = None,
         reference_images: Input.Image | None = None,
+        resolution: str = "1080p",
     ) -> IO.NodeOutput:
         prompt = normalize_omni_prompt_references(prompt)
         validate_string(prompt, min_length=1, max_length=2500)
@@ -936,6 +941,7 @@ class OmniProFirstLastFrameNode(IO.ComfyNode):
                 prompt=prompt,
                 duration=str(duration),
                 image_list=image_list,
+                mode="pro" if resolution == "1080p" else "std",
             ),
         )
         return await finish_omni_video_task(cls, response)
@@ -964,6 +970,7 @@ class OmniProImageToVideoNode(IO.ComfyNode):
                     "reference_images",
                     tooltip="Up to 7 reference images.",
                 ),
+                IO.Combo.Input("resolution", options=["1080p", "720p"], optional=True),
             ],
             outputs=[
                 IO.Video.Output(),
@@ -984,6 +991,7 @@ class OmniProImageToVideoNode(IO.ComfyNode):
         aspect_ratio: str,
         duration: int,
         reference_images: Input.Image,
+        resolution: str = "1080p",
     ) -> IO.NodeOutput:
         prompt = normalize_omni_prompt_references(prompt)
         validate_string(prompt, min_length=1, max_length=2500)
@@ -1005,6 +1013,7 @@ class OmniProImageToVideoNode(IO.ComfyNode):
                 aspect_ratio=aspect_ratio,
                 duration=str(duration),
                 image_list=image_list,
+                mode="pro" if resolution == "1080p" else "std",
             ),
         )
         return await finish_omni_video_task(cls, response)
@@ -1036,6 +1045,7 @@ class OmniProVideoToVideoNode(IO.ComfyNode):
                     tooltip="Up to 4 additional reference images.",
                     optional=True,
                 ),
+                IO.Combo.Input("resolution", options=["1080p", "720p"], optional=True),
             ],
             outputs=[
                 IO.Video.Output(),
@@ -1058,6 +1068,7 @@ class OmniProVideoToVideoNode(IO.ComfyNode):
         reference_video: Input.Video,
         keep_original_sound: bool,
         reference_images: Input.Image | None = None,
+        resolution: str = "1080p",
     ) -> IO.NodeOutput:
         prompt = normalize_omni_prompt_references(prompt)
         validate_string(prompt, min_length=1, max_length=2500)
@@ -1090,6 +1101,7 @@ class OmniProVideoToVideoNode(IO.ComfyNode):
                 duration=str(duration),
                 image_list=image_list if image_list else None,
                 video_list=video_list,
+                mode="pro" if resolution == "1080p" else "std",
             ),
         )
         return await finish_omni_video_task(cls, response)
@@ -1119,6 +1131,7 @@ class OmniProEditVideoNode(IO.ComfyNode):
                     tooltip="Up to 4 additional reference images.",
                     optional=True,
                 ),
+                IO.Combo.Input("resolution", options=["1080p", "720p"], optional=True),
             ],
             outputs=[
                 IO.Video.Output(),
@@ -1139,6 +1152,7 @@ class OmniProEditVideoNode(IO.ComfyNode):
         video: Input.Video,
         keep_original_sound: bool,
         reference_images: Input.Image | None = None,
+        resolution: str = "1080p",
     ) -> IO.NodeOutput:
         prompt = normalize_omni_prompt_references(prompt)
         validate_string(prompt, min_length=1, max_length=2500)
@@ -1171,6 +1185,7 @@ class OmniProEditVideoNode(IO.ComfyNode):
                 duration=None,
                 image_list=image_list if image_list else None,
                 video_list=video_list,
+                mode="pro" if resolution == "1080p" else "std",
             ),
         )
         return await finish_omni_video_task(cls, response)
