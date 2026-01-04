@@ -259,7 +259,7 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
                 dit_config["nerf_tile_size"] = 512
                 dit_config["nerf_final_head_type"] = "conv" if f"{key_prefix}nerf_final_layer_conv.norm.scale" in state_dict_keys else "linear"
                 dit_config["nerf_embedder_dtype"] = torch.float32
-                if "__x0__" in state_dict_keys: # x0 pred
+                if "{}__x0__".format(key_prefix) in state_dict_keys: # x0 pred
                     dit_config["use_x0"] = True
                 else:
                     dit_config["use_x0"] = False
@@ -430,8 +430,9 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
             dit_config["rope_theta"] = 10000.0
             dit_config["ffn_dim_multiplier"] = 4.0
             ctd_weight = state_dict.get('{}clip_text_pooled_proj.0.weight'.format(key_prefix), None)
-            if ctd_weight is not None:
+            if ctd_weight is not None:  # NewBie
                 dit_config["clip_text_dim"] = ctd_weight.shape[0]
+                # NewBie also sets axes_lens = [1024, 512, 512] but it's not used in ComfyUI
         elif dit_config["dim"] == 3840:  # Z image
             dit_config["n_heads"] = 30
             dit_config["n_kv_heads"] = 30
@@ -618,6 +619,11 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
         dit_config["image_model"] = "qwen_image"
         dit_config["in_channels"] = state_dict['{}img_in.weight'.format(key_prefix)].shape[1]
         dit_config["num_layers"] = count_blocks(state_dict_keys, '{}transformer_blocks.'.format(key_prefix) + '{}.')
+        if "{}__index_timestep_zero__".format(key_prefix) in state_dict_keys:  # 2511
+            dit_config["default_ref_method"] = "index_timestep_zero"
+        if "{}time_text_embed.addition_t_embedding.weight".format(key_prefix) in state_dict_keys:  # Layered
+            dit_config["use_additional_t_cond"] = True
+            dit_config["default_ref_method"] = "negative_index"
         return dit_config
 
     if '{}visual_transformer_blocks.0.cross_attention.key_norm.weight'.format(key_prefix) in state_dict_keys: # Kandinsky 5
