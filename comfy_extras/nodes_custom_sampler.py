@@ -659,6 +659,40 @@ class SamplerSASolver(io.ComfyNode):
     get_sampler = execute
 
 
+class SamplerSEEDS2(io.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return io.Schema(
+            node_id="SamplerSEEDS2",
+            category="sampling/custom_sampling/samplers",
+            inputs=[
+                io.Combo.Input("solver_type", options=["phi_1", "phi_2"]),
+                io.Float.Input("eta", default=1.0, min=0.0, max=100.0, step=0.01, round=False, tooltip="Stochastic strength"),
+                io.Float.Input("s_noise", default=1.0, min=0.0, max=100.0, step=0.01, round=False, tooltip="SDE noise multiplier"),
+                io.Float.Input("r", default=0.5, min=0.01, max=1.0, step=0.01, round=False, tooltip="Relative step size for the intermediate stage (c2 node)"),
+            ],
+            outputs=[io.Sampler.Output()],
+            description=(
+                "This sampler node can represent multiple samplers:\n\n"
+                "seeds_2\n"
+                "- default setting\n\n"
+                "exp_heun_2_x0\n"
+                "- solver_type=phi_2, r=1.0, eta=0.0\n\n"
+                "exp_heun_2_x0_sde\n"
+                "- solver_type=phi_2, r=1.0, eta=1.0, s_noise=1.0"
+            )
+        )
+
+    @classmethod
+    def execute(cls, solver_type, eta, s_noise, r) -> io.NodeOutput:
+        sampler_name = "seeds_2"
+        sampler = comfy.samplers.ksampler(
+            sampler_name,
+            {"eta": eta, "s_noise": s_noise, "r": r, "solver_type": solver_type},
+        )
+        return io.NodeOutput(sampler)
+
+
 class Noise_EmptyNoise:
     def __init__(self):
         self.seed = 0
@@ -996,6 +1030,7 @@ class CustomSamplersExtension(ComfyExtension):
             SamplerDPMAdaptative,
             SamplerER_SDE,
             SamplerSASolver,
+            SamplerSEEDS2,
             SplitSigmas,
             SplitSigmasDenoise,
             FlipSigmas,

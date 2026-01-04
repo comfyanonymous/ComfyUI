@@ -51,25 +51,25 @@ class TaskStatusImageResult(BaseModel):
     url: str = Field(..., description="URL for generated image")
 
 
-class OmniTaskStatusResults(BaseModel):
+class TaskStatusResults(BaseModel):
     videos: list[TaskStatusVideoResult] | None = Field(None)
     images: list[TaskStatusImageResult] | None = Field(None)
 
 
-class OmniTaskStatusResponseData(BaseModel):
+class TaskStatusResponseData(BaseModel):
     created_at: int | None = Field(None, description="Task creation time")
     updated_at: int | None = Field(None, description="Task update time")
     task_status: str | None = None
     task_status_msg: str | None = Field(None, description="Additional failure reason. Only for polling endpoint.")
     task_id: str | None = Field(None, description="Task ID")
-    task_result: OmniTaskStatusResults | None = Field(None)
+    task_result: TaskStatusResults | None = Field(None)
 
 
-class OmniTaskStatusResponse(BaseModel):
+class TaskStatusResponse(BaseModel):
     code: int | None = Field(None, description="Error code")
     message: str | None = Field(None, description="Error message")
     request_id: str | None = Field(None, description="Request ID")
-    data: OmniTaskStatusResponseData | None = Field(None)
+    data: TaskStatusResponseData | None = Field(None)
 
 
 class OmniImageParamImage(BaseModel):
@@ -84,3 +84,21 @@ class OmniProImageRequest(BaseModel):
     mode: str = Field("pro")
     n: int | None = Field(1, le=9)
     image_list: list[OmniImageParamImage] | None = Field(..., max_length=10)
+
+
+class TextToVideoWithAudioRequest(BaseModel):
+    model_name: str = Field(..., description="kling-v2-6")
+    aspect_ratio: str = Field(..., description="'16:9', '9:16' or '1:1'")
+    duration: str = Field(..., description="'5' or '10'")
+    prompt: str = Field(...)
+    mode: str = Field("pro")
+    sound: str = Field(..., description="'on' or 'off'")
+
+
+class ImageToVideoWithAudioRequest(BaseModel):
+    model_name: str = Field(..., description="kling-v2-6")
+    image: str = Field(...)
+    duration: str = Field(..., description="'5' or '10'")
+    prompt: str = Field(...)
+    mode: str = Field("pro")
+    sound: str = Field(..., description="'on' or 'off'")
