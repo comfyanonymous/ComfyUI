@@ -1113,6 +1113,22 @@ class DynamicSlot(ComfyTypeI):
             out_dict[input_type][finalized_id] = value
             out_dict["dynamic_paths"][finalized_id] = finalize_prefix(curr_prefix, curr_prefix[-1])
 
+@comfytype(io_type="IMAGECROP")
+class ImageCrop(ComfyTypeI):
+  """Widget for visual image cropping with x, y, width, height controls."""
+  Type = dict
+
+  class Input(WidgetInput):
+      def __init__(self, id: str, display_name: str=None, optional=False, tooltip: str=None,
+                   socketless: bool=True,
+                   default: dict=None):
+          super().__init__(id, display_name, optional, tooltip, None, default, socketless)
+          if default is None:
+              self.default = {"x": 0, "y": 0, "width": 512, "height": 512}
+
+      def as_dict(self):
+          return super().as_dict()
+
 DYNAMIC_INPUT_LOOKUP: dict[str, Callable[[dict[str, Any], dict[str, Any], tuple[str, dict[str, Any]], str, list[str] | None], None]] = {}
 def register_dynamic_input_func(io_type: str, func: Callable[[dict[str, Any], dict[str, Any], tuple[str, dict[str, Any]], str, list[str] | None], None]):
     DYNAMIC_INPUT_LOOKUP[io_type] = func
@@ -1958,4 +1974,5 @@ __all__ = [
     "add_to_dict_v1",
     "add_to_dict_v3",
     "V3Data",
+    "ImageCrop",
 ]
