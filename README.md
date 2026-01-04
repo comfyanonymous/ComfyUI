@@ -69,6 +69,8 @@ See what ComfyUI can do with the [example workflows](https://comfyanonymous.gith
    - [Hunyuan Image 2.1](https://comfyanonymous.github.io/ComfyUI_examples/hunyuan_image/)
    - [Flux 2](https://comfyanonymous.github.io/ComfyUI_examples/flux2/)
    - [Z Image](https://comfyanonymous.github.io/ComfyUI_examples/z_image/)
+   - [Chroma](https://comfyanonymous.github.io/ComfyUI_examples/chroma/)
+   - [Ovis Image](https://docs.comfy.org/tutorials/image/ovis/ovis-image)
 - Image Editing Models
    - [Omnigen 2](https://comfyanonymous.github.io/ComfyUI_examples/omnigen/)
    - [Flux Kontext](https://comfyanonymous.github.io/ComfyUI_examples/flux/#flux-kontext-image-editing-model)
@@ -82,6 +84,9 @@ See what ComfyUI can do with the [example workflows](https://comfyanonymous.gith
    - [Wan 2.1](https://comfyanonymous.github.io/ComfyUI_examples/wan/)
    - [Wan 2.2](https://comfyanonymous.github.io/ComfyUI_examples/wan22/)
    - [Hunyuan Video 1.5](https://docs.comfy.org/tutorials/video/hunyuan/hunyuan-video-1-5)
+   - [Kandinsky 5.0](https://docs.comfy.org/tutorials/video/kandinsky/kandinsky-5)
+   - [Nvidia Cosmos](https://comfyanonymous.github.io/ComfyUI_examples/cosmos)
+   - [Nvidia Cosmos Predict2](https://comfyanonymous.github.io/ComfyUI_examples/cosmos_predict2)
 - Audio Models
    - [Stable Audio](https://comfyanonymous.github.io/ComfyUI_examples/audio/)
    - [ACE Step](https://comfyanonymous.github.io/ComfyUI_examples/audio/)
