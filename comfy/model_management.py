@@ -448,6 +448,20 @@ try:
 except:
     logging.warning("Could not pick default device.")
 
+current_ram_listeners = set()
+
+def register_ram_listener(listener):
+    current_ram_listeners.add(listener)
+
+def unregister_ram_listener(listener):
+    current_ram_listeners.discard(listener)
+
+def free_ram(extra_ram=0, state_dict={}):
+    for tensor in state_dict.values():
+        if isinstance(tensor, torch.Tensor):
+            extra_ram += tensor.numel() * tensor.element_size()
+    for listener in current_ram_listeners:
+        listener.free_ram(extra_ram)
 
 current_loaded_models = []
 
@@ -524,12 +538,18 @@ class LoadedModel:
         return False
 
     def model_unload(self, memory_to_free=None, unpatch_weights=True):
+        if self.model is None:
+            return True
+        logging.debug(f"Unloading {self.model.model.__class__.__name__}")
         if memory_to_free is not None:
             if memory_to_free < self.model.loaded_size():
-                freed = self.model.partially_unload(self.model.offload_device, memory_to_free)
+                freed, modules_to_offload = self.model.partially_unload(self.model.offload_device, memory_to_free)
+                offload_modules(modules_to_offload, self.model.offload_device)
                 if freed >= memory_to_free:
                     return False
-        self.model.detach(unpatch_weights)
+        if self.model is not None:
+            modules_to_offload = self.model.detach(unpatch_weights)
+            offload_modules(modules_to_offload, self.model.offload_device)
         self.model_finalizer.detach()
         self.model_finalizer = None
         self.real_model = None
@@ -546,7 +566,7 @@ class LoadedModel:
             self._patcher_finalizer.detach()
 
     def is_dead(self):
-        return self.real_model() is not None and self.model is None
+        return self.real_model is not None and self.real_model() is not None and self.model is None
 
 
 def use_more_memory(extra_memory, loaded_models, device):
@@ -581,6 +601,13 @@ def extra_reserved_memory():
 def minimum_inference_memory():
     return (1024 * 1024 * 1024) * 0.8 + extra_reserved_memory()
 
+def offload_modules(modules, offload_device):
+    for module in modules:
+        if module() is None:
+            continue
+        module().to(offload_device)
+        free_ram()
+
 def free_memory(memory_required, device, keep_loaded=[]):
     cleanup_models_gc()
     unloaded_model = []
@@ -591,23 +618,25 @@ def free_memory(memory_required, device, keep_loaded=[]):
         shift_model = current_loaded_models[i]
         if shift_model.device == device:
             if shift_model not in keep_loaded and not shift_model.is_dead():
-                can_unload.append((-shift_model.model_offloaded_memory(), sys.getrefcount(shift_model.model), shift_model.model_memory(), i))
+                can_unload.append((-shift_model.model_offloaded_memory(), sys.getrefcount(shift_model.model), shift_model.model_memory(), i, shift_model))
                 shift_model.currently_used = False
 
     for x in sorted(can_unload):
-        i = x[-1]
+        shift_model = x[-1]
+        i = x[-2]
         memory_to_free = None
         if not DISABLE_SMART_MEMORY:
             free_mem = get_free_memory(device)
             if free_mem > memory_required:
                 break
             memory_to_free = memory_required - free_mem
-        logging.debug(f"Unloading {current_loaded_models[i].model.model.__class__.__name__}")
-        if current_loaded_models[i].model_unload(memory_to_free):
-            unloaded_model.append(i)
+        if shift_model.model_unload(memory_to_free):
+            unloaded_model.append((i, shift_model))
 
-    for i in sorted(unloaded_model, reverse=True):
-        unloaded_models.append(current_loaded_models.pop(i))
+    for i, shift_model in sorted(unloaded_model, reverse=True):
+        unloaded_models.append(shift_model)
+        if shift_model in current_loaded_models:
+            current_loaded_models.remove(shift_model)
 
     if len(unloaded_model) > 0:
         soft_empty_cache()
@@ -742,7 +771,7 @@ def cleanup_models_gc():
 def cleanup_models():
     to_delete = []
     for i in range(len(current_loaded_models)):
-        if current_loaded_models[i].real_model() is None:
+        if current_loaded_models[i].real_model is None or current_loaded_models[i].real_model() is None:
             to_delete = [i] + to_delete
 
     for i in to_delete:

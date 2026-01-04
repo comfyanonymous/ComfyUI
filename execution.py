@@ -108,7 +108,7 @@ class CacheSet:
             self.init_null_cache()
             logging.info("Disabling intermediate node cache.")
         elif cache_type == CacheType.RAM_PRESSURE:
-            cache_ram = cache_args.get("ram", 16.0)
+            cache_ram = cache_args.get("ram", 4.0)
             self.init_ram_cache(cache_ram)
             logging.info("Using RAM pressure cache.")
         elif cache_type == CacheType.LRU:
@@ -130,7 +130,7 @@ class CacheSet:
         self.objects = HierarchicalCache(CacheKeySetID)
 
     def init_ram_cache(self, min_headroom):
-        self.outputs = RAMPressureCache(CacheKeySetInputSignature)
+        self.outputs = RAMPressureCache(CacheKeySetInputSignature, min_headroom)
         self.objects = HierarchicalCache(CacheKeySetID)
 
     def init_null_cache(self):
@@ -427,7 +427,10 @@ async def execute(server, dynprompt, caches, current_item, extra_data, executed,
 
     input_data_all = None
     try:
-        if unique_id in pending_async_nodes:
+        if execution_list.is_barrier(unique_id):
+            execution_list.unbarrier(unique_id)
+            return (ExecutionResult.PENDING, None, None)
+        elif unique_id in pending_async_nodes:
             results = []
             for r in pending_async_nodes[unique_id]:
                 if isinstance(r, asyncio.Task):
@@ -622,13 +625,21 @@ async def execute(server, dynprompt, caches, current_item, extra_data, executed,
 
 class PromptExecutor:
     def __init__(self, server, cache_type=False, cache_args=None):
+        self.caches = None
         self.cache_args = cache_args
         self.cache_type = cache_type
         self.server = server
         self.reset()
 
     def reset(self):
+        if self.caches is not None:
+            for cache in self.caches.all:
+                comfy.model_management.unregister_ram_listener(cache)
+
         self.caches = CacheSet(cache_type=self.cache_type, cache_args=self.cache_args)
+
+        for cache in self.caches.all:
+            comfy.model_management.register_ram_listener(cache)
         self.status_messages = []
         self.success = True
 
@@ -728,7 +739,7 @@ class PromptExecutor:
                     execution_list.unstage_node_execution()
                 else: # result == ExecutionResult.SUCCESS:
                     execution_list.complete_node_execution()
-                self.caches.outputs.poll(ram_headroom=self.cache_args["ram"])
+                self.caches.outputs.free_ram()
             else:
                 # Only execute when the while-loop ends without break
                 self.add_message("execution_success", { "prompt_id": prompt_id }, broadcast=False)
