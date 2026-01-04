@@ -160,3 +160,28 @@ def test_base_path_change_clears_old(set_base_dir):
 
     for name in ["controlnet", "diffusion_models", "text_encoders"]:
         assert len(folder_paths.get_folder_paths(name)) == 2
+
+
+def test_windows_standalone_random_port():
+    """Test that --windows-standalone-build uses port 0 when port is in use"""
+    import socket
+    
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    sock.bind(('', 8188))
+    try:
+        with patch.object(sys, 'argv', ["main.py", "--windows-standalone-build"]):
+            reload(comfy.cli_args)
+            assert comfy.cli_args.args.port == 0
+            assert comfy.cli_args.args.windows_standalone_build
+    finally:
+        sock.close()
+    
+    with patch.object(sys, 'argv', ["main.py", "--windows-standalone-build", "--port", "9999"]):
+        reload(comfy.cli_args)
+        assert comfy.cli_args.args.port == 9999 or comfy.cli_args.args.port == 0
+        assert comfy.cli_args.args.windows_standalone_build
+    
+    with patch.object(sys, 'argv', ["main.py"]):
+        reload(comfy.cli_args)
+        assert comfy.cli_args.args.port == 8188
+        assert not comfy.cli_args.args.windows_standalone_build

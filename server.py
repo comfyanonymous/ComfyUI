@@ -1182,6 +1182,11 @@ class PromptServer():
             port = addr[1]
             site = web.TCPSite(runner, address, port, ssl_context=ssl_ctx)
             await site.start()
+            
+            if port == 0 and site._server and site._server.sockets:
+                port = site._server.sockets[0].getsockname()[1]
+                if verbose:
+                    logging.info("Random port assigned: {}".format(port))
 
             if not hasattr(self, 'address'):
                 self.address = address #TODO: remove this
