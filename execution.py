@@ -79,7 +79,7 @@ class IsChangedCache:
         # Intentionally do not use cached outputs here. We only want constants in IS_CHANGED
         input_data_all, _, v3_data = get_input_data(node["inputs"], class_def, node_id, None)
         try:
-            is_changed = await _async_map_node_over_list(self.prompt_id, node_id, class_def, input_data_all, is_changed_name)
+            is_changed = await _async_map_node_over_list(self.prompt_id, node_id, class_def, input_data_all, is_changed_name, v3_data=v3_data)
             is_changed = await resolve_map_node_over_list_results(is_changed)
             node["is_changed"] = [None if isinstance(x, ExecutionBlocker) else x for x in is_changed]
         except Exception as e:
@@ -148,13 +148,12 @@ SENSITIVE_EXTRA_DATA_KEYS = ("auth_token_comfy_org", "api_key_comfy_org")
 def get_input_data(inputs, class_def, unique_id, execution_list=None, dynprompt=None, extra_data={}):
     is_v3 = issubclass(class_def, _ComfyNodeInternal)
     v3_data: io.V3Data = {}
+    hidden_inputs_v3 = {}
+    valid_inputs = class_def.INPUT_TYPES()
     if is_v3:
-        valid_inputs, schema, v3_data = class_def.INPUT_TYPES(include_hidden=False, return_schema=True, live_inputs=inputs)
-    else:
-        valid_inputs = class_def.INPUT_TYPES()
+        valid_inputs, hidden, v3_data = _io.get_finalized_class_inputs(valid_inputs, inputs)
     input_data_all = {}
     missing_keys = {}
-    hidden_inputs_v3 = {}
     for x in inputs:
         input_data = inputs[x]
         _, input_category, input_info = get_input_info(class_def, x, valid_inputs)
@@ -180,18 +179,18 @@ def get_input_data(inputs, class_def, unique_id, execution_list=None, dynprompt=
             input_data_all[x] = [input_data]
 
     if is_v3:
-        if schema.hidden:
-            if io.Hidden.prompt in schema.hidden:
+        if hidden is not None:
+            if io.Hidden.prompt.name in hidden:
                 hidden_inputs_v3[io.Hidden.prompt] = dynprompt.get_original_prompt() if dynprompt is not None else {}
-            if io.Hidden.dynprompt in schema.hidden:
+            if io.Hidden.dynprompt.name in hidden:
                 hidden_inputs_v3[io.Hidden.dynprompt] = dynprompt
-            if io.Hidden.extra_pnginfo in schema.hidden:
+            if io.Hidden.extra_pnginfo.name in hidden:
                 hidden_inputs_v3[io.Hidden.extra_pnginfo] = extra_data.get('extra_pnginfo', None)
-            if io.Hidden.unique_id in schema.hidden:
+            if io.Hidden.unique_id.name in hidden:
                 hidden_inputs_v3[io.Hidden.unique_id] = unique_id
-            if io.Hidden.auth_token_comfy_org in schema.hidden:
+            if io.Hidden.auth_token_comfy_org.name in hidden:
                 hidden_inputs_v3[io.Hidden.auth_token_comfy_org] = extra_data.get("auth_token_comfy_org", None)
-            if io.Hidden.api_key_comfy_org in schema.hidden:
+            if io.Hidden.api_key_comfy_org.name in hidden:
                 hidden_inputs_v3[io.Hidden.api_key_comfy_org] = extra_data.get("api_key_comfy_org", None)
     else:
         if "hidden" in valid_inputs:
@@ -258,7 +257,7 @@ async def _async_map_node_over_list(prompt_id, unique_id, obj, input_data_all, f
                 pre_execute_cb(index)
             # V3
             if isinstance(obj, _ComfyNodeInternal) or (is_class(obj) and issubclass(obj, _ComfyNodeInternal)):
-                # if is just a class, then assign no resources or state, just create clone
+                # if is just a class, then assign no state, just create clone
                 if is_class(obj):
                     type_obj = obj
                     obj.VALIDATE_CLASS()
@@ -481,7 +480,10 @@ async def execute(server, dynprompt, caches, current_item, extra_data, executed,
             else:
                 lazy_status_present = getattr(obj, "check_lazy_status", None) is not None
             if lazy_status_present:
-                required_inputs = await _async_map_node_over_list(prompt_id, unique_id, obj, input_data_all, "check_lazy_status", allow_interrupt=True, v3_data=v3_data)
+                # for check_lazy_status, the returned data should include the original key of the input
+                v3_data_lazy = v3_data.copy()
+                v3_data_lazy["create_dynamic_tuple"] = True
+                required_inputs = await _async_map_node_over_list(prompt_id, unique_id, obj, input_data_all, "check_lazy_status", allow_interrupt=True, v3_data=v3_data_lazy)
                 required_inputs = await resolve_map_node_over_list_results(required_inputs)
                 required_inputs = set(sum([r for r in required_inputs if isinstance(r,list)], []))
                 required_inputs = [x for x in required_inputs if isinstance(x,str) and (
@@ -599,6 +601,7 @@ async def execute(server, dynprompt, caches, current_item, extra_data, executed,
 
         if isinstance(ex, comfy.model_management.OOM_EXCEPTION):
             tips = "This error means you ran out of memory on your GPU.\n\nTIPS: If the workflow worked before you might have accidentally set the batch_size to a large number."
+            logging.info("Memory summary: {}".format(comfy.model_management.debug_memory_summary()))
             logging.error("Got an OOM, unloading all loaded models.")
             comfy.model_management.unload_all_models()
 
@@ -756,10 +759,13 @@ async def validate_inputs(prompt_id, prompt, item, validated):
     errors = []
     valid = True
 
+    v3_data = None
     validate_function_inputs = []
     validate_has_kwargs = False
     if issubclass(obj_class, _ComfyNodeInternal):
-        class_inputs, _, _ = obj_class.INPUT_TYPES(include_hidden=False, return_schema=True, live_inputs=inputs)
+        obj_class: _io._ComfyNodeBaseInternal
+        class_inputs = obj_class.INPUT_TYPES()
+        class_inputs, _, v3_data = _io.get_finalized_class_inputs(class_inputs, inputs)
         validate_function_name = "validate_inputs"
         validate_function = first_real_override(obj_class, validate_function_name)
     else:
@@ -779,10 +785,11 @@ async def validate_inputs(prompt_id, prompt, item, validated):
         assert extra_info is not None
         if x not in inputs:
             if input_category == "required":
+                details = f"{x}" if not v3_data else x.split(".")[-1]
                 error = {
                     "type": "required_input_missing",
                     "message": "Required input is missing",
-                    "details": f"{x}",
+                    "details": details,
                     "extra_info": {
                         "input_name": x
                     }
@@ -916,8 +923,11 @@ async def validate_inputs(prompt_id, prompt, item, validated):
                     errors.append(error)
                     continue
 
-                if isinstance(input_type, list):
-                    combo_options = input_type
+                if isinstance(input_type, list) or input_type == io.Combo.io_type:
+                    if input_type == io.Combo.io_type:
+                        combo_options = extra_info.get("options", [])
+                    else:
+                        combo_options = input_type
                     if val not in combo_options:
                         input_config = info
                         list_info = ""

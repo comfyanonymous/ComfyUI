@@ -1663,8 +1663,6 @@ class LoadImage:
         output_masks = []
         w, h = None, None
 
-        excluded_formats = ['MPO']
-
         for i in ImageSequence.Iterator(img):
             i = node_helpers.pillow(ImageOps.exif_transpose, i)
 
@@ -1692,7 +1690,10 @@ class LoadImage:
             output_images.append(image)
             output_masks.append(mask.unsqueeze(0))
 
-        if len(output_images) > 1 and img.format not in excluded_formats:
+            if img.format == "MPO":
+                break  # ignore all frames except the first one for MPO format
+
+        if len(output_images) > 1:
             output_image = torch.cat(output_images, dim=0)
             output_mask = torch.cat(output_masks, dim=0)
         else:
@@ -1863,6 +1864,7 @@ class ImageBatch:
     FUNCTION = "batch"
 
     CATEGORY = "image"
+    DEPRECATED = True
 
     def batch(self, image1, image2):
         if image1.shape[-1] != image2.shape[-1]:
@@ -2241,8 +2243,10 @@ async def init_external_custom_nodes():
 
         for possible_module in possible_modules:
             module_path = os.path.join(custom_node_path, possible_module)
-            if os.path.isfile(module_path) and os.path.splitext(module_path)[1] != ".py": continue
-            if module_path.endswith(".disabled"): continue
+            if os.path.isfile(module_path) and os.path.splitext(module_path)[1] != ".py":
+                continue
+            if module_path.endswith(".disabled"):
+                continue
             if args.disable_all_custom_nodes and possible_module not in args.whitelist_custom_nodes:
                 logging.info(f"Skipping {possible_module} due to disable_all_custom_nodes and whitelist_custom_nodes")
                 continue
