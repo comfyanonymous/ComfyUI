@@ -1340,6 +1340,12 @@ class WanInfiniteTalkToVideo(io.ComfyNode):
 
         if previous_frames is not None and previous_frames.shape[0] < motion_frame_count:
             raise ValueError("Not enough previous frames provided.")
+
+        if mode["mode"] == "two_speakers":
+            audio_encoder_output_2 = mode["audio_encoder_output_2"]
+            mask_1 = mode["mask_1"]
+            mask_2 = mode["mask_2"]
+
         if audio_encoder_output_2 is not None:
             if mask_1 is None or mask_2 is None:
                 raise ValueError("Masks must be provided if two audio encoder outputs are used.")
