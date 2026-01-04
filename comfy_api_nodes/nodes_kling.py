@@ -846,8 +846,14 @@ class OmniProTextToVideoNode(IO.ComfyNode):
             ],
             is_api_node=True,
             price_badge=IO.PriceBadge(
-                depends_on=IO.PriceBadgeDepends(widgets=["duration"]),
-                expr="""{"type":"usd","usd": 0.112 * w.duration.n}""",
+                depends_on=IO.PriceBadgeDepends(widgets=["duration", "resolution"]),
+                expr="""
+                (
+                  $mode := (w.resolution.s = "720p") ? "std" : "pro";
+                  $rates := {"std": 0.084, "pro": 0.112};
+                  {"type":"usd","usd": $lookup($rates, $mode) * w.duration.n}
+                )
+                """,
             ),
         )
 
@@ -918,8 +924,14 @@ class OmniProFirstLastFrameNode(IO.ComfyNode):
             ],
             is_api_node=True,
             price_badge=IO.PriceBadge(
-                depends_on=IO.PriceBadgeDepends(widgets=["duration"]),
-                expr="""{"type":"usd","usd": 0.112 * w.duration.n}""",
+                depends_on=IO.PriceBadgeDepends(widgets=["duration", "resolution"]),
+                expr="""
+                (
+                  $mode := (w.resolution.s = "720p") ? "std" : "pro";
+                  $rates := {"std": 0.084, "pro": 0.112};
+                  {"type":"usd","usd": $lookup($rates, $mode) * w.duration.n}
+                )
+                """,
             ),
         )
 
@@ -1017,8 +1029,14 @@ class OmniProImageToVideoNode(IO.ComfyNode):
             ],
             is_api_node=True,
             price_badge=IO.PriceBadge(
-                depends_on=IO.PriceBadgeDepends(widgets=["duration"]),
-                expr="""{"type":"usd","usd": 0.112 * w.duration.n}""",
+                depends_on=IO.PriceBadgeDepends(widgets=["duration", "resolution"]),
+                expr="""
+                (
+                  $mode := (w.resolution.s = "720p") ? "std" : "pro";
+                  $rates := {"std": 0.084, "pro": 0.112};
+                  {"type":"usd","usd": $lookup($rates, $mode) * w.duration.n}
+                )
+                """,
             ),
         )
 
@@ -1096,8 +1114,14 @@ class OmniProVideoToVideoNode(IO.ComfyNode):
             ],
             is_api_node=True,
             price_badge=IO.PriceBadge(
-                depends_on=IO.PriceBadgeDepends(widgets=["duration"]),
-                expr="""{"type":"usd","usd": 0.112 * w.duration.n}""",
+                depends_on=IO.PriceBadgeDepends(widgets=["duration", "resolution"]),
+                expr="""
+                (
+                  $mode := (w.resolution.s = "720p") ? "std" : "pro";
+                  $rates := {"std": 0.126, "pro": 0.168};
+                  {"type":"usd","usd": $lookup($rates, $mode) * w.duration.n}
+                )
+                """,
             ),
         )
 
@@ -1186,7 +1210,14 @@ class OmniProEditVideoNode(IO.ComfyNode):
             ],
             is_api_node=True,
             price_badge=IO.PriceBadge(
-                expr="""{"type":"usd","usd":0.168,"format":{"suffix":"/second"}}""",
+                depends_on=IO.PriceBadgeDepends(widgets=["resolution"]),
+                expr="""
+                (
+                  $mode := (w.resolution.s = "720p") ? "std" : "pro";
+                  $rates := {"std": 0.126, "pro": 0.168};
+                  {"type":"usd","usd": $lookup($rates, $mode), "format":{"suffix":"/second"}}
+                )
+                """,
             ),
         )
 
