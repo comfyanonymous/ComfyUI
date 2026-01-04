@@ -128,6 +128,7 @@ class PixverseTextToVideoNode(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
+            price_badge=PRICE_BADGE_VIDEO,
         )
 
     @classmethod
@@ -242,6 +243,7 @@ class PixverseImageToVideoNode(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
+            price_badge=PRICE_BADGE_VIDEO,
         )
 
     @classmethod
@@ -355,6 +357,7 @@ class PixverseTransitionVideoNode(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
+            price_badge=PRICE_BADGE_VIDEO,
         )
 
     @classmethod
@@ -414,6 +417,46 @@ class PixverseTransitionVideoNode(IO.ComfyNode):
             estimated_duration=AVERAGE_DURATION_T2V,
         )
         return IO.NodeOutput(await download_url_to_video_output(response_poll.Resp.url))
+
+
+PRICE_BADGE_VIDEO = IO.PriceBadge(
+    depends_on=IO.PriceBadgeDepends(widgets=["duration_seconds", "quality", "motion_mode"]),
+    expr="""
+    (
+      $d := w.duration_seconds.s;
+      $q := w.quality.s;
+      $m := w.motion_mode.s;
+
+      $price :=
+        $contains($d,"5")
+          ? (
+              $contains($q,"1080p") ? 1.2 :
+              ($contains($q,"720p") and $contains($m,"fast")) ? 1.2 :
+              ($contains($q,"720p") and $contains($m,"normal")) ? 0.6 :
+              ($contains($q,"540p") and $contains($m,"fast")) ? 0.9 :
+              ($contains($q,"540p") and $contains($m,"normal")) ? 0.45 :
+              ($contains($q,"360p") and $contains($m,"fast")) ? 0.9 :
+              ($contains($q,"360p") and $contains($m,"normal")) ? 0.45 :
+              0.9
+            )
+          : $contains($d,"8")
+            ? (
+                ($contains($q,"540p") and $contains($m,"normal")) ? 0.9 :
+                ($contains($q,"540p") and $contains($m,"fast")) ? 1.2 :
+                ($contains($q,"360p") and $contains($m,"normal")) ? 0.9 :
+                ($contains($q,"360p") and $contains($m,"fast")) ? 1.2 :
+                ($contains($q,"1080p") and $contains($m,"normal")) ? 1.2 :
+                ($contains($q,"1080p") and $contains($m,"fast")) ? 1.2 :
+                ($contains($q,"720p") and $contains($m,"normal")) ? 1.2 :
+                ($contains($q,"720p") and $contains($m,"fast")) ? 1.2 :
+                0.9
+              )
+            : 0.9;
+
+      {"type":"usd","usd": $price}
+    )
+    """,
+)
 
 
 class PixVerseExtension(ComfyExtension):
