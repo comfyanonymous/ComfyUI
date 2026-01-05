@@ -7,6 +7,7 @@ import math
 from comfy.ldm.modules.attention import optimized_attention_for_device
 import comfy.model_management
 import comfy.ldm.common_dit
+import comfy.clip_model
 
 from . import qwen_vl
 
@@ -187,6 +188,31 @@ class Gemma3_4B_Config:
     sliding_attention = [1024, 1024, 1024, 1024, 1024, False]
     rope_scale = [8.0, 1.0]
     final_norm: bool = True
+
+@dataclass
+class Gemma3_12B_Config:
+    vocab_size: int = 262208
+    hidden_size: int = 3840
+    intermediate_size: int = 15360
+    num_hidden_layers: int = 48
+    num_attention_heads: int = 16
+    num_key_value_heads: int = 8
+    max_position_embeddings: int = 131072
+    rms_norm_eps: float = 1e-6
+    rope_theta = [1000000.0, 10000.0]
+    transformer_type: str = "gemma3"
+    head_dim = 256
+    rms_norm_add = True
+    mlp_activation = "gelu_pytorch_tanh"
+    qkv_bias = False
+    rope_dims = None
+    q_norm = "gemma3"
+    k_norm = "gemma3"
+    sliding_attention = [1024, 1024, 1024, 1024, 1024, False]
+    rope_scale = [8.0, 1.0]
+    final_norm: bool = True
+    vision_config = {"num_channels": 3, "hidden_act": "gelu_pytorch_tanh", "hidden_size": 1152, "image_size": 896, "intermediate_size": 4304, "model_type": "siglip_vision_model", "num_attention_heads": 16, "num_hidden_layers": 27, "patch_size": 14}
+    mm_tokens_per_image = 256
 
 class RMSNorm(nn.Module):
     def __init__(self, dim: int, eps: float = 1e-5, add=False, device=None, dtype=None):
@@ -520,6 +546,41 @@ class Llama2_(nn.Module):
 
         return x, intermediate
 
+
+class Gemma3MultiModalProjector(torch.nn.Module):
+    def __init__(self, config, dtype, device, operations):
+        super().__init__()
+
+        self.mm_input_projection_weight = nn.Parameter(
+            torch.empty(config.vision_config["hidden_size"], config.hidden_size, device=device, dtype=dtype)
+        )
+
+        self.mm_soft_emb_norm = RMSNorm(config.vision_config["hidden_size"], eps=config.rms_norm_eps, add=config.rms_norm_add, device=device, dtype=dtype)
+
+        self.patches_per_image = int(config.vision_config["image_size"] // config.vision_config["patch_size"])
+        self.tokens_per_side = int(config.mm_tokens_per_image**0.5)
+        self.kernel_size = self.patches_per_image // self.tokens_per_side
+        self.avg_pool = nn.AvgPool2d(kernel_size=self.kernel_size, stride=self.kernel_size)
+
+    def forward(self, vision_outputs: torch.Tensor):
+        batch_size, _, seq_length = vision_outputs.shape
+
+        reshaped_vision_outputs = vision_outputs.transpose(1, 2)
+        reshaped_vision_outputs = reshaped_vision_outputs.reshape(
+            batch_size, seq_length, self.patches_per_image, self.patches_per_image
+        )
+        reshaped_vision_outputs = reshaped_vision_outputs.contiguous()
+
+        pooled_vision_outputs = self.avg_pool(reshaped_vision_outputs)
+        pooled_vision_outputs = pooled_vision_outputs.flatten(2)
+        pooled_vision_outputs = pooled_vision_outputs.transpose(1, 2)
+
+        normed_vision_outputs = self.mm_soft_emb_norm(pooled_vision_outputs)
+
+        projected_vision_outputs = torch.matmul(normed_vision_outputs, comfy.model_management.cast_to_device(self.mm_input_projection_weight, device=normed_vision_outputs.device, dtype=normed_vision_outputs.dtype))
+        return projected_vision_outputs.type_as(vision_outputs)
+
+
 class BaseLlama:
     def get_input_embeddings(self):
         return self.model.embed_tokens
@@ -636,3 +697,21 @@ class Gemma3_4B(BaseLlama, torch.nn.Module):
 
         self.model = Llama2_(config, device=device, dtype=dtype, ops=operations)
         self.dtype = dtype
+
+class Gemma3_12B(BaseLlama, torch.nn.Module):
+    def __init__(self, config_dict, dtype, device, operations):
+        super().__init__()
+        config = Gemma3_12B_Config(**config_dict)
+        self.num_layers = config.num_hidden_layers
+
+        self.model = Llama2_(config, device=device, dtype=dtype, ops=operations)
+        self.multi_modal_projector = Gemma3MultiModalProjector(config, dtype, device, operations)
+        self.vision_model = comfy.clip_model.CLIPVision(config.vision_config, dtype, device, operations)
+        self.dtype = dtype
+        self.image_size = config.vision_config["image_size"]
+
+    def preprocess_embed(self, embed, device):
+        if embed["type"] == "image":
+            image = comfy.clip_model.clip_preprocess(embed["data"], size=self.image_size, mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5], crop=True)
+            return self.multi_modal_projector(self.vision_model(image.to(device, dtype=torch.float32))[0]), None
+        return None, None

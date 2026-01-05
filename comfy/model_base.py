@@ -20,6 +20,7 @@ import comfy.ldm.hunyuan3dv2_1
 import comfy.ldm.hunyuan3dv2_1.hunyuandit
 import torch
 import logging
+import comfy.ldm.lightricks.av_model
 from comfy.ldm.modules.diffusionmodules.openaimodel import UNetModel, Timestep
 from comfy.ldm.cascade.stage_c import StageC
 from comfy.ldm.cascade.stage_b import StageB
@@ -946,7 +947,7 @@ class GenmoMochi(BaseModel):
 
 class LTXV(BaseModel):
     def __init__(self, model_config, model_type=ModelType.FLUX, device=None):
-        super().__init__(model_config, model_type, device=device, unet_model=comfy.ldm.lightricks.model.LTXVModel) #TODO
+        super().__init__(model_config, model_type, device=device, unet_model=comfy.ldm.lightricks.model.LTXVModel)
 
     def extra_conds(self, **kwargs):
         out = super().extra_conds(**kwargs)
@@ -973,6 +974,60 @@ class LTXV(BaseModel):
         if denoise_mask is None:
             return timestep
         return self.diffusion_model.patchifier.patchify(((denoise_mask) * timestep.view([timestep.shape[0]] + [1] * (denoise_mask.ndim - 1)))[:, :1])[0]
+
+    def scale_latent_inpaint(self, sigma, noise, latent_image, **kwargs):
+        return latent_image
+
+class LTXAV(BaseModel):
+    def __init__(self, model_config, model_type=ModelType.FLUX, device=None):
+        super().__init__(model_config, model_type, device=device, unet_model=comfy.ldm.lightricks.av_model.LTXAVModel) #TODO
+
+    def extra_conds(self, **kwargs):
+        out = super().extra_conds(**kwargs)
+        attention_mask = kwargs.get("attention_mask", None)
+        if attention_mask is not None:
+            out['attention_mask'] = comfy.conds.CONDRegular(attention_mask)
+        cross_attn = kwargs.get("cross_attn", None)
+        if cross_attn is not None:
+            out['c_crossattn'] = comfy.conds.CONDRegular(cross_attn)
+
+        out['frame_rate'] = comfy.conds.CONDConstant(kwargs.get("frame_rate", 25))
+
+        denoise_mask = kwargs.get("concat_mask", kwargs.get("denoise_mask", None))
+
+        audio_denoise_mask = None
+        if denoise_mask is not None and "latent_shapes" in kwargs:
+            denoise_mask = utils.unpack_latents(denoise_mask, kwargs["latent_shapes"])
+            if len(denoise_mask) > 1:
+                audio_denoise_mask = denoise_mask[1]
+            denoise_mask = denoise_mask[0]
+
+        if denoise_mask is not None:
+            out["denoise_mask"] = comfy.conds.CONDRegular(denoise_mask)
+
+        if audio_denoise_mask is not None:
+            out["audio_denoise_mask"] = comfy.conds.CONDRegular(audio_denoise_mask)
+
+        keyframe_idxs = kwargs.get("keyframe_idxs", None)
+        if keyframe_idxs is not None:
+            out['keyframe_idxs'] = comfy.conds.CONDRegular(keyframe_idxs)
+
+        latent_shapes = kwargs.get("latent_shapes", None)
+        if latent_shapes is not None:
+            out['latent_shapes'] = comfy.conds.CONDConstant(latent_shapes)
+
+        return out
+
+    def process_timestep(self, timestep, x, denoise_mask=None, audio_denoise_mask=None, **kwargs):
+        v_timestep = timestep
+        a_timestep = timestep
+
+        if denoise_mask is not None:
+            v_timestep = self.diffusion_model.patchifier.patchify(((denoise_mask) * timestep.view([timestep.shape[0]] + [1] * (denoise_mask.ndim - 1)))[:, :1])[0]
+        if audio_denoise_mask is not None:
+            a_timestep = self.diffusion_model.a_patchifier.patchify(((audio_denoise_mask) * timestep.view([timestep.shape[0]] + [1] * (audio_denoise_mask.ndim - 1)))[:, :1, :, :1])[0]
+
+        return v_timestep, a_timestep
 
     def scale_latent_inpaint(self, sigma, noise, latent_image, **kwargs):
         return latent_image

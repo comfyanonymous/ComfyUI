@@ -270,7 +270,7 @@ class ChromaRadiance(Chroma):
         bad_keys = tuple(
             k
             for k, v in overrides.items()
-            if type(v) != type(getattr(params, k)) and (v is not None or k not in nullable_keys)
+            if not isinstance(v, type(getattr(params, k))) and (v is not None or k not in nullable_keys)
         )
         if bad_keys:
             e = f"Invalid value(s) in transformer_options chroma_radiance_options: {', '.join(bad_keys)}"
