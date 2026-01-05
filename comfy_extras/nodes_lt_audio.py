@@ -169,6 +169,38 @@ class LTXVEmptyLatentAudio(io.ComfyNode):
         )
 
 
+class LTXAVTextEncoderLoader(io.ComfyNode):
+    @classmethod
+    def define_schema(cls) -> io.Schema:
+        return io.Schema(
+            node_id="LTXAVTextEncoderLoader",
+            display_name="LTXV Audio Text Encoder Loader",
+            category="advanced/loaders",
+            description="[Recipes]\n\nltxav: gemma 3 12B",
+            inputs=[
+                io.Combo.Input(
+                    "text_encoder",
+                    options=folder_paths.get_filename_list("text_encoders"),
+                ),
+                io.Combo.Input(
+                    "ckpt_name",
+                    options=folder_paths.get_filename_list("checkpoints"),
+                )
+            ],
+            outputs=[io.Clip.Output(display_name="Audio VAE")],
+        )
+
+    @classmethod
+    def execute(cls, text_encoder, ckpt_name, device="default"):
+        clip_type = comfy.sd.CLIPType.LTXV
+
+        clip_path1 = folder_paths.get_full_path_or_raise("text_encoders", text_encoder)
+        clip_path2 = folder_paths.get_full_path_or_raise("checkpoints", ckpt_name)
+
+        clip = comfy.sd.load_clip(ckpt_paths=[clip_path1, clip_path2], embedding_directory=folder_paths.get_folder_paths("embeddings"), clip_type=clip_type)
+        return io.NodeOutput(clip)
+
+
 class LTXVAudioExtension(ComfyExtension):
     async def get_node_list(self) -> list[type[io.ComfyNode]]:
         return [
@@ -176,6 +208,7 @@ class LTXVAudioExtension(ComfyExtension):
             LTXVAudioVAEEncode,
             LTXVAudioVAEDecode,
             LTXVEmptyLatentAudio,
+            LTXAVTextEncoderLoader,
         ]
 
 
