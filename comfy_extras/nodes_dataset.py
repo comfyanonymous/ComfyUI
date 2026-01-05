@@ -667,16 +667,19 @@ class ResizeImagesByLongerEdgeNode(ImageProcessingNode):
 
     @classmethod
     def _process(cls, image, longer_edge):
-        img = tensor_to_pil(image)
-        w, h = img.size
-        if w > h:
-            new_w = longer_edge
-            new_h = int(h * (longer_edge / w))
-        else:
-            new_h = longer_edge
-            new_w = int(w * (longer_edge / h))
-        img = img.resize((new_w, new_h), Image.Resampling.LANCZOS)
-        return pil_to_tensor(img)
+        resized_images = []
+        for image_i in image:
+            img = tensor_to_pil(image_i)
+            w, h = img.size
+            if w > h:
+                new_w = longer_edge
+                new_h = int(h * (longer_edge / w))
+            else:
+                new_h = longer_edge
+                new_w = int(w * (longer_edge / h))
+            img = img.resize((new_w, new_h), Image.Resampling.LANCZOS)
+            resized_images.append(pil_to_tensor(img))
+        return torch.cat(resized_images, dim=0)
 
 
 class CenterCropImagesNode(ImageProcessingNode):
