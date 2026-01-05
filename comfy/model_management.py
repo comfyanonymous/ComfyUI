@@ -456,7 +456,7 @@ def module_size(module):
     sd = module.state_dict()
     for k in sd:
         t = sd[k]
-        module_mem += t.nelement() * t.element_size()
+        module_mem += t.nbytes
     return module_mem
 
 class LoadedModel:
