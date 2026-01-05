@@ -187,7 +187,7 @@ class LTXAVTextEncoderLoader(io.ComfyNode):
                     options=folder_paths.get_filename_list("checkpoints"),
                 )
             ],
-            outputs=[io.Clip.Output(display_name="Audio VAE")],
+            outputs=[io.Clip.Output()],
         )
 
     @classmethod
