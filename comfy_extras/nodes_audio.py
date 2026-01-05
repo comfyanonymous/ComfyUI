@@ -112,7 +112,7 @@ class VAEDecodeAudio(IO.ComfyNode):
         std = torch.std(audio, dim=[1,2], keepdim=True) * 5.0
         std[std < 1.0] = 1.0
         audio /= std
-        return IO.NodeOutput({"waveform": audio, "sample_rate": 44100})
+        return IO.NodeOutput({"waveform": audio, "sample_rate": 44100 if "sample_rate" not in samples else samples["sample_rate"]})
 
     decode = execute  # TODO: remove
 
