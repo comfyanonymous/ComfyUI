@@ -295,7 +295,11 @@ class VAEDecode:
     DESCRIPTION = "Decodes latent images back into pixel space images."
 
     def decode(self, vae, samples):
-        images = vae.decode(samples["samples"])
+        latent = samples["samples"]
+        if latent.is_nested:
+            latent = latent.unbind()[0]
+
+        images = vae.decode(latent)
         if len(images.shape) == 5: #Combine batches
             images = images.reshape(-1, images.shape[-3], images.shape[-2], images.shape[-1])
         return (images, )
@@ -970,7 +974,7 @@ class DualCLIPLoader:
     def INPUT_TYPES(s):
         return {"required": { "clip_name1": (folder_paths.get_filename_list("text_encoders"), ),
                               "clip_name2": (folder_paths.get_filename_list("text_encoders"), ),
-                              "type": (["sdxl", "sd3", "flux", "hunyuan_video", "hidream", "hunyuan_image", "hunyuan_video_15", "kandinsky5", "kandinsky5_image", "newbie"], ),
+                              "type": (["sdxl", "sd3", "flux", "hunyuan_video", "hidream", "hunyuan_image", "hunyuan_video_15", "kandinsky5", "kandinsky5_image", "ltxv", "newbie"], ),
                               },
                 "optional": {
                               "device": (["default", "cpu"], {"advanced": True}),
@@ -2331,6 +2335,8 @@ async def init_builtin_extra_nodes():
         "nodes_mochi.py",
         "nodes_slg.py",
         "nodes_mahiro.py",
+        "nodes_lt_upsampler.py",
+        "nodes_lt_audio.py",
         "nodes_lt.py",
         "nodes_hooks.py",
         "nodes_load_3d.py",

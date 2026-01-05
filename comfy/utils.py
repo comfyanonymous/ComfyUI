@@ -1198,7 +1198,7 @@ def unpack_latents(combined_latent, latent_shapes):
             combined_latent = combined_latent[:, :, cut:]
             output_tensors.append(tens.reshape([tens.shape[0]] + list(shape)[1:]))
     else:
-        output_tensors = combined_latent
+        output_tensors = [combined_latent]
     return output_tensors
 
 def detect_layer_quantization(state_dict, prefix):
