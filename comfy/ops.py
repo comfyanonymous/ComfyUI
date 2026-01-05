@@ -552,11 +552,19 @@ def mixed_precision_ops(quant_config={}, compute_dtype=torch.bfloat16, full_prec
                     scale = state_dict.pop(weight_scale_key, None)
                     if scale is not None:
                         scale = scale.to(device)
+
+                    # Check for per-layer group_size override, otherwise use default from QUANT_ALGOS
+                    layer_config = MixedPrecisionOps._layer_quant_config[layer_name]
+                    group_size = layer_config.get("group_size", qconfig.get("group_size", None))
+
                     layout_params = {
                         'scale': scale,
                         'orig_dtype': MixedPrecisionOps._compute_dtype,
-                        'block_size': qconfig.get("group_size", None),
+                        'block_size': group_size,
                     }
+
+                    if qconfig.get("asymmetric_layout", False):
+                        layout_params['is_weight'] = True
 
                     if scale is not None:
                         manually_loaded_keys.append(weight_scale_key)
