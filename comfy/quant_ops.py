@@ -1,7 +1,5 @@
 import torch
 import logging
-import dataclasses
-from typing import Dict
 
 try:
     import comfy_kitchen as ck
@@ -130,7 +128,6 @@ __all__ = [
     "TensorCoreFP8E4M3Layout",
     "TensorCoreFP8E5M2Layout",
     "TensorCoreNVFP4Layout",
-    "LAYOUTS",
     "QUANT_ALGOS",
     "register_layout_op",
 ]
