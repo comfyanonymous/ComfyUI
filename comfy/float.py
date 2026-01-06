@@ -55,13 +55,26 @@ def stochastic_rounding(value, dtype, seed=0):
     if dtype == torch.bfloat16:
         return value.to(dtype=torch.bfloat16)
     if dtype == torch.float8_e4m3fn or dtype == torch.float8_e5m2:
-        generator = torch.Generator(device=value.device)
+        # MPS workaround: perform float8 conversion on CPU
+        target_device = value.device
+        use_cpu_staging = (target_device.type == "mps")
+
+        output_device = "cpu" if use_cpu_staging else target_device
+        output = torch.empty_like(value, dtype=dtype, device=output_device)
+
+        generator = torch.Generator(device=target_device)
         generator.manual_seed(seed)
-        output = torch.empty_like(value, dtype=dtype)
+
         num_slices = max(1, (value.numel() / (4096 * 4096)))
         slice_size = max(1, round(value.shape[0] / num_slices))
         for i in range(0, value.shape[0], slice_size):
-            output[i:i+slice_size].copy_(manual_stochastic_round_to_float8(value[i:i+slice_size], dtype, generator=generator))
+            res = manual_stochastic_round_to_float8(value[i:i+slice_size], dtype, generator=generator)
+            if use_cpu_staging:
+                res = res.cpu()
+            output[i:i+slice_size].copy_(res)
+
+        if use_cpu_staging:
+            return output.to(target_device)
         return output
 
     return value.to(dtype=dtype)

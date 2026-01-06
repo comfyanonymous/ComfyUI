@@ -2,6 +2,7 @@ import torch
 import logging
 from typing import Tuple, Dict
 import comfy.float
+import comfy.mps_ops
 
 _LAYOUT_REGISTRY = {}
 _GENERIC_UTILS = {}
@@ -269,8 +270,18 @@ def _handle_device_transfer(qt, target_device, target_dtype=None, target_layout=
 
         if target_device != current_device:
             logging.debug(f"QuantizedTensor.{op_name}: Moving from {current_device} to {target_device}")
-            new_q_data = qt._qdata.to(device=target_device)
-            new_params = _move_layout_params_to_device(qt._layout_params, target_device)
+
+            # MPS Hack: Convert Float8 to Uint8 before moving if native float8 is unsupported
+            qdata = qt._qdata
+            layout_params = qt._layout_params.copy()
+
+            if target_device.type == "mps" and qdata.element_size() == 1 and qdata.is_floating_point(): # Catch float8
+                 layout_params["mps_float8_dtype"] = qdata.dtype
+                 qdata = qdata.view(torch.uint8)
+
+            new_q_data = qdata.to(device=target_device)
+            new_params = _move_layout_params_to_device(layout_params, target_device)
+
             if target_dtype is not None:
                 new_params["orig_dtype"] = target_dtype
             new_qt = QuantizedTensor(new_q_data, qt._layout_type, new_params)
@@ -431,6 +442,13 @@ class TensorCoreFP8Layout(QuantizedLayout):
 
     @staticmethod
     def dequantize(qdata, scale, orig_dtype, **kwargs):
+        if qdata.device.type == "mps":
+             if qdata.dtype == torch.uint8:
+                 return comfy.mps_ops.mps_dequantize(qdata, scale, orig_dtype, kwargs.get("mps_float8_dtype", torch.float8_e4m3fn))
+             elif qdata.is_floating_point() and qdata.element_size() == 1:
+                 # It is MPS Float8. View as uint8.
+                 return comfy.mps_ops.mps_dequantize(qdata.view(torch.uint8), scale, orig_dtype, qdata.dtype)
+
         plain_tensor = torch.ops.aten._to_copy.default(qdata, dtype=orig_dtype)
         plain_tensor.mul_(scale)
         return plain_tensor
