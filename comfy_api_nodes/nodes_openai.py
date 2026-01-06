@@ -164,8 +164,8 @@ class OpenAIDalle2(IO.ComfyNode):
                 depends_on=IO.PriceBadgeDepends(widgets=["size", "n"]),
                 expr="""
                 (
-                  $size := w.size.s;
-                  $nRaw := w.n.n;
+                  $size := widgets.size.s;
+                  $nRaw := widgets.n.n;
                   $n := ($nRaw != null and $nRaw != 0) ? $nRaw : 1;
 
                   $base :=
@@ -308,8 +308,8 @@ class OpenAIDalle3(IO.ComfyNode):
                 depends_on=IO.PriceBadgeDepends(widgets=["size", "quality"]),
                 expr="""
                 (
-                  $size := w.size.s;
-                  $q := w.quality.s;
+                  $size := widgets.size.s;
+                  $q := widgets.quality.s;
                   $hd := $contains($q, "hd");
 
                   $price :=
@@ -456,8 +456,8 @@ class OpenAIGPTImage1(IO.ComfyNode):
                     "medium": [0.046, 0.07],
                     "high":   [0.167, 0.3]
                   };
-                  $range := $lookup($ranges, w.quality.s);
-                  $n := w.n.n;
+                  $range := $lookup($ranges, widgets.quality.s);
+                  $n := widgets.n.n;
                   ($n = 1)
                     ? {"type":"range_usd","min_usd": $range[0], "max_usd": $range[1]}
                     : {
@@ -628,7 +628,7 @@ class OpenAIChatNode(IO.ComfyNode):
                 depends_on=IO.PriceBadgeDepends(widgets=["model"]),
                 expr="""
                 (
-                  $m := w.model.s;
+                  $m := widgets.model.s;
 
                   $contains($m,"o4-mini") ? {"type":"list_usd","usd":[0.0011,0.0044]} :
                   $contains($m,"o1-pro") ? {"type":"list_usd","usd":[0.15,0.6]} :

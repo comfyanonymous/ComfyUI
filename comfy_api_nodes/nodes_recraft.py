@@ -380,7 +380,7 @@ class RecraftTextToImageNode(IO.ComfyNode):
             is_api_node=True,
             price_badge=IO.PriceBadge(
                 depends_on=IO.PriceBadgeDepends(widgets=["n"]),
-                expr="""{"type":"usd","usd": $round(0.04 * w.n.n, 2)}""",
+                expr="""{"type":"usd","usd": $round(0.04 * widgets.n.n, 2)}""",
             ),
         )
 
@@ -496,7 +496,7 @@ class RecraftImageToImageNode(IO.ComfyNode):
             is_api_node=True,
             price_badge=IO.PriceBadge(
                 depends_on=IO.PriceBadgeDepends(widgets=["n"]),
-                expr="""{"type":"usd","usd": $round(0.04 * w.n.n, 2)}""",
+                expr="""{"type":"usd","usd": $round(0.04 * widgets.n.n, 2)}""",
             ),
         )
 
@@ -601,7 +601,7 @@ class RecraftImageInpaintingNode(IO.ComfyNode):
             is_api_node=True,
             price_badge=IO.PriceBadge(
                 depends_on=IO.PriceBadgeDepends(widgets=["n"]),
-                expr="""{"type":"usd","usd": $round(0.04 * w.n.n, 2)}""",
+                expr="""{"type":"usd","usd": $round(0.04 * widgets.n.n, 2)}""",
             ),
         )
 
@@ -706,7 +706,7 @@ class RecraftTextToVectorNode(IO.ComfyNode):
             is_api_node=True,
             price_badge=IO.PriceBadge(
                 depends_on=IO.PriceBadgeDepends(widgets=["n"]),
-                expr="""{"type":"usd","usd": $round(0.08 * w.n.n, 2)}""",
+                expr="""{"type":"usd","usd": $round(0.08 * widgets.n.n, 2)}""",
             ),
         )
 
@@ -777,7 +777,7 @@ class RecraftVectorizeImageNode(IO.ComfyNode):
             is_api_node=True,
             price_badge=IO.PriceBadge(
                 depends_on=IO.PriceBadgeDepends(widgets=["n"]),
-                expr="""{"type":"usd","usd": $round(0.01 * w.n.n, 2)}""",
+                expr="""{"type":"usd","usd": $round(0.01 * widgets.n.n, 2)}""",
             ),
         )
 

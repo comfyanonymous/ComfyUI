@@ -374,7 +374,7 @@ class ByteDanceSeedreamNode(IO.ComfyNode):
                 depends_on=IO.PriceBadgeDepends(widgets=["model"]),
                 expr="""
                 (
-                  $price := $contains(w.model.s, "seedream-4-5-251128") ? 0.04 : 0.03;
+                  $price := $contains(widgets.model.s, "seedream-4-5-251128") ? 0.04 : 0.03;
                   {
                     "type":"usd",
                     "usd": $price,
@@ -987,12 +987,12 @@ PRICE_BADGE_VIDEO = IO.PriceBadge(
           "1080p":[0.85,0.88]
         }
       };
-      $model := w.model.s;
+      $model := widgets.model.s;
       $modelKey :=
         $contains($model, "seedance-1-0-pro-fast") ? "seedance-1-0-pro-fast" :
         $contains($model, "seedance-1-0-pro")      ? "seedance-1-0-pro" :
         "seedance-1-0-lite";
-      $resolution := w.resolution.s;
+      $resolution := widgets.resolution.s;
       $resKey :=
         $contains($resolution, "1080") ? "1080p" :
         $contains($resolution, "720")  ? "720p" :
@@ -1001,7 +1001,7 @@ PRICE_BADGE_VIDEO = IO.PriceBadge(
       $baseRange := $lookup($modelPrices, $resKey);
       $min10s := $baseRange[0];
       $max10s := $baseRange[1];
-      $scale := w.duration.n / 10;
+      $scale := widgets.duration.n / 10;
       $minCost := $min10s * $scale;
       $maxCost := $max10s * $scale;
       ($minCost = $maxCost)

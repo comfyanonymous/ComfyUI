@@ -186,7 +186,7 @@ class RunwayImageToVideoNodeGen3a(IO.ComfyNode):
             is_api_node=True,
             price_badge=IO.PriceBadge(
                 depends_on=IO.PriceBadgeDepends(widgets=["duration"]),
-                expr="""{"type":"usd","usd": 0.0715 * w.duration.n}""",
+                expr="""{"type":"usd","usd": 0.0715 * widgets.duration.n}""",
             ),
         )
 
@@ -280,7 +280,7 @@ class RunwayImageToVideoNodeGen4(IO.ComfyNode):
             is_api_node=True,
             price_badge=IO.PriceBadge(
                 depends_on=IO.PriceBadgeDepends(widgets=["duration"]),
-                expr="""{"type":"usd","usd": 0.0715 * w.duration.n}""",
+                expr="""{"type":"usd","usd": 0.0715 * widgets.duration.n}""",
             ),
         )
 
@@ -382,7 +382,7 @@ class RunwayFirstLastFrameNode(IO.ComfyNode):
             is_api_node=True,
             price_badge=IO.PriceBadge(
                 depends_on=IO.PriceBadgeDepends(widgets=["duration"]),
-                expr="""{"type":"usd","usd": 0.0715 * w.duration.n}""",
+                expr="""{"type":"usd","usd": 0.0715 * widgets.duration.n}""",
             ),
         )
 

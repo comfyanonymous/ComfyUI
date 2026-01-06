@@ -768,7 +768,7 @@ class KlingTextToVideoNode(IO.ComfyNode):
                 depends_on=IO.PriceBadgeDepends(widgets=["mode"]),
                 expr="""
                 (
-                  $m := w.mode.s;
+                  $m := widgets.mode.s;
                   $contains($m,"v2-5-turbo")
                     ? ($contains($m,"10") ? {"type":"usd","usd":0.7} : {"type":"usd","usd":0.35})
                     : $contains($m,"v2-1-master")
@@ -849,9 +849,9 @@ class OmniProTextToVideoNode(IO.ComfyNode):
                 depends_on=IO.PriceBadgeDepends(widgets=["duration", "resolution"]),
                 expr="""
                 (
-                  $mode := (w.resolution.s = "720p") ? "std" : "pro";
+                  $mode := (widgets.resolution.s = "720p") ? "std" : "pro";
                   $rates := {"std": 0.084, "pro": 0.112};
-                  {"type":"usd","usd": $lookup($rates, $mode) * w.duration.n}
+                  {"type":"usd","usd": $lookup($rates, $mode) * widgets.duration.n}
                 )
                 """,
             ),
@@ -927,9 +927,9 @@ class OmniProFirstLastFrameNode(IO.ComfyNode):
                 depends_on=IO.PriceBadgeDepends(widgets=["duration", "resolution"]),
                 expr="""
                 (
-                  $mode := (w.resolution.s = "720p") ? "std" : "pro";
+                  $mode := (widgets.resolution.s = "720p") ? "std" : "pro";
                   $rates := {"std": 0.084, "pro": 0.112};
-                  {"type":"usd","usd": $lookup($rates, $mode) * w.duration.n}
+                  {"type":"usd","usd": $lookup($rates, $mode) * widgets.duration.n}
                 )
                 """,
             ),
@@ -1032,9 +1032,9 @@ class OmniProImageToVideoNode(IO.ComfyNode):
                 depends_on=IO.PriceBadgeDepends(widgets=["duration", "resolution"]),
                 expr="""
                 (
-                  $mode := (w.resolution.s = "720p") ? "std" : "pro";
+                  $mode := (widgets.resolution.s = "720p") ? "std" : "pro";
                   $rates := {"std": 0.084, "pro": 0.112};
-                  {"type":"usd","usd": $lookup($rates, $mode) * w.duration.n}
+                  {"type":"usd","usd": $lookup($rates, $mode) * widgets.duration.n}
                 )
                 """,
             ),
@@ -1117,9 +1117,9 @@ class OmniProVideoToVideoNode(IO.ComfyNode):
                 depends_on=IO.PriceBadgeDepends(widgets=["duration", "resolution"]),
                 expr="""
                 (
-                  $mode := (w.resolution.s = "720p") ? "std" : "pro";
+                  $mode := (widgets.resolution.s = "720p") ? "std" : "pro";
                   $rates := {"std": 0.126, "pro": 0.168};
-                  {"type":"usd","usd": $lookup($rates, $mode) * w.duration.n}
+                  {"type":"usd","usd": $lookup($rates, $mode) * widgets.duration.n}
                 )
                 """,
             ),
@@ -1213,7 +1213,7 @@ class OmniProEditVideoNode(IO.ComfyNode):
                 depends_on=IO.PriceBadgeDepends(widgets=["resolution"]),
                 expr="""
                 (
-                  $mode := (w.resolution.s = "720p") ? "std" : "pro";
+                  $mode := (widgets.resolution.s = "720p") ? "std" : "pro";
                   $rates := {"std": 0.126, "pro": 0.168};
                   {"type":"usd","usd": $lookup($rates, $mode), "format":{"suffix":"/second"}}
                 )
@@ -1462,9 +1462,9 @@ class KlingImage2VideoNode(IO.ComfyNode):
                 depends_on=IO.PriceBadgeDepends(widgets=["mode", "model_name", "duration"]),
                 expr="""
                 (
-                  $mode := w.mode.s;
-                  $model := w.model_name.s;
-                  $dur := w.duration.s;
+                  $mode := widgets.mode.s;
+                  $model := widgets.model_name.s;
+                  $dur := widgets.duration.s;
                   $contains($model,"v2-5-turbo")
                     ? ($contains($dur,"10") ? {"type":"usd","usd":0.7} : {"type":"usd","usd":0.35})
                     : ($contains($model,"v2-1-master") or $contains($model,"v2-master"))
@@ -1635,7 +1635,7 @@ class KlingStartEndFrameNode(IO.ComfyNode):
                 depends_on=IO.PriceBadgeDepends(widgets=["mode"]),
                 expr="""
                 (
-                  $m := w.mode.s;
+                  $m := widgets.mode.s;
                   $contains($m,"v2-5-turbo")
                     ? ($contains($m,"10") ? {"type":"usd","usd":0.7} : {"type":"usd","usd":0.35})
                     : $contains($m,"v2-1")
@@ -1811,9 +1811,9 @@ class KlingDualCharacterVideoEffectNode(IO.ComfyNode):
                 depends_on=IO.PriceBadgeDepends(widgets=["mode", "model_name", "duration"]),
                 expr="""
                 (
-                  $mode := w.mode.s;
-                  $model := w.model_name.s;
-                  $dur := w.duration.s;
+                  $mode := widgets.mode.s;
+                  $model := widgets.model_name.s;
+                  $dur := widgets.duration.s;
                   ($contains($model,"v1-6") or $contains($model,"v1-5"))
                     ? (
                         $contains($mode,"pro")
@@ -1898,7 +1898,7 @@ class KlingSingleImageVideoEffectNode(IO.ComfyNode):
                 depends_on=IO.PriceBadgeDepends(widgets=["effect_scene"]),
                 expr="""
                 (
-                  ($contains(w.effect_scene.s,"dizzydizzy") or $contains(w.effect_scene.s,"bloombloom"))
+                  ($contains(widgets.effect_scene.s,"dizzydizzy") or $contains(widgets.effect_scene.s,"bloombloom"))
                     ? {"type":"usd","usd":0.49}
                     : {"type":"usd","usd":0.28}
                 )
@@ -2180,12 +2180,12 @@ class KlingImageGenerationNode(IO.ComfyNode):
                 depends_on=IO.PriceBadgeDepends(widgets=["model_name", "n"], inputs=["image"]),
                 expr="""
                 (
-                  $m := w.model_name.s;
+                  $m := widgets.model_name.s;
                   $base :=
                     $contains($m,"kling-v1-5")
-                      ? (i.image.connected ? 0.028 : 0.014)
+                      ? (inputs.image.connected ? 0.028 : 0.014)
                       : ($contains($m,"kling-v1") ? 0.0035 : 0.014);
-                  {"type":"usd","usd": $base * w.n.n}
+                  {"type":"usd","usd": $base * widgets.n.n}
                 )
                 """,
             ),
@@ -2274,7 +2274,7 @@ class TextToVideoWithAudio(IO.ComfyNode):
             is_api_node=True,
             price_badge=IO.PriceBadge(
                 depends_on=IO.PriceBadgeDepends(widgets=["duration", "generate_audio"]),
-                expr="""{"type":"usd","usd": 0.07 * w.duration.n * (w.generate_audio.b ? 2 : 1)}""",
+                expr="""{"type":"usd","usd": 0.07 * widgets.duration.n * (widgets.generate_audio.b ? 2 : 1)}""",
             ),
         )
 
@@ -2342,7 +2342,7 @@ class ImageToVideoWithAudio(IO.ComfyNode):
             is_api_node=True,
             price_badge=IO.PriceBadge(
                 depends_on=IO.PriceBadgeDepends(widgets=["duration", "generate_audio"]),
-                expr="""{"type":"usd","usd": 0.07 * w.duration.n * (w.generate_audio.b ? 2 : 1)}""",
+                expr="""{"type":"usd","usd": 0.07 * widgets.duration.n * (widgets.generate_audio.b ? 2 : 1)}""",
             ),
         )
 
@@ -2429,7 +2429,7 @@ class MotionControl(IO.ComfyNode):
                 expr="""
                 (
                   $prices := {"std": 0.07, "pro": 0.112};
-                  {"type":"usd","usd": $lookup($prices, w.mode.s), "format":{"suffix":"/second"}}
+                  {"type":"usd","usd": $lookup($prices, widgets.mode.s), "format":{"suffix":"/second"}}
                 )
                 """,
             ),

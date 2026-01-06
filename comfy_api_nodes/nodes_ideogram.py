@@ -302,8 +302,8 @@ class IdeogramV1(IO.ComfyNode):
                 depends_on=IO.PriceBadgeDepends(widgets=["num_images", "turbo"]),
                 expr="""
                 (
-                  $n := w.num_images.n;
-                  $base := (w.turbo.b = true) ? 0.0286 : 0.0858;
+                  $n := widgets.num_images.n;
+                  $base := (widgets.turbo.b = true) ? 0.0286 : 0.0858;
                   {"type":"usd","usd": $round($base * $n, 2)}
                 )
                 """,
@@ -450,8 +450,8 @@ class IdeogramV2(IO.ComfyNode):
                 depends_on=IO.PriceBadgeDepends(widgets=["num_images", "turbo"]),
                 expr="""
                 (
-                  $n := w.num_images.n;
-                  $base := (w.turbo.b = true) ? 0.0715 : 0.1144;
+                  $n := widgets.num_images.n;
+                  $base := (widgets.turbo.b = true) ? 0.0715 : 0.1144;
                   {"type":"usd","usd": $round($base * $n, 2)}
                 )
                 """,
@@ -615,9 +615,9 @@ class IdeogramV3(IO.ComfyNode):
                 depends_on=IO.PriceBadgeDepends(widgets=["rendering_speed", "num_images"], inputs=["character_image"]),
                 expr="""
                 (
-                  $n := w.num_images.n;
-                  $speed := w.rendering_speed.s;
-                  $hasChar := i.character_image.connected;
+                  $n := widgets.num_images.n;
+                  $speed := widgets.rendering_speed.s;
+                  $hasChar := inputs.character_image.connected;
                   $base :=
                     $contains($speed,"quality") ? ($hasChar ? 0.286 : 0.1287) :
                     $contains($speed,"default") ? ($hasChar ? 0.2145 : 0.0858) :

@@ -523,9 +523,9 @@ class Flux2ProImageNode(IO.ComfyNode):
     PRICE_BADGE_EXPR = """
     (
       $MP := 1024 * 1024;
-      $outMP := $max([1, $floor(((w.width.n * w.height.n) + $MP - 1) / $MP)]);
+      $outMP := $max([1, $floor(((widgets.width.n * widgets.height.n) + $MP - 1) / $MP)]);
       $outputCost := 0.03 + 0.015 * ($outMP - 1);
-      i.images.connected
+      inputs.images.connected
         ? {
             "type":"range_usd",
             "min_usd": $outputCost + 0.015,
@@ -654,10 +654,10 @@ class Flux2MaxImageNode(Flux2ProImageNode):
     PRICE_BADGE_EXPR = """
     (
       $MP := 1024 * 1024;
-      $outMP := $max([1, $floor(((w.width.n * w.height.n) + $MP - 1) / $MP)]);
+      $outMP := $max([1, $floor(((widgets.width.n * widgets.height.n) + $MP - 1) / $MP)]);
       $outputCost := 0.07 + 0.03 * ($outMP - 1);
 
-      i.images.connected
+      inputs.images.connected
         ? {
             "type":"range_usd",
             "min_usd": $outputCost + 0.03,

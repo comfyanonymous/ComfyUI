@@ -237,7 +237,7 @@ class MoonvalleyImg2VideoNode(IO.ComfyNode):
                 depends_on=IO.PriceBadgeDepends(widgets=["length"]),
                 expr="""
                 (
-                  $len := w.length.s;
+                  $len := widgets.length.s;
                   {"type":"usd","usd": ($len = "10s" ? 3.0 : 1.5)}
                 )
                 """,
@@ -364,7 +364,7 @@ class MoonvalleyVideo2VideoNode(IO.ComfyNode):
                 depends_on=IO.PriceBadgeDepends(widgets=["length"]),
                 expr="""
                 (
-                  $len := w.length.s;
+                  $len := widgets.length.s;
                   {"type":"usd","usd": ($len = "10s" ? 4.0 : 2.25)}
                 )
                 """,
@@ -493,7 +493,7 @@ class MoonvalleyTxt2VideoNode(IO.ComfyNode):
                 depends_on=IO.PriceBadgeDepends(widgets=["length"]),
                 expr="""
                 (
-                  $len := w.length.s;
+                  $len := widgets.length.s;
                   {"type":"usd","usd": ($len = "10s" ? 3.0 : 1.5)}
                 )
                 """,

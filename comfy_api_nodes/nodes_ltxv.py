@@ -35,9 +35,9 @@ PRICE_BADGE = IO.PriceBadge(
       $pps := {
         "ltx-2 (pro)": {"1920x1080":0.06,"2560x1440":0.12,"3840x2160":0.24},
         "ltx-2 (fast)": {"1920x1080":0.04,"2560x1440":0.08,"3840x2160":0.16}
-      }[w.model.s][w.resolution.s];
+      }[widgets.model.s][widgets.resolution.s];
 
-      {"type":"usd","usd": $pps * w.duration.n}
+      {"type":"usd","usd": $pps * widgets.duration.n}
     )
     """,
 )

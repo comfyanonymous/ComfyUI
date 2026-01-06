@@ -193,7 +193,7 @@ class LumaImageGenerationNode(IO.ComfyNode):
                 depends_on=IO.PriceBadgeDepends(widgets=["model"]),
                 expr="""
                 (
-                  $m := w.model.s;
+                  $m := widgets.model.s;
                   $contains($m,"photon-flash-1")
                     ? {"type":"usd","usd":0.0027}
                     : $contains($m,"photon-1")
@@ -320,7 +320,7 @@ class LumaImageModifyNode(IO.ComfyNode):
                 depends_on=IO.PriceBadgeDepends(widgets=["model"]),
                 expr="""
                 (
-                  $m := w.model.s;
+                  $m := widgets.model.s;
                   $contains($m,"photon-flash-1")
                     ? {"type":"usd","usd":0.0027}
                     : $contains($m,"photon-1")
@@ -612,9 +612,9 @@ PRICE_BADGE_VIDEO = IO.PriceBadge(
         }
       };
 
-      $m := w.model.s;
-      $d := w.duration.s;
-      $r := w.resolution.s;
+      $m := widgets.model.s;
+      $d := widgets.duration.s;
+      $r := widgets.resolution.s;
 
       $modelKey :=
         $contains($m,"ray-flash-2") ? "ray-flash-2" :
