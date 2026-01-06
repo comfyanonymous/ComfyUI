@@ -973,7 +973,7 @@ class VideoVAE(nn.Module):
             norm_layer=config.get("norm_layer", "group_norm"),
             causal=config.get("causal_decoder", False),
             timestep_conditioning=self.timestep_conditioning,
-            spatial_padding_mode=config.get("spatial_padding_mode", "zeros"),
+            spatial_padding_mode=config.get("spatial_padding_mode", "reflect"),
         )
 
         self.per_channel_statistics = processor()

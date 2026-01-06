@@ -13,7 +13,6 @@ from comfy.ldm.modules.attention import optimized_attention
 from .layers import (
     FeedForward,
     PatchEmbed,
-    RMSNorm,
     TimestepEmbedder,
 )
 
@@ -90,10 +89,10 @@ class AsymmetricAttention(nn.Module):
 
         # Query and key normalization for stability.
         assert qk_norm
-        self.q_norm_x = RMSNorm(self.head_dim, device=device, dtype=dtype)
-        self.k_norm_x = RMSNorm(self.head_dim, device=device, dtype=dtype)
-        self.q_norm_y = RMSNorm(self.head_dim, device=device, dtype=dtype)
-        self.k_norm_y = RMSNorm(self.head_dim, device=device, dtype=dtype)
+        self.q_norm_x = operations.RMSNorm(self.head_dim, eps=1e-5, device=device, dtype=dtype)
+        self.k_norm_x = operations.RMSNorm(self.head_dim, eps=1e-5, device=device, dtype=dtype)
+        self.q_norm_y = operations.RMSNorm(self.head_dim, eps=1e-5, device=device, dtype=dtype)
+        self.k_norm_y = operations.RMSNorm(self.head_dim, eps=1e-5, device=device, dtype=dtype)
 
         # Output layers. y features go back down from dim_x -> dim_y.
         self.proj_x = operations.Linear(dim_x, dim_x, bias=out_bias, device=device, dtype=dtype)
@@ -110,6 +109,7 @@ class AsymmetricAttention(nn.Module):
         scale_x: torch.Tensor,  # (B, dim_x), modulation for pre-RMSNorm.
         scale_y: torch.Tensor,  # (B, dim_y), modulation for pre-RMSNorm.
         crop_y,
+        transformer_options={},
         **rope_rotation,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         rope_cos = rope_rotation.get("rope_cos")
@@ -144,7 +144,7 @@ class AsymmetricAttention(nn.Module):
 
         xy = optimized_attention(q,
                                  k,
-                                 v, self.num_heads, skip_reshape=True)
+                                 v, self.num_heads, skip_reshape=True, transformer_options=transformer_options)
 
         x, y = torch.tensor_split(xy, (q_x.shape[1],), dim=1)
         x = self.proj_x(x)
@@ -225,6 +225,7 @@ class AsymmetricJointBlock(nn.Module):
         x: torch.Tensor,
         c: torch.Tensor,
         y: torch.Tensor,
+        transformer_options={},
         **attn_kwargs,
     ):
         """Forward pass of a block.
@@ -257,6 +258,7 @@ class AsymmetricJointBlock(nn.Module):
             y,
             scale_x=scale_msa_x,
             scale_y=scale_msa_y,
+            transformer_options=transformer_options,
             **attn_kwargs,
         )
 
@@ -525,10 +527,11 @@ class AsymmDiTJoint(nn.Module):
                                                     args["txt"],
                                                     rope_cos=args["rope_cos"],
                                                     rope_sin=args["rope_sin"],
-                                                    crop_y=args["num_tokens"]
+                                                    crop_y=args["num_tokens"],
+                                                    transformer_options=args["transformer_options"]
                                                     )
                     return out
-                out = blocks_replace[("double_block", i)]({"img": x, "txt": y_feat, "vec": c, "rope_cos": rope_cos, "rope_sin": rope_sin, "num_tokens": num_tokens}, {"original_block": block_wrap})
+                out = blocks_replace[("double_block", i)]({"img": x, "txt": y_feat, "vec": c, "rope_cos": rope_cos, "rope_sin": rope_sin, "num_tokens": num_tokens, "transformer_options": transformer_options}, {"original_block": block_wrap})
                 y_feat = out["txt"]
                 x = out["img"]
             else:
@@ -539,6 +542,7 @@ class AsymmDiTJoint(nn.Module):
                     rope_cos=rope_cos,
                     rope_sin=rope_sin,
                     crop_y=num_tokens,
+                    transformer_options=transformer_options,
                 )  # (B, M, D), (B, L, D)
         del y_feat  # Final layers don't use dense text features.
 

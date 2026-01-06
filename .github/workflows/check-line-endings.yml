@@ -1,0 +1,40 @@
+name: Check for Windows Line Endings
+
+on:
+  pull_request:
+    branches: ['*'] # Trigger on all pull requests to any branch
+
+jobs:
+  check-line-endings:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Fetch all history to compare changes
+
+      - name: Check for Windows line endings (CRLF)
+        run: |
+          # Get the list of changed files in the PR
+          CHANGED_FILES=$(git diff --name-only ${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }})
+
+          # Flag to track if CRLF is found
+          CRLF_FOUND=false
+
+          # Loop through each changed file
+          for FILE in $CHANGED_FILES; do
+            # Check if the file exists and is a text file
+            if [ -f "$FILE" ] && file "$FILE" | grep -q "text"; then
+              # Check for CRLF line endings
+              if grep -UP '\r$' "$FILE"; then
+                echo "Error: Windows line endings (CRLF) detected in $FILE"
+                CRLF_FOUND=true
+              fi
+            fi
+          done
+
+          # Exit with error if CRLF was found
+          if [ "$CRLF_FOUND" = true ]; then
+            exit 1
+          fi

@@ -2,6 +2,25 @@ import torch
 from comfy.ldm.modules.attention import optimized_attention_for_device
 import comfy.ops
 
+def clip_preprocess(image, size=224, mean=[0.48145466, 0.4578275, 0.40821073], std=[0.26862954, 0.26130258, 0.27577711], crop=True):
+    image = image[:, :, :, :3] if image.shape[3] > 3 else image
+    mean = torch.tensor(mean, device=image.device, dtype=image.dtype)
+    std = torch.tensor(std, device=image.device, dtype=image.dtype)
+    image = image.movedim(-1, 1)
+    if not (image.shape[2] == size and image.shape[3] == size):
+        if crop:
+            scale = (size / min(image.shape[2], image.shape[3]))
+            scale_size = (round(scale * image.shape[2]), round(scale * image.shape[3]))
+        else:
+            scale_size = (size, size)
+
+        image = torch.nn.functional.interpolate(image, size=scale_size, mode="bicubic", antialias=True)
+        h = (image.shape[2] - size)//2
+        w = (image.shape[3] - size)//2
+        image = image[:,:,h:h+size,w:w+size]
+    image = torch.clip((255. * image), 0, 255).round() / 255.0
+    return (image - mean.view([3,1,1])) / std.view([3,1,1])
+
 class CLIPAttention(torch.nn.Module):
     def __init__(self, embed_dim, heads, dtype, device, operations):
         super().__init__()
@@ -61,8 +80,12 @@ class CLIPEncoder(torch.nn.Module):
     def forward(self, x, mask=None, intermediate_output=None):
         optimized_attention = optimized_attention_for_device(x.device, mask=mask is not None, small_input=True)
 
+        all_intermediate = None
         if intermediate_output is not None:
-            if intermediate_output < 0:
+            if intermediate_output == "all":
+                all_intermediate = []
+                intermediate_output = None
+            elif intermediate_output < 0:
                 intermediate_output = len(self.layers) + intermediate_output
 
         intermediate = None
@@ -70,6 +93,12 @@ class CLIPEncoder(torch.nn.Module):
             x = l(x, mask, optimized_attention)
             if i == intermediate_output:
                 intermediate = x.clone()
+            if all_intermediate is not None:
+                all_intermediate.append(x.unsqueeze(1).clone())
+
+        if all_intermediate is not None:
+            intermediate = torch.cat(all_intermediate, dim=1)
+
         return x, intermediate
 
 class CLIPEmbeddings(torch.nn.Module):
@@ -97,7 +126,7 @@ class CLIPTextModel_(torch.nn.Module):
         self.encoder = CLIPEncoder(num_layers, embed_dim, heads, intermediate_size, intermediate_activation, dtype, device, operations)
         self.final_layer_norm = operations.LayerNorm(embed_dim, dtype=dtype, device=device)
 
-    def forward(self, input_tokens=None, attention_mask=None, embeds=None, num_tokens=None, intermediate_output=None, final_layer_norm_intermediate=True, dtype=torch.float32):
+    def forward(self, input_tokens=None, attention_mask=None, embeds=None, num_tokens=None, intermediate_output=None, final_layer_norm_intermediate=True, dtype=torch.float32, embeds_info=[]):
         if embeds is not None:
             x = embeds + comfy.ops.cast_to(self.embeddings.position_embedding.weight, dtype=dtype, device=embeds.device)
         else:

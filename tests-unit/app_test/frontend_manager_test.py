@@ -1,7 +1,7 @@
 import argparse
 import pytest
 from requests.exceptions import HTTPError
-from unittest.mock import patch
+from unittest.mock import patch, mock_open
 
 from app.frontend_management import (
     FrontendManager,
@@ -172,3 +172,107 @@ def test_init_frontend_fallback_on_error():
     # Assert
     assert frontend_path == "/default/path"
     mock_check.assert_called_once()
+
+
+def test_get_frontend_version():
+    # Arrange
+    expected_version = "1.25.0"
+    mock_requirements_content = """torch
+torchsde
+comfyui-frontend-package==1.25.0
+other-package==1.0.0
+numpy"""
+
+    # Act
+    with patch("builtins.open", mock_open(read_data=mock_requirements_content)):
+        version = FrontendManager.get_required_frontend_version()
+
+    # Assert
+    assert version == expected_version
+
+
+def test_get_frontend_version_invalid_semver():
+    # Arrange
+    mock_requirements_content = """torch
+torchsde
+comfyui-frontend-package==1.29.3.75
+other-package==1.0.0
+numpy"""
+
+    # Act
+    with patch("builtins.open", mock_open(read_data=mock_requirements_content)):
+        version = FrontendManager.get_required_frontend_version()
+
+    # Assert
+    assert version is None
+
+
+def test_get_templates_version():
+    # Arrange
+    expected_version = "0.1.41"
+    mock_requirements_content = """torch
+torchsde
+comfyui-frontend-package==1.25.0
+comfyui-workflow-templates==0.1.41
+other-package==1.0.0
+numpy"""
+
+    # Act
+    with patch("builtins.open", mock_open(read_data=mock_requirements_content)):
+        version = FrontendManager.get_required_templates_version()
+
+    # Assert
+    assert version == expected_version
+
+
+def test_get_templates_version_not_found():
+    # Arrange
+    mock_requirements_content = """torch
+torchsde
+comfyui-frontend-package==1.25.0
+other-package==1.0.0
+numpy"""
+
+    # Act
+    with patch("builtins.open", mock_open(read_data=mock_requirements_content)):
+        version = FrontendManager.get_required_templates_version()
+
+    # Assert
+    assert version is None
+
+
+def test_get_templates_version_invalid_semver():
+    # Arrange
+    mock_requirements_content = """torch
+torchsde
+comfyui-workflow-templates==1.0.0.beta
+other-package==1.0.0
+numpy"""
+
+    # Act
+    with patch("builtins.open", mock_open(read_data=mock_requirements_content)):
+        version = FrontendManager.get_required_templates_version()
+
+    # Assert
+    assert version is None
+
+
+def test_get_installed_templates_version():
+    # Arrange
+    expected_version = "0.1.40"
+
+    # Act
+    with patch("app.frontend_management.version", return_value=expected_version):
+        version = FrontendManager.get_installed_templates_version()
+
+    # Assert
+    assert version == expected_version
+
+
+def test_get_installed_templates_version_not_installed():
+    # Act
+    with patch("app.frontend_management.version", side_effect=Exception("Package not found")):
+        version = FrontendManager.get_installed_templates_version()
+
+    # Assert
+    assert version is None

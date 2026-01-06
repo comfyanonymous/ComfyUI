@@ -9,8 +9,14 @@ class AppSettings():
         self.user_manager = user_manager
 
     def get_settings(self, request):
-        file = self.user_manager.get_request_user_filepath(
-            request, "comfy.settings.json")
+        try:
+            file = self.user_manager.get_request_user_filepath(
+                request,
+                "comfy.settings.json"
+            )
+        except KeyError as e:
+            logging.error("User settings not found.")
+            raise web.HTTPUnauthorized() from e
         if os.path.isfile(file):
             try:
                 with open(file) as f:

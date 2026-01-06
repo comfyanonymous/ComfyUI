@@ -31,7 +31,7 @@ def dynamic_slice(
     starts: List[int],
     sizes: List[int],
 ) -> Tensor:
-    slicing = [slice(start, start + size) for start, size in zip(starts, sizes)]
+    slicing = tuple(slice(start, start + size) for start, size in zip(starts, sizes))
     return x[slicing]
 
 class AttnChunk(NamedTuple):

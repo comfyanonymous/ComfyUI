@@ -24,12 +24,17 @@ class CausalConv3d(ops.Conv3d):
                          self.padding[1], 2 * self.padding[0], 0)
         self.padding = (0, 0, 0)
 
-    def forward(self, x, cache_x=None):
+    def forward(self, x, cache_x=None, cache_list=None, cache_idx=None):
+        if cache_list is not None:
+            cache_x = cache_list[cache_idx]
+            cache_list[cache_idx] = None
+
         padding = list(self._padding)
         if cache_x is not None and self._padding[4] > 0:
             cache_x = cache_x.to(x.device)
             x = torch.cat([cache_x, x], dim=2)
             padding[4] -= cache_x.shape[2]
+            del cache_x
         x = F.pad(x, padding)
 
         return super().forward(x)
@@ -52,15 +57,6 @@ class RMS_norm(nn.Module):
             x, dim=(1 if self.channel_first else -1)) * self.scale * self.gamma.to(x) + (self.bias.to(x) if self.bias is not None else 0)
 
 
-class Upsample(nn.Upsample):
-
-    def forward(self, x):
-        """
-        Fix bfloat16 support for nearest neighbor interpolation.
-        """
-        return super().forward(x.float()).type_as(x)
-
-
 class Resample(nn.Module):
 
     def __init__(self, dim, mode):
@@ -73,11 +69,11 @@ class Resample(nn.Module):
         # layers
         if mode == 'upsample2d':
             self.resample = nn.Sequential(
-                Upsample(scale_factor=(2., 2.), mode='nearest-exact'),
+                nn.Upsample(scale_factor=(2., 2.), mode='nearest-exact'),
                 ops.Conv2d(dim, dim // 2, 3, padding=1))
         elif mode == 'upsample3d':
             self.resample = nn.Sequential(
-                Upsample(scale_factor=(2., 2.), mode='nearest-exact'),
+                nn.Upsample(scale_factor=(2., 2.), mode='nearest-exact'),
                 ops.Conv2d(dim, dim // 2, 3, padding=1))
             self.time_conv = CausalConv3d(
                 dim, dim * 2, (3, 1, 1), padding=(1, 0, 0))
@@ -157,29 +153,6 @@ class Resample(nn.Module):
                     feat_idx[0] += 1
         return x
 
-    def init_weight(self, conv):
-        conv_weight = conv.weight
-        nn.init.zeros_(conv_weight)
-        c1, c2, t, h, w = conv_weight.size()
-        one_matrix = torch.eye(c1, c2)
-        init_matrix = one_matrix
-        nn.init.zeros_(conv_weight)
-        #conv_weight.data[:,:,-1,1,1] = init_matrix * 0.5
-        conv_weight.data[:, :, 1, 0, 0] = init_matrix  #* 0.5
-        conv.weight.data.copy_(conv_weight)
-        nn.init.zeros_(conv.bias.data)
-
-    def init_weight2(self, conv):
-        conv_weight = conv.weight.data
-        nn.init.zeros_(conv_weight)
-        c1, c2, t, h, w = conv_weight.size()
-        init_matrix = torch.eye(c1 // 2, c2)
-        #init_matrix = repeat(init_matrix, 'o ... -> (o 2) ...').permute(1,0,2).contiguous().reshape(c1,c2)
-        conv_weight[:c1 // 2, :, -1, 0, 0] = init_matrix
-        conv_weight[c1 // 2:, :, -1, 0, 0] = init_matrix
-        conv.weight.data.copy_(conv_weight)
-        nn.init.zeros_(conv.bias.data)
-
 
 class ResidualBlock(nn.Module):
 
@@ -198,7 +171,7 @@ class ResidualBlock(nn.Module):
             if in_dim != out_dim else nn.Identity()
 
     def forward(self, x, feat_cache=None, feat_idx=[0]):
-        h = self.shortcut(x)
+        old_x = x
         for layer in self.residual:
             if isinstance(layer, CausalConv3d) and feat_cache is not None:
                 idx = feat_idx[0]
@@ -210,12 +183,12 @@ class ResidualBlock(nn.Module):
                             cache_x.device), cache_x
                     ],
                                         dim=2)
-                x = layer(x, feat_cache[idx])
+                x = layer(x, cache_list=feat_cache, cache_idx=idx)
                 feat_cache[idx] = cache_x
                 feat_idx[0] += 1
             else:
                 x = layer(x)
-        return x + h
+        return x + self.shortcut(old_x)
 
 
 class AttentionBlock(nn.Module):
@@ -254,6 +227,7 @@ class Encoder3d(nn.Module):
     def __init__(self,
                  dim=128,
                  z_dim=4,
+                 input_channels=3,
                  dim_mult=[1, 2, 4, 4],
                  num_res_blocks=2,
                  attn_scales=[],
@@ -272,7 +246,7 @@ class Encoder3d(nn.Module):
         scale = 1.0
 
         # init block
-        self.conv1 = CausalConv3d(3, dims[0], 3, padding=1)
+        self.conv1 = CausalConv3d(input_channels, dims[0], 3, padding=1)
 
         # downsample blocks
         downsamples = []
@@ -358,6 +332,7 @@ class Decoder3d(nn.Module):
     def __init__(self,
                  dim=128,
                  z_dim=4,
+                 output_channels=3,
                  dim_mult=[1, 2, 4, 4],
                  num_res_blocks=2,
                  attn_scales=[],
@@ -405,7 +380,7 @@ class Decoder3d(nn.Module):
         # output blocks
         self.head = nn.Sequential(
             RMS_norm(out_dim, images=False), nn.SiLU(),
-            CausalConv3d(out_dim, 3, 3, padding=1))
+            CausalConv3d(out_dim, output_channels, 3, padding=1))
 
     def forward(self, x, feat_cache=None, feat_idx=[0]):
         ## conv1
@@ -476,6 +451,7 @@ class WanVAE(nn.Module):
                  num_res_blocks=2,
                  attn_scales=[],
                  temperal_downsample=[True, True, False],
+                 image_channels=3,
                  dropout=0.0):
         super().__init__()
         self.dim = dim
@@ -487,81 +463,54 @@ class WanVAE(nn.Module):
         self.temperal_upsample = temperal_downsample[::-1]
 
         # modules
-        self.encoder = Encoder3d(dim, z_dim * 2, dim_mult, num_res_blocks,
+        self.encoder = Encoder3d(dim, z_dim * 2, image_channels, dim_mult, num_res_blocks,
                                  attn_scales, self.temperal_downsample, dropout)
         self.conv1 = CausalConv3d(z_dim * 2, z_dim * 2, 1)
         self.conv2 = CausalConv3d(z_dim, z_dim, 1)
-        self.decoder = Decoder3d(dim, z_dim, dim_mult, num_res_blocks,
+        self.decoder = Decoder3d(dim, z_dim, image_channels, dim_mult, num_res_blocks,
                                  attn_scales, self.temperal_upsample, dropout)
 
-    def forward(self, x):
-        mu, log_var = self.encode(x)
-        z = self.reparameterize(mu, log_var)
-        x_recon = self.decode(z)
-        return x_recon, mu, log_var
-
     def encode(self, x):
-        self.clear_cache()
+        conv_idx = [0]
+        feat_map = [None] * count_conv3d(self.decoder)
         ## cache
         t = x.shape[2]
         iter_ = 1 + (t - 1) // 4
         ## 对encode输入的x，按时间拆分为1、4、4、4....
         for i in range(iter_):
-            self._enc_conv_idx = [0]
+            conv_idx = [0]
             if i == 0:
                 out = self.encoder(
                     x[:, :, :1, :, :],
-                    feat_cache=self._enc_feat_map,
-                    feat_idx=self._enc_conv_idx)
+                    feat_cache=feat_map,
+                    feat_idx=conv_idx)
             else:
                 out_ = self.encoder(
                     x[:, :, 1 + 4 * (i - 1):1 + 4 * i, :, :],
-                    feat_cache=self._enc_feat_map,
-                    feat_idx=self._enc_conv_idx)
+                    feat_cache=feat_map,
+                    feat_idx=conv_idx)
                 out = torch.cat([out, out_], 2)
         mu, log_var = self.conv1(out).chunk(2, dim=1)
-        self.clear_cache()
         return mu
 
     def decode(self, z):
-        self.clear_cache()
+        conv_idx = [0]
+        feat_map = [None] * count_conv3d(self.decoder)
         # z: [b,c,t,h,w]
 
         iter_ = z.shape[2]
         x = self.conv2(z)
         for i in range(iter_):
-            self._conv_idx = [0]
+            conv_idx = [0]
             if i == 0:
                 out = self.decoder(
                     x[:, :, i:i + 1, :, :],
-                    feat_cache=self._feat_map,
-                    feat_idx=self._conv_idx)
+                    feat_cache=feat_map,
+                    feat_idx=conv_idx)
             else:
                 out_ = self.decoder(
                     x[:, :, i:i + 1, :, :],
-                    feat_cache=self._feat_map,
-                    feat_idx=self._conv_idx)
+                    feat_cache=feat_map,
+                    feat_idx=conv_idx)
                 out = torch.cat([out, out_], 2)
-        self.clear_cache()
         return out
-
-    def reparameterize(self, mu, log_var):
-        std = torch.exp(0.5 * log_var)
-        eps = torch.randn_like(std)
-        return eps * std + mu
-
-    def sample(self, imgs, deterministic=False):
-        mu, log_var = self.encode(imgs)
-        if deterministic:
-            return mu
-        std = torch.exp(0.5 * log_var.clamp(-30.0, 20.0))
-        return mu + std * torch.randn_like(std)
-
-    def clear_cache(self):
-        self._conv_num = count_conv3d(self.decoder)
-        self._conv_idx = [0]
-        self._feat_map = [None] * self._conv_num
-        #cache encode
-        self._enc_conv_num = count_conv3d(self.encoder)
-        self._enc_conv_idx = [0]
-        self._enc_feat_map = [None] * self._enc_conv_num

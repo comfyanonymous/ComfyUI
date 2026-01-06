@@ -229,3 +229,61 @@ async def test_move_userdata_full_info(aiohttp_client, app, tmp_path):
     assert not os.path.exists(tmp_path / "source.txt")
     with open(tmp_path / "dest.txt", "r") as f:
         assert f.read() == "test content"
+
+
+async def test_listuserdata_v2_empty_root(aiohttp_client, app):
+    client = await aiohttp_client(app)
+    resp = await client.get("/v2/userdata")
+    assert resp.status == 200
+    assert await resp.json() == []
+
+
+async def test_listuserdata_v2_nonexistent_subdirectory(aiohttp_client, app):
+    client = await aiohttp_client(app)
+    resp = await client.get("/v2/userdata?path=does_not_exist")
+    assert resp.status == 404
+
+
+async def test_listuserdata_v2_default(aiohttp_client, app, tmp_path):
+    os.makedirs(tmp_path / "test_dir" / "subdir")
+    (tmp_path / "test_dir" / "file1.txt").write_text("content")
+    (tmp_path / "test_dir" / "subdir" / "file2.txt").write_text("content")
+
+    client = await aiohttp_client(app)
+    resp = await client.get("/v2/userdata?path=test_dir")
+    assert resp.status == 200
+    data = await resp.json()
+    file_paths = {item["path"] for item in data if item["type"] == "file"}
+    assert file_paths == {"test_dir/file1.txt", "test_dir/subdir/file2.txt"}
+
+
+async def test_listuserdata_v2_normalized_separators(aiohttp_client, app, tmp_path, monkeypatch):
+    # Force backslash as os separator
+    monkeypatch.setattr(os, 'sep', '\\')
+    monkeypatch.setattr(os.path, 'sep', '\\')
+    os.makedirs(tmp_path / "test_dir" / "subdir")
+    (tmp_path / "test_dir" / "subdir" / "file1.txt").write_text("x")
+
+    client = await aiohttp_client(app)
+    resp = await client.get("/v2/userdata?path=test_dir")
+    assert resp.status == 200
+    data = await resp.json()
+    for item in data:
+        assert "/" in item["path"]
+        assert "\\" not in item["path"]\
+
+async def test_listuserdata_v2_url_encoded_path(aiohttp_client, app, tmp_path):
+    # Create a directory with a space in its name and a file inside
+    os.makedirs(tmp_path / "my dir")
+    (tmp_path / "my dir" / "file.txt").write_text("content")
+
+    client = await aiohttp_client(app)
+    # Use URL-encoded space in path parameter
+    resp = await client.get("/v2/userdata?path=my%20dir&recurse=false")
+    assert resp.status == 200
+    data = await resp.json()
+    assert len(data) == 1
+    entry = data[0]
+    assert entry["name"] == "file.txt"
+    # Ensure the path is correctly decoded and uses forward slash
+    assert entry["path"] == "my dir/file.txt"
