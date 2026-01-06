@@ -44,6 +44,7 @@ except ImportError as e:
         return None
 
 import comfy.float
+import comfy.mps_ops
 
 # ==============================================================================
 # FP8 Layouts with Comfy-Specific Extensions
@@ -51,7 +52,13 @@ import comfy.float
 
 class _TensorCoreFP8LayoutBase(_CKFp8Layout):
     FP8_DTYPE = None  # Must be overridden in subclass
-
+    
+    """
+    Storage format:
+    - qdata: FP8 tensor (torch.float8_e4m3fn or torch.float8_e5m2)
+    - scale: Scalar tensor (float32) for dequantization
+    - orig_dtype: Original dtype before quantization (for casting back)
+    """
     @classmethod
     def quantize(cls, tensor, scale=None, stochastic_rounding=0, inplace_ops=False):
         if cls.FP8_DTYPE is None:
@@ -82,6 +89,19 @@ class _TensorCoreFP8LayoutBase(_CKFp8Layout):
 
         params = cls.Params(scale=scale.float(), orig_dtype=orig_dtype, orig_shape=orig_shape)
         return qdata, params
+
+    @staticmethod
+    def dequantize(qdata, scale, orig_dtype, **kwargs):
+        if qdata.device.type == "mps":
+             if qdata.dtype == torch.uint8:
+                 return comfy.mps_ops.mps_dequantize(qdata, scale, orig_dtype, kwargs.get("mps_float8_dtype", torch.float8_e4m3fn))
+             elif qdata.is_floating_point() and qdata.element_size() == 1:
+                 # It is MPS Float8. View as uint8.
+                 return comfy.mps_ops.mps_dequantize(qdata.view(torch.uint8), scale, orig_dtype, qdata.dtype)
+
+        plain_tensor = torch.ops.aten._to_copy.default(qdata, dtype=orig_dtype)
+        plain_tensor.mul_(scale)
+        return plain_tensor
 
 
 class TensorCoreFP8E4M3Layout(_TensorCoreFP8LayoutBase):
