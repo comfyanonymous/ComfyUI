@@ -79,7 +79,7 @@ def cast_bias_weight(s, input=None, dtype=None, device=None, bias_dtype=None, of
     if input is not None:
         if dtype is None:
             if isinstance(input, QuantizedTensor):
-                dtype = input._layout_params["orig_dtype"]
+                dtype = input.params.orig_dtype
             else:
                 dtype = input.dtype
         if bias_dtype is None:
@@ -488,11 +488,8 @@ if CUBLAS_IS_AVAILABLE:
 from .quant_ops import (
     QuantizedTensor,
     QUANT_ALGOS,
-    LAYOUTS,
     TensorCoreFP8Layout,
-    TensorCoreFP8E4M3Layout,
-    TensorCoreFP8E5M2Layout,
-    TensorCoreNVFP4Layout
+    get_layout_class,
 )
 
 
@@ -567,7 +564,7 @@ def mixed_precision_ops(quant_config={}, compute_dtype=torch.bfloat16, full_prec
 
                     qconfig = QUANT_ALGOS[self.quant_format]
                     self.layout_type = qconfig["comfy_tensor_layout"]
-                    layout_cls = LAYOUTS[self.layout_type]
+                    layout_cls = get_layout_class(self.layout_type)
 
                     # Load format-specific parameters
                     if self.quant_format in ["float8_e4m3fn", "float8_e5m2"]:
@@ -599,7 +596,7 @@ def mixed_precision_ops(quant_config={}, compute_dtype=torch.bfloat16, full_prec
                         raise ValueError(f"Unsupported quantization format: {self.quant_format}")
 
                     self.weight = torch.nn.Parameter(
-                        QuantizedTensor(weight.to(device=device, dtype=qconfig["storage_t"]), layout_cls, params),
+                        QuantizedTensor(weight.to(device=device, dtype=qconfig["storage_t"]), self.layout_type, params),
                         requires_grad=False
                     )
 
@@ -626,10 +623,9 @@ def mixed_precision_ops(quant_config={}, compute_dtype=torch.bfloat16, full_prec
                     layout_cls = self.weight._layout_cls
 
                     # Check if it's any FP8 variant (E4M3 or E5M2)
-                    if layout_cls in (TensorCoreFP8E4M3Layout, TensorCoreFP8E5M2Layout) or \
-                       layout_cls.__name__ in ("TensorCoreFP8E4M3Layout", "TensorCoreFP8E5M2Layout", "TensorCoreFP8Layout"):
+                    if layout_cls in ("TensorCoreFP8E4M3Layout", "TensorCoreFP8E5M2Layout", "TensorCoreFP8Layout"):
                         sd["{}weight_scale".format(prefix)] = self.weight._params.scale
-                    elif layout_cls == TensorCoreNVFP4Layout or layout_cls.__name__ == "TensorCoreNVFP4Layout":
+                    elif layout_cls == "TensorCoreNVFP4Layout":
                         sd["{}weight_scale_2".format(prefix)] = self.weight._params.scale
                         sd["{}weight_scale".format(prefix)] = self.weight._params.block_scale
 
@@ -659,7 +655,6 @@ def mixed_precision_ops(quant_config={}, compute_dtype=torch.bfloat16, full_prec
 
                 if (getattr(self, 'layout_type', None) is not None and
                     not isinstance(input, QuantizedTensor)):
-                    layout_cls = LAYOUTS[self.layout_type]
 
                     # Reshape 3D tensors to 2D for quantization (needed for NVFP4 and others)
                     if tensor_3d:
@@ -670,7 +665,7 @@ def mixed_precision_ops(quant_config={}, compute_dtype=torch.bfloat16, full_prec
                         return self.forward_comfy_cast_weights(input.reshape(input_shape), *args, **kwargs)
 
                     # dtype is now implicit in the layout class
-                    input = QuantizedTensor.from_float(input, layout_cls, scale=getattr(self, 'input_scale', None))
+                    input = QuantizedTensor.from_float(input, self.layout_type, scale=getattr(self, 'input_scale', None))
 
                 output = self._forward(input, self.weight, self.bias)
 
@@ -688,9 +683,8 @@ def mixed_precision_ops(quant_config={}, compute_dtype=torch.bfloat16, full_prec
 
             def set_weight(self, weight, inplace_update=False, seed=None, return_weight=False, **kwargs):
                 if getattr(self, 'layout_type', None) is not None:
-                    layout_cls = LAYOUTS[self.layout_type]
                     # dtype is now implicit in the layout class
-                    weight = QuantizedTensor.from_float(weight, layout_cls, scale="recalculate", stochastic_rounding=seed, inplace_ops=True)
+                    weight = QuantizedTensor.from_float(weight, self.layout_type, scale="recalculate", stochastic_rounding=seed, inplace_ops=True)
                 else:
                     weight = weight.to(self.weight.dtype)
                 if return_weight:

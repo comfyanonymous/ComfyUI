@@ -6,64 +6,38 @@ from typing import Dict
 try:
     import comfy_kitchen as ck
     from comfy_kitchen.tensor import (
-        QuantizedTensor as _CKQuantizedTensor,
+        QuantizedTensor,
         QuantizedLayout,
         TensorCoreFP8Layout as _CKFp8Layout,
         TensorCoreNVFP4Layout,  # Direct import, no wrapper needed
         register_layout_op,
+        register_layout_class,
+        get_layout_class,
     )
     _CK_AVAILABLE = True
+    ck.registry.disable("triton")
     for k, v in ck.list_backends().items():
         logging.info(f"Found comfy_kitchen backend {k}: {v}")
 except ImportError as e:
-    logging.info(f"Failed to import comfy_kitchen, falling back to torch ops. Error: {e}")
+    logging.error(f"Failed to import comfy_kitchen, Error: {e}, fp8 and fp4 support will not be available.")
     _CK_AVAILABLE = False
-    raise ImportError(f"comfy_kitchen is required but not available: {e}")
+
+    class QuantizedTensor:
+        pass
+
+    class _CKFp8Layout:
+        pass
+
+    class TensorCoreNVFP4Layout:
+        pass
+
+    def register_layout_class(name, cls):
+        pass
+
+    def get_layout_class(name):
+        return None
 
 import comfy.float
-
-
-# ==============================================================================
-# Backward Compatibility Layer
-# ==============================================================================
-
-class QuantizedTensor(_CKQuantizedTensor):
-    @staticmethod
-    def __new__(cls, qdata, layout_cls, params):
-        # Backward compat: Convert string layout names and dict params before __new__
-        if isinstance(layout_cls, str):
-            layout_cls = LAYOUTS[layout_cls]
-
-        if isinstance(params, dict):
-            params = layout_cls.Params(**params)
-
-        return _CKQuantizedTensor.__new__(cls, qdata, layout_cls, params)
-
-    def __init__(self, qdata, layout_cls, params):
-        super().__init__(qdata, layout_cls, params)
-
-    @property
-    def _layout_params(self) -> Dict:
-        return dataclasses.asdict(self._params)
-
-    @property
-    def _layout_type(self) -> str:
-        return self._layout_cls.__name__
-
-    @property
-    def layout_type(self) -> str:
-        """Backward compatibility alias for _layout_type."""
-        return self._layout_type
-
-    def _copy_with(self, qdata=None, params=None, clone_params=True):
-        if params is None:
-            params = self._params.clone() if clone_params else self._params
-        return type(self)(
-            qdata if qdata is not None else self._qdata,
-            self._layout_cls,
-            params,
-        )
-
 
 # ==============================================================================
 # FP8 Layouts with Comfy-Specific Extensions
@@ -81,7 +55,10 @@ class _TensorCoreFP8LayoutBase(_CKFp8Layout):
         orig_shape = tuple(tensor.shape)
 
         if isinstance(scale, str) and scale == "recalculate":
-            scale = torch.amax(tensor.abs()) / torch.finfo(cls.FP8_DTYPE).max
+            scale = torch.amax(tensor.abs()).to(dtype=torch.float32) / torch.finfo(cls.FP8_DTYPE).max
+            if tensor.dtype not in [torch.float32, torch.bfloat16]:  # Prevent scale from being too small
+                tensor_info = torch.finfo(tensor.dtype)
+                scale = (1.0 / torch.clamp((1.0 / scale), min=tensor_info.min, max=tensor_info.max))
 
         if scale is None:
             scale = torch.ones((), device=tensor.device, dtype=torch.float32)
@@ -97,7 +74,7 @@ class _TensorCoreFP8LayoutBase(_CKFp8Layout):
         else:
             qdata = ck.quantize_per_tensor_fp8(tensor, scale, cls.FP8_DTYPE)
 
-        params = cls.Params(scale=scale, orig_dtype=orig_dtype, orig_shape=orig_shape)
+        params = cls.Params(scale=scale.float(), orig_dtype=orig_dtype, orig_shape=orig_shape)
         return qdata, params
 
 
@@ -117,12 +94,10 @@ TensorCoreFP8Layout = TensorCoreFP8E4M3Layout
 # Registry
 # ==============================================================================
 
-LAYOUTS = {
-    "TensorCoreFP8Layout": TensorCoreFP8Layout,  # Backward compat alias (E4M3)
-    "TensorCoreFP8E4M3Layout": TensorCoreFP8E4M3Layout,
-    "TensorCoreFP8E5M2Layout": TensorCoreFP8E5M2Layout,
-    "TensorCoreNVFP4Layout": TensorCoreNVFP4Layout,  # Direct from comfy_kitchen
-}
+register_layout_class("TensorCoreFP8Layout", TensorCoreFP8Layout)
+register_layout_class("TensorCoreFP8E4M3Layout", TensorCoreFP8E4M3Layout)
+register_layout_class("TensorCoreFP8E5M2Layout", TensorCoreFP8E5M2Layout)
+register_layout_class("TensorCoreNVFP4Layout", TensorCoreNVFP4Layout)
 
 QUANT_ALGOS = {
     "float8_e4m3fn": {
