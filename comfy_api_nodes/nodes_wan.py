@@ -531,9 +531,9 @@ class WanTextToVideoApi(IO.ComfyNode):
                 expr="""
                 (
                   $ppsTable := { "480p": 0.05, "720p": 0.1, "1080p": 0.15 };
-                  $resKey := $substringBefore(widgets.size.s, ":");
+                  $resKey := $substringBefore(widgets.size, ":");
                   $pps := $lookup($ppsTable, $resKey);
-                  { "type": "usd", "usd": $round($pps * widgets.duration.n, 2) }
+                  { "type": "usd", "usd": $round($pps * widgets.duration, 2) }
                 )
                 """,
             ),
@@ -703,8 +703,8 @@ class WanImageToVideoApi(IO.ComfyNode):
                 expr="""
                 (
                   $ppsTable := { "480p": 0.05, "720p": 0.1, "1080p": 0.15 };
-                  $pps := $lookup($ppsTable, widgets.resolution.s);
-                  { "type": "usd", "usd": $round($pps * widgets.duration.n, 2) }
+                  $pps := $lookup($ppsTable, widgets.resolution);
+                  { "type": "usd", "usd": $round($pps * widgets.duration, 2) }
                 )
                 """,
             ),

@@ -271,7 +271,7 @@ class StabilityStableImageSD_3_5Node(IO.ComfyNode):
                 depends_on=IO.PriceBadgeDepends(widgets=["model"]),
                 expr="""
                 (
-                  $contains(widgets.model.s,"large")
+                  $contains(widgets.model,"large")
                     ? {"type":"usd","usd":0.065}
                     : {"type":"usd","usd":0.035}
                 )

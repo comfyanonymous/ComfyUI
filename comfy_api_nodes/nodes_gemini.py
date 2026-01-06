@@ -313,7 +313,7 @@ class GeminiNode(IO.ComfyNode):
                 depends_on=IO.PriceBadgeDepends(widgets=["model"]),
                 expr="""
                 (
-                  $m := widgets.model.s;
+                  $m := widgets.model;
 
                   $contains($m, "gemini-2.5-flash")
                     ? {"type":"list_usd","usd":[0.0003,0.0025]}
@@ -723,7 +723,7 @@ class GeminiImage2(IO.ComfyNode):
                 depends_on=IO.PriceBadgeDepends(widgets=["resolution"]),
                 expr="""
                 (
-                  $r := widgets.resolution.s;
+                  $r := widgets.resolution;
                   ($contains($r,"1k") or $contains($r,"2k"))
                     ? {"type":"usd","usd":0.134,"format":{"suffix":"/Image","approximate":true}}
                     : $contains($r,"4k")

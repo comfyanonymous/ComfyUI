@@ -124,7 +124,7 @@ class VeoVideoGenerationNode(IO.ComfyNode):
             is_api_node=True,
             price_badge=IO.PriceBadge(
                 depends_on=IO.PriceBadgeDepends(widgets=["duration_seconds"]),
-                expr="""{"type":"usd","usd": 0.5 * widgets.duration_seconds.n}""",
+                expr="""{"type":"usd","usd": 0.5 * widgets.duration_seconds}""",
             ),
         )
 
@@ -355,8 +355,8 @@ class Veo3VideoGenerationNode(VeoVideoGenerationNode):
                 depends_on=IO.PriceBadgeDepends(widgets=["model", "generate_audio"]),
                 expr="""
                 (
-                  $m := widgets.model.s;
-                  $a := widgets.generate_audio.b;
+                  $m := widgets.model;
+                  $a := widgets.generate_audio;
                   ($contains($m,"veo-3.0-fast-generate-001") or $contains($m,"veo-3.1-fast-generate"))
                     ? {"type":"usd","usd": ($a ? 1.2 : 0.8)}
                     : ($contains($m,"veo-3.0-generate-001") or $contains($m,"veo-3.1-generate"))
@@ -446,9 +446,9 @@ class Veo3FirstLastFrameNode(IO.ComfyNode):
                     "veo-3.1-fast-generate": { "audio": 0.15, "no_audio": 0.10 },
                     "veo-3.1-generate":      { "audio": 0.40, "no_audio": 0.20 }
                   };
-                  $m := widgets.model.s;
-                  $ga := (widgets.generate_audio.s = "true");
-                  $seconds := widgets.duration.n;
+                  $m := widgets.model;
+                  $ga := (widgets.generate_audio = "true");
+                  $seconds := widgets.duration;
                   $modelKey :=
                     $contains($m, "veo-3.1-fast-generate") ? "veo-3.1-fast-generate" :
                     $contains($m, "veo-3.1-generate")      ? "veo-3.1-generate" :

@@ -131,18 +131,18 @@ class TripoTextToModelNode(IO.ComfyNode):
                 ),
                 expr="""
                 (
-                  $isV14 := $contains(widgets.model_version.s,"v1.4");
-                  $style := widgets.style.s;
+                  $isV14 := $contains(widgets.model_version,"v1.4");
+                  $style := widgets.style;
                   $hasStyle := ($style != "" and $style != "none");
-                  $withTexture := widgets.texture.b or widgets.pbr.b;
-                  $isHdTexture := (widgets.texture_quality.s = "detailed");
-                  $isDetailedGeometry := (widgets.geometry_quality.s = "detailed");
+                  $withTexture := widgets.texture or widgets.pbr;
+                  $isHdTexture := (widgets.texture_quality = "detailed");
+                  $isDetailedGeometry := (widgets.geometry_quality = "detailed");
                   $baseCredits :=
                     $isV14 ? 20 : ($withTexture ? 20 : 10);
                   $credits :=
                     $baseCredits
                     + ($hasStyle ? 5 : 0)
-                    + (widgets.quad.b ? 5 : 0)
+                    + (widgets.quad ? 5 : 0)
                     + ($isHdTexture ? 10 : 0)
                     + ($isDetailedGeometry ? 20 : 0);
                   {"type":"usd","usd": $round($credits * 0.01, 2)}
@@ -256,18 +256,18 @@ class TripoImageToModelNode(IO.ComfyNode):
                 ),
                 expr="""
                 (
-                  $isV14 := $contains(widgets.model_version.s,"v1.4");
-                  $style := widgets.style.s;
+                  $isV14 := $contains(widgets.model_version,"v1.4");
+                  $style := widgets.style;
                   $hasStyle := ($style != "" and $style != "none");
-                  $withTexture := widgets.texture.b or widgets.pbr.b;
-                  $isHdTexture := (widgets.texture_quality.s = "detailed");
-                  $isDetailedGeometry := (widgets.geometry_quality.s = "detailed");
+                  $withTexture := widgets.texture or widgets.pbr;
+                  $isHdTexture := (widgets.texture_quality = "detailed");
+                  $isDetailedGeometry := (widgets.geometry_quality = "detailed");
                   $baseCredits :=
                     $isV14 ? 30 : ($withTexture ? 30 : 20);
                   $credits :=
                     $baseCredits
                     + ($hasStyle ? 5 : 0)
-                    + (widgets.quad.b ? 5 : 0)
+                    + (widgets.quad ? 5 : 0)
                     + ($isHdTexture ? 10 : 0)
                     + ($isDetailedGeometry ? 20 : 0);
                   {"type":"usd","usd": $round($credits * 0.01, 2)}
@@ -391,15 +391,15 @@ class TripoMultiviewToModelNode(IO.ComfyNode):
                 ),
                 expr="""
                 (
-                  $isV14 := $contains(widgets.model_version.s,"v1.4");
-                  $withTexture := widgets.texture.b or widgets.pbr.b;
-                  $isHdTexture := (widgets.texture_quality.s = "detailed");
-                  $isDetailedGeometry := (widgets.geometry_quality.s = "detailed");
+                  $isV14 := $contains(widgets.model_version,"v1.4");
+                  $withTexture := widgets.texture or widgets.pbr;
+                  $isHdTexture := (widgets.texture_quality = "detailed");
+                  $isDetailedGeometry := (widgets.geometry_quality = "detailed");
                   $baseCredits :=
                     $isV14 ? 30 : ($withTexture ? 30 : 20);
                   $credits :=
                     $baseCredits
-                    + (widgets.quad.b ? 5 : 0)
+                    + (widgets.quad ? 5 : 0)
                     + ($isHdTexture ? 10 : 0)
                     + ($isDetailedGeometry ? 20 : 0);
                   {"type":"usd","usd": $round($credits * 0.01, 2)}
@@ -501,7 +501,7 @@ class TripoTextureNode(IO.ComfyNode):
                 depends_on=IO.PriceBadgeDepends(widgets=["texture_quality"]),
                 expr="""
                 (
-                  $tq := widgets.texture_quality.s;
+                  $tq := widgets.texture_quality;
                   {"type":"usd","usd": ($contains($tq,"detailed") ? 0.2 : 0.1)}
                 )
                 """,
@@ -772,24 +772,24 @@ class TripoConversionNode(IO.ComfyNode):
                 ),
                 expr="""
                 (
-                    $face := (widgets.face_limit.n != null) ? widgets.face_limit.n : -1;
-                    $texSize := (widgets.texture_size.n != null) ? widgets.texture_size.n : 4096;
-                    $flatThresh := (widgets.flatten_bottom_threshold.n != null) ? widgets.flatten_bottom_threshold.n : 0;
-                    $scale := (widgets.scale_factor.n != null) ? widgets.scale_factor.n : 1;
-                    $texFmt := (widgets.texture_format.s != "" ? widgets.texture_format.s : "jpeg");
-                    $part := widgets.part_names.s;
-                    $fbx := (widgets.fbx_preset.s != "" ? widgets.fbx_preset.s : "blender");
-                    $orient := (widgets.export_orientation.s != "" ? widgets.export_orientation.s : "default");
+                    $face := (widgets.face_limit != null) ? widgets.face_limit : -1;
+                    $texSize := (widgets.texture_size != null) ? widgets.texture_size : 4096;
+                    $flatThresh := (widgets.flatten_bottom_threshold != null) ? widgets.flatten_bottom_threshold : 0;
+                    $scale := (widgets.scale_factor != null) ? widgets.scale_factor : 1;
+                    $texFmt := (widgets.texture_format != "" ? widgets.texture_format : "jpeg");
+                    $part := widgets.part_names;
+                    $fbx := (widgets.fbx_preset != "" ? widgets.fbx_preset : "blender");
+                    $orient := (widgets.export_orientation != "" ? widgets.export_orientation : "default");
                     $advanced :=
-                      widgets.quad.b or
-                      widgets.force_symmetry.b or
-                      widgets.flatten_bottom.b or
-                      widgets.pivot_to_center_bottom.b or
-                      widgets.with_animation.b or
-                      widgets.pack_uv.b or
-                      widgets.bake.b or
-                      widgets.export_vertex_colors.b or
-                      widgets.animate_in_place.b or
+                      widgets.quad or
+                      widgets.force_symmetry or
+                      widgets.flatten_bottom or
+                      widgets.pivot_to_center_bottom or
+                      widgets.with_animation or
+                      widgets.pack_uv or
+                      widgets.bake or
+                      widgets.export_vertex_colors or
+                      widgets.animate_in_place or
                       ($face != -1) or
                       ($texSize != 4096) or
                       ($flatThresh != 0) or

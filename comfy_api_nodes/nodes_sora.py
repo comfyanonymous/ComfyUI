@@ -93,9 +93,9 @@ class OpenAIVideoSora2(IO.ComfyNode):
                 depends_on=IO.PriceBadgeDepends(widgets=["model", "size", "duration"]),
                 expr="""
                 (
-                  $m := widgets.model.s;
-                  $size := widgets.size.s;
-                  $dur := widgets.duration.n;
+                  $m := widgets.model;
+                  $size := widgets.size;
+                  $dur := widgets.duration;
                   $isPro := $contains($m, "sora-2-pro");
                   $isSora2 := $contains($m, "sora-2");
                   $isProSize := ($size = "1024x1792" or $size = "1792x1024");

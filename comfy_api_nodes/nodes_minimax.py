@@ -350,8 +350,8 @@ class MinimaxHailuoVideoNode(IO.ComfyNode):
                 depends_on=IO.PriceBadgeDepends(widgets=["resolution", "duration"]),
                 expr="""
                 (
-                  $r := widgets.resolution.s;
-                  $d := widgets.duration.s;
+                  $r := widgets.resolution;
+                  $d := widgets.duration;
 
                   $price :=
                     $contains($r,"768p")

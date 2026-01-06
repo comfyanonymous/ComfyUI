@@ -1258,9 +1258,24 @@ class PriceBadgeDepends:
         if not isinstance(self.input_groups, list) or any(not isinstance(x, str) for x in self.input_groups):
             raise ValueError("PriceBadgeDepends.input_groups must be a list[str].")
 
-    def as_dict(self) -> dict[str, Any]:
+    def as_dict(self, schema_inputs: list["Input"]) -> dict[str, Any]:
+        # Build lookup: widget_id -> io_type
+        input_types: dict[str, str] = {}
+        for inp in schema_inputs:
+            input_types[inp.id] = inp.get_io_type()
+
+        # Enrich widgets with type information, raising error for unknown widgets
+        widgets_data: list[dict[str, str]] = []
+        for w in self.widgets:
+            if w not in input_types:
+                raise ValueError(
+                    f"PriceBadge depends_on.widgets references unknown widget '{w}'. "
+                    f"Available widgets: {list(input_types.keys())}"
+                )
+            widgets_data.append({"name": w, "type": input_types[w]})
+
         return {
-            "widgets": self.widgets,
+            "widgets": widgets_data,
             "inputs": self.inputs,
             "input_groups": self.input_groups,
         }
@@ -1279,10 +1294,10 @@ class PriceBadge:
             raise ValueError("PriceBadge.expr must be a non-empty string.")
         self.depends_on.validate()
 
-    def as_dict(self) -> dict[str, Any]:
+    def as_dict(self, schema_inputs: list["Input"]) -> dict[str, Any]:
         return {
             "engine": self.engine,
-            "depends_on": self.depends_on.as_dict(),
+            "depends_on": self.depends_on.as_dict(schema_inputs),
             "expr": self.expr,
         }
 
@@ -1438,7 +1453,7 @@ class Schema:
             experimental=self.is_experimental,
             api_node=self.is_api_node,
             python_module=getattr(cls, "RELATIVE_PYTHON_MODULE", "nodes"),
-            price_badge=self.price_badge.as_dict() if self.price_badge is not None else None,
+            price_badge=self.price_badge.as_dict(self.inputs) if self.price_badge is not None else None,
         )
         return info
 
@@ -1471,7 +1486,7 @@ class Schema:
             experimental=self.is_experimental,
             api_node=self.is_api_node,
             python_module=getattr(cls, "RELATIVE_PYTHON_MODULE", "nodes"),
-            price_badge=self.price_badge.as_dict() if self.price_badge is not None else None,
+            price_badge=self.price_badge.as_dict(self.inputs) if self.price_badge is not None else None,
         )
         return info
 

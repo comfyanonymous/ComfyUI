@@ -423,9 +423,9 @@ PRICE_BADGE_VIDEO = IO.PriceBadge(
     depends_on=IO.PriceBadgeDepends(widgets=["duration_seconds", "quality", "motion_mode"]),
     expr="""
     (
-      $d := widgets.duration_seconds.s;
-      $q := widgets.quality.s;
-      $m := widgets.motion_mode.s;
+      $d := widgets.duration_seconds;
+      $q := widgets.quality;
+      $m := widgets.motion_mode;
 
       $price :=
         $contains($d,"5")
