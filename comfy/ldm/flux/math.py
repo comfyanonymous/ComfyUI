@@ -4,6 +4,7 @@ from torch import Tensor
 
 from comfy.ldm.modules.attention import optimized_attention
 import comfy.model_management
+import logging
 
 
 def attention(q: Tensor, k: Tensor, v: Tensor, pe: Tensor, mask=None, transformer_options={}) -> Tensor:
@@ -12,7 +13,6 @@ def attention(q: Tensor, k: Tensor, v: Tensor, pe: Tensor, mask=None, transforme
     heads = q.shape[1]
     x = optimized_attention(q, k, v, heads, skip_reshape=True, mask=mask, transformer_options=transformer_options)
     return x
-
 
 def rope(pos: Tensor, dim: int, theta: int) -> Tensor:
     assert dim % 2 == 0
@@ -28,13 +28,20 @@ def rope(pos: Tensor, dim: int, theta: int) -> Tensor:
     out = rearrange(out, "b n d (i j) -> b n d i j", i=2, j=2)
     return out.to(dtype=torch.float32, device=pos.device)
 
-def apply_rope1(x: Tensor, freqs_cis: Tensor):
-    x_ = x.to(dtype=freqs_cis.dtype).reshape(*x.shape[:-1], -1, 1, 2)
 
-    x_out = freqs_cis[..., 0] * x_[..., 0]
-    x_out.addcmul_(freqs_cis[..., 1], x_[..., 1])
+try:
+    import comfy.quant_ops
+    apply_rope = comfy.quant_ops.ck.apply_rope
+    apply_rope1 = comfy.quant_ops.ck.apply_rope1
+except:
+    logging.warning("No comfy kitchen, using old apply_rope functions.")
+    def apply_rope1(x: Tensor, freqs_cis: Tensor):
+        x_ = x.to(dtype=freqs_cis.dtype).reshape(*x.shape[:-1], -1, 1, 2)
 
-    return x_out.reshape(*x.shape).type_as(x)
+        x_out = freqs_cis[..., 0] * x_[..., 0]
+        x_out.addcmul_(freqs_cis[..., 1], x_[..., 1])
 
-def apply_rope(xq: Tensor, xk: Tensor, freqs_cis: Tensor):
-    return apply_rope1(xq, freqs_cis), apply_rope1(xk, freqs_cis)
+        return x_out.reshape(*x.shape).type_as(x)
+
+    def apply_rope(xq: Tensor, xk: Tensor, freqs_cis: Tensor):
+        return apply_rope1(xq, freqs_cis), apply_rope1(xk, freqs_cis)
