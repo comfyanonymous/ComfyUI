@@ -86,17 +86,19 @@ class LTXAVTEModel(torch.nn.Module):
         )
 
     def set_clip_options(self, options):
+        self.execution_device = options.get("execution_device", self.execution_device)
         self.gemma3_12b.set_clip_options(options)
 
     def reset_clip_options(self):
         self.gemma3_12b.reset_clip_options()
+        self.execution_device = None
 
     def encode_token_weights(self, token_weight_pairs):
         token_weight_pairs = token_weight_pairs["gemma3_12b"]
 
         out, pooled, extra = self.gemma3_12b.encode_token_weights(token_weight_pairs)
         out_device = out.device
-        out = out.movedim(1, -1).to(self.text_embedding_projection.weight.device)
+        out = out.movedim(1, -1).to(self.execution_device)
         out = 8.0 * (out - out.mean(dim=(1, 2), keepdim=True)) / (out.amax(dim=(1, 2), keepdim=True) - out.amin(dim=(1, 2), keepdim=True) + 1e-6)
         out = out.reshape((out.shape[0], out.shape[1], -1))
         out = self.text_embedding_projection(out)
