@@ -21,6 +21,7 @@ lint.select = [
   # The "F" series in Ruff stands for "Pyflakes" rules, which catch various Python syntax errors and undefined names.
   # See all rules here: https://docs.astral.sh/ruff/rules/#pyflakes-f
   "F",
+  "G"    # logging rules
 ]
 
 lint.ignore = ["E501", "E722", "E731", "E712", "E402", "E741"]
