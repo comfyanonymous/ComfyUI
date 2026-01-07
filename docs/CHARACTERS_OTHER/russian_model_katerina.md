@@ -1,0 +1,108 @@
+# Russian Model (Katerina)
+
+[← Back to Index](INDEX.md)
+
+## Civitai Stats
+
+| Metric | Value |
+|--------|-------|
+| **Downloads** | 175 |
+| **👍** | 11 |
+| **Tips** | 0 |
+| **Score** | - |
+
+## Parameters
+
+| Parameter | Value |
+|-----------|-------|
+| **File** | `Russian_Model_Katerina.safetensors` |
+| **Original filename** | `ru551an.safetensors` |
+| **Civitai** | https://civitai.com/models/1638312 |
+| **Trigger word** | `ru551an` |
+| **Strength** | 0.9 |
+| **Type** | CHARACTER |
+
+## Description
+
+100% AI-generated ethnic/country character model - Russian woman. Created using FLUX-Dev, Stability Matrix WebUI and Flux.gym.
+
+**NOT A REAL PERSON** - entirely fictional, generated through AI with no direct replication of specific individuals.
+
+First in a series to bridge the gap between banned "real" models and remaining Anime/Manga LoRAs.
+
+**Character name:** Katerina (optional)
+
+## Sample Prompts
+
+**Prompt 1 (Walking portrait):**
+```
+ru551an. A photograph of a beautiful ru551an woman, detailed eyes, high quality, skin texture style, realism, detailed. A woman slowly walks toward the viewer, her hair and clothes blowing in the wind
+```
+Combined with: Enhanced_Lighting_and_Textures 0.4, skin texture style v5 0.4
+Settings: Steps 30, CFG 1, Euler, 896x1152, Distilled CFG 4, Strength 0.9
+
+**Prompt 2 (City dress):**
+```
+ru551an wearing a dress in a city
+```
+Settings: Steps 30, CFG 1, Euler, 896x1152, Distilled CFG 4, Strength 0.9
+
+**Prompt 3 (Simple portrait):**
+```
+ru551an. A photograph of a beautiful ru551an woman, detailed eyes, high quality
+```
+Settings: Steps 30, CFG 1, Euler, 896x1152, Distilled CFG 4, Strength 0.9
+
+## Keywords
+
+- `ru551an` (trigger - required)
+- `russian woman`, `beautiful woman`
+- `detailed eyes`, `high quality`
+- `skin texture style`, `realism`
+
+## Settings
+
+| Parameter | Value |
+|-----------|-------|
+| **Steps** | 30 |
+| **CFG** | 1 |
+| **Distilled CFG** | 3.5-4 |
+| **Sampler** | Euler |
+| **Size** | 896x1152 |
+| **Strength** | 0.9 |
+| **Base Model** | FLUX1-dev (Precise Flux NF4/FP8) |
+
+## Recommended Combinations
+
+```
+<lora:ru551an:0.9>
+<lora:Enhanced_Lighting_and_Textures_flux_lora:0.4>
+<lora:skin texture style v5:0.4>
+```
+
+Works well with:
+- Enhanced Lighting and Textures (0.4) - for lighting quality
+- Skin Texture Style v5 (0.4) - for realistic skin
+- Realism/Realistic Photography LoRAs
+
+## Upscaling
+
+| VRAM | Recommended |
+|------|-------------|
+| 8GB | 4x UltraSharp or R-ESRGAN 4x+ |
+| 12GB+ | 8x NMKD-Superscale |
+
+Settings: Hires upscale 2x, Latent upscaler, Denoising 0.5
+
+## Notes
+
+- Use `ru551an` trigger word for stronger character resemblance
+- Character name "Katerina" is optional flavor
+- Part of upcoming ethnic/country model series
+- Works best with Precise Flux Dev or similar quality base models
+- Combines well with skin texture and lighting enhancement LoRAs
+
+## Disclaimer
+
+This character is entirely fictional and generated through AI. Any resemblance to real persons is coincidental and unintended.
+

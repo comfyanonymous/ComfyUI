@@ -13,6 +13,8 @@ This section contains LoRAs for generating characters from various ethnic backgr
 | LoRA | Downloads | 👍 | Tips | Score |
 |------|----------:|-------:|-----:|------:|
 | [NSFW Indian Women](nsfw_indian_women.md) | 819 | 49 | 0 | ⭐ |
+| [Realistic Black Women Portraits](realistic_black_women_portraits.md) | N/A | N/A | N/A | - |
+| [Insta Choc 1.3](insta_choc.md) | 103 | 10 | 0 | - |
 | [WATW South Africa](south_africa.md) | 66 | 11 | 0 | - |
 | [WATW Fiji](fiji.md) | 85 | 18 | 0 | - |
 | [WATW Montenegro](montenegro.md) | 125 | 19 | 0 | - |
@@ -27,7 +29,9 @@ This section contains LoRAs for generating characters from various ethnic backgr
 ### Indian
 - [NSFW Indian Women](nsfw_indian_women.md) ⭐ - Indian women with NSFW training, authentic features
 
-### African
+### African / Black
+- [Realistic Black Women Portraits](realistic_black_women_portraits.md) - **RECOMMENDED** - Studio portraits of Black women, easy faces, high quality skin
+- [Insta Choc 1.3](insta_choc.md) - **RECOMMENDED** - Instagram-model style Black/Latina women, sexy faces, hourglass figures
 - [WATW South Africa](south_africa.md) - South African women (#WATW series)
 - [WATW Cape Verde](cape_verde.md) - Cape Verdean women (#WATW series)
 
@@ -45,6 +49,8 @@ This section contains LoRAs for generating characters from various ethnic backgr
 | LoRA | Trigger | Strength |
 |------|---------|----------|
 | NSFW Indian Women | `woman` | 0.6 |
+| Realistic Black Women Portraits | None (descriptive) | 0.8-1.0 |
+| Insta Choc 1.3 | None (descriptive) | 1.0 |
 | WATW South Africa | `SouthAfrica woman` | 1.0 |
 | WATW Fiji | `Fiji woman` | 1.0 |
 | WATW Montenegro | `Montenegro woman` | 1.0 |
@@ -60,4 +66,4 @@ This section contains LoRAs for generating characters from various ethnic backgr
 
 ---
 
-*Last updated: 2025-12-31*
+*Last updated: 2026-01-03*

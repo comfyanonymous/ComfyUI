@@ -16,6 +16,7 @@
 | [Flux Preg](flux_preg.md) | preg-000016.safetensors | 739 | 64 | 0 | ⭐ |
 | [Slimmers V1](slimmers_v1.md) | Slimmers_V1.safetensors | 301 | 18 | 0 | - |
 | [Cute Belly Button](cute_belly_button.md) | Cute_Belly_Button_by_Sarcastic_TOFU.safetensors | 260 | 22 | 0 | - |
+| [NSFW Flux Petite](nsfw_flux_petite.md) | NSFW_Flux_Petite.safetensors | 11,578 | 666 | 10 | ⭐⭐⭐ |
 
 ## Top Picks
 
@@ -30,6 +31,7 @@
 ### Body Shape
 - [Hourglass V2](hourglass_v2.md) - Hourglass body shape with wide hips and small waist
 - [Flux Bodies Female](flux_bodies_female.md) - Various body types and shapes, celebrating diversity
+- [NSFW Flux Petite](nsfw_flux_petite.md) ⭐⭐⭐ - Petite women with small breasts (11K downloads)
 - [Thin Legs Skinny Ass](thin_legs_skinny_ass.md) - Petite, slim body proportions
 - [Perfect Big Round Ass](perfect_big_round_ass.md) - Enhanced buttocks quality
 - [Slimmers V1](slimmers_v1.md) - Slim/skinny body types with visible ribs

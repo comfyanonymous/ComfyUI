@@ -110,4 +110,24 @@ Sorted by downloads (descending):
 
 ---
 
-Last updated: 2025-12-31
+## Future Downloads
+
+Models to download when storage space is available:
+
+| Model | Version | Size | Civitai | Notes |
+|-------|---------|------|---------|-------|
+| **PixelWave** | FLUX.1-dev 03 | >22GB | [Link](https://civitai.com/models/141592/pixelwave?modelVersionId=992642) | 5 weeks fine-tuning on FLUX.1-Dev, supports various art styles (photography, anime, illustration), versatile checkpoint |
+| **Nova Reality XL** | Latest | 6.46GB | [Link](https://civitai.com/models/453428/nova-reality-xl?modelVersionId=2439763) | SDXL checkpoint, realistic photography |
+| **LucentXL Pony** | b2.0 | ~6GB | [Link](https://civitai.com/models/1559047/lucentxl-pony-by-klaabu?modelVersionId=1971591) | Pony checkpoint, **bardzo realistyczne**, ethnicity-aware, DPM++ SDE, CFG 2.5-4.5 |
+
+**PixelWave FLUX.1-dev 03** - The latest and most refined version with 5 weeks of fine-tuning. Supports:
+- Realistic photography
+- Anime styles
+- Artistic illustrations
+- Mixed media compositions
+
+*Waiting for new disk installation due to file size.*
+
+---
+
+Last updated: 2026-01-03

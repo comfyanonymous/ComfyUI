@@ -6,16 +6,18 @@
 
 | Metric | Value |
 |--------|-------|
-| **Downloads** | 2244 |
-| **👍** | 99 |
+| **Downloads** | 11,522 |
+| **👍** | 552 |
 | **Tips** | 100 |
+| **Score** | ⭐⭐⭐ |
 
 | Parameter | Value |
 |-----------|-------|
 | **File** | `Flux_Skin_Texture_V2.safetensors` |
-| **Civitai** | https://civitai.com/models/1186433/flux-skin-texture |
-| **Trigger word** | `skntxtr` (optional) |
-| **Strength** | 0.6-1.0 |
+| **Original filename** | `fluxRealSkin-V2.safetensors` |
+| **Civitai** | https://civitai.com/models/651043/flux-skin-texture |
+| **Trigger word** | `realskin`, `skntxtr` (optional) |
+| **Strength** | 0.65-1.0 |
 | **Type** | Style / Enhancement / Realism |
 | **Version** | v2.0 |
 
@@ -44,6 +46,30 @@ A gorgeous Caucasian cowgirl with a supermodel physique, riding a horse bareback
 ```
 A hyper-realistic portrait. cinematic upper body photo, Dramatic Shadow with a Bold Look, A brunette woman, her hair neatly styled with subtle highlights that catch the light softly, beam of light on her, She wears round, silver-framed glasses perched elegantly on the bridge of her nose, excellent dynamic range, makeup, natural youthful glow. White modern clothes, straight white hair cascading down her shoulders, Her eyes are almond-shaped and striking blue, accentuated by thick eyeliner. arctic circle snow drift, snowing, snowflakes, cold, chill bumps, approaching perfection, dynamic, highly detailed, smooth, sharp focus, intricate details, shallow depth of field, vignette, bokeh, cinemascope, moody, epic, gorgeous, film grain, grainy, (skin texture:1.4)
 ```
+
+**Prompt 4 (African American escort - Miami):**
+```
+(((Candid perspective from the thighs upward: 1.3))), (with detailed face: 1.3), (dark african american escort ,1.3), in luxury rooftop bar with view over night in Miami, (wearing thin rosé silk blouse with deep cleavage paired with a high-waisted, figure-hugging leather skirt for a glamorous night out: 1.2), curly hair, looking down into camera, teasing,(realistic, photo-realistic:1.4), (arroused facial expression with big fake lips:1.2), (fake 34DD breasts: 1.2), textured skin, realskin, dramatic shadows, Porta 160 color, shot on ARRI ALEXA 65, bokeh, sharp focus on upper body, Award - winning, soft cinematic light, adobe lightroom, photolab, intricate, highly detailed, sharp focus, (cinematic look: 1.2), insane details, intricate details, hyperdetailed, soft cinematic light, (SFW: 1.2), (lips closed: 1.2), surreal curves, big eyes, shot by Don McCullin
+```
+Settings: Steps 30, CFG 4.5, Size 832x1216, Clip skip 2
+Resources: Flux Skin Texture 0.8, Ebony Eyez 0.8
+
+**Prompt 5 (City bottomless - back view):**
+```
+masterpiece, absurdres, 8k, cinematic shot, movie still,
+A professional photograph of a beautiful 20yo woman walking through a crowd in a busy city in the evening sun, shot from street level, Leica M3 film camera.
+bottomless, naked butt, perfect toned ass, (small butt:1.2), no panties, slender, very fit, gray hoodie, ass grab, back view, from behind,
+cuffed behind back, hinged cuffs, arms behind back
+```
+Settings: Steps 23, CFG 3.5, Size 832x1216
+Resources: BetterButts 0.3, Golden Darkness Style 0.85, Cuffed behind back 1.25, Flux Skin Texture 1.0
+
+**Prompt 6 (Ballgag bondage - full body):**
+```
+realskin, photograph of full body shot of a young woman gagged with a very large matte red b4llg4g secured in her mouth secured to tight leather straps with rivets, the large ball in her mouth stretching her mouth open causing some discomfort, her lips wrapped around the ball with saliva pooling at her lower lip and dribbling down her chin, she is kneeling with both her arms behind her back her arms are pulled uncomfortably behind her back bound wrists, she has honey blonde hair and a beach waves haircut wearing Printed kimono worn over a crop top and high-waisted pants, in fantasy at night
+```
+Settings: Steps 50, CFG 3.5, UniPC, Size 896x1280
+Resources: Flux Skin Texture 0.65, Ball Gag 1.0
 
 ### Keywords
 - `skntxtr` - optional trigger word

@@ -1,0 +1,150 @@
+# Mi Cha (The Asian Girl Next Door Series)
+
+[← Back to Index](INDEX.md)
+
+## Civitai Stats
+
+| Metric | Value |
+|--------|-------|
+| **Downloads** | 133 |
+| **👍** | 18 |
+| **Tips** | 0 |
+| **Score** | - |
+
+## Parameters
+
+| Parameter | Value |
+|-----------|-------|
+| **File** | `Mi_Cha_Asian_Girl.safetensors` |
+| **Original filename** | `Mi Cha.safetensors` |
+| **Civitai** | https://civitai.com/models/1085510 |
+| **Trigger word** | `Mi Cha` |
+| **Strength** | 1.0 |
+| **Type** | CHARACTER / Asian Woman |
+
+## Character Profile
+
+| Attribute | Value |
+|-----------|-------|
+| **Name** | Mi Cha |
+| **Age** | 18 |
+| **Ethnicity** | Asian |
+| **Eyes** | Brown |
+| **Hair** | Black, medium length |
+| **Skin** | White/pale |
+| **Style** | Punk, urban, edgy |
+
+## Description
+
+Mi Cha is an experimental character LoRA from "The Asian Girl Next Door" series. Created using single-image training technology (beta). Features an 18-year-old Asian woman with punk/urban aesthetic.
+
+### Key Features
+- Brown eyes with joy/excitement expression
+- Extravagant eyelashes
+- Black medium-length hair
+- White/pale skin
+- Punk/urban style clothing
+- Confident, serene expression
+- Slight smile
+
+### Typical Outfit
+- Black leather jacket
+- Crop top
+- Leather pants/chaps
+- Black boots with spikes
+- Choker necklace
+- Spiked bracelet
+- Belt with skull buckle
+
+## Sample Prompts
+
+**Prompt 1 (Full body - graffiti wall):**
+```
+Adult, Hyperrealism, she is looking at the camera, (dynamic angles), full body view of a beautiful, stunning unique female character. she has hair. her brown eyes are filled with joy and excitement, extravagant eyelashes, A photo of Mi Cha, a woman, she is 18 years old, A photo of Mi Cha, 1girl, jewelry, black hair, ring, belt, black jacket, realistic, spikes, boots, looking at viewer, earrings, midriff, black footwear, black boots, black leather chaps, denim, chain, navel, black shirt, leather jacket, crop top, leather pants, jeans, open jacket, collar, breasts, open clothes, spiked bracelet, choker, smile, medium hair, black pants, lips, outdoors, standing against the wall, next to a large crate that reads "ManCO", red brick floor. The background features a graffiti wall, adding a unique and urban touch to the scene. The photo is in a black and white style, giving it a timeless and classic feel. She has a slight smile on her face and is looking directly at the camera. Style: realistic hyper-detailed rendering, 32k UHD, expressive eyes, punk, graphic design, girl's face, pretty and cute, gleaming lips, white skin, telling a tale of adventure. Exuding confidence and serenity. RAW candid cinema, 16mm, color graded portra 400 film, remarkable color, ultra realistic, textured skin, remarkable detailed pupils, realistic dull skin noise, visible skin detail, skin fuzz, dry skin, shot with cinematic camera, detailed skin texture, (blush:0.2), (goosebumps:0.3), subsurface scattering, beautiful photograph in the style of Augustus John, Sergio Toppi, Virginia Frances Sterrett, 8k HD, analog raw photo, cinematic grain, whimsical, detailed hand, perfect hand, perfect style.
+```
+Settings: Steps 25, CFG 3.5, Euler
+
+**Prompt 2 (Sitting on concrete steps):**
+```
+Adult, Hyperrealism, she is looking at the camera, (dynamic angles), full body view of a beautiful, stunning unique female character. she has hair. her brown eyes are filled with joy and excitement, extravagant eyelashes, A photo of Mi Cha, a woman, she is 18 years old, A photo of Mi Cha, 1girl, jewelry, black hair, ring, belt, black jacket, realistic, spikes, boots, looking at viewer, earrings, midriff, black footwear, black boots, black leather chaps, denim, chain, navel, black shirt, leather jacket, crop top, leather pants, jeans, open jacket, collar, breasts, open clothes, spiked bracelet, choker, smile, medium hair, black pants, lips, outdoors, sitting on the concrete steps. The background features a graffiti wall, adding a unique and urban touch to the scene. The photo is in a black and white style, giving it a timeless and classic feel. She has a slight smile on her face and is looking directly at the camera. Style: realistic hyper-detailed rendering, 32k UHD, expressive eyes, punk
+```
+Settings: Steps 25, CFG 3.5, Euler
+
+**Prompt 3 (Dark alley headshot):**
+```
+Hyperrealism, she is looking at the camera, (dynamic angles), headshots of a beautiful, stunning unique female character. she has hair. her brown eyes are filled with joy and excitement, extravagant eyelashes, A photo of Mi Cha, a young woman, she is 18 years old, is standing in a dark alley with a graffiti wall behind her. She is wearing a black dress and black boots, and has a black belt with a skull buckle. Her outfit is complemented by a black choker necklace and a black bra. The girl is posing confidently, with one hand on her hip and the other hand in her pocket. The graffiti wall behind her adds a sense of urban style and edginess to the scene. She has a slight smile on her face and is looking directly at the camera. Style: realistic hyper-detailed rendering, 32k UHD, expressive eyes, punk, graphic design, girl's face, pretty and cute, gleaming lips, white skin
+```
+Settings: Steps 25, CFG 3.5, Euler
+
+## Keywords
+
+### Character
+- `Mi Cha` - **TRIGGER**
+- `18 years old`
+- `brown eyes`
+- `black hair`
+- `medium hair`
+- `white skin`
+- `extravagant eyelashes`
+- `expressive eyes`
+- `gleaming lips`
+
+### Style/Clothing
+- `punk`
+- `leather jacket`
+- `crop top`
+- `leather pants`
+- `black boots`
+- `spikes`
+- `choker`
+- `spiked bracelet`
+- `skull buckle`
+
+### Quality Tags
+- `Hyperrealism`
+- `realistic hyper-detailed rendering`
+- `32k UHD`
+- `RAW candid cinema`
+- `16mm`
+- `color graded portra 400 film`
+- `textured skin`
+- `cinematic grain`
+- `analog raw photo`
+
+### Skin Detail Tags
+- `remarkable detailed pupils`
+- `realistic dull skin noise`
+- `visible skin detail`
+- `skin fuzz`
+- `dry skin`
+- `(blush:0.2)`
+- `(goosebumps:0.3)`
+- `subsurface scattering`
+
+## Recommended Settings
+
+| Parameter | Value |
+|-----------|-------|
+| **Steps** | 25 |
+| **CFG** | 3.5 |
+| **Sampler** | Euler |
+| **Strength** | 1.0 |
+
+## Recommended Combinations
+
+**With Detailed Perfection:**
+```
+<lora:Mi_Cha_Asian_Girl:1>
+<lora:Detailed_Perfection_F1D:1>
+```
+
+## Notes
+
+- Trigger word `Mi Cha` is required
+- Experimental LoRA using single-image training (beta technology)
+- Works best with punk/urban aesthetic prompts
+- Graffiti backgrounds work particularly well
+- Combine with quality enhancement LoRAs for best results
+- Can do both headshots and full body
+- Black and white style works well with this character
+

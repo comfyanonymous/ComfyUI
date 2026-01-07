@@ -1,0 +1,135 @@
+# Sheena - Virtual Girl
+
+[← Back to Index](INDEX.md)
+
+## Civitai Stats
+
+| Metric | Value |
+|--------|-------|
+| **Downloads** | 337 |
+| **👍** | 33 |
+| **Tips** | 0 |
+| **Score** | - |
+
+## Parameters
+
+| Parameter | Value |
+|-----------|-------|
+| **File** | `Sheena_Flux.safetensors` |
+| **Original filename** | `sheenalora.safetensors` |
+| **Civitai** | https://civitai.com/models/805968 |
+| **Trigger word** | `Sh33na` |
+| **Strength** | 1.0-1.2 |
+| **Type** | CHARACTER |
+
+## Character Profile
+
+| Attribute | Value |
+|-----------|-------|
+| **Name** | Sheena |
+| **Type** | Virtual Girl |
+| **Hair** | Blonde (trained), sometimes brunette |
+| **Origin** | Virt-a-mate |
+| **Training** | ~50 pics (including NSFW) |
+
+## Description
+
+Sheena is a virtual girl created in Virt-a-mate and trained for Flux Dev. She was trained with blonde hair - if not specified, her hair may appear blonde or brunette. Works well for portraits and NSFW content.
+
+## Sample Prompts
+
+### Shy Smile Portrait
+```
+portrait of a woman, her hair is messy, her expression is with a shy smile Sh33na
+<lora:Sheena_Flux:1>
+```
+Settings: Steps 22, CFG 1, Distilled CFG 3, Sampler: Euler, Scheduler: Beta, Size: 896x1200
+
+### Happy Portrait
+```
+portrait of a woman, her hair is messy, her expression is happy Sh33na
+<lora:Sheena_Flux:1>
+```
+Settings: Steps 22, CFG 1, Distilled CFG 3, Sampler: Euler, Scheduler: Beta
+
+### Cool Expression with Sleek Hair
+```
+portrait of a woman, her hair is sleek and long, her expression is cool as ice Sh33na
+<lora:Sheena_Flux:1>
+```
+Settings: Steps 22, CFG 1, Distilled CFG 3, Sampler: Euler, Scheduler: Beta
+
+### Ponytail Happy
+```
+portrait of a woman, her hair has a ponytail, her expression is happy Sh33na
+<lora:Sheena_Flux:1>
+```
+Settings: Steps 22, CFG 1, Distilled CFG 3.5, Sampler: Euler, Scheduler: Beta
+
+### NSFW Desert Scene
+```
+portrait of a nude woman exposing pussy naked, her hair has a ponytail, her expression is moaning. Set at at a sprawling, desert wasteland where the remnants of a forgotten civilization peek through the sands, adventurers and treasure hunters navigate ancient traps and puzzles under the harsh sun, their silhouettes casting long, dramatic shadows as they uncover the mysteries of ages past. Sh33na
+<lora:Sheena_Flux:1>
+```
+Settings: Steps 22, CFG 1, Distilled CFG 3.5, Sampler: Euler, Scheduler: Beta
+
+## Keywords
+
+### Trigger
+- `Sh33na` (required)
+
+### Hair Styles
+- `messy hair`
+- `sleek and long hair`
+- `ponytail`
+- `blonde hair` (default trained)
+
+### Expressions
+- `shy smile`
+- `happy`
+- `cool as ice`
+- `moaning`
+
+## Settings
+
+| Parameter | Value |
+|-----------|-------|
+| **Steps** | 20+ (22 preferred) |
+| **CFG** | 1 |
+| **Distilled CFG** | 2.5-3.5 (3 preferred) |
+| **Sampler** | Euler / DPM++2M |
+| **Scheduler** | Beta / normal / simple / SGM uniform |
+| **Size** | 896x1200 |
+| **Strength** | 1.0-1.2 |
+
+**Creator's preference:** Distilled CFG 3, 22 steps, Euler with Beta scheduler, strength 1.0
+
+## Recommended Combinations
+
+### With Realism
+```
+<lora:Sheena_Flux:1>
+<lora:flux_realism_lora:0.6>
+```
+
+### NSFW
+```
+<lora:Sheena_Flux:1>
+<lora:MysticXXX-v6:0.5>
+```
+
+### With Anatomy Enhancement
+```
+<lora:Sheena_Flux:1>
+<lora:SCG_Anatomy_Female_Flux:0.8>
+```
+
+## Notes
+
+- Trigger word `Sh33na` is required
+- Created from Virt-a-mate virtual character
+- Trained with ~50 images including NSFW
+- Hair defaults to blonde but may appear brunette if not specified
+- Use Beta scheduler with Euler for best results
+- Distilled CFG 3 is the sweet spot
+

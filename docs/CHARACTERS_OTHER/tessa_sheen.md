@@ -1,0 +1,193 @@
+# Tessa Sheen (AI Girl)
+
+[← Back to Index](INDEX.md)
+
+## Civitai Stats
+
+| Metric | Value |
+|--------|-------|
+| **Downloads** | 382 |
+| **👍** | 61 |
+| **Tips** | 0 |
+| **Score** | - |
+
+## Parameters
+
+| Parameter | Value |
+|-----------|-------|
+| **File** | `Tessa_Sheen.safetensors` |
+| **Original filename** | `Tessa_Sheen_AI_Girl.safetensors` |
+| **Civitai** | https://civitai.com/models/1383728/tessa-sheen-ai-girl |
+| **Trigger word** | `Tessa Sheen` |
+| **Strength** | 0.35-1.0 |
+| **Type** | CHARACTER |
+
+## Description
+
+Another blonde beauty from the custom AI girl collection by Gunholio. A stunning model with great detail and fun to work with. Highly praised by users as "easily my favorite" with "absolutely stunning" quality.
+
+**Character traits:**
+- Beautiful young blonde woman
+- Piercing blue eyes
+- Long blonde hair (straight or wavy)
+- Tanned/radiant skin
+- Athletic figure with curves
+- Slavic features
+- Versatile for fashion, lingerie, nude, and professional photography
+
+## Recommended Settings
+
+| Parameter | Value |
+|-----------|-------|
+| **Steps** | 20-30 |
+| **CFG** | 3.5-7.5 |
+| **Sampler** | Euler / Undefined |
+| **Size** | 832x1216 / 1024x1520 |
+| **Strength** | 0.35-1.0 (0.8-1.0 standard) |
+
+## Sample Prompts
+
+**Professional photoshoot close-up:**
+```
+close up of sks woman in a professional photoshoot, bright natural lighting, blonde hair, serious but seductive look on her face
+```
+Settings: Steps 30, Euler, 1024x1520
+
+**Dark grey latex bodysuit:**
+```
+Ultra-realistic full-length photograph of an Insanely detailed, sensual hot glamourous young woman, sleek and straight blonde hair, detailed beautiful face, nice hands, nice body, cleavage, dark grey latex bodysuit. silver accessories and silver earrings, tattoo. The latex bodysuit hugs her figure skin tight. The background is softly blurred, focusing entirely on her, while soft, dramatic lighting enhances her cheekbones and jawline, giving her a confident and magnetic presence. The scene captures every detail with photorealistic precision, from the texture of her dress to the shimmer in her eyes.
+```
+Settings: Steps 30, Euler, 1024x1520
+
+**Hyper-realistic summer portrait:**
+```
+8k, hyper-realistic, masterpiece, ultra hd, hdr, cinematic quality, ultra detailed, film photography, ultra detailed, vibrant saturation, color accuracy, high fidelity, pixel-perfect, noise-free, refined clarity, enhanced contrast, luminous, brightness, visual precision, subtle gradations, optical accuracy, fine elaboration, perfect sharpness, vivid colors, texture-rich, scenic beauty, soft focus, photorealistic, subsurface scattering, absurd res, epic, reflections, absolutely eye-catching, dynamic pose, graphical effects, particles, long blonde soft neat hair, cute slavic woman, soft smile, summer, transparent silk clothes
+```
+Settings: Steps 30, Euler, 1024x1520
+
+**Denim shorts casual:**
+```
+A photorealistic image of a mid-twenties woman with long blonde hair, shown in a 3/4 length view. She is wearing a stylish, sexy outfit featuring denim short shorts and a fitted crop top. The outfit accentuates her curves, and her stance is confident, with one hand resting on her hip. The background is softly blurred to keep focus on her, while natural lighting enhances her skin tone and highlights her hair. Detailed, realistic rendering, with emphasis on her expressive face, body posture, and fashionable attire.
+```
+Settings: Steps 30, Euler, 1024x1520
+
+**Punk outfit with braids:**
+```
+Full length photograph, front view, back view detailed photograph of a young woman long blonde side pigtails in braids, dressed in a sexy punk outfit with lace and chains
+```
+Settings: Steps 30, Euler, 1024x1520
+
+**Ethereal sunset golden hour:**
+```
+Capture an ethereal sunset portrait of a stunning blonde woman using a Nikon Z7 II with an 85mm f/1.4 lens. Utilize natural backlighting to create a golden halo effect around her flowing, wavy blonde hair. Position a gold reflector to softly illuminate her flawless skin, enhancing her warm, inviting glow. Set the aperture to f/2.2 for creamy bokeh, with ISO 200 and a shutter speed of 1/250s to balance exposure. Dress her in a long, flowing chiffon gown in a soft blush or champagne hue, with sheer, billowing sleeves that catch the warm breeze. The gown should feature a delicate, cinched waist and a plunging neckline, creating a balance of elegance and sensuality. The lightweight fabric should drift effortlessly around her, accentuating the golden-hour light as it filters through the translucent layers. The background should feature a blurred, sunlit landscape of rolling hills and soft greenery, with warm amber hues blending into the horizon.
+```
+Settings: Steps 30, Euler, 1024x1520
+
+**Cozy living room portrait:**
+```
+A photo-realistic close-up shot of Tessa Sheen with wavy blonde hair and light skin, leaning against a weathered blue door in a cozy living room. Her bright blue eyes sparkle with warmth as she smiles, and her off-shoulder white top and denim shorts create a casual, summery look. The living room behind her is filled with natural light, which streams through the yellow curtains and illuminates the green sofa and orange armchair. The woman's hair is styled in loose, flowing waves, and her skin has a subtle sheen to it, as if she's spent time outdoors. The photograph is taken from a slightly low angle, looking up at the woman and emphasizing her relaxed, casual pose. The lighting is soft and warm, with a slight golden glow that adds depth and atmosphere to the image. Extremely detailed. High definition. Professional photography. aidmaimageupgrader.
+```
+Settings: Steps 30, CFG 7.5, 832x1216
+Resources: FLUX Image Upgrader 0.4, Tessa Sheen 0.9
+
+**Fashion magazine nude waterfall:**
+```
+A fashion magazine photo shoot. Erotic, provocative, seductive. Anatomically correct cowboy shot of supermodel Tessa Sheen, standing near a light gray rock waterfall feature, exposing her large natural, sagging breasts. Stylish makeup. Piercing blue eyes. She is completely naked, highlighting her impeccable curves. Tanned skin. She is looking directly at the camera with a highly seductive gaze. Her slightly messy, long blonde hair is styled in loose waves and cascades over her shoulders. The setting is an outdoor, garden-like area near a pool, with terracotta-colored brickwork and bougainvillea bushes laden with vibrant magenta and pink flowers, creating a lush and textured floral frame. The golden hour lighting is natural, soft, and highlights her figure. Focus on the woman; the flowers are part of the soft background. Impressionistic style. Details in the skin tone such as freckles and moles are included, but not distracting. Extremely detailed. High definition. Professional photography. ohwx woman.
+```
+Settings: Steps 30, CFG 4.5, 832x1216
+Resources: The Body [Flux1] 0.3 Version A, The Body [Flux1] 0.6 Version D, Tessa Sheen 0.35
+
+**Close-up turtleneck with glasses:**
+```
+Facial close-up shot of supermodel Tessa Sheen looking with a friendly yet seductive smile towards the camera. She has light blonde, shoulder-length, slightly wavy hair styled loosely with some strands framing her face. She has mesmerizing blue eyes. Her skin is smooth and tanned giving her a radiant appearance, with perfect makeup featuring light pink lipstick. She is wearing a cream turtleneck sweater made of a soft, fluffy, knitted material. The sweater has a high, folded ribbed collar that reaches up to her chin, giving a cozy and warm appearance. Over the sweater, she has on a dark, deep purple blazer, which is open in the front to reveal the cream turtleneck. Her nails are painted a matching purple, complementing the blazer and adding a cohesive touch to her look. Her hand is delicately posed near her face, with a ring visible on one finger. She wears stylish rimless glasses with semi-transparent orange glasses. The overall outfit combines warmth and style, with the sweater creating a striking contrast against the darker blazer. The lighting is indoor, casting soft shadows. Close-up of her face and upper body. The background is part of a car seat, featuring black leather. Extremely detailed. High definition. Professional photography.
+```
+Settings: Steps 26, CFG 6, 832x1216
+
+**Casual pajamas:**
+```
+A pretty woman Tessa Sheen stands looking into the camera, her hands are in the pockets of the oversized and unbuttoned open plain white pajama shirt, she also wears a pair of plain white loose pajama pants. The clothing is made from light filmy fabric, She is standing in front of a plain wall with a texture. The image is casual, looking like she just climbed out of bed.
+```
+Settings: Steps 30, CFG 5.5, 832x1216
+
+**Street fashion with thigh-high boots:**
+```
+Full length shot of a stunningly beautiful, Tessa Sheen standing in a confident pose, next to a distressed, light beige textured wall on a city street, looking directly at the viewer. Her face expression is friendly, with a seductive smile. The haircut features sleek, long straight hair in a glossy light blonde color. Professional makeup results in a stunning overall look. Her skin is extremely tanned. She boasts an athletic figure with large natural breasts. She wears a loose-fitting, taupe colored, chunky knit, crop sweater with long sleeves. The sweater is paired with a light blue wash denim mini skirt. Her footwear consists of light beige, suede, pointed Th1gh-H1ghs boots. Her breasts are indicated under the sweater. Add red nail polish. The background is out of focus, a street scene, pale sunlight, creating a natural lighting effect with subtle shadows. The image has an impressionistic, soft-focus style, emphasizing the woman's legs, curves and the texture of her clothing.
+```
+Settings: Steps 26, CFG 7.5, 832x1216
+Resources: Thigh high boots-Flux CFH 1.0 (Th1gh-H1ghs), Tessa Sheen 0.8
+
+**Lingerie back view with ass focus:**
+```
+SexyGirl, sexy, girl, score_9, score_8_up, score_8, score_7_up, score_7, score_6_up, score_6, score_5_up, Score_5, Tessa Sheen, long hair, sexy hips, juicy ass, sexy adult, halfbody portrait, back view, room, lingerie photoshoot, standing, looking at viewer, from below, ass, sexy ass, ass, beautiful face, sexy lips, beautiful eyes, lights focus on face, SexyGirl, Sexy, Girl, aidmaMJ6.1, round ass, veiny areolas
+```
+Settings: Steps 20, CFG 3.5, 832x1216
+Resources: FLUX [pro] 1.1 Extreme Detailer 0.7, Midjourney V6.1 0.3, Perfect Round Ass 0.2, NippleDiffusion 1.0, Sexy Girls LoRA 1.0, Tessa Sheen 1.0
+
+## Keywords
+
+- `Tessa Sheen`
+- `sks woman` (alternative trigger)
+- `blonde hair` / `long blonde hair`
+- `piercing blue eyes` / `mesmerizing blue eyes`
+- `tanned skin` / `radiant skin`
+- `athletic figure`
+- `slavic woman`
+- `seductive` / `confident`
+
+## Best Checkpoints
+
+- FLUX Checkpoint Dev
+
+## Recommended Combinations
+
+**With GSQ Dress (luxury fashion):**
+```
+<lora:Tessa_Sheen:0.9>
+<lora:GSQ_Dress_Flux:1>
+```
+
+**With Thigh High Boots CFH:**
+```
+<lora:Tessa_Sheen:0.8>
+<lora:Thigh_High_Boots_CFH:1>
+```
+
+**With The Body for anatomy:**
+```
+<lora:Tessa_Sheen:0.35>
+<lora:The_Body:0.3-0.6>
+```
+
+**With Image Upgrader:**
+```
+<lora:Tessa_Sheen:0.9>
+<lora:FLUX_Image_Upgrader:0.4>
+```
+
+**With Pro-skin for texture:**
+```
+<lora:Tessa_Sheen:0.9>
+<lora:Pro_Skin:0.7>
+```
+
+**Full lingerie stack:**
+```
+<lora:Tessa_Sheen:1>
+<lora:FLUX_Pro_11_Extreme_Detailer:0.7>
+<lora:Midjourney_V6.1:0.3>
+<lora:NippleDiffusion:1>
+<lora:Perfect_Round_Ass:0.2>
+```
+
+## Notes
+
+- Trigger word: `Tessa Sheen` or `sks woman`
+- Standard strength: 0.8-1.0 for character focus
+- Lower strength (0.35) when combining with body LoRAs
+- Works great with various outfits: latex, casual, lingerie, fashion
+- Excellent for professional photography style
+- Part of Gunholio's AI girl collection
+- Works well with CFH clothing LoRAs
+- Can use her name directly in prompts for natural language
+- Highly detailed skin and hair rendering
+- Great for both SFW and NSFW content

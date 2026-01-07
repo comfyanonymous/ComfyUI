@@ -15,35 +15,50 @@ This directory contains individual documentation for all CLOTHING category LoRAs
 | [FLUX Skirt Lift](flux_skirt_lift.md) | 4,111 | 239 | $342 | ⭐⭐⭐ |
 | [See Through Clothing](see_through_clothing.md) | 3,467 | 311 | $10 | ⭐⭐⭐ |
 | [Sheer Clothes Pull Down](sheer_clothes_pull_down.md) | 3,205 | 222 | $0 | ⭐⭐⭐ |
+| [Upskirt Naked Pussy](upskirt_naked_pussy_flux.md) | 2,606 | 229 | $0 | ⭐⭐ |
 | [Flux Black Pantyhose](flux_black_pantyhose.md) | 2,358 | 175 | $110 | ⭐⭐ |
+| [Pinkie Cute Lingerie](pinkie_cute_lingerie.md) | 2,316 | 223 | $0 | ⭐⭐ |
 | [Flux Panty Drop](flux_panty_drop.md) | 2,388 | 149 | $1,000 | ⭐⭐ |
 | [Woman with Panties Down](woman_with_panties_down.md) | 1,892 | 122 | $3,939 | ⭐⭐ |
 | [Flux Pantyhose Feet](flux_pantyhose_feet.md) | 1,883 | 166 | $220 | ⭐⭐ |
+| [Blacked Text Underwear](blacked_text_underwear.md) | 1,754 | 205 | $2,010 | ⭐⭐ |
 | [Upskirt Panties](upskirt_panties.md) | 1,877 | 121 | $3,353 | ⭐⭐ |
 | [Panties Pulled to Side](panties_pulled_to_side.md) | 1,825 | 147 | $10 | ⭐⭐ |
 | [Nude in Garters Stockings](nude_in_garters_stockings.md) | 1,581 | 135 | $0 | ⭐⭐ |
 | [Flux Seamless Pantyhose](flux_seamless_pantyhose.md) | 1,492 | 113 | $0 | ⭐⭐ |
 | [Garterbelt Flux](garterbelt_flux.md) | 1,408 | 104 | $10 | ⭐⭐ |
 | [PantyBetweenLegs](pantybetweenlegs.md) | 1,335 | 84 | $0 | ⭐⭐ |
+| [FLUX Wet T-Shirt](flux_wet_t_shirt.md) | 1,242 | 103 | $24 | ⭐ |
 | [Skirt Up Game](skirt_up_game.md) | 1,194 | 83 | $0 | ⭐⭐ |
 | [Flux Bra Pull](flux_bra_pull.md) | 1,110 | 78 | $828 | ⭐⭐ |
+| [Stiletto Thigh High Boots](stiletto_thigh_high_boots_flux.md) | 1,048 | 108 | $0 | ⭐⭐ |
 | [Tight Top](tight_top.md) | 916 | 66 | $2,847 | ⭐ |
 | [Blue Jeans Down](blue_jeans_down.md) | 831 | 56 | $0 | ⭐ |
 | [Front Wedgie](front_wedgie.md) | 725 | 52 | $0 | ⭐ |
+| [Clear Platform Heels](clear_platform_heels.md) | 719 | 82 | $0 | ⭐ |
 | [Panties in Pussy](panties_in_pussy.md) | 695 | 63 | $20,040 | ⭐ |
 | [Corset Lingerie](corset_lingerie.md) | 618 | 70 | $0 | ⭐ |
 | [RealTanFFStockings](realtanffstockings.md) | 601 | 71 | $1,670 | ⭐ |
 | [Pleaser Shoes](pleaser_shoes.md) | 578 | 42 | $17,978 | ⭐ |
 | [Pussy Peek Panties](pussy_peek_panties.md) | 568 | 44 | $1,045 | ⭐ |
+| [GSQ Dress](gsq_dress_flux.md) | 556 | 73 | $2,010 | ⭐ |
+| [Babydoll Lingerie](babydoll_lingerie.md) | 500 | 41 | $0 | ⭐ |
 | [Longsleeve Bandage Dress](longsleeve_bandage_dress.md) | 416 | 45 | $118 | < 500 |
 | [Sequin Dress](sequin_dress.md) | 393 | 44 | $133 | < 500 |
 | [Racequeens](racequeens.md) | 387 | 36 | $109 | < 500 |
 | [Patent Leather Pants](patent_leather_pants.md) | 378 | 34 | $458 | < 500 |
 | [Puffer Jacket](puffer_jacket.md) | 357 | 42 | $2,241 | < 500 |
+| [Merry Christmas Flux](merry_christmas_flux.md) | 309 | 17 | $0 | < 500 |
 | [One Shoulder Bandage Dress](one_shoulder_bandage_dress.md) | 249 | 34 | $360 | < 500 |
 | [Slingback Pumps](slingback_pumps.md) | 249 | 34 | $0 | < 500 |
 | [Women in Pantyhose](women_in_pantyhose.md) | 152 | 11 | $0 | < 500 |
+| [Pleaser Flamingo 1020GWR](pleaser_flamingo_1020gwr.md) | 233 | 15 | $0 | < 500 |
 | [MicroSkirt FLUX](microskirt_flux.md) | - | - | - | - |
+| [FLUX Thigh High Boots](flux_thigh_high_boots.md) | 196 | 16 | 0 | - |
+| [Sexy Christmas Girl](sexy_christmas_girl.md) | 190 | 12 | 0 | - |
+| [Sexy Nighty CFH](sexy_nighty_cfh.md) | 452 | 33 | 0 | - |
+| [Swimwear Full](swimwear_full.md) | 631 | 47 | 0 | ⭐ |
+| [Nike Pros Flux](nike_pros_flux.md) | 633 | 59 | 0 | ⭐ |
 
 **Score Legend:**
 - ⭐⭐⭐ = >3,000 downloads (Premium/Top Tier)
@@ -80,6 +95,7 @@ This directory contains individual documentation for all CLOTHING category LoRAs
 ## Categorized Lists
 
 ### Panties / Underwear
+- [Blacked Text Underwear](blacked_text_underwear.md) - ⭐⭐ Sports bra + thong with custom text
 - [Flux Panty Drop](flux_panty_drop.md) - ⭐⭐ Panties being pulled down
 - [Woman with Panties Down](woman_with_panties_down.md) - ⭐⭐ Panties stripped down showing pussy
 - [Panties Pulled to Side](panties_pulled_to_side.md) - ⭐⭐ Side-pulled panties exposure
@@ -91,6 +107,7 @@ This directory contains individual documentation for all CLOTHING category LoRAs
 
 ### Skirts
 - [FLUX Skirt Lift](flux_skirt_lift.md) - ⭐⭐⭐ Lifted skirt with visible pussy
+- [Upskirt Naked Pussy](upskirt_naked_pussy_flux.md) - ⭐⭐ Upskirt no panties, wind blown
 - [Skirt Up Game](skirt_up_game.md) - ⭐⭐ Skirt lifting with upskirt views
 - [Upskirt Panties](upskirt_panties.md) - ⭐⭐ Upskirt panty views
 
@@ -110,6 +127,7 @@ This directory contains individual documentation for all CLOTHING category LoRAs
 
 ### Tops / Outerwear
 - [Tight Top](tight_top.md) - ⭐ Form-fitting tops emphasizing curves
+- [FLUX Wet T-Shirt](flux_wet_t_shirt.md) - ⭐ Wet/transparent t-shirt effect
 - [Cutout Off-Shoulder Crop Top](cutout_off_shoulder_crop_top.md) - Versatile crop top
 - [Flux Bra Pull](flux_bra_pull.md) - ⭐⭐ Bra removal/undressing
 - [Puffer Jacket](puffer_jacket.md) - Modern puffer with fur hood
@@ -119,17 +137,33 @@ This directory contains individual documentation for all CLOTHING category LoRAs
 - [Patent Leather Pants](patent_leather_pants.md) - Shiny patent leather pants
 
 ### Shoes / Footwear
+- [Stiletto Thigh High Boots](stiletto_thigh_high_boots_flux.md) - ⭐⭐ Stiletto heels, patent/suede/fetish styles
+- [FLUX Thigh High Boots](flux_thigh_high_boots.md) - Thigh-high boots any style
+- [Clear Platform Heels](clear_platform_heels.md) - ⭐ Clear/transparent stripper heels
 - [Pleaser Shoes](pleaser_shoes.md) - ⭐ Platform stilettos and heels
+- [Pleaser Flamingo 1020GWR](pleaser_flamingo_1020gwr.md) - Extreme 8" platform boots
 - [Slingback Pumps](slingback_pumps.md) - Pointy toe high heels
 
 ### Lingerie / Intimate Wear
 - [See Through Clothing](see_through_clothing.md) - ⭐⭐⭐ Transparent/sheer clothing
 - [Sheer Clothes Pull Down](sheer_clothes_pull_down.md) - ⭐⭐⭐ Revealing lingerie effects
 - [Corset Lingerie](corset_lingerie.md) - ⭐ Corset and lingerie styles
+- [Babydoll Lingerie](babydoll_lingerie.md) - ⭐ See-through babydoll nightgowns
+- [Sexy Nighty CFH](sexy_nighty_cfh.md) - Sheer lace nightdress (CFH series)
+
+### Swimwear
+- [Swimwear Full](swimwear_full.md) ⭐ - 88 bikini variations (crochet, neon, floral)
+
+### Sportswear / Athletic
+- [Nike Pros Flux](nike_pros_flux.md) ⭐ - Nike Pro leggings/shorts, spandex, gym wear (`n1k3pr0` trigger)
 
 ### Special / Niche
 - [Racequeens](racequeens.md) - Grid girl costumes with sports cars
 - [Back Zipper](back_zipper.md) - Unzipped clothing exposing back
+
+### Holiday / Seasonal
+- [Merry Christmas Flux](merry_christmas_flux.md) - Christmas dresses (red/white ball gowns, candy cane stripes, snowflake patterns)
+- [Sexy Christmas Girl](sexy_christmas_girl.md) - Santa hats, Christmas costumes, holiday lingerie
 
 ---
 
@@ -144,6 +178,7 @@ This directory contains individual documentation for all CLOTHING category LoRAs
 | Flux Panty Drop | `pulling her panties down`, `vagina` |
 | Woman with Panties Down | None (descriptive prompts) |
 | Upskirt Panties | `Upskirt_Panties` |
+| Upskirt Naked Pussy | `upskirt`, `pussy`, `lift skirt` |
 | Panties Pulled to Side | None |
 | Nude in Garters Stockings | `ffstockings` |
 | Flux Seamless Pantyhose | No trigger |
@@ -154,12 +189,17 @@ This directory contains individual documentation for all CLOTHING category LoRAs
 | Skirt Up Game | `Skirt lift`, `skirt up`, `upskirt` |
 | Flux Bra Pull | `starting to remove her bra` |
 | Tight Top | `tt0p` |
+| FLUX Wet T-Shirt | `Wet` |
 | Blue Jeans Down | None (use `jeans down`) |
 | Front Wedgie | None |
+| Merry Christmas Flux | None (use dress descriptions) |
+| Blacked Text Underwear | `sports bra and thong, with text reading "..." on it` |
 | Panties in Pussy | `panties inside` |
 | Corset Lingerie | None (use descriptions) |
 | RealTanFFStockings | `RealTanFFStocking` |
 | Pleaser Shoes | `h33l` |
+| Clear Platform Heels | `clear platform heels` |
+| Pleaser Flamingo 1020GWR | `Pl34ser1020gwr` |
 | Pussy Peek Panties | `pussy peek panties` |
 | Longsleeve Bandage Dress | `long sleeve cutout bandage dress` |
 | Sequin Dress | `metallic sequin dress` |
@@ -168,7 +208,14 @@ This directory contains individual documentation for all CLOTHING category LoRAs
 | Puffer Jacket | `pff3rf0r jacket` |
 | One Shoulder Bandage Dress | `one shoulder cutout bandage dress` |
 | Slingback Pumps | `Pointy toe high heels slingbacks` |
+| Stiletto Thigh High Boots | `Th1gh-H1ghs` |
+| FLUX Thigh High Boots | `Thigh-High Boots` |
 | Back Zipper | None (descriptive) |
+| Sexy Christmas Girl | `sexy_xmas` (optional) |
+| Sexy Nighty CFH | `S3xYN1gHtY` |
+| Babydoll Lingerie | `babydoll`, `lingerie`, `negligee` |
+| Swimwear Full | None (describe bikini style) |
+| Nike Pros Flux | `n1k3pr0` |
 
 ---
 
@@ -234,6 +281,6 @@ All files use snake_case naming:
 
 ---
 
-## Total LoRAs in Category: 31
+## Total LoRAs in Category: 43
 
-Last Updated: 2025-12-31
+Last Updated: 2026-01-03

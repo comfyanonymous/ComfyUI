@@ -6,6 +6,7 @@
 
 | LoRA | File | Downloads | 👍 | Tips | Score |
 |------|------|----------:|-------:|-----:|------:|
+| [Detailed Perfection Style](detailed_perfection_style.md) | Detailed_Perfection_Style_F1D.safetensors | 83,040 | 5,059 | 45,391 | ⭐⭐⭐ |
 | [Hand Detail FLUX & XL](hand_detail_flux_xl.md) | Hand_Detail_FLUX_XL.safetensors | 40,062 | 2,905 | 4,860 | ⭐⭐⭐ |
 | [Flux Realistic Hands](flux_realistic_hands.md) | Flux_Realistic_Hands.safetensors | 1,129 | 59 | 556 | ⭐ |
 | [FluxHands Final Bonus](fluxhands_final_bonus.md) | FluxHands_Final_Bonus.safetensors | 1,090 | 66 | 0 | ⭐ |
@@ -15,7 +16,8 @@
 
 ## Top Picks
 
-- **Best Hand Detail:** [Hand Detail FLUX & XL](hand_detail_flux_xl.md) - 40K downloads, most popular hand LoRA
+- **Best All-in-One:** [Detailed Perfection Style](detailed_perfection_style.md) ⭐⭐⭐ - **83K downloads!** Hands + Feet + Face + Body
+- **Best Hand Detail:** [Hand Detail FLUX & XL](hand_detail_flux_xl.md) - 40K downloads, popular hand LoRA
 - **Best for FLUX:** [FluxHands Final Bonus](fluxhands_final_bonus.md) or [Flux Realistic Hands](flux_realistic_hands.md)
 - **Best for Nails:** [Nelli's Nails](nellis_nails.md) - Perfect long fingernails with various styles
 - **Best Feminine:** [Feminine Hands](feminine_hands.md) - Realistic feminine hands with delicate fingers
@@ -28,6 +30,7 @@
 - [Flux Realistic Hands](flux_realistic_hands.md) - FLUX hand realism with trigger word
 
 ### Hand Detail Enhancement
+- [Detailed Perfection Style](detailed_perfection_style.md) ⭐⭐⭐ - **ALL-IN-ONE** Hands + Feet + Face + Body perfection
 - [Hand Detail FLUX & XL](hand_detail_flux_xl.md) - Improves hand anatomy and texture
 
 ### Nails & Manicure
@@ -43,6 +46,7 @@
 | [Flux Realistic Hands](flux_realistic_hands.md) | `fitzka` | Yes |
 | [Nelli's Nails](nellis_nails.md) | `long_nails` | Yes |
 | [Hand Detail FLUX & XL](hand_detail_flux_xl.md) | None | - |
+| [Detailed Perfection Style](detailed_perfection_style.md) | None (quality tags) | - |
 | [FluxHands Final Bonus](fluxhands_final_bonus.md) | None | - |
 | [Hands XL (Hand v2)](hands_xl_v2.md) | None | - |
 | [Feminine Hands](feminine_hands.md) | None | - |

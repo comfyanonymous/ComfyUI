@@ -1,0 +1,93 @@
+# Pleaser HighHeels - FLAMINGO-1020GWR
+
+[← Back to Index](INDEX.md)
+
+## Civitai Stats
+
+| Metric | Value |
+|--------|-------|
+| **Downloads** | 233 |
+| **👍** | 15 |
+| **Tips** | 0 |
+| **Score** | - |
+
+## Parameters
+
+| Parameter | Value |
+|-----------|-------|
+| **File** | `Pleaser_Flamingo_1020GWR.safetensors` |
+| **Original filename** | `Pl34ser1020gwr-v1.0.safetensors` |
+| **Civitai** | https://civitai.com/models/1501178/pleaser-highheels-flamingo-1020gwr |
+| **Trigger word** | `Pl34ser1020gwr` |
+| **Strength** | 0.7-1.0 |
+| **Type** | CLOTHING (Footwear - Extreme High Heels) |
+
+## Description
+
+Extreme high-heeled platform boots based on Pleaser FLAMINGO-1020GWR model. Features 8" (200mm) heel and 4" (100mm) platform. First in planned collection of Pleaser shoes.
+
+## Shoe Specifications
+
+- **Model:** Pleaser FLAMINGO-1020GWR
+- **Heel height:** 8" (200mm)
+- **Platform:** 4" (100mm)
+- **Style:** Glitter platform boots
+- **Colors:** Black glitter, silver, pink available
+
+## Recommended Settings
+
+| Parameter | Value |
+|-----------|-------|
+| **Sampler** | Euler |
+| **CFG** | 1 |
+| **Prompt Guidance** | ≤3.5 |
+| **Steps** | 20-25 |
+
+## Sample Prompts
+
+**Pakistani Woman - Night Out:**
+```
+highly detailed iphone photo. viewed from below. a cute brown-skinned petite short pakistani woman is wearing stiletto-heeled leather Pl34ser1020gwr extreme high-heeled platform boots. she has long wavy hair. She is wearing a black tight-fitted stretchy microfiber mini dress. outdoors, street, london, clubbing, party, street lights. She has thick lips and almond-shaped eyes. She has a sexy smile and flirtatious bawdy pose. detailed natural sweaty greasy skin with visible pores and minor imperfections. brazen, provocative, attitude, confident, sensual. viewed from the front.
+```
+Settings: Steps: 35, CFG: 1, Sampler: DPM++ 2M, Distilled CFG: 2
+
+**Basic Usage:**
+```
+Person wearing xyz outfit paired with prominently displayed, black glitter Pl34ser1020gwr extreme high-heeled platform boots. Photo shot from a low camera angle.
+```
+Settings: Steps: 25, CFG: 1, Sampler: Euler
+
+## Keywords
+
+- `Pl34ser1020gwr` (trigger - required)
+- `extreme high-heeled platform boots`
+- `stiletto heels`
+- `platform boots`
+- `glitter`
+- `low camera angle`
+
+## Tips for Best Results
+
+1. Use `low camera angle` in prompt
+2. Describe the shoe in addition to trigger word
+3. Add color: `black glitter`, `silver`, `pink`
+4. Mention `prominently displayed` for focus on shoes
+5. Works well with full body shots
+
+## Recommended Negative Prompt
+
+```
+asian, watermark, censored, drawing, tattoos, dark, underexposed, airbrushed, overly smooth, plastic skin, shiny skin, glowing skin, CGI, waxy, render artifacts, fake texture, unnatural gloss, uncanny face, doll skin, stylized, soft-focus, overexposed highlights
+```
+
+## Notes
+
+- First in planned collection of Pleaser shoes
+- Best with low camera angle shots
+- Use low CFG (1) with Euler sampler
+- Describe shoes explicitly for better results
+- Works with various outfits and settings
+
+---
+
+*Last updated: 2026-01-02*

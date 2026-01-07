@@ -1,0 +1,138 @@
+# Thigh High Boots - Flux CFH (Stiletto)
+
+[← Back to Index](INDEX.md)
+
+## Civitai Stats
+
+| Metric | Value |
+|--------|-------|
+| **Downloads** | 1,048 |
+| **👍** | 108 |
+| **Tips** | 0 |
+| **Score** | ⭐ |
+
+## Parameters
+
+| Parameter | Value |
+|-----------|-------|
+| **File** | `Stiletto_Thigh_High_Boots_Flux.safetensors` |
+| **Civitai** | https://civitai.com/models/813894/thigh-high-boots-flux-cfh |
+| **Trigger word** | `Th1gh-H1ghs` |
+| **Strength** | 0.65-1.0 |
+| **Type** | CLOTHING / Footwear / Stiletto Boots |
+
+## Description
+
+Second attempt at creating a thigh-high stiletto boots LoRA for FLUX. Focuses on sharp stiletto heels with various styles (patent leather, suede, fetish). Uses l33tspeak trigger.
+
+### Key Features
+- Stiletto heel focus
+- Multiple boot styles (patent, suede, fetish)
+- Works with character LoRAs
+- Various materials and colors
+- Detailed boot descriptions in prompts
+
+## Sample Prompts
+
+**Prompt 1 (Classic elegance - redhead):**
+```
+The image is a high-resolution photograph featuring a young woman with long, wavy red hair cascading down her back. She has fair skin and is wearing a light blue thong that accentuates her toned, curvaceous buttocks. Her breasts are partially covered by a white, off-the-shoulder knit sweater that has a loose, textured fabric. She is also wearing Th1gh-H1ghs boots with sharp stiletto heels that add to the sensual vibe of the image. The woman is leaning against a white, ornate fireplace with intricate carvings, which adds a touch of classic elegance to the setting.
+Behind her, there is a large, ornate mirror with a gold frame reflecting part of the room. To the right of the mirror, there is a white vase with a pink rose, adding a soft, romantic touch to the scene. The room has a warm, inviting ambiance, with soft lighting that casts a gentle glow on her skin and the surrounding objects. The overall aesthetic of the photograph is a blend of modern sensuality and classic elegance, with a focus on the model's figure and the Th1gh-H1ghs boots.
+```
+Settings: Steps 25, CFG 3.5, Size 832x1216, Clip skip 2
+
+**Prompt 2 (European cityscape):**
+```
+This high-quality photograph features a young woman with fair skin and long, auburn hair, seated on a stone bench in an outdoor setting. She is dressed in a vibrant magenta coat, black mini skirt, and black leather Th1gh-H1ghs boots that are the focus of the picture. Her outfit is accessorized with a black handbag. The woman, with a confident expression, is looking at her smartphone. The background is slightly blurred, showcasing an ornate building with multiple domes, suggesting a European cityscape. The lighting is natural, casting soft shadows. The composition follows the rule of thirds, with the woman positioned slightly off-center. The overall aesthetic quality is very high, with a shallow depth of field emphasizing the subject.
+```
+Settings: Steps 25, CFG 1, Sampler Euler, Size 832x1216
+
+**Prompt 3 (Beach bikini + suede boots):**
+```
+Full-length shot of a slim yet muscular woman with a fair complexion. She has shoulder-length slightly wavy hair falling over her shoulders, the color is dark blonde with blonde highlights. She has an oval-shaped face with mesmerizing blue eyes, well-shaped full eyebrows, a straight nose. Her skin is smooth and lightly tanned giving her a radiant appearance, with perfect makeup featuring light pink lipstick. She boasts an hourglass figure with exceptional huge breasts, a narrow waist, rounded hips and toned legs. She wears a tight brown string bikini, consisting of a triangle top and a tie-side bottom. She wears extravagant blue suede pointed Th1gh-H1ghs boots featuring studded details. Gold oval earrings complete her outfit. Her posture and attire exude a kinky, slutty demeanor, with a clear erotic touch highlighted by her outfit. She poses with one hand on her hip, on the terracotta steps of a hacienda with decorative plants in the background. She poses with a sexy smirk, accentuating her curves. The outdoor lighting is soft and even, eliminating any harsh shadows and emphasizing the natural beauty of the model.
+```
+Settings: Steps 26, CFG 12, Size 832x1216
+Resources: Big Boobs FLUX 0.15, Muscular woman 0.1, Radiant Realism Pro 0.3, Thigh High Boots 1.0
+
+**Prompt 4 (Fashion street - Tessa Sheen):**
+```
+Full length shot of a stunningly beautiful, Tessa Sheen standing in a confident pose, next to a distressed, light beige textured wall on a city street, looking directly at the viewer. Her face expression is friendly, with a seductive smile. The haircut features sleek, long straight hair in a glossy light blonde color. Professional makeup results in a stunning overall look. Her skin is extremely tanned. She boasts an athletic figure with large natural breasts. She wears a loose-fitting, taupe colored, chunky knit, crop sweater with long sleeves. The sweater is paired with a light blue wash denim mini skirt. Her footwear consists of light beige, suede, pointed Th1gh-H1ghs boots. Her breasts are indicated under the sweater. Add red nail polish. The background is out of focus, a street scene, pale sunlight, creating a natural lighting effect with subtle shadows. The image has an impressionistic, soft-focus style, emphasizing the woman's legs, curves and the texture of her clothing. The composition should cover the full length of the woman with a balanced, warm color palette. The overall aesthetic is fashion-forward, attractive, and slightly artistic. The image is well-lit, with smooth skin and fine details rendered.
+```
+Settings: Steps 26, CFG 7.5, Size 832x1216
+Resources: Tessa Sheen 0.8, Thigh High Boots 1.0
+
+**Prompt 5 (Fetish boots with Avril):**
+```
+The image is a high-resolution photograph featuring Avr1L, a young woman with long, wavy dark hair cascading down her back. She has fair skin and is wearing a light blue thong that accentuates her toned, curvaceous buttocks. Her breasts are partially covered by a white, off-the-shoulder knit sweater that has a loose, textured fabric. She is also wearing fetish style stiletto heeled Th1gh-H1ghs boots with buckles and zippers on them that add to the sensual vibe of the image. The woman is leaning against a white, ornate fireplace with intricate carvings, which adds a touch of classic elegance to the setting.
+Behind her, there is a large, ornate mirror with a gold frame reflecting part of the room. To the right of the mirror, there is a white vase with a pink rose, adding a soft, romantic touch to the scene. The room has a warm, inviting ambiance, with soft lighting that casts a gentle glow on her skin and the surrounding objects. The overall aesthetic of the photograph is a blend of modern sensuality and classic elegance, with a focus on the model's figure and the Th1gh-H1ghs boots.
+```
+Settings: Steps 25, CFG 3.5, Size 832x1216
+Resources: Avril Flux CFH 1.0, Thigh High Boots 1.0
+
+**Prompt 6 (Urban neon - bodycon dress):**
+```
+(masterpiece, best quality, highly detailed), A stunning blonde woman with long, wavy hair and large firm breasts, poses in a three-quarter view, her body slightly turned, accentuating her curves. She wears a black cutout bodycon dress made of glossy, metallic fabric, featuring bold red crisscross laces down the front. The deep plunging halter neckline, daring side cutouts, and high slit reveal glimpses of her toned figure, while she confidently rests one hand on her hip, the other lightly touching her thigh.
+Her legs are clad in Th1gh-H1ghs boots sleek, high-heeled over-the-knee patent leather boots, their glossy finish catching the ambient glow of the city lights. The sharp heels of the boots clicking on the pavement as she walks. The backdrop is a moody, neon-lit urban alley, where red and blue neon signs reflect off rain-slicked pavement. Faint graffiti marks the brick walls, adding a gritty edge to the sultry, high-fashion aesthetic. The blend of dark, atmospheric lighting and the shine of her outfit creates an intoxicating contrast, making her the undeniable focal point of the scene.
+```
+Settings: Steps 30, CFG 3.5, Size 832x1216
+Resources: Isabella Flux CFH 0.8, Thigh High Boots 0.65, Cutout Bodycon CFH 0.7
+
+## Keywords
+
+- `Th1gh-H1ghs` - **TRIGGER** (l33tspeak, required)
+- `stiletto heels` / `sharp stiletto heels` - heel style
+- `patent leather boots` - material
+- `suede boots` - material
+- `fetish style` - fetish look with buckles/zippers
+- `over-the-knee boots` - length
+- `pointed boots` - toe style
+
+## Boot Style Variations
+
+| Style | Prompt Addition |
+|-------|-----------------|
+| **Patent leather** | `patent leather Th1gh-H1ghs boots, glossy finish` |
+| **Suede** | `suede pointed Th1gh-H1ghs boots` |
+| **Fetish** | `fetish style stiletto heeled Th1gh-H1ghs boots with buckles and zippers` |
+| **Classic** | `Th1gh-H1ghs boots with sharp stiletto heels` |
+| **Studded** | `Th1gh-H1ghs boots featuring studded details` |
+
+## Recommended Settings
+
+| Parameter | Value |
+|-----------|-------|
+| **Steps** | 25-30 |
+| **CFG** | 1-12 (varies) |
+| **Sampler** | Euler / Undefined |
+| **Size** | 832x1216 |
+| **Strength** | 0.65-1.0 |
+| **Clip skip** | 2 |
+
+## Recommended Combinations
+
+| LoRA | Strength | Purpose |
+|------|----------|---------|
+| Character LoRAs (Avril, Tessa, Isabella) | 0.8-1.0 | Specific character |
+| Big Boobs FLUX | 0.15 | Breast enhancement |
+| Radiant Realism Pro | 0.3 | Skin quality |
+| Cutout Bodycon CFH | 0.7 | Outfit combination |
+| Muscular Woman | 0.1 | Body type |
+
+## Comparison with Other Boot LoRAs
+
+| LoRA | Trigger | Focus |
+|------|---------|-------|
+| **This (Stiletto)** | `Th1gh-H1ghs` | Stiletto heels, various materials |
+| FLUX Thigh High Boots | `Thigh-High Boots` | General thigh-high, any heel |
+
+## Notes
+
+- Trigger: `Th1gh-H1ghs` (l33tspeak with 1s for i's)
+- CFH series (same author as Avril, Isabella, Cutout Bodycon)
+- Works best with detailed boot descriptions
+- Describe material (patent, suede, leather)
+- Describe style (fetish, sleek, pointed)
+- Portrait orientation (832x1216) recommended
+- Clip skip 2 used in examples
+- Lower strength (0.65) when combining with clothing LoRAs
+

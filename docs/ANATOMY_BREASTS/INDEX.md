@@ -8,7 +8,7 @@ This section contains LoRAs for enhancing and generating realistic breasts, nipp
 
 ## Quality Statistics (Civitai)
 
-*Updated: 2025-12-31*
+*Updated: 2026-01-03*
 
 | LoRA | Downloads | 👍 | Tips | Score |
 |------|----------:|-------:|-----:|------:|
@@ -22,8 +22,9 @@ This section contains LoRAs for enhancing and generating realistic breasts, nipp
 | [Flux AI Boobies](flux_ai_boobies.md) | 3048 | 269 | 100 | ⭐⭐ |
 | [FLUX Nipples Fix](flux_nipples_fix.md) | 2889 | 159 | 68 | ⭐⭐ |
 | [POV Titjob](pov_titjob.md) | 2095 | 119 | 100 | ⭐⭐ |
-| [Big Beautiful Black Tits](big_beautiful_black_tits.md) | 1184 | 114 | 0 | ⭐ |
-| [Busty Girls](busty_girls.md) | 1045 | 104 | 0 | ⭐ |
+| [PVDA Ultimate Nudity (A Cup)](pvda_ultimate_nudity.md) | 1,278 | 88 | 0 | ⭐ |
+| [Big Beautiful Black Tits](big_beautiful_black_tits.md) | 1,184 | 114 | 0 | ⭐ |
+| [Busty Girls](busty_girls.md) | 1,045 | 104 | 0 | ⭐ |
 | [Flux Busty LoRA](flux_busty_lora.md) | 695 | 52 | 0 | ⭐ |
 | [YABL](yabl.md) | 518 | 27 | 0 | ⭐ |
 
@@ -67,6 +68,7 @@ This section contains LoRAs for enhancing and generating realistic breasts, nipp
 ### Breast Size & Enhancement
 
 - [God Tier Tits](god_tier_tits.md) ⭐⭐⭐ - Perky ski slope shape, gravity defying
+- [PVDA Ultimate Nudity (A Cup)](pvda_ultimate_nudity.md) ⭐ - A-Cup/flat chest with detailed areola/nipple control
 - [Busty Girls](busty_girls.md) ⭐ - 3 size levels, 700 training images
 - [Flux Busty LoRA](flux_busty_lora.md) ⭐ - Size enhancement, strength 0.35-1.0
 - [YABL](yabl.md) ⭐ - High-quality enhancement with `b00bs` trigger

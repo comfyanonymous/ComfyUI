@@ -1,0 +1,124 @@
+# Sam Instagram Model - Virtual Girlfriend
+
+[← Back to CHARACTERS_OTHER Index](INDEX.md)
+
+## Civitai Stats
+
+| Metric | Value |
+|--------|-------|
+| **Downloads** | 90 |
+| **👍** | 6 |
+| **Tips** | 0 |
+| **Score** | - |
+
+## Parameters
+
+| Parameter | Value |
+|-----------|-------|
+| **File** | `Sam_Instagram_Model_Flux.safetensors` |
+| **Original filename** | `Sam_model_Lora_Flux1-dev_v1.safetensors` |
+| **Civitai** | https://civitai.com/models/1903387/sam-instagram-model-virtual-girlfriend |
+| **Trigger word** | `Sam_model` |
+| **Strength** | 0.8-1.0 |
+| **Type** | CHARACTER (Virtual Girlfriend) |
+
+## Character Profile
+
+- **Name:** Sam
+- **Type:** Virtual Instagram model / girlfriend
+- **Style:** Versatile - lifestyle, portrait, fashion photography
+- **Best For:** Poolside, beach, casual, professional, high-fashion
+
+## Appearance
+
+- Long, wavy brown hair
+- Captivating smile
+- Natural posing ability
+- Realistic features
+- Versatile in different outfits (swimwear to chic)
+
+## Recommended Settings
+
+| Parameter | Value |
+|-----------|-------|
+| Steps | 20 |
+| CFG | 1 |
+| Sampler | Heun |
+| Size | 960x1712 (portrait) |
+
+## Sample Prompts
+
+### Beach Scene
+```
+Photograph of Sam_model standing on a bright, sunlit beach. Sam_model has long, wavy brown hair and wears a straw hat, white bikini with a lace-trimmed, sheer robe, and multiple bracelets on the right wrist. Sam_model holds a coconut with a straw in the right hand. The background is a clear, blue sky with some clouds.
+```
+Settings: Steps 20, CFG 1, Sampler: Heun, Size 960x1712
+
+### Poolside
+```
+Sam_model by a pool, holding a glass of orange juice with a slice of orange and a straw, wearing a pink bikini top.
+```
+Settings: Steps 20, CFG 1, Sampler: Heun, Size 960x1712
+
+### Fashion Portrait
+```
+Sam_model in chic everyday outfit, professional fashion photography, studio lighting, captivating smile, natural pose, high-quality portrait, polished look
+```
+Settings: Steps 20, CFG 1, Sampler: Heun
+
+### Lifestyle Shot
+```
+Sam_model at outdoor cafe, wearing casual summer dress, holding coffee cup, sunny day, lifestyle photography, warm natural lighting, expressive face
+```
+Settings: Steps 20, CFG 1, Sampler: Heun
+
+## Keywords
+
+### Trigger
+- `Sam_model` (required)
+
+### Character Descriptors
+- `long wavy brown hair`
+- `captivating smile`
+- `natural pose`
+- `virtual model`
+- `instagram style`
+
+### Scene Types
+- `beach`
+- `poolside`
+- `fashion photography`
+- `lifestyle`
+- `portrait`
+
+## Recommended LoRA Combinations
+
+### Beach/Pool Setup
+```
+<lora:Sam_Instagram_Model_Flux:1.0>
+<lora:Amateur_Flux:0.7>
+<lora:flux_realism_lora:0.6>
+```
+
+### Fashion Setup
+```
+<lora:Sam_Instagram_Model_Flux:1.0>
+<lora:detail_enhancer_flux_v1:0.7>
+```
+
+### NSFW Setup
+```
+<lora:Sam_Instagram_Model_Flux:1.0>
+<lora:MysticXXX-v6:0.7>
+```
+
+## Notes
+
+- Fictional virtual character (not a real person)
+- Very versatile - works in many settings and styles
+- CFG 1 recommended by creator for best results
+- Heun sampler recommended
+- Works well for lifestyle, portrait, and fashion photography
+- Can be combined with other characters in scenes
+- Expressive - shows range of emotions
+

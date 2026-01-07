@@ -1,0 +1,175 @@
+# SCG-Anatomy-Flux1.d - NSFW LoRA for Flux
+
+[← Back to Index](INDEX.md)
+
+## Civitai Stats
+
+| Metric | Value |
+|--------|-------|
+| **Downloads** | 33,054 |
+| **👍** | 1,519 |
+| **Tips** | 1,320 |
+| **Score** | ⭐⭐⭐ |
+
+## Parameters
+
+| Parameter | Value |
+|-----------|-------|
+| **File** | `SCG_Anatomy_Female_Flux.safetensors` |
+| **Original filename** | `scg-anatomy-female-v2.safetensors` |
+| **Civitai** | https://civitai.com/models/640156 |
+| **Trigger word** | `naked`, `naked woman`, `scg-anatomy-female` |
+| **Strength** | 0.65-1.2 |
+| **Type** | NSFW / Anatomy Enhancement |
+
+## Description
+
+Anatomy model that creates artful nude women (and men). Female-only v2 version. When it hits, results can be very good. Works best with specific settings - keep guidance at 3.0 and CFG at 1.0, higher values cause quality degradation.
+
+**Capabilities:**
+- Artful nude photography
+- Detailed female anatomy
+- Various body types (skinny, petite, athletic)
+- Works with various ethnicities
+- Professional photography styles (Hegre, Met-Art)
+
+## Sample Prompts
+
+### Stadium Masturbation Scene
+```
+Professional photograph of a sexy girl sitting in the stands in a stadium. Wide angle lens. She is sitting with her legs spread and knees up. She is fingering her vagina. She is wearing a crop top, pleated skirt, and long socks. She has a very beautiful detailed face, brown hair in a messy bun. Her eyes are closed in ecstasy. There are people sitting all around her. Moaning, her pussy is wet. Detailed beautiful vagina. Trimmed pubic hair. Her vagina is dripping liquid. Her fingers are inserted deeply into her vagina.
+<lora:SCG_Anatomy_Female_Flux:1>
+<lora:NSFW_Master_Flux:0.8>
+```
+Settings: Steps 45, CFG 3.5
+
+### Norwegian Blonde in Club
+```
+High resolution cinematic film still, photography by Hegre in the style of Met-Art, glamour photography, high contrast, chiaroscuro, portrait of sexy Norwegian blonde sitting in a dark foggy club bar teasing viewer, sipping martini, exuding sensuality, wearing nothing underneath a sheer gold mesh dress, plunge halter dress, gold chain necklace, skinny figure, (large natural breasts:1.2), delicate face, expression of seduction, teasing smirk, long hair, skin textures, scg-anatomy-female, erotic atmosphere, perfect proportions, intricate details, (depth of field, bokeh:1.1)
+<lora:SCG_Anatomy_Female_Flux:1>
+```
+Settings: Steps 24, CFG 3.5
+
+### Neon Film Style
+```
+scg-anatomy-female, frontal full body view, n30nfilm, skinny woman, neon colors, details in the background, soft light, grain, in the style of instant film, Ilford XP2 Super, color negative film, add noise
+<lora:SCG_Anatomy_Female_Flux:0.95>
+<lora:Vintage_Neon_Film:0.95>
+```
+Settings: Steps 26, CFG 3.5
+
+### Nude Gymnast
+```
+Nude female gymnast performing a leg hold, in a studio with bare feet, breasts out, naked, scg-anatomy-female, 32yo, face of indie movie actress, pale white skin with tan lines, shoulder-length wet messy hair with balayage, small breasts, puffy nipples.
+<lora:SCG_Anatomy_Female_Flux:0.8>
+```
+Settings: Steps 50, CFG 5
+
+### Naked Dancer (Guido Argentini Style)
+```
+A gorgeous naked brunette dancer, exuding elegance and grace, adorned with delicate jewelry. Her stunning beauty is enhanced by dynamic, fluid movements, creating a sensual and captivating atmosphere. (perfect vulva). The dancer's intense emotions are expressed through her mesmerizing gaze and perfectly balanced composition. She naked, perfect small breast. pussy. pubis. ultra detailed areolas. (photograph by Guido Argentini:1.4). exquisite studio nude erotic photograph.
+<lora:SCG_Anatomy_Female_Flux:1>
+```
+Settings: Steps 50, CFG 3.5
+
+### Petite Blonde at Movies
+```
+full body photo of a tiny petite skinny young woman with a flat chest and a small body, high pony-tail, blonde hair, Polaroid SX-70, epiCPhoto, perfect photo, photorealistic, sharp focus, soft light, intricated details, highly detailed, 16k, shallow dof, raw photo, masterpiece, vgsl, legs spread, 19yo girl, ((nude pussy)), focus on face, at the movies, vintage color tones, naked, naked woman, scg-anatomy-female, small petite body, flat chest, skinny tiny body, perfect cute face
+<lora:SCG_Anatomy_Female_Flux:1>
+```
+Settings: Steps 25, CFG 3.5
+
+### Swedish Secretary
+```
+A stock image captures a nude swedish female secretary in an office setting. She has a pretty face, the face of an swedish actress or supermodel. She sits at a desk, her posture professional. Her physical features include long, wavy blonde shiny hair, pale skin, full breasts with pink nipples, and a neatly trimmed pubic area. She wears gold-hooped earrings, a silver watch, rectangular-framed glasses, and black high-heel shoes. She is sitting with her legs slightly spread. She vagina, trimmed pubic hair are visible in between her thighs.
+<lora:SCG_Anatomy_Female_Flux:0.8>
+<lora:Midjourney_Style:0.25>
+```
+Settings: Steps 50, CFG 3.5
+
+## Keywords
+
+### Main Triggers
+- `naked` / `naked woman`
+- `scg-anatomy-female`
+
+### Anatomy
+- `vagina`, `pussy`, `vulva`
+- `breasts`, `nipples`, `areolas`
+- `pubic hair`, `trimmed pubic hair`
+
+### Body Types
+- `skinny`, `petite`, `slim`
+- `flat chest`, `small breasts`
+- `large natural breasts`
+
+### Photography Styles
+- `photography by Hegre`
+- `in the style of Met-Art`
+- `photograph by Guido Argentini`
+- `glamour photography`
+
+## Settings
+
+| Parameter | Value |
+|-----------|-------|
+| **Steps** | 25-50 |
+| **CFG** | 1.0-3.5 (max 3.5!) |
+| **Guidance** | 3.0 |
+| **Sampler** | DEIS, ddim_uniform |
+| **Size** | 832x1216 |
+| **Strength** | 0.65-1.2 (clip at 1.0) |
+
+**IMPORTANT:** Keep CFG at 1.0 and guidance at 3.0 - higher values cause image quality degradation ("frying").
+
+## Recommended Combinations
+
+### With NSFW Master
+```
+<lora:SCG_Anatomy_Female_Flux:1>
+<lora:NSFW_Master_Flux:0.8>
+```
+
+### With Mystic XXX
+```
+<lora:SCG_Anatomy_Female_Flux:0.95>
+<lora:MysticXXX-v6:1>
+```
+
+### With Asian Face Enhancement
+```
+<lora:SCG_Anatomy_Female_Flux:1.05>
+<lora:East_Face:0.7>
+```
+
+### With Vintage Neon Film
+```
+<lora:SCG_Anatomy_Female_Flux:0.95>
+<lora:Vintage_Neon_Film:0.95>
+<lora:Oiled_Skin:0.4>
+```
+
+### With Hand Fix
+```
+<lora:SCG_Anatomy_Female_Flux:1>
+<lora:Hands_F1D:0.55>
+```
+
+### With Nipple Fix
+```
+<lora:SCG_Anatomy_Female_Flux:0.8>
+<lora:Jibs_Flux_Nipple_Fix:0.3>
+```
+
+## Notes
+
+- V2 is female-only version (original had male/female crossover issues)
+- Use strength 0.65-1.2, keep clip strength at 1.0
+- **CFG must stay at 1.0-3.5** - higher values degrade quality
+- Guidance should be around 3.0
+- DEIS sampler with ddim_uniform scheduler works best
+- 25 steps is usually sufficient
+- Works well with photography style prompts (Hegre, Met-Art, Argentini)
+- Combine with other NSFW LoRAs for enhanced results
+- From SCG-Playground community
+

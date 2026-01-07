@@ -1,0 +1,190 @@
+# StandWithFootAgainstWall Flux Dev
+
+[← Back to Index](INDEX.md)
+
+## Civitai Stats
+
+| Metric | Value |
+|--------|-------|
+| **Downloads** | 510 |
+| **👍** | 47 |
+| **Tips** | 0 |
+| **Score** | ⭐ |
+
+## Parameters
+
+| Parameter | Value |
+|-----------|-------|
+| **File** | `StandWithFootAgainstWall_Flux.safetensors` |
+| **Original filename** | `StandWithFootAgainstWallFlux.1.0.safetensors` |
+| **Civitai** | https://civitai.com/models/1092661 |
+| **Trigger word** | `swfaw` |
+| **Strength** | 1.0 |
+| **Type** | POSE (Leaning Against Wall) |
+
+## RECOMMENDED - Planned for Future Workflows
+
+Cool versatile pose - can be used with walls, trees, columns, or even sports cars. Useful for fashion, nude, and casual photography scenarios.
+
+## Description
+
+LoRA for creating poses where a person leans against a wall/object with one foot raised against it. Creates natural leaning poses for various scenarios. Works for nude, topless, or clothed subjects without needing an NSFW checkpoint.
+
+**Capabilities:**
+- Leaning with back against wall/tree/column
+- One foot raised against surface
+- Front view or side view angles
+- Nude, topless, or clothed subjects
+- Public ENF scenarios (malls, parks, streets, pubs)
+- Works with various footwear (heels, boots, sneakers)
+
+**Note:** Only works with Flux Dev, not Flux Schnell.
+
+## Sample Prompts
+
+### Nude with Red Stockings (Street)
+```
+swfaw, side view, (slim (naked:1.3) 25yo girl) in (red holdup stockings and high heels:1.3) (leaning with back:2) against a house in a busy street
+```
+Settings: Steps 20, CFG 1, Euler, 896x1152, Distilled CFG 3.5
+
+### Nude with Black Stockings (Mall)
+```
+swfaw, side view, (slim (naked:1.3) 25yo girl) in (black holdup stockings and high heels:1.3) (leaning with back:2) against a column in a crowded mall
+```
+Settings: Steps 20, CFG 1, Euler, 896x1152, Distilled CFG 3.5
+
+### Nude in Thigh High Boots (Mall)
+```
+swfaw, side view, (slim (naked:1.3) 25yo girl) in (thigh high boots:1.3) (leaning with back:2) against a column in a crowded mall
+```
+Settings: Steps 20, CFG 1, Euler, 896x1152, Distilled CFG 3.5
+
+### Topless in Pub
+```
+swfaw, side view, (slim (topless 25yo girl) in denim shorts and (thigh high boots:1.3) (leaning with back:2) against a wall in a crowded pub
+```
+Settings: Steps 20, CFG 1, Euler, 896x1152, Distilled CFG 3.5
+
+### Topless with Skirt (Park)
+```
+swfaw, side view, (slim (topless 25yo girl) in short red skirt and high heels (leaning with back:2) against a tree in a crowded park
+```
+Settings: Steps 20, CFG 1, Euler, 896x1152, Distilled CFG 3.5
+
+### Clothed Front View (Mall)
+```
+swfaw, front view, (slim 25yo girl) in red top and denim shorts and high heels (leaning with back:2) against a column in a crowded mall
+```
+Settings: Steps 20, CFG 1, Euler, 896x1152, Distilled CFG 3.5
+
+### Clothed Orange Dress (Pub)
+```
+swfaw, side view, (slim 25yo girl) in orange short dress and boots (leaning with back:2) against a wall in a crowded pub
+```
+Settings: Steps 20, CFG 1, Euler, 896x1152, Distilled CFG 3.5
+
+### Clothed Yellow Dress (Pub)
+```
+swfaw, side view, (slim 25yo girl) in yellow short dress and sneakers (leaning with back:2) against a wall in a crowded pub
+```
+Settings: Steps 20, CFG 1, Euler, 896x1152, Distilled CFG 3.5
+
+### Front View in Park (Nude)
+```
+swfaw, front view, (slim (naked:1.3) 25yo girl) in sneakers (leaning with back:2) against a tree in a crowded park
+```
+Settings: Steps 20, CFG 1, Euler, 896x1152, Distilled CFG 3.5
+
+## Prompt Structure
+
+Build prompts like this:
+```
+swfaw, <front view|side view> slim <nude|topless> girl leaning with back against <object>...
+```
+
+Or for clothed:
+```
+swfaw, <front view|side view> <person> leaning with back against <object>...
+```
+
+## Keywords
+
+### Main Trigger
+- `swfaw` (required)
+
+### View Angles
+- `front view`
+- `side view`
+
+### Pose
+- `leaning with back against` (use weight 2.0)
+- `leaning with back`
+
+### Subject
+- `slim nude girl`
+- `slim topless girl`
+- `slim 25yo girl`
+- `naked` (use weight 1.3)
+- `topless`
+
+### Footwear
+- `high heels`
+- `thigh high boots`
+- `holdup stockings`
+- `sneakers`
+- `boots`
+
+### Locations
+- `wall`
+- `tree`
+- `column`
+- `house`
+- `crowded mall`
+- `crowded park`
+- `crowded pub`
+- `busy street`
+
+## Settings
+
+| Parameter | Value |
+|-----------|-------|
+| **Steps** | 20 |
+| **CFG** | 1 |
+| **Distilled CFG** | 3.5 |
+| **Sampler** | Euler |
+| **Size** | 896x1152 |
+| **Strength** | 1.0 |
+
+## Recommended Combinations
+
+### With NSFW Enhancement
+```
+<lora:StandWithFootAgainstWall_Flux:1>
+<lora:MysticXXX-v6:0.5>
+```
+
+### With Realism
+```
+<lora:StandWithFootAgainstWall_Flux:1>
+<lora:flux_realism_lora:0.6>
+```
+
+### With Car LoRAs (Sports Car Pose)
+```
+<lora:StandWithFootAgainstWall_Flux:1>
+<lora:Futuristic_Cars_Flux:0.8>
+```
+
+## Notes
+
+- Trigger `swfaw` is required
+- Use strength 1.0 for best results
+- Only works with Flux Dev (not Schnell)
+- Use `(leaning with back against:2)` with weight 2.0 for strong effect
+- Can do nude without NSFW checkpoint
+- For ForgeUI: set 'Diffusion in Low Bits' to 'Automatic (fp16 LoRA)'
+- Also available for SDXL and Pony
+- Versatile pose - works with walls, trees, columns, cars
+- Good for fashion photography and ENF scenarios
+

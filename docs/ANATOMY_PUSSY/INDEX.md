@@ -27,6 +27,7 @@ This section contains LoRAs specifically designed for generating realistic femal
 | [Flux Cute Pussy](flux_cute_pussy.md) | `Flux_cute_pussy` | 2,150 | 104 | 75 | 5,181 | ⭐ |
 | [Wet Pussy / Grool](wet_pussy_grool.md) | `wet-pussy-2` | 2,036 | 125 | 97 | 100 | ⭐ |
 | [Creampie & Hairy](creampie_hairy_pussy.md) | `pie2-000009` | 1,973 | 103 | 69 | 0 | ⭐ |
+| [Expose Flux](expose_flux.md) | `Expose_Flux` | 1,910 | 133 | - | 30 | ⭐ |
 | [YAPL Creampie](yapl_pussy_creampie.md) | `YAPL_Pussy_Creampie` | 1,431 | 90 | 52 | 732 | ⭐ |
 | [Realistic Pussy Taylor](realistic_pussy_taylor.md) | `Realistic_Pussy_Taylor` | 1,196 | 68 | 49 | 4,057 | ⭐ |
 | [BSP Hairy](bsp_better_standing_poon_hairy.md) | `bsp_hairy_flux` | 986 | 68 | 42 | 2,150 | ⭐ |
@@ -34,6 +35,7 @@ This section contains LoRAs specifically designed for generating realistic femal
 | [Spread Legs FLUX](spread_legs_pussy.md) | `Spread_Legs__Pussy__FLUX` | 718 | 49 | 29 | 1,173 | ⭐ |
 | [Panties in Pussy](panties_in_pussy.md) | `PantiesInPussyFlux` | 695 | 63 | 49 | 20,040 | ⭐ |
 | [Razor Bumps](razor_bumps.md) | `Razor_bumps_for_FLUX_V2` | 611 | 54 | 35 | 0 | ⭐ |
+| [Asian Hairy Pussy](asian_hairy_pussy_flux.md) | `Asian_Hairy_Pussy_Flux` | 588 | 35 | - | 0 | ⭐ |
 | [Camels Foot](camels_foot_pussy.md) | `Camels_Foot_Pussy` | 602 | 33 | 18 | 364 | - |
 | [Flux Pussy](flux_pussy.md) | `Flux_pussy` | 418 | 19 | 23 | 843 | - |
 
@@ -86,8 +88,9 @@ This section contains LoRAs specifically designed for generating realistic femal
 - [Pussy on Display](pussy_on_display.md) - Nude understanding
 - [What Is Vagina](what_is_vagina.md) - Pose-trained, fixes hands too
 
-### Poses - Masturbation
+### Poses - Masturbation / Exposing
 - [Female Masturbation](female_masturbation_fingering.md) - ⭐⭐⭐ Fingering POV
+- [Expose Flux](expose_flux.md) - ⭐ Exposing/fingering with pose control
 - [Flux Cute Pussy](flux_cute_pussy.md) - Experimental spread positions
 
 ### Pubic Hair Styles
@@ -95,6 +98,7 @@ This section contains LoRAs specifically designed for generating realistic femal
 - [Landing Strip Pubic Hair](landing_strip_pubic_hair.md) - Detailed (`LandingStripPHair`)
 - [BSP Hairy](bsp_better_standing_poon_hairy.md) - Standing hairy/shaved
 - [Creampie & Hairy](creampie_hairy_pussy.md) - Hairy + cum effect
+- [Asian Hairy Pussy](asian_hairy_pussy_flux.md) ⭐ - **NEW** - Asian-style pubic hair, works on all ethnicities
 
 ### Special Effects
 - [Wet Pussy / Grool](wet_pussy_grool.md) - Glistening wet effect
@@ -125,7 +129,8 @@ This section contains LoRAs specifically designed for generating realistic femal
 | YAPL | `vagina`, `creamp1e` | 1.0 |
 | Rear Pussy | `Rear_pussy` | 0.8 |
 | Panties in Pussy | `panties inside` | 0.4 |
+| Expose Flux | `pu55ypl4y` (optional) | 0.3-1.5 |
 
 ---
 
-*Last updated: 2025-12-31*
+*Last updated: 2026-01-03*

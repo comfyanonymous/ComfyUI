@@ -22,9 +22,10 @@
 - Athletic build with small bust
 - Warm brown hair with teal highlights
 - High bun with loose strands framing face
-- Olive skin
+- Olive skin with **delicate freckles on face**
 - Natural makeup with winged eyeliner
 - Tattoos: fox, broken compass, Greek text "ο κόσμος είναι δικός μας"
+- **Very sexy tomboy look**
 
 ## Recommended Settings
 | Parameter | Value |
@@ -67,6 +68,24 @@ A hyperrealistic photo of an incredibly attractive woman standing in a bathroom,
 ```
 Settings: Steps 30, CFG 5, 832x1216, Strength 1.0
 
+### Garage Mechanic
+```
+d1m1f0xx, sexy tomboy with short dark hair hazel eyes, ultra-pale skin with sweat beads and grease smudges on toned arms, in tank top cargo shorts work boots, crouching fixing engine in dim garage, natural small bust with visible veins and subtle cellulite on thighs, 4k
+```
+Settings: Steps 10, CFG 1, Euler, Beta (0.6, 0.6), 896x1152, Strength 1.0
+
+### Close-up Portrait
+```
+d1m1f0xx, close-up portrait of 24yo courier, dark tousled hair with bang strands, piercing brown eyes with visible crow's feet, olive skin pores and faint scar on cheek, neutral expression with dry lip lines, soft natural light on neck veins, hyper-realistic 8k
+```
+Settings: Steps 10, CFG 1, Euler, Beta (0.6, 0.6), 896x1152, Strength 1.1
+
+### Venice Canal (Lingerie)
+```
+Digital photo of a beautiful 25 years d1m1f0xx, Urban tomboy with minimalist edge - earth tones, silver chains, scuffed boots, camera always slung at her hip, clear focus, high resolution image, wearing luxurious velvet bra with a plunging neckline, paired with satin boyshorts that feel incredibly soft against your skin, Standing with hands clasped behind the back, Grand canal, Sexy pose, erotic pose, exhibitionism
+```
+Settings: Steps 25, CFG 7, 512x512, Strength 1.0
+
 ## Keywords
 - `d1m1f0xx` (trigger)
 - `tomboy`
@@ -101,6 +120,7 @@ Settings: Steps 30, CFG 5, 832x1216, Strength 1.0
 | Sampler | DPM++ 2M |
 
 ## Notes
+- **RECOMMENDED** - Very sexy woman with delicate freckles, planned for future workflows
 - Fictional original character (not a real person)
 - Greek tomboy aesthetic - urban, gritty, authentic
 - Works well for street photography and artistic nudes

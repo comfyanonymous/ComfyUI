@@ -1,0 +1,126 @@
+# FLUX Doggy Style Sex
+
+[← Back to Index](INDEX.md)
+
+## Civitai Stats
+
+| Metric | Value |
+|--------|-------|
+| **Downloads** | 5,992 |
+| **👍** | 295 |
+| **Tips** | 488 |
+| **Score** | ⭐⭐⭐ |
+
+## Parameters
+
+| Parameter | Value |
+|-----------|-------|
+| **File** | `Flux_Doggy_Style_Sex.safetensors` |
+| **Original filename** | `lora.TA_trained (2).safetensors` |
+| **Civitai** | https://civitai.com/models/930095/flux-doggy-style-sex |
+| **Trigger words** | `Doggy style sex`, `sexual act from behind`, `man standing behind`, `man on knees behind`, `grabbing waist` |
+| **Strength** | 1.3-1.9 (recommended 1.5) |
+| **Type** | POSE / Sex Position |
+
+## Description
+
+High-quality LoRA for doggy style sex position. Creates realistic sexual scenes with man behind woman. Works with various scenarios - bed, floor, standing. Very popular with nearly 6K downloads and 488 tips.
+
+### Key Features
+- Doggy style sex position
+- Man standing or kneeling behind
+- Grabbing waist action
+- Works with various ethnicities
+- Multiple pose variations (on bed, on floor, standing)
+
+## Sample Prompts
+
+**Prompt 1 (Basic - on bed):**
+```
+woman, naked, on all four, butt up, on bed, engaged in sexual act, doggy style sex, man standing behind her, grabbing her waist, moaning in pleasure
+```
+Settings: Steps 20, CFG 1, Euler, 768x1152
+
+**Prompt 2 (Amateur style with character LoRA):**
+```
+amateur photo, overexposure, Low-resolution photo, shot on a mobile phone. young woman, 18 yo (european:1.6) girl, blonde, Anitka, grey eyes, small breasts, skinny, thin, petite blonde, grey eyes, long hair, ponytail, dark eyeliner, natural lip color, scared, Female_in_pain, eyes open, ruined makeup, screaming, crying, runny makeup, nude, naked, spankedbottom, girl wearing black leather collar with leash. Girl on the floor, toilet, Doggystylesex, anal fucked by chubby hairy man.
+```
+Settings: Steps 30, CFG 4.5, 832x1216
+Resources: Thin Legs Skinny Ass 0.65, Anitka 0.9, Female_in_Pain 0.95, Doggy Style Sex 1.5
+
+**Prompt 3 (Asian maid):**
+```
+Asian woman, maid, maid dress, on all four, butt up, on floor, engaged in sexual act, doggy style sex, naked man on knees behind her, grabbing her waist, woman moaning in pleasure
+```
+Settings: Steps 20, CFG 3.5, 832x1216, Doggy Style Sex 1.5
+
+**Prompt 4 (Opulent chamber - detailed):**
+```
+In a dimly lit, opulent chamber adorned with velvet drapes and flickering candles, a mysterious woman with piercing blue eyes and raven-black hair, dressed in a revealing silk robe, kneels before a muscular man with a thick, erect penis, her hands gently caressing his shaft as she prepares to worship his manhood with her lips and tongue.
+```
+Settings: Steps 35, CFG 8, 832x1216
+Resources: FLUX Image Upgrader 1.3, Doggy Style Sex 1.9, Mystique Enigma 1.7
+
+**Prompt 5 (Smiling, talking):**
+```
+woman, naked, on all four, smiling, horny, mouth open, talking, butt up, on bed, engaged in sexual act, doggy style sex, man standing behind her, grabbing her waist, moaning in pleasure
+```
+Settings: Steps 40, CFG 14, 832x1216
+Resources: Sweet Smile HD Portrait 1.0, Doggy Style Sex 1.5
+
+## Keywords
+
+- `Doggy style sex` / `Doggystylesex` - **TRIGGER**
+- `sexual act from behind` - **TRIGGER**
+- `man standing behind` / `man on knees behind` - **TRIGGER**
+- `grabbing waist` / `grabbing her waist` - **TRIGGER**
+- `on all four` / `on all fours` - pose
+- `butt up` - pose detail
+- `engaged in sexual act` - action
+- `moaning in pleasure` - expression
+- `naked` / `nude` - clothing state
+
+## Pose Variations
+
+| Variation | Prompt Addition |
+|-----------|-----------------|
+| **Man standing** | `man standing behind her` |
+| **Man kneeling** | `man on knees behind her` / `naked man on knees behind` |
+| **On bed** | `on bed` |
+| **On floor** | `on floor` |
+| **With costume** | Add clothing like `maid dress` |
+
+## Recommended Settings
+
+| Parameter | Value |
+|-----------|-------|
+| **Steps** | 20-40 |
+| **CFG** | 1-14 (varies) |
+| **Sampler** | Euler |
+| **Size** | 768x1152 / 832x1216 |
+| **Strength** | 1.3-1.9 (min 1.3, recommended 1.5) |
+
+## Recommended Combinations
+
+| LoRA | Strength | Purpose |
+|------|----------|---------|
+| Thin Legs Skinny Ass | 0.65 | Body type |
+| Female_in_Pain | 0.95 | Expression |
+| Sweet Smile HD Portrait | 1.0 | Happy expression |
+| FLUX Image Upgrader | 1.3 | Detail enhancement |
+| Mystique Enigma | 1.7 | Atmosphere |
+| Character LoRAs | 0.8-1.0 | Specific characters |
+
+## Notes
+
+- Trigger: Multiple options - `Doggy style sex`, `sexual act from behind`, `man standing behind`, etc.
+- **High strength required** - minimum 1.3, recommended 1.5, can go up to 1.9
+- Very popular model (5.9K downloads, 488 tips)
+- Works with various CFG values (1-14)
+- Portrait orientation recommended (768x1152 or 832x1216)
+- Can combine with expression LoRAs (pain, smile, etc.)
+- Works with character/ethnicity LoRAs
+- Add `on all four, butt up` for proper pose
+- `grabbing waist` reinforces the position
+- Can specify man position: `standing` or `on knees`
+

@@ -26,21 +26,31 @@ LoRA designed specifically for licking action poses. The trigger word is used as
 ```
 goth girl using her tongue to mhblckng a penis, black hair in twin buns, black eyeliner with wings, makeup, big breasts hanging, goth clothing <lora:MHBLicking_FLUX_epoch_18_Shurik:1>
 ```
+Settings: Steps 30, CFG 3.5, 832x1216
 
 **Prompt 2 (Redhead):**
 ```
 a redhead woman using her tongue to mhblckng a penis., best quality, 4k, 8k, high resolution, cinematic, vibrant, intricate, Hyperrealistic, high detail <lora:MHBLicking_FLUX_epoch_18_Shurik:1>
 ```
+Settings: Steps 8, CFG 7, 768x1024
 
 **Prompt 3 (Two women):**
 ```
 two women using their tongues to mhblckng a penis., best quality, 4k, 8k, high resolution, cinematic, vibrant, intricate, Hyperrealistic, high detail <lora:MHBLicking_FLUX_epoch_18_Shurik:1>
 ```
+Settings: Steps 8, CFG 7, 768x1024
 
 **Prompt 4 (Huge penis):**
 ```
 a redhead model using her tongue to mhblckng a huge penis., best quality, 4k, 8k, high resolution, cinematic, vibrant, intricate, Hyperrealistic, high detail <lora:MHBLicking_FLUX_epoch_18_Shurik:1>
 ```
+
+**Prompt 5 (Ice cream cone - SFW):**
+```
+a woman using her tongue to mhblckng a ice cream cone., best quality, 4k, 8k, high resolution, cinematic, vibrant, intricate, Hyperrealistic, high detail
+```
+Settings: Steps 8, CFG 7, 768x1024
+Note: Use lower strength (0.6-0.8) for licking objects
 
 ## Keywords
 

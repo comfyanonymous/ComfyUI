@@ -8,7 +8,7 @@
 
 LoRAs for buttocks and rear anatomy enhancement, including shape, size, poses, and interaction effects.
 
-**Total LoRAs:** 13
+**Total LoRAs:** 14
 
 ---
 
@@ -30,6 +30,7 @@ Stats sorted by downloads (descending):
 | [Toned Ass and Legs](toned_ass_and_legs.md) | 1,169 | 130 | 11,371 | ⭐ |
 | [BetterButts](betterbutts.md) | 1,055 | 90 | 0 | ⭐ |
 | [Ass Up Tiny Only Cheeks](ass_up_tiny_only_cheeks.md) | 748 | 41 | 100 | ⭐ |
+| [Realistic Latina Thick Ass GMR](realistic_latina_thick_ass_gmr.md) | 507 | 62 | 2,210 | ⭐ |
 | [Big Butt Grabbing](big_butt_grabbing.md) | 258 | 29 | 778 | - |
 
 **Score Legend:**
@@ -83,6 +84,7 @@ Stats sorted by downloads (descending):
 | Toned Ass and Legs | None | 0.7-1.0 | Athletic |
 | BetterButts | None | 0.4-1.4 | Versatile |
 | Ass Up Tiny Only Cheeks | None | 0.8-1.0 | Petite |
+| Realistic Latina Thick Ass GMR | `latass` | 1.0 | Latina/Thick |
 | Big Butt Grabbing | `butt grabbed by man` | 0.7-1.0 | Interaction |
 
 ---
@@ -186,6 +188,7 @@ Very realistic multi-LoRA anatomy stack
 11. [Perfect Round Ass FLUX](perfect_round_ass_flux.md) - Perfect round feminine shape
 12. [Anal Gape Flux](anal_gape_flux.md) - Anal gape/spread anus effects
 13. [FluxAssGrab](fluxassgrab.md) - Male hand grabbing ass from behind
+14. [Realistic Latina Thick Ass GMR](realistic_latina_thick_ass_gmr.md) - Thick Latina buttocks, curvy lower body
 
 ---
 

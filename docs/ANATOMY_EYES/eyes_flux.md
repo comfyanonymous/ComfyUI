@@ -1,6 +1,6 @@
 # Eyes (FLUX)
 
-[← Back to STYLE_ENHANCEMENT Index](INDEX.md)
+[← Back to Index](INDEX.md)
 
 ## Info
 - **File:** `Eyes_FLUX.safetensors`

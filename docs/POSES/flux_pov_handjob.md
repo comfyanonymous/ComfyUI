@@ -1,0 +1,144 @@
+# Flux POV Handjob
+
+[← Back to Index](INDEX.md)
+
+## Civitai Stats
+
+| Metric | Value |
+|--------|-------|
+| **Downloads** | 3,565 |
+| **👍** | 225 |
+| **Tips** | 10 |
+| **Score** | ⭐⭐⭐ |
+
+## Parameters
+
+| Parameter | Value |
+|-----------|-------|
+| **File** | `Flux_POV_Handjob.safetensors` |
+| **Original filename** | `flux_pov_handjob_lora_v1.safetensors` |
+| **Civitai** | https://civitai.com/models/823892/flux-pov-handjob |
+| **Trigger word** | `POV kneeling and holding the viewers penis` |
+| **Strength** | 0.9-1.0 |
+| **Type** | POSE / POV / Handjob |
+
+## Description
+
+POV handjob LoRA trained at 896x1152 pixels on 42 high resolution portrait images. Trained using ai-toolkit with RTX3090 for 6 hours. Dataset images were meticulously prepared with manual captioning and Photoshop/inpainting to remove studio logos.
+
+**Quality notes:**
+- Text adherence: OK but not great
+- Hand fidelity: OK but not great
+- May need multiple generations for best results
+- Leverages Flux's realism and flexibility
+
+**Extra tip from author:** If you prompt `leaning forward and sticking her tongue out` you might get lucky ;)
+
+## Recommended Settings
+
+| Parameter | Value |
+|-----------|-------|
+| **Steps** | 25-45 |
+| **CFG** | 1-8 |
+| **Distilled CFG** | 3.5 |
+| **Sampler** | DEIS / DPM++ 2M |
+| **Scheduler** | Beta (alpha 0.6, beta 0.6) |
+| **Size** | 896x1152 / 832x1216 / 768x1024 |
+| **Strength** | 0.9-1.0 |
+
+## Sample Prompts
+
+**Tropical beach with sign:**
+```
+a woman POV kneeling in front of the viewer holding the viewers penis, smoking a cigarette, blowing cigarette smoke, wearing a psychadelic strapless dress, colorful chunky jewelry, short bobbed hairstyle, oversized yellow sunglasses, on beach on a tropical island, with large sign hanging from the palm trees saying "Flux Handjob"
+```
+Settings: Steps 25, CFG 1, DEIS, 896x1152
+
+**Nurse in hospital:**
+```
+a photo of a nurse in uniform POV kneeling in front of the viewer holding the viewers penis, in a hospital ward, a doctor in the background holding a sign saying "Flux Handjob"
+```
+Settings: Steps 25, CFG 1, DEIS, 896x1152
+
+**Blonde in living room with older woman:**
+```
+a photo of a young woman POV kneeling in front of the viewer holding the viewers penis, slim body, large breasts, blonde hair tied up, in a living room, a naked older woman with long dark hair making a fist and holding sign in the background holding a sign saying "Flux Handjob"
+```
+Settings: Steps 25, CFG 1, DEIS, 896x1152
+
+**Pakistani woman in London hotel (detailed):**
+```
+highly-detailed candid amateur photo of a cute brown-skinned desiespresso pakistani woman POV kneeling in front of the viewer holding the viewers pale-skinned white caucasian thick girthy veiny penis. The penis is engorged and has a slight pink tint. Her skin is sweaty and her face is flushed. she is blushing deeply and has a nervous, mischievous smile, impressed by the size of the penis. (She is pressing her nose against the penis, smelling the penis, eyes closed, mouth open, feeling blissful:1.3). she is wearing an ornately embroidered sequined silk shortsleeve tight-fitting kameez with high side slits showing her bare hips, bare thighs and bare legs. she has a wide flirtatious sexy smile, thick lips, winged eyeliner and big, almond-shaped eyes. She has a petite slim diminutive body with wide hips and thick thighs. <lora:Flux_POV_Handjob:0.9> A modern London hotel room located in a high-rise building, offering a stunning city view of London's iconic skyline. The room features a minimalist design with a comfortable king-sized bed dressed in crisp white linens. A natural and unposed amateur candid photo capturing a genuine moment, framed with slight imperfection for authenticity.
+```
+Settings: Steps 45, CFG 1, DPM++ 2M, 768x1024, Beta scheduler (0.6/0.6), Dist.CFG 3.5
+
+**Pakistani woman in green lehnga:**
+```
+highly-detailed candid amateur photo of a cute brown-skinned 40yo desiespresso pakistani woman POV kneeling in front of the viewer holding the viewers pale-skinned white caucasian thick girthy veiny penis. The penis is engorged and has a slight pink tint. Her skin is sweaty and her face is flushed. she is blushing deeply and has a nervous, mischievous smile, impressed by the size of the penis. (She is pressing her nose against the penis, smelling the penis, eyes closed, mouth open, feeling blissful:1.3). she is wearing an ornately embroidered sequined deep green satin extremely low-waist lehnga skirt and blouse showing her lower abdomen and groin. she has a wide flirtatious sexy smile, thick lips, winged eyeliner and big, almond-shaped eyes. She has a petite slim diminutive body with wide hips and thick thighs. <lora:Flux_POV_Handjob:0.9> A natural and unposed amateur candid photo capturing a genuine moment, framed with slight imperfection for authenticity.
+```
+Settings: Steps 45, CFG 1, DPM++ 2M, 768x1024, Beta scheduler (0.6/0.6), Dist.CFG 3.5
+
+**Asian woman on beach:**
+```
+an asian woman with shoulder-length hair, POV kneeling in front of the viewer holding the viewers penis, wearing a white lacy bra, short bobbed hairstyle, oversized black-rimmed glasses, on beach on a tropical island, with large sign hanging from the palm trees saying "Buzz"
+```
+Settings: Steps 25, CFG 1, 832x1216
+
+**Iranian woman on bed:**
+```
+a photo of a woman POV kneeling and holding the viewers penis, she has a slim body and large breasts, short mousy brown hair, olive skin similar to Iranian women, on a bed in a bedroom, a small tattoo on shoulder wording "I Love Iran"
+```
+Settings: Steps 30, CFG 8, 832x1216
+
+## Keywords
+
+- `POV kneeling in front of the viewer holding the viewers penis`
+- `POV kneeling and holding the viewers penis`
+- `holding the viewers penis`
+- `leaning forward and sticking her tongue out` (bonus tip)
+- `candid amateur photo`
+- Various ethnicities work well
+
+## Pose Variations
+
+| Variation | Prompt Addition |
+|-----------|-----------------|
+| **Basic POV** | `POV kneeling and holding the viewers penis` |
+| **With tongue** | `leaning forward and sticking her tongue out` |
+| **Smelling** | `pressing her nose against the penis, smelling` |
+| **Amateur style** | `candid amateur photo, unposed, slight imperfection` |
+
+## Best Checkpoints
+
+- flux1-dev-fp8
+- FLUX Checkpoint Dev
+
+## Recommended Combinations
+
+**For amateur/candid look:**
+Add to prompt: `A natural and unposed amateur candid photo capturing a genuine moment, framed with slight imperfection for authenticity`
+
+**With character LoRA:**
+```
+<lora:Flux_POV_Handjob:0.9>
+<lora:CHARACTER_LORA:0.8>
+```
+
+**For detailed skin:**
+```
+<lora:Flux_POV_Handjob:0.9>
+<lora:Pro_Skin:0.7>
+```
+
+## Notes
+
+- Trigger: `POV kneeling and holding the viewers penis`
+- Trained on portrait orientation (896x1152) - best results with portrait sizes
+- May need multiple generations for optimal hands
+- Works with various ethnicities and outfits
+- Can generate signs/text in background (text adherence OK)
+- Low CFG (1) with DEIS sampler works well
+- Higher CFG (8) also works
+- Beta scheduler (0.6/0.6) recommended for detailed results
+- Training involved 42 high-res images with careful captioning
+- Author tip: Try `leaning forward and sticking her tongue out` for bonus effect

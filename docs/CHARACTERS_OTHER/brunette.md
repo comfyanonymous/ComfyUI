@@ -38,15 +38,26 @@ amateur smartphone selfie, overexposure, Low-resolution photo, selfie shot on a 
 ```
 revealing her small to medium-sized breasts. The lace fabric adds a touch of elegance and sophistication to the outfit., both of which accentuate her slender figure and small breasts., and is smiling warmly at the camera. She is wearing a tight, holding a smartphone with a colorful case, with a few loose strands falling over her face. She is wearing a black, minimalist room with a white wall and a large abstract painting featuring earthy tones and abstract patterns in the background. The painting is framed in a black frame and hangs on the wall above the sofa., minimalist bedroom. <lora:Brunette:1>
 ```
+Settings: Steps 30, CFG 7.5, DDIM, 512x512
+
+**Prompt 3 (Athletic bodysuit):**
+```
+softly lit bedroom. She has long, Brunetteg. The image is a high-resolution photograph of a young woman sitting on a light-colored, straight, including her midriff and part of her breasts. The dress has thin spaghetti straps and a high neckline., athletic build. The bodysuit has a deep V-neckline and a cutout design that exposes a significant portion of her cleavage and midriff, athletic build with a prominent buttocks., Brunetteg. The image is a photograph of a young woman <lora:Brunette:1>
+```
+Settings: Steps 30, CFG 7.5, DDIM, 512x512
 
 ## Keywords
 
+- `Brunetteg` (optional trigger in some prompts)
 - `brunette`
 - `young woman`
 - `european girl`
 - `petite brunette`
 - `brown eyes`
 - `model girl`
+- `athletic build`
+- `slender figure`
+- `small breasts`
 
 ## Tested combinations
 
