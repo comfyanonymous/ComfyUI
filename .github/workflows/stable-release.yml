@@ -117,7 +117,7 @@ jobs:
           ./python.exe get-pip.py
           ./python.exe -s -m pip install ../${{ inputs.cache_tag }}_python_deps/*
 
-          grep comfyui ../ComfyUI/requirements.txt > ./requirements_comfyui.txt
+          grep comfy ../ComfyUI/requirements.txt > ./requirements_comfyui.txt
           ./python.exe -s -m pip install -r requirements_comfyui.txt
           rm requirements_comfyui.txt
 
