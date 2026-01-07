@@ -119,7 +119,7 @@ async def upload_video_to_comfyapi(
             raise ValueError(f"Could not verify video duration from source: {e}") from e
 
     upload_mime_type = f"video/{container.value.lower()}"
-    filename = f"uploaded_video.{container.value.lower()}"
+    filename = f"{uuid.uuid4()}.{container.value.lower()}"
 
     # Convert VideoInput to BytesIO using specified container/codec
     video_bytes_io = BytesIO()

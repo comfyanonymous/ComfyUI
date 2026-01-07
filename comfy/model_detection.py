@@ -305,7 +305,7 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
 
     if '{}adaln_single.emb.timestep_embedder.linear_1.bias'.format(key_prefix) in state_dict_keys: #Lightricks ltxv
         dit_config = {}
-        dit_config["image_model"] = "ltxv"
+        dit_config["image_model"] = "ltxav" if f'{key_prefix}audio_adaln_single.linear.weight' in state_dict_keys else "ltxv"
         dit_config["num_layers"] = count_blocks(state_dict_keys, '{}transformer_blocks.'.format(key_prefix) + '{}.')
         shape = state_dict['{}transformer_blocks.0.attn2.to_k.weight'.format(key_prefix)].shape
         dit_config["attention_head_dim"] = shape[0] // 32

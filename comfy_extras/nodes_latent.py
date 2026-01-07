@@ -255,6 +255,7 @@ class LatentBatch(io.ComfyNode):
         return io.Schema(
             node_id="LatentBatch",
             category="latent/batch",
+            is_deprecated=True,
             inputs=[
                 io.Latent.Input("samples1"),
                 io.Latent.Input("samples2"),
