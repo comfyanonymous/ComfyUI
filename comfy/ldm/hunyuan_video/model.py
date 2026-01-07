@@ -43,6 +43,7 @@ class HunyuanVideoParams:
     meanflow: bool
     use_cond_type_embedding: bool
     vision_in_dim: int
+    meanflow_sum: bool
 
 
 class SelfAttentionRef(nn.Module):
@@ -317,7 +318,7 @@ class HunyuanVideo(nn.Module):
                 timesteps_r = transformer_options['sample_sigmas'][w[0] + 1]
                 timesteps_r = timesteps_r.unsqueeze(0).to(device=timesteps.device, dtype=timesteps.dtype)
                 vec_r = self.time_r_in(timestep_embedding(timesteps_r, 256, time_factor=1000.0).to(img.dtype))
-                vec = (vec + vec_r) / 2
+                vec = (vec + vec_r) if self.params.meanflow_sum else (vec + vec_r) / 2
 
         if ref_latent is not None:
             ref_latent_ids = self.img_ids(ref_latent)

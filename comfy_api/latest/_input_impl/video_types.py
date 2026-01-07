@@ -3,14 +3,14 @@ from av.container import InputContainer
 from av.subtitles.stream import SubtitleStream
 from fractions import Fraction
 from typing import Optional
-from comfy_api.latest._input import AudioInput, VideoInput
+from .._input import AudioInput, VideoInput
 import av
 import io
 import json
 import numpy as np
 import math
 import torch
-from comfy_api.latest._util import VideoContainer, VideoCodec, VideoComponents
+from .._util import VideoContainer, VideoCodec, VideoComponents
 
 
 def container_to_output_format(container_format: str | None) -> str | None:

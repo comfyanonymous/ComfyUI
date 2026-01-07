@@ -3,7 +3,9 @@ import comfy.utils
 import math
 from typing_extensions import override
 from comfy_api.latest import ComfyExtension, io
-
+import comfy.model_management
+import torch
+import nodes
 
 class TextEncodeQwenImageEdit(io.ComfyNode):
     @classmethod
@@ -104,12 +106,37 @@ class TextEncodeQwenImageEditPlus(io.ComfyNode):
         return io.NodeOutput(conditioning)
 
 
+class EmptyQwenImageLayeredLatentImage(io.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return io.Schema(
+            node_id="EmptyQwenImageLayeredLatentImage",
+            display_name="Empty Qwen Image Layered Latent",
+            category="latent/qwen",
+            inputs=[
+                io.Int.Input("width", default=640, min=16, max=nodes.MAX_RESOLUTION, step=16),
+                io.Int.Input("height", default=640, min=16, max=nodes.MAX_RESOLUTION, step=16),
+                io.Int.Input("layers", default=3, min=0, max=nodes.MAX_RESOLUTION, step=1),
+                io.Int.Input("batch_size", default=1, min=1, max=4096),
+            ],
+            outputs=[
+                io.Latent.Output(),
+            ],
+        )
+
+    @classmethod
+    def execute(cls, width, height, layers, batch_size=1) -> io.NodeOutput:
+        latent = torch.zeros([batch_size, 16, layers + 1, height // 8, width // 8], device=comfy.model_management.intermediate_device())
+        return io.NodeOutput({"samples": latent})
+
+
 class QwenExtension(ComfyExtension):
     @override
     async def get_node_list(self) -> list[type[io.ComfyNode]]:
         return [
             TextEncodeQwenImageEdit,
             TextEncodeQwenImageEditPlus,
+            EmptyQwenImageLayeredLatentImage,
         ]
 
 

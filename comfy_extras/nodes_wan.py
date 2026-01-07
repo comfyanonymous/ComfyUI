@@ -817,7 +817,7 @@ def get_sample_indices(original_fps,
     if required_duration > total_frames / original_fps:
         raise ValueError("required_duration must be less than video length")
 
-    if not fixed_start is None and fixed_start >= 0:
+    if fixed_start is not None and fixed_start >= 0:
         start_frame = fixed_start
     else:
         max_start = total_frames - required_origin_frames

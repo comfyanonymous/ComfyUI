@@ -1,11 +1,9 @@
 import base64
 from io import BytesIO
 
-import torch
 from typing_extensions import override
 
-from comfy_api.input_impl.video_types import VideoFromFile
-from comfy_api.latest import IO, ComfyExtension
+from comfy_api.latest import IO, ComfyExtension, Input, InputImpl
 from comfy_api_nodes.apis.veo_api import (
     VeoGenVidPollRequest,
     VeoGenVidPollResponse,
@@ -170,6 +168,8 @@ class VeoVideoGenerationNode(IO.ComfyNode):
         # Only add generateAudio for Veo 3 models
         if model.find("veo-2.0") == -1:
             parameters["generateAudio"] = generate_audio
+            # force "enhance_prompt" to True for Veo3 models
+            parameters["enhancePrompt"] = True
 
         initial_response = await sync_op(
             cls,
@@ -232,7 +232,7 @@ class VeoVideoGenerationNode(IO.ComfyNode):
 
             # Check if video is provided as base64 or URL
             if hasattr(video, "bytesBase64Encoded") and video.bytesBase64Encoded:
-                return IO.NodeOutput(VideoFromFile(BytesIO(base64.b64decode(video.bytesBase64Encoded))))
+                return IO.NodeOutput(InputImpl.VideoFromFile(BytesIO(base64.b64decode(video.bytesBase64Encoded))))
 
             if hasattr(video, "gcsUri") and video.gcsUri:
                 return IO.NodeOutput(await download_url_to_video_output(video.gcsUri))
@@ -293,7 +293,7 @@ class Veo3VideoGenerationNode(VeoVideoGenerationNode):
                 IO.Boolean.Input(
                     "enhance_prompt",
                     default=True,
-                    tooltip="Whether to enhance the prompt with AI assistance",
+                    tooltip="This parameter is deprecated and ignored.",
                     optional=True,
                 ),
                 IO.Combo.Input(
@@ -431,8 +431,8 @@ class Veo3FirstLastFrameNode(IO.ComfyNode):
         aspect_ratio: str,
         duration: int,
         seed: int,
-        first_frame: torch.Tensor,
-        last_frame: torch.Tensor,
+        first_frame: Input.Image,
+        last_frame: Input.Image,
         model: str,
         generate_audio: bool,
     ):
@@ -493,7 +493,7 @@ class Veo3FirstLastFrameNode(IO.ComfyNode):
         if response.videos:
             video = response.videos[0]
             if video.bytesBase64Encoded:
-                return IO.NodeOutput(VideoFromFile(BytesIO(base64.b64decode(video.bytesBase64Encoded))))
+                return IO.NodeOutput(InputImpl.VideoFromFile(BytesIO(base64.b64decode(video.bytesBase64Encoded))))
             if video.gcsUri:
                 return IO.NodeOutput(await download_url_to_video_output(video.gcsUri))
             raise Exception("Video returned but no data or URL was provided")
