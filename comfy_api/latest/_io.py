@@ -26,7 +26,6 @@ if TYPE_CHECKING:
     from comfy_api.input import VideoInput
 from comfy_api.internal import (_ComfyNodeInternal, _NodeOutputInternal, classproperty, copy_class, first_real_override, is_class,
     prune_dict, shallow_clone_class)
-from ._resources import Resources, ResourcesLocal
 from comfy_execution.graph_utils import ExecutionBlocker
 from ._util import MESH, VOXEL, SVG as _SVG
 
@@ -76,16 +75,6 @@ class NumberDisplay(str, Enum):
     slider = "slider"
 
 
-class _StringIOType(str):
-    def __ne__(self, value: object) -> bool:
-        if self == "*" or value == "*":
-            return False
-        if not isinstance(value, str):
-            return True
-        a = frozenset(self.split(","))
-        b = frozenset(value.split(","))
-        return not (b.issubset(a) or a.issubset(b))
-
 class _ComfyType(ABC):
     Type = Any
     io_type: str = None
@@ -125,8 +114,7 @@ def comfytype(io_type: str, **kwargs):
             new_cls.__module__ = cls.__module__
             new_cls.__doc__ = cls.__doc__
             # assign ComfyType attributes, if needed
-        # NOTE: use __ne__ trick for io_type (see node_typing.IO.__ne__ for details)
-        new_cls.io_type = _StringIOType(io_type)
+        new_cls.io_type = io_type
         if hasattr(new_cls, "Input") and new_cls.Input is not None:
             new_cls.Input.Parent = new_cls
         if hasattr(new_cls, "Output") and new_cls.Output is not None:
@@ -165,7 +153,7 @@ class Input(_IO_V3):
     '''
     Base class for a V3 Input.
     '''
-    def __init__(self, id: str, display_name: str=None, optional=False, tooltip: str=None, lazy: bool=None, extra_dict=None):
+    def __init__(self, id: str, display_name: str=None, optional=False, tooltip: str=None, lazy: bool=None, extra_dict=None, raw_link: bool=None):
         super().__init__()
         self.id = id
         self.display_name = display_name
@@ -173,6 +161,7 @@ class Input(_IO_V3):
         self.tooltip = tooltip
         self.lazy = lazy
         self.extra_dict = extra_dict if extra_dict is not None else {}
+        self.rawLink = raw_link
 
     def as_dict(self):
         return prune_dict({
@@ -180,10 +169,11 @@ class Input(_IO_V3):
             "optional": self.optional,
             "tooltip": self.tooltip,
             "lazy": self.lazy,
+            "rawLink": self.rawLink,
         }) | prune_dict(self.extra_dict)
 
     def get_io_type(self):
-        return _StringIOType(self.io_type)
+        return self.io_type
 
     def get_all(self) -> list[Input]:
         return [self]
@@ -194,8 +184,8 @@ class WidgetInput(Input):
     '''
     def __init__(self, id: str, display_name: str=None, optional=False, tooltip: str=None, lazy: bool=None,
                  default: Any=None,
-                 socketless: bool=None, widget_type: str=None, force_input: bool=None, extra_dict=None):
-        super().__init__(id, display_name, optional, tooltip, lazy, extra_dict)
+                 socketless: bool=None, widget_type: str=None, force_input: bool=None, extra_dict=None, raw_link: bool=None):
+        super().__init__(id, display_name, optional, tooltip, lazy, extra_dict, raw_link)
         self.default = default
         self.socketless = socketless
         self.widget_type = widget_type
@@ -217,13 +207,14 @@ class Output(_IO_V3):
     def __init__(self, id: str=None, display_name: str=None, tooltip: str=None,
                  is_output_list=False):
         self.id = id
-        self.display_name = display_name
+        self.display_name = display_name if display_name else id
         self.tooltip = tooltip
         self.is_output_list = is_output_list
 
     def as_dict(self):
+        display_name = self.display_name if self.display_name else self.id
         return prune_dict({
-            "display_name": self.display_name,
+            "display_name": display_name,
             "tooltip": self.tooltip,
             "is_output_list": self.is_output_list,
         })
@@ -251,8 +242,8 @@ class Boolean(ComfyTypeIO):
         '''Boolean input.'''
         def __init__(self, id: str, display_name: str=None, optional=False, tooltip: str=None, lazy: bool=None,
                     default: bool=None, label_on: str=None, label_off: str=None,
-                    socketless: bool=None, force_input: bool=None):
-            super().__init__(id, display_name, optional, tooltip, lazy, default, socketless, None, force_input)
+                    socketless: bool=None, force_input: bool=None, extra_dict=None, raw_link: bool=None):
+            super().__init__(id, display_name, optional, tooltip, lazy, default, socketless, None, force_input, extra_dict, raw_link)
             self.label_on = label_on
             self.label_off = label_off
             self.default: bool
@@ -271,8 +262,8 @@ class Int(ComfyTypeIO):
         '''Integer input.'''
         def __init__(self, id: str, display_name: str=None, optional=False, tooltip: str=None, lazy: bool=None,
                     default: int=None, min: int=None, max: int=None, step: int=None, control_after_generate: bool=None,
-                    display_mode: NumberDisplay=None, socketless: bool=None, force_input: bool=None):
-            super().__init__(id, display_name, optional, tooltip, lazy, default, socketless, None, force_input)
+                    display_mode: NumberDisplay=None, socketless: bool=None, force_input: bool=None, extra_dict=None, raw_link: bool=None):
+            super().__init__(id, display_name, optional, tooltip, lazy, default, socketless, None, force_input, extra_dict, raw_link)
             self.min = min
             self.max = max
             self.step = step
@@ -297,8 +288,8 @@ class Float(ComfyTypeIO):
         '''Float input.'''
         def __init__(self, id: str, display_name: str=None, optional=False, tooltip: str=None, lazy: bool=None,
                     default: float=None, min: float=None, max: float=None, step: float=None, round: float=None,
-                    display_mode: NumberDisplay=None, socketless: bool=None, force_input: bool=None):
-            super().__init__(id, display_name, optional, tooltip, lazy, default, socketless, None, force_input)
+                    display_mode: NumberDisplay=None, socketless: bool=None, force_input: bool=None, extra_dict=None, raw_link: bool=None):
+            super().__init__(id, display_name, optional, tooltip, lazy, default, socketless, None, force_input, extra_dict, raw_link)
             self.min = min
             self.max = max
             self.step = step
@@ -323,8 +314,8 @@ class String(ComfyTypeIO):
         '''String input.'''
         def __init__(self, id: str, display_name: str=None, optional=False, tooltip: str=None, lazy: bool=None,
                     multiline=False, placeholder: str=None, default: str=None, dynamic_prompts: bool=None,
-                    socketless: bool=None, force_input: bool=None):
-            super().__init__(id, display_name, optional, tooltip, lazy, default, socketless, None, force_input)
+                    socketless: bool=None, force_input: bool=None, extra_dict=None, raw_link: bool=None):
+            super().__init__(id, display_name, optional, tooltip, lazy, default, socketless, None, force_input, extra_dict, raw_link)
             self.multiline = multiline
             self.placeholder = placeholder
             self.dynamic_prompts = dynamic_prompts
@@ -357,12 +348,14 @@ class Combo(ComfyTypeIO):
             image_folder: FolderType=None,
             remote: RemoteOptions=None,
             socketless: bool=None,
+            extra_dict=None,
+            raw_link: bool=None,
         ):
             if isinstance(options, type) and issubclass(options, Enum):
                 options = [v.value for v in options]
             if isinstance(default, Enum):
                 default = default.value
-            super().__init__(id, display_name, optional, tooltip, lazy, default, socketless)
+            super().__init__(id, display_name, optional, tooltip, lazy, default, socketless, None, None, extra_dict, raw_link)
             self.multiselect = False
             self.options = options
             self.control_after_generate = control_after_generate
@@ -386,10 +379,6 @@ class Combo(ComfyTypeIO):
             super().__init__(id, display_name, tooltip, is_output_list)
             self.options = options if options is not None else []
 
-        @property
-        def io_type(self):
-            return self.options
-
 @comfytype(io_type="COMBO")
 class MultiCombo(ComfyTypeI):
     '''Multiselect Combo input (dropdown for selecting potentially more than one value).'''
@@ -398,8 +387,8 @@ class MultiCombo(ComfyTypeI):
     class Input(Combo.Input):
         def __init__(self, id: str, options: list[str], display_name: str=None, optional=False, tooltip: str=None, lazy: bool=None,
                     default: list[str]=None, placeholder: str=None, chip: bool=None, control_after_generate: bool=None,
-                    socketless: bool=None):
-            super().__init__(id, options, display_name, optional, tooltip, lazy, default, control_after_generate, socketless=socketless)
+                    socketless: bool=None, extra_dict=None, raw_link: bool=None):
+            super().__init__(id, options, display_name, optional, tooltip, lazy, default, control_after_generate, socketless=socketless, extra_dict=extra_dict, raw_link=raw_link)
             self.multiselect = True
             self.placeholder = placeholder
             self.chip = chip
@@ -432,9 +421,9 @@ class Webcam(ComfyTypeIO):
         Type = str
         def __init__(
                 self, id: str, display_name: str=None, optional=False,
-                tooltip: str=None, lazy: bool=None, default: str=None, socketless: bool=None
+                tooltip: str=None, lazy: bool=None, default: str=None, socketless: bool=None, extra_dict=None, raw_link: bool=None
         ):
-            super().__init__(id, display_name, optional, tooltip, lazy, default, socketless)
+            super().__init__(id, display_name, optional, tooltip, lazy, default, socketless, None, None, extra_dict, raw_link)
 
 
 @comfytype(io_type="MASK")
@@ -787,7 +776,7 @@ class MultiType:
         '''
         Input that permits more than one input type; if `id` is an instance of `ComfyType.Input`, then that input will be used to create a widget (if applicable) with overridden values.
         '''
-        def __init__(self, id: str | Input, types: list[type[_ComfyType] | _ComfyType], display_name: str=None, optional=False, tooltip: str=None, lazy: bool=None, extra_dict=None):
+        def __init__(self, id: str | Input, types: list[type[_ComfyType] | _ComfyType], display_name: str=None, optional=False, tooltip: str=None, lazy: bool=None, extra_dict=None, raw_link: bool=None):
             # if id is an Input, then use that Input with overridden values
             self.input_override = None
             if isinstance(id, Input):
@@ -800,7 +789,7 @@ class MultiType:
                 # if is a widget input, make sure widget_type is set appropriately
                 if isinstance(self.input_override, WidgetInput):
                     self.input_override.widget_type = self.input_override.get_io_type()
-            super().__init__(id, display_name, optional, tooltip, lazy, extra_dict)
+            super().__init__(id, display_name, optional, tooltip, lazy, extra_dict, raw_link)
             self._io_types = types
 
         @property
@@ -854,8 +843,8 @@ class MatchType(ComfyTypeIO):
 
     class Input(Input):
         def __init__(self, id: str, template: MatchType.Template,
-                    display_name: str=None, optional=False, tooltip: str=None, lazy: bool=None, extra_dict=None):
-            super().__init__(id, display_name, optional, tooltip, lazy, extra_dict)
+                    display_name: str=None, optional=False, tooltip: str=None, lazy: bool=None, extra_dict=None, raw_link: bool=None):
+            super().__init__(id, display_name, optional, tooltip, lazy, extra_dict, raw_link)
             self.template = template
 
         def as_dict(self):
@@ -866,6 +855,8 @@ class MatchType(ComfyTypeIO):
     class Output(Output):
         def __init__(self, template: MatchType.Template, id: str=None, display_name: str=None, tooltip: str=None,
                      is_output_list=False):
+            if not id and not display_name:
+                display_name = "MATCHTYPE"
             super().__init__(id, display_name, tooltip, is_output_list)
             self.template = template
 
@@ -878,24 +869,30 @@ class DynamicInput(Input, ABC):
     '''
     Abstract class for dynamic input registration.
     '''
-    def get_dynamic(self) -> list[Input]:
-        return []
-
-    def expand_schema_for_dynamic(self, d: dict[str, Any], live_inputs: dict[str, Any], curr_prefix=''):
-        pass
+    pass
 
 
 class DynamicOutput(Output, ABC):
     '''
     Abstract class for dynamic output registration.
     '''
-    def __init__(self, id: str=None, display_name: str=None, tooltip: str=None,
-                 is_output_list=False):
-        super().__init__(id, display_name, tooltip, is_output_list)
+    pass
 
-    def get_dynamic(self) -> list[Output]:
-        return []
 
+def handle_prefix(prefix_list: list[str] | None, id: str | None = None) -> list[str]:
+    if prefix_list is None:
+        prefix_list = []
+    if id is not None:
+        prefix_list = prefix_list + [id]
+    return prefix_list
+
+def finalize_prefix(prefix_list: list[str] | None, id: str | None = None) -> str:
+    assert not (prefix_list is None and id is None)
+    if prefix_list is None:
+        return id
+    elif id is not None:
+        prefix_list = prefix_list + [id]
+    return ".".join(prefix_list)
 
 @comfytype(io_type="COMFY_AUTOGROW_V3")
 class Autogrow(ComfyTypeI):
@@ -931,14 +928,6 @@ class Autogrow(ComfyTypeI):
 
         def validate(self):
             self.input.validate()
-
-        def expand_schema_for_dynamic(self, d: dict[str, Any], live_inputs: dict[str, Any], curr_prefix=''):
-            real_inputs = []
-            for name, input in self.cached_inputs.items():
-                if name in live_inputs:
-                    real_inputs.append(input)
-            add_to_input_dict_v1(d, real_inputs, live_inputs, curr_prefix)
-            add_dynamic_id_mapping(d, real_inputs, curr_prefix)
 
     class TemplatePrefix(_AutogrowTemplate):
         def __init__(self, input: Input, prefix: str, min: int=1, max: int=10):
@@ -984,22 +973,45 @@ class Autogrow(ComfyTypeI):
                 "template": self.template.as_dict(),
             })
 
-        def get_dynamic(self) -> list[Input]:
-            return self.template.get_all()
-
         def get_all(self) -> list[Input]:
             return [self] + self.template.get_all()
 
         def validate(self):
             self.template.validate()
 
-        def expand_schema_for_dynamic(self, d: dict[str, Any], live_inputs: dict[str, Any], curr_prefix=''):
-            curr_prefix = f"{curr_prefix}{self.id}."
-            # need to remove self from expected inputs dictionary; replaced by template inputs in frontend
-            for inner_dict in d.values():
-                if self.id in inner_dict:
-                    del inner_dict[self.id]
-            self.template.expand_schema_for_dynamic(d, live_inputs, curr_prefix)
+    @staticmethod
+    def _expand_schema_for_dynamic(out_dict: dict[str, Any], live_inputs: dict[str, Any], value: tuple[str, dict[str, Any]], input_type: str, curr_prefix: list[str] | None):
+        # NOTE: purposely do not include self in out_dict; instead use only the template inputs
+        # need to figure out names based on template type
+        is_names = ("names" in value[1]["template"])
+        is_prefix = ("prefix" in value[1]["template"])
+        input = value[1]["template"]["input"]
+        if is_names:
+            min = value[1]["template"]["min"]
+            names = value[1]["template"]["names"]
+            max = len(names)
+        elif is_prefix:
+            prefix = value[1]["template"]["prefix"]
+            min = value[1]["template"]["min"]
+            max = value[1]["template"]["max"]
+            names = [f"{prefix}{i}" for i in range(max)]
+        # need to create a new input based on the contents of input
+        template_input = None
+        for _, dict_input in input.items():
+            # for now, get just the first value from dict_input
+            template_input = list(dict_input.values())[0]
+        new_dict = {}
+        for i, name in enumerate(names):
+            expected_id = finalize_prefix(curr_prefix, name)
+            if expected_id in live_inputs:
+                # required
+                if i < min:
+                    type_dict = new_dict.setdefault("required", {})
+                # optional
+                else:
+                    type_dict = new_dict.setdefault("optional", {})
+                type_dict[name] = template_input
+        parse_class_inputs(out_dict, live_inputs, new_dict, curr_prefix)
 
 @comfytype(io_type="COMFY_DYNAMICCOMBO_V3")
 class DynamicCombo(ComfyTypeI):
@@ -1022,23 +1034,6 @@ class DynamicCombo(ComfyTypeI):
             super().__init__(id, display_name, optional, tooltip, lazy, extra_dict)
             self.options = options
 
-        def expand_schema_for_dynamic(self, d: dict[str, Any], live_inputs: dict[str, Any], curr_prefix=''):
-            # check if dynamic input's id is in live_inputs
-            if self.id in live_inputs:
-                curr_prefix = f"{curr_prefix}{self.id}."
-                key = live_inputs[self.id]
-                selected_option = None
-                for option in self.options:
-                    if option.key == key:
-                        selected_option = option
-                        break
-                if selected_option is not None:
-                    add_to_input_dict_v1(d, selected_option.inputs, live_inputs, curr_prefix)
-                    add_dynamic_id_mapping(d, selected_option.inputs, curr_prefix, self)
-
-        def get_dynamic(self) -> list[Input]:
-            return [input for option in self.options for input in option.inputs]
-
         def get_all(self) -> list[Input]:
             return [self] + [input for option in self.options for input in option.inputs]
 
@@ -1052,6 +1047,24 @@ class DynamicCombo(ComfyTypeI):
             for option in self.options:
                 for input in option.inputs:
                     input.validate()
+
+    @staticmethod
+    def _expand_schema_for_dynamic(out_dict: dict[str, Any], live_inputs: dict[str, Any], value: tuple[str, dict[str, Any]], input_type: str, curr_prefix: list[str] | None):
+        finalized_id = finalize_prefix(curr_prefix)
+        if finalized_id in live_inputs:
+            key = live_inputs[finalized_id]
+            selected_option = None
+            # get options from dict
+            options: list[dict[str, str | dict[str, Any]]] = value[1]["options"]
+            for option in options:
+                if option["key"] == key:
+                    selected_option = option
+                    break
+            if selected_option is not None:
+                parse_class_inputs(out_dict, live_inputs, selected_option["inputs"], curr_prefix)
+                # add self to inputs
+                out_dict[input_type][finalized_id] = value
+                out_dict["dynamic_paths"][finalized_id] = finalize_prefix(curr_prefix, curr_prefix[-1])
 
 @comfytype(io_type="COMFY_DYNAMICSLOT_V3")
 class DynamicSlot(ComfyTypeI):
@@ -1075,17 +1088,8 @@ class DynamicSlot(ComfyTypeI):
                 self.force_input = True
                 self.slot.force_input = True
 
-        def expand_schema_for_dynamic(self, d: dict[str, Any], live_inputs: dict[str, Any], curr_prefix=''):
-            if self.id in live_inputs:
-                curr_prefix = f"{curr_prefix}{self.id}."
-                add_to_input_dict_v1(d, self.inputs, live_inputs, curr_prefix)
-                add_dynamic_id_mapping(d, [self.slot] + self.inputs, curr_prefix)
-
-        def get_dynamic(self) -> list[Input]:
-            return [self.slot] + self.inputs
-
         def get_all(self) -> list[Input]:
-            return [self] + [self.slot] + self.inputs
+            return [self.slot] + self.inputs
 
         def as_dict(self):
             return super().as_dict() | prune_dict({
@@ -1099,17 +1103,41 @@ class DynamicSlot(ComfyTypeI):
             for input in self.inputs:
                 input.validate()
 
-def add_dynamic_id_mapping(d: dict[str, Any], inputs: list[Input], curr_prefix: str, self: DynamicInput=None):
-    dynamic = d.setdefault("dynamic_paths", {})
-    if self is not None:
-        dynamic[self.id] = f"{curr_prefix}{self.id}"
-    for i in inputs:
-        if not isinstance(i, DynamicInput):
-            dynamic[f"{i.id}"] = f"{curr_prefix}{i.id}"
+    @staticmethod
+    def _expand_schema_for_dynamic(out_dict: dict[str, Any], live_inputs: dict[str, Any], value: tuple[str, dict[str, Any]], input_type: str, curr_prefix: list[str] | None):
+        finalized_id = finalize_prefix(curr_prefix)
+        if finalized_id in live_inputs:
+            inputs = value[1]["inputs"]
+            parse_class_inputs(out_dict, live_inputs, inputs, curr_prefix)
+            # add self to inputs
+            out_dict[input_type][finalized_id] = value
+            out_dict["dynamic_paths"][finalized_id] = finalize_prefix(curr_prefix, curr_prefix[-1])
+
+DYNAMIC_INPUT_LOOKUP: dict[str, Callable[[dict[str, Any], dict[str, Any], tuple[str, dict[str, Any]], str, list[str] | None], None]] = {}
+def register_dynamic_input_func(io_type: str, func: Callable[[dict[str, Any], dict[str, Any], tuple[str, dict[str, Any]], str, list[str] | None], None]):
+    DYNAMIC_INPUT_LOOKUP[io_type] = func
+
+def get_dynamic_input_func(io_type: str) -> Callable[[dict[str, Any], dict[str, Any], tuple[str, dict[str, Any]], str, list[str] | None], None]:
+    return DYNAMIC_INPUT_LOOKUP[io_type]
+
+def setup_dynamic_input_funcs():
+    # Autogrow.Input
+    register_dynamic_input_func(Autogrow.io_type, Autogrow._expand_schema_for_dynamic)
+    # DynamicCombo.Input
+    register_dynamic_input_func(DynamicCombo.io_type, DynamicCombo._expand_schema_for_dynamic)
+    # DynamicSlot.Input
+    register_dynamic_input_func(DynamicSlot.io_type, DynamicSlot._expand_schema_for_dynamic)
+
+if len(DYNAMIC_INPUT_LOOKUP) == 0:
+    setup_dynamic_input_funcs()
 
 class V3Data(TypedDict):
     hidden_inputs: dict[str, Any]
+    'Dictionary where the keys are the hidden input ids and the values are the values of the hidden inputs.'
     dynamic_paths: dict[str, Any]
+    'Dictionary where the keys are the input ids and the values dictate how to turn the inputs into a nested dictionary.'
+    create_dynamic_tuple: bool
+    'When True, the value of the dynamic input will be in the format (value, path_key).'
 
 class HiddenHolder:
     def __init__(self, unique_id: str, prompt: Any,
@@ -1144,6 +1172,10 @@ class HiddenHolder:
             auth_token_comfy_org=d.get(Hidden.auth_token_comfy_org, None),
             api_key_comfy_org=d.get(Hidden.api_key_comfy_org, None),
         )
+
+    @classmethod
+    def from_v3_data(cls, v3_data: V3Data | None) -> HiddenHolder:
+        return cls.from_dict(v3_data["hidden_inputs"] if v3_data else None)
 
 class Hidden(str, Enum):
     '''
@@ -1250,61 +1282,56 @@ class Schema:
         - verify ids on inputs and outputs are unique - both internally and in relation to each other
         '''
         nested_inputs: list[Input] = []
-        if self.inputs is not None:
-            for input in self.inputs:
+        for input in self.inputs:
+            if not isinstance(input, DynamicInput):
                 nested_inputs.extend(input.get_all())
-        input_ids = [i.id for i in nested_inputs] if nested_inputs is not None else []
-        output_ids = [o.id for o in self.outputs] if self.outputs is not None else []
+        input_ids = [i.id for i in nested_inputs]
+        output_ids = [o.id for o in self.outputs]
         input_set = set(input_ids)
         output_set = set(output_ids)
-        issues = []
+        issues: list[str] = []
         # verify ids are unique per list
         if len(input_set) != len(input_ids):
             issues.append(f"Input ids must be unique, but {[item for item, count in Counter(input_ids).items() if count > 1]} are not.")
         if len(output_set) != len(output_ids):
             issues.append(f"Output ids must be unique, but {[item for item, count in Counter(output_ids).items() if count > 1]} are not.")
-        # verify ids are unique between lists
-        intersection = input_set & output_set
-        if len(intersection) > 0:
-            issues.append(f"Ids must be unique between inputs and outputs, but {intersection} are not.")
         if len(issues) > 0:
             raise ValueError("\n".join(issues))
         # validate inputs and outputs
-        if self.inputs is not None:
-            for input in self.inputs:
-                input.validate()
-        if self.outputs is not None:
-            for output in self.outputs:
-                output.validate()
+        for input in self.inputs:
+            input.validate()
+        for output in self.outputs:
+            output.validate()
 
     def finalize(self):
         """Add hidden based on selected schema options, and give outputs without ids default ids."""
+        # ensure inputs, outputs, and hidden are lists
+        if self.inputs is None:
+            self.inputs = []
+        if self.outputs is None:
+            self.outputs = []
+        if self.hidden is None:
+            self.hidden = []
         # if is an api_node, will need key-related hidden
         if self.is_api_node:
-            if self.hidden is None:
-                self.hidden = []
             if Hidden.auth_token_comfy_org not in self.hidden:
                 self.hidden.append(Hidden.auth_token_comfy_org)
             if Hidden.api_key_comfy_org not in self.hidden:
                 self.hidden.append(Hidden.api_key_comfy_org)
         # if is an output_node, will need prompt and extra_pnginfo
         if self.is_output_node:
-            if self.hidden is None:
-                self.hidden = []
             if Hidden.prompt not in self.hidden:
                 self.hidden.append(Hidden.prompt)
             if Hidden.extra_pnginfo not in self.hidden:
                 self.hidden.append(Hidden.extra_pnginfo)
         # give outputs without ids default ids
-        if self.outputs is not None:
-            for i, output in enumerate(self.outputs):
-                if output.id is None:
-                    output.id = f"_{i}_{output.io_type}_"
+        for i, output in enumerate(self.outputs):
+            if output.id is None:
+                output.id = f"_{i}_{output.io_type}_"
 
-    def get_v1_info(self, cls, live_inputs: dict[str, Any]=None) -> NodeInfoV1:
-        # NOTE: live_inputs will not be used anymore very soon and this will be done another way
+    def get_v1_info(self, cls) -> NodeInfoV1:
         # get V1 inputs
-        input = create_input_dict_v1(self.inputs, live_inputs)
+        input = create_input_dict_v1(self.inputs)
         if self.hidden:
             for hidden in self.hidden:
                 input.setdefault("hidden", {})[hidden.name] = (hidden.value,)
@@ -1384,33 +1411,54 @@ class Schema:
         )
         return info
 
+def get_finalized_class_inputs(d: dict[str, Any], live_inputs: dict[str, Any], include_hidden=False) -> tuple[dict[str, Any], V3Data]:
+    out_dict = {
+        "required": {},
+        "optional": {},
+        "dynamic_paths": {},
+    }
+    d = d.copy()
+    # ignore hidden for parsing
+    hidden = d.pop("hidden", None)
+    parse_class_inputs(out_dict, live_inputs, d)
+    if hidden is not None and include_hidden:
+        out_dict["hidden"] = hidden
+    v3_data = {}
+    dynamic_paths = out_dict.pop("dynamic_paths", None)
+    if dynamic_paths is not None:
+        v3_data["dynamic_paths"] = dynamic_paths
+    return out_dict, hidden, v3_data
 
-def create_input_dict_v1(inputs: list[Input], live_inputs: dict[str, Any]=None) -> dict:
+def parse_class_inputs(out_dict: dict[str, Any], live_inputs: dict[str, Any], curr_dict: dict[str, Any], curr_prefix: list[str] | None=None) -> None:
+    for input_type, inner_d in curr_dict.items():
+        for id, value in inner_d.items():
+            io_type = value[0]
+            if io_type in DYNAMIC_INPUT_LOOKUP:
+                # dynamic inputs need to be handled with lookup functions
+                dynamic_input_func = get_dynamic_input_func(io_type)
+                new_prefix = handle_prefix(curr_prefix, id)
+                dynamic_input_func(out_dict, live_inputs, value, input_type, new_prefix)
+            else:
+                # non-dynamic inputs get directly transferred
+                finalized_id = finalize_prefix(curr_prefix, id)
+                out_dict[input_type][finalized_id] = value
+                if curr_prefix:
+                    out_dict["dynamic_paths"][finalized_id] = finalized_id
+
+def create_input_dict_v1(inputs: list[Input]) -> dict:
     input = {
         "required": {}
     }
-    add_to_input_dict_v1(input, inputs, live_inputs)
+    for i in inputs:
+        add_to_dict_v1(i, input)
     return input
 
-def add_to_input_dict_v1(d: dict[str, Any], inputs: list[Input], live_inputs: dict[str, Any]=None, curr_prefix=''):
-    for i in inputs:
-        if isinstance(i, DynamicInput):
-            add_to_dict_v1(i, d)
-            if live_inputs is not None:
-                i.expand_schema_for_dynamic(d, live_inputs, curr_prefix)
-        else:
-            add_to_dict_v1(i, d)
-
-def add_to_dict_v1(i: Input, d: dict, dynamic_dict: dict=None):
+def add_to_dict_v1(i: Input, d: dict):
     key = "optional" if i.optional else "required"
     as_dict = i.as_dict()
     # for v1, we don't want to include the optional key
     as_dict.pop("optional", None)
-    if dynamic_dict is None:
-        value = (i.get_io_type(), as_dict)
-    else:
-        value = (i.get_io_type(), as_dict, dynamic_dict)
-    d.setdefault(key, {})[i.id] = value
+    d.setdefault(key, {})[i.id] = (i.get_io_type(), as_dict)
 
 def add_to_dict_v3(io: Input | Output, d: dict):
     d[io.id] = (io.get_io_type(), io.as_dict())
@@ -1422,6 +1470,8 @@ def build_nested_inputs(values: dict[str, Any], v3_data: V3Data):
     values = values.copy()
     result = {}
 
+    create_tuple = v3_data.get("create_dynamic_tuple", False)
+
     for key, path in paths.items():
         parts = path.split(".")
         current = result
@@ -1430,7 +1480,10 @@ def build_nested_inputs(values: dict[str, Any], v3_data: V3Data):
             is_last = (i == len(parts) - 1)
 
             if is_last:
-                current[p] = values.pop(key, None)
+                value = values.pop(key, None)
+                if create_tuple:
+                    value = (value, key)
+                current[p] = value
             else:
                 current = current.setdefault(p, {})
 
@@ -1445,7 +1498,6 @@ class _ComfyNodeBaseInternal(_ComfyNodeInternal):
     SCHEMA = None
 
     # filled in during execution
-    resources: Resources = None
     hidden: HiddenHolder = None
 
     @classmethod
@@ -1492,7 +1544,6 @@ class _ComfyNodeBaseInternal(_ComfyNodeInternal):
         return [name for name in kwargs if kwargs[name] is None]
 
     def __init__(self):
-        self.local_resources: ResourcesLocal = None
         self.__class__.VALIDATE_CLASS()
 
     @classmethod
@@ -1560,7 +1611,7 @@ class _ComfyNodeBaseInternal(_ComfyNodeInternal):
         c_type: type[ComfyNode] = cls if is_class(cls) else type(cls)
         type_clone: type[ComfyNode] = shallow_clone_class(c_type)
         # set hidden
-        type_clone.hidden = HiddenHolder.from_dict(v3_data["hidden_inputs"] if v3_data else None)
+        type_clone.hidden = HiddenHolder.from_v3_data(v3_data)
         return type_clone
 
     @final
@@ -1677,19 +1728,10 @@ class _ComfyNodeBaseInternal(_ComfyNodeInternal):
 
     @final
     @classmethod
-    def INPUT_TYPES(cls, include_hidden=True, return_schema=False, live_inputs=None) -> dict[str, dict] | tuple[dict[str, dict], Schema, V3Data]:
+    def INPUT_TYPES(cls) -> dict[str, dict]:
         schema = cls.FINALIZE_SCHEMA()
-        info = schema.get_v1_info(cls, live_inputs)
-        input = info.input
-        if not include_hidden:
-            input.pop("hidden", None)
-        if return_schema:
-            v3_data: V3Data = {}
-            dynamic = input.pop("dynamic_paths", None)
-            if dynamic is not None:
-                v3_data["dynamic_paths"] = dynamic
-            return input, schema, v3_data
-        return input
+        info = schema.get_v1_info(cls)
+        return info.input
 
     @final
     @classmethod
@@ -1808,7 +1850,7 @@ class NodeOutput(_NodeOutputInternal):
         return self.args if len(self.args) > 0 else None
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "NodeOutput":
+    def from_dict(cls, data: dict[str, Any]) -> NodeOutput:
         args = ()
         ui = None
         expand = None
@@ -1903,8 +1945,8 @@ __all__ = [
     "Tracks",
     # Dynamic Types
     "MatchType",
-    # "DynamicCombo",
-    # "Autogrow",
+    "DynamicCombo",
+    "Autogrow",
     # Other classes
     "HiddenHolder",
     "Hidden",
