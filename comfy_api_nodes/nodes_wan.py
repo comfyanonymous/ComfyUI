@@ -855,6 +855,22 @@ class WanReferenceVideoApi(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
+            price_badge=IO.PriceBadge(
+                depends_on=IO.PriceBadgeDepends(widgets=["size", "duration"]),
+                expr="""
+                (
+                  $rate := $contains(widgets.size, "1080p") ? 0.15 : 0.10;
+                  $inputMin := 2 * $rate;
+                  $inputMax := 5 * $rate;
+                  $outputPrice := widgets.duration * $rate;
+                  {
+                    "type": "range_usd",
+                    "min_usd": $inputMin + $outputPrice,
+                    "max_usd": $inputMax + $outputPrice
+                  }
+                )
+                """,
+            ),
         )
 
     @classmethod
