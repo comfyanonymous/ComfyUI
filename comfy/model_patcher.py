@@ -718,6 +718,7 @@ class ModelPatcher:
                             continue
 
                 cast_weight = self.force_cast_weights
+                m.comfy_force_cast_weights = self.force_cast_weights
                 if lowvram_weight:
                     if hasattr(m, "comfy_cast_weights"):
                         m.weight_function = []
