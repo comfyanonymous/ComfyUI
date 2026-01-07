@@ -1262,7 +1262,13 @@ class PriceBadgeDepends:
         # Build lookup: widget_id -> io_type
         input_types: dict[str, str] = {}
         for inp in schema_inputs:
-            input_types[inp.id] = inp.get_io_type()
+            all_inputs = inp.get_all()
+            input_types[inp.id] = inp.get_io_type()  # First input is always the parent itself
+            for nested_inp in all_inputs[1:]:
+                # For DynamicCombo/DynamicSlot, nested inputs are prefixed with parent ID
+                # to match frontend naming convention (e.g., "should_texture.enable_pbr")
+                prefixed_id = f"{inp.id}.{nested_inp.id}"
+                input_types[prefixed_id] = nested_inp.get_io_type()
 
         # Enrich widgets with type information, raising error for unknown widgets
         widgets_data: list[dict[str, str]] = []
