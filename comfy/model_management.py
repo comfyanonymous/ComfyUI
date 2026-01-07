@@ -98,7 +98,8 @@ if args.directml is not None:
         directml_device = torch_directml.device()
     else:
         directml_device = torch_directml.device(device_index)
-    logging.info("Using directml with device: {}".format(torch_directml.device_name(device_index)))
+    logging.info("Using directml with device: %s", torch_directml.device_name(device_index))
+
     # torch_directml.disable_tiled_resources(True)
     lowvram_available = False #TODO: need to find a way to get free memory in directml before this can be enabled by default.
 
@@ -238,13 +239,13 @@ def mac_version():
 
 total_vram = get_total_memory(get_torch_device()) / (1024 * 1024)
 total_ram = psutil.virtual_memory().total / (1024 * 1024)
-logging.info("Total VRAM {:0.0f} MB, total RAM {:0.0f} MB".format(total_vram, total_ram))
+logging.info("Total VRAM %0.0f MB, total RAM %0.0f MB", total_vram, total_ram)
 
 try:
-    logging.info("pytorch version: {}".format(torch_version))
+    logging.info("pytorch version: %s", torch_version)
     mac_ver = mac_version()
     if mac_ver is not None:
-        logging.info("Mac Version {}".format(mac_ver))
+        logging.info("Mac Version %s", mac_ver)
 except:
     pass
 
@@ -268,7 +269,7 @@ else:
             pass
         try:
             XFORMERS_VERSION = xformers.version.__version__
-            logging.info("xformers version: {}".format(XFORMERS_VERSION))
+            logging.info("xformers version: %s", XFORMERS_VERSION)
             if XFORMERS_VERSION.startswith("0.0.18"):
                 logging.warning("\nWARNING: This version of xformers has a major bug where you will get black images when generating high resolution images.")
                 logging.warning("Please downgrade or upgrade xformers to a different version.\n")
@@ -349,8 +350,8 @@ try:
         except:
             rocm_version = (6, -1)
 
-        logging.info("AMD arch: {}".format(arch))
-        logging.info("ROCm version: {}".format(rocm_version))
+        logging.info("AMD arch: %s", arch)
+        logging.info("ROCm version: %s", rocm_version)
         if args.use_split_cross_attention == False and args.use_quad_cross_attention == False:
             if importlib.util.find_spec('triton') is not None:  # AMD efficient attention implementation depends on triton. TODO: better way of detecting if it's compiled in or not.
                 if torch_version_numeric >= (2, 7):  # works on 2.6 but doesn't actually seem to improve much
@@ -444,7 +445,7 @@ def get_torch_device_name(device):
         return "CUDA {}: {}".format(device, torch.cuda.get_device_name(device))
 
 try:
-    logging.info("Device: {}".format(get_torch_device_name(get_torch_device())))
+    logging.info("Device: %s", get_torch_device_name(get_torch_device()))
 except:
     logging.warning("Could not pick default device.")
 
@@ -573,7 +574,7 @@ if WINDOWS:
 
 if args.reserve_vram is not None:
     EXTRA_RESERVED_VRAM = args.reserve_vram * 1024 * 1024 * 1024
-    logging.debug("Reserving {}MB vram for other applications.".format(EXTRA_RESERVED_VRAM / (1024 * 1024)))
+    logging.debug("Reserving %0.2f MB of VRAM as per user request.", EXTRA_RESERVED_VRAM / (1024 * 1024))
 
 def extra_reserved_memory():
     return EXTRA_RESERVED_VRAM
@@ -678,7 +679,7 @@ def load_models_gpu(models, memory_required=0, force_patch_weights=False, minimu
             free_mem = get_free_memory(device)
             if free_mem < minimum_memory_required:
                 models_l = free_memory(minimum_memory_required, device)
-                logging.info("{} models unloaded.".format(len(models_l)))
+                logging.info("%d models unloaded.", len(models_l))
 
     for loaded_model in models_to_load:
         model = loaded_model.model
@@ -724,7 +725,7 @@ def cleanup_models_gc():
     for i in range(len(current_loaded_models)):
         cur = current_loaded_models[i]
         if cur.is_dead():
-            logging.info("Potential memory leak detected with model {}, doing a full garbage collect, for maximum performance avoid circular references in the model code.".format(cur.real_model().__class__.__name__))
+            logging.info("Potential memory leak detected with model %s, doing a full garbage collect, for maximum performance avoid circular references in the model code.", cur.real_model().__class__.__name__)
             do_gc = True
             break
 
@@ -735,7 +736,7 @@ def cleanup_models_gc():
         for i in range(len(current_loaded_models)):
             cur = current_loaded_models[i]
             if cur.is_dead():
-                logging.warning("WARNING, memory leak with model {}. Please make sure it is not being referenced from somewhere.".format(cur.real_model().__class__.__name__))
+                logging.warning("WARNING, memory leak with model %s. Please make sure it is not being referenced from somewhere.", cur.real_model().__class__.__name__)
 
 
 
@@ -1027,7 +1028,7 @@ if args.disable_async_offload:
     NUM_STREAMS = 0
 
 if NUM_STREAMS > 0:
-    logging.info("Using async weight offloading with {} streams".format(NUM_STREAMS))
+    logging.info("Using async weight offloading with %d streams", NUM_STREAMS)
 
 def current_stream(device):
     if device is None:
@@ -1122,7 +1123,7 @@ if not args.disable_pinned_memory:
             MAX_PINNED_MEMORY = get_total_memory(torch.device("cpu")) * 0.45  # Windows limit is apparently 50%
         else:
             MAX_PINNED_MEMORY = get_total_memory(torch.device("cpu")) * 0.95
-        logging.info("Enabled pinned memory {}".format(MAX_PINNED_MEMORY // (1024 * 1024)))
+        logging.info("Enabled pinned memory. %0.2f MB max", MAX_PINNED_MEMORY / (1024 * 1024))
 
 PINNING_ALLOWED_TYPES = set(["Parameter", "QuantizedTensor"])
 

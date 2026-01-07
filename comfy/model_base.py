@@ -144,7 +144,7 @@ class BaseModel(torch.nn.Module):
             if comfy.model_management.force_channels_last():
                 self.diffusion_model.to(memory_format=torch.channels_last)
                 logging.debug("using channels last mode for diffusion model")
-            logging.info("model weight dtype {}, manual cast: {}".format(self.get_dtype(), self.manual_cast_dtype))
+            logging.info("model weight dtype %s, manual cast: %s", self.get_dtype(), self.manual_cast_dtype)
         self.model_type = model_type
         self.model_sampling = model_sampling(model_config, model_type)
 
@@ -153,8 +153,8 @@ class BaseModel(torch.nn.Module):
             self.adm_channels = 0
 
         self.concat_keys = ()
-        logging.info("model_type {}".format(model_type.name))
-        logging.debug("adm {}".format(self.adm_channels))
+        logging.info("model_type %s", model_type.name)
+        logging.debug("adm %s", self.adm_channels)
         self.memory_usage_factor = model_config.memory_usage_factor
         self.memory_usage_factor_conds = ()
         self.memory_usage_shape_process = {}
@@ -308,10 +308,10 @@ class BaseModel(torch.nn.Module):
         to_load = self.model_config.process_unet_state_dict(to_load)
         m, u = self.diffusion_model.load_state_dict(to_load, strict=False)
         if len(m) > 0:
-            logging.warning("unet missing: {}".format(m))
+            logging.warning("unet missing: %s", m)
 
         if len(u) > 0:
-            logging.warning("unet unexpected: {}".format(u))
+            logging.warning("unet unexpected: %s", u)
         del to_load
         return self
 

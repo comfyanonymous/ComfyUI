@@ -118,13 +118,20 @@ class Attention(nn.Module):
         operations=None,
     ) -> None:
         super().__init__()
+
+        context_dim = query_dim if context_dim is None else context_dim
+
         logging.debug(
-            f"Setting up {self.__class__.__name__}. Query dim is {query_dim}, context_dim is {context_dim} and using "
-            f"{n_heads} heads with a dimension of {head_dim}."
+            "Setting up %s. Query dim is %d, context_dim is %d and using "
+            "%d heads with a dimension of %d.",
+            self.__class__.__name__,
+            query_dim,
+            context_dim,
+            n_heads,
+            head_dim,
         )
         self.is_selfattn = context_dim is None  # self attention
 
-        context_dim = query_dim if context_dim is None else context_dim
         inner_dim = head_dim * n_heads
 
         self.n_heads = n_heads
@@ -226,7 +233,7 @@ class TimestepEmbedding(nn.Module):
     def __init__(self, in_features: int, out_features: int, use_adaln_lora: bool = False, device=None, dtype=None, operations=None):
         super().__init__()
         logging.debug(
-            f"Using AdaLN LoRA Flag:  {use_adaln_lora}. We enable bias if no AdaLN LoRA for backward compatibility."
+            "Using AdaLN LoRA Flag:  %s. We enable bias if no AdaLN LoRA for backward compatibility.", use_adaln_lora
         )
         self.in_dim = in_features
         self.out_dim = out_features

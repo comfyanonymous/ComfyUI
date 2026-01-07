@@ -228,5 +228,5 @@ class LoHaAdapter(WeightAdapterBase):
             else:
                 weight += function(((strength * alpha) * lora_diff).type(weight.dtype))
         except Exception as e:
-            logging.error("ERROR {} {} {}".format(self.name, key, e))
+            logging.error("ERROR %s %s %s", self.name, key, e)
         return weight

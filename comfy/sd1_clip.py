@@ -235,7 +235,7 @@ class SDClipModel(torch.nn.Module, ClipTokenWeightEncoder):
                 else:
                     index += -1
                     pad_extra += emb_shape
-                    logging.warning("WARNING: shape mismatch when trying to apply embedding, embedding will be ignored {} != {}".format(emb.shape[-1], tokens_embed.shape[-1]))
+                    logging.warning("WARNING: shape mismatch when trying to apply embedding, embedding will be ignored %s != %s", emb.shape[-1], tokens_embed.shape[-1])
 
             if pad_extra > 0:
                 padd_embed = self.transformer.get_input_embeddings()(torch.tensor([[self.special_tokens["pad"]] * pad_extra], device=device, dtype=torch.long), out_dtype=torch.float32)
@@ -438,7 +438,7 @@ def load_embed(embedding_name, embedding_directory, embedding_size, embed_key=No
             except:
                 embed_out = safe_load_embed_zip(embed_path)
     except Exception:
-        logging.warning("{}\n\nerror loading embedding, skipping loading: {}".format(traceback.format_exc(), embedding_name))
+        logging.warning("%s\n\nerror loading embedding, skipping loading: %s", traceback.format_exc(), embedding_name)
         return None
 
     if embed_out is None:

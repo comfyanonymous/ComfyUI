@@ -27,7 +27,7 @@ def load_hypernetwork_patch(path, strength):
     }
 
     if activation_func not in valid_activation:
-        logging.error("Unsupported Hypernetwork format, if you report it I might implement it. {}   {} {} {} {} {}".format(path, activation_func, is_layer_norm, use_dropout, activate_output, last_layer_dropout))
+        logging.error("Unsupported Hypernetwork format, if you report it I might implement it. %s   %s %s %s %s %s", path, activation_func, is_layer_norm, use_dropout, activate_output, last_layer_dropout)
         return None
 
     out = {}

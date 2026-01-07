@@ -41,12 +41,11 @@ if __name__ == "__main__":
         os.environ['CUDA_VISIBLE_DEVICES'] = str(args.cuda_device)
         os.environ['HIP_VISIBLE_DEVICES'] = str(args.cuda_device)
         os.environ["ASCEND_RT_VISIBLE_DEVICES"] = str(args.cuda_device)
-        logging.info("Set cuda device to: {}".format(args.cuda_device))
+        logging.info("Set cuda device to: %s", args.cuda_device)
 
     if args.oneapi_device_selector is not None:
         os.environ['ONEAPI_DEVICE_SELECTOR'] = args.oneapi_device_selector
-        logging.info("Set oneapi device selector to: {}".format(args.oneapi_device_selector))
-
+        logging.info("Set oneapi device selector to: %s", args.oneapi_device_selector)
     if args.deterministic:
         if 'CUBLAS_WORKSPACE_CONFIG' not in os.environ:
             os.environ['CUBLAS_WORKSPACE_CONFIG'] = ":4096:8"
@@ -157,7 +156,7 @@ def execute_prestartup_script():
                 import_message = ""
             else:
                 import_message = " (PRESTARTUP FAILED)"
-            logging.info("{:6.1f} seconds{}: {}".format(n[0], import_message, n[1]))
+            logging.info("%6.1f seconds%s: %s", n[0], import_message, n[1])
         logging.info("")
 
 apply_custom_paths()
@@ -253,7 +252,7 @@ def prompt_worker(q, server_instance):
                 execution_time = time.strftime("%H:%M:%S", time.gmtime(execution_time))
                 logging.info("Prompt executed in %s", execution_time)
             else:
-                logging.info("Prompt executed in {:.2f} seconds".format(execution_time))
+                logging.info("Prompt executed in %.2f seconds", execution_time)
 
         flags = q.get_flags()
         free_memory = flags.get("free_memory", False)
@@ -399,8 +398,8 @@ def start_comfyui(asyncio_loop=None):
 
 if __name__ == "__main__":
     # Running directly, just start ComfyUI.
-    logging.info("Python version: {}".format(sys.version))
-    logging.info("ComfyUI version: {}".format(comfyui_version.__version__))
+    logging.info("Python version: %s", sys.version)
+    logging.info("ComfyUI version: %s", comfyui_version.__version__)
 
     if sys.version_info.major == 3 and sys.version_info.minor < 10:
         logging.warning("WARNING: You are using a python version older than 3.10, please upgrade to a newer one. 3.12 and above is recommended.")

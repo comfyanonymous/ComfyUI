@@ -87,7 +87,7 @@ ________________________________________________________________________
 """.strip()
             )
         else:
-            logging.info("ComfyUI frontend version: {}".format(frontend_version_str))
+            logging.info("ComfyUI frontend version: %s", frontend_version_str)
     except Exception as e:
         logging.error("Failed to check frontend version: %s", e)
 
@@ -390,12 +390,12 @@ comfyui-workflow-templates is not installed.
             )
             if os.path.exists(expected_path):
                 logging.info(
-                    f"Using existing copy of specific frontend version tag: {repo_owner}/{repo_name}@{version}"
+                    "Using existing copy of specific frontend version tag: %s/%s@%s", repo_owner, repo_name, version
                 )
                 return expected_path
 
         logging.info(
-            f"Initializing frontend: {repo_owner}/{repo_name}@{version}, requesting version details from GitHub..."
+            "Initializing frontend: %s/%s@%s, requesting version details from GitHub...", repo_owner, repo_name, version
         )
 
         provider = provider or FrontEndProvider(repo_owner, repo_name)

@@ -56,7 +56,7 @@ class FreeU(IO.ComfyNode):
                     try:
                         hsp = Fourier_filter(hsp, threshold=1, scale=scale[1])
                     except:
-                        logging.warning("Device {} does not support the torch.fft functions used in the FreeU node, switching to CPU.".format(hsp.device))
+                        logging.warning("Device %s does not support the torch.fft functions used in the FreeU node, switching to CPU.", hsp.device)
                         on_cpu_devices[hsp.device] = True
                         hsp = Fourier_filter(hsp.cpu(), threshold=1, scale=scale[1]).to(hsp.device)
                 else:
@@ -110,7 +110,7 @@ class FreeU_V2(IO.ComfyNode):
                     try:
                         hsp = Fourier_filter(hsp, threshold=1, scale=scale[1])
                     except:
-                        logging.warning("Device {} does not support the torch.fft functions used in the FreeU node, switching to CPU.".format(hsp.device))
+                        logging.warning("Device %s does not support the torch.fft functions used in the FreeU node, switching to CPU.", hsp.device)
                         on_cpu_devices[hsp.device] = True
                         hsp = Fourier_filter(hsp.cpu(), threshold=1, scale=scale[1]).to(hsp.device)
                 else:

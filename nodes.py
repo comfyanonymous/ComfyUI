@@ -2142,7 +2142,7 @@ async def load_custom_node(module_path: str, ignore=set(), module_parent="custom
         sys_module_name = module_path.replace(".", "_x_")
 
     try:
-        logging.debug("Trying to load custom node {}".format(module_path))
+        logging.debug("Trying to load custom node %s", module_path)
         if os.path.isfile(module_path):
             module_spec = importlib.util.spec_from_file_location(sys_module_name, module_path)
             module_dir = os.path.split(module_path)[0]
@@ -2171,7 +2171,7 @@ async def load_custom_node(module_path: str, ignore=set(), module_parent="custom
 
                     EXTENSION_WEB_DIRS[project_name] = web_dir_path
 
-                    logging.info("Automatically register web folder {} for {}".format(web_dir_name, project_name))
+                    logging.info("Automatically register web folder %s for %s", web_dir_name, project_name)
         except Exception as e:
             logging.warning("Unable to parse pyproject.toml due to lack dependency pydantic-settings, please run 'pip install -r requirements.txt': %s", e)
 
@@ -2271,7 +2271,7 @@ async def init_external_custom_nodes():
                 import_message = ""
             else:
                 import_message = " (IMPORT FAILED)"
-            logging.info("{:6.1f} seconds{}: {}".format(n[0], import_message, n[1]))
+            logging.info("%6.1f seconds%s: %s", n[0], import_message, n[1])
         logging.info("")
 
 async def init_builtin_extra_nodes():
@@ -2440,7 +2440,7 @@ async def init_extra_nodes(init_custom_nodes=True, init_api_nodes=True):
     if len(import_failed_api) > 0:
         logging.warning("WARNING: some comfy_api_nodes/ nodes did not import correctly. This may be because they are missing some dependencies.\n")
         for node in import_failed_api:
-            logging.warning("IMPORT FAILED: {}".format(node))
+            logging.warning("IMPORT FAILED: %s", node)
         logging.warning("\nThis issue might be caused by new missing dependencies added the last time you updated ComfyUI.")
         if args.windows_standalone_build:
             logging.warning("Please run the update script: update/update_comfyui.bat")
@@ -2451,7 +2451,8 @@ async def init_extra_nodes(init_custom_nodes=True, init_api_nodes=True):
     if len(import_failed) > 0:
         logging.warning("WARNING: some comfy_extras/ nodes did not import correctly. This may be because they are missing some dependencies.\n")
         for node in import_failed:
-            logging.warning("IMPORT FAILED: {}".format(node))
+            logging.warning("IMPORT FAILED: %s", node)
+            # logging.warning("IMPORT FAILED: {}".format(node))
         logging.warning("\nThis issue might be caused by new missing dependencies added the last time you updated ComfyUI.")
         if args.windows_standalone_build:
             logging.warning("Please run the update script: update/update_comfyui.bat")

@@ -1002,7 +1002,7 @@ class ImageDeduplicationNode(ImageProcessingNode):
                 if similarity >= similarity_threshold:
                     is_duplicate = True
                     logging.info(
-                        f"Image {i} is similar to image {j} (similarity: {similarity:.3f}), skipping"
+                        "Image %d is similar to image %d (similarity: %.3f), skipping", i, j, similarity
                     )
                     break
 
@@ -1012,7 +1012,7 @@ class ImageDeduplicationNode(ImageProcessingNode):
         # Return only unique images
         unique_images = [images[i] for i in keep_indices]
         logging.info(
-            f"Deduplication: kept {len(unique_images)} out of {len(images)} images"
+            "Deduplication: kept %d out of %d images", len(unique_images), len(images)
         )
         return unique_images
 
@@ -1086,7 +1086,7 @@ class ImageGridNode(ImageProcessingNode):
             grid.paste(img, (x, y))
 
         logging.info(
-            f"Created {columns}x{rows} grid with {num_images} images ({grid_width}x{grid_height})"
+            "Created %d x %d grid with %d images (%d x %d)", columns, rows, num_images, grid_width, grid_height
         )
         return pil_to_tensor(grid)
 
@@ -1214,7 +1214,7 @@ class ResolutionBucket(io.ComfyNode):
             output_conditions.append(bucket_data["conditions"])
 
             logging.info(
-                f"Resolution bucket ({h}x{w}): {len(bucket_data['latents'])} samples"
+                "Resolution bucket (%d x %d): %d samples", h, w, len(bucket_data["latents"])
             )
 
         logging.info("Created %s resolution buckets from %s samples", len(buckets), len(flat_latents))
@@ -1302,7 +1302,7 @@ class MakeTrainingDataset(io.ComfyNode):
             conditioning_list.append(cond)
 
         logging.info(
-            f"Created dataset with {len(latents_list)} latents and {len(conditioning_list)} conditioning."
+            "Created dataset with %d latents and %d conditioning.", len(latents_list), len(conditioning_list)
         )
         return io.NodeOutput(latents_list, conditioning_list)
 
@@ -1369,7 +1369,7 @@ class SaveTrainingDataset(io.ComfyNode):
         num_shards = (num_samples + shard_size - 1) // shard_size  # Ceiling division
 
         logging.info(
-            f"Saving {num_samples} samples to {num_shards} shards in {output_dir}..."
+            "Saving %d samples to %d shards in %s...", num_samples, num_shards, output_dir
         )
 
         # Save data in shards
@@ -1391,7 +1391,7 @@ class SaveTrainingDataset(io.ComfyNode):
                 torch.save(shard_data, f)
 
             logging.info(
-                f"Saved shard {shard_idx + 1}/{num_shards}: {shard_filename} ({end_idx - start_idx} samples)"
+                "Saved shard %d/%d: %s (%d samples)", shard_idx + 1, num_shards, shard_filename, end_idx - start_idx
             )
 
         # Save metadata
@@ -1477,7 +1477,7 @@ class LoadTrainingDataset(io.ComfyNode):
             logging.info("Loaded %s: %s samples", shard_file, len(shard_data['latents']))
 
         logging.info(
-            f"Successfully loaded {len(all_latents)} samples from {dataset_dir}."
+            "Successfully loaded %d samples from %s.", len(all_latents), dataset_dir
         )
         return io.NodeOutput(all_latents, all_conditioning)
 

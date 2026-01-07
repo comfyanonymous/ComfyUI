@@ -442,10 +442,10 @@ def controlnet_load_state_dict(control_model, sd):
     missing, unexpected = control_model.load_state_dict(sd, strict=False)
 
     if len(missing) > 0:
-        logging.warning("missing controlnet keys: {}".format(missing))
+        logging.warning("missing controlnet keys: %s", missing)
 
     if len(unexpected) > 0:
-        logging.debug("unexpected controlnet keys: {}".format(unexpected))
+        logging.debug("unexpected controlnet keys: %s", unexpected)
     return control_model
 
 
@@ -668,7 +668,7 @@ def load_controlnet_state_dict(state_dict, model=None, model_options={}):
 
         leftover_keys = controlnet_data.keys()
         if len(leftover_keys) > 0:
-            logging.warning("leftover keys: {}".format(leftover_keys))
+            logging.warning("leftover keys: %s", leftover_keys)
         controlnet_data = new_sd
     elif "controlnet_blocks.0.weight" in controlnet_data:
         if "double_blocks.0.img_attn.norm.key_norm.scale" in controlnet_data:
@@ -753,10 +753,10 @@ def load_controlnet_state_dict(state_dict, model=None, model_options={}):
         missing, unexpected = control_model.load_state_dict(controlnet_data, strict=False)
 
     if len(missing) > 0:
-        logging.warning("missing controlnet keys: {}".format(missing))
+        logging.warning("missing controlnet keys: %s", missing)
 
     if len(unexpected) > 0:
-        logging.debug("unexpected controlnet keys: {}".format(unexpected))
+        logging.debug("unexpected controlnet keys: %s", unexpected)
 
     global_average_pooling = model_options.get("global_average_pooling", False)
     control = ControlNet(control_model, global_average_pooling=global_average_pooling, load_device=load_device, manual_cast_dtype=manual_cast_dtype)
@@ -771,7 +771,7 @@ def load_controlnet(ckpt_path, model=None, model_options={}):
 
     cnet = load_controlnet_state_dict(comfy.utils.load_torch_file(ckpt_path, safe_load=True), model=model, model_options=model_options)
     if cnet is None:
-        logging.error("error checkpoint does not contain controlnet or t2i adapter data {}".format(ckpt_path))
+        logging.error("error checkpoint does not contain controlnet or t2i adapter data %s", ckpt_path)
     return cnet
 
 class T2IAdapter(ControlBase):
@@ -876,9 +876,9 @@ def load_t2i_adapter(t2i_data, model_options={}): #TODO: model_options
 
     missing, unexpected = model_ad.load_state_dict(t2i_data)
     if len(missing) > 0:
-        logging.warning("t2i missing {}".format(missing))
+        logging.warning("t2i missing", missing)
 
     if len(unexpected) > 0:
-        logging.debug("t2i unexpected {}".format(unexpected))
+        logging.debug("t2i unexpected", unexpected)
 
     return T2IAdapter(model_ad, model_ad.input_channels, compression_ratio, upscale_algorithm)

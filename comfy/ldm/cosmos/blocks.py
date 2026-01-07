@@ -295,7 +295,7 @@ class TimestepEmbedding(nn.Module):
     def __init__(self, in_features: int, out_features: int, use_adaln_lora: bool = False, weight_args={}, operations=None):
         super().__init__()
         logging.debug(
-            f"Using AdaLN LoRA Flag:  {use_adaln_lora}. We enable bias if no AdaLN LoRA for backward compatibility."
+            "Using AdaLN LoRA Flag:  %s. We enable bias if no AdaLN LoRA for backward compatibility.", use_adaln_lora
         )
         self.linear_1 = operations.Linear(in_features, out_features, bias=not use_adaln_lora, **weight_args)
         self.activation = nn.SiLU()

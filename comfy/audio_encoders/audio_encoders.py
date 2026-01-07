@@ -84,8 +84,8 @@ def load_audio_encoder_from_sd(sd, prefix=""):
     audio_encoder = AudioEncoderModel(config)
     m, u = audio_encoder.load_sd(sd)
     if len(m) > 0:
-        logging.warning("missing audio encoder: {}".format(m))
+        logging.warning("missing audio encoder: %s", m)
     if len(u) > 0:
-        logging.warning("unexpected audio encoder: {}".format(u))
+        logging.warning("unexpected audio encoder: %s", u)
 
     return audio_encoder

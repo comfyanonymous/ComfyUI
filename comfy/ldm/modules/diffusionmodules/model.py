@@ -272,7 +272,7 @@ def slice_attention(q, k, v):
             steps *= 2
             if steps > 128:
                 raise e
-            logging.warning("out of memory error, increasing steps and trying again {}".format(steps))
+            logging.warning("out of memory error, increasing steps and trying again %s", steps)
 
     return r1
 
@@ -725,8 +725,7 @@ class Decoder(nn.Module):
         block_in = ch*ch_mult[self.num_resolutions-1]
         curr_res = resolution // 2**(self.num_resolutions-1)
         self.z_shape = (1,z_channels,curr_res,curr_res)
-        logging.debug("Working with z of shape {} = {} dimensions.".format(
-            self.z_shape, np.prod(self.z_shape)))
+        logging.debug("Working with z of shape %s = %d dimensions.", self.z_shape, np.prod(self.z_shape))
 
         # z to block_in
         self.conv_in = conv_op(z_channels,

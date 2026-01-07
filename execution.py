@@ -83,7 +83,7 @@ class IsChangedCache:
             is_changed = await resolve_map_node_over_list_results(is_changed)
             node["is_changed"] = [None if isinstance(x, ExecutionBlocker) else x for x in is_changed]
         except Exception as e:
-            logging.warning("WARNING: {}".format(e))
+            logging.warning("WARNING: %s", e)
             node["is_changed"] = float("NaN")
         finally:
             self.is_changed[node_id] = node["is_changed"]
@@ -601,13 +601,13 @@ async def execute(server, dynprompt, caches, current_item, extra_data, executed,
 
         if isinstance(ex, comfy.model_management.OOM_EXCEPTION):
             tips = "This error means you ran out of memory on your GPU.\n\nTIPS: If the workflow worked before you might have accidentally set the batch_size to a large number."
-            logging.info("Memory summary: {}".format(comfy.model_management.debug_memory_summary()))
+            logging.info("Memory summary: %s", comfy.model_management.debug_memory_summary())
             logging.error("Got an OOM, unloading all loaded models.")
             comfy.model_management.unload_all_models()
 
         error_details = {
             "node_id": real_node_id,
-            "exception_message": "{}\n{}".format(ex, tips),
+            "exception_message": "%s\n%s" % (ex, tips),
             "exception_type": exception_type,
             "traceback": traceback.format_tb(tb),
             "current_inputs": input_data_formatted

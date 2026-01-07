@@ -455,7 +455,7 @@ class fp8_ops(manual_cast):
                     if out is not None:
                         return out
                 except Exception as e:
-                    logging.info("Exception during fp8 op: {}".format(e))
+                    logging.info("Exception during fp8 op: %s", str(e))
 
             weight, bias, offload_stream = cast_bias_weight(self, input, offloadable=True)
             x = torch.nn.functional.linear(input, weight, bias)

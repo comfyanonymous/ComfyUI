@@ -130,7 +130,7 @@ def load_clipvision_from_sd(sd, prefix="", convert_keys=False):
     clip = ClipVisionModel(json_config)
     m, u = clip.load_sd(sd)
     if len(m) > 0:
-        logging.warning("missing clip vision: {}".format(m))
+        logging.warning("missing clip vision: %s", m)
     u = set(u)
     keys = list(sd.keys())
     for k in keys:

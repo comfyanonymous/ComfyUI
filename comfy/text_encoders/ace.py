@@ -80,7 +80,7 @@ class VoiceBpeTokenizer:
                     token_idx = self.encode(line, lang)
                 lyric_token_idx = lyric_token_idx + token_idx + [2]
             except Exception as e:
-                logging.warning("tokenize error {} for line {} major_language {}".format(e, line, lang))
+                logging.warning("tokenize error %s for line %s major_language %s", e, line, lang)
         return {"input_ids": lyric_token_idx}
 
     @staticmethod

@@ -775,7 +775,7 @@ def model_config_from_unet_config(unet_config, state_dict=None):
         if model_config.matches(unet_config, state_dict):
             return model_config(unet_config)
 
-    logging.error("no match {}".format(unet_config))
+    logging.error("no match %s", unet_config)
     return None
 
 def model_config_from_unet(state_dict, unet_key_prefix, use_base_if_no_match=False, metadata=None):

@@ -300,7 +300,7 @@ class EasyCacheHolder:
             return True
         if metadata == self.state_metadata:
             return True
-        logging.warn(f"{self.name} - Tensor shape, dtype or device changed, resetting state")
+        logging.warning("%s - Tensor shape, dtype or device changed, resetting state", self.name)
         self.reset()
         return False
 
@@ -435,7 +435,7 @@ class LazyCacheHolder:
             return True
         if metadata == self.state_metadata:
             return True
-        logging.warn(f"{self.name} - Tensor shape, dtype or device changed, resetting state")
+        logging.warning("%s - Tensor shape, dtype or device changed, resetting state", self.name)
         self.reset()
         return False
 

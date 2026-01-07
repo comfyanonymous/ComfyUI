@@ -81,7 +81,7 @@ class SD3ClipModel(torch.nn.Module):
         else:
             self.t5xxl = None
 
-        logging.debug("Created SD3 text encoder with: clip_l {}, clip_g {}, t5xxl {}:{}".format(clip_l, clip_g, t5, dtype_t5))
+        logging.debug("Created SD3 text encoder with: clip_l %s, clip_g %s, t5xxl %s:%s", clip_l, clip_g, t5, dtype_t5)
 
     def set_clip_options(self, options):
         if self.clip_l is not None:

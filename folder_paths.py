@@ -316,7 +316,7 @@ def recursive_search(directory: str, excluded_dir_names: list[str] | None=None) 
     except FileNotFoundError:
         logging.warning("Warning: Unable to access %s. Skipping this path.", directory)
 
-    logging.debug("recursive file list on directory {}".format(directory))
+    logging.debug("recursive file list on directory %s", directory)
     dirpath: str
     subdirs: list[str]
     filenames: list[str]
@@ -338,7 +338,7 @@ def recursive_search(directory: str, excluded_dir_names: list[str] | None=None) 
             except FileNotFoundError:
                 logging.warning("Warning: Unable to access %s. Skipping this path.", path)
                 continue
-    logging.debug("found {} files".format(len(result)))
+    logging.debug("found %d files", len(result))
     return result, dirs
 
 def filter_files_extensions(files: Collection[str], extensions: Collection[str]) -> list[str]:
@@ -361,7 +361,7 @@ def get_full_path(folder_name: str, filename: str) -> str | None:
         if os.path.isfile(full_path):
             return full_path
         elif os.path.islink(full_path):
-            logging.warning("WARNING path {} exists but doesn't link anywhere, skipping.".format(full_path))
+            logging.warning("WARNING path %s exists but doesn't link anywhere, skipping.", full_path)
 
     return None
 

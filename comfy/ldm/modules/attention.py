@@ -390,7 +390,7 @@ def attention_split(q, k, v, heads, mask=None, attn_precision=None, skip_reshape
                 steps *= 2
                 if steps > 64:
                     raise e
-                logging.warning("out of memory error, increasing steps and trying again {}".format(steps))
+                logging.warning("out of memory error, increasing steps and trying again", steps)
             else:
                 raise e
 
@@ -556,7 +556,7 @@ def attention_sage(q, k, v, heads, mask=None, attn_precision=None, skip_reshape=
     try:
         out = sageattn(q, k, v, attn_mask=mask, is_causal=False, tensor_layout=tensor_layout)
     except Exception as e:
-        logging.error("Error running sage attention: {}, using pytorch attention instead.".format(e))
+        logging.error("Error running sage attention: %s, using pytorch attention instead.", e)
         exception_fallback = True
     if exception_fallback:
         if tensor_layout == "NHD":

@@ -90,7 +90,7 @@ def load_lora(lora, to_load, log_missing=True):
     if log_missing:
         for x in lora.keys():
             if x not in loaded_keys:
-                logging.warning("lora key not loaded: {}".format(x))
+                logging.warning("lora key not loaded: %s", x)
 
     return patch_dict
 
@@ -390,7 +390,7 @@ def calculate_weight(patches, weight, key, intermediate_dtype=torch.float32, ori
         if isinstance(v, weight_adapter.WeightAdapterBase):
             output = v.calculate_weight(weight, key, strength, strength_model, offset, function, intermediate_dtype, original_weights)
             if output is None:
-                logging.warning("Calculate Weight Failed: {} {}".format(v.name, key))
+                logging.warning("Calculate Weight Failed: %s %s", v.name, key)
             else:
                 weight = output
                 if old_weight is not None:
@@ -408,12 +408,12 @@ def calculate_weight(patches, weight, key, intermediate_dtype=torch.float32, ori
             # An extra flag to pad the weight if the diff's shape is larger than the weight
             do_pad_weight = len(v) > 1 and v[1]['pad_weight']
             if do_pad_weight and diff.shape != weight.shape:
-                logging.info("Pad weight {} from {} to shape: {}".format(key, weight.shape, diff.shape))
+                logging.info("Pad weight %s from %s to shape: %s", key, weight.shape, diff.shape)
                 weight = pad_tensor_to_shape(weight, diff.shape)
 
             if strength != 0.0:
                 if diff.shape != weight.shape:
-                    logging.warning("WARNING SHAPE MISMATCH {} WEIGHT NOT MERGED {} != {}".format(key, diff.shape, weight.shape))
+                    logging.warning("WARNING SHAPE MISMATCH %s WEIGHT NOT MERGED %s != %s", key, diff.shape, weight.shape)
                 else:
                     weight += function(strength * comfy.model_management.cast_to_device(diff, weight.device, weight.dtype))
         elif patch_type == "set":
@@ -424,7 +424,7 @@ def calculate_weight(patches, weight, key, intermediate_dtype=torch.float32, ori
                           comfy.model_management.cast_to_device(original_weights[key][0][0], weight.device, intermediate_dtype)
             weight += function(strength * comfy.model_management.cast_to_device(diff_weight, weight.device, weight.dtype))
         else:
-            logging.warning("patch type not recognized {} {}".format(patch_type, key))
+            logging.warning("patch type not recognized %s %s", patch_type, key)
 
         if old_weight is not None:
             weight = old_weight

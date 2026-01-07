@@ -62,7 +62,7 @@ class HiDreamTEModel(torch.nn.Module):
         else:
             self.llama = None
 
-        logging.debug("Created HiDream text encoder with: clip_l {}, clip_g {}, t5xxl {}:{}, llama {}:{}".format(clip_l, clip_g, t5, dtype_t5, llama, dtype_llama))
+        logging.debug("Created HiDream text encoder with: clip_l %s, clip_g %s, t5xxl %s:%s, llama %s:%s", clip_l, clip_g, t5, dtype_t5, llama, dtype_llama)
 
     def set_clip_options(self, options):
         if self.clip_l is not None:

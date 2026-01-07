@@ -778,7 +778,7 @@ class ModelPatcher:
                 if comfy.model_management.is_device_cuda(device_to):
                     torch.cuda.synchronize()
 
-                logging.debug("lowvram: loaded module regularly {} {}".format(n, m))
+                logging.debug("lowvram: loaded module regularly %s to %s", n, m)
                 m.comfy_patched_weights = True
 
             for x in load_completely:
@@ -791,10 +791,10 @@ class ModelPatcher:
                     self.pin_weight_to_device("{}.{}".format(n, param))
 
             if lowvram_counter > 0:
-                logging.info("loaded partially; {:.2f} MB usable, {:.2f} MB loaded, {:.2f} MB offloaded, {:.2f} MB buffer reserved, lowvram patches: {}".format(lowvram_model_memory / (1024 * 1024), mem_counter / (1024 * 1024), lowvram_mem_counter / (1024 * 1024), offload_buffer / (1024 * 1024), patch_counter))
+                logging.info("loaded partially; %.2f MB usable, %.2f MB loaded, %.2f MB offloaded, %.2f MB buffer reserved, lowvram patches: %d", lowvram_model_memory / (1024 * 1024), mem_counter / (1024 * 1024), lowvram_mem_counter / (1024 * 1024), offload_buffer / (1024 * 1024), patch_counter)
                 self.model.model_lowvram = True
             else:
-                logging.info("loaded completely; {:.2f} MB usable, {:.2f} MB loaded, full load: {}".format(lowvram_model_memory / (1024 * 1024), mem_counter / (1024 * 1024), full_load))
+                logging.info("loaded completely; %.2f MB usable, %.2f MB loaded, full load: %s", lowvram_model_memory / (1024 * 1024), mem_counter / (1024 * 1024), full_load)
                 self.model.model_lowvram = False
                 if full_load:
                     self.model.to(device_to)
@@ -941,7 +941,7 @@ class ModelPatcher:
                         offload_buffer = max(offload_buffer, potential_offload)
                         offload_weight_factor.append(module_mem)
                         offload_weight_factor.pop(0)
-                        logging.debug("freed {}".format(n))
+                        logging.debug("freed %s", n)
 
                         for param in params:
                             self.pin_weight_to_device("{}.{}".format(n, param))
@@ -951,7 +951,7 @@ class ModelPatcher:
             self.model.lowvram_patch_counter += patch_counter
             self.model.model_loaded_weight_memory -= memory_freed
             self.model.model_offload_buffer_memory = offload_buffer
-            logging.info("Unloaded partially: {:.2f} MB freed, {:.2f} MB remains loaded, {:.2f} MB buffer reserved, lowvram patches: {}".format(memory_freed / (1024 * 1024), self.model.model_loaded_weight_memory / (1024 * 1024), offload_buffer / (1024 * 1024), self.model.lowvram_patch_counter))
+            logging.info("Unloaded partially: %.2f MB freed, %.2f MB remains loaded, %.2f MB buffer reserved, lowvram patches: %d", memory_freed / (1024 * 1024), self.model.model_loaded_weight_memory / (1024 * 1024), offload_buffer / (1024 * 1024), self.model.lowvram_patch_counter)
             return memory_freed
 
     def partially_load(self, device_to, extra_memory=0, force_patch_weights=False):

@@ -92,7 +92,7 @@ class CausalContinuousVideoTokenizer(nn.Module):
         num_parameters = sum(param.numel() for param in self.parameters())
         logging.debug("model=%s, num_parameters=%d", self.name, num_parameters)
         logging.debug(
-            f"z_channels={z_channels}, latent_channels={self.latent_channels}."
+            "z_channels=%d, latent_channels=%d.", z_channels, self.latent_channels
         )
 
         latent_temporal_chunk = 16

@@ -34,7 +34,7 @@ def generate_stubs_for_module(module_name: str) -> None:
                 logging.info("Generated stub file for %s", module_name)
             else:
                 logging.warning(
-                    f"Module {module_name} has ComfyAPISync but no ComfyAPI"
+                    "Module %s has ComfyAPISync but no ComfyAPI", module_name
                 )
 
         elif hasattr(module, "ComfyAPI"):
@@ -49,7 +49,7 @@ def generate_stubs_for_module(module_name: str) -> None:
             logging.info("Generated stub file for %s", module_name)
         else:
             logging.warning(
-                f"Module {module_name} does not export ComfyAPI or ComfyAPISync"
+                "Module %s does not export ComfyAPI or ComfyAPISync", module_name
             )
 
     except Exception as e:

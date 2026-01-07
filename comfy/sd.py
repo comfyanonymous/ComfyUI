@@ -95,7 +95,7 @@ def load_lora_for_models(model, clip, lora, strength_model, strength_clip):
     k1 = set(k1)
     for x in loaded:
         if (x not in k) and (x not in k1):
-            logging.warning("NOT LOADED {}".format(x))
+            logging.warning("NOT LOADED %s", x)
 
     return (new_modelpatcher, new_clip)
 
@@ -139,27 +139,27 @@ class CLIP:
                 for c in state_dict:
                     m, u = self.load_sd(c)
                     if len(m) > 0:
-                        logging.warning("clip missing: {}".format(m))
+                        logging.warning("clip missing: %s", m)
 
                     if len(u) > 0:
-                        logging.debug("clip unexpected: {}".format(u))
+                        logging.debug("clip unexpected: %s", u)
             else:
                 m, u = self.load_sd(state_dict, full_model=True)
                 if len(m) > 0:
                     m_filter = list(filter(lambda a: ".logit_scale" not in a and ".transformer.text_projection.weight" not in a, m))
                     if len(m_filter) > 0:
-                        logging.warning("clip missing: {}".format(m))
+                        logging.warning("clip missing: %s", m)
                     else:
-                        logging.debug("clip missing: {}".format(m))
+                        logging.debug("clip missing: %s", m)
 
                 if len(u) > 0:
-                    logging.debug("clip unexpected {}:".format(u))
+                    logging.debug("clip unexpected %s:", u)
 
         if params['device'] == load_device:
             model_management.load_models_gpu([self.patcher], force_full_load=True)
         self.layer_idx = None
         self.use_clip_schedule = False
-        logging.info("CLIP/text encoder model load device: {}, offload device: {}, current: {}, dtype: {}".format(load_device, offload_device, params['device'], dtype))
+        logging.info("CLIP/text encoder model load device: %s, offload device: %s, current: %s, dtype: %s", load_device, offload_device, params['device'], dtype)
         self.tokenizer_options = {}
 
     def clone(self):
@@ -664,10 +664,10 @@ class VAE:
 
         m, u = self.first_stage_model.load_state_dict(sd, strict=False)
         if len(m) > 0:
-            logging.warning("Missing VAE keys {}".format(m))
+            logging.warning("Missing VAE keys %s", str(m))
 
         if len(u) > 0:
-            logging.debug("Leftover VAE keys {}".format(u))
+            logging.debug("Leftover VAE keys %s", str(u))
 
         if device is None:
             device = model_management.vae_device()
@@ -680,7 +680,7 @@ class VAE:
         self.output_device = model_management.intermediate_device()
 
         self.patcher = comfy.model_patcher.ModelPatcher(self.first_stage_model, load_device=self.device, offload_device=offload_device)
-        logging.info("VAE load device: {}, offload device: {}, dtype: {}".format(self.device, offload_device, self.vae_dtype))
+        logging.info("VAE load device: %s, offload device: %s, dtype: %s", self.device, offload_device, self.vae_dtype)
         self.model_size()
 
     def model_size(self):
@@ -1440,7 +1440,7 @@ def load_state_dict_guess_config(sd, output_vae=True, output_clip=True, output_c
 
     left_over = sd.keys()
     if len(left_over) > 0:
-        logging.debug("left over keys: {}".format(left_over))
+        logging.debug("left over keys: %s", left_over)
 
     if output_model:
         model_patcher = comfy.model_patcher.ModelPatcher(model, load_device=load_device, offload_device=model_management.unet_offload_device())
@@ -1510,7 +1510,7 @@ def load_diffusion_model_state_dict(sd, model_options={}, metadata=None):
                 if k in sd:
                     new_sd[diffusers_keys[k]] = sd.pop(k)
                 else:
-                    logging.warning("{} {}".format(diffusers_keys[k], k))
+                    logging.warning("%s %s", diffusers_keys[k], k)
 
     offload_device = model_management.unet_offload_device()
     unet_weight_dtype = list(model_config.supported_inference_dtypes)
@@ -1539,7 +1539,7 @@ def load_diffusion_model_state_dict(sd, model_options={}, metadata=None):
     model.load_model_weights(new_sd, "")
     left_over = sd.keys()
     if len(left_over) > 0:
-        logging.info("left over keys in diffusion model: {}".format(left_over))
+        logging.info("left over keys in diffusion model: %s", left_over)
     return comfy.model_patcher.ModelPatcher(model, load_device=load_device, offload_device=offload_device)
 
 
@@ -1547,7 +1547,7 @@ def load_diffusion_model(unet_path, model_options={}):
     sd, metadata = comfy.utils.load_torch_file(unet_path, return_metadata=True)
     model = load_diffusion_model_state_dict(sd, model_options=model_options, metadata=metadata)
     if model is None:
-        logging.error("ERROR UNSUPPORTED DIFFUSION MODEL {}".format(unet_path))
+        logging.error("ERROR UNSUPPORTED DIFFUSION MODEL %s", unet_path)
         raise RuntimeError("ERROR: Could not detect model type of: {}\n{}".format(unet_path, model_detection_error_hint(unet_path, sd)))
     return model
 

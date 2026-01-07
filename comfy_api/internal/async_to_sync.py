@@ -282,7 +282,7 @@ class AsyncToSyncConverter:
                                 setattr(self._async_instance, attr_name, async_instance)
                             except Exception as e:
                                 logging.warning(
-                                    f"Failed to create instance for {attr_name}: {e}"
+                                    "Failed to create instance for %s: %s", attr_name, e
                                 )
 
             # Handle other instance attributes that might not be annotated
@@ -981,7 +981,7 @@ class AsyncToSyncConverter:
         except Exception as e:
             # If stub generation fails, log the error but don't break the main functionality
             logging.error(
-                f"Error generating stub file for {sync_class.__name__}: {str(e)}"
+                "Error generating stub file for %s: %s", sync_class.__name__, str(e)
             )
             import traceback
 

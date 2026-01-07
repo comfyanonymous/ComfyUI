@@ -369,7 +369,7 @@ def apply_control(h, control, name):
             try:
                 h += ctrl
             except:
-                logging.warning("warning control could not be applied {} {}".format(h.shape, ctrl.shape))
+                logging.warning("warning control could not be applied %s %s", h.shape, ctrl.shape)
     return h
 
 class UNetModel(nn.Module):

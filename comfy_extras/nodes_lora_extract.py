@@ -65,7 +65,7 @@ def calc_lora_model(model_diff, rank, prefix_model, prefix_lora, output_sd, lora
                     output_sd["{}{}.lora_up.weight".format(prefix_lora, k[len(prefix_model):-7])] = out[0].contiguous().half().cpu()
                     output_sd["{}{}.lora_down.weight".format(prefix_lora, k[len(prefix_model):-7])] = out[1].contiguous().half().cpu()
                 except:
-                    logging.warning("Could not generate lora weights for key {}, is the weight difference a zero?".format(k))
+                    logging.warning("Could not generate lora weights for key %s, is the weight difference a zero?", k)
             elif lora_type == LORAType.FULL_DIFF:
                 output_sd["{}{}.diff".format(prefix_lora, k[len(prefix_model):-7])] = weight_diff.contiguous().half().cpu()
 
