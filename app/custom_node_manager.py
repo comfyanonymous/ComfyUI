@@ -27,7 +27,7 @@ def safe_load_json_file(file_path: str) -> dict:
         with open(file_path, "r", encoding="utf-8") as f:
             return json.load(f)
     except json.JSONDecodeError:
-        logging.error(f"Error loading {file_path}")
+        logging.error("Error loading %s", file_path)
         return {}
 
 

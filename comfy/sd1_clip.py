@@ -570,7 +570,7 @@ class SDTokenizer:
                     embedding_name = word[len(self.embedding_identifier):].strip('\n')
                     embed, leftover = self._try_get_embedding(embedding_name)
                     if embed is None:
-                        logging.warning(f"warning, embedding:{embedding_name} does not exist, ignoring")
+                        logging.warning("warning, embedding:%s does not exist, ignoring", embedding_name)
                     else:
                         if len(embed.shape) == 1:
                             tokens.append([(embed, weight)])

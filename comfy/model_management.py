@@ -415,7 +415,7 @@ if cpu_state != CPUState.GPU:
 if cpu_state == CPUState.MPS:
     vram_state = VRAMState.SHARED
 
-logging.info(f"Set vram state to: {vram_state.name}")
+logging.info("Set vram state to: %s", vram_state.name)
 
 DISABLE_SMART_MEMORY = args.disable_smart_memory
 
@@ -602,7 +602,7 @@ def free_memory(memory_required, device, keep_loaded=[]):
             if free_mem > memory_required:
                 break
             memory_to_free = memory_required - free_mem
-        logging.debug(f"Unloading {current_loaded_models[i].model.model.__class__.__name__}")
+        logging.debug("Unloading %s", current_loaded_models[i].model.model.__class__.__name__)
         if current_loaded_models[i].model_unload(memory_to_free):
             unloaded_model.append(i)
 
@@ -652,7 +652,7 @@ def load_models_gpu(models, memory_required=0, force_patch_weights=False, minimu
             models_to_load.append(loaded)
         else:
             if hasattr(x, "model"):
-                logging.info(f"Requested to load {x.model.__class__.__name__}")
+                logging.info("Requested to load %s", x.model.__class__.__name__)
             models_to_load.append(loaded_model)
 
     for loaded_model in models_to_load:

@@ -124,9 +124,9 @@ class IndexListContextHandler(ContextHandlerABC):
     def should_use_context(self, model: BaseModel, conds: list[list[dict]], x_in: torch.Tensor, timestep: torch.Tensor, model_options: dict[str]) -> bool:
         # for now, assume first dim is batch - should have stored on BaseModel in actual implementation
         if x_in.size(self.dim) > self.context_length:
-            logging.info(f"Using context windows {self.context_length} with overlap {self.context_overlap} for {x_in.size(self.dim)} frames.")
+            logging.info("Using context windows %d with overlap %d for %d frames.", self.context_length, self.context_overlap, x_in.size(self.dim))
             if self.cond_retain_index_list:
-                logging.info(f"Retaining original cond for indexes: {self.cond_retain_index_list}")
+                logging.info("Retaining original cond for indexes: %s", self.cond_retain_index_list)
             return True
         return False
 
@@ -143,7 +143,7 @@ class IndexListContextHandler(ContextHandlerABC):
         # if multiple conds, split based on primary region
         if self.split_conds_to_windows and len(cond_in) > 1:
             region = window.get_region_index(len(cond_in))
-            logging.info(f"Splitting conds to windows; using region {region} for window {window.index_list[0]}-{window.index_list[-1]} with center ratio {window.center_ratio:.3f}")
+            logging.info("Splitting conds to windows; using region %d for window %d-%d with center ratio %.3f", region, window.index_list[0], window.index_list[-1], window.center_ratio)
             cond_in = [cond_in[region]]
         # cond object is a list containing a dict - outer list is irrelevant, so just loop through it
         for actual_cond in cond_in:

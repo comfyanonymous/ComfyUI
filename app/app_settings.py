@@ -22,7 +22,7 @@ class AppSettings():
                 with open(file) as f:
                     return json.load(f)
             except:
-                logging.error(f"The user settings file is corrupted: {file}")
+                logging.error("The user settings file is corrupted: %s", file)
                 return {}
         else:
             return {}

@@ -67,7 +67,7 @@ def get_db_path():
 
 def init_db():
     db_url = args.database_url
-    logging.debug(f"Database URL: {db_url}")
+    logging.debug("Database URL: %s", db_url)
     db_path = get_db_path()
     db_exists = os.path.exists(db_path)
 
@@ -95,7 +95,7 @@ def init_db():
 
         try:
             command.upgrade(config, target_rev)
-            logging.info(f"Database upgraded from {current_rev} to {target_rev}")
+            logging.info("Database upgraded from %s to %s", current_rev, target_rev)
         except Exception as e:
             if backup_path:
                 # Restore the database from backup if upgrade fails

@@ -110,7 +110,7 @@ class LoadImageTextDataSetFromFolderNode(io.ComfyNode):
 
     @classmethod
     def execute(cls, folder):
-        logging.info(f"Loading images from folder: {folder}")
+        logging.info("Loading images from folder: %s", folder)
 
         sub_input_dir = os.path.join(folder_paths.get_input_directory(), folder)
         valid_extensions = [".png", ".jpg", ".jpeg", ".webp"]
@@ -149,7 +149,7 @@ class LoadImageTextDataSetFromFolderNode(io.ComfyNode):
 
         output_tensor = load_and_process_images(image_files, sub_input_dir)
 
-        logging.info(f"Loaded {len(output_tensor)} images from {sub_input_dir}.")
+        logging.info("Loaded %s images from %s.", len(output_tensor), sub_input_dir)
         return io.NodeOutput(output_tensor, captions)
 
 
@@ -236,7 +236,7 @@ class SaveImageDataSetToFolderNode(io.ComfyNode):
         output_dir = os.path.join(folder_paths.get_output_directory(), folder_name)
         saved_files = save_images_to_folder(images, output_dir, filename_prefix)
 
-        logging.info(f"Saved {len(saved_files)} images to {output_dir}.")
+        logging.info("Saved %s images to %s.", len(saved_files), output_dir)
         return io.NodeOutput()
 
 
@@ -283,7 +283,7 @@ class SaveImageTextDataSetToFolderNode(io.ComfyNode):
             with open(caption_path, "w", encoding="utf-8") as f:
                 f.write(caption)
 
-        logging.info(f"Saved {len(saved_files)} images and captions to {output_dir}.")
+        logging.info("Saved %s images and captions to %s.", len(saved_files), output_dir)
         return io.NodeOutput()
 
 
@@ -1104,7 +1104,7 @@ class MergeImageListsNode(ImageProcessingNode):
         """Simply return the images list (already merged by input handling)."""
         # When multiple list inputs are connected, they're concatenated
         # For now, this is a simple pass-through
-        logging.info(f"Merged image list contains {len(images)} images")
+        logging.info("Merged image list contains %s images", len(images))
         return images
 
 
@@ -1121,7 +1121,7 @@ class MergeTextListsNode(TextProcessingNode):
         """Simply return the texts list (already merged by input handling)."""
         # When multiple list inputs are connected, they're concatenated
         # For now, this is a simple pass-through
-        logging.info(f"Merged text list contains {len(texts)} texts")
+        logging.info("Merged text list contains %s texts", len(texts))
         return texts
 
 
@@ -1217,7 +1217,7 @@ class ResolutionBucket(io.ComfyNode):
                 f"Resolution bucket ({h}x{w}): {len(bucket_data['latents'])} samples"
             )
 
-        logging.info(f"Created {len(buckets)} resolution buckets from {len(flat_latents)} samples")
+        logging.info("Created %s resolution buckets from %s samples", len(buckets), len(flat_latents))
         return io.NodeOutput(output_latents, output_conditions)
 
 
@@ -1283,7 +1283,7 @@ class MakeTrainingDataset(io.ComfyNode):
             )
 
         # Encode images with VAE
-        logging.info(f"Encoding {num_images} images with VAE...")
+        logging.info("Encoding %s images with VAE...", num_images)
         latents_list = []  # list[{"samples": tensor}]
         for img_tensor in images:
             # img_tensor is [1, H, W, 3]
@@ -1291,7 +1291,7 @@ class MakeTrainingDataset(io.ComfyNode):
             latents_list.append({"samples": latent_tensor})
 
         # Encode texts with CLIP
-        logging.info(f"Encoding {len(texts)} texts with CLIP...")
+        logging.info("Encoding %s texts with CLIP...", len(texts))
         conditioning_list = []  # list[list[cond]]
         for text in texts:
             if text == "":
@@ -1404,7 +1404,7 @@ class SaveTrainingDataset(io.ComfyNode):
         with open(metadata_path, "w") as f:
             json.dump(metadata, f, indent=2)
 
-        logging.info(f"Successfully saved {num_samples} samples to {output_dir}.")
+        logging.info("Successfully saved %s samples to %s.", num_samples, output_dir)
         return io.NodeOutput()
 
 
@@ -1459,7 +1459,7 @@ class LoadTrainingDataset(io.ComfyNode):
         if not shard_files:
             raise ValueError(f"No shard files found in {dataset_dir}")
 
-        logging.info(f"Loading {len(shard_files)} shards from {dataset_dir}...")
+        logging.info("Loading %s shards from %s...", len(shard_files), dataset_dir)
 
         # Load all shards
         all_latents = []  # list[{"samples": tensor}]
@@ -1474,7 +1474,7 @@ class LoadTrainingDataset(io.ComfyNode):
             all_latents.extend(shard_data["latents"])
             all_conditioning.extend(shard_data["conditioning"])
 
-            logging.info(f"Loaded {shard_file}: {len(shard_data['latents'])} samples")
+            logging.info("Loaded %s: %s samples", shard_file, len(shard_data['latents']))
 
         logging.info(
             f"Successfully loaded {len(all_latents)} samples from {dataset_dir}."

@@ -405,11 +405,11 @@ def match_audio_sample_rates(waveform_1, sample_rate_1, waveform_2, sample_rate_
         if sample_rate_1 > sample_rate_2:
             waveform_2 = torchaudio.functional.resample(waveform_2, sample_rate_2, sample_rate_1)
             output_sample_rate = sample_rate_1
-            logging.info(f"Resampling audio2 from {sample_rate_2}Hz to {sample_rate_1}Hz for merging.")
+            logging.info("Resampling audio2 from %sHz to %sHz for merging.", sample_rate_2, sample_rate_1)
         else:
             waveform_1 = torchaudio.functional.resample(waveform_1, sample_rate_1, sample_rate_2)
             output_sample_rate = sample_rate_2
-            logging.info(f"Resampling audio1 from {sample_rate_1}Hz to {sample_rate_2}Hz for merging.")
+            logging.info("Resampling audio1 from %sHz to %sHz for merging.", sample_rate_1, sample_rate_2)
     else:
         output_sample_rate = sample_rate_1
     return waveform_1, waveform_2, output_sample_rate
@@ -495,10 +495,10 @@ class AudioMerge(IO.ComfyNode):
         length_2 = waveform_2.shape[-1]
 
         if length_2 > length_1:
-            logging.info(f"AudioMerge: Trimming audio2 from {length_2} to {length_1} samples to match audio1 length.")
+            logging.info("AudioMerge: Trimming audio2 from %s to %s samples to match audio1 length.", length_2, length_1)
             waveform_2 = waveform_2[..., :length_1]
         elif length_2 < length_1:
-            logging.info(f"AudioMerge: Padding audio2 from {length_2} to {length_1} samples to match audio1 length.")
+            logging.info("AudioMerge: Padding audio2 from %s to %s samples to match audio1 length.", length_2, length_1)
             pad_shape = list(waveform_2.shape)
             pad_shape[-1] = length_1 - length_2
             pad_tensor = torch.zeros(pad_shape, dtype=waveform_2.dtype, device=waveform_2.device)

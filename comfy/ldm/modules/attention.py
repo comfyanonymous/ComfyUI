@@ -10,7 +10,7 @@ import logging
 import functools
 
 from .diffusionmodules.util import AlphaBlender, timestep_embedding
-from .sub_quadratic_attention import efficient_dot_product_attention
+from comfy.ldm.modules.sub_quadratic_attention import efficient_dot_product_attention
 
 from comfy import model_management
 
@@ -25,7 +25,11 @@ try:
 except ImportError as e:
     if model_management.sage_attention_enabled():
         if e.name == "sageattention":
-            logging.error(f"\n\nTo use the `--use-sage-attention` feature, the `sageattention` package must be installed first.\ncommand:\n\t{sys.executable} -m pip install sageattention")
+            logging.error("""
+
+To use the `--use-sage-attention` feature, the `sageattention` package must be installed first.
+command:
+	%s -m pip install sageattention""", sys.executable)
         else:
             raise e
         exit(-1)
@@ -43,7 +47,11 @@ try:
     FLASH_ATTENTION_IS_AVAILABLE = True
 except ImportError:
     if model_management.flash_attention_enabled():
-        logging.error(f"\n\nTo use the `--use-flash-attention` feature, the `flash-attn` package must be installed first.\ncommand:\n\t{sys.executable} -m pip install flash-attn")
+        logging.error("""
+
+To use the `--use-flash-attention` feature, the `flash-attn` package must be installed first.
+command:
+	%s -m pip install flash-attn""", sys.executable)
         exit(-1)
 
 REGISTERED_ATTENTION_FUNCTIONS = {}
@@ -52,7 +60,7 @@ def register_attention_function(name: str, func: Callable):
     if name not in REGISTERED_ATTENTION_FUNCTIONS:
         REGISTERED_ATTENTION_FUNCTIONS[name] = func
     else:
-        logging.warning(f"Attention function {name} already registered, skipping registration.")
+        logging.warning("Attention function %s already registered, skipping registration.", name)
 
 def get_attention_function(name: str, default: Any=...) -> Union[Callable, None]:
     if name == "optimized":
@@ -707,7 +715,7 @@ def attention_flash(q, k, v, heads, mask=None, attn_precision=None, skip_reshape
             causal=False,
         ).transpose(1, 2)
     except Exception as e:
-        logging.warning(f"Flash Attention failed, using default SDPA: {e}")
+        logging.warning("Flash Attention failed, using default SDPA: %s", e)
         out = torch.nn.functional.scaled_dot_product_attention(q, k, v, attn_mask=mask, dropout_p=0.0, is_causal=False)
     if not skip_output_reshape:
         out = (

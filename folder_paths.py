@@ -314,7 +314,7 @@ def recursive_search(directory: str, excluded_dir_names: list[str] | None=None) 
     try:
         dirs[directory] = os.path.getmtime(directory)
     except FileNotFoundError:
-        logging.warning(f"Warning: Unable to access {directory}. Skipping this path.")
+        logging.warning("Warning: Unable to access %s. Skipping this path.", directory)
 
     logging.debug("recursive file list on directory {}".format(directory))
     dirpath: str
@@ -328,7 +328,7 @@ def recursive_search(directory: str, excluded_dir_names: list[str] | None=None) 
                 relative_path = os.path.relpath(os.path.join(dirpath, file_name), directory)
                 result.append(relative_path)
             except:
-                logging.warning(f"Warning: Unable to access {file_name}. Skipping this file.")
+                logging.warning("Warning: Unable to access %s. Skipping this file.", file_name)
                 continue
 
         for d in subdirs:
@@ -336,7 +336,7 @@ def recursive_search(directory: str, excluded_dir_names: list[str] | None=None) 
             try:
                 dirs[path] = os.path.getmtime(path)
             except FileNotFoundError:
-                logging.warning(f"Warning: Unable to access {path}. Skipping this path.")
+                logging.warning("Warning: Unable to access %s. Skipping this path.", path)
                 continue
     logging.debug("found {} files".format(len(result)))
     return result, dirs

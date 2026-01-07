@@ -234,7 +234,7 @@ class PromptServer():
             if args.front_end_root is None
             else args.front_end_root
         )
-        logging.info(f"[Prompt Server] web root: {self.web_root}")
+        logging.info("[Prompt Server] web root: %s", self.web_root)
         routes = web.RouteTableDef()
         self.routes = routes
         self.last_node_id = None
@@ -296,7 +296,7 @@ class PromptServer():
                                 f"Invalid JSON received from client {sid}: {msg.data}"
                             )
                         except Exception as e:
-                            logging.error(f"Error processing WebSocket message: {e}")
+                            logging.error("Error processing WebSocket message: %s", e)
             finally:
                 self.sockets.pop(sid, None)
                 self.sockets_metadata.pop(sid, None)
@@ -689,7 +689,7 @@ class PromptServer():
                     try:
                         out[x] = node_info(x)
                     except Exception:
-                        logging.error(f"[ERROR] An error occurred while retrieving information for the '{x}' node.")
+                        logging.error("[ERROR] An error occurred while retrieving information for the '%s' node.", x)
                         logging.error(traceback.format_exc())
                 return web.json_response(out)
 
@@ -935,14 +935,14 @@ class PromptServer():
                 for item in currently_running:
                     # item structure: (number, prompt_id, prompt, extra_data, outputs_to_execute)
                     if item[1] == prompt_id:
-                        logging.info(f"Interrupting prompt {prompt_id}")
+                        logging.info("Interrupting prompt %s", prompt_id)
                         should_interrupt = True
                         break
 
                 if should_interrupt:
                     nodes.interrupt_processing()
                 else:
-                    logging.info(f"Prompt {prompt_id} is not currently running, skipping interrupt")
+                    logging.info("Prompt %s is not currently running, skipping interrupt", prompt_id)
             else:
                 # No prompt_id provided, do a global interrupt
                 logging.info("Global interrupt (no prompt_id specified)")

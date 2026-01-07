@@ -31,7 +31,7 @@ def generate_stubs_for_module(module_name: str) -> None:
             if api_class:
                 # Generate the stub file
                 AsyncToSyncConverter.generate_stub_file(api_class, sync_class)
-                logging.info(f"Generated stub file for {module_name}")
+                logging.info("Generated stub file for %s", module_name)
             else:
                 logging.warning(
                     f"Module {module_name} has ComfyAPISync but no ComfyAPI"
@@ -46,14 +46,14 @@ def generate_stubs_for_module(module_name: str) -> None:
 
             # Generate the stub file
             AsyncToSyncConverter.generate_stub_file(api_class, sync_class)
-            logging.info(f"Generated stub file for {module_name}")
+            logging.info("Generated stub file for %s", module_name)
         else:
             logging.warning(
                 f"Module {module_name} does not export ComfyAPI or ComfyAPISync"
             )
 
     except Exception as e:
-        logging.error(f"Failed to generate stub for {module_name}: {e}")
+        logging.error("Failed to generate stub for %s: %s", module_name, e)
         import traceback
 
         traceback.print_exc()
@@ -73,7 +73,7 @@ def main():
         if module_name not in api_modules:
             api_modules.append(module_name)
 
-    logging.info(f"Found {len(api_modules)} API modules: {api_modules}")
+    logging.info("Found %s API modules: %s", len(api_modules), api_modules)
 
     # Generate stubs for each module
     for module_name in api_modules:

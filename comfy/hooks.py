@@ -666,7 +666,7 @@ def load_hook_lora_for_models(model: ModelPatcher, clip: CLIP, lora: dict[str, t
     k1 = set(k1)
     for x in loaded:
         if (x not in k) and (x not in k1):
-            logging.warning(f"NOT LOADED {x}")
+            logging.warning("NOT LOADED %s", x)
     return (new_modelpatcher, new_clip, hook_group)
 
 def _combine_hooks_from_values(c_dict: dict[str, HookGroup], values: dict[str, HookGroup], cache: dict[tuple[HookGroup, HookGroup], HookGroup]):

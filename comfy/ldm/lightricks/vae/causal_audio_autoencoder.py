@@ -401,9 +401,9 @@ def make_attn(in_channels, attn_type="vanilla", norm_type="group"):
     attn_type = AttentionType.str_to_enum(attn_type)
 
     if attn_type != AttentionType.NONE:
-        logging.info(f"making attention of type '{attn_type.value}' with {in_channels} in_channels")
+        logging.info("making attention of type '%s' with %s in_channels", attn_type.value, in_channels)
     else:
-        logging.info(f"making identity attention with {in_channels} in_channels")
+        logging.info("making identity attention with %s in_channels", in_channels)
 
     match attn_type:
         case AttentionType.VANILLA:

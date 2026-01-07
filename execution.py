@@ -595,7 +595,7 @@ async def execute(server, dynprompt, caches, current_item, extra_data, executed,
             for name, inputs in input_data_all.items():
                 input_data_formatted[name] = [format_value(x) for x in inputs]
 
-        logging.error(f"!!! Exception during processing !!! {ex}")
+        logging.error("!!! Exception during processing !!! %s", ex)
         logging.error(traceback.format_exc())
         tips = ""
 
@@ -1061,11 +1061,11 @@ async def validate_prompt(prompt_id, prompt, partial_execution_list: Union[list[
         if valid is True:
             good_outputs.add(o)
         else:
-            logging.error(f"Failed to validate prompt for output {o}:")
+            logging.error("Failed to validate prompt for output %s:", o)
             if len(reasons) > 0:
                 logging.error("* (prompt):")
                 for reason in reasons:
-                    logging.error(f"  - {reason['message']}: {reason['details']}")
+                    logging.error("  - %s: %s", reason['message'], reason['details'])
             errors += [(o, reasons)]
             for node_id, result in validated.items():
                 valid = result[0]
@@ -1081,9 +1081,9 @@ async def validate_prompt(prompt_id, prompt, partial_execution_list: Union[list[
                             "dependent_outputs": [],
                             "class_type": class_type
                         }
-                        logging.error(f"* {class_type} {node_id}:")
+                        logging.error("* %s %s:", class_type, node_id)
                         for reason in reasons:
-                            logging.error(f"  - {reason['message']}: {reason['details']}")
+                            logging.error("  - %s: %s", reason['message'], reason['details'])
                     node_errors[node_id]["dependent_outputs"].append(o)
             logging.error("Output will be ignored")
 

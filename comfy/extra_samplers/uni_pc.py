@@ -475,7 +475,7 @@ class UniPC:
             return self.multistep_uni_pc_vary_update(x, model_prev_list, t_prev_list, t, order, **kwargs)
 
     def multistep_uni_pc_vary_update(self, x, model_prev_list, t_prev_list, t, order, use_corrector=True):
-        logging.info(f'using unified predictor-corrector with order {order} (solver type: vary coeff)')
+        logging.info("using unified predictor-corrector with order %s (solver type: vary coeff)", order)
         ns = self.noise_schedule
         assert order <= len(model_prev_list)
 

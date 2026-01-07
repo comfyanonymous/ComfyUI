@@ -216,7 +216,7 @@ class GeneralDIT(nn.Module):
         else:
             raise ValueError(f"Unknown pos_emb_cls {self.pos_emb_cls}")
 
-        logging.debug(f"Building positional embedding with {self.pos_emb_cls} class, impl {cls_type}")
+        logging.debug("Building positional embedding with %s class, impl %s", self.pos_emb_cls, cls_type)
         kwargs = dict(
             model_channels=self.model_channels,
             len_h=self.max_img_h // self.patch_spatial,

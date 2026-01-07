@@ -390,7 +390,7 @@ def find_all_highest_child_module_with_forward(
         model, (torch.nn.ModuleList, torch.nn.Sequential, torch.nn.ModuleDict)
     ):
         result.append(model)
-        logging.debug(f"Found module with forward: {name} ({model.__class__.__name__})")
+        logging.debug("Found module with forward: %s (%s)", name, model.__class__.__name__)
         return result
     name = name or "root"
     for next_name, child in model.named_children():
@@ -498,9 +498,9 @@ def _prepare_latents_and_count(latents, dtype, bucket_mode):
         num_images = sum(t.shape[0] for t in latents)
         multi_res = False  # Not using multi_res path in bucket mode
 
-        logging.info(f"Bucket mode: {num_buckets} buckets, {num_images} total samples")
+        logging.info("Bucket mode: %s buckets, %s total samples", num_buckets, num_images)
         for i, lat in enumerate(latents):
-            logging.info(f"  Bucket {i}: shape {lat.shape}")
+            logging.info("  Bucket %s: shape %s", i, lat.shape)
         return latents, num_images, multi_res
 
     # Non-bucket mode
@@ -509,7 +509,7 @@ def _prepare_latents_and_count(latents, dtype, bucket_mode):
         latents = [t.to(dtype) for t in latents]
         for latent in latents:
             all_shapes.add(latent.shape)
-        logging.info(f"Latent shapes: {all_shapes}")
+        logging.info("Latent shapes: %s", all_shapes)
         if len(all_shapes) > 1:
             multi_res = True
         else:
@@ -521,7 +521,7 @@ def _prepare_latents_and_count(latents, dtype, bucket_mode):
         num_images = latents.shape[0]
         multi_res = False
     else:
-        logging.error(f"Invalid latents type: {type(latents)}")
+        logging.error("Invalid latents type: %s", type(latents))
         num_images = 0
         multi_res = False
 
@@ -545,7 +545,7 @@ def _validate_and_expand_conditioning(positive, num_images, bucket_mode):
     if bucket_mode:
         return positive  # Skip validation in bucket mode
 
-    logging.info(f"Total Images: {num_images}, Total Captions: {len(positive)}")
+    logging.info("Total Images: %s, Total Captions: %s", num_images, len(positive))
     if len(positive) == 1 and num_images > 1:
         return positive * num_images
     elif len(positive) != num_images:

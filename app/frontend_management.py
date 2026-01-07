@@ -53,7 +53,7 @@ def get_required_frontend_version():
                 if line.startswith("comfyui-frontend-package=="):
                     version_str = line.split("==")[-1]
                     if not is_valid_version(version_str):
-                        logging.error(f"Invalid version format in requirements.txt: {version_str}")
+                        logging.error("Invalid version format in requirements.txt: %s", version_str)
                         return None
                     return version_str
             logging.error("comfyui-frontend-package not found in requirements.txt")
@@ -62,7 +62,7 @@ def get_required_frontend_version():
         logging.error("requirements.txt not found. Cannot determine required frontend version.")
         return None
     except Exception as e:
-        logging.error(f"Error reading requirements.txt: {e}")
+        logging.error("Error reading requirements.txt: %s", e)
         return None
 
 
@@ -89,7 +89,7 @@ ________________________________________________________________________
         else:
             logging.info("ComfyUI frontend version: {}".format(frontend_version_str))
     except Exception as e:
-        logging.error(f"Failed to check frontend version: {e}")
+        logging.error("Failed to check frontend version: %s", e)
 
 
 REQUEST_TIMEOUT = 10  # seconds
@@ -225,7 +225,7 @@ class FrontendManager:
                     if line.startswith("comfyui-workflow-templates=="):
                         version_str = line.split("==")[-1]
                         if not is_valid_version(version_str):
-                            logging.error(f"Invalid templates version format in requirements.txt: {version_str}")
+                            logging.error("Invalid templates version format in requirements.txt: %s", version_str)
                             return None
                         return version_str
                 logging.error("comfyui-workflow-templates not found in requirements.txt")
@@ -234,7 +234,7 @@ class FrontendManager:
             logging.error("requirements.txt not found. Cannot determine required templates version.")
             return None
         except Exception as e:
-            logging.error(f"Error reading requirements.txt: {e}")
+            logging.error("Error reading requirements.txt: %s", e)
             return None
 
     @classmethod
@@ -282,7 +282,7 @@ comfyui-workflow-templates is not installed.
         try:
             template_entries = list(iter_templates())
         except Exception as exc:
-            logging.error(f"Failed to enumerate workflow templates: {exc}")
+            logging.error("Failed to enumerate workflow templates: %s", exc)
             return None
 
         asset_map: Dict[str, str] = {}
@@ -293,7 +293,7 @@ comfyui-workflow-templates is not installed.
                         entry.template_id, asset.filename
                     )
         except Exception as exc:
-            logging.error(f"Failed to resolve template asset paths: {exc}")
+            logging.error("Failed to resolve template asset paths: %s", exc)
             return None
 
         if not asset_map:

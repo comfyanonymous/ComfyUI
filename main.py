@@ -58,7 +58,12 @@ if __name__ == "__main__":
 
 def handle_comfyui_manager_unavailable():
     if not args.windows_standalone_build:
-        logging.warning(f"\n\nYou appear to be running comfyui-manager from source, this is not recommended. Please install comfyui-manager using the following command:\ncommand:\n\t{sys.executable} -m pip install --pre comfyui_manager\n")
+        logging.warning("""
+
+You appear to be running comfyui-manager from source, this is not recommended. Please install comfyui-manager using the following command:
+command:
+	%s -m pip install --pre comfyui_manager
+""", sys.executable)
     args.enable_manager = False
 
 
@@ -85,7 +90,7 @@ def apply_custom_paths():
     # --output-directory, --input-directory, --user-directory
     if args.output_directory:
         output_dir = os.path.abspath(args.output_directory)
-        logging.info(f"Setting output directory to: {output_dir}")
+        logging.info("Setting output directory to: %s", output_dir)
         folder_paths.set_output_directory(output_dir)
 
     # These are the default folders that checkpoints, clip and vae models will be saved to when using CheckpointSave, etc.. nodes
@@ -98,12 +103,12 @@ def apply_custom_paths():
 
     if args.input_directory:
         input_dir = os.path.abspath(args.input_directory)
-        logging.info(f"Setting input directory to: {input_dir}")
+        logging.info("Setting input directory to: %s", input_dir)
         folder_paths.set_input_directory(input_dir)
 
     if args.user_directory:
         user_dir = os.path.abspath(args.user_directory)
-        logging.info(f"Setting user directory to: {user_dir}")
+        logging.info("Setting user directory to: %s", user_dir)
         folder_paths.set_user_directory(user_dir)
 
 
@@ -119,7 +124,7 @@ def execute_prestartup_script():
             spec.loader.exec_module(module)
             return True
         except Exception as e:
-            logging.error(f"Failed to execute startup-script: {script_path} / {e}")
+            logging.error("Failed to execute startup-script: %s / %s", script_path, e)
         return False
 
     node_paths = folder_paths.get_folder_paths("custom_nodes")
@@ -140,7 +145,7 @@ def execute_prestartup_script():
             script_path = os.path.join(module_path, "prestartup_script.py")
             if os.path.exists(script_path):
                 if args.disable_all_custom_nodes and possible_module not in args.whitelist_custom_nodes:
-                    logging.info(f"Prestartup Skipping {possible_module} due to disable_all_custom_nodes and whitelist_custom_nodes")
+                    logging.info("Prestartup Skipping %s due to disable_all_custom_nodes and whitelist_custom_nodes", possible_module)
                     continue
                 time_before = time.perf_counter()
                 success = execute_script(script_path)
@@ -246,7 +251,7 @@ def prompt_worker(q, server_instance):
             # Log Time in a more readable way after 10 minutes
             if execution_time > 600:
                 execution_time = time.strftime("%H:%M:%S", time.gmtime(execution_time))
-                logging.info(f"Prompt executed in {execution_time}")
+                logging.info("Prompt executed in %s", execution_time)
             else:
                 logging.info("Prompt executed in {:.2f} seconds".format(execution_time))
 
@@ -325,7 +330,7 @@ def setup_database():
         if dependencies_available():
             init_db()
     except Exception as e:
-        logging.error(f"Failed to initialize database. Please ensure you have installed the latest requirements. If the error persists, please report this as in future the database will be required: {e}")
+        logging.error("Failed to initialize database. Please ensure you have installed the latest requirements. If the error persists, please report this as in future the database will be required: %s", e)
 
 
 def start_comfyui(asyncio_loop=None):
@@ -335,7 +340,7 @@ def start_comfyui(asyncio_loop=None):
     """
     if args.temp_directory:
         temp_dir = os.path.join(os.path.abspath(args.temp_directory), "temp")
-        logging.info(f"Setting temp directory to: {temp_dir}")
+        logging.info("Setting temp directory to: %s", temp_dir)
         folder_paths.set_temp_directory(temp_dir)
     cleanup_temp()
 

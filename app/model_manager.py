@@ -144,7 +144,7 @@ class ModelFileManager:
                     result.append(file_info)
 
                 except Exception as e:
-                    logging.warning(f"Warning: Unable to access {file_name}. Error: {e}. Skipping this file.")
+                    logging.warning("Warning: Unable to access %s. Error: %s. Skipping this file.", file_name, e)
                     continue
 
             for d in subdirs:
@@ -152,7 +152,7 @@ class ModelFileManager:
                 try:
                     dirs[path] = os.path.getmtime(path)
                 except FileNotFoundError:
-                    logging.warning(f"Warning: Unable to access {path}. Skipping this path.")
+                    logging.warning("Warning: Unable to access %s. Skipping this path.", path)
                     continue
 
         return result, dirs, time.perf_counter()

@@ -66,7 +66,7 @@ def mean_flat(tensor):
 def count_params(model, verbose=False):
     total_params = sum(p.numel() for p in model.parameters())
     if verbose:
-        logging.info(f"{model.__class__.__name__} has {total_params*1.e-6:.2f} M params.")
+        logging.info("%s has %.2f M params.", model.__class__.__name__, total_params * 1e-06)
     return total_params
 
 

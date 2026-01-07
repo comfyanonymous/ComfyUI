@@ -241,7 +241,7 @@ class UserManager():
             try:
                 requested_rel_path = parse.unquote(requested_rel_path)
             except Exception as e:
-                logging.warning(f"Failed to decode path parameter: {requested_rel_path}, Error: {e}")
+                logging.warning("Failed to decode path parameter: %s, Error: %s", requested_rel_path, e)
                 return web.Response(status=400, text="Invalid characters in path parameter")
 
 
@@ -256,7 +256,7 @@ class UserManager():
 
             except KeyError as e:
                  # Invalid user detected by get_request_user_id inside get_request_user_filepath
-                 logging.warning(f"Access denied for user: {e}")
+                 logging.warning("Access denied for user: %s", e)
                  return web.Response(status=403, text="Invalid user specified in request")
 
 
@@ -304,11 +304,11 @@ class UserManager():
                             entry_info["size"] = stats.st_size
                             entry_info["modified"] = stats.st_mtime
                         except OSError as stat_error:
-                            logging.warning(f"Could not stat file {file_path}: {stat_error}")
+                            logging.warning("Could not stat file %s: %s", file_path, stat_error)
                             pass # Include file with available info
                         results.append(entry_info)
             except OSError as e:
-                logging.error(f"Error listing directory {target_abs_path}: {e}")
+                logging.error("Error listing directory %s: %s", target_abs_path, e)
                 return web.Response(status=500, text="Error reading directory contents")
 
             # Sort results alphabetically, directories first then files
@@ -380,7 +380,7 @@ class UserManager():
                 with open(path, "wb") as f:
                     f.write(body)
             except OSError as e:
-                logging.warning(f"Error saving file '{path}': {e}")
+                logging.warning("Error saving file '%s': %s", path, e)
                 return web.Response(
                     status=400,
                     reason="Invalid filename. Please avoid special characters like :\\/*?\"<>|"
@@ -444,7 +444,7 @@ class UserManager():
             if not overwrite and os.path.exists(dest):
                 return web.Response(status=409, text="File already exists")
 
-            logging.info(f"moving '{source}' -> '{dest}'")
+            logging.info("moving '%s' -> '%s'", source, dest)
             shutil.move(source, dest)
 
             user_path = self.get_request_user_filepath(request, None)

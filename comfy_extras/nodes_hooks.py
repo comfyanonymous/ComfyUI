@@ -540,7 +540,7 @@ class CreateHookKeyframesInterpolated:
                 is_first = False
             prev_hook_kf.add(comfy.hooks.HookKeyframe(strength=strength, start_percent=percent, guarantee_steps=guarantee_steps))
             if print_keyframes:
-                logging.info(f"Hook Keyframe - start_percent:{percent} = {strength}")
+                logging.info("Hook Keyframe - start_percent:%s = %s", percent, strength)
         return (prev_hook_kf,)
 
 class CreateHookKeyframesFromFloats:
@@ -589,7 +589,7 @@ class CreateHookKeyframesFromFloats:
                 is_first = False
             prev_hook_kf.add(comfy.hooks.HookKeyframe(strength=strength, start_percent=percent, guarantee_steps=guarantee_steps))
             if print_keyframes:
-                logging.info(f"Hook Keyframe - start_percent:{percent} = {strength}")
+                logging.info("Hook Keyframe - start_percent:%s = %s", percent, strength)
         return (prev_hook_kf,)
 #------------------------------------------
 ###########################################

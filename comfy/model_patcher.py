@@ -1256,7 +1256,7 @@ class ModelPatcher:
                     model_sd_keys_set = set(model_sd_keys)
                     for key in cached_weights:
                         if key not in model_sd_keys:
-                            logging.warning(f"Cached hook could not patch. Key does not exist in model: {key}")
+                            logging.warning("Cached hook could not patch. Key does not exist in model: %s", key)
                             continue
                         self.patch_cached_hook_weights(cached_weights=cached_weights, key=key, memory_counter=memory_counter)
                         model_sd_keys_set.remove(key)
@@ -1269,7 +1269,7 @@ class ModelPatcher:
                         original_weights = self.get_key_patches()
                     for key in relevant_patches:
                         if key not in model_sd_keys:
-                            logging.warning(f"Cached hook would not patch. Key does not exist in model: {key}")
+                            logging.warning("Cached hook would not patch. Key does not exist in model: %s", key)
                             continue
                         self.patch_hook_weight_to_device(hooks=hooks, combined_patches=relevant_patches, key=key, original_weights=original_weights,
                                                             memory_counter=memory_counter)
