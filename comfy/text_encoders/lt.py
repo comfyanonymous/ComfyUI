@@ -36,10 +36,10 @@ class LTXAVGemmaTokenizer(sd1_clip.SD1Tokenizer):
 
 class Gemma3_12BModel(sd1_clip.SDClipModel):
     def __init__(self, device="cpu", layer="all", layer_idx=None, dtype=None, attention_mask=True, model_options={}):
-        llama_scaled_fp8 = model_options.get("gemma_scaled_fp8", None)
-        if llama_scaled_fp8 is not None:
+        llama_quantization_metadata = model_options.get("llama_quantization_metadata", None)
+        if llama_quantization_metadata is not None:
             model_options = model_options.copy()
-            model_options["scaled_fp8"] = llama_scaled_fp8
+            model_options["quantization_metadata"] = llama_quantization_metadata
 
         super().__init__(device=device, layer=layer, layer_idx=layer_idx, textmodel_json_config={}, dtype=dtype, special_tokens={"start": 2, "pad": 0}, layer_norm_hidden_state=False, model_class=comfy.text_encoders.llama.Gemma3_12B, enable_attention_masks=attention_mask, return_attention_masks=attention_mask, model_options=model_options)
 
@@ -119,12 +119,12 @@ class LTXAVTEModel(torch.nn.Module):
             return self.load_state_dict(sdo, strict=False)
 
 
-def ltxav_te(dtype_llama=None, llama_scaled_fp8=None):
+def ltxav_te(dtype_llama=None, llama_quantization_metadata=None):
     class LTXAVTEModel_(LTXAVTEModel):
         def __init__(self, device="cpu", dtype=None, model_options={}):
-            if llama_scaled_fp8 is not None and "llama_scaled_fp8" not in model_options:
+            if llama_quantization_metadata is not None:
                 model_options = model_options.copy()
-                model_options["llama_scaled_fp8"] = llama_scaled_fp8
+                model_options["llama_quantization_metadata"] = llama_quantization_metadata
             if dtype_llama is not None:
                 dtype = dtype_llama
             super().__init__(dtype_llama=dtype_llama, device=device, dtype=dtype, model_options=model_options)
