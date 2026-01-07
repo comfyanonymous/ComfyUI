@@ -48,15 +48,44 @@ def timestep_embedding(t: Tensor, dim, max_period=10000, time_factor: float = 10
     return embedding
 
 class MLPEmbedder(nn.Module):
-    def __init__(self, in_dim: int, hidden_dim: int, dtype=None, device=None, operations=None):
+    def __init__(self, in_dim: int, hidden_dim: int, bias=True, dtype=None, device=None, operations=None):
         super().__init__()
-        self.in_layer = operations.Linear(in_dim, hidden_dim, bias=True, dtype=dtype, device=device)
+        self.in_layer = operations.Linear(in_dim, hidden_dim, bias=bias, dtype=dtype, device=device)
         self.silu = nn.SiLU()
-        self.out_layer = operations.Linear(hidden_dim, hidden_dim, bias=True, dtype=dtype, device=device)
+        self.out_layer = operations.Linear(hidden_dim, hidden_dim, bias=bias, dtype=dtype, device=device)
 
     def forward(self, x: Tensor) -> Tensor:
         return self.out_layer(self.silu(self.in_layer(x)))
 
+class YakMLP(nn.Module):
+    def __init__(self, hidden_size: int, intermediate_size: int, dtype=None, device=None, operations=None):
+        super().__init__()
+        self.hidden_size = hidden_size
+        self.intermediate_size = intermediate_size
+        self.gate_proj = operations.Linear(self.hidden_size, self.intermediate_size, bias=True, dtype=dtype, device=device)
+        self.up_proj = operations.Linear(self.hidden_size, self.intermediate_size, bias=True, dtype=dtype, device=device)
+        self.down_proj = operations.Linear(self.intermediate_size, self.hidden_size, bias=True, dtype=dtype, device=device)
+        self.act_fn = nn.SiLU()
+
+    def forward(self, x: Tensor) -> Tensor:
+        down_proj = self.down_proj(self.act_fn(self.gate_proj(x)) * self.up_proj(x))
+        return down_proj
+
+def build_mlp(hidden_size, mlp_hidden_dim, mlp_silu_act=False, yak_mlp=False, dtype=None, device=None, operations=None):
+    if yak_mlp:
+        return YakMLP(hidden_size, mlp_hidden_dim, dtype=dtype, device=device, operations=operations)
+    if mlp_silu_act:
+        return nn.Sequential(
+            operations.Linear(hidden_size, mlp_hidden_dim * 2, bias=False, dtype=dtype, device=device),
+            SiLUActivation(),
+            operations.Linear(mlp_hidden_dim, hidden_size, bias=False, dtype=dtype, device=device),
+        )
+    else:
+        return nn.Sequential(
+            operations.Linear(hidden_size, mlp_hidden_dim, bias=True, dtype=dtype, device=device),
+            nn.GELU(approximate="tanh"),
+            operations.Linear(mlp_hidden_dim, hidden_size, bias=True, dtype=dtype, device=device),
+        )
 
 class RMSNorm(torch.nn.Module):
     def __init__(self, dim: int, dtype=None, device=None, operations=None):
@@ -80,14 +109,14 @@ class QKNorm(torch.nn.Module):
 
 
 class SelfAttention(nn.Module):
-    def __init__(self, dim: int, num_heads: int = 8, qkv_bias: bool = False, dtype=None, device=None, operations=None):
+    def __init__(self, dim: int, num_heads: int = 8, qkv_bias: bool = False, proj_bias: bool = True, dtype=None, device=None, operations=None):
         super().__init__()
         self.num_heads = num_heads
         head_dim = dim // num_heads
 
         self.qkv = operations.Linear(dim, dim * 3, bias=qkv_bias, dtype=dtype, device=device)
         self.norm = QKNorm(head_dim, dtype=dtype, device=device, operations=operations)
-        self.proj = operations.Linear(dim, dim, dtype=dtype, device=device)
+        self.proj = operations.Linear(dim, dim, bias=proj_bias, dtype=dtype, device=device)
 
 
 @dataclass
@@ -98,11 +127,11 @@ class ModulationOut:
 
 
 class Modulation(nn.Module):
-    def __init__(self, dim: int, double: bool, dtype=None, device=None, operations=None):
+    def __init__(self, dim: int, double: bool, bias=True, dtype=None, device=None, operations=None):
         super().__init__()
         self.is_double = double
         self.multiplier = 6 if double else 3
-        self.lin = operations.Linear(dim, self.multiplier * dim, bias=True, dtype=dtype, device=device)
+        self.lin = operations.Linear(dim, self.multiplier * dim, bias=bias, dtype=dtype, device=device)
 
     def forward(self, vec: Tensor) -> tuple:
         if vec.ndim == 2:
@@ -129,8 +158,18 @@ def apply_mod(tensor, m_mult, m_add=None, modulation_dims=None):
         return tensor
 
 
+class SiLUActivation(nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.gate_fn = nn.SiLU()
+
+    def forward(self, x: Tensor) -> Tensor:
+        x1, x2 = x.chunk(2, dim=-1)
+        return self.gate_fn(x1) * x2
+
+
 class DoubleStreamBlock(nn.Module):
-    def __init__(self, hidden_size: int, num_heads: int, mlp_ratio: float, qkv_bias: bool = False, flipped_img_txt=False, modulation=True, dtype=None, device=None, operations=None):
+    def __init__(self, hidden_size: int, num_heads: int, mlp_ratio: float, qkv_bias: bool = False, flipped_img_txt=False, modulation=True, mlp_silu_act=False, proj_bias=True, yak_mlp=False, dtype=None, device=None, operations=None):
         super().__init__()
 
         mlp_hidden_dim = int(hidden_size * mlp_ratio)
@@ -142,27 +181,22 @@ class DoubleStreamBlock(nn.Module):
             self.img_mod = Modulation(hidden_size, double=True, dtype=dtype, device=device, operations=operations)
 
         self.img_norm1 = operations.LayerNorm(hidden_size, elementwise_affine=False, eps=1e-6, dtype=dtype, device=device)
-        self.img_attn = SelfAttention(dim=hidden_size, num_heads=num_heads, qkv_bias=qkv_bias, dtype=dtype, device=device, operations=operations)
+        self.img_attn = SelfAttention(dim=hidden_size, num_heads=num_heads, qkv_bias=qkv_bias, proj_bias=proj_bias, dtype=dtype, device=device, operations=operations)
 
         self.img_norm2 = operations.LayerNorm(hidden_size, elementwise_affine=False, eps=1e-6, dtype=dtype, device=device)
-        self.img_mlp = nn.Sequential(
-            operations.Linear(hidden_size, mlp_hidden_dim, bias=True, dtype=dtype, device=device),
-            nn.GELU(approximate="tanh"),
-            operations.Linear(mlp_hidden_dim, hidden_size, bias=True, dtype=dtype, device=device),
-        )
+
+        self.img_mlp = build_mlp(hidden_size, mlp_hidden_dim, mlp_silu_act=mlp_silu_act, yak_mlp=yak_mlp, dtype=dtype, device=device, operations=operations)
 
         if self.modulation:
             self.txt_mod = Modulation(hidden_size, double=True, dtype=dtype, device=device, operations=operations)
 
         self.txt_norm1 = operations.LayerNorm(hidden_size, elementwise_affine=False, eps=1e-6, dtype=dtype, device=device)
-        self.txt_attn = SelfAttention(dim=hidden_size, num_heads=num_heads, qkv_bias=qkv_bias, dtype=dtype, device=device, operations=operations)
+        self.txt_attn = SelfAttention(dim=hidden_size, num_heads=num_heads, qkv_bias=qkv_bias, proj_bias=proj_bias, dtype=dtype, device=device, operations=operations)
 
         self.txt_norm2 = operations.LayerNorm(hidden_size, elementwise_affine=False, eps=1e-6, dtype=dtype, device=device)
-        self.txt_mlp = nn.Sequential(
-            operations.Linear(hidden_size, mlp_hidden_dim, bias=True, dtype=dtype, device=device),
-            nn.GELU(approximate="tanh"),
-            operations.Linear(mlp_hidden_dim, hidden_size, bias=True, dtype=dtype, device=device),
-        )
+
+        self.txt_mlp = build_mlp(hidden_size, mlp_hidden_dim, mlp_silu_act=mlp_silu_act, yak_mlp=yak_mlp, dtype=dtype, device=device, operations=operations)
+
         self.flipped_img_txt = flipped_img_txt
 
     def forward(self, img: Tensor, txt: Tensor, vec: Tensor, pe: Tensor, attn_mask=None, modulation_dims_img=None, modulation_dims_txt=None, transformer_options={}):
@@ -246,6 +280,9 @@ class SingleStreamBlock(nn.Module):
         mlp_ratio: float = 4.0,
         qk_scale: float = None,
         modulation=True,
+        mlp_silu_act=False,
+        bias=True,
+        yak_mlp=False,
         dtype=None,
         device=None,
         operations=None
@@ -257,17 +294,29 @@ class SingleStreamBlock(nn.Module):
         self.scale = qk_scale or head_dim**-0.5
 
         self.mlp_hidden_dim = int(hidden_size * mlp_ratio)
+
+        self.mlp_hidden_dim_first = self.mlp_hidden_dim
+        self.yak_mlp = yak_mlp
+        if mlp_silu_act:
+            self.mlp_hidden_dim_first = int(hidden_size * mlp_ratio * 2)
+            self.mlp_act = SiLUActivation()
+        else:
+            self.mlp_act = nn.GELU(approximate="tanh")
+
+        if self.yak_mlp:
+            self.mlp_hidden_dim_first *= 2
+            self.mlp_act = nn.SiLU()
+
         # qkv and mlp_in
-        self.linear1 = operations.Linear(hidden_size, hidden_size * 3 + self.mlp_hidden_dim, dtype=dtype, device=device)
+        self.linear1 = operations.Linear(hidden_size, hidden_size * 3 + self.mlp_hidden_dim_first, bias=bias, dtype=dtype, device=device)
         # proj and mlp_out
-        self.linear2 = operations.Linear(hidden_size + self.mlp_hidden_dim, hidden_size, dtype=dtype, device=device)
+        self.linear2 = operations.Linear(hidden_size + self.mlp_hidden_dim, hidden_size, bias=bias, dtype=dtype, device=device)
 
         self.norm = QKNorm(head_dim, dtype=dtype, device=device, operations=operations)
 
         self.hidden_size = hidden_size
         self.pre_norm = operations.LayerNorm(hidden_size, elementwise_affine=False, eps=1e-6, dtype=dtype, device=device)
 
-        self.mlp_act = nn.GELU(approximate="tanh")
         if modulation:
             self.modulation = Modulation(hidden_size, double=False, dtype=dtype, device=device, operations=operations)
         else:
@@ -279,7 +328,7 @@ class SingleStreamBlock(nn.Module):
         else:
             mod = vec
 
-        qkv, mlp = torch.split(self.linear1(apply_mod(self.pre_norm(x), (1 + mod.scale), mod.shift, modulation_dims)), [3 * self.hidden_size, self.mlp_hidden_dim], dim=-1)
+        qkv, mlp = torch.split(self.linear1(apply_mod(self.pre_norm(x), (1 + mod.scale), mod.shift, modulation_dims)), [3 * self.hidden_size, self.mlp_hidden_dim_first], dim=-1)
 
         q, k, v = qkv.view(qkv.shape[0], qkv.shape[1], 3, self.num_heads, -1).permute(2, 0, 3, 1, 4)
         del qkv
@@ -289,7 +338,10 @@ class SingleStreamBlock(nn.Module):
         attn = attention(q, k, v, pe=pe, mask=attn_mask, transformer_options=transformer_options)
         del q, k, v
         # compute activation in mlp stream, cat again and run second linear layer
-        mlp = self.mlp_act(mlp)
+        if self.yak_mlp:
+            mlp = self.mlp_act(mlp[..., self.mlp_hidden_dim_first // 2:]) * mlp[..., :self.mlp_hidden_dim_first // 2]
+        else:
+            mlp = self.mlp_act(mlp)
         output = self.linear2(torch.cat((attn, mlp), 2))
         x += apply_mod(output, mod.gate, None, modulation_dims)
         if x.dtype == torch.float16:
@@ -298,11 +350,11 @@ class SingleStreamBlock(nn.Module):
 
 
 class LastLayer(nn.Module):
-    def __init__(self, hidden_size: int, patch_size: int, out_channels: int, dtype=None, device=None, operations=None):
+    def __init__(self, hidden_size: int, patch_size: int, out_channels: int, bias=True, dtype=None, device=None, operations=None):
         super().__init__()
         self.norm_final = operations.LayerNorm(hidden_size, elementwise_affine=False, eps=1e-6, dtype=dtype, device=device)
-        self.linear = operations.Linear(hidden_size, patch_size * patch_size * out_channels, bias=True, dtype=dtype, device=device)
-        self.adaLN_modulation = nn.Sequential(nn.SiLU(), operations.Linear(hidden_size, 2 * hidden_size, bias=True, dtype=dtype, device=device))
+        self.linear = operations.Linear(hidden_size, patch_size * patch_size * out_channels, bias=bias, dtype=dtype, device=device)
+        self.adaLN_modulation = nn.Sequential(nn.SiLU(), operations.Linear(hidden_size, 2 * hidden_size, bias=bias, dtype=dtype, device=device))
 
     def forward(self, x: Tensor, vec: Tensor, modulation_dims=None) -> Tensor:
         if vec.ndim == 2:

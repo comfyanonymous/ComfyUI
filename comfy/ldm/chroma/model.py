@@ -40,7 +40,8 @@ class ChromaParams:
     out_dim: int
     hidden_dim: int
     n_layers: int
-
+    txt_ids_dims: list
+    vec_in_dim: int
 
 
 
@@ -179,7 +180,10 @@ class Chroma(nn.Module):
         pe = self.pe_embedder(ids)
 
         blocks_replace = patches_replace.get("dit", {})
+        transformer_options["total_blocks"] = len(self.double_blocks)
+        transformer_options["block_type"] = "double"
         for i, block in enumerate(self.double_blocks):
+            transformer_options["block_index"] = i
             if i not in self.skip_mmdit:
                 double_mod = (
                     self.get_modulations(mod_vectors, "double_img", idx=i),
@@ -222,7 +226,10 @@ class Chroma(nn.Module):
 
         img = torch.cat((txt, img), 1)
 
+        transformer_options["total_blocks"] = len(self.single_blocks)
+        transformer_options["block_type"] = "single"
         for i, block in enumerate(self.single_blocks):
+            transformer_options["block_index"] = i
             if i not in self.skip_dit:
                 single_mod = self.get_modulations(mod_vectors, "single", idx=i)
                 if ("single_block", i) in blocks_replace:

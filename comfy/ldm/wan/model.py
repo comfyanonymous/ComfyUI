@@ -568,7 +568,10 @@ class WanModel(torch.nn.Module):
 
         patches_replace = transformer_options.get("patches_replace", {})
         blocks_replace = patches_replace.get("dit", {})
+        transformer_options["total_blocks"] = len(self.blocks)
+        transformer_options["block_type"] = "double"
         for i, block in enumerate(self.blocks):
+            transformer_options["block_index"] = i
             if ("double_block", i) in blocks_replace:
                 def block_wrap(args):
                     out = {}
@@ -763,7 +766,10 @@ class VaceWanModel(WanModel):
 
         patches_replace = transformer_options.get("patches_replace", {})
         blocks_replace = patches_replace.get("dit", {})
+        transformer_options["total_blocks"] = len(self.blocks)
+        transformer_options["block_type"] = "double"
         for i, block in enumerate(self.blocks):
+            transformer_options["block_index"] = i
             if ("double_block", i) in blocks_replace:
                 def block_wrap(args):
                     out = {}
@@ -862,7 +868,10 @@ class CameraWanModel(WanModel):
 
         patches_replace = transformer_options.get("patches_replace", {})
         blocks_replace = patches_replace.get("dit", {})
+        transformer_options["total_blocks"] = len(self.blocks)
+        transformer_options["block_type"] = "double"
         for i, block in enumerate(self.blocks):
+            transformer_options["block_index"] = i
             if ("double_block", i) in blocks_replace:
                 def block_wrap(args):
                     out = {}
@@ -1326,16 +1335,19 @@ class WanModel_S2V(WanModel):
 
         patches_replace = transformer_options.get("patches_replace", {})
         blocks_replace = patches_replace.get("dit", {})
+        transformer_options["total_blocks"] = len(self.blocks)
+        transformer_options["block_type"] = "double"
         for i, block in enumerate(self.blocks):
+            transformer_options["block_index"] = i
             if ("double_block", i) in blocks_replace:
                 def block_wrap(args):
                     out = {}
-                    out["img"] = block(args["img"], context=args["txt"], e=args["vec"], freqs=args["pe"])
+                    out["img"] = block(args["img"], context=args["txt"], e=args["vec"], freqs=args["pe"], transformer_options=args["transformer_options"])
                     return out
-                out = blocks_replace[("double_block", i)]({"img": x, "txt": context, "vec": e0, "pe": freqs}, {"original_block": block_wrap})
+                out = blocks_replace[("double_block", i)]({"img": x, "txt": context, "vec": e0, "pe": freqs, "transformer_options": transformer_options}, {"original_block": block_wrap})
                 x = out["img"]
             else:
-                x = block(x, e=e0, freqs=freqs, context=context)
+                x = block(x, e=e0, freqs=freqs, context=context, transformer_options=transformer_options)
             if audio_emb is not None:
                 x = self.audio_injector(x, i, audio_emb, audio_emb_global, seq_len)
         # head
@@ -1574,7 +1586,10 @@ class HumoWanModel(WanModel):
 
         patches_replace = transformer_options.get("patches_replace", {})
         blocks_replace = patches_replace.get("dit", {})
+        transformer_options["total_blocks"] = len(self.blocks)
+        transformer_options["block_type"] = "double"
         for i, block in enumerate(self.blocks):
+            transformer_options["block_index"] = i
             if ("double_block", i) in blocks_replace:
                 def block_wrap(args):
                     out = {}

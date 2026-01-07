@@ -720,7 +720,7 @@ class Sampler:
         sigma = float(sigmas[0])
         return math.isclose(max_sigma, sigma, rel_tol=1e-05) or sigma > max_sigma
 
-KSAMPLER_NAMES = ["euler", "euler_cfg_pp", "euler_ancestral", "euler_ancestral_cfg_pp", "heun", "heunpp2","dpm_2", "dpm_2_ancestral",
+KSAMPLER_NAMES = ["euler", "euler_cfg_pp", "euler_ancestral", "euler_ancestral_cfg_pp", "heun", "heunpp2", "exp_heun_2_x0", "exp_heun_2_x0_sde", "dpm_2", "dpm_2_ancestral",
                   "lms", "dpm_fast", "dpm_adaptive", "dpmpp_2s_ancestral", "dpmpp_2s_ancestral_cfg_pp", "dpmpp_sde", "dpmpp_sde_gpu",
                   "dpmpp_2m", "dpmpp_2m_cfg_pp", "dpmpp_2m_sde", "dpmpp_2m_sde_gpu", "dpmpp_2m_sde_heun", "dpmpp_2m_sde_heun_gpu", "dpmpp_3m_sde", "dpmpp_3m_sde_gpu", "ddpm", "lcm",
                   "ipndm", "ipndm_v", "deis", "res_multistep", "res_multistep_cfg_pp", "res_multistep_ancestral", "res_multistep_ancestral_cfg_pp",
@@ -984,9 +984,6 @@ class CFGGuider:
         self.inner_model, self.conds, self.loaded_models = comfy.sampler_helpers.prepare_sampling(self.model_patcher, noise.shape, self.conds, self.model_options)
         device = self.model_patcher.load_device
 
-        if denoise_mask is not None:
-            denoise_mask = comfy.sampler_helpers.prepare_mask(denoise_mask, noise.shape, device)
-
         noise = noise.to(device)
         latent_image = latent_image.to(device)
         sigmas = sigmas.to(device)
@@ -1012,6 +1009,24 @@ class CFGGuider:
             noise, _ = comfy.utils.pack_latents(noise.unbind())
         else:
             latent_shapes = [latent_image.shape]
+
+        if denoise_mask is not None:
+            if denoise_mask.is_nested:
+                denoise_masks = denoise_mask.unbind()
+                denoise_masks = denoise_masks[:len(latent_shapes)]
+            else:
+                denoise_masks = [denoise_mask]
+
+            for i in range(len(denoise_masks), len(latent_shapes)):
+                denoise_masks.append(torch.ones(latent_shapes[i]))
+
+            for i in range(len(denoise_masks)):
+                denoise_masks[i] = comfy.sampler_helpers.prepare_mask(denoise_masks[i], latent_shapes[i], self.model_patcher.load_device)
+
+            if len(denoise_masks) > 1:
+                denoise_mask, _ = comfy.utils.pack_latents(denoise_masks)
+            else:
+                denoise_mask = denoise_masks[0]
 
         self.conds = {}
         for k in self.original_conds:

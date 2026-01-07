@@ -7,6 +7,7 @@ import time
 import nodes
 import folder_paths
 import execution
+from comfy_execution.jobs import JobStatus, get_job, get_all_jobs
 import uuid
 import urllib
 import json
@@ -30,7 +31,7 @@ import comfy.model_management
 from comfy_api import feature_flags
 import node_helpers
 from comfyui_version import __version__
-from app.frontend_management import FrontendManager
+from app.frontend_management import FrontendManager, parse_version
 from comfy_api.internal import _ComfyNodeInternal
 
 from app.user_manager import UserManager
@@ -43,6 +44,15 @@ from protocol import BinaryEventTypes
 
 # Import cache control middleware
 from middleware.cache_middleware import cache_control
+
+if args.enable_manager:
+    import comfyui_manager
+
+
+def _remove_sensitive_from_queue(queue: list) -> list:
+    """Remove sensitive data (index 5) from queue item tuples."""
+    return [item[:5] for item in queue]
+
 
 async def send_socket_catch_exception(function, message):
     try:
@@ -95,7 +105,7 @@ def create_cors_middleware(allowed_origin: str):
             response = await handler(request)
 
         response.headers['Access-Control-Allow-Origin'] = allowed_origin
-        response.headers['Access-Control-Allow-Methods'] = 'POST, GET, DELETE, PUT, OPTIONS'
+        response.headers['Access-Control-Allow-Methods'] = 'POST, GET, DELETE, PUT, OPTIONS, PATCH'
         response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization'
         response.headers['Access-Control-Allow-Credentials'] = 'true'
         return response
@@ -164,6 +174,22 @@ def create_origin_only_middleware():
 
     return origin_only_middleware
 
+
+def create_block_external_middleware():
+    @web.middleware
+    async def block_external_middleware(request: web.Request, handler):
+        if request.method == "OPTIONS":
+            # Pre-flight request. Reply successfully:
+            response = web.Response()
+        else:
+            response = await handler(request)
+
+        response.headers['Content-Security-Policy'] = "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; frame-src 'self'; object-src 'self';"
+        return response
+
+    return block_external_middleware
+
+
 class PromptServer():
     def __init__(self, loop):
         PromptServer.instance = self
@@ -192,6 +218,12 @@ class PromptServer():
             middlewares.append(create_cors_middleware(args.enable_cors_header))
         else:
             middlewares.append(create_origin_only_middleware())
+
+        if args.disable_api_nodes:
+            middlewares.append(create_block_external_middleware())
+
+        if args.enable_manager:
+            middlewares.append(comfyui_manager.create_middleware())
 
         max_upload_size = round(args.max_upload_size * 1024 * 1024)
         self.app = web.Application(client_max_size=max_upload_size, middlewares=middlewares)
@@ -292,7 +324,7 @@ class PromptServer():
         @routes.get("/models/{folder}")
         async def get_models(request):
             folder = request.match_info.get("folder", None)
-            if not folder in folder_paths.folder_names_and_paths:
+            if folder not in folder_paths.folder_names_and_paths:
                 return web.Response(status=404)
             files = folder_paths.get_filename_list(folder)
             return web.json_response(files)
@@ -547,7 +579,7 @@ class PromptServer():
             folder_name = request.match_info.get("folder_name", None)
             if folder_name is None:
                 return web.Response(status=404)
-            if not "filename" in request.rel_url.query:
+            if "filename" not in request.rel_url.query:
                 return web.Response(status=404)
 
             filename = request.rel_url.query["filename"]
@@ -561,7 +593,7 @@ class PromptServer():
             if out is None:
                 return web.Response(status=404)
             dt = json.loads(out)
-            if not "__metadata__" in dt:
+            if "__metadata__" not in dt:
                 return web.Response(status=404)
             return web.json_response(dt["__metadata__"])
 
@@ -580,7 +612,7 @@ class PromptServer():
 
             system_stats = {
                 "system": {
-                    "os": os.name,
+                    "os": sys.platform,
                     "ram_total": ram_total,
                     "ram_free": ram_free,
                     "comfyui_version": __version__,
@@ -669,6 +701,129 @@ class PromptServer():
                 out[node_class] = node_info(node_class)
             return web.json_response(out)
 
+        @routes.get("/api/jobs")
+        async def get_jobs(request):
+            """List all jobs with filtering, sorting, and pagination.
+
+            Query parameters:
+                status: Filter by status (comma-separated): pending, in_progress, completed, failed
+                workflow_id: Filter by workflow ID
+                sort_by: Sort field: created_at (default), execution_duration
+                sort_order: Sort direction: asc, desc (default)
+                limit: Max items to return (positive integer)
+                offset: Items to skip (non-negative integer, default 0)
+            """
+            query = request.rel_url.query
+
+            status_param = query.get('status')
+            workflow_id = query.get('workflow_id')
+            sort_by = query.get('sort_by', 'created_at').lower()
+            sort_order = query.get('sort_order', 'desc').lower()
+
+            status_filter = None
+            if status_param:
+                status_filter = [s.strip().lower() for s in status_param.split(',') if s.strip()]
+                invalid_statuses = [s for s in status_filter if s not in JobStatus.ALL]
+                if invalid_statuses:
+                    return web.json_response(
+                        {"error": f"Invalid status value(s): {', '.join(invalid_statuses)}. Valid values: {', '.join(JobStatus.ALL)}"},
+                        status=400
+                    )
+
+            if sort_by not in {'created_at', 'execution_duration'}:
+                return web.json_response(
+                    {"error": "sort_by must be 'created_at' or 'execution_duration'"},
+                    status=400
+                )
+
+            if sort_order not in {'asc', 'desc'}:
+                return web.json_response(
+                    {"error": "sort_order must be 'asc' or 'desc'"},
+                    status=400
+                )
+
+            limit = None
+
+            # If limit is provided, validate that it is a positive integer, else continue without a limit
+            if 'limit' in query:
+                try:
+                    limit = int(query.get('limit'))
+                    if limit <= 0:
+                        return web.json_response(
+                            {"error": "limit must be a positive integer"},
+                            status=400
+                        )
+                except (ValueError, TypeError):
+                    return web.json_response(
+                        {"error": "limit must be an integer"},
+                        status=400
+                    )
+
+            offset = 0
+            if 'offset' in query:
+                try:
+                    offset = int(query.get('offset'))
+                    if offset < 0:
+                        offset = 0
+                except (ValueError, TypeError):
+                    return web.json_response(
+                        {"error": "offset must be an integer"},
+                        status=400
+                    )
+
+            running, queued = self.prompt_queue.get_current_queue_volatile()
+            history = self.prompt_queue.get_history()
+
+            running = _remove_sensitive_from_queue(running)
+            queued = _remove_sensitive_from_queue(queued)
+
+            jobs, total = get_all_jobs(
+                running, queued, history,
+                status_filter=status_filter,
+                workflow_id=workflow_id,
+                sort_by=sort_by,
+                sort_order=sort_order,
+                limit=limit,
+                offset=offset
+            )
+
+            has_more = (offset + len(jobs)) < total
+
+            return web.json_response({
+                'jobs': jobs,
+                'pagination': {
+                    'offset': offset,
+                    'limit': limit,
+                    'total': total,
+                    'has_more': has_more
+                }
+            })
+
+        @routes.get("/api/jobs/{job_id}")
+        async def get_job_by_id(request):
+            """Get a single job by ID."""
+            job_id = request.match_info.get("job_id", None)
+            if not job_id:
+                return web.json_response(
+                    {"error": "job_id is required"},
+                    status=400
+                )
+
+            running, queued = self.prompt_queue.get_current_queue_volatile()
+            history = self.prompt_queue.get_history(prompt_id=job_id)
+
+            running = _remove_sensitive_from_queue(running)
+            queued = _remove_sensitive_from_queue(queued)
+
+            job = get_job(job_id, running, queued, history)
+            if job is None:
+                return web.json_response(
+                    {"error": "Job not found"},
+                    status=404
+                )
+
+            return web.json_response(job)
+
         @routes.get("/history")
         async def get_history(request):
             max_items = request.rel_url.query.get("max_items", None)
@@ -692,9 +847,8 @@ class PromptServer():
         async def get_queue(request):
             queue_info = {}
             current_queue = self.prompt_queue.get_current_queue_volatile()
-            remove_sensitive = lambda queue: [x[:5] for x in queue]
-            queue_info['queue_running'] = remove_sensitive(current_queue[0])
-            queue_info['queue_pending'] = remove_sensitive(current_queue[1])
+            queue_info['queue_running'] = _remove_sensitive_from_queue(current_queue[0])
+            queue_info['queue_pending'] = _remove_sensitive_from_queue(current_queue[1])
             return web.json_response(queue_info)
 
         @routes.post("/prompt")
@@ -849,11 +1003,31 @@ class PromptServer():
         for name, dir in nodes.EXTENSION_WEB_DIRS.items():
             self.app.add_routes([web.static('/extensions/' + name, dir)])
 
-        workflow_templates_path = FrontendManager.templates_path()
-        if workflow_templates_path:
-            self.app.add_routes([
-                web.static('/templates', workflow_templates_path)
-            ])
+        installed_templates_version = FrontendManager.get_installed_templates_version()
+        use_legacy_templates = True
+        if installed_templates_version:
+            try:
+                use_legacy_templates = (
+                    parse_version(installed_templates_version)
+                    < parse_version("0.3.0")
+                )
+            except Exception as exc:
+                logging.warning(
+                    "Unable to parse templates version '%s': %s",
+                    installed_templates_version,
+                    exc,
+                )
+
+        if use_legacy_templates:
+            workflow_templates_path = FrontendManager.legacy_templates_path()
+            if workflow_templates_path:
+                self.app.add_routes([
+                    web.static('/templates', workflow_templates_path)
+                ])
+        else:
+            handler = FrontendManager.template_asset_handler()
+            if handler:
+                self.app.router.add_get("/templates/{path:.*}", handler)
 
         # Serve embedded documentation from the package
         embedded_docs_path = FrontendManager.embedded_docs_path()

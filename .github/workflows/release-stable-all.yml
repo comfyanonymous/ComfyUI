@@ -14,7 +14,7 @@ jobs:
       contents: "write"
       packages: "write"
       pull-requests: "read"
-    name: "Release NVIDIA Default (cu129)"
+    name: "Release NVIDIA Default (cu130)"
     uses: ./.github/workflows/stable-release.yml
     with:
       git_tag: ${{ inputs.git_tag }}
@@ -65,11 +65,11 @@ jobs:
       contents: "write"
       packages: "write"
       pull-requests: "read"
-    name: "Release AMD ROCm 6.4.4"
+    name: "Release AMD ROCm 7.1.1"
     uses: ./.github/workflows/stable-release.yml
     with:
       git_tag: ${{ inputs.git_tag }}
-      cache_tag: "rocm644"
+      cache_tag: "rocm711"
       python_minor: "12"
       python_patch: "10"
       rel_name: "amd"

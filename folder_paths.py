@@ -38,6 +38,8 @@ folder_names_and_paths["gligen"] = ([os.path.join(models_dir, "gligen")], suppor
 
 folder_names_and_paths["upscale_models"] = ([os.path.join(models_dir, "upscale_models")], supported_pt_extensions)
 
+folder_names_and_paths["latent_upscale_models"] = ([os.path.join(models_dir, "latent_upscale_models")], supported_pt_extensions)
+
 folder_names_and_paths["custom_nodes"] = ([os.path.join(base_path, "custom_nodes")], set())
 
 folder_names_and_paths["hypernetworks"] = ([os.path.join(models_dir, "hypernetworks")], supported_pt_extensions)
@@ -133,6 +135,71 @@ def get_user_directory() -> str:
 def set_user_directory(user_dir: str) -> None:
     global user_directory
     user_directory = user_dir
+
+
+# System User Protection - Protects system directories from HTTP endpoint access
+# System Users are internal-only users that cannot be accessed via HTTP endpoints.
+# They use the '__' prefix convention (similar to Python's private member convention).
+SYSTEM_USER_PREFIX = "__"
+
+
+def get_system_user_directory(name: str = "system") -> str:
+    """
+    Get the path to a System User directory.
+
+    System User directories (prefixed with '__') are only accessible via internal API,
+    not through HTTP endpoints. Use this for storing system-internal data that
+    should not be exposed to users.
+
+    Args:
+        name: System user name (e.g., "system", "cache"). Must be alphanumeric
+              with underscores allowed, but cannot start with underscore.
+
+    Returns:
+        Absolute path to the system user directory.
+
+    Raises:
+        ValueError: If name is empty, invalid, or starts with underscore.
+
+    Example:
+        >>> get_system_user_directory("cache")
+        '/path/to/user/__cache'
+    """
+    if not name or not isinstance(name, str):
+        raise ValueError("System user name cannot be empty")
+    if not name.replace("_", "").isalnum():
+        raise ValueError(f"Invalid system user name: '{name}'")
+    if name.startswith("_"):
+        raise ValueError("System user name should not start with underscore")
+    return os.path.join(get_user_directory(), f"{SYSTEM_USER_PREFIX}{name}")
+
+
+def get_public_user_directory(user_id: str) -> str | None:
+    """
+    Get the path to a Public User directory for HTTP endpoint access.
+
+    This function provides structural security by returning None for any
+    System User (prefixed with '__'). All HTTP endpoints should use this
+    function instead of directly constructing user paths.
+
+    Args:
+        user_id: User identifier from HTTP request.
+
+    Returns:
+        Absolute path to the user directory, or None if user_id is invalid
+        or refers to a System User.
+
+    Example:
+        >>> get_public_user_directory("default")
+        '/path/to/user/default'
+        >>> get_public_user_directory("__system")
+        None
+    """
+    if not user_id or not isinstance(user_id, str):
+        return None
+    if user_id.startswith(SYSTEM_USER_PREFIX):
+        return None
+    return os.path.join(get_user_directory(), user_id)
 
 
 #NOTE: used in http server so don't put folders that should not be accessed remotely

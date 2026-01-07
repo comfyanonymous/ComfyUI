@@ -4,7 +4,8 @@ import torch
 import nodes
 from typing_extensions import override
 from comfy_api.latest import ComfyExtension, io
-
+import logging
+import math
 
 def reshape_latent_to(target_shape, latent, repeat_batch=True):
     if latent.shape[1:] != target_shape[1:]:
@@ -207,12 +208,54 @@ class LatentCut(io.ComfyNode):
         samples_out["samples"] = torch.narrow(s1, dim, index, amount)
         return io.NodeOutput(samples_out)
 
+class LatentCutToBatch(io.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return io.Schema(
+            node_id="LatentCutToBatch",
+            category="latent/advanced",
+            inputs=[
+                io.Latent.Input("samples"),
+                io.Combo.Input("dim", options=["t", "x", "y"]),
+                io.Int.Input("slice_size", default=1, min=1, max=nodes.MAX_RESOLUTION, step=1),
+            ],
+            outputs=[
+                io.Latent.Output(),
+            ],
+        )
+
+    @classmethod
+    def execute(cls, samples, dim, slice_size) -> io.NodeOutput:
+        samples_out = samples.copy()
+
+        s1 = samples["samples"]
+
+        if "x" in dim:
+            dim = s1.ndim - 1
+        elif "y" in dim:
+            dim = s1.ndim - 2
+        elif "t" in dim:
+            dim = s1.ndim - 3
+
+        if dim < 2:
+            return io.NodeOutput(samples)
+
+        s = s1.movedim(dim, 1)
+        if s.shape[1] < slice_size:
+            slice_size = s.shape[1]
+        elif s.shape[1] % slice_size != 0:
+            s = s[:, :math.floor(s.shape[1] / slice_size) * slice_size]
+        new_shape = [-1, slice_size] + list(s.shape[2:])
+        samples_out["samples"] = s.reshape(new_shape).movedim(1, dim)
+        return io.NodeOutput(samples_out)
+
 class LatentBatch(io.ComfyNode):
     @classmethod
     def define_schema(cls):
         return io.Schema(
             node_id="LatentBatch",
             category="latent/batch",
+            is_deprecated=True,
             inputs=[
                 io.Latent.Input("samples1"),
                 io.Latent.Input("samples2"),
@@ -388,6 +431,42 @@ class LatentOperationSharpen(io.ComfyNode):
             return luminance * sharpened
         return io.NodeOutput(sharpen)
 
+class ReplaceVideoLatentFrames(io.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return io.Schema(
+            node_id="ReplaceVideoLatentFrames",
+            category="latent/batch",
+            inputs=[
+                io.Latent.Input("destination", tooltip="The destination latent where frames will be replaced."),
+                io.Latent.Input("source", optional=True, tooltip="The source latent providing frames to insert into the destination latent. If not provided, the destination latent is returned unchanged."),
+                io.Int.Input("index", default=0, min=-nodes.MAX_RESOLUTION, max=nodes.MAX_RESOLUTION, step=1, tooltip="The starting latent frame index in the destination latent where the source latent frames will be placed. Negative values count from the end."),
+            ],
+            outputs=[
+                io.Latent.Output(),
+            ],
+        )
+
+    @classmethod
+    def execute(cls, destination, index, source=None) -> io.NodeOutput:
+        if source is None:
+            return io.NodeOutput(destination)
+        dest_frames = destination["samples"].shape[2]
+        source_frames = source["samples"].shape[2]
+        if index < 0:
+            index = dest_frames + index
+        if index > dest_frames:
+            logging.warning(f"ReplaceVideoLatentFrames: Index {index} is out of bounds for destination latent frames {dest_frames}.")
+            return io.NodeOutput(destination)
+        if index + source_frames > dest_frames:
+            logging.warning(f"ReplaceVideoLatentFrames: Source latent frames {source_frames} do not fit within destination latent frames {dest_frames} at the specified index {index}.")
+            return io.NodeOutput(destination)
+        s = source.copy()
+        s_source = source["samples"]
+        s_destination = destination["samples"].clone()
+        s_destination[:, :, index:index + s_source.shape[2]] = s_source
+        s["samples"] = s_destination
+        return io.NodeOutput(s)
 
 class LatentExtension(ComfyExtension):
     @override
@@ -399,12 +478,14 @@ class LatentExtension(ComfyExtension):
             LatentInterpolate,
             LatentConcat,
             LatentCut,
+            LatentCutToBatch,
             LatentBatch,
             LatentBatchSeedBehavior,
             LatentApplyOperation,
             LatentApplyOperationCFG,
             LatentOperationTonemapReinhard,
             LatentOperationSharpen,
+            ReplaceVideoLatentFrames
         ]
 
 

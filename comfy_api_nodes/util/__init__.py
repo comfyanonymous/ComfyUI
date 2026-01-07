@@ -36,6 +36,7 @@ from .upload_helpers import (
     upload_video_to_comfyapi,
 )
 from .validation_utils import (
+    get_image_dimensions,
     get_number_of_images,
     validate_aspect_ratio_string,
     validate_audio_duration,
@@ -46,6 +47,7 @@ from .validation_utils import (
     validate_string,
     validate_video_dimensions,
     validate_video_duration,
+    validate_video_frame_count,
 )
 
 __all__ = [
@@ -82,6 +84,7 @@ __all__ = [
     "trim_video",
     "video_to_base64_string",
     # Validation utilities
+    "get_image_dimensions",
     "get_number_of_images",
     "validate_aspect_ratio_string",
     "validate_audio_duration",
@@ -92,6 +95,7 @@ __all__ = [
     "validate_string",
     "validate_video_dimensions",
     "validate_video_duration",
+    "validate_video_frame_count",
     # Misc functions
     "get_fs_object_size",
 ]
