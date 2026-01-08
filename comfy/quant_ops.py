@@ -71,6 +71,16 @@ except ImportError as e:
             
             return type(self)(new_qdata, self._layout_type, new_params)
 
+        def detach(self):
+            return type(self)(self._qdata.detach(), self._layout_type, self._layout_params.copy())
+
+        def clone(self):
+            return type(self)(self._qdata.clone(), self._layout_type, self._layout_params.copy())
+
+        def requires_grad_(self, requires_grad=True):
+            self._qdata.requires_grad_(requires_grad)
+            return self
+
         def __getattr__(self, name):
             if name == "params":
                 return self._layout_params
