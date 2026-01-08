@@ -56,6 +56,7 @@ import comfy.conds
 import comfy.ops
 from enum import Enum
 from . import utils
+from . import safetensors_stream
 import comfy.latent_formats
 import comfy.model_sampling
 import math
@@ -299,7 +300,14 @@ class BaseModel(torch.nn.Module):
         return out
 
     def load_model_weights(self, sd, unet_prefix=""):
-        to_load = utils.state_dict_prefix_replace(sd, {unet_prefix: ""}, filter_keys=True)
+        replace_prefix = {unet_prefix: ""} if unet_prefix else {}
+        if replace_prefix:
+            if utils.is_stream_state_dict(sd):
+                to_load = utils.state_dict_prefix_replace(sd, replace_prefix, filter_keys=True)
+            else:
+                to_load = safetensors_stream.RenameViewStateDict(sd, replace_prefix, filter_keys=True, mutate_base=False)
+        else:
+            to_load = sd
         to_load = self.model_config.process_unet_state_dict(to_load)
         m, u = utils.load_state_dict(self.diffusion_model, to_load, strict=False)
         if len(m) > 0:

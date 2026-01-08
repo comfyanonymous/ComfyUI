@@ -372,7 +372,11 @@ def _device_free_memory(device: torch.device) -> int:
 def _evict_ram_for_budget(required_bytes: int) -> int:
     if required_bytes <= 0:
         return 0
-    return evict_ram_cache(required_bytes)
+    freed = evict_ram_cache(required_bytes)
+    if freed < required_bytes:
+        from . import model_management
+        freed += model_management.evict_ram_to_disk(required_bytes - freed)
+    return freed
 
 
 def _maybe_free_ram_budget(device: torch.device, required_bytes: int) -> int:
@@ -654,6 +658,16 @@ def _find_tensor_dtype(args, kwargs) -> Optional[torch.dtype]:
     return check(kwargs)
 
 
+def _select_weight_dtype(input_dtype: Optional[torch.dtype], manual_cast_dtype: Optional[torch.dtype]) -> Optional[torch.dtype]:
+    if manual_cast_dtype is not None:
+        return manual_cast_dtype
+    if input_dtype is None:
+        return None
+    if torch.is_floating_point(torch.empty((), dtype=input_dtype)):
+        return input_dtype
+    return None
+
+
 def ensure_module_materialized(
     module: torch.nn.Module,
     target_device: torch.device,
@@ -744,7 +758,7 @@ def disk_weight_pre_hook(module: torch.nn.Module, args, kwargs):
         return
     input_dtype = _find_tensor_dtype(args, kwargs)
     manual_cast_dtype = getattr(module, "manual_cast_dtype", None)
-    dtype_override = manual_cast_dtype or input_dtype
+    dtype_override = _select_weight_dtype(input_dtype, manual_cast_dtype)
     if getattr(module, "comfy_cast_weights", False):
         target_device = torch.device("cpu")
         fallback_device = _find_tensor_device(args, kwargs)
@@ -793,6 +807,15 @@ def _extract_to_device(args, kwargs) -> Optional[torch.device]:
     return None
 
 
+def _extract_to_dtype(args, kwargs) -> Optional[torch.dtype]:
+    if "dtype" in kwargs and kwargs["dtype"] is not None:
+        return kwargs["dtype"]
+    for arg in args:
+        if isinstance(arg, torch.dtype):
+            return arg
+    return None
+
+
 def _find_existing_device(module: torch.nn.Module) -> Optional[torch.device]:
     for param in module.parameters(recurse=True):
         if param is not None and param.device.type != "meta":
@@ -803,12 +826,58 @@ def _find_existing_device(module: torch.nn.Module) -> Optional[torch.device]:
     return None
 
 
+def move_module_tensors(module: torch.nn.Module, device_to: torch.device, dtype_override: Optional[torch.dtype] = None):
+    def _move(tensor):
+        if tensor is None:
+            return None
+        if tensor.device.type == "meta":
+            return tensor
+        if dtype_override is not None and tensor.dtype != dtype_override:
+            return tensor.to(device=device_to, dtype=dtype_override)
+        return tensor.to(device=device_to)
+
+    module._apply(_move)
+    return module
+
+
+def offload_module_weights(module: torch.nn.Module) -> int:
+    if not disk_weights_enabled():
+        return 0
+    refs = REGISTRY.get(module)
+    if not refs:
+        return 0
+    offloaded_bytes = 0
+    if module in LAZY_MODULE_STATE:
+        ref_name = next(iter(refs.keys()), None)
+        if ref_name is not None:
+            _evict_module_weight(module, ref_name, False)
+        for disk_ref in refs.values():
+            nbytes = _meta_nbytes(disk_ref.meta)
+            if nbytes is not None:
+                offloaded_bytes += nbytes
+        return offloaded_bytes
+    for name, disk_ref in refs.items():
+        _evict_module_weight(module, name, disk_ref.is_buffer)
+        nbytes = _meta_nbytes(disk_ref.meta)
+        if nbytes is not None:
+            offloaded_bytes += nbytes
+    return offloaded_bytes
+
+
 def module_to(module: torch.nn.Module, *args, **kwargs):
+    allow_materialize = kwargs.pop("allow_materialize", True)
     if disk_weights_enabled():
         target_device = _extract_to_device(args, kwargs)
         if target_device is None:
             target_device = _find_existing_device(module) or torch.device("cpu")
-        materialize_module_tree(module, target_device)
+        if target_device.type == "meta":
+            offload_module_weights(module)
+            return module
+        if allow_materialize:
+            materialize_module_tree(module, target_device)
+            return module.to(*args, **kwargs)
+        dtype_override = _extract_to_dtype(args, kwargs)
+        return move_module_tensors(module, target_device, dtype_override=dtype_override)
     return module.to(*args, **kwargs)
 
 
