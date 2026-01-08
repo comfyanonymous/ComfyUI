@@ -38,7 +38,9 @@ except ImportError as e:
         def __init__(self, qdata, layout_type, layout_params):
             self._qdata = qdata
             self._layout_type = layout_type
+            self._layout_cls = layout_type # Alias for compatibility
             self._layout_params = layout_params
+            self._params = layout_params # Alias for compatibility
             self.device = qdata.device
             self.dtype = qdata.dtype
 
