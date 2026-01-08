@@ -44,9 +44,6 @@
 - [x] Represent disk-resident weights as meta tensors (`device='meta'`) plus a `DiskRef` registry that stores `(module, param_name) -> TensorMeta + loader handle`.
 - [x] Add an LRU cache for RAM-resident weights loaded from disk with configurable max bytes. Eviction replaces RAM tensors with meta tensors and keeps `DiskRef` for reload.
 - [x] Add a general `forward_pre_hook` to materialize any meta+DiskRef weights before compute; this covers modules that bypass `comfy.ops`.
-- [x] Add budgeted module materialization (`DiskMaterializationState`) with per-module loaded/deferred tracking, deterministic ordering, and RAM/VRAM free-memory checks (no insufficient-memory exceptions).
-- [x] Add dtype-aware disk loads (override based on forward input/manual cast) to avoid matmul dtype mismatches in on-demand materialization.
-- [x] Add disk-tier logging with destination, load size, free memory, partial/full state, and per-device byte breakdowns.
 
 ### Pipeline refactors
 - [x] Update `load_torch_file` to return `StreamStateDict` for `.safetensors`/`.sft` and return metadata without loading.
@@ -54,8 +51,6 @@
 - [x] Update `BaseModel.load_model_weights` and other load paths to avoid building large dicts; use streaming mappings + view wrappers instead.
 - [x] Update model detection (`comfy/model_detection.py`) to use metadata-based shape/dtype access (no tensor reads).
 - [x] Update direct safetensors loaders (e.g., `comfy/sd1_clip.py`) to go through `load_torch_file` so everything uses the same streaming loader.
-- [x] Add chunked nogds safetensors reads with a configurable staging size and incremental CPU tensor fill to cap staging buffers.
-- [x] Restore full `MutableMapping` behavior (including `meta`) for view wrappers like `RenameViewStateDict`.
 
 ### Tests and docs
 - [x] Add unit tests for metadata correctness, single-tensor loading, and lazy views (no full materialization), plus integration tests for load behavior and GDS failure path.
