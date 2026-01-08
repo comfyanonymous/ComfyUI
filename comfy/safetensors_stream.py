@@ -639,6 +639,30 @@ class _BaseViewStateDict(MutableMapping):
         self._deleted.add(key)
         return self.get_tensor(key)
 
+    def meta(self, key: str):
+        if key in self._overrides:
+            t = self._overrides[key]
+            numel = t.numel()
+            return SimpleNamespace(
+                dtype=t.dtype,
+                shape=tuple(t.shape),
+                numel=numel,
+                nbytes=numel * t.element_size(),
+            )
+        base_key = self._resolve_base_key(key)
+        if base_key is None or key in self._deleted:
+            raise KeyError(key)
+        if hasattr(self._base, "meta"):
+            return self._base.meta(base_key)
+        t = self._base[base_key]
+        numel = t.numel()
+        return SimpleNamespace(
+            dtype=t.dtype,
+            shape=tuple(t.shape),
+            numel=numel,
+            nbytes=numel * t.element_size(),
+        )
+
 
 class DeviceViewStateDict(_BaseViewStateDict):
     def __init__(

@@ -322,6 +322,8 @@ def _log_materialization(
     context: str,
 ):
     total_bytes, cpu_bytes, gpu_bytes, meta_bytes = _summarize_module_bytes(module, refs)
+    if total_bytes == 0:
+        return
     partial = meta_bytes > 0
     LOGGER.info(
         "%s: module=%s dest=%s load=%0.2fMB free=%0.2fMB partial=%s "
