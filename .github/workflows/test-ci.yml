@@ -20,7 +20,6 @@ jobs:
   test-stable:
     strategy:
       fail-fast: false
-      max-parallel: 1  # This forces sequential execution
       matrix:
         # os: [macos, linux, windows]
         # os: [macos, linux]
@@ -75,7 +74,6 @@ jobs:
   test-unix-nightly:
     strategy:
       fail-fast: false
-      max-parallel: 1  # This forces sequential execution
       matrix:
         # os: [macos, linux]
         os: [linux]
