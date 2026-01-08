@@ -629,20 +629,67 @@ class OpenAIChatNode(IO.ComfyNode):
                 expr="""
                 (
                   $m := widgets.model;
-
-                  $contains($m,"o4-mini") ? {"type":"list_usd","usd":[0.0011,0.0044]} :
-                  $contains($m,"o1-pro") ? {"type":"list_usd","usd":[0.15,0.6]} :
-                  $contains($m,"o1") ? {"type":"list_usd","usd":[0.015,0.06]} :
-                  $contains($m,"o3-mini") ? {"type":"list_usd","usd":[0.0011,0.0044]} :
-                  $contains($m,"o3") ? {"type":"list_usd","usd":[0.01,0.04]} :
-                  $contains($m,"gpt-4o") ? {"type":"list_usd","usd":[0.0025,0.01]} :
-                  $contains($m,"gpt-4.1-nano") ? {"type":"list_usd","usd":[0.0001,0.0004]} :
-                  $contains($m,"gpt-4.1-mini") ? {"type":"list_usd","usd":[0.0004,0.0016]} :
-                  $contains($m,"gpt-4.1") ? {"type":"list_usd","usd":[0.002,0.008]} :
-                  $contains($m,"gpt-5-nano") ? {"type":"list_usd","usd":[0.00005,0.0004]} :
-                  $contains($m,"gpt-5-mini") ? {"type":"list_usd","usd":[0.00025,0.002]} :
-                  $contains($m,"gpt-5") ? {"type":"list_usd","usd":[0.00125,0.01]} :
-                  {"type":"text","text":"Token-based"}
+                  $contains($m, "o4-mini") ? {
+                    "type": "list_usd",
+                    "usd": [0.0011, 0.0044],
+                    "format": { "approximate": true, "separator": "-", "suffix": " per 1K tokens" }
+                  }
+                  : $contains($m, "o1-pro") ? {
+                    "type": "list_usd",
+                    "usd": [0.15, 0.6],
+                    "format": { "approximate": true, "separator": "-", "suffix": " per 1K tokens" }
+                  }
+                  : $contains($m, "o1") ? {
+                    "type": "list_usd",
+                    "usd": [0.015, 0.06],
+                    "format": { "approximate": true, "separator": "-", "suffix": " per 1K tokens" }
+                  }
+                  : $contains($m, "o3-mini") ? {
+                    "type": "list_usd",
+                    "usd": [0.0011, 0.0044],
+                    "format": { "approximate": true, "separator": "-", "suffix": " per 1K tokens" }
+                  }
+                  : $contains($m, "o3") ? {
+                    "type": "list_usd",
+                    "usd": [0.01, 0.04],
+                    "format": { "approximate": true, "separator": "-", "suffix": " per 1K tokens" }
+                  }
+                  : $contains($m, "gpt-4o") ? {
+                    "type": "list_usd",
+                    "usd": [0.0025, 0.01],
+                    "format": { "approximate": true, "separator": "-", "suffix": " per 1K tokens" }
+                  }
+                  : $contains($m, "gpt-4.1-nano") ? {
+                    "type": "list_usd",
+                    "usd": [0.0001, 0.0004],
+                    "format": { "approximate": true, "separator": "-", "suffix": " per 1K tokens" }
+                  }
+                  : $contains($m, "gpt-4.1-mini") ? {
+                    "type": "list_usd",
+                    "usd": [0.0004, 0.0016],
+                    "format": { "approximate": true, "separator": "-", "suffix": " per 1K tokens" }
+                  }
+                  : $contains($m, "gpt-4.1") ? {
+                    "type": "list_usd",
+                    "usd": [0.002, 0.008],
+                    "format": { "approximate": true, "separator": "-", "suffix": " per 1K tokens" }
+                  }
+                  : $contains($m, "gpt-5-nano") ? {
+                    "type": "list_usd",
+                    "usd": [0.00005, 0.0004],
+                    "format": { "approximate": true, "separator": "-", "suffix": " per 1K tokens" }
+                  }
+                  : $contains($m, "gpt-5-mini") ? {
+                    "type": "list_usd",
+                    "usd": [0.00025, 0.002],
+                    "format": { "approximate": true, "separator": "-", "suffix": " per 1K tokens" }
+                  }
+                  : $contains($m, "gpt-5") ? {
+                    "type": "list_usd",
+                    "usd": [0.00125, 0.01],
+                    "format": { "approximate": true, "separator": "-", "suffix": " per 1K tokens" }
+                  }
+                  : {"type": "text", "text": "Token-based"}
                 )
                 """,
             ),

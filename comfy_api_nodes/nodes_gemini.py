@@ -314,14 +314,22 @@ class GeminiNode(IO.ComfyNode):
                 expr="""
                 (
                   $m := widgets.model;
-
-                  $contains($m, "gemini-2.5-flash")
-                    ? {"type":"list_usd","usd":[0.0003,0.0025]}
-                    : $contains($m, "gemini-2.5-pro")
-                      ? {"type":"list_usd","usd":[0.00125,0.01]}
-                      : $contains($m, "gemini-3-pro-preview")
-                        ? {"type":"list_usd","usd":[0.002,0.012]}
-                        : {"type":"text","text":"Token-based"}
+                  $contains($m, "gemini-2.5-flash") ? {
+                    "type": "list_usd",
+                    "usd": [0.0003, 0.0025],
+                    "format": { "approximate": true, "separator": "-", "suffix": " per 1K tokens"}
+                  }
+                  : $contains($m, "gemini-2.5-pro") ? {
+                    "type": "list_usd",
+                    "usd": [0.00125, 0.01],
+                    "format": { "approximate": true, "separator": "-", "suffix": " per 1K tokens" }
+                  }
+                  : $contains($m, "gemini-3-pro-preview") ? {
+                    "type": "list_usd",
+                    "usd": [0.002, 0.012],
+                    "format": { "approximate": true, "separator": "-", "suffix": " per 1K tokens" }
+                  }
+                  : {"type":"text", "text":"Token-based"}
                 )
                 """,
             ),
