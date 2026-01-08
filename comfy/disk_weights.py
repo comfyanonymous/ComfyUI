@@ -753,7 +753,7 @@ def ensure_module_materialized(
     _log_materialization(module, target_device, free_mem_start, refs, state, "Disk weight materialized")
 
 
-def disk_weight_pre_hook(module: torch.nn.Module, args, kwargs):
+def disk_weight_pre_hook(module: torch.nn.Module, args, kwargs={}):
     if not REGISTRY.has(module) and module not in LAZY_MODULE_STATE:
         return
     input_dtype = _find_tensor_dtype(args, kwargs)
