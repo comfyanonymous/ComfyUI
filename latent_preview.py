@@ -7,6 +7,7 @@ import comfy.model_management
 import folder_paths
 import comfy.utils
 import logging
+import math
 
 default_preview_method = args.preview_method
 
@@ -109,7 +110,7 @@ def get_previewer(device, latent_format):
                 previewer = Latent2RGBPreviewer(latent_format.latent_rgb_factors, latent_format.latent_rgb_factors_bias, latent_format.latent_rgb_factors_reshape)
     return previewer
 
-def prepare_callback(model, steps, x0_output_dict=None):
+def prepare_callback(model, steps, x0_output_dict=None, shape=None):
     preview_format = "JPEG"
     if preview_format not in ["JPEG", "PNG"]:
         preview_format = "JPEG"
@@ -120,6 +121,10 @@ def prepare_callback(model, steps, x0_output_dict=None):
     def callback(step, x0, x, total_steps):
         if x0_output_dict is not None:
             x0_output_dict["x0"] = x0
+
+        if x0.ndim == 3:
+            cut = math.prod(shape[1:])
+            x0 = x0[:, :, :cut].reshape([x0.shape[0]] + list(shape)[1:])
 
         preview_bytes = None
         if previewer:
