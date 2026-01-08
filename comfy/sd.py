@@ -218,7 +218,7 @@ class CLIP:
             if unprojected:
                 self.cond_stage_model.set_clip_options({"projected_pooled": False})
 
-            self.load_model()
+            self.load_model(tokens)
             self.cond_stage_model.set_clip_options({"execution_device": self.patcher.load_device})
             all_hooks.reset()
             self.patcher.patch_hooks(None)
@@ -266,7 +266,7 @@ class CLIP:
         if return_pooled == "unprojected":
             self.cond_stage_model.set_clip_options({"projected_pooled": False})
 
-        self.load_model()
+        self.load_model(tokens)
         self.cond_stage_model.set_clip_options({"execution_device": self.patcher.load_device})
         o = self.cond_stage_model.encode_token_weights(tokens)
         cond, pooled = o[:2]
@@ -299,8 +299,11 @@ class CLIP:
             sd_clip[k] = sd_tokenizer[k]
         return sd_clip
 
-    def load_model(self):
-        model_management.load_model_gpu(self.patcher)
+    def load_model(self, tokens={}):
+        memory_used = 0
+        if hasattr(self.cond_stage_model, "memory_estimation_function"):
+            memory_used = self.cond_stage_model.memory_estimation_function(tokens, device=self.patcher.load_device)
+        model_management.load_models_gpu([self.patcher], memory_required=memory_used)
         return self.patcher
 
     def get_key_patches(self):

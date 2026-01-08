@@ -121,6 +121,14 @@ class LTXAVTEModel(torch.nn.Module):
 
             return self.load_state_dict(sdo, strict=False)
 
+    def memory_estimation_function(self, token_weight_pairs, device=None):
+        constant = 6.0
+        if comfy.model_management.should_use_bf16(device):
+            constant /= 2.0
+
+        token_weight_pairs = token_weight_pairs.get("gemma3_12b", [])
+        num_tokens = sum(map(lambda a: len(a), token_weight_pairs))
+        return num_tokens * constant * 1024 * 1024
 
 def ltxav_te(dtype_llama=None, llama_quantization_metadata=None):
     class LTXAVTEModel_(LTXAVTEModel):
