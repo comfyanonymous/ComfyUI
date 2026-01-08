@@ -22,7 +22,6 @@ from enum import Enum
 from comfy.cli_args import args, PerformanceFeature
 import torch
 import sys
-import importlib
 import platform
 import weakref
 import gc
