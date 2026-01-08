@@ -297,7 +297,7 @@ class SDClipModel(torch.nn.Module, ClipTokenWeightEncoder):
         return self(tokens)
 
     def load_sd(self, sd):
-        return self.transformer.load_state_dict(sd, strict=False)
+        return comfy.utils.load_state_dict(self.transformer, sd, strict=False)
 
 def parse_parentheses(string):
     result = []
@@ -430,8 +430,7 @@ def load_embed(embedding_name, embedding_directory, embedding_size, embed_key=No
 
     try:
         if embed_path.lower().endswith(".safetensors"):
-            import safetensors.torch
-            embed = safetensors.torch.load_file(embed_path, device="cpu")
+            embed = comfy.utils.load_torch_file(embed_path, safe_load=True)
         else:
             try:
                 embed = torch.load(embed_path, weights_only=True, map_location="cpu")

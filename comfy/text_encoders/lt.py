@@ -116,7 +116,7 @@ class LTXAVTEModel(torch.nn.Module):
             if len(sdo) == 0:
                 sdo = sd
 
-            return self.load_state_dict(sdo, strict=False)
+            return comfy.utils.load_state_dict(self, sdo, strict=False)
 
 
 def ltxav_te(dtype_llama=None, llama_quantization_metadata=None):

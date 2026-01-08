@@ -26,10 +26,13 @@ import numpy as np
 from PIL import Image
 import logging
 import itertools
+from types import SimpleNamespace
 from torch.nn.functional import interpolate
 from einops import rearrange
 from comfy.cli_args import args
 import json
+from . import safetensors_stream
+import comfy.disk_weights
 
 MMAP_TORCH_FILES = args.mmap_torch_files
 DISABLE_MMAP = args.disable_mmap
@@ -61,15 +64,9 @@ def load_torch_file(ckpt, safe_load=False, device=None, return_metadata=False):
     metadata = None
     if ckpt.lower().endswith(".safetensors") or ckpt.lower().endswith(".sft"):
         try:
-            with safetensors.safe_open(ckpt, framework="pt", device=device.type) as f:
-                sd = {}
-                for k in f.keys():
-                    tensor = f.get_tensor(k)
-                    if DISABLE_MMAP:  # TODO: Not sure if this is the best way to bypass the mmap issues
-                        tensor = tensor.to(device=device, copy=True)
-                    sd[k] = tensor
-                if return_metadata:
-                    metadata = f.metadata()
+            sd = safetensors_stream.StreamStateDict.from_file(ckpt, device=device)
+            if return_metadata:
+                metadata = sd.metadata()
         except Exception as e:
             if len(e.args) > 0:
                 message = e.args[0]
@@ -110,16 +107,16 @@ def calculate_parameters(sd, prefix=""):
     params = 0
     for k in sd.keys():
         if k.startswith(prefix):
-            w = sd[k]
-            params += w.nelement()
+            meta = state_dict_meta(sd, k)
+            params += meta.numel
     return params
 
 def weight_dtype(sd, prefix=""):
     dtypes = {}
     for k in sd.keys():
         if k.startswith(prefix):
-            w = sd[k]
-            dtypes[w.dtype] = dtypes.get(w.dtype, 0) + w.numel()
+            meta = state_dict_meta(sd, k)
+            dtypes[meta.dtype] = dtypes.get(meta.dtype, 0) + meta.numel
 
     if len(dtypes) == 0:
         return None
@@ -133,6 +130,13 @@ def state_dict_key_replace(state_dict, keys_to_replace):
     return state_dict
 
 def state_dict_prefix_replace(state_dict, replace_prefix, filter_keys=False):
+    if is_stream_state_dict(state_dict):
+        return safetensors_stream.RenameViewStateDict(
+            state_dict,
+            replace_prefix,
+            filter_keys=filter_keys,
+            mutate_base=not filter_keys,
+        )
     if filter_keys:
         out = {}
     else:
@@ -143,6 +147,77 @@ def state_dict_prefix_replace(state_dict, replace_prefix, filter_keys=False):
             w = state_dict.pop(x[0])
             out[x[1]] = w
     return out
+
+
+def is_stream_state_dict(state_dict) -> bool:
+    return getattr(state_dict, "is_stream_state_dict", False)
+
+
+def state_dict_meta(state_dict, key):
+    if hasattr(state_dict, "meta"):
+        return state_dict.meta(key)
+    w = state_dict[key]
+    numel = w.numel()
+    return SimpleNamespace(
+        dtype=w.dtype,
+        shape=tuple(w.shape),
+        numel=numel,
+        nbytes=numel * w.element_size(),
+    )
+
+
+def load_state_dict(model, state_dict, strict=False, assign=False):
+    if is_stream_state_dict(state_dict):
+        comfy.disk_weights.register_module_weights(model, state_dict)
+        comfy.disk_weights.attach_disk_weight_hooks(model)
+        missing, unexpected = stream_load_state_dict(model, state_dict, strict=strict, assign=assign)
+        return missing, unexpected
+    return model.load_state_dict(state_dict, strict=strict)
+
+
+def stream_load_state_dict(model, state_dict, strict=False, assign=False):
+    if is_stream_state_dict(state_dict) and hasattr(state_dict, "copy"):
+        state_dict = state_dict.copy()
+    missing_keys = []
+    unexpected_keys = []
+    error_msgs = []
+    metadata = getattr(state_dict, "_metadata", None)
+
+    def load(module, local_state_dict, prefix=""):
+        local_metadata = {} if metadata is None else metadata.get(prefix[:-1], {})
+        if assign:
+            local_metadata["assign_to_params_buffers"] = assign
+        module._load_from_state_dict(
+            local_state_dict,
+            prefix,
+            local_metadata,
+            True,
+            missing_keys,
+            unexpected_keys,
+            error_msgs,
+        )
+        for name, child in module._modules.items():
+            if child is not None:
+                child_prefix = f"{prefix}{name}."
+                child_state_dict = safetensors_stream.FilterViewStateDict(
+                    local_state_dict, lambda k, p=child_prefix: k.startswith(p), mutate_base=False
+                )
+                load(child, child_state_dict, child_prefix)
+        incompatible = torch.nn.modules.module._IncompatibleKeys(missing_keys, unexpected_keys)
+        for hook in module._load_state_dict_post_hooks.values():
+            out = hook(module, incompatible)
+            if out is not None:
+                raise RuntimeError("load_state_dict post hook returned a value, which is unsupported.")
+
+    load(model, state_dict)
+    if strict:
+        if len(unexpected_keys) > 0:
+            error_msgs.insert(0, 'Unexpected key(s) in state_dict: {}. '.format(', '.join(f'"{k}"' for k in unexpected_keys)))
+        if len(missing_keys) > 0:
+            error_msgs.insert(0, 'Missing key(s) in state_dict: {}. '.format(', '.join(f'"{k}"' for k in missing_keys)))
+    if len(error_msgs) > 0:
+        raise RuntimeError('Error(s) in loading state_dict for {}:\n\t{}'.format(model.__class__.__name__, "\n\t".join(error_msgs)))
+    return missing_keys, unexpected_keys
 
 
 def transformers_convert(sd, prefix_from, prefix_to, number):
@@ -1217,46 +1292,82 @@ def convert_old_quants(state_dict, model_prefix="", metadata={}):
         scaled_fp8_key = "{}scaled_fp8".format(model_prefix)
 
         if scaled_fp8_key in state_dict:
-            scaled_fp8_weight = state_dict[scaled_fp8_key]
-            scaled_fp8_dtype = scaled_fp8_weight.dtype
+            if is_stream_state_dict(state_dict):
+                scaled_meta = state_dict_meta(state_dict, scaled_fp8_key)
+                scaled_fp8_dtype = scaled_meta.dtype
+                scaled_fp8_weight_nelements = scaled_meta.numel
+            else:
+                scaled_fp8_weight = state_dict[scaled_fp8_key]
+                scaled_fp8_dtype = scaled_fp8_weight.dtype
+                scaled_fp8_weight_nelements = scaled_fp8_weight.nelement()
             if scaled_fp8_dtype == torch.float32:
                 scaled_fp8_dtype = torch.float8_e4m3fn
 
-            if scaled_fp8_weight.nelement() == 2:
+            if scaled_fp8_weight_nelements == 2:
                 full_precision_matrix_mult = True
             else:
                 full_precision_matrix_mult = False
 
-            out_sd = {}
             layers = {}
-            for k in list(state_dict.keys()):
-                if k == scaled_fp8_key:
-                    continue
-                if not k.startswith(model_prefix):
-                    out_sd[k] = state_dict[k]
-                    continue
-                k_out = k
-                w = state_dict.pop(k)
-                layer = None
-                if k_out.endswith(".scale_weight"):
-                    layer = k_out[:-len(".scale_weight")]
-                    k_out = "{}.weight_scale".format(layer)
-
-                if layer is not None:
-                    layer_conf = {"format": "float8_e4m3fn"}  # TODO: check if anyone did some non e4m3fn scaled checkpoints
-                    if full_precision_matrix_mult:
-                        layer_conf["full_precision_matrix_mult"] = full_precision_matrix_mult
-                    layers[layer] = layer_conf
-
-                if k_out.endswith(".scale_input"):
-                    layer = k_out[:-len(".scale_input")]
-                    k_out = "{}.input_scale".format(layer)
-                    if w.item() == 1.0:
+            if is_stream_state_dict(state_dict):
+                key_map = {}
+                for k in list(state_dict.keys()):
+                    if k == scaled_fp8_key:
                         continue
+                    if not k.startswith(model_prefix):
+                        key_map[k] = k
+                        continue
+                    k_out = k
+                    layer = None
+                    if k_out.endswith(".scale_weight"):
+                        layer = k_out[:-len(".scale_weight")]
+                        k_out = "{}.weight_scale".format(layer)
 
-                out_sd[k_out] = w
+                    if layer is not None:
+                        layer_conf = {"format": "float8_e4m3fn"}  # TODO: check if anyone did some non e4m3fn scaled checkpoints
+                        if full_precision_matrix_mult:
+                            layer_conf["full_precision_matrix_mult"] = full_precision_matrix_mult
+                        layers[layer] = layer_conf
 
-            state_dict = out_sd
+                    if k_out.endswith(".scale_input"):
+                        layer = k_out[:-len(".scale_input")]
+                        k_out = "{}.input_scale".format(layer)
+                        scale_val = state_dict[k]
+                        if scale_val.item() == 1.0:
+                            continue
+
+                    key_map[k] = k_out
+                state_dict = safetensors_stream.MappedStateDict(state_dict, key_map)
+            else:
+                out_sd = {}
+                for k in list(state_dict.keys()):
+                    if k == scaled_fp8_key:
+                        continue
+                    if not k.startswith(model_prefix):
+                        out_sd[k] = state_dict[k]
+                        continue
+                    k_out = k
+                    w = state_dict.pop(k)
+                    layer = None
+                    if k_out.endswith(".scale_weight"):
+                        layer = k_out[:-len(".scale_weight")]
+                        k_out = "{}.weight_scale".format(layer)
+
+                    if layer is not None:
+                        layer_conf = {"format": "float8_e4m3fn"}  # TODO: check if anyone did some non e4m3fn scaled checkpoints
+                        if full_precision_matrix_mult:
+                            layer_conf["full_precision_matrix_mult"] = full_precision_matrix_mult
+                        layers[layer] = layer_conf
+
+                    if k_out.endswith(".scale_input"):
+                        layer = k_out[:-len(".scale_input")]
+                        k_out = "{}.input_scale".format(layer)
+                        if w.item() == 1.0:
+                            continue
+
+                    out_sd[k_out] = w
+
+                state_dict = out_sd
             quant_metadata = {"layers": layers}
     else:
         quant_metadata = json.loads(metadata["_quantization_metadata"])

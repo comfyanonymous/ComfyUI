@@ -27,6 +27,7 @@ import platform
 import weakref
 import gc
 import os
+import comfy.disk_weights
 
 class VRAMState(Enum):
     DISABLED = 0    #No vram present: no need to move models to vram
@@ -583,6 +584,8 @@ def minimum_inference_memory():
 
 def free_memory(memory_required, device, keep_loaded=[]):
     cleanup_models_gc()
+    if is_device_cpu(device) and comfy.disk_weights.disk_weights_enabled():
+        comfy.disk_weights.evict_ram_cache(memory_required)
     unloaded_model = []
     can_unload = []
     unloaded_models = []
@@ -1123,6 +1126,16 @@ if not args.disable_pinned_memory:
         else:
             MAX_PINNED_MEMORY = get_total_memory(torch.device("cpu")) * 0.95
         logging.info("Enabled pinned memory {}".format(MAX_PINNED_MEMORY // (1024 * 1024)))
+
+WEIGHTS_RAM_CACHE_BYTES = 0
+WEIGHTS_GDS_ENABLED = bool(args.weights_gds)
+if args.weights_ram_cache_gb is not None:
+    WEIGHTS_RAM_CACHE_BYTES = int(max(0.0, args.weights_ram_cache_gb) * (1024 ** 3))
+    comfy.disk_weights.configure(
+        WEIGHTS_RAM_CACHE_BYTES,
+        allow_gds=WEIGHTS_GDS_ENABLED,
+        pin_if_cpu=not args.disable_pinned_memory,
+    )
 
 PINNING_ALLOWED_TYPES = set(["Parameter", "QuantizedTensor"])
 
