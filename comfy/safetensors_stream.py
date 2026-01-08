@@ -241,8 +241,7 @@ class _SafeTensorFile:
         chunk_bytes = int(os.getenv("COMFY_SAFETENSORS_NOGDS_CHUNK_BYTES", _NOGDS_CHUNK_BYTES_DEFAULT))
         chunk_bytes = max(1, chunk_bytes)
         ptr_align = framework.get_device_ptr_align()
-        disk_dtype = framework.as_workaround_dtype(meta.fst_dtype)
-        dest_tensor = torch.empty_strided(meta.shape, meta.strides, dtype=disk_dtype, device="cpu")
+        dest_tensor = torch.empty_strided(meta.shape, meta.strides, dtype=meta.dtype, device="cpu")
         buffer_length = 0
         buf_ptr = None
         gbuf = None
@@ -272,8 +271,6 @@ class _SafeTensorFile:
             raise
         if buf_ptr is not None:
             fst.cpp.cpu_free(buf_ptr)
-        if disk_dtype != meta.dtype:
-            dest_tensor = dest_tensor.view(meta.dtype)
         if dtype is not None and dtype != dest_tensor.dtype:
             _validate_dtype_conversion(dest_tensor.dtype, dtype)
             dest_tensor = dest_tensor.to(dtype=dtype)
