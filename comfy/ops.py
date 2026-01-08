@@ -19,6 +19,7 @@
 import torch
 import logging
 import comfy.model_management
+import comfy.disk_weights
 from comfy.cli_args import args, PerformanceFeature
 import comfy.float
 import comfy.rmsnorm
@@ -98,11 +99,23 @@ def cast_bias_weight(s, input=None, dtype=None, device=None, bias_dtype=None, of
     weight_has_function = len(s.weight_function) > 0
     bias_has_function = len(s.bias_function) > 0
 
-    weight = comfy.model_management.cast_to(s.weight, None, device, non_blocking=non_blocking, copy=weight_has_function, stream=offload_stream)
+    weight_source = s.weight
+    bias_source = s.bias
+    if comfy.disk_weights.disk_weights_enabled():
+        if weight_source.device.type == "meta":
+            loaded = comfy.disk_weights.load_module_tensor(s, "weight", device, temporary=True)
+            if loaded is not None:
+                weight_source = loaded
+        if bias_source is not None and bias_source.device.type == "meta":
+            loaded_bias = comfy.disk_weights.load_module_tensor(s, "bias", device, temporary=True)
+            if loaded_bias is not None:
+                bias_source = loaded_bias
+
+    weight = comfy.model_management.cast_to(weight_source, None, device, non_blocking=non_blocking, copy=weight_has_function, stream=offload_stream)
 
     bias = None
-    if s.bias is not None:
-        bias = comfy.model_management.cast_to(s.bias, bias_dtype, device, non_blocking=non_blocking, copy=bias_has_function, stream=offload_stream)
+    if bias_source is not None:
+        bias = comfy.model_management.cast_to(bias_source, bias_dtype, device, non_blocking=non_blocking, copy=bias_has_function, stream=offload_stream)
 
     comfy.model_management.sync_stream(device, offload_stream)
 
@@ -532,9 +545,10 @@ def mixed_precision_ops(quant_config={}, compute_dtype=torch.bfloat16, full_prec
                 key = f"{prefix}{param_name}"
                 value = state_dict.pop(key, None)
                 if value is not None:
-                    value = value.to(device=device)
-                    if dtype is not None:
-                        value = value.view(dtype=dtype)
+                    if value.device.type != "meta":
+                        value = value.to(device=device)
+                        if dtype is not None:
+                            value = value.view(dtype=dtype)
                     manually_loaded_keys.append(key)
                 return value
 
@@ -551,11 +565,16 @@ def mixed_precision_ops(quant_config={}, compute_dtype=torch.bfloat16, full_prec
                 manually_loaded_keys = [weight_key]
 
                 layer_conf = state_dict.pop(f"{prefix}comfy_quant", None)
-                if layer_conf is not None:
+                if layer_conf is not None and layer_conf.device.type != "meta":
                     layer_conf = json.loads(layer_conf.numpy().tobytes())
+                elif layer_conf is not None:
+                    layer_conf = None
 
                 if layer_conf is None:
-                    self.weight = torch.nn.Parameter(weight.to(device=device, dtype=MixedPrecisionOps._compute_dtype), requires_grad=False)
+                    if weight.device.type == "meta":
+                        self.weight = torch.nn.Parameter(weight, requires_grad=False)
+                    else:
+                        self.weight = torch.nn.Parameter(weight.to(device=device, dtype=MixedPrecisionOps._compute_dtype), requires_grad=False)
                 else:
                     self.quant_format = layer_conf.get("format", None)
                     self._full_precision_mm_config = layer_conf.get("full_precision_matrix_mult", False)
@@ -601,10 +620,13 @@ def mixed_precision_ops(quant_config={}, compute_dtype=torch.bfloat16, full_prec
                     else:
                         raise ValueError(f"Unsupported quantization format: {self.quant_format}")
 
-                    self.weight = torch.nn.Parameter(
-                        QuantizedTensor(weight.to(device=device, dtype=qconfig["storage_t"]), self.layout_type, params),
-                        requires_grad=False
-                    )
+                    if weight.device.type == "meta":
+                        self.weight = torch.nn.Parameter(weight, requires_grad=False)
+                    else:
+                        self.weight = torch.nn.Parameter(
+                            QuantizedTensor(weight.to(device=device, dtype=qconfig["storage_t"]), self.layout_type, params),
+                            requires_grad=False
+                        )
 
                     for param_name in qconfig["parameters"]:
                         if param_name in {"weight_scale", "weight_scale_2"}:
@@ -614,7 +636,10 @@ def mixed_precision_ops(quant_config={}, compute_dtype=torch.bfloat16, full_prec
                         _v = state_dict.pop(param_key, None)
                         if _v is None:
                             continue
-                        self.register_parameter(param_name, torch.nn.Parameter(_v.to(device=device), requires_grad=False))
+                        if _v.device.type == "meta":
+                            self.register_parameter(param_name, torch.nn.Parameter(_v, requires_grad=False))
+                        else:
+                            self.register_parameter(param_name, torch.nn.Parameter(_v.to(device=device), requires_grad=False))
                         manually_loaded_keys.append(param_key)
 
                 super()._load_from_state_dict(state_dict, prefix, local_metadata, strict, missing_keys, unexpected_keys, error_msgs)
