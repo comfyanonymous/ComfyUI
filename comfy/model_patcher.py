@@ -785,7 +785,7 @@ class ModelPatcher:
                 m.comfy_patched_weights = True
 
             for x in load_completely:
-                x[2].to(device_to)
+                comfy.disk_weights.module_to(x[2], device_to)
 
             for x in offloaded:
                 n = x[1]
@@ -800,7 +800,7 @@ class ModelPatcher:
                 logging.info("loaded completely; {:.2f} MB usable, {:.2f} MB loaded, full load: {}".format(lowvram_model_memory / (1024 * 1024), mem_counter / (1024 * 1024), full_load))
                 self.model.model_lowvram = False
                 if full_load:
-                    self.model.to(device_to)
+                    comfy.disk_weights.module_to(self.model, device_to)
                     mem_counter = self.model_size()
 
             self.model.lowvram_patch_counter += patch_counter
@@ -857,7 +857,7 @@ class ModelPatcher:
             self.backup.clear()
 
             if device_to is not None:
-                self.model.to(device_to)
+                comfy.disk_weights.module_to(self.model, device_to)
                 self.model.device = device_to
             self.model.model_loaded_weight_memory = 0
             self.model.model_offload_buffer_memory = 0

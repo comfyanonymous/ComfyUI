@@ -442,6 +442,12 @@ class StreamStateDict(collections.abc.MutableMapping):
             raise KeyError(key)
         if device is None:
             device = self._device
+        if device.type == "meta":
+            meta = self._index.meta(key)
+            target_dtype = dtype or meta.dtype
+            if dtype is not None and dtype != meta.dtype:
+                _validate_dtype_conversion(meta.dtype, dtype)
+            return torch.empty(meta.shape, dtype=target_dtype, device="meta")
         if allow_gds is None:
             allow_gds = self._allow_gds
         meta = self._index.meta(key)
@@ -558,6 +564,37 @@ class _BaseViewStateDict(MutableMapping):
             _validate_dtype_conversion(t.dtype, dtype)
             t = t.to(dtype=dtype)
         return t
+
+
+class DeviceViewStateDict(_BaseViewStateDict):
+    def __init__(
+        self,
+        base: MutableMapping,
+        device: torch.device,
+        allow_gds: Optional[bool] = None,
+        pin_if_cpu: bool = False,
+        mutate_base: bool = False,
+    ):
+        super().__init__(base, mutate_base=mutate_base)
+        self._device = device
+        self._allow_gds = allow_gds
+        self._pin_if_cpu = pin_if_cpu
+
+    def get_tensor(
+        self,
+        key: str,
+        *,
+        device: Optional[torch.device] = None,
+        dtype: Optional[torch.dtype] = None,
+        allow_gds: Optional[bool] = None,
+        pin_if_cpu: bool = False,
+    ) -> torch.Tensor:
+        device = self._device if device is None else device
+        allow_gds = self._allow_gds if allow_gds is None else allow_gds
+        pin_if_cpu = self._pin_if_cpu if not pin_if_cpu else pin_if_cpu
+        return super().get_tensor(
+            key, device=device, dtype=dtype, allow_gds=allow_gds, pin_if_cpu=pin_if_cpu
+        )
 
     def meta(self, key: str):
         if key in self._overrides:

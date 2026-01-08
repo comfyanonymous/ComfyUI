@@ -168,6 +168,8 @@ def state_dict_meta(state_dict, key):
 
 def load_state_dict(model, state_dict, strict=False, assign=False):
     if is_stream_state_dict(state_dict):
+        if comfy.disk_weights.disk_weights_enabled():
+            return comfy.disk_weights.lazy_load_state_dict(model, state_dict, strict=strict)
         comfy.disk_weights.register_module_weights(model, state_dict)
         comfy.disk_weights.attach_disk_weight_hooks(model)
         missing, unexpected = stream_load_state_dict(model, state_dict, strict=strict, assign=assign)
@@ -900,7 +902,10 @@ def copy_to_param(obj, attr, value):
     for name in attrs[:-1]:
         obj = getattr(obj, name)
     prev = getattr(obj, attrs[-1])
-    prev.data.copy_(value)
+    if prev.device.type == "meta":
+        setattr(obj, attrs[-1], torch.nn.Parameter(value, requires_grad=prev.requires_grad))
+    else:
+        prev.data.copy_(value)
 
 def get_attr(obj, attr: str):
     """Retrieves a nested attribute from an object using dot notation.

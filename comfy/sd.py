@@ -26,6 +26,7 @@ import os
 
 import comfy.utils
 import comfy.safetensors_stream
+import comfy.disk_weights
 
 from . import clip_vision
 from . import gligen
@@ -125,7 +126,7 @@ class CLIP:
             if not model_management.supports_cast(load_device, dt):
                 load_device = offload_device
                 if params['device'] != offload_device:
-                    self.cond_stage_model.to(offload_device)
+                    comfy.disk_weights.module_to(self.cond_stage_model, offload_device)
                     logging.warning("Had to shift TE back.")
 
         self.tokenizer = tokenizer(embedding_directory=embedding_directory, tokenizer_data=tokenizer_data)
@@ -671,7 +672,7 @@ class VAE:
         if dtype is None:
             dtype = model_management.vae_dtype(self.device, self.working_dtypes)
         self.vae_dtype = dtype
-        self.first_stage_model.to(self.vae_dtype)
+        comfy.disk_weights.module_to(self.first_stage_model, dtype=self.vae_dtype)
         self.output_device = model_management.intermediate_device()
 
         self.patcher = comfy.model_patcher.ModelPatcher(self.first_stage_model, load_device=self.device, offload_device=offload_device)
@@ -1546,7 +1547,7 @@ def load_diffusion_model_state_dict(sd, model_options={}, metadata=None):
         model_config.optimizations["fp8"] = True
 
     model = model_config.get_model(new_sd, "")
-    model = model.to(offload_device)
+    model = comfy.disk_weights.module_to(model, offload_device)
     model.load_model_weights(new_sd, "")
     left_over = sd.keys()
     if len(left_over) > 0:

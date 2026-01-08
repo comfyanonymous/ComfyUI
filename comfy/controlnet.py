@@ -25,6 +25,7 @@ import logging
 import comfy.utils
 import comfy.model_management
 import comfy.model_detection
+import comfy.disk_weights
 import comfy.model_patcher
 import comfy.ops
 import comfy.latent_formats
@@ -385,7 +386,7 @@ class ControlLora(ControlNet):
         controlnet_config["operations"] = control_lora_ops
         controlnet_config["dtype"] = dtype
         self.control_model = comfy.cldm.cldm.ControlNet(**controlnet_config)
-        self.control_model.to(comfy.model_management.get_torch_device())
+        comfy.disk_weights.module_to(self.control_model, comfy.model_management.get_torch_device())
         diffusion_model = model.diffusion_model
         sd = diffusion_model.state_dict()
 
@@ -816,8 +817,8 @@ class T2IAdapter(ControlBase):
         if x_noisy.shape[0] != self.cond_hint.shape[0]:
             self.cond_hint = broadcast_image_to(self.cond_hint, x_noisy.shape[0], batched_number)
         if self.control_input is None:
-            self.t2i_model.to(x_noisy.dtype)
-            self.t2i_model.to(self.device)
+            comfy.disk_weights.module_to(self.t2i_model, dtype=x_noisy.dtype)
+            comfy.disk_weights.module_to(self.t2i_model, self.device)
             self.control_input = self.t2i_model(self.cond_hint.to(x_noisy.dtype))
             self.t2i_model.cpu()
 

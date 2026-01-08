@@ -21,14 +21,18 @@ from __future__ import annotations
 import collections
 import weakref
 from dataclasses import dataclass
-from typing import Dict, Optional
+from typing import Dict, MutableMapping, Optional
 
 import torch
+
+from . import safetensors_stream
 
 
 ALLOW_GDS = False
 PIN_IF_CPU = False
 DISK_WEIGHTS_ENABLED = False
+BASE_LOAD_FROM_STATE_DICT = torch.nn.Module._load_from_state_dict
+LAZY_MODULE_STATE = weakref.WeakKeyDictionary()
 
 
 @dataclass
@@ -123,6 +127,15 @@ class DiskWeightCache:
                 _evict_module_weight(module, entry.name, entry.is_buffer)
         return freed
 
+    def remove_module(self, module: torch.nn.Module):
+        to_remove = []
+        for key, entry in self._entries.items():
+            if entry.module_ref() is module:
+                to_remove.append(key)
+        for key in to_remove:
+            entry = self._entries.pop(key)
+            self.current_bytes -= entry.size_bytes
+
     def _drop_module_entries(self, module_ref: weakref.ReferenceType):
         to_remove = []
         for key, entry in self._entries.items():
@@ -183,7 +196,61 @@ def register_module_weights(module: torch.nn.Module, state_dict, prefix: str = "
                 CACHE.record(module, name, buf, is_buffer=True)
 
 
+@dataclass
+class LazyModuleState:
+    state_dict: MutableMapping
+    prefix: str
+    loaded: bool = False
+
+
+def _has_custom_load(module: torch.nn.Module) -> bool:
+    return module.__class__._load_from_state_dict is not BASE_LOAD_FROM_STATE_DICT
+
+
+def register_lazy_modules(model: torch.nn.Module, state_dict):
+    if not hasattr(state_dict, "keys"):
+        return
+    for name, module in model.named_modules():
+        if not _has_custom_load(module):
+            continue
+        prefix = f"{name}." if name else ""
+        if prefix:
+            has_key = False
+            for param_name in module._parameters.keys():
+                if f"{prefix}{param_name}" in state_dict:
+                    has_key = True
+                    break
+            if not has_key:
+                for buf_name in module._buffers.keys():
+                    if f"{prefix}{buf_name}" in state_dict:
+                        has_key = True
+                        break
+            if not has_key:
+                continue
+        view = safetensors_stream.FilterViewStateDict(
+            state_dict, lambda k, p=prefix: k.startswith(p), mutate_base=False
+        )
+        LAZY_MODULE_STATE[module] = LazyModuleState(state_dict=view, prefix=prefix)
+
+
 def _evict_module_weight(module: torch.nn.Module, name: str, is_buffer: bool):
+    lazy_state = LAZY_MODULE_STATE.get(module)
+    if lazy_state is not None:
+        CACHE.remove_module(module)
+        refs = REGISTRY.get(module)
+        if refs:
+            for ref_name, disk_ref in refs.items():
+                shape = getattr(disk_ref.meta, "shape", None)
+                dtype = getattr(disk_ref.meta, "dtype", None)
+                if shape is None or dtype is None:
+                    continue
+                meta_tensor = torch.empty(shape, dtype=dtype, device="meta")
+                if disk_ref.is_buffer:
+                    module._buffers[ref_name] = meta_tensor
+                else:
+                    module._parameters[ref_name] = torch.nn.Parameter(meta_tensor, requires_grad=disk_ref.requires_grad)
+        lazy_state.loaded = False
+        return
     ref = REGISTRY.get(module)
     if not ref or name not in ref:
         return
@@ -222,6 +289,10 @@ def _find_tensor_device(args, kwargs) -> Optional[torch.device]:
 
 
 def ensure_module_materialized(module: torch.nn.Module, target_device: torch.device):
+    lazy_state = LAZY_MODULE_STATE.get(module)
+    if lazy_state is not None and not lazy_state.loaded:
+        _materialize_module_from_state_dict(module, lazy_state, target_device)
+        return
     refs = REGISTRY.get(module)
     if not refs:
         return
@@ -236,11 +307,14 @@ def ensure_module_materialized(module: torch.nn.Module, target_device: torch.dev
             continue
         if current is None:
             continue
-        if current.device.type != "meta":
+        if current.device.type == "meta":
+            tensor = disk_ref.load(target_device, ALLOW_GDS, PIN_IF_CPU)
+        elif current.device != target_device:
+            tensor = current.to(device=target_device)
+        else:
             if current.device.type == "cpu":
                 CACHE.touch(module, name)
             continue
-        tensor = disk_ref.load(target_device, ALLOW_GDS, PIN_IF_CPU)
         if is_buffer:
             module._buffers[name] = tensor
         else:
@@ -273,3 +347,138 @@ def evict_ram_cache(bytes_to_free: int):
     if bytes_to_free <= 0:
         return 0
     return CACHE.evict_bytes(bytes_to_free)
+
+
+def materialize_module_tree(module: torch.nn.Module, target_device: torch.device):
+    if not disk_weights_enabled():
+        return
+    for submodule in module.modules():
+        ensure_module_materialized(submodule, target_device)
+
+
+def _extract_to_device(args, kwargs) -> Optional[torch.device]:
+    if "device" in kwargs and kwargs["device"] is not None:
+        return torch.device(kwargs["device"])
+    for arg in args:
+        if isinstance(arg, torch.device):
+            return arg
+        if isinstance(arg, str):
+            return torch.device(arg)
+    return None
+
+
+def _find_existing_device(module: torch.nn.Module) -> Optional[torch.device]:
+    for param in module.parameters(recurse=True):
+        if param is not None and param.device.type != "meta":
+            return param.device
+    for buf in module.buffers(recurse=True):
+        if buf is not None and buf.device.type != "meta":
+            return buf.device
+    return None
+
+
+def module_to(module: torch.nn.Module, *args, **kwargs):
+    if disk_weights_enabled():
+        target_device = _extract_to_device(args, kwargs)
+        if target_device is None:
+            target_device = _find_existing_device(module) or torch.device("cpu")
+        materialize_module_tree(module, target_device)
+    return module.to(*args, **kwargs)
+
+
+def _replace_tensor(model: torch.nn.Module, name: str, tensor: torch.Tensor, is_buffer: bool, requires_grad: bool):
+    parts = name.split(".")
+    module = model
+    for part in parts[:-1]:
+        module = getattr(module, part)
+    attr = parts[-1]
+    if is_buffer:
+        module._buffers[attr] = tensor
+    else:
+        module._parameters[attr] = torch.nn.Parameter(tensor, requires_grad=requires_grad)
+
+
+def _materialize_module_from_state_dict(module: torch.nn.Module, lazy_state: LazyModuleState, target_device: torch.device):
+    missing_keys = []
+    unexpected_keys = []
+    error_msgs = []
+    metadata = getattr(lazy_state.state_dict, "_metadata", None)
+    local_metadata = {} if metadata is None else metadata.get(lazy_state.prefix[:-1], {})
+    state_dict = safetensors_stream.DeviceViewStateDict(
+        lazy_state.state_dict,
+        device=target_device,
+        allow_gds=ALLOW_GDS,
+        pin_if_cpu=PIN_IF_CPU,
+        mutate_base=False,
+    )
+    factory_device = None
+    if hasattr(module, "factory_kwargs") and "device" in module.factory_kwargs:
+        factory_device = module.factory_kwargs["device"]
+        module.factory_kwargs["device"] = target_device
+    try:
+        module._load_from_state_dict(
+            state_dict,
+            lazy_state.prefix,
+            local_metadata,
+            False,
+            missing_keys,
+            unexpected_keys,
+            error_msgs,
+        )
+        incompatible = torch.nn.modules.module._IncompatibleKeys(missing_keys, unexpected_keys)
+        for hook in module._load_state_dict_post_hooks.values():
+            out = hook(module, incompatible)
+            if out is not None:
+                raise RuntimeError("load_state_dict post hook returned a value, which is unsupported.")
+    finally:
+        if factory_device is not None:
+            module.factory_kwargs["device"] = factory_device
+    if len(error_msgs) > 0:
+        raise RuntimeError('Error(s) in loading state_dict for {}:\n\t{}'.format(module.__class__.__name__, "\n\t".join(error_msgs)))
+    lazy_state.loaded = True
+    for name, param in module.named_parameters(recurse=False):
+        if param.device.type == "cpu":
+            CACHE.record(module, name, param, is_buffer=False)
+    for name, buf in module.named_buffers(recurse=False):
+        if buf is not None and buf.device.type == "cpu":
+            CACHE.record(module, name, buf, is_buffer=True)
+
+
+def lazy_load_state_dict(model: torch.nn.Module, state_dict, strict: bool = False):
+    model_keys = set()
+    for name, _ in model.named_parameters(recurse=True):
+        model_keys.add(name)
+    for name, _ in model.named_buffers(recurse=True):
+        model_keys.add(name)
+
+    state_keys = set(state_dict.keys())
+    missing_keys = [k for k in model_keys if k not in state_keys]
+    unexpected_keys = [k for k in state_keys if k not in model_keys]
+
+    if strict:
+        error_msgs = []
+        if len(unexpected_keys) > 0:
+            error_msgs.append('Unexpected key(s) in state_dict: {}.'.format(', '.join(f'"{k}"' for k in unexpected_keys)))
+        if len(missing_keys) > 0:
+            error_msgs.append('Missing key(s) in state_dict: {}.'.format(', '.join(f'"{k}"' for k in missing_keys)))
+        if error_msgs:
+            raise RuntimeError("Error(s) in loading state_dict:\n\t{}".format("\n\t".join(error_msgs)))
+
+    for name, param in model.named_parameters(recurse=True):
+        if name not in state_keys:
+            continue
+        meta = state_dict.meta(name)
+        meta_tensor = torch.empty(meta.shape, dtype=meta.dtype, device="meta")
+        _replace_tensor(model, name, meta_tensor, is_buffer=False, requires_grad=param.requires_grad)
+
+    for name, buf in model.named_buffers(recurse=True):
+        if buf is None or name not in state_keys:
+            continue
+        meta = state_dict.meta(name)
+        meta_tensor = torch.empty(meta.shape, dtype=meta.dtype, device="meta")
+        _replace_tensor(model, name, meta_tensor, is_buffer=True, requires_grad=False)
+
+    register_module_weights(model, state_dict)
+    register_lazy_modules(model, state_dict)
+    attach_disk_weight_hooks(model)
+    return missing_keys, unexpected_keys
