@@ -884,6 +884,9 @@ class ModelPatcher:
             if len(unload_list) > 0:
                 NS = comfy.model_management.NUM_STREAMS
                 offload_weight_factor = [ min(offload_buffer / (NS + 1), unload_list[0][1]) ] * NS
+            remaining_ram = None
+            if device_to is not None and comfy.model_management.is_device_cpu(device_to):
+                remaining_ram = comfy.model_management.get_free_memory(device_to)
 
             for unload in unload_list:
                 if memory_to_free + offload_buffer - self.model.model_offload_buffer_memory < memory_freed:
@@ -923,10 +926,18 @@ class ModelPatcher:
                             if freed_bytes == 0:
                                 freed_bytes = module_mem
                         else:
-                            if comfy.disk_weights.disk_weights_enabled():
-                                comfy.disk_weights.move_module_tensors(m, device_to)
+                            if remaining_ram is not None and remaining_ram < module_mem and comfy.disk_weights.disk_weights_enabled():
+                                logging.info("Insufficient CPU RAM for %s (need %.2f MB, free %.2f MB); offloading to disk.", n, module_mem / (1024 * 1024), remaining_ram / (1024 * 1024))
+                                freed_bytes = comfy.disk_weights.offload_module_weights(m)
+                                if freed_bytes == 0:
+                                    freed_bytes = module_mem
                             else:
-                                m.to(device_to)
+                                if comfy.disk_weights.disk_weights_enabled():
+                                    comfy.disk_weights.move_module_tensors(m, device_to)
+                                else:
+                                    m.to(device_to)
+                                if remaining_ram is not None:
+                                    remaining_ram = max(0, remaining_ram - module_mem)
                         module_mem += move_weight_functions(m, device_to)
                         if lowvram_possible:
                             if weight_key in self.patches:

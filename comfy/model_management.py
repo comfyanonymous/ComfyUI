@@ -590,6 +590,7 @@ def minimum_inference_memory():
 def free_memory(memory_required, device, keep_loaded=[]):
     cleanup_models_gc()
     if is_device_cpu(device) and comfy.disk_weights.disk_weights_enabled():
+        logging.info("RAM pressure: requested %.2f MB, free %.2f MB", memory_required / (1024 * 1024), get_free_memory(device) / (1024 * 1024))
         freed_cache = comfy.disk_weights.evict_ram_cache(memory_required)
         if freed_cache < memory_required:
             evict_ram_to_disk(memory_required - freed_cache)
