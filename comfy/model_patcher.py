@@ -40,19 +40,6 @@ from comfy.quant_ops import QuantizedTensor
 from comfy.patcher_extension import CallbacksMP, PatcherInjection, WrappersMP
 
 
-def string_to_seed(data):
-    crc = 0xFFFFFFFF
-    for byte in data:
-        if isinstance(byte, str):
-            byte = ord(byte)
-        crc ^= byte
-        for _ in range(8):
-            if crc & 1:
-                crc = (crc >> 1) ^ 0xEDB88320
-            else:
-                crc >>= 1
-    return crc ^ 0xFFFFFFFF
-
 def set_model_options_patch_replace(model_options, patch, name, block_name, number, transformer_index=None):
     to = model_options["transformer_options"].copy()
 
@@ -653,7 +640,7 @@ class ModelPatcher:
 
         out_weight = comfy.lora.calculate_weight(self.patches[key], temp_weight, key)
         if set_func is None:
-            out_weight = comfy.float.stochastic_rounding(out_weight, weight.dtype, seed=string_to_seed(key))
+            out_weight = comfy.float.stochastic_rounding(out_weight, weight.dtype, seed=comfy.utils.string_to_seed(key))
             if return_weight:
                 return out_weight
             elif inplace_update:
@@ -661,7 +648,7 @@ class ModelPatcher:
             else:
                 comfy.utils.set_attr_param(self.model, key, out_weight)
         else:
-            return set_func(out_weight, inplace_update=inplace_update, seed=string_to_seed(key), return_weight=return_weight)
+            return set_func(out_weight, inplace_update=inplace_update, seed=comfy.utils.string_to_seed(key), return_weight=return_weight)
 
     def pin_weight_to_device(self, key):
         weight, set_func, convert_func = get_key_weight(self.model, key)
@@ -1341,10 +1328,10 @@ class ModelPatcher:
                                                  key, original_weights=original_weights)
         del original_weights[key]
         if set_func is None:
-            out_weight = comfy.float.stochastic_rounding(out_weight, weight.dtype, seed=string_to_seed(key))
+            out_weight = comfy.float.stochastic_rounding(out_weight, weight.dtype, seed=comfy.utils.string_to_seed(key))
             comfy.utils.copy_to_param(self.model, key, out_weight)
         else:
-            set_func(out_weight, inplace_update=True, seed=string_to_seed(key))
+            set_func(out_weight, inplace_update=True, seed=comfy.utils.string_to_seed(key))
         if self.hook_mode == comfy.hooks.EnumHookMode.MaxSpeed:
             # TODO: disable caching if not enough system RAM to do so
             target_device = self.offload_device

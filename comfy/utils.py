@@ -1308,3 +1308,16 @@ def convert_old_quants(state_dict, model_prefix="", metadata={}):
             state_dict["{}.comfy_quant".format(k)] = torch.tensor(list(json.dumps(v).encode('utf-8')), dtype=torch.uint8)
 
     return state_dict, metadata
+
+def string_to_seed(data):
+    crc = 0xFFFFFFFF
+    for byte in data:
+        if isinstance(byte, str):
+            byte = ord(byte)
+        crc ^= byte
+        for _ in range(8):
+            if crc & 1:
+                crc = (crc >> 1) ^ 0xEDB88320
+            else:
+                crc >>= 1
+    return crc ^ 0xFFFFFFFF
