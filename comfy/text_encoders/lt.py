@@ -36,10 +36,10 @@ class LTXAVGemmaTokenizer(sd1_clip.SD1Tokenizer):
 
 class Gemma3_12BModel(sd1_clip.SDClipModel):
     def __init__(self, device="cpu", layer="all", layer_idx=None, dtype=None, attention_mask=True, model_options={}):
-        llama_scaled_fp8 = model_options.get("gemma_scaled_fp8", None)
-        if llama_scaled_fp8 is not None:
+        llama_quantization_metadata = model_options.get("llama_quantization_metadata", None)
+        if llama_quantization_metadata is not None:
             model_options = model_options.copy()
-            model_options["scaled_fp8"] = llama_scaled_fp8
+            model_options["quantization_metadata"] = llama_quantization_metadata
 
         super().__init__(device=device, layer=layer, layer_idx=layer_idx, textmodel_json_config={}, dtype=dtype, special_tokens={"start": 2, "pad": 0}, layer_norm_hidden_state=False, model_class=comfy.text_encoders.llama.Gemma3_12B, enable_attention_masks=attention_mask, return_attention_masks=attention_mask, model_options=model_options)
 
@@ -86,20 +86,25 @@ class LTXAVTEModel(torch.nn.Module):
         )
 
     def set_clip_options(self, options):
+        self.execution_device = options.get("execution_device", self.execution_device)
         self.gemma3_12b.set_clip_options(options)
 
     def reset_clip_options(self):
         self.gemma3_12b.reset_clip_options()
+        self.execution_device = None
 
     def encode_token_weights(self, token_weight_pairs):
         token_weight_pairs = token_weight_pairs["gemma3_12b"]
 
         out, pooled, extra = self.gemma3_12b.encode_token_weights(token_weight_pairs)
         out_device = out.device
-        out = out.movedim(1, -1).to(self.text_embedding_projection.weight.device)
+        if comfy.model_management.should_use_bf16(self.execution_device):
+            out = out.to(device=self.execution_device, dtype=torch.bfloat16)
+        out = out.movedim(1, -1).to(self.execution_device)
         out = 8.0 * (out - out.mean(dim=(1, 2), keepdim=True)) / (out.amax(dim=(1, 2), keepdim=True) - out.amin(dim=(1, 2), keepdim=True) + 1e-6)
         out = out.reshape((out.shape[0], out.shape[1], -1))
         out = self.text_embedding_projection(out)
+        out = out.float()
         out_vid = self.video_embeddings_connector(out)[0]
         out_audio = self.audio_embeddings_connector(out)[0]
         out = torch.concat((out_vid, out_audio), dim=-1)
@@ -116,13 +121,21 @@ class LTXAVTEModel(torch.nn.Module):
 
             return self.load_state_dict(sdo, strict=False)
 
+    def memory_estimation_function(self, token_weight_pairs, device=None):
+        constant = 6.0
+        if comfy.model_management.should_use_bf16(device):
+            constant /= 2.0
 
-def ltxav_te(dtype_llama=None, llama_scaled_fp8=None):
+        token_weight_pairs = token_weight_pairs.get("gemma3_12b", [])
+        num_tokens = sum(map(lambda a: len(a), token_weight_pairs))
+        return num_tokens * constant * 1024 * 1024
+
+def ltxav_te(dtype_llama=None, llama_quantization_metadata=None):
     class LTXAVTEModel_(LTXAVTEModel):
         def __init__(self, device="cpu", dtype=None, model_options={}):
-            if llama_scaled_fp8 is not None and "llama_scaled_fp8" not in model_options:
+            if llama_quantization_metadata is not None:
                 model_options = model_options.copy()
-                model_options["llama_scaled_fp8"] = llama_scaled_fp8
+                model_options["llama_quantization_metadata"] = llama_quantization_metadata
             if dtype_llama is not None:
                 dtype = dtype_llama
             super().__init__(dtype_llama=dtype_llama, device=device, dtype=dtype, model_options=model_options)
