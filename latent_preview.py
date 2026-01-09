@@ -122,7 +122,7 @@ def prepare_callback(model, steps, x0_output_dict=None, shape=None):
         if x0_output_dict is not None:
             x0_output_dict["x0"] = x0
 
-        if x0.ndim == 3:
+        if shape is not None:
             cut = math.prod(shape[1:])
             x0 = x0[:, :, :cut].reshape([x0.shape[0]] + list(shape)[1:])
 
