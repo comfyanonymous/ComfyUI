@@ -38,37 +38,19 @@ for dev in /dev/nvidia*; do
     usermod -aG "$group" "$user"
 done
 
-
-# Install packages listed in ./requirements.txt, requirement files under
-# ./custom_nodes, and any specified in PIP_EXTRA_PACKAGES. Also store a hash of
-# all dependencies to detect when new or updated packages need to be installed.
-packages_hash_file="/home/comfyui/pkghash"
-
-packages_comfyui=$(cat requirements.txt)
-packages_custom=$(find custom_nodes -name requirements.txt -exec cat {} \;)
-packages_extras=$(echo "$PIP_EXTRA_PACKAGES" | tr ' ' '\n')
-
-current_hash=$(
-    {
-        echo "$packages_comfyui"
-        echo "$packages_custom"
-        echo "$packages_extras"
-    } | sort | sha256sum | awk '{print $1}'
-)
-
-if [ ! -f "$packages_hash_file" ] || [ "$current_hash" != "$(cat $packages_hash_file)" ]; then
-    echo "[entrypoint] Installing new python dependencies, this might take a while..."
-    reqs="-r requirements.txt"
-    for req in custom_nodes/*/requirements.txt; do
-        [ -f "$req" ] && reqs="$reqs -r $req"
-    done
-
-    su -c "pip install -q --disable-pip-version-check --no-cache-dir $reqs $PIP_EXTRA_PACKAGES" comfyui
-    echo "$current_hash" > "$packages_hash_file"
-else
-    echo "[entrypoint] Requirements unchanged, skipping install"
-fi
-
+# Install or update the Python dependencies defined by ComfyUI (or any installed
+# custom node) and also install any user-defined dependencies specified in
+# PIP_EXTRA_PACKAGES.
+echo "[entrypoint] Updating Python dependencies..."
+su -c "
+   pip install                      \\
+        --no-cache-dir              \\
+        --disable-pip-version-check \\
+        -r requirements.txt         \\
+        $(find custom_nodes -mindepth 2 -maxdepth 2 -type f -name requirements.txt -printf "-r '%p' ") \\
+        $PIP_EXTRA_PACKAGES
+" comfyui \
+    || echo "[entrypoint] Failed to install dependencies, starting anyway" >&2
 
 # Run command as comfyui
 echo "[entrypoint] Running command"
