@@ -153,7 +153,7 @@ class TestMixedPrecisionOps(unittest.TestCase):
         state_dict2 = model.state_dict()
 
         # Verify layer1.weight is a QuantizedTensor with scale preserved
-        self.assertTrue(torch.equal(state_dict2["layer1.weight"], fp8_weight))
+        self.assertTrue(torch.equal(state_dict2["layer1.weight"].view(torch.uint8), fp8_weight.view(torch.uint8)))
         self.assertEqual(state_dict2["layer1.weight_scale"].item(), 3.0)
         self.assertEqual(model.layer1.weight._layout_cls, "TensorCoreFP8E4M3Layout")
 
