@@ -18,22 +18,28 @@ else
     echo "[entrypoint] Missing UID or GID environment variables; keeping default values."
 fi
 
-
+# Changing a user's UID and GID revokes that user's access to files owned by the
+# original UID/GID. To preserve access to runtime data, the ownership of those
+# directories must be updated recursively so that their numeric owner matches
+# the user's new UID and GID.
 echo "[entrypoint] Changing directory ownership..."
 chown -R "$user:$user_group" \
     /data                    \
     /comfyui                 \
     /home/comfyui
 
-# Add the user to the groups owning /dev/nvidia* devices to ensure CUDA access.
-# Typically, these devices belong to a single "video" group, but to be safe, we
-# add the user to each device's group individually.
+# To use CUDA and other NVIDIA features, regular users must belong to the group
+# that owns the /dev/nvidia* device files -- typically the video group.
+#
+# Known issue: Because these device files are mounted from the host system,
+# there's no guarantee that the device's group ID will match the intended group
+# inside the container. For example, the video group might be mapped to GID 27
+# on the host, which corresponds to the sudo group in the python:3.12 image.
+# This shouldn't cause major problems, and given the lack of a universal
+# standard for system GIDs, there isn't much we can realistically change to
+# address this issue.
 echo "[entrypoint] Adding user to GPU device groups..."
 for dev in /dev/nvidia*; do
-    # Known issue: There is no universal standard for group IDs across Linux
-    # systems, so this may add the user to unexpected groups. For example, the
-    # 'video' group on some systems uses GID 27, which corresponds to 'sudo' in
-    # the python:3.12 image. This should not cause serious problems.
     group=$(ls -ld "$dev" | awk '{print $4}')
     usermod -aG "$group" "$user"
 done
