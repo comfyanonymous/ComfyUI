@@ -47,11 +47,15 @@ USER comfyui
 RUN python -m venv .venv
 ENV PATH="/comfyui/.venv/bin:$PATH"
 
-# Install Python dependencies. This step is also performed automatically by the
-# entrypoint script, but doing it at build time reduces startup time on the
-# first run.
-COPY requirements.txt ./
-RUN pip install --no-cache-dir -r requirements.txt
+# Install ComfyUI's Python dependencies. Although dependency keeping is also
+# performed at startup, building ComfyUI's base dependencies into the image
+# significantly speeds up each containers' first run.
+#
+# Since this step takes a long time to complete, it's performed early to take
+# advantage of Docker's build cache, thereby accelerating subsequent builds.
+COPY requirements.txt manager_requirements.txt ./
+RUN pip install --no-cache-dir --disable-pip-version-check \
+    -r requirements.txt
 
 # Install ComfyUI and link the data mount points.
 COPY . .
