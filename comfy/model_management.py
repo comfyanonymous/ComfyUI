@@ -26,6 +26,7 @@ import platform
 import weakref
 import gc
 import os
+import comfy.disk_weights
 
 class VRAMState(Enum):
     DISABLED = 0    #No vram present: no need to move models to vram
@@ -540,7 +541,12 @@ class LoadedModel:
                 freed = self.model.partially_unload(self.model.offload_device, memory_to_free)
                 if freed >= memory_to_free:
                     return False
-        self.model.detach(unpatch_weights)
+        offload_device = None
+        if comfy.disk_weights.disk_weights_enabled():
+            offload_device = torch.device("meta")
+        self.model.detach(unpatch_weights, offload_device=offload_device)
+        if offload_device is not None and offload_device.type == "meta":
+            logging.info(f"Unloaded {self.model.model.__class__.__name__} to disk")
         self.model_finalizer.detach()
         self.model_finalizer = None
         self.real_model = None
@@ -594,6 +600,11 @@ def minimum_inference_memory():
 
 def free_memory(memory_required, device, keep_loaded=[]):
     cleanup_models_gc()
+    if is_device_cpu(device) and comfy.disk_weights.disk_weights_enabled():
+        logging.info("RAM pressure: requested %.2f MB, free %.2f MB", memory_required / (1024 * 1024), get_free_memory(device) / (1024 * 1024))
+        freed_cache = comfy.disk_weights.evict_ram_cache(memory_required)
+        if freed_cache < memory_required:
+            evict_ram_to_disk(memory_required - freed_cache)
     unloaded_model = []
     can_unload = []
     unloaded_models = []
@@ -628,6 +639,34 @@ def free_memory(memory_required, device, keep_loaded=[]):
             if mem_free_torch > mem_free_total * 0.25:
                 soft_empty_cache()
     return unloaded_models
+
+
+def evict_ram_to_disk(memory_to_free, keep_loaded=[]):
+    if memory_to_free <= 0:
+        return 0
+    if not comfy.disk_weights.disk_weights_enabled():
+        return 0
+
+    freed = 0
+    can_unload = []
+    for i in range(len(current_loaded_models) - 1, -1, -1):
+        shift_model = current_loaded_models[i]
+        if shift_model not in keep_loaded and not shift_model.is_dead():
+            loaded_memory = shift_model.model_loaded_memory()
+            if loaded_memory > 0:
+                can_unload.append((-loaded_memory, sys.getrefcount(shift_model.model), shift_model.model_memory(), i))
+
+    for x in sorted(can_unload):
+        i = x[-1]
+        memory_needed = memory_to_free - freed
+        if memory_needed <= 0:
+            break
+        logging.debug(f"Offloading {current_loaded_models[i].model.model.__class__.__name__} to disk")
+        freed += current_loaded_models[i].model.partially_unload(torch.device("meta"), memory_needed)
+
+    if freed > 0:
+        logging.info("RAM evicted to disk: {:.2f} MB freed".format(freed / (1024 * 1024)))
+    return freed
 
 def load_models_gpu(models, memory_required=0, force_patch_weights=False, minimum_memory_required=None, force_full_load=False):
     cleanup_models_gc()
@@ -1135,6 +1174,16 @@ if not args.disable_pinned_memory:
             MAX_PINNED_MEMORY = get_total_memory(torch.device("cpu")) * 0.95
         logging.info("Enabled pinned memory {}".format(MAX_PINNED_MEMORY // (1024 * 1024)))
 
+WEIGHTS_RAM_CACHE_BYTES = 0
+WEIGHTS_GDS_ENABLED = bool(args.weights_gds)
+if args.weights_ram_cache_gb is not None:
+    WEIGHTS_RAM_CACHE_BYTES = int(max(0.0, args.weights_ram_cache_gb) * (1024 ** 3))
+    comfy.disk_weights.configure(
+        WEIGHTS_RAM_CACHE_BYTES,
+        allow_gds=WEIGHTS_GDS_ENABLED,
+        pin_if_cpu=not args.disable_pinned_memory,
+    )
+
 PINNING_ALLOWED_TYPES = set(["Parameter", "QuantizedTensor"])
 
 def discard_cuda_async_error():
@@ -1291,7 +1340,10 @@ def get_free_memory(dev=None, torch_free_too=False):
     if dev is None:
         dev = get_torch_device()
 
-    if hasattr(dev, 'type') and (dev.type == 'cpu' or dev.type == 'mps'):
+    if hasattr(dev, 'type') and dev.type == "meta":
+        mem_free_total = sys.maxsize
+        mem_free_torch = mem_free_total
+    elif hasattr(dev, 'type') and (dev.type == 'cpu' or dev.type == 'mps'):
         mem_free_total = psutil.virtual_memory().available
         mem_free_torch = mem_free_total
     else:

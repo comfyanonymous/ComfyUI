@@ -119,7 +119,7 @@ class LTXAVTEModel(torch.nn.Module):
             if len(sdo) == 0:
                 sdo = sd
 
-            return self.load_state_dict(sdo, strict=False)
+            return comfy.utils.load_state_dict(self, sdo, strict=False)
 
     def memory_estimation_function(self, token_weight_pairs, device=None):
         constant = 6.0

@@ -25,6 +25,7 @@ import logging
 import comfy.utils
 import comfy.model_management
 import comfy.model_detection
+import comfy.disk_weights
 import comfy.model_patcher
 import comfy.ops
 import comfy.latent_formats
@@ -385,7 +386,7 @@ class ControlLora(ControlNet):
         controlnet_config["operations"] = control_lora_ops
         controlnet_config["dtype"] = dtype
         self.control_model = comfy.cldm.cldm.ControlNet(**controlnet_config)
-        self.control_model.to(comfy.model_management.get_torch_device())
+        comfy.disk_weights.module_to(self.control_model, comfy.model_management.get_torch_device())
         diffusion_model = model.diffusion_model
         sd = diffusion_model.state_dict()
 
@@ -439,7 +440,7 @@ def controlnet_config(sd, model_options={}):
     return model_config, operations, load_device, unet_dtype, manual_cast_dtype, offload_device
 
 def controlnet_load_state_dict(control_model, sd):
-    missing, unexpected = control_model.load_state_dict(sd, strict=False)
+    missing, unexpected = comfy.utils.load_state_dict(control_model, sd, strict=False)
 
     if len(missing) > 0:
         logging.warning("missing controlnet keys: {}".format(missing))
@@ -473,9 +474,9 @@ def load_controlnet_mmdit(sd, model_options={}):
 class ControlNetSD35(ControlNet):
     def pre_run(self, model, percent_to_timestep_function):
         if self.control_model.double_y_emb:
-            missing, unexpected = self.control_model.orig_y_embedder.load_state_dict(model.diffusion_model.y_embedder.state_dict(), strict=False)
+            missing, unexpected = comfy.utils.load_state_dict(self.control_model.orig_y_embedder, model.diffusion_model.y_embedder.state_dict(), strict=False)
         else:
-            missing, unexpected = self.control_model.x_embedder.load_state_dict(model.diffusion_model.x_embedder.state_dict(), strict=False)
+            missing, unexpected = comfy.utils.load_state_dict(self.control_model.x_embedder, model.diffusion_model.x_embedder.state_dict(), strict=False)
         super().pre_run(model, percent_to_timestep_function)
 
     def copy(self):
@@ -748,9 +749,9 @@ def load_controlnet_state_dict(state_dict, model=None, model_options={}):
             pass
         w = WeightsLoader()
         w.control_model = control_model
-        missing, unexpected = w.load_state_dict(controlnet_data, strict=False)
+        missing, unexpected = comfy.utils.load_state_dict(w, controlnet_data, strict=False)
     else:
-        missing, unexpected = control_model.load_state_dict(controlnet_data, strict=False)
+        missing, unexpected = comfy.utils.load_state_dict(control_model, controlnet_data, strict=False)
 
     if len(missing) > 0:
         logging.warning("missing controlnet keys: {}".format(missing))
@@ -816,8 +817,8 @@ class T2IAdapter(ControlBase):
         if x_noisy.shape[0] != self.cond_hint.shape[0]:
             self.cond_hint = broadcast_image_to(self.cond_hint, x_noisy.shape[0], batched_number)
         if self.control_input is None:
-            self.t2i_model.to(x_noisy.dtype)
-            self.t2i_model.to(self.device)
+            comfy.disk_weights.module_to(self.t2i_model, dtype=x_noisy.dtype)
+            comfy.disk_weights.module_to(self.t2i_model, self.device)
             self.control_input = self.t2i_model(self.cond_hint.to(x_noisy.dtype))
             self.t2i_model.cpu()
 
@@ -874,7 +875,7 @@ def load_t2i_adapter(t2i_data, model_options={}): #TODO: model_options
     else:
         return None
 
-    missing, unexpected = model_ad.load_state_dict(t2i_data)
+    missing, unexpected = comfy.utils.load_state_dict(model_ad, t2i_data, strict=True)
     if len(missing) > 0:
         logging.warning("t2i missing {}".format(missing))
 

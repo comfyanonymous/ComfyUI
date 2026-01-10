@@ -56,6 +56,7 @@ import comfy.conds
 import comfy.ops
 from enum import Enum
 from . import utils
+from . import safetensors_stream
 import comfy.latent_formats
 import comfy.model_sampling
 import math
@@ -299,20 +300,21 @@ class BaseModel(torch.nn.Module):
         return out
 
     def load_model_weights(self, sd, unet_prefix=""):
-        to_load = {}
-        keys = list(sd.keys())
-        for k in keys:
-            if k.startswith(unet_prefix):
-                to_load[k[len(unet_prefix):]] = sd.pop(k)
-
+        replace_prefix = {unet_prefix: ""} if unet_prefix else {}
+        if replace_prefix:
+            if utils.is_stream_state_dict(sd):
+                to_load = utils.state_dict_prefix_replace(sd, replace_prefix, filter_keys=True)
+            else:
+                to_load = safetensors_stream.RenameViewStateDict(sd, replace_prefix, filter_keys=True, mutate_base=False)
+        else:
+            to_load = sd
         to_load = self.model_config.process_unet_state_dict(to_load)
-        m, u = self.diffusion_model.load_state_dict(to_load, strict=False)
+        m, u = utils.load_state_dict(self.diffusion_model, to_load, strict=False)
         if len(m) > 0:
             logging.warning("unet missing: {}".format(m))
 
         if len(u) > 0:
             logging.warning("unet unexpected: {}".format(u))
-        del to_load
         return self
 
     def process_latent_in(self, latent):
@@ -751,8 +753,8 @@ class StableAudio1(BaseModel):
         super().__init__(model_config, model_type, device=device, unet_model=comfy.ldm.audio.dit.AudioDiffusionTransformer)
         self.seconds_start_embedder = comfy.ldm.audio.embedders.NumberConditioner(768, min_val=0, max_val=512)
         self.seconds_total_embedder = comfy.ldm.audio.embedders.NumberConditioner(768, min_val=0, max_val=512)
-        self.seconds_start_embedder.load_state_dict(seconds_start_embedder_weights)
-        self.seconds_total_embedder.load_state_dict(seconds_total_embedder_weights)
+        utils.load_state_dict(self.seconds_start_embedder, seconds_start_embedder_weights, strict=True)
+        utils.load_state_dict(self.seconds_total_embedder, seconds_total_embedder_weights, strict=True)
 
     def extra_conds(self, **kwargs):
         out = {}

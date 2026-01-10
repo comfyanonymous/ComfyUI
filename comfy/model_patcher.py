@@ -34,6 +34,7 @@ import comfy.lora
 import comfy.model_management
 import comfy.patcher_extension
 import comfy.utils
+import comfy.disk_weights
 from comfy.comfy_types import UnetWrapperFunction
 from comfy.quant_ops import QuantizedTensor
 from comfy.patcher_extension import CallbacksMP, PatcherInjection, WrappersMP
@@ -268,6 +269,8 @@ class ModelPatcher:
 
         if not hasattr(self.model, 'model_offload_buffer_memory'):
             self.model.model_offload_buffer_memory = 0
+
+        comfy.disk_weights.attach_disk_weight_hooks(self.model)
 
     def model_size(self):
         if self.size > 0:
@@ -783,7 +786,7 @@ class ModelPatcher:
                 m.comfy_patched_weights = True
 
             for x in load_completely:
-                x[2].to(device_to)
+                comfy.disk_weights.module_to(x[2], device_to)
 
             for x in offloaded:
                 n = x[1]
@@ -799,7 +802,7 @@ class ModelPatcher:
                 logging.info("loaded completely; {} {:.2f} MB loaded, full load: {}".format(usable_stat, mem_counter / (1024 * 1024), full_load))
                 self.model.model_lowvram = False
                 if full_load:
-                    self.model.to(device_to)
+                    comfy.disk_weights.module_to(self.model, device_to)
                     mem_counter = self.model_size()
 
             self.model.lowvram_patch_counter += patch_counter
@@ -856,7 +859,7 @@ class ModelPatcher:
             self.backup.clear()
 
             if device_to is not None:
-                self.model.to(device_to)
+                comfy.disk_weights.module_to(self.model, device_to, allow_materialize=False)
                 self.model.device = device_to
             self.model.model_loaded_weight_memory = 0
             self.model.model_offload_buffer_memory = 0
@@ -883,6 +886,9 @@ class ModelPatcher:
             if len(unload_list) > 0:
                 NS = comfy.model_management.NUM_STREAMS
                 offload_weight_factor = [ min(offload_buffer / (NS + 1), unload_list[0][1]) ] * NS
+            remaining_ram = None
+            if device_to is not None and comfy.model_management.is_device_cpu(device_to):
+                remaining_ram = comfy.model_management.get_free_memory(device_to)
 
             for unload in unload_list:
                 if memory_to_free + offload_buffer - self.model.model_offload_buffer_memory < memory_freed:
@@ -916,7 +922,24 @@ class ModelPatcher:
                     bias_key = "{}.bias".format(n)
                     if move_weight:
                         cast_weight = self.force_cast_weights
-                        m.to(device_to)
+                        freed_bytes = module_mem
+                        if device_to is not None and device_to.type == "meta" and comfy.disk_weights.disk_weights_enabled():
+                            freed_bytes = comfy.disk_weights.offload_module_weights(m)
+                            if freed_bytes == 0:
+                                freed_bytes = module_mem
+                        else:
+                            if remaining_ram is not None and remaining_ram < module_mem and comfy.disk_weights.disk_weights_enabled():
+                                logging.info("Insufficient CPU RAM for %s (need %.2f MB, free %.2f MB); offloading to disk.", n, module_mem / (1024 * 1024), remaining_ram / (1024 * 1024))
+                                freed_bytes = comfy.disk_weights.offload_module_weights(m)
+                                if freed_bytes == 0:
+                                    freed_bytes = module_mem
+                            else:
+                                if comfy.disk_weights.disk_weights_enabled():
+                                    comfy.disk_weights.move_module_tensors(m, device_to)
+                                else:
+                                    m.to(device_to)
+                                if remaining_ram is not None:
+                                    remaining_ram = max(0, remaining_ram - module_mem)
                         module_mem += move_weight_functions(m, device_to)
                         if lowvram_possible:
                             if weight_key in self.patches:
@@ -939,7 +962,7 @@ class ModelPatcher:
                             m.prev_comfy_cast_weights = m.comfy_cast_weights
                             m.comfy_cast_weights = True
                         m.comfy_patched_weights = False
-                        memory_freed += module_mem
+                        memory_freed += freed_bytes
                         offload_buffer = max(offload_buffer, potential_offload)
                         offload_weight_factor.append(module_mem)
                         offload_weight_factor.pop(0)
@@ -953,7 +976,8 @@ class ModelPatcher:
             self.model.lowvram_patch_counter += patch_counter
             self.model.model_loaded_weight_memory -= memory_freed
             self.model.model_offload_buffer_memory = offload_buffer
-            logging.info("Unloaded partially: {:.2f} MB freed, {:.2f} MB remains loaded, {:.2f} MB buffer reserved, lowvram patches: {}".format(memory_freed / (1024 * 1024), self.model.model_loaded_weight_memory / (1024 * 1024), offload_buffer / (1024 * 1024), self.model.lowvram_patch_counter))
+            target_label = "disk" if device_to is not None and device_to.type == "meta" else device_to
+            logging.info("Unloaded partially to {}: {:.2f} MB freed, {:.2f} MB remains loaded, {:.2f} MB buffer reserved, lowvram patches: {}".format(target_label, memory_freed / (1024 * 1024), self.model.model_loaded_weight_memory / (1024 * 1024), offload_buffer / (1024 * 1024), self.model.lowvram_patch_counter))
             return memory_freed
 
     def partially_load(self, device_to, extra_memory=0, force_patch_weights=False):
@@ -984,11 +1008,12 @@ class ModelPatcher:
 
             return self.model.model_loaded_weight_memory - current_used
 
-    def detach(self, unpatch_all=True):
+    def detach(self, unpatch_all=True, offload_device=None):
         self.eject_model()
         self.model_patches_to(self.offload_device)
+        target_device = self.offload_device if offload_device is None else offload_device
         if unpatch_all:
-            self.unpatch_model(self.offload_device, unpatch_weights=unpatch_all)
+            self.unpatch_model(target_device, unpatch_weights=unpatch_all)
         for callback in self.get_all_callbacks(CallbacksMP.ON_DETACH):
             callback(self, unpatch_all)
         return self.model
@@ -1358,4 +1383,3 @@ class ModelPatcher:
     def __del__(self):
         self.unpin_all_weights()
         self.detach(unpatch_all=False)
-

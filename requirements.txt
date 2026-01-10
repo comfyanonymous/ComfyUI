@@ -11,6 +11,7 @@ transformers>=4.50.3
 tokenizers>=0.13.3
 sentencepiece
 safetensors>=0.4.2
+fastsafetensors @ https://github.com/foundation-model-stack/fastsafetensors/archive/refs/heads/main.zip
 aiohttp>=3.11.8
 yarl>=1.18.0
 pyyaml
