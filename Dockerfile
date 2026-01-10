@@ -2,8 +2,14 @@
 # acceleration, file ownership synchronization, custom nodes, and custom node
 # managers.
 
-# Use the recommended Python version 3.12, as specified in the README.
-FROM python:3.12.11-bookworm
+# While Python 3.13 is well supported by ComfyUI, some older custom node packs
+# may not work correctly with this version, which is why we're staying on Python
+# 3.12 for now.
+#
+# Users are free to try different base Python image tags (e.g., 3.13, alpine,
+# *-slim), but for maintainability, only one base version is officially
+# supported at a time.
+FROM python:3.12.12-trixie
 
 # Install cmake, which is an indirect installation dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends cmake
