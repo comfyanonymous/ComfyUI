@@ -153,9 +153,9 @@ class TestMixedPrecisionOps(unittest.TestCase):
         state_dict2 = model.state_dict()
 
         # Verify layer1.weight is a QuantizedTensor with scale preserved
-        self.assertIsInstance(state_dict2["layer1.weight"], QuantizedTensor)
-        self.assertEqual(state_dict2["layer1.weight"]._params.scale.item(), 3.0)
-        self.assertEqual(state_dict2["layer1.weight"]._layout_cls, "TensorCoreFP8E4M3Layout")
+        self.assertEqual(state_dict2["layer1.weight"], fp8_weight)
+        self.assertEqual(state_dict2["layer1.weight_scale"].item(), 3.0)
+        self.assertEqual(model.layer1.weight._layout_cls, "TensorCoreFP8E4M3Layout")
 
         # Verify non-quantized layers are standard tensors
         self.assertNotIsInstance(state_dict2["layer2.weight"], QuantizedTensor)
