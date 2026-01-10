@@ -378,14 +378,15 @@ class VAEEncodeForInpaint:
     CATEGORY = "latent/inpaint"
 
     def encode(self, vae, pixels, mask, grow_mask_by=6):
-        x = (pixels.shape[1] // vae.downscale_ratio) * vae.downscale_ratio
-        y = (pixels.shape[2] // vae.downscale_ratio) * vae.downscale_ratio
+        downscale_ratio = vae.spacial_compression_encode()
+        x = (pixels.shape[1] // downscale_ratio) * downscale_ratio
+        y = (pixels.shape[2] // downscale_ratio) * downscale_ratio
         mask = torch.nn.functional.interpolate(mask.reshape((-1, 1, mask.shape[-2], mask.shape[-1])), size=(pixels.shape[1], pixels.shape[2]), mode="bilinear")
 
         pixels = pixels.clone()
         if pixels.shape[1] != x or pixels.shape[2] != y:
-            x_offset = (pixels.shape[1] % vae.downscale_ratio) // 2
-            y_offset = (pixels.shape[2] % vae.downscale_ratio) // 2
+            x_offset = (pixels.shape[1] % downscale_ratio) // 2
+            y_offset = (pixels.shape[2] % downscale_ratio) // 2
             pixels = pixels[:,x_offset:x + x_offset, y_offset:y + y_offset,:]
             mask = mask[:,:,x_offset:x + x_offset, y_offset:y + y_offset]
 
@@ -2369,6 +2370,7 @@ async def init_builtin_extra_nodes():
         "nodes_nop.py",
         "nodes_kandinsky5.py",
         "nodes_wanmove.py",
+        "nodes_image_compare.py",
     ]
 
     import_failed = []
