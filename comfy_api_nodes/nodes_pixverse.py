@@ -423,37 +423,24 @@ PRICE_BADGE_VIDEO = IO.PriceBadge(
     depends_on=IO.PriceBadgeDepends(widgets=["duration_seconds", "quality", "motion_mode"]),
     expr="""
     (
-      $d := widgets.duration_seconds;
-      $q := widgets.quality;
-      $m := widgets.motion_mode;
-
-      $price :=
-        $contains($d,"5")
-          ? (
-              $contains($q,"1080p") ? 1.2 :
-              ($contains($q,"720p") and $contains($m,"fast")) ? 1.2 :
-              ($contains($q,"720p") and $contains($m,"normal")) ? 0.6 :
-              ($contains($q,"540p") and $contains($m,"fast")) ? 0.9 :
-              ($contains($q,"540p") and $contains($m,"normal")) ? 0.45 :
-              ($contains($q,"360p") and $contains($m,"fast")) ? 0.9 :
-              ($contains($q,"360p") and $contains($m,"normal")) ? 0.45 :
-              0.9
-            )
-          : $contains($d,"8")
-            ? (
-                ($contains($q,"540p") and $contains($m,"normal")) ? 0.9 :
-                ($contains($q,"540p") and $contains($m,"fast")) ? 1.2 :
-                ($contains($q,"360p") and $contains($m,"normal")) ? 0.9 :
-                ($contains($q,"360p") and $contains($m,"fast")) ? 1.2 :
-                ($contains($q,"1080p") and $contains($m,"normal")) ? 1.2 :
-                ($contains($q,"1080p") and $contains($m,"fast")) ? 1.2 :
-                ($contains($q,"720p") and $contains($m,"normal")) ? 1.2 :
-                ($contains($q,"720p") and $contains($m,"fast")) ? 1.2 :
-                0.9
-              )
-            : 0.9;
-
-      {"type":"usd","usd": $price}
+      $prices := {
+        "5": {
+          "1080p": {"normal": 1.2, "fast": 1.2},
+          "720p": {"normal": 0.6, "fast": 1.2},
+          "540p": {"normal": 0.45, "fast": 0.9},
+          "360p": {"normal": 0.45, "fast": 0.9}
+        },
+        "8": {
+          "1080p": {"normal": 1.2, "fast": 1.2},
+          "720p": {"normal": 1.2, "fast": 1.2},
+          "540p": {"normal": 0.9, "fast": 1.2},
+          "360p": {"normal": 0.9, "fast": 1.2}
+        }
+      };
+      $durPrices := $lookup($prices, $string(widgets.duration_seconds));
+      $qualityPrices := $lookup($durPrices, widgets.quality);
+      $price := $lookup($qualityPrices, widgets.motion_mode);
+      {"type":"usd","usd": $price ? $price : 0.9}
     )
     """,
 )
