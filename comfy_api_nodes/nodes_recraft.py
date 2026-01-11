@@ -956,7 +956,7 @@ class RecraftCrispUpscaleNode(IO.ComfyNode):
             ],
             is_api_node=True,
             price_badge=IO.PriceBadge(
-                expr="""{"type":"usd","usd":0.04}""",
+                expr="""{"type":"usd","usd":0.004}""",
             ),
         )
 
