@@ -24,7 +24,6 @@ fi
 # the user's new UID and GID.
 echo "[entrypoint] Changing directory ownership..."
 chown -R "$user:$user_group" \
-    /data                    \
     /comfyui                 \
     /home/comfyui
 

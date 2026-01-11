@@ -19,11 +19,15 @@ services:
           devices:
             - capabilities: [gpu]
     volumes:
-      # Share custom nodes and models with the container.
       - ./custom_nodes:/comfyui/custom_nodes
       - ./models:/comfyui/models
-      # Optional: mount the user data directory.
-      #- data:/data/
+
+      # (Optional) Mount host ComfyUI data directories
+      #
+      #- ./input:/comfyui/input
+      #- ./output:/comfyui/output
+      #- ./temp:/comfyui/temp
+      #- ./user:/comfyui/user
 
     environment:
       # Overwrite the container user's UID and GID to match the host's. This
