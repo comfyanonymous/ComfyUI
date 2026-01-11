@@ -97,6 +97,13 @@ class LatentPreviewMethod(enum.Enum):
     Latent2RGB = "latent2rgb"
     TAESD = "taesd"
 
+    @classmethod
+    def from_string(cls, value: str):
+        for member in cls:
+            if member.value == value:
+                return member
+        return None
+
 parser.add_argument("--preview-method", type=LatentPreviewMethod, default=LatentPreviewMethod.NoPreviews, help="Default preview method for sampler nodes.", action=EnumAction)
 
 parser.add_argument("--preview-size", type=int, default=512, help="Sets the maximum preview size for sampler nodes.")
@@ -224,6 +231,7 @@ database_default_path = os.path.abspath(
     os.path.join(os.path.dirname(__file__), "..", "user", "comfyui.db")
 )
 parser.add_argument("--database-url", type=str, default=f"sqlite:///{database_default_path}", help="Specify the database URL, e.g. for an in-memory database you can use 'sqlite:///:memory:'.")
+parser.add_argument("--disable-assets-autoscan", action="store_true", help="Disable asset scanning on startup for database synchronization.")
 
 if comfy.options.args_parsing:
     args = parser.parse_args()

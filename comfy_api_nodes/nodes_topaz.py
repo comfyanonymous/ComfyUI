@@ -2,7 +2,6 @@ import builtins
 from io import BytesIO
 
 import aiohttp
-import torch
 from typing_extensions import override
 
 from comfy_api.latest import IO, ComfyExtension, Input
@@ -22,10 +21,6 @@ from comfy_api_nodes.util import (
 UPSCALER_MODELS_MAP = {
     "Starlight (Astra) Fast": "slf-1",
     "Starlight (Astra) Creative": "slc-1",
-}
-UPSCALER_VALUES_MAP = {
-    "FullHD (1080p)": 1920,
-    "4K (2160p)": 3840,
 }
 
 
@@ -142,7 +137,7 @@ class TopazImageEnhance(IO.ComfyNode):
     async def execute(
         cls,
         model: str,
-        image: torch.Tensor,
+        image: Input.Image,
         prompt: str = "",
         subject_detection: str = "All",
         face_enhancement: bool = True,
@@ -157,7 +152,9 @@ class TopazImageEnhance(IO.ComfyNode):
     ) -> IO.NodeOutput:
         if get_number_of_images(image) != 1:
             raise ValueError("Only one input image is supported.")
-        download_url = await upload_images_to_comfyapi(cls, image, max_images=1, mime_type="image/png")
+        download_url = await upload_images_to_comfyapi(
+            cls, image, max_images=1, mime_type="image/png", total_pixels=4096*4096
+        )
         initial_response = await sync_op(
             cls,
             ApiEndpoint(path="/proxy/topaz/image/v1/enhance-gen/async", method="POST"),
@@ -214,7 +211,7 @@ class TopazVideoEnhance(IO.ComfyNode):
                 IO.Video.Input("video"),
                 IO.Boolean.Input("upscaler_enabled", default=True),
                 IO.Combo.Input("upscaler_model", options=list(UPSCALER_MODELS_MAP.keys())),
-                IO.Combo.Input("upscaler_resolution", options=list(UPSCALER_VALUES_MAP.keys())),
+                IO.Combo.Input("upscaler_resolution", options=["FullHD (1080p)", "4K (2160p)"]),
                 IO.Combo.Input(
                     "upscaler_creativity",
                     options=["low", "middle", "high"],
@@ -306,8 +303,33 @@ class TopazVideoEnhance(IO.ComfyNode):
         target_frame_rate = src_frame_rate
         filters = []
         if upscaler_enabled:
-            target_width = UPSCALER_VALUES_MAP[upscaler_resolution]
-            target_height = UPSCALER_VALUES_MAP[upscaler_resolution]
+            if "1080p" in upscaler_resolution:
+                target_pixel_p = 1080
+                max_long_side = 1920
+            else:
+                target_pixel_p = 2160
+                max_long_side = 3840
+            ar = src_width / src_height
+            if src_width >= src_height:
+                # Landscape or Square; Attempt to set height to target (e.g., 2160), calculate width
+                target_height = target_pixel_p
+                target_width = int(target_height * ar)
+                # Check if width exceeds standard bounds (for ultra-wide e.g., 21:9 ARs)
+                if target_width > max_long_side:
+                    target_width = max_long_side
+                    target_height = int(target_width / ar)
+            else:
+                # Portrait; Attempt to set width to target (e.g., 2160), calculate height
+                target_width = target_pixel_p
+                target_height = int(target_width / ar)
+                # Check if height exceeds standard bounds
+                if target_height > max_long_side:
+                    target_height = max_long_side
+                    target_width = int(target_height * ar)
+            if target_width % 2 != 0:
+                target_width += 1
+            if target_height % 2 != 0:
+                target_height += 1
             filters.append(
                 topaz_api.VideoEnhancementFilter(
                     model=UPSCALER_MODELS_MAP[upscaler_model],

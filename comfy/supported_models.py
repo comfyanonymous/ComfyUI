@@ -28,6 +28,7 @@ from . import supported_models_base
 from . import latent_formats
 
 from . import diffusers_convert
+import comfy.model_management
 
 class SD15(supported_models_base.BASE):
     unet_config = {
@@ -541,7 +542,7 @@ class SD3(supported_models_base.BASE):
     unet_extra_config = {}
     latent_format = latent_formats.SD3
 
-    memory_usage_factor = 1.2
+    memory_usage_factor = 1.6
 
     text_encoder_key_prefix = ["text_encoders."]
 
@@ -835,6 +836,21 @@ class LTXV(supported_models_base.BASE):
         t5_detect = comfy.text_encoders.sd3_clip.t5_xxl_detect(state_dict, "{}t5xxl.transformer.".format(pref))
         return supported_models_base.ClipTarget(comfy.text_encoders.lt.LTXVT5Tokenizer, comfy.text_encoders.lt.ltxv_te(**t5_detect))
 
+class LTXAV(LTXV):
+    unet_config = {
+        "image_model": "ltxav",
+    }
+
+    latent_format = latent_formats.LTXAV
+
+    def __init__(self, unet_config):
+        super().__init__(unet_config)
+        self.memory_usage_factor = 0.061  # TODO
+
+    def get_model(self, state_dict, prefix="", device=None):
+        out = model_base.LTXAV(self, device=device)
+        return out
+
 class HunyuanVideo(supported_models_base.BASE):
     unet_config = {
         "image_model": "hunyuan_video",
@@ -965,7 +981,7 @@ class CosmosT2IPredict2(supported_models_base.BASE):
 
     def __init__(self, unet_config):
         super().__init__(unet_config)
-        self.memory_usage_factor = (unet_config.get("model_channels", 2048) / 2048) * 0.9
+        self.memory_usage_factor = (unet_config.get("model_channels", 2048) / 2048) * 0.95
 
     def get_model(self, state_dict, prefix="", device=None):
         out = model_base.CosmosPredict2(self, device=device)
@@ -1026,9 +1042,15 @@ class ZImage(Lumina2):
         "shift": 3.0,
     }
 
-    memory_usage_factor = 1.7
+    memory_usage_factor = 2.0
 
-    supported_inference_dtypes = [torch.bfloat16, torch.float16, torch.float32]
+    supported_inference_dtypes = [torch.bfloat16, torch.float32]
+
+    def __init__(self, unet_config):
+        super().__init__(unet_config)
+        if comfy.model_management.extended_fp16_support():
+            self.supported_inference_dtypes = self.supported_inference_dtypes.copy()
+            self.supported_inference_dtypes.insert(1, torch.float16)
 
     def clip_target(self, state_dict={}):
         pref = self.text_encoder_key_prefix[0]
@@ -1289,7 +1311,7 @@ class ChromaRadiance(Chroma):
     latent_format = comfy.latent_formats.ChromaRadiance
 
     # Pixel-space model, no spatial compression for model input.
-    memory_usage_factor = 0.038
+    memory_usage_factor = 0.044
 
     def get_model(self, state_dict, prefix="", device=None):
         return model_base.ChromaRadiance(self, device=device)
@@ -1332,7 +1354,7 @@ class Omnigen2(supported_models_base.BASE):
         "shift": 2.6,
     }
 
-    memory_usage_factor = 1.65 #TODO
+    memory_usage_factor = 1.95 #TODO
 
     unet_extra_config = {}
     latent_format = latent_formats.Flux
@@ -1397,7 +1419,7 @@ class HunyuanImage21(HunyuanVideo):
 
     latent_format = latent_formats.HunyuanImage21
 
-    memory_usage_factor = 7.7
+    memory_usage_factor = 8.7
 
     supported_inference_dtypes = [torch.bfloat16, torch.float32]
 
@@ -1488,7 +1510,7 @@ class Kandinsky5(supported_models_base.BASE):
     unet_extra_config = {}
     latent_format = latent_formats.HunyuanVideo
 
-    memory_usage_factor = 1.1 #TODO
+    memory_usage_factor = 1.25 #TODO
 
     supported_inference_dtypes = [torch.bfloat16, torch.float32]
 
@@ -1517,7 +1539,7 @@ class Kandinsky5Image(Kandinsky5):
     }
 
     latent_format = latent_formats.Flux
-    memory_usage_factor = 1.1 #TODO
+    memory_usage_factor = 1.25 #TODO
 
     def get_model(self, state_dict, prefix="", device=None):
         out = model_base.Kandinsky5Image(self, device=device)
@@ -1529,6 +1551,6 @@ class Kandinsky5Image(Kandinsky5):
         return supported_models_base.ClipTarget(comfy.text_encoders.kandinsky5.Kandinsky5TokenizerImage, comfy.text_encoders.kandinsky5.te(**hunyuan_detect))
 
 
-models = [LotusD, Stable_Zero123, SD15_instructpix2pix, SD15, SD20, SD21UnclipL, SD21UnclipH, SDXL_instructpix2pix, SDXLRefiner, SDXL, SSD1B, KOALA_700M, KOALA_1B, Segmind_Vega, SD_X4Upscaler, Stable_Cascade_C, Stable_Cascade_B, SV3D_u, SV3D_p, SD3, StableAudio, AuraFlow, PixArtAlpha, PixArtSigma, HunyuanDiT, HunyuanDiT1, FluxInpaint, Flux, FluxSchnell, GenmoMochi, LTXV, HunyuanVideo15_SR_Distilled, HunyuanVideo15, HunyuanImage21Refiner, HunyuanImage21, HunyuanVideoSkyreelsI2V, HunyuanVideoI2V, HunyuanVideo, CosmosT2V, CosmosI2V, CosmosT2IPredict2, CosmosI2VPredict2, ZImage, Lumina2, WAN22_T2V, WAN21_T2V, WAN21_I2V, WAN21_FunControl2V, WAN21_Vace, WAN21_Camera, WAN22_Camera, WAN22_S2V, WAN21_HuMo, WAN22_Animate, Hunyuan3Dv2mini, Hunyuan3Dv2, Hunyuan3Dv2_1, HiDream, Chroma, ChromaRadiance, ACEStep, Omnigen2, QwenImage, Flux2, Kandinsky5Image, Kandinsky5]
+models = [LotusD, Stable_Zero123, SD15_instructpix2pix, SD15, SD20, SD21UnclipL, SD21UnclipH, SDXL_instructpix2pix, SDXLRefiner, SDXL, SSD1B, KOALA_700M, KOALA_1B, Segmind_Vega, SD_X4Upscaler, Stable_Cascade_C, Stable_Cascade_B, SV3D_u, SV3D_p, SD3, StableAudio, AuraFlow, PixArtAlpha, PixArtSigma, HunyuanDiT, HunyuanDiT1, FluxInpaint, Flux, FluxSchnell, GenmoMochi, LTXV, LTXAV, HunyuanVideo15_SR_Distilled, HunyuanVideo15, HunyuanImage21Refiner, HunyuanImage21, HunyuanVideoSkyreelsI2V, HunyuanVideoI2V, HunyuanVideo, CosmosT2V, CosmosI2V, CosmosT2IPredict2, CosmosI2VPredict2, ZImage, Lumina2, WAN22_T2V, WAN21_T2V, WAN21_I2V, WAN21_FunControl2V, WAN21_Vace, WAN21_Camera, WAN22_Camera, WAN22_S2V, WAN21_HuMo, WAN22_Animate, Hunyuan3Dv2mini, Hunyuan3Dv2, Hunyuan3Dv2_1, HiDream, Chroma, ChromaRadiance, ACEStep, Omnigen2, QwenImage, Flux2, Kandinsky5Image, Kandinsky5]
 
 models += [SVD_img2vid]

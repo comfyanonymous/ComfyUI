@@ -320,6 +320,7 @@ def model_lora_keys_unet(model, key_map={}):
                 to = diffusers_keys[k]
                 key_lora = k[:-len(".weight")]
                 key_map["diffusion_model.{}".format(key_lora)] = to
+                key_map["transformer.{}".format(key_lora)] = to
                 key_map["lycoris_{}".format(key_lora.replace(".", "_"))] = to
 
     if isinstance(model, comfy.model_base.Kandinsky5):

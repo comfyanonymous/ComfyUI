@@ -112,7 +112,7 @@ class VAEDecodeAudio(IO.ComfyNode):
         std = torch.std(audio, dim=[1,2], keepdim=True) * 5.0
         std[std < 1.0] = 1.0
         audio /= std
-        return IO.NodeOutput({"waveform": audio, "sample_rate": 44100})
+        return IO.NodeOutput({"waveform": audio, "sample_rate": 44100 if "sample_rate" not in samples else samples["sample_rate"]})
 
     decode = execute  # TODO: remove
 
@@ -399,6 +399,58 @@ class SplitAudioChannels(IO.ComfyNode):
 
     separate = execute  # TODO: remove
 
+class JoinAudioChannels(IO.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return IO.Schema(
+            node_id="JoinAudioChannels",
+            display_name="Join Audio Channels",
+            description="Joins left and right mono audio channels into a stereo audio.",
+            category="audio",
+            inputs=[
+                IO.Audio.Input("audio_left"),
+                IO.Audio.Input("audio_right"),
+            ],
+            outputs=[
+                IO.Audio.Output(display_name="audio"),
+            ],
+        )
+
+    @classmethod
+    def execute(cls, audio_left, audio_right) -> IO.NodeOutput:
+        waveform_left = audio_left["waveform"]
+        sample_rate_left = audio_left["sample_rate"]
+        waveform_right = audio_right["waveform"]
+        sample_rate_right = audio_right["sample_rate"]
+
+        if waveform_left.shape[1] != 1 or waveform_right.shape[1] != 1:
+            raise ValueError("AudioJoin: Both input audios must be mono.")
+
+        # Handle different sample rates by resampling to the higher rate
+        waveform_left, waveform_right, output_sample_rate = match_audio_sample_rates(
+            waveform_left, sample_rate_left, waveform_right, sample_rate_right
+        )
+
+        # Handle different lengths by trimming to the shorter length
+        length_left = waveform_left.shape[-1]
+        length_right = waveform_right.shape[-1]
+
+        if length_left != length_right:
+            min_length = min(length_left, length_right)
+            if length_left > min_length:
+                logging.info(f"JoinAudioChannels: Trimming left channel from {length_left} to {min_length} samples.")
+                waveform_left = waveform_left[..., :min_length]
+            if length_right > min_length:
+                logging.info(f"JoinAudioChannels: Trimming right channel from {length_right} to {min_length} samples.")
+                waveform_right = waveform_right[..., :min_length]
+
+        # Join the channels into stereo
+        left_channel = waveform_left[..., 0:1, :]
+        right_channel = waveform_right[..., 0:1, :]
+        stereo_waveform = torch.cat([left_channel, right_channel], dim=1)
+
+        return IO.NodeOutput({"waveform": stereo_waveform, "sample_rate": output_sample_rate})
+
 
 def match_audio_sample_rates(waveform_1, sample_rate_1, waveform_2, sample_rate_2):
     if sample_rate_1 != sample_rate_2:
@@ -616,6 +668,7 @@ class AudioExtension(ComfyExtension):
             RecordAudio,
             TrimAudioDuration,
             SplitAudioChannels,
+            JoinAudioChannels,
             AudioConcat,
             AudioMerge,
             AudioAdjustVolume,

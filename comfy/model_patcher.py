@@ -35,6 +35,7 @@ import comfy.model_management
 import comfy.patcher_extension
 import comfy.utils
 from comfy.comfy_types import UnetWrapperFunction
+from comfy.quant_ops import QuantizedTensor
 from comfy.patcher_extension import CallbacksMP, PatcherInjection, WrappersMP
 
 
@@ -132,14 +133,17 @@ class LowVramPatch:
     def __call__(self, weight):
         return comfy.lora.calculate_weight(self.patches[self.key], weight, self.key, intermediate_dtype=weight.dtype)
 
-#The above patch logic may cast up the weight to fp32, and do math. Go with fp32 x 3
-LOWVRAM_PATCH_ESTIMATE_MATH_FACTOR = 3
+LOWVRAM_PATCH_ESTIMATE_MATH_FACTOR = 2
 
 def low_vram_patch_estimate_vram(model, key):
     weight, set_func, convert_func = get_key_weight(model, key)
     if weight is None:
         return 0
-    return weight.numel() * torch.float32.itemsize * LOWVRAM_PATCH_ESTIMATE_MATH_FACTOR
+    model_dtype = getattr(model, "manual_cast_dtype", torch.float32)
+    if model_dtype is None:
+        model_dtype = weight.dtype
+
+    return weight.numel() * model_dtype.itemsize * LOWVRAM_PATCH_ESTIMATE_MATH_FACTOR
 
 def get_key_weight(model, key):
     set_func = None
@@ -450,6 +454,9 @@ class ModelPatcher:
     def set_model_post_input_patch(self, patch):
         self.set_model_patch(patch, "post_input")
 
+    def set_model_noise_refiner_patch(self, patch):
+        self.set_model_patch(patch, "noise_refiner")
+
     def set_model_rope_options(self, scale_x, shift_x, scale_y, shift_y, scale_t, shift_t, **kwargs):
         rope_options = self.model_options["transformer_options"].get("rope_options", {})
         rope_options["scale_x"] = scale_x
@@ -662,12 +669,18 @@ class ModelPatcher:
                 module_mem = comfy.model_management.module_size(m)
                 module_offload_mem = module_mem
                 if hasattr(m, "comfy_cast_weights"):
-                    weight_key = "{}.weight".format(n)
-                    bias_key = "{}.bias".format(n)
-                    if weight_key in self.patches:
-                        module_offload_mem += low_vram_patch_estimate_vram(self.model, weight_key)
-                    if bias_key in self.patches:
-                        module_offload_mem += low_vram_patch_estimate_vram(self.model, bias_key)
+                    def check_module_offload_mem(key):
+                        if key in self.patches:
+                            return low_vram_patch_estimate_vram(self.model, key)
+                        model_dtype = getattr(self.model, "manual_cast_dtype", None)
+                        weight, _, _ = get_key_weight(self.model, key)
+                        if model_dtype is None or weight is None:
+                            return 0
+                        if (weight.dtype != model_dtype or isinstance(weight, QuantizedTensor)):
+                            return weight.numel() * model_dtype.itemsize
+                        return 0
+                    module_offload_mem += check_module_offload_mem("{}.weight".format(n))
+                    module_offload_mem += check_module_offload_mem("{}.bias".format(n))
                 loading.append((module_offload_mem, module_mem, n, m, params))
         return loading
 
@@ -705,6 +718,7 @@ class ModelPatcher:
                             continue
 
                 cast_weight = self.force_cast_weights
+                m.comfy_force_cast_weights = self.force_cast_weights
                 if lowvram_weight:
                     if hasattr(m, "comfy_cast_weights"):
                         m.weight_function = []
@@ -777,11 +791,12 @@ class ModelPatcher:
                 for param in params:
                     self.pin_weight_to_device("{}.{}".format(n, param))
 
+            usable_stat = "{:.2f} MB usable,".format(lowvram_model_memory / (1024 * 1024)) if lowvram_model_memory < 1e32 else ""
             if lowvram_counter > 0:
-                logging.info("loaded partially; {:.2f} MB usable, {:.2f} MB loaded, {:.2f} MB offloaded, {:.2f} MB buffer reserved, lowvram patches: {}".format(lowvram_model_memory / (1024 * 1024), mem_counter / (1024 * 1024), lowvram_mem_counter / (1024 * 1024), offload_buffer / (1024 * 1024), patch_counter))
+                logging.info("loaded partially; {} {:.2f} MB loaded, {:.2f} MB offloaded, {:.2f} MB buffer reserved, lowvram patches: {}".format(usable_stat, mem_counter / (1024 * 1024), lowvram_mem_counter / (1024 * 1024), offload_buffer / (1024 * 1024), patch_counter))
                 self.model.model_lowvram = True
             else:
-                logging.info("loaded completely; {:.2f} MB usable, {:.2f} MB loaded, full load: {}".format(lowvram_model_memory / (1024 * 1024), mem_counter / (1024 * 1024), full_load))
+                logging.info("loaded completely; {} {:.2f} MB loaded, full load: {}".format(usable_stat, mem_counter / (1024 * 1024), full_load))
                 self.model.model_lowvram = False
                 if full_load:
                     self.model.to(device_to)
@@ -920,7 +935,7 @@ class ModelPatcher:
                                     patch_counter += 1
                             cast_weight = True
 
-                        if cast_weight:
+                        if cast_weight and hasattr(m, "comfy_cast_weights"):
                             m.prev_comfy_cast_weights = m.comfy_cast_weights
                             m.comfy_cast_weights = True
                         m.comfy_patched_weights = False
