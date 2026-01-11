@@ -32,11 +32,12 @@ PRICE_BADGE = IO.PriceBadge(
     depends_on=IO.PriceBadgeDepends(widgets=["model", "duration", "resolution"]),
     expr="""
     (
-      $pps := {
+      $prices := {
         "ltx-2 (pro)": {"1920x1080":0.06,"2560x1440":0.12,"3840x2160":0.24},
         "ltx-2 (fast)": {"1920x1080":0.04,"2560x1440":0.08,"3840x2160":0.16}
-      }[widgets.model][widgets.resolution];
-
+      };
+      $modelPrices := $lookup($prices, $lowercase(widgets.model));
+      $pps := $lookup($modelPrices, widgets.resolution);
       {"type":"usd","usd": $pps * widgets.duration}
     )
     """,
