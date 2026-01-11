@@ -567,7 +567,7 @@ async def execute_lipsync(
     # Upload the audio file to Comfy API and get download URL
     if audio:
         audio_url = await upload_audio_to_comfyapi(
-            cls, audio, container_format="mp3", codec_name="libmp3lame", mime_type="audio/mpeg", filename="output.mp3"
+            cls, audio, container_format="mp3", codec_name="libmp3lame", mime_type="audio/mpeg"
         )
         logging.info("Uploaded audio to Comfy API. URL: %s", audio_url)
     else:

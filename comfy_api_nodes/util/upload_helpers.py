@@ -82,7 +82,6 @@ async def upload_audio_to_comfyapi(
     container_format: str = "mp4",
     codec_name: str = "aac",
     mime_type: str = "audio/mp4",
-    filename: str = "uploaded_audio.mp4",
 ) -> str:
     """
     Uploads a single audio input to ComfyUI API and returns its download URL.
@@ -92,7 +91,7 @@ async def upload_audio_to_comfyapi(
     waveform: torch.Tensor = audio["waveform"]
     audio_data_np = audio_tensor_to_contiguous_ndarray(waveform)
     audio_bytes_io = audio_ndarray_to_bytesio(audio_data_np, sample_rate, container_format, codec_name)
-    return await upload_file_to_comfyapi(cls, audio_bytes_io, filename, mime_type)
+    return await upload_file_to_comfyapi(cls, audio_bytes_io, f"{uuid.uuid4()}.{container_format}", mime_type)
 
 
 async def upload_video_to_comfyapi(
