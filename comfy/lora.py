@@ -322,6 +322,7 @@ def model_lora_keys_unet(model, key_map={}):
                 key_map["diffusion_model.{}".format(key_lora)] = to
                 key_map["transformer.{}".format(key_lora)] = to
                 key_map["lycoris_{}".format(key_lora.replace(".", "_"))] = to
+                key_map[key_lora] = to
 
     if isinstance(model, comfy.model_base.Kandinsky5):
         for k in sdk:
