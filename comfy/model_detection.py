@@ -237,6 +237,8 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
         else:
             dit_config["vec_in_dim"] = None
 
+        dit_config["num_heads"] = dit_config["hidden_size"] // sum(dit_config["axes_dim"])
+
         dit_config["depth"] = count_blocks(state_dict_keys, '{}double_blocks.'.format(key_prefix) + '{}.')
         dit_config["depth_single_blocks"] = count_blocks(state_dict_keys, '{}single_blocks.'.format(key_prefix) + '{}.')
         if '{}distilled_guidance_layer.0.norms.0.scale'.format(key_prefix) in state_dict_keys or '{}distilled_guidance_layer.norms.0.scale'.format(key_prefix) in state_dict_keys: #Chroma
