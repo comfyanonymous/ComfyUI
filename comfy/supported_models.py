@@ -845,7 +845,7 @@ class LTXAV(LTXV):
 
     def __init__(self, unet_config):
         super().__init__(unet_config)
-        self.memory_usage_factor = 0.061  # TODO
+        self.memory_usage_factor = 0.077  # TODO
 
     def get_model(self, state_dict, prefix="", device=None):
         out = model_base.LTXAV(self, device=device)
