@@ -1185,7 +1185,7 @@ if not args.disable_pinned_memory:
             MAX_PINNED_MEMORY = get_total_memory(torch.device("cpu")) * 0.95
         logging.info("Enabled pinned memory {}".format(MAX_PINNED_MEMORY // (1024 * 1024)))
 
-PINNING_ALLOWED_TYPES = set(["Parameter", "QuantizedTensor"])
+PINNING_ALLOWED_TYPES = set(["Tensor", "Parameter", "QuantizedTensor"])
 
 def discard_cuda_async_error():
     try:
