@@ -594,7 +594,7 @@ def extra_reserved_memory():
 def minimum_inference_memory():
     return (1024 * 1024 * 1024) * 0.8 + extra_reserved_memory()
 
-def free_memory(memory_required, device, keep_loaded=[]):
+def free_memory(memory_required, device, keep_loaded=[], for_dynamic=False, ram_required=0):
     cleanup_models_gc()
     unloaded_model = []
     can_unload = []
@@ -609,15 +609,22 @@ def free_memory(memory_required, device, keep_loaded=[]):
 
     for x in sorted(can_unload):
         i = x[-1]
-        memory_to_free = None
+        memory_to_free = 1e32
+        ram_to_free = 1e32
         if not DISABLE_SMART_MEMORY:
-            free_mem = get_free_memory(device)
-            if free_mem > memory_required:
-                break
-            memory_to_free = memory_required - free_mem
+            memory_to_free = memory_required - get_free_memory(device)
+            ram_to_free = ram_required - psutil.virtual_memory().available
+
+        if current_loaded_models[i].model.is_dynamic() and for_dynamic:
+            #don't actually unload dynamic models for the sake of other dynamic models
+            #as that works on-demand.
+            memory_required -= current_loaded_models[i].model.loaded_size()
+            continue
         logging.debug(f"Unloading {current_loaded_models[i].model.model.__class__.__name__}")
-        if current_loaded_models[i].model_unload(memory_to_free):
+        if memory_to_free > 0 and current_loaded_models[i].model_unload(memory_to_free):
             unloaded_model.append(i)
+        if ram_to_free > 0:
+            current_loaded_models[i].model.partially_unload_ram(ram_to_free)
 
     for i in sorted(unloaded_model, reverse=True):
         unloaded_models.append(current_loaded_models.pop(i))
@@ -652,7 +659,10 @@ def load_models_gpu(models, memory_required=0, force_patch_weights=False, minimu
 
     models_to_load = []
 
+    free_for_dynamic=True
     for x in models:
+        if not x.is_dynamic():
+            free_for_dynamic = False
         loaded_model = LoadedModel(x)
         try:
             loaded_model_index = current_loaded_models.index(loaded_model)
@@ -678,19 +688,25 @@ def load_models_gpu(models, memory_required=0, force_patch_weights=False, minimu
             model_to_unload.model.detach(unpatch_all=False)
             model_to_unload.model_finalizer.detach()
 
+
     total_memory_required = {}
+    total_ram_required = {}
     for loaded_model in models_to_load:
         total_memory_required[loaded_model.device] = total_memory_required.get(loaded_model.device, 0) + loaded_model.model_memory_required(loaded_model.device)
+        #x2, one to make sure the OS can fit the model for loading in disk cache, and for us to do any pinning we
+        #want to do.
+        #FIXME: This should subtract off the to_load current pin consumption.
+        total_ram_required[loaded_model.device] = total_ram_required.get(loaded_model.device, 0) + loaded_model.model_memory() * 2
 
     for device in total_memory_required:
         if device != torch.device("cpu"):
-            free_memory(total_memory_required[device] * 1.1 + extra_mem, device)
+            free_memory(total_memory_required[device] * 1.1 + extra_mem, device, for_dynamic=free_for_dynamic, ram_required=total_ram_required[device])
 
     for device in total_memory_required:
         if device != torch.device("cpu"):
             free_mem = get_free_memory(device)
             if free_mem < minimum_memory_required:
-                models_l = free_memory(minimum_memory_required, device)
+                models_l = free_memory(minimum_memory_required, device, for_dynamic=free_for_dynamic)
                 logging.info("{} models unloaded.".format(len(models_l)))
 
     for loaded_model in models_to_load:

@@ -278,6 +278,9 @@ class ModelPatcher:
         if not hasattr(self.model, 'model_offload_buffer_memory'):
             self.model.model_offload_buffer_memory = 0
 
+    def is_dynamic(self):
+        return False
+
     def model_size(self):
         if self.size > 0:
             return self.size
@@ -997,6 +1000,9 @@ class ModelPatcher:
                 raise e
 
             return self.model.model_loaded_weight_memory - current_used
+
+    def partially_unload_ram(self, ram_to_unload):
+        pass
 
     def detach(self, unpatch_all=True):
         self.eject_model()
