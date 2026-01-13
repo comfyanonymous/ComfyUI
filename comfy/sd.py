@@ -229,7 +229,7 @@ class CLIP:
                     logging.warning("Had to shift TE back.")
 
         self.tokenizer = tokenizer(embedding_directory=embedding_directory, tokenizer_data=tokenizer_data)
-        self.patcher = comfy.model_patcher.ModelPatcher(self.cond_stage_model, load_device=load_device, offload_device=offload_device)
+        self.patcher = comfy.model_patcher.CoreModelPatcher(self.cond_stage_model, load_device=load_device, offload_device=offload_device)
         #Match torch.float32 hardcode upcast in TE implemention
         self.patcher.set_model_compute_dtype(torch.float32)
         self.patcher.hook_mode = comfy.hooks.EnumHookMode.MinVram
@@ -389,7 +389,7 @@ class CLIP:
 
     def load_sd(self, sd, full_model=False):
         if full_model:
-            return self.cond_stage_model.load_state_dict(sd, strict=False)
+            return self.cond_stage_model.load_state_dict(sd, strict=False, assign=self.patcher.is_dynamic())
         else:
             return self.cond_stage_model.load_sd(sd)
 
@@ -765,13 +765,6 @@ class VAE:
             self.first_stage_model = AutoencoderKL(**(config['params']))
         self.first_stage_model = self.first_stage_model.eval()
 
-        m, u = self.first_stage_model.load_state_dict(sd, strict=False)
-        if len(m) > 0:
-            logging.warning("Missing VAE keys {}".format(m))
-
-        if len(u) > 0:
-            logging.debug("Leftover VAE keys {}".format(u))
-
         if device is None:
             device = model_management.vae_device()
         self.device = device
@@ -782,7 +775,18 @@ class VAE:
         self.first_stage_model.to(self.vae_dtype)
         self.output_device = model_management.intermediate_device()
 
-        self.patcher = comfy.model_patcher.ModelPatcher(self.first_stage_model, load_device=self.device, offload_device=offload_device)
+        mp = comfy.model_patcher.CoreModelPatcher
+        if self.disable_offload:
+            mp = comfy.model_patcher.ModelPatcher
+        self.patcher = mp(self.first_stage_model, load_device=self.device, offload_device=offload_device)
+
+        m, u = self.first_stage_model.load_state_dict(sd, strict=False, assign=self.patcher.is_dynamic())
+        if len(m) > 0:
+            logging.warning("Missing VAE keys {}".format(m))
+
+        if len(u) > 0:
+            logging.debug("Leftover VAE keys {}".format(u))
+
         logging.info("VAE load device: {}, offload device: {}, dtype: {}".format(self.device, offload_device, self.vae_dtype))
         self.model_size()
 
@@ -1432,7 +1436,7 @@ def load_gligen(ckpt_path):
     model = gligen.load_gligen(data)
     if model_management.should_use_fp16():
         model = model.half()
-    return comfy.model_patcher.ModelPatcher(model, load_device=model_management.get_torch_device(), offload_device=model_management.unet_offload_device())
+    return comfy.model_patcher.CoreModelPatcher(model, load_device=model_management.get_torch_device(), offload_device=model_management.unet_offload_device())
 
 def model_detection_error_hint(path, state_dict):
     filename = os.path.basename(path)
@@ -1520,7 +1524,8 @@ def load_state_dict_guess_config(sd, output_vae=True, output_clip=True, output_c
     if output_model:
         inital_load_device = model_management.unet_inital_load_device(parameters, unet_dtype)
         model = model_config.get_model(sd, diffusion_model_prefix, device=inital_load_device)
-        model.load_model_weights(sd, diffusion_model_prefix)
+        model_patcher = comfy.model_patcher.CoreModelPatcher(model, load_device=load_device, offload_device=model_management.unet_offload_device())
+        model.load_model_weights(sd, diffusion_model_prefix, assign=model_patcher.is_dynamic())
 
     if output_vae:
         vae_sd = comfy.utils.state_dict_prefix_replace(sd, {k: "" for k in model_config.vae_key_prefix}, filter_keys=True)
@@ -1563,7 +1568,6 @@ def load_state_dict_guess_config(sd, output_vae=True, output_clip=True, output_c
         logging.debug("left over keys: {}".format(left_over))
 
     if output_model:
-        model_patcher = comfy.model_patcher.ModelPatcher(model, load_device=load_device, offload_device=model_management.unet_offload_device())
         if inital_load_device != torch.device("cpu"):
             logging.info("loaded diffusion model directly to GPU")
             model_management.load_models_gpu([model_patcher], force_full_load=True)
@@ -1655,13 +1659,14 @@ def load_diffusion_model_state_dict(sd, model_options={}, metadata=None):
         model_config.optimizations["fp8"] = True
 
     model = model_config.get_model(new_sd, "")
-    model = model.to(offload_device)
-    model.load_model_weights(new_sd, "")
+    model_patcher = comfy.model_patcher.CoreModelPatcher(model, load_device=load_device, offload_device=offload_device)
+    if not model_management.is_device_cpu(offload_device):
+        model.to(offload_device)
+    model.load_model_weights(new_sd, "", assign=model_patcher.is_dynamic())
     left_over = sd.keys()
     if len(left_over) > 0:
         logging.info("left over keys in diffusion model: {}".format(left_over))
-    return comfy.model_patcher.ModelPatcher(model, load_device=load_device, offload_device=offload_device)
-
+    return model_patcher
 
 def load_diffusion_model(unet_path, model_options={}):
     sd, metadata = comfy.utils.load_torch_file(unet_path, return_metadata=True)
