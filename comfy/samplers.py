@@ -9,7 +9,6 @@ if TYPE_CHECKING:
 import torch
 from functools import partial
 import collections
-from comfy import model_management
 import math
 import logging
 import comfy.sampler_helpers

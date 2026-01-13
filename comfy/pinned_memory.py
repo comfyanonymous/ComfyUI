@@ -1,5 +1,4 @@
 import torch
-import logging
 import comfy.model_management
 import comfy.memory_management
 

@@ -24,7 +24,6 @@ import inspect
 import logging
 import math
 import uuid
-import types
 from typing import Callable, Optional
 
 import torch
@@ -1381,7 +1380,7 @@ class ModelPatcher:
         unet_state_dict = self.model.diffusion_model.state_dict()
         for k, v in unet_state_dict.items():
             op_keys = k.rsplit('.', 1)
-            if (len(op_keys) < 2) or not op_keys[1] in ["weight", "bias"]:
+            if (len(op_keys) < 2) or op_keys[1] not in ["weight", "bias"]:
                 continue
             try:
                 op = comfy.utils.get_attr(self.model.diffusion_model, op_keys[0])
@@ -1467,7 +1466,7 @@ class ModelPatcherDynamic(ModelPatcher):
 
         #Full load doesn't make sense as we dont actually have any loader capability here and
         #now.
-        assert not full_load;
+        assert not full_load
 
         assert device_to == self.load_device
 

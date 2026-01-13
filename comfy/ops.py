@@ -128,11 +128,9 @@ def cast_bias_weight_with_vbar(s, dtype, device, bias_dtype, non_blocking, compu
 
     def post_cast(s, param_key, x, dtype, resident, update_weight):
         lowvram_fn = getattr(s, param_key + "_lowvram_function", None)
-        hook_fn = getattr(s, param_key + "_hooks", None)
         fns = getattr(s, param_key + "_function", [])
 
         orig = x
-        q_layout = None
 
         def to_dequant(tensor, dtype):
             tensor = tensor.to(dtype=dtype)
@@ -218,7 +216,7 @@ def cast_bias_weight(s, input=None, dtype=None, device=None, bias_dtype=None, of
         if cast_buffer is None:
             offload_stream = comfy.model_management.get_offload_stream(device)
             cast_buffer = comfy.model_management.get_cast_buffer(offload_stream, device, cast_buffer_size, s)
-        params = interpret_gathered_like([ s.weight, s.bias ], cast_buffer)
+        params = comfy.memory_management.interpret_gathered_like([ s.weight, s.bias ], cast_buffer)
         weight = params[0]
         bias = params[1]
 
