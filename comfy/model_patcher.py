@@ -39,6 +39,7 @@ from comfy.comfy_types import UnetWrapperFunction
 from comfy.quant_ops import QuantizedTensor
 from comfy.patcher_extension import CallbacksMP, PatcherInjection, WrappersMP
 
+import comfy_aimdo.model_vbar
 
 def set_model_options_patch_replace(model_options, patch, name, block_name, number, transformer_index=None):
     to = model_options["transformer_options"].copy()
@@ -1397,3 +1398,216 @@ class ModelPatcher:
         self.unpin_all_weights()
         self.detach(unpatch_all=False)
 
+class ModelPatcherDynamic(ModelPatcher):
+
+    def __new__(cls, model, load_device, offload_device, size=0, weight_inplace_update=False):
+        if comfy.model_management.is_device_cpu(load_device):
+            #reroute to default MP for CPUs
+            return ModelPatcher(model, load_device, offload_device, size, weight_inplace_update)
+        return super().__new__(cls)
+
+    def __init__(self, model, load_device, offload_device, size=0, weight_inplace_update=False):
+        super().__init__(model, load_device, offload_device, size, weight_inplace_update)
+        #this is now way more dynamic and we dont support the same base model for both Dynamic
+        #and non-dynamic patchers.
+        if hasattr(self.model, "model_loaded_weight_memory"):
+            del self.model.model_loaded_weight_memory
+        if not hasattr(self.model, "dynamic_vbars"):
+            self.model.dynamic_vbars = {}
+        assert load_device is not None
+
+    def is_dynamic(self):
+        return True
+
+    def _vbar_get(self, create=False):
+        if self.load_device == torch.device("cpu"):
+            return None
+        vbar = self.model.dynamic_vbars.get(self.load_device, None)
+        if create and vbar is None:
+            vbar = comfy_aimdo.model_vbar.ModelVBAR(self.model_size() * 1.2, self.load_device.index)
+            self.model.dynamic_vbars[self.load_device] = vbar
+        return vbar
+
+    def loaded_size(self):
+        vbar = self._vbar_get()
+        if vbar is None:
+            return 0
+        return vbar.loaded_size()
+
+    def get_free_memory(self, device):
+        #NOTE: on high condition / batch counts, estimate should have already vacated
+        #all non-dynamic models so this is safe even if its not 100% true that this
+        #would all be avaiable for inference use.
+        return comfy.model_management.get_total_memory(device) - self.model_size()
+
+    #Pinning is deferred to ops time. Assert against this API to avoid pin leaks.
+
+    def pin_weight_to_device(self, key):
+        raise RuntimeError("pin_weight_to_device invalid for dymamic weight loading")
+
+    def unpin_weight(self, key):
+        raise RuntimeError("unpin_weight invalid for dymamic weight loading")
+
+    def unpin_all_weights(self):
+        pass
+
+    def memory_required(self, input_shape):
+        #Pad this significantly. We are trying to get away from precise estimates. This
+        #estimate is only used when using the ModelPatcherDynamic after ModelPatcher. If you
+        #use all ModelPatcherDynamic this is ignored and its all done dynamically.
+        return super().memory_required(input_shape=input_shape) * 1.3 + (1024 ** 3)
+
+
+    def load(self, device_to=None, lowvram_model_memory=0, force_patch_weights=False, full_load=False, dirty=False):
+
+        #Force patching doesn't make sense in Dynamic loading, as you dont know what does and
+        #doesn't need to be forced at this stage. The only thing you could do would be patch
+        #it all on CPU which consumes huge RAM.
+        assert not force_patch_weights
+
+        #Full load doesn't make sense as we dont actually have any loader capability here and
+        #now.
+        assert not full_load;
+
+        assert device_to == self.load_device
+
+        num_patches = 0
+        allocated_size = 0
+
+        with self.use_ejected():
+            self.unpatch_hooks()
+
+            vbar = self._vbar_get(create=True)
+            if vbar is not None:
+                vbar.prioritize()
+
+            #We have way more tools for acceleration on comfy weight offloading, so always
+            #prioritize the non-comfy weights (note the order reverse).
+            loading = self._load_list(prio_comfy_cast_weights=True)
+            loading.sort(reverse=True)
+
+            for x in loading:
+                _, _, _, n, m, params = x
+
+                def set_dirty(item, dirty):
+                    if dirty or not hasattr(item, "_v_signature"):
+                        item._v_signature = None
+                    if dirty:
+                        comfy.pinned_memory.unpin_memory(item)
+
+                def setup_param(self, m, n, param_key):
+                    nonlocal num_patches
+                    key = "{}.{}".format(n, param_key)
+
+                    weight_function = []
+
+                    weight, _, _ = get_key_weight(self.model, key)
+                    if key in self.patches:
+                        setattr(m, param_key + "_lowvram_function", LowVramPatch(key, self.patches))
+                        num_patches += 1
+                    else:
+                        setattr(m, param_key + "_lowvram_function", None)
+
+                    if key in self.weight_wrapper_patches:
+                        weight_function.extend(self.weight_wrapper_patches[key])
+                    setattr(m, param_key + "_function", weight_function)
+                    return comfy.memory_management.vram_aligned_size(weight)
+
+                if hasattr(m, "comfy_cast_weights"):
+                    m.comfy_cast_weights = True
+                    m.pin_failed = False
+                    m.seed_key = n
+                    set_dirty(m, dirty)
+
+                    v_weight_size = 0
+                    v_weight_size += setup_param(self, m, n, "weight")
+                    v_weight_size += setup_param(self, m, n, "bias")
+
+                    if vbar is not None and not hasattr(m, "_v"):
+                        m._v = vbar.alloc(v_weight_size)
+                    allocated_size += v_weight_size
+
+                else:
+                    for param in params:
+                        key = "{}.{}".format(n, param)
+                        weight, _, _ = get_key_weight(self.model, key)
+                        weight.seed_key = key
+                        set_dirty(weight, dirty)
+                        weight_size = weight.numel() * weight.element_size()
+                        if vbar is not None and not hasattr(weight, "_v"):
+                            weight._v = vbar.alloc(weight_size)
+                        allocated_size += weight_size
+
+            logging.info(f"Model {self.model.__class__.__name__} prepared for dynamic VRAM loading. {allocated_size // (1024 ** 2)}MB Staged. {num_patches} patches attached.")
+
+            self.model.device = device_to
+            self.model.current_weight_patches_uuid = self.patches_uuid
+
+            for callback in self.get_all_callbacks(CallbacksMP.ON_LOAD):
+                #These are all super dangerous. Who knows what the custom nodes actually do here...
+                callback(self, device_to, lowvram_model_memory, force_patch_weights, full_load)
+
+            self.apply_hooks(self.forced_hooks, force_apply=True)
+
+    def partially_unload(self, device_to, memory_to_free=0, force_patch_weights=False):
+        assert not force_patch_weights #See above
+        assert self.load_device != torch.device("cpu")
+
+        vbar = self._vbar_get()
+        return 0 if vbar is None else vbar.free_memory(memory_to_free)
+
+    def partially_unload_ram(self, ram_to_unload):
+        loading = self._load_list(prio_comfy_cast_weights=True)
+        for x in loading:
+            _, _, _, _, m, _ = x
+            ram_to_unload -= comfy.pinned_memory.unpin_memory(m)
+            if ram_to_unload <= 0:
+                return
+
+    def patch_model(self, device_to=None, lowvram_model_memory=0, load_weights=True, force_patch_weights=False):
+        #This isn't used by the core at all and can only be to load a model out of
+        #the control of proper model_managment. If you are a custom node author reading
+        #this, the correct pattern is to call load_models_gpu() to get a proper
+        #managed load of your model.
+        assert not load_weights
+        return super().patch_model(load_weights=load_weights, force_patch_weights=force_patch_weights)
+
+    def unpatch_model(self, device_to=None, unpatch_weights=True):
+        super().unpatch_model(device_to=None, unpatch_weights=False)
+
+        if unpatch_weights:
+            self.partially_unload_ram(1e32)
+            self.partially_unload(None)
+
+    def partially_load(self, device_to, extra_memory=0, force_patch_weights=False):
+        assert not force_patch_weights #See above
+        with self.use_ejected(skip_and_inject_on_exit_only=True):
+            dirty = self.model.current_weight_patches_uuid is not None and (self.model.current_weight_patches_uuid != self.patches_uuid)
+
+            self.unpatch_model(self.offload_device, unpatch_weights=False)
+            self.patch_model(load_weights=False)
+
+            try:
+                self.load(device_to, dirty=dirty)
+            except Exception as e:
+                self.detach()
+                raise e
+            #ModelPatcher::partially_load returns a number on what got loaded but
+            #nothing in core uses this and we have no data in the Dynamic world. Hit
+            #the custom node devs with a None rather than a 0 that would mislead any
+            #logic they might have.
+            return None
+
+    def patch_cached_hook_weights(self, cached_weights: dict, key: str, memory_counter: MemoryCounter):
+        assert False #Should be unreachable - we dont ever cache in the new implementation
+
+    def patch_hook_weight_to_device(self, hooks: comfy.hooks.HookGroup, combined_patches: dict, key: str, original_weights: dict, memory_counter: MemoryCounter):
+        if key not in combined_patches:
+            return
+
+        raise RuntimeError("Hooks not implemented in ModelPatcherDynamic. Please remove --fast arguments form ComfyUI startup")
+
+    def unpatch_hooks(self, whitelist_keys_set: set[str]=None) -> None:
+        pass
+
+CoreModelPatcher = ModelPatcher
