@@ -92,14 +92,23 @@ def seed_from_paths_batch(
         session.execute(ins_asset, chunk)
 
     # try to claim AssetCacheState (file_path)
-    winners_by_path: set[str] = set()
+    # Insert with ON CONFLICT DO NOTHING, then query to find which paths were actually inserted
     ins_state = (
         sqlite.insert(AssetCacheState)
         .on_conflict_do_nothing(index_elements=[AssetCacheState.file_path])
-        .returning(AssetCacheState.file_path)
     )
     for chunk in _iter_chunks(state_rows, _rows_per_stmt(3)):
-        winners_by_path.update((session.execute(ins_state, chunk)).scalars().all())
+        session.execute(ins_state, chunk)
+
+    # Query to find which of our paths won (were actually inserted)
+    winners_by_path: set[str] = set()
+    for chunk in _iter_chunks(path_list, MAX_BIND_PARAMS):
+        result = session.execute(
+            sqlalchemy.select(AssetCacheState.file_path)
+            .where(AssetCacheState.file_path.in_(chunk))
+            .where(AssetCacheState.asset_id.in_([path_to_asset[p] for p in chunk]))
+        )
+        winners_by_path.update(result.scalars().all())
 
     all_paths_set = set(path_list)
     losers_by_path = all_paths_set - winners_by_path
@@ -112,16 +121,23 @@ def seed_from_paths_batch(
         return {"inserted_infos": 0, "won_states": 0, "lost_states": len(losers_by_path)}
 
     # insert AssetInfo only for winners
+    # Insert with ON CONFLICT DO NOTHING, then query to find which were actually inserted
     winner_info_rows = [asset_to_info[path_to_asset[p]] for p in winners_by_path]
     ins_info = (
         sqlite.insert(AssetInfo)
         .on_conflict_do_nothing(index_elements=[AssetInfo.asset_id, AssetInfo.owner_id, AssetInfo.name])
-        .returning(AssetInfo.id)
     )
-
-    inserted_info_ids: set[str] = set()
     for chunk in _iter_chunks(winner_info_rows, _rows_per_stmt(9)):
-        inserted_info_ids.update((session.execute(ins_info, chunk)).scalars().all())
+        session.execute(ins_info, chunk)
+
+    # Query to find which info rows were actually inserted (by matching our generated IDs)
+    all_info_ids = [row["id"] for row in winner_info_rows]
+    inserted_info_ids: set[str] = set()
+    for chunk in _iter_chunks(all_info_ids, MAX_BIND_PARAMS):
+        result = session.execute(
+            sqlalchemy.select(AssetInfo.id).where(AssetInfo.id.in_(chunk))
+        )
+        inserted_info_ids.update(result.scalars().all())
 
     # build and insert tag + meta rows for the AssetInfo
     tag_rows: list[dict] = []
