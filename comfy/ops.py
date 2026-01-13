@@ -170,8 +170,11 @@ def cast_bias_weight_with_vbar(s, dtype, device, bias_dtype, non_blocking, compu
 
     if pin is not None:
         xfer_dest = comfy.memory_management.interpret_gathered_like([ pin ], xfer_dest)[0]
+        #FIXME: This might be the wrong thing to do. Some reading suggests the DMA engine
+        #is posted writes and the compute stream could just fire and forget here. That
+        #would save this sync and some stalling on the offload stream that is better off
+        #running ahead to the next layer to read.
         if offload_stream is not None:
-            #FIXME: if post cast didnt do anything this sync is un-needed
             offload_stream.wait_stream(comfy.model_management.current_stream(device))
         comfy.model_management.cast_to(xfer_dest, device=pin.device, non_blocking=non_blocking, stream=offload_stream, r=pin)
 
