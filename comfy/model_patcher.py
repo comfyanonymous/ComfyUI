@@ -671,7 +671,7 @@ class ModelPatcher:
         for key in list(self.pinned):
             self.unpin_weight(key)
 
-    def _load_list(self):
+    def _load_list(self, prio_comfy_cast_weights=False):
         loading = []
         for n, m in self.model.named_modules():
             params = []
@@ -698,7 +698,8 @@ class ModelPatcher:
                         return 0
                     module_offload_mem += check_module_offload_mem("{}.weight".format(n))
                     module_offload_mem += check_module_offload_mem("{}.bias".format(n))
-                loading.append((module_offload_mem, module_mem, n, m, params))
+                prepend = (not hasattr(m, "comfy_cast_weights"),) if prio_comfy_cast_weights else ()
+                loading.append(prepend + (module_offload_mem, module_mem, n, m, params))
         return loading
 
     def load(self, device_to=None, lowvram_model_memory=0, force_patch_weights=False, full_load=False):
