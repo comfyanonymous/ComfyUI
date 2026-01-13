@@ -1,4 +1,10 @@
 import torch
+import os
+import comfy.model_management
+
+# Environment variable to disable the XPU negative zero fix
+# Set _LLM_SCALER_DISABLE_STOCHASTIC_FIX=1 to disable the fix
+_DISABLE_STOCHASTIC_FIX = os.environ.get("_LLM_SCALER_DISABLE_STOCHASTIC_FIX", "0") == "1"
 
 def calc_mantissa(abs_x, exponent, normal_mask, MANTISSA_BITS, EXPONENT_BIAS, generator=None):
     mantissa_scaled = torch.where(
@@ -43,8 +49,15 @@ def manual_stochastic_round_to_float8(x, dtype, generator=None):
 
     inf = torch.finfo(dtype)
     torch.clamp(sign, min=inf.min, max=inf.max, out=sign)
+    
+    # FIX: Convert negative zeros to positive zeros to avoid Intel XPU NaN bug
+    # XPU has a bug where -0.0 converted to float8 becomes NaN
+    # Can be disabled by setting _LLM_SCALER_DISABLE_STOCHASTIC_FIX=1
+    if not _DISABLE_STOCHASTIC_FIX and comfy.model_management.is_intel_xpu():
+        is_neg_zero = (sign == 0) & (torch.signbit(sign))
+        sign = torch.where(is_neg_zero, torch.zeros_like(sign), sign)
+    
     return sign
-
 
 
 def stochastic_rounding(value, dtype, seed=0):

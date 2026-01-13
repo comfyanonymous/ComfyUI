@@ -1,0 +1,146 @@
+diff --git a/comfy/float.py b/comfy/float.py
+index c806af76..375d2a6e 100644
+--- a/comfy/float.py
++++ b/comfy/float.py
+@@ -1,4 +1,10 @@
+ import torch
++import os
++import comfy.model_management
++
++# Environment variable to disable the XPU negative zero fix
++# Set _LLM_SCALER_DISABLE_STOCHASTIC_FIX=1 to disable the fix
++_DISABLE_STOCHASTIC_FIX = os.environ.get("_LLM_SCALER_DISABLE_STOCHASTIC_FIX", "0") == "1"
+ 
+ def calc_mantissa(abs_x, exponent, normal_mask, MANTISSA_BITS, EXPONENT_BIAS, generator=None):
+     mantissa_scaled = torch.where(
+@@ -43,10 +49,17 @@ def manual_stochastic_round_to_float8(x, dtype, generator=None):
+ 
+     inf = torch.finfo(dtype)
+     torch.clamp(sign, min=inf.min, max=inf.max, out=sign)
++    
++    # FIX: Convert negative zeros to positive zeros to avoid Intel XPU NaN bug
++    # XPU has a bug where -0.0 converted to float8 becomes NaN
++    # Can be disabled by setting _LLM_SCALER_DISABLE_STOCHASTIC_FIX=1
++    if not _DISABLE_STOCHASTIC_FIX and comfy.model_management.is_intel_xpu():
++        is_neg_zero = (sign == 0) & (torch.signbit(sign))
++        sign = torch.where(is_neg_zero, torch.zeros_like(sign), sign)
++    
+     return sign
+ 
+ 
+-
+ def stochastic_rounding(value, dtype, seed=0):
+     if dtype == torch.float32:
+         return value.to(dtype=torch.float32)
+diff --git a/comfy/model_management.py b/comfy/model_management.py
+index 9d39be7b..acb459c1 100644
+--- a/comfy/model_management.py
++++ b/comfy/model_management.py
+@@ -149,6 +149,90 @@ def is_intel_xpu():
+             return True
+     return False
+ 
++import os
++if is_intel_xpu() and os.environ.get("_LLM_SCALER_DISABLE_INTERPOLATE_FIX") != "1":
++    import torch
++    import torch.nn.functional as F
++    import functools  # Used to preserve function metadata like docstrings
++
++    # Global variables to store the original function and patch status
++    _original_interpolate_func = None
++    _is_interpolate_patched = False
++
++
++    def patch_xpu_interpolate_to_cpu():
++        """
++        patches torch.nn.functional.interpolate. If an input tensor is on an XPU device,
++        it will be moved to CPU for interpolation, and the result will be moved back
++        to the original XPU device.
++        """
++        global _original_interpolate_func, _is_interpolate_patched
++
++        if _is_interpolate_patched:
++            print("torch.nn.functional.interpolate is already patched for XPU. Skipping.")
++            return
++
++        # Store the original function
++        _original_interpolate_func = F.interpolate
++
++        @functools.wraps(_original_interpolate_func)
++        def _custom_interpolate(input_tensor, *args, **kwargs):
++            """
++            Custom wrapper for interpolate. Moves XPU tensors to CPU for computation.
++            """
++
++            if input_tensor.device.type == "xpu":
++                # print(
++                #     f"Intercepted interpolate call for XPU tensor at device {input_tensor.device}. Moving to CPU for computation."
++                # )
++                original_device = input_tensor.device
++
++                # Move input to CPU
++                input_on_cpu = input_tensor.to("cpu")
++
++                # Call the original interpolate function on CPU
++                result_on_cpu = _original_interpolate_func(input_on_cpu, *args, **kwargs)
++
++                # Move the result back to the original XPU device
++                result_on_xpu = result_on_cpu.to(original_device)
++                # print(
++                #     f"Interpolation completed on CPU, result moved back to {original_device}."
++                # )
++                return result_on_xpu
++            else:
++                # If not an XPU tensor, just call the original function directly
++                return _original_interpolate_func(input_tensor, *args, **kwargs)
++
++        # Replace the original function with our custom one
++        F.interpolate = _custom_interpolate
++        _is_interpolate_patched = True
++        print(
++            "Successfully patched torch.nn.functional.interpolate to handle XPU tensors on CPU."
++        )
++
++
++    def unpatch_xpu_interpolate_to_cpu():
++        """
++        Restores the original torch.nn.functional.interpolate function if it was patched.
++        """
++        global _original_interpolate_func, _is_interpolate_patched
++
++        if not _is_interpolate_patched:
++            print(
++                "torch.nn.functional.interpolate is not currently patched. Skipping unpatch."
++            )
++            return
++
++        if _original_interpolate_func is not None:
++            F.interpolate = _original_interpolate_func
++            _original_interpolate_func = None
++            _is_interpolate_patched = False
++            print("Successfully unpatched torch.nn.functional.interpolate.")
++        else:
++            print("Error: Could not unpatch. Original function reference missing.")
++
++
++    patch_xpu_interpolate_to_cpu()
+ def is_ascend_npu():
+     global npu_available
+     if npu_available:
+@@ -749,7 +833,6 @@ def cleanup_models_gc():
+                 logging.warning("WARNING, memory leak with model {}. Please make sure it is not being referenced from somewhere.".format(cur.real_model().__class__.__name__))
+ 
+ 
+-
+ def cleanup_models():
+     to_delete = []
+     for i in range(len(current_loaded_models)):
+@@ -1568,7 +1651,7 @@ def debug_memory_summary():
+         return torch.cuda.memory.memory_summary()
+     return ""
+ 
+-#TODO: might be cleaner to put this somewhere else
++# TODO: might be cleaner to put this somewhere else
+ import threading
+ 
+ class InterruptProcessingException(Exception):
