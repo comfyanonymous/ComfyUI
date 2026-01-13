@@ -897,7 +897,7 @@ class VAE:
         try:
             memory_used = self.memory_used_decode(samples_in.shape, self.vae_dtype)
             model_management.load_models_gpu([self.patcher], memory_required=memory_used, force_full_load=self.disable_offload)
-            free_memory = model_management.get_free_memory(self.device)
+            free_memory = self.patcher.get_free_memory(self.device)
             batch_number = int(free_memory / memory_used)
             batch_number = max(1, batch_number)
 
@@ -971,7 +971,7 @@ class VAE:
         try:
             memory_used = self.memory_used_encode(pixel_samples.shape, self.vae_dtype)
             model_management.load_models_gpu([self.patcher], memory_required=memory_used, force_full_load=self.disable_offload)
-            free_memory = model_management.get_free_memory(self.device)
+            free_memory = self.patcher.get_free_memory(self.device)
             batch_number = int(free_memory / max(1, memory_used))
             batch_number = max(1, batch_number)
             samples = None

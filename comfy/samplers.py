@@ -260,7 +260,7 @@ def _calc_cond_batch(model: BaseModel, conds: list[list[dict]], x_in: torch.Tens
             to_batch_temp.reverse()
             to_batch = to_batch_temp[:1]
 
-            free_memory = model_management.get_free_memory(x_in.device)
+            free_memory = model.current_patcher.get_free_memory(x_in.device)
             for i in range(1, len(to_batch_temp) + 1):
                 batch_amount = to_batch_temp[:len(to_batch_temp)//i]
                 input_shape = [len(batch_amount) * first_shape[0]] + list(first_shape)[1:]
