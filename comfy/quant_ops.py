@@ -7,7 +7,7 @@ try:
         QuantizedTensor,
         QuantizedLayout,
         TensorCoreFP8Layout as _CKFp8Layout,
-        TensorCoreNVFP4Layout as _CKNvfp4Layout,  # Direct import, no wrapper needed
+        TensorCoreNVFP4Layout as _CKNvfp4Layout,
         register_layout_op,
         register_layout_class,
         get_layout_class,
