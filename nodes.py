@@ -798,8 +798,8 @@ class VAELoader:
                 vae_path = folder_paths.get_full_path_or_raise("vae_approx", vae_name)
             else:
                 vae_path = folder_paths.get_full_path_or_raise("vae", vae_name)
-            sd = comfy.utils.load_torch_file(vae_path)
-        vae = comfy.sd.VAE(sd=sd)
+            sd, metadata = comfy.utils.load_torch_file(vae_path, return_metadata=True)
+        vae = comfy.sd.VAE(sd=sd, metadata=metadata)
         vae.throw_exception_if_invalid()
         return (vae,)
 
