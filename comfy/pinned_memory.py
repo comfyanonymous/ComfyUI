@@ -31,4 +31,5 @@ def unpin_memory(module):
         return 0
     size = module._pin.numel() * module._pin.element_size()
     comfy.model_management.unpin_memory(module._pin)
+    del module._pin
     return size
