@@ -14,14 +14,10 @@ def pin_memory(module):
     #FIXME: This is a RAM cache trigger event
     params = [ module.weight, module.bias ]
     size = comfy.memory_management.vram_aligned_size(params)
-    try:
-        pin = torch.empty((size,), dtype=torch.uint8)
-        if comfy.model_management.pin_memory(pin):
-            module._pin = pin
-        else:
-            module.pin_failed = True
-            return False
-    except:
+    pin = torch.empty((size,), dtype=torch.uint8)
+    if comfy.model_management.pin_memory(pin):
+        module._pin = pin
+    else:
         module.pin_failed = True
         return False
     return True

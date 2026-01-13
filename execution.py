@@ -14,7 +14,6 @@ from contextlib import nullcontext
 
 import torch
 
-import comfy.pinned_memory
 import comfy.memory_management
 import comfy.model_management
 from latent_preview import set_preview_method
