@@ -254,6 +254,7 @@ class ResizeType(str, Enum):
     SCALE_HEIGHT = "scale height"
     SCALE_TOTAL_PIXELS = "scale total pixels"
     MATCH_SIZE = "match size"
+    CROP_TO_MULTIPLE = "crop to multiple"
 
 def is_image(input: torch.Tensor) -> bool:
     # images have 4 dimensions: [batch, height, width, channels]
@@ -363,6 +364,29 @@ def scale_match_size(input: torch.Tensor, match: torch.Tensor, scale_method: str
     input = finalize_image_mask_input(input, is_type_image)
     return input
 
+def crop_to_multiple(input: torch.Tensor, multiple: int, crop: str="center") -> torch.Tensor:
+    if multiple <= 1:
+        return input
+    width = input.shape[2]
+    height = input.shape[1]
+    new_w = (width // multiple) * multiple
+    new_h = (height // multiple) * multiple
+    if new_w == 0 or new_h == 0:
+        return input
+    if new_w == width and new_h == height:
+        return input
+    if crop == "center":
+        x0 = (width - new_w) // 2
+        y0 = (height - new_h) // 2
+    else:
+        x0 = 0
+        y0 = 0
+    x1 = x0 + new_w
+    y1 = y0 + new_h
+    if is_image(input):
+        return input[:, y0:y1, x0:x1, :]
+    return input[:, y0:y1, x0:x1]
+
 class ResizeImageMaskNode(io.ComfyNode):
 
     scale_methods = ["nearest-exact", "bilinear", "area", "bicubic", "lanczos"]
@@ -378,6 +402,7 @@ class ResizeImageMaskNode(io.ComfyNode):
         longer_size: int
         shorter_size: int
         megapixels: float
+        multiple: int
 
     @classmethod
     def define_schema(cls):
@@ -417,6 +442,9 @@ class ResizeImageMaskNode(io.ComfyNode):
                         io.MultiType.Input("match", [io.Image, io.Mask]),
                         crop_combo,
                         ]),
+                    io.DynamicCombo.Option(ResizeType.CROP_TO_MULTIPLE, [
+                        io.Int.Input("multiple", default=8, min=1, max=MAX_RESOLUTION, step=1),
+                        ]),
                 ]),
                 io.Combo.Input("scale_method", options=cls.scale_methods, default="area"),
             ],
@@ -442,6 +470,8 @@ class ResizeImageMaskNode(io.ComfyNode):
             return io.NodeOutput(scale_total_pixels(input, resize_type["megapixels"], scale_method))
         elif selected_type == ResizeType.MATCH_SIZE:
             return io.NodeOutput(scale_match_size(input, resize_type["match"], scale_method, resize_type["crop"]))
+        elif selected_type == ResizeType.CROP_TO_MULTIPLE:
+            return io.NodeOutput(crop_to_multiple(input, resize_type["multiple"]))
         raise ValueError(f"Unsupported resize type: {selected_type}")
 
 def batch_images(images: list[torch.Tensor]) -> torch.Tensor | None:
