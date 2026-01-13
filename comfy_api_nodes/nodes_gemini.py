@@ -130,7 +130,7 @@ def get_parts_by_type(response: GeminiGenerateContentResponse, part_type: Litera
     Returns:
         List of response parts matching the requested type.
     """
-    if response.candidates is None:
+    if not response.candidates:
         if response.promptFeedback and response.promptFeedback.blockReason:
             feedback = response.promptFeedback
             raise ValueError(
@@ -141,14 +141,24 @@ def get_parts_by_type(response: GeminiGenerateContentResponse, part_type: Litera
             "try changing it to `IMAGE+TEXT` to view the model's reasoning and understand why image generation failed."
         )
     parts = []
-    for part in response.candidates[0].content.parts:
-        if part_type == "text" and part.text:
-            parts.append(part)
-        elif part.inlineData and part.inlineData.mimeType == part_type:
-            parts.append(part)
-        elif part.fileData and part.fileData.mimeType == part_type:
-            parts.append(part)
-        # Skip parts that don't match the requested type
+    blocked_reasons = []
+    for candidate in response.candidates:
+        if candidate.finishReason and candidate.finishReason.upper() == "IMAGE_PROHIBITED_CONTENT":
+            blocked_reasons.append(candidate.finishReason)
+            continue
+        if candidate.content is None or candidate.content.parts is None:
+            continue
+        for part in candidate.content.parts:
+            if part_type == "text" and part.text:
+                parts.append(part)
+            elif part.inlineData and part.inlineData.mimeType == part_type:
+                parts.append(part)
+            elif part.fileData and part.fileData.mimeType == part_type:
+                parts.append(part)
+
+    if not parts and blocked_reasons:
+        raise ValueError(f"Gemini API blocked the request. Reasons: {blocked_reasons}")
+
     return parts
 
 
