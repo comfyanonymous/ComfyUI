@@ -329,7 +329,7 @@ def scale_shorter_dimension(input: torch.Tensor, shorter_size: int, scale_method
     if height < width:
         width = round((width / height) * shorter_size)
         height = shorter_size
-    elif width > height:
+    elif width < height:
         height = round((height / width) * shorter_size)
         width = shorter_size
     else:
