@@ -764,6 +764,33 @@ class KlingTextToVideoNode(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
+            price_badge=IO.PriceBadge(
+                depends_on=IO.PriceBadgeDepends(widgets=["mode"]),
+                expr="""
+                (
+                  $m := widgets.mode;
+                  $contains($m,"v2-5-turbo")
+                    ? ($contains($m,"10") ? {"type":"usd","usd":0.7} : {"type":"usd","usd":0.35})
+                    : $contains($m,"v2-1-master")
+                      ? ($contains($m,"10s") ? {"type":"usd","usd":2.8} : {"type":"usd","usd":1.4})
+                      : $contains($m,"v2-master")
+                        ? ($contains($m,"10s") ? {"type":"usd","usd":2.8} : {"type":"usd","usd":1.4})
+                        : $contains($m,"v1-6")
+                          ? (
+                              $contains($m,"pro")
+                                ? ($contains($m,"10s") ? {"type":"usd","usd":0.98} : {"type":"usd","usd":0.49})
+                                : ($contains($m,"10s") ? {"type":"usd","usd":0.56} : {"type":"usd","usd":0.28})
+                            )
+                          : $contains($m,"v1")
+                            ? (
+                                $contains($m,"pro")
+                                  ? ($contains($m,"10s") ? {"type":"usd","usd":0.98} : {"type":"usd","usd":0.49})
+                                  : ($contains($m,"10s") ? {"type":"usd","usd":0.28} : {"type":"usd","usd":0.14})
+                              )
+                            : {"type":"usd","usd":0.14}
+                )
+                """,
+            ),
         )
 
     @classmethod
@@ -818,6 +845,16 @@ class OmniProTextToVideoNode(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
+            price_badge=IO.PriceBadge(
+                depends_on=IO.PriceBadgeDepends(widgets=["duration", "resolution"]),
+                expr="""
+                (
+                  $mode := (widgets.resolution = "720p") ? "std" : "pro";
+                  $rates := {"std": 0.084, "pro": 0.112};
+                  {"type":"usd","usd": $lookup($rates, $mode) * widgets.duration}
+                )
+                """,
+            ),
         )
 
     @classmethod
@@ -886,6 +923,16 @@ class OmniProFirstLastFrameNode(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
+            price_badge=IO.PriceBadge(
+                depends_on=IO.PriceBadgeDepends(widgets=["duration", "resolution"]),
+                expr="""
+                (
+                  $mode := (widgets.resolution = "720p") ? "std" : "pro";
+                  $rates := {"std": 0.084, "pro": 0.112};
+                  {"type":"usd","usd": $lookup($rates, $mode) * widgets.duration}
+                )
+                """,
+            ),
         )
 
     @classmethod
@@ -981,6 +1028,16 @@ class OmniProImageToVideoNode(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
+            price_badge=IO.PriceBadge(
+                depends_on=IO.PriceBadgeDepends(widgets=["duration", "resolution"]),
+                expr="""
+                (
+                  $mode := (widgets.resolution = "720p") ? "std" : "pro";
+                  $rates := {"std": 0.084, "pro": 0.112};
+                  {"type":"usd","usd": $lookup($rates, $mode) * widgets.duration}
+                )
+                """,
+            ),
         )
 
     @classmethod
@@ -1056,6 +1113,16 @@ class OmniProVideoToVideoNode(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
+            price_badge=IO.PriceBadge(
+                depends_on=IO.PriceBadgeDepends(widgets=["duration", "resolution"]),
+                expr="""
+                (
+                  $mode := (widgets.resolution = "720p") ? "std" : "pro";
+                  $rates := {"std": 0.126, "pro": 0.168};
+                  {"type":"usd","usd": $lookup($rates, $mode) * widgets.duration}
+                )
+                """,
+            ),
         )
 
     @classmethod
@@ -1142,6 +1209,16 @@ class OmniProEditVideoNode(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
+            price_badge=IO.PriceBadge(
+                depends_on=IO.PriceBadgeDepends(widgets=["resolution"]),
+                expr="""
+                (
+                  $mode := (widgets.resolution = "720p") ? "std" : "pro";
+                  $rates := {"std": 0.126, "pro": 0.168};
+                  {"type":"usd","usd": $lookup($rates, $mode), "format":{"suffix":"/second"}}
+                )
+                """,
+            ),
         )
 
     @classmethod
@@ -1228,6 +1305,9 @@ class OmniProImageNode(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
+            price_badge=IO.PriceBadge(
+                expr="""{"type":"usd","usd":0.028}""",
+            ),
         )
 
     @classmethod
@@ -1313,6 +1393,9 @@ class KlingCameraControlT2VNode(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
+            price_badge=IO.PriceBadge(
+                expr="""{"type":"usd","usd":0.14}""",
+            ),
         )
 
     @classmethod
@@ -1375,6 +1458,33 @@ class KlingImage2VideoNode(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
+            price_badge=IO.PriceBadge(
+                depends_on=IO.PriceBadgeDepends(widgets=["mode", "model_name", "duration"]),
+                expr="""
+                (
+                  $mode := widgets.mode;
+                  $model := widgets.model_name;
+                  $dur := widgets.duration;
+                  $contains($model,"v2-5-turbo")
+                    ? ($contains($dur,"10") ? {"type":"usd","usd":0.7} : {"type":"usd","usd":0.35})
+                    : ($contains($model,"v2-1-master") or $contains($model,"v2-master"))
+                      ? ($contains($dur,"10") ? {"type":"usd","usd":2.8} : {"type":"usd","usd":1.4})
+                      : ($contains($model,"v2-1") or $contains($model,"v1-6") or $contains($model,"v1-5"))
+                        ? (
+                            $contains($mode,"pro")
+                              ? ($contains($dur,"10") ? {"type":"usd","usd":0.98} : {"type":"usd","usd":0.49})
+                              : ($contains($dur,"10") ? {"type":"usd","usd":0.56} : {"type":"usd","usd":0.28})
+                          )
+                        : $contains($model,"v1")
+                          ? (
+                              $contains($mode,"pro")
+                                ? ($contains($dur,"10") ? {"type":"usd","usd":0.98} : {"type":"usd","usd":0.49})
+                                : ($contains($dur,"10") ? {"type":"usd","usd":0.28} : {"type":"usd","usd":0.14})
+                            )
+                          : {"type":"usd","usd":0.14}
+                )
+                """,
+            ),
         )
 
     @classmethod
@@ -1448,6 +1558,9 @@ class KlingCameraControlI2VNode(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
+            price_badge=IO.PriceBadge(
+                expr="""{"type":"usd","usd":0.49}""",
+            ),
         )
 
     @classmethod
@@ -1518,6 +1631,33 @@ class KlingStartEndFrameNode(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
+            price_badge=IO.PriceBadge(
+                depends_on=IO.PriceBadgeDepends(widgets=["mode"]),
+                expr="""
+                (
+                  $m := widgets.mode;
+                  $contains($m,"v2-5-turbo")
+                    ? ($contains($m,"10") ? {"type":"usd","usd":0.7} : {"type":"usd","usd":0.35})
+                    : $contains($m,"v2-1")
+                      ? ($contains($m,"10s") ? {"type":"usd","usd":0.98} : {"type":"usd","usd":0.49})
+                      : $contains($m,"v2-master")
+                        ? ($contains($m,"10s") ? {"type":"usd","usd":2.8} : {"type":"usd","usd":1.4})
+                        : $contains($m,"v1-6")
+                          ? (
+                              $contains($m,"pro")
+                                ? ($contains($m,"10s") ? {"type":"usd","usd":0.98} : {"type":"usd","usd":0.49})
+                                : ($contains($m,"10s") ? {"type":"usd","usd":0.56} : {"type":"usd","usd":0.28})
+                            )
+                          : $contains($m,"v1")
+                            ? (
+                                $contains($m,"pro")
+                                  ? ($contains($m,"10s") ? {"type":"usd","usd":0.98} : {"type":"usd","usd":0.49})
+                                  : ($contains($m,"10s") ? {"type":"usd","usd":0.28} : {"type":"usd","usd":0.14})
+                              )
+                            : {"type":"usd","usd":0.14}
+                )
+                """,
+            ),
         )
 
     @classmethod
@@ -1583,6 +1723,9 @@ class KlingVideoExtendNode(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
+            price_badge=IO.PriceBadge(
+                expr="""{"type":"usd","usd":0.28}""",
+            ),
         )
 
     @classmethod
@@ -1664,6 +1807,29 @@ class KlingDualCharacterVideoEffectNode(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
+            price_badge=IO.PriceBadge(
+                depends_on=IO.PriceBadgeDepends(widgets=["mode", "model_name", "duration"]),
+                expr="""
+                (
+                  $mode := widgets.mode;
+                  $model := widgets.model_name;
+                  $dur := widgets.duration;
+                  ($contains($model,"v1-6") or $contains($model,"v1-5"))
+                    ? (
+                        $contains($mode,"pro")
+                          ? ($contains($dur,"10") ? {"type":"usd","usd":0.98} : {"type":"usd","usd":0.49})
+                          : ($contains($dur,"10") ? {"type":"usd","usd":0.56} : {"type":"usd","usd":0.28})
+                      )
+                    : $contains($model,"v1")
+                      ? (
+                          $contains($mode,"pro")
+                            ? ($contains($dur,"10") ? {"type":"usd","usd":0.98} : {"type":"usd","usd":0.49})
+                            : ($contains($dur,"10") ? {"type":"usd","usd":0.28} : {"type":"usd","usd":0.14})
+                        )
+                      : {"type":"usd","usd":0.14}
+                )
+                """,
+            ),
         )
 
     @classmethod
@@ -1728,6 +1894,16 @@ class KlingSingleImageVideoEffectNode(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
+            price_badge=IO.PriceBadge(
+                depends_on=IO.PriceBadgeDepends(widgets=["effect_scene"]),
+                expr="""
+                (
+                  ($contains(widgets.effect_scene,"dizzydizzy") or $contains(widgets.effect_scene,"bloombloom"))
+                    ? {"type":"usd","usd":0.49}
+                    : {"type":"usd","usd":0.28}
+                )
+                """,
+            ),
         )
 
     @classmethod
@@ -1782,6 +1958,9 @@ class KlingLipSyncAudioToVideoNode(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
+            price_badge=IO.PriceBadge(
+                expr="""{"type":"usd","usd":0.1,"format":{"approximate":true}}""",
+            ),
         )
 
     @classmethod
@@ -1842,6 +2021,9 @@ class KlingLipSyncTextToVideoNode(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
+            price_badge=IO.PriceBadge(
+                expr="""{"type":"usd","usd":0.1,"format":{"approximate":true}}""",
+            ),
         )
 
     @classmethod
@@ -1892,6 +2074,9 @@ class KlingVirtualTryOnNode(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
+            price_badge=IO.PriceBadge(
+                expr="""{"type":"usd","usd":0.7}""",
+            ),
         )
 
     @classmethod
@@ -1991,6 +2176,19 @@ class KlingImageGenerationNode(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
+            price_badge=IO.PriceBadge(
+                depends_on=IO.PriceBadgeDepends(widgets=["model_name", "n"], inputs=["image"]),
+                expr="""
+                (
+                  $m := widgets.model_name;
+                  $base :=
+                    $contains($m,"kling-v1-5")
+                      ? (inputs.image.connected ? 0.028 : 0.014)
+                      : ($contains($m,"kling-v1") ? 0.0035 : 0.014);
+                  {"type":"usd","usd": $base * widgets.n}
+                )
+                """,
+            ),
         )
 
     @classmethod
@@ -2074,6 +2272,10 @@ class TextToVideoWithAudio(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
+            price_badge=IO.PriceBadge(
+                depends_on=IO.PriceBadgeDepends(widgets=["duration", "generate_audio"]),
+                expr="""{"type":"usd","usd": 0.07 * widgets.duration * (widgets.generate_audio ? 2 : 1)}""",
+            ),
         )
 
     @classmethod
@@ -2138,6 +2340,10 @@ class ImageToVideoWithAudio(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
+            price_badge=IO.PriceBadge(
+                depends_on=IO.PriceBadgeDepends(widgets=["duration", "generate_audio"]),
+                expr="""{"type":"usd","usd": 0.07 * widgets.duration * (widgets.generate_audio ? 2 : 1)}""",
+            ),
         )
 
     @classmethod
@@ -2218,6 +2424,15 @@ class MotionControl(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
+            price_badge=IO.PriceBadge(
+                depends_on=IO.PriceBadgeDepends(widgets=["mode"]),
+                expr="""
+                (
+                  $prices := {"std": 0.07, "pro": 0.112};
+                  {"type":"usd","usd": $lookup($prices, widgets.mode), "format":{"suffix":"/second"}}
+                )
+                """,
+            ),
         )
 
     @classmethod
