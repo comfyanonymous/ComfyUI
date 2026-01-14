@@ -3,7 +3,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 from comfy.ldm.modules.diffusionmodules.model import ResnetBlock, VideoConv3d
 from comfy.ldm.hunyuan_video.vae_refiner import RMS_norm
-import model_management, model_patcher
+import comfy.model_management
+import comfy.model_patcher
 
 class SRResidualCausalBlock3D(nn.Module):
     def __init__(self, channels: int):
@@ -102,13 +103,13 @@ UPSAMPLERS = {
 
 class HunyuanVideo15SRModel():
     def __init__(self, model_type, config):
-        self.load_device = model_management.vae_device()
-        offload_device = model_management.vae_offload_device()
-        self.dtype = model_management.vae_dtype(self.load_device)
+        self.load_device = comfy.model_management.vae_device()
+        offload_device = comfy.model_management.vae_offload_device()
+        self.dtype = comfy.model_management.vae_dtype(self.load_device)
         self.model_class = UPSAMPLERS.get(model_type)
         self.model = self.model_class(**config).eval()
 
-        self.patcher = model_patcher.ModelPatcher(self.model, load_device=self.load_device, offload_device=offload_device)
+        self.patcher = comfy.model_patcher.ModelPatcher(self.model, load_device=self.load_device, offload_device=offload_device)
 
     def load_sd(self, sd):
         return self.model.load_state_dict(sd, strict=True)
@@ -117,5 +118,5 @@ class HunyuanVideo15SRModel():
         return self.model.state_dict()
 
     def resample_latent(self, latent):
-        model_management.load_model_gpu(self.patcher)
+        comfy.model_management.load_model_gpu(self.patcher)
         return self.model(latent.to(self.load_device))

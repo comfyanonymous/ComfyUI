@@ -49,6 +49,7 @@ async def upload_images_to_comfyapi(
     mime_type: str | None = None,
     wait_label: str | None = "Uploading",
     show_batch_index: bool = True,
+    total_pixels: int = 2048 * 2048,
 ) -> list[str]:
     """
     Uploads images to ComfyUI API and returns download URLs.
@@ -63,7 +64,7 @@ async def upload_images_to_comfyapi(
 
     for idx in range(num_to_upload):
         tensor = image[idx] if is_batch else image
-        img_io = tensor_to_bytesio(tensor, mime_type=mime_type)
+        img_io = tensor_to_bytesio(tensor, total_pixels=total_pixels, mime_type=mime_type)
 
         effective_label = wait_label
         if wait_label and show_batch_index and num_to_upload > 1:
@@ -81,7 +82,6 @@ async def upload_audio_to_comfyapi(
     container_format: str = "mp4",
     codec_name: str = "aac",
     mime_type: str = "audio/mp4",
-    filename: str = "uploaded_audio.mp4",
 ) -> str:
     """
     Uploads a single audio input to ComfyUI API and returns its download URL.
@@ -91,7 +91,7 @@ async def upload_audio_to_comfyapi(
     waveform: torch.Tensor = audio["waveform"]
     audio_data_np = audio_tensor_to_contiguous_ndarray(waveform)
     audio_bytes_io = audio_ndarray_to_bytesio(audio_data_np, sample_rate, container_format, codec_name)
-    return await upload_file_to_comfyapi(cls, audio_bytes_io, filename, mime_type)
+    return await upload_file_to_comfyapi(cls, audio_bytes_io, f"{uuid.uuid4()}.{container_format}", mime_type)
 
 
 async def upload_video_to_comfyapi(
@@ -119,7 +119,7 @@ async def upload_video_to_comfyapi(
             raise ValueError(f"Could not verify video duration from source: {e}") from e
 
     upload_mime_type = f"video/{container.value.lower()}"
-    filename = f"uploaded_video.{container.value.lower()}"
+    filename = f"{uuid.uuid4()}.{container.value.lower()}"
 
     # Convert VideoInput to BytesIO using specified container/codec
     video_bytes_io = BytesIO()
