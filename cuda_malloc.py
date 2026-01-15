@@ -87,7 +87,7 @@ if not args.cuda_malloc:
     except:
         pass
 
-if enables_dynamic_vram() and comfy_aimdo.control.init(0):
+if enables_dynamic_vram() and comfy_aimdo.control.init():
     args.cuda_malloc = False
     os.environ['PYTORCH_CUDA_ALLOC_CONF'] = ""
 
