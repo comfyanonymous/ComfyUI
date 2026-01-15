@@ -1,4 +1,4 @@
-from ._helpers import get_fs_object_size
+from ._helpers import default_base_url, get_fs_object_size
 from .client import (
     ApiEndpoint,
     poll_op,
@@ -97,5 +97,6 @@ __all__ = [
     "validate_video_duration",
     "validate_video_frame_count",
     # Misc functions
+    "default_base_url",
     "get_fs_object_size",
 ]
