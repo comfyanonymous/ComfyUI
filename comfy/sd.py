@@ -1059,9 +1059,9 @@ def detect_te_model(sd):
         return TEModel.JINA_CLIP_2
     if "encoder.block.23.layer.1.DenseReluDense.wi_1.weight" in sd:
         weight = sd["encoder.block.23.layer.1.DenseReluDense.wi_1.weight"]
-        if weight.shape[-1] == 4096:
+        if weight.shape[0] == 10240:
             return TEModel.T5_XXL
-        elif weight.shape[-1] == 2048:
+        elif weight.shape[0] == 5120:
             return TEModel.T5_XL
     if 'encoder.block.23.layer.1.DenseReluDense.wi.weight' in sd:
         return TEModel.T5_XXL_OLD

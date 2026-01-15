@@ -55,7 +55,7 @@ def image_tensor_pair_to_batch(image1: torch.Tensor, image2: torch.Tensor) -> to
 
 def tensor_to_bytesio(
     image: torch.Tensor,
-    name: str | None = None,
+    *,
     total_pixels: int = 2048 * 2048,
     mime_type: str = "image/png",
 ) -> BytesIO:
@@ -75,7 +75,7 @@ def tensor_to_bytesio(
 
     pil_image = tensor_to_pil(image, total_pixels=total_pixels)
     img_binary = pil_to_bytesio(pil_image, mime_type=mime_type)
-    img_binary.name = f"{name if name else uuid.uuid4()}.{mimetype_to_extension(mime_type)}"
+    img_binary.name = f"{uuid.uuid4()}.{mimetype_to_extension(mime_type)}"
     return img_binary
 
 

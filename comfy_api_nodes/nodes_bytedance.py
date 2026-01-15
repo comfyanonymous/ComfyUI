@@ -126,6 +126,9 @@ class ByteDanceImageNode(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
+            price_badge=IO.PriceBadge(
+                expr="""{"type":"usd","usd":0.03}""",
+            ),
         )
 
     @classmethod
@@ -367,6 +370,19 @@ class ByteDanceSeedreamNode(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
+            price_badge=IO.PriceBadge(
+                depends_on=IO.PriceBadgeDepends(widgets=["model"]),
+                expr="""
+                (
+                  $price := $contains(widgets.model, "seedream-4-5-251128") ? 0.04 : 0.03;
+                  {
+                    "type":"usd",
+                    "usd": $price,
+                    "format": { "suffix":" x images/Run", "approximate": true }
+                  }
+                )
+                """,
+            ),
         )
 
     @classmethod
@@ -522,6 +538,7 @@ class ByteDanceTextToVideoNode(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
+            price_badge=PRICE_BADGE_VIDEO,
         )
 
     @classmethod
@@ -632,6 +649,7 @@ class ByteDanceImageToVideoNode(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
+            price_badge=PRICE_BADGE_VIDEO,
         )
 
     @classmethod
@@ -754,6 +772,7 @@ class ByteDanceFirstLastFrameNode(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
+            price_badge=PRICE_BADGE_VIDEO,
         )
 
     @classmethod
@@ -877,6 +896,7 @@ class ByteDanceImageReferenceNode(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
+            price_badge=PRICE_BADGE_VIDEO,
         )
 
     @classmethod
@@ -944,6 +964,52 @@ def raise_if_text_params(prompt: str, text_params: list[str]) -> None:
             raise ValueError(
                 f"--{i} is not allowed in the prompt, use the appropriated widget input to change this value."
             )
+
+
+PRICE_BADGE_VIDEO = IO.PriceBadge(
+    depends_on=IO.PriceBadgeDepends(widgets=["model", "duration", "resolution"]),
+    expr="""
+    (
+      $priceByModel := {
+        "seedance-1-0-pro": {
+          "480p":[0.23,0.24],
+          "720p":[0.51,0.56],
+          "1080p":[1.18,1.22]
+        },
+        "seedance-1-0-pro-fast": {
+          "480p":[0.09,0.1],
+          "720p":[0.21,0.23],
+          "1080p":[0.47,0.49]
+        },
+        "seedance-1-0-lite": {
+          "480p":[0.17,0.18],
+          "720p":[0.37,0.41],
+          "1080p":[0.85,0.88]
+        }
+      };
+      $model := widgets.model;
+      $modelKey :=
+        $contains($model, "seedance-1-0-pro-fast") ? "seedance-1-0-pro-fast" :
+        $contains($model, "seedance-1-0-pro")      ? "seedance-1-0-pro" :
+        "seedance-1-0-lite";
+      $resolution := widgets.resolution;
+      $resKey :=
+        $contains($resolution, "1080") ? "1080p" :
+        $contains($resolution, "720")  ? "720p" :
+        "480p";
+      $modelPrices := $lookup($priceByModel, $modelKey);
+      $baseRange := $lookup($modelPrices, $resKey);
+      $min10s := $baseRange[0];
+      $max10s := $baseRange[1];
+      $scale := widgets.duration / 10;
+      $minCost := $min10s * $scale;
+      $maxCost := $max10s * $scale;
+      ($minCost = $maxCost)
+        ? {"type":"usd","usd": $minCost}
+        : {"type":"range_usd","min_usd": $minCost, "max_usd": $maxCost}
+    )
+    """,
+)
 
 
 class ByteDanceExtension(ComfyExtension):

@@ -134,6 +134,9 @@ class MinimaxTextToVideoNode(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
+            price_badge=IO.PriceBadge(
+                expr="""{"type":"usd","usd":0.43}""",
+            ),
         )
 
     @classmethod
@@ -197,6 +200,9 @@ class MinimaxImageToVideoNode(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
+            price_badge=IO.PriceBadge(
+                expr="""{"type":"usd","usd":0.43}""",
+            ),
         )
 
     @classmethod
@@ -340,6 +346,20 @@ class MinimaxHailuoVideoNode(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
+            price_badge=IO.PriceBadge(
+                depends_on=IO.PriceBadgeDepends(widgets=["resolution", "duration"]),
+                expr="""
+                (
+                  $prices := {
+                    "768p": {"6": 0.28, "10": 0.56},
+                    "1080p": {"6": 0.49}
+                  };
+                  $resPrices := $lookup($prices, $lowercase(widgets.resolution));
+                  $price := $lookup($resPrices, $string(widgets.duration));
+                  {"type":"usd","usd": $price ? $price : 0.43}
+                )
+                """,
+            ),
         )
 
     @classmethod

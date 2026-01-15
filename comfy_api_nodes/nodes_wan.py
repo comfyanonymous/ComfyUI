@@ -244,6 +244,9 @@ class WanTextToImageApi(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
+            price_badge=IO.PriceBadge(
+                expr="""{"type":"usd","usd":0.03}""",
+            ),
         )
 
     @classmethod
@@ -363,6 +366,9 @@ class WanImageToImageApi(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
+            price_badge=IO.PriceBadge(
+                expr="""{"type":"usd","usd":0.03}""",
+            ),
         )
 
     @classmethod
@@ -520,6 +526,17 @@ class WanTextToVideoApi(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
+            price_badge=IO.PriceBadge(
+                depends_on=IO.PriceBadgeDepends(widgets=["duration", "size"]),
+                expr="""
+                (
+                  $ppsTable := { "480p": 0.05, "720p": 0.1, "1080p": 0.15 };
+                  $resKey := $substringBefore(widgets.size, ":");
+                  $pps := $lookup($ppsTable, $resKey);
+                  { "type": "usd", "usd": $round($pps * widgets.duration, 2) }
+                )
+                """,
+            ),
         )
 
     @classmethod
@@ -681,6 +698,16 @@ class WanImageToVideoApi(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
+            price_badge=IO.PriceBadge(
+                depends_on=IO.PriceBadgeDepends(widgets=["duration", "resolution"]),
+                expr="""
+                (
+                  $ppsTable := { "480p": 0.05, "720p": 0.1, "1080p": 0.15 };
+                  $pps := $lookup($ppsTable, widgets.resolution);
+                  { "type": "usd", "usd": $round($pps * widgets.duration, 2) }
+                )
+                """,
+            ),
         )
 
     @classmethod
@@ -828,6 +855,22 @@ class WanReferenceVideoApi(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
+            price_badge=IO.PriceBadge(
+                depends_on=IO.PriceBadgeDepends(widgets=["size", "duration"]),
+                expr="""
+                (
+                  $rate := $contains(widgets.size, "1080p") ? 0.15 : 0.10;
+                  $inputMin := 2 * $rate;
+                  $inputMax := 5 * $rate;
+                  $outputPrice := widgets.duration * $rate;
+                  {
+                    "type": "range_usd",
+                    "min_usd": $inputMin + $outputPrice,
+                    "max_usd": $inputMax + $outputPrice
+                  }
+                )
+                """,
+            ),
         )
 
     @classmethod

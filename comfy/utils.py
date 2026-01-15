@@ -30,6 +30,7 @@ from torch.nn.functional import interpolate
 from einops import rearrange
 from comfy.cli_args import args
 import json
+import time
 
 MMAP_TORCH_FILES = args.mmap_torch_files
 DISABLE_MMAP = args.disable_mmap
@@ -928,7 +929,9 @@ def bislerp(samples, width, height):
     return result.to(orig_dtype)
 
 def lanczos(samples, width, height):
-    images = [Image.fromarray(np.clip(255. * image.movedim(0, -1).cpu().numpy(), 0, 255).astype(np.uint8)) for image in samples]
+    #the below API is strict and expects grayscale to be squeezed
+    samples = samples.squeeze(1) if samples.shape[1] == 1 else samples.movedim(1, -1)
+    images = [Image.fromarray(np.clip(255. * image.cpu().numpy(), 0, 255).astype(np.uint8)) for image in samples]
     images = [image.resize((width, height), resample=Image.Resampling.LANCZOS) for image in images]
     images = [torch.from_numpy(np.array(image).astype(np.float32) / 255.0).movedim(-1, 0) for image in images]
     result = torch.stack(images)
@@ -1097,6 +1100,10 @@ def set_progress_bar_global_hook(function):
     global PROGRESS_BAR_HOOK
     PROGRESS_BAR_HOOK = function
 
+# Throttle settings for progress bar updates to reduce WebSocket flooding
+PROGRESS_THROTTLE_MIN_INTERVAL = 0.1  # 100ms minimum between updates
+PROGRESS_THROTTLE_MIN_PERCENT = 0.5   # 0.5% minimum progress change
+
 class ProgressBar:
     def __init__(self, total, node_id=None):
         global PROGRESS_BAR_HOOK
@@ -1104,6 +1111,8 @@ class ProgressBar:
         self.current = 0
         self.hook = PROGRESS_BAR_HOOK
         self.node_id = node_id
+        self._last_update_time = 0.0
+        self._last_sent_value = -1
 
     def update_absolute(self, value, total=None, preview=None):
         if total is not None:
@@ -1112,7 +1121,29 @@ class ProgressBar:
             value = self.total
         self.current = value
         if self.hook is not None:
-            self.hook(self.current, self.total, preview, node_id=self.node_id)
+            current_time = time.perf_counter()
+            is_first = (self._last_sent_value < 0)
+            is_final = (value >= self.total)
+            has_preview = (preview is not None)
+
+            # Always send immediately for previews, first update, or final update
+            if has_preview or is_first or is_final:
+                self.hook(self.current, self.total, preview, node_id=self.node_id)
+                self._last_update_time = current_time
+                self._last_sent_value = value
+                return
+
+            # Apply throttling for regular progress updates
+            if self.total > 0:
+                percent_changed = ((value - max(0, self._last_sent_value)) / self.total) * 100
+            else:
+                percent_changed = 100
+            time_elapsed = current_time - self._last_update_time
+
+            if time_elapsed >= PROGRESS_THROTTLE_MIN_INTERVAL and percent_changed >= PROGRESS_THROTTLE_MIN_PERCENT:
+                self.hook(self.current, self.total, preview, node_id=self.node_id)
+                self._last_update_time = current_time
+                self._last_sent_value = value
 
     def update(self, value):
         self.update_absolute(self.current + value)

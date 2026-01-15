@@ -244,6 +244,10 @@ class ModelPatchLoader:
         elif 'control_all_x_embedder.2-1.weight' in sd: # alipai z image fun controlnet
             sd = z_image_convert(sd)
             config = {}
+            if 'control_layers.4.adaLN_modulation.0.weight' not in sd:
+                config['n_control_layers'] = 3
+                config['additional_in_dim'] = 17
+                config['refiner_control'] = True
             if 'control_layers.14.adaLN_modulation.0.weight' in sd:
                 config['n_control_layers'] = 15
                 config['additional_in_dim'] = 17
