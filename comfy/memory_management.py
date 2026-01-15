@@ -1,7 +1,5 @@
 from comfy.quant_ops import QuantizedTensor
 
-import comfy_aimdo.torch
-
 def vram_aligned_size(tensor):
     if isinstance(tensor, list):
         return sum([vram_aligned_size(t) for t in tensor])
@@ -51,4 +49,4 @@ def interpret_gathered_like(tensors, gathered):
 
     return dest_views
 
-aimdo_allocator = comfy_aimdo.torch.CUDAPluggableAllocator()
+aimdo_allocator = None
