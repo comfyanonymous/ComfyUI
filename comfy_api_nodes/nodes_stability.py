@@ -127,9 +127,6 @@ class StabilityStableImageUltraNode(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
-            price_badge=IO.PriceBadge(
-                expr="""{"type":"usd","usd":0.08}""",
-            ),
         )
 
     @classmethod
@@ -267,16 +264,6 @@ class StabilityStableImageSD_3_5Node(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
-            price_badge=IO.PriceBadge(
-                depends_on=IO.PriceBadgeDepends(widgets=["model"]),
-                expr="""
-                (
-                  $contains(widgets.model,"large")
-                    ? {"type":"usd","usd":0.065}
-                    : {"type":"usd","usd":0.035}
-                )
-                """,
-            ),
         )
 
     @classmethod
@@ -395,9 +382,6 @@ class StabilityUpscaleConservativeNode(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
-            price_badge=IO.PriceBadge(
-                expr="""{"type":"usd","usd":0.25}""",
-            ),
         )
 
     @classmethod
@@ -502,9 +486,6 @@ class StabilityUpscaleCreativeNode(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
-            price_badge=IO.PriceBadge(
-                expr="""{"type":"usd","usd":0.25}""",
-            ),
         )
 
     @classmethod
@@ -585,9 +566,6 @@ class StabilityUpscaleFastNode(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
-            price_badge=IO.PriceBadge(
-                expr="""{"type":"usd","usd":0.01}""",
-            ),
         )
 
     @classmethod
@@ -670,9 +648,6 @@ class StabilityTextToAudio(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
-            price_badge=IO.PriceBadge(
-                expr="""{"type":"usd","usd":0.2}""",
-            ),
         )
 
     @classmethod
@@ -757,9 +732,6 @@ class StabilityAudioToAudio(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
-            price_badge=IO.PriceBadge(
-                expr="""{"type":"usd","usd":0.2}""",
-            ),
         )
 
     @classmethod
@@ -856,9 +828,6 @@ class StabilityAudioInpaint(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
-            price_badge=IO.PriceBadge(
-                expr="""{"type":"usd","usd":0.2}""",
-            ),
         )
 
     @classmethod

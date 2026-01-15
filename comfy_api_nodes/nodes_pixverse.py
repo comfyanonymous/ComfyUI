@@ -128,7 +128,6 @@ class PixverseTextToVideoNode(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
-            price_badge=PRICE_BADGE_VIDEO,
         )
 
     @classmethod
@@ -243,7 +242,6 @@ class PixverseImageToVideoNode(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
-            price_badge=PRICE_BADGE_VIDEO,
         )
 
     @classmethod
@@ -357,7 +355,6 @@ class PixverseTransitionVideoNode(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
-            price_badge=PRICE_BADGE_VIDEO,
         )
 
     @classmethod
@@ -417,33 +414,6 @@ class PixverseTransitionVideoNode(IO.ComfyNode):
             estimated_duration=AVERAGE_DURATION_T2V,
         )
         return IO.NodeOutput(await download_url_to_video_output(response_poll.Resp.url))
-
-
-PRICE_BADGE_VIDEO = IO.PriceBadge(
-    depends_on=IO.PriceBadgeDepends(widgets=["duration_seconds", "quality", "motion_mode"]),
-    expr="""
-    (
-      $prices := {
-        "5": {
-          "1080p": {"normal": 1.2, "fast": 1.2},
-          "720p": {"normal": 0.6, "fast": 1.2},
-          "540p": {"normal": 0.45, "fast": 0.9},
-          "360p": {"normal": 0.45, "fast": 0.9}
-        },
-        "8": {
-          "1080p": {"normal": 1.2, "fast": 1.2},
-          "720p": {"normal": 1.2, "fast": 1.2},
-          "540p": {"normal": 0.9, "fast": 1.2},
-          "360p": {"normal": 0.9, "fast": 1.2}
-        }
-      };
-      $durPrices := $lookup($prices, $string(widgets.duration_seconds));
-      $qualityPrices := $lookup($durPrices, widgets.quality);
-      $price := $lookup($qualityPrices, widgets.motion_mode);
-      {"type":"usd","usd": $price ? $price : 0.9}
-    )
-    """,
-)
 
 
 class PixVerseExtension(ComfyExtension):

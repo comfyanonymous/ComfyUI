@@ -241,9 +241,6 @@ class Rodin3D_Regular(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
-            price_badge=IO.PriceBadge(
-                expr="""{"type":"usd","usd":0.4}""",
-            ),
         )
 
     @classmethod
@@ -297,9 +294,6 @@ class Rodin3D_Detail(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
-            price_badge=IO.PriceBadge(
-                expr="""{"type":"usd","usd":0.4}""",
-            ),
         )
 
     @classmethod
@@ -353,9 +347,6 @@ class Rodin3D_Smooth(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
-            price_badge=IO.PriceBadge(
-                expr="""{"type":"usd","usd":0.4}""",
-            ),
         )
 
     @classmethod
@@ -415,9 +406,6 @@ class Rodin3D_Sketch(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
-            price_badge=IO.PriceBadge(
-                expr="""{"type":"usd","usd":0.4}""",
-            ),
         )
 
     @classmethod

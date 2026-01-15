@@ -97,9 +97,6 @@ class FluxProUltraImageNode(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
-            price_badge=IO.PriceBadge(
-                expr="""{"type":"usd","usd":0.06}""",
-            ),
         )
 
     @classmethod
@@ -355,9 +352,6 @@ class FluxProExpandNode(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
-            price_badge=IO.PriceBadge(
-                expr="""{"type":"usd","usd":0.05}""",
-            ),
         )
 
     @classmethod
@@ -464,9 +458,6 @@ class FluxProFillNode(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
-            price_badge=IO.PriceBadge(
-                expr="""{"type":"usd","usd":0.05}""",
-            ),
         )
 
     @classmethod
@@ -520,21 +511,6 @@ class Flux2ProImageNode(IO.ComfyNode):
     NODE_ID = "Flux2ProImageNode"
     DISPLAY_NAME = "Flux.2 [pro] Image"
     API_ENDPOINT = "/proxy/bfl/flux-2-pro/generate"
-    PRICE_BADGE_EXPR = """
-    (
-      $MP := 1024 * 1024;
-      $outMP := $max([1, $floor(((widgets.width * widgets.height) + $MP - 1) / $MP)]);
-      $outputCost := 0.03 + 0.015 * ($outMP - 1);
-      inputs.images.connected
-        ? {
-            "type":"range_usd",
-            "min_usd": $outputCost + 0.015,
-            "max_usd": $outputCost + 0.12,
-            "format": { "approximate": true }
-          }
-        : {"type":"usd","usd": $outputCost}
-    )
-    """
 
     @classmethod
     def define_schema(cls) -> IO.Schema:
@@ -587,10 +563,6 @@ class Flux2ProImageNode(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
-            price_badge=IO.PriceBadge(
-                depends_on=IO.PriceBadgeDepends(widgets=["width", "height"], inputs=["images"]),
-                expr=cls.PRICE_BADGE_EXPR,
-            ),
         )
 
     @classmethod
@@ -651,22 +623,6 @@ class Flux2MaxImageNode(Flux2ProImageNode):
     NODE_ID = "Flux2MaxImageNode"
     DISPLAY_NAME = "Flux.2 [max] Image"
     API_ENDPOINT = "/proxy/bfl/flux-2-max/generate"
-    PRICE_BADGE_EXPR = """
-    (
-      $MP := 1024 * 1024;
-      $outMP := $max([1, $floor(((widgets.width * widgets.height) + $MP - 1) / $MP)]);
-      $outputCost := 0.07 + 0.03 * ($outMP - 1);
-
-      inputs.images.connected
-        ? {
-            "type":"range_usd",
-            "min_usd": $outputCost + 0.03,
-            "max_usd": $outputCost + 0.24,
-            "format": { "approximate": true }
-          }
-        : {"type":"usd","usd": $outputCost}
-    )
-    """
 
 
 class BFLExtension(ComfyExtension):

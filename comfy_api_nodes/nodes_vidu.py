@@ -121,9 +121,6 @@ class ViduTextToVideoNode(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
-            price_badge=IO.PriceBadge(
-                expr="""{"type":"usd","usd":0.4}""",
-            ),
         )
 
     @classmethod
@@ -217,9 +214,6 @@ class ViduImageToVideoNode(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
-            price_badge=IO.PriceBadge(
-                expr="""{"type":"usd","usd":0.4}""",
-            ),
         )
 
     @classmethod
@@ -323,9 +317,6 @@ class ViduReferenceVideoNode(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
-            price_badge=IO.PriceBadge(
-                expr="""{"type":"usd","usd":0.4}""",
-            ),
         )
 
     @classmethod
@@ -435,9 +426,6 @@ class ViduStartEndToVideoNode(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
-            price_badge=IO.PriceBadge(
-                expr="""{"type":"usd","usd":0.4}""",
-            ),
         )
 
     @classmethod
@@ -519,17 +507,6 @@ class Vidu2TextToVideoNode(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
-            price_badge=IO.PriceBadge(
-                depends_on=IO.PriceBadgeDepends(widgets=["duration", "resolution"]),
-                expr="""
-                (
-                  $is1080 := widgets.resolution = "1080p";
-                  $base := $is1080 ? 0.1 : 0.075;
-                  $perSec := $is1080 ? 0.05 : 0.025;
-                  {"type":"usd","usd": $base + $perSec * (widgets.duration - 1)}
-                )
-                """,
-            ),
         )
 
     @classmethod
@@ -617,39 +594,6 @@ class Vidu2ImageToVideoNode(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
-            price_badge=IO.PriceBadge(
-                depends_on=IO.PriceBadgeDepends(widgets=["model", "duration", "resolution"]),
-                expr="""
-                (
-                  $m := widgets.model;
-                  $d := widgets.duration;
-                  $is1080 := widgets.resolution = "1080p";
-                  $contains($m, "pro-fast")
-                    ? (
-                        $base := $is1080 ? 0.08 : 0.04;
-                        $perSec := $is1080 ? 0.02 : 0.01;
-                        {"type":"usd","usd": $base + $perSec * ($d - 1)}
-                      )
-                    : $contains($m, "pro")
-                      ? (
-                          $base := $is1080 ? 0.275 : 0.075;
-                          $perSec := $is1080 ? 0.075 : 0.05;
-                          {"type":"usd","usd": $base + $perSec * ($d - 1)}
-                        )
-                      : $contains($m, "turbo")
-                        ? (
-                            $is1080
-                              ? {"type":"usd","usd": 0.175 + 0.05 * ($d - 1)}
-                              : (
-                                  $d <= 1 ? {"type":"usd","usd": 0.04}
-                                  : $d <= 2 ? {"type":"usd","usd": 0.05}
-                                  : {"type":"usd","usd": 0.05 + 0.05 * ($d - 2)}
-                                )
-                          )
-                        : {"type":"usd","usd": 0.04}
-                )
-                """,
-            ),
         )
 
     @classmethod
@@ -754,18 +698,6 @@ class Vidu2ReferenceVideoNode(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
-            price_badge=IO.PriceBadge(
-                depends_on=IO.PriceBadgeDepends(widgets=["audio", "duration", "resolution"]),
-                expr="""
-                (
-                  $is1080 := widgets.resolution = "1080p";
-                  $base := $is1080 ? 0.375 : 0.125;
-                  $perSec := $is1080 ? 0.05 : 0.025;
-                  $audioCost := widgets.audio = true ? 0.075 : 0;
-                  {"type":"usd","usd": $base + $perSec * (widgets.duration - 1) + $audioCost}
-                )
-                """,
-            ),
         )
 
     @classmethod
@@ -872,38 +804,6 @@ class Vidu2StartEndToVideoNode(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
-            price_badge=IO.PriceBadge(
-                depends_on=IO.PriceBadgeDepends(widgets=["model", "duration", "resolution"]),
-                expr="""
-                (
-                  $m := widgets.model;
-                  $d := widgets.duration;
-                  $is1080 := widgets.resolution = "1080p";
-                  $contains($m, "pro-fast")
-                    ? (
-                        $base := $is1080 ? 0.08 : 0.04;
-                        $perSec := $is1080 ? 0.02 : 0.01;
-                        {"type":"usd","usd": $base + $perSec * ($d - 1)}
-                      )
-                    : $contains($m, "pro")
-                      ? (
-                          $base := $is1080 ? 0.275 : 0.075;
-                          $perSec := $is1080 ? 0.075 : 0.05;
-                          {"type":"usd","usd": $base + $perSec * ($d - 1)}
-                        )
-                      : $contains($m, "turbo")
-                        ? (
-                            $is1080
-                              ? {"type":"usd","usd": 0.175 + 0.05 * ($d - 1)}
-                              : (
-                                  $d <= 2 ? {"type":"usd","usd": 0.05}
-                                  : {"type":"usd","usd": 0.05 + 0.05 * ($d - 2)}
-                                )
-                          )
-                        : {"type":"usd","usd": 0.04}
-                )
-                """,
-            ),
         )
 
     @classmethod

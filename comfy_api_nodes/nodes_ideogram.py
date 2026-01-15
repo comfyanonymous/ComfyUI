@@ -236,6 +236,7 @@ class IdeogramV1(IO.ComfyNode):
             display_name="Ideogram V1",
             category="api node/image/Ideogram",
             description="Generates images using the Ideogram V1 model.",
+            is_api_node=True,
             inputs=[
                 IO.String.Input(
                     "prompt",
@@ -297,17 +298,6 @@ class IdeogramV1(IO.ComfyNode):
                 IO.Hidden.api_key_comfy_org,
                 IO.Hidden.unique_id,
             ],
-            is_api_node=True,
-            price_badge=IO.PriceBadge(
-                depends_on=IO.PriceBadgeDepends(widgets=["num_images", "turbo"]),
-                expr="""
-                (
-                  $n := widgets.num_images;
-                  $base := (widgets.turbo = true) ? 0.0286 : 0.0858;
-                  {"type":"usd","usd": $round($base * $n, 2)}
-                )
-                """,
-            ),
         )
 
     @classmethod
@@ -361,6 +351,7 @@ class IdeogramV2(IO.ComfyNode):
             display_name="Ideogram V2",
             category="api node/image/Ideogram",
             description="Generates images using the Ideogram V2 model.",
+            is_api_node=True,
             inputs=[
                 IO.String.Input(
                     "prompt",
@@ -445,17 +436,6 @@ class IdeogramV2(IO.ComfyNode):
                 IO.Hidden.api_key_comfy_org,
                 IO.Hidden.unique_id,
             ],
-            is_api_node=True,
-            price_badge=IO.PriceBadge(
-                depends_on=IO.PriceBadgeDepends(widgets=["num_images", "turbo"]),
-                expr="""
-                (
-                  $n := widgets.num_images;
-                  $base := (widgets.turbo = true) ? 0.0715 : 0.1144;
-                  {"type":"usd","usd": $round($base * $n, 2)}
-                )
-                """,
-            ),
         )
 
     @classmethod
@@ -526,6 +506,7 @@ class IdeogramV3(IO.ComfyNode):
             category="api node/image/Ideogram",
             description="Generates images using the Ideogram V3 model. "
                         "Supports both regular image generation from text prompts and image editing with mask.",
+            is_api_node=True,
             inputs=[
                 IO.String.Input(
                     "prompt",
@@ -610,23 +591,6 @@ class IdeogramV3(IO.ComfyNode):
                 IO.Hidden.api_key_comfy_org,
                 IO.Hidden.unique_id,
             ],
-            is_api_node=True,
-            price_badge=IO.PriceBadge(
-                depends_on=IO.PriceBadgeDepends(widgets=["rendering_speed", "num_images"], inputs=["character_image"]),
-                expr="""
-                (
-                  $n := widgets.num_images;
-                  $speed := widgets.rendering_speed;
-                  $hasChar := inputs.character_image.connected;
-                  $base :=
-                    $contains($speed,"quality") ? ($hasChar ? 0.286 : 0.1287) :
-                    $contains($speed,"default") ? ($hasChar ? 0.2145 : 0.0858) :
-                    $contains($speed,"turbo") ? ($hasChar ? 0.143 : 0.0429) :
-                    0.0858;
-                  {"type":"usd","usd": $round($base * $n, 2)}
-                )
-                """,
-            ),
         )
 
     @classmethod

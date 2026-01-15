@@ -13,7 +13,7 @@ jobs:
     - name: Checkout ComfyUI
       uses: actions/checkout@v4
       with:
-        repository: "Comfy-Org/ComfyUI"
+        repository: "comfyanonymous/ComfyUI"
         path: "ComfyUI"
     - uses: actions/setup-python@v4
       with:
