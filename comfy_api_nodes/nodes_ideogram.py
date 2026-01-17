@@ -4,7 +4,7 @@ from comfy_api.latest import IO, ComfyExtension
 from PIL import Image
 import numpy as np
 import torch
-from comfy_api_nodes.apis import (
+from comfy_api_nodes.apis.ideogram import (
     IdeogramGenerateRequest,
     IdeogramGenerateResponse,
     ImageRequest,
