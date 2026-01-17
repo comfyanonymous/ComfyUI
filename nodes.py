@@ -378,14 +378,15 @@ class VAEEncodeForInpaint:
     CATEGORY = "latent/inpaint"
 
     def encode(self, vae, pixels, mask, grow_mask_by=6):
-        x = (pixels.shape[1] // vae.downscale_ratio) * vae.downscale_ratio
-        y = (pixels.shape[2] // vae.downscale_ratio) * vae.downscale_ratio
+        downscale_ratio = vae.spacial_compression_encode()
+        x = (pixels.shape[1] // downscale_ratio) * downscale_ratio
+        y = (pixels.shape[2] // downscale_ratio) * downscale_ratio
         mask = torch.nn.functional.interpolate(mask.reshape((-1, 1, mask.shape[-2], mask.shape[-1])), size=(pixels.shape[1], pixels.shape[2]), mode="bilinear")
 
         pixels = pixels.clone()
         if pixels.shape[1] != x or pixels.shape[2] != y:
-            x_offset = (pixels.shape[1] % vae.downscale_ratio) // 2
-            y_offset = (pixels.shape[2] % vae.downscale_ratio) // 2
+            x_offset = (pixels.shape[1] % downscale_ratio) // 2
+            y_offset = (pixels.shape[2] % downscale_ratio) // 2
             pixels = pixels[:,x_offset:x + x_offset, y_offset:y + y_offset,:]
             mask = mask[:,:,x_offset:x + x_offset, y_offset:y + y_offset]
 
@@ -787,6 +788,7 @@ class VAELoader:
 
     #TODO: scale factor?
     def load_vae(self, vae_name):
+        metadata = None
         if vae_name == "pixel_space":
             sd = {}
             sd["pixel_space_vae"] = torch.tensor(1.0)
@@ -797,8 +799,8 @@ class VAELoader:
                 vae_path = folder_paths.get_full_path_or_raise("vae_approx", vae_name)
             else:
                 vae_path = folder_paths.get_full_path_or_raise("vae", vae_name)
-            sd = comfy.utils.load_torch_file(vae_path)
-        vae = comfy.sd.VAE(sd=sd)
+            sd, metadata = comfy.utils.load_torch_file(vae_path, return_metadata=True)
+        vae = comfy.sd.VAE(sd=sd, metadata=metadata)
         vae.throw_exception_if_invalid()
         return (vae,)
 
@@ -2381,6 +2383,7 @@ async def init_builtin_extra_nodes():
         "nodes_nop.py",
         "nodes_kandinsky5.py",
         "nodes_wanmove.py",
+        "nodes_image_compare.py",
     ]
 
     import_failed = []
@@ -2410,6 +2413,7 @@ async def init_builtin_api_nodes():
         "nodes_sora.py",
         "nodes_topaz.py",
         "nodes_tripo.py",
+        "nodes_meshy.py",
         "nodes_moonvalley.py",
         "nodes_rodin.py",
         "nodes_gemini.py",

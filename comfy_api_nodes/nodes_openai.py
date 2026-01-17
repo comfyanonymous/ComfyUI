@@ -160,6 +160,23 @@ class OpenAIDalle2(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
+            price_badge=IO.PriceBadge(
+                depends_on=IO.PriceBadgeDepends(widgets=["size", "n"]),
+                expr="""
+                (
+                  $size := widgets.size;
+                  $nRaw := widgets.n;
+                  $n := ($nRaw != null and $nRaw != 0) ? $nRaw : 1;
+
+                  $base :=
+                    $contains($size, "256x256") ? 0.016 :
+                    $contains($size, "512x512") ? 0.018 :
+                    0.02;
+
+                  {"type":"usd","usd": $round($base * $n, 3)}
+                )
+                """,
+            ),
         )
 
     @classmethod
@@ -287,6 +304,25 @@ class OpenAIDalle3(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
+            price_badge=IO.PriceBadge(
+                depends_on=IO.PriceBadgeDepends(widgets=["size", "quality"]),
+                expr="""
+                (
+                  $size := widgets.size;
+                  $q := widgets.quality;
+                  $hd := $contains($q, "hd");
+
+                  $price :=
+                    $contains($size, "1024x1024")
+                      ? ($hd ? 0.08 : 0.04)
+                      : (($contains($size, "1792x1024") or $contains($size, "1024x1792"))
+                          ? ($hd ? 0.12 : 0.08)
+                          : 0.04);
+
+                  {"type":"usd","usd": $price}
+                )
+                """,
+            ),
         )
 
     @classmethod
@@ -411,6 +447,28 @@ class OpenAIGPTImage1(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
+            price_badge=IO.PriceBadge(
+                depends_on=IO.PriceBadgeDepends(widgets=["quality", "n"]),
+                expr="""
+                (
+                  $ranges := {
+                    "low":    [0.011, 0.02],
+                    "medium": [0.046, 0.07],
+                    "high":   [0.167, 0.3]
+                  };
+                  $range := $lookup($ranges, widgets.quality);
+                  $n := widgets.n;
+                  ($n = 1)
+                    ? {"type":"range_usd","min_usd": $range[0], "max_usd": $range[1]}
+                    : {
+                        "type":"range_usd",
+                        "min_usd": $range[0],
+                        "max_usd": $range[1],
+                        "format": { "suffix": " x " & $string($n) & "/Run" }
+                      }
+                )
+                """,
+            ),
         )
 
     @classmethod
@@ -566,6 +624,75 @@ class OpenAIChatNode(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
+            price_badge=IO.PriceBadge(
+                depends_on=IO.PriceBadgeDepends(widgets=["model"]),
+                expr="""
+                (
+                  $m := widgets.model;
+                  $contains($m, "o4-mini") ? {
+                    "type": "list_usd",
+                    "usd": [0.0011, 0.0044],
+                    "format": { "approximate": true, "separator": "-", "suffix": " per 1K tokens" }
+                  }
+                  : $contains($m, "o1-pro") ? {
+                    "type": "list_usd",
+                    "usd": [0.15, 0.6],
+                    "format": { "approximate": true, "separator": "-", "suffix": " per 1K tokens" }
+                  }
+                  : $contains($m, "o1") ? {
+                    "type": "list_usd",
+                    "usd": [0.015, 0.06],
+                    "format": { "approximate": true, "separator": "-", "suffix": " per 1K tokens" }
+                  }
+                  : $contains($m, "o3-mini") ? {
+                    "type": "list_usd",
+                    "usd": [0.0011, 0.0044],
+                    "format": { "approximate": true, "separator": "-", "suffix": " per 1K tokens" }
+                  }
+                  : $contains($m, "o3") ? {
+                    "type": "list_usd",
+                    "usd": [0.01, 0.04],
+                    "format": { "approximate": true, "separator": "-", "suffix": " per 1K tokens" }
+                  }
+                  : $contains($m, "gpt-4o") ? {
+                    "type": "list_usd",
+                    "usd": [0.0025, 0.01],
+                    "format": { "approximate": true, "separator": "-", "suffix": " per 1K tokens" }
+                  }
+                  : $contains($m, "gpt-4.1-nano") ? {
+                    "type": "list_usd",
+                    "usd": [0.0001, 0.0004],
+                    "format": { "approximate": true, "separator": "-", "suffix": " per 1K tokens" }
+                  }
+                  : $contains($m, "gpt-4.1-mini") ? {
+                    "type": "list_usd",
+                    "usd": [0.0004, 0.0016],
+                    "format": { "approximate": true, "separator": "-", "suffix": " per 1K tokens" }
+                  }
+                  : $contains($m, "gpt-4.1") ? {
+                    "type": "list_usd",
+                    "usd": [0.002, 0.008],
+                    "format": { "approximate": true, "separator": "-", "suffix": " per 1K tokens" }
+                  }
+                  : $contains($m, "gpt-5-nano") ? {
+                    "type": "list_usd",
+                    "usd": [0.00005, 0.0004],
+                    "format": { "approximate": true, "separator": "-", "suffix": " per 1K tokens" }
+                  }
+                  : $contains($m, "gpt-5-mini") ? {
+                    "type": "list_usd",
+                    "usd": [0.00025, 0.002],
+                    "format": { "approximate": true, "separator": "-", "suffix": " per 1K tokens" }
+                  }
+                  : $contains($m, "gpt-5") ? {
+                    "type": "list_usd",
+                    "usd": [0.00125, 0.01],
+                    "format": { "approximate": true, "separator": "-", "suffix": " per 1K tokens" }
+                  }
+                  : {"type": "text", "text": "Token-based"}
+                )
+                """,
+            ),
         )
 
     @classmethod

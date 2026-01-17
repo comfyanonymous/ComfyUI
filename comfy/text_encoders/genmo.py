@@ -32,7 +32,7 @@ def mochi_te(dtype_t5=None, t5_quantization_metadata=None):
             if t5_quantization_metadata is not None:
                 model_options = model_options.copy()
                 model_options["t5xxl_quantization_metadata"] = t5_quantization_metadata
-            if dtype is None:
+            if dtype_t5 is not None:
                 dtype = dtype_t5
             super().__init__(device=device, dtype=dtype, model_options=model_options)
     return MochiTEModel_
