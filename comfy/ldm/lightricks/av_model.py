@@ -18,12 +18,12 @@ class CompressedTimestep:
     def __init__(self, tensor: torch.Tensor, patches_per_frame: int):
         """
         tensor: [batch_size, num_tokens, feature_dim] tensor where num_tokens = num_frames * patches_per_frame
-        patches_per_frame: Number of spatial patches per frame (height * width in latent space)
+        patches_per_frame: Number of spatial patches per frame (height * width in latent space), or None to disable compression
         """
         self.batch_size, num_tokens, self.feature_dim = tensor.shape
 
         # Check if compression is valid (num_tokens must be divisible by patches_per_frame)
-        if num_tokens % patches_per_frame == 0 and num_tokens >= patches_per_frame:
+        if patches_per_frame is not None and num_tokens % patches_per_frame == 0 and num_tokens >= patches_per_frame:
             self.patches_per_frame = patches_per_frame
             self.num_frames = num_tokens // patches_per_frame
 
@@ -589,9 +589,20 @@ class LTXAVModel(LTXVModel):
         audio_length = kwargs.get("audio_length", 0)
         # Separate audio and video latents
         vx, ax = self.separate_audio_and_video_latents(x, audio_length)
+
+        has_spatial_mask = False
+        if denoise_mask is not None:
+            # check if any frame has spatial variation (inpainting)
+            for frame_idx in range(denoise_mask.shape[2]):
+                frame_mask = denoise_mask[0, 0, frame_idx]
+                if frame_mask.numel() > 0 and frame_mask.min() != frame_mask.max():
+                    has_spatial_mask = True
+                    break
+
         [vx, v_pixel_coords, additional_args] = super()._process_input(
             vx, keyframe_idxs, denoise_mask, **kwargs
         )
+        additional_args["has_spatial_mask"] = has_spatial_mask
 
         ax, a_latent_coords = self.a_patchifier.patchify(ax)
         ax = self.audio_patchify_proj(ax)
@@ -618,8 +629,9 @@ class LTXAVModel(LTXVModel):
         # Calculate patches_per_frame from orig_shape: [batch, channels, frames, height, width]
         # Video tokens are arranged as (frames * height * width), so patches_per_frame = height * width
         orig_shape = kwargs.get("orig_shape")
+        has_spatial_mask = kwargs.get("has_spatial_mask", None)
         v_patches_per_frame = None
-        if orig_shape is not None and len(orig_shape) == 5:
+        if not has_spatial_mask and orig_shape is not None and len(orig_shape) == 5:
             # orig_shape[3] = height, orig_shape[4] = width (in latent space)
             v_patches_per_frame = orig_shape[3] * orig_shape[4]
 
@@ -662,10 +674,11 @@ class LTXAVModel(LTXVModel):
             )
 
             # Compress cross-attention timesteps (only video side, audio is too small to benefit)
+            # v_patches_per_frame is None for spatial masks, set for temporal masks or no mask
             cross_av_timestep_ss = [
                 av_ca_audio_scale_shift_timestep.view(batch_size, -1, av_ca_audio_scale_shift_timestep.shape[-1]),
-                CompressedTimestep(av_ca_video_scale_shift_timestep.view(batch_size, -1, av_ca_video_scale_shift_timestep.shape[-1]), v_patches_per_frame),  # video - compressed
-                CompressedTimestep(av_ca_a2v_gate_noise_timestep.view(batch_size, -1, av_ca_a2v_gate_noise_timestep.shape[-1]), v_patches_per_frame),  # video - compressed
+                CompressedTimestep(av_ca_video_scale_shift_timestep.view(batch_size, -1, av_ca_video_scale_shift_timestep.shape[-1]), v_patches_per_frame),  # video - compressed if possible
+                CompressedTimestep(av_ca_a2v_gate_noise_timestep.view(batch_size, -1, av_ca_a2v_gate_noise_timestep.shape[-1]), v_patches_per_frame),  # video - compressed if possible
                 av_ca_v2a_gate_noise_timestep.view(batch_size, -1, av_ca_v2a_gate_noise_timestep.shape[-1]),
             ]
 
