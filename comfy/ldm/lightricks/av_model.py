@@ -246,15 +246,15 @@ class BasicAVTransformerBlock(nn.Module):
             )
 
             norm_vx = comfy.ldm.common_dit.rms_norm(vx) * (1 + vscale_msa) + vshift_msa
+            del vshift_msa, vscale_msa
             vx += self.attn1(norm_vx, pe=v_pe, transformer_options=transformer_options) * vgate_msa
+            del norm_vx, vgate_msa
             vx += self.attn2(
                 comfy.ldm.common_dit.rms_norm(vx),
                 context=v_context,
                 mask=attention_mask,
                 transformer_options=transformer_options,
             )
-
-            del vshift_msa, vscale_msa, vgate_msa
 
         if run_ax:
             ashift_msa, ascale_msa, agate_msa = (
