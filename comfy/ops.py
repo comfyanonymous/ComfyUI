@@ -19,7 +19,6 @@
 import torch
 import logging
 import comfy.model_management
-import comfy.disk_weights
 from comfy.cli_args import args, PerformanceFeature
 import comfy.float
 import comfy.rmsnorm
@@ -101,27 +100,6 @@ def cast_bias_weight(s, input=None, dtype=None, device=None, bias_dtype=None, of
 
     weight_source = s.weight
     bias_source = s.bias
-    if comfy.disk_weights.disk_weights_enabled():
-        if weight_source.device.type == "meta":
-            loaded = comfy.disk_weights.load_module_tensor(
-                s,
-                "weight",
-                device,
-                temporary=True,
-                dtype_override=dtype,
-            )
-            if loaded is not None:
-                weight_source = loaded
-        if bias_source is not None and bias_source.device.type == "meta":
-            loaded_bias = comfy.disk_weights.load_module_tensor(
-                s,
-                "bias",
-                device,
-                temporary=True,
-                dtype_override=bias_dtype,
-            )
-            if loaded_bias is not None:
-                bias_source = loaded_bias
 
     weight = comfy.model_management.cast_to(weight_source, None, device, non_blocking=non_blocking, copy=weight_has_function, stream=offload_stream)
 

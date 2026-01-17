@@ -297,7 +297,7 @@ class SDClipModel(torch.nn.Module, ClipTokenWeightEncoder):
         return self(tokens)
 
     def load_sd(self, sd):
-        return comfy.utils.load_state_dict(self.transformer, sd, strict=False)
+        return self.transformer.load_state_dict(sd, strict=False)
 
 def parse_parentheses(string):
     result = []

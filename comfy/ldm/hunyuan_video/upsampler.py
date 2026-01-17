@@ -1,5 +1,4 @@
 import torch
-import comfy.utils
 import torch.nn as nn
 import torch.nn.functional as F
 from comfy.ldm.modules.diffusionmodules.model import ResnetBlock, VideoConv3d
@@ -113,7 +112,7 @@ class HunyuanVideo15SRModel():
         self.patcher = model_patcher.ModelPatcher(self.model, load_device=self.load_device, offload_device=offload_device)
 
     def load_sd(self, sd):
-        return comfy.utils.load_state_dict(self.model, sd, strict=True)
+        return self.model.load_state_dict(sd, strict=True)
 
     def get_sd(self):
         return self.model.state_dict()

@@ -56,9 +56,9 @@ class TAESD(nn.Module):
         self.vae_scale = torch.nn.Parameter(torch.tensor(1.0))
         self.vae_shift = torch.nn.Parameter(torch.tensor(0.0))
         if encoder_path is not None:
-            comfy.utils.load_state_dict(self.taesd_encoder, comfy.utils.load_torch_file(encoder_path, safe_load=True), strict=True)
+            self.taesd_encoder.load_state_dict(comfy.utils.load_torch_file(encoder_path, safe_load=True), strict=True)
         if decoder_path is not None:
-            comfy.utils.load_state_dict(self.taesd_decoder, comfy.utils.load_torch_file(decoder_path, safe_load=True), strict=True)
+            self.taesd_decoder.load_state_dict(comfy.utils.load_torch_file(decoder_path, safe_load=True), strict=True)
 
     @staticmethod
     def scale_latents(x):

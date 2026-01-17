@@ -590,10 +590,26 @@ def minimum_inference_memory():
 def free_memory(memory_required, device, keep_loaded=[]):
     cleanup_models_gc()
     if is_device_cpu(device) and comfy.disk_weights.disk_weights_enabled():
-        logging.info("RAM pressure: requested %.2f MB, free %.2f MB", memory_required / (1024 * 1024), get_free_memory(device) / (1024 * 1024))
-        freed_cache = comfy.disk_weights.evict_ram_cache(memory_required)
-        if freed_cache < memory_required:
-            evict_ram_to_disk(memory_required - freed_cache)
+        free_before = get_free_memory(device)
+        headroom = comfy.disk_weights.ram_headroom_bytes()
+        if free_before < memory_required:
+            logging.debug(
+                "RAM pressure: required=%d free=%d headroom=%d",
+                memory_required,
+                free_before,
+                headroom,
+            )
+            freed_cache = comfy.disk_weights.evict_ram_cache(memory_required)
+            freed_disk = 0
+            if freed_cache < memory_required:
+                freed_disk = evict_ram_to_disk(memory_required - freed_cache)
+            free_after = get_free_memory(device)
+            freed_total = max(0, free_after - free_before)
+            logging.debug(
+                "RAM freed: freed=%d free=%d",
+                freed_total if freed_total > 0 else freed_cache + freed_disk,
+                free_after,
+            )
     unloaded_model = []
     can_unload = []
     unloaded_models = []
@@ -636,6 +652,7 @@ def evict_ram_to_disk(memory_to_free, keep_loaded=[]):
     if not comfy.disk_weights.disk_weights_enabled():
         return 0
 
+    free_before = get_free_memory(torch.device("cpu"))
     freed = 0
     can_unload = []
     for i in range(len(current_loaded_models) - 1, -1, -1):
@@ -654,7 +671,14 @@ def evict_ram_to_disk(memory_to_free, keep_loaded=[]):
         freed += current_loaded_models[i].model.partially_unload(torch.device("meta"), memory_needed)
 
     if freed > 0:
-        logging.info("RAM evicted to disk: {:.2f} MB freed".format(freed / (1024 * 1024)))
+        free_after = get_free_memory(torch.device("cpu"))
+        freed_total = max(0, free_after - free_before)
+        logging.debug(
+            "RAM evicted to disk: required=%d free=%d freed=%d",
+            memory_to_free,
+            free_before,
+            freed_total if freed_total > 0 else freed,
+        )
     return freed
 
 def load_models_gpu(models, memory_required=0, force_patch_weights=False, minimum_memory_required=None, force_full_load=False):
@@ -802,6 +826,8 @@ def dtype_size(dtype):
     return dtype_size
 
 def unet_offload_device():
+    if comfy.disk_weights.disk_weights_enabled():
+        return torch.device("meta")
     if vram_state == VRAMState.HIGH_VRAM:
         return get_torch_device()
     else:
@@ -906,6 +932,8 @@ def unet_manual_cast(weight_dtype, inference_device, supported_dtypes=[torch.flo
     return torch.float32
 
 def text_encoder_offload_device():
+    if comfy.disk_weights.disk_weights_enabled():
+        return torch.device("meta")
     if args.gpu_only:
         return get_torch_device()
     else:
@@ -966,6 +994,8 @@ def vae_device():
     return get_torch_device()
 
 def vae_offload_device():
+    if comfy.disk_weights.disk_weights_enabled():
+        return torch.device("meta")
     if args.gpu_only:
         return get_torch_device()
     else:
@@ -1163,14 +1193,13 @@ if not args.disable_pinned_memory:
             MAX_PINNED_MEMORY = get_total_memory(torch.device("cpu")) * 0.95
         logging.info("Enabled pinned memory {}".format(MAX_PINNED_MEMORY // (1024 * 1024)))
 
-WEIGHTS_RAM_CACHE_BYTES = 0
 WEIGHTS_GDS_ENABLED = bool(args.weights_gds)
-if args.weights_ram_cache_gb is not None:
-    WEIGHTS_RAM_CACHE_BYTES = int(max(0.0, args.weights_ram_cache_gb) * (1024 ** 3))
+if args.low_ram:
     comfy.disk_weights.configure(
-        WEIGHTS_RAM_CACHE_BYTES,
         allow_gds=WEIGHTS_GDS_ENABLED,
         pin_if_cpu=not args.disable_pinned_memory,
+        ram_headroom_bytes=1024 * 1024 * 1024,
+        enabled=True,
     )
 
 PINNING_ALLOWED_TYPES = set(["Parameter", "QuantizedTensor"])

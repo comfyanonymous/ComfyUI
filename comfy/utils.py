@@ -32,7 +32,6 @@ from einops import rearrange
 from comfy.cli_args import args
 import json
 from . import safetensors_stream
-import comfy.disk_weights
 
 MMAP_TORCH_FILES = args.mmap_torch_files
 DISABLE_MMAP = args.disable_mmap
@@ -164,62 +163,6 @@ def state_dict_meta(state_dict, key):
         numel=numel,
         nbytes=numel * w.element_size(),
     )
-
-
-def load_state_dict(model, state_dict, strict=False, assign=False):
-    if is_stream_state_dict(state_dict):
-        if comfy.disk_weights.disk_weights_enabled():
-            return comfy.disk_weights.lazy_load_state_dict(model, state_dict, strict=strict)
-        comfy.disk_weights.register_module_weights(model, state_dict)
-        comfy.disk_weights.attach_disk_weight_hooks(model)
-        missing, unexpected = stream_load_state_dict(model, state_dict, strict=strict, assign=assign)
-        return missing, unexpected
-    return model.load_state_dict(state_dict, strict=strict)
-
-
-def stream_load_state_dict(model, state_dict, strict=False, assign=False):
-    if is_stream_state_dict(state_dict) and hasattr(state_dict, "copy"):
-        state_dict = state_dict.copy()
-    missing_keys = []
-    unexpected_keys = []
-    error_msgs = []
-    metadata = getattr(state_dict, "_metadata", None)
-
-    def load(module, local_state_dict, prefix=""):
-        local_metadata = {} if metadata is None else metadata.get(prefix[:-1], {})
-        if assign:
-            local_metadata["assign_to_params_buffers"] = assign
-        module._load_from_state_dict(
-            local_state_dict,
-            prefix,
-            local_metadata,
-            True,
-            missing_keys,
-            unexpected_keys,
-            error_msgs,
-        )
-        for name, child in module._modules.items():
-            if child is not None:
-                child_prefix = f"{prefix}{name}."
-                child_state_dict = safetensors_stream.FilterViewStateDict(
-                    local_state_dict, lambda k, p=child_prefix: k.startswith(p), mutate_base=False
-                )
-                load(child, child_state_dict, child_prefix)
-        incompatible = torch.nn.modules.module._IncompatibleKeys(missing_keys, unexpected_keys)
-        for hook in module._load_state_dict_post_hooks.values():
-            out = hook(module, incompatible)
-            if out is not None:
-                raise RuntimeError("load_state_dict post hook returned a value, which is unsupported.")
-
-    load(model, state_dict)
-    if strict:
-        if len(unexpected_keys) > 0:
-            error_msgs.insert(0, 'Unexpected key(s) in state_dict: {}. '.format(', '.join(f'"{k}"' for k in unexpected_keys)))
-        if len(missing_keys) > 0:
-            error_msgs.insert(0, 'Missing key(s) in state_dict: {}. '.format(', '.join(f'"{k}"' for k in missing_keys)))
-    if len(error_msgs) > 0:
-        raise RuntimeError('Error(s) in loading state_dict for {}:\n\t{}'.format(model.__class__.__name__, "\n\t".join(error_msgs)))
-    return missing_keys, unexpected_keys
 
 
 def transformers_convert(sd, prefix_from, prefix_to, number):

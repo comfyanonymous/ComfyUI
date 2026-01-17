@@ -26,7 +26,6 @@ import os
 
 import comfy.utils
 import comfy.safetensors_stream
-import comfy.disk_weights
 
 from . import clip_vision
 from . import gligen
@@ -126,7 +125,7 @@ class CLIP:
             if not model_management.supports_cast(load_device, dt):
                 load_device = offload_device
                 if params['device'] != offload_device:
-                    comfy.disk_weights.module_to(self.cond_stage_model, offload_device)
+                    self.cond_stage_model.to(offload_device)
                     logging.warning("Had to shift TE back.")
 
         self.tokenizer = tokenizer(embedding_directory=embedding_directory, tokenizer_data=tokenizer_data)
@@ -290,7 +289,7 @@ class CLIP:
 
     def load_sd(self, sd, full_model=False):
         if full_model:
-            return comfy.utils.load_state_dict(self.cond_stage_model, sd, strict=False)
+            return self.cond_stage_model.load_state_dict(sd, strict=False)
         else:
             return self.cond_stage_model.load_sd(sd)
 
@@ -658,7 +657,7 @@ class VAE:
             self.first_stage_model = AutoencoderKL(**(config['params']))
         self.first_stage_model = self.first_stage_model.eval()
 
-        m, u = comfy.utils.load_state_dict(self.first_stage_model, sd, strict=False)
+        m, u = self.first_stage_model.load_state_dict(sd, strict=False)
         if len(m) > 0:
             logging.warning("Missing VAE keys {}".format(m))
 
@@ -672,7 +671,7 @@ class VAE:
         if dtype is None:
             dtype = model_management.vae_dtype(self.device, self.working_dtypes)
         self.vae_dtype = dtype
-        comfy.disk_weights.module_to(self.first_stage_model, dtype=self.vae_dtype)
+        self.first_stage_model.to(dtype=self.vae_dtype)
         self.output_device = model_management.intermediate_device()
 
         self.patcher = comfy.model_patcher.ModelPatcher(self.first_stage_model, load_device=self.device, offload_device=offload_device)
@@ -979,7 +978,7 @@ def load_style_model(ckpt_path):
         model = comfy.ldm.flux.redux.ReduxImageEncoder()
     else:
         raise Exception("invalid style model {}".format(ckpt_path))
-    comfy.utils.load_state_dict(model, model_data, strict=True)
+    model.load_state_dict(model_data, strict=True)
     return StyleModel(model)
 
 def sd_shape(state_dict, key):
@@ -1547,7 +1546,7 @@ def load_diffusion_model_state_dict(sd, model_options={}, metadata=None):
         model_config.optimizations["fp8"] = True
 
     model = model_config.get_model(new_sd, "")
-    model = comfy.disk_weights.module_to(model, offload_device)
+    model = model.to(offload_device)
     model.load_model_weights(new_sd, "")
     left_over = sd.keys()
     if len(left_over) > 0:

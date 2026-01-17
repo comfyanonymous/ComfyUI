@@ -309,7 +309,7 @@ class BaseModel(torch.nn.Module):
         else:
             to_load = sd
         to_load = self.model_config.process_unet_state_dict(to_load)
-        m, u = utils.load_state_dict(self.diffusion_model, to_load, strict=False)
+        m, u = self.diffusion_model.load_state_dict(to_load, strict=False)
         if len(m) > 0:
             logging.warning("unet missing: {}".format(m))
 
@@ -753,8 +753,8 @@ class StableAudio1(BaseModel):
         super().__init__(model_config, model_type, device=device, unet_model=comfy.ldm.audio.dit.AudioDiffusionTransformer)
         self.seconds_start_embedder = comfy.ldm.audio.embedders.NumberConditioner(768, min_val=0, max_val=512)
         self.seconds_total_embedder = comfy.ldm.audio.embedders.NumberConditioner(768, min_val=0, max_val=512)
-        utils.load_state_dict(self.seconds_start_embedder, seconds_start_embedder_weights, strict=True)
-        utils.load_state_dict(self.seconds_total_embedder, seconds_total_embedder_weights, strict=True)
+        self.seconds_start_embedder.load_state_dict(seconds_start_embedder_weights, strict=True)
+        self.seconds_total_embedder.load_state_dict(seconds_total_embedder_weights, strict=True)
 
     def extra_conds(self, **kwargs):
         out = {}

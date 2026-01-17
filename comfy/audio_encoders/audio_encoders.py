@@ -29,7 +29,7 @@ class AudioEncoderModel():
         self.model_sample_rate = 16000
 
     def load_sd(self, sd):
-        return comfy.utils.load_state_dict(self.model, sd, strict=False)
+        return self.model.load_state_dict(sd, strict=False)
 
     def get_sd(self):
         return self.model.state_dict()

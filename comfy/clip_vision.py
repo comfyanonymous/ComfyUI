@@ -6,7 +6,6 @@ import logging
 import comfy.ops
 import comfy.model_patcher
 import comfy.model_management
-import comfy.utils
 import comfy.clip_model
 import comfy.image_encoders.dino2
 
@@ -48,7 +47,7 @@ class ClipVisionModel():
         self.patcher = comfy.model_patcher.ModelPatcher(self.model, load_device=self.load_device, offload_device=offload_device)
 
     def load_sd(self, sd):
-        return comfy.utils.load_state_dict(self.model, sd, strict=False)
+        return self.model.load_state_dict(sd, strict=False)
 
     def get_sd(self):
         return self.model.state_dict()

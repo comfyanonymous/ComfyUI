@@ -2,7 +2,6 @@ import json
 from dataclasses import dataclass
 import math
 import torch
-import comfy.utils
 import torchaudio
 
 import comfy.model_management
@@ -154,8 +153,8 @@ class AudioVAE(torch.nn.Module):
         self.autoencoder = CausalAudioAutoencoder(config=component_config.autoencoder)
         self.vocoder = Vocoder(config=component_config.vocoder)
 
-        comfy.utils.load_state_dict(self.autoencoder, vae_sd, strict=False)
-        comfy.utils.load_state_dict(self.vocoder, vocoder_sd, strict=False)
+        self.autoencoder.load_state_dict(vae_sd, strict=False)
+        self.vocoder.load_state_dict(vocoder_sd, strict=False)
 
         autoencoder_config = self.autoencoder.get_config()
         self.normalizer = AudioLatentNormalizer(
