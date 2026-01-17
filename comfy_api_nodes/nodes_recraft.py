@@ -378,6 +378,10 @@ class RecraftTextToImageNode(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
+            price_badge=IO.PriceBadge(
+                depends_on=IO.PriceBadgeDepends(widgets=["n"]),
+                expr="""{"type":"usd","usd": $round(0.04 * widgets.n, 2)}""",
+            ),
         )
 
     @classmethod
@@ -490,6 +494,10 @@ class RecraftImageToImageNode(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
+            price_badge=IO.PriceBadge(
+                depends_on=IO.PriceBadgeDepends(widgets=["n"]),
+                expr="""{"type":"usd","usd": $round(0.04 * widgets.n, 2)}""",
+            ),
         )
 
     @classmethod
@@ -591,6 +599,10 @@ class RecraftImageInpaintingNode(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
+            price_badge=IO.PriceBadge(
+                depends_on=IO.PriceBadgeDepends(widgets=["n"]),
+                expr="""{"type":"usd","usd": $round(0.04 * widgets.n, 2)}""",
+            ),
         )
 
     @classmethod
@@ -692,6 +704,10 @@ class RecraftTextToVectorNode(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
+            price_badge=IO.PriceBadge(
+                depends_on=IO.PriceBadgeDepends(widgets=["n"]),
+                expr="""{"type":"usd","usd": $round(0.08 * widgets.n, 2)}""",
+            ),
         )
 
     @classmethod
@@ -759,6 +775,10 @@ class RecraftVectorizeImageNode(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
+            price_badge=IO.PriceBadge(
+                depends_on=IO.PriceBadgeDepends(),
+                expr="""{"type":"usd","usd": 0.01}""",
+            ),
         )
 
     @classmethod
@@ -817,6 +837,9 @@ class RecraftReplaceBackgroundNode(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
+            price_badge=IO.PriceBadge(
+                expr="""{"type":"usd","usd":0.04}""",
+            ),
         )
 
     @classmethod
@@ -883,6 +906,9 @@ class RecraftRemoveBackgroundNode(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
+            price_badge=IO.PriceBadge(
+                expr="""{"type":"usd","usd":0.01}""",
+            ),
         )
 
     @classmethod
@@ -929,6 +955,9 @@ class RecraftCrispUpscaleNode(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
+            price_badge=IO.PriceBadge(
+                expr="""{"type":"usd","usd":0.004}""",
+            ),
         )
 
     @classmethod
@@ -972,6 +1001,9 @@ class RecraftCreativeUpscaleNode(RecraftCrispUpscaleNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
+            price_badge=IO.PriceBadge(
+                expr="""{"type":"usd","usd":0.25}""",
+            ),
         )
 
 

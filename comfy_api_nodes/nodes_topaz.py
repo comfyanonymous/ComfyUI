@@ -2,7 +2,6 @@ import builtins
 from io import BytesIO
 
 import aiohttp
-import torch
 from typing_extensions import override
 
 from comfy_api.latest import IO, ComfyExtension, Input
@@ -138,7 +137,7 @@ class TopazImageEnhance(IO.ComfyNode):
     async def execute(
         cls,
         model: str,
-        image: torch.Tensor,
+        image: Input.Image,
         prompt: str = "",
         subject_detection: str = "All",
         face_enhancement: bool = True,
@@ -153,7 +152,9 @@ class TopazImageEnhance(IO.ComfyNode):
     ) -> IO.NodeOutput:
         if get_number_of_images(image) != 1:
             raise ValueError("Only one input image is supported.")
-        download_url = await upload_images_to_comfyapi(cls, image, max_images=1, mime_type="image/png")
+        download_url = await upload_images_to_comfyapi(
+            cls, image, max_images=1, mime_type="image/png", total_pixels=4096*4096
+        )
         initial_response = await sync_op(
             cls,
             ApiEndpoint(path="/proxy/topaz/image/v1/enhance-gen/async", method="POST"),
