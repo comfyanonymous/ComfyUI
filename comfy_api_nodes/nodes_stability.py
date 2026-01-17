@@ -3,7 +3,7 @@ from typing import Optional
 from typing_extensions import override
 
 from comfy_api.latest import ComfyExtension, Input, IO
-from comfy_api_nodes.apis.stability_api import (
+from comfy_api_nodes.apis.stability import (
     StabilityUpscaleConservativeRequest,
     StabilityUpscaleCreativeRequest,
     StabilityAsyncResponse,

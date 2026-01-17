@@ -49,7 +49,7 @@ from comfy_api_nodes.apis import (
     KlingCharacterEffectModelName,
     KlingSingleImageEffectModelName,
 )
-from comfy_api_nodes.apis.kling_api import (
+from comfy_api_nodes.apis.kling import (
     ImageToVideoWithAudioRequest,
     MotionControlRequest,
     OmniImageParamImage,
