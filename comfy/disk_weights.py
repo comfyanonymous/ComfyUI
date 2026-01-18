@@ -179,7 +179,24 @@ def configure(*, allow_gds: bool, pin_if_cpu: bool, ram_headroom_bytes: int, ena
     PIN_IF_CPU = pin_if_cpu
     DISK_WEIGHTS_ENABLED = enabled
     RAM_HEADROOM_BYTES = max(0, int(ram_headroom_bytes))
-    CACHE.set_limit(0 if enabled else 0)
+    if enabled:
+        from . import model_management
+        cpu_capacity_bytes = max(0, model_management.get_total_memory(torch.device("cpu")) - RAM_HEADROOM_BYTES)
+        CACHE.set_limit(cpu_capacity_bytes)
+        LOGGER.debug(
+            "Disk weights configured: enabled=%s ram_headroom_bytes=%d cpu_capacity_bytes=%d",
+            enabled,
+            RAM_HEADROOM_BYTES,
+            cpu_capacity_bytes,
+        )
+    else:
+        CACHE.set_limit(0)
+        LOGGER.debug(
+            "Disk weights configured: enabled=%s ram_headroom_bytes=%d cpu_capacity_bytes=%d",
+            enabled,
+            RAM_HEADROOM_BYTES,
+            0,
+        )
     if enabled:
         install_monkeypatches()
     else:
@@ -449,12 +466,14 @@ def _ensure_free_memory(device: torch.device, required_bytes: int, headroom_byte
         )
         safetensors_stream._reap_pinned_inflight()
         from . import model_management
+        model_management._reap_pinned_inflight()
         model_management.free_memory(required_bytes + headroom_bytes, device)
         free_after = _device_free_memory(device)
         freed = max(0, free_after - free_before)
         LOGGER.debug(
-            "Disk weight memory freed: freed=%d free=%d device=%s",
+            "Disk weight memory freed: freed=%d free_before=%d free_after=%d device=%s",
             freed,
+            free_before,
             free_after,
             device,
         )
@@ -840,6 +859,8 @@ def evict_ram_cache(bytes_to_free: int):
     if bytes_to_free <= 0:
         return 0
     safetensors_stream._reap_pinned_inflight()
+    from . import model_management
+    model_management._reap_pinned_inflight()
     return CACHE.evict_bytes(bytes_to_free)
 
 
@@ -926,22 +947,41 @@ def module_to(
         if target_device is None:
             target_device = _find_existing_device(module) or torch.device("cpu")
         if target_device.type == "meta":
-            offload_module_weights(module)
+            for submodule in module.modules():
+                offload_module_weights(submodule)
             return module
-        if allow_materialize:
-            materialize_module_tree(module, target_device)
-            base_kwargs = dict(kwargs)
-            if device is not None and arg_device is None:
-                base_kwargs["device"] = device
-            if dtype is not None and arg_dtype is None:
-                base_kwargs["dtype"] = dtype
-            if non_blocking:
-                base_kwargs["non_blocking"] = non_blocking
-            if memory_format is not None:
-                base_kwargs["memory_format"] = memory_format
-            return BASE_MODULE_TO(module, *args, **base_kwargs)
         dtype_override = dtype or arg_dtype
-        return move_module_tensors(module, target_device, dtype_override=dtype_override)
+        to_kwargs = {}
+        if non_blocking:
+            to_kwargs["non_blocking"] = non_blocking
+        if memory_format is not None:
+            to_kwargs["memory_format"] = memory_format
+        for submodule in module.modules():
+            ensure_module_materialized(submodule, target_device, dtype_override=dtype_override)
+            refs = REGISTRY.get(submodule) or {}
+            for name, param in submodule.named_parameters(recurse=False):
+                if name in refs:
+                    continue
+                if param is None or param.device.type == "meta":
+                    continue
+                if param.device != target_device or (dtype_override is not None and param.dtype != dtype_override):
+                    if dtype_override is not None:
+                        tensor = param.to(device=target_device, dtype=dtype_override, **to_kwargs)
+                    else:
+                        tensor = param.to(device=target_device, **to_kwargs)
+                    submodule._parameters[name] = torch.nn.Parameter(tensor, requires_grad=param.requires_grad)
+            for name, buf in submodule.named_buffers(recurse=False):
+                if name in refs:
+                    continue
+                if buf is None or buf.device.type == "meta":
+                    continue
+                if buf.device != target_device or (dtype_override is not None and buf.dtype != dtype_override):
+                    if dtype_override is not None:
+                        tensor = buf.to(device=target_device, dtype=dtype_override, **to_kwargs)
+                    else:
+                        tensor = buf.to(device=target_device, **to_kwargs)
+                    submodule._buffers[name] = tensor
+        return module
     base_kwargs = dict(kwargs)
     if device is not None and arg_device is None:
         base_kwargs["device"] = device

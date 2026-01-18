@@ -535,10 +535,9 @@ def mixed_precision_ops(quant_config={}, compute_dtype=torch.bfloat16, full_prec
                 key = f"{prefix}{param_name}"
                 value = state_dict.pop(key, None)
                 if value is not None:
-                    if value.device.type != "meta":
-                        value = value.to(device=device)
-                        if dtype is not None:
-                            value = value.view(dtype=dtype)
+                    value = value.to(device=device)
+                    if dtype is not None:
+                        value = value.view(dtype=dtype)
                     manually_loaded_keys.append(key)
                 return value
 
@@ -555,16 +554,11 @@ def mixed_precision_ops(quant_config={}, compute_dtype=torch.bfloat16, full_prec
                 manually_loaded_keys = [weight_key]
 
                 layer_conf = state_dict.pop(f"{prefix}comfy_quant", None)
-                if layer_conf is not None and layer_conf.device.type != "meta":
+                if layer_conf is not None:
                     layer_conf = json.loads(layer_conf.numpy().tobytes())
-                elif layer_conf is not None:
-                    layer_conf = None
 
                 if layer_conf is None:
-                    if weight.device.type == "meta":
-                        self.weight = torch.nn.Parameter(weight, requires_grad=False)
-                    else:
-                        self.weight = torch.nn.Parameter(weight.to(device=device, dtype=MixedPrecisionOps._compute_dtype), requires_grad=False)
+                    self.weight = torch.nn.Parameter(weight.to(device=device, dtype=MixedPrecisionOps._compute_dtype), requires_grad=False)
                 else:
                     self.quant_format = layer_conf.get("format", None)
                     self._full_precision_mm_config = layer_conf.get("full_precision_matrix_mult", False)
@@ -610,13 +604,10 @@ def mixed_precision_ops(quant_config={}, compute_dtype=torch.bfloat16, full_prec
                     else:
                         raise ValueError(f"Unsupported quantization format: {self.quant_format}")
 
-                    if weight.device.type == "meta":
-                        self.weight = torch.nn.Parameter(weight, requires_grad=False)
-                    else:
-                        self.weight = torch.nn.Parameter(
-                            QuantizedTensor(weight.to(device=device, dtype=qconfig["storage_t"]), self.layout_type, params),
-                            requires_grad=False
-                        )
+                    self.weight = torch.nn.Parameter(
+                        QuantizedTensor(weight.to(device=device, dtype=qconfig["storage_t"]), self.layout_type, params),
+                        requires_grad=False
+                    )
 
                     for param_name in qconfig["parameters"]:
                         if param_name in {"weight_scale", "weight_scale_2"}:
@@ -626,10 +617,7 @@ def mixed_precision_ops(quant_config={}, compute_dtype=torch.bfloat16, full_prec
                         _v = state_dict.pop(param_key, None)
                         if _v is None:
                             continue
-                        if _v.device.type == "meta":
-                            self.register_parameter(param_name, torch.nn.Parameter(_v, requires_grad=False))
-                        else:
-                            self.register_parameter(param_name, torch.nn.Parameter(_v.to(device=device), requires_grad=False))
+                        self.register_parameter(param_name, torch.nn.Parameter(_v.to(device=device), requires_grad=False))
                         manually_loaded_keys.append(param_key)
 
                 super()._load_from_state_dict(state_dict, prefix, local_metadata, strict, missing_keys, unexpected_keys, error_msgs)
