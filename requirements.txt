@@ -21,7 +21,7 @@ psutil
 alembic
 SQLAlchemy
 av>=14.2.0
-comfy-kitchen>=0.2.6
+comfy-kitchen>=0.2.7
 
 #non essential dependencies:
 kornia>=0.7.1
