@@ -5,6 +5,7 @@ import torch
 import os
 import sys
 import json
+import glob
 import hashlib
 import inspect
 import traceback
@@ -2384,35 +2385,12 @@ async def init_builtin_extra_nodes():
 
 async def init_builtin_api_nodes():
     api_nodes_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "comfy_api_nodes")
-    api_nodes_files = [
-        "nodes_ideogram.py",
-        "nodes_openai.py",
-        "nodes_minimax.py",
-        "nodes_veo2.py",
-        "nodes_kling.py",
-        "nodes_bfl.py",
-        "nodes_bytedance.py",
-        "nodes_ltxv.py",
-        "nodes_luma.py",
-        "nodes_recraft.py",
-        "nodes_pixverse.py",
-        "nodes_stability.py",
-        "nodes_runway.py",
-        "nodes_sora.py",
-        "nodes_topaz.py",
-        "nodes_tripo.py",
-        "nodes_meshy.py",
-        "nodes_moonvalley.py",
-        "nodes_rodin.py",
-        "nodes_gemini.py",
-        "nodes_vidu.py",
-        "nodes_wan.py",
-    ]
+    api_nodes_files = sorted(glob.glob(os.path.join(api_nodes_dir, "nodes_*.py")))
 
     import_failed = []
     for node_file in api_nodes_files:
-        if not await load_custom_node(os.path.join(api_nodes_dir, node_file), module_parent="comfy_api_nodes"):
-            import_failed.append(node_file)
+        if not await load_custom_node(node_file, module_parent="comfy_api_nodes"):
+            import_failed.append(os.path.basename(node_file))
 
     return import_failed
 
