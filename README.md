@@ -240,7 +240,7 @@ These have less hardware support than the builds above but they work on windows.
 
 RDNA 3 (RX 7000 series):
 
-```pip install --pre torch torchvision torchaudio --index-url https://rocm.nightlies.amd.com/v2/gfx110X-dgpu/```
+```pip install --pre torch torchvision torchaudio --index-url https://rocm.nightlies.amd.com/v2/gfx110X-all/```
 
 RDNA 3.5 (Strix halo/Ryzen AI Max+ 365):
 
