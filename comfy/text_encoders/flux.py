@@ -3,7 +3,7 @@ import comfy.text_encoders.t5
 import comfy.text_encoders.sd3_clip
 import comfy.text_encoders.llama
 import comfy.model_management
-from transformers import T5TokenizerFast, LlamaTokenizerFast
+from transformers import T5TokenizerFast, LlamaTokenizerFast, Qwen2Tokenizer
 import torch
 import os
 import json
@@ -171,4 +171,61 @@ def flux2_te(dtype_llama=None, llama_quantization_metadata=None, pruned=False):
                 model_options = model_options.copy()
                 model_options["num_layers"] = 30
             super().__init__(device=device, dtype=dtype, model_options=model_options)
+    return Flux2TEModel_
+
+class Qwen3Tokenizer(sd1_clip.SDTokenizer):
+    def __init__(self, embedding_directory=None, tokenizer_data={}):
+        tokenizer_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "qwen25_tokenizer")
+        super().__init__(tokenizer_path, pad_with_end=False, embedding_size=2560, embedding_key='qwen3_4b', tokenizer_class=Qwen2Tokenizer, has_start_token=False, has_end_token=False, pad_to_max_length=False, max_length=99999999, min_length=512, pad_token=151643, tokenizer_data=tokenizer_data)
+
+class Qwen3Tokenizer8B(sd1_clip.SDTokenizer):
+    def __init__(self, embedding_directory=None, tokenizer_data={}):
+        tokenizer_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "qwen25_tokenizer")
+        super().__init__(tokenizer_path, pad_with_end=False, embedding_size=4096, embedding_key='qwen3_8b', tokenizer_class=Qwen2Tokenizer, has_start_token=False, has_end_token=False, pad_to_max_length=False, max_length=99999999, min_length=512, pad_token=151643, tokenizer_data=tokenizer_data)
+
+class KleinTokenizer(sd1_clip.SD1Tokenizer):
+    def __init__(self, embedding_directory=None, tokenizer_data={}, name="qwen3_4b"):
+        if name == "qwen3_4b":
+            tokenizer = Qwen3Tokenizer
+        elif name == "qwen3_8b":
+            tokenizer = Qwen3Tokenizer8B
+
+        super().__init__(embedding_directory=embedding_directory, tokenizer_data=tokenizer_data, name=name, tokenizer=tokenizer)
+        self.llama_template = "<|im_start|>user\n{}<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n"
+
+    def tokenize_with_weights(self, text, return_word_ids=False, llama_template=None, **kwargs):
+        if llama_template is None:
+            llama_text = self.llama_template.format(text)
+        else:
+            llama_text = llama_template.format(text)
+
+        tokens = super().tokenize_with_weights(llama_text, return_word_ids=return_word_ids, disable_weights=True, **kwargs)
+        return tokens
+
+class KleinTokenizer8B(KleinTokenizer):
+    def __init__(self, embedding_directory=None, tokenizer_data={}, name="qwen3_8b"):
+        super().__init__(embedding_directory=embedding_directory, tokenizer_data=tokenizer_data, name=name)
+
+class Qwen3_4BModel(sd1_clip.SDClipModel):
+    def __init__(self, device="cpu", layer=[9, 18, 27], layer_idx=None, dtype=None, attention_mask=True, model_options={}):
+        super().__init__(device=device, layer=layer, layer_idx=layer_idx, textmodel_json_config={}, dtype=dtype, special_tokens={"pad": 151643}, layer_norm_hidden_state=False, model_class=comfy.text_encoders.llama.Qwen3_4B, enable_attention_masks=attention_mask, return_attention_masks=attention_mask, model_options=model_options)
+
+class Qwen3_8BModel(sd1_clip.SDClipModel):
+    def __init__(self, device="cpu", layer=[9, 18, 27], layer_idx=None, dtype=None, attention_mask=True, model_options={}):
+        super().__init__(device=device, layer=layer, layer_idx=layer_idx, textmodel_json_config={}, dtype=dtype, special_tokens={"pad": 151643}, layer_norm_hidden_state=False, model_class=comfy.text_encoders.llama.Qwen3_8B, enable_attention_masks=attention_mask, return_attention_masks=attention_mask, model_options=model_options)
+
+def klein_te(dtype_llama=None, llama_quantization_metadata=None, model_type="qwen3_4b"):
+    if model_type == "qwen3_4b":
+        model = Qwen3_4BModel
+    elif model_type == "qwen3_8b":
+        model = Qwen3_8BModel
+
+    class Flux2TEModel_(Flux2TEModel):
+        def __init__(self, device="cpu", dtype=None, model_options={}):
+            if llama_quantization_metadata is not None:
+                model_options = model_options.copy()
+                model_options["quantization_metadata"] = llama_quantization_metadata
+            if dtype_llama is not None:
+                dtype = dtype_llama
+            super().__init__(device=device, dtype=dtype, name=model_type, model_options=model_options, clip_model=model)
     return Flux2TEModel_

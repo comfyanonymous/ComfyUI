@@ -14,7 +14,7 @@ from typing_extensions import override
 
 import folder_paths
 from comfy_api.latest import IO, ComfyExtension, Input, Types
-from comfy_api_nodes.apis.gemini_api import (
+from comfy_api_nodes.apis.gemini import (
     GeminiContent,
     GeminiFileData,
     GeminiGenerateContentRequest,

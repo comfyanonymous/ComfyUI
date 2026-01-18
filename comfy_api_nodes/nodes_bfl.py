@@ -3,7 +3,7 @@ from pydantic import BaseModel
 from typing_extensions import override
 
 from comfy_api.latest import IO, ComfyExtension, Input
-from comfy_api_nodes.apis.bfl_api import (
+from comfy_api_nodes.apis.bfl import (
     BFLFluxExpandImageRequest,
     BFLFluxFillImageRequest,
     BFLFluxKontextProGenerateRequest,

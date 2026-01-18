@@ -5,7 +5,7 @@ import torch
 from typing_extensions import override
 
 from comfy_api.latest import IO, ComfyExtension
-from comfy_api_nodes.apis.tripo_api import (
+from comfy_api_nodes.apis.tripo import (
     TripoAnimateRetargetRequest,
     TripoAnimateRigRequest,
     TripoConvertModelRequest,
