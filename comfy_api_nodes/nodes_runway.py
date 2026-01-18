@@ -16,7 +16,7 @@ from enum import Enum
 from typing_extensions import override
 
 from comfy_api.latest import IO, ComfyExtension, Input, InputImpl
-from comfy_api_nodes.apis import (
+from comfy_api_nodes.apis.runway import (
     RunwayImageToVideoRequest,
     RunwayImageToVideoResponse,
     RunwayTaskStatusResponse as TaskStatusResponse,

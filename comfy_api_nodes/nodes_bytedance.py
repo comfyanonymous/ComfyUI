@@ -5,7 +5,7 @@ import torch
 from typing_extensions import override
 
 from comfy_api.latest import IO, ComfyExtension, Input
-from comfy_api_nodes.apis.bytedance_api import (
+from comfy_api_nodes.apis.bytedance import (
     RECOMMENDED_PRESETS,
     RECOMMENDED_PRESETS_SEEDREAM_4,
     VIDEO_TASKS_EXECUTION_TIME,
