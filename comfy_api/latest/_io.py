@@ -1000,20 +1000,38 @@ class Autogrow(ComfyTypeI):
             names = [f"{prefix}{i}" for i in range(max)]
         # need to create a new input based on the contents of input
         template_input = None
-        for _, dict_input in input.items():
-            # for now, get just the first value from dict_input
+        template_required = True
+        for _input_type, dict_input in input.items():
+            # for now, get just the first value from dict_input; if not required, min can be ignored
+            if len(dict_input) == 0:
+                continue
             template_input = list(dict_input.values())[0]
+            template_required = _input_type == "required"
+            break
+        if template_input is None:
+            raise Exception("template_input could not be determined from required or optional; this should never happen.")
         new_dict = {}
+        new_dict_added_to = False
+        # first, add possible inputs into out_dict
         for i, name in enumerate(names):
             expected_id = finalize_prefix(curr_prefix, name)
+            # required
+            if i < min and template_required:
+                out_dict["required"][expected_id] = template_input
+                type_dict = new_dict.setdefault("required", {})
+            # optional
+            else:
+                out_dict["optional"][expected_id] = template_input
+                type_dict = new_dict.setdefault("optional", {})
             if expected_id in live_inputs:
-                # required
-                if i < min:
-                    type_dict = new_dict.setdefault("required", {})
-                # optional
-                else:
-                    type_dict = new_dict.setdefault("optional", {})
+                # NOTE: prefix gets added in parse_class_inputs
                 type_dict[name] = template_input
+                new_dict_added_to = True
+        # account for the edge case that all inputs are optional and no values are received
+        if not new_dict_added_to:
+            finalized_prefix = finalize_prefix(curr_prefix)
+            out_dict["dynamic_paths"][finalized_prefix] = finalized_prefix
+            out_dict["dynamic_paths_default_value"][finalized_prefix] = DynamicPathsDefaultValue.EMPTY_DICT
         parse_class_inputs(out_dict, live_inputs, new_dict, curr_prefix)
 
 @comfytype(io_type="COMFY_DYNAMICCOMBO_V3")
@@ -1151,6 +1169,8 @@ class V3Data(TypedDict):
     'Dictionary where the keys are the hidden input ids and the values are the values of the hidden inputs.'
     dynamic_paths: dict[str, Any]
     'Dictionary where the keys are the input ids and the values dictate how to turn the inputs into a nested dictionary.'
+    dynamic_paths_default_value: dict[str, Any]
+    'Dictionary where the keys are the input ids and the values are a string from DynamicPathsDefaultValue for the inputs if value is None.'
     create_dynamic_tuple: bool
     'When True, the value of the dynamic input will be in the format (value, path_key).'
 
@@ -1504,6 +1524,7 @@ def get_finalized_class_inputs(d: dict[str, Any], live_inputs: dict[str, Any], i
         "required": {},
         "optional": {},
         "dynamic_paths": {},
+        "dynamic_paths_default_value": {},
     }
     d = d.copy()
     # ignore hidden for parsing
@@ -1513,8 +1534,12 @@ def get_finalized_class_inputs(d: dict[str, Any], live_inputs: dict[str, Any], i
         out_dict["hidden"] = hidden
     v3_data = {}
     dynamic_paths = out_dict.pop("dynamic_paths", None)
-    if dynamic_paths is not None:
+    if dynamic_paths is not None and len(dynamic_paths) > 0:
         v3_data["dynamic_paths"] = dynamic_paths
+    # this list is used for autogrow, in the case all inputs are optional and no values are passed
+    dynamic_paths_default_value = out_dict.pop("dynamic_paths_default_value", None)
+    if dynamic_paths_default_value is not None and len(dynamic_paths_default_value) > 0:
+        v3_data["dynamic_paths_default_value"] = dynamic_paths_default_value
     return out_dict, hidden, v3_data
 
 def parse_class_inputs(out_dict: dict[str, Any], live_inputs: dict[str, Any], curr_dict: dict[str, Any], curr_prefix: list[str] | None=None) -> None:
@@ -1551,11 +1576,16 @@ def add_to_dict_v1(i: Input, d: dict):
 def add_to_dict_v3(io: Input | Output, d: dict):
     d[io.id] = (io.get_io_type(), io.as_dict())
 
+class DynamicPathsDefaultValue:
+    EMPTY_DICT = "empty_dict"
+
 def build_nested_inputs(values: dict[str, Any], v3_data: V3Data):
     paths = v3_data.get("dynamic_paths", None)
+    default_value_dict = v3_data.get("dynamic_paths_default_value", {})
     if paths is None:
         return values
     values = values.copy()
+
     result = {}
 
     create_tuple = v3_data.get("create_dynamic_tuple", False)
@@ -1569,6 +1599,11 @@ def build_nested_inputs(values: dict[str, Any], v3_data: V3Data):
 
             if is_last:
                 value = values.pop(key, None)
+                if value is None:
+                    # see if a default value was provided for this key
+                    default_option = default_value_dict.get(key, None)
+                    if default_option == DynamicPathsDefaultValue.EMPTY_DICT:
+                        value = {}
                 if create_tuple:
                     value = (value, key)
                 current[p] = value
