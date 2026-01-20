@@ -530,7 +530,6 @@ async def execute(server, dynprompt, caches, current_item, extra_data, executed,
                 #FIXME: this is probably a little zealous
                 # Torch code comments says some stuff about not actually freeing tensors on mempool
                 #context release. Explicitly garbage collect now.
-                gc.collect()
                 torch.cuda.empty_cache()
 
             if has_pending_tasks:
