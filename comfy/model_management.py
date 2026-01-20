@@ -1201,13 +1201,6 @@ def cast_to(weight, dtype=None, device=None, non_blocking=False, copy=False, str
 
         r.copy_(weight, non_blocking=non_blocking)
 
-        #FIXME: remove hooks before PR
-        if hasattr(weight, "comfy_hook"):
-            dtype = r.dtype
-            r = weight.comfy_hook(r)
-            if r.dtype != dtype:
-                r = comfy.float.stochastic_rounding(r, dtype, seed=comfy.utils.string_to_seed(weight.seed_key))
-
         if signature is not None:
             v_tensor.copy_(r)
             comfy_aimdo.model_vbar.vbar_unpin(weight._v)
