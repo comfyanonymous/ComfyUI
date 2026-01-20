@@ -40,6 +40,7 @@ def te(dtype_llama=None, llama_quantization_metadata=None):
             if dtype_llama is not None:
                 dtype = dtype_llama
             if llama_quantization_metadata is not None:
+                model_options = model_options.copy()
                 model_options["quantization_metadata"] = llama_quantization_metadata
             super().__init__(device=device, dtype=dtype, model_options=model_options)
     return ZImageTEModel_
