@@ -29,7 +29,7 @@ from comfy_api_nodes.util import (
     download_url_as_bytesio,
     poll_op,
     sync_op,
-    upload_images_to_comfyapi,
+    upload_image_to_comfyapi,
 )
 from folder_paths import get_output_directory
 
@@ -298,7 +298,7 @@ class TripoImageToModelNode(IO.ComfyNode):
             raise RuntimeError("Image is required")
         tripo_file = TripoFileReference(
             root=TripoUrlReference(
-                url=(await upload_images_to_comfyapi(cls, image, max_images=1))[0],
+                url=await upload_image_to_comfyapi(cls, image),
                 type="jpeg",
             )
         )
@@ -438,9 +438,7 @@ class TripoMultiviewToModelNode(IO.ComfyNode):
             if image_ is not None:
                 images.append(
                     TripoFileReference(
-                        root=TripoUrlReference(
-                            url=(await upload_images_to_comfyapi(cls, image_, max_images=1))[0], type="jpeg"
-                        )
+                        root=TripoUrlReference(url=await upload_image_to_comfyapi(cls, image_), type="jpeg")
                     )
                 )
             else:
@@ -637,7 +635,7 @@ class TripoRetargetNode(IO.ComfyNode):
                         "preset:hexapod:walk",
                         "preset:octopod:walk",
                         "preset:serpentine:march",
-                        "preset:aquatic:march"
+                        "preset:aquatic:march",
                     ],
                 ),
             ],
@@ -841,7 +839,7 @@ class TripoConversionNode(IO.ComfyNode):
         # Parse part_names from comma-separated string to list
         part_names_list = None
         if part_names and part_names.strip():
-            part_names_list = [name.strip() for name in part_names.split(',') if name.strip()]
+            part_names_list = [name.strip() for name in part_names.split(",") if name.strip()]
 
         response = await sync_op(
             cls,

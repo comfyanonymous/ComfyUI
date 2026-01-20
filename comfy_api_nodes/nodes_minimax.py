@@ -17,7 +17,7 @@ from comfy_api_nodes.util import (
     download_url_to_video_output,
     poll_op,
     sync_op,
-    upload_images_to_comfyapi,
+    upload_image_to_comfyapi,
     validate_string,
 )
 
@@ -39,12 +39,12 @@ async def _generate_mm_video(
         validate_string(prompt_text, field_name="prompt_text")
     image_url = None
     if image is not None:
-        image_url = (await upload_images_to_comfyapi(cls, image, max_images=1))[0]
+        image_url = await upload_image_to_comfyapi(cls, image)
 
     # TODO: figure out how to deal with subject properly, API returns invalid params when using S2V-01 model
     subject_reference = None
     if subject is not None:
-        subject_url = (await upload_images_to_comfyapi(cls, subject, max_images=1))[0]
+        subject_url = await upload_image_to_comfyapi(cls, subject)
         subject_reference = [SubjectReferenceItem(image=subject_url)]
 
     response = await sync_op(
@@ -384,7 +384,7 @@ class MinimaxHailuoVideoNode(IO.ComfyNode):
         # upload image, if passed in
         image_url = None
         if first_frame_image is not None:
-            image_url = (await upload_images_to_comfyapi(cls, first_frame_image, max_images=1))[0]
+            image_url = await upload_image_to_comfyapi(cls, first_frame_image)
 
         response = await sync_op(
             cls,

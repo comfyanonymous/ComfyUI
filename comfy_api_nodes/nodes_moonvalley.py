@@ -16,7 +16,7 @@ from comfy_api_nodes.util import (
     poll_op,
     sync_op,
     trim_video,
-    upload_images_to_comfyapi,
+    upload_image_to_comfyapi,
     upload_video_to_comfyapi,
     validate_container_format_is_mp4,
     validate_image_dimensions,
@@ -267,7 +267,7 @@ class MoonvalleyImg2VideoNode(IO.ComfyNode):
 
         # Get MIME type from tensor - assuming PNG format for image tensors
         mime_type = "image/png"
-        image_url = (await upload_images_to_comfyapi(cls, image, max_images=1, mime_type=mime_type))[0]
+        image_url = await upload_image_to_comfyapi(cls, image, mime_type=mime_type)
         task_creation_response = await sync_op(
             cls,
             endpoint=ApiEndpoint(path=API_IMG2VIDEO_ENDPOINT, method="POST"),

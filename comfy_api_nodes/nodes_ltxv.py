@@ -8,7 +8,7 @@ from comfy_api_nodes.util import (
     ApiEndpoint,
     get_number_of_images,
     sync_op_raw,
-    upload_images_to_comfyapi,
+    upload_image_to_comfyapi,
     validate_string,
 )
 
@@ -187,7 +187,7 @@ class ImageToVideoNode(IO.ComfyNode):
             cls,
             ApiEndpoint("/proxy/ltx/v1/image-to-video", "POST"),
             data=ExecuteTaskRequest(
-                image_uri=(await upload_images_to_comfyapi(cls, image, max_images=1, mime_type="image/png"))[0],
+                image_uri=await upload_image_to_comfyapi(cls, image, mime_type="image/png"),
                 prompt=prompt,
                 model=MODELS_MAP[model],
                 duration=duration,

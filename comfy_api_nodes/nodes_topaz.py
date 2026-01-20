@@ -31,7 +31,7 @@ from comfy_api_nodes.util import (
     get_number_of_images,
     poll_op,
     sync_op,
-    upload_images_to_comfyapi,
+    upload_image_to_comfyapi,
     validate_container_format_is_mp4,
 )
 
@@ -169,9 +169,7 @@ class TopazImageEnhance(IO.ComfyNode):
     ) -> IO.NodeOutput:
         if get_number_of_images(image) != 1:
             raise ValueError("Only one input image is supported.")
-        download_url = await upload_images_to_comfyapi(
-            cls, image, max_images=1, mime_type="image/png", total_pixels=4096 * 4096
-        )
+        download_url = await upload_image_to_comfyapi(cls, image, mime_type="image/png", total_pixels=4096 * 4096)
         initial_response = await sync_op(
             cls,
             ApiEndpoint(path="/proxy/topaz/image/v1/enhance-gen/async", method="POST"),
@@ -189,7 +187,7 @@ class TopazImageEnhance(IO.ComfyNode):
                 creativity=creativity,
                 face_preservation=str(face_preservation).lower(),
                 color_preservation=str(color_preservation).lower(),
-                source_url=download_url[0],
+                source_url=download_url,
                 output_format="png",
             ),
             content_type="multipart/form-data",

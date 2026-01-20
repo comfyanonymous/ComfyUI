@@ -23,6 +23,7 @@ from comfy_api_nodes.util import (
     download_url_to_bytesio,
     poll_op,
     sync_op,
+    upload_image_to_comfyapi,
     upload_images_to_comfyapi,
     validate_string,
 )
@@ -197,7 +198,7 @@ class MeshyRefineNode(IO.ComfyNode):
         if texture_prompt:
             validate_string(texture_prompt, field_name="texture_prompt", max_length=600)
         if texture_image is not None:
-            texture_image_url = (await upload_images_to_comfyapi(cls, texture_image, wait_label="Uploading texture"))[0]
+            texture_image_url = await upload_image_to_comfyapi(cls, texture_image, wait_label="Uploading texture")
         response = await sync_op(
             cls,
             endpoint=ApiEndpoint(path="/proxy/meshy/openapi/v2/text-to-3d", method="POST"),
@@ -344,17 +345,15 @@ class MeshyImageToModelNode(IO.ComfyNode):
                 validate_string(should_texture["texture_prompt"], field_name="texture_prompt", max_length=600)
                 texture_prompt = should_texture["texture_prompt"]
             if should_texture["texture_image"] is not None:
-                texture_image_url = (
-                    await upload_images_to_comfyapi(
-                        cls, should_texture["texture_image"], wait_label="Uploading texture"
-                    )
-                )[0]
+                texture_image_url = await upload_image_to_comfyapi(
+                    cls, should_texture["texture_image"], wait_label="Uploading texture"
+                )
         response = await sync_op(
             cls,
             ApiEndpoint(path="/proxy/meshy/openapi/v1/image-to-3d", method="POST"),
             response_model=MeshyTaskResponse,
             data=MeshyImageToModelRequest(
-                image_url=(await upload_images_to_comfyapi(cls, image, wait_label="Uploading base image"))[0],
+                image_url=await upload_image_to_comfyapi(cls, image, wait_label="Uploading base image"),
                 ai_model=model,
                 topology=should_remesh.get("topology", None),
                 target_polycount=should_remesh.get("target_polycount", None),
@@ -505,11 +504,9 @@ class MeshyMultiImageToModelNode(IO.ComfyNode):
                 validate_string(should_texture["texture_prompt"], field_name="texture_prompt", max_length=600)
                 texture_prompt = should_texture["texture_prompt"]
             if should_texture["texture_image"] is not None:
-                texture_image_url = (
-                    await upload_images_to_comfyapi(
-                        cls, should_texture["texture_image"], wait_label="Uploading texture"
-                    )
-                )[0]
+                texture_image_url = await upload_image_to_comfyapi(
+                    cls, should_texture["texture_image"], wait_label="Uploading texture"
+                )
         response = await sync_op(
             cls,
             ApiEndpoint(path="/proxy/meshy/openapi/v1/multi-image-to-3d", method="POST"),
@@ -595,7 +592,7 @@ class MeshyRigModelNode(IO.ComfyNode):
     ) -> IO.NodeOutput:
         texture_image_url = None
         if texture_image is not None:
-            texture_image_url = (await upload_images_to_comfyapi(cls, texture_image, wait_label="Uploading texture"))[0]
+            texture_image_url = await upload_image_to_comfyapi(cls, texture_image, wait_label="Uploading texture")
         response = await sync_op(
             cls,
             endpoint=ApiEndpoint(path="/proxy/meshy/openapi/v1/rigging", method="POST"),
@@ -746,7 +743,7 @@ class MeshyTextureNode(IO.ComfyNode):
             raise ValueError("Either text_style_prompt or image_style is required")
         image_style_url = None
         if image_style is not None:
-            image_style_url = (await upload_images_to_comfyapi(cls, image_style, wait_label="Uploading style"))[0]
+            image_style_url = await upload_image_to_comfyapi(cls, image_style, wait_label="Uploading style")
         response = await sync_op(
             cls,
             endpoint=ApiEndpoint(path="/proxy/meshy/openapi/v1/retexture", method="POST"),

@@ -14,6 +14,7 @@ from comfy_api_nodes.util import (
     get_number_of_images,
     poll_op,
     sync_op,
+    upload_image_to_comfyapi,
     upload_images_to_comfyapi,
     validate_image_aspect_ratio,
     validate_image_dimensions,
@@ -462,8 +463,7 @@ class ViduStartEndToVideoNode(IO.ComfyNode):
             movement_amplitude=movement_amplitude,
         )
         payload.images = [
-            (await upload_images_to_comfyapi(cls, frame, max_images=1, mime_type="image/png"))[0]
-            for frame in (first_frame, end_frame)
+            await upload_image_to_comfyapi(cls, frame, mime_type="image/png") for frame in (first_frame, end_frame)
         ]
         results = await execute_task(cls, VIDU_START_END_VIDEO, payload)
         return IO.NodeOutput(await download_url_to_video_output(results[0].url))
@@ -932,8 +932,7 @@ class Vidu2StartEndToVideoNode(IO.ComfyNode):
             resolution=resolution,
             movement_amplitude=movement_amplitude,
             images=[
-                (await upload_images_to_comfyapi(cls, frame, max_images=1, mime_type="image/png"))[0]
-                for frame in (first_frame, end_frame)
+                await upload_image_to_comfyapi(cls, frame, mime_type="image/png") for frame in (first_frame, end_frame)
             ],
         )
         results = await execute_task(cls, VIDU_START_END_VIDEO, payload)

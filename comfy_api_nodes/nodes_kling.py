@@ -71,6 +71,7 @@ from comfy_api_nodes.util import (
     sync_op,
     tensor_to_base64_string,
     upload_audio_to_comfyapi,
+    upload_image_to_comfyapi,
     upload_images_to_comfyapi,
     upload_video_to_comfyapi,
     validate_image_aspect_ratio,
@@ -958,7 +959,7 @@ class OmniProFirstLastFrameNode(IO.ComfyNode):
         validate_image_aspect_ratio(first_frame, (1, 2.5), (2.5, 1))
         image_list: list[OmniParamImage] = [
             OmniParamImage(
-                image_url=(await upload_images_to_comfyapi(cls, first_frame, wait_label="Uploading first frame"))[0],
+                image_url=await upload_image_to_comfyapi(cls, first_frame, wait_label="Uploading first frame"),
                 type="first_frame",
             )
         ]
@@ -967,7 +968,7 @@ class OmniProFirstLastFrameNode(IO.ComfyNode):
             validate_image_aspect_ratio(end_frame, (1, 2.5), (2.5, 1))
             image_list.append(
                 OmniParamImage(
-                    image_url=(await upload_images_to_comfyapi(cls, end_frame, wait_label="Uploading end frame"))[0],
+                    image_url=await upload_image_to_comfyapi(cls, end_frame, wait_label="Uploading end frame"),
                     type="end_frame",
                 )
             )
@@ -2365,7 +2366,7 @@ class ImageToVideoWithAudio(IO.ComfyNode):
             response_model=TaskStatusResponse,
             data=ImageToVideoWithAudioRequest(
                 model_name=model_name,
-                image=(await upload_images_to_comfyapi(cls, start_frame))[0],
+                image=await upload_image_to_comfyapi(cls, start_frame),
                 prompt=prompt,
                 mode=mode,
                 duration=str(duration),
@@ -2459,7 +2460,7 @@ class MotionControl(IO.ComfyNode):
             response_model=TaskStatusResponse,
             data=MotionControlRequest(
                 prompt=prompt,
-                image_url=(await upload_images_to_comfyapi(cls, reference_image))[0],
+                image_url=await upload_image_to_comfyapi(cls, reference_image),
                 video_url=await upload_video_to_comfyapi(cls, reference_video),
                 keep_original_sound="yes" if keep_original_sound else "no",
                 character_orientation=character_orientation,

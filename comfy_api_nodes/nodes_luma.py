@@ -30,6 +30,7 @@ from comfy_api_nodes.util import (
     download_url_to_video_output,
     poll_op,
     sync_op,
+    upload_image_to_comfyapi,
     upload_images_to_comfyapi,
     validate_string,
 )
@@ -257,8 +258,8 @@ class LumaImageGenerationNode(IO.ComfyNode):
         luma_urls = []
         ref_count = 0
         for ref in luma_ref.refs:
-            download_urls = await upload_images_to_comfyapi(cls, ref.image, max_images=1)
-            luma_urls.append(download_urls[0])
+            download_url = await upload_image_to_comfyapi(cls, ref.image)
+            luma_urls.append(download_url)
             ref_count += 1
             if ref_count >= max_refs:
                 break
@@ -340,8 +341,7 @@ class LumaImageModifyNode(IO.ComfyNode):
         image_weight: float,
         seed,
     ) -> IO.NodeOutput:
-        download_urls = await upload_images_to_comfyapi(cls, image, max_images=1)
-        image_url = download_urls[0]
+        image_url = await upload_image_to_comfyapi(cls, image)
         response_api = await sync_op(
             cls,
             ApiEndpoint(path="/proxy/luma/generations/image", method="POST"),
@@ -589,11 +589,9 @@ class LumaImageToVideoGenerationNode(IO.ComfyNode):
         frame0 = None
         frame1 = None
         if first_image is not None:
-            download_urls = await upload_images_to_comfyapi(cls, first_image, max_images=1)
-            frame0 = LumaImageReference(type="image", url=download_urls[0])
+            frame0 = LumaImageReference(type="image", url=await upload_image_to_comfyapi(cls, first_image))
         if last_image is not None:
-            download_urls = await upload_images_to_comfyapi(cls, last_image, max_images=1)
-            frame1 = LumaImageReference(type="image", url=download_urls[0])
+            frame1 = LumaImageReference(type="image", url=await upload_image_to_comfyapi(cls, last_image))
         return LumaKeyframes(frame0=frame0, frame1=frame1)
 
 

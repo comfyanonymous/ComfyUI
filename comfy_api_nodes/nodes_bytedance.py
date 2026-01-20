@@ -30,6 +30,7 @@ from comfy_api_nodes.util import (
     image_tensor_pair_to_batch,
     poll_op,
     sync_op,
+    upload_image_to_comfyapi,
     upload_images_to_comfyapi,
     validate_image_aspect_ratio,
     validate_image_dimensions,
@@ -249,7 +250,7 @@ class ByteDanceImageEditNode(IO.ComfyNode):
         if get_number_of_images(image) != 1:
             raise ValueError("Exactly one input image is required.")
         validate_image_aspect_ratio(image, (1, 3), (3, 1))
-        source_url = (await upload_images_to_comfyapi(cls, image, max_images=1, mime_type="image/png"))[0]
+        source_url = await upload_image_to_comfyapi(cls, image, mime_type="image/png")
         payload = Image2ImageTaskCreationRequest(
             model=model,
             prompt=prompt,
@@ -702,7 +703,7 @@ class ByteDanceImageToVideoNode(IO.ComfyNode):
         validate_image_dimensions(image, min_width=300, min_height=300, max_width=6000, max_height=6000)
         validate_image_aspect_ratio(image, (2, 5), (5, 2), strict=False)  # 0.4 to 2.5
 
-        image_url = (await upload_images_to_comfyapi(cls, image, max_images=1))[0]
+        image_url = await upload_image_to_comfyapi(cls, image)
         prompt = (
             f"{prompt} "
             f"--resolution {resolution} "

@@ -33,6 +33,7 @@ from .download_helpers import (
 from .upload_helpers import (
     upload_audio_to_comfyapi,
     upload_file_to_comfyapi,
+    upload_image_to_comfyapi,
     upload_images_to_comfyapi,
     upload_video_to_comfyapi,
 )
@@ -61,6 +62,7 @@ __all__ = [
     # Upload helpers
     "upload_audio_to_comfyapi",
     "upload_file_to_comfyapi",
+    "upload_image_to_comfyapi",
     "upload_images_to_comfyapi",
     "upload_video_to_comfyapi",
     # Download helpers

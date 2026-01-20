@@ -36,6 +36,7 @@ from comfy_api_nodes.util import (
     validate_string,
     validate_image_dimensions,
     validate_image_aspect_ratio,
+    upload_image_to_comfyapi,
     upload_images_to_comfyapi,
     download_url_to_video_output,
     download_url_to_image_tensor,
@@ -203,10 +204,9 @@ class RunwayImageToVideoNodeGen3a(IO.ComfyNode):
         validate_image_dimensions(start_frame, max_width=7999, max_height=7999)
         validate_image_aspect_ratio(start_frame, (1, 2), (2, 1))
 
-        download_urls = await upload_images_to_comfyapi(
+        download_url = await upload_image_to_comfyapi(
             cls,
             start_frame,
-            max_images=1,
             mime_type="image/png",
         )
 
@@ -220,7 +220,7 @@ class RunwayImageToVideoNodeGen3a(IO.ComfyNode):
                     duration=Duration(duration),
                     ratio=AspectRatio(ratio),
                     promptImage=RunwayPromptImageObject(
-                        root=[RunwayPromptImageDetailedObject(uri=str(download_urls[0]), position="first")]
+                        root=[RunwayPromptImageDetailedObject(uri=str(download_url), position="first")]
                     ),
                 ),
             )
@@ -297,10 +297,9 @@ class RunwayImageToVideoNodeGen4(IO.ComfyNode):
         validate_image_dimensions(start_frame, max_width=7999, max_height=7999)
         validate_image_aspect_ratio(start_frame, (1, 2), (2, 1))
 
-        download_urls = await upload_images_to_comfyapi(
+        download_url = await upload_image_to_comfyapi(
             cls,
             start_frame,
-            max_images=1,
             mime_type="image/png",
         )
 
@@ -314,7 +313,7 @@ class RunwayImageToVideoNodeGen4(IO.ComfyNode):
                     duration=Duration(duration),
                     ratio=AspectRatio(ratio),
                     promptImage=RunwayPromptImageObject(
-                        root=[RunwayPromptImageDetailedObject(uri=str(download_urls[0]), position="first")]
+                        root=[RunwayPromptImageDetailedObject(uri=str(download_url), position="first")]
                     ),
                 ),
                 estimated_duration=AVERAGE_DURATION_FLF_SECONDS,
@@ -488,13 +487,12 @@ class RunwayTextToImageNode(IO.ComfyNode):
         if reference_image is not None:
             validate_image_dimensions(reference_image, max_width=7999, max_height=7999)
             validate_image_aspect_ratio(reference_image, (1, 2), (2, 1))
-            download_urls = await upload_images_to_comfyapi(
+            download_url = await upload_image_to_comfyapi(
                 cls,
                 reference_image,
-                max_images=1,
                 mime_type="image/png",
             )
-            reference_images = [ReferenceImage(uri=str(download_urls[0]))]
+            reference_images = [ReferenceImage(uri=str(download_url))]
 
         initial_response = await sync_op(
             cls,
