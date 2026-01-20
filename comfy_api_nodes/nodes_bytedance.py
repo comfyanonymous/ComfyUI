@@ -303,7 +303,7 @@ class ByteDanceSeedreamNode(IO.ComfyNode):
                     "width",
                     default=2048,
                     min=1024,
-                    max=4096,
+                    max=4704,
                     step=8,
                     tooltip="Custom width for image. Value is working only if `size_preset` is set to `Custom`",
                     optional=True,
@@ -312,7 +312,7 @@ class ByteDanceSeedreamNode(IO.ComfyNode):
                     "height",
                     default=2048,
                     min=1024,
-                    max=4096,
+                    max=4704,
                     step=8,
                     tooltip="Custom height for image. Value is working only if `size_preset` is set to `Custom`",
                     optional=True,
@@ -409,9 +409,12 @@ class ByteDanceSeedreamNode(IO.ComfyNode):
 
         if w is None or h is None:
             w, h = width, height
-            if not (1024 <= w <= 4096) or not (1024 <= h <= 4096):
+            # Model-specific max dimensions: Seedream 4.5 supports up to 4704, Seedream 4.0 up to 4096
+            max_dim = 4704 if "seedream-4-5" in model else 4096
+            if not (1024 <= w <= max_dim) or not (1024 <= h <= max_dim):
                 raise ValueError(
-                    f"Custom size out of range: {w}x{h}. " "Both width and height must be between 1024 and 4096 pixels."
+                    f"Custom size out of range: {w}x{h}. "
+                    f"Both width and height must be between 1024 and {max_dim} pixels."
                 )
         out_num_pixels = w * h
         mp_provided = out_num_pixels / 1_000_000.0
