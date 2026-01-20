@@ -268,7 +268,7 @@ class ModelPatchLoader:
                     operations=comfy.ops.manual_cast)
 
         model_patcher = comfy.model_patcher.CoreModelPatcher(model, load_device=comfy.model_management.get_torch_device(), offload_device=comfy.model_management.unet_offload_device())
-        model.load_state_dict(sd, assign=self.model_patcher.is_dynamic())
+        model.load_state_dict(sd, assign=model_patcher.is_dynamic())
         return (model_patcher,)
 
 
