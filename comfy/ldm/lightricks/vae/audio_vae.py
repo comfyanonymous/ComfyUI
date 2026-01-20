@@ -103,20 +103,10 @@ class AudioPreprocessor:
             return waveform
         return torchaudio.functional.resample(waveform, source_rate, self.target_sample_rate)
 
-    @staticmethod
-    def normalize_amplitude(
-        waveform: torch.Tensor, max_amplitude: float = 0.5, eps: float = 1e-5
-    ) -> torch.Tensor:
-        waveform = waveform - waveform.mean(dim=2, keepdim=True)
-        peak = torch.max(torch.abs(waveform)) + eps
-        scale = peak.clamp(max=max_amplitude) / peak
-        return waveform * scale
-
     def waveform_to_mel(
         self, waveform: torch.Tensor, waveform_sample_rate: int, device
     ) -> torch.Tensor:
         waveform = self.resample(waveform, waveform_sample_rate)
-        waveform = self.normalize_amplitude(waveform)
 
         mel_transform = torchaudio.transforms.MelSpectrogram(
             sample_rate=self.target_sample_rate,
