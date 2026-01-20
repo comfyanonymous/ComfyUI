@@ -341,18 +341,6 @@ class Decoder(nn.Module):
                     timestep_conditioning=timestep_conditioning,
                     spatial_padding_mode=spatial_padding_mode,
                 )
-            elif block_name == "attn_res_x":
-                block = UNetMidBlock3D(
-                    dims=dims,
-                    in_channels=input_channel,
-                    num_layers=block_params["num_layers"],
-                    resnet_groups=norm_num_groups,
-                    norm_layer=norm_layer,
-                    inject_noise=block_params.get("inject_noise", False),
-                    timestep_conditioning=timestep_conditioning,
-                    attention_head_dim=block_params["attention_head_dim"],
-                    spatial_padding_mode=spatial_padding_mode,
-                )
             elif block_name == "res_x_y":
                 output_channel = output_channel // block_params.get("multiplier", 2)
                 block = ResnetBlock3D(
