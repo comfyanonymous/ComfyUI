@@ -734,7 +734,6 @@ class NextDiT(nn.Module):
         out = self.embed_all(x, cap_feats, main_siglip, offset=start_t, omni=omni, transformer_options=transformer_options)
         img_len = out[0][-1].shape[1]
         cap_len = out[0][0].shape[1]
-        main_siglip_embed = out[0][1]
         for i, e in enumerate(out[0]):
             if e is not None:
                 e = comfy.utils.repeat_to_batch_size(e, bsz)
