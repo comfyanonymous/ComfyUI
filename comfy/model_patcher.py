@@ -1399,8 +1399,8 @@ class ModelPatcher:
 
 class ModelPatcherDynamic(ModelPatcher):
 
-    def __new__(cls, model, load_device, offload_device, size=0, weight_inplace_update=False):
-        if comfy.model_management.is_device_cpu(load_device):
+    def __new__(cls, model=None, load_device=None, offload_device=None, size=0, weight_inplace_update=False):
+        if load_device is not None and comfy.model_management.is_device_cpu(load_device):
             #reroute to default MP for CPUs
             return ModelPatcher(model, load_device, offload_device, size, weight_inplace_update)
         return super().__new__(cls)
