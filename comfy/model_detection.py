@@ -253,7 +253,7 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
                 dit_config["image_model"] = "chroma_radiance"
                 dit_config["in_channels"] = 3
                 dit_config["out_channels"] = 3
-                dit_config["patch_size"] = 16
+                dit_config["patch_size"] = state_dict.get('{}img_in_patch.weight'.format(key_prefix)).size(dim=-1)
                 dit_config["nerf_hidden_size"] = 64
                 dit_config["nerf_mlp_ratio"] = 4
                 dit_config["nerf_depth"] = 4
