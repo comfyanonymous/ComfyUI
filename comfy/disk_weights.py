@@ -939,7 +939,7 @@ def disk_weight_pre_hook(module: torch.nn.Module, args, kwargs={}):
     if getattr(module, "comfy_patched_weights", False):
         target_device = input_device
     elif getattr(module, "comfy_cast_weights", False):
-        target_device = torch.device("cpu")
+        target_device = input_device
     else:
         target_device = input_device
     ensure_module_materialized(
@@ -1082,6 +1082,13 @@ def move_module_tensors(
         if tensor is None or tensor.device.type == "meta":
             return tensor
         target_dtype = dtype_override or tensor.dtype
+        if (
+            tensor.device.type == "cpu"
+            and tensor.data_ptr() in model_management.PINNED_MEMORY
+            and (device_to.type != "cpu" or target_dtype != tensor.dtype)
+        ):
+            model_management.wait_for_pinned_tensor(tensor)
+            model_management.unpin_memory(tensor)
         if tensor.device == device_to and tensor.dtype == target_dtype:
             return tensor
         return model_management.cast_to(
@@ -1093,6 +1100,20 @@ def move_module_tensors(
         )
 
     module._apply(apply_fn)
+    if disk_weights_enabled():
+        for submodule in module.modules():
+            refs = REGISTRY.get(submodule)
+            if not refs:
+                continue
+            for name, disk_ref in refs.items():
+                if disk_ref.is_buffer:
+                    tensor = submodule._buffers.get(name)
+                else:
+                    tensor = submodule._parameters.get(name)
+                if tensor is None or tensor.device.type == "meta":
+                    CACHE.remove_entry(submodule, name)
+                    continue
+                CACHE.record(submodule, name, tensor, is_buffer=disk_ref.is_buffer)
     if non_blocking and offload_stream is not None:
         model_management.sync_stream(device_to, offload_stream)
     return module
@@ -1140,12 +1161,11 @@ def module_to(
             target_device = _find_existing_device(module) or torch.device("cpu")
         dtype_override = dtype or arg_dtype
         if target_device.type == "meta":
-            cpu_device = torch.device("cpu")
             for submodule in module.modules():
                 offload_module_weights(submodule)
                 move_module_tensors(
                     submodule,
-                    cpu_device,
+                    target_device,
                     dtype_override=dtype_override,
                     non_blocking=non_blocking,
                 )
