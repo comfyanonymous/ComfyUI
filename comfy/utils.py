@@ -639,6 +639,8 @@ def flux_to_diffusers(mmdit_config, output_prefix=""):
                         "proj_out.bias": "linear2.bias",
                         "attn.norm_q.weight": "norm.query_norm.scale",
                         "attn.norm_k.weight": "norm.key_norm.scale",
+                        "attn.to_qkv_mlp_proj.weight": "linear1.weight", # Flux 2
+                        "attn.to_out.weight": "linear2.weight", # Flux 2
                     }
 
         for k in block_map:
