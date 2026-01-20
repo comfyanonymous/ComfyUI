@@ -118,9 +118,18 @@ class LTXAVTEModel(torch.nn.Module):
             sdo = comfy.utils.state_dict_prefix_replace(sd, {"text_embedding_projection.aggregate_embed.weight": "text_embedding_projection.weight", "model.diffusion_model.video_embeddings_connector.": "video_embeddings_connector.", "model.diffusion_model.audio_embeddings_connector.": "audio_embeddings_connector."}, filter_keys=True)
             if len(sdo) == 0:
                 sdo = sd
-            missing, unexpected = self.load_state_dict(sdo, strict=False)
-            missing = [k for k in missing if not k.startswith("gemma3_12b.")] # filter out keys that belong to the main gemma model
-            return (missing, unexpected)
+
+            missing_all = []
+            unexpected_all = []
+
+            for prefix, component in [("text_embedding_projection.", self.text_embedding_projection), ("video_embeddings_connector.", self.video_embeddings_connector), ("audio_embeddings_connector.", self.audio_embeddings_connector)]:
+                component_sd = {k.replace(prefix, ""): v for k, v in sdo.items() if k.startswith(prefix)}
+                if component_sd:
+                    missing, unexpected = component.load_state_dict(component_sd, strict=False)
+                    missing_all.extend([f"{prefix}{k}" for k in missing])
+                    unexpected_all.extend([f"{prefix}{k}" for k in unexpected])
+
+            return (missing_all, unexpected_all)
 
     def memory_estimation_function(self, token_weight_pairs, device=None):
         constant = 6.0
