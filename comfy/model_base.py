@@ -149,6 +149,8 @@ class BaseModel(torch.nn.Module):
         self.model_type = model_type
         self.model_sampling = model_sampling(model_config, model_type)
 
+        comfy.model_management.archive_model_dtypes(self.diffusion_model)
+
         self.adm_channels = unet_config.get("adm_in_channels", None)
         if self.adm_channels is None:
             self.adm_channels = 0

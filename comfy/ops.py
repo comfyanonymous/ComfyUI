@@ -296,6 +296,8 @@ class disable_weight_init:
             self.weight = None
             self.bias = None
             self.comfy_need_lazy_init_bias=bias
+            self.weight_comfy_model_dtype = dtype
+            self.bias_comfy_model_dtype = dtype
 
         def _load_from_state_dict(self, state_dict, prefix, local_metadata,
                                 strict, missing_keys, unexpected_keys, error_msgs):

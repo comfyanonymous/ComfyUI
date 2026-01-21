@@ -774,6 +774,11 @@ def cleanup_models_gc():
                 logging.warning("WARNING, memory leak with model {}. Please make sure it is not being referenced from somewhere.".format(cur.real_model().__class__.__name__))
 
 
+def archive_model_dtypes(model):
+    for name, module in model.named_modules():
+        for param_name, param in module.named_parameters(recurse=False):
+            setattr(module, f"{param_name}_comfy_model_dtype", param.dtype)
+
 
 def cleanup_models():
     to_delete = []

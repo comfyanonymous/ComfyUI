@@ -228,6 +228,8 @@ class CLIP:
                     self.cond_stage_model.to(offload_device)
                     logging.warning("Had to shift TE back.")
 
+        model_management.archive_model_dtypes(self.cond_stage_model)
+
         self.tokenizer = tokenizer(embedding_directory=embedding_directory, tokenizer_data=tokenizer_data)
         self.patcher = comfy.model_patcher.CoreModelPatcher(self.cond_stage_model, load_device=load_device, offload_device=offload_device)
         #Match torch.float32 hardcode upcast in TE implemention
@@ -774,6 +776,8 @@ class VAE:
         else:
             self.first_stage_model = AutoencoderKL(**(config['params']))
         self.first_stage_model = self.first_stage_model.eval()
+
+        model_management.archive_model_dtypes(self.first_stage_model)
 
         if device is None:
             device = model_management.vae_device()
