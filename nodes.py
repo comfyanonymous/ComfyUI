@@ -5,6 +5,7 @@ import torch
 import os
 import sys
 import json
+import glob
 import hashlib
 import inspect
 import traceback
@@ -788,6 +789,7 @@ class VAELoader:
 
     #TODO: scale factor?
     def load_vae(self, vae_name):
+        metadata = None
         if vae_name == "pixel_space":
             sd = {}
             sd["pixel_space_vae"] = torch.tensor(1.0)
@@ -798,8 +800,8 @@ class VAELoader:
                 vae_path = folder_paths.get_full_path_or_raise("vae_approx", vae_name)
             else:
                 vae_path = folder_paths.get_full_path_or_raise("vae", vae_name)
-            sd = comfy.utils.load_torch_file(vae_path)
-        vae = comfy.sd.VAE(sd=sd)
+            sd, metadata = comfy.utils.load_torch_file(vae_path, return_metadata=True)
+        vae = comfy.sd.VAE(sd=sd, metadata=metadata)
         vae.throw_exception_if_invalid()
         return (vae,)
 
@@ -2371,6 +2373,7 @@ async def init_builtin_extra_nodes():
         "nodes_kandinsky5.py",
         "nodes_wanmove.py",
         "nodes_image_compare.py",
+        "nodes_zimage.py",
     ]
 
     import_failed = []
@@ -2383,37 +2386,12 @@ async def init_builtin_extra_nodes():
 
 async def init_builtin_api_nodes():
     api_nodes_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "comfy_api_nodes")
-    api_nodes_files = [
-        "nodes_ideogram.py",
-        "nodes_openai.py",
-        "nodes_minimax.py",
-        "nodes_veo2.py",
-        "nodes_kling.py",
-        "nodes_bfl.py",
-        "nodes_bytedance.py",
-        "nodes_ltxv.py",
-        "nodes_luma.py",
-        "nodes_recraft.py",
-        "nodes_pixverse.py",
-        "nodes_stability.py",
-        "nodes_runway.py",
-        "nodes_sora.py",
-        "nodes_topaz.py",
-        "nodes_tripo.py",
-        "nodes_moonvalley.py",
-        "nodes_rodin.py",
-        "nodes_gemini.py",
-        "nodes_vidu.py",
-        "nodes_wan.py",
-    ]
-
-    if not await load_custom_node(os.path.join(api_nodes_dir, "canary.py"), module_parent="comfy_api_nodes"):
-        return api_nodes_files
+    api_nodes_files = sorted(glob.glob(os.path.join(api_nodes_dir, "nodes_*.py")))
 
     import_failed = []
     for node_file in api_nodes_files:
-        if not await load_custom_node(os.path.join(api_nodes_dir, node_file), module_parent="comfy_api_nodes"):
-            import_failed.append(node_file)
+        if not await load_custom_node(node_file, module_parent="comfy_api_nodes"):
+            import_failed.append(os.path.basename(node_file))
 
     return import_failed
 

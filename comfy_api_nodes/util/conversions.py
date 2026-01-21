@@ -451,6 +451,12 @@ def resize_mask_to_image(
     return mask
 
 
+def convert_mask_to_image(mask: Input.Image) -> torch.Tensor:
+    """Make mask have the expected amount of dims (4) and channels (3) to be recognized as an image."""
+    mask = mask.unsqueeze(-1)
+    return torch.cat([mask] * 3, dim=-1)
+
+
 def text_filepath_to_base64_string(filepath: str) -> str:
     """Converts a text file to a base64 string."""
     with open(filepath, "rb") as f:

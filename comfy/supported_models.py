@@ -763,7 +763,7 @@ class Flux2(Flux):
 
     def __init__(self, unet_config):
         super().__init__(unet_config)
-        self.memory_usage_factor = self.memory_usage_factor * (2.0 * 2.0) * 2.36
+        self.memory_usage_factor = self.memory_usage_factor * (2.0 * 2.0) * (unet_config['hidden_size'] / 2604)
 
     def get_model(self, state_dict, prefix="", device=None):
         out = model_base.Flux2(self, device=device)
@@ -845,7 +845,7 @@ class LTXAV(LTXV):
 
     def __init__(self, unet_config):
         super().__init__(unet_config)
-        self.memory_usage_factor = 0.061  # TODO
+        self.memory_usage_factor = 0.077  # TODO
 
     def get_model(self, state_dict, prefix="", device=None):
         out = model_base.LTXAV(self, device=device)
@@ -1042,7 +1042,7 @@ class ZImage(Lumina2):
         "shift": 3.0,
     }
 
-    memory_usage_factor = 2.0
+    memory_usage_factor = 2.8
 
     supported_inference_dtypes = [torch.bfloat16, torch.float32]
 
