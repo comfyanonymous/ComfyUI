@@ -611,6 +611,14 @@ def flux_to_diffusers(mmdit_config, output_prefix=""):
                         "ff_context.net.0.proj.bias": "txt_mlp.0.bias",
                         "ff_context.net.2.weight": "txt_mlp.2.weight",
                         "ff_context.net.2.bias": "txt_mlp.2.bias",
+                        "ff.linear_in.weight": "img_mlp.0.weight",  # LyCoris LoKr
+                        "ff.linear_in.bias": "img_mlp.0.bias",
+                        "ff.linear_out.weight": "img_mlp.2.weight",
+                        "ff.linear_out.bias": "img_mlp.2.bias",
+                        "ff_context.linear_in.weight": "txt_mlp.0.weight",
+                        "ff_context.linear_in.bias": "txt_mlp.0.bias",
+                        "ff_context.linear_out.weight": "txt_mlp.2.weight",
+                        "ff_context.linear_out.bias": "txt_mlp.2.bias",
                         "attn.norm_q.weight": "img_attn.norm.query_norm.scale",
                         "attn.norm_k.weight": "img_attn.norm.key_norm.scale",
                         "attn.norm_added_q.weight": "txt_attn.norm.query_norm.scale",
@@ -639,6 +647,8 @@ def flux_to_diffusers(mmdit_config, output_prefix=""):
                         "proj_out.bias": "linear2.bias",
                         "attn.norm_q.weight": "norm.query_norm.scale",
                         "attn.norm_k.weight": "norm.key_norm.scale",
+                        "attn.to_qkv_mlp_proj.weight": "linear1.weight", # Flux 2
+                        "attn.to_out.weight": "linear2.weight", # Flux 2
                     }
 
         for k in block_map:
