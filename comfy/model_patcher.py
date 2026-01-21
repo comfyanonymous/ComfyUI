@@ -1423,7 +1423,10 @@ class ModelPatcherDynamic(ModelPatcher):
             return None
         vbar = self.model.dynamic_vbars.get(self.load_device, None)
         if create and vbar is None:
-            vbar = comfy_aimdo.model_vbar.ModelVBAR(self.model_size() * 1.2, self.load_device.index)
+            # x10. We dont know what model defined type casts we have in the vbar, but virtual address
+            # space is pretty free. This will cover someone casting an entire model from FP4 to FP32
+            # with some left over.
+            vbar = comfy_aimdo.model_vbar.ModelVBAR(self.model_size() * 10, self.load_device.index)
             self.model.dynamic_vbars[self.load_device] = vbar
         return vbar
 
