@@ -16,7 +16,7 @@ from enum import Enum
 from typing_extensions import override
 
 from comfy_api.latest import IO, ComfyExtension, Input, InputImpl
-from comfy_api_nodes.apis import (
+from comfy_api_nodes.apis.runway import (
     RunwayImageToVideoRequest,
     RunwayImageToVideoResponse,
     RunwayTaskStatusResponse as TaskStatusResponse,
@@ -184,6 +184,10 @@ class RunwayImageToVideoNodeGen3a(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
+            price_badge=IO.PriceBadge(
+                depends_on=IO.PriceBadgeDepends(widgets=["duration"]),
+                expr="""{"type":"usd","usd": 0.0715 * widgets.duration}""",
+            ),
         )
 
     @classmethod
@@ -274,6 +278,10 @@ class RunwayImageToVideoNodeGen4(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
+            price_badge=IO.PriceBadge(
+                depends_on=IO.PriceBadgeDepends(widgets=["duration"]),
+                expr="""{"type":"usd","usd": 0.0715 * widgets.duration}""",
+            ),
         )
 
     @classmethod
@@ -372,6 +380,10 @@ class RunwayFirstLastFrameNode(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
+            price_badge=IO.PriceBadge(
+                depends_on=IO.PriceBadgeDepends(widgets=["duration"]),
+                expr="""{"type":"usd","usd": 0.0715 * widgets.duration}""",
+            ),
         )
 
     @classmethod
@@ -457,6 +469,9 @@ class RunwayTextToImageNode(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
+            price_badge=IO.PriceBadge(
+                expr="""{"type":"usd","usd":0.11}""",
+            ),
         )
 
     @classmethod

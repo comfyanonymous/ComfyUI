@@ -41,7 +41,7 @@ class Resolution(BaseModel):
     height: int = Field(...)
 
 
-class CreateCreateVideoRequestSource(BaseModel):
+class CreateVideoRequestSource(BaseModel):
     container: str = Field(...)
     size: int = Field(..., description="Size of the video file in bytes")
     duration: int = Field(..., description="Duration of the video file in seconds")
@@ -89,7 +89,7 @@ class Overrides(BaseModel):
 
 
 class CreateVideoRequest(BaseModel):
-    source: CreateCreateVideoRequestSource = Field(...)
+    source: CreateVideoRequestSource = Field(...)
     filters: list[Union[VideoFrameInterpolationFilter, VideoEnhancementFilter]] = Field(...)
     output: OutputInformationVideo = Field(...)
     overrides: Overrides = Field(Overrides(isPaidDiffusion=True))

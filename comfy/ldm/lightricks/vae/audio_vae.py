@@ -189,9 +189,12 @@ class AudioVAE(torch.nn.Module):
         waveform = self.device_manager.move_to_load_device(waveform)
         expected_channels = self.autoencoder.encoder.in_channels
         if waveform.shape[1] != expected_channels:
-            raise ValueError(
-                f"Input audio must have {expected_channels} channels, got {waveform.shape[1]}"
-            )
+            if waveform.shape[1] == 1:
+                waveform = waveform.expand(-1, expected_channels, *waveform.shape[2:])
+            else:
+                raise ValueError(
+                    f"Input audio must have {expected_channels} channels, got {waveform.shape[1]}"
+                )
 
         mel_spec = self.preprocessor.waveform_to_mel(
             waveform, waveform_sample_rate, device=self.device_manager.load_device

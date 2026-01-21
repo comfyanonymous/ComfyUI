@@ -1150,6 +1150,7 @@ class CosmosPredict2(BaseModel):
 class Lumina2(BaseModel):
     def __init__(self, model_config, model_type=ModelType.FLOW, device=None):
         super().__init__(model_config, model_type, device=device, unet_model=comfy.ldm.lumina.model.NextDiT)
+        self.memory_usage_factor_conds = ("ref_latents",)
 
     def extra_conds(self, **kwargs):
         out = super().extra_conds(**kwargs)
@@ -1169,6 +1170,35 @@ class Lumina2(BaseModel):
         if clip_text_pooled is not None:
             out['clip_text_pooled'] = comfy.conds.CONDRegular(clip_text_pooled)
 
+        clip_vision_outputs = kwargs.get("clip_vision_outputs", list(map(lambda a: a.get("clip_vision_output"), kwargs.get("unclip_conditioning", [{}]))))  # Z Image omni
+        if clip_vision_outputs is not None and len(clip_vision_outputs) > 0:
+            sigfeats = []
+            for clip_vision_output in clip_vision_outputs:
+                if clip_vision_output is not None:
+                    image_size = clip_vision_output.image_sizes[0]
+                    shape = clip_vision_output.last_hidden_state.shape
+                    sigfeats.append(clip_vision_output.last_hidden_state.reshape(shape[0], image_size[1] // 16, image_size[2] // 16, shape[-1]))
+            if len(sigfeats) > 0:
+                out['siglip_feats'] = comfy.conds.CONDList(sigfeats)
+
+        ref_latents = kwargs.get("reference_latents", None)
+        if ref_latents is not None:
+            latents = []
+            for lat in ref_latents:
+                latents.append(self.process_latent_in(lat))
+            out['ref_latents'] = comfy.conds.CONDList(latents)
+
+        ref_contexts = kwargs.get("reference_latents_text_embeds", None)
+        if ref_contexts is not None:
+            out['ref_contexts'] = comfy.conds.CONDList(ref_contexts)
+
+        return out
+
+    def extra_conds_shapes(self, **kwargs):
+        out = {}
+        ref_latents = kwargs.get("reference_latents", None)
+        if ref_latents is not None:
+            out['ref_latents'] = list([1, 16, sum(map(lambda a: math.prod(a.size()[2:]), ref_latents))])
         return out
 
 class WAN21(BaseModel):

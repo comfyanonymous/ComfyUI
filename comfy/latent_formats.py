@@ -408,7 +408,9 @@ class LTXV(LatentFormat):
         self.latent_rgb_factors_bias = [-0.0571, -0.1657, -0.2512]
 
 class LTXAV(LTXV):
-    pass
+    def __init__(self):
+        self.latent_rgb_factors = None
+        self.latent_rgb_factors_bias = None
 
 class HunyuanVideo(LatentFormat):
     latent_channels = 16
