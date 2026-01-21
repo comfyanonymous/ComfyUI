@@ -78,6 +78,28 @@ class Qwen25_3BConfig:
     final_norm: bool = True
 
 @dataclass
+class Qwen3_06BConfig:
+    vocab_size: int = 151936
+    hidden_size: int = 1024
+    intermediate_size: int = 3072
+    num_hidden_layers: int = 28
+    num_attention_heads: int = 16
+    num_key_value_heads: int = 8
+    max_position_embeddings: int = 32768
+    rms_norm_eps: float = 1e-6
+    rope_theta: float = 1000000.0
+    transformer_type: str = "llama"
+    head_dim = 128
+    rms_norm_add = False
+    mlp_activation = "silu"
+    qkv_bias = False
+    rope_dims = None
+    q_norm = "gemma3"
+    k_norm = "gemma3"
+    rope_scale = None
+    final_norm: bool = True
+
+@dataclass
 class Qwen3_4BConfig:
     vocab_size: int = 151936
     hidden_size: int = 2560
@@ -636,6 +658,15 @@ class Qwen25_3B(BaseLlama, torch.nn.Module):
     def __init__(self, config_dict, dtype, device, operations):
         super().__init__()
         config = Qwen25_3BConfig(**config_dict)
+        self.num_layers = config.num_hidden_layers
+
+        self.model = Llama2_(config, device=device, dtype=dtype, ops=operations)
+        self.dtype = dtype
+
+class Qwen3_06B(BaseLlama, torch.nn.Module):
+    def __init__(self, config_dict, dtype, device, operations):
+        super().__init__()
+        config = Qwen3_06BConfig(**config_dict)
         self.num_layers = config.num_hidden_layers
 
         self.model = Llama2_(config, device=device, dtype=dtype, ops=operations)
