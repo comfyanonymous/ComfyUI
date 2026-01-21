@@ -32,7 +32,6 @@ from comfy.cli_args import args, enables_dynamic_vram
 import json
 import time
 import mmap
-import ctypes
 
 import packaging
 
@@ -96,7 +95,8 @@ def load_safetensors(ckpt):
 
     sd = {}
     for name, info in header.items():
-        if name == "__metadata__": continue
+        if name == "__metadata__":
+            continue
 
         start, end = info["data_offsets"]
         sd[name] = data_area[start:end].view(_TYPES[info["dtype"]]).view(info["shape"])

@@ -1,4 +1,3 @@
-import gc
 import copy
 import heapq
 import inspect

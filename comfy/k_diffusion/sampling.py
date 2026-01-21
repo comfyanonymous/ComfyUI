@@ -18,7 +18,7 @@ import comfy.memory_management
 
 
 def trange(*args, **kwargs):
-    if comfy.memory_management.aimdo_allocator == None:
+    if comfy.memory_management.aimdo_allocator is None:
         return trange_(*args, **kwargs)
 
     pbar = trange_(*args, **kwargs, smoothing=1.0)
@@ -26,7 +26,6 @@ def trange(*args, **kwargs):
     pbar.set_postfix_str("  Model Initializing ...  ")
 
     _update = pbar.update
-    initialized = False
 
     def warmup_update(n=1):
         pbar._i += 1
