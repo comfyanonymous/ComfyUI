@@ -283,7 +283,8 @@ class disable_weight_init:
 
         def __init__(self, in_features, out_features, bias=True, device=None, dtype=None):
             if not comfy.model_management.WINDOWS or not enables_dynamic_vram():
-                return super().__init__(in_features, out_features, bias, device, dtype)
+                super().__init__(in_features, out_features, bias, device, dtype)
+                return
 
             # Issue is with `torch.empty` still reserving the full memory for the layer.
             # Windows doesn't over-commit memory so without this, We are momentarily commit
