@@ -1,3 +1,5 @@
+import math
+
 from typing_extensions import override
 
 from comfy_api.latest import IO, ComfyExtension, Input
@@ -36,7 +38,8 @@ class MagnificImageUpscalerCreativeNode(IO.ComfyNode):
             node_id="MagnificImageUpscalerCreativeNode",
             display_name="Magnific Image Upscale (Creative)",
             category="api node/image/Magnific",
-            description="Prompt‑guided enhancement, stylization, and 2x/4x/8x/16x upscaling.",
+            description="Prompt‑guided enhancement, stylization, and 2x/4x/8x/16x upscaling. "
+            "Maximum output: 25.3 megapixels.",
             inputs=[
                 IO.Image.Input("image"),
                 IO.String.Input("prompt", multiline=True, default=""),
@@ -131,16 +134,36 @@ class MagnificImageUpscalerCreativeNode(IO.ComfyNode):
 
         max_output_pixels = 25_300_000
         height, width = get_image_dimensions(image)
-        scale = int(scale_factor.rstrip("x"))
-        output_pixels = height * width * scale * scale
+        requested_scale = int(scale_factor.rstrip("x"))
+        output_pixels = height * width * requested_scale * requested_scale
+
         if output_pixels > max_output_pixels:
             if auto_downscale:
-                # Calculate max input pixels to fit within output pixel limit
-                max_input_pixels = max_output_pixels // (scale * scale)
-                image = downscale_image_tensor(image, total_pixels=max_input_pixels)
+                # Find optimal scale factor that doesn't require >2x downscale.
+                # Server upscales in 2x steps, so aggressive downscaling degrades quality.
+                input_pixels = width * height
+                scale = 2
+                max_input_pixels = max_output_pixels // 4
+                for candidate in [16, 8, 4, 2]:
+                    if candidate > requested_scale:
+                        continue
+                    scale_output_pixels = input_pixels * candidate * candidate
+                    if scale_output_pixels <= max_output_pixels:
+                        scale = candidate
+                        max_input_pixels = None
+                        break
+                    downscale_ratio = math.sqrt(scale_output_pixels / max_output_pixels)
+                    if downscale_ratio <= 2.0:
+                        scale = candidate
+                        max_input_pixels = max_output_pixels // (candidate * candidate)
+                        break
+
+                if max_input_pixels is not None:
+                    image = downscale_image_tensor(image, total_pixels=max_input_pixels)
+                scale_factor = f"{scale}x"
             else:
                 raise ValueError(
-                    f"Output size ({width * scale}x{height * scale} = {output_pixels:,} pixels) "
+                    f"Output size ({width * requested_scale}x{height * requested_scale} = {output_pixels:,} pixels) "
                     f"exceeds maximum allowed size of {max_output_pixels:,} pixels. "
                     f"Use a smaller input image or lower scale factor."
                 )
@@ -179,7 +202,8 @@ class MagnificImageUpscalerPreciseV2Node(IO.ComfyNode):
             node_id="MagnificImageUpscalerPreciseV2Node",
             display_name="Magnific Image Upscale (Precise V2)",
             category="api node/image/Magnific",
-            description="High-fidelity upscaling with fine control over sharpness, grain, and detail.",
+            description="High-fidelity upscaling with fine control over sharpness, grain, and detail. "
+            "Maximum output: 10060×10060 pixels.",
             inputs=[
                 IO.Image.Input("image"),
                 IO.Combo.Input("scale_factor", options=["2x", "4x", "8x", "16x"]),
@@ -258,16 +282,38 @@ class MagnificImageUpscalerPreciseV2Node(IO.ComfyNode):
 
         max_output_dimension = 10060
         height, width = get_image_dimensions(image)
-        scale = int(scale_factor.strip("x"))
-        output_width = width * scale
-        output_height = height * scale
+        requested_scale = int(scale_factor.strip("x"))
+        output_width = width * requested_scale
+        output_height = height * requested_scale
+
         if output_width > max_output_dimension or output_height > max_output_dimension:
             if auto_downscale:
-                # Calculate max input pixels based on the largest dimension
-                max_input_dim = max_output_dimension // scale
-                scale_ratio = max_input_dim / max(width, height)
+                # Find optimal scale factor that doesn't require >2x downscale.
+                # Server upscales in 2x steps, so aggressive downscaling degrades quality.
+                max_dim = max(width, height)
+                scale = 2
+                max_input_dim = max_output_dimension // 2
+                scale_ratio = max_input_dim / max_dim
                 max_input_pixels = int(width * height * scale_ratio * scale_ratio)
-                image = downscale_image_tensor(image, total_pixels=max_input_pixels)
+                for candidate in [16, 8, 4, 2]:
+                    if candidate > requested_scale:
+                        continue
+                    output_dim = max_dim * candidate
+                    if output_dim <= max_output_dimension:
+                        scale = candidate
+                        max_input_pixels = None
+                        break
+                    downscale_ratio = output_dim / max_output_dimension
+                    if downscale_ratio <= 2.0:
+                        scale = candidate
+                        max_input_dim = max_output_dimension // candidate
+                        scale_ratio = max_input_dim / max_dim
+                        max_input_pixels = int(width * height * scale_ratio * scale_ratio)
+                        break
+
+                if max_input_pixels is not None:
+                    image = downscale_image_tensor(image, total_pixels=max_input_pixels)
+                requested_scale = scale
             else:
                 raise ValueError(
                     f"Output dimensions ({output_width}x{output_height}) exceed maximum allowed "
@@ -281,7 +327,7 @@ class MagnificImageUpscalerPreciseV2Node(IO.ComfyNode):
             response_model=TaskResponse,
             data=ImageUpscalerPrecisionV2Request(
                 image=(await upload_images_to_comfyapi(cls, image, max_images=1, total_pixels=None))[0],
-                scale_factor=scale,
+                scale_factor=requested_scale,
                 flavor=flavor,
                 sharpen=sharpen,
                 smart_grain=smart_grain,
