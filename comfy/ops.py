@@ -81,6 +81,7 @@ def cast_to_input(weight, input, non_blocking=False, copy=True):
 def cast_bias_weight_with_vbar(s, dtype, device, bias_dtype, non_blocking, compute_dtype):
     offload_stream = None
     xfer_dest = None
+    cast_geometry = comfy.memory_management.tensors_to_geometries([ s.weight, s.bias ])
 
     signature = comfy_aimdo.model_vbar.vbar_fault(s._v)
     if signature is not None:
@@ -88,6 +89,7 @@ def cast_bias_weight_with_vbar(s, dtype, device, bias_dtype, non_blocking, compu
     resident = comfy_aimdo.model_vbar.vbar_signature_compare(signature, s._v_signature)
 
     if not resident:
+        cast_dest = None
 
         xfer_source = [ s.weight, s.bias ]
 
@@ -95,6 +97,16 @@ def cast_bias_weight_with_vbar(s, dtype, device, bias_dtype, non_blocking, compu
         if pin is not None:
             xfer_source = [ pin ]
             resident = True #If pinned data exists, it always has LowVram already applied
+        else:
+            for data, geometry in zip([ s.weight, s.bias ], cast_geometry):
+                if data is None:
+                    continue
+                if data.dtype != geometry.dtype:
+                    cast_dest = xfer_dest
+                    if cast_dest is None:
+                        cast_dest = torch.empty((comfy.memory_management.vram_aligned_size(cast_geometry),), dtype=torch.uint8, device=device)
+                    xfer_dest = None
+                    break
 
         dest_size = comfy.memory_management.vram_aligned_size(xfer_source)
         offload_stream = comfy.model_management.get_offload_stream(device)
@@ -111,6 +123,13 @@ def cast_bias_weight_with_vbar(s, dtype, device, bias_dtype, non_blocking, compu
         comfy.model_management.cast_to_gathered(xfer_source, xfer_dest, non_blocking=non_blocking, stream=offload_stream)
         comfy.model_management.sync_stream(device, offload_stream)
 
+        if cast_dest is not None:
+            for pre_cast, post_cast in zip(comfy.memory_management.interpret_gathered_like(xfer_source, xfer_dest),
+                                           comfy.memory_management.interpret_gathered_like(cast_geometry, cast_dest)):
+                if post_cast is not None:
+                    post_cast.copy_(pre_cast)
+            xfer_dest = cast_dest
+
     pin = None
     if signature is not None:
         #If we are able to increase our load level (e.g. user reduces resolution or batch number)
@@ -122,7 +141,7 @@ def cast_bias_weight_with_vbar(s, dtype, device, bias_dtype, non_blocking, compu
         comfy.pinned_memory.pin_memory(s)
         pin = comfy.pinned_memory.get_pin(s)
 
-    params = comfy.memory_management.interpret_gathered_like([s.weight, s.bias], xfer_dest)
+    params = comfy.memory_management.interpret_gathered_like(cast_geometry, xfer_dest)
     weight = params[0]
     bias = params[1]
 

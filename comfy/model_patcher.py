@@ -1504,6 +1504,8 @@ class ModelPatcherDynamic(ModelPatcher):
                     weight_function = []
 
                     weight, _, _ = get_key_weight(self.model, key)
+                    if weight is None:
+                        return 0
                     if key in self.patches:
                         setattr(m, param_key + "_lowvram_function", LowVramPatch(key, self.patches))
                         num_patches += 1
@@ -1513,7 +1515,12 @@ class ModelPatcherDynamic(ModelPatcher):
                     if key in self.weight_wrapper_patches:
                         weight_function.extend(self.weight_wrapper_patches[key])
                     setattr(m, param_key + "_function", weight_function)
-                    return comfy.memory_management.vram_aligned_size(weight)
+                    geometry = weight
+                    if not isinstance(weight, QuantizedTensor):
+                        model_dtype = getattr(m, param_key + "_comfy_model_dtype", weight.dtype)
+                        weight._model_dtype = model_dtype
+                        geometry = comfy.memory_management.TensorGeometry(shape=weight.shape, dtype=model_dtype)
+                    return comfy.memory_management.vram_aligned_size(geometry)
 
                 if hasattr(m, "comfy_cast_weights"):
                     m.comfy_cast_weights = True
@@ -1535,9 +1542,13 @@ class ModelPatcherDynamic(ModelPatcher):
                         weight, _, _ = get_key_weight(self.model, key)
                         weight.seed_key = key
                         set_dirty(weight, dirty)
-                        weight_size = weight.numel() * weight.element_size()
+                        geometry = weight
+                        model_dtype = getattr(m, param + "_comfy_model_dtype", weight.dtype)
+                        geometry = comfy.memory_management.TensorGeometry(shape=weight.shape, dtype=model_dtype)
+                        weight_size = geometry.numel() * geometry.element_size()
                         if vbar is not None and not hasattr(weight, "_v"):
                             weight._v = vbar.alloc(weight_size)
+                            weight._model_dtype = model_dtype
                         allocated_size += weight_size
 
             logging.info(f"Model {self.model.__class__.__name__} prepared for dynamic VRAM loading. {allocated_size // (1024 ** 2)}MB Staged. {num_patches} patches attached.")

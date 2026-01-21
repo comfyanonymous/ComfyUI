@@ -1190,12 +1190,12 @@ def cast_to(weight, dtype=None, device=None, non_blocking=False, copy=False, str
         assert r is None
         assert stream is None
 
-        r = torch.empty_like(weight, dtype=dtype, device=device)
+        r = torch.empty_like(weight, dtype=weight._model_dtype, device=device)
 
         signature = comfy_aimdo.model_vbar.vbar_fault(weight._v)
         if signature is not None:
             raw_tensor = comfy_aimdo.torch.aimdo_to_tensor(weight._v, device)
-            v_tensor = comfy.memory_management.interpret_gathered_like([weight], raw_tensor)[0]
+            v_tensor = comfy.memory_management.interpret_gathered_like([r], raw_tensor)[0]
 
         if comfy_aimdo.model_vbar.vbar_signature_compare(signature, weight._v_signature):
             #always take a deep copy even if _v is good, as we have no reasonable point to unpin

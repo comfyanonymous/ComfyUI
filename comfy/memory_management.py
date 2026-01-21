@@ -1,4 +1,33 @@
+import math
+import torch
+from typing import NamedTuple
+
 from comfy.quant_ops import QuantizedTensor
+
+class TensorGeometry(NamedTuple):
+    shape: any
+    dtype: torch.dtype
+
+    def element_size(self):
+        info = torch.finfo(self.dtype) if self.dtype.is_floating_point else torch.iinfo(self.dtype)
+        return info.bits // 8
+
+    def numel(self):
+        return math.prod(self.shape)
+
+def tensors_to_geometries(tensors, dtype=None):
+    geometries = []
+    for t in tensors:
+        if t is None or isinstance(t, QuantizedTensor):
+            geometries.append(t)
+            continue
+        tdtype = t.dtype
+        if hasattr(t, "_model_dtype"):
+            tdtype = t._model_dtype
+        if dtype is not None:
+            tdtype = dtype
+        geometries.append(TensorGeometry(shape=t.shape, dtype=tdtype))
+    return geometries
 
 def vram_aligned_size(tensor):
     if isinstance(tensor, list):
