@@ -1154,7 +1154,6 @@ class Anima(BaseModel):
 
     def extra_conds(self, **kwargs):
         out = super().extra_conds(**kwargs)
-        noise = kwargs.get("noise", None)
         cross_attn = kwargs.get("cross_attn", None)
         t5xxl_ids = kwargs.get("t5xxl_ids", None)
         device = kwargs["device"]
