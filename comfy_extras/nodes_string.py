@@ -11,6 +11,7 @@ class StringConcatenate(io.ComfyNode):
             node_id="StringConcatenate",
             display_name="Concatenate",
             category="utils/string",
+            search_aliases=["text concat", "join text", "merge text", "combine strings", "concat", "concatenate", "append text", "combine text", "string"],
             inputs=[
                 io.String.Input("string_a", multiline=True),
                 io.String.Input("string_b", multiline=True),

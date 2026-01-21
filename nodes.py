@@ -70,6 +70,7 @@ class CLIPTextEncode(ComfyNodeABC):
 
     CATEGORY = "conditioning"
     DESCRIPTION = "Encodes a text prompt using a CLIP model into an embedding that can be used to guide the diffusion model towards generating specific images."
+    SEARCH_ALIASES = ["text", "prompt", "text prompt", "positive prompt", "negative prompt", "encode text", "text encoder", "encode prompt"]
 
     def encode(self, clip, text):
         if clip is None:
@@ -86,6 +87,7 @@ class ConditioningCombine:
     FUNCTION = "combine"
 
     CATEGORY = "conditioning"
+    SEARCH_ALIASES = ["combine", "merge conditioning", "combine prompts", "merge prompts", "mix prompts", "add prompt"]
 
     def combine(self, conditioning_1, conditioning_2):
         return (conditioning_1 + conditioning_2, )
@@ -294,6 +296,7 @@ class VAEDecode:
 
     CATEGORY = "latent"
     DESCRIPTION = "Decodes latent images back into pixel space images."
+    SEARCH_ALIASES = ["decode", "decode latent", "latent to image", "render latent"]
 
     def decode(self, vae, samples):
         latent = samples["samples"]
@@ -346,6 +349,7 @@ class VAEEncode:
     FUNCTION = "encode"
 
     CATEGORY = "latent"
+    SEARCH_ALIASES = ["encode", "encode image", "image to latent"]
 
     def encode(self, vae, pixels):
         t = vae.encode(pixels)
@@ -581,6 +585,7 @@ class CheckpointLoaderSimple:
 
     CATEGORY = "loaders"
     DESCRIPTION = "Loads a diffusion model checkpoint, diffusion models are used to denoise latents."
+    SEARCH_ALIASES = ["load model", "checkpoint", "model loader", "load checkpoint", "ckpt", "model"]
 
     def load_checkpoint(self, ckpt_name):
         ckpt_path = folder_paths.get_full_path_or_raise("checkpoints", ckpt_name)
@@ -667,6 +672,7 @@ class LoraLoader:
 
     CATEGORY = "loaders"
     DESCRIPTION = "LoRAs are used to modify diffusion and CLIP models, altering the way in which latents are denoised such as applying styles. Multiple LoRA nodes can be linked together."
+    SEARCH_ALIASES = ["lora", "load lora", "apply lora", "lora loader", "lora model"]
 
     def load_lora(self, model, clip, lora_name, strength_model, strength_clip):
         if strength_model == 0 and strength_clip == 0:
@@ -814,6 +820,7 @@ class ControlNetLoader:
     FUNCTION = "load_controlnet"
 
     CATEGORY = "loaders"
+    SEARCH_ALIASES = ["controlnet", "control net", "cn", "load controlnet", "controlnet loader"]
 
     def load_controlnet(self, control_net_name):
         controlnet_path = folder_paths.get_full_path_or_raise("controlnet", control_net_name)
@@ -890,6 +897,7 @@ class ControlNetApplyAdvanced:
     FUNCTION = "apply_controlnet"
 
     CATEGORY = "conditioning/controlnet"
+    SEARCH_ALIASES = ["controlnet", "apply controlnet", "use controlnet", "control net"]
 
     def apply_controlnet(self, positive, negative, control_net, image, strength, start_percent, end_percent, vae=None, extra_concat=[]):
         if strength == 0:
@@ -1200,6 +1208,7 @@ class EmptyLatentImage:
 
     CATEGORY = "latent"
     DESCRIPTION = "Create a new batch of empty latent images to be denoised via sampling."
+    SEARCH_ALIASES = ["empty", "empty latent", "new latent", "create latent", "blank latent", "blank"]
 
     def generate(self, width, height, batch_size=1):
         latent = torch.zeros([batch_size, 4, height // 8, width // 8], device=self.device)
@@ -1540,6 +1549,7 @@ class KSampler:
 
     CATEGORY = "sampling"
     DESCRIPTION = "Uses the provided model, positive and negative conditioning to denoise the latent image."
+    SEARCH_ALIASES = ["sampler", "sample", "generate", "denoise", "diffuse", "txt2img", "img2img"]
 
     def sample(self, model, seed, steps, cfg, sampler_name, scheduler, positive, negative, latent_image, denoise=1.0):
         return common_ksampler(model, seed, steps, cfg, sampler_name, scheduler, positive, negative, latent_image, denoise=denoise)
@@ -1604,6 +1614,7 @@ class SaveImage:
 
     CATEGORY = "image"
     DESCRIPTION = "Saves the input images to your ComfyUI output directory."
+    SEARCH_ALIASES = ["save", "save image", "export image", "output image", "write image", "download"]
 
     def save_images(self, images, filename_prefix="ComfyUI", prompt=None, extra_pnginfo=None):
         filename_prefix += self.prefix_append
@@ -1640,6 +1651,8 @@ class PreviewImage(SaveImage):
         self.prefix_append = "_temp_" + ''.join(random.choice("abcdefghijklmnopqrstupvxyz") for x in range(5))
         self.compress_level = 1
 
+    SEARCH_ALIASES = ["preview", "preview image", "show image", "view image", "display image", "image viewer"]
+
     @classmethod
     def INPUT_TYPES(s):
         return {"required":
@@ -1658,6 +1671,7 @@ class LoadImage:
                 }
 
     CATEGORY = "image"
+    SEARCH_ALIASES = ["load image", "open image", "import image", "image input", "upload image", "read image", "image loader"]
 
     RETURN_TYPES = ("IMAGE", "MASK")
     FUNCTION = "load_image"
@@ -1810,6 +1824,7 @@ class ImageScale:
     FUNCTION = "upscale"
 
     CATEGORY = "image/upscaling"
+    SEARCH_ALIASES = ["resize", "resize image", "scale image", "image resize", "zoom", "zoom in", "change size"]
 
     def upscale(self, image, upscale_method, width, height, crop):
         if width == 0 and height == 0:
