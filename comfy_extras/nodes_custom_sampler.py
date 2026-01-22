@@ -297,6 +297,7 @@ class ExtendIntermediateSigmas(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="ExtendIntermediateSigmas",
+            search_aliases=["interpolate sigmas"],
             category="sampling/custom_sampling/sigmas",
             inputs=[
                 io.Sigmas.Input("sigmas"),
@@ -856,6 +857,7 @@ class DualCFGGuider(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="DualCFGGuider",
+            search_aliases=["dual prompt guidance"],
             category="sampling/custom_sampling/guiders",
             inputs=[
                 io.Model.Input("model"),
@@ -883,6 +885,7 @@ class DisableNoise(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="DisableNoise",
+            search_aliases=["zero noise"],
             category="sampling/custom_sampling/noise",
             inputs=[],
             outputs=[io.Noise.Output()]
@@ -1019,6 +1022,7 @@ class ManualSigmas(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="ManualSigmas",
+            search_aliases=["custom noise schedule", "define sigmas"],
             category="_for_testing/custom_sampling",
             is_experimental=True,
             inputs=[

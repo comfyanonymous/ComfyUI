@@ -28,6 +28,7 @@ class AlignYourStepsScheduler(io.ComfyNode):
     def define_schema(cls) -> io.Schema:
         return io.Schema(
             node_id="AlignYourStepsScheduler",
+            search_aliases=["AYS scheduler"],
             category="sampling/custom_sampling/schedulers",
             inputs=[
                 io.Combo.Input("model_type", options=["SD1", "SDXL", "SVD"]),

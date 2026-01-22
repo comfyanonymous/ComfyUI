@@ -78,6 +78,7 @@ class LoraSave(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="LoraSave",
+            search_aliases=["export lora"],
             display_name="Extract and Save Lora",
             category="_for_testing",
             inputs=[
