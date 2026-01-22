@@ -1,4 +1,5 @@
 from __future__ import annotations
+import threading
 import torch
 from torch import nn
 from functools import partial
@@ -9,8 +10,23 @@ from .conv_nd_factory import make_conv_nd, make_linear_nd
 from .pixel_norm import PixelNorm
 from ..model import PixArtAlphaCombinedTimestepSizeEmbeddings
 import comfy.ops
+from comfy.ldm.modules.diffusionmodules.model import torch_cat_if_needed
 
 ops = comfy.ops.disable_weight_init
+
+def split2(tensor, split_point, dim=2):
+    return torch.split(tensor, [split_point, tensor.shape[dim] - split_point], dim=dim)
+
+def add_exchange_cache(dest, cache_in, new_input, dim=2):
+    if dest is not None:
+        if cache_in is not None:
+            cache_to_dest = min(dest.shape[dim], cache_in.shape[dim])
+            lead_in_dest, dest = split2(dest, cache_to_dest, dim=dim)
+            lead_in_source, cache_in = split2(cache_in, cache_to_dest, dim=dim)
+            lead_in_dest.add_(lead_in_source)
+        body, new_input = split2(new_input, dest.shape[dim], dim)
+        dest.add_(body)
+    return torch_cat_if_needed([cache_in, new_input], dim=dim)
 
 class Encoder(nn.Module):
     r"""
@@ -651,8 +667,21 @@ class DepthToSpaceUpsample(nn.Module):
         )
         self.residual = residual
         self.out_channels_reduction_factor = out_channels_reduction_factor
+        self.temporal_cache_state = {}
 
     def forward(self, x, causal: bool = True, timestep: Optional[torch.Tensor] = None):
+        tid = threading.get_ident()
+        cached, drop_first = self.temporal_cache_state.get(tid, (None, True))
+        y = self.conv(x, causal=causal)
+        y = rearrange(
+            y,
+            "b (c p1 p2 p3) d h w -> b c (d p1) (h p2) (w p3)",
+            p1=self.stride[0],
+            p2=self.stride[1],
+            p3=self.stride[2],
+        )
+        if self.stride[0] == 2 and drop_first:
+            y = y[:, :, 1:, :, :]
         if self.residual:
             # Reshape and duplicate the input to match the output shape
             x_in = rearrange(
@@ -664,21 +693,16 @@ class DepthToSpaceUpsample(nn.Module):
             )
             num_repeat = math.prod(self.stride) // self.out_channels_reduction_factor
             x_in = x_in.repeat(1, num_repeat, 1, 1, 1)
-            if self.stride[0] == 2:
+            if self.stride[0] == 2 and drop_first:
                 x_in = x_in[:, :, 1:, :, :]
-        x = self.conv(x, causal=causal)
-        x = rearrange(
-            x,
-            "b (c p1 p2 p3) d h w -> b c (d p1) (h p2) (w p3)",
-            p1=self.stride[0],
-            p2=self.stride[1],
-            p3=self.stride[2],
-        )
-        if self.stride[0] == 2:
-            x = x[:, :, 1:, :, :]
-        if self.residual:
-            x = x + x_in
-        return x
+
+            cached = add_exchange_cache(y, cached, x_in, dim=2)
+            self.temporal_cache_state[tid] = (cached, False)
+
+        else:
+            self.temporal_cache_state[tid] = (None, False)
+
+        return y
 
 class LayerNorm(nn.Module):
     def __init__(self, dim, eps, elementwise_affine=True) -> None:
