@@ -237,6 +237,8 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
         else:
             dit_config["vec_in_dim"] = None
 
+        dit_config["num_heads"] = dit_config["hidden_size"] // sum(dit_config["axes_dim"])
+
         dit_config["depth"] = count_blocks(state_dict_keys, '{}double_blocks.'.format(key_prefix) + '{}.')
         dit_config["depth_single_blocks"] = count_blocks(state_dict_keys, '{}single_blocks.'.format(key_prefix) + '{}.')
         if '{}distilled_guidance_layer.0.norms.0.scale'.format(key_prefix) in state_dict_keys or '{}distilled_guidance_layer.norms.0.scale'.format(key_prefix) in state_dict_keys: #Chroma
@@ -251,7 +253,7 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
                 dit_config["image_model"] = "chroma_radiance"
                 dit_config["in_channels"] = 3
                 dit_config["out_channels"] = 3
-                dit_config["patch_size"] = 16
+                dit_config["patch_size"] = state_dict.get('{}img_in_patch.weight'.format(key_prefix)).size(dim=-1)
                 dit_config["nerf_hidden_size"] = 64
                 dit_config["nerf_mlp_ratio"] = 4
                 dit_config["nerf_depth"] = 4
@@ -444,6 +446,9 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
             dit_config["time_scale"] = 1000.0
             if '{}cap_pad_token'.format(key_prefix) in state_dict_keys:
                 dit_config["pad_tokens_multiple"] = 32
+            sig_weight = state_dict.get('{}siglip_embedder.0.weight'.format(key_prefix), None)
+            if sig_weight is not None:
+                dit_config["siglip_feat_dim"] = sig_weight.shape[0]
 
         return dit_config
 
@@ -545,6 +550,8 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
     if '{}blocks.0.mlp.layer1.weight'.format(key_prefix) in state_dict_keys:  # Cosmos predict2
         dit_config = {}
         dit_config["image_model"] = "cosmos_predict2"
+        if "{}llm_adapter.blocks.0.cross_attn.q_proj.weight".format(key_prefix) in state_dict_keys:
+            dit_config["image_model"] = "anima"
         dit_config["max_img_h"] = 240
         dit_config["max_img_w"] = 240
         dit_config["max_frames"] = 128

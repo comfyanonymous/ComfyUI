@@ -14,8 +14,9 @@ class JobStatus:
     IN_PROGRESS = 'in_progress'
     COMPLETED = 'completed'
     FAILED = 'failed'
+    CANCELLED = 'cancelled'
 
-    ALL = [PENDING, IN_PROGRESS, COMPLETED, FAILED]
+    ALL = [PENDING, IN_PROGRESS, COMPLETED, FAILED, CANCELLED]
 
 
 # Media types that can be previewed in the frontend
@@ -94,12 +95,6 @@ def normalize_history_item(prompt_id: str, history_item: dict, include_outputs: 
 
     status_info = history_item.get('status', {})
     status_str = status_info.get('status_str') if status_info else None
-    if status_str == 'success':
-        status = JobStatus.COMPLETED
-    elif status_str == 'error':
-        status = JobStatus.FAILED
-    else:
-        status = JobStatus.COMPLETED
 
     outputs = history_item.get('outputs', {})
     outputs_count, preview_output = get_outputs_summary(outputs)
@@ -107,6 +102,7 @@ def normalize_history_item(prompt_id: str, history_item: dict, include_outputs: 
     execution_error = None
     execution_start_time = None
     execution_end_time = None
+    was_interrupted = False
     if status_info:
         messages = status_info.get('messages', [])
         for entry in messages:
@@ -119,6 +115,15 @@ def normalize_history_item(prompt_id: str, history_item: dict, include_outputs: 
                         execution_end_time = event_data.get('timestamp')
                         if event_name == 'execution_error':
                             execution_error = event_data
+                        elif event_name == 'execution_interrupted':
+                            was_interrupted = True
+
+    if status_str == 'success':
+        status = JobStatus.COMPLETED
+    elif status_str == 'error':
+        status = JobStatus.CANCELLED if was_interrupted else JobStatus.FAILED
+    else:
+        status = JobStatus.COMPLETED
 
     job = prune_dict({
         'id': prompt_id,
@@ -268,13 +273,13 @@ def get_all_jobs(
         for item in queued:
             jobs.append(normalize_queue_item(item, JobStatus.PENDING))
 
-    include_completed = JobStatus.COMPLETED in status_filter
-    include_failed = JobStatus.FAILED in status_filter
-    if include_completed or include_failed:
+    history_statuses = {JobStatus.COMPLETED, JobStatus.FAILED, JobStatus.CANCELLED}
+    requested_history_statuses = history_statuses & set(status_filter)
+    if requested_history_statuses:
         for prompt_id, history_item in history.items():
-            is_failed = history_item.get('status', {}).get('status_str') == 'error'
-            if (is_failed and include_failed) or (not is_failed and include_completed):
-                jobs.append(normalize_history_item(prompt_id, history_item))
+            job = normalize_history_item(prompt_id, history_item)
+            if job.get('status') in requested_history_statuses:
+                jobs.append(job)
 
     if workflow_id:
         jobs = [j for j in jobs if j.get('workflow_id') == workflow_id]

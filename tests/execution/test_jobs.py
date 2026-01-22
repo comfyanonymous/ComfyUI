@@ -19,6 +19,7 @@ class TestJobStatus:
         assert JobStatus.IN_PROGRESS == 'in_progress'
         assert JobStatus.COMPLETED == 'completed'
         assert JobStatus.FAILED == 'failed'
+        assert JobStatus.CANCELLED == 'cancelled'
 
     def test_all_contains_all_statuses(self):
         """ALL should contain all status values."""
@@ -26,7 +27,8 @@ class TestJobStatus:
         assert JobStatus.IN_PROGRESS in JobStatus.ALL
         assert JobStatus.COMPLETED in JobStatus.ALL
         assert JobStatus.FAILED in JobStatus.ALL
-        assert len(JobStatus.ALL) == 4
+        assert JobStatus.CANCELLED in JobStatus.ALL
+        assert len(JobStatus.ALL) == 5
 
 
 class TestIsPreviewable:
@@ -335,6 +337,40 @@ class TestNormalizeHistoryItem:
         assert job['execution_error']['node_id'] == '5'
         assert job['execution_error']['node_type'] == 'KSampler'
         assert job['execution_error']['exception_message'] == 'CUDA out of memory'
+
+    def test_cancelled_job(self):
+        """Cancelled/interrupted history item should have cancelled status."""
+        history_item = {
+            'prompt': (
+                5,
+                'prompt-cancelled',
+                {'nodes': {}},
+                {'create_time': 1234567890000},
+                ['node1'],
+            ),
+            'status': {
+                'status_str': 'error',
+                'completed': False,
+                'messages': [
+                    ('execution_start', {'prompt_id': 'prompt-cancelled', 'timestamp': 1234567890500}),
+                    ('execution_interrupted', {
+                        'prompt_id': 'prompt-cancelled',
+                        'node_id': '5',
+                        'node_type': 'KSampler',
+                        'executed': ['1', '2', '3'],
+                        'timestamp': 1234567891000,
+                    })
+                ]
+            },
+            'outputs': {},
+        }
+
+        job = normalize_history_item('prompt-cancelled', history_item)
+        assert job['status'] == 'cancelled'
+        assert job['execution_start_time'] == 1234567890500
+        assert job['execution_end_time'] == 1234567891000
+        # Cancelled jobs should not have execution_error set
+        assert 'execution_error' not in job
 
     def test_include_outputs(self):
         """When include_outputs=True, should include full output data."""

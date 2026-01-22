@@ -427,12 +427,12 @@ def fp8_linear(self, input):
     input = torch.clamp(input, min=-448, max=448, out=input)
     input_fp8 = input.to(dtype).contiguous()
     layout_params_input = TensorCoreFP8Layout.Params(scale=scale_input, orig_dtype=input_dtype, orig_shape=tuple(input_fp8.shape))
-    quantized_input = QuantizedTensor(input_fp8, TensorCoreFP8Layout, layout_params_input)
+    quantized_input = QuantizedTensor(input_fp8, "TensorCoreFP8Layout", layout_params_input)
 
     # Wrap weight in QuantizedTensor - this enables unified dispatch
     # Call F.linear - __torch_dispatch__ routes to fp8_linear handler in quant_ops.py!
     layout_params_weight = TensorCoreFP8Layout.Params(scale=scale_weight, orig_dtype=input_dtype, orig_shape=tuple(w.shape))
-    quantized_weight = QuantizedTensor(w, TensorCoreFP8Layout, layout_params_weight)
+    quantized_weight = QuantizedTensor(w, "TensorCoreFP8Layout", layout_params_weight)
     o = torch.nn.functional.linear(quantized_input, quantized_weight, bias)
 
     uncast_bias_weight(self, w, bias, offload_stream)
@@ -493,11 +493,12 @@ from .quant_ops import (
 )
 
 
-def mixed_precision_ops(quant_config={}, compute_dtype=torch.bfloat16, full_precision_mm=False):
+def mixed_precision_ops(quant_config={}, compute_dtype=torch.bfloat16, full_precision_mm=False, disabled=[]):
     class MixedPrecisionOps(manual_cast):
         _quant_config = quant_config
         _compute_dtype = compute_dtype
         _full_precision_mm = full_precision_mm
+        _disabled = disabled
 
         class Linear(torch.nn.Module, CastWeightBiasOp):
             def __init__(
@@ -522,6 +523,7 @@ def mixed_precision_ops(quant_config={}, compute_dtype=torch.bfloat16, full_prec
 
                 self.tensor_class = None
                 self._full_precision_mm = MixedPrecisionOps._full_precision_mm
+                self._full_precision_mm_config = False
 
             def reset_parameters(self):
                 return None
@@ -544,7 +546,8 @@ def mixed_precision_ops(quant_config={}, compute_dtype=torch.bfloat16, full_prec
                 weight_key = f"{prefix}weight"
                 weight = state_dict.pop(weight_key, None)
                 if weight is None:
-                    raise ValueError(f"Missing weight for layer {layer_name}")
+                    logging.warning(f"Missing weight for layer {layer_name}")
+                    return
 
                 manually_loaded_keys = [weight_key]
 
@@ -556,8 +559,12 @@ def mixed_precision_ops(quant_config={}, compute_dtype=torch.bfloat16, full_prec
                     self.weight = torch.nn.Parameter(weight.to(device=device, dtype=MixedPrecisionOps._compute_dtype), requires_grad=False)
                 else:
                     self.quant_format = layer_conf.get("format", None)
+                    self._full_precision_mm_config = layer_conf.get("full_precision_matrix_mult", False)
                     if not self._full_precision_mm:
-                        self._full_precision_mm = layer_conf.get("full_precision_matrix_mult", False)
+                        self._full_precision_mm = self._full_precision_mm_config
+
+                    if self.quant_format in MixedPrecisionOps._disabled:
+                        self._full_precision_mm = True
 
                     if self.quant_format is None:
                         raise ValueError(f"Unknown quantization format for layer {layer_name}")
@@ -618,21 +625,29 @@ def mixed_precision_ops(quant_config={}, compute_dtype=torch.bfloat16, full_prec
                         missing_keys.remove(key)
 
             def state_dict(self, *args, destination=None, prefix="", **kwargs):
-                sd = super().state_dict(*args, destination=destination, prefix=prefix, **kwargs)
-                if isinstance(self.weight, QuantizedTensor):
-                    layout_cls = self.weight._layout_cls
+                if destination is not None:
+                    sd = destination
+                else:
+                    sd = {}
 
-                    # Check if it's any FP8 variant (E4M3 or E5M2)
-                    if layout_cls in ("TensorCoreFP8E4M3Layout", "TensorCoreFP8E5M2Layout", "TensorCoreFP8Layout"):
-                        sd["{}weight_scale".format(prefix)] = self.weight._params.scale
-                    elif layout_cls == "TensorCoreNVFP4Layout":
-                        sd["{}weight_scale_2".format(prefix)] = self.weight._params.scale
-                        sd["{}weight_scale".format(prefix)] = self.weight._params.block_scale
+                if self.bias is not None:
+                    sd["{}bias".format(prefix)] = self.bias
+
+                if isinstance(self.weight, QuantizedTensor):
+                    sd_out = self.weight.state_dict("{}weight".format(prefix))
+                    for k in sd_out:
+                        sd[k] = sd_out[k]
 
                     quant_conf = {"format": self.quant_format}
-                    if self._full_precision_mm:
+                    if self._full_precision_mm_config:
                         quant_conf["full_precision_matrix_mult"] = True
                     sd["{}comfy_quant".format(prefix)] = torch.tensor(list(json.dumps(quant_conf).encode('utf-8')), dtype=torch.uint8)
+
+                    input_scale = getattr(self, 'input_scale', None)
+                    if input_scale is not None:
+                        sd["{}input_scale".format(prefix)] = input_scale
+                else:
+                    sd["{}weight".format(prefix)] = self.weight
                 return sd
 
             def _forward(self, input, weight, bias):
@@ -648,29 +663,29 @@ def mixed_precision_ops(quant_config={}, compute_dtype=torch.bfloat16, full_prec
                 run_every_op()
 
                 input_shape = input.shape
-                tensor_3d = input.ndim == 3
-
-                if self._full_precision_mm or self.comfy_cast_weights or len(self.weight_function) > 0 or len(self.bias_function) > 0:
-                    return self.forward_comfy_cast_weights(input, *args, **kwargs)
+                reshaped_3d = False
 
                 if (getattr(self, 'layout_type', None) is not None and
-                    not isinstance(input, QuantizedTensor)):
+                    not isinstance(input, QuantizedTensor) and not self._full_precision_mm and
+                    not getattr(self, 'comfy_force_cast_weights', False) and
+                    len(self.weight_function) == 0 and len(self.bias_function) == 0):
 
                     # Reshape 3D tensors to 2D for quantization (needed for NVFP4 and others)
-                    if tensor_3d:
-                        input = input.reshape(-1, input_shape[2])
+                    input_reshaped = input.reshape(-1, input_shape[2]) if input.ndim == 3 else input
 
-                    if input.ndim != 2:
-                        # Fall back to comfy_cast_weights for non-2D tensors
-                        return self.forward_comfy_cast_weights(input.reshape(input_shape), *args, **kwargs)
+                    # Fall back to non-quantized for non-2D tensors
+                    if input_reshaped.ndim == 2:
+                        reshaped_3d = input.ndim == 3
+                        # dtype is now implicit in the layout class
+                        scale = getattr(self, 'input_scale', None)
+                        if scale is not None:
+                            scale = comfy.model_management.cast_to_device(scale, input.device, None)
+                        input = QuantizedTensor.from_float(input_reshaped, self.layout_type, scale=scale)
 
-                    # dtype is now implicit in the layout class
-                    input = QuantizedTensor.from_float(input, self.layout_type, scale=getattr(self, 'input_scale', None))
-
-                output = self._forward(input, self.weight, self.bias)
+                output = self.forward_comfy_cast_weights(input)
 
                 # Reshape output back to 3D if input was 3D
-                if tensor_3d:
+                if reshaped_3d:
                     output = output.reshape((input_shape[0], input_shape[1], self.weight.shape[0]))
 
                 return output
@@ -684,7 +699,7 @@ def mixed_precision_ops(quant_config={}, compute_dtype=torch.bfloat16, full_prec
             def set_weight(self, weight, inplace_update=False, seed=None, return_weight=False, **kwargs):
                 if getattr(self, 'layout_type', None) is not None:
                     # dtype is now implicit in the layout class
-                    weight = QuantizedTensor.from_float(weight, self.layout_type, scale="recalculate", stochastic_rounding=seed, inplace_ops=True)
+                    weight = QuantizedTensor.from_float(weight, self.layout_type, scale="recalculate", stochastic_rounding=seed, inplace_ops=True).to(self.weight.dtype)
                 else:
                     weight = weight.to(self.weight.dtype)
                 if return_weight:
@@ -711,10 +726,17 @@ def mixed_precision_ops(quant_config={}, compute_dtype=torch.bfloat16, full_prec
 
 def pick_operations(weight_dtype, compute_dtype, load_device=None, disable_fast_fp8=False, fp8_optimizations=False, model_config=None):
     fp8_compute = comfy.model_management.supports_fp8_compute(load_device) # TODO: if we support more ops this needs to be more granular
+    nvfp4_compute = comfy.model_management.supports_nvfp4_compute(load_device)
 
     if model_config and hasattr(model_config, 'quant_config') and model_config.quant_config:
         logging.info("Using mixed precision operations")
-        return mixed_precision_ops(model_config.quant_config, compute_dtype, full_precision_mm=not fp8_compute)
+        disabled = set()
+        if not nvfp4_compute:
+            disabled.add("nvfp4")
+        if not fp8_compute:
+            disabled.add("float8_e4m3fn")
+            disabled.add("float8_e5m2")
+        return mixed_precision_ops(model_config.quant_config, compute_dtype, disabled=disabled)
 
     if (
         fp8_compute and

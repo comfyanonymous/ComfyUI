@@ -49,6 +49,7 @@ import comfy.ldm.ace.model
 import comfy.ldm.omnigen.omnigen2
 import comfy.ldm.qwen_image.model
 import comfy.ldm.kandinsky5.model
+import comfy.ldm.anima.model
 
 import comfy.model_management
 import comfy.patcher_extension
@@ -1147,9 +1148,31 @@ class CosmosPredict2(BaseModel):
         sigma = (sigma / (sigma + 1))
         return latent_image / (1.0 - sigma)
 
+class Anima(BaseModel):
+    def __init__(self, model_config, model_type=ModelType.FLOW, device=None):
+        super().__init__(model_config, model_type, device=device, unet_model=comfy.ldm.anima.model.Anima)
+
+    def extra_conds(self, **kwargs):
+        out = super().extra_conds(**kwargs)
+        cross_attn = kwargs.get("cross_attn", None)
+        t5xxl_ids = kwargs.get("t5xxl_ids", None)
+        t5xxl_weights = kwargs.get("t5xxl_weights", None)
+        device = kwargs["device"]
+        if cross_attn is not None:
+            if t5xxl_ids is not None:
+                cross_attn = self.diffusion_model.preprocess_text_embeds(cross_attn.to(device=device, dtype=self.get_dtype()), t5xxl_ids.unsqueeze(0).to(device=device))
+                if t5xxl_weights is not None:
+                    cross_attn *= t5xxl_weights.unsqueeze(0).unsqueeze(-1).to(cross_attn)
+
+                if cross_attn.shape[1] < 512:
+                    cross_attn = torch.nn.functional.pad(cross_attn, (0, 0, 0, 512 - cross_attn.shape[1]))
+            out['c_crossattn'] = comfy.conds.CONDRegular(cross_attn)
+        return out
+
 class Lumina2(BaseModel):
     def __init__(self, model_config, model_type=ModelType.FLOW, device=None):
         super().__init__(model_config, model_type, device=device, unet_model=comfy.ldm.lumina.model.NextDiT)
+        self.memory_usage_factor_conds = ("ref_latents",)
 
     def extra_conds(self, **kwargs):
         out = super().extra_conds(**kwargs)
@@ -1169,6 +1192,35 @@ class Lumina2(BaseModel):
         if clip_text_pooled is not None:
             out['clip_text_pooled'] = comfy.conds.CONDRegular(clip_text_pooled)
 
+        clip_vision_outputs = kwargs.get("clip_vision_outputs", list(map(lambda a: a.get("clip_vision_output"), kwargs.get("unclip_conditioning", [{}]))))  # Z Image omni
+        if clip_vision_outputs is not None and len(clip_vision_outputs) > 0:
+            sigfeats = []
+            for clip_vision_output in clip_vision_outputs:
+                if clip_vision_output is not None:
+                    image_size = clip_vision_output.image_sizes[0]
+                    shape = clip_vision_output.last_hidden_state.shape
+                    sigfeats.append(clip_vision_output.last_hidden_state.reshape(shape[0], image_size[1] // 16, image_size[2] // 16, shape[-1]))
+            if len(sigfeats) > 0:
+                out['siglip_feats'] = comfy.conds.CONDList(sigfeats)
+
+        ref_latents = kwargs.get("reference_latents", None)
+        if ref_latents is not None:
+            latents = []
+            for lat in ref_latents:
+                latents.append(self.process_latent_in(lat))
+            out['ref_latents'] = comfy.conds.CONDList(latents)
+
+        ref_contexts = kwargs.get("reference_latents_text_embeds", None)
+        if ref_contexts is not None:
+            out['ref_contexts'] = comfy.conds.CONDList(ref_contexts)
+
+        return out
+
+    def extra_conds_shapes(self, **kwargs):
+        out = {}
+        ref_latents = kwargs.get("reference_latents", None)
+        if ref_latents is not None:
+            out['ref_latents'] = list([1, 16, sum(map(lambda a: math.prod(a.size()[2:]), ref_latents))])
         return out
 
 class WAN21(BaseModel):

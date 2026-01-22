@@ -53,6 +53,7 @@ class ImageUpscaleWithModel(io.ComfyNode):
             node_id="ImageUpscaleWithModel",
             display_name="Upscale Image (using Model)",
             category="image/upscaling",
+            search_aliases=["upscale", "upscaler", "upsc", "enlarge image", "super resolution", "hires", "superres", "increase resolution"],
             inputs=[
                 io.UpscaleModel.Input("upscale_model"),
                 io.Image.Input("image"),
