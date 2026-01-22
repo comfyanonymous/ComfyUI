@@ -402,7 +402,6 @@ def scale_to_multiple_cover(input: torch.Tensor, multiple: int, scale_method: st
     return input[:, y0:y1, x0:x1]
 
 class ResizeImageMaskNode(io.ComfyNode):
-
     scale_methods = ["nearest-exact", "bilinear", "area", "bicubic", "lanczos"]
     crop_methods = ["disabled", "center"]
 
@@ -424,6 +423,7 @@ class ResizeImageMaskNode(io.ComfyNode):
         crop_combo = io.Combo.Input("crop", options=cls.crop_methods, default="center")
         return io.Schema(
             node_id="ResizeImageMaskNode",
+            search_aliases=["scale image", "scale mask"],
             display_name="Resize Image/Mask",
             category="transform",
             inputs=[
@@ -569,6 +569,7 @@ class BatchMasksNode(io.ComfyNode):
         autogrow_template = io.Autogrow.TemplatePrefix(io.Mask.Input("mask"), prefix="mask", min=2, max=50)
         return io.Schema(
             node_id="BatchMasksNode",
+            search_aliases=["combine masks", "stack masks", "merge masks"],
             display_name="Batch Masks",
             category="mask",
             inputs=[
@@ -589,6 +590,7 @@ class BatchLatentsNode(io.ComfyNode):
         autogrow_template = io.Autogrow.TemplatePrefix(io.Latent.Input("latent"), prefix="latent", min=2, max=50)
         return io.Schema(
             node_id="BatchLatentsNode",
+            search_aliases=["combine latents", "stack latents", "merge latents"],
             display_name="Batch Latents",
             category="latent",
             inputs=[
@@ -612,6 +614,7 @@ class BatchImagesMasksLatentsNode(io.ComfyNode):
                 prefix="input", min=1, max=50)
         return io.Schema(
             node_id="BatchImagesMasksLatentsNode",
+            search_aliases=["combine batch", "merge batch", "stack inputs"],
             display_name="Batch Images/Masks/Latents",
             category="util",
             inputs=[
