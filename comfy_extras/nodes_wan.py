@@ -286,6 +286,7 @@ class WanVaceToVideo(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="WanVaceToVideo",
+            search_aliases=["video conditioning", "video control"],
             category="conditioning/video_models",
             inputs=[
                 io.Conditioning.Input("positive"),
@@ -704,6 +705,7 @@ class WanTrackToVideo(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="WanTrackToVideo",
+            search_aliases=["motion tracking", "trajectory video", "point tracking", "keypoint animation"],
             category="conditioning/video_models",
             inputs=[
                 io.Conditioning.Input("positive"),
