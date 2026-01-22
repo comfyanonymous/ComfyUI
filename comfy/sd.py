@@ -636,14 +636,13 @@ class VAE:
                 self.upscale_index_formula = (4, 16, 16)
                 self.downscale_ratio = (lambda a: max(0, math.floor((a + 3) / 4)), 16, 16)
                 self.downscale_index_formula = (4, 16, 16)
-                if self.latent_channels == 48: # Wan 2.2
+                if self.latent_channels in [48, 128]: # Wan 2.2 and LTX2
                     self.first_stage_model = comfy.taesd.taehv.TAEHV(latent_channels=self.latent_channels, latent_format=None) # taehv doesn't need scaling
-                    self.process_input = lambda image: (_ for _ in ()).throw(NotImplementedError("This light tae doesn't support encoding currently"))
+                    self.process_input = self.process_output = lambda image: image
                     self.process_output = lambda image: image
                     self.memory_used_decode = lambda shape, dtype: (1800 * (max(1, (shape[-3] ** 0.7 * 0.1)) * shape[-2] * shape[-1] * 16 * 16) * model_management.dtype_size(dtype))
                 elif self.latent_channels == 32 and sd["decoder.22.bias"].shape[0] == 12: # lighttae_hv15
                     self.first_stage_model = comfy.taesd.taehv.TAEHV(latent_channels=self.latent_channels, latent_format=comfy.latent_formats.HunyuanVideo15)
-                    self.process_input = lambda image: (_ for _ in ()).throw(NotImplementedError("This light tae doesn't support encoding currently"))
                     self.memory_used_decode = lambda shape, dtype: (1200 * (max(1, (shape[-3] ** 0.7 * 0.05)) * shape[-2] * shape[-1] * 32 * 32) * model_management.dtype_size(dtype))
                 else:
                     if sd["decoder.1.weight"].dtype == torch.float16: # taehv currently only available in float16, so assume it's not lighttaew2_1 as otherwise state dicts are identical
