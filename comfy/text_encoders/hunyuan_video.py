@@ -10,9 +10,11 @@ import comfy.utils
 
 def llama_detect(state_dict, prefix=""):
     out = {}
-    t5_key = "{}model.norm.weight".format(prefix)
-    if t5_key in state_dict:
-        out["dtype_llama"] = state_dict[t5_key].dtype
+    norm_keys = ["{}model.norm.weight".format(prefix), "{}model.layers.0.input_layernorm.weight".format(prefix)]
+    for norm_key in norm_keys:
+        if norm_key in state_dict:
+            out["dtype_llama"] = state_dict[norm_key].dtype
+            break
 
     quant = comfy.utils.detect_layer_quantization(state_dict, prefix)
     if quant is not None:
