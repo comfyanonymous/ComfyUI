@@ -550,6 +550,7 @@ class BatchImagesNode(io.ComfyNode):
             node_id="BatchImagesNode",
             display_name="Batch Images",
             category="image",
+            search_aliases=["batch", "image batch", "batch images", "combine images", "merge images", "stack images"],
             inputs=[
                 io.Autogrow.Input("images", template=autogrow_template)
             ],
