@@ -7,12 +7,20 @@ import math
 from einops import rearrange
 from typing import List, Optional, Tuple, Union
 from .conv_nd_factory import make_conv_nd, make_linear_nd
+from .causal_conv3d import CausalConv3d
 from .pixel_norm import PixelNorm
 from ..model import PixArtAlphaCombinedTimestepSizeEmbeddings
 import comfy.ops
 from comfy.ldm.modules.diffusionmodules.model import torch_cat_if_needed
 
 ops = comfy.ops.disable_weight_init
+
+def mark_conv3d_ended(module):
+    tid = threading.get_ident()
+    for _, m in module.named_modules():
+        if isinstance(m, CausalConv3d):
+            current = m.temporal_cache_state.get(tid, (None, False))
+            m.temporal_cache_state[tid] = (current[0], True)
 
 def split2(tensor, split_point, dim=2):
     return torch.split(tensor, [split_point, tensor.shape[dim] - split_point], dim=dim)
@@ -221,7 +229,7 @@ class Encoder(nn.Module):
 
         self.gradient_checkpointing = False
 
-    def forward(self, sample: torch.FloatTensor) -> torch.FloatTensor:
+    def forward_orig(self, sample: torch.FloatTensor) -> torch.FloatTensor:
         r"""The forward method of the `Encoder` class."""
 
         sample = patchify(sample, patch_size_hw=self.patch_size, patch_size_t=1)
@@ -270,6 +278,22 @@ class Encoder(nn.Module):
 
         return sample
 
+    def forward(self, *args, **kwargs):
+        #No encoder support so just flag the end so it doesnt use the cache.
+        mark_conv3d_ended(self)
+        try:
+            return self.forward_orig(*args, **kwargs)
+        finally:
+            tid = threading.get_ident()
+            for _, module in self.named_modules():
+                # ComfyUI doesn't thread this kind of stuff today, but just in case
+                # we key on the thread to make it thread safe.
+                tid = threading.get_ident()
+                if hasattr(module, "temporal_cache_state"):
+                    module.temporal_cache_state.pop(tid, None)
+
+
+MAX_CHUNK_SIZE=(128 * 1024 ** 2)
 
 class Decoder(nn.Module):
     r"""
@@ -432,8 +456,9 @@ class Decoder(nn.Module):
             )
             self.last_scale_shift_table = nn.Parameter(torch.empty(2, output_channel))
 
+
     # def forward(self, sample: torch.FloatTensor, target_shape) -> torch.FloatTensor:
-    def forward(
+    def forward_orig(
         self,
         sample: torch.FloatTensor,
         timestep: Optional[torch.Tensor] = None,
@@ -441,6 +466,7 @@ class Decoder(nn.Module):
         r"""The forward method of the `Decoder` class."""
         batch_size = sample.shape[0]
 
+        mark_conv3d_ended(self.conv_in)
         sample = self.conv_in(sample, causal=self.causal)
 
         checkpoint_fn = (
@@ -449,24 +475,12 @@ class Decoder(nn.Module):
             else lambda x: x
         )
 
-        scaled_timestep = None
+        timestep_shift_scale = None
         if self.timestep_conditioning:
             assert (
                 timestep is not None
             ), "should pass timestep with timestep_conditioning=True"
             scaled_timestep = timestep * self.timestep_scale_multiplier.to(dtype=sample.dtype, device=sample.device)
-
-        for up_block in self.up_blocks:
-            if self.timestep_conditioning and isinstance(up_block, UNetMidBlock3D):
-                sample = checkpoint_fn(up_block)(
-                    sample, causal=self.causal, timestep=scaled_timestep
-                )
-            else:
-                sample = checkpoint_fn(up_block)(sample, causal=self.causal)
-
-        sample = self.conv_norm_out(sample)
-
-        if self.timestep_conditioning:
             embedded_timestep = self.last_time_embedder(
                 timestep=scaled_timestep.flatten(),
                 resolution=None,
@@ -487,15 +501,61 @@ class Decoder(nn.Module):
                 embedded_timestep.shape[-2],
                 embedded_timestep.shape[-1],
             )
-            shift, scale = ada_values.unbind(dim=1)
-            sample = sample * (1 + scale) + shift
+            timestep_shift_scale = ada_values.unbind(dim=1)
 
-        sample = self.conv_act(sample)
-        sample = self.conv_out(sample, causal=self.causal)
+        output = []
+
+        def run_up(idx, sample, ended):
+            if idx >= len(self.up_blocks):
+                sample = self.conv_norm_out(sample)
+                if timestep_shift_scale is not None:
+                    shift, scale = timestep_shift_scale
+                    sample = sample * (1 + scale) + shift
+                sample = self.conv_act(sample)
+                if ended:
+                    mark_conv3d_ended(self.conv_out)
+                sample = self.conv_out(sample, causal=self.causal)
+                if sample is not None and sample.shape[2] > 0:
+                    output.append(sample)
+                return
+
+            up_block = self.up_blocks[idx]
+            if (ended):
+                mark_conv3d_ended(up_block)
+            if self.timestep_conditioning and isinstance(up_block, UNetMidBlock3D):
+                sample = checkpoint_fn(up_block)(
+                    sample, causal=self.causal, timestep=scaled_timestep
+                )
+            else:
+                sample = checkpoint_fn(up_block)(sample, causal=self.causal)
+
+            if sample is None or sample.shape[2] == 0:
+                return
+
+            total_bytes = sample.numel() * sample.element_size()
+            num_chunks = (total_bytes + MAX_CHUNK_SIZE - 1) // MAX_CHUNK_SIZE
+            samples = torch.chunk(sample, chunks=num_chunks, dim=2)
+
+            for chunk_idx, sample1 in enumerate(samples):
+                run_up(idx + 1, sample1, ended and chunk_idx == len(samples) - 1)
+
+        run_up(0, sample, True)
+        sample = torch.cat(output, dim=2)
 
         sample = unpatchify(sample, patch_size_hw=self.patch_size, patch_size_t=1)
 
         return sample
+
+    def forward(self, *args, **kwargs):
+        try:
+            return self.forward_orig(*args, **kwargs)
+        finally:
+            for _, module in self.named_modules():
+                #ComfyUI doesn't thread this kind of stuff today, but just incase
+                #we key on the thread to make it thread safe.
+                tid = threading.get_ident()
+                if hasattr(module, "temporal_cache_state"):
+                    module.temporal_cache_state.pop(tid, None)
 
 
 class UNetMidBlock3D(nn.Module):
@@ -671,7 +731,7 @@ class DepthToSpaceUpsample(nn.Module):
 
     def forward(self, x, causal: bool = True, timestep: Optional[torch.Tensor] = None):
         tid = threading.get_ident()
-        cached, drop_first = self.temporal_cache_state.get(tid, (None, True))
+        cached, drop_first_conv, drop_first_res = self.temporal_cache_state.get(tid, (None, True, True))
         y = self.conv(x, causal=causal)
         y = rearrange(
             y,
@@ -680,8 +740,9 @@ class DepthToSpaceUpsample(nn.Module):
             p2=self.stride[1],
             p3=self.stride[2],
         )
-        if self.stride[0] == 2 and drop_first:
+        if self.stride[0] == 2 and y.shape[2] > 0 and drop_first_conv:
             y = y[:, :, 1:, :, :]
+            drop_first_conv = False
         if self.residual:
             # Reshape and duplicate the input to match the output shape
             x_in = rearrange(
@@ -693,14 +754,18 @@ class DepthToSpaceUpsample(nn.Module):
             )
             num_repeat = math.prod(self.stride) // self.out_channels_reduction_factor
             x_in = x_in.repeat(1, num_repeat, 1, 1, 1)
-            if self.stride[0] == 2 and drop_first:
+            if self.stride[0] == 2 and x_in.shape[2] > 0 and drop_first_res:
                 x_in = x_in[:, :, 1:, :, :]
+                drop_first_res = False
+
+            if y.shape[2] == 0:
+                y = None
 
             cached = add_exchange_cache(y, cached, x_in, dim=2)
-            self.temporal_cache_state[tid] = (cached, False)
+            self.temporal_cache_state[tid] = (cached, drop_first_conv, drop_first_res)
 
         else:
-            self.temporal_cache_state[tid] = (None, False)
+            self.temporal_cache_state[tid] = (None, drop_first_conv, False)
 
         return y
 
