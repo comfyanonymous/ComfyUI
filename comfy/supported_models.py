@@ -23,6 +23,7 @@ import comfy.text_encoders.qwen_image
 import comfy.text_encoders.hunyuan_image
 import comfy.text_encoders.kandinsky5
 import comfy.text_encoders.z_image
+import comfy.text_encoders.anima
 
 from . import supported_models_base
 from . import latent_formats
@@ -1016,6 +1017,11 @@ class Anima(supported_models_base.BASE):
     def get_model(self, state_dict, prefix="", device=None):
         out = model_base.Anima(self, device=device)
         return out
+
+    def clip_target(self, state_dict={}):
+        pref = self.text_encoder_key_prefix[0]
+        detect = comfy.text_encoders.hunyuan_video.llama_detect(state_dict, "{}qwen3_06b.transformer.".format(pref))
+        return supported_models_base.ClipTarget(comfy.text_encoders.anima.AnimaTokenizer, comfy.text_encoders.anima.te(**detect))
 
 class CosmosI2VPredict2(CosmosT2IPredict2):
     unet_config = {

@@ -22,7 +22,8 @@ class AnimaTokenizer:
 
     def tokenize_with_weights(self, text:str, return_word_ids=False, **kwargs):
         out = {}
-        out["qwen3_06b"] = self.qwen3_06b.tokenize_with_weights(text, return_word_ids, **kwargs)
+        qwen_ids = self.qwen3_06b.tokenize_with_weights(text, return_word_ids, **kwargs)
+        out["qwen3_06b"] = [[(token, 1.0) for token, _ in inner_list] for inner_list in qwen_ids]  # Set weights to 1.0
         out["t5xxl"] = self.t5xxl.tokenize_with_weights(text, return_word_ids, **kwargs)
         return out
 
@@ -45,6 +46,7 @@ class AnimaTEModel(sd1_clip.SD1ClipModel):
     def encode_token_weights(self, token_weight_pairs):
         out = super().encode_token_weights(token_weight_pairs)
         out[2]["t5xxl_ids"] = torch.tensor(list(map(lambda a: a[0], token_weight_pairs["t5xxl"][0])), dtype=torch.int)
+        out[2]["t5xxl_weights"] = torch.tensor(list(map(lambda a: a[1], token_weight_pairs["t5xxl"][0])))
         return out
 
 def te(dtype_llama=None, llama_quantization_metadata=None):

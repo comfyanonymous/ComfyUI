@@ -1156,10 +1156,14 @@ class Anima(BaseModel):
         out = super().extra_conds(**kwargs)
         cross_attn = kwargs.get("cross_attn", None)
         t5xxl_ids = kwargs.get("t5xxl_ids", None)
+        t5xxl_weights = kwargs.get("t5xxl_weights", None)
         device = kwargs["device"]
         if cross_attn is not None:
             if t5xxl_ids is not None:
                 cross_attn = self.diffusion_model.preprocess_text_embeds(cross_attn.to(device=device, dtype=self.get_dtype()), t5xxl_ids.unsqueeze(0).to(device=device))
+                if t5xxl_weights is not None:
+                    cross_attn *= t5xxl_weights.unsqueeze(0).unsqueeze(-1).to(cross_attn)
+
                 if cross_attn.shape[1] < 512:
                     cross_attn = torch.nn.functional.pad(cross_attn, (0, 0, 0, 512 - cross_attn.shape[1]))
             out['c_crossattn'] = comfy.conds.CONDRegular(cross_attn)
