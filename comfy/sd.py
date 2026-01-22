@@ -57,6 +57,7 @@ import comfy.text_encoders.ovis
 import comfy.text_encoders.kandinsky5
 import comfy.text_encoders.jina_clip_2
 import comfy.text_encoders.newbie
+import comfy.text_encoders.anima
 
 import comfy.model_patcher
 import comfy.lora
@@ -1048,6 +1049,7 @@ class TEModel(Enum):
     GEMMA_3_12B = 18
     JINA_CLIP_2 = 19
     QWEN3_8B = 20
+    QWEN3_06B = 21
 
 
 def detect_te_model(sd):
@@ -1093,6 +1095,8 @@ def detect_te_model(sd):
                 return TEModel.QWEN3_2B
             elif weight.shape[0] == 4096:
                 return TEModel.QWEN3_8B
+            elif weight.shape[0] == 1024:
+                return TEModel.QWEN3_06B
         if weight.shape[0] == 5120:
             if "model.layers.39.post_attention_layernorm.weight" in sd:
                 return TEModel.MISTRAL3_24B
@@ -1233,6 +1237,9 @@ def load_text_encoder_state_dicts(state_dicts=[], embedding_directory=None, clip
         elif te_model == TEModel.JINA_CLIP_2:
             clip_target.clip = comfy.text_encoders.jina_clip_2.JinaClip2TextModelWrapper
             clip_target.tokenizer = comfy.text_encoders.jina_clip_2.JinaClip2TokenizerWrapper
+        elif te_model == TEModel.QWEN3_06B:
+            clip_target.clip = comfy.text_encoders.anima.te(**llama_detect(clip_data))
+            clip_target.tokenizer = comfy.text_encoders.anima.AnimaTokenizer
         else:
             # clip_l
             if clip_type == CLIPType.SD3:

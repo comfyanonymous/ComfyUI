@@ -49,6 +49,7 @@ import comfy.ldm.ace.model
 import comfy.ldm.omnigen.omnigen2
 import comfy.ldm.qwen_image.model
 import comfy.ldm.kandinsky5.model
+import comfy.ldm.anima.model
 
 import comfy.model_management
 import comfy.patcher_extension
@@ -1146,6 +1147,27 @@ class CosmosPredict2(BaseModel):
         latent_image = self.model_sampling.calculate_input(torch.tensor([sigma_noise_augmentation], device=latent_image.device, dtype=latent_image.dtype), latent_image)
         sigma = (sigma / (sigma + 1))
         return latent_image / (1.0 - sigma)
+
+class Anima(BaseModel):
+    def __init__(self, model_config, model_type=ModelType.FLOW, device=None):
+        super().__init__(model_config, model_type, device=device, unet_model=comfy.ldm.anima.model.Anima)
+
+    def extra_conds(self, **kwargs):
+        out = super().extra_conds(**kwargs)
+        cross_attn = kwargs.get("cross_attn", None)
+        t5xxl_ids = kwargs.get("t5xxl_ids", None)
+        t5xxl_weights = kwargs.get("t5xxl_weights", None)
+        device = kwargs["device"]
+        if cross_attn is not None:
+            if t5xxl_ids is not None:
+                cross_attn = self.diffusion_model.preprocess_text_embeds(cross_attn.to(device=device, dtype=self.get_dtype()), t5xxl_ids.unsqueeze(0).to(device=device))
+                if t5xxl_weights is not None:
+                    cross_attn *= t5xxl_weights.unsqueeze(0).unsqueeze(-1).to(cross_attn)
+
+                if cross_attn.shape[1] < 512:
+                    cross_attn = torch.nn.functional.pad(cross_attn, (0, 0, 0, 512 - cross_attn.shape[1]))
+            out['c_crossattn'] = comfy.conds.CONDRegular(cross_attn)
+        return out
 
 class Lumina2(BaseModel):
     def __init__(self, model_config, model_type=ModelType.FLOW, device=None):
