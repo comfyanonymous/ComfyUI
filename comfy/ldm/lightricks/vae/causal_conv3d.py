@@ -1,5 +1,6 @@
 from typing import Tuple, Union
 
+import threading
 import torch
 import torch.nn as nn
 import comfy.ops
@@ -42,23 +43,24 @@ class CausalConv3d(nn.Module):
             padding_mode=spatial_padding_mode,
             groups=groups,
         )
+        self.temporal_cache_state={}
 
     def forward(self, x, causal: bool = True):
-        if causal:
-            first_frame_pad = x[:, :, :1, :, :].repeat(
-                (1, 1, self.time_kernel_size - 1, 1, 1)
-            )
-            x = torch.concatenate((first_frame_pad, x), dim=2)
-        else:
-            first_frame_pad = x[:, :, :1, :, :].repeat(
-                (1, 1, (self.time_kernel_size - 1) // 2, 1, 1)
-            )
-            last_frame_pad = x[:, :, -1:, :, :].repeat(
-                (1, 1, (self.time_kernel_size - 1) // 2, 1, 1)
-            )
-            x = torch.concatenate((first_frame_pad, x, last_frame_pad), dim=2)
-        x = self.conv(x)
-        return x
+        tid = threading.get_ident()
+
+        cached, is_end = self.temporal_cache_state.get(tid, (None, True))
+        if cached is None:
+            padding_length = self.time_kernel_size - 1
+            if not causal:
+                padding_length = padding_length // 2
+            cached = x[:, :, :1, :, :].repeat((1, 1, padding_length, 1, 1))
+        pieces = [ cached, x ]
+        if is_end and not causal:
+            pieces.append(x[:, :, -1:, :, :].repeat((1, 1, (self.time_kernel_size - 1) // 2, 1, 1)))
+
+        x = torch.cat(pieces, dim=2)
+
+        return self.conv(x) if x.shape[2] >= self.time_kernel_size else x[:, :, :0, :, :]
 
     @property
     def weight(self):
