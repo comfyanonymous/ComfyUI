@@ -819,6 +819,8 @@ class ResnetBlock3D(nn.Module):
                 torch.randn(4, in_channels) / in_channels**0.5
             )
 
+        self.temporal_cache_state={}
+
     def _feed_spatial_noise(
         self, hidden_states: torch.FloatTensor, per_channel_scale: torch.FloatTensor
     ) -> torch.FloatTensor:
@@ -892,9 +894,12 @@ class ResnetBlock3D(nn.Module):
 
         input_tensor = self.conv_shortcut(input_tensor)
 
-        output_tensor = input_tensor + hidden_states
+        tid = threading.get_ident()
+        cached = self.temporal_cache_state.get(tid, None)
+        cached = add_exchange_cache(hidden_states, cached, input_tensor, dim=2)
+        self.temporal_cache_state[tid] = cached
 
-        return output_tensor
+        return hidden_states
 
 
 def patchify(x, patch_size_hw, patch_size_t=1):
