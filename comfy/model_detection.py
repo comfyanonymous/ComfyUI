@@ -253,7 +253,7 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
                 dit_config["image_model"] = "chroma_radiance"
                 dit_config["in_channels"] = 3
                 dit_config["out_channels"] = 3
-                dit_config["patch_size"] = 16
+                dit_config["patch_size"] = state_dict.get('{}img_in_patch.weight'.format(key_prefix)).size(dim=-1)
                 dit_config["nerf_hidden_size"] = 64
                 dit_config["nerf_mlp_ratio"] = 4
                 dit_config["nerf_depth"] = 4
@@ -550,6 +550,8 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
     if '{}blocks.0.mlp.layer1.weight'.format(key_prefix) in state_dict_keys:  # Cosmos predict2
         dit_config = {}
         dit_config["image_model"] = "cosmos_predict2"
+        if "{}llm_adapter.blocks.0.cross_attn.q_proj.weight".format(key_prefix) in state_dict_keys:
+            dit_config["image_model"] = "anima"
         dit_config["max_img_h"] = 240
         dit_config["max_img_w"] = 240
         dit_config["max_frames"] = 128
