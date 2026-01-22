@@ -49,8 +49,9 @@ from comfy_api_nodes.apis import (
     KlingCharacterEffectModelName,
     KlingSingleImageEffectModelName,
 )
-from comfy_api_nodes.apis.kling_api import (
+from comfy_api_nodes.apis.kling import (
     ImageToVideoWithAudioRequest,
+    MotionControlRequest,
     OmniImageParamImage,
     OmniParamImage,
     OmniParamVideo,
@@ -566,7 +567,7 @@ async def execute_lipsync(
     # Upload the audio file to Comfy API and get download URL
     if audio:
         audio_url = await upload_audio_to_comfyapi(
-            cls, audio, container_format="mp3", codec_name="libmp3lame", mime_type="audio/mpeg", filename="output.mp3"
+            cls, audio, container_format="mp3", codec_name="libmp3lame", mime_type="audio/mpeg"
         )
         logging.info("Uploaded audio to Comfy API. URL: %s", audio_url)
     else:
@@ -763,6 +764,33 @@ class KlingTextToVideoNode(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
+            price_badge=IO.PriceBadge(
+                depends_on=IO.PriceBadgeDepends(widgets=["mode"]),
+                expr="""
+                (
+                  $m := widgets.mode;
+                  $contains($m,"v2-5-turbo")
+                    ? ($contains($m,"10") ? {"type":"usd","usd":0.7} : {"type":"usd","usd":0.35})
+                    : $contains($m,"v2-1-master")
+                      ? ($contains($m,"10s") ? {"type":"usd","usd":2.8} : {"type":"usd","usd":1.4})
+                      : $contains($m,"v2-master")
+                        ? ($contains($m,"10s") ? {"type":"usd","usd":2.8} : {"type":"usd","usd":1.4})
+                        : $contains($m,"v1-6")
+                          ? (
+                              $contains($m,"pro")
+                                ? ($contains($m,"10s") ? {"type":"usd","usd":0.98} : {"type":"usd","usd":0.49})
+                                : ($contains($m,"10s") ? {"type":"usd","usd":0.56} : {"type":"usd","usd":0.28})
+                            )
+                          : $contains($m,"v1")
+                            ? (
+                                $contains($m,"pro")
+                                  ? ($contains($m,"10s") ? {"type":"usd","usd":0.98} : {"type":"usd","usd":0.49})
+                                  : ($contains($m,"10s") ? {"type":"usd","usd":0.28} : {"type":"usd","usd":0.14})
+                              )
+                            : {"type":"usd","usd":0.14}
+                )
+                """,
+            ),
         )
 
     @classmethod
@@ -806,6 +834,7 @@ class OmniProTextToVideoNode(IO.ComfyNode):
                 ),
                 IO.Combo.Input("aspect_ratio", options=["16:9", "9:16", "1:1"]),
                 IO.Combo.Input("duration", options=[5, 10]),
+                IO.Combo.Input("resolution", options=["1080p", "720p"], optional=True),
             ],
             outputs=[
                 IO.Video.Output(),
@@ -816,6 +845,16 @@ class OmniProTextToVideoNode(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
+            price_badge=IO.PriceBadge(
+                depends_on=IO.PriceBadgeDepends(widgets=["duration", "resolution"]),
+                expr="""
+                (
+                  $mode := (widgets.resolution = "720p") ? "std" : "pro";
+                  $rates := {"std": 0.084, "pro": 0.112};
+                  {"type":"usd","usd": $lookup($rates, $mode) * widgets.duration}
+                )
+                """,
+            ),
         )
 
     @classmethod
@@ -825,6 +864,7 @@ class OmniProTextToVideoNode(IO.ComfyNode):
         prompt: str,
         aspect_ratio: str,
         duration: int,
+        resolution: str = "1080p",
     ) -> IO.NodeOutput:
         validate_string(prompt, min_length=1, max_length=2500)
         response = await sync_op(
@@ -836,6 +876,7 @@ class OmniProTextToVideoNode(IO.ComfyNode):
                 prompt=prompt,
                 aspect_ratio=aspect_ratio,
                 duration=str(duration),
+                mode="pro" if resolution == "1080p" else "std",
             ),
         )
         return await finish_omni_video_task(cls, response)
@@ -858,7 +899,7 @@ class OmniProFirstLastFrameNode(IO.ComfyNode):
                     tooltip="A text prompt describing the video content. "
                     "This can include both positive and negative descriptions.",
                 ),
-                IO.Combo.Input("duration", options=["5", "10"]),
+                IO.Int.Input("duration", default=5, min=3, max=10, display_mode=IO.NumberDisplay.slider),
                 IO.Image.Input("first_frame"),
                 IO.Image.Input(
                     "end_frame",
@@ -871,6 +912,7 @@ class OmniProFirstLastFrameNode(IO.ComfyNode):
                     optional=True,
                     tooltip="Up to 6 additional reference images.",
                 ),
+                IO.Combo.Input("resolution", options=["1080p", "720p"], optional=True),
             ],
             outputs=[
                 IO.Video.Output(),
@@ -881,6 +923,16 @@ class OmniProFirstLastFrameNode(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
+            price_badge=IO.PriceBadge(
+                depends_on=IO.PriceBadgeDepends(widgets=["duration", "resolution"]),
+                expr="""
+                (
+                  $mode := (widgets.resolution = "720p") ? "std" : "pro";
+                  $rates := {"std": 0.084, "pro": 0.112};
+                  {"type":"usd","usd": $lookup($rates, $mode) * widgets.duration}
+                )
+                """,
+            ),
         )
 
     @classmethod
@@ -892,11 +944,16 @@ class OmniProFirstLastFrameNode(IO.ComfyNode):
         first_frame: Input.Image,
         end_frame: Input.Image | None = None,
         reference_images: Input.Image | None = None,
+        resolution: str = "1080p",
     ) -> IO.NodeOutput:
         prompt = normalize_omni_prompt_references(prompt)
         validate_string(prompt, min_length=1, max_length=2500)
         if end_frame is not None and reference_images is not None:
             raise ValueError("The 'end_frame' input cannot be used simultaneously with 'reference_images'.")
+        if duration not in (5, 10) and end_frame is None and reference_images is None:
+            raise ValueError(
+                "Duration is only supported for 5 or 10 seconds if there is no end frame or reference images."
+            )
         validate_image_dimensions(first_frame, min_width=300, min_height=300)
         validate_image_aspect_ratio(first_frame, (1, 2.5), (2.5, 1))
         image_list: list[OmniParamImage] = [
@@ -931,6 +988,7 @@ class OmniProFirstLastFrameNode(IO.ComfyNode):
                 prompt=prompt,
                 duration=str(duration),
                 image_list=image_list,
+                mode="pro" if resolution == "1080p" else "std",
             ),
         )
         return await finish_omni_video_task(cls, response)
@@ -959,6 +1017,7 @@ class OmniProImageToVideoNode(IO.ComfyNode):
                     "reference_images",
                     tooltip="Up to 7 reference images.",
                 ),
+                IO.Combo.Input("resolution", options=["1080p", "720p"], optional=True),
             ],
             outputs=[
                 IO.Video.Output(),
@@ -969,6 +1028,16 @@ class OmniProImageToVideoNode(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
+            price_badge=IO.PriceBadge(
+                depends_on=IO.PriceBadgeDepends(widgets=["duration", "resolution"]),
+                expr="""
+                (
+                  $mode := (widgets.resolution = "720p") ? "std" : "pro";
+                  $rates := {"std": 0.084, "pro": 0.112};
+                  {"type":"usd","usd": $lookup($rates, $mode) * widgets.duration}
+                )
+                """,
+            ),
         )
 
     @classmethod
@@ -979,6 +1048,7 @@ class OmniProImageToVideoNode(IO.ComfyNode):
         aspect_ratio: str,
         duration: int,
         reference_images: Input.Image,
+        resolution: str = "1080p",
     ) -> IO.NodeOutput:
         prompt = normalize_omni_prompt_references(prompt)
         validate_string(prompt, min_length=1, max_length=2500)
@@ -1000,6 +1070,7 @@ class OmniProImageToVideoNode(IO.ComfyNode):
                 aspect_ratio=aspect_ratio,
                 duration=str(duration),
                 image_list=image_list,
+                mode="pro" if resolution == "1080p" else "std",
             ),
         )
         return await finish_omni_video_task(cls, response)
@@ -1031,6 +1102,7 @@ class OmniProVideoToVideoNode(IO.ComfyNode):
                     tooltip="Up to 4 additional reference images.",
                     optional=True,
                 ),
+                IO.Combo.Input("resolution", options=["1080p", "720p"], optional=True),
             ],
             outputs=[
                 IO.Video.Output(),
@@ -1041,6 +1113,16 @@ class OmniProVideoToVideoNode(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
+            price_badge=IO.PriceBadge(
+                depends_on=IO.PriceBadgeDepends(widgets=["duration", "resolution"]),
+                expr="""
+                (
+                  $mode := (widgets.resolution = "720p") ? "std" : "pro";
+                  $rates := {"std": 0.126, "pro": 0.168};
+                  {"type":"usd","usd": $lookup($rates, $mode) * widgets.duration}
+                )
+                """,
+            ),
         )
 
     @classmethod
@@ -1053,6 +1135,7 @@ class OmniProVideoToVideoNode(IO.ComfyNode):
         reference_video: Input.Video,
         keep_original_sound: bool,
         reference_images: Input.Image | None = None,
+        resolution: str = "1080p",
     ) -> IO.NodeOutput:
         prompt = normalize_omni_prompt_references(prompt)
         validate_string(prompt, min_length=1, max_length=2500)
@@ -1085,6 +1168,7 @@ class OmniProVideoToVideoNode(IO.ComfyNode):
                 duration=str(duration),
                 image_list=image_list if image_list else None,
                 video_list=video_list,
+                mode="pro" if resolution == "1080p" else "std",
             ),
         )
         return await finish_omni_video_task(cls, response)
@@ -1114,6 +1198,7 @@ class OmniProEditVideoNode(IO.ComfyNode):
                     tooltip="Up to 4 additional reference images.",
                     optional=True,
                 ),
+                IO.Combo.Input("resolution", options=["1080p", "720p"], optional=True),
             ],
             outputs=[
                 IO.Video.Output(),
@@ -1124,6 +1209,16 @@ class OmniProEditVideoNode(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
+            price_badge=IO.PriceBadge(
+                depends_on=IO.PriceBadgeDepends(widgets=["resolution"]),
+                expr="""
+                (
+                  $mode := (widgets.resolution = "720p") ? "std" : "pro";
+                  $rates := {"std": 0.126, "pro": 0.168};
+                  {"type":"usd","usd": $lookup($rates, $mode), "format":{"suffix":"/second"}}
+                )
+                """,
+            ),
         )
 
     @classmethod
@@ -1134,6 +1229,7 @@ class OmniProEditVideoNode(IO.ComfyNode):
         video: Input.Video,
         keep_original_sound: bool,
         reference_images: Input.Image | None = None,
+        resolution: str = "1080p",
     ) -> IO.NodeOutput:
         prompt = normalize_omni_prompt_references(prompt)
         validate_string(prompt, min_length=1, max_length=2500)
@@ -1166,6 +1262,7 @@ class OmniProEditVideoNode(IO.ComfyNode):
                 duration=None,
                 image_list=image_list if image_list else None,
                 video_list=video_list,
+                mode="pro" if resolution == "1080p" else "std",
             ),
         )
         return await finish_omni_video_task(cls, response)
@@ -1208,6 +1305,9 @@ class OmniProImageNode(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
+            price_badge=IO.PriceBadge(
+                expr="""{"type":"usd","usd":0.028}""",
+            ),
         )
 
     @classmethod
@@ -1293,6 +1393,9 @@ class KlingCameraControlT2VNode(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
+            price_badge=IO.PriceBadge(
+                expr="""{"type":"usd","usd":0.14}""",
+            ),
         )
 
     @classmethod
@@ -1355,6 +1458,33 @@ class KlingImage2VideoNode(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
+            price_badge=IO.PriceBadge(
+                depends_on=IO.PriceBadgeDepends(widgets=["mode", "model_name", "duration"]),
+                expr="""
+                (
+                  $mode := widgets.mode;
+                  $model := widgets.model_name;
+                  $dur := widgets.duration;
+                  $contains($model,"v2-5-turbo")
+                    ? ($contains($dur,"10") ? {"type":"usd","usd":0.7} : {"type":"usd","usd":0.35})
+                    : ($contains($model,"v2-1-master") or $contains($model,"v2-master"))
+                      ? ($contains($dur,"10") ? {"type":"usd","usd":2.8} : {"type":"usd","usd":1.4})
+                      : ($contains($model,"v2-1") or $contains($model,"v1-6") or $contains($model,"v1-5"))
+                        ? (
+                            $contains($mode,"pro")
+                              ? ($contains($dur,"10") ? {"type":"usd","usd":0.98} : {"type":"usd","usd":0.49})
+                              : ($contains($dur,"10") ? {"type":"usd","usd":0.56} : {"type":"usd","usd":0.28})
+                          )
+                        : $contains($model,"v1")
+                          ? (
+                              $contains($mode,"pro")
+                                ? ($contains($dur,"10") ? {"type":"usd","usd":0.98} : {"type":"usd","usd":0.49})
+                                : ($contains($dur,"10") ? {"type":"usd","usd":0.28} : {"type":"usd","usd":0.14})
+                            )
+                          : {"type":"usd","usd":0.14}
+                )
+                """,
+            ),
         )
 
     @classmethod
@@ -1428,6 +1558,9 @@ class KlingCameraControlI2VNode(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
+            price_badge=IO.PriceBadge(
+                expr="""{"type":"usd","usd":0.49}""",
+            ),
         )
 
     @classmethod
@@ -1498,6 +1631,33 @@ class KlingStartEndFrameNode(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
+            price_badge=IO.PriceBadge(
+                depends_on=IO.PriceBadgeDepends(widgets=["mode"]),
+                expr="""
+                (
+                  $m := widgets.mode;
+                  $contains($m,"v2-5-turbo")
+                    ? ($contains($m,"10") ? {"type":"usd","usd":0.7} : {"type":"usd","usd":0.35})
+                    : $contains($m,"v2-1")
+                      ? ($contains($m,"10s") ? {"type":"usd","usd":0.98} : {"type":"usd","usd":0.49})
+                      : $contains($m,"v2-master")
+                        ? ($contains($m,"10s") ? {"type":"usd","usd":2.8} : {"type":"usd","usd":1.4})
+                        : $contains($m,"v1-6")
+                          ? (
+                              $contains($m,"pro")
+                                ? ($contains($m,"10s") ? {"type":"usd","usd":0.98} : {"type":"usd","usd":0.49})
+                                : ($contains($m,"10s") ? {"type":"usd","usd":0.56} : {"type":"usd","usd":0.28})
+                            )
+                          : $contains($m,"v1")
+                            ? (
+                                $contains($m,"pro")
+                                  ? ($contains($m,"10s") ? {"type":"usd","usd":0.98} : {"type":"usd","usd":0.49})
+                                  : ($contains($m,"10s") ? {"type":"usd","usd":0.28} : {"type":"usd","usd":0.14})
+                              )
+                            : {"type":"usd","usd":0.14}
+                )
+                """,
+            ),
         )
 
     @classmethod
@@ -1563,6 +1723,9 @@ class KlingVideoExtendNode(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
+            price_badge=IO.PriceBadge(
+                expr="""{"type":"usd","usd":0.28}""",
+            ),
         )
 
     @classmethod
@@ -1644,6 +1807,29 @@ class KlingDualCharacterVideoEffectNode(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
+            price_badge=IO.PriceBadge(
+                depends_on=IO.PriceBadgeDepends(widgets=["mode", "model_name", "duration"]),
+                expr="""
+                (
+                  $mode := widgets.mode;
+                  $model := widgets.model_name;
+                  $dur := widgets.duration;
+                  ($contains($model,"v1-6") or $contains($model,"v1-5"))
+                    ? (
+                        $contains($mode,"pro")
+                          ? ($contains($dur,"10") ? {"type":"usd","usd":0.98} : {"type":"usd","usd":0.49})
+                          : ($contains($dur,"10") ? {"type":"usd","usd":0.56} : {"type":"usd","usd":0.28})
+                      )
+                    : $contains($model,"v1")
+                      ? (
+                          $contains($mode,"pro")
+                            ? ($contains($dur,"10") ? {"type":"usd","usd":0.98} : {"type":"usd","usd":0.49})
+                            : ($contains($dur,"10") ? {"type":"usd","usd":0.28} : {"type":"usd","usd":0.14})
+                        )
+                      : {"type":"usd","usd":0.14}
+                )
+                """,
+            ),
         )
 
     @classmethod
@@ -1708,6 +1894,16 @@ class KlingSingleImageVideoEffectNode(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
+            price_badge=IO.PriceBadge(
+                depends_on=IO.PriceBadgeDepends(widgets=["effect_scene"]),
+                expr="""
+                (
+                  ($contains(widgets.effect_scene,"dizzydizzy") or $contains(widgets.effect_scene,"bloombloom"))
+                    ? {"type":"usd","usd":0.49}
+                    : {"type":"usd","usd":0.28}
+                )
+                """,
+            ),
         )
 
     @classmethod
@@ -1762,6 +1958,9 @@ class KlingLipSyncAudioToVideoNode(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
+            price_badge=IO.PriceBadge(
+                expr="""{"type":"usd","usd":0.1,"format":{"approximate":true}}""",
+            ),
         )
 
     @classmethod
@@ -1822,6 +2021,9 @@ class KlingLipSyncTextToVideoNode(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
+            price_badge=IO.PriceBadge(
+                expr="""{"type":"usd","usd":0.1,"format":{"approximate":true}}""",
+            ),
         )
 
     @classmethod
@@ -1872,6 +2074,9 @@ class KlingVirtualTryOnNode(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
+            price_badge=IO.PriceBadge(
+                expr="""{"type":"usd","usd":0.7}""",
+            ),
         )
 
     @classmethod
@@ -1971,6 +2176,19 @@ class KlingImageGenerationNode(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
+            price_badge=IO.PriceBadge(
+                depends_on=IO.PriceBadgeDepends(widgets=["model_name", "n"], inputs=["image"]),
+                expr="""
+                (
+                  $m := widgets.model_name;
+                  $base :=
+                    $contains($m,"kling-v1-5")
+                      ? (inputs.image.connected ? 0.028 : 0.014)
+                      : ($contains($m,"kling-v1") ? 0.0035 : 0.014);
+                  {"type":"usd","usd": $base * widgets.n}
+                )
+                """,
+            ),
         )
 
     @classmethod
@@ -2054,6 +2272,10 @@ class TextToVideoWithAudio(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
+            price_badge=IO.PriceBadge(
+                depends_on=IO.PriceBadgeDepends(widgets=["duration", "generate_audio"]),
+                expr="""{"type":"usd","usd": 0.07 * widgets.duration * (widgets.generate_audio ? 2 : 1)}""",
+            ),
         )
 
     @classmethod
@@ -2118,6 +2340,10 @@ class ImageToVideoWithAudio(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
+            price_badge=IO.PriceBadge(
+                depends_on=IO.PriceBadgeDepends(widgets=["duration", "generate_audio"]),
+                expr="""{"type":"usd","usd": 0.07 * widgets.duration * (widgets.generate_audio ? 2 : 1)}""",
+            ),
         )
 
     @classmethod
@@ -2159,6 +2385,100 @@ class ImageToVideoWithAudio(IO.ComfyNode):
         return IO.NodeOutput(await download_url_to_video_output(final_response.data.task_result.videos[0].url))
 
 
+class MotionControl(IO.ComfyNode):
+
+    @classmethod
+    def define_schema(cls) -> IO.Schema:
+        return IO.Schema(
+            node_id="KlingMotionControl",
+            display_name="Kling Motion Control",
+            category="api node/video/Kling",
+            inputs=[
+                IO.String.Input("prompt", multiline=True),
+                IO.Image.Input("reference_image"),
+                IO.Video.Input(
+                    "reference_video",
+                    tooltip="Motion reference video used to drive movement/expression.\n"
+                    "Duration limits depend on character_orientation:\n"
+                    " - image: 3–10s (max 10s)\n"
+                    " - video: 3–30s (max 30s)",
+                ),
+                IO.Boolean.Input("keep_original_sound", default=True),
+                IO.Combo.Input(
+                    "character_orientation",
+                    options=["video", "image"],
+                    tooltip="Controls where the character's facing/orientation comes from.\n"
+                    "video: movements, expressions, camera moves, and orientation "
+                    "follow the motion reference video (other details via prompt).\n"
+                    "image: movements and expressions still follow the motion reference video, "
+                    "but the character orientation matches the reference image (camera/other details via prompt).",
+                ),
+                IO.Combo.Input("mode", options=["pro", "std"]),
+            ],
+            outputs=[
+                IO.Video.Output(),
+            ],
+            hidden=[
+                IO.Hidden.auth_token_comfy_org,
+                IO.Hidden.api_key_comfy_org,
+                IO.Hidden.unique_id,
+            ],
+            is_api_node=True,
+            price_badge=IO.PriceBadge(
+                depends_on=IO.PriceBadgeDepends(widgets=["mode"]),
+                expr="""
+                (
+                  $prices := {"std": 0.07, "pro": 0.112};
+                  {"type":"usd","usd": $lookup($prices, widgets.mode), "format":{"suffix":"/second"}}
+                )
+                """,
+            ),
+        )
+
+    @classmethod
+    async def execute(
+        cls,
+        prompt: str,
+        reference_image: Input.Image,
+        reference_video: Input.Video,
+        keep_original_sound: bool,
+        character_orientation: str,
+        mode: str,
+    ) -> IO.NodeOutput:
+        validate_string(prompt, max_length=2500)
+        validate_image_dimensions(reference_image, min_width=340, min_height=340)
+        validate_image_aspect_ratio(reference_image, (1, 2.5), (2.5, 1))
+        if character_orientation == "image":
+            validate_video_duration(reference_video, min_duration=3, max_duration=10)
+        else:
+            validate_video_duration(reference_video, min_duration=3, max_duration=30)
+        validate_video_dimensions(reference_video, min_width=340, min_height=340, max_width=3850, max_height=3850)
+        response = await sync_op(
+            cls,
+            ApiEndpoint(path="/proxy/kling/v1/videos/motion-control", method="POST"),
+            response_model=TaskStatusResponse,
+            data=MotionControlRequest(
+                prompt=prompt,
+                image_url=(await upload_images_to_comfyapi(cls, reference_image))[0],
+                video_url=await upload_video_to_comfyapi(cls, reference_video),
+                keep_original_sound="yes" if keep_original_sound else "no",
+                character_orientation=character_orientation,
+                mode=mode,
+            ),
+        )
+        if response.code:
+            raise RuntimeError(
+                f"Kling request failed. Code: {response.code}, Message: {response.message}, Data: {response.data}"
+            )
+        final_response = await poll_op(
+            cls,
+            ApiEndpoint(path=f"/proxy/kling/v1/videos/motion-control/{response.data.task_id}"),
+            response_model=TaskStatusResponse,
+            status_extractor=lambda r: (r.data.task_status if r.data else None),
+        )
+        return IO.NodeOutput(await download_url_to_video_output(final_response.data.task_result.videos[0].url))
+
+
 class KlingExtension(ComfyExtension):
     @override
     async def get_node_list(self) -> list[type[IO.ComfyNode]]:
@@ -2184,6 +2504,7 @@ class KlingExtension(ComfyExtension):
             OmniProImageNode,
             TextToVideoWithAudio,
             ImageToVideoWithAudio,
+            MotionControl,
         ]
 
 

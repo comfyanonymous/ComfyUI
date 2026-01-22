@@ -1,6 +1,6 @@
-comfyui-frontend-package==1.34.9
-comfyui-workflow-templates==0.7.60
-comfyui-embedded-docs==0.3.1
+comfyui-frontend-package==1.37.11
+comfyui-workflow-templates==0.8.15
+comfyui-embedded-docs==0.4.0
 torch
 torchsde
 torchvision
@@ -21,6 +21,7 @@ psutil
 alembic
 SQLAlchemy
 av>=14.2.0
+comfy-kitchen>=0.2.7
 
 #non essential dependencies:
 kornia>=0.7.1

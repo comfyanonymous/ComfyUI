@@ -1,11 +1,9 @@
-from inspect import cleandoc
-
 import torch
 from pydantic import BaseModel
 from typing_extensions import override
 
-from comfy_api.latest import IO, ComfyExtension
-from comfy_api_nodes.apis.bfl_api import (
+from comfy_api.latest import IO, ComfyExtension, Input
+from comfy_api_nodes.apis.bfl import (
     BFLFluxExpandImageRequest,
     BFLFluxFillImageRequest,
     BFLFluxKontextProGenerateRequest,
@@ -28,7 +26,7 @@ from comfy_api_nodes.util import (
 )
 
 
-def convert_mask_to_image(mask: torch.Tensor):
+def convert_mask_to_image(mask: Input.Image):
     """
     Make mask have the expected amount of dims (4) and channels (3) to be recognized as an image.
     """
@@ -38,9 +36,6 @@ def convert_mask_to_image(mask: torch.Tensor):
 
 
 class FluxProUltraImageNode(IO.ComfyNode):
-    """
-    Generates images using Flux Pro 1.1 Ultra via api based on prompt and resolution.
-    """
 
     @classmethod
     def define_schema(cls) -> IO.Schema:
@@ -48,7 +43,7 @@ class FluxProUltraImageNode(IO.ComfyNode):
             node_id="FluxProUltraImageNode",
             display_name="Flux 1.1 [pro] Ultra Image",
             category="api node/image/BFL",
-            description=cleandoc(cls.__doc__ or ""),
+            description="Generates images using Flux Pro 1.1 Ultra via api based on prompt and resolution.",
             inputs=[
                 IO.String.Input(
                     "prompt",
@@ -102,6 +97,9 @@ class FluxProUltraImageNode(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
+            price_badge=IO.PriceBadge(
+                expr="""{"type":"usd","usd":0.06}""",
+            ),
         )
 
     @classmethod
@@ -117,7 +115,7 @@ class FluxProUltraImageNode(IO.ComfyNode):
         prompt_upsampling: bool = False,
         raw: bool = False,
         seed: int = 0,
-        image_prompt: torch.Tensor | None = None,
+        image_prompt: Input.Image | None = None,
         image_prompt_strength: float = 0.1,
     ) -> IO.NodeOutput:
         if image_prompt is None:
@@ -155,9 +153,6 @@ class FluxProUltraImageNode(IO.ComfyNode):
 
 
 class FluxKontextProImageNode(IO.ComfyNode):
-    """
-    Edits images using Flux.1 Kontext [pro] via api based on prompt and aspect ratio.
-    """
 
     @classmethod
     def define_schema(cls) -> IO.Schema:
@@ -165,7 +160,7 @@ class FluxKontextProImageNode(IO.ComfyNode):
             node_id=cls.NODE_ID,
             display_name=cls.DISPLAY_NAME,
             category="api node/image/BFL",
-            description=cleandoc(cls.__doc__ or ""),
+            description="Edits images using Flux.1 Kontext [pro] via api based on prompt and aspect ratio.",
             inputs=[
                 IO.String.Input(
                     "prompt",
@@ -231,7 +226,7 @@ class FluxKontextProImageNode(IO.ComfyNode):
         aspect_ratio: str,
         guidance: float,
         steps: int,
-        input_image: torch.Tensor | None = None,
+        input_image: Input.Image | None = None,
         seed=0,
         prompt_upsampling=False,
     ) -> IO.NodeOutput:
@@ -271,20 +266,14 @@ class FluxKontextProImageNode(IO.ComfyNode):
 
 
 class FluxKontextMaxImageNode(FluxKontextProImageNode):
-    """
-    Edits images using Flux.1 Kontext [max] via api based on prompt and aspect ratio.
-    """
 
-    DESCRIPTION = cleandoc(__doc__ or "")
+    DESCRIPTION = "Edits images using Flux.1 Kontext [max] via api based on prompt and aspect ratio."
     BFL_PATH = "/proxy/bfl/flux-kontext-max/generate"
     NODE_ID = "FluxKontextMaxImageNode"
     DISPLAY_NAME = "Flux.1 Kontext [max] Image"
 
 
 class FluxProExpandNode(IO.ComfyNode):
-    """
-    Outpaints image based on prompt.
-    """
 
     @classmethod
     def define_schema(cls) -> IO.Schema:
@@ -292,7 +281,7 @@ class FluxProExpandNode(IO.ComfyNode):
             node_id="FluxProExpandNode",
             display_name="Flux.1 Expand Image",
             category="api node/image/BFL",
-            description=cleandoc(cls.__doc__ or ""),
+            description="Outpaints image based on prompt.",
             inputs=[
                 IO.Image.Input("image"),
                 IO.String.Input(
@@ -366,12 +355,15 @@ class FluxProExpandNode(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
+            price_badge=IO.PriceBadge(
+                expr="""{"type":"usd","usd":0.05}""",
+            ),
         )
 
     @classmethod
     async def execute(
         cls,
-        image: torch.Tensor,
+        image: Input.Image,
         prompt: str,
         prompt_upsampling: bool,
         top: int,
@@ -418,9 +410,6 @@ class FluxProExpandNode(IO.ComfyNode):
 
 
 class FluxProFillNode(IO.ComfyNode):
-    """
-    Inpaints image based on mask and prompt.
-    """
 
     @classmethod
     def define_schema(cls) -> IO.Schema:
@@ -428,7 +417,7 @@ class FluxProFillNode(IO.ComfyNode):
             node_id="FluxProFillNode",
             display_name="Flux.1 Fill Image",
             category="api node/image/BFL",
-            description=cleandoc(cls.__doc__ or ""),
+            description="Inpaints image based on mask and prompt.",
             inputs=[
                 IO.Image.Input("image"),
                 IO.Mask.Input("mask"),
@@ -475,13 +464,16 @@ class FluxProFillNode(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
+            price_badge=IO.PriceBadge(
+                expr="""{"type":"usd","usd":0.05}""",
+            ),
         )
 
     @classmethod
     async def execute(
         cls,
-        image: torch.Tensor,
-        mask: torch.Tensor,
+        image: Input.Image,
+        mask: Input.Image,
         prompt: str,
         prompt_upsampling: bool,
         steps: int,
@@ -525,11 +517,30 @@ class FluxProFillNode(IO.ComfyNode):
 
 class Flux2ProImageNode(IO.ComfyNode):
 
+    NODE_ID = "Flux2ProImageNode"
+    DISPLAY_NAME = "Flux.2 [pro] Image"
+    API_ENDPOINT = "/proxy/bfl/flux-2-pro/generate"
+    PRICE_BADGE_EXPR = """
+    (
+      $MP := 1024 * 1024;
+      $outMP := $max([1, $floor(((widgets.width * widgets.height) + $MP - 1) / $MP)]);
+      $outputCost := 0.03 + 0.015 * ($outMP - 1);
+      inputs.images.connected
+        ? {
+            "type":"range_usd",
+            "min_usd": $outputCost + 0.015,
+            "max_usd": $outputCost + 0.12,
+            "format": { "approximate": true }
+          }
+        : {"type":"usd","usd": $outputCost}
+    )
+    """
+
     @classmethod
     def define_schema(cls) -> IO.Schema:
         return IO.Schema(
-            node_id="Flux2ProImageNode",
-            display_name="Flux.2 [pro] Image",
+            node_id=cls.NODE_ID,
+            display_name=cls.DISPLAY_NAME,
             category="api node/image/BFL",
             description="Generates images synchronously based on prompt and resolution.",
             inputs=[
@@ -563,12 +574,11 @@ class Flux2ProImageNode(IO.ComfyNode):
                 ),
                 IO.Boolean.Input(
                     "prompt_upsampling",
-                    default=False,
+                    default=True,
                     tooltip="Whether to perform upsampling on the prompt. "
-                    "If active, automatically modifies the prompt for more creative generation, "
-                    "but results are nondeterministic (same seed will not produce exactly the same result).",
+                    "If active, automatically modifies the prompt for more creative generation.",
                 ),
-                IO.Image.Input("images", optional=True, tooltip="Up to 4 images to be used as references."),
+                IO.Image.Input("images", optional=True, tooltip="Up to 9 images to be used as references."),
             ],
             outputs=[IO.Image.Output()],
             hidden=[
@@ -577,6 +587,10 @@ class Flux2ProImageNode(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
+            price_badge=IO.PriceBadge(
+                depends_on=IO.PriceBadgeDepends(widgets=["width", "height"], inputs=["images"]),
+                expr=cls.PRICE_BADGE_EXPR,
+            ),
         )
 
     @classmethod
@@ -587,7 +601,7 @@ class Flux2ProImageNode(IO.ComfyNode):
         height: int,
         seed: int,
         prompt_upsampling: bool,
-        images: torch.Tensor | None = None,
+        images: Input.Image | None = None,
     ) -> IO.NodeOutput:
         reference_images = {}
         if images is not None:
@@ -598,7 +612,7 @@ class Flux2ProImageNode(IO.ComfyNode):
                 reference_images[key_name] = tensor_to_base64_string(images[image_index], total_pixels=2048 * 2048)
         initial_response = await sync_op(
             cls,
-            ApiEndpoint(path="/proxy/bfl/flux-2-pro/generate", method="POST"),
+            ApiEndpoint(path=cls.API_ENDPOINT, method="POST"),
             response_model=BFLFluxProGenerateResponse,
             data=Flux2ProGenerateRequest(
                 prompt=prompt,
@@ -632,6 +646,29 @@ class Flux2ProImageNode(IO.ComfyNode):
         return IO.NodeOutput(await download_url_to_image_tensor(response.result["sample"]))
 
 
+class Flux2MaxImageNode(Flux2ProImageNode):
+
+    NODE_ID = "Flux2MaxImageNode"
+    DISPLAY_NAME = "Flux.2 [max] Image"
+    API_ENDPOINT = "/proxy/bfl/flux-2-max/generate"
+    PRICE_BADGE_EXPR = """
+    (
+      $MP := 1024 * 1024;
+      $outMP := $max([1, $floor(((widgets.width * widgets.height) + $MP - 1) / $MP)]);
+      $outputCost := 0.07 + 0.03 * ($outMP - 1);
+
+      inputs.images.connected
+        ? {
+            "type":"range_usd",
+            "min_usd": $outputCost + 0.03,
+            "max_usd": $outputCost + 0.24,
+            "format": { "approximate": true }
+          }
+        : {"type":"usd","usd": $outputCost}
+    )
+    """
+
+
 class BFLExtension(ComfyExtension):
     @override
     async def get_node_list(self) -> list[type[IO.ComfyNode]]:
@@ -642,6 +679,7 @@ class BFLExtension(ComfyExtension):
             FluxProExpandNode,
             FluxProFillNode,
             Flux2ProImageNode,
+            Flux2MaxImageNode,
         ]
 
 

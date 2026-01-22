@@ -10,7 +10,7 @@ class Text2ImageTaskCreationRequest(BaseModel):
     size: str | None = Field(None)
     seed: int | None = Field(0, ge=0, le=2147483647)
     guidance_scale: float | None = Field(..., ge=1.0, le=10.0)
-    watermark: bool | None = Field(True)
+    watermark: bool | None = Field(False)
 
 
 class Image2ImageTaskCreationRequest(BaseModel):
@@ -21,7 +21,7 @@ class Image2ImageTaskCreationRequest(BaseModel):
     size: str | None = Field("adaptive")
     seed: int | None = Field(..., ge=0, le=2147483647)
     guidance_scale: float | None = Field(..., ge=1.0, le=10.0)
-    watermark: bool | None = Field(True)
+    watermark: bool | None = Field(False)
 
 
 class Seedream4Options(BaseModel):
@@ -37,7 +37,7 @@ class Seedream4TaskCreationRequest(BaseModel):
     seed: int = Field(..., ge=0, le=2147483647)
     sequential_image_generation: str = Field("disabled")
     sequential_image_generation_options: Seedream4Options = Field(Seedream4Options(max_images=15))
-    watermark: bool = Field(True)
+    watermark: bool = Field(False)
 
 
 class ImageTaskCreationResponse(BaseModel):
@@ -65,11 +65,13 @@ class TaskImageContent(BaseModel):
 class Text2VideoTaskCreationRequest(BaseModel):
     model: str = Field(...)
     content: list[TaskTextContent] = Field(..., min_length=1)
+    generate_audio: bool | None = Field(...)
 
 
 class Image2VideoTaskCreationRequest(BaseModel):
     model: str = Field(...)
     content: list[TaskTextContent | TaskImageContent] = Field(..., min_length=2)
+    generate_audio: bool | None = Field(...)
 
 
 class TaskCreationResponse(BaseModel):
@@ -140,5 +142,10 @@ VIDEO_TASKS_EXECUTION_TIME = {
         "480p": 50,
         "720p": 65,
         "1080p": 100,
+    },
+    "seedance-1-5-pro-251215": {
+        "480p": 80,
+        "720p": 100,
+        "1080p": 150,
     },
 }

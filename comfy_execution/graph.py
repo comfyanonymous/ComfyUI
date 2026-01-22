@@ -97,6 +97,11 @@ def get_input_info(
         extra_info = input_info[1]
     else:
         extra_info = {}
+    # if input_type is a list, it is a Combo defined in outdated format; convert it.
+    # NOTE: uncomment this when we are confident old format going away won't cause too much trouble.
+    # if isinstance(input_type, list):
+    #     extra_info["options"] = input_type
+    #     input_type = IO.Combo.io_type
     return input_type, input_category, extra_info
 
 class TopologicalSort:
@@ -202,15 +207,15 @@ class ExecutionList(TopologicalSort):
         return self.output_cache.get(node_id) is not None
 
     def cache_link(self, from_node_id, to_node_id):
-        if not to_node_id in self.execution_cache:
+        if to_node_id not in self.execution_cache:
             self.execution_cache[to_node_id] = {}
         self.execution_cache[to_node_id][from_node_id] = self.output_cache.get(from_node_id)
-        if not from_node_id in self.execution_cache_listeners:
+        if from_node_id not in self.execution_cache_listeners:
             self.execution_cache_listeners[from_node_id] = set()
         self.execution_cache_listeners[from_node_id].add(to_node_id)
 
     def get_cache(self, from_node_id, to_node_id):
-        if not to_node_id in self.execution_cache:
+        if to_node_id not in self.execution_cache:
             return None
         value = self.execution_cache[to_node_id].get(from_node_id)
         if value is None:

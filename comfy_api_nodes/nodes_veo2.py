@@ -4,7 +4,7 @@ from io import BytesIO
 from typing_extensions import override
 
 from comfy_api.latest import IO, ComfyExtension, Input, InputImpl
-from comfy_api_nodes.apis.veo_api import (
+from comfy_api_nodes.apis.veo import (
     VeoGenVidPollRequest,
     VeoGenVidPollResponse,
     VeoGenVidRequest,
@@ -122,6 +122,10 @@ class VeoVideoGenerationNode(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
+            price_badge=IO.PriceBadge(
+                depends_on=IO.PriceBadgeDepends(widgets=["duration_seconds"]),
+                expr="""{"type":"usd","usd": 0.5 * widgets.duration_seconds}""",
+            ),
         )
 
     @classmethod
@@ -168,6 +172,8 @@ class VeoVideoGenerationNode(IO.ComfyNode):
         # Only add generateAudio for Veo 3 models
         if model.find("veo-2.0") == -1:
             parameters["generateAudio"] = generate_audio
+            # force "enhance_prompt" to True for Veo3 models
+            parameters["enhancePrompt"] = True
 
         initial_response = await sync_op(
             cls,
@@ -291,7 +297,7 @@ class Veo3VideoGenerationNode(VeoVideoGenerationNode):
                 IO.Boolean.Input(
                     "enhance_prompt",
                     default=True,
-                    tooltip="Whether to enhance the prompt with AI assistance",
+                    tooltip="This parameter is deprecated and ignored.",
                     optional=True,
                 ),
                 IO.Combo.Input(
@@ -345,6 +351,20 @@ class Veo3VideoGenerationNode(VeoVideoGenerationNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
+            price_badge=IO.PriceBadge(
+                depends_on=IO.PriceBadgeDepends(widgets=["model", "generate_audio"]),
+                expr="""
+                (
+                  $m := widgets.model;
+                  $a := widgets.generate_audio;
+                  ($contains($m,"veo-3.0-fast-generate-001") or $contains($m,"veo-3.1-fast-generate"))
+                    ? {"type":"usd","usd": ($a ? 1.2 : 0.8)}
+                    : ($contains($m,"veo-3.0-generate-001") or $contains($m,"veo-3.1-generate"))
+                      ? {"type":"usd","usd": ($a ? 3.2 : 1.6)}
+                      : {"type":"range_usd","min_usd":0.8,"max_usd":3.2}
+                )
+                """,
+            ),
         )
 
 
@@ -418,6 +438,30 @@ class Veo3FirstLastFrameNode(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
+            price_badge=IO.PriceBadge(
+                depends_on=IO.PriceBadgeDepends(widgets=["model", "generate_audio", "duration"]),
+                expr="""
+                (
+                  $prices := {
+                    "veo-3.1-fast-generate": { "audio": 0.15, "no_audio": 0.10 },
+                    "veo-3.1-generate":      { "audio": 0.40, "no_audio": 0.20 }
+                  };
+                  $m := widgets.model;
+                  $ga := (widgets.generate_audio = "true");
+                  $seconds := widgets.duration;
+                  $modelKey :=
+                    $contains($m, "veo-3.1-fast-generate") ? "veo-3.1-fast-generate" :
+                    $contains($m, "veo-3.1-generate")      ? "veo-3.1-generate" :
+                    "";
+                  $audioKey := $ga ? "audio" : "no_audio";
+                  $modelPrices := $lookup($prices, $modelKey);
+                  $pps := $lookup($modelPrices, $audioKey);
+                  ($pps != null)
+                    ? {"type":"usd","usd": $pps * $seconds}
+                    : {"type":"range_usd","min_usd": 0.4, "max_usd": 3.2}
+                )
+                """,
+            ),
         )
 
     @classmethod

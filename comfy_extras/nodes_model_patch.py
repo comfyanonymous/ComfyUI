@@ -7,6 +7,7 @@ import comfy.model_management
 import comfy.ldm.common_dit
 import comfy.latent_formats
 import comfy.ldm.lumina.controlnet
+from comfy.ldm.wan.model_multitalk import WanMultiTalkAttentionBlock, MultiTalkAudioProjModel
 
 
 class BlockWiseControlBlock(torch.nn.Module):
@@ -244,6 +245,10 @@ class ModelPatchLoader:
         elif 'control_all_x_embedder.2-1.weight' in sd: # alipai z image fun controlnet
             sd = z_image_convert(sd)
             config = {}
+            if 'control_layers.4.adaLN_modulation.0.weight' not in sd:
+                config['n_control_layers'] = 3
+                config['additional_in_dim'] = 17
+                config['refiner_control'] = True
             if 'control_layers.14.adaLN_modulation.0.weight' in sd:
                 config['n_control_layers'] = 15
                 config['additional_in_dim'] = 17
@@ -253,6 +258,14 @@ class ModelPatchLoader:
                     if torch.count_nonzero(ref_weight) == 0:
                         config['broken'] = True
             model = comfy.ldm.lumina.controlnet.ZImage_Control(device=comfy.model_management.unet_offload_device(), dtype=dtype, operations=comfy.ops.manual_cast, **config)
+        elif "audio_proj.proj1.weight" in sd:
+            model = MultiTalkModelPatch(
+                    audio_window=5, context_tokens=32, vae_scale=4,
+                    in_dim=sd["blocks.0.audio_cross_attn.proj.weight"].shape[0],
+                    intermediate_dim=sd["audio_proj.proj1.weight"].shape[0],
+                    out_dim=sd["audio_proj.norm.weight"].shape[0],
+                    device=comfy.model_management.unet_offload_device(),
+                    operations=comfy.ops.manual_cast)
 
         model.load_state_dict(sd)
         model = comfy.model_patcher.ModelPatcher(model, load_device=comfy.model_management.get_torch_device(), offload_device=comfy.model_management.unet_offload_device())
@@ -348,7 +361,7 @@ class ZImageControlPatch:
             if self.mask is None:
                 mask_ = torch.zeros_like(inpaint_image_latent)[:, :1]
             else:
-                mask_ = comfy.utils.common_upscale(self.mask.view(self.mask.shape[0], -1, self.mask.shape[-2], self.mask.shape[-1]).mean(dim=1, keepdim=True), inpaint_image_latent.shape[-1], inpaint_image_latent.shape[-2], "nearest", "center")
+                mask_ = comfy.utils.common_upscale(self.mask.view(self.mask.shape[0], -1, self.mask.shape[-2], self.mask.shape[-1]).mean(dim=1, keepdim=True).to(device=inpaint_image_latent.device), inpaint_image_latent.shape[-1], inpaint_image_latent.shape[-2], "nearest", "center")
 
             if latent_image is None:
                 latent_image = comfy.latent_formats.Flux().process_in(self.vae.encode(torch.ones_like(inpaint_image) * 0.5))
@@ -518,6 +531,38 @@ class USOStyleReference:
         model_patched = model.clone()
         model_patched.set_model_post_input_patch(UsoStyleProjectorPatch(model_patch, encoded_image))
         return (model_patched,)
+
+
+class MultiTalkModelPatch(torch.nn.Module):
+    def __init__(
+        self,
+        audio_window: int = 5,
+        intermediate_dim: int = 512,
+        in_dim: int = 5120,
+        out_dim: int = 768,
+        context_tokens: int = 32,
+        vae_scale: int = 4,
+        num_layers: int = 40,
+
+        device=None, dtype=None, operations=None
+    ):
+        super().__init__()
+        self.audio_proj = MultiTalkAudioProjModel(
+                seq_len=audio_window,
+                seq_len_vf=audio_window+vae_scale-1,
+                intermediate_dim=intermediate_dim,
+                out_dim=out_dim,
+                context_tokens=context_tokens,
+                device=device,
+                dtype=dtype,
+                operations=operations
+        )
+        self.blocks = torch.nn.ModuleList(
+            [
+                WanMultiTalkAttentionBlock(in_dim, out_dim, device=device, dtype=dtype, operations=operations)
+                for _ in range(num_layers)
+            ]
+        )
 
 
 NODE_CLASS_MAPPINGS = {

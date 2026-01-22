@@ -2,280 +2,231 @@ from __future__ import annotations
 
 import nodes
 import folder_paths
-from comfy.cli_args import args
 
-from PIL import Image
-from PIL.PngImagePlugin import PngInfo
-
-import numpy as np
 import json
 import os
 import re
-from io import BytesIO
-from inspect import cleandoc
 import torch
 import comfy.utils
 
-from comfy.comfy_types import FileLocator, IO
 from server import PromptServer
+from comfy_api.latest import ComfyExtension, IO, UI
+from typing_extensions import override
+
+SVG = IO.SVG.Type  # TODO: temporary solution for backward compatibility, will be removed later.
 
 MAX_RESOLUTION = nodes.MAX_RESOLUTION
 
-class ImageCrop:
+class ImageCrop(IO.ComfyNode):
     @classmethod
-    def INPUT_TYPES(s):
-        return {"required": { "image": ("IMAGE",),
-                              "width": ("INT", {"default": 512, "min": 1, "max": MAX_RESOLUTION, "step": 1}),
-                              "height": ("INT", {"default": 512, "min": 1, "max": MAX_RESOLUTION, "step": 1}),
-                              "x": ("INT", {"default": 0, "min": 0, "max": MAX_RESOLUTION, "step": 1}),
-                              "y": ("INT", {"default": 0, "min": 0, "max": MAX_RESOLUTION, "step": 1}),
-                              }}
-    RETURN_TYPES = ("IMAGE",)
-    FUNCTION = "crop"
+    def define_schema(cls):
+        return IO.Schema(
+            node_id="ImageCrop",
+            display_name="Image Crop",
+            category="image/transform",
+            inputs=[
+                IO.Image.Input("image"),
+                IO.Int.Input("width", default=512, min=1, max=nodes.MAX_RESOLUTION, step=1),
+                IO.Int.Input("height", default=512, min=1, max=nodes.MAX_RESOLUTION, step=1),
+                IO.Int.Input("x", default=0, min=0, max=nodes.MAX_RESOLUTION, step=1),
+                IO.Int.Input("y", default=0, min=0, max=nodes.MAX_RESOLUTION, step=1),
+            ],
+            outputs=[IO.Image.Output()],
+        )
 
-    CATEGORY = "image/transform"
-
-    def crop(self, image, width, height, x, y):
+    @classmethod
+    def execute(cls, image, width, height, x, y) -> IO.NodeOutput:
         x = min(x, image.shape[2] - 1)
         y = min(y, image.shape[1] - 1)
         to_x = width + x
         to_y = height + y
         img = image[:,y:to_y, x:to_x, :]
-        return (img,)
+        return IO.NodeOutput(img)
 
-class RepeatImageBatch:
+    crop = execute  # TODO: remove
+
+
+class RepeatImageBatch(IO.ComfyNode):
     @classmethod
-    def INPUT_TYPES(s):
-        return {"required": { "image": ("IMAGE",),
-                              "amount": ("INT", {"default": 1, "min": 1, "max": 4096}),
-                              }}
-    RETURN_TYPES = ("IMAGE",)
-    FUNCTION = "repeat"
+    def define_schema(cls):
+        return IO.Schema(
+            node_id="RepeatImageBatch",
+            category="image/batch",
+            inputs=[
+                IO.Image.Input("image"),
+                IO.Int.Input("amount", default=1, min=1, max=4096),
+            ],
+            outputs=[IO.Image.Output()],
+        )
 
-    CATEGORY = "image/batch"
-
-    def repeat(self, image, amount):
+    @classmethod
+    def execute(cls, image, amount) -> IO.NodeOutput:
         s = image.repeat((amount, 1,1,1))
-        return (s,)
+        return IO.NodeOutput(s)
 
-class ImageFromBatch:
+    repeat = execute  # TODO: remove
+
+
+class ImageFromBatch(IO.ComfyNode):
     @classmethod
-    def INPUT_TYPES(s):
-        return {"required": { "image": ("IMAGE",),
-                              "batch_index": ("INT", {"default": 0, "min": 0, "max": 4095}),
-                              "length": ("INT", {"default": 1, "min": 1, "max": 4096}),
-                              }}
-    RETURN_TYPES = ("IMAGE",)
-    FUNCTION = "frombatch"
+    def define_schema(cls):
+        return IO.Schema(
+            node_id="ImageFromBatch",
+            category="image/batch",
+            inputs=[
+                IO.Image.Input("image"),
+                IO.Int.Input("batch_index", default=0, min=0, max=4095),
+                IO.Int.Input("length", default=1, min=1, max=4096),
+            ],
+            outputs=[IO.Image.Output()],
+        )
 
-    CATEGORY = "image/batch"
-
-    def frombatch(self, image, batch_index, length):
+    @classmethod
+    def execute(cls, image, batch_index, length) -> IO.NodeOutput:
         s_in = image
         batch_index = min(s_in.shape[0] - 1, batch_index)
         length = min(s_in.shape[0] - batch_index, length)
         s = s_in[batch_index:batch_index + length].clone()
-        return (s,)
+        return IO.NodeOutput(s)
+
+    frombatch = execute  # TODO: remove
 
 
-class ImageAddNoise:
+class ImageAddNoise(IO.ComfyNode):
     @classmethod
-    def INPUT_TYPES(s):
-        return {"required": { "image": ("IMAGE",),
-                              "seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff, "control_after_generate": True, "tooltip": "The random seed used for creating the noise."}),
-                              "strength": ("FLOAT", {"default": 0.5, "min": 0.0, "max": 1.0, "step": 0.01}),
-                              }}
-    RETURN_TYPES = ("IMAGE",)
-    FUNCTION = "repeat"
+    def define_schema(cls):
+        return IO.Schema(
+            node_id="ImageAddNoise",
+            category="image",
+            inputs=[
+                IO.Image.Input("image"),
+                IO.Int.Input(
+                    "seed",
+                    default=0,
+                    min=0,
+                    max=0xFFFFFFFFFFFFFFFF,
+                    control_after_generate=True,
+                    tooltip="The random seed used for creating the noise.",
+                ),
+                IO.Float.Input("strength", default=0.5, min=0.0, max=1.0, step=0.01),
+            ],
+            outputs=[IO.Image.Output()],
+        )
 
-    CATEGORY = "image"
-
-    def repeat(self, image, seed, strength):
+    @classmethod
+    def execute(cls, image, seed, strength) -> IO.NodeOutput:
         generator = torch.manual_seed(seed)
         s = torch.clip((image + strength * torch.randn(image.size(), generator=generator, device="cpu").to(image)), min=0.0, max=1.0)
-        return (s,)
+        return IO.NodeOutput(s)
 
-class SaveAnimatedWEBP:
-    def __init__(self):
-        self.output_dir = folder_paths.get_output_directory()
-        self.type = "output"
-        self.prefix_append = ""
+    repeat = execute  # TODO: remove
 
-    methods = {"default": 4, "fastest": 0, "slowest": 6}
-    @classmethod
-    def INPUT_TYPES(s):
-        return {"required":
-                    {"images": ("IMAGE", ),
-                     "filename_prefix": ("STRING", {"default": "ComfyUI"}),
-                     "fps": ("FLOAT", {"default": 6.0, "min": 0.01, "max": 1000.0, "step": 0.01}),
-                     "lossless": ("BOOLEAN", {"default": True}),
-                     "quality": ("INT", {"default": 80, "min": 0, "max": 100}),
-                     "method": (list(s.methods.keys()),),
-                     # "num_frames": ("INT", {"default": 0, "min": 0, "max": 8192}),
-                     },
-                "hidden": {"prompt": "PROMPT", "extra_pnginfo": "EXTRA_PNGINFO"},
-                }
 
-    RETURN_TYPES = ()
-    FUNCTION = "save_images"
-
-    OUTPUT_NODE = True
-
-    CATEGORY = "image/animation"
-
-    def save_images(self, images, fps, filename_prefix, lossless, quality, method, num_frames=0, prompt=None, extra_pnginfo=None):
-        method = self.methods.get(method)
-        filename_prefix += self.prefix_append
-        full_output_folder, filename, counter, subfolder, filename_prefix = folder_paths.get_save_image_path(filename_prefix, self.output_dir, images[0].shape[1], images[0].shape[0])
-        results: list[FileLocator] = []
-        pil_images = []
-        for image in images:
-            i = 255. * image.cpu().numpy()
-            img = Image.fromarray(np.clip(i, 0, 255).astype(np.uint8))
-            pil_images.append(img)
-
-        metadata = pil_images[0].getexif()
-        if not args.disable_metadata:
-            if prompt is not None:
-                metadata[0x0110] = "prompt:{}".format(json.dumps(prompt))
-            if extra_pnginfo is not None:
-                inital_exif = 0x010f
-                for x in extra_pnginfo:
-                    metadata[inital_exif] = "{}:{}".format(x, json.dumps(extra_pnginfo[x]))
-                    inital_exif -= 1
-
-        if num_frames == 0:
-            num_frames = len(pil_images)
-
-        c = len(pil_images)
-        for i in range(0, c, num_frames):
-            file = f"{filename}_{counter:05}_.webp"
-            pil_images[i].save(os.path.join(full_output_folder, file), save_all=True, duration=int(1000.0/fps), append_images=pil_images[i + 1:i + num_frames], exif=metadata, lossless=lossless, quality=quality, method=method)
-            results.append({
-                "filename": file,
-                "subfolder": subfolder,
-                "type": self.type
-            })
-            counter += 1
-
-        animated = num_frames != 1
-        return { "ui": { "images": results, "animated": (animated,) } }
-
-class SaveAnimatedPNG:
-    def __init__(self):
-        self.output_dir = folder_paths.get_output_directory()
-        self.type = "output"
-        self.prefix_append = ""
+class SaveAnimatedWEBP(IO.ComfyNode):
+    COMPRESS_METHODS = {"default": 4, "fastest": 0, "slowest": 6}
 
     @classmethod
-    def INPUT_TYPES(s):
-        return {"required":
-                    {"images": ("IMAGE", ),
-                     "filename_prefix": ("STRING", {"default": "ComfyUI"}),
-                     "fps": ("FLOAT", {"default": 6.0, "min": 0.01, "max": 1000.0, "step": 0.01}),
-                     "compress_level": ("INT", {"default": 4, "min": 0, "max": 9})
-                     },
-                "hidden": {"prompt": "PROMPT", "extra_pnginfo": "EXTRA_PNGINFO"},
-                }
+    def define_schema(cls):
+        return IO.Schema(
+            node_id="SaveAnimatedWEBP",
+            category="image/animation",
+            inputs=[
+                IO.Image.Input("images"),
+                IO.String.Input("filename_prefix", default="ComfyUI"),
+                IO.Float.Input("fps", default=6.0, min=0.01, max=1000.0, step=0.01),
+                IO.Boolean.Input("lossless", default=True),
+                IO.Int.Input("quality", default=80, min=0, max=100),
+                IO.Combo.Input("method", options=list(cls.COMPRESS_METHODS.keys())),
+                # "num_frames": ("INT", {"default": 0, "min": 0, "max": 8192}),
+            ],
+            hidden=[IO.Hidden.prompt, IO.Hidden.extra_pnginfo],
+            is_output_node=True,
+        )
 
-    RETURN_TYPES = ()
-    FUNCTION = "save_images"
+    @classmethod
+    def execute(cls, images, fps, filename_prefix, lossless, quality, method, num_frames=0) -> IO.NodeOutput:
+        return IO.NodeOutput(
+            ui=UI.ImageSaveHelper.get_save_animated_webp_ui(
+                images=images,
+                filename_prefix=filename_prefix,
+                cls=cls,
+                fps=fps,
+                lossless=lossless,
+                quality=quality,
+                method=cls.COMPRESS_METHODS.get(method)
+            )
+        )
 
-    OUTPUT_NODE = True
-
-    CATEGORY = "image/animation"
-
-    def save_images(self, images, fps, compress_level, filename_prefix="ComfyUI", prompt=None, extra_pnginfo=None):
-        filename_prefix += self.prefix_append
-        full_output_folder, filename, counter, subfolder, filename_prefix = folder_paths.get_save_image_path(filename_prefix, self.output_dir, images[0].shape[1], images[0].shape[0])
-        results = list()
-        pil_images = []
-        for image in images:
-            i = 255. * image.cpu().numpy()
-            img = Image.fromarray(np.clip(i, 0, 255).astype(np.uint8))
-            pil_images.append(img)
-
-        metadata = None
-        if not args.disable_metadata:
-            metadata = PngInfo()
-            if prompt is not None:
-                metadata.add(b"comf", "prompt".encode("latin-1", "strict") + b"\0" + json.dumps(prompt).encode("latin-1", "strict"), after_idat=True)
-            if extra_pnginfo is not None:
-                for x in extra_pnginfo:
-                    metadata.add(b"comf", x.encode("latin-1", "strict") + b"\0" + json.dumps(extra_pnginfo[x]).encode("latin-1", "strict"), after_idat=True)
-
-        file = f"{filename}_{counter:05}_.png"
-        pil_images[0].save(os.path.join(full_output_folder, file), pnginfo=metadata, compress_level=compress_level, save_all=True, duration=int(1000.0/fps), append_images=pil_images[1:])
-        results.append({
-            "filename": file,
-            "subfolder": subfolder,
-            "type": self.type
-        })
-
-        return { "ui": { "images": results, "animated": (True,)} }
-
-class SVG:
-    """
-    Stores SVG representations via a list of BytesIO objects.
-    """
-    def __init__(self, data: list[BytesIO]):
-        self.data = data
-
-    def combine(self, other: 'SVG') -> 'SVG':
-        return SVG(self.data + other.data)
-
-    @staticmethod
-    def combine_all(svgs: list['SVG']) -> 'SVG':
-        all_svgs_list: list[BytesIO] = []
-        for svg_item in svgs:
-            all_svgs_list.extend(svg_item.data)
-        return SVG(all_svgs_list)
+    save_images = execute  # TODO: remove
 
 
-class ImageStitch:
+class SaveAnimatedPNG(IO.ComfyNode):
+
+    @classmethod
+    def define_schema(cls):
+        return IO.Schema(
+            node_id="SaveAnimatedPNG",
+            category="image/animation",
+            inputs=[
+                IO.Image.Input("images"),
+                IO.String.Input("filename_prefix", default="ComfyUI"),
+                IO.Float.Input("fps", default=6.0, min=0.01, max=1000.0, step=0.01),
+                IO.Int.Input("compress_level", default=4, min=0, max=9),
+            ],
+            hidden=[IO.Hidden.prompt, IO.Hidden.extra_pnginfo],
+            is_output_node=True,
+        )
+
+    @classmethod
+    def execute(cls, images, fps, compress_level, filename_prefix="ComfyUI") -> IO.NodeOutput:
+        return IO.NodeOutput(
+            ui=UI.ImageSaveHelper.get_save_animated_png_ui(
+                images=images,
+                filename_prefix=filename_prefix,
+                cls=cls,
+                fps=fps,
+                compress_level=compress_level,
+            )
+        )
+
+    save_images = execute  # TODO: remove
+
+
+class ImageStitch(IO.ComfyNode):
     """Upstreamed from https://github.com/kijai/ComfyUI-KJNodes"""
 
     @classmethod
-    def INPUT_TYPES(s):
-        return {
-            "required": {
-                "image1": ("IMAGE",),
-                "direction": (["right", "down", "left", "up"], {"default": "right"}),
-                "match_image_size": ("BOOLEAN", {"default": True}),
-                "spacing_width": (
-                    "INT",
-                    {"default": 0, "min": 0, "max": 1024, "step": 2},
-                ),
-                "spacing_color": (
-                    ["white", "black", "red", "green", "blue"],
-                    {"default": "white"},
-                ),
-            },
-            "optional": {
-                "image2": ("IMAGE",),
-            },
-        }
+    def define_schema(cls):
+        return IO.Schema(
+            node_id="ImageStitch",
+            display_name="Image Stitch",
+            description="Stitches image2 to image1 in the specified direction.\n"
+            "If image2 is not provided, returns image1 unchanged.\n"
+            "Optional spacing can be added between images.",
+            category="image/transform",
+            inputs=[
+                IO.Image.Input("image1"),
+                IO.Combo.Input("direction", options=["right", "down", "left", "up"], default="right"),
+                IO.Boolean.Input("match_image_size", default=True),
+                IO.Int.Input("spacing_width", default=0, min=0, max=1024, step=2),
+                IO.Combo.Input("spacing_color", options=["white", "black", "red", "green", "blue"], default="white"),
+                IO.Image.Input("image2", optional=True),
+            ],
+            outputs=[IO.Image.Output()],
+        )
 
-    RETURN_TYPES = ("IMAGE",)
-    FUNCTION = "stitch"
-    CATEGORY = "image/transform"
-    DESCRIPTION = """
-Stitches image2 to image1 in the specified direction.
-If image2 is not provided, returns image1 unchanged.
-Optional spacing can be added between images.
-"""
-
-    def stitch(
-        self,
+    @classmethod
+    def execute(
+        cls,
         image1,
         direction,
         match_image_size,
         spacing_width,
         spacing_color,
         image2=None,
-    ):
+    ) -> IO.NodeOutput:
         if image2 is None:
-            return (image1,)
+            return IO.NodeOutput(image1)
 
         # Handle batch size differences
         if image1.shape[0] != image2.shape[0]:
@@ -412,36 +363,30 @@ Optional spacing can be added between images.
             images.insert(1, spacing)
 
         concat_dim = 2 if direction in ["left", "right"] else 1
-        return (torch.cat(images, dim=concat_dim),)
+        return IO.NodeOutput(torch.cat(images, dim=concat_dim))
 
-class ResizeAndPadImage:
+    stitch = execute  # TODO: remove
+
+
+class ResizeAndPadImage(IO.ComfyNode):
+
     @classmethod
-    def INPUT_TYPES(cls):
-        return {
-            "required": {
-                "image": ("IMAGE",),
-                "target_width": ("INT", {
-                    "default": 512,
-                    "min": 1,
-                    "max": MAX_RESOLUTION,
-                    "step": 1
-                }),
-                "target_height": ("INT", {
-                    "default": 512,
-                    "min": 1,
-                    "max": MAX_RESOLUTION,
-                    "step": 1
-                }),
-                "padding_color": (["white", "black"],),
-                "interpolation": (["area", "bicubic", "nearest-exact", "bilinear", "lanczos"],),
-            }
-        }
+    def define_schema(cls):
+        return IO.Schema(
+            node_id="ResizeAndPadImage",
+            category="image/transform",
+            inputs=[
+                IO.Image.Input("image"),
+                IO.Int.Input("target_width", default=512, min=1, max=nodes.MAX_RESOLUTION, step=1),
+                IO.Int.Input("target_height", default=512, min=1, max=nodes.MAX_RESOLUTION, step=1),
+                IO.Combo.Input("padding_color", options=["white", "black"]),
+                IO.Combo.Input("interpolation", options=["area", "bicubic", "nearest-exact", "bilinear", "lanczos"]),
+            ],
+            outputs=[IO.Image.Output()],
+        )
 
-    RETURN_TYPES = ("IMAGE",)
-    FUNCTION = "resize_and_pad"
-    CATEGORY = "image/transform"
-
-    def resize_and_pad(self, image, target_width, target_height, padding_color, interpolation):
+    @classmethod
+    def execute(cls, image, target_width, target_height, padding_color, interpolation) -> IO.NodeOutput:
         batch_size, orig_height, orig_width, channels = image.shape
 
         scale_w = target_width / orig_width
@@ -469,51 +414,46 @@ class ResizeAndPadImage:
         padded[:, :, y_offset:y_offset + new_height, x_offset:x_offset + new_width] = resized
 
         output = padded.permute(0, 2, 3, 1)
-        return (output,)
+        return IO.NodeOutput(output)
 
-class SaveSVGNode:
-    """
-    Save SVG files on disk.
-    """
+    resize_and_pad = execute  # TODO: remove
 
-    def __init__(self):
-        self.output_dir = folder_paths.get_output_directory()
-        self.type = "output"
-        self.prefix_append = ""
 
-    RETURN_TYPES = ()
-    DESCRIPTION = cleandoc(__doc__ or "")  # Handle potential None value
-    FUNCTION = "save_svg"
-    CATEGORY = "image/save" # Changed
-    OUTPUT_NODE = True
+class SaveSVGNode(IO.ComfyNode):
 
     @classmethod
-    def INPUT_TYPES(s):
-        return {
-            "required": {
-                "svg": ("SVG",), # Changed
-                "filename_prefix": ("STRING", {"default": "svg/ComfyUI", "tooltip": "The prefix for the file to save. This may include formatting information such as %date:yyyy-MM-dd% or %Empty Latent Image.width% to include values from nodes."})
-            },
-            "hidden": {
-                "prompt": "PROMPT",
-                "extra_pnginfo": "EXTRA_PNGINFO"
-            }
-        }
+    def define_schema(cls):
+        return IO.Schema(
+            node_id="SaveSVGNode",
+            description="Save SVG files on disk.",
+            category="image/save",
+            inputs=[
+                IO.SVG.Input("svg"),
+                IO.String.Input(
+                    "filename_prefix",
+                    default="svg/ComfyUI",
+                    tooltip="The prefix for the file to save. This may include formatting information such as %date:yyyy-MM-dd% or %Empty Latent Image.width% to include values from nodes.",
+                ),
+            ],
+            hidden=[IO.Hidden.prompt, IO.Hidden.extra_pnginfo],
+            is_output_node=True,
+        )
 
-    def save_svg(self, svg: SVG, filename_prefix="svg/ComfyUI", prompt=None, extra_pnginfo=None):
-        filename_prefix += self.prefix_append
-        full_output_folder, filename, counter, subfolder, filename_prefix = folder_paths.get_save_image_path(filename_prefix, self.output_dir)
-        results = list()
+    @classmethod
+    def execute(cls, svg: IO.SVG.Type, filename_prefix="svg/ComfyUI") -> IO.NodeOutput:
+        full_output_folder, filename, counter, subfolder, filename_prefix = folder_paths.get_save_image_path(filename_prefix, folder_paths.get_output_directory())
+        results: list[UI.SavedResult] = []
 
         # Prepare metadata JSON
         metadata_dict = {}
-        if prompt is not None:
-            metadata_dict["prompt"] = prompt
-        if extra_pnginfo is not None:
-            metadata_dict.update(extra_pnginfo)
+        if cls.hidden.prompt is not None:
+            metadata_dict["prompt"] = cls.hidden.prompt
+        if cls.hidden.extra_pnginfo is not None:
+            metadata_dict.update(cls.hidden.extra_pnginfo)
 
         # Convert metadata to JSON string
         metadata_json = json.dumps(metadata_dict, indent=2) if metadata_dict else None
+
 
         for batch_number, svg_bytes in enumerate(svg.data):
             filename_with_batch_num = filename.replace("%batch_num%", str(batch_number))
@@ -544,57 +484,64 @@ class SaveSVGNode:
             with open(os.path.join(full_output_folder, file), 'wb') as svg_file:
                 svg_file.write(svg_content.encode('utf-8'))
 
-            results.append({
-                "filename": file,
-                "subfolder": subfolder,
-                "type": self.type
-            })
+            results.append(UI.SavedResult(filename=file, subfolder=subfolder, type=IO.FolderType.output))
             counter += 1
-        return { "ui": { "images": results } }
+        return IO.NodeOutput(ui={"images": results})
 
-class GetImageSize:
+    save_svg = execute  # TODO: remove
+
+
+class GetImageSize(IO.ComfyNode):
 
     @classmethod
-    def INPUT_TYPES(s):
-        return {
-            "required": {
-                "image": (IO.IMAGE,),
-            },
-            "hidden": {
-                "unique_id": "UNIQUE_ID",
-            }
-        }
+    def define_schema(cls):
+        return IO.Schema(
+            node_id="GetImageSize",
+            display_name="Get Image Size",
+            description="Returns width and height of the image, and passes it through unchanged.",
+            category="image",
+            inputs=[
+                IO.Image.Input("image"),
+            ],
+            outputs=[
+                IO.Int.Output(display_name="width"),
+                IO.Int.Output(display_name="height"),
+                IO.Int.Output(display_name="batch_size"),
+            ],
+            hidden=[IO.Hidden.unique_id],
+        )
 
-    RETURN_TYPES = (IO.INT, IO.INT, IO.INT)
-    RETURN_NAMES = ("width", "height", "batch_size")
-    FUNCTION = "get_size"
-
-    CATEGORY = "image"
-    DESCRIPTION = """Returns width and height of the image, and passes it through unchanged."""
-
-    def get_size(self, image, unique_id=None) -> tuple[int, int]:
+    @classmethod
+    def execute(cls, image) -> IO.NodeOutput:
         height = image.shape[1]
         width = image.shape[2]
         batch_size = image.shape[0]
 
         # Send progress text to display size on the node
-        if unique_id:
-            PromptServer.instance.send_progress_text(f"width: {width}, height: {height}\n batch size: {batch_size}", unique_id)
+        if cls.hidden.unique_id:
+            PromptServer.instance.send_progress_text(f"width: {width}, height: {height}\n batch size: {batch_size}", cls.hidden.unique_id)
 
-        return width, height, batch_size
+        return IO.NodeOutput(width, height, batch_size)
 
-class ImageRotate:
+    get_size = execute  # TODO: remove
+
+
+class ImageRotate(IO.ComfyNode):
+
     @classmethod
-    def INPUT_TYPES(s):
-        return {"required": { "image": (IO.IMAGE,),
-                              "rotation": (["none", "90 degrees", "180 degrees", "270 degrees"],),
-                              }}
-    RETURN_TYPES = (IO.IMAGE,)
-    FUNCTION = "rotate"
+    def define_schema(cls):
+        return IO.Schema(
+            node_id="ImageRotate",
+            category="image/transform",
+            inputs=[
+                IO.Image.Input("image"),
+                IO.Combo.Input("rotation", options=["none", "90 degrees", "180 degrees", "270 degrees"]),
+            ],
+            outputs=[IO.Image.Output()],
+        )
 
-    CATEGORY = "image/transform"
-
-    def rotate(self, image, rotation):
+    @classmethod
+    def execute(cls, image, rotation) -> IO.NodeOutput:
         rotate_by = 0
         if rotation.startswith("90"):
             rotate_by = 1
@@ -604,41 +551,57 @@ class ImageRotate:
             rotate_by = 3
 
         image = torch.rot90(image, k=rotate_by, dims=[2, 1])
-        return (image,)
+        return IO.NodeOutput(image)
 
-class ImageFlip:
+    rotate = execute  # TODO: remove
+
+
+class ImageFlip(IO.ComfyNode):
+
     @classmethod
-    def INPUT_TYPES(s):
-        return {"required": { "image": (IO.IMAGE,),
-                              "flip_method": (["x-axis: vertically", "y-axis: horizontally"],),
-                              }}
-    RETURN_TYPES = (IO.IMAGE,)
-    FUNCTION = "flip"
+    def define_schema(cls):
+        return IO.Schema(
+            node_id="ImageFlip",
+            category="image/transform",
+            inputs=[
+                IO.Image.Input("image"),
+                IO.Combo.Input("flip_method", options=["x-axis: vertically", "y-axis: horizontally"]),
+            ],
+            outputs=[IO.Image.Output()],
+        )
 
-    CATEGORY = "image/transform"
-
-    def flip(self, image, flip_method):
+    @classmethod
+    def execute(cls, image, flip_method) -> IO.NodeOutput:
         if flip_method.startswith("x"):
             image = torch.flip(image, dims=[1])
         elif flip_method.startswith("y"):
             image = torch.flip(image, dims=[2])
 
-        return (image,)
+        return IO.NodeOutput(image)
 
-class ImageScaleToMaxDimension:
-    upscale_methods = ["area", "lanczos", "bilinear", "nearest-exact", "bilinear", "bicubic"]
+    flip = execute  # TODO: remove
+
+
+class ImageScaleToMaxDimension(IO.ComfyNode):
 
     @classmethod
-    def INPUT_TYPES(s):
-        return {"required": {"image": ("IMAGE",),
-                             "upscale_method": (s.upscale_methods,),
-                             "largest_size": ("INT", {"default": 512, "min": 0, "max": MAX_RESOLUTION, "step": 1})}}
-    RETURN_TYPES = ("IMAGE",)
-    FUNCTION = "upscale"
+    def define_schema(cls):
+        return IO.Schema(
+            node_id="ImageScaleToMaxDimension",
+            category="image/upscaling",
+            inputs=[
+                IO.Image.Input("image"),
+                IO.Combo.Input(
+                    "upscale_method",
+                    options=["area", "lanczos", "bilinear", "nearest-exact", "bilinear", "bicubic"],
+                ),
+                IO.Int.Input("largest_size", default=512, min=0, max=MAX_RESOLUTION, step=1),
+            ],
+            outputs=[IO.Image.Output()],
+        )
 
-    CATEGORY = "image/upscaling"
-
-    def upscale(self, image, upscale_method, largest_size):
+    @classmethod
+    def execute(cls, image, upscale_method, largest_size) -> IO.NodeOutput:
         height = image.shape[1]
         width = image.shape[2]
 
@@ -655,20 +618,30 @@ class ImageScaleToMaxDimension:
         samples = image.movedim(-1, 1)
         s = comfy.utils.common_upscale(samples, width, height, upscale_method, "disabled")
         s = s.movedim(1, -1)
-        return (s,)
+        return IO.NodeOutput(s)
 
-NODE_CLASS_MAPPINGS = {
-    "ImageCrop": ImageCrop,
-    "RepeatImageBatch": RepeatImageBatch,
-    "ImageFromBatch": ImageFromBatch,
-    "ImageAddNoise": ImageAddNoise,
-    "SaveAnimatedWEBP": SaveAnimatedWEBP,
-    "SaveAnimatedPNG": SaveAnimatedPNG,
-    "SaveSVGNode": SaveSVGNode,
-    "ImageStitch": ImageStitch,
-    "ResizeAndPadImage": ResizeAndPadImage,
-    "GetImageSize": GetImageSize,
-    "ImageRotate": ImageRotate,
-    "ImageFlip": ImageFlip,
-    "ImageScaleToMaxDimension": ImageScaleToMaxDimension,
-}
+    upscale = execute    # TODO: remove
+
+
+class ImagesExtension(ComfyExtension):
+    @override
+    async def get_node_list(self) -> list[type[IO.ComfyNode]]:
+        return [
+            ImageCrop,
+            RepeatImageBatch,
+            ImageFromBatch,
+            ImageAddNoise,
+            SaveAnimatedWEBP,
+            SaveAnimatedPNG,
+            SaveSVGNode,
+            ImageStitch,
+            ResizeAndPadImage,
+            GetImageSize,
+            ImageRotate,
+            ImageFlip,
+            ImageScaleToMaxDimension,
+        ]
+
+
+async def comfy_entrypoint() -> ImagesExtension:
+    return ImagesExtension()
