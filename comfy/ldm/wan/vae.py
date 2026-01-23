@@ -28,6 +28,11 @@ class CausalConv3d(ops.Conv3d):
             cache_x = cache_list[cache_idx]
             cache_list[cache_idx] = None
 
+        if cache_x is None and x.shape[2] == 1:
+            #Fast path - the op will pad for use by truncating the weight
+            #and save math on a pile of zeros.
+            return super().forward(x, autopad="causal_zero")
+
         if self._padding > 0:
             padding_needed = self._padding
             if cache_x is not None:
