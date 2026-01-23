@@ -65,6 +65,7 @@ class CLIPTextEncodeSD3(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="CLIPTextEncodeSD3",
+            search_aliases=["sd3 prompt"],
             category="advanced/conditioning",
             inputs=[
                 io.Clip.Input("clip"),

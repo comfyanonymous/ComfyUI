@@ -24,7 +24,7 @@ class BriaImageEditNode(IO.ComfyNode):
     def define_schema(cls):
         return IO.Schema(
             node_id="BriaImageEditNode",
-            display_name="Bria Image Edit",
+            display_name="Bria FIBO Image Edit",
             category="api node/image/Bria",
             description="Edit images using Bria latest model",
             inputs=[

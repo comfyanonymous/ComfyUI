@@ -170,8 +170,14 @@ class Attention(nn.Module):
         joint_query = apply_rope1(joint_query, image_rotary_emb)
         joint_key = apply_rope1(joint_key, image_rotary_emb)
 
+        if encoder_hidden_states_mask is not None:
+            attn_mask = torch.zeros((batch_size, 1, seq_txt + seq_img), dtype=hidden_states.dtype, device=hidden_states.device)
+            attn_mask[:, 0, :seq_txt] = encoder_hidden_states_mask
+        else:
+            attn_mask = None
+
         joint_hidden_states = optimized_attention_masked(joint_query, joint_key, joint_value, self.heads,
-                                                         attention_mask, transformer_options=transformer_options,
+                                                         attn_mask, transformer_options=transformer_options,
                                                          skip_reshape=True)
 
         txt_attn_output = joint_hidden_states[:, :seq_txt, :]
@@ -429,6 +435,9 @@ class QwenImageTransformer2DModel(nn.Module):
         timestep = timesteps
         encoder_hidden_states = context
         encoder_hidden_states_mask = attention_mask
+
+        if encoder_hidden_states_mask is not None and not torch.is_floating_point(encoder_hidden_states_mask):
+            encoder_hidden_states_mask = (encoder_hidden_states_mask - 1).to(x.dtype) * torch.finfo(x.dtype).max
 
         hidden_states, img_ids, orig_shape = self.process_img(x)
         num_embeds = hidden_states.shape[1]
