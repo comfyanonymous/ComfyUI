@@ -16,6 +16,7 @@ class SaveWEBM(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="SaveWEBM",
+            search_aliases=["export webm"],
             category="image/video",
             is_experimental=True,
             inputs=[
@@ -69,6 +70,7 @@ class SaveVideo(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="SaveVideo",
+            search_aliases=["export video"],
             display_name="Save Video",
             category="image/video",
             description="Saves the input images to your ComfyUI output directory.",
@@ -116,6 +118,7 @@ class CreateVideo(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="CreateVideo",
+            search_aliases=["images to video"],
             display_name="Create Video",
             category="image/video",
             description="Create a video from images.",
@@ -140,6 +143,7 @@ class GetVideoComponents(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="GetVideoComponents",
+            search_aliases=["extract frames", "split video", "video to images", "demux"],
             display_name="Get Video Components",
             category="image/video",
             description="Extracts all components from a video: frames, audio, and framerate.",
@@ -167,6 +171,7 @@ class LoadVideo(io.ComfyNode):
         files = folder_paths.filter_files_content_types(files, ["video"])
         return io.Schema(
             node_id="LoadVideo",
+            search_aliases=["import video", "open video", "video file"],
             display_name="Load Video",
             category="image/video",
             inputs=[

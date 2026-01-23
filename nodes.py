@@ -93,6 +93,8 @@ class ConditioningCombine:
         return (conditioning_1 + conditioning_2, )
 
 class ConditioningAverage :
+    SEARCH_ALIASES = ["blend prompts", "interpolate conditioning", "mix prompts", "style fusion", "weighted blend"]
+
     @classmethod
     def INPUT_TYPES(s):
         return {"required": {"conditioning_to": ("CONDITIONING", ), "conditioning_from": ("CONDITIONING", ),
@@ -159,6 +161,8 @@ class ConditioningConcat:
         return (out, )
 
 class ConditioningSetArea:
+    SEARCH_ALIASES = ["regional prompt", "area prompt", "spatial conditioning", "localized prompt"]
+
     @classmethod
     def INPUT_TYPES(s):
         return {"required": {"conditioning": ("CONDITIONING", ),
@@ -217,6 +221,8 @@ class ConditioningSetAreaStrength:
 
 
 class ConditioningSetMask:
+    SEARCH_ALIASES = ["masked prompt", "regional inpaint conditioning", "mask conditioning"]
+
     @classmethod
     def INPUT_TYPES(s):
         return {"required": {"conditioning": ("CONDITIONING", ),
@@ -242,6 +248,8 @@ class ConditioningSetMask:
         return (c, )
 
 class ConditioningZeroOut:
+    SEARCH_ALIASES = ["null conditioning", "clear conditioning"]
+
     @classmethod
     def INPUT_TYPES(s):
         return {"required": {"conditioning": ("CONDITIONING", )}}
@@ -467,6 +475,8 @@ class InpaintModelConditioning:
 
 
 class SaveLatent:
+    SEARCH_ALIASES = ["export latent"]
+
     def __init__(self):
         self.output_dir = folder_paths.get_output_directory()
 
@@ -518,6 +528,8 @@ class SaveLatent:
 
 
 class LoadLatent:
+    SEARCH_ALIASES = ["import latent", "open latent"]
+
     @classmethod
     def INPUT_TYPES(s):
         input_dir = folder_paths.get_input_directory()
@@ -554,6 +566,8 @@ class LoadLatent:
 
 
 class CheckpointLoader:
+    SEARCH_ALIASES = ["load model", "model loader"]
+
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "config_name": (folder_paths.get_filename_list("configs"), ),
@@ -593,6 +607,8 @@ class CheckpointLoaderSimple:
         return out[:3]
 
 class DiffusersLoader:
+    SEARCH_ALIASES = ["load diffusers model"]
+
     @classmethod
     def INPUT_TYPES(cls):
         paths = []
@@ -1063,6 +1079,8 @@ class StyleModelLoader:
 
 
 class StyleModelApply:
+    SEARCH_ALIASES = ["style transfer"]
+
     @classmethod
     def INPUT_TYPES(s):
         return {"required": {"conditioning": ("CONDITIONING", ),
@@ -1216,6 +1234,8 @@ class EmptyLatentImage:
 
 
 class LatentFromBatch:
+    SEARCH_ALIASES = ["select from batch", "pick latent", "batch subset"]
+
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "samples": ("LATENT",),
@@ -1248,6 +1268,8 @@ class LatentFromBatch:
         return (s,)
 
 class RepeatLatentBatch:
+    SEARCH_ALIASES = ["duplicate latent", "clone latent"]
+
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "samples": ("LATENT",),
@@ -1274,6 +1296,8 @@ class RepeatLatentBatch:
         return (s,)
 
 class LatentUpscale:
+    SEARCH_ALIASES = ["enlarge latent", "resize latent"]
+
     upscale_methods = ["nearest-exact", "bilinear", "area", "bicubic", "bislerp"]
     crop_methods = ["disabled", "center"]
 
@@ -1308,6 +1332,8 @@ class LatentUpscale:
         return (s,)
 
 class LatentUpscaleBy:
+    SEARCH_ALIASES = ["enlarge latent", "resize latent", "scale latent"]
+
     upscale_methods = ["nearest-exact", "bilinear", "area", "bicubic", "bislerp"]
 
     @classmethod
@@ -1351,6 +1377,8 @@ class LatentRotate:
         return (s,)
 
 class LatentFlip:
+    SEARCH_ALIASES = ["mirror latent"]
+
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "samples": ("LATENT",),
@@ -1371,6 +1399,8 @@ class LatentFlip:
         return (s,)
 
 class LatentComposite:
+    SEARCH_ALIASES = ["overlay latent", "layer latent", "paste latent"]
+
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "samples_to": ("LATENT",),
@@ -1413,6 +1443,8 @@ class LatentComposite:
         return (samples_out,)
 
 class LatentBlend:
+    SEARCH_ALIASES = ["mix latents", "interpolate latents"]
+
     @classmethod
     def INPUT_TYPES(s):
         return {"required": {
@@ -1454,6 +1486,8 @@ class LatentBlend:
             raise ValueError(f"Unsupported blend mode: {mode}")
 
 class LatentCrop:
+    SEARCH_ALIASES = ["trim latent", "cut latent"]
+
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "samples": ("LATENT",),
@@ -1739,6 +1773,8 @@ class LoadImage:
         return True
 
 class LoadImageMask:
+    SEARCH_ALIASES = ["import mask", "alpha mask", "channel mask"]
+
     _color_channels = ["alpha", "red", "green", "blue"]
     @classmethod
     def INPUT_TYPES(s):
@@ -1789,6 +1825,8 @@ class LoadImageMask:
 
 
 class LoadImageOutput(LoadImage):
+    SEARCH_ALIASES = ["output image", "previous generation"]
+
     @classmethod
     def INPUT_TYPES(s):
         return {
@@ -1862,6 +1900,7 @@ class ImageScaleBy:
         return (s,)
 
 class ImageInvert:
+    SEARCH_ALIASES = ["reverse colors"]
 
     @classmethod
     def INPUT_TYPES(s):
@@ -1877,6 +1916,7 @@ class ImageInvert:
         return (s,)
 
 class ImageBatch:
+    SEARCH_ALIASES = ["combine images", "merge images", "stack images"]
 
     @classmethod
     def INPUT_TYPES(s):
@@ -1922,6 +1962,7 @@ class EmptyImage:
         return (torch.cat((r, g, b), dim=-1), )
 
 class ImagePadForOutpaint:
+    SEARCH_ALIASES = ["extend canvas", "expand image"]
 
     @classmethod
     def INPUT_TYPES(s):

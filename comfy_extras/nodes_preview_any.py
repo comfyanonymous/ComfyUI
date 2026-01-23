@@ -16,7 +16,7 @@ class PreviewAny():
     OUTPUT_NODE = True
 
     CATEGORY = "utils"
-    SEARCH_ALIASES = ["preview", "show", "display", "view", "show text", "display text", "preview text", "show output", "inspect", "debug"]
+    SEARCH_ALIASES = ["show output", "inspect", "debug", "print value", "show text"]
 
     def main(self, source=None):
         value = 'None'

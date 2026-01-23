@@ -224,6 +224,7 @@ class ConvertStringToComboNode(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="ConvertStringToComboNode",
+            search_aliases=["string to dropdown", "text to combo"],
             display_name="Convert String to Combo",
             category="logic",
             inputs=[io.String.Input("string")],
@@ -239,6 +240,7 @@ class InvertBooleanNode(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="InvertBooleanNode",
+            search_aliases=["not", "toggle", "negate", "flip boolean"],
             display_name="Invert Boolean",
             category="logic",
             inputs=[io.Boolean.Input("boolean")],
