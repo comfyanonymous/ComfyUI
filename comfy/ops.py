@@ -203,7 +203,9 @@ class disable_weight_init:
         def reset_parameters(self):
             return None
 
-        def _conv_forward(self, input, weight, bias, *args, **kwargs):
+        def _conv_forward(self, input, weight, bias, autopad=None, *args, **kwargs):
+            if autopad == "causal_zero":
+                weight = weight[:, :, -input.shape[2]:, :, :]
             if NVIDIA_MEMORY_CONV_BUG_WORKAROUND and weight.dtype in (torch.float16, torch.bfloat16):
                 out = torch.cudnn_convolution(input, weight, self.padding, self.stride, self.dilation, self.groups, benchmark=False, deterministic=False, allow_tf32=True)
                 if bias is not None:
@@ -212,15 +214,15 @@ class disable_weight_init:
             else:
                 return super()._conv_forward(input, weight, bias, *args, **kwargs)
 
-        def forward_comfy_cast_weights(self, input):
+        def forward_comfy_cast_weights(self, input, autopad=None):
             weight, bias, offload_stream = cast_bias_weight(self, input, offloadable=True)
-            x = self._conv_forward(input, weight, bias)
+            x = self._conv_forward(input, weight, bias, autopad=autopad)
             uncast_bias_weight(self, weight, bias, offload_stream)
             return x
 
         def forward(self, *args, **kwargs):
             run_every_op()
-            if self.comfy_cast_weights or len(self.weight_function) > 0 or len(self.bias_function) > 0:
+            if self.comfy_cast_weights or len(self.weight_function) > 0 or len(self.bias_function) > 0 or "autopad" in kwargs:
                 return self.forward_comfy_cast_weights(*args, **kwargs)
             else:
                 return super().forward(*args, **kwargs)
