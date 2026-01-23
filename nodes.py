@@ -724,7 +724,7 @@ class LoraLoaderModelOnly(LoraLoader):
 
 class VAELoader:
     video_taes = ["taehv", "lighttaew2_2", "lighttaew2_1", "lighttaehy1_5", "taeltx_2"]
-    image_taes = ["taesd", "taesdxl", "taesd3", "taef1"]
+    image_taes = ["taesd", "taesdxl", "taesd3", "taef1", "taef2"]
     @staticmethod
     def vae_list(s):
         vaes = folder_paths.get_filename_list("vae")
@@ -737,6 +737,8 @@ class VAELoader:
         sd3_taesd_dec = False
         f1_taesd_enc = False
         f1_taesd_dec = False
+        f2_taesd_enc = False
+        f2_taesd_dec = False
 
         for v in approx_vaes:
             if v.startswith("taesd_decoder."):
@@ -755,6 +757,10 @@ class VAELoader:
                 f1_taesd_dec = True
             elif v.startswith("taef1_decoder."):
                 f1_taesd_enc = True
+            elif v.startswith("taef2_encoder."):
+                f2_taesd_dec = True
+            elif v.startswith("taef2_decoder."):
+                f2_taesd_enc = True
             else:
                 for tae in s.video_taes:
                     if v.startswith(tae):
@@ -768,6 +774,8 @@ class VAELoader:
             vaes.append("taesd3")
         if f1_taesd_dec and f1_taesd_enc:
             vaes.append("taef1")
+        if f2_taesd_dec and f2_taesd_enc:
+            vaes.append("taef2")
         vaes.append("pixel_space")
         return vaes
 
@@ -799,6 +807,9 @@ class VAELoader:
         elif name == "taef1":
             sd["vae_scale"] = torch.tensor(0.3611)
             sd["vae_shift"] = torch.tensor(0.1159)
+        elif name == "taef2":
+            sd["vae_scale"] = torch.tensor(1.0)
+            sd["vae_shift"] = torch.tensor(0.0)
         return sd
 
     @classmethod
