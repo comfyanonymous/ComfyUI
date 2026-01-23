@@ -877,8 +877,8 @@ class MagnificExtension(ComfyExtension):
     @override
     async def get_node_list(self) -> list[type[IO.ComfyNode]]:
         return [
-            MagnificImageUpscalerCreativeNode,
-            MagnificImageUpscalerPreciseV2Node,
+            # MagnificImageUpscalerCreativeNode,
+            # MagnificImageUpscalerPreciseV2Node,
             MagnificImageStyleTransferNode,
             MagnificImageRelightNode,
             MagnificImageSkinEnhancerNode,
