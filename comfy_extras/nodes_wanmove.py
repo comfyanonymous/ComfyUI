@@ -324,6 +324,7 @@ class GenerateTracks(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="GenerateTracks",
+            search_aliases=["motion paths", "camera movement", "trajectory"],
             category="conditioning/video_models",
             inputs=[
                 io.Int.Input("width", default=832, min=16, max=4096, step=16),

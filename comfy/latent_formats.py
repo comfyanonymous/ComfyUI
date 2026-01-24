@@ -8,6 +8,7 @@ class LatentFormat:
     latent_rgb_factors_bias = None
     latent_rgb_factors_reshape = None
     taesd_decoder_name = None
+    spacial_downscale_ratio = 8
 
     def process_in(self, latent):
         return latent * self.scale_factor
@@ -181,6 +182,7 @@ class Flux(SD3):
 
 class Flux2(LatentFormat):
     latent_channels = 128
+    spacial_downscale_ratio = 16
 
     def __init__(self):
         self.latent_rgb_factors =[
@@ -749,6 +751,7 @@ class ACEAudio(LatentFormat):
 
 class ChromaRadiance(LatentFormat):
     latent_channels = 3
+    spacial_downscale_ratio = 1
 
     def __init__(self):
         self.latent_rgb_factors = [

@@ -1101,6 +1101,7 @@ class SaveLoRA(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="SaveLoRA",
+            search_aliases=["export lora"],
             display_name="Save LoRA Weights",
             category="loaders",
             is_experimental=True,
@@ -1144,6 +1145,7 @@ class LossGraphNode(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="LossGraphNode",
+            search_aliases=["training chart", "training visualization", "plot loss"],
             display_name="Plot Loss Graph",
             category="training",
             is_experimental=True,

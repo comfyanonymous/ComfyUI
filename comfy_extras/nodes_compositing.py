@@ -109,6 +109,7 @@ class PorterDuffImageComposite(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="PorterDuffImageComposite",
+            search_aliases=["alpha composite", "blend modes", "layer blend", "transparency blend"],
             display_name="Porter-Duff Image Composite",
             category="mask/compositing",
             inputs=[
@@ -165,6 +166,7 @@ class SplitImageWithAlpha(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="SplitImageWithAlpha",
+            search_aliases=["extract alpha", "separate transparency", "remove alpha"],
             display_name="Split Image with Alpha",
             category="mask/compositing",
             inputs=[
@@ -188,6 +190,7 @@ class JoinImageWithAlpha(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="JoinImageWithAlpha",
+            search_aliases=["add transparency", "apply alpha", "composite alpha", "RGBA"],
             display_name="Join Image with Alpha",
             category="mask/compositing",
             inputs=[

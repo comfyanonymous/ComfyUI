@@ -203,7 +203,9 @@ class disable_weight_init:
         def reset_parameters(self):
             return None
 
-        def _conv_forward(self, input, weight, bias, *args, **kwargs):
+        def _conv_forward(self, input, weight, bias, autopad=None, *args, **kwargs):
+            if autopad == "causal_zero":
+                weight = weight[:, :, -input.shape[2]:, :, :]
             if NVIDIA_MEMORY_CONV_BUG_WORKAROUND and weight.dtype in (torch.float16, torch.bfloat16):
                 out = torch.cudnn_convolution(input, weight, self.padding, self.stride, self.dilation, self.groups, benchmark=False, deterministic=False, allow_tf32=True)
                 if bias is not None:
@@ -212,15 +214,15 @@ class disable_weight_init:
             else:
                 return super()._conv_forward(input, weight, bias, *args, **kwargs)
 
-        def forward_comfy_cast_weights(self, input):
+        def forward_comfy_cast_weights(self, input, autopad=None):
             weight, bias, offload_stream = cast_bias_weight(self, input, offloadable=True)
-            x = self._conv_forward(input, weight, bias)
+            x = self._conv_forward(input, weight, bias, autopad=autopad)
             uncast_bias_weight(self, weight, bias, offload_stream)
             return x
 
         def forward(self, *args, **kwargs):
             run_every_op()
-            if self.comfy_cast_weights or len(self.weight_function) > 0 or len(self.bias_function) > 0:
+            if self.comfy_cast_weights or len(self.weight_function) > 0 or len(self.bias_function) > 0 or "autopad" in kwargs:
                 return self.forward_comfy_cast_weights(*args, **kwargs)
             else:
                 return super().forward(*args, **kwargs)
@@ -546,7 +548,8 @@ def mixed_precision_ops(quant_config={}, compute_dtype=torch.bfloat16, full_prec
                 weight_key = f"{prefix}weight"
                 weight = state_dict.pop(weight_key, None)
                 if weight is None:
-                    raise ValueError(f"Missing weight for layer {layer_name}")
+                    logging.warning(f"Missing weight for layer {layer_name}")
+                    return
 
                 manually_loaded_keys = [weight_key]
 
@@ -624,21 +627,29 @@ def mixed_precision_ops(quant_config={}, compute_dtype=torch.bfloat16, full_prec
                         missing_keys.remove(key)
 
             def state_dict(self, *args, destination=None, prefix="", **kwargs):
-                sd = super().state_dict(*args, destination=destination, prefix=prefix, **kwargs)
-                if isinstance(self.weight, QuantizedTensor):
-                    layout_cls = self.weight._layout_cls
+                if destination is not None:
+                    sd = destination
+                else:
+                    sd = {}
 
-                    # Check if it's any FP8 variant (E4M3 or E5M2)
-                    if layout_cls in ("TensorCoreFP8E4M3Layout", "TensorCoreFP8E5M2Layout", "TensorCoreFP8Layout"):
-                        sd["{}weight_scale".format(prefix)] = self.weight._params.scale
-                    elif layout_cls == "TensorCoreNVFP4Layout":
-                        sd["{}weight_scale_2".format(prefix)] = self.weight._params.scale
-                        sd["{}weight_scale".format(prefix)] = self.weight._params.block_scale
+                if self.bias is not None:
+                    sd["{}bias".format(prefix)] = self.bias
+
+                if isinstance(self.weight, QuantizedTensor):
+                    sd_out = self.weight.state_dict("{}weight".format(prefix))
+                    for k in sd_out:
+                        sd[k] = sd_out[k]
 
                     quant_conf = {"format": self.quant_format}
                     if self._full_precision_mm_config:
                         quant_conf["full_precision_matrix_mult"] = True
                     sd["{}comfy_quant".format(prefix)] = torch.tensor(list(json.dumps(quant_conf).encode('utf-8')), dtype=torch.uint8)
+
+                    input_scale = getattr(self, 'input_scale', None)
+                    if input_scale is not None:
+                        sd["{}input_scale".format(prefix)] = input_scale
+                else:
+                    sd["{}weight".format(prefix)] = self.weight
                 return sd
 
             def _forward(self, input, weight, bias):
@@ -690,7 +701,7 @@ def mixed_precision_ops(quant_config={}, compute_dtype=torch.bfloat16, full_prec
             def set_weight(self, weight, inplace_update=False, seed=None, return_weight=False, **kwargs):
                 if getattr(self, 'layout_type', None) is not None:
                     # dtype is now implicit in the layout class
-                    weight = QuantizedTensor.from_float(weight, self.layout_type, scale="recalculate", stochastic_rounding=seed, inplace_ops=True)
+                    weight = QuantizedTensor.from_float(weight, self.layout_type, scale="recalculate", stochastic_rounding=seed, inplace_ops=True).to(self.weight.dtype)
                 else:
                     weight = weight.to(self.weight.dtype)
                 if return_weight:
