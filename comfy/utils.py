@@ -33,8 +33,6 @@ import json
 import time
 import mmap
 
-import packaging
-
 MMAP_TORCH_FILES = args.mmap_torch_files
 DISABLE_MMAP = args.disable_mmap
 
@@ -74,15 +72,11 @@ _TYPES = {
     "F8_E4M3": torch.float8_e4m3fn,
     "F8_E5M2": torch.float8_e5m2,
     "C64": torch.complex64,
+
+    "U64": torch.uint64,
+    "U32": torch.uint32,
+    "U16": torch.uint16,
 }
-if packaging.version.Version(torch.__version__) >= packaging.version.Version("2.3.0"):
-    _TYPES.update(
-        {
-            "U64": torch.uint64,
-            "U32": torch.uint32,
-            "U16": torch.uint16,
-        }
-    )
 
 def load_safetensors(ckpt):
     f = open(ckpt, "rb")
