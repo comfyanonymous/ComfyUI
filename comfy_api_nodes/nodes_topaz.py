@@ -203,7 +203,6 @@ class TopazImageEnhance(IO.ComfyNode):
             progress_extractor=lambda x: getattr(x, "progress", 0),
             price_extractor=lambda x: x.credits * 0.08,
             poll_interval=8.0,
-            max_poll_attempts=160,
             estimated_duration=60,
         )
 

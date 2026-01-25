@@ -88,6 +88,28 @@ async def upload_images_to_comfyapi(
     return download_urls
 
 
+async def upload_image_to_comfyapi(
+    cls: type[IO.ComfyNode],
+    image: torch.Tensor,
+    *,
+    mime_type: str | None = None,
+    wait_label: str | None = "Uploading",
+    total_pixels: int = 2048 * 2048,
+) -> str:
+    """Uploads a single image to ComfyUI API and returns its download URL."""
+    return (
+        await upload_images_to_comfyapi(
+            cls,
+            image,
+            max_images=1,
+            mime_type=mime_type,
+            wait_label=wait_label,
+            show_batch_index=False,
+            total_pixels=total_pixels,
+        )
+    )[0]
+
+
 async def upload_audio_to_comfyapi(
     cls: type[IO.ComfyNode],
     audio: Input.Audio,
