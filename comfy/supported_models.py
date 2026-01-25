@@ -1093,7 +1093,7 @@ class ZImage(Lumina2):
 
     def __init__(self, unet_config):
         super().__init__(unet_config)
-        if comfy.model_management.extended_fp16_support():
+        if comfy.model_management.extended_fp16_support() and unet_config.get("allow_fp16", False):
             self.supported_inference_dtypes = self.supported_inference_dtypes.copy()
             self.supported_inference_dtypes.insert(1, torch.float16)
 
