@@ -109,6 +109,9 @@ class MeshyTextureRequest(BaseModel):
 
 class MeshyModelsUrls(BaseModel):
     glb: str = Field("")
+    fbx: str = Field("")
+    usdz: str = Field("")
+    obj: str = Field("")
 
 
 class MeshyRiggedModelsUrls(BaseModel):

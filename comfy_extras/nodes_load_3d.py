@@ -1,9 +1,10 @@
 import nodes
 import folder_paths
 import os
+import uuid
 
 from typing_extensions import override
-from comfy_api.latest import IO, ComfyExtension, InputImpl, UI
+from comfy_api.latest import IO, UI, ComfyExtension, InputImpl, Types
 
 from pathlib import Path
 
@@ -81,7 +82,19 @@ class Preview3D(IO.ComfyNode):
             is_experimental=True,
             is_output_node=True,
             inputs=[
-                IO.String.Input("model_file", default="", multiline=False),
+                IO.MultiType.Input(
+                    IO.String.Input("model_file", default="", multiline=False),
+                    types=[
+                        IO.File3DGLB,
+                        IO.File3DGLTF,
+                        IO.File3DFBX,
+                        IO.File3DOBJ,
+                        IO.File3DSTL,
+                        IO.File3DUSDZ,
+                        IO.File3DAny,
+                    ],
+                    tooltip="3D model file or path string",
+                ),
                 IO.Load3DCamera.Input("camera_info", optional=True),
                 IO.Image.Input("bg_image", optional=True),
             ],
@@ -89,10 +102,15 @@ class Preview3D(IO.ComfyNode):
         )
 
     @classmethod
-    def execute(cls, model_file, **kwargs) -> IO.NodeOutput:
+    def execute(cls, model_file: str | Types.File3D, **kwargs) -> IO.NodeOutput:
+        if isinstance(model_file, Types.File3D):
+            filename = f"preview3d_{uuid.uuid4().hex}.{model_file.format}"
+            model_file.save_to(os.path.join(folder_paths.get_output_directory(), filename))
+        else:
+            filename = model_file
         camera_info = kwargs.get("camera_info", None)
         bg_image = kwargs.get("bg_image", None)
-        return IO.NodeOutput(ui=UI.PreviewUI3D(model_file, camera_info, bg_image=bg_image))
+        return IO.NodeOutput(ui=UI.PreviewUI3D(filename, camera_info, bg_image=bg_image))
 
     process = execute  # TODO: remove
 
