@@ -523,8 +523,11 @@ async def execute(server, dynprompt, caches, current_item, extra_data, executed,
             #that we just want to cull out each model run.
             allocator = comfy.memory_management.aimdo_allocator
             with nullcontext() if allocator is None else torch.cuda.use_mem_pool(torch.cuda.MemPool(allocator.allocator())):
-                output_data, output_ui, has_subgraph, has_pending_tasks = await get_output_data(prompt_id, unique_id, obj, input_data_all, execution_block_cb=execution_block_cb, pre_execute_cb=pre_execute_cb, v3_data=v3_data)
-                torch.cuda.synchronize()
+                try:
+                    output_data, output_ui, has_subgraph, has_pending_tasks = await get_output_data(prompt_id, unique_id, obj, input_data_all, execution_block_cb=execution_block_cb, pre_execute_cb=pre_execute_cb, v3_data=v3_data)
+                finally:
+                    if allocator is not None:
+                        torch.cuda.synchronize()
             if allocator is not None:
                 #FIXME: this is probably a little zealous
                 # Torch code comments says some stuff about not actually freeing tensors on mempool

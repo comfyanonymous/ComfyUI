@@ -1120,7 +1120,8 @@ def get_cast_buffer(offload_stream, device, size, ref):
 def reset_cast_buffers():
     global LARGEST_CASTED_WEIGHT
     LARGEST_CASTED_WEIGHT = (None, 0)
-    torch.cuda.synchronize()
+    for offload_stream in STREAM_CAST_BUFFERS:
+        offload_stream.synchronize()
     STREAM_CAST_BUFFERS.clear()
     torch.cuda.empty_cache()
 
