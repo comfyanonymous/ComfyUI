@@ -8,6 +8,7 @@ class LatentFormat:
     latent_rgb_factors_bias = None
     latent_rgb_factors_reshape = None
     taesd_decoder_name = None
+    spacial_downscale_ratio = 8
 
     def process_in(self, latent):
         return latent * self.scale_factor
@@ -181,6 +182,7 @@ class Flux(SD3):
 
 class Flux2(LatentFormat):
     latent_channels = 128
+    spacial_downscale_ratio = 16
 
     def __init__(self):
         self.latent_rgb_factors =[
@@ -592,6 +594,7 @@ class Wan22(Wan21):
 class HunyuanImage21(LatentFormat):
     latent_channels = 64
     latent_dimensions = 2
+    spacial_downscale_ratio = 32
     scale_factor = 0.75289
 
     latent_rgb_factors = [
@@ -725,6 +728,7 @@ class HunyuanVideo15(LatentFormat):
     latent_rgb_factors_bias = [ 0.0456, -0.0202, -0.0644]
     latent_channels = 32
     latent_dimensions = 3
+    spacial_downscale_ratio = 16
     scale_factor = 1.03682
     taesd_decoder_name = "lighttaehy1_5"
 
@@ -749,6 +753,7 @@ class ACEAudio(LatentFormat):
 
 class ChromaRadiance(LatentFormat):
     latent_channels = 3
+    spacial_downscale_ratio = 1
 
     def __init__(self):
         self.latent_rgb_factors = [

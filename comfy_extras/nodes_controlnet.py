@@ -38,6 +38,7 @@ class ControlNetInpaintingAliMamaApply(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="ControlNetInpaintingAliMamaApply",
+            search_aliases=["masked controlnet"],
             category="conditioning/controlnet",
             inputs=[
                 io.Conditioning.Input("positive"),

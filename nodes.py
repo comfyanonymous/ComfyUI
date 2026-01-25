@@ -93,6 +93,8 @@ class ConditioningCombine:
         return (conditioning_1 + conditioning_2, )
 
 class ConditioningAverage :
+    SEARCH_ALIASES = ["blend prompts", "interpolate conditioning", "mix prompts", "style fusion", "weighted blend"]
+
     @classmethod
     def INPUT_TYPES(s):
         return {"required": {"conditioning_to": ("CONDITIONING", ), "conditioning_from": ("CONDITIONING", ),
@@ -159,6 +161,8 @@ class ConditioningConcat:
         return (out, )
 
 class ConditioningSetArea:
+    SEARCH_ALIASES = ["regional prompt", "area prompt", "spatial conditioning", "localized prompt"]
+
     @classmethod
     def INPUT_TYPES(s):
         return {"required": {"conditioning": ("CONDITIONING", ),
@@ -217,6 +221,8 @@ class ConditioningSetAreaStrength:
 
 
 class ConditioningSetMask:
+    SEARCH_ALIASES = ["masked prompt", "regional inpaint conditioning", "mask conditioning"]
+
     @classmethod
     def INPUT_TYPES(s):
         return {"required": {"conditioning": ("CONDITIONING", ),
@@ -242,6 +248,8 @@ class ConditioningSetMask:
         return (c, )
 
 class ConditioningZeroOut:
+    SEARCH_ALIASES = ["null conditioning", "clear conditioning"]
+
     @classmethod
     def INPUT_TYPES(s):
         return {"required": {"conditioning": ("CONDITIONING", )}}
@@ -467,6 +475,8 @@ class InpaintModelConditioning:
 
 
 class SaveLatent:
+    SEARCH_ALIASES = ["export latent"]
+
     def __init__(self):
         self.output_dir = folder_paths.get_output_directory()
 
@@ -518,6 +528,8 @@ class SaveLatent:
 
 
 class LoadLatent:
+    SEARCH_ALIASES = ["import latent", "open latent"]
+
     @classmethod
     def INPUT_TYPES(s):
         input_dir = folder_paths.get_input_directory()
@@ -554,6 +566,8 @@ class LoadLatent:
 
 
 class CheckpointLoader:
+    SEARCH_ALIASES = ["load model", "model loader"]
+
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "config_name": (folder_paths.get_filename_list("configs"), ),
@@ -593,6 +607,8 @@ class CheckpointLoaderSimple:
         return out[:3]
 
 class DiffusersLoader:
+    SEARCH_ALIASES = ["load diffusers model"]
+
     @classmethod
     def INPUT_TYPES(cls):
         paths = []
@@ -1063,6 +1079,8 @@ class StyleModelLoader:
 
 
 class StyleModelApply:
+    SEARCH_ALIASES = ["style transfer"]
+
     @classmethod
     def INPUT_TYPES(s):
         return {"required": {"conditioning": ("CONDITIONING", ),
@@ -1212,10 +1230,12 @@ class EmptyLatentImage:
 
     def generate(self, width, height, batch_size=1):
         latent = torch.zeros([batch_size, 4, height // 8, width // 8], device=self.device)
-        return ({"samples":latent}, )
+        return ({"samples": latent, "downscale_ratio_spacial": 8}, )
 
 
 class LatentFromBatch:
+    SEARCH_ALIASES = ["select from batch", "pick latent", "batch subset"]
+
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "samples": ("LATENT",),
@@ -1248,6 +1268,8 @@ class LatentFromBatch:
         return (s,)
 
 class RepeatLatentBatch:
+    SEARCH_ALIASES = ["duplicate latent", "clone latent"]
+
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "samples": ("LATENT",),
@@ -1274,6 +1296,8 @@ class RepeatLatentBatch:
         return (s,)
 
 class LatentUpscale:
+    SEARCH_ALIASES = ["enlarge latent", "resize latent"]
+
     upscale_methods = ["nearest-exact", "bilinear", "area", "bicubic", "bislerp"]
     crop_methods = ["disabled", "center"]
 
@@ -1308,6 +1332,8 @@ class LatentUpscale:
         return (s,)
 
 class LatentUpscaleBy:
+    SEARCH_ALIASES = ["enlarge latent", "resize latent", "scale latent"]
+
     upscale_methods = ["nearest-exact", "bilinear", "area", "bicubic", "bislerp"]
 
     @classmethod
@@ -1351,6 +1377,8 @@ class LatentRotate:
         return (s,)
 
 class LatentFlip:
+    SEARCH_ALIASES = ["mirror latent"]
+
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "samples": ("LATENT",),
@@ -1371,6 +1399,8 @@ class LatentFlip:
         return (s,)
 
 class LatentComposite:
+    SEARCH_ALIASES = ["overlay latent", "layer latent", "paste latent"]
+
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "samples_to": ("LATENT",),
@@ -1413,6 +1443,8 @@ class LatentComposite:
         return (samples_out,)
 
 class LatentBlend:
+    SEARCH_ALIASES = ["mix latents", "interpolate latents"]
+
     @classmethod
     def INPUT_TYPES(s):
         return {"required": {
@@ -1454,6 +1486,8 @@ class LatentBlend:
             raise ValueError(f"Unsupported blend mode: {mode}")
 
 class LatentCrop:
+    SEARCH_ALIASES = ["trim latent", "cut latent"]
+
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "samples": ("LATENT",),
@@ -1504,7 +1538,7 @@ class SetLatentNoiseMask:
 
 def common_ksampler(model, seed, steps, cfg, sampler_name, scheduler, positive, negative, latent, denoise=1.0, disable_noise=False, start_step=None, last_step=None, force_full_denoise=False):
     latent_image = latent["samples"]
-    latent_image = comfy.sample.fix_empty_latent_channels(model, latent_image)
+    latent_image = comfy.sample.fix_empty_latent_channels(model, latent_image, latent.get("downscale_ratio_spacial", None))
 
     if disable_noise:
         noise = torch.zeros(latent_image.size(), dtype=latent_image.dtype, layout=latent_image.layout, device="cpu")
@@ -1522,6 +1556,7 @@ def common_ksampler(model, seed, steps, cfg, sampler_name, scheduler, positive, 
                                   denoise=denoise, disable_noise=disable_noise, start_step=start_step, last_step=last_step,
                                   force_full_denoise=force_full_denoise, noise_mask=noise_mask, callback=callback, disable_pbar=disable_pbar, seed=seed)
     out = latent.copy()
+    out.pop("downscale_ratio_spacial", None)
     out["samples"] = samples
     return (out, )
 
@@ -1739,6 +1774,8 @@ class LoadImage:
         return True
 
 class LoadImageMask:
+    SEARCH_ALIASES = ["import mask", "alpha mask", "channel mask"]
+
     _color_channels = ["alpha", "red", "green", "blue"]
     @classmethod
     def INPUT_TYPES(s):
@@ -1789,6 +1826,8 @@ class LoadImageMask:
 
 
 class LoadImageOutput(LoadImage):
+    SEARCH_ALIASES = ["output image", "previous generation"]
+
     @classmethod
     def INPUT_TYPES(s):
         return {
@@ -1862,6 +1901,7 @@ class ImageScaleBy:
         return (s,)
 
 class ImageInvert:
+    SEARCH_ALIASES = ["reverse colors"]
 
     @classmethod
     def INPUT_TYPES(s):
@@ -1877,6 +1917,7 @@ class ImageInvert:
         return (s,)
 
 class ImageBatch:
+    SEARCH_ALIASES = ["combine images", "merge images", "stack images"]
 
     @classmethod
     def INPUT_TYPES(s):
@@ -1922,6 +1963,7 @@ class EmptyImage:
         return (torch.cat((r, g, b), dim=-1), )
 
 class ImagePadForOutpaint:
+    SEARCH_ALIASES = ["extend canvas", "expand image"]
 
     @classmethod
     def INPUT_TYPES(s):
