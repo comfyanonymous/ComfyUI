@@ -1383,6 +1383,8 @@ class Schema:
     """Flags a node as not idempotent; when True, the node will run and not reuse the cached outputs when identical inputs are provided on a different node in the graph."""
     enable_expand: bool=False
     """Flags a node as expandable, allowing NodeOutput to include 'expand' property."""
+    accept_all_inputs: bool=False
+    """When True, all inputs from the prompt will be passed to the node as kwargs, even if not defined in the schema."""
 
     def validate(self):
         '''Validate the schema:
@@ -1853,6 +1855,14 @@ class _ComfyNodeBaseInternal(_ComfyNodeInternal):
             cls.GET_SCHEMA()
         return cls._NOT_IDEMPOTENT
 
+    _ACCEPT_ALL_INPUTS = None
+    @final
+    @classproperty
+    def ACCEPT_ALL_INPUTS(cls):  # noqa
+        if cls._ACCEPT_ALL_INPUTS is None:
+            cls.GET_SCHEMA()
+        return cls._ACCEPT_ALL_INPUTS
+
     @final
     @classmethod
     def INPUT_TYPES(cls) -> dict[str, dict]:
@@ -1891,6 +1901,8 @@ class _ComfyNodeBaseInternal(_ComfyNodeInternal):
             cls._INPUT_IS_LIST = schema.is_input_list
         if cls._NOT_IDEMPOTENT is None:
             cls._NOT_IDEMPOTENT = schema.not_idempotent
+        if cls._ACCEPT_ALL_INPUTS is None:
+            cls._ACCEPT_ALL_INPUTS = schema.accept_all_inputs
 
         if cls._RETURN_TYPES is None:
             output = []
