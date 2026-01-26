@@ -144,6 +144,21 @@ def downscale_image_tensor(image: torch.Tensor, total_pixels: int = 1536 * 1024)
     return s
 
 
+def downscale_image_tensor_by_max_side(image: torch.Tensor, *,  max_side: int) -> torch.Tensor:
+    """Downscale input image tensor so the largest dimension is at most max_side pixels."""
+    samples = image.movedim(-1, 1)
+    height, width = samples.shape[2], samples.shape[3]
+    max_dim = max(width, height)
+    if max_dim <= max_side:
+        return image
+    scale_by = max_side / max_dim
+    new_width = round(width * scale_by)
+    new_height = round(height * scale_by)
+    s = common_upscale(samples, new_width, new_height, "lanczos", "disabled")
+    s = s.movedim(1, -1)
+    return s
+
+
 def tensor_to_data_uri(
     image_tensor: torch.Tensor,
     total_pixels: int = 2048 * 2048,
