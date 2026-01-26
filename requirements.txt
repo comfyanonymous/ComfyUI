@@ -22,6 +22,7 @@ alembic
 SQLAlchemy
 av>=14.2.0
 comfy-kitchen>=0.2.7
+requests
 
 #non essential dependencies:
 kornia>=0.7.1
