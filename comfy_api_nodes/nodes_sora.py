@@ -149,7 +149,6 @@ class OpenAIVideoSora2(IO.ComfyNode):
             response_model=Sora2GenerationResponse,
             status_extractor=lambda x: x.status,
             poll_interval=8.0,
-            max_poll_attempts=160,
             estimated_duration=int(45 * (duration / 4) * model_time_multiplier),
         )
         return IO.NodeOutput(

@@ -444,6 +444,10 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
             dit_config["ffn_dim_multiplier"] = (8.0 / 3.0)
             dit_config["z_image_modulation"] = True
             dit_config["time_scale"] = 1000.0
+            try:
+                dit_config["allow_fp16"] = torch.std(state_dict['{}layers.{}.ffn_norm1.weight'.format(key_prefix, dit_config["n_layers"] - 2)], unbiased=False).item() < 0.42
+            except Exception:
+                pass
             if '{}cap_pad_token'.format(key_prefix) in state_dict_keys:
                 dit_config["pad_tokens_multiple"] = 32
             sig_weight = state_dict.get('{}siglip_embedder.0.weight'.format(key_prefix), None)
@@ -550,6 +554,8 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
     if '{}blocks.0.mlp.layer1.weight'.format(key_prefix) in state_dict_keys:  # Cosmos predict2
         dit_config = {}
         dit_config["image_model"] = "cosmos_predict2"
+        if "{}llm_adapter.blocks.0.cross_attn.q_proj.weight".format(key_prefix) in state_dict_keys:
+            dit_config["image_model"] = "anima"
         dit_config["max_img_h"] = 240
         dit_config["max_img_w"] = 240
         dit_config["max_frames"] = 128

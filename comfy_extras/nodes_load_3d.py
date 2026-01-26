@@ -24,7 +24,7 @@ class Load3D(IO.ComfyNode):
         files = [
             normalize_path(str(file_path.relative_to(base_path)))
             for file_path in input_path.rglob("*")
-            if file_path.suffix.lower() in {'.gltf', '.glb', '.obj', '.fbx', '.stl'}
+            if file_path.suffix.lower() in {'.gltf', '.glb', '.obj', '.fbx', '.stl', '.spz', '.splat', '.ply', '.ksplat'}
         ]
         return IO.Schema(
             node_id="Load3D",
@@ -75,6 +75,7 @@ class Preview3D(IO.ComfyNode):
     def define_schema(cls):
         return IO.Schema(
             node_id="Preview3D",
+            search_aliases=["view mesh", "3d viewer"],
             display_name="Preview 3D & Animation",
             category="3d",
             is_experimental=True,

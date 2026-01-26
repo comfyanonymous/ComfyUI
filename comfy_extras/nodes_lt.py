@@ -223,11 +223,24 @@ class LTXVAddGuide(io.ComfyNode):
         return frame_idx, latent_idx
 
     @classmethod
-    def add_keyframe_index(cls, cond, frame_idx, guiding_latent, scale_factors):
+    def add_keyframe_index(cls, cond, frame_idx, guiding_latent, scale_factors, latent_downscale_factor=1):
         keyframe_idxs, _ = get_keyframe_idxs(cond)
         _, latent_coords = cls.PATCHIFIER.patchify(guiding_latent)
         pixel_coords = latent_to_pixel_coords(latent_coords, scale_factors, causal_fix=frame_idx == 0)  # we need the causal fix only if we're placing the new latents at index 0
         pixel_coords[:, 0] += frame_idx
+
+        # The following adjusts keyframe end positions for small grid IC-LoRA.
+        # After dilation, the small grid has the same size and position as the large grid,
+        # but each token encodes a larger image patch. We adjust the end position (not start)
+        # so that RoPE represents the correct middle point of each token.
+        # keyframe_idxs dims: (batch, spatial_dim [t,h,w], token_id, [start, end])
+        # We only adjust h,w (not t) in dim 1, and only end (not start) in dim 3.
+        spatial_end_offset = (latent_downscale_factor - 1) * torch.tensor(
+            scale_factors[1:],
+            device=pixel_coords.device,
+        ).view(1, -1, 1, 1)
+        pixel_coords[:, 1:, :, 1:] += spatial_end_offset.to(pixel_coords.dtype)
+
         if keyframe_idxs is None:
             keyframe_idxs = pixel_coords
         else:
@@ -235,12 +248,12 @@ class LTXVAddGuide(io.ComfyNode):
         return node_helpers.conditioning_set_values(cond, {"keyframe_idxs": keyframe_idxs})
 
     @classmethod
-    def append_keyframe(cls, positive, negative, frame_idx, latent_image, noise_mask, guiding_latent, strength, scale_factors, guide_mask=None, in_channels=128):
+    def append_keyframe(cls, positive, negative, frame_idx, latent_image, noise_mask, guiding_latent, strength, scale_factors, guide_mask=None, in_channels=128, latent_downscale_factor=1):
         if latent_image.shape[1] != in_channels or guiding_latent.shape[1] != in_channels:
             raise ValueError("Adding guide to a combined AV latent is not supported.")
 
-        positive = cls.add_keyframe_index(positive, frame_idx, guiding_latent, scale_factors)
-        negative = cls.add_keyframe_index(negative, frame_idx, guiding_latent, scale_factors)
+        positive = cls.add_keyframe_index(positive, frame_idx, guiding_latent, scale_factors, latent_downscale_factor)
+        negative = cls.add_keyframe_index(negative, frame_idx, guiding_latent, scale_factors, latent_downscale_factor)
 
         if guide_mask is not None:
             target_h = max(noise_mask.shape[3], guide_mask.shape[3])
