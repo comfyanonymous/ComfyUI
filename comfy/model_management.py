@@ -1208,6 +1208,7 @@ def cast_to(weight, dtype=None, device=None, non_blocking=False, copy=False, str
         r.copy_(weight, non_blocking=non_blocking)
 
         if signature is not None:
+            weight._v_signature = signature
             v_tensor.copy_(r)
             comfy_aimdo.model_vbar.vbar_unpin(weight._v)
 
