@@ -13,17 +13,6 @@ class Text2ImageTaskCreationRequest(BaseModel):
     watermark: bool | None = Field(False)
 
 
-class Image2ImageTaskCreationRequest(BaseModel):
-    model: str = Field(...)
-    prompt: str = Field(...)
-    response_format: str | None = Field("url")
-    image: str = Field(..., description="Base64 encoded string or image URL")
-    size: str | None = Field("adaptive")
-    seed: int | None = Field(..., ge=0, le=2147483647)
-    guidance_scale: float | None = Field(..., ge=1.0, le=10.0)
-    watermark: bool | None = Field(False)
-
-
 class Seedream4Options(BaseModel):
     max_images: int = Field(15)
 
