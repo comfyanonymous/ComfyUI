@@ -466,7 +466,7 @@ def load_embed(embedding_name, embedding_directory, embedding_size, embed_key=No
     return embed_out
 
 class SDTokenizer:
-    def __init__(self, tokenizer_path=None, max_length=77, pad_with_end=True, embedding_directory=None, embedding_size=768, embedding_key='clip_l', tokenizer_class=CLIPTokenizer, has_start_token=True, has_end_token=True, pad_to_max_length=True, min_length=None, pad_token=None, end_token=None, min_padding=None, pad_left=False, disable_weights=False, tokenizer_data={}, tokenizer_args={}):
+    def __init__(self, tokenizer_path=None, max_length=77, pad_with_end=True, embedding_directory=None, embedding_size=768, embedding_key='clip_l', tokenizer_class=CLIPTokenizer, has_start_token=True, has_end_token=True, pad_to_max_length=True, min_length=None, pad_token=None, end_token=None, start_token=None, min_padding=None, pad_left=False, disable_weights=False, tokenizer_data={}, tokenizer_args={}):
         if tokenizer_path is None:
             tokenizer_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "sd1_tokenizer")
         self.tokenizer = tokenizer_class.from_pretrained(tokenizer_path, **tokenizer_args)
@@ -479,8 +479,15 @@ class SDTokenizer:
         empty = self.tokenizer('')["input_ids"]
         self.tokenizer_adds_end_token = has_end_token
         if has_start_token:
-            self.tokens_start = 1
-            self.start_token = empty[0]
+            if len(empty) > 0:
+                self.tokens_start = 1
+                self.start_token = empty[0]
+            else:
+                self.tokens_start = 0
+                self.start_token = start_token
+                if start_token is None:
+                    logging.warning("WARNING: There's something wrong with your tokenizers.'")
+
             if end_token is not None:
                 self.end_token = end_token
             else:
@@ -488,7 +495,7 @@ class SDTokenizer:
                     self.end_token = empty[1]
         else:
             self.tokens_start = 0
-            self.start_token = None
+            self.start_token = start_token
             if end_token is not None:
                 self.end_token = end_token
             else:
