@@ -271,7 +271,10 @@ class LoadAudio(IO.ComfyNode):
             inputs=[
                 IO.Combo.Input("audio", upload=IO.UploadType.audio, options=sorted(files)),
             ],
-            outputs=[IO.Audio.Output()],
+            outputs=[
+                IO.Audio.Output(),
+                IO.Float.Output(display_name="duration"),
+            ],
         )
 
     @classmethod
@@ -279,7 +282,7 @@ class LoadAudio(IO.ComfyNode):
         audio_path = folder_paths.get_annotated_filepath(audio)
         waveform, sample_rate = load(audio_path)
         audio = {"waveform": waveform.unsqueeze(0), "sample_rate": sample_rate}
-        return IO.NodeOutput(audio)
+        return IO.NodeOutput(audio, waveform.shape[-1] / sample_rate)
 
     @classmethod
     def fingerprint_inputs(cls, audio):
