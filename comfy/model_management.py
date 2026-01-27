@@ -585,9 +585,15 @@ WINDOWS = any(platform.win32_ver())
 
 EXTRA_RESERVED_VRAM = 400 * 1024 * 1024
 if WINDOWS:
+    import comfy.windows
     EXTRA_RESERVED_VRAM = 600 * 1024 * 1024 #Windows is higher because of the shared vram issue
     if total_vram > (15 * 1024):  # more extra reserved vram on 16GB+ cards
         EXTRA_RESERVED_VRAM += 100 * 1024 * 1024
+    def get_free_ram():
+        return comfy.windows.get_free_ram()
+else:
+    def get_free_ram():
+        return psutil.virtual_memory().available
 
 if args.reserve_vram is not None:
     EXTRA_RESERVED_VRAM = args.reserve_vram * 1024 * 1024 * 1024
@@ -618,7 +624,7 @@ def free_memory(memory_required, device, keep_loaded=[], for_dynamic=False, ram_
         ram_to_free = 1e32
         if not DISABLE_SMART_MEMORY:
             memory_to_free = memory_required - get_free_memory(device)
-            ram_to_free = ram_required - psutil.virtual_memory().available
+            ram_to_free = ram_required - get_free_ram()
 
         if current_loaded_models[i].model.is_dynamic() and for_dynamic:
             #don't actually unload dynamic models for the sake of other dynamic models
