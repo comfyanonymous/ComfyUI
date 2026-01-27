@@ -49,7 +49,7 @@ async def upload_images_to_comfyapi(
     mime_type: str | None = None,
     wait_label: str | None = "Uploading",
     show_batch_index: bool = True,
-    total_pixels: int = 2048 * 2048,
+    total_pixels: int | None = 2048 * 2048,
 ) -> list[str]:
     """
     Uploads images to ComfyUI API and returns download URLs.

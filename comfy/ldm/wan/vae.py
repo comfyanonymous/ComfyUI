@@ -479,10 +479,12 @@ class WanVAE(nn.Module):
 
     def encode(self, x):
         conv_idx = [0]
-        feat_map = [None] * count_conv3d(self.decoder)
         ## cache
         t = x.shape[2]
         iter_ = 1 + (t - 1) // 4
+        feat_map = None
+        if iter_ > 1:
+            feat_map = [None] * count_conv3d(self.decoder)
         ## 对encode输入的x，按时间拆分为1、4、4、4....
         for i in range(iter_):
             conv_idx = [0]
@@ -502,10 +504,11 @@ class WanVAE(nn.Module):
 
     def decode(self, z):
         conv_idx = [0]
-        feat_map = [None] * count_conv3d(self.decoder)
         # z: [b,c,t,h,w]
-
         iter_ = z.shape[2]
+        feat_map = None
+        if iter_ > 1:
+            feat_map = [None] * count_conv3d(self.decoder)
         x = self.conv2(z)
         for i in range(iter_):
             conv_idx = [0]

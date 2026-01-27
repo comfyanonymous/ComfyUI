@@ -9,7 +9,6 @@ from comfy_api_nodes.apis.bytedance import (
     RECOMMENDED_PRESETS,
     RECOMMENDED_PRESETS_SEEDREAM_4,
     VIDEO_TASKS_EXECUTION_TIME,
-    Image2ImageTaskCreationRequest,
     Image2VideoTaskCreationRequest,
     ImageTaskCreationResponse,
     Seedream4Options,
@@ -161,99 +160,6 @@ class ByteDanceImageNode(IO.ComfyNode):
             model=model,
             prompt=prompt,
             size=f"{w}x{h}",
-            seed=seed,
-            guidance_scale=guidance_scale,
-            watermark=watermark,
-        )
-        response = await sync_op(
-            cls,
-            ApiEndpoint(path=BYTEPLUS_IMAGE_ENDPOINT, method="POST"),
-            data=payload,
-            response_model=ImageTaskCreationResponse,
-        )
-        return IO.NodeOutput(await download_url_to_image_tensor(get_image_url_from_response(response)))
-
-
-class ByteDanceImageEditNode(IO.ComfyNode):
-
-    @classmethod
-    def define_schema(cls):
-        return IO.Schema(
-            node_id="ByteDanceImageEditNode",
-            display_name="ByteDance Image Edit",
-            category="api node/image/ByteDance",
-            description="Edit images using ByteDance models via api based on prompt",
-            inputs=[
-                IO.Combo.Input("model", options=["seededit-3-0-i2i-250628"]),
-                IO.Image.Input(
-                    "image",
-                    tooltip="The base image to edit",
-                ),
-                IO.String.Input(
-                    "prompt",
-                    multiline=True,
-                    default="",
-                    tooltip="Instruction to edit image",
-                ),
-                IO.Int.Input(
-                    "seed",
-                    default=0,
-                    min=0,
-                    max=2147483647,
-                    step=1,
-                    display_mode=IO.NumberDisplay.number,
-                    control_after_generate=True,
-                    tooltip="Seed to use for generation",
-                    optional=True,
-                ),
-                IO.Float.Input(
-                    "guidance_scale",
-                    default=5.5,
-                    min=1.0,
-                    max=10.0,
-                    step=0.01,
-                    display_mode=IO.NumberDisplay.number,
-                    tooltip="Higher value makes the image follow the prompt more closely",
-                    optional=True,
-                ),
-                IO.Boolean.Input(
-                    "watermark",
-                    default=False,
-                    tooltip='Whether to add an "AI generated" watermark to the image',
-                    optional=True,
-                ),
-            ],
-            outputs=[
-                IO.Image.Output(),
-            ],
-            hidden=[
-                IO.Hidden.auth_token_comfy_org,
-                IO.Hidden.api_key_comfy_org,
-                IO.Hidden.unique_id,
-            ],
-            is_api_node=True,
-            is_deprecated=True,
-        )
-
-    @classmethod
-    async def execute(
-        cls,
-        model: str,
-        image: Input.Image,
-        prompt: str,
-        seed: int,
-        guidance_scale: float,
-        watermark: bool,
-    ) -> IO.NodeOutput:
-        validate_string(prompt, strip_whitespace=True, min_length=1)
-        if get_number_of_images(image) != 1:
-            raise ValueError("Exactly one input image is required.")
-        validate_image_aspect_ratio(image, (1, 3), (3, 1))
-        source_url = (await upload_images_to_comfyapi(cls, image, max_images=1, mime_type="image/png"))[0]
-        payload = Image2ImageTaskCreationRequest(
-            model=model,
-            prompt=prompt,
-            image=source_url,
             seed=seed,
             guidance_scale=guidance_scale,
             watermark=watermark,
@@ -1101,7 +1007,6 @@ class ByteDanceExtension(ComfyExtension):
     async def get_node_list(self) -> list[type[IO.ComfyNode]]:
         return [
             ByteDanceImageNode,
-            ByteDanceImageEditNode,
             ByteDanceSeedreamNode,
             ByteDanceTextToVideoNode,
             ByteDanceImageToVideoNode,
