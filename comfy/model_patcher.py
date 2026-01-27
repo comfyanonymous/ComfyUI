@@ -1451,7 +1451,7 @@ class ModelPatcherDynamic(ModelPatcher):
         raise RuntimeError("unpin_weight invalid for dymamic weight loading")
 
     def unpin_all_weights(self):
-        pass
+        self.partially_unload_ram(1e32)
 
     def memory_required(self, input_shape):
         #Pad this significantly. We are trying to get away from precise estimates. This
