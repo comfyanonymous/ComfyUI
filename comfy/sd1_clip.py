@@ -647,6 +647,12 @@ class SDTokenizer:
     def state_dict(self):
         return {}
 
+    def decode(self, token_ids, skip_special_tokens=True):
+        if torch.is_tensor(token_ids):
+            token_ids = token_ids.tolist()
+
+        return self.tokenizer.decode(token_ids, skip_special_tokens=skip_special_tokens)
+
 class SD1Tokenizer:
     def __init__(self, embedding_directory=None, tokenizer_data={}, clip_name="l", tokenizer=SDTokenizer, name=None):
         if name is not None:
@@ -669,6 +675,9 @@ class SD1Tokenizer:
 
     def state_dict(self):
         return getattr(self, self.clip).state_dict()
+
+    def decode(self, token_ids, skip_special_tokens=True):
+        return getattr(self, self.clip).decode(token_ids, skip_special_tokens=skip_special_tokens)
 
 class SD1CheckpointClipModel(SDClipModel):
     def __init__(self, device="cpu", dtype=None, model_options={}):
@@ -706,3 +715,6 @@ class SD1ClipModel(torch.nn.Module):
 
     def load_sd(self, sd):
         return getattr(self, self.clip).load_sd(sd)
+
+    def generate(self, tokens, max_length=256, temperature=1.0, top_k=50, top_p=0.95, repetition_penalty=1.0, seed=None, stop_tokens=None):
+        return getattr(self, self.clip).generate(tokens, max_length=max_length, temperature=temperature, top_k=top_k, top_p=top_p, repetition_penalty=repetition_penalty, seed=seed, stop_tokens=stop_tokens)

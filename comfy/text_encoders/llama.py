@@ -3,6 +3,8 @@ import torch.nn as nn
 from dataclasses import dataclass
 from typing import Optional, Any
 import math
+from tqdm import tqdm
+import comfy.utils
 
 from comfy.ldm.modules.attention import optimized_attention_for_device
 import comfy.model_management
@@ -356,8 +358,10 @@ class Attention(nn.Module):
         attention_mask: Optional[torch.Tensor] = None,
         freqs_cis: Optional[torch.Tensor] = None,
         optimized_attention=None,
+        kv_cache: Optional[tuple] = None,
     ):
         batch_size, seq_length, _ = hidden_states.shape
+
         xq = self.q_proj(hidden_states)
         xk = self.k_proj(hidden_states)
         xv = self.v_proj(hidden_states)
@@ -373,11 +377,45 @@ class Attention(nn.Module):
 
         xq, xk = apply_rope(xq, xk, freqs_cis=freqs_cis)
 
+        if kv_cache is not None:
+            xk, xv, attention_mask, kv_cache = self.kv_cache(xq, xk, xv, kv_cache)
+
         xk = xk.repeat_interleave(self.num_heads // self.num_kv_heads, dim=1)
         xv = xv.repeat_interleave(self.num_heads // self.num_kv_heads, dim=1)
 
         output = optimized_attention(xq, xk, xv, self.num_heads, mask=attention_mask, skip_reshape=True)
-        return self.o_proj(output)
+
+        out = self.o_proj(output)
+        return out, kv_cache
+
+    def kv_cache(self, xq: torch.Tensor, xk: torch.Tensor, xv: torch.Tensor, kv_cache:tuple):
+        cache_k, cache_v = kv_cache
+
+        if cache_k is None:
+            new_cache_k = xk
+            new_cache_v = xv
+        else:
+            new_cache_k = torch.cat([cache_k, xk], dim=2)
+            new_cache_v = torch.cat([cache_v, xv], dim=2)
+
+        new_cache = (new_cache_k, new_cache_v)
+
+        # Create causal mask for the current query attending to all cached keys
+        kv_len = new_cache_k.shape[2]
+        query_len = xq.shape[2]
+        batch_size_mask = xq.shape[0]
+
+        adjusted_mask = torch.full((batch_size_mask, 1, query_len, kv_len),
+                                    float('-inf'), dtype=xq.dtype, device=xq.device)
+
+        # Allow each query position to attend to all previous positions
+        current_pos = kv_len - query_len
+        for q_idx in range(query_len):
+            abs_pos = current_pos + q_idx
+            valid_until = abs_pos + 1
+            adjusted_mask[:, :, q_idx, :valid_until] = 0
+
+        return new_cache_k, new_cache_v, adjusted_mask, new_cache
 
 class MLP(nn.Module):
     def __init__(self, config: Llama2Config, device=None, dtype=None, ops: Any = None):
@@ -408,15 +446,17 @@ class TransformerBlock(nn.Module):
         attention_mask: Optional[torch.Tensor] = None,
         freqs_cis: Optional[torch.Tensor] = None,
         optimized_attention=None,
+        kv_cache: Optional[tuple] = None,
     ):
         # Self Attention
         residual = x
         x = self.input_layernorm(x)
-        x = self.self_attn(
+        x, kv_cache = self.self_attn(
             hidden_states=x,
             attention_mask=attention_mask,
             freqs_cis=freqs_cis,
             optimized_attention=optimized_attention,
+            kv_cache=kv_cache,
         )
         x = residual + x
 
@@ -426,7 +466,7 @@ class TransformerBlock(nn.Module):
         x = self.mlp(x)
         x = residual + x
 
-        return x
+        return x, kv_cache
 
 class TransformerBlockGemma2(nn.Module):
     def __init__(self, config: Llama2Config, index, device=None, dtype=None, ops: Any = None):
@@ -451,6 +491,7 @@ class TransformerBlockGemma2(nn.Module):
         attention_mask: Optional[torch.Tensor] = None,
         freqs_cis: Optional[torch.Tensor] = None,
         optimized_attention=None,
+        kv_cache: Optional[tuple] = None,
     ):
         if self.transformer_type == 'gemma3':
             if self.sliding_attention:
@@ -468,11 +509,13 @@ class TransformerBlockGemma2(nn.Module):
         # Self Attention
         residual = x
         x = self.input_layernorm(x)
-        x = self.self_attn(
+
+        x, kv_cache = self.self_attn(
             hidden_states=x,
             attention_mask=attention_mask,
             freqs_cis=freqs_cis,
             optimized_attention=optimized_attention,
+            kv_cache=kv_cache,
         )
 
         x = self.post_attention_layernorm(x)
@@ -481,11 +524,13 @@ class TransformerBlockGemma2(nn.Module):
         # MLP
         residual = x
         x = self.pre_feedforward_layernorm(x)
+
         x = self.mlp(x)
+
         x = self.post_feedforward_layernorm(x)
         x = residual + x
 
-        return x
+        return x, kv_cache
 
 class Llama2_(nn.Module):
     def __init__(self, config, device=None, dtype=None, ops=None):
@@ -518,7 +563,7 @@ class Llama2_(nn.Module):
 
         # self.lm_head = ops.Linear(config.hidden_size, config.vocab_size, bias=False, device=device, dtype=dtype)
 
-    def forward(self, x, attention_mask=None, embeds=None, num_tokens=None, intermediate_output=None, final_layer_norm_intermediate=True, dtype=None, position_ids=None, embeds_info=[]):
+    def forward(self, x, attention_mask=None, embeds=None, num_tokens=None, intermediate_output=None, final_layer_norm_intermediate=True, dtype=None, position_ids=None, embeds_info=[], kv_caches=None, optimized_attention=None, freqs_cis=None):
         if embeds is not None:
             x = embeds
         else:
@@ -527,15 +572,16 @@ class Llama2_(nn.Module):
         if self.normalize_in:
             x *= self.config.hidden_size ** 0.5
 
-        if position_ids is None:
-            position_ids = torch.arange(0, x.shape[1], device=x.device).unsqueeze(0)
+        if freqs_cis is None:
+            if position_ids is None:
+                position_ids = torch.arange(0, x.shape[1], device=x.device).unsqueeze(0)
 
-        freqs_cis = precompute_freqs_cis(self.config.head_dim,
-                                         position_ids,
-                                         self.config.rope_theta,
-                                         self.config.rope_scale,
-                                         self.config.rope_dims,
-                                         device=x.device)
+            freqs_cis = precompute_freqs_cis(self.config.head_dim,
+                                             position_ids,
+                                             self.config.rope_theta,
+                                             self.config.rope_scale,
+                                             self.config.rope_dims,
+                                             device=x.device)
 
         mask = None
         if attention_mask is not None:
@@ -547,7 +593,9 @@ class Llama2_(nn.Module):
             mask += causal_mask
         else:
             mask = causal_mask
-        optimized_attention = optimized_attention_for_device(x.device, mask=mask is not None, small_input=True)
+
+        if optimized_attention is None:
+            optimized_attention = optimized_attention_for_device(x.device, mask=mask is not None, small_input=True)
 
         intermediate = None
         all_intermediate = None
@@ -562,16 +610,23 @@ class Llama2_(nn.Module):
             elif intermediate_output < 0:
                 intermediate_output = len(self.layers) + intermediate_output
 
+        new_kv_caches = []
         for i, layer in enumerate(self.layers):
             if all_intermediate is not None:
                 if only_layers is None or (i in only_layers):
                     all_intermediate.append(x.unsqueeze(1).clone())
-            x = layer(
+
+            kv_cache = kv_caches[i] if kv_caches is not None else None
+            x, new_cache = layer(
                 x=x,
                 attention_mask=mask,
                 freqs_cis=freqs_cis,
                 optimized_attention=optimized_attention,
+                kv_cache=kv_cache,
             )
+            if new_cache is not None:
+                new_kv_caches.append(new_cache)
+
             if i == intermediate_output:
                 intermediate = x.clone()
 
@@ -588,6 +643,8 @@ class Llama2_(nn.Module):
         if intermediate is not None and final_layer_norm_intermediate and self.norm is not None:
             intermediate = self.norm(intermediate)
 
+        if kv_caches is not None:
+            return x, intermediate, new_kv_caches
         return x, intermediate
 
 
@@ -634,6 +691,32 @@ class BaseLlama:
 
     def forward(self, input_ids, *args, **kwargs):
         return self.model(input_ids, *args, **kwargs)
+
+    def sample_token(self, hidden_states, temperature, top_k, top_p, repetition_penalty, token_history, generator):
+        logits = self.lm_head(hidden_states[:, -1, :])
+        if temperature != 1.0:
+            logits = logits / temperature
+
+        if repetition_penalty != 1.0:
+            for i in range(logits.shape[0]):
+                for token_id in set(token_history):
+                    logits[i, token_id] *= repetition_penalty if logits[i, token_id] < 0 else 1/repetition_penalty
+
+        if top_k > 0:
+            indices_to_remove = logits < torch.topk(logits, top_k)[0][..., -1, None]
+            logits[indices_to_remove] = float('-inf')
+        if top_p < 1.0:
+            sorted_logits, sorted_indices = torch.sort(logits, descending=True)
+            cumulative_probs = torch.cumsum(torch.nn.functional.softmax(sorted_logits, dim=-1), dim=-1)
+            sorted_indices_to_remove = cumulative_probs > top_p
+            sorted_indices_to_remove[..., 0] = False
+            indices_to_remove = torch.zeros_like(logits, dtype=torch.bool)
+            indices_to_remove.scatter_(1, sorted_indices, sorted_indices_to_remove)
+            logits[indices_to_remove] = float('-inf')
+
+        probs = torch.nn.functional.softmax(logits, dim=-1)
+
+        return torch.multinomial(probs, num_samples=1, generator=generator)
 
 
 class Llama2(BaseLlama, torch.nn.Module):
@@ -742,6 +825,48 @@ class Qwen25_7BVLI(BaseLlama, torch.nn.Module):
 
         return super().forward(x, attention_mask=attention_mask, embeds=embeds, num_tokens=num_tokens, intermediate_output=intermediate_output, final_layer_norm_intermediate=final_layer_norm_intermediate, dtype=dtype, position_ids=position_ids)
 
+    def generate(self, embeds=None, max_length=256, temperature=1.0, top_k=50, top_p=0.9, repetition_penalty=1.0, stop_tokens=[], seed=42, initial_tokens=[]):
+        bs, seq_len = embeds.shape[0], embeds.shape[1]
+        device = embeds.device
+
+        generator = torch.Generator(device=device).manual_seed(seed)
+        optimized_attention = optimized_attention_for_device(embeds.device, mask=None, small_input=True)
+
+        # Pre-allocate cache buffers for all layers
+        layer = self.model.layers[0].self_attn
+        kv_shape = (bs, layer.num_kv_heads, seq_len + max_length, layer.head_dim)
+        kv_caches = [(torch.zeros(kv_shape, device=device, dtype=embeds.dtype),
+                      torch.zeros(kv_shape, device=device, dtype=embeds.dtype), 0)
+                     for _ in range(len(self.model.layers))]
+
+        generated_token_ids = []
+        current_position = embeds.shape[1]
+        pbar = comfy.utils.ProgressBar(max_length)
+        next_token = None
+
+        # Generation loop
+        for step in tqdm(range(max_length), desc="Generating tokens"):
+            if step == 0:
+                # First pass: process initial embeds
+                position_ids = torch.arange(0, embeds.shape[1], device=device).unsqueeze(0)
+                x, _, kv_caches = self.model.forward(None, embeds=embeds, attention_mask=None, position_ids=position_ids, kv_caches=kv_caches, optimized_attention=optimized_attention)
+            else:
+                # Subsequent passes: process single token
+                next_token_embed = self.model.embed_tokens(next_token)
+                position_ids = torch.tensor([[current_position]], device=device)
+                current_position += 1
+                x, _, kv_caches = self.model.forward(None, embeds=next_token_embed, attention_mask=None, kv_caches=kv_caches, position_ids=position_ids, optimized_attention=optimized_attention)
+
+            next_token = self.sample_token(x, temperature, top_k, top_p, repetition_penalty, initial_tokens + generated_token_ids, generator)
+
+            generated_token_ids.append(next_token[0].item())
+            pbar.update(1)
+
+            if next_token[0].item() in stop_tokens:
+                break
+
+        return torch.tensor([generated_token_ids], device=device, dtype=torch.long)
+
 class Gemma2_2B(BaseLlama, torch.nn.Module):
     def __init__(self, config_dict, dtype, device, operations):
         super().__init__()
@@ -772,8 +897,56 @@ class Gemma3_12B(BaseLlama, torch.nn.Module):
         self.dtype = dtype
         self.image_size = config.vision_config["image_size"]
 
+        # LM head with tied weights to embeddings
+        self.lm_head = operations.Linear(config.hidden_size, config.vocab_size, bias=False, device=device, dtype=dtype)
+        self.lm_head.weight = self.model.embed_tokens.weight
+
     def preprocess_embed(self, embed, device):
         if embed["type"] == "image":
             image = comfy.clip_model.clip_preprocess(embed["data"], size=self.image_size, mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5], crop=True)
             return self.multi_modal_projector(self.vision_model(image.to(device, dtype=torch.float32))[0]), None
         return None, None
+
+    def generate(self, embeds=None, max_length=256, temperature=1.0, top_k=50, top_p=0.9, repetition_penalty=1.0, stop_tokens=[], seed=42, initial_tokens=[]):
+
+        device = embeds.device
+
+        optimized_attention = optimized_attention_for_device(embeds.device, mask=None, small_input=True)
+
+        # Initialize dynamic KV cache (starts as None, grows during generation)
+        kv_caches = [(None, None) for _ in range(len(self.model.layers))]
+
+        # Precompute RoPE frequencies for all positions up to max sequence length
+        max_seq_len = embeds.shape[1] + max_length
+        position_ids_cache = torch.arange(0, max_seq_len, device=device).unsqueeze(0)
+        rope_cache = precompute_freqs_cis(
+            self.model.config.head_dim,
+            position_ids_cache,
+            self.model.config.rope_theta,
+            self.model.config.rope_scale,
+            self.model.config.rope_dims,
+            device=device
+        )
+
+        generator = torch.Generator(device=device).manual_seed(seed)
+
+        generated_token_ids = []
+        current_position = 0
+        pbar = comfy.utils.ProgressBar(max_length)
+
+        # Generation loop
+        for step in tqdm(range(max_length), desc="Generating tokens"):
+            seq_len = embeds.shape[1]
+            freqs_cis = [(cos[:, :, current_position:current_position+seq_len, :], sin[:, :, current_position:current_position+seq_len, :]) for cos, sin in rope_cache]
+            x, _, kv_caches = self.model.forward(None, embeds=embeds, attention_mask=None, freqs_cis=freqs_cis, kv_caches=kv_caches, optimized_attention=optimized_attention)
+            next_token = self.sample_token(x, temperature, top_k, top_p, repetition_penalty, initial_tokens + generated_token_ids, generator)
+            generated_token_ids.append(next_token[0].item())
+
+            current_position += seq_len
+            embeds = self.model.embed_tokens(next_token)
+            pbar.update(1)
+
+            if next_token[0].item() in stop_tokens:
+                break
+
+        return torch.tensor([generated_token_ids], device=device, dtype=torch.long)

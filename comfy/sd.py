@@ -410,6 +410,18 @@ class CLIP:
     def get_key_patches(self):
         return self.patcher.get_key_patches()
 
+    def generate(self, tokens, max_length=256, temperature=1.0, top_k=50, top_p=0.95, repetition_penalty=1.0, seed=None, stop_tokens=None):
+        self.cond_stage_model.reset_clip_options()
+
+        if self.layer_idx is not None:
+            self.cond_stage_model.set_clip_options({"layer": self.layer_idx})
+
+        self.load_model()
+        return self.cond_stage_model.generate(tokens, max_length=max_length, temperature=temperature, top_k=top_k, top_p=top_p, repetition_penalty=repetition_penalty, seed=seed)
+
+    def decode(self, token_ids, skip_special_tokens=True):
+        return self.tokenizer.decode(token_ids, skip_special_tokens=skip_special_tokens)
+
 class VAE:
     def __init__(self, sd=None, device=None, config=None, dtype=None, metadata=None):
         if 'decoder.up_blocks.0.resnets.0.norm1.weight' in sd.keys(): #diffusers format
