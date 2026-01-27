@@ -25,7 +25,8 @@ def ltxv_te(*args, **kwargs):
 class Gemma3_12BTokenizer(sd1_clip.SDTokenizer):
     def __init__(self, embedding_directory=None, tokenizer_data={}):
         tokenizer = tokenizer_data.get("spiece_model", None)
-        super().__init__(tokenizer, pad_with_end=False, embedding_size=3840, embedding_key='gemma3_12b', tokenizer_class=SPieceTokenizer, has_end_token=False, pad_to_max_length=False, max_length=99999999, min_length=1, tokenizer_args={"add_bos": True, "add_eos": False}, tokenizer_data=tokenizer_data)
+        added_tokens = {"<image_soft_token>": 262144}
+        super().__init__(tokenizer, pad_with_end=False, embedding_size=3840, embedding_key='gemma3_12b', tokenizer_class=SPieceTokenizer, has_end_token=False, pad_to_max_length=False, max_length=99999999, min_length=1, tokenizer_args={"add_bos": True, "add_eos": False, "added_tokens": added_tokens}, tokenizer_data=tokenizer_data)
 
     def state_dict(self):
         return {"spiece_model": self.tokenizer.serialize_model()}
@@ -33,6 +34,40 @@ class Gemma3_12BTokenizer(sd1_clip.SDTokenizer):
 class LTXAVGemmaTokenizer(sd1_clip.SD1Tokenizer):
     def __init__(self, embedding_directory=None, tokenizer_data={}):
         super().__init__(embedding_directory=embedding_directory, tokenizer_data=tokenizer_data, name="gemma3_12b", tokenizer=Gemma3_12BTokenizer)
+        self.llama_template = "<start_of_turn>user\n{}<end_of_turn>\n<start_of_turn>model\n"
+        self.llama_template_images = "<start_of_turn>user\n<image_soft_token>{}<end_of_turn>\n<start_of_turn>model\n"
+
+    def tokenize_with_weights(self, text, return_word_ids=False, llama_template=None, images=None, return_tokens_only=False, **kwargs):
+        skip_template = False
+        if text.startswith('<start_of_turn>'):
+            skip_template = True
+
+        if skip_template:
+            llama_text = text
+        else:
+            if llama_template is None:
+                if images is not None and len(images) > 0:
+                    llama_text = self.llama_template_images.format(text)
+                else:
+                    llama_text = self.llama_template.format(text)
+            else:
+                llama_text = llama_template.format(text)
+
+        text_tokens = super().tokenize_with_weights(llama_text, return_word_ids)
+
+        embed_count = 0
+        for k in text_tokens:
+            tt = text_tokens[k]
+            for r in tt:
+                for i in range(len(r)):
+                    if r[i][0] == 262144:
+                        if images is not None and embed_count < len(images):
+                            img_data = images[embed_count].unsqueeze(0) if images[embed_count].dim() == 3 else images[embed_count]
+                            r[i] = ({"type": "image", "data": img_data},) + r[i][1:]
+                            embed_count += 1
+        if return_tokens_only:
+            return [[t[0] for t in b] for b in text_tokens[self.clip_name]]
+        return text_tokens
 
 class Gemma3_12BModel(sd1_clip.SDClipModel):
     def __init__(self, device="cpu", layer="all", layer_idx=None, dtype=None, attention_mask=True, model_options={}):
@@ -40,22 +75,24 @@ class Gemma3_12BModel(sd1_clip.SDClipModel):
         if llama_quantization_metadata is not None:
             model_options = model_options.copy()
             model_options["quantization_metadata"] = llama_quantization_metadata
+        self.device = device
 
         super().__init__(device=device, layer=layer, layer_idx=layer_idx, textmodel_json_config={}, dtype=dtype, special_tokens={"start": 2, "pad": 0}, layer_norm_hidden_state=False, model_class=comfy.text_encoders.llama.Gemma3_12B, enable_attention_masks=attention_mask, return_attention_masks=attention_mask, model_options=model_options)
 
-    def tokenize_with_weights(self, text, return_word_ids=False, llama_template="{}", image_embeds=None, **kwargs):
-        text = llama_template.format(text)
-        text_tokens = super().tokenize_with_weights(text, return_word_ids)
-        embed_count = 0
-        for k in text_tokens:
-            tt = text_tokens[k]
-            for r in tt:
-                for i in range(len(r)):
-                    if r[i][0] == 262144:
-                        if image_embeds is not None and embed_count < image_embeds.shape[0]:
-                            r[i] = ({"type": "embedding", "data": image_embeds[embed_count], "original_type": "image"},) + r[i][1:]
-                            embed_count += 1
-        return text_tokens
+    def process_tokens(self, tokens, device):
+        embeds, attention_mask, num_tokens, embeds_info = super().process_tokens(tokens, device)
+        # Normalize image embeddings to match text embedding scale
+        target_std = 0.0156
+        for info in embeds_info:
+            if info.get("type") == "image":
+                idx = info["index"]
+                size = info["size"]
+                img_emb = embeds[0, idx:idx+size, :]
+                current_std = img_emb.std()
+                if current_std > 0:
+                    embeds[0, idx:idx+size, :] = img_emb * (target_std / current_std)
+
+        return embeds, attention_mask, num_tokens, embeds_info
 
 class LTXAVTEModel(torch.nn.Module):
     def __init__(self, dtype_llama=None, device="cpu", dtype=None, model_options={}):
@@ -110,6 +147,10 @@ class LTXAVTEModel(torch.nn.Module):
         out = torch.concat((out_vid, out_audio), dim=-1)
 
         return out.to(out_device), pooled
+
+    def generate(self, tokens, max_length, temperature, top_k, top_p, repetition_penalty, seed):
+        return self.gemma3_12b.transformer.generate(tokens, max_length=max_length, temperature=temperature, top_k=top_k, top_p=top_p,
+                                                    repetition_penalty=repetition_penalty, seed=seed, stop_tokens=[106])  # 106 is <end_of_turn>
 
     def load_sd(self, sd):
         if "model.layers.47.self_attn.q_norm.weight" in sd:
