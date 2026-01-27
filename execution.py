@@ -43,8 +43,10 @@ class ExecutionResult(Enum):
     FAILURE = 1
     PENDING = 2
 
+
 class DuplicateNodeError(Exception):
     pass
+
 
 class IsChangedCache:
     def __init__(self, prompt_id: str, dynprompt: DynamicPrompt, outputs_cache: BasicCache):
@@ -76,7 +78,6 @@ class IsChangedCache:
             self.is_changed[node_id] = node["is_changed"]
             return self.is_changed[node_id]
 
-        # Intentionally do not use cached outputs here. We only want constants in IS_CHANGED
         input_data_all, _, v3_data = get_input_data(node["inputs"], class_def, node_id, None)
         try:
             is_changed = await _async_map_node_over_list(self.prompt_id, node_id, class_def, input_data_all, is_changed_name, v3_data=v3_data)
@@ -120,7 +121,6 @@ class CacheSet:
 
         self.all = [self.outputs, self.objects]
 
-    # Performs like the old cache -- dump data ASAP
     def init_classic_cache(self):
         self.outputs = HierarchicalCache(CacheKeySetInputSignature)
         self.objects = HierarchicalCache(CacheKeySetID)
@@ -143,7 +143,9 @@ class CacheSet:
         }
         return result
 
+
 SENSITIVE_EXTRA_DATA_KEYS = ("auth_token_comfy_org", "api_key_comfy_org")
+
 
 def get_input_data(inputs, class_def, unique_id, execution_list=None, dynprompt=None, extra_data={}):
     is_v3 = issubclass(class_def, _ComfyNodeInternal)
@@ -157,15 +159,17 @@ def get_input_data(inputs, class_def, unique_id, execution_list=None, dynprompt=
     for x in inputs:
         input_data = inputs[x]
         _, input_category, input_info = get_input_info(class_def, x, valid_inputs)
+
         def mark_missing():
             missing_keys[x] = True
             input_data_all[x] = (None,)
+
         if is_link(input_data) and (not input_info or not input_info.get("rawLink", False)):
             input_unique_id = input_data[0]
             output_index = input_data[1]
             if execution_list is None:
                 mark_missing()
-                continue # This might be a lazily-evaluated input
+                continue
             cached = execution_list.get_cache(input_unique_id, unique_id)
             if cached is None or cached.outputs is None:
                 mark_missing()
@@ -185,7 +189,7 @@ def get_input_data(inputs, class_def, unique_id, execution_list=None, dynprompt=
             if io.Hidden.dynprompt.name in hidden:
                 hidden_inputs_v3[io.Hidden.dynprompt] = dynprompt
             if io.Hidden.extra_pnginfo.name in hidden:
-                hidden_inputs_v3[io.Hidden.extra_pnginfo] = extra_data.get('extra_pnginfo', None)
+                hidden_inputs_v3[io.Hidden.extra_pnginfo] = extra_data.get("extra_pnginfo", None)
             if io.Hidden.unique_id.name in hidden:
                 hidden_inputs_v3[io.Hidden.unique_id] = unique_id
             if io.Hidden.auth_token_comfy_org.name in hidden:
@@ -201,7 +205,7 @@ def get_input_data(inputs, class_def, unique_id, execution_list=None, dynprompt=
                 if h[x] == "DYNPROMPT":
                     input_data_all[x] = [dynprompt]
                 if h[x] == "EXTRA_PNGINFO":
-                    input_data_all[x] = [extra_data.get('extra_pnginfo', None)]
+                    input_data_all[x] = [extra_data.get("extra_pnginfo", None)]
                 if h[x] == "UNIQUE_ID":
                     input_data_all[x] = [unique_id]
                 if h[x] == "AUTH_TOKEN_COMFY_ORG":
@@ -211,7 +215,120 @@ def get_input_data(inputs, class_def, unique_id, execution_list=None, dynprompt=
     v3_data["hidden_inputs"] = hidden_inputs_v3
     return input_data_all, missing_keys, v3_data
 
-map_node_over_list = None #Don't hook this please
+
+def _node_input_signature(dynprompt: DynamicPrompt, node_id: str):
+    try:
+        node = dynprompt.get_node(node_id)
+        class_type = node.get("class_type", None)
+        if class_type is None:
+            return ("__unknown__",)
+        class_def = nodes.NODE_CLASS_MAPPINGS.get(class_type, None)
+        if class_def is None:
+            return ("__unknown__", class_type)
+        class_inputs = class_def.INPUT_TYPES()
+        if issubclass(class_def, _ComfyNodeInternal):
+            try:
+                class_inputs, _, _ = _io.get_finalized_class_inputs(class_inputs, node.get("inputs", {}))
+            except Exception:
+                pass
+
+        sig_items = []
+        for group in ("required", "optional"):
+            grp = class_inputs.get(group, {})
+            if isinstance(grp, dict):
+                for k, v in grp.items():
+                    t = v
+                    if isinstance(v, tuple) and len(v) > 0:
+                        t = v[0]
+                    sig_items.append((group, str(k), str(t)))
+        sig_items.sort()
+        return (str(class_type), tuple(sig_items))
+    except Exception:
+        return ("__unknown__",)
+
+
+def _extract_node_id_from_queue_item(item, dynprompt: DynamicPrompt):
+    if isinstance(item, str):
+        return item
+    if isinstance(item, (tuple, list)):
+        for v in item:
+            if isinstance(v, str):
+                try:
+                    dynprompt.get_node(v)
+                    return v
+                except Exception:
+                    continue
+    return None
+
+
+def _rebuild_queue_items_for_node(node_id: str, bucket_items: list, original_items: list):
+    if not bucket_items:
+        return []
+    return bucket_items
+
+
+def prioritize_execution_list(execution_list, dynprompt: DynamicPrompt):
+    candidates = [
+        "execution_queue",
+        "queue",
+        "_queue",
+        "ready_queue",
+        "_ready_queue",
+        "ready_nodes",
+        "_ready_nodes",
+        "to_execute",
+        "_to_execute",
+    ]
+
+    target_attr = None
+    q = None
+    for name in candidates:
+        if hasattr(execution_list, name):
+            maybe = getattr(execution_list, name)
+            if isinstance(maybe, list) and len(maybe) > 1:
+                target_attr = name
+                q = maybe
+                break
+
+    if q is None:
+        return
+
+    items = q
+    node_id_for_item = []
+    for it in items:
+        node_id_for_item.append(_extract_node_id_from_queue_item(it, dynprompt))
+
+    if all(x is None for x in node_id_for_item):
+        return
+
+    buckets = {}
+    for it, nid in zip(items, node_id_for_item):
+        if nid is None:
+            sig = ("__unkeyed__",)
+        else:
+            sig = _node_input_signature(dynprompt, nid)
+        if sig not in buckets:
+            buckets[sig] = []
+        buckets[sig].append(it)
+
+    seen = set()
+    new_items = []
+    for it, nid in zip(items, node_id_for_item):
+        if nid is None:
+            sig = ("__unkeyed__",)
+        else:
+            sig = _node_input_signature(dynprompt, nid)
+        if sig in seen:
+            continue
+        seen.add(sig)
+        new_items.extend(buckets.get(sig, []))
+
+    if len(new_items) == len(items):
+        items[:] = new_items
+
+
+map_node_over_list = None
+
 
 async def resolve_map_node_over_list_results(results):
     remaining = [x for x in results if isinstance(x, asyncio.Task) and not x.done()]
@@ -225,8 +342,8 @@ async def resolve_map_node_over_list_results(results):
                 raise exc
         return [x.result() if isinstance(x, asyncio.Task) else x for x in results]
 
+
 async def _async_map_node_over_list(prompt_id, unique_id, obj, input_data_all, func, allow_interrupt=False, execution_block_cb=None, pre_execute_cb=None, v3_data=None):
-    # check if node wants the lists
     input_is_list = getattr(obj, "INPUT_IS_LIST", False)
 
     if len(input_data_all) == 0:
@@ -234,11 +351,11 @@ async def _async_map_node_over_list(prompt_id, unique_id, obj, input_data_all, f
     else:
         max_len_input = max(len(x) for x in input_data_all.values())
 
-    # get a slice of inputs, repeat last input when list isn't long enough
     def slice_dict(d, i):
         return {k: v[i if len(v) > i else -1] for k, v in d.items()}
 
     results = []
+
     async def process_inputs(inputs, index=None, input_is_list=False):
         if allow_interrupt:
             nodes.before_node_execution()
@@ -255,31 +372,27 @@ async def _async_map_node_over_list(prompt_id, unique_id, obj, input_data_all, f
         if execution_block is None:
             if pre_execute_cb is not None and index is not None:
                 pre_execute_cb(index)
-            # V3
             if isinstance(obj, _ComfyNodeInternal) or (is_class(obj) and issubclass(obj, _ComfyNodeInternal)):
-                # if is just a class, then assign no state, just create clone
                 if is_class(obj):
                     type_obj = obj
                     obj.VALIDATE_CLASS()
                     class_clone = obj.PREPARE_CLASS_CLONE(v3_data)
-                # otherwise, use class instance to populate/reuse some fields
                 else:
                     type_obj = type(obj)
                     type_obj.VALIDATE_CLASS()
                     class_clone = type_obj.PREPARE_CLASS_CLONE(v3_data)
                 f = make_locked_method_func(type_obj, func, class_clone)
-                # in case of dynamic inputs, restructure inputs to expected nested dict
                 if v3_data is not None:
                     inputs = _io.build_nested_inputs(inputs, v3_data)
-            # V1
             else:
                 f = getattr(obj, func)
             if inspect.iscoroutinefunction(f):
+
                 async def async_wrapper(f, prompt_id, unique_id, list_index, args):
                     with CurrentNodeContext(prompt_id, unique_id, list_index):
                         return await f(**args)
+
                 task = asyncio.create_task(async_wrapper(f, prompt_id, unique_id, index, args=inputs))
-                # Give the task a chance to execute without yielding
                 await asyncio.sleep(0)
                 if task.done():
                     result = task.result()
@@ -305,13 +418,11 @@ async def _async_map_node_over_list(prompt_id, unique_id, obj, input_data_all, f
 
 
 def merge_result_data(results, obj):
-    # check which outputs need concatenating
     output = []
     output_is_list = [False] * len(results[0])
     if hasattr(obj, "OUTPUT_IS_LIST"):
         output_is_list = obj.OUTPUT_IS_LIST
 
-    # merge node execution results
     for i, is_list in zip(range(len(results[0])), output_is_list):
         if is_list:
             value = []
@@ -325,6 +436,7 @@ def merge_result_data(results, obj):
             output.append([o[i] for o in results])
     return output
 
+
 async def get_output_data(prompt_id, unique_id, obj, input_data_all, execution_block_cb=None, pre_execute_cb=None, v3_data=None):
     return_values = await _async_map_node_over_list(prompt_id, unique_id, obj, input_data_all, obj.FUNCTION, allow_interrupt=True, execution_block_cb=execution_block_cb, pre_execute_cb=pre_execute_cb, v3_data=v3_data)
     has_pending_task = any(isinstance(r, asyncio.Task) and not r.done() for r in return_values)
@@ -332,6 +444,7 @@ async def get_output_data(prompt_id, unique_id, obj, input_data_all, execution_b
         return return_values, {}, False, has_pending_task
     output, ui, has_subgraph = get_output_from_returns(return_values, obj)
     return output, ui, has_subgraph, False
+
 
 def get_output_from_returns(return_values, obj):
     results = []
@@ -341,24 +454,22 @@ def get_output_from_returns(return_values, obj):
     for i in range(len(return_values)):
         r = return_values[i]
         if isinstance(r, dict):
-            if 'ui' in r:
-                uis.append(r['ui'])
-            if 'expand' in r:
-                # Perform an expansion, but do not append results
+            if "ui" in r:
+                uis.append(r["ui"])
+            if "expand" in r:
                 has_subgraph = True
-                new_graph = r['expand']
+                new_graph = r["expand"]
                 result = r.get("result", None)
                 if isinstance(result, ExecutionBlocker):
                     result = tuple([result] * len(obj.RETURN_TYPES))
                 subgraph_results.append((new_graph, result))
-            elif 'result' in r:
+            elif "result" in r:
                 result = r.get("result", None)
                 if isinstance(result, ExecutionBlocker):
                     result = tuple([result] * len(obj.RETURN_TYPES))
                 results.append(result)
                 subgraph_results.append((None, result))
         elif isinstance(r, _NodeOutputInternal):
-            # V3
             if r.ui is not None:
                 if isinstance(r.ui, dict):
                     uis.append(r.ui)
@@ -390,13 +501,10 @@ def get_output_from_returns(return_values, obj):
     else:
         output = []
     ui = dict()
-    # TODO: Think there's an existing bug here
-    # If we're performing a subgraph expansion, we probably shouldn't be returning UI values yet.
-    # They'll get cached without the completed subgraphs. It's an edge case and I'm not aware of
-    # any nodes that use both subgraph expansion and custom UI outputs, but might be a problem in the future.
     if len(uis) > 0:
         ui = {k: [y for x in uis for y in x[k]] for k in uis[0].keys()}
     return output, ui, has_subgraph
+
 
 def format_value(x):
     if x is None:
@@ -406,19 +514,20 @@ def format_value(x):
     else:
         return str(x)
 
+
 async def execute(server, dynprompt, caches, current_item, extra_data, executed, prompt_id, execution_list, pending_subgraph_results, pending_async_nodes, ui_outputs):
     unique_id = current_item
     real_node_id = dynprompt.get_real_node_id(unique_id)
     display_node_id = dynprompt.get_display_node_id(unique_id)
     parent_node_id = dynprompt.get_parent_node_id(unique_id)
-    inputs = dynprompt.get_node(unique_id)['inputs']
-    class_type = dynprompt.get_node(unique_id)['class_type']
+    inputs = dynprompt.get_node(unique_id)["inputs"]
+    class_type = dynprompt.get_node(unique_id)["class_type"]
     class_def = nodes.NODE_CLASS_MAPPINGS[class_type]
     cached = caches.outputs.get(unique_id)
     if cached is not None:
         if server.client_id is not None:
             cached_ui = cached.ui or {}
-            server.send_sync("executed", { "node": unique_id, "display_node": display_node_id, "output": cached_ui.get("output",None), "prompt_id": prompt_id }, server.client_id)
+            server.send_sync("executed", {"node": unique_id, "display_node": display_node_id, "output": cached_ui.get("output", None), "prompt_id": prompt_id}, server.client_id)
             if cached.ui is not None:
                 ui_outputs[unique_id] = cached.ui
         get_progress_state().finish_progress(unique_id)
@@ -434,7 +543,6 @@ async def execute(server, dynprompt, caches, current_item, extra_data, executed,
                     try:
                         results.append(r.result())
                     except Exception as ex:
-                        # An async task failed - propagate the exception up
                         del pending_async_nodes[unique_id]
                         raise ex
                 else:
@@ -455,7 +563,6 @@ async def execute(server, dynprompt, caches, current_item, extra_data, executed,
                             node_cached = execution_list.get_cache(source_node, unique_id)
                             for o in node_cached.outputs[source_output]:
                                 resolved_output.append(o)
-
                         else:
                             resolved_output.append(r)
                     resolved_outputs.append(tuple(resolved_output))
@@ -468,7 +575,7 @@ async def execute(server, dynprompt, caches, current_item, extra_data, executed,
             input_data_all, missing_keys, v3_data = get_input_data(inputs, class_def, unique_id, execution_list, dynprompt, extra_data)
             if server.client_id is not None:
                 server.last_node_id = display_node_id
-                server.send_sync("executing", { "node": unique_id, "display_node": display_node_id, "prompt_id": prompt_id }, server.client_id)
+                server.send_sync("executing", {"node": unique_id, "display_node": display_node_id, "prompt_id": prompt_id}, server.client_id)
 
             obj = caches.objects.get(unique_id)
             if obj is None:
@@ -480,15 +587,12 @@ async def execute(server, dynprompt, caches, current_item, extra_data, executed,
             else:
                 lazy_status_present = getattr(obj, "check_lazy_status", None) is not None
             if lazy_status_present:
-                # for check_lazy_status, the returned data should include the original key of the input
                 v3_data_lazy = v3_data.copy()
                 v3_data_lazy["create_dynamic_tuple"] = True
                 required_inputs = await _async_map_node_over_list(prompt_id, unique_id, obj, input_data_all, "check_lazy_status", allow_interrupt=True, v3_data=v3_data_lazy)
                 required_inputs = await resolve_map_node_over_list_results(required_inputs)
-                required_inputs = set(sum([r for r in required_inputs if isinstance(r,list)], []))
-                required_inputs = [x for x in required_inputs if isinstance(x,str) and (
-                    x not in input_data_all or x in missing_keys
-                )]
+                required_inputs = set(sum([r for r in required_inputs if isinstance(r, list)], []))
+                required_inputs = [x for x in required_inputs if isinstance(x, str) and (x not in input_data_all or x in missing_keys)]
                 if len(required_inputs) > 0:
                     for i in required_inputs:
                         execution_list.make_input_strong_link(unique_id, i)
@@ -501,7 +605,6 @@ async def execute(server, dynprompt, caches, current_item, extra_data, executed,
                         "node_id": unique_id,
                         "node_type": class_type,
                         "executed": list(executed),
-
                         "exception_message": f"Execution Blocked: {block.message}",
                         "exception_type": "ExecutionBlocked",
                         "traceback": [],
@@ -512,17 +615,20 @@ async def execute(server, dynprompt, caches, current_item, extra_data, executed,
                     return ExecutionBlocker(None)
                 else:
                     return block
+
             def pre_execute_cb(call_index):
-                # TODO - How to handle this with async functions without contextvars (which requires Python 3.12)?
                 GraphBuilder.set_default_prefix(unique_id, call_index, 0)
+
             output_data, output_ui, has_subgraph, has_pending_tasks = await get_output_data(prompt_id, unique_id, obj, input_data_all, execution_block_cb=execution_block_cb, pre_execute_cb=pre_execute_cb, v3_data=v3_data)
             if has_pending_tasks:
                 pending_async_nodes[unique_id] = output_data
                 unblock = execution_list.add_external_block(unique_id)
+
                 async def await_completion():
                     tasks = [x for x in output_data if isinstance(x, asyncio.Task)]
                     await asyncio.gather(*tasks, return_exceptions=True)
                     unblock()
+
                 asyncio.create_task(await_completion())
                 return (ExecutionResult.PENDING, None, None)
         if len(output_ui) > 0:
@@ -533,10 +639,10 @@ async def execute(server, dynprompt, caches, current_item, extra_data, executed,
                     "parent_node": parent_node_id,
                     "real_node_id": real_node_id,
                 },
-                "output": output_ui
+                "output": output_ui,
             }
             if server.client_id is not None:
-                server.send_sync("executed", { "node": unique_id, "display_node": display_node_id, "output": output_ui, "prompt_id": prompt_id }, server.client_id)
+                server.send_sync("executed", {"node": unique_id, "display_node": display_node_id, "output": output_ui, "prompt_id": prompt_id}, server.client_id)
         if has_subgraph:
             cached_outputs = []
             new_node_ids = []
@@ -551,10 +657,9 @@ async def execute(server, dynprompt, caches, current_item, extra_data, executed,
                         new_node_ids.append(node_id)
                         display_id = node_info.get("override_display_id", unique_id)
                         dynprompt.add_ephemeral_node(node_id, node_info, unique_id, display_id)
-                        # Figure out if the newly created node is an output node
                         class_type = node_info["class_type"]
                         class_def = nodes.NODE_CLASS_MAPPINGS[class_type]
-                        if hasattr(class_def, 'OUTPUT_NODE') and class_def.OUTPUT_NODE == True:
+                        if hasattr(class_def, "OUTPUT_NODE") and class_def.OUTPUT_NODE is True:
                             new_output_ids.append(node_id)
                     for i in range(len(node_outputs)):
                         if is_link(node_outputs[i]):
@@ -579,12 +684,9 @@ async def execute(server, dynprompt, caches, current_item, extra_data, executed,
 
     except comfy.model_management.InterruptProcessingException as iex:
         logging.info("Processing interrupted")
-
-        # skip formatting inputs/outputs
         error_details = {
             "node_id": real_node_id,
         }
-
         return (ExecutionResult.FAILURE, error_details, iex)
     except Exception as ex:
         typ, _, tb = sys.exc_info()
@@ -610,7 +712,7 @@ async def execute(server, dynprompt, caches, current_item, extra_data, executed,
             "exception_message": "{}\n{}".format(ex, tips),
             "exception_type": exception_type,
             "traceback": traceback.format_tb(tb),
-            "current_inputs": input_data_formatted
+            "current_inputs": input_data_formatted,
         }
 
         return (ExecutionResult.FAILURE, error_details, ex)
@@ -619,6 +721,7 @@ async def execute(server, dynprompt, caches, current_item, extra_data, executed,
     executed.add(unique_id)
 
     return (ExecutionResult.SUCCESS, None, None)
+
 
 class PromptExecutor:
     def __init__(self, server, cache_type=False, cache_args=None):
@@ -645,8 +748,6 @@ class PromptExecutor:
         node_id = error["node_id"]
         class_type = prompt[node_id]["class_type"]
 
-        # First, send back the status to the frontend depending
-        # on the exception type
         if isinstance(ex, comfy.model_management.InterruptProcessingException):
             mes = {
                 "prompt_id": prompt_id,
@@ -683,7 +784,7 @@ class PromptExecutor:
             self.server.client_id = None
 
         self.status_messages = []
-        self.add_message("execution_start", { "prompt_id": prompt_id}, broadcast=False)
+        self.add_message("execution_start", {"prompt_id": prompt_id}, broadcast=False)
 
         with torch.inference_mode():
             dynamic_prompt = DynamicPrompt(prompt)
@@ -700,11 +801,9 @@ class PromptExecutor:
                     cached_nodes.append(node_id)
 
             comfy.model_management.cleanup_models_gc()
-            self.add_message("execution_cached",
-                          { "nodes": cached_nodes, "prompt_id": prompt_id},
-                          broadcast=False)
+            self.add_message("execution_cached", {"nodes": cached_nodes, "prompt_id": prompt_id}, broadcast=False)
             pending_subgraph_results = {}
-            pending_async_nodes = {} # TODO - Unify this with pending_subgraph_results
+            pending_async_nodes = {}
             ui_node_outputs = {}
             executed = set()
             execution_list = ExecutionList(dynamic_prompt, self.caches.outputs)
@@ -712,7 +811,10 @@ class PromptExecutor:
             for node_id in list(execute_outputs):
                 execution_list.add_node(node_id)
 
+            prioritize_execution_list(execution_list, dynamic_prompt)
+
             while not execution_list.is_empty():
+                prioritize_execution_list(execution_list, dynamic_prompt)
                 node_id, error, ex = await execution_list.stage_node_execution()
                 if error is not None:
                     self.handle_execution_error(prompt_id, dynamic_prompt.original_prompt, current_outputs, executed, error, ex)
@@ -726,12 +828,11 @@ class PromptExecutor:
                     break
                 elif result == ExecutionResult.PENDING:
                     execution_list.unstage_node_execution()
-                else: # result == ExecutionResult.SUCCESS:
+                else:
                     execution_list.complete_node_execution()
                 self.caches.outputs.poll(ram_headroom=self.cache_args["ram"])
             else:
-                # Only execute when the while-loop ends without break
-                self.add_message("execution_success", { "prompt_id": prompt_id }, broadcast=False)
+                self.add_message("execution_success", {"prompt_id": prompt_id}, broadcast=False)
 
             ui_outputs = {}
             meta_outputs = {}
@@ -752,8 +853,8 @@ async def validate_inputs(prompt_id, prompt, item, validated):
     if unique_id in validated:
         return validated[unique_id]
 
-    inputs = prompt[unique_id]['inputs']
-    class_type = prompt[unique_id]['class_type']
+    inputs = prompt[unique_id]["inputs"]
+    class_type = prompt[unique_id]["class_type"]
     obj_class = nodes.NODE_CLASS_MAPPINGS[class_type]
 
     errors = []
@@ -778,7 +879,7 @@ async def validate_inputs(prompt_id, prompt, item, validated):
         validate_has_kwargs = argspec.varkw is not None
     received_types = {}
 
-    valid_inputs = set(class_inputs.get('required',{})).union(set(class_inputs.get('optional',{})))
+    valid_inputs = set(class_inputs.get("required", {})).union(set(class_inputs.get("optional", {})))
 
     for x in valid_inputs:
         input_type, input_category, extra_info = get_input_info(obj_class, x, class_inputs)
@@ -791,8 +892,8 @@ async def validate_inputs(prompt_id, prompt, item, validated):
                     "message": "Required input is missing",
                     "details": details,
                     "extra_info": {
-                        "input_name": x
-                    }
+                        "input_name": x,
+                    },
                 }
                 errors.append(error)
             continue
@@ -808,18 +909,18 @@ async def validate_inputs(prompt_id, prompt, item, validated):
                     "extra_info": {
                         "input_name": x,
                         "input_config": info,
-                        "received_value": val
-                    }
+                        "received_value": val,
+                    },
                 }
                 errors.append(error)
                 continue
 
             o_id = val[0]
-            o_class_type = prompt[o_id]['class_type']
+            o_class_type = prompt[o_id]["class_type"]
             r = nodes.NODE_CLASS_MAPPINGS[o_class_type].RETURN_TYPES
             received_type = r[val[1]]
             received_types[x] = received_type
-            if 'input_types' not in validate_function_inputs and not validate_node_input(received_type, input_type):
+            if "input_types" not in validate_function_inputs and not validate_node_input(received_type, input_type):
                 details = f"{x}, received_type({received_type}) mismatch input_type({input_type})"
                 error = {
                     "type": "return_type_mismatch",
@@ -829,41 +930,39 @@ async def validate_inputs(prompt_id, prompt, item, validated):
                         "input_name": x,
                         "input_config": info,
                         "received_type": received_type,
-                        "linked_node": val
-                    }
+                        "linked_node": val,
+                    },
                 }
                 errors.append(error)
                 continue
             try:
                 r = await validate_inputs(prompt_id, prompt, o_id, validated)
                 if r[0] is False:
-                    # `r` will be set in `validated[o_id]` already
                     valid = False
                     continue
             except Exception as ex:
                 typ, _, tb = sys.exc_info()
                 valid = False
                 exception_type = full_type_name(typ)
-                reasons = [{
-                    "type": "exception_during_inner_validation",
-                    "message": "Exception when validating inner node",
-                    "details": str(ex),
-                    "extra_info": {
-                        "input_name": x,
-                        "input_config": info,
-                        "exception_message": str(ex),
-                        "exception_type": exception_type,
-                        "traceback": traceback.format_tb(tb),
-                        "linked_node": val
+                reasons = [
+                    {
+                        "type": "exception_during_inner_validation",
+                        "message": "Exception when validating inner node",
+                        "details": str(ex),
+                        "extra_info": {
+                            "input_name": x,
+                            "input_config": info,
+                            "exception_message": str(ex),
+                            "exception_type": exception_type,
+                            "traceback": traceback.format_tb(tb),
+                            "linked_node": val,
+                        },
                     }
-                }]
+                ]
                 validated[o_id] = (False, reasons, o_id)
                 continue
         else:
             try:
-                # Unwraps values wrapped in __value__ key. This is used to pass
-                # list widget value to execution, as by default list value is
-                # reserved to represent the connection between nodes.
                 if isinstance(val, dict) and "__value__" in val:
                     val = val["__value__"]
                     inputs[x] = val
@@ -889,8 +988,8 @@ async def validate_inputs(prompt_id, prompt, item, validated):
                         "input_name": x,
                         "input_config": info,
                         "received_value": val,
-                        "exception_message": str(ex)
-                    }
+                        "exception_message": str(ex),
+                    },
                 }
                 errors.append(error)
                 continue
@@ -905,7 +1004,7 @@ async def validate_inputs(prompt_id, prompt, item, validated):
                             "input_name": x,
                             "input_config": info,
                             "received_value": val,
-                        }
+                        },
                     }
                     errors.append(error)
                     continue
@@ -918,7 +1017,7 @@ async def validate_inputs(prompt_id, prompt, item, validated):
                             "input_name": x,
                             "input_config": info,
                             "received_value": val,
-                        }
+                        },
                     }
                     errors.append(error)
                     continue
@@ -931,9 +1030,6 @@ async def validate_inputs(prompt_id, prompt, item, validated):
                     if val not in combo_options:
                         input_config = info
                         list_info = ""
-
-                        # Don't send back gigantic lists like if they're lots of
-                        # scanned model filepaths
                         if len(combo_options) > 20:
                             list_info = f"(list of length {len(combo_options)})"
                             input_config = None
@@ -948,7 +1044,7 @@ async def validate_inputs(prompt_id, prompt, item, validated):
                                 "input_name": x,
                                 "input_config": input_config,
                                 "received_value": val,
-                            }
+                            },
                         }
                         errors.append(error)
                         continue
@@ -959,8 +1055,8 @@ async def validate_inputs(prompt_id, prompt, item, validated):
         for x in input_data_all:
             if x in validate_function_inputs or validate_has_kwargs:
                 input_filtered[x] = input_data_all[x]
-        if 'input_types' in validate_function_inputs:
-            input_filtered['input_types'] = [received_types]
+        if "input_types" in validate_function_inputs:
+            input_filtered["input_types"] = [received_types]
 
         ret = await _async_map_node_over_list(prompt_id, unique_id, obj_class, input_filtered, validate_function_name, v3_data=v3_data)
         ret = await resolve_map_node_over_list_results(ret)
@@ -977,7 +1073,7 @@ async def validate_inputs(prompt_id, prompt, item, validated):
                         "details": details,
                         "extra_info": {
                             "input_name": x,
-                        }
+                        },
                     }
                     errors.append(error)
                     continue
@@ -990,36 +1086,38 @@ async def validate_inputs(prompt_id, prompt, item, validated):
     validated[unique_id] = ret
     return ret
 
+
 def full_type_name(klass):
     module = klass.__module__
-    if module == 'builtins':
+    if module == "builtins":
         return klass.__qualname__
-    return module + '.' + klass.__qualname__
+    return module + "." + klass.__qualname__
+
 
 async def validate_prompt(prompt_id, prompt, partial_execution_list: Union[list[str], None]):
     outputs = set()
     for x in prompt:
-        if 'class_type' not in prompt[x]:
+        if "class_type" not in prompt[x]:
             error = {
                 "type": "invalid_prompt",
                 "message": "Cannot execute because a node is missing the class_type property.",
                 "details": f"Node ID '#{x}'",
-                "extra_info": {}
+                "extra_info": {},
             }
             return (False, error, [], {})
 
-        class_type = prompt[x]['class_type']
+        class_type = prompt[x]["class_type"]
         class_ = nodes.NODE_CLASS_MAPPINGS.get(class_type, None)
         if class_ is None:
             error = {
                 "type": "invalid_prompt",
                 "message": f"Cannot execute because node {class_type} does not exist.",
                 "details": f"Node ID '#{x}'",
-                "extra_info": {}
+                "extra_info": {},
             }
             return (False, error, [], {})
 
-        if hasattr(class_, 'OUTPUT_NODE') and class_.OUTPUT_NODE is True:
+        if hasattr(class_, "OUTPUT_NODE") and class_.OUTPUT_NODE is True:
             if partial_execution_list is None or x in partial_execution_list:
                 outputs.add(x)
 
@@ -1028,7 +1126,7 @@ async def validate_prompt(prompt_id, prompt, partial_execution_list: Union[list[
             "type": "prompt_no_outputs",
             "message": "Prompt has no outputs",
             "details": "",
-            "extra_info": {}
+            "extra_info": {},
         }
         return (False, error, [], {})
 
@@ -1047,15 +1145,17 @@ async def validate_prompt(prompt_id, prompt, partial_execution_list: Union[list[
             typ, _, tb = sys.exc_info()
             valid = False
             exception_type = full_type_name(typ)
-            reasons = [{
-                "type": "exception_during_validation",
-                "message": "Exception when validating node",
-                "details": str(ex),
-                "extra_info": {
-                    "exception_type": exception_type,
-                    "traceback": traceback.format_tb(tb)
+            reasons = [
+                {
+                    "type": "exception_during_validation",
+                    "message": "Exception when validating node",
+                    "details": str(ex),
+                    "extra_info": {
+                        "exception_type": exception_type,
+                        "traceback": traceback.format_tb(tb),
+                    },
                 }
-            }]
+            ]
             validated[o] = (False, reasons, o)
 
         if valid is True:
@@ -1070,16 +1170,13 @@ async def validate_prompt(prompt_id, prompt, partial_execution_list: Union[list[
             for node_id, result in validated.items():
                 valid = result[0]
                 reasons = result[1]
-                # If a node upstream has errors, the nodes downstream will also
-                # be reported as invalid, but there will be no errors attached.
-                # So don't return those nodes as having errors in the response.
                 if valid is not True and len(reasons) > 0:
                     if node_id not in node_errors:
-                        class_type = prompt[node_id]['class_type']
+                        class_type = prompt[node_id]["class_type"]
                         node_errors[node_id] = {
                             "errors": reasons,
                             "dependent_outputs": [],
-                            "class_type": class_type
+                            "class_type": class_type,
                         }
                         logging.error(f"* {class_type} {node_id}:")
                         for reason in reasons:
@@ -1098,14 +1195,16 @@ async def validate_prompt(prompt_id, prompt, partial_execution_list: Union[list[
             "type": "prompt_outputs_failed_validation",
             "message": "Prompt outputs failed validation",
             "details": errors_list,
-            "extra_info": {}
+            "extra_info": {},
         }
 
         return (False, error, list(good_outputs), node_errors)
 
     return (True, None, list(good_outputs), node_errors)
 
+
 MAXIMUM_HISTORY_SIZE = 10000
+
 
 class PromptQueue:
     def __init__(self, server):
@@ -1138,12 +1237,11 @@ class PromptQueue:
             return (item, i)
 
     class ExecutionStatus(NamedTuple):
-        status_str: Literal['success', 'error']
+        status_str: Literal["success", "error"]
         completed: bool
         messages: List[str]
 
-    def task_done(self, item_id, history_result,
-                  status: Optional['PromptQueue.ExecutionStatus'], process_item=None):
+    def task_done(self, item_id, history_result, status: Optional["PromptQueue.ExecutionStatus"], process_item=None):
         with self.mutex:
             prompt = self.currently_running.pop(item_id)
             if len(self.history) > MAXIMUM_HISTORY_SIZE:
@@ -1159,12 +1257,11 @@ class PromptQueue:
             self.history[prompt[1]] = {
                 "prompt": prompt,
                 "outputs": {},
-                'status': status_dict,
+                "status": status_dict,
             }
             self.history[prompt[1]].update(history_result)
             self.server.queue_updated()
 
-    # Note: slow
     def get_current_queue(self):
         with self.mutex:
             out = []
@@ -1172,7 +1269,6 @@ class PromptQueue:
                 out += [x]
             return (out, copy.deepcopy(self.queue))
 
-    # read-safe as long as queue items are immutable
     def get_current_queue_volatile(self):
         with self.mutex:
             running = [x for x in self.currently_running.values()]
