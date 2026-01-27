@@ -9,6 +9,7 @@ Sorted by downloads (descending):
 | Checkpoint | File | Downloads | 👍 | Tips | Score |
 |------------|------|----------:|-------:|-----:|------:|
 | RedCraft REDZimage v1.5 | redcraftRedzimageUpdatedDEC03_realreveal5.safetensors | 987,300 | 170,100 | 3,400 | ⭐⭐⭐ |
+| unStable Evolution KREA | unstableEvolution_Fp16_22GB.safetensors | 14,577 | 611 | 12,760 | ⭐⭐⭐ |
 | Jib Mix Flux | jibMixFlux_v8Accentueight.safetensors | 55,100 | 1,600 | 470,700 | ⭐⭐⭐ |
 | Acorn Is Spinning FLUX V1.69 | acornIsSpinningFLUX_aisfV169.safetensors | 34,719 | 1,248 | 424,298 | ⭐⭐⭐ |
 | Real Horny Pro V3 | realHornyProV3_realHornyProV2NF4.safetensors | 27,142 | 1,027 | 3,090 | ⭐⭐⭐ |
@@ -65,6 +66,7 @@ Sorted by downloads (descending):
 - [Fluxcstasy v1](fluxcstasy_v1.md) - Analog photography feel with nice skin textures
 
 ### NSFW Specialized
+- [unStable Evolution KREA](unstable_evolution_krea.md) ⭐⭐⭐ - Flux Krea with enhanced NSFW, CFG=1, Beta scheduler
 - [Real Horny Pro V3](real_horny_pro_v3.md) - Specialized NSFW with improved realism
 - [getphat FLUX Reality NSFW](getphat_flux_reality_nsfw.md) - High quality softcore, major boob upgrade
 - [SlimNudeGirls Flux FP8](slimnudegirls_flux.md) - Specialized for slim nude girls
@@ -102,6 +104,7 @@ Sorted by downloads (descending):
 - redcraftRedzimageUpdatedDEC03_realreveal5.safetensors
 - acornIsSpinningFLUX_aisfV169.safetensors
 - acornIsSpinningFLUX_aisfDeDistilledV15.safetensors
+- unstableEvolution_Fp16_22GB.safetensors
 
 ### models\diffusion_models\
 - 8StepsCreartHyperFlux_v26HyperDevFp8Unet.safetensors
@@ -130,4 +133,4 @@ Models to download when storage space is available:
 
 ---
 
-Last updated: 2026-01-03
+Last updated: 2026-01-23

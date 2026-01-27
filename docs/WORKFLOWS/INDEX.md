@@ -15,6 +15,8 @@ Zbiór zainstalowanych workflow dla ComfyUI.
 | [FLUX Img2Img 1.3 HighresFix](flux_kontext_img2img.md) | Img2Img | Img2img z upscale |
 | [FLUX Txt2Img 4.5 Ultimate](flux_kontext_txt2img.md) | Txt2Img | Z ControlNet Union v2 |
 | [FLUX Txt2Img 4.5 LLM](flux_kontext_txt2img.md) | Txt2Img | Z LLM prompt enhancement |
+| [SEO Blog Cover](seo_blog_cover.md) | Txt2Img | Okładki blogowe - flat design 4:3 |
+| [SEO Blog Cover Office LoRA](seo_blog_cover.md) | Txt2Img | Okładki blogowe - realistyczne biura 4:3 |
 
 ---
 
@@ -38,4 +40,4 @@ Wszystkie workflow wymagają następujących node packs (zainstalowane):
 
 ---
 
-*Last updated: 2026-01-03*
+*Last updated: 2026-01-07*
