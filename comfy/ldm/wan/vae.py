@@ -5,7 +5,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from einops import rearrange
-from comfy.ldm.modules.diffusionmodules.model import vae_attention
+from comfy.ldm.modules.diffusionmodules.model import vae_attention, torch_cat_if_needed
 
 import comfy.ops
 ops = comfy.ops.disable_weight_init
@@ -20,22 +20,29 @@ class CausalConv3d(ops.Conv3d):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self._padding = (self.padding[2], self.padding[2], self.padding[1],
-                         self.padding[1], 2 * self.padding[0], 0)
-        self.padding = (0, 0, 0)
+        self._padding = 2 * self.padding[0]
+        self.padding = (0, self.padding[1], self.padding[2])
 
     def forward(self, x, cache_x=None, cache_list=None, cache_idx=None):
         if cache_list is not None:
             cache_x = cache_list[cache_idx]
             cache_list[cache_idx] = None
 
-        padding = list(self._padding)
-        if cache_x is not None and self._padding[4] > 0:
-            cache_x = cache_x.to(x.device)
-            x = torch.cat([cache_x, x], dim=2)
-            padding[4] -= cache_x.shape[2]
+        if cache_x is None and x.shape[2] == 1:
+            #Fast path - the op will pad for use by truncating the weight
+            #and save math on a pile of zeros.
+            return super().forward(x, autopad="causal_zero")
+
+        if self._padding > 0:
+            padding_needed = self._padding
+            if cache_x is not None:
+                cache_x = cache_x.to(x.device)
+                padding_needed = max(0, padding_needed - cache_x.shape[2])
+            padding_shape = list(x.shape)
+            padding_shape[2] = padding_needed
+            padding = torch.zeros(padding_shape, device=x.device, dtype=x.dtype)
+            x = torch_cat_if_needed([padding, cache_x, x], dim=2)
             del cache_x
-        x = F.pad(x, padding)
 
         return super().forward(x)
 
@@ -472,10 +479,12 @@ class WanVAE(nn.Module):
 
     def encode(self, x):
         conv_idx = [0]
-        feat_map = [None] * count_conv3d(self.decoder)
         ## cache
         t = x.shape[2]
         iter_ = 1 + (t - 1) // 4
+        feat_map = None
+        if iter_ > 1:
+            feat_map = [None] * count_conv3d(self.decoder)
         ## 对encode输入的x，按时间拆分为1、4、4、4....
         for i in range(iter_):
             conv_idx = [0]
@@ -495,10 +504,11 @@ class WanVAE(nn.Module):
 
     def decode(self, z):
         conv_idx = [0]
-        feat_map = [None] * count_conv3d(self.decoder)
         # z: [b,c,t,h,w]
-
         iter_ = z.shape[2]
+        feat_map = None
+        if iter_ > 1:
+            feat_map = [None] * count_conv3d(self.decoder)
         x = self.conv2(z)
         for i in range(iter_):
             conv_idx = [0]

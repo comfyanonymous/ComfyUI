@@ -75,6 +75,7 @@ class Preview3D(IO.ComfyNode):
     def define_schema(cls):
         return IO.Schema(
             node_id="Preview3D",
+            search_aliases=["view mesh", "3d viewer"],
             display_name="Preview 3D & Animation",
             category="3d",
             is_experimental=True,

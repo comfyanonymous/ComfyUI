@@ -5,6 +5,11 @@ from .lokr import LoKrAdapter
 from .glora import GLoRAAdapter
 from .oft import OFTAdapter
 from .boft import BOFTAdapter
+from .bypass import (
+    BypassInjectionManager,
+    BypassForwardHook,
+    create_bypass_injections_from_patches,
+)
 
 
 adapters: list[type[WeightAdapterBase]] = [
@@ -31,4 +36,7 @@ __all__ = [
     "WeightAdapterTrainBase",
     "adapters",
     "adapter_maps",
+    "BypassInjectionManager",
+    "BypassForwardHook",
+    "create_bypass_injections_from_patches",
 ] + [a.__name__ for a in adapters]
