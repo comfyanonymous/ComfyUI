@@ -131,11 +131,7 @@ def cast_bias_weight_with_vbar(s, dtype, device, bias_dtype, non_blocking, compu
             xfer_dest = cast_dest
 
     pin = None
-    if signature is not None:
-        #If we are able to increase our load level (e.g. user reduces resolution or batch number)
-        #reclaim the pin previously used for offload.
-        comfy.pinned_memory.unpin_memory(s)
-    elif not resident:
+    if signature is None and not resident:
         #prepare a new pin
         assert comfy.pinned_memory.get_pin(s) is None
         comfy.pinned_memory.pin_memory(s)
