@@ -27,6 +27,7 @@ import weakref
 import gc
 import os
 from contextlib import nullcontext
+import comfy.memory_management
 import comfy.utils
 import comfy.quant_ops
 
