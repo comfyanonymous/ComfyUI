@@ -723,5 +723,8 @@ class SD1ClipModel(torch.nn.Module):
     def load_sd(self, sd):
         return getattr(self, self.clip).load_sd(sd)
 
-    def generate(self, tokens, max_length=256, temperature=1.0, top_k=50, top_p=0.95, repetition_penalty=1.0, seed=None, stop_tokens=None):
-        return getattr(self, self.clip).generate(tokens, max_length=max_length, temperature=temperature, top_k=top_k, top_p=top_p, repetition_penalty=repetition_penalty, seed=seed, stop_tokens=stop_tokens)
+    def process_tokens(self, tokens, device):
+        return getattr(self, self.clip).process_tokens(tokens, device)
+
+    def generate(self, tokens, do_sample=True, max_length=256, temperature=1.0, top_k=50, top_p=0.95, repetition_penalty=1.0, seed=None, stop_tokens=None):
+        return getattr(self, self.clip).generate(tokens, do_sample=do_sample, max_length=max_length, temperature=temperature, top_k=top_k, top_p=top_p, repetition_penalty=repetition_penalty, seed=seed, stop_tokens=stop_tokens)
