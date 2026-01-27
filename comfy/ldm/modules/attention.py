@@ -43,7 +43,7 @@ try:
     FLASH_ATTENTION_IS_AVAILABLE = True
 except ImportError:
     if model_management.flash_attention_enabled():
-        logging.error(f"\n\nTo use the `--use-flash-attention` feature, the `flash-attn` package must be installed first.\ncommand:\n\t{sys.executable} -m pip install flash-attn")
+        logging.error("\n\nTo use the `--use-flash-attention` feature, the `flash_attn_interface` (FA3) package must be installed first.\ncommand:\nhttps://github.com/simonri/flash-attention-3-h100")
         exit(-1)
 
 REGISTERED_ATTENTION_FUNCTIONS = {}
