@@ -692,19 +692,32 @@ class BaseLlama:
     def forward(self, input_ids, *args, **kwargs):
         return self.model(input_ids, *args, **kwargs)
 
-    def sample_token(self, hidden_states, temperature, top_k, top_p, repetition_penalty, token_history, generator):
+    def sample_token(self, hidden_states, temperature, top_k, top_p, min_p, repetition_penalty, token_history, generator, do_sample=True):
         logits = self.lm_head(hidden_states[:, -1, :])
-        if temperature != 1.0:
-            logits = logits / temperature
 
         if repetition_penalty != 1.0:
             for i in range(logits.shape[0]):
                 for token_id in set(token_history):
                     logits[i, token_id] *= repetition_penalty if logits[i, token_id] < 0 else 1/repetition_penalty
 
+        if not do_sample:
+            return torch.argmax(logits, dim=-1, keepdim=True)
+
+        # Sampling mode
+        if temperature != 1.0:
+            logits = logits / temperature
+
         if top_k > 0:
             indices_to_remove = logits < torch.topk(logits, top_k)[0][..., -1, None]
             logits[indices_to_remove] = float('-inf')
+
+        if min_p > 0.0:
+            probs_before_filter = torch.nn.functional.softmax(logits, dim=-1)
+            top_probs, _ = probs_before_filter.max(dim=-1, keepdim=True)
+            min_threshold = min_p * top_probs
+            indices_to_remove = probs_before_filter < min_threshold
+            logits[indices_to_remove] = float('-inf')
+
         if top_p < 1.0:
             sorted_logits, sorted_indices = torch.sort(logits, descending=True)
             cumulative_probs = torch.cumsum(torch.nn.functional.softmax(sorted_logits, dim=-1), dim=-1)
@@ -825,48 +838,6 @@ class Qwen25_7BVLI(BaseLlama, torch.nn.Module):
 
         return super().forward(x, attention_mask=attention_mask, embeds=embeds, num_tokens=num_tokens, intermediate_output=intermediate_output, final_layer_norm_intermediate=final_layer_norm_intermediate, dtype=dtype, position_ids=position_ids)
 
-    def generate(self, embeds=None, max_length=256, temperature=1.0, top_k=50, top_p=0.9, repetition_penalty=1.0, stop_tokens=[], seed=42, initial_tokens=[]):
-        bs, seq_len = embeds.shape[0], embeds.shape[1]
-        device = embeds.device
-
-        generator = torch.Generator(device=device).manual_seed(seed)
-        optimized_attention = optimized_attention_for_device(embeds.device, mask=None, small_input=True)
-
-        # Pre-allocate cache buffers for all layers
-        layer = self.model.layers[0].self_attn
-        kv_shape = (bs, layer.num_kv_heads, seq_len + max_length, layer.head_dim)
-        kv_caches = [(torch.zeros(kv_shape, device=device, dtype=embeds.dtype),
-                      torch.zeros(kv_shape, device=device, dtype=embeds.dtype), 0)
-                     for _ in range(len(self.model.layers))]
-
-        generated_token_ids = []
-        current_position = embeds.shape[1]
-        pbar = comfy.utils.ProgressBar(max_length)
-        next_token = None
-
-        # Generation loop
-        for step in tqdm(range(max_length), desc="Generating tokens"):
-            if step == 0:
-                # First pass: process initial embeds
-                position_ids = torch.arange(0, embeds.shape[1], device=device).unsqueeze(0)
-                x, _, kv_caches = self.model.forward(None, embeds=embeds, attention_mask=None, position_ids=position_ids, kv_caches=kv_caches, optimized_attention=optimized_attention)
-            else:
-                # Subsequent passes: process single token
-                next_token_embed = self.model.embed_tokens(next_token)
-                position_ids = torch.tensor([[current_position]], device=device)
-                current_position += 1
-                x, _, kv_caches = self.model.forward(None, embeds=next_token_embed, attention_mask=None, kv_caches=kv_caches, position_ids=position_ids, optimized_attention=optimized_attention)
-
-            next_token = self.sample_token(x, temperature, top_k, top_p, repetition_penalty, initial_tokens + generated_token_ids, generator)
-
-            generated_token_ids.append(next_token[0].item())
-            pbar.update(1)
-
-            if next_token[0].item() in stop_tokens:
-                break
-
-        return torch.tensor([generated_token_ids], device=device, dtype=torch.long)
-
 class Gemma2_2B(BaseLlama, torch.nn.Module):
     def __init__(self, config_dict, dtype, device, operations):
         super().__init__()
@@ -907,11 +878,10 @@ class Gemma3_12B(BaseLlama, torch.nn.Module):
             return self.multi_modal_projector(self.vision_model(image.to(device, dtype=torch.float32))[0]), None
         return None, None
 
-    def generate(self, embeds=None, max_length=256, temperature=1.0, top_k=50, top_p=0.9, repetition_penalty=1.0, stop_tokens=[], seed=42, initial_tokens=[]):
-
+    def generate(self, embeds=None, do_sample=True, max_length=256, temperature=1.0, top_k=50, top_p=0.9, min_p=0.0, repetition_penalty=1.0, stop_tokens=[], seed=42, initial_tokens=[]):
+        embeds = embeds.to(self.dtype)
         device = embeds.device
-
-        optimized_attention = optimized_attention_for_device(embeds.device, mask=None, small_input=True)
+        optimized_attention = optimized_attention_for_device(device, mask=None, small_input=True)
 
         # Initialize dynamic KV cache (starts as None, grows during generation)
         kv_caches = [(None, None) for _ in range(len(self.model.layers))]
@@ -928,7 +898,7 @@ class Gemma3_12B(BaseLlama, torch.nn.Module):
             device=device
         )
 
-        generator = torch.Generator(device=device).manual_seed(seed)
+        generator = torch.Generator(device=device).manual_seed(seed) if do_sample else None
 
         generated_token_ids = []
         current_position = 0
@@ -939,7 +909,7 @@ class Gemma3_12B(BaseLlama, torch.nn.Module):
             seq_len = embeds.shape[1]
             freqs_cis = [(cos[:, :, current_position:current_position+seq_len, :], sin[:, :, current_position:current_position+seq_len, :]) for cos, sin in rope_cache]
             x, _, kv_caches = self.model.forward(None, embeds=embeds, attention_mask=None, freqs_cis=freqs_cis, kv_caches=kv_caches, optimized_attention=optimized_attention)
-            next_token = self.sample_token(x, temperature, top_k, top_p, repetition_penalty, initial_tokens + generated_token_ids, generator)
+            next_token = self.sample_token(x, temperature, top_k, top_p, min_p, repetition_penalty, initial_tokens + generated_token_ids, generator, do_sample=do_sample)
             generated_token_ids.append(next_token[0].item())
 
             current_position += seq_len

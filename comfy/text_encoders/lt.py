@@ -148,8 +148,11 @@ class LTXAVTEModel(torch.nn.Module):
 
         return out.to(out_device), pooled
 
-    def generate(self, tokens, max_length, temperature, top_k, top_p, repetition_penalty, seed):
-        return self.gemma3_12b.transformer.generate(tokens, max_length=max_length, temperature=temperature, top_k=top_k, top_p=top_p,
+    def process_tokens(self, tokens, device):
+        return self.gemma3_12b.process_tokens(tokens, device)
+
+    def generate(self, tokens, do_sample, max_length, temperature, top_k, top_p, min_p, repetition_penalty, seed):
+        return self.gemma3_12b.transformer.generate(tokens, do_sample=do_sample, max_length=max_length, temperature=temperature, top_k=top_k, top_p=top_p, min_p=min_p,
                                                     repetition_penalty=repetition_penalty, seed=seed, stop_tokens=[106])  # 106 is <end_of_turn>
 
     def load_sd(self, sd):
