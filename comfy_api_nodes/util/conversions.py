@@ -56,15 +56,14 @@ def image_tensor_pair_to_batch(image1: torch.Tensor, image2: torch.Tensor) -> to
 def tensor_to_bytesio(
     image: torch.Tensor,
     *,
-    total_pixels: int = 2048 * 2048,
+    total_pixels: int | None = 2048 * 2048,
     mime_type: str = "image/png",
 ) -> BytesIO:
     """Converts a torch.Tensor image to a named BytesIO object.
 
     Args:
         image: Input torch.Tensor image.
-        name: Optional filename for the BytesIO object.
-        total_pixels: Maximum total pixels for potential downscaling.
+        total_pixels: Maximum total pixels for downscaling. If None, no downscaling is performed.
         mime_type: Target image MIME type (e.g., 'image/png', 'image/jpeg', 'image/webp', 'video/mp4').
 
     Returns:
@@ -79,13 +78,14 @@ def tensor_to_bytesio(
     return img_binary
 
 
-def tensor_to_pil(image: torch.Tensor, total_pixels: int = 2048 * 2048) -> Image.Image:
+def tensor_to_pil(image: torch.Tensor, total_pixels: int | None = 2048 * 2048) -> Image.Image:
     """Converts a single torch.Tensor image [H, W, C] to a PIL Image, optionally downscaling."""
     if len(image.shape) > 3:
         image = image[0]
     # TODO: remove alpha if not allowed and present
     input_tensor = image.cpu()
-    input_tensor = downscale_image_tensor(input_tensor.unsqueeze(0), total_pixels=total_pixels).squeeze()
+    if total_pixels is not None:
+        input_tensor = downscale_image_tensor(input_tensor.unsqueeze(0), total_pixels=total_pixels).squeeze()
     image_np = (input_tensor.numpy() * 255).astype(np.uint8)
     img = Image.fromarray(image_np)
     return img
@@ -93,14 +93,14 @@ def tensor_to_pil(image: torch.Tensor, total_pixels: int = 2048 * 2048) -> Image
 
 def tensor_to_base64_string(
     image_tensor: torch.Tensor,
-    total_pixels: int = 2048 * 2048,
+    total_pixels: int | None = 2048 * 2048,
     mime_type: str = "image/png",
 ) -> str:
     """Convert [B, H, W, C] or [H, W, C] tensor to a base64 string.
 
     Args:
         image_tensor: Input torch.Tensor image.
-        total_pixels: Maximum total pixels for potential downscaling.
+        total_pixels: Maximum total pixels for downscaling. If None, no downscaling is performed.
         mime_type: Target image MIME type (e.g., 'image/png', 'image/jpeg', 'image/webp', 'video/mp4').
 
     Returns:
@@ -161,14 +161,14 @@ def downscale_image_tensor_by_max_side(image: torch.Tensor, *,  max_side: int) -
 
 def tensor_to_data_uri(
     image_tensor: torch.Tensor,
-    total_pixels: int = 2048 * 2048,
+    total_pixels: int | None = 2048 * 2048,
     mime_type: str = "image/png",
 ) -> str:
     """Converts a tensor image to a Data URI string.
 
     Args:
         image_tensor: Input torch.Tensor image.
-        total_pixels: Maximum total pixels for potential downscaling.
+        total_pixels: Maximum total pixels for downscaling. If None, no downscaling is performed.
         mime_type: Target image MIME type (e.g., 'image/png', 'image/jpeg', 'image/webp').
 
     Returns:
