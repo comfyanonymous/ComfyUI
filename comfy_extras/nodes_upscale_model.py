@@ -53,6 +53,7 @@ class ImageUpscaleWithModel(io.ComfyNode):
             node_id="ImageUpscaleWithModel",
             display_name="Upscale Image (using Model)",
             category="image/upscaling",
+            search_aliases=["upscale", "upscaler", "upsc", "enlarge image", "super resolution", "hires", "superres", "increase resolution"],
             inputs=[
                 io.UpscaleModel.Input("upscale_model"),
                 io.Image.Input("image"),
@@ -78,18 +79,20 @@ class ImageUpscaleWithModel(io.ComfyNode):
         overlap = 32
 
         oom = True
-        while oom:
-            try:
-                steps = in_img.shape[0] * comfy.utils.get_tiled_scale_steps(in_img.shape[3], in_img.shape[2], tile_x=tile, tile_y=tile, overlap=overlap)
-                pbar = comfy.utils.ProgressBar(steps)
-                s = comfy.utils.tiled_scale(in_img, lambda a: upscale_model(a), tile_x=tile, tile_y=tile, overlap=overlap, upscale_amount=upscale_model.scale, pbar=pbar)
-                oom = False
-            except model_management.OOM_EXCEPTION as e:
-                tile //= 2
-                if tile < 128:
-                    raise e
+        try:
+            while oom:
+                try:
+                    steps = in_img.shape[0] * comfy.utils.get_tiled_scale_steps(in_img.shape[3], in_img.shape[2], tile_x=tile, tile_y=tile, overlap=overlap)
+                    pbar = comfy.utils.ProgressBar(steps)
+                    s = comfy.utils.tiled_scale(in_img, lambda a: upscale_model(a), tile_x=tile, tile_y=tile, overlap=overlap, upscale_amount=upscale_model.scale, pbar=pbar)
+                    oom = False
+                except model_management.OOM_EXCEPTION as e:
+                    tile //= 2
+                    if tile < 128:
+                        raise e
+        finally:
+            upscale_model.to("cpu")
 
-        upscale_model.to("cpu")
         s = torch.clamp(s.movedim(-3,-1), min=0, max=1.0)
         return io.NodeOutput(s)
 

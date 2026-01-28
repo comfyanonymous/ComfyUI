@@ -63,18 +63,22 @@ def cuda_malloc_supported():
     return True
 
 
+version = ""
+
+try:
+    torch_spec = importlib.util.find_spec("torch")
+    for folder in torch_spec.submodule_search_locations:
+        ver_file = os.path.join(folder, "version.py")
+        if os.path.isfile(ver_file):
+            spec = importlib.util.spec_from_file_location("torch_version_import", ver_file)
+            module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(module)
+            version = module.__version__
+except:
+    pass
+
 if not args.cuda_malloc:
     try:
-        version = ""
-        torch_spec = importlib.util.find_spec("torch")
-        for folder in torch_spec.submodule_search_locations:
-            ver_file = os.path.join(folder, "version.py")
-            if os.path.isfile(ver_file):
-                spec = importlib.util.spec_from_file_location("torch_version_import", ver_file)
-                module = importlib.util.module_from_spec(spec)
-                spec.loader.exec_module(module)
-                version = module.__version__
-
         if int(version[0]) >= 2 and "+cu" in version:  # enable by default for torch version 2.0 and up only on cuda torch
             if PerformanceFeature.AutoTune not in args.fast:  # Autotune has issues with cuda malloc
                 args.cuda_malloc = cuda_malloc_supported()
@@ -90,3 +94,6 @@ if args.cuda_malloc and not args.disable_cuda_malloc:
         env_var += ",backend:cudaMallocAsync"
 
     os.environ['PYTORCH_CUDA_ALLOC_CONF'] = env_var
+
+def get_torch_version_noimport():
+    return str(version)

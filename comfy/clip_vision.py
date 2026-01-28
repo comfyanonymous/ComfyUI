@@ -1,6 +1,5 @@
 from .utils import load_torch_file, transformers_convert, state_dict_prefix_replace
 import os
-import torch
 import json
 import logging
 
@@ -17,28 +16,12 @@ class Output:
     def __setitem__(self, key, item):
         setattr(self, key, item)
 
-def clip_preprocess(image, size=224, mean=[0.48145466, 0.4578275, 0.40821073], std=[0.26862954, 0.26130258, 0.27577711], crop=True):
-    image = image[:, :, :, :3] if image.shape[3] > 3 else image
-    mean = torch.tensor(mean, device=image.device, dtype=image.dtype)
-    std = torch.tensor(std, device=image.device, dtype=image.dtype)
-    image = image.movedim(-1, 1)
-    if not (image.shape[2] == size and image.shape[3] == size):
-        if crop:
-            scale = (size / min(image.shape[2], image.shape[3]))
-            scale_size = (round(scale * image.shape[2]), round(scale * image.shape[3]))
-        else:
-            scale_size = (size, size)
-
-        image = torch.nn.functional.interpolate(image, size=scale_size, mode="bicubic", antialias=True)
-        h = (image.shape[2] - size)//2
-        w = (image.shape[3] - size)//2
-        image = image[:,:,h:h+size,w:w+size]
-    image = torch.clip((255. * image), 0, 255).round() / 255.0
-    return (image - mean.view([3,1,1])) / std.view([3,1,1])
+clip_preprocess = comfy.clip_model.clip_preprocess  # Prevent some stuff from breaking, TODO: remove eventually
 
 IMAGE_ENCODERS = {
     "clip_vision_model": comfy.clip_model.CLIPVisionModelProjection,
     "siglip_vision_model": comfy.clip_model.CLIPVisionModelProjection,
+    "siglip2_vision_model": comfy.clip_model.CLIPVisionModelProjection,
     "dinov2": comfy.image_encoders.dino2.Dinov2Model,
 }
 
@@ -50,9 +33,10 @@ class ClipVisionModel():
         self.image_size = config.get("image_size", 224)
         self.image_mean = config.get("image_mean", [0.48145466, 0.4578275, 0.40821073])
         self.image_std = config.get("image_std", [0.26862954, 0.26130258, 0.27577711])
-        model_type = config.get("model_type", "clip_vision_model")
-        model_class = IMAGE_ENCODERS.get(model_type)
-        if model_type == "siglip_vision_model":
+        self.model_type = config.get("model_type", "clip_vision_model")
+        self.config = config.copy()
+        model_class = IMAGE_ENCODERS.get(self.model_type)
+        if self.model_type == "siglip_vision_model":
             self.return_all_hidden_states = True
         else:
             self.return_all_hidden_states = False
@@ -73,12 +57,16 @@ class ClipVisionModel():
 
     def encode_image(self, image, crop=True):
         comfy.model_management.load_model_gpu(self.patcher)
-        pixel_values = clip_preprocess(image.to(self.load_device), size=self.image_size, mean=self.image_mean, std=self.image_std, crop=crop).float()
+        if self.model_type == "siglip2_vision_model":
+            pixel_values = comfy.clip_model.siglip2_preprocess(image.to(self.load_device), size=self.image_size, patch_size=self.config.get("patch_size", 16), num_patches=self.config.get("num_patches", 256), mean=self.image_mean, std=self.image_std, crop=crop).float()
+        else:
+            pixel_values = comfy.clip_model.clip_preprocess(image.to(self.load_device), size=self.image_size, mean=self.image_mean, std=self.image_std, crop=crop).float()
         out = self.model(pixel_values=pixel_values, intermediate_output='all' if self.return_all_hidden_states else -2)
 
         outputs = Output()
         outputs["last_hidden_state"] = out[0].to(comfy.model_management.intermediate_device())
         outputs["image_embeds"] = out[2].to(comfy.model_management.intermediate_device())
+        outputs["image_sizes"] = [pixel_values.shape[1:]] * pixel_values.shape[0]
         if self.return_all_hidden_states:
             all_hs = out[1].to(comfy.model_management.intermediate_device())
             outputs["penultimate_hidden_states"] = all_hs[:, -2]
@@ -125,10 +113,14 @@ def load_clipvision_from_sd(sd, prefix="", convert_keys=False):
     elif "vision_model.encoder.layers.22.layer_norm1.weight" in sd:
         embed_shape = sd["vision_model.embeddings.position_embedding.weight"].shape[0]
         if sd["vision_model.encoder.layers.0.layer_norm1.weight"].shape[0] == 1152:
-            if embed_shape == 729:
-                json_config = os.path.join(os.path.dirname(os.path.realpath(__file__)), "clip_vision_siglip_384.json")
-            elif embed_shape == 1024:
-                json_config = os.path.join(os.path.dirname(os.path.realpath(__file__)), "clip_vision_siglip_512.json")
+            patch_embedding_shape = sd["vision_model.embeddings.patch_embedding.weight"].shape
+            if len(patch_embedding_shape) == 2:
+                json_config = os.path.join(os.path.dirname(os.path.realpath(__file__)), "clip_vision_siglip2_base_naflex.json")
+            else:
+                if embed_shape == 729:
+                    json_config = os.path.join(os.path.dirname(os.path.realpath(__file__)), "clip_vision_siglip_384.json")
+                elif embed_shape == 1024:
+                    json_config = os.path.join(os.path.dirname(os.path.realpath(__file__)), "clip_vision_siglip_512.json")
         elif embed_shape == 577:
             if "multi_modal_projector.linear_1.bias" in sd:
                 json_config = os.path.join(os.path.dirname(os.path.realpath(__file__)), "clip_vision_config_vitl_336_llava.json")

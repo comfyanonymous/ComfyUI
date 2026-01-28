@@ -122,20 +122,20 @@ def estimate_memory(model, noise_shape, conds):
     minimum_memory_required = model.model.memory_required([noise_shape[0]] + list(noise_shape[1:]), cond_shapes=cond_shapes_min)
     return memory_required, minimum_memory_required
 
-def prepare_sampling(model: ModelPatcher, noise_shape, conds, model_options=None):
+def prepare_sampling(model: ModelPatcher, noise_shape, conds, model_options=None, force_full_load=False):
     executor = comfy.patcher_extension.WrapperExecutor.new_executor(
         _prepare_sampling,
         comfy.patcher_extension.get_all_wrappers(comfy.patcher_extension.WrappersMP.PREPARE_SAMPLING, model_options, is_model_options=True)
     )
-    return executor.execute(model, noise_shape, conds, model_options=model_options)
+    return executor.execute(model, noise_shape, conds, model_options=model_options, force_full_load=force_full_load)
 
-def _prepare_sampling(model: ModelPatcher, noise_shape, conds, model_options=None):
+def _prepare_sampling(model: ModelPatcher, noise_shape, conds, model_options=None, force_full_load=False):
     real_model: BaseModel = None
     models, inference_memory = get_additional_models(conds, model.model_dtype())
     models += get_additional_models_from_model_options(model_options)
     models += model.get_nested_additional_models()  # TODO: does this require inference_memory update?
     memory_required, minimum_memory_required = estimate_memory(model, noise_shape, conds)
-    comfy.model_management.load_models_gpu([model] + models, memory_required=memory_required + inference_memory, minimum_memory_required=minimum_memory_required + inference_memory)
+    comfy.model_management.load_models_gpu([model] + models, memory_required=memory_required + inference_memory, minimum_memory_required=minimum_memory_required + inference_memory, force_full_load=force_full_load)
     real_model = model.model
 
     return real_model, conds, models

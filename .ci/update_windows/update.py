@@ -53,6 +53,16 @@ try:
     repo.stash(ident)
 except KeyError:
     print("nothing to stash")  # noqa: T201
+except:
+    print("Could not stash, cleaning index and trying again.")  # noqa: T201
+    repo.state_cleanup()
+    repo.index.read_tree(repo.head.peel().tree)
+    repo.index.write()
+    try:
+        repo.stash(ident)
+    except KeyError:
+        print("nothing to stash.")  # noqa: T201
+
 backup_branch_name = 'backup_branch_{}'.format(datetime.today().strftime('%Y-%m-%d_%H_%M_%S'))
 print("creating backup branch: {}".format(backup_branch_name))  # noqa: T201
 try:
@@ -66,8 +76,10 @@ if branch is None:
     try:
         ref = repo.lookup_reference('refs/remotes/origin/master')
     except:
-        print("pulling.")  # noqa: T201
-        pull(repo)
+        print("fetching.")  # noqa: T201
+        for remote in repo.remotes:
+            if remote.name == "origin":
+                remote.fetch()
         ref = repo.lookup_reference('refs/remotes/origin/master')
     repo.checkout(ref)
     branch = repo.lookup_branch('master')
@@ -149,3 +161,4 @@ try:
         shutil.copy(stable_update_script, stable_update_script_to)
 except:
     pass
+

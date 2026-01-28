@@ -67,6 +67,8 @@ See what ComfyUI can do with the [example workflows](https://comfyanonymous.gith
    - [HiDream](https://comfyanonymous.github.io/ComfyUI_examples/hidream/)
    - [Qwen Image](https://comfyanonymous.github.io/ComfyUI_examples/qwen_image/)
    - [Hunyuan Image 2.1](https://comfyanonymous.github.io/ComfyUI_examples/hunyuan_image/)
+   - [Flux 2](https://comfyanonymous.github.io/ComfyUI_examples/flux2/)
+   - [Z Image](https://comfyanonymous.github.io/ComfyUI_examples/z_image/)
 - Image Editing Models
    - [Omnigen 2](https://comfyanonymous.github.io/ComfyUI_examples/omnigen/)
    - [Flux Kontext](https://comfyanonymous.github.io/ComfyUI_examples/flux/#flux-kontext-image-editing-model)
@@ -79,6 +81,7 @@ See what ComfyUI can do with the [example workflows](https://comfyanonymous.gith
    - [Hunyuan Video](https://comfyanonymous.github.io/ComfyUI_examples/hunyuan_video/)
    - [Wan 2.1](https://comfyanonymous.github.io/ComfyUI_examples/wan/)
    - [Wan 2.2](https://comfyanonymous.github.io/ComfyUI_examples/wan22/)
+   - [Hunyuan Video 1.5](https://docs.comfy.org/tutorials/video/hunyuan/hunyuan-video-1-5)
 - Audio Models
    - [Stable Audio](https://comfyanonymous.github.io/ComfyUI_examples/audio/)
    - [ACE Step](https://comfyanonymous.github.io/ComfyUI_examples/audio/)
@@ -105,7 +108,7 @@ See what ComfyUI can do with the [example workflows](https://comfyanonymous.gith
 - [LCM models and Loras](https://comfyanonymous.github.io/ComfyUI_examples/lcm/)
 - Latent previews with [TAESD](#how-to-show-high-quality-previews)
 - Works fully offline: core will never download anything unless you want to.
-- Optional API nodes to use paid models from external providers through the online [Comfy API](https://docs.comfy.org/tutorials/api-nodes/overview).
+- Optional API nodes to use paid models from external providers through the online [Comfy API](https://docs.comfy.org/tutorials/api-nodes/overview) disable with: `--disable-api-nodes`
 - [Config file](extra_model_paths.yaml.example) to set the search paths for models.
 
 Workflow examples can be found on the [Examples page](https://comfyanonymous.github.io/ComfyUI_examples/)
@@ -116,6 +119,9 @@ ComfyUI follows a weekly release cycle targeting Monday but this regularly chang
 
 1. **[ComfyUI Core](https://github.com/comfyanonymous/ComfyUI)**
    - Releases a new stable version (e.g., v0.7.0) roughly every week.
+   - Starting from v0.4.0 patch versions will be used for fixes backported onto the current stable release.
+   - Minor versions will be used for releases off the master branch.
+   - Patch versions may still be used for releases on the master branch in cases where a backport would not make sense.
    - Commits outside of the stable release tags may be very unstable and break many custom nodes.
    - Serves as the foundation for the desktop release
 
@@ -173,17 +179,19 @@ There is a portable standalone build for Windows that should work for running on
 
 ### [Direct link to download](https://github.com/comfyanonymous/ComfyUI/releases/latest/download/ComfyUI_windows_portable_nvidia.7z)
 
-Simply download, extract with [7-Zip](https://7-zip.org) and run. Make sure you put your Stable Diffusion checkpoints/models (the huge ckpt/safetensors files) in: ComfyUI\models\checkpoints
+Simply download, extract with [7-Zip](https://7-zip.org) or with the windows explorer on recent windows versions and run. For smaller models you normally only need to put the checkpoints (the huge ckpt/safetensors files) in: ComfyUI\models\checkpoints but many of the larger models have multiple files. Make sure to follow the instructions to know which subfolder to put them in ComfyUI\models\
 
 If you have trouble extracting it, right click the file -> properties -> unblock
 
-Update your Nvidia drivers if it doesn't start.
+The portable above currently comes with python 3.13 and pytorch cuda 13.0. Update your Nvidia drivers if it doesn't start.
 
 #### Alternative Downloads:
 
 [Experimental portable for AMD GPUs](https://github.com/comfyanonymous/ComfyUI/releases/latest/download/ComfyUI_windows_portable_amd.7z)
 
-[Portable with pytorch cuda 12.8 and python 3.12](https://github.com/comfyanonymous/ComfyUI/releases/latest/download/ComfyUI_windows_portable_nvidia_cu128.7z) (Supports Nvidia 10 series and older GPUs).
+[Portable with pytorch cuda 12.8 and python 3.12](https://github.com/comfyanonymous/ComfyUI/releases/latest/download/ComfyUI_windows_portable_nvidia_cu128.7z).
+
+[Portable with pytorch cuda 12.6 and python 3.12](https://github.com/comfyanonymous/ComfyUI/releases/latest/download/ComfyUI_windows_portable_nvidia_cu126.7z) (Supports Nvidia 10 series and older GPUs).
 
 #### How do I share models between another UI and ComfyUI?
 
@@ -200,9 +208,11 @@ comfy install
 
 ## Manual Install (Windows, Linux)
 
-Python 3.14 will work if you comment out the `kornia` dependency in the requirements.txt file (breaks the canny node) but it is not recommended.
+Python 3.14 works but some custom nodes may have issues. The free threaded variant works but some dependencies will enable the GIL so it's not fully supported.
 
 Python 3.13 is very well supported. If you have trouble with some custom node dependencies on 3.13 you can try 3.12
+
+torch 2.4 and above is supported but some features and optimizations might only work on newer versions. We generally recommend using the latest major version of pytorch with the latest cuda version unless it is less than 2 weeks old.
 
 ### Instructions:
 
@@ -219,9 +229,9 @@ AMD users can install rocm and pytorch with pip if you don't have it already ins
 
 ```pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/rocm6.4```
 
-This is the command to install the nightly with ROCm 7.0 which might have some performance improvements:
+This is the command to install the nightly with ROCm 7.1 which might have some performance improvements:
 
-```pip install --pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/nightly/rocm7.0```
+```pip install --pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/nightly/rocm7.1```
 
 
 ### AMD GPUs (Experimental: Windows and Linux), RDNA 3, 3.5 and 4 only.
@@ -230,7 +240,7 @@ These have less hardware support than the builds above but they work on windows.
 
 RDNA 3 (RX 7000 series):
 
-```pip install --pre torch torchvision torchaudio --index-url https://rocm.nightlies.amd.com/v2/gfx110X-dgpu/```
+```pip install --pre torch torchvision torchaudio --index-url https://rocm.nightlies.amd.com/v2/gfx110X-all/```
 
 RDNA 3.5 (Strix halo/Ryzen AI Max+ 365):
 
@@ -242,7 +252,7 @@ RDNA 4 (RX 9000 series):
 
 ### Intel GPUs (Windows and Linux)
 
-(Option 1) Intel Arc GPU users can install native PyTorch with torch.xpu support using pip. More information can be found [here](https://pytorch.org/docs/main/notes/get_start_xpu.html)
+Intel Arc GPU users can install native PyTorch with torch.xpu support using pip. More information can be found [here](https://pytorch.org/docs/main/notes/get_start_xpu.html)
 
 1. To install PyTorch xpu, use the following command:
 
@@ -251,10 +261,6 @@ RDNA 4 (RX 9000 series):
 This is the command to install the Pytorch xpu nightly which might have some performance improvements:
 
 ```pip install --pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/nightly/xpu```
-
-(Option 2) Alternatively, Intel GPUs supported by Intel Extension for PyTorch (IPEX) can leverage IPEX for improved performance.
-
-1. visit [Installation](https://intel.github.io/intel-extension-for-pytorch/index.html#installation?platform=gpu) for more information.
 
 ### NVIDIA
 
@@ -318,6 +324,32 @@ For models compatible with Iluvatar Extension for PyTorch. Here's a step-by-step
 
 1. Install the Iluvatar Corex Toolkit by adhering to the platform-specific instructions on the [Installation](https://support.iluvatar.com/#/DocumentCentre?id=1&nameCenter=2&productId=520117912052801536)
 2. Launch ComfyUI by running `python main.py`
+
+
+## [ComfyUI-Manager](https://github.com/Comfy-Org/ComfyUI-Manager/tree/manager-v4)
+
+**ComfyUI-Manager** is an extension that allows you to easily install, update, and manage custom nodes for ComfyUI.
+
+### Setup
+
+1. Install the manager dependencies:
+   ```bash
+   pip install -r manager_requirements.txt
+   ```
+
+2. Enable the manager with the `--enable-manager` flag when running ComfyUI:
+   ```bash
+   python main.py --enable-manager
+   ```
+
+### Command Line Options
+
+| Flag | Description |
+|------|-------------|
+| `--enable-manager` | Enable ComfyUI-Manager |
+| `--enable-manager-legacy-ui` | Use the legacy manager UI instead of the new UI (requires `--enable-manager`) |
+| `--disable-manager-ui` | Disable the manager UI and endpoints while keeping background features like security checks and scheduled installation completion (requires `--enable-manager`) |
+
 
 # Running
 

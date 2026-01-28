@@ -71,6 +71,7 @@ class CLIPAttentionMultiply(io.ComfyNode):
     def define_schema(cls) -> io.Schema:
         return io.Schema(
             node_id="CLIPAttentionMultiply",
+            search_aliases=["clip attention scale", "text encoder attention"],
             category="_for_testing/attention_experiments",
             inputs=[
                 io.Clip.Input("clip"),

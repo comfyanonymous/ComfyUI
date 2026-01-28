@@ -62,6 +62,8 @@ class WanSelfAttention(nn.Module):
             x(Tensor): Shape [B, L, num_heads, C / num_heads]
             freqs(Tensor): Rope freqs, shape [1024, C / num_heads / 2]
         """
+        patches = transformer_options.get("patches", {})
+
         b, s, n, d = *x.shape[:2], self.num_heads, self.head_dim
 
         def qkv_fn_q(x):
@@ -85,6 +87,10 @@ class WanSelfAttention(nn.Module):
             heads=self.num_heads,
             transformer_options=transformer_options,
         )
+
+        if "attn1_patch" in patches:
+            for p in patches["attn1_patch"]:
+                x = p({"x": x, "q": q, "k": k, "transformer_options": transformer_options})
 
         x = self.o(x)
         return x
@@ -225,6 +231,8 @@ class WanAttentionBlock(nn.Module):
         """
         # assert e.dtype == torch.float32
 
+        patches = transformer_options.get("patches", {})
+
         if e.ndim < 4:
             e = (comfy.model_management.cast_to(self.modulation, dtype=x.dtype, device=x.device) + e).chunk(6, dim=1)
         else:
@@ -242,6 +250,11 @@ class WanAttentionBlock(nn.Module):
 
         # cross-attention & ffn
         x = x + self.cross_attn(self.norm3(x), context, context_img_len=context_img_len, transformer_options=transformer_options)
+
+        if "attn2_patch" in patches:
+            for p in patches["attn2_patch"]:
+                x = p({"x": x, "transformer_options": transformer_options})
+
         y = self.ffn(torch.addcmul(repeat_e(e[3], x), self.norm2(x), 1 + repeat_e(e[4], x)))
         x = torch.addcmul(x, y, repeat_e(e[5], x))
         return x
@@ -488,7 +501,7 @@ class WanModel(torch.nn.Module):
         self.blocks = nn.ModuleList([
             wan_attn_block_class(cross_attn_type, dim, ffn_dim, num_heads,
                                  window_size, qk_norm, cross_attn_norm, eps, operation_settings=operation_settings)
-            for _ in range(num_layers)
+            for i in range(num_layers)
         ])
 
         # head
@@ -541,6 +554,7 @@ class WanModel(torch.nn.Module):
         # embeddings
         x = self.patch_embedding(x.float()).to(x.dtype)
         grid_sizes = x.shape[2:]
+        transformer_options["grid_sizes"] = grid_sizes
         x = x.flatten(2).transpose(1, 2)
 
         # time embeddings
@@ -568,7 +582,10 @@ class WanModel(torch.nn.Module):
 
         patches_replace = transformer_options.get("patches_replace", {})
         blocks_replace = patches_replace.get("dit", {})
+        transformer_options["total_blocks"] = len(self.blocks)
+        transformer_options["block_type"] = "double"
         for i, block in enumerate(self.blocks):
+            transformer_options["block_index"] = i
             if ("double_block", i) in blocks_replace:
                 def block_wrap(args):
                     out = {}
@@ -735,6 +752,7 @@ class VaceWanModel(WanModel):
         # embeddings
         x = self.patch_embedding(x.float()).to(x.dtype)
         grid_sizes = x.shape[2:]
+        transformer_options["grid_sizes"] = grid_sizes
         x = x.flatten(2).transpose(1, 2)
 
         # time embeddings
@@ -763,7 +781,10 @@ class VaceWanModel(WanModel):
 
         patches_replace = transformer_options.get("patches_replace", {})
         blocks_replace = patches_replace.get("dit", {})
+        transformer_options["total_blocks"] = len(self.blocks)
+        transformer_options["block_type"] = "double"
         for i, block in enumerate(self.blocks):
+            transformer_options["block_index"] = i
             if ("double_block", i) in blocks_replace:
                 def block_wrap(args):
                     out = {}
@@ -862,7 +883,10 @@ class CameraWanModel(WanModel):
 
         patches_replace = transformer_options.get("patches_replace", {})
         blocks_replace = patches_replace.get("dit", {})
+        transformer_options["total_blocks"] = len(self.blocks)
+        transformer_options["block_type"] = "double"
         for i, block in enumerate(self.blocks):
+            transformer_options["block_index"] = i
             if ("double_block", i) in blocks_replace:
                 def block_wrap(args):
                     out = {}
@@ -1326,16 +1350,19 @@ class WanModel_S2V(WanModel):
 
         patches_replace = transformer_options.get("patches_replace", {})
         blocks_replace = patches_replace.get("dit", {})
+        transformer_options["total_blocks"] = len(self.blocks)
+        transformer_options["block_type"] = "double"
         for i, block in enumerate(self.blocks):
+            transformer_options["block_index"] = i
             if ("double_block", i) in blocks_replace:
                 def block_wrap(args):
                     out = {}
-                    out["img"] = block(args["img"], context=args["txt"], e=args["vec"], freqs=args["pe"])
+                    out["img"] = block(args["img"], context=args["txt"], e=args["vec"], freqs=args["pe"], transformer_options=args["transformer_options"])
                     return out
-                out = blocks_replace[("double_block", i)]({"img": x, "txt": context, "vec": e0, "pe": freqs}, {"original_block": block_wrap})
+                out = blocks_replace[("double_block", i)]({"img": x, "txt": context, "vec": e0, "pe": freqs, "transformer_options": transformer_options}, {"original_block": block_wrap})
                 x = out["img"]
             else:
-                x = block(x, e=e0, freqs=freqs, context=context)
+                x = block(x, e=e0, freqs=freqs, context=context, transformer_options=transformer_options)
             if audio_emb is not None:
                 x = self.audio_injector(x, i, audio_emb, audio_emb_global, seq_len)
         # head
@@ -1574,7 +1601,10 @@ class HumoWanModel(WanModel):
 
         patches_replace = transformer_options.get("patches_replace", {})
         blocks_replace = patches_replace.get("dit", {})
+        transformer_options["total_blocks"] = len(self.blocks)
+        transformer_options["block_type"] = "double"
         for i, block in enumerate(self.blocks):
+            transformer_options["block_index"] = i
             if ("double_block", i) in blocks_replace:
                 def block_wrap(args):
                     out = {}

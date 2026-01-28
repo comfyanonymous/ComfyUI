@@ -55,7 +55,8 @@ class APG(io.ComfyNode):
         def pre_cfg_function(args):
             nonlocal running_avg, prev_sigma
 
-            if len(args["conds_out"]) == 1: return args["conds_out"]
+            if len(args["conds_out"]) == 1:
+                return args["conds_out"]
 
             cond = args["conds_out"][0]
             uncond = args["conds_out"][1]

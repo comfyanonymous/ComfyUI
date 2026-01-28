@@ -7,63 +7,79 @@ from comfy.ldm.modules.diffusionmodules.mmdit import get_1d_sincos_pos_embed_fro
 import folder_paths
 import comfy.model_management
 from comfy.cli_args import args
+from typing_extensions import override
+from comfy_api.latest import ComfyExtension, IO, Types
+from comfy_api.latest._util import MESH, VOXEL  # only for backward compatibility if someone import it from this file (will be removed later) # noqa
 
-class EmptyLatentHunyuan3Dv2:
+
+class EmptyLatentHunyuan3Dv2(IO.ComfyNode):
     @classmethod
-    def INPUT_TYPES(s):
-        return {
-            "required": {
-                "resolution": ("INT", {"default": 3072, "min": 1, "max": 8192}),
-                "batch_size": ("INT", {"default": 1, "min": 1, "max": 4096, "tooltip": "The number of latent images in the batch."}),
-            }
-        }
+    def define_schema(cls):
+        return IO.Schema(
+            node_id="EmptyLatentHunyuan3Dv2",
+            category="latent/3d",
+            inputs=[
+                IO.Int.Input("resolution", default=3072, min=1, max=8192),
+                IO.Int.Input("batch_size", default=1, min=1, max=4096, tooltip="The number of latent images in the batch."),
+            ],
+            outputs=[
+                IO.Latent.Output(),
+            ]
+        )
 
-    RETURN_TYPES = ("LATENT",)
-    FUNCTION = "generate"
-
-    CATEGORY = "latent/3d"
-
-    def generate(self, resolution, batch_size):
+    @classmethod
+    def execute(cls, resolution, batch_size) -> IO.NodeOutput:
         latent = torch.zeros([batch_size, 64, resolution], device=comfy.model_management.intermediate_device())
-        return ({"samples": latent, "type": "hunyuan3dv2"}, )
+        return IO.NodeOutput({"samples": latent, "type": "hunyuan3dv2"})
 
-class Hunyuan3Dv2Conditioning:
+    generate = execute  # TODO: remove
+
+
+class Hunyuan3Dv2Conditioning(IO.ComfyNode):
     @classmethod
-    def INPUT_TYPES(s):
-        return {"required": {"clip_vision_output": ("CLIP_VISION_OUTPUT",),
-                             }}
+    def define_schema(cls):
+        return IO.Schema(
+            node_id="Hunyuan3Dv2Conditioning",
+            category="conditioning/video_models",
+            inputs=[
+                IO.ClipVisionOutput.Input("clip_vision_output"),
+            ],
+            outputs=[
+                IO.Conditioning.Output(display_name="positive"),
+                IO.Conditioning.Output(display_name="negative"),
+            ]
+        )
 
-    RETURN_TYPES = ("CONDITIONING", "CONDITIONING")
-    RETURN_NAMES = ("positive", "negative")
-
-    FUNCTION = "encode"
-
-    CATEGORY = "conditioning/video_models"
-
-    def encode(self, clip_vision_output):
+    @classmethod
+    def execute(cls, clip_vision_output) -> IO.NodeOutput:
         embeds = clip_vision_output.last_hidden_state
         positive = [[embeds, {}]]
         negative = [[torch.zeros_like(embeds), {}]]
-        return (positive, negative)
+        return IO.NodeOutput(positive, negative)
+
+    encode = execute  # TODO: remove
 
 
-class Hunyuan3Dv2ConditioningMultiView:
+class Hunyuan3Dv2ConditioningMultiView(IO.ComfyNode):
     @classmethod
-    def INPUT_TYPES(s):
-        return {"required": {},
-                "optional": {"front": ("CLIP_VISION_OUTPUT",),
-                             "left": ("CLIP_VISION_OUTPUT",),
-                             "back": ("CLIP_VISION_OUTPUT",),
-                             "right": ("CLIP_VISION_OUTPUT",), }}
+    def define_schema(cls):
+        return IO.Schema(
+            node_id="Hunyuan3Dv2ConditioningMultiView",
+            category="conditioning/video_models",
+            inputs=[
+                IO.ClipVisionOutput.Input("front", optional=True),
+                IO.ClipVisionOutput.Input("left", optional=True),
+                IO.ClipVisionOutput.Input("back", optional=True),
+                IO.ClipVisionOutput.Input("right", optional=True),
+            ],
+            outputs=[
+                IO.Conditioning.Output(display_name="positive"),
+                IO.Conditioning.Output(display_name="negative"),
+            ]
+        )
 
-    RETURN_TYPES = ("CONDITIONING", "CONDITIONING")
-    RETURN_NAMES = ("positive", "negative")
-
-    FUNCTION = "encode"
-
-    CATEGORY = "conditioning/video_models"
-
-    def encode(self, front=None, left=None, back=None, right=None):
+    @classmethod
+    def execute(cls, front=None, left=None, back=None, right=None) -> IO.NodeOutput:
         all_embeds = [front, left, back, right]
         out = []
         pos_embeds = None
@@ -76,29 +92,35 @@ class Hunyuan3Dv2ConditioningMultiView:
         embeds = torch.cat(out, dim=1)
         positive = [[embeds, {}]]
         negative = [[torch.zeros_like(embeds), {}]]
-        return (positive, negative)
+        return IO.NodeOutput(positive, negative)
+
+    encode = execute  # TODO: remove
 
 
-class VOXEL:
-    def __init__(self, data):
-        self.data = data
-
-class VAEDecodeHunyuan3D:
+class VAEDecodeHunyuan3D(IO.ComfyNode):
     @classmethod
-    def INPUT_TYPES(s):
-        return {"required": {"samples": ("LATENT", ),
-                             "vae": ("VAE", ),
-                             "num_chunks": ("INT", {"default": 8000, "min": 1000, "max": 500000}),
-                             "octree_resolution": ("INT", {"default": 256, "min": 16, "max": 512}),
-                             }}
-    RETURN_TYPES = ("VOXEL",)
-    FUNCTION = "decode"
+    def define_schema(cls):
+        return IO.Schema(
+            node_id="VAEDecodeHunyuan3D",
+            category="latent/3d",
+            inputs=[
+                IO.Latent.Input("samples"),
+                IO.Vae.Input("vae"),
+                IO.Int.Input("num_chunks", default=8000, min=1000, max=500000),
+                IO.Int.Input("octree_resolution", default=256, min=16, max=512),
+            ],
+            outputs=[
+                IO.Voxel.Output(),
+            ]
+        )
 
-    CATEGORY = "latent/3d"
+    @classmethod
+    def execute(cls, vae, samples, num_chunks, octree_resolution) -> IO.NodeOutput:
+        voxels = Types.VOXEL(vae.decode(samples["samples"], vae_options={"num_chunks": num_chunks, "octree_resolution": octree_resolution}))
+        return IO.NodeOutput(voxels)
 
-    def decode(self, vae, samples, num_chunks, octree_resolution):
-        voxels = VOXEL(vae.decode(samples["samples"], vae_options={"num_chunks": num_chunks, "octree_resolution": octree_resolution}))
-        return (voxels, )
+    decode = execute  # TODO: remove
+
 
 def voxel_to_mesh(voxels, threshold=0.5, device=None):
     if device is None:
@@ -396,24 +418,24 @@ def voxel_to_mesh_surfnet(voxels, threshold=0.5, device=None):
 
     return final_vertices, faces
 
-class MESH:
-    def __init__(self, vertices, faces):
-        self.vertices = vertices
-        self.faces = faces
 
-
-class VoxelToMeshBasic:
+class VoxelToMeshBasic(IO.ComfyNode):
     @classmethod
-    def INPUT_TYPES(s):
-        return {"required": {"voxel": ("VOXEL", ),
-                             "threshold": ("FLOAT", {"default": 0.6, "min": -1.0, "max": 1.0, "step": 0.01}),
-                             }}
-    RETURN_TYPES = ("MESH",)
-    FUNCTION = "decode"
+    def define_schema(cls):
+        return IO.Schema(
+            node_id="VoxelToMeshBasic",
+            category="3d",
+            inputs=[
+                IO.Voxel.Input("voxel"),
+                IO.Float.Input("threshold", default=0.6, min=-1.0, max=1.0, step=0.01),
+            ],
+            outputs=[
+                IO.Mesh.Output(),
+            ]
+        )
 
-    CATEGORY = "3d"
-
-    def decode(self, voxel, threshold):
+    @classmethod
+    def execute(cls, voxel, threshold) -> IO.NodeOutput:
         vertices = []
         faces = []
         for x in voxel.data:
@@ -421,21 +443,29 @@ class VoxelToMeshBasic:
             vertices.append(v)
             faces.append(f)
 
-        return (MESH(torch.stack(vertices), torch.stack(faces)), )
+        return IO.NodeOutput(Types.MESH(torch.stack(vertices), torch.stack(faces)))
 
-class VoxelToMesh:
+    decode = execute  # TODO: remove
+
+
+class VoxelToMesh(IO.ComfyNode):
     @classmethod
-    def INPUT_TYPES(s):
-        return {"required": {"voxel": ("VOXEL", ),
-                             "algorithm": (["surface net", "basic"], ),
-                             "threshold": ("FLOAT", {"default": 0.6, "min": -1.0, "max": 1.0, "step": 0.01}),
-                             }}
-    RETURN_TYPES = ("MESH",)
-    FUNCTION = "decode"
+    def define_schema(cls):
+        return IO.Schema(
+            node_id="VoxelToMesh",
+            category="3d",
+            inputs=[
+                IO.Voxel.Input("voxel"),
+                IO.Combo.Input("algorithm", options=["surface net", "basic"]),
+                IO.Float.Input("threshold", default=0.6, min=-1.0, max=1.0, step=0.01),
+            ],
+            outputs=[
+                IO.Mesh.Output(),
+            ]
+        )
 
-    CATEGORY = "3d"
-
-    def decode(self, voxel, algorithm, threshold):
+    @classmethod
+    def execute(cls, voxel, algorithm, threshold) -> IO.NodeOutput:
         vertices = []
         faces = []
 
@@ -449,7 +479,9 @@ class VoxelToMesh:
             vertices.append(v)
             faces.append(f)
 
-        return (MESH(torch.stack(vertices), torch.stack(faces)), )
+        return IO.NodeOutput(Types.MESH(torch.stack(vertices), torch.stack(faces)))
+
+    decode = execute  # TODO: remove
 
 
 def save_glb(vertices, faces, filepath, metadata=None):
@@ -581,31 +613,33 @@ def save_glb(vertices, faces, filepath, metadata=None):
     return filepath
 
 
-class SaveGLB:
+class SaveGLB(IO.ComfyNode):
     @classmethod
-    def INPUT_TYPES(s):
-        return {"required": {"mesh": ("MESH", ),
-                             "filename_prefix": ("STRING", {"default": "mesh/ComfyUI"}), },
-                "hidden": {"prompt": "PROMPT", "extra_pnginfo": "EXTRA_PNGINFO"}, }
+    def define_schema(cls):
+        return IO.Schema(
+            node_id="SaveGLB",
+            search_aliases=["export 3d model", "save mesh"],
+            category="3d",
+            is_output_node=True,
+            inputs=[
+                IO.Mesh.Input("mesh"),
+                IO.String.Input("filename_prefix", default="mesh/ComfyUI"),
+            ],
+            hidden=[IO.Hidden.prompt, IO.Hidden.extra_pnginfo]
+        )
 
-    RETURN_TYPES = ()
-    FUNCTION = "save"
-
-    OUTPUT_NODE = True
-
-    CATEGORY = "3d"
-
-    def save(self, mesh, filename_prefix, prompt=None, extra_pnginfo=None):
+    @classmethod
+    def execute(cls, mesh, filename_prefix) -> IO.NodeOutput:
         full_output_folder, filename, counter, subfolder, filename_prefix = folder_paths.get_save_image_path(filename_prefix, folder_paths.get_output_directory())
         results = []
 
         metadata = {}
         if not args.disable_metadata:
-            if prompt is not None:
-                metadata["prompt"] = json.dumps(prompt)
-            if extra_pnginfo is not None:
-                for x in extra_pnginfo:
-                    metadata[x] = json.dumps(extra_pnginfo[x])
+            if cls.hidden.prompt is not None:
+                metadata["prompt"] = json.dumps(cls.hidden.prompt)
+            if cls.hidden.extra_pnginfo is not None:
+                for x in cls.hidden.extra_pnginfo:
+                    metadata[x] = json.dumps(cls.hidden.extra_pnginfo[x])
 
         for i in range(mesh.vertices.shape[0]):
             f = f"{filename}_{counter:05}_.glb"
@@ -616,15 +650,22 @@ class SaveGLB:
                 "type": "output"
             })
             counter += 1
-        return {"ui": {"3d": results}}
+        return IO.NodeOutput(ui={"3d": results})
 
 
-NODE_CLASS_MAPPINGS = {
-    "EmptyLatentHunyuan3Dv2": EmptyLatentHunyuan3Dv2,
-    "Hunyuan3Dv2Conditioning": Hunyuan3Dv2Conditioning,
-    "Hunyuan3Dv2ConditioningMultiView": Hunyuan3Dv2ConditioningMultiView,
-    "VAEDecodeHunyuan3D": VAEDecodeHunyuan3D,
-    "VoxelToMeshBasic": VoxelToMeshBasic,
-    "VoxelToMesh": VoxelToMesh,
-    "SaveGLB": SaveGLB,
-}
+class Hunyuan3dExtension(ComfyExtension):
+    @override
+    async def get_node_list(self) -> list[type[IO.ComfyNode]]:
+        return [
+            EmptyLatentHunyuan3Dv2,
+            Hunyuan3Dv2Conditioning,
+            Hunyuan3Dv2ConditioningMultiView,
+            VAEDecodeHunyuan3D,
+            VoxelToMeshBasic,
+            VoxelToMesh,
+            SaveGLB,
+        ]
+
+
+async def comfy_entrypoint() -> Hunyuan3dExtension:
+    return Hunyuan3dExtension()

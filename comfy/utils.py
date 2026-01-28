@@ -29,6 +29,8 @@ import itertools
 from torch.nn.functional import interpolate
 from einops import rearrange
 from comfy.cli_args import args
+import json
+import time
 
 MMAP_TORCH_FILES = args.mmap_torch_files
 DISABLE_MMAP = args.disable_mmap
@@ -52,7 +54,7 @@ if hasattr(torch.serialization, "add_safe_globals"):  # TODO: this was added in 
     ALWAYS_SAFE_LOAD = True
     logging.info("Checkpoint files will always be loaded safely.")
 else:
-    logging.info("Warning, you are using an old pytorch version and some ckpt/pt files might be loaded unsafely. Upgrading to 2.4 or above is recommended.")
+    logging.warning("Warning, you are using an old pytorch version and some ckpt/pt files might be loaded unsafely. Upgrading to 2.4 or above is recommended as older versions of pytorch are no longer supported.")
 
 def load_torch_file(ckpt, safe_load=False, device=None, return_metadata=False):
     if device is None:
@@ -609,6 +611,14 @@ def flux_to_diffusers(mmdit_config, output_prefix=""):
                         "ff_context.net.0.proj.bias": "txt_mlp.0.bias",
                         "ff_context.net.2.weight": "txt_mlp.2.weight",
                         "ff_context.net.2.bias": "txt_mlp.2.bias",
+                        "ff.linear_in.weight": "img_mlp.0.weight",  # LyCoris LoKr
+                        "ff.linear_in.bias": "img_mlp.0.bias",
+                        "ff.linear_out.weight": "img_mlp.2.weight",
+                        "ff.linear_out.bias": "img_mlp.2.bias",
+                        "ff_context.linear_in.weight": "txt_mlp.0.weight",
+                        "ff_context.linear_in.bias": "txt_mlp.0.bias",
+                        "ff_context.linear_out.weight": "txt_mlp.2.weight",
+                        "ff_context.linear_out.bias": "txt_mlp.2.bias",
                         "attn.norm_q.weight": "img_attn.norm.query_norm.scale",
                         "attn.norm_k.weight": "img_attn.norm.key_norm.scale",
                         "attn.norm_added_q.weight": "txt_attn.norm.query_norm.scale",
@@ -637,6 +647,8 @@ def flux_to_diffusers(mmdit_config, output_prefix=""):
                         "proj_out.bias": "linear2.bias",
                         "attn.norm_q.weight": "norm.query_norm.scale",
                         "attn.norm_k.weight": "norm.key_norm.scale",
+                        "attn.to_qkv_mlp_proj.weight": "linear1.weight", # Flux 2
+                        "attn.to_out.weight": "linear2.weight", # Flux 2
                     }
 
         for k in block_map:
@@ -672,6 +684,72 @@ def flux_to_diffusers(mmdit_config, output_prefix=""):
             key_map[k[1]] = ("{}{}".format(output_prefix, k[0]), None, k[2])
         else:
             key_map[k[1]] = "{}{}".format(output_prefix, k[0])
+
+    return key_map
+
+def z_image_to_diffusers(mmdit_config, output_prefix=""):
+    n_layers = mmdit_config.get("n_layers", 0)
+    hidden_size = mmdit_config.get("dim", 0)
+    n_context_refiner = mmdit_config.get("n_refiner_layers", 2)
+    n_noise_refiner = mmdit_config.get("n_refiner_layers", 2)
+    key_map = {}
+
+    def add_block_keys(prefix_from, prefix_to, has_adaln=True):
+        for end in ("weight", "bias"):
+            k = "{}.attention.".format(prefix_from)
+            qkv = "{}.attention.qkv.{}".format(prefix_to, end)
+            key_map["{}to_q.{}".format(k, end)] = (qkv, (0, 0, hidden_size))
+            key_map["{}to_k.{}".format(k, end)] = (qkv, (0, hidden_size, hidden_size))
+            key_map["{}to_v.{}".format(k, end)] = (qkv, (0, hidden_size * 2, hidden_size))
+
+        block_map = {
+            "attention.norm_q.weight": "attention.q_norm.weight",
+            "attention.norm_k.weight": "attention.k_norm.weight",
+            "attention.to_out.0.weight": "attention.out.weight",
+            "attention.to_out.0.bias": "attention.out.bias",
+            "attention_norm1.weight": "attention_norm1.weight",
+            "attention_norm2.weight": "attention_norm2.weight",
+            "feed_forward.w1.weight": "feed_forward.w1.weight",
+            "feed_forward.w2.weight": "feed_forward.w2.weight",
+            "feed_forward.w3.weight": "feed_forward.w3.weight",
+            "ffn_norm1.weight": "ffn_norm1.weight",
+            "ffn_norm2.weight": "ffn_norm2.weight",
+        }
+        if has_adaln:
+            block_map["adaLN_modulation.0.weight"] = "adaLN_modulation.0.weight"
+            block_map["adaLN_modulation.0.bias"] = "adaLN_modulation.0.bias"
+        for k, v in block_map.items():
+            key_map["{}.{}".format(prefix_from, k)] = "{}.{}".format(prefix_to, v)
+
+    for i in range(n_layers):
+        add_block_keys("layers.{}".format(i), "{}layers.{}".format(output_prefix, i))
+
+    for i in range(n_context_refiner):
+        add_block_keys("context_refiner.{}".format(i), "{}context_refiner.{}".format(output_prefix, i))
+
+    for i in range(n_noise_refiner):
+        add_block_keys("noise_refiner.{}".format(i), "{}noise_refiner.{}".format(output_prefix, i))
+
+    MAP_BASIC = [
+        ("final_layer.linear.weight", "all_final_layer.2-1.linear.weight"),
+        ("final_layer.linear.bias", "all_final_layer.2-1.linear.bias"),
+        ("final_layer.adaLN_modulation.1.weight", "all_final_layer.2-1.adaLN_modulation.1.weight"),
+        ("final_layer.adaLN_modulation.1.bias", "all_final_layer.2-1.adaLN_modulation.1.bias"),
+        ("x_embedder.weight", "all_x_embedder.2-1.weight"),
+        ("x_embedder.bias", "all_x_embedder.2-1.bias"),
+        ("x_pad_token", "x_pad_token"),
+        ("cap_embedder.0.weight", "cap_embedder.0.weight"),
+        ("cap_embedder.1.weight", "cap_embedder.1.weight"),
+        ("cap_embedder.1.bias", "cap_embedder.1.bias"),
+        ("cap_pad_token", "cap_pad_token"),
+        ("t_embedder.mlp.0.weight", "t_embedder.mlp.0.weight"),
+        ("t_embedder.mlp.0.bias", "t_embedder.mlp.0.bias"),
+        ("t_embedder.mlp.2.weight", "t_embedder.mlp.2.weight"),
+        ("t_embedder.mlp.2.bias", "t_embedder.mlp.2.bias"),
+    ]
+
+    for c, diffusers in MAP_BASIC:
+        key_map[diffusers] = "{}{}".format(output_prefix, c)
 
     return key_map
 
@@ -736,12 +814,17 @@ def safetensors_header(safetensors_path, max_size=100*1024*1024):
             return None
         return f.read(length_of_header)
 
+ATTR_UNSET={}
+
 def set_attr(obj, attr, value):
     attrs = attr.split(".")
     for name in attrs[:-1]:
         obj = getattr(obj, name)
-    prev = getattr(obj, attrs[-1])
-    setattr(obj, attrs[-1], value)
+    prev = getattr(obj, attrs[-1], ATTR_UNSET)
+    if value is ATTR_UNSET:
+        delattr(obj, attrs[-1])
+    else:
+        setattr(obj, attrs[-1], value)
     return prev
 
 def set_attr_param(obj, attr, value):
@@ -856,7 +939,9 @@ def bislerp(samples, width, height):
     return result.to(orig_dtype)
 
 def lanczos(samples, width, height):
-    images = [Image.fromarray(np.clip(255. * image.movedim(0, -1).cpu().numpy(), 0, 255).astype(np.uint8)) for image in samples]
+    #the below API is strict and expects grayscale to be squeezed
+    samples = samples.squeeze(1) if samples.shape[1] == 1 else samples.movedim(1, -1)
+    images = [Image.fromarray(np.clip(255. * image.cpu().numpy(), 0, 255).astype(np.uint8)) for image in samples]
     images = [image.resize((width, height), resample=Image.Resampling.LANCZOS) for image in images]
     images = [torch.from_numpy(np.array(image).astype(np.float32) / 255.0).movedim(-1, 0) for image in images]
     result = torch.stack(images)
@@ -1025,6 +1110,10 @@ def set_progress_bar_global_hook(function):
     global PROGRESS_BAR_HOOK
     PROGRESS_BAR_HOOK = function
 
+# Throttle settings for progress bar updates to reduce WebSocket flooding
+PROGRESS_THROTTLE_MIN_INTERVAL = 0.1  # 100ms minimum between updates
+PROGRESS_THROTTLE_MIN_PERCENT = 0.5   # 0.5% minimum progress change
+
 class ProgressBar:
     def __init__(self, total, node_id=None):
         global PROGRESS_BAR_HOOK
@@ -1032,6 +1121,8 @@ class ProgressBar:
         self.current = 0
         self.hook = PROGRESS_BAR_HOOK
         self.node_id = node_id
+        self._last_update_time = 0.0
+        self._last_sent_value = -1
 
     def update_absolute(self, value, total=None, preview=None):
         if total is not None:
@@ -1040,7 +1131,29 @@ class ProgressBar:
             value = self.total
         self.current = value
         if self.hook is not None:
-            self.hook(self.current, self.total, preview, node_id=self.node_id)
+            current_time = time.perf_counter()
+            is_first = (self._last_sent_value < 0)
+            is_final = (value >= self.total)
+            has_preview = (preview is not None)
+
+            # Always send immediately for previews, first update, or final update
+            if has_preview or is_first or is_final:
+                self.hook(self.current, self.total, preview, node_id=self.node_id)
+                self._last_update_time = current_time
+                self._last_sent_value = value
+                return
+
+            # Apply throttling for regular progress updates
+            if self.total > 0:
+                percent_changed = ((value - max(0, self._last_sent_value)) / self.total) * 100
+            else:
+                percent_changed = 100
+            time_elapsed = current_time - self._last_update_time
+
+            if time_elapsed >= PROGRESS_THROTTLE_MIN_INTERVAL and percent_changed >= PROGRESS_THROTTLE_MIN_PERCENT:
+                self.hook(self.current, self.total, preview, node_id=self.node_id)
+                self._last_update_time = current_time
+                self._last_sent_value = value
 
     def update(self, value):
         self.update_absolute(self.current + value)
@@ -1126,5 +1239,72 @@ def unpack_latents(combined_latent, latent_shapes):
             combined_latent = combined_latent[:, :, cut:]
             output_tensors.append(tens.reshape([tens.shape[0]] + list(shape)[1:]))
     else:
-        output_tensors = combined_latent
+        output_tensors = [combined_latent]
     return output_tensors
+
+def detect_layer_quantization(state_dict, prefix):
+    for k in state_dict:
+        if k.startswith(prefix) and k.endswith(".comfy_quant"):
+            logging.info("Found quantization metadata version 1")
+            return {"mixed_ops": True}
+    return None
+
+def convert_old_quants(state_dict, model_prefix="", metadata={}):
+    if metadata is None:
+        metadata = {}
+
+    quant_metadata = None
+    if "_quantization_metadata" not in metadata:
+        scaled_fp8_key = "{}scaled_fp8".format(model_prefix)
+
+        if scaled_fp8_key in state_dict:
+            scaled_fp8_weight = state_dict[scaled_fp8_key]
+            scaled_fp8_dtype = scaled_fp8_weight.dtype
+            if scaled_fp8_dtype == torch.float32:
+                scaled_fp8_dtype = torch.float8_e4m3fn
+
+            if scaled_fp8_weight.nelement() == 2:
+                full_precision_matrix_mult = True
+            else:
+                full_precision_matrix_mult = False
+
+            out_sd = {}
+            layers = {}
+            for k in list(state_dict.keys()):
+                if k == scaled_fp8_key:
+                    continue
+                if not k.startswith(model_prefix):
+                    out_sd[k] = state_dict[k]
+                    continue
+                k_out = k
+                w = state_dict.pop(k)
+                layer = None
+                if k_out.endswith(".scale_weight"):
+                    layer = k_out[:-len(".scale_weight")]
+                    k_out = "{}.weight_scale".format(layer)
+
+                if layer is not None:
+                    layer_conf = {"format": "float8_e4m3fn"}  # TODO: check if anyone did some non e4m3fn scaled checkpoints
+                    if full_precision_matrix_mult:
+                        layer_conf["full_precision_matrix_mult"] = full_precision_matrix_mult
+                    layers[layer] = layer_conf
+
+                if k_out.endswith(".scale_input"):
+                    layer = k_out[:-len(".scale_input")]
+                    k_out = "{}.input_scale".format(layer)
+                    if w.item() == 1.0:
+                        continue
+
+                out_sd[k_out] = w
+
+            state_dict = out_sd
+            quant_metadata = {"layers": layers}
+    else:
+        quant_metadata = json.loads(metadata["_quantization_metadata"])
+
+    if quant_metadata is not None:
+        layers = quant_metadata["layers"]
+        for k, v in layers.items():
+            state_dict["{}.comfy_quant".format(k)] = torch.tensor(list(json.dumps(v).encode('utf-8')), dtype=torch.uint8)
+
+    return state_dict, metadata

@@ -5,7 +5,7 @@ import torch
 from typing_extensions import override
 
 from comfy_api.latest import IO, ComfyExtension
-from comfy_api_nodes.apis.tripo_api import (
+from comfy_api_nodes.apis.tripo import (
     TripoAnimateRetargetRequest,
     TripoAnimateRigRequest,
     TripoConvertModelRequest,
@@ -102,8 +102,9 @@ class TripoTextToModelNode(IO.ComfyNode):
                 IO.Int.Input("model_seed", default=42, optional=True),
                 IO.Int.Input("texture_seed", default=42, optional=True),
                 IO.Combo.Input("texture_quality", default="standard", options=["standard", "detailed"], optional=True),
-                IO.Int.Input("face_limit", default=-1, min=-1, max=500000, optional=True),
+                IO.Int.Input("face_limit", default=-1, min=-1, max=2000000, optional=True),
                 IO.Boolean.Input("quad", default=False, optional=True),
+                IO.Combo.Input("geometry_quality", default="standard", options=["standard", "detailed"], optional=True),
             ],
             outputs=[
                 IO.String.Output(display_name="model_file"),
@@ -116,6 +117,38 @@ class TripoTextToModelNode(IO.ComfyNode):
             ],
             is_api_node=True,
             is_output_node=True,
+            price_badge=IO.PriceBadge(
+                depends_on=IO.PriceBadgeDepends(
+                    widgets=[
+                        "model_version",
+                        "style",
+                        "texture",
+                        "pbr",
+                        "quad",
+                        "texture_quality",
+                        "geometry_quality",
+                    ],
+                ),
+                expr="""
+                (
+                  $isV14 := $contains(widgets.model_version,"v1.4");
+                  $style := widgets.style;
+                  $hasStyle := ($style != "" and $style != "none");
+                  $withTexture := widgets.texture or widgets.pbr;
+                  $isHdTexture := (widgets.texture_quality = "detailed");
+                  $isDetailedGeometry := (widgets.geometry_quality = "detailed");
+                  $baseCredits :=
+                    $isV14 ? 20 : ($withTexture ? 20 : 10);
+                  $credits :=
+                    $baseCredits
+                    + ($hasStyle ? 5 : 0)
+                    + (widgets.quad ? 5 : 0)
+                    + ($isHdTexture ? 10 : 0)
+                    + ($isDetailedGeometry ? 20 : 0);
+                  {"type":"usd","usd": $round($credits * 0.01, 2)}
+                )
+                """,
+            ),
         )
 
     @classmethod
@@ -131,6 +164,7 @@ class TripoTextToModelNode(IO.ComfyNode):
         model_seed: Optional[int] = None,
         texture_seed: Optional[int] = None,
         texture_quality: Optional[str] = None,
+        geometry_quality: Optional[str] = None,
         face_limit: Optional[int] = None,
         quad: Optional[bool] = None,
     ) -> IO.NodeOutput:
@@ -153,7 +187,8 @@ class TripoTextToModelNode(IO.ComfyNode):
                 model_seed=model_seed,
                 texture_seed=texture_seed,
                 texture_quality=texture_quality,
-                face_limit=face_limit,
+                face_limit=face_limit if face_limit != -1 else None,
+                geometry_quality=geometry_quality,
                 auto_size=True,
                 quad=quad,
             ),
@@ -194,6 +229,7 @@ class TripoImageToModelNode(IO.ComfyNode):
                 ),
                 IO.Int.Input("face_limit", default=-1, min=-1, max=500000, optional=True),
                 IO.Boolean.Input("quad", default=False, optional=True),
+                IO.Combo.Input("geometry_quality", default="standard", options=["standard", "detailed"], optional=True),
             ],
             outputs=[
                 IO.String.Output(display_name="model_file"),
@@ -206,6 +242,38 @@ class TripoImageToModelNode(IO.ComfyNode):
             ],
             is_api_node=True,
             is_output_node=True,
+            price_badge=IO.PriceBadge(
+                depends_on=IO.PriceBadgeDepends(
+                    widgets=[
+                        "model_version",
+                        "style",
+                        "texture",
+                        "pbr",
+                        "quad",
+                        "texture_quality",
+                        "geometry_quality",
+                    ],
+                ),
+                expr="""
+                (
+                  $isV14 := $contains(widgets.model_version,"v1.4");
+                  $style := widgets.style;
+                  $hasStyle := ($style != "" and $style != "none");
+                  $withTexture := widgets.texture or widgets.pbr;
+                  $isHdTexture := (widgets.texture_quality = "detailed");
+                  $isDetailedGeometry := (widgets.geometry_quality = "detailed");
+                  $baseCredits :=
+                    $isV14 ? 30 : ($withTexture ? 30 : 20);
+                  $credits :=
+                    $baseCredits
+                    + ($hasStyle ? 5 : 0)
+                    + (widgets.quad ? 5 : 0)
+                    + ($isHdTexture ? 10 : 0)
+                    + ($isDetailedGeometry ? 20 : 0);
+                  {"type":"usd","usd": $round($credits * 0.01, 2)}
+                )
+                """,
+            ),
         )
 
     @classmethod
@@ -220,6 +288,7 @@ class TripoImageToModelNode(IO.ComfyNode):
         orientation=None,
         texture_seed: Optional[int] = None,
         texture_quality: Optional[str] = None,
+        geometry_quality: Optional[str] = None,
         texture_alignment: Optional[str] = None,
         face_limit: Optional[int] = None,
         quad: Optional[bool] = None,
@@ -246,10 +315,11 @@ class TripoImageToModelNode(IO.ComfyNode):
                 pbr=pbr,
                 model_seed=model_seed,
                 orientation=orientation,
+                geometry_quality=geometry_quality,
                 texture_alignment=texture_alignment,
                 texture_seed=texture_seed,
                 texture_quality=texture_quality,
-                face_limit=face_limit,
+                face_limit=face_limit if face_limit != -1 else None,
                 auto_size=True,
                 quad=quad,
             ),
@@ -295,6 +365,7 @@ class TripoMultiviewToModelNode(IO.ComfyNode):
                 ),
                 IO.Int.Input("face_limit", default=-1, min=-1, max=500000, optional=True),
                 IO.Boolean.Input("quad", default=False, optional=True),
+                IO.Combo.Input("geometry_quality", default="standard", options=["standard", "detailed"], optional=True),
             ],
             outputs=[
                 IO.String.Output(display_name="model_file"),
@@ -307,6 +378,34 @@ class TripoMultiviewToModelNode(IO.ComfyNode):
             ],
             is_api_node=True,
             is_output_node=True,
+            price_badge=IO.PriceBadge(
+                depends_on=IO.PriceBadgeDepends(
+                    widgets=[
+                        "model_version",
+                        "texture",
+                        "pbr",
+                        "quad",
+                        "texture_quality",
+                        "geometry_quality",
+                    ],
+                ),
+                expr="""
+                (
+                  $isV14 := $contains(widgets.model_version,"v1.4");
+                  $withTexture := widgets.texture or widgets.pbr;
+                  $isHdTexture := (widgets.texture_quality = "detailed");
+                  $isDetailedGeometry := (widgets.geometry_quality = "detailed");
+                  $baseCredits :=
+                    $isV14 ? 30 : ($withTexture ? 30 : 20);
+                  $credits :=
+                    $baseCredits
+                    + (widgets.quad ? 5 : 0)
+                    + ($isHdTexture ? 10 : 0)
+                    + ($isDetailedGeometry ? 20 : 0);
+                  {"type":"usd","usd": $round($credits * 0.01, 2)}
+                )
+                """,
+            ),
         )
 
     @classmethod
@@ -323,6 +422,7 @@ class TripoMultiviewToModelNode(IO.ComfyNode):
         model_seed: Optional[int] = None,
         texture_seed: Optional[int] = None,
         texture_quality: Optional[str] = None,
+        geometry_quality: Optional[str] = None,
         texture_alignment: Optional[str] = None,
         face_limit: Optional[int] = None,
         quad: Optional[bool] = None,
@@ -359,8 +459,9 @@ class TripoMultiviewToModelNode(IO.ComfyNode):
                 model_seed=model_seed,
                 texture_seed=texture_seed,
                 texture_quality=texture_quality,
+                geometry_quality=geometry_quality,
                 texture_alignment=texture_alignment,
-                face_limit=face_limit,
+                face_limit=face_limit if face_limit != -1 else None,
                 quad=quad,
             ),
         )
@@ -396,6 +497,15 @@ class TripoTextureNode(IO.ComfyNode):
             ],
             is_api_node=True,
             is_output_node=True,
+            price_badge=IO.PriceBadge(
+                depends_on=IO.PriceBadgeDepends(widgets=["texture_quality"]),
+                expr="""
+                (
+                  $tq := widgets.texture_quality;
+                  {"type":"usd","usd": ($contains($tq,"detailed") ? 0.2 : 0.1)}
+                )
+                """,
+            ),
         )
 
     @classmethod
@@ -447,6 +557,9 @@ class TripoRefineNode(IO.ComfyNode):
             ],
             is_api_node=True,
             is_output_node=True,
+            price_badge=IO.PriceBadge(
+                expr="""{"type":"usd","usd":0.3}""",
+            ),
         )
 
     @classmethod
@@ -480,6 +593,9 @@ class TripoRigNode(IO.ComfyNode):
             ],
             is_api_node=True,
             is_output_node=True,
+            price_badge=IO.PriceBadge(
+                expr="""{"type":"usd","usd":0.25}""",
+            ),
         )
 
     @classmethod
@@ -508,6 +624,8 @@ class TripoRetargetNode(IO.ComfyNode):
                     options=[
                         "preset:idle",
                         "preset:walk",
+                        "preset:run",
+                        "preset:dive",
                         "preset:climb",
                         "preset:jump",
                         "preset:slash",
@@ -515,6 +633,11 @@ class TripoRetargetNode(IO.ComfyNode):
                         "preset:hurt",
                         "preset:fall",
                         "preset:turn",
+                        "preset:quadruped:walk",
+                        "preset:hexapod:walk",
+                        "preset:octopod:walk",
+                        "preset:serpentine:march",
+                        "preset:aquatic:march"
                     ],
                 ),
             ],
@@ -529,6 +652,9 @@ class TripoRetargetNode(IO.ComfyNode):
             ],
             is_api_node=True,
             is_output_node=True,
+            price_badge=IO.PriceBadge(
+                expr="""{"type":"usd","usd":0.1}""",
+            ),
         )
 
     @classmethod
@@ -563,7 +689,7 @@ class TripoConversionNode(IO.ComfyNode):
                     "face_limit",
                     default=-1,
                     min=-1,
-                    max=500000,
+                    max=2000000,
                     optional=True,
                 ),
                 IO.Int.Input(
@@ -579,6 +705,40 @@ class TripoConversionNode(IO.ComfyNode):
                     default="JPEG",
                     optional=True,
                 ),
+                IO.Boolean.Input("force_symmetry", default=False, optional=True),
+                IO.Boolean.Input("flatten_bottom", default=False, optional=True),
+                IO.Float.Input(
+                    "flatten_bottom_threshold",
+                    default=0.0,
+                    min=0.0,
+                    max=1.0,
+                    optional=True,
+                ),
+                IO.Boolean.Input("pivot_to_center_bottom", default=False, optional=True),
+                IO.Float.Input(
+                    "scale_factor",
+                    default=1.0,
+                    min=0.0,
+                    optional=True,
+                ),
+                IO.Boolean.Input("with_animation", default=False, optional=True),
+                IO.Boolean.Input("pack_uv", default=False, optional=True),
+                IO.Boolean.Input("bake", default=False, optional=True),
+                IO.String.Input("part_names", default="", optional=True),  # comma-separated list
+                IO.Combo.Input(
+                    "fbx_preset",
+                    options=["blender", "mixamo", "3dsmax"],
+                    default="blender",
+                    optional=True,
+                ),
+                IO.Boolean.Input("export_vertex_colors", default=False, optional=True),
+                IO.Combo.Input(
+                    "export_orientation",
+                    options=["align_image", "default"],
+                    default="default",
+                    optional=True,
+                ),
+                IO.Boolean.Input("animate_in_place", default=False, optional=True),
             ],
             outputs=[],
             hidden=[
@@ -588,6 +748,60 @@ class TripoConversionNode(IO.ComfyNode):
             ],
             is_api_node=True,
             is_output_node=True,
+            price_badge=IO.PriceBadge(
+                depends_on=IO.PriceBadgeDepends(
+                    widgets=[
+                        "quad",
+                        "face_limit",
+                        "texture_size",
+                        "texture_format",
+                        "force_symmetry",
+                        "flatten_bottom",
+                        "flatten_bottom_threshold",
+                        "pivot_to_center_bottom",
+                        "scale_factor",
+                        "with_animation",
+                        "pack_uv",
+                        "bake",
+                        "part_names",
+                        "fbx_preset",
+                        "export_vertex_colors",
+                        "export_orientation",
+                        "animate_in_place",
+                    ],
+                ),
+                expr="""
+                (
+                    $face := (widgets.face_limit != null) ? widgets.face_limit : -1;
+                    $texSize := (widgets.texture_size != null) ? widgets.texture_size : 4096;
+                    $flatThresh := (widgets.flatten_bottom_threshold != null) ? widgets.flatten_bottom_threshold : 0;
+                    $scale := (widgets.scale_factor != null) ? widgets.scale_factor : 1;
+                    $texFmt := (widgets.texture_format != "" ? widgets.texture_format : "jpeg");
+                    $part := widgets.part_names;
+                    $fbx := (widgets.fbx_preset != "" ? widgets.fbx_preset : "blender");
+                    $orient := (widgets.export_orientation != "" ? widgets.export_orientation : "default");
+                    $advanced :=
+                      widgets.quad or
+                      widgets.force_symmetry or
+                      widgets.flatten_bottom or
+                      widgets.pivot_to_center_bottom or
+                      widgets.with_animation or
+                      widgets.pack_uv or
+                      widgets.bake or
+                      widgets.export_vertex_colors or
+                      widgets.animate_in_place or
+                      ($face != -1) or
+                      ($texSize != 4096) or
+                      ($flatThresh != 0) or
+                      ($scale != 1) or
+                      ($texFmt != "jpeg") or
+                      ($part != "") or
+                      ($fbx != "blender") or
+                      ($orient != "default");
+                    {"type":"usd","usd": ($advanced ? 0.1 : 0.05)}
+                )
+                """,
+            ),
         )
 
     @classmethod
@@ -604,12 +818,31 @@ class TripoConversionNode(IO.ComfyNode):
         original_model_task_id,
         format: str,
         quad: bool,
+        force_symmetry: bool,
         face_limit: int,
+        flatten_bottom: bool,
+        flatten_bottom_threshold: float,
         texture_size: int,
         texture_format: str,
+        pivot_to_center_bottom: bool,
+        scale_factor: float,
+        with_animation: bool,
+        pack_uv: bool,
+        bake: bool,
+        part_names: str,
+        fbx_preset: str,
+        export_vertex_colors: bool,
+        export_orientation: str,
+        animate_in_place: bool,
     ) -> IO.NodeOutput:
         if not original_model_task_id:
             raise RuntimeError("original_model_task_id is required")
+
+        # Parse part_names from comma-separated string to list
+        part_names_list = None
+        if part_names and part_names.strip():
+            part_names_list = [name.strip() for name in part_names.split(',') if name.strip()]
+
         response = await sync_op(
             cls,
             endpoint=ApiEndpoint(path="/proxy/tripo/v2/openapi/task", method="POST"),
@@ -618,9 +851,22 @@ class TripoConversionNode(IO.ComfyNode):
                 original_model_task_id=original_model_task_id,
                 format=format,
                 quad=quad if quad else None,
+                force_symmetry=force_symmetry if force_symmetry else None,
                 face_limit=face_limit if face_limit != -1 else None,
+                flatten_bottom=flatten_bottom if flatten_bottom else None,
+                flatten_bottom_threshold=flatten_bottom_threshold if flatten_bottom_threshold != 0.0 else None,
                 texture_size=texture_size if texture_size != 4096 else None,
                 texture_format=texture_format if texture_format != "JPEG" else None,
+                pivot_to_center_bottom=pivot_to_center_bottom if pivot_to_center_bottom else None,
+                scale_factor=scale_factor if scale_factor != 1.0 else None,
+                with_animation=with_animation if with_animation else None,
+                pack_uv=pack_uv if pack_uv else None,
+                bake=bake if bake else None,
+                part_names=part_names_list,
+                fbx_preset=fbx_preset if fbx_preset != "blender" else None,
+                export_vertex_colors=export_vertex_colors if export_vertex_colors else None,
+                export_orientation=export_orientation if export_orientation != "default" else None,
+                animate_in_place=animate_in_place if animate_in_place else None,
             ),
         )
         return await poll_until_finished(cls, response, average_duration=30)

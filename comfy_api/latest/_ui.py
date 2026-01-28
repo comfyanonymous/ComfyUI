@@ -3,8 +3,8 @@ from __future__ import annotations
 import json
 import os
 import random
+import uuid
 from io import BytesIO
-from typing import Type
 
 import av
 import numpy as np
@@ -21,7 +21,7 @@ import folder_paths
 
 # used for image preview
 from comfy.cli_args import args
-from comfy_api.latest._io import ComfyNode, FolderType, Image, _UIOutput
+from ._io import ComfyNode, FolderType, Image, _UIOutput
 
 
 class SavedResult(dict):
@@ -82,7 +82,7 @@ class ImageSaveHelper:
         return PILImage.fromarray(np.clip(255.0 * image_tensor.cpu().numpy(), 0, 255).astype(np.uint8))
 
     @staticmethod
-    def _create_png_metadata(cls: Type[ComfyNode] | None) -> PngInfo | None:
+    def _create_png_metadata(cls: type[ComfyNode] | None) -> PngInfo | None:
         """Creates a PngInfo object with prompt and extra_pnginfo."""
         if args.disable_metadata or cls is None or not cls.hidden:
             return None
@@ -95,7 +95,7 @@ class ImageSaveHelper:
         return metadata
 
     @staticmethod
-    def _create_animated_png_metadata(cls: Type[ComfyNode] | None) -> PngInfo | None:
+    def _create_animated_png_metadata(cls: type[ComfyNode] | None) -> PngInfo | None:
         """Creates a PngInfo object with prompt and extra_pnginfo for animated PNGs (APNG)."""
         if args.disable_metadata or cls is None or not cls.hidden:
             return None
@@ -120,7 +120,7 @@ class ImageSaveHelper:
         return metadata
 
     @staticmethod
-    def _create_webp_metadata(pil_image: PILImage.Image, cls: Type[ComfyNode] | None) -> PILImage.Exif:
+    def _create_webp_metadata(pil_image: PILImage.Image, cls: type[ComfyNode] | None) -> PILImage.Exif:
         """Creates EXIF metadata bytes for WebP images."""
         exif_data = pil_image.getexif()
         if args.disable_metadata or cls is None or cls.hidden is None:
@@ -136,7 +136,7 @@ class ImageSaveHelper:
 
     @staticmethod
     def save_images(
-        images, filename_prefix: str, folder_type: FolderType, cls: Type[ComfyNode] | None, compress_level = 4,
+        images, filename_prefix: str, folder_type: FolderType, cls: type[ComfyNode] | None, compress_level = 4,
     ) -> list[SavedResult]:
         """Saves a batch of images as individual PNG files."""
         full_output_folder, filename, counter, subfolder, _ = folder_paths.get_save_image_path(
@@ -154,7 +154,7 @@ class ImageSaveHelper:
         return results
 
     @staticmethod
-    def get_save_images_ui(images, filename_prefix: str, cls: Type[ComfyNode] | None, compress_level=4) -> SavedImages:
+    def get_save_images_ui(images, filename_prefix: str, cls: type[ComfyNode] | None, compress_level=4) -> SavedImages:
         """Saves a batch of images and returns a UI object for the node output."""
         return SavedImages(
                 ImageSaveHelper.save_images(
@@ -168,7 +168,7 @@ class ImageSaveHelper:
 
     @staticmethod
     def save_animated_png(
-        images, filename_prefix: str, folder_type: FolderType, cls: Type[ComfyNode] | None, fps: float, compress_level: int
+        images, filename_prefix: str, folder_type: FolderType, cls: type[ComfyNode] | None, fps: float, compress_level: int
     ) -> SavedResult:
         """Saves a batch of images as a single animated PNG."""
         full_output_folder, filename, counter, subfolder, _ = folder_paths.get_save_image_path(
@@ -190,7 +190,7 @@ class ImageSaveHelper:
 
     @staticmethod
     def get_save_animated_png_ui(
-        images, filename_prefix: str, cls: Type[ComfyNode] | None, fps: float, compress_level: int
+        images, filename_prefix: str, cls: type[ComfyNode] | None, fps: float, compress_level: int
     ) -> SavedImages:
         """Saves an animated PNG and returns a UI object for the node output."""
         result = ImageSaveHelper.save_animated_png(
@@ -208,7 +208,7 @@ class ImageSaveHelper:
         images,
         filename_prefix: str,
         folder_type: FolderType,
-        cls: Type[ComfyNode] | None,
+        cls: type[ComfyNode] | None,
         fps: float,
         lossless: bool,
         quality: int,
@@ -237,7 +237,7 @@ class ImageSaveHelper:
     def get_save_animated_webp_ui(
         images,
         filename_prefix: str,
-        cls: Type[ComfyNode] | None,
+        cls: type[ComfyNode] | None,
         fps: float,
         lossless: bool,
         quality: int,
@@ -266,7 +266,7 @@ class AudioSaveHelper:
         audio: dict,
         filename_prefix: str,
         folder_type: FolderType,
-        cls: Type[ComfyNode] | None,
+        cls: type[ComfyNode] | None,
         format: str = "flac",
         quality: str = "128k",
     ) -> list[SavedResult]:
@@ -318,9 +318,10 @@ class AudioSaveHelper:
             for key, value in metadata.items():
                 output_container.metadata[key] = value
 
+            layout = "mono" if waveform.shape[0] == 1 else "stereo"
             # Set up the output stream with appropriate properties
             if format == "opus":
-                out_stream = output_container.add_stream("libopus", rate=sample_rate)
+                out_stream = output_container.add_stream("libopus", rate=sample_rate, layout=layout)
                 if quality == "64k":
                     out_stream.bit_rate = 64000
                 elif quality == "96k":
@@ -332,7 +333,7 @@ class AudioSaveHelper:
                 elif quality == "320k":
                     out_stream.bit_rate = 320000
             elif format == "mp3":
-                out_stream = output_container.add_stream("libmp3lame", rate=sample_rate)
+                out_stream = output_container.add_stream("libmp3lame", rate=sample_rate, layout=layout)
                 if quality == "V0":
                     # TODO i would really love to support V3 and V5 but there doesn't seem to be a way to set the qscale level, the property below is a bool
                     out_stream.codec_context.qscale = 1
@@ -341,12 +342,12 @@ class AudioSaveHelper:
                 elif quality == "320k":
                     out_stream.bit_rate = 320000
             else:  # format == "flac":
-                out_stream = output_container.add_stream("flac", rate=sample_rate)
+                out_stream = output_container.add_stream("flac", rate=sample_rate, layout=layout)
 
             frame = av.AudioFrame.from_ndarray(
                 waveform.movedim(0, 1).reshape(1, -1).float().numpy(),
                 format="flt",
-                layout="mono" if waveform.shape[0] == 1 else "stereo",
+                layout=layout,
             )
             frame.sample_rate = sample_rate
             frame.pts = 0
@@ -370,7 +371,7 @@ class AudioSaveHelper:
 
     @staticmethod
     def get_save_audio_ui(
-        audio, filename_prefix: str, cls: Type[ComfyNode] | None, format: str = "flac", quality: str = "128k",
+        audio, filename_prefix: str, cls: type[ComfyNode] | None, format: str = "flac", quality: str = "128k",
     ) -> SavedAudios:
         """Save and instantly wrap for UI."""
         return SavedAudios(
@@ -386,7 +387,7 @@ class AudioSaveHelper:
 
 
 class PreviewImage(_UIOutput):
-    def __init__(self, image: Image.Type, animated: bool = False, cls: Type[ComfyNode] = None, **kwargs):
+    def __init__(self, image: Image.Type, animated: bool = False, cls: type[ComfyNode] = None, **kwargs):
         self.values = ImageSaveHelper.save_images(
             image,
             filename_prefix="ComfyUI_temp_" + ''.join(random.choice("abcdefghijklmnopqrstupvxyz") for _ in range(5)),
@@ -410,7 +411,7 @@ class PreviewMask(PreviewImage):
 
 
 class PreviewAudio(_UIOutput):
-    def __init__(self, audio: dict, cls: Type[ComfyNode] = None, **kwargs):
+    def __init__(self, audio: dict, cls: type[ComfyNode] = None, **kwargs):
         self.values = AudioSaveHelper.save_audio(
             audio,
             filename_prefix="ComfyUI_temp_" + "".join(random.choice("abcdefghijklmnopqrstuvwxyz") for _ in range(5)),
@@ -436,9 +437,19 @@ class PreviewUI3D(_UIOutput):
     def __init__(self, model_file, camera_info, **kwargs):
         self.model_file = model_file
         self.camera_info = camera_info
+        self.bg_image_path = None
+        bg_image = kwargs.get("bg_image", None)
+        if bg_image is not None:
+            img_array = (bg_image[0].cpu().numpy() * 255).astype(np.uint8)
+            img = PILImage.fromarray(img_array)
+            temp_dir = folder_paths.get_temp_directory()
+            filename = f"bg_{uuid.uuid4().hex}.png"
+            bg_image_path = os.path.join(temp_dir, filename)
+            img.save(bg_image_path, compress_level=1)
+            self.bg_image_path = f"temp/{filename}"
 
     def as_dict(self):
-        return {"result": [self.model_file, self.camera_info]}
+        return {"result": [self.model_file, self.camera_info, self.bg_image_path]}
 
 
 class PreviewText(_UIOutput):

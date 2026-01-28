@@ -1,6 +1,59 @@
 import torch
 from comfy.ldm.modules.attention import optimized_attention_for_device
 import comfy.ops
+import math
+
+def clip_preprocess(image, size=224, mean=[0.48145466, 0.4578275, 0.40821073], std=[0.26862954, 0.26130258, 0.27577711], crop=True):
+    image = image[:, :, :, :3] if image.shape[3] > 3 else image
+    mean = torch.tensor(mean, device=image.device, dtype=image.dtype)
+    std = torch.tensor(std, device=image.device, dtype=image.dtype)
+    image = image.movedim(-1, 1)
+    if not (image.shape[2] == size and image.shape[3] == size):
+        if crop:
+            scale = (size / min(image.shape[2], image.shape[3]))
+            scale_size = (round(scale * image.shape[2]), round(scale * image.shape[3]))
+        else:
+            scale_size = (size, size)
+
+        image = torch.nn.functional.interpolate(image, size=scale_size, mode="bicubic", antialias=True)
+        h = (image.shape[2] - size)//2
+        w = (image.shape[3] - size)//2
+        image = image[:,:,h:h+size,w:w+size]
+    image = torch.clip((255. * image), 0, 255).round() / 255.0
+    return (image - mean.view([3,1,1])) / std.view([3,1,1])
+
+def siglip2_flex_calc_resolution(oh, ow, patch_size, max_num_patches, eps=1e-5):
+    def scale_dim(size, scale):
+        scaled = math.ceil(size * scale / patch_size) * patch_size
+        return max(patch_size, int(scaled))
+
+    # Binary search for optimal scale
+    lo, hi = eps / 10, 100.0
+    while hi - lo >= eps:
+        mid = (lo + hi) / 2
+        h, w = scale_dim(oh, mid), scale_dim(ow, mid)
+        if (h // patch_size) * (w // patch_size) <= max_num_patches:
+            lo = mid
+        else:
+            hi = mid
+
+    return scale_dim(oh, lo), scale_dim(ow, lo)
+
+def siglip2_preprocess(image, size, patch_size, num_patches, mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5], crop=True):
+    if size > 0:
+        return clip_preprocess(image, size=size, mean=mean, std=std, crop=crop)
+
+    image = image[:, :, :, :3] if image.shape[3] > 3 else image
+    mean = torch.tensor(mean, device=image.device, dtype=image.dtype)
+    std = torch.tensor(std, device=image.device, dtype=image.dtype)
+    image = image.movedim(-1, 1)
+
+    b, c, h, w = image.shape
+    h, w = siglip2_flex_calc_resolution(h, w, patch_size, num_patches)
+
+    image = torch.nn.functional.interpolate(image, size=(h, w), mode="bilinear", antialias=True)
+    image = torch.clip((255. * image), 0, 255).round() / 255.0
+    return (image - mean.view([3, 1, 1])) / std.view([3, 1, 1])
 
 class CLIPAttention(torch.nn.Module):
     def __init__(self, embed_dim, heads, dtype, device, operations):
@@ -156,6 +209,27 @@ class CLIPTextModel(torch.nn.Module):
         out = self.text_projection(x[2])
         return (x[0], x[1], out, x[2])
 
+def siglip2_pos_embed(embed_weight, embeds, orig_shape):
+    embed_weight_len = round(embed_weight.shape[0] ** 0.5)
+    embed_weight = comfy.ops.cast_to_input(embed_weight, embeds).movedim(1, 0).reshape(1, -1, embed_weight_len, embed_weight_len)
+    embed_weight = torch.nn.functional.interpolate(embed_weight, size=orig_shape, mode="bilinear", align_corners=False, antialias=True)
+    embed_weight = embed_weight.reshape(-1, embed_weight.shape[-2] * embed_weight.shape[-1]).movedim(0, 1)
+    return embeds + embed_weight
+
+class Siglip2Embeddings(torch.nn.Module):
+    def __init__(self, embed_dim, num_channels=3, patch_size=14, image_size=224, model_type="", num_patches=None, dtype=None, device=None, operations=None):
+        super().__init__()
+        self.patch_embedding = operations.Linear(num_channels * patch_size * patch_size, embed_dim, dtype=dtype, device=device)
+        self.position_embedding = operations.Embedding(num_patches, embed_dim, dtype=dtype, device=device)
+        self.patch_size = patch_size
+
+    def forward(self, pixel_values):
+        b, c, h, w = pixel_values.shape
+        img = pixel_values.movedim(1, -1).reshape(b, h // self.patch_size, self.patch_size, w // self.patch_size, self.patch_size, c)
+        img = img.permute(0, 1, 3, 2, 4, 5)
+        img = img.reshape(b, img.shape[1] * img.shape[2], -1)
+        img = self.patch_embedding(img)
+        return siglip2_pos_embed(self.position_embedding.weight, img, (h // self.patch_size, w // self.patch_size))
 
 class CLIPVisionEmbeddings(torch.nn.Module):
     def __init__(self, embed_dim, num_channels=3, patch_size=14, image_size=224, model_type="", dtype=None, device=None, operations=None):
@@ -199,8 +273,11 @@ class CLIPVision(torch.nn.Module):
         intermediate_activation = config_dict["hidden_act"]
         model_type = config_dict["model_type"]
 
-        self.embeddings = CLIPVisionEmbeddings(embed_dim, config_dict["num_channels"], config_dict["patch_size"], config_dict["image_size"], model_type=model_type, dtype=dtype, device=device, operations=operations)
-        if model_type == "siglip_vision_model":
+        if model_type in ["siglip2_vision_model"]:
+            self.embeddings = Siglip2Embeddings(embed_dim, config_dict["num_channels"], config_dict["patch_size"], config_dict["image_size"], model_type=model_type, num_patches=config_dict.get("num_patches", None), dtype=dtype, device=device, operations=operations)
+        else:
+            self.embeddings = CLIPVisionEmbeddings(embed_dim, config_dict["num_channels"], config_dict["patch_size"], config_dict["image_size"], model_type=model_type, dtype=dtype, device=device, operations=operations)
+        if model_type in ["siglip_vision_model", "siglip2_vision_model"]:
             self.pre_layrnorm = lambda a: a
             self.output_layernorm = True
         else:

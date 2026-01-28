@@ -5,19 +5,20 @@ This module handles capability negotiation between frontend and backend,
 allowing graceful protocol evolution while maintaining backward compatibility.
 """
 
-from typing import Any, Dict
+from typing import Any
 
 from comfy.cli_args import args
 
 # Default server capabilities
-SERVER_FEATURE_FLAGS: Dict[str, Any] = {
+SERVER_FEATURE_FLAGS: dict[str, Any] = {
     "supports_preview_metadata": True,
     "max_upload_size": args.max_upload_size * 1024 * 1024, # Convert MB to bytes
+    "extension": {"manager": {"supports_v4": True}},
 }
 
 
 def get_connection_feature(
-    sockets_metadata: Dict[str, Dict[str, Any]],
+    sockets_metadata: dict[str, dict[str, Any]],
     sid: str,
     feature_name: str,
     default: Any = False
@@ -41,7 +42,7 @@ def get_connection_feature(
 
 
 def supports_feature(
-    sockets_metadata: Dict[str, Dict[str, Any]],
+    sockets_metadata: dict[str, dict[str, Any]],
     sid: str,
     feature_name: str
 ) -> bool:
@@ -59,7 +60,7 @@ def supports_feature(
     return get_connection_feature(sockets_metadata, sid, feature_name, False) is True
 
 
-def get_server_features() -> Dict[str, Any]:
+def get_server_features() -> dict[str, Any]:
     """
     Get the server's feature flags.
 

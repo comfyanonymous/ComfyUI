@@ -3,14 +3,14 @@ from av.container import InputContainer
 from av.subtitles.stream import SubtitleStream
 from fractions import Fraction
 from typing import Optional
-from comfy_api.latest._input import AudioInput, VideoInput
+from .._input import AudioInput, VideoInput
 import av
 import io
 import json
 import numpy as np
 import math
 import torch
-from comfy_api.latest._util import VideoContainer, VideoCodec, VideoComponents
+from .._util import VideoContainer, VideoCodec, VideoComponents
 
 
 def container_to_output_format(container_format: str | None) -> str | None:
@@ -120,6 +120,71 @@ class VideoFromFile(VideoInput):
                     return float(frame_count / video_stream.average_rate)
 
         raise ValueError(f"Could not determine duration for file '{self.__file}'")
+
+    def get_frame_count(self) -> int:
+        """
+        Returns the number of frames in the video without materializing them as
+        torch tensors.
+        """
+        if isinstance(self.__file, io.BytesIO):
+            self.__file.seek(0)
+
+        with av.open(self.__file, mode="r") as container:
+            video_stream = self._get_first_video_stream(container)
+            # 1. Prefer the frames field if available
+            if video_stream.frames and video_stream.frames > 0:
+                return int(video_stream.frames)
+
+            # 2. Try to estimate from duration and average_rate using only metadata
+            if container.duration is not None and video_stream.average_rate:
+                duration_seconds = float(container.duration / av.time_base)
+                estimated_frames = int(round(duration_seconds * float(video_stream.average_rate)))
+                if estimated_frames > 0:
+                    return estimated_frames
+
+            if (
+                getattr(video_stream, "duration", None) is not None
+                and getattr(video_stream, "time_base", None) is not None
+                and video_stream.average_rate
+            ):
+                duration_seconds = float(video_stream.duration * video_stream.time_base)
+                estimated_frames = int(round(duration_seconds * float(video_stream.average_rate)))
+                if estimated_frames > 0:
+                    return estimated_frames
+
+            # 3. Last resort: decode frames and count them (streaming)
+            frame_count = 0
+            container.seek(0)
+            for packet in container.demux(video_stream):
+                for _ in packet.decode():
+                    frame_count += 1
+
+            if frame_count == 0:
+                raise ValueError(f"Could not determine frame count for file '{self.__file}'")
+            return frame_count
+
+    def get_frame_rate(self) -> Fraction:
+        """
+        Returns the average frame rate of the video using container metadata
+        without decoding all frames.
+        """
+        if isinstance(self.__file, io.BytesIO):
+            self.__file.seek(0)
+
+        with av.open(self.__file, mode="r") as container:
+            video_stream = self._get_first_video_stream(container)
+            # Preferred: use PyAV's average_rate (usually already a Fraction-like)
+            if video_stream.average_rate:
+                return Fraction(video_stream.average_rate)
+
+            # Fallback: estimate from frames + duration if available
+            if video_stream.frames and container.duration:
+                duration_seconds = float(container.duration / av.time_base)
+                if duration_seconds > 0:
+                    return Fraction(video_stream.frames / duration_seconds).limit_denominator()
+
+            # Last resort: match get_components_internal default
+            return Fraction(1)
 
     def get_container_format(self) -> str:
         """
@@ -238,6 +303,13 @@ class VideoFromFile(VideoInput):
                         packet.stream = stream_map[packet.stream]
                         output_container.mux(packet)
 
+    def _get_first_video_stream(self, container: InputContainer):
+        video_stream = next((s for s in container.streams if s.type == "video"), None)
+        if video_stream is None:
+            raise ValueError(f"No video stream found in file '{self.__file}'")
+        return video_stream
+
+
 class VideoFromComponents(VideoInput):
     """
     Class representing video input from tensors.
@@ -264,7 +336,10 @@ class VideoFromComponents(VideoInput):
             raise ValueError("Only MP4 format is supported for now")
         if codec != VideoCodec.AUTO and codec != VideoCodec.H264:
             raise ValueError("Only H264 codec is supported for now")
-        with av.open(path, mode='w', options={'movflags': 'use_metadata_tags'}) as output:
+        extra_kwargs = {}
+        if isinstance(format, VideoContainer) and format != VideoContainer.AUTO:
+            extra_kwargs["format"] = format.value
+        with av.open(path, mode='w', options={'movflags': 'use_metadata_tags'}, **extra_kwargs) as output:
             # Add metadata before writing any streams
             if metadata is not None:
                 for key, value in metadata.items():
@@ -299,7 +374,7 @@ class VideoFromComponents(VideoInput):
             if audio_stream and self.__components.audio:
                 waveform = self.__components.audio['waveform']
                 waveform = waveform[:, :, :math.ceil((audio_sample_rate / frame_rate) * self.__components.images.shape[0])]
-                frame = av.AudioFrame.from_ndarray(waveform.movedim(2, 1).reshape(1, -1).float().numpy(), format='flt', layout='mono' if waveform.shape[1] == 1 else 'stereo')
+                frame = av.AudioFrame.from_ndarray(waveform.movedim(2, 1).reshape(1, -1).float().cpu().numpy(), format='flt', layout='mono' if waveform.shape[1] == 1 else 'stereo')
                 frame.sample_rate = audio_sample_rate
                 frame.pts = 0
                 output.mux(audio_stream.encode(frame))

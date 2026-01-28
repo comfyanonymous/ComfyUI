@@ -15,6 +15,8 @@ from .layers import (
     MLPEmbedder,
     SingleStreamBlock,
     timestep_embedding,
+    Modulation,
+    RMSNorm
 )
 
 @dataclass
@@ -33,6 +35,14 @@ class FluxParams:
     patch_size: int
     qkv_bias: bool
     guidance_embed: bool
+    txt_ids_dims: list
+    global_modulation: bool = False
+    mlp_silu_act: bool = False
+    ops_bias: bool = True
+    default_ref_method: str = "offset"
+    ref_index_scale: float = 1.0
+    yak_mlp: bool = False
+    txt_norm: bool = False
 
 
 class Flux(nn.Module):
@@ -58,13 +68,22 @@ class Flux(nn.Module):
         self.hidden_size = params.hidden_size
         self.num_heads = params.num_heads
         self.pe_embedder = EmbedND(dim=pe_dim, theta=params.theta, axes_dim=params.axes_dim)
-        self.img_in = operations.Linear(self.in_channels, self.hidden_size, bias=True, dtype=dtype, device=device)
-        self.time_in = MLPEmbedder(in_dim=256, hidden_dim=self.hidden_size, dtype=dtype, device=device, operations=operations)
-        self.vector_in = MLPEmbedder(params.vec_in_dim, self.hidden_size, dtype=dtype, device=device, operations=operations)
+        self.img_in = operations.Linear(self.in_channels, self.hidden_size, bias=params.ops_bias, dtype=dtype, device=device)
+        self.time_in = MLPEmbedder(in_dim=256, hidden_dim=self.hidden_size, bias=params.ops_bias, dtype=dtype, device=device, operations=operations)
+        if params.vec_in_dim is not None:
+            self.vector_in = MLPEmbedder(params.vec_in_dim, self.hidden_size, dtype=dtype, device=device, operations=operations)
+        else:
+            self.vector_in = None
+
         self.guidance_in = (
-            MLPEmbedder(in_dim=256, hidden_dim=self.hidden_size, dtype=dtype, device=device, operations=operations) if params.guidance_embed else nn.Identity()
+            MLPEmbedder(in_dim=256, hidden_dim=self.hidden_size, bias=params.ops_bias, dtype=dtype, device=device, operations=operations) if params.guidance_embed else nn.Identity()
         )
-        self.txt_in = operations.Linear(params.context_in_dim, self.hidden_size, dtype=dtype, device=device)
+        self.txt_in = operations.Linear(params.context_in_dim, self.hidden_size, bias=params.ops_bias, dtype=dtype, device=device)
+
+        if params.txt_norm:
+            self.txt_norm = RMSNorm(params.context_in_dim, dtype=dtype, device=device, operations=operations)
+        else:
+            self.txt_norm = None
 
         self.double_blocks = nn.ModuleList(
             [
@@ -73,6 +92,10 @@ class Flux(nn.Module):
                     self.num_heads,
                     mlp_ratio=params.mlp_ratio,
                     qkv_bias=params.qkv_bias,
+                    modulation=params.global_modulation is False,
+                    mlp_silu_act=params.mlp_silu_act,
+                    proj_bias=params.ops_bias,
+                    yak_mlp=params.yak_mlp,
                     dtype=dtype, device=device, operations=operations
                 )
                 for _ in range(params.depth)
@@ -81,13 +104,30 @@ class Flux(nn.Module):
 
         self.single_blocks = nn.ModuleList(
             [
-                SingleStreamBlock(self.hidden_size, self.num_heads, mlp_ratio=params.mlp_ratio, dtype=dtype, device=device, operations=operations)
+                SingleStreamBlock(self.hidden_size, self.num_heads, mlp_ratio=params.mlp_ratio, modulation=params.global_modulation is False, mlp_silu_act=params.mlp_silu_act, bias=params.ops_bias, yak_mlp=params.yak_mlp, dtype=dtype, device=device, operations=operations)
                 for _ in range(params.depth_single_blocks)
             ]
         )
 
         if final_layer:
-            self.final_layer = LastLayer(self.hidden_size, 1, self.out_channels, dtype=dtype, device=device, operations=operations)
+            self.final_layer = LastLayer(self.hidden_size, 1, self.out_channels, bias=params.ops_bias, dtype=dtype, device=device, operations=operations)
+
+        if params.global_modulation:
+            self.double_stream_modulation_img = Modulation(
+                self.hidden_size,
+                double=True,
+                bias=False,
+                dtype=dtype, device=device, operations=operations
+            )
+            self.double_stream_modulation_txt = Modulation(
+                self.hidden_size,
+                double=True,
+                bias=False,
+                dtype=dtype, device=device, operations=operations
+            )
+            self.single_stream_modulation = Modulation(
+                self.hidden_size, double=False, bias=False, dtype=dtype, device=device, operations=operations
+            )
 
     def forward_orig(
         self,
@@ -103,9 +143,6 @@ class Flux(nn.Module):
         attn_mask: Tensor = None,
     ) -> Tensor:
 
-        if y is None:
-            y = torch.zeros((img.shape[0], self.params.vec_in_dim), device=img.device, dtype=img.dtype)
-
         patches = transformer_options.get("patches", {})
         patches_replace = transformer_options.get("patches_replace", {})
         if img.ndim != 3 or txt.ndim != 3:
@@ -118,8 +155,18 @@ class Flux(nn.Module):
             if guidance is not None:
                 vec = vec + self.guidance_in(timestep_embedding(guidance, 256).to(img.dtype))
 
-        vec = vec + self.vector_in(y[:, :self.params.vec_in_dim])
+        if self.vector_in is not None:
+            if y is None:
+                y = torch.zeros((img.shape[0], self.params.vec_in_dim), device=img.device, dtype=img.dtype)
+            vec = vec + self.vector_in(y[:, :self.params.vec_in_dim])
+
+        if self.txt_norm is not None:
+            txt = self.txt_norm(txt)
         txt = self.txt_in(txt)
+
+        vec_orig = vec
+        if self.params.global_modulation:
+            vec = (self.double_stream_modulation_img(vec_orig), self.double_stream_modulation_txt(vec_orig))
 
         if "post_input" in patches:
             for p in patches["post_input"]:
@@ -136,7 +183,10 @@ class Flux(nn.Module):
             pe = None
 
         blocks_replace = patches_replace.get("dit", {})
+        transformer_options["total_blocks"] = len(self.double_blocks)
+        transformer_options["block_type"] = "double"
         for i, block in enumerate(self.double_blocks):
+            transformer_options["block_index"] = i
             if ("double_block", i) in blocks_replace:
                 def block_wrap(args):
                     out = {}
@@ -177,7 +227,13 @@ class Flux(nn.Module):
 
         img = torch.cat((txt, img), 1)
 
+        if self.params.global_modulation:
+            vec, _ = self.single_stream_modulation(vec_orig)
+
+        transformer_options["total_blocks"] = len(self.single_blocks)
+        transformer_options["block_type"] = "single"
         for i, block in enumerate(self.single_blocks):
+            transformer_options["block_index"] = i
             if ("single_block", i) in blocks_replace:
                 def block_wrap(args):
                     out = {}
@@ -207,7 +263,7 @@ class Flux(nn.Module):
 
         img = img[:, txt.shape[1] :, ...]
 
-        img = self.final_layer(img, vec)  # (N, T, patch_size ** 2 * out_channels)
+        img = self.final_layer(img, vec_orig)  # (N, T, patch_size ** 2 * out_channels)
         return img
 
     def process_img(self, x, index=0, h_offset=0, w_offset=0, transformer_options={}):
@@ -234,10 +290,10 @@ class Flux(nn.Module):
             h_offset += rope_options.get("shift_y", 0.0)
             w_offset += rope_options.get("shift_x", 0.0)
 
-        img_ids = torch.zeros((steps_h, steps_w, 3), device=x.device, dtype=x.dtype)
+        img_ids = torch.zeros((steps_h, steps_w, len(self.params.axes_dim)), device=x.device, dtype=torch.float32)
         img_ids[:, :, 0] = img_ids[:, :, 1] + index
-        img_ids[:, :, 1] = img_ids[:, :, 1] + torch.linspace(h_offset, h_len - 1 + h_offset, steps=steps_h, device=x.device, dtype=x.dtype).unsqueeze(1)
-        img_ids[:, :, 2] = img_ids[:, :, 2] + torch.linspace(w_offset, w_len - 1 + w_offset, steps=steps_w, device=x.device, dtype=x.dtype).unsqueeze(0)
+        img_ids[:, :, 1] = img_ids[:, :, 1] + torch.linspace(h_offset, h_len - 1 + h_offset, steps=steps_h, device=x.device, dtype=torch.float32).unsqueeze(1)
+        img_ids[:, :, 2] = img_ids[:, :, 2] + torch.linspace(w_offset, w_len - 1 + w_offset, steps=steps_w, device=x.device, dtype=torch.float32).unsqueeze(0)
         return img, repeat(img_ids, "h w c -> b (h w) c", b=bs)
 
     def forward(self, x, timestep, context, y=None, guidance=None, ref_latents=None, control=None, transformer_options={}, **kwargs):
@@ -259,10 +315,10 @@ class Flux(nn.Module):
             h = 0
             w = 0
             index = 0
-            ref_latents_method = kwargs.get("ref_latents_method", "offset")
+            ref_latents_method = kwargs.get("ref_latents_method", self.params.default_ref_method)
             for ref in ref_latents:
                 if ref_latents_method == "index":
-                    index += 1
+                    index += self.params.ref_index_scale
                     h_offset = 0
                     w_offset = 0
                 elif ref_latents_method == "uxo":
@@ -286,7 +342,12 @@ class Flux(nn.Module):
                 img = torch.cat([img, kontext], dim=1)
                 img_ids = torch.cat([img_ids, kontext_ids], dim=1)
 
-        txt_ids = torch.zeros((bs, context.shape[1], 3), device=x.device, dtype=x.dtype)
+        txt_ids = torch.zeros((bs, context.shape[1], len(self.params.axes_dim)), device=x.device, dtype=torch.float32)
+
+        if len(self.params.txt_ids_dims) > 0:
+            for i in self.params.txt_ids_dims:
+                txt_ids[:, :, i] = torch.linspace(0, context.shape[1] - 1, steps=context.shape[1], device=x.device, dtype=torch.float32)
+
         out = self.forward_orig(img, img_ids, context, txt_ids, timestep, y, guidance, control, transformer_options, attn_mask=kwargs.get("attention_mask", None))
         out = out[:, :img_tokens]
-        return rearrange(out, "b (h w) (c ph pw) -> b c (h ph) (w pw)", h=h_len, w=w_len, ph=2, pw=2)[:,:,:h_orig,:w_orig]
+        return rearrange(out, "b (h w) (c ph pw) -> b c (h ph) (w pw)", h=h_len, w=w_len, ph=self.patch_size, pw=self.patch_size)[:,:,:h_orig,:w_orig]

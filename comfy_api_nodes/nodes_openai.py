@@ -1,50 +1,38 @@
-from io import BytesIO
-from typing import Optional, Union
-import json
+import base64
 import os
-import time
-import uuid
 from enum import Enum
-from inspect import cleandoc
+from io import BytesIO
+
 import numpy as np
 import torch
 from PIL import Image
-from server import PromptServer
-import folder_paths
-import base64
-from comfy_api.latest import IO, ComfyExtension
 from typing_extensions import override
 
-
-from comfy_api_nodes.apis import (
-    OpenAIImageGenerationRequest,
-    OpenAIImageEditRequest,
-    OpenAIImageGenerationResponse,
-    OpenAICreateResponse,
-    OpenAIResponse,
-    CreateModelResponseProperties,
-    Item,
-    OutputContent,
-    InputImageContent,
-    Detail,
-    InputTextContent,
-    InputMessage,
-    InputMessageContentList,
-    InputContent,
+import folder_paths
+from comfy_api.latest import IO, ComfyExtension, Input
+from comfy_api_nodes.apis.openai import (
     InputFileContent,
+    InputImageContent,
+    InputMessage,
+    InputTextContent,
+    ModelResponseProperties,
+    OpenAICreateResponse,
+    OpenAIImageEditRequest,
+    OpenAIImageGenerationRequest,
+    OpenAIImageGenerationResponse,
+    OpenAIResponse,
+    OutputContent,
 )
-
 from comfy_api_nodes.util import (
-    downscale_image_tensor,
-    download_url_to_bytesio,
-    validate_string,
-    tensor_to_base64_string,
     ApiEndpoint,
-    sync_op,
+    download_url_to_bytesio,
+    downscale_image_tensor,
     poll_op,
+    sync_op,
+    tensor_to_base64_string,
     text_filepath_to_data_uri,
+    validate_string,
 )
-
 
 RESPONSES_ENDPOINT = "/proxy/openai/v1/responses"
 STARTING_POINT_ID_PATTERN = r"<starting_point_id:(.*)>"
@@ -103,9 +91,6 @@ async def validate_and_cast_response(response, timeout: int = None) -> torch.Ten
 
 
 class OpenAIDalle2(IO.ComfyNode):
-    """
-    Generates images synchronously via OpenAI's DALL·E 2 endpoint.
-    """
 
     @classmethod
     def define_schema(cls):
@@ -113,7 +98,7 @@ class OpenAIDalle2(IO.ComfyNode):
             node_id="OpenAIDalle2",
             display_name="OpenAI DALL·E 2",
             category="api node/image/OpenAI",
-            description=cleandoc(cls.__doc__ or ""),
+            description="Generates images synchronously via OpenAI's DALL·E 2 endpoint.",
             inputs=[
                 IO.String.Input(
                     "prompt",
@@ -169,6 +154,23 @@ class OpenAIDalle2(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
+            price_badge=IO.PriceBadge(
+                depends_on=IO.PriceBadgeDepends(widgets=["size", "n"]),
+                expr="""
+                (
+                  $size := widgets.size;
+                  $nRaw := widgets.n;
+                  $n := ($nRaw != null and $nRaw != 0) ? $nRaw : 1;
+
+                  $base :=
+                    $contains($size, "256x256") ? 0.016 :
+                    $contains($size, "512x512") ? 0.018 :
+                    0.02;
+
+                  {"type":"usd","usd": $round($base * $n, 3)}
+                )
+                """,
+            ),
         )
 
     @classmethod
@@ -239,9 +241,6 @@ class OpenAIDalle2(IO.ComfyNode):
 
 
 class OpenAIDalle3(IO.ComfyNode):
-    """
-    Generates images synchronously via OpenAI's DALL·E 3 endpoint.
-    """
 
     @classmethod
     def define_schema(cls):
@@ -249,7 +248,7 @@ class OpenAIDalle3(IO.ComfyNode):
             node_id="OpenAIDalle3",
             display_name="OpenAI DALL·E 3",
             category="api node/image/OpenAI",
-            description=cleandoc(cls.__doc__ or ""),
+            description="Generates images synchronously via OpenAI's DALL·E 3 endpoint.",
             inputs=[
                 IO.String.Input(
                     "prompt",
@@ -261,7 +260,7 @@ class OpenAIDalle3(IO.ComfyNode):
                     "seed",
                     default=0,
                     min=0,
-                    max=2 ** 31 - 1,
+                    max=2**31 - 1,
                     step=1,
                     display_mode=IO.NumberDisplay.number,
                     control_after_generate=True,
@@ -299,6 +298,25 @@ class OpenAIDalle3(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
+            price_badge=IO.PriceBadge(
+                depends_on=IO.PriceBadgeDepends(widgets=["size", "quality"]),
+                expr="""
+                (
+                  $size := widgets.size;
+                  $q := widgets.quality;
+                  $hd := $contains($q, "hd");
+
+                  $price :=
+                    $contains($size, "1024x1024")
+                      ? ($hd ? 0.08 : 0.04)
+                      : (($contains($size, "1792x1024") or $contains($size, "1024x1792"))
+                          ? ($hd ? 0.12 : 0.08)
+                          : 0.04);
+
+                  {"type":"usd","usd": $price}
+                )
+                """,
+            ),
         )
 
     @classmethod
@@ -331,30 +349,36 @@ class OpenAIDalle3(IO.ComfyNode):
         return IO.NodeOutput(await validate_and_cast_response(response))
 
 
+def calculate_tokens_price_image_1(response: OpenAIImageGenerationResponse) -> float | None:
+    # https://platform.openai.com/docs/pricing
+    return ((response.usage.input_tokens * 10.0) + (response.usage.output_tokens * 40.0)) / 1_000_000.0
+
+
+def calculate_tokens_price_image_1_5(response: OpenAIImageGenerationResponse) -> float | None:
+    return ((response.usage.input_tokens * 8.0) + (response.usage.output_tokens * 32.0)) / 1_000_000.0
+
+
 class OpenAIGPTImage1(IO.ComfyNode):
-    """
-    Generates images synchronously via OpenAI's GPT Image 1 endpoint.
-    """
 
     @classmethod
     def define_schema(cls):
         return IO.Schema(
             node_id="OpenAIGPTImage1",
-            display_name="OpenAI GPT Image 1",
+            display_name="OpenAI GPT Image 1.5",
             category="api node/image/OpenAI",
-            description=cleandoc(cls.__doc__ or ""),
+            description="Generates images synchronously via OpenAI's GPT Image endpoint.",
             inputs=[
                 IO.String.Input(
                     "prompt",
                     default="",
                     multiline=True,
-                    tooltip="Text prompt for GPT Image 1",
+                    tooltip="Text prompt for GPT Image",
                 ),
                 IO.Int.Input(
                     "seed",
                     default=0,
                     min=0,
-                    max=2 ** 31 - 1,
+                    max=2**31 - 1,
                     step=1,
                     display_mode=IO.NumberDisplay.number,
                     control_after_generate=True,
@@ -370,8 +394,8 @@ class OpenAIGPTImage1(IO.ComfyNode):
                 ),
                 IO.Combo.Input(
                     "background",
-                    default="opaque",
-                    options=["opaque", "transparent"],
+                    default="auto",
+                    options=["auto", "opaque", "transparent"],
                     tooltip="Return image with or without background",
                     optional=True,
                 ),
@@ -402,6 +426,12 @@ class OpenAIGPTImage1(IO.ComfyNode):
                     tooltip="Optional mask for inpainting (white areas will be replaced)",
                     optional=True,
                 ),
+                IO.Combo.Input(
+                    "model",
+                    options=["gpt-image-1", "gpt-image-1.5"],
+                    default="gpt-image-1.5",
+                    optional=True,
+                ),
             ],
             outputs=[
                 IO.Image.Output(),
@@ -412,37 +442,61 @@ class OpenAIGPTImage1(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
+            price_badge=IO.PriceBadge(
+                depends_on=IO.PriceBadgeDepends(widgets=["quality", "n"]),
+                expr="""
+                (
+                  $ranges := {
+                    "low":    [0.011, 0.02],
+                    "medium": [0.046, 0.07],
+                    "high":   [0.167, 0.3]
+                  };
+                  $range := $lookup($ranges, widgets.quality);
+                  $n := widgets.n;
+                  ($n = 1)
+                    ? {"type":"range_usd","min_usd": $range[0], "max_usd": $range[1]}
+                    : {
+                        "type":"range_usd",
+                        "min_usd": $range[0],
+                        "max_usd": $range[1],
+                        "format": { "suffix": " x " & $string($n) & "/Run" }
+                      }
+                )
+                """,
+            ),
         )
 
     @classmethod
     async def execute(
         cls,
-        prompt,
-        seed=0,
-        quality="low",
-        background="opaque",
-        image=None,
-        mask=None,
-        n=1,
-        size="1024x1024",
+        prompt: str,
+        seed: int = 0,
+        quality: str = "low",
+        background: str = "opaque",
+        image: Input.Image | None = None,
+        mask: Input.Image | None = None,
+        n: int = 1,
+        size: str = "1024x1024",
+        model: str = "gpt-image-1",
     ) -> IO.NodeOutput:
         validate_string(prompt, strip_whitespace=False)
-        model = "gpt-image-1"
-        path = "/proxy/openai/images/generations"
-        content_type = "application/json"
-        request_class = OpenAIImageGenerationRequest
-        files = []
+
+        if mask is not None and image is None:
+            raise ValueError("Cannot use a mask without an input image")
+
+        if model == "gpt-image-1":
+            price_extractor = calculate_tokens_price_image_1
+        elif model == "gpt-image-1.5":
+            price_extractor = calculate_tokens_price_image_1_5
+        else:
+            raise ValueError(f"Unknown model: {model}")
 
         if image is not None:
-            path = "/proxy/openai/images/edits"
-            request_class = OpenAIImageEditRequest
-            content_type = "multipart/form-data"
-
+            files = []
             batch_size = image.shape[0]
-
             for i in range(batch_size):
                 single_image = image[i : i + 1]
-                scaled_image = downscale_image_tensor(single_image).squeeze()
+                scaled_image = downscale_image_tensor(single_image, total_pixels=2048 * 2048).squeeze()
 
                 image_np = (scaled_image.numpy() * 255).astype(np.uint8)
                 img = Image.fromarray(image_np)
@@ -455,44 +509,59 @@ class OpenAIGPTImage1(IO.ComfyNode):
                 else:
                     files.append(("image[]", (f"image_{i}.png", img_byte_arr, "image/png")))
 
-        if mask is not None:
-            if image is None:
-                raise Exception("Cannot use a mask without an input image")
-            if image.shape[0] != 1:
-                raise Exception("Cannot use a mask with multiple image")
-            if mask.shape[1:] != image.shape[1:-1]:
-                raise Exception("Mask and Image must be the same size")
-            batch, height, width = mask.shape
-            rgba_mask = torch.zeros(height, width, 4, device="cpu")
-            rgba_mask[:, :, 3] = 1 - mask.squeeze().cpu()
+            if mask is not None:
+                if image.shape[0] != 1:
+                    raise Exception("Cannot use a mask with multiple image")
+                if mask.shape[1:] != image.shape[1:-1]:
+                    raise Exception("Mask and Image must be the same size")
+                _, height, width = mask.shape
+                rgba_mask = torch.zeros(height, width, 4, device="cpu")
+                rgba_mask[:, :, 3] = 1 - mask.squeeze().cpu()
 
-            scaled_mask = downscale_image_tensor(rgba_mask.unsqueeze(0)).squeeze()
+                scaled_mask = downscale_image_tensor(rgba_mask.unsqueeze(0), total_pixels=2048 * 2048).squeeze()
 
-            mask_np = (scaled_mask.numpy() * 255).astype(np.uint8)
-            mask_img = Image.fromarray(mask_np)
-            mask_img_byte_arr = BytesIO()
-            mask_img.save(mask_img_byte_arr, format="PNG")
-            mask_img_byte_arr.seek(0)
-            files.append(("mask", ("mask.png", mask_img_byte_arr, "image/png")))
+                mask_np = (scaled_mask.numpy() * 255).astype(np.uint8)
+                mask_img = Image.fromarray(mask_np)
+                mask_img_byte_arr = BytesIO()
+                mask_img.save(mask_img_byte_arr, format="PNG")
+                mask_img_byte_arr.seek(0)
+                files.append(("mask", ("mask.png", mask_img_byte_arr, "image/png")))
 
-        # Build the operation
-        response = await sync_op(
-            cls,
-            ApiEndpoint(path=path, method="POST"),
-            response_model=OpenAIImageGenerationResponse,
-            data=request_class(
-                model=model,
-                prompt=prompt,
-                quality=quality,
-                background=background,
-                n=n,
-                seed=seed,
-                size=size,
-            ),
-            files=files if files else None,
-            content_type=content_type,
-        )
-
+            response = await sync_op(
+                cls,
+                ApiEndpoint(path="/proxy/openai/images/edits", method="POST"),
+                response_model=OpenAIImageGenerationResponse,
+                data=OpenAIImageEditRequest(
+                    model=model,
+                    prompt=prompt,
+                    quality=quality,
+                    background=background,
+                    n=n,
+                    seed=seed,
+                    size=size,
+                    moderation="low",
+                ),
+                content_type="multipart/form-data",
+                files=files,
+                price_extractor=price_extractor,
+            )
+        else:
+            response = await sync_op(
+                cls,
+                ApiEndpoint(path="/proxy/openai/images/generations", method="POST"),
+                response_model=OpenAIImageGenerationResponse,
+                data=OpenAIImageGenerationRequest(
+                    model=model,
+                    prompt=prompt,
+                    quality=quality,
+                    background=background,
+                    n=n,
+                    seed=seed,
+                    size=size,
+                    moderation="low",
+                ),
+                price_extractor=price_extractor,
+            )
         return IO.NodeOutput(await validate_and_cast_response(response))
 
 
@@ -550,32 +619,95 @@ class OpenAIChatNode(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
+            price_badge=IO.PriceBadge(
+                depends_on=IO.PriceBadgeDepends(widgets=["model"]),
+                expr="""
+                (
+                  $m := widgets.model;
+                  $contains($m, "o4-mini") ? {
+                    "type": "list_usd",
+                    "usd": [0.0011, 0.0044],
+                    "format": { "approximate": true, "separator": "-", "suffix": " per 1K tokens" }
+                  }
+                  : $contains($m, "o1-pro") ? {
+                    "type": "list_usd",
+                    "usd": [0.15, 0.6],
+                    "format": { "approximate": true, "separator": "-", "suffix": " per 1K tokens" }
+                  }
+                  : $contains($m, "o1") ? {
+                    "type": "list_usd",
+                    "usd": [0.015, 0.06],
+                    "format": { "approximate": true, "separator": "-", "suffix": " per 1K tokens" }
+                  }
+                  : $contains($m, "o3-mini") ? {
+                    "type": "list_usd",
+                    "usd": [0.0011, 0.0044],
+                    "format": { "approximate": true, "separator": "-", "suffix": " per 1K tokens" }
+                  }
+                  : $contains($m, "o3") ? {
+                    "type": "list_usd",
+                    "usd": [0.01, 0.04],
+                    "format": { "approximate": true, "separator": "-", "suffix": " per 1K tokens" }
+                  }
+                  : $contains($m, "gpt-4o") ? {
+                    "type": "list_usd",
+                    "usd": [0.0025, 0.01],
+                    "format": { "approximate": true, "separator": "-", "suffix": " per 1K tokens" }
+                  }
+                  : $contains($m, "gpt-4.1-nano") ? {
+                    "type": "list_usd",
+                    "usd": [0.0001, 0.0004],
+                    "format": { "approximate": true, "separator": "-", "suffix": " per 1K tokens" }
+                  }
+                  : $contains($m, "gpt-4.1-mini") ? {
+                    "type": "list_usd",
+                    "usd": [0.0004, 0.0016],
+                    "format": { "approximate": true, "separator": "-", "suffix": " per 1K tokens" }
+                  }
+                  : $contains($m, "gpt-4.1") ? {
+                    "type": "list_usd",
+                    "usd": [0.002, 0.008],
+                    "format": { "approximate": true, "separator": "-", "suffix": " per 1K tokens" }
+                  }
+                  : $contains($m, "gpt-5-nano") ? {
+                    "type": "list_usd",
+                    "usd": [0.00005, 0.0004],
+                    "format": { "approximate": true, "separator": "-", "suffix": " per 1K tokens" }
+                  }
+                  : $contains($m, "gpt-5-mini") ? {
+                    "type": "list_usd",
+                    "usd": [0.00025, 0.002],
+                    "format": { "approximate": true, "separator": "-", "suffix": " per 1K tokens" }
+                  }
+                  : $contains($m, "gpt-5") ? {
+                    "type": "list_usd",
+                    "usd": [0.00125, 0.01],
+                    "format": { "approximate": true, "separator": "-", "suffix": " per 1K tokens" }
+                  }
+                  : {"type": "text", "text": "Token-based"}
+                )
+                """,
+            ),
         )
 
     @classmethod
-    def get_message_content_from_response(
-        cls, response: OpenAIResponse
-    ) -> list[OutputContent]:
+    def get_message_content_from_response(cls, response: OpenAIResponse) -> list[OutputContent]:
         """Extract message content from the API response."""
         for output in response.output:
-            if output.root.type == "message":
-                return output.root.content
+            if output.type == "message":
+                return output.content
         raise TypeError("No output message found in response")
 
     @classmethod
-    def get_text_from_message_content(
-        cls, message_content: list[OutputContent]
-    ) -> str:
+    def get_text_from_message_content(cls, message_content: list[OutputContent]) -> str:
         """Extract text content from message content."""
         for content_item in message_content:
-            if content_item.root.type == "output_text":
-                return str(content_item.root.text)
+            if content_item.type == "output_text":
+                return str(content_item.text)
         return "No text output found in response"
 
     @classmethod
-    def tensor_to_input_image_content(
-        cls, image: torch.Tensor, detail_level: Detail = "auto"
-    ) -> InputImageContent:
+    def tensor_to_input_image_content(cls, image: torch.Tensor, detail_level: str = "auto") -> InputImageContent:
         """Convert a tensor to an input image content object."""
         return InputImageContent(
             detail=detail_level,
@@ -587,11 +719,11 @@ class OpenAIChatNode(IO.ComfyNode):
     def create_input_message_contents(
         cls,
         prompt: str,
-        image: Optional[torch.Tensor] = None,
-        files: Optional[list[InputFileContent]] = None,
-    ) -> InputMessageContentList:
+        image: torch.Tensor | None = None,
+        files: list[InputFileContent] | None = None,
+    ) -> list[InputTextContent | InputImageContent | InputFileContent]:
         """Create a list of input message contents from prompt and optional image."""
-        content_list: list[Union[InputContent, InputTextContent, InputImageContent, InputFileContent]] = [
+        content_list: list[InputTextContent | InputImageContent | InputFileContent] = [
             InputTextContent(text=prompt, type="input_text"),
         ]
         if image is not None:
@@ -603,13 +735,9 @@ class OpenAIChatNode(IO.ComfyNode):
                         type="input_image",
                     )
                 )
-
         if files is not None:
             content_list.extend(files)
-
-        return InputMessageContentList(
-            root=content_list,
-        )
+        return content_list
 
     @classmethod
     async def execute(
@@ -617,9 +745,9 @@ class OpenAIChatNode(IO.ComfyNode):
         prompt: str,
         persist_context: bool = False,
         model: SupportedOpenAIModel = SupportedOpenAIModel.gpt_5.value,
-        images: Optional[torch.Tensor] = None,
-        files: Optional[list[InputFileContent]] = None,
-        advanced_options: Optional[CreateModelResponseProperties] = None,
+        images: torch.Tensor | None = None,
+        files: list[InputFileContent] | None = None,
+        advanced_options: ModelResponseProperties | None = None,
     ) -> IO.NodeOutput:
         validate_string(prompt, strip_whitespace=False)
 
@@ -630,60 +758,29 @@ class OpenAIChatNode(IO.ComfyNode):
             response_model=OpenAIResponse,
             data=OpenAICreateResponse(
                 input=[
-                    Item(
-                        root=InputMessage(
-                            content=cls.create_input_message_contents(
-                                prompt, images, files
-                            ),
-                            role="user",
-                        )
+                    InputMessage(
+                        content=cls.create_input_message_contents(prompt, images, files),
+                        role="user",
                     ),
                 ],
                 store=True,
                 stream=False,
                 model=model,
                 previous_response_id=None,
-                **(
-                    advanced_options.model_dump(exclude_none=True)
-                    if advanced_options
-                    else {}
-                ),
+                **(advanced_options.model_dump(exclude_none=True) if advanced_options else {}),
             ),
         )
         response_id = create_response.id
 
         # Get result output
         result_response = await poll_op(
-                cls,
-                ApiEndpoint(path=f"{RESPONSES_ENDPOINT}/{response_id}"),
-                response_model=OpenAIResponse,
-                status_extractor=lambda response: response.status,
-                completed_statuses=["incomplete", "completed"]
-            )
-        output_text = cls.get_text_from_message_content(cls.get_message_content_from_response(result_response))
-
-        # Update history
-        render_spec = {
-            "node_id": cls.hidden.unique_id,
-            "component": "ChatHistoryWidget",
-            "props": {
-                "history": json.dumps(
-                    [
-                        {
-                            "prompt": prompt,
-                            "response": output_text,
-                            "response_id": str(uuid.uuid4()),
-                            "timestamp": time.time(),
-                        }
-                    ]
-                ),
-            },
-        }
-        PromptServer.instance.send_sync(
-            "display_component",
-            render_spec,
+            cls,
+            ApiEndpoint(path=f"{RESPONSES_ENDPOINT}/{response_id}"),
+            response_model=OpenAIResponse,
+            status_extractor=lambda response: response.status,
+            completed_statuses=["incomplete", "completed"],
         )
-        return IO.NodeOutput(output_text)
+        return IO.NodeOutput(cls.get_text_from_message_content(cls.get_message_content_from_response(result_response)))
 
 
 class OpenAIInputFiles(IO.ComfyNode):
@@ -790,8 +887,8 @@ class OpenAIChatConfig(IO.ComfyNode):
     def execute(
         cls,
         truncation: bool,
-        instructions: Optional[str] = None,
-        max_output_tokens: Optional[int] = None,
+        instructions: str | None = None,
+        max_output_tokens: int | None = None,
     ) -> IO.NodeOutput:
         """
         Configure advanced options for the OpenAI Chat Node.
@@ -803,7 +900,7 @@ class OpenAIChatConfig(IO.ComfyNode):
             remove depending on model choice.
         """
         return IO.NodeOutput(
-            CreateModelResponseProperties(
+            ModelResponseProperties(
                 instructions=instructions,
                 truncation=truncation,
                 max_output_tokens=max_output_tokens,
