@@ -1247,6 +1247,7 @@ class NodeInfoV1:
     output_node: bool=None
     deprecated: bool=None
     experimental: bool=None
+    dev_only: bool=None
     api_node: bool=None
     price_badge: dict | None = None
     search_aliases: list[str]=None
@@ -1264,6 +1265,7 @@ class NodeInfoV3:
     output_node: bool=None
     deprecated: bool=None
     experimental: bool=None
+    dev_only: bool=None
     api_node: bool=None
     price_badge: dict | None = None
 
@@ -1375,6 +1377,8 @@ class Schema:
     """Flags a node as deprecated, indicating to users that they should find alternatives to this node."""
     is_experimental: bool=False
     """Flags a node as experimental, informing users that it may change or not work as expected."""
+    is_dev_only: bool=False
+    """Flags a node as dev-only, hiding it from search/menus unless dev mode is enabled."""
     is_api_node: bool=False
     """Flags a node as an API node. See: https://docs.comfy.org/tutorials/api-nodes/overview."""
     price_badge: PriceBadge | None = None
@@ -1485,6 +1489,7 @@ class Schema:
             output_node=self.is_output_node,
             deprecated=self.is_deprecated,
             experimental=self.is_experimental,
+            dev_only=self.is_dev_only,
             api_node=self.is_api_node,
             python_module=getattr(cls, "RELATIVE_PYTHON_MODULE", "nodes"),
             price_badge=self.price_badge.as_dict(self.inputs) if self.price_badge is not None else None,
@@ -1519,6 +1524,7 @@ class Schema:
             output_node=self.is_output_node,
             deprecated=self.is_deprecated,
             experimental=self.is_experimental,
+            dev_only=self.is_dev_only,
             api_node=self.is_api_node,
             python_module=getattr(cls, "RELATIVE_PYTHON_MODULE", "nodes"),
             price_badge=self.price_badge.as_dict(self.inputs) if self.price_badge is not None else None,
@@ -1791,6 +1797,14 @@ class _ComfyNodeBaseInternal(_ComfyNodeInternal):
             cls.GET_SCHEMA()
         return cls._DEPRECATED
 
+    _DEV_ONLY = None
+    @final
+    @classproperty
+    def DEV_ONLY(cls):  # noqa
+        if cls._DEV_ONLY is None:
+            cls.GET_SCHEMA()
+        return cls._DEV_ONLY
+
     _API_NODE = None
     @final
     @classproperty
@@ -1893,6 +1907,8 @@ class _ComfyNodeBaseInternal(_ComfyNodeInternal):
             cls._EXPERIMENTAL = schema.is_experimental
         if cls._DEPRECATED is None:
             cls._DEPRECATED = schema.is_deprecated
+        if cls._DEV_ONLY is None:
+            cls._DEV_ONLY = schema.is_dev_only
         if cls._API_NODE is None:
             cls._API_NODE = schema.is_api_node
         if cls._OUTPUT_NODE is None:
