@@ -588,11 +588,12 @@ class Llama2_(nn.Module):
             mask = 1.0 - attention_mask.to(x.dtype).reshape((attention_mask.shape[0], 1, -1, attention_mask.shape[-1])).expand(attention_mask.shape[0], 1, attention_mask.shape[-1], attention_mask.shape[-1])
             mask = mask.masked_fill(mask.to(torch.bool), float("-inf"))
 
-        causal_mask = torch.empty(x.shape[1], x.shape[1], dtype=x.dtype, device=x.device).fill_(float("-inf")).triu_(1)
-        if mask is not None:
-            mask += causal_mask
-        else:
-            mask = causal_mask
+        if kv_caches is None:
+            causal_mask = torch.empty(x.shape[1], x.shape[1], dtype=x.dtype, device=x.device).fill_(float("-inf")).triu_(1)
+            if mask is not None:
+                mask += causal_mask
+            else:
+                mask = causal_mask
 
         if optimized_attention is None:
             optimized_attention = optimized_attention_for_device(x.device, mask=mask is not None, small_input=True)
@@ -731,6 +732,60 @@ class BaseLlama:
 
         return torch.multinomial(probs, num_samples=1, generator=generator)
 
+    def generate(self, embeds=None, do_sample=True, max_length=256, temperature=1.0, top_k=50, top_p=0.9, min_p=0.0, repetition_penalty=1.0, stop_tokens=[], seed=42, initial_tokens=[]):
+        embeds = embeds.to(self.dtype)
+        device = embeds.device
+        print("embeds dtype:", embeds.dtype, embeds.device, embeds.shape)
+        if embeds.ndim == 2:
+            embeds = embeds.unsqueeze(0)
+        optimized_attention = optimized_attention_for_device(device, small_input=True)
+
+        # Initialize dynamic KV cache (starts as None, grows during generation)
+        kv_caches = [(None, None) for _ in range(len(self.model.layers))]
+
+        # Precompute RoPE frequencies for all positions up to max sequence length
+        max_seq_len = embeds.shape[1] + max_length
+        position_ids_cache = torch.arange(0, max_seq_len, device=device).unsqueeze(0)
+        rope_cache = precompute_freqs_cis(
+            self.model.config.head_dim,
+            position_ids_cache,
+            self.model.config.rope_theta,
+            self.model.config.rope_scale,
+            self.model.config.rope_dims,
+            device=device
+        )
+        print("rope cache shape:", rope_cache[0].shape if isinstance(rope_cache, tuple) else [r[0].shape for r in rope_cache])
+        # rope cache shape: torch.Size([1, 1, 278, 256])
+        # rope cache shape: [torch.Size([1, 1, 278, 256]), torch.Size([1, 1, 278, 256])]
+
+        generator = torch.Generator(device=device).manual_seed(seed) if do_sample else None
+
+        generated_token_ids = []
+        current_position = 0
+        pbar = comfy.utils.ProgressBar(max_length)
+
+        # Generation loop
+        for step in tqdm(range(max_length), desc="Generating tokens"):
+            seq_len = embeds.shape[1]
+            # Handle both single rope cache (cos, sin) and list of rope caches [(cos1, sin1), (cos2, sin2)]
+            if isinstance(rope_cache, list):
+                freqs_cis = [(cos[:, :, current_position:current_position+seq_len, :], sin[:, :, current_position:current_position+seq_len, :]) for cos, sin in rope_cache]
+            else:
+                cos, sin = rope_cache
+                freqs_cis = (cos[:, :, current_position:current_position+seq_len, :], sin[:, :, current_position:current_position+seq_len, :])
+            x, _, kv_caches = self.model.forward(None, embeds=embeds, attention_mask=None, freqs_cis=freqs_cis, kv_caches=kv_caches, optimized_attention=optimized_attention)
+            next_token = self.sample_token(x, temperature, top_k, top_p, min_p, repetition_penalty, initial_tokens + generated_token_ids, generator, do_sample=do_sample)
+            generated_token_ids.append(next_token[0].item())
+
+            current_position += seq_len
+            embeds = self.model.embed_tokens(next_token)
+            pbar.update(1)
+
+            if next_token[0].item() in stop_tokens:
+                break
+
+        return torch.tensor([generated_token_ids], device=device, dtype=torch.long)
+
 
 class Llama2(BaseLlama, torch.nn.Module):
     def __init__(self, config_dict, dtype, device, operations):
@@ -777,6 +832,10 @@ class Qwen3_4B(BaseLlama, torch.nn.Module):
         self.model = Llama2_(config, device=device, dtype=dtype, ops=operations)
         self.dtype = dtype
 
+        if hasattr(self.model, "embed_tokens") and self.model.embed_tokens is not None:
+            self.lm_head = operations.Linear(config.hidden_size, config.vocab_size, bias=False, device=device, dtype=dtype)
+            self.lm_head.weight = self.model.embed_tokens.weight
+
 class Qwen3_8B(BaseLlama, torch.nn.Module):
     def __init__(self, config_dict, dtype, device, operations):
         super().__init__()
@@ -785,6 +844,10 @@ class Qwen3_8B(BaseLlama, torch.nn.Module):
 
         self.model = Llama2_(config, device=device, dtype=dtype, ops=operations)
         self.dtype = dtype
+
+        if hasattr(self.model, "embed_tokens") and self.model.embed_tokens is not None:
+            self.lm_head = operations.Linear(config.hidden_size, config.vocab_size, bias=False, device=device, dtype=dtype)
+            self.lm_head.weight = self.model.embed_tokens.weight
 
 class Ovis25_2B(BaseLlama, torch.nn.Module):
     def __init__(self, config_dict, dtype, device, operations):
@@ -804,6 +867,8 @@ class Qwen25_7BVLI(BaseLlama, torch.nn.Module):
         self.model = Llama2_(config, device=device, dtype=dtype, ops=operations)
         self.visual = qwen_vl.Qwen2VLVisionTransformer(hidden_size=1280, output_hidden_size=config.hidden_size, device=device, dtype=dtype, ops=operations)
         self.dtype = dtype
+
+        self.lm_head = operations.Linear(config.hidden_size, config.vocab_size, bias=False, device=device, dtype=dtype) #todo don't always load?
 
     def preprocess_embed(self, embed, device):
         if embed["type"] == "image":
@@ -847,6 +912,10 @@ class Gemma2_2B(BaseLlama, torch.nn.Module):
         self.model = Llama2_(config, device=device, dtype=dtype, ops=operations)
         self.dtype = dtype
 
+        if hasattr(self.model, "embed_tokens") and self.model.embed_tokens is not None:
+            self.lm_head = operations.Linear(config.hidden_size, config.vocab_size, bias=False, device=device, dtype=dtype)
+            self.lm_head.weight = self.model.embed_tokens.weight
+
 class Gemma3_4B(BaseLlama, torch.nn.Module):
     def __init__(self, config_dict, dtype, device, operations):
         super().__init__()
@@ -855,6 +924,10 @@ class Gemma3_4B(BaseLlama, torch.nn.Module):
 
         self.model = Llama2_(config, device=device, dtype=dtype, ops=operations)
         self.dtype = dtype
+
+        if hasattr(self.model, "embed_tokens") and self.model.embed_tokens is not None:
+            self.lm_head = operations.Linear(config.hidden_size, config.vocab_size, bias=False, device=device, dtype=dtype)
+            self.lm_head.weight = self.model.embed_tokens.weight
 
 class Gemma3_12B(BaseLlama, torch.nn.Module):
     def __init__(self, config_dict, dtype, device, operations):
@@ -868,9 +941,9 @@ class Gemma3_12B(BaseLlama, torch.nn.Module):
         self.dtype = dtype
         self.image_size = config.vision_config["image_size"]
 
-        # LM head with tied weights to embeddings
-        self.lm_head = operations.Linear(config.hidden_size, config.vocab_size, bias=False, device=device, dtype=dtype)
-        self.lm_head.weight = self.model.embed_tokens.weight
+        if hasattr(self.model, "embed_tokens") and self.model.embed_tokens is not None:
+            self.lm_head = operations.Linear(config.hidden_size, config.vocab_size, bias=False, device=device, dtype=dtype)
+            self.lm_head.weight = self.model.embed_tokens.weight
 
     def preprocess_embed(self, embed, device):
         if embed["type"] == "image":
@@ -878,45 +951,3 @@ class Gemma3_12B(BaseLlama, torch.nn.Module):
             return self.multi_modal_projector(self.vision_model(image.to(device, dtype=torch.float32))[0]), None
         return None, None
 
-    def generate(self, embeds=None, do_sample=True, max_length=256, temperature=1.0, top_k=50, top_p=0.9, min_p=0.0, repetition_penalty=1.0, stop_tokens=[], seed=42, initial_tokens=[]):
-        embeds = embeds.to(self.dtype)
-        device = embeds.device
-        optimized_attention = optimized_attention_for_device(device, mask=None, small_input=True)
-
-        # Initialize dynamic KV cache (starts as None, grows during generation)
-        kv_caches = [(None, None) for _ in range(len(self.model.layers))]
-
-        # Precompute RoPE frequencies for all positions up to max sequence length
-        max_seq_len = embeds.shape[1] + max_length
-        position_ids_cache = torch.arange(0, max_seq_len, device=device).unsqueeze(0)
-        rope_cache = precompute_freqs_cis(
-            self.model.config.head_dim,
-            position_ids_cache,
-            self.model.config.rope_theta,
-            self.model.config.rope_scale,
-            self.model.config.rope_dims,
-            device=device
-        )
-
-        generator = torch.Generator(device=device).manual_seed(seed) if do_sample else None
-
-        generated_token_ids = []
-        current_position = 0
-        pbar = comfy.utils.ProgressBar(max_length)
-
-        # Generation loop
-        for step in tqdm(range(max_length), desc="Generating tokens"):
-            seq_len = embeds.shape[1]
-            freqs_cis = [(cos[:, :, current_position:current_position+seq_len, :], sin[:, :, current_position:current_position+seq_len, :]) for cos, sin in rope_cache]
-            x, _, kv_caches = self.model.forward(None, embeds=embeds, attention_mask=None, freqs_cis=freqs_cis, kv_caches=kv_caches, optimized_attention=optimized_attention)
-            next_token = self.sample_token(x, temperature, top_k, top_p, min_p, repetition_penalty, initial_tokens + generated_token_ids, generator, do_sample=do_sample)
-            generated_token_ids.append(next_token[0].item())
-
-            current_position += seq_len
-            embeds = self.model.embed_tokens(next_token)
-            pbar.update(1)
-
-            if next_token[0].item() in stop_tokens:
-                break
-
-        return torch.tensor([generated_token_ids], device=device, dtype=torch.long)

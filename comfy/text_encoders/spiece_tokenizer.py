@@ -6,10 +6,10 @@ class SPieceTokenizer:
     def from_pretrained(path, **kwargs):
         return SPieceTokenizer(path, **kwargs)
 
-    def __init__(self, tokenizer_path, add_bos=False, add_eos=True, added_tokens=None):
+    def __init__(self, tokenizer_path, add_bos=False, add_eos=True, special_tokens=None):
         self.add_bos = add_bos
         self.add_eos = add_eos
-        self.added_tokens = added_tokens
+        self.special_tokens = special_tokens
         import sentencepiece
         if torch.is_tensor(tokenizer_path):
             tokenizer_path = tokenizer_path.numpy().tobytes()
@@ -28,9 +28,8 @@ class SPieceTokenizer:
         return out
 
     def __call__(self, string):
-        # Handle added_tokens by replacing them with their token IDs
-        if self.added_tokens is not None:
-            for token_str, token_id in self.added_tokens.items():
+        if self.special_tokens is not None:
+            for token_str, token_id in self.special_tokens.items():
                 if token_str in string:
                     # Split by the special token and encode parts separately
                     parts = string.split(token_str)
@@ -50,9 +49,8 @@ class SPieceTokenizer:
         if isinstance(token_ids, torch.Tensor):
             token_ids = token_ids.tolist()
 
-        if skip_special_tokens and self.added_tokens:
-            special_token_ids = set(self.added_tokens.values())
-            # Also filter common special tokens: BOS (2), EOS (1), PAD (0), and end_of_turn (106)
+        if skip_special_tokens and self.special_tokens:
+            special_token_ids = set(self.special_tokens.values())
             token_ids = [tid for tid in token_ids if tid not in special_token_ids]
 
         return self.tokenizer.decode(token_ids)
