@@ -25,17 +25,13 @@ def ltxv_te(*args, **kwargs):
 class Gemma3_12BTokenizer(sd1_clip.SDTokenizer):
     def __init__(self, embedding_directory=None, tokenizer_data={}):
         tokenizer = tokenizer_data.get("spiece_model", None)
-        added_tokens = {"<image_soft_token>": 262144}
+        added_tokens = {"<image_soft_token>": 262144, "<end_of_turn>": 106}
+        self.llama_template = "<start_of_turn>user\n{}<end_of_turn>\n<start_of_turn>model\n"
+        self.llama_template_images = "<start_of_turn>user\n<image_soft_token>{}<end_of_turn>\n<start_of_turn>model\n"
         super().__init__(tokenizer, pad_with_end=False, embedding_size=3840, embedding_key='gemma3_12b', tokenizer_class=SPieceTokenizer, has_end_token=False, pad_to_max_length=False, max_length=99999999, min_length=1, tokenizer_args={"add_bos": True, "add_eos": False, "added_tokens": added_tokens}, tokenizer_data=tokenizer_data)
 
     def state_dict(self):
         return {"spiece_model": self.tokenizer.serialize_model()}
-
-class LTXAVGemmaTokenizer(sd1_clip.SD1Tokenizer):
-    def __init__(self, embedding_directory=None, tokenizer_data={}):
-        super().__init__(embedding_directory=embedding_directory, tokenizer_data=tokenizer_data, name="gemma3_12b", tokenizer=Gemma3_12BTokenizer)
-        self.llama_template = "<start_of_turn>user\n{}<end_of_turn>\n<start_of_turn>model\n"
-        self.llama_template_images = "<start_of_turn>user\n<image_soft_token>{}<end_of_turn>\n<start_of_turn>model\n"
 
     def tokenize_with_weights(self, text, return_word_ids=False, llama_template=None, images=None, return_tokens_only=False, **kwargs):
         skip_template = False
@@ -56,18 +52,22 @@ class LTXAVGemmaTokenizer(sd1_clip.SD1Tokenizer):
         text_tokens = super().tokenize_with_weights(llama_text, return_word_ids)
 
         embed_count = 0
-        for k in text_tokens:
-            tt = text_tokens[k]
-            for r in tt:
-                for i in range(len(r)):
-                    if r[i][0] == 262144:
-                        if images is not None and embed_count < len(images):
-                            img_data = images[embed_count].unsqueeze(0) if images[embed_count].dim() == 3 else images[embed_count]
-                            r[i] = ({"type": "image", "data": img_data},) + r[i][1:]
-                            embed_count += 1
+        for r in text_tokens:
+            for i in range(len(r)):
+                if r[i][0] == 262144:
+                    if images is not None and embed_count < len(images):
+                        img_data = images[embed_count].unsqueeze(0) if images[embed_count].dim() == 3 else images[embed_count]
+                        r[i] = ({"type": "image", "data": img_data},) + r[i][1:]
+                        embed_count += 1
         if return_tokens_only:
-            return [[t[0] for t in b] for b in text_tokens[self.clip_name]]
+            return [[t[0] for t in b] for b in text_tokens]
         return text_tokens
+
+
+class LTXAVGemmaTokenizer(sd1_clip.SD1Tokenizer):
+    def __init__(self, embedding_directory=None, tokenizer_data={}):
+        super().__init__(embedding_directory=embedding_directory, tokenizer_data=tokenizer_data, name="gemma3_12b", tokenizer=Gemma3_12BTokenizer)
+
 
 class Gemma3_12BModel(sd1_clip.SDClipModel):
     def __init__(self, device="cpu", layer="all", layer_idx=None, dtype=None, attention_mask=True, model_options={}):
@@ -152,7 +152,8 @@ class LTXAVTEModel(torch.nn.Module):
         return self.gemma3_12b.process_tokens(tokens, device)
 
     def generate(self, tokens, do_sample, max_length, temperature, top_k, top_p, min_p, repetition_penalty, seed):
-        return self.gemma3_12b.transformer.generate(tokens, do_sample=do_sample, max_length=max_length, temperature=temperature, top_k=top_k, top_p=top_p, min_p=min_p,
+        embeds = self.process_tokens(tokens["gemma3_12b"], device=self.execution_device)[0]
+        return self.gemma3_12b.transformer.generate(embeds, do_sample=do_sample, max_length=max_length, temperature=temperature, top_k=top_k, top_p=top_p, min_p=min_p,
                                                     repetition_penalty=repetition_penalty, seed=seed, stop_tokens=[106])  # 106 is <end_of_turn>
 
     def load_sd(self, sd):

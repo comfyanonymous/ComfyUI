@@ -53,7 +53,6 @@ class SPieceTokenizer:
         if skip_special_tokens and self.added_tokens:
             special_token_ids = set(self.added_tokens.values())
             # Also filter common special tokens: BOS (2), EOS (1), PAD (0), and end_of_turn (106)
-            special_token_ids.update([0, 1, 2, 106])
             token_ids = [tid for tid in token_ids if tid not in special_token_ids]
 
         return self.tokenizer.decode(token_ids)
