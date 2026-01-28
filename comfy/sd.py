@@ -934,7 +934,6 @@ class VAE:
             do_tile = True
 
         if do_tile:
-            torch.cuda.empty_cache()
             dims = samples_in.ndim - 2
             if dims == 1 or self.extra_1d_channel is not None:
                 pixel_samples = self.decode_tiled_1d(samples_in)
@@ -1010,7 +1009,6 @@ class VAE:
             do_tile = True
 
         if do_tile:
-            torch.cuda.empty_cache()
             if self.latent_dim == 3:
                 tile = 256
                 overlap = tile // 4

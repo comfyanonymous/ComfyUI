@@ -527,12 +527,8 @@ async def execute(server, dynprompt, caches, current_item, extra_data, executed,
                     output_data, output_ui, has_subgraph, has_pending_tasks = await get_output_data(prompt_id, unique_id, obj, input_data_all, execution_block_cb=execution_block_cb, pre_execute_cb=pre_execute_cb, v3_data=v3_data)
                 finally:
                     if allocator is not None:
+                        comfy.model_management.reset_cast_buffers()
                         torch.cuda.synchronize()
-            if allocator is not None:
-                #FIXME: this is probably a little zealous
-                # Torch code comments says some stuff about not actually freeing tensors on mempool
-                #context release. Explicitly garbage collect now.
-                torch.cuda.empty_cache()
 
             if has_pending_tasks:
                 pending_async_nodes[unique_id] = output_data

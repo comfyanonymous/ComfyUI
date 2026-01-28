@@ -1114,6 +1114,7 @@ def get_cast_buffer(offload_stream, device, size, ref):
             torch.cuda.synchronize()
             del STREAM_CAST_BUFFERS[offload_stream]
             del cast_buffer
+            #FIXME: This doesn't work in Aimdo because mempool cant clear cache
             torch.cuda.empty_cache()
         with wf_context:
             cast_buffer = torch.empty((size), dtype=torch.int8, device=device)
@@ -1130,7 +1131,9 @@ def reset_cast_buffers():
     for offload_stream in STREAM_CAST_BUFFERS:
         offload_stream.synchronize()
     STREAM_CAST_BUFFERS.clear()
-    torch.cuda.empty_cache()
+    if comfy.memory_management.aimdo_allocator is None:
+        #Pytorch 2.7 and earlier crashes if you try and empty_cache when mempools exist
+        torch.cuda.empty_cache()
 
 def get_offload_stream(device):
     stream_counter = stream_counters.get(device, 0)
@@ -1686,9 +1689,11 @@ def soft_empty_cache(force=False):
     elif is_mlu():
         torch.mlu.empty_cache()
     elif torch.cuda.is_available():
-        torch.cuda.synchronize()
-        torch.cuda.empty_cache()
-        torch.cuda.ipc_collect()
+        if comfy.memory_management.aimdo_allocator is None:
+            #Pytorch 2.7 and earlier crashes if you try and empty_cache when mempools exist
+            torch.cuda.synchronize()
+            torch.cuda.empty_cache()
+            torch.cuda.ipc_collect()
 
 def unload_all_models():
     free_memory(1e30, get_torch_device())
