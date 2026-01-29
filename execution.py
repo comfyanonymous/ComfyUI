@@ -175,7 +175,7 @@ def get_input_data(inputs, class_def, unique_id, execution_list=None, dynprompt=
                 continue
             obj = cached.outputs[output_index]
             input_data_all[x] = obj
-        elif input_category is not None:
+        elif input_category is not None or (is_v3 and class_def.ACCEPT_ALL_INPUTS):
             input_data_all[x] = [input_data]
 
     if is_v3:

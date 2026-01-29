@@ -297,6 +297,7 @@ class ExtendIntermediateSigmas(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="ExtendIntermediateSigmas",
+            search_aliases=["interpolate sigmas"],
             category="sampling/custom_sampling/sigmas",
             inputs=[
                 io.Sigmas.Input("sigmas"),
@@ -700,7 +701,14 @@ class Noise_EmptyNoise:
 
     def generate_noise(self, input_latent):
         latent_image = input_latent["samples"]
-        return torch.zeros(latent_image.shape, dtype=latent_image.dtype, layout=latent_image.layout, device="cpu")
+        if latent_image.is_nested:
+            tensors = latent_image.unbind()
+            zeros = []
+            for t in tensors:
+                zeros.append(torch.zeros(t.shape, dtype=t.dtype, layout=t.layout, device="cpu"))
+            return comfy.nested_tensor.NestedTensor(zeros)
+        else:
+            return torch.zeros(latent_image.shape, dtype=latent_image.dtype, layout=latent_image.layout, device="cpu")
 
 
 class Noise_RandomNoise:
@@ -740,7 +748,7 @@ class SamplerCustom(io.ComfyNode):
         latent = latent_image
         latent_image = latent["samples"]
         latent = latent.copy()
-        latent_image = comfy.sample.fix_empty_latent_channels(model, latent_image)
+        latent_image = comfy.sample.fix_empty_latent_channels(model, latent_image, latent.get("downscale_ratio_spacial", None))
         latent["samples"] = latent_image
 
         if not add_noise:
@@ -759,6 +767,7 @@ class SamplerCustom(io.ComfyNode):
         samples = comfy.sample.sample_custom(model, noise, cfg, sampler, sigmas, positive, negative, latent_image, noise_mask=noise_mask, callback=callback, disable_pbar=disable_pbar, seed=noise_seed)
 
         out = latent.copy()
+        out.pop("downscale_ratio_spacial", None)
         out["samples"] = samples
         if "x0" in x0_output:
             x0_out = model.model.process_latent_out(x0_output["x0"].cpu())
@@ -856,6 +865,7 @@ class DualCFGGuider(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="DualCFGGuider",
+            search_aliases=["dual prompt guidance"],
             category="sampling/custom_sampling/guiders",
             inputs=[
                 io.Model.Input("model"),
@@ -883,6 +893,7 @@ class DisableNoise(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="DisableNoise",
+            search_aliases=["zero noise"],
             category="sampling/custom_sampling/noise",
             inputs=[],
             outputs=[io.Noise.Output()]
@@ -936,7 +947,7 @@ class SamplerCustomAdvanced(io.ComfyNode):
         latent = latent_image
         latent_image = latent["samples"]
         latent = latent.copy()
-        latent_image = comfy.sample.fix_empty_latent_channels(guider.model_patcher, latent_image)
+        latent_image = comfy.sample.fix_empty_latent_channels(guider.model_patcher, latent_image, latent.get("downscale_ratio_spacial", None))
         latent["samples"] = latent_image
 
         noise_mask = None
@@ -951,6 +962,7 @@ class SamplerCustomAdvanced(io.ComfyNode):
         samples = samples.to(comfy.model_management.intermediate_device())
 
         out = latent.copy()
+        out.pop("downscale_ratio_spacial", None)
         out["samples"] = samples
         if "x0" in x0_output:
             x0_out = guider.model_patcher.model.process_latent_out(x0_output["x0"].cpu())
@@ -1019,6 +1031,7 @@ class ManualSigmas(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="ManualSigmas",
+            search_aliases=["custom noise schedule", "define sigmas"],
             category="_for_testing/custom_sampling",
             is_experimental=True,
             inputs=[

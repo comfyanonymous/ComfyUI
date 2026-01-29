@@ -259,6 +259,7 @@ class SetClipHooks:
         return (clip,)
 
 class ConditioningTimestepsRange:
+    SEARCH_ALIASES = ["prompt scheduling", "timestep segments", "conditioning phases"]
     NodeId = 'ConditioningTimestepsRange'
     NodeName = 'Timesteps Range'
     @classmethod
@@ -468,6 +469,7 @@ class SetHookKeyframes:
         return (hooks,)
 
 class CreateHookKeyframe:
+    SEARCH_ALIASES = ["hook scheduling", "strength animation", "timed hook"]
     NodeId = 'CreateHookKeyframe'
     NodeName = 'Create Hook Keyframe'
     @classmethod
@@ -497,6 +499,7 @@ class CreateHookKeyframe:
         return (prev_hook_kf,)
 
 class CreateHookKeyframesInterpolated:
+    SEARCH_ALIASES = ["ease hook strength", "smooth hook transition", "interpolate keyframes"]
     NodeId = 'CreateHookKeyframesInterpolated'
     NodeName = 'Create Hook Keyframes Interp.'
     @classmethod
@@ -544,6 +547,7 @@ class CreateHookKeyframesInterpolated:
         return (prev_hook_kf,)
 
 class CreateHookKeyframesFromFloats:
+    SEARCH_ALIASES = ["batch keyframes", "strength list to keyframes"]
     NodeId = 'CreateHookKeyframesFromFloats'
     NodeName = 'Create Hook Keyframes From Floats'
     @classmethod
@@ -618,6 +622,7 @@ class SetModelHooksOnCond:
 # Combine Hooks
 #------------------------------------------
 class CombineHooks:
+    SEARCH_ALIASES = ["merge hooks"]
     NodeId = 'CombineHooks2'
     NodeName = 'Combine Hooks [2]'
     @classmethod

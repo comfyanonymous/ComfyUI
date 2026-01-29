@@ -754,7 +754,7 @@ class AnyType(ComfyTypeIO):
     Type = Any
 
 @comfytype(io_type="MODEL_PATCH")
-class MODEL_PATCH(ComfyTypeIO):
+class ModelPatch(ComfyTypeIO):
     Type = Any
 
 @comfytype(io_type="AUDIO_ENCODER")
@@ -1247,8 +1247,10 @@ class NodeInfoV1:
     output_node: bool=None
     deprecated: bool=None
     experimental: bool=None
+    dev_only: bool=None
     api_node: bool=None
     price_badge: dict | None = None
+    search_aliases: list[str]=None
 
 @dataclass
 class NodeInfoV3:
@@ -1263,6 +1265,7 @@ class NodeInfoV3:
     output_node: bool=None
     deprecated: bool=None
     experimental: bool=None
+    dev_only: bool=None
     api_node: bool=None
     price_badge: dict | None = None
 
@@ -1346,6 +1349,8 @@ class Schema:
     hidden: list[Hidden] = field(default_factory=list)
     description: str=""
     """Node description, shown as a tooltip when hovering over the node."""
+    search_aliases: list[str] = field(default_factory=list)
+    """Alternative names for search. Useful for synonyms, abbreviations, or old names after renaming."""
     is_input_list: bool = False
     """A flag indicating if this node implements the additional code necessary to deal with OUTPUT_IS_LIST nodes.
 
@@ -1372,6 +1377,8 @@ class Schema:
     """Flags a node as deprecated, indicating to users that they should find alternatives to this node."""
     is_experimental: bool=False
     """Flags a node as experimental, informing users that it may change or not work as expected."""
+    is_dev_only: bool=False
+    """Flags a node as dev-only, hiding it from search/menus unless dev mode is enabled."""
     is_api_node: bool=False
     """Flags a node as an API node. See: https://docs.comfy.org/tutorials/api-nodes/overview."""
     price_badge: PriceBadge | None = None
@@ -1380,6 +1387,8 @@ class Schema:
     """Flags a node as not idempotent; when True, the node will run and not reuse the cached outputs when identical inputs are provided on a different node in the graph."""
     enable_expand: bool=False
     """Flags a node as expandable, allowing NodeOutput to include 'expand' property."""
+    accept_all_inputs: bool=False
+    """When True, all inputs from the prompt will be passed to the node as kwargs, even if not defined in the schema."""
 
     def validate(self):
         '''Validate the schema:
@@ -1480,9 +1489,11 @@ class Schema:
             output_node=self.is_output_node,
             deprecated=self.is_deprecated,
             experimental=self.is_experimental,
+            dev_only=self.is_dev_only,
             api_node=self.is_api_node,
             python_module=getattr(cls, "RELATIVE_PYTHON_MODULE", "nodes"),
             price_badge=self.price_badge.as_dict(self.inputs) if self.price_badge is not None else None,
+            search_aliases=self.search_aliases if self.search_aliases else None,
         )
         return info
 
@@ -1513,6 +1524,7 @@ class Schema:
             output_node=self.is_output_node,
             deprecated=self.is_deprecated,
             experimental=self.is_experimental,
+            dev_only=self.is_dev_only,
             api_node=self.is_api_node,
             python_module=getattr(cls, "RELATIVE_PYTHON_MODULE", "nodes"),
             price_badge=self.price_badge.as_dict(self.inputs) if self.price_badge is not None else None,
@@ -1785,6 +1797,14 @@ class _ComfyNodeBaseInternal(_ComfyNodeInternal):
             cls.GET_SCHEMA()
         return cls._DEPRECATED
 
+    _DEV_ONLY = None
+    @final
+    @classproperty
+    def DEV_ONLY(cls):  # noqa
+        if cls._DEV_ONLY is None:
+            cls.GET_SCHEMA()
+        return cls._DEV_ONLY
+
     _API_NODE = None
     @final
     @classproperty
@@ -1849,6 +1869,14 @@ class _ComfyNodeBaseInternal(_ComfyNodeInternal):
             cls.GET_SCHEMA()
         return cls._NOT_IDEMPOTENT
 
+    _ACCEPT_ALL_INPUTS = None
+    @final
+    @classproperty
+    def ACCEPT_ALL_INPUTS(cls):  # noqa
+        if cls._ACCEPT_ALL_INPUTS is None:
+            cls.GET_SCHEMA()
+        return cls._ACCEPT_ALL_INPUTS
+
     @final
     @classmethod
     def INPUT_TYPES(cls) -> dict[str, dict]:
@@ -1879,6 +1907,8 @@ class _ComfyNodeBaseInternal(_ComfyNodeInternal):
             cls._EXPERIMENTAL = schema.is_experimental
         if cls._DEPRECATED is None:
             cls._DEPRECATED = schema.is_deprecated
+        if cls._DEV_ONLY is None:
+            cls._DEV_ONLY = schema.is_dev_only
         if cls._API_NODE is None:
             cls._API_NODE = schema.is_api_node
         if cls._OUTPUT_NODE is None:
@@ -1887,6 +1917,8 @@ class _ComfyNodeBaseInternal(_ComfyNodeInternal):
             cls._INPUT_IS_LIST = schema.is_input_list
         if cls._NOT_IDEMPOTENT is None:
             cls._NOT_IDEMPOTENT = schema.not_idempotent
+        if cls._ACCEPT_ALL_INPUTS is None:
+            cls._ACCEPT_ALL_INPUTS = schema.accept_all_inputs
 
         if cls._RETURN_TYPES is None:
             output = []
@@ -2034,6 +2066,7 @@ __all__ = [
     "ControlNet",
     "Vae",
     "Model",
+    "ModelPatch",
     "ClipVision",
     "ClipVisionOutput",
     "AudioEncoder",

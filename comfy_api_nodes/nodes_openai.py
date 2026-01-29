@@ -364,9 +364,9 @@ class OpenAIGPTImage1(IO.ComfyNode):
     def define_schema(cls):
         return IO.Schema(
             node_id="OpenAIGPTImage1",
-            display_name="OpenAI GPT Image 1",
+            display_name="OpenAI GPT Image 1.5",
             category="api node/image/OpenAI",
-            description="Generates images synchronously via OpenAI's GPT Image 1 endpoint.",
+            description="Generates images synchronously via OpenAI's GPT Image endpoint.",
             inputs=[
                 IO.String.Input(
                     "prompt",
@@ -429,6 +429,7 @@ class OpenAIGPTImage1(IO.ComfyNode):
                 IO.Combo.Input(
                     "model",
                     options=["gpt-image-1", "gpt-image-1.5"],
+                    default="gpt-image-1.5",
                     optional=True,
                 ),
             ],

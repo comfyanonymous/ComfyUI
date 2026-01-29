@@ -10,6 +10,7 @@ class Canny(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="Canny",
+            search_aliases=["edge detection", "outline", "contour detection", "line art"],
             category="image/preprocessors",
             inputs=[
                 io.Image.Input("image"),

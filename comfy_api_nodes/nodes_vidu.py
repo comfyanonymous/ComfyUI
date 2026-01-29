@@ -703,7 +703,7 @@ class Vidu2ReferenceVideoNode(IO.ComfyNode):
                     "subjects",
                     template=IO.Autogrow.TemplateNames(
                         IO.Image.Input("reference_images"),
-                        names=["subject1", "subject2", "subject3"],
+                        names=["subject1", "subject2", "subject3", "subject4", "subject5", "subject6", "subject7"],
                         min=1,
                     ),
                     tooltip="For each subject, provide up to 3 reference images (7 images total across all subjects). "
@@ -738,7 +738,7 @@ class Vidu2ReferenceVideoNode(IO.ComfyNode):
                     control_after_generate=True,
                 ),
                 IO.Combo.Input("aspect_ratio", options=["16:9", "9:16", "4:3", "3:4", "1:1"]),
-                IO.Combo.Input("resolution", options=["720p"]),
+                IO.Combo.Input("resolution", options=["720p", "1080p"]),
                 IO.Combo.Input(
                     "movement_amplitude",
                     options=["auto", "small", "medium", "large"],
