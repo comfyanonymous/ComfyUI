@@ -630,11 +630,12 @@ def free_memory(memory_required, device, keep_loaded=[], for_dynamic=False, ram_
             #don't actually unload dynamic models for the sake of other dynamic models
             #as that works on-demand.
             memory_required -= current_loaded_models[i].model.loaded_size()
-            continue
-        logging.debug(f"Unloading {current_loaded_models[i].model.model.__class__.__name__}")
+            memory_to_free = 0
         if memory_to_free > 0 and current_loaded_models[i].model_unload(memory_to_free):
+            logging.debug(f"Unloading {current_loaded_models[i].model.model.__class__.__name__}")
             unloaded_model.append(i)
         if ram_to_free > 0:
+            logging.debug(f"RAM Unloading {current_loaded_models[i].model.model.__class__.__name__}")
             current_loaded_models[i].model.partially_unload_ram(ram_to_free)
 
     for i in sorted(unloaded_model, reverse=True):
