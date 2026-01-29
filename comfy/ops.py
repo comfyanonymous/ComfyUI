@@ -119,6 +119,15 @@ def cast_bias_weight_with_vbar(s, dtype, device, bias_dtype, non_blocking, compu
             xfer_dest = torch.empty((dest_size,), dtype=torch.uint8, device=device)
             offload_stream = None
 
+        if signature is None and pin is None:
+            comfy.pinned_memory.pin_memory(s)
+            pin = comfy.pinned_memory.get_pin(s)
+        else:
+            pin = None
+
+        if pin is not None:
+            comfy.model_management.cast_to_gathered(xfer_source, pin)
+            xfer_srouce = [ pin ]
         #send it over
         comfy.model_management.cast_to_gathered(xfer_source, xfer_dest, non_blocking=non_blocking, stream=offload_stream)
         comfy.model_management.sync_stream(device, offload_stream)
@@ -129,13 +138,6 @@ def cast_bias_weight_with_vbar(s, dtype, device, bias_dtype, non_blocking, compu
                 if post_cast is not None:
                     post_cast.copy_(pre_cast)
             xfer_dest = cast_dest
-
-    pin = None
-    if signature is None and not resident:
-        #prepare a new pin
-        assert comfy.pinned_memory.get_pin(s) is None
-        comfy.pinned_memory.pin_memory(s)
-        pin = comfy.pinned_memory.get_pin(s)
 
     params = comfy.memory_management.interpret_gathered_like(cast_geometry, xfer_dest)
     weight = params[0]
@@ -174,20 +176,12 @@ def cast_bias_weight_with_vbar(s, dtype, device, bias_dtype, non_blocking, compu
             x = f(x)
         return x
 
-    update_weight = signature is not None or pin is not None
+    update_weight = signature is not None
 
     weight = post_cast(s, "weight", weight, dtype, resident, update_weight)
     if s.bias is not None:
         bias = post_cast(s, "bias", bias, bias_dtype, resident, update_weight)
     s._v_signature=signature
-
-    if pin is not None:
-        xfer_dest = comfy.memory_management.interpret_gathered_like([ pin ], xfer_dest)[0]
-        #FIXME: put this on nsight and see if its worth offloading to the pin with
-        #the offload stream. This adds extra sync requirements on xfer_dest in addition to:
-        #if offload_stream is not None:
-        #    offload_stream.wait_stream(comfy.model_management.current_stream(device))
-        comfy.model_management.cast_to(xfer_dest, device=pin.device, non_blocking=non_blocking, stream=None, r=pin)
 
     #FIXME: weird offload return protocol
     return weight, bias, (offload_stream, device if signature is not None else None, None)

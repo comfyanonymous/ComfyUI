@@ -1494,8 +1494,6 @@ class ModelPatcherDynamic(ModelPatcher):
                 def set_dirty(item, dirty):
                     if dirty or not hasattr(item, "_v_signature"):
                         item._v_signature = None
-                    if dirty:
-                        comfy.pinned_memory.unpin_memory(item)
 
                 def setup_param(self, m, n, param_key):
                     nonlocal num_patches
