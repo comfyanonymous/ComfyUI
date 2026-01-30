@@ -2432,7 +2432,8 @@ async def init_builtin_extra_nodes():
         "nodes_wanmove.py",
         "nodes_image_compare.py",
         "nodes_zimage.py",
-        "nodes_lora_debug.py"
+        "nodes_lora_debug.py",
+        "nodes_color.py"
     ]
 
     import_failed = []

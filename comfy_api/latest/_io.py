@@ -1146,6 +1146,20 @@ class ImageCompare(ComfyTypeI):
       def as_dict(self):
           return super().as_dict()
 
+
+@comfytype(io_type="COLOR")
+class Color(ComfyTypeIO):
+  Type = str
+
+  class Input(WidgetInput):
+      def __init__(self, id: str, display_name: str=None, optional=False, tooltip: str=None,
+                   socketless: bool=True, advanced: bool=None, default: str="#ffffff"):
+          super().__init__(id, display_name, optional, tooltip, None, default, socketless, None, None, None, None, advanced)
+          self.default: str
+
+      def as_dict(self):
+          return super().as_dict()
+
 DYNAMIC_INPUT_LOOKUP: dict[str, Callable[[dict[str, Any], dict[str, Any], tuple[str, dict[str, Any]], str, list[str] | None], None]] = {}
 def register_dynamic_input_func(io_type: str, func: Callable[[dict[str, Any], dict[str, Any], tuple[str, dict[str, Any]], str, list[str] | None], None]):
     DYNAMIC_INPUT_LOOKUP[io_type] = func
@@ -2038,6 +2052,7 @@ __all__ = [
     "AnyType",
     "MultiType",
     "Tracks",
+    "Color",
     # Dynamic Types
     "MatchType",
     "DynamicCombo",
