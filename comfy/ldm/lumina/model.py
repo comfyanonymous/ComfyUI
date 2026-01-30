@@ -451,6 +451,7 @@ class NextDiT(nn.Module):
         device=None,
         dtype=None,
         operations=None,
+        **kwargs,
     ) -> None:
         super().__init__()
         self.dtype = dtype

@@ -1,9 +1,20 @@
 import logging
+from functools import cache
 from typing import Optional
 
 import torch
+import torch.nn.functional as F
 import comfy.model_management
 from .base import WeightAdapterBase, WeightAdapterTrainBase, weight_decompose
+
+
+@cache
+def _warn_loha_bypass_inefficient():
+    """One-time warning about LoHa bypass inefficiency."""
+    logging.warning(
+        "LoHa bypass mode is inefficient: full weight diff is computed each forward pass. "
+        "Consider using LoRA or LoKr for training with bypass mode."
+    )
 
 
 class HadaWeight(torch.autograd.Function):
@@ -105,9 +116,19 @@ class LohaDiff(WeightAdapterTrainBase):
 
         scale = self.alpha / self.rank
         if self.use_tucker:
-            diff_weight = HadaWeightTucker.apply(self.hada_t1, self.hada_w1_a, self.hada_w1_b, self.hada_t2, self.hada_w2_a, self.hada_w2_b, scale)
+            diff_weight = HadaWeightTucker.apply(
+                self.hada_t1,
+                self.hada_w1_a,
+                self.hada_w1_b,
+                self.hada_t2,
+                self.hada_w2_a,
+                self.hada_w2_b,
+                scale,
+            )
         else:
-            diff_weight = HadaWeight.apply(self.hada_w1_a, self.hada_w1_b, self.hada_w2_a, self.hada_w2_b, scale)
+            diff_weight = HadaWeight.apply(
+                self.hada_w1_a, self.hada_w1_b, self.hada_w2_a, self.hada_w2_b, scale
+            )
 
         # Add the scaled difference to the original weight
         weight = w.to(diff_weight) + diff_weight.reshape(w.shape)
@@ -138,9 +159,7 @@ class LoHaAdapter(WeightAdapterBase):
         mat4 = torch.empty(rank, in_dim, device=weight.device, dtype=torch.float32)
         torch.nn.init.normal_(mat3, 0.1)
         torch.nn.init.normal_(mat4, 0.01)
-        return LohaDiff(
-            (mat1, mat2, alpha, mat3, mat4, None, None, None)
-        )
+        return LohaDiff((mat1, mat2, alpha, mat3, mat4, None, None, None))
 
     def to_train(self):
         return LohaDiff(self.weights)
@@ -172,7 +191,16 @@ class LoHaAdapter(WeightAdapterBase):
                 loaded_keys.add(hada_t1_name)
                 loaded_keys.add(hada_t2_name)
 
-            weights = (lora[hada_w1_a_name], lora[hada_w1_b_name], alpha, lora[hada_w2_a_name], lora[hada_w2_b_name], hada_t1, hada_t2, dora_scale)
+            weights = (
+                lora[hada_w1_a_name],
+                lora[hada_w1_b_name],
+                alpha,
+                lora[hada_w2_a_name],
+                lora[hada_w2_b_name],
+                hada_t1,
+                hada_t2,
+                dora_scale,
+            )
             loaded_keys.add(hada_w1_a_name)
             loaded_keys.add(hada_w1_b_name)
             loaded_keys.add(hada_w2_a_name)
@@ -203,30 +231,148 @@ class LoHaAdapter(WeightAdapterBase):
         w2a = v[3]
         w2b = v[4]
         dora_scale = v[7]
-        if v[5] is not None: #cp decomposition
+        if v[5] is not None:  # cp decomposition
             t1 = v[5]
             t2 = v[6]
-            m1 = torch.einsum('i j k l, j r, i p -> p r k l',
-                                comfy.model_management.cast_to_device(t1, weight.device, intermediate_dtype),
-                                comfy.model_management.cast_to_device(w1b, weight.device, intermediate_dtype),
-                                comfy.model_management.cast_to_device(w1a, weight.device, intermediate_dtype))
+            m1 = torch.einsum(
+                "i j k l, j r, i p -> p r k l",
+                comfy.model_management.cast_to_device(
+                    t1, weight.device, intermediate_dtype
+                ),
+                comfy.model_management.cast_to_device(
+                    w1b, weight.device, intermediate_dtype
+                ),
+                comfy.model_management.cast_to_device(
+                    w1a, weight.device, intermediate_dtype
+                ),
+            )
 
-            m2 = torch.einsum('i j k l, j r, i p -> p r k l',
-                                comfy.model_management.cast_to_device(t2, weight.device, intermediate_dtype),
-                                comfy.model_management.cast_to_device(w2b, weight.device, intermediate_dtype),
-                                comfy.model_management.cast_to_device(w2a, weight.device, intermediate_dtype))
+            m2 = torch.einsum(
+                "i j k l, j r, i p -> p r k l",
+                comfy.model_management.cast_to_device(
+                    t2, weight.device, intermediate_dtype
+                ),
+                comfy.model_management.cast_to_device(
+                    w2b, weight.device, intermediate_dtype
+                ),
+                comfy.model_management.cast_to_device(
+                    w2a, weight.device, intermediate_dtype
+                ),
+            )
         else:
-            m1 = torch.mm(comfy.model_management.cast_to_device(w1a, weight.device, intermediate_dtype),
-                            comfy.model_management.cast_to_device(w1b, weight.device, intermediate_dtype))
-            m2 = torch.mm(comfy.model_management.cast_to_device(w2a, weight.device, intermediate_dtype),
-                            comfy.model_management.cast_to_device(w2b, weight.device, intermediate_dtype))
+            m1 = torch.mm(
+                comfy.model_management.cast_to_device(
+                    w1a, weight.device, intermediate_dtype
+                ),
+                comfy.model_management.cast_to_device(
+                    w1b, weight.device, intermediate_dtype
+                ),
+            )
+            m2 = torch.mm(
+                comfy.model_management.cast_to_device(
+                    w2a, weight.device, intermediate_dtype
+                ),
+                comfy.model_management.cast_to_device(
+                    w2b, weight.device, intermediate_dtype
+                ),
+            )
 
         try:
             lora_diff = (m1 * m2).reshape(weight.shape)
             if dora_scale is not None:
-                weight = weight_decompose(dora_scale, weight, lora_diff, alpha, strength, intermediate_dtype, function)
+                weight = weight_decompose(
+                    dora_scale,
+                    weight,
+                    lora_diff,
+                    alpha,
+                    strength,
+                    intermediate_dtype,
+                    function,
+                )
             else:
                 weight += function(((strength * alpha) * lora_diff).type(weight.dtype))
         except Exception as e:
             logging.error("ERROR {} {} {}".format(self.name, key, e))
         return weight
+
+    def h(self, x: torch.Tensor, base_out: torch.Tensor) -> torch.Tensor:
+        """
+        Additive bypass component for LoHa: h(x) = diff_weight @ x
+
+        WARNING: Inefficient - computes full Hadamard product each forward.
+
+        Note:
+            Does not access original model weights - bypass mode is designed
+            for quantized models where weights may not be accessible.
+
+        Args:
+            x: Input tensor
+            base_out: Output from base forward (unused, for API consistency)
+
+        Reference: LyCORIS functional/loha.py bypass_forward_diff
+        """
+        _warn_loha_bypass_inefficient()
+
+        # FUNC_LIST: [None, None, F.linear, F.conv1d, F.conv2d, F.conv3d]
+        FUNC_LIST = [None, None, F.linear, F.conv1d, F.conv2d, F.conv3d]
+
+        v = self.weights
+        # v[0]=w1a, v[1]=w1b, v[2]=alpha, v[3]=w2a, v[4]=w2b, v[5]=t1, v[6]=t2, v[7]=dora
+        w1a = v[0]
+        w1b = v[1]
+        alpha = v[2]
+        w2a = v[3]
+        w2b = v[4]
+        t1 = v[5]
+        t2 = v[6]
+
+        # Compute scale
+        rank = w1b.shape[0]
+        scale = (alpha / rank if alpha is not None else 1.0) * getattr(
+            self, "multiplier", 1.0
+        )
+
+        # Cast dtype
+        w1a = w1a.to(dtype=x.dtype)
+        w1b = w1b.to(dtype=x.dtype)
+        w2a = w2a.to(dtype=x.dtype)
+        w2b = w2b.to(dtype=x.dtype)
+
+        # Use module info from bypass injection, not weight dimension
+        is_conv = getattr(self, "is_conv", False)
+        conv_dim = getattr(self, "conv_dim", 0)
+        kw_dict = getattr(self, "kw_dict", {})
+
+        # Compute diff weight using Hadamard product
+        if t1 is not None and t2 is not None:
+            t1 = t1.to(dtype=x.dtype)
+            t2 = t2.to(dtype=x.dtype)
+            m1 = torch.einsum("i j k l, j r, i p -> p r k l", t1, w1b, w1a)
+            m2 = torch.einsum("i j k l, j r, i p -> p r k l", t2, w2b, w2a)
+            diff_weight = (m1 * m2) * scale
+        else:
+            m1 = w1a @ w1b
+            m2 = w2a @ w2b
+            diff_weight = (m1 * m2) * scale
+
+        if is_conv:
+            op = FUNC_LIST[conv_dim + 2]
+            kernel_size = getattr(self, "kernel_size", (1,) * conv_dim)
+            in_channels = getattr(self, "in_channels", None)
+
+            # Reshape 2D diff_weight to conv format using kernel_size
+            # diff_weight: [out_channels, in_channels * prod(kernel_size)] -> [out_channels, in_channels, *kernel_size]
+            if diff_weight.dim() == 2:
+                if in_channels is not None:
+                    diff_weight = diff_weight.view(
+                        diff_weight.shape[0], in_channels, *kernel_size
+                    )
+                else:
+                    diff_weight = diff_weight.view(
+                        *diff_weight.shape, *([1] * conv_dim)
+                    )
+        else:
+            op = F.linear
+            kw_dict = {}
+
+        return op(x, diff_weight, **kw_dict)
