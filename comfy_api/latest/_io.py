@@ -1252,23 +1252,6 @@ class NodeInfoV1:
     price_badge: dict | None = None
     search_aliases: list[str]=None
 
-@dataclass
-class NodeInfoV3:
-    input: dict=None
-    output: dict=None
-    hidden: list[str]=None
-    name: str=None
-    display_name: str=None
-    description: str=None
-    python_module: Any = None
-    category: str=None
-    output_node: bool=None
-    deprecated: bool=None
-    experimental: bool=None
-    dev_only: bool=None
-    api_node: bool=None
-    price_badge: dict | None = None
-
 
 @dataclass
 class PriceBadgeDepends:
@@ -1497,40 +1480,6 @@ class Schema:
         )
         return info
 
-
-    def get_v3_info(self, cls) -> NodeInfoV3:
-        input_dict = {}
-        output_dict = {}
-        hidden_list = []
-        # TODO: make sure dynamic types will be handled correctly
-        if self.inputs:
-            for input in self.inputs:
-                add_to_dict_v3(input, input_dict)
-        if self.outputs:
-            for output in self.outputs:
-                add_to_dict_v3(output, output_dict)
-        if self.hidden:
-            for hidden in self.hidden:
-                hidden_list.append(hidden.value)
-
-        info = NodeInfoV3(
-            input=input_dict,
-            output=output_dict,
-            hidden=hidden_list,
-            name=self.node_id,
-            display_name=self.display_name,
-            description=self.description,
-            category=self.category,
-            output_node=self.is_output_node,
-            deprecated=self.is_deprecated,
-            experimental=self.is_experimental,
-            dev_only=self.is_dev_only,
-            api_node=self.is_api_node,
-            python_module=getattr(cls, "RELATIVE_PYTHON_MODULE", "nodes"),
-            price_badge=self.price_badge.as_dict(self.inputs) if self.price_badge is not None else None,
-        )
-        return info
-
 def get_finalized_class_inputs(d: dict[str, Any], live_inputs: dict[str, Any], include_hidden=False) -> tuple[dict[str, Any], V3Data]:
     out_dict = {
         "required": {},
@@ -1584,9 +1533,6 @@ def add_to_dict_v1(i: Input, d: dict):
     # for v1, we don't want to include the optional key
     as_dict.pop("optional", None)
     d.setdefault(key, {})[i.id] = (i.get_io_type(), as_dict)
-
-def add_to_dict_v3(io: Input | Output, d: dict):
-    d[io.id] = (io.get_io_type(), io.as_dict())
 
 class DynamicPathsDefaultValue:
     EMPTY_DICT = "empty_dict"
@@ -1748,13 +1694,6 @@ class _ComfyNodeBaseInternal(_ComfyNodeInternal):
         # set hidden
         type_clone.hidden = HiddenHolder.from_v3_data(v3_data)
         return type_clone
-
-    @final
-    @classmethod
-    def GET_NODE_INFO_V3(cls) -> dict[str, Any]:
-        schema = cls.GET_SCHEMA()
-        info = schema.get_v3_info(cls)
-        return asdict(info)
     #############################################
     # V1 Backwards Compatibility code
     #--------------------------------------------
@@ -2107,12 +2046,10 @@ __all__ = [
     "HiddenHolder",
     "Hidden",
     "NodeInfoV1",
-    "NodeInfoV3",
     "Schema",
     "ComfyNode",
     "NodeOutput",
     "add_to_dict_v1",
-    "add_to_dict_v3",
     "V3Data",
     "ImageCompare",
     "PriceBadgeDepends",
