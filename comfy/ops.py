@@ -96,7 +96,6 @@ def cast_bias_weight_with_vbar(s, dtype, device, bias_dtype, non_blocking, compu
         pin = comfy.pinned_memory.get_pin(s)
         if pin is not None:
             xfer_source = [ pin ]
-            resident = True #If pinned data exists, it always has LowVram already applied
         else:
             for data, geometry in zip([ s.weight, s.bias ], cast_geometry):
                 if data is None:
@@ -127,7 +126,7 @@ def cast_bias_weight_with_vbar(s, dtype, device, bias_dtype, non_blocking, compu
 
         if pin is not None:
             comfy.model_management.cast_to_gathered(xfer_source, pin)
-            xfer_srouce = [ pin ]
+            xfer_source = [ pin ]
         #send it over
         comfy.model_management.cast_to_gathered(xfer_source, xfer_dest, non_blocking=non_blocking, stream=offload_stream)
         comfy.model_management.sync_stream(device, offload_stream)
