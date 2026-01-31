@@ -13,6 +13,7 @@ from torchvision import transforms
 
 import comfy.patcher_extension
 from comfy.ldm.modules.attention import optimized_attention
+import comfy.ldm.common_dit
 
 def apply_rotary_pos_emb(
     t: torch.Tensor,
@@ -835,6 +836,8 @@ class MiniTrainDIT(nn.Module):
         padding_mask: Optional[torch.Tensor] = None,
         **kwargs,
     ):
+        orig_shape = list(x.shape)
+        x = comfy.ldm.common_dit.pad_to_patch_size(x, (self.patch_temporal, self.patch_spatial, self.patch_spatial))
         x_B_C_T_H_W = x
         timesteps_B_T = timesteps
         crossattn_emb = context
@@ -882,5 +885,5 @@ class MiniTrainDIT(nn.Module):
             )
 
         x_B_T_H_W_O = self.final_layer(x_B_T_H_W_D, t_embedding_B_T_D, adaln_lora_B_T_3D=adaln_lora_B_T_3D)
-        x_B_C_Tt_Hp_Wp = self.unpatchify(x_B_T_H_W_O)
+        x_B_C_Tt_Hp_Wp = self.unpatchify(x_B_T_H_W_O)[:, :, :orig_shape[-3], :orig_shape[-2], :orig_shape[-1]]
         return x_B_C_Tt_Hp_Wp
