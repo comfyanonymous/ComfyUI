@@ -107,7 +107,7 @@ class LTXVLatentUpsamplerBySize:
 
     RETURN_TYPES = ("LATENT",)
     FUNCTION = "upsample_latent"
-    CATEGORY = "GiusTestNodes★/image"
+    CATEGORY = "latent/video"
     DESCRIPTION = "Upscale latents to the desired size"
 
     def upsample_latent(cls, samples, upscale_method, upscale_model, vae, width, height, crop) -> tuple:
