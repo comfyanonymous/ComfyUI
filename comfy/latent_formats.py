@@ -81,6 +81,7 @@ class SD_X4(LatentFormat):
 
 class SC_Prior(LatentFormat):
     latent_channels = 16
+    spacial_downscale_ratio = 42
     def __init__(self):
         self.scale_factor = 1.0
         self.latent_rgb_factors = [
@@ -103,6 +104,7 @@ class SC_Prior(LatentFormat):
         ]
 
 class SC_B(LatentFormat):
+    spacial_downscale_ratio = 4
     def __init__(self):
         self.scale_factor = 1.0 / 0.43
         self.latent_rgb_factors = [
@@ -274,6 +276,7 @@ class Mochi(LatentFormat):
 class LTXV(LatentFormat):
     latent_channels = 128
     latent_dimensions = 3
+    spacial_downscale_ratio = 32
 
     def __init__(self):
         self.latent_rgb_factors = [
@@ -517,6 +520,7 @@ class Wan21(LatentFormat):
 class Wan22(Wan21):
     latent_channels = 48
     latent_dimensions = 3
+    spacial_downscale_ratio = 16
 
     latent_rgb_factors = [
             [ 0.0119,  0.0103,  0.0046],

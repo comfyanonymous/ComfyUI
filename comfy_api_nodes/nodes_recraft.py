@@ -12,6 +12,8 @@ from comfy_api_nodes.apis.recraft import (
     RecraftColor,
     RecraftColorChain,
     RecraftControls,
+    RecraftCreateStyleRequest,
+    RecraftCreateStyleResponse,
     RecraftImageGenerationRequest,
     RecraftImageGenerationResponse,
     RecraftImageSize,
@@ -323,6 +325,75 @@ class RecraftStyleInfiniteStyleLibrary(IO.ComfyNode):
         return IO.NodeOutput(RecraftStyle(style_id=style_id))
 
 
+class RecraftCreateStyleNode(IO.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return IO.Schema(
+            node_id="RecraftCreateStyleNode",
+            display_name="Recraft Create Style",
+            category="api node/image/Recraft",
+            description="Create a custom style from reference images. "
+            "Upload 1-5 images to use as style references. "
+            "Total size of all images is limited to 5 MB.",
+            inputs=[
+                IO.Combo.Input(
+                    "style",
+                    options=["realistic_image", "digital_illustration"],
+                    tooltip="The base style of the generated images.",
+                ),
+                IO.Autogrow.Input(
+                    "images",
+                    template=IO.Autogrow.TemplatePrefix(
+                        IO.Image.Input("image"),
+                        prefix="image",
+                        min=1,
+                        max=5,
+                    ),
+                ),
+            ],
+            outputs=[
+                IO.String.Output(display_name="style_id"),
+            ],
+            hidden=[
+                IO.Hidden.auth_token_comfy_org,
+                IO.Hidden.api_key_comfy_org,
+                IO.Hidden.unique_id,
+            ],
+            is_api_node=True,
+            price_badge=IO.PriceBadge(
+                expr="""{"type":"usd","usd": 0.04}""",
+            ),
+        )
+
+    @classmethod
+    async def execute(
+        cls,
+        style: str,
+        images: IO.Autogrow.Type,
+    ) -> IO.NodeOutput:
+        files = []
+        total_size = 0
+        max_total_size = 5 * 1024 * 1024  # 5 MB limit
+        for i, img in enumerate(list(images.values())):
+            file_bytes = tensor_to_bytesio(img, total_pixels=2048 * 2048, mime_type="image/webp").read()
+            total_size += len(file_bytes)
+            if total_size > max_total_size:
+                raise Exception("Total size of all images exceeds 5 MB limit.")
+            files.append((f"file{i + 1}", file_bytes))
+
+        response = await sync_op(
+            cls,
+            endpoint=ApiEndpoint(path="/proxy/recraft/styles", method="POST"),
+            response_model=RecraftCreateStyleResponse,
+            files=files,
+            data=RecraftCreateStyleRequest(style=style),
+            content_type="multipart/form-data",
+            max_retries=1,
+        )
+
+        return IO.NodeOutput(response.id)
+
+
 class RecraftTextToImageNode(IO.ComfyNode):
     @classmethod
     def define_schema(cls):
@@ -395,7 +466,7 @@ class RecraftTextToImageNode(IO.ComfyNode):
         negative_prompt: str = None,
         recraft_controls: RecraftControls = None,
     ) -> IO.NodeOutput:
-        validate_string(prompt, strip_whitespace=False, max_length=1000)
+        validate_string(prompt, strip_whitespace=False, min_length=1, max_length=1000)
         default_style = RecraftStyle(RecraftStyleV3.realistic_image)
         if recraft_style is None:
             recraft_style = default_style
@@ -1024,6 +1095,7 @@ class RecraftExtension(ComfyExtension):
             RecraftStyleV3DigitalIllustrationNode,
             RecraftStyleV3LogoRasterNode,
             RecraftStyleInfiniteStyleLibrary,
+            RecraftCreateStyleNode,
             RecraftColorRGBNode,
             RecraftControlsNode,
         ]

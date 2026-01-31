@@ -679,6 +679,8 @@ class PromptServer():
                 info['deprecated'] = True
             if getattr(obj_class, "EXPERIMENTAL", False):
                 info['experimental'] = True
+            if getattr(obj_class, "DEV_ONLY", False):
+                info['dev_only'] = True
 
             if hasattr(obj_class, 'API_NODE'):
                 info['api_node'] = obj_class.API_NODE
