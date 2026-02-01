@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 from dataclasses import dataclass
-from typing import Optional, Any, List, Tuple
+from typing import Optional, Any, Tuple
 import math
 
 from comfy.ldm.modules.attention import optimized_attention_for_device
