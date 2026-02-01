@@ -47,10 +47,10 @@ class ClipVisionModel():
         self.model = model_class(config, self.dtype, offload_device, comfy.ops.manual_cast)
         self.model.eval()
 
-        self.patcher = comfy.model_patcher.ModelPatcher(self.model, load_device=self.load_device, offload_device=offload_device)
+        self.patcher = comfy.model_patcher.CoreModelPatcher(self.model, load_device=self.load_device, offload_device=offload_device)
 
     def load_sd(self, sd):
-        return self.model.load_state_dict(sd, strict=False)
+        return self.model.load_state_dict(sd, strict=False, assign=self.patcher.is_dynamic())
 
     def get_sd(self):
         return self.model.state_dict()

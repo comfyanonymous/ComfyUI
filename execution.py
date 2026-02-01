@@ -9,9 +9,11 @@ import traceback
 from enum import Enum
 from typing import List, Literal, NamedTuple, Optional, Union
 import asyncio
+from contextlib import nullcontext
 
 import torch
 
+import comfy.memory_management
 import comfy.model_management
 from latent_preview import set_preview_method
 import nodes
@@ -515,7 +517,19 @@ async def execute(server, dynprompt, caches, current_item, extra_data, executed,
             def pre_execute_cb(call_index):
                 # TODO - How to handle this with async functions without contextvars (which requires Python 3.12)?
                 GraphBuilder.set_default_prefix(unique_id, call_index, 0)
-            output_data, output_ui, has_subgraph, has_pending_tasks = await get_output_data(prompt_id, unique_id, obj, input_data_all, execution_block_cb=execution_block_cb, pre_execute_cb=pre_execute_cb, v3_data=v3_data)
+
+            #Do comfy_aimdo mempool chunking here on the per-node level. Multi-model workflows
+            #will cause all sorts of incompatible memory shapes to fragment the pytorch alloc
+            #that we just want to cull out each model run.
+            allocator = comfy.memory_management.aimdo_allocator
+            with nullcontext() if allocator is None else torch.cuda.use_mem_pool(torch.cuda.MemPool(allocator.allocator())):
+                try:
+                    output_data, output_ui, has_subgraph, has_pending_tasks = await get_output_data(prompt_id, unique_id, obj, input_data_all, execution_block_cb=execution_block_cb, pre_execute_cb=pre_execute_cb, v3_data=v3_data)
+                finally:
+                    if allocator is not None:
+                        comfy.model_management.reset_cast_buffers()
+                        torch.cuda.synchronize()
+
             if has_pending_tasks:
                 pending_async_nodes[unique_id] = output_data
                 unblock = execution_list.add_external_block(unique_id)

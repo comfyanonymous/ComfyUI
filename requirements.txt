@@ -22,6 +22,7 @@ alembic
 SQLAlchemy
 av>=14.2.0
 comfy-kitchen>=0.2.7
+comfy-aimdo>=0.1.6
 requests
 
 #non essential dependencies:
