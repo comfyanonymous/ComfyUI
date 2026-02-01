@@ -96,16 +96,16 @@ def cast_bias_weight_with_vbar(s, dtype, device, bias_dtype, non_blocking, compu
         pin = comfy.pinned_memory.get_pin(s)
         if pin is not None:
             xfer_source = [ pin ]
-        else:
-            for data, geometry in zip([ s.weight, s.bias ], cast_geometry):
-                if data is None:
-                    continue
-                if data.dtype != geometry.dtype:
-                    cast_dest = xfer_dest
-                    if cast_dest is None:
-                        cast_dest = torch.empty((comfy.memory_management.vram_aligned_size(cast_geometry),), dtype=torch.uint8, device=device)
-                    xfer_dest = None
-                    break
+
+        for data, geometry in zip([ s.weight, s.bias ], cast_geometry):
+            if data is None:
+                continue
+            if data.dtype != geometry.dtype:
+                cast_dest = xfer_dest
+                if cast_dest is None:
+                    cast_dest = torch.empty((comfy.memory_management.vram_aligned_size(cast_geometry),), dtype=torch.uint8, device=device)
+                xfer_dest = None
+                break
 
         dest_size = comfy.memory_management.vram_aligned_size(xfer_source)
         offload_stream = comfy.model_management.get_offload_stream(device)
@@ -132,7 +132,7 @@ def cast_bias_weight_with_vbar(s, dtype, device, bias_dtype, non_blocking, compu
         comfy.model_management.sync_stream(device, offload_stream)
 
         if cast_dest is not None:
-            for pre_cast, post_cast in zip(comfy.memory_management.interpret_gathered_like(xfer_source, xfer_dest),
+            for pre_cast, post_cast in zip(comfy.memory_management.interpret_gathered_like([s.weight, s.bias ], xfer_dest),
                                            comfy.memory_management.interpret_gathered_like(cast_geometry, cast_dest)):
                 if post_cast is not None:
                     post_cast.copy_(pre_cast)

@@ -11,8 +11,7 @@ def pin_memory(module):
     if module.pin_failed or args.disable_pinned_memory or get_pin(module) is not None:
         return
     #FIXME: This is a RAM cache trigger event
-    params = comfy.memory_management.tensors_to_geometries([ module.weight, module.bias ])
-    size = comfy.memory_management.vram_aligned_size(params)
+    size = comfy.memory_management.vram_aligned_size([ module.weight, module.bias ])
     pin = torch.empty((size,), dtype=torch.uint8)
     if comfy.model_management.pin_memory(pin):
         module._pin = pin
