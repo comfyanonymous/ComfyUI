@@ -32,6 +32,7 @@ from comfy.cli_args import args, enables_dynamic_vram
 import json
 import time
 import mmap
+import warnings
 
 MMAP_TORCH_FILES = args.mmap_torch_files
 DISABLE_MMAP = args.disable_mmap
@@ -85,7 +86,10 @@ def load_safetensors(ckpt):
     header_size = struct.unpack("<Q", mapping[:8])[0]
     header = json.loads(mapping[8:8+header_size].decode("utf-8"))
 
-    data_area = torch.frombuffer(mapping, dtype=torch.uint8)[8 + header_size:]
+    with warnings.catch_warnings():
+        #We are working with read-only RAM by design
+        warnings.filterwarnings("ignore", message="The given buffer is not writable")
+        data_area = torch.frombuffer(mapping, dtype=torch.uint8)[8 + header_size:]
 
     sd = {}
     for name, info in header.items():
