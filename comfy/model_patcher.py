@@ -111,6 +111,10 @@ def move_weight_functions(m, device):
                 memory += f.move_to(device=device)
     return memory
 
+def string_to_seed(data):
+    logging.warning("WARNING: string_to_seed has moved from comfy.model_patcher to comfy.utils")
+    return comfy.utils.string_to_seed(data)
+
 class LowVramPatch:
     def __init__(self, key, patches, convert_func=None, set_func=None):
         self.key = key
