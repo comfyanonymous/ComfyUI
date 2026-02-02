@@ -29,17 +29,21 @@ class SPieceTokenizer:
 
     def __call__(self, string):
         if self.special_tokens is not None:
+            # Replace special tokens one by one
+            temp_string = string
             for token_str, token_id in self.special_tokens.items():
-                if token_str in string:
-                    # Split by the special token and encode parts separately
-                    parts = string.split(token_str)
-                    result = []
-                    for i, part in enumerate(parts):
-                        if part:
-                            result.extend(self.tokenizer.encode(part, add_bos=False, add_eos=False))
-                        if i < len(parts) - 1:
-                            result.append(token_id)
-                    return {"input_ids": result}
+                if token_str in temp_string:
+                    temp_string = temp_string.replace(token_str, f" {token_id} ")
+
+            if temp_string != string:
+                parts = temp_string.split()
+                result = []
+                for part in parts:
+                    if part.isdigit() and int(part) in self.special_tokens.values():
+                        result.append(int(part))
+                    else:
+                        result.extend(self.tokenizer.encode(part, add_bos=False, add_eos=False))
+                return {"input_ids": result}
 
         out = self.tokenizer.encode(string)
         return {"input_ids": out}

@@ -743,8 +743,7 @@ class BaseLlama:
         if embeds.ndim == 2:
             embeds = embeds.unsqueeze(0)
 
-        # Initialize past_key_values as empty list (will be populated after first forward pass)
-        past_key_values = []
+        past_key_values = [] #kv_cache init
 
         generator = torch.Generator(device=device).manual_seed(seed) if do_sample else None
 
