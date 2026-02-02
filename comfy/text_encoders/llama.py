@@ -742,44 +742,21 @@ class BaseLlama:
         #print("embeds dtype:", embeds.dtype, embeds.device, embeds.shape)
         if embeds.ndim == 2:
             embeds = embeds.unsqueeze(0)
-        optimized_attention = optimized_attention_for_device(device, small_input=True)
 
-        # Initialize dynamic KV cache (starts as None, grows during generation)
-        kv_caches = [(None, None) for _ in range(len(self.model.layers))]
-
-        # Precompute RoPE frequencies for all positions up to max sequence length
-        max_seq_len = embeds.shape[1] + max_length
-        position_ids_cache = torch.arange(0, max_seq_len, device=device).unsqueeze(0)
-        rope_cache = precompute_freqs_cis(
-            self.model.config.head_dim,
-            position_ids_cache,
-            self.model.config.rope_theta,
-            self.model.config.rope_scale,
-            self.model.config.rope_dims,
-            device=device
-        )
-        #print("rope cache shape:", rope_cache[0].shape if isinstance(rope_cache, tuple) else [r[0].shape for r in rope_cache])
+        # Initialize past_key_values as empty list (will be populated after first forward pass)
+        past_key_values = []
 
         generator = torch.Generator(device=device).manual_seed(seed) if do_sample else None
 
         generated_token_ids = []
-        current_position = 0
         pbar = comfy.utils.ProgressBar(max_length)
 
         # Generation loop
         for step in tqdm(range(max_length), desc="Generating tokens"):
-            seq_len = embeds.shape[1]
-            # Handle both single rope cache (cos, sin) and list of rope caches [(cos1, sin1), (cos2, sin2)]
-            if isinstance(rope_cache, list):
-                freqs_cis = [(cos[:, :, current_position:current_position+seq_len, :], sin[:, :, current_position:current_position+seq_len, :]) for cos, sin in rope_cache]
-            else:
-                cos, sin = rope_cache
-                freqs_cis = (cos[:, :, current_position:current_position+seq_len, :], sin[:, :, current_position:current_position+seq_len, :])
-            x, _, kv_caches = self.model.forward(None, embeds=embeds, attention_mask=None, freqs_cis=freqs_cis, kv_caches=kv_caches, optimized_attention=optimized_attention)
+            x, _, past_key_values = self.model.forward(None, embeds=embeds, attention_mask=None, past_key_values=past_key_values)
             next_token = self.sample_token(x, temperature, top_k, top_p, min_p, repetition_penalty, initial_tokens + generated_token_ids, generator, do_sample=do_sample)
             generated_token_ids.append(next_token[0].item())
 
-            current_position += seq_len
             embeds = self.model.embed_tokens(next_token)
             pbar.update(1)
 
