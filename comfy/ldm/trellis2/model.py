@@ -1,9 +1,9 @@
 import torch
 import torch.nn.functional as F
 import torch.nn as nn
-from vae import SparseTensor, SparseLinear, sparse_cat, VarLenTensor
+from comfy.ldm.trellis2.vae import SparseTensor, SparseLinear, sparse_cat, VarLenTensor
 from typing import Optional, Tuple, Literal, Union, List
-from attention import sparse_windowed_scaled_dot_product_self_attention, sparse_scaled_dot_product_attention
+from comfy.ldm.trellis2.attention import sparse_windowed_scaled_dot_product_self_attention, sparse_scaled_dot_product_attention
 from comfy.ldm.genmo.joint_model.layers import TimestepEmbedder
 
 class SparseGELU(nn.GELU):
