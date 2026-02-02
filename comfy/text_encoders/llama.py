@@ -735,7 +735,7 @@ class BaseLlama:
     def generate(self, embeds=None, do_sample=True, max_length=256, temperature=1.0, top_k=50, top_p=0.9, min_p=0.0, repetition_penalty=1.0, stop_tokens=[], seed=42, initial_tokens=[]):
         embeds = embeds.to(self.dtype)
         device = embeds.device
-        print("embeds dtype:", embeds.dtype, embeds.device, embeds.shape)
+        #print("embeds dtype:", embeds.dtype, embeds.device, embeds.shape)
         if embeds.ndim == 2:
             embeds = embeds.unsqueeze(0)
         optimized_attention = optimized_attention_for_device(device, small_input=True)
@@ -754,9 +754,7 @@ class BaseLlama:
             self.model.config.rope_dims,
             device=device
         )
-        print("rope cache shape:", rope_cache[0].shape if isinstance(rope_cache, tuple) else [r[0].shape for r in rope_cache])
-        # rope cache shape: torch.Size([1, 1, 278, 256])
-        # rope cache shape: [torch.Size([1, 1, 278, 256]), torch.Size([1, 1, 278, 256])]
+        #print("rope cache shape:", rope_cache[0].shape if isinstance(rope_cache, tuple) else [r[0].shape for r in rope_cache])
 
         generator = torch.Generator(device=device).manual_seed(seed) if do_sample else None
 
@@ -868,7 +866,11 @@ class Qwen25_7BVLI(BaseLlama, torch.nn.Module):
         self.visual = qwen_vl.Qwen2VLVisionTransformer(hidden_size=1280, output_hidden_size=config.hidden_size, device=device, dtype=dtype, ops=operations)
         self.dtype = dtype
 
-        self.lm_head = operations.Linear(config.hidden_size, config.vocab_size, bias=False, device=device, dtype=dtype) #todo don't always load?
+        # todo: should this be tied or not?
+        #self.lm_head = operations.Linear(config.hidden_size, config.vocab_size, bias=False, device=device, dtype=dtype)
+        if hasattr(self.model, "embed_tokens") and self.model.embed_tokens is not None:
+            self.lm_head = operations.Linear(config.hidden_size, config.vocab_size, bias=False, device=device, dtype=dtype)
+            self.lm_head.weight = self.model.embed_tokens.weight
 
     def preprocess_embed(self, embed, device):
         if embed["type"] == "image":
