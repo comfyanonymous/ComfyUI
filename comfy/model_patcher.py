@@ -161,6 +161,11 @@ def get_key_weight(model, key):
 
     return weight, set_func, convert_func
 
+def key_param_name_to_key(key, param):
+    if len(key) == 0:
+        return param
+    return "{}.{}".format(key, param)
+
 class AutoPatcherEjector:
     def __init__(self, model: 'ModelPatcher', skip_and_inject_on_exit_only=False):
         self.model = model
@@ -795,7 +800,7 @@ class ModelPatcher:
                         continue
 
                 for param in params:
-                    key = "{}.{}".format(n, param)
+                    key = key_param_name_to_key(n, param)
                     self.unpin_weight(key)
                     self.patch_weight_to_device(key, device_to=device_to)
                 if comfy.model_management.is_device_cuda(device_to):
@@ -811,7 +816,7 @@ class ModelPatcher:
                 n = x[1]
                 params = x[3]
                 for param in params:
-                    self.pin_weight_to_device("{}.{}".format(n, param))
+                    self.pin_weight_to_device(key_param_name_to_key(n, param))
 
             usable_stat = "{:.2f} MB usable,".format(lowvram_model_memory / (1024 * 1024)) if lowvram_model_memory < 1e32 else ""
             if lowvram_counter > 0:
@@ -917,7 +922,7 @@ class ModelPatcher:
                 if hasattr(m, "comfy_patched_weights") and m.comfy_patched_weights == True:
                     move_weight = True
                     for param in params:
-                        key = "{}.{}".format(n, param)
+                        key = key_param_name_to_key(n, param)
                         bk = self.backup.get(key, None)
                         if bk is not None:
                             if not lowvram_possible:
@@ -968,7 +973,7 @@ class ModelPatcher:
                         logging.debug("freed {}".format(n))
 
                         for param in params:
-                            self.pin_weight_to_device("{}.{}".format(n, param))
+                            self.pin_weight_to_device(key_param_name_to_key(n, param))
 
 
             self.model.model_lowvram = True
@@ -1501,7 +1506,7 @@ class ModelPatcherDynamic(ModelPatcher):
 
                 def setup_param(self, m, n, param_key):
                     nonlocal num_patches
-                    key = "{}.{}".format(n, param_key)
+                    key = key_param_name_to_key(n, param_key)
 
                     weight_function = []
 
@@ -1540,7 +1545,7 @@ class ModelPatcherDynamic(ModelPatcher):
 
                 else:
                     for param in params:
-                        key = "{}.{}".format(n, param)
+                        key = key_param_name_to_key(n, param)
                         weight, _, _ = get_key_weight(self.model, key)
                         weight.seed_key = key
                         set_dirty(weight, dirty)
