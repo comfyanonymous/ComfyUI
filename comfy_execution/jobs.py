@@ -171,9 +171,10 @@ def get_outputs_summary(outputs: dict) -> tuple[int, Optional[dict]]:
                 continue
 
             for item in items:
+                count += 1
+
                 if not isinstance(item, dict):
                     continue
-                count += 1
 
                 if preview_output is None and is_previewable(media_type, item):
                     enriched = {

@@ -9,9 +9,11 @@ import traceback
 from enum import Enum
 from typing import List, Literal, NamedTuple, Optional, Union
 import asyncio
+from contextlib import nullcontext
 
 import torch
 
+import comfy.memory_management
 import comfy.model_management
 from latent_preview import set_preview_method
 import nodes
@@ -515,7 +517,19 @@ async def execute(server, dynprompt, caches, current_item, extra_data, executed,
             def pre_execute_cb(call_index):
                 # TODO - How to handle this with async functions without contextvars (which requires Python 3.12)?
                 GraphBuilder.set_default_prefix(unique_id, call_index, 0)
-            output_data, output_ui, has_subgraph, has_pending_tasks = await get_output_data(prompt_id, unique_id, obj, input_data_all, execution_block_cb=execution_block_cb, pre_execute_cb=pre_execute_cb, v3_data=v3_data)
+
+            #Do comfy_aimdo mempool chunking here on the per-node level. Multi-model workflows
+            #will cause all sorts of incompatible memory shapes to fragment the pytorch alloc
+            #that we just want to cull out each model run.
+            allocator = comfy.memory_management.aimdo_allocator
+            with nullcontext() if allocator is None else torch.cuda.use_mem_pool(torch.cuda.MemPool(allocator.allocator())):
+                try:
+                    output_data, output_ui, has_subgraph, has_pending_tasks = await get_output_data(prompt_id, unique_id, obj, input_data_all, execution_block_cb=execution_block_cb, pre_execute_cb=pre_execute_cb, v3_data=v3_data)
+                finally:
+                    if allocator is not None:
+                        comfy.model_management.reset_cast_buffers()
+                        torch.cuda.synchronize()
+
             if has_pending_tasks:
                 pending_async_nodes[unique_id] = output_data
                 unblock = execution_list.add_external_block(unique_id)
@@ -1000,22 +1014,34 @@ async def validate_prompt(prompt_id, prompt, partial_execution_list: Union[list[
     outputs = set()
     for x in prompt:
         if 'class_type' not in prompt[x]:
+            node_data = prompt[x]
+            node_title = node_data.get('_meta', {}).get('title')
             error = {
-                "type": "invalid_prompt",
-                "message": "Cannot execute because a node is missing the class_type property.",
+                "type": "missing_node_type",
+                "message": f"Node '{node_title or f'ID #{x}'}' has no class_type. The workflow may be corrupted or a custom node is missing.",
                 "details": f"Node ID '#{x}'",
-                "extra_info": {}
+                "extra_info": {
+                    "node_id": x,
+                    "class_type": None,
+                    "node_title": node_title
+                }
             }
             return (False, error, [], {})
 
         class_type = prompt[x]['class_type']
         class_ = nodes.NODE_CLASS_MAPPINGS.get(class_type, None)
         if class_ is None:
+            node_data = prompt[x]
+            node_title = node_data.get('_meta', {}).get('title', class_type)
             error = {
-                "type": "invalid_prompt",
-                "message": f"Cannot execute because node {class_type} does not exist.",
+                "type": "missing_node_type",
+                "message": f"Node '{node_title}' not found. The custom node may not be installed.",
                 "details": f"Node ID '#{x}'",
-                "extra_info": {}
+                "extra_info": {
+                    "node_id": x,
+                    "class_type": class_type,
+                    "node_title": node_title
+                }
             }
             return (False, error, [], {})
 

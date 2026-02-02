@@ -1146,6 +1146,20 @@ class ImageCompare(ComfyTypeI):
       def as_dict(self):
           return super().as_dict()
 
+
+@comfytype(io_type="COLOR")
+class Color(ComfyTypeIO):
+  Type = str
+
+  class Input(WidgetInput):
+      def __init__(self, id: str, display_name: str=None, optional=False, tooltip: str=None,
+                   socketless: bool=True, advanced: bool=None, default: str="#ffffff"):
+          super().__init__(id, display_name, optional, tooltip, None, default, socketless, None, None, None, None, advanced)
+          self.default: str
+
+      def as_dict(self):
+          return super().as_dict()
+
 DYNAMIC_INPUT_LOOKUP: dict[str, Callable[[dict[str, Any], dict[str, Any], tuple[str, dict[str, Any]], str, list[str] | None], None]] = {}
 def register_dynamic_input_func(io_type: str, func: Callable[[dict[str, Any], dict[str, Any], tuple[str, dict[str, Any]], str, list[str] | None], None]):
     DYNAMIC_INPUT_LOOKUP[io_type] = func
@@ -1234,6 +1248,7 @@ class Hidden(str, Enum):
 class NodeInfoV1:
     input: dict=None
     input_order: dict[str, list[str]]=None
+    is_input_list: bool=None
     output: list[str]=None
     output_is_list: list[bool]=None
     output_name: list[str]=None
@@ -1247,25 +1262,10 @@ class NodeInfoV1:
     output_node: bool=None
     deprecated: bool=None
     experimental: bool=None
+    dev_only: bool=None
     api_node: bool=None
     price_badge: dict | None = None
     search_aliases: list[str]=None
-
-@dataclass
-class NodeInfoV3:
-    input: dict=None
-    output: dict=None
-    hidden: list[str]=None
-    name: str=None
-    display_name: str=None
-    description: str=None
-    python_module: Any = None
-    category: str=None
-    output_node: bool=None
-    deprecated: bool=None
-    experimental: bool=None
-    api_node: bool=None
-    price_badge: dict | None = None
 
 
 @dataclass
@@ -1375,6 +1375,8 @@ class Schema:
     """Flags a node as deprecated, indicating to users that they should find alternatives to this node."""
     is_experimental: bool=False
     """Flags a node as experimental, informing users that it may change or not work as expected."""
+    is_dev_only: bool=False
+    """Flags a node as dev-only, hiding it from search/menus unless dev mode is enabled."""
     is_api_node: bool=False
     """Flags a node as an API node. See: https://docs.comfy.org/tutorials/api-nodes/overview."""
     price_badge: PriceBadge | None = None
@@ -1473,6 +1475,7 @@ class Schema:
         info = NodeInfoV1(
             input=input,
             input_order={key: list(value.keys()) for (key, value) in input.items()},
+            is_input_list=self.is_input_list,
             output=output,
             output_is_list=output_is_list,
             output_name=output_name,
@@ -1485,43 +1488,11 @@ class Schema:
             output_node=self.is_output_node,
             deprecated=self.is_deprecated,
             experimental=self.is_experimental,
+            dev_only=self.is_dev_only,
             api_node=self.is_api_node,
             python_module=getattr(cls, "RELATIVE_PYTHON_MODULE", "nodes"),
             price_badge=self.price_badge.as_dict(self.inputs) if self.price_badge is not None else None,
             search_aliases=self.search_aliases if self.search_aliases else None,
-        )
-        return info
-
-
-    def get_v3_info(self, cls) -> NodeInfoV3:
-        input_dict = {}
-        output_dict = {}
-        hidden_list = []
-        # TODO: make sure dynamic types will be handled correctly
-        if self.inputs:
-            for input in self.inputs:
-                add_to_dict_v3(input, input_dict)
-        if self.outputs:
-            for output in self.outputs:
-                add_to_dict_v3(output, output_dict)
-        if self.hidden:
-            for hidden in self.hidden:
-                hidden_list.append(hidden.value)
-
-        info = NodeInfoV3(
-            input=input_dict,
-            output=output_dict,
-            hidden=hidden_list,
-            name=self.node_id,
-            display_name=self.display_name,
-            description=self.description,
-            category=self.category,
-            output_node=self.is_output_node,
-            deprecated=self.is_deprecated,
-            experimental=self.is_experimental,
-            api_node=self.is_api_node,
-            python_module=getattr(cls, "RELATIVE_PYTHON_MODULE", "nodes"),
-            price_badge=self.price_badge.as_dict(self.inputs) if self.price_badge is not None else None,
         )
         return info
 
@@ -1578,9 +1549,6 @@ def add_to_dict_v1(i: Input, d: dict):
     # for v1, we don't want to include the optional key
     as_dict.pop("optional", None)
     d.setdefault(key, {})[i.id] = (i.get_io_type(), as_dict)
-
-def add_to_dict_v3(io: Input | Output, d: dict):
-    d[io.id] = (io.get_io_type(), io.as_dict())
 
 class DynamicPathsDefaultValue:
     EMPTY_DICT = "empty_dict"
@@ -1742,13 +1710,6 @@ class _ComfyNodeBaseInternal(_ComfyNodeInternal):
         # set hidden
         type_clone.hidden = HiddenHolder.from_v3_data(v3_data)
         return type_clone
-
-    @final
-    @classmethod
-    def GET_NODE_INFO_V3(cls) -> dict[str, Any]:
-        schema = cls.GET_SCHEMA()
-        info = schema.get_v3_info(cls)
-        return asdict(info)
     #############################################
     # V1 Backwards Compatibility code
     #--------------------------------------------
@@ -1790,6 +1751,14 @@ class _ComfyNodeBaseInternal(_ComfyNodeInternal):
         if cls._DEPRECATED is None:
             cls.GET_SCHEMA()
         return cls._DEPRECATED
+
+    _DEV_ONLY = None
+    @final
+    @classproperty
+    def DEV_ONLY(cls):  # noqa
+        if cls._DEV_ONLY is None:
+            cls.GET_SCHEMA()
+        return cls._DEV_ONLY
 
     _API_NODE = None
     @final
@@ -1893,6 +1862,8 @@ class _ComfyNodeBaseInternal(_ComfyNodeInternal):
             cls._EXPERIMENTAL = schema.is_experimental
         if cls._DEPRECATED is None:
             cls._DEPRECATED = schema.is_deprecated
+        if cls._DEV_ONLY is None:
+            cls._DEV_ONLY = schema.is_dev_only
         if cls._API_NODE is None:
             cls._API_NODE = schema.is_api_node
         if cls._OUTPUT_NODE is None:
@@ -2083,6 +2054,7 @@ __all__ = [
     "AnyType",
     "MultiType",
     "Tracks",
+    "Color",
     # Dynamic Types
     "MatchType",
     "DynamicCombo",
@@ -2091,12 +2063,10 @@ __all__ = [
     "HiddenHolder",
     "Hidden",
     "NodeInfoV1",
-    "NodeInfoV3",
     "Schema",
     "ComfyNode",
     "NodeOutput",
     "add_to_dict_v1",
-    "add_to_dict_v3",
     "V3Data",
     "ImageCompare",
     "PriceBadgeDepends",
