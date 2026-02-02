@@ -5749,8 +5749,8 @@ class EasyInputMessage(BaseModel):
 
 
 class GeminiContent(BaseModel):
-    parts: List[GeminiPart]
-    role: Role1 = Field(..., examples=['user'])
+    parts: List[GeminiPart] = Field(default_factory=list)
+    role: Optional[Role1] = Field(None, examples=['user'])
 
 
 class GeminiGenerateContentRequest(BaseModel):

@@ -75,7 +75,7 @@ class GeminiTextPart(BaseModel):
 
 class GeminiContent(BaseModel):
     parts: list[GeminiPart] = Field([])
-    role: GeminiRole = Field(..., examples=["user"])
+    role: GeminiRole | None = Field(None, examples=["user"])
 
 
 class GeminiSystemInstructionContent(BaseModel):
