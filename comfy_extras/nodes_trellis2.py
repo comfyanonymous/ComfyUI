@@ -206,7 +206,8 @@ class EmptyShapeLatentTrellis2(IO.ComfyNode):
                 IO.Latent.Output(),
             ]
         )
-    
+
+    @classmethod
     def execute(cls, structure_output):
         # i will see what i have to do here
         coords = structure_output or structure_output.coords
@@ -227,7 +228,8 @@ class EmptyTextureLatentTrellis2(IO.ComfyNode):
                 IO.Latent.Output(),
             ]
         )
-    
+
+    @classmethod
     def execute(cls, structure_output):
         # TODO
         in_channels = 32
@@ -248,7 +250,7 @@ class EmptyStructureLatentTrellis2(IO.ComfyNode):
                 IO.Latent.Output(),
             ]
         )
-    
+    @classmethod
     def execute(cls, res, batch_size):
         in_channels = 32
         latent = torch.randn(batch_size, in_channels, res, res, res)
