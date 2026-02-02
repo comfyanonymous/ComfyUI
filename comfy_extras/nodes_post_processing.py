@@ -254,6 +254,7 @@ class ResizeType(str, Enum):
     SCALE_HEIGHT = "scale height"
     SCALE_TOTAL_PIXELS = "scale total pixels"
     MATCH_SIZE = "match size"
+    SCALE_TO_MULTIPLE = "scale to multiple"
 
 def is_image(input: torch.Tensor) -> bool:
     # images have 4 dimensions: [batch, height, width, channels]
@@ -328,7 +329,7 @@ def scale_shorter_dimension(input: torch.Tensor, shorter_size: int, scale_method
     if height < width:
         width = round((width / height) * shorter_size)
         height = shorter_size
-    elif width > height:
+    elif width < height:
         height = round((height / width) * shorter_size)
         width = shorter_size
     else:
@@ -363,8 +364,44 @@ def scale_match_size(input: torch.Tensor, match: torch.Tensor, scale_method: str
     input = finalize_image_mask_input(input, is_type_image)
     return input
 
-class ResizeImageMaskNode(io.ComfyNode):
+def scale_to_multiple_cover(input: torch.Tensor, multiple: int, scale_method: str) -> torch.Tensor:
+    if multiple <= 1:
+        return input
+    is_type_image = is_image(input)
+    if is_type_image:
+        _, height, width, _ = input.shape
+    else:
+        _, height, width = input.shape
+    target_w = (width // multiple) * multiple
+    target_h = (height // multiple) * multiple
+    if target_w == 0 or target_h == 0:
+        return input
+    if target_w == width and target_h == height:
+        return input
+    s_w = target_w / width
+    s_h = target_h / height
+    if s_w >= s_h:
+        scaled_w = target_w
+        scaled_h = int(math.ceil(height * s_w))
+        if scaled_h < target_h:
+            scaled_h = target_h
+    else:
+        scaled_h = target_h
+        scaled_w = int(math.ceil(width * s_h))
+        if scaled_w < target_w:
+            scaled_w = target_w
+    input = init_image_mask_input(input, is_type_image)
+    input = comfy.utils.common_upscale(input, scaled_w, scaled_h, scale_method, "disabled")
+    input = finalize_image_mask_input(input, is_type_image)
+    x0 = (scaled_w - target_w) // 2
+    y0 = (scaled_h - target_h) // 2
+    x1 = x0 + target_w
+    y1 = y0 + target_h
+    if is_type_image:
+        return input[:, y0:y1, x0:x1, :]
+    return input[:, y0:y1, x0:x1]
 
+class ResizeImageMaskNode(io.ComfyNode):
     scale_methods = ["nearest-exact", "bilinear", "area", "bicubic", "lanczos"]
     crop_methods = ["disabled", "center"]
 
@@ -378,47 +415,67 @@ class ResizeImageMaskNode(io.ComfyNode):
         longer_size: int
         shorter_size: int
         megapixels: float
+        multiple: int
 
     @classmethod
     def define_schema(cls):
         template = io.MatchType.Template("input_type", [io.Image, io.Mask])
-        crop_combo = io.Combo.Input("crop", options=cls.crop_methods, default="center")
+        crop_combo = io.Combo.Input(
+            "crop",
+            options=cls.crop_methods,
+            default="center",
+            tooltip="How to handle aspect ratio mismatch: 'disabled' stretches to fit, 'center' crops to maintain aspect ratio.",
+        )
         return io.Schema(
             node_id="ResizeImageMaskNode",
             display_name="Resize Image/Mask",
+            description="Resize an image or mask using various scaling methods.",
             category="transform",
+            search_aliases=["resize", "resize image", "resize mask", "scale", "scale image", "scale mask", "image resize", "change size", "dimensions", "shrink", "enlarge"],
             inputs=[
                 io.MatchType.Input("input", template=template),
-                io.DynamicCombo.Input("resize_type", options=[
-                    io.DynamicCombo.Option(ResizeType.SCALE_BY, [
-                        io.Float.Input("multiplier", default=1.00, min=0.01, max=8.0, step=0.01),
+                io.DynamicCombo.Input(
+                    "resize_type",
+                    tooltip="Select how to resize: by exact dimensions, scale factor, matching another image, etc.",
+                    options=[
+                        io.DynamicCombo.Option(ResizeType.SCALE_DIMENSIONS, [
+                            io.Int.Input("width", default=512, min=0, max=MAX_RESOLUTION, step=1, tooltip="Target width in pixels. Set to 0 to auto-calculate from height while preserving aspect ratio."),
+                            io.Int.Input("height", default=512, min=0, max=MAX_RESOLUTION, step=1, tooltip="Target height in pixels. Set to 0 to auto-calculate from width while preserving aspect ratio."),
+                            crop_combo,
                         ]),
-                    io.DynamicCombo.Option(ResizeType.SCALE_DIMENSIONS, [
-                        io.Int.Input("width", default=512, min=0, max=MAX_RESOLUTION, step=1),
-                        io.Int.Input("height", default=512, min=0, max=MAX_RESOLUTION, step=1),
-                        crop_combo,
+                        io.DynamicCombo.Option(ResizeType.SCALE_BY, [
+                            io.Float.Input("multiplier", default=1.00, min=0.01, max=8.0, step=0.01, tooltip="Scale factor (e.g., 2.0 doubles size, 0.5 halves size)."),
                         ]),
-                    io.DynamicCombo.Option(ResizeType.SCALE_LONGER_DIMENSION, [
-                        io.Int.Input("longer_size", default=512, min=0, max=MAX_RESOLUTION, step=1),
+                        io.DynamicCombo.Option(ResizeType.SCALE_LONGER_DIMENSION, [
+                            io.Int.Input("longer_size", default=512, min=0, max=MAX_RESOLUTION, step=1, tooltip="The longer edge will be resized to this value. Aspect ratio is preserved."),
                         ]),
-                    io.DynamicCombo.Option(ResizeType.SCALE_SHORTER_DIMENSION, [
-                        io.Int.Input("shorter_size", default=512, min=0, max=MAX_RESOLUTION, step=1),
+                        io.DynamicCombo.Option(ResizeType.SCALE_SHORTER_DIMENSION, [
+                            io.Int.Input("shorter_size", default=512, min=0, max=MAX_RESOLUTION, step=1, tooltip="The shorter edge will be resized to this value. Aspect ratio is preserved."),
                         ]),
-                    io.DynamicCombo.Option(ResizeType.SCALE_WIDTH, [
-                        io.Int.Input("width", default=512, min=0, max=MAX_RESOLUTION, step=1),
+                        io.DynamicCombo.Option(ResizeType.SCALE_WIDTH, [
+                            io.Int.Input("width", default=512, min=0, max=MAX_RESOLUTION, step=1, tooltip="Target width in pixels. Height auto-adjusts to preserve aspect ratio."),
                         ]),
-                    io.DynamicCombo.Option(ResizeType.SCALE_HEIGHT, [
-                        io.Int.Input("height", default=512, min=0, max=MAX_RESOLUTION, step=1),
+                        io.DynamicCombo.Option(ResizeType.SCALE_HEIGHT, [
+                            io.Int.Input("height", default=512, min=0, max=MAX_RESOLUTION, step=1, tooltip="Target height in pixels. Width auto-adjusts to preserve aspect ratio."),
                         ]),
-                    io.DynamicCombo.Option(ResizeType.SCALE_TOTAL_PIXELS, [
-                        io.Float.Input("megapixels", default=1.0, min=0.01, max=16.0, step=0.01),
+                        io.DynamicCombo.Option(ResizeType.SCALE_TOTAL_PIXELS, [
+                            io.Float.Input("megapixels", default=1.0, min=0.01, max=16.0, step=0.01, tooltip="Target total megapixels (e.g., 1.0 ≈ 1024×1024). Aspect ratio is preserved."),
                         ]),
-                    io.DynamicCombo.Option(ResizeType.MATCH_SIZE, [
-                        io.MultiType.Input("match", [io.Image, io.Mask]),
-                        crop_combo,
+                        io.DynamicCombo.Option(ResizeType.MATCH_SIZE, [
+                            io.MultiType.Input("match", [io.Image, io.Mask], tooltip="Resize input to match the dimensions of this reference image or mask."),
+                            crop_combo,
                         ]),
-                ]),
-                io.Combo.Input("scale_method", options=cls.scale_methods, default="area"),
+                        io.DynamicCombo.Option(ResizeType.SCALE_TO_MULTIPLE, [
+                            io.Int.Input("multiple", default=8, min=1, max=MAX_RESOLUTION, step=1, tooltip="Resize so width and height are divisible by this number. Useful for latent alignment (e.g., 8 or 64)."),
+                        ]),
+                    ],
+                ),
+                io.Combo.Input(
+                    "scale_method",
+                    options=cls.scale_methods,
+                    default="area",
+                    tooltip="Interpolation algorithm. 'area' is best for downscaling, 'lanczos' for upscaling, 'nearest-exact' for pixel art.",
+                ),
             ],
             outputs=[io.MatchType.Output(template=template, display_name="resized")]
         )
@@ -442,6 +499,8 @@ class ResizeImageMaskNode(io.ComfyNode):
             return io.NodeOutput(scale_total_pixels(input, resize_type["megapixels"], scale_method))
         elif selected_type == ResizeType.MATCH_SIZE:
             return io.NodeOutput(scale_match_size(input, resize_type["match"], scale_method, resize_type["crop"]))
+        elif selected_type == ResizeType.SCALE_TO_MULTIPLE:
+            return io.NodeOutput(scale_to_multiple_cover(input, resize_type["multiple"], scale_method))
         raise ValueError(f"Unsupported resize type: {selected_type}")
 
 def batch_images(images: list[torch.Tensor]) -> torch.Tensor | None:
@@ -506,6 +565,7 @@ class BatchImagesNode(io.ComfyNode):
             node_id="BatchImagesNode",
             display_name="Batch Images",
             category="image",
+            search_aliases=["batch", "image batch", "batch images", "combine images", "merge images", "stack images"],
             inputs=[
                 io.Autogrow.Input("images", template=autogrow_template)
             ],
@@ -524,6 +584,7 @@ class BatchMasksNode(io.ComfyNode):
         autogrow_template = io.Autogrow.TemplatePrefix(io.Mask.Input("mask"), prefix="mask", min=2, max=50)
         return io.Schema(
             node_id="BatchMasksNode",
+            search_aliases=["combine masks", "stack masks", "merge masks"],
             display_name="Batch Masks",
             category="mask",
             inputs=[
@@ -544,6 +605,7 @@ class BatchLatentsNode(io.ComfyNode):
         autogrow_template = io.Autogrow.TemplatePrefix(io.Latent.Input("latent"), prefix="latent", min=2, max=50)
         return io.Schema(
             node_id="BatchLatentsNode",
+            search_aliases=["combine latents", "stack latents", "merge latents"],
             display_name="Batch Latents",
             category="latent",
             inputs=[
@@ -567,6 +629,7 @@ class BatchImagesMasksLatentsNode(io.ComfyNode):
                 prefix="input", min=1, max=50)
         return io.Schema(
             node_id="BatchImagesMasksLatentsNode",
+            search_aliases=["combine batch", "merge batch", "stack inputs"],
             display_name="Batch Images/Masks/Latents",
             category="util",
             inputs=[

@@ -14,7 +14,7 @@ from typing import Optional
 from io import BytesIO
 from typing_extensions import override
 from PIL import Image
-from comfy_api_nodes.apis.rodin_api import (
+from comfy_api_nodes.apis.rodin import (
     Rodin3DGenerateRequest,
     Rodin3DGenerateResponse,
     Rodin3DCheckStatusRequest,
@@ -241,6 +241,9 @@ class Rodin3D_Regular(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
+            price_badge=IO.PriceBadge(
+                expr="""{"type":"usd","usd":0.4}""",
+            ),
         )
 
     @classmethod
@@ -294,6 +297,9 @@ class Rodin3D_Detail(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
+            price_badge=IO.PriceBadge(
+                expr="""{"type":"usd","usd":0.4}""",
+            ),
         )
 
     @classmethod
@@ -347,6 +353,9 @@ class Rodin3D_Smooth(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
+            price_badge=IO.PriceBadge(
+                expr="""{"type":"usd","usd":0.4}""",
+            ),
         )
 
     @classmethod
@@ -406,6 +415,9 @@ class Rodin3D_Sketch(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
+            price_badge=IO.PriceBadge(
+                expr="""{"type":"usd","usd":0.4}""",
+            ),
         )
 
     @classmethod

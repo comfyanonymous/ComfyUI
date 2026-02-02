@@ -3,7 +3,7 @@ import logging
 from typing_extensions import override
 
 from comfy_api.latest import IO, ComfyExtension, Input
-from comfy_api_nodes.apis import (
+from comfy_api_nodes.apis.moonvalley import (
     MoonvalleyPromptResponse,
     MoonvalleyTextToVideoInferenceParams,
     MoonvalleyTextToVideoRequest,
@@ -233,6 +233,10 @@ class MoonvalleyImg2VideoNode(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
+            price_badge=IO.PriceBadge(
+                depends_on=IO.PriceBadgeDepends(),
+                expr="""{"type":"usd","usd": 1.5}""",
+            ),
         )
 
     @classmethod
@@ -351,6 +355,10 @@ class MoonvalleyVideo2VideoNode(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
+            price_badge=IO.PriceBadge(
+                depends_on=IO.PriceBadgeDepends(),
+                expr="""{"type":"usd","usd": 2.25}""",
+            ),
         )
 
     @classmethod
@@ -471,6 +479,10 @@ class MoonvalleyTxt2VideoNode(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
+            price_badge=IO.PriceBadge(
+                depends_on=IO.PriceBadgeDepends(),
+                expr="""{"type":"usd","usd": 1.5}""",
+            ),
         )
 
     @classmethod

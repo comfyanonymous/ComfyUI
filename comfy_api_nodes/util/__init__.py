@@ -11,7 +11,9 @@ from .conversions import (
     audio_input_to_mp3,
     audio_to_base64_string,
     bytesio_to_image_tensor,
+    convert_mask_to_image,
     downscale_image_tensor,
+    downscale_image_tensor_by_max_side,
     image_tensor_pair_to_batch,
     pil_to_bytesio,
     resize_mask_to_image,
@@ -32,6 +34,7 @@ from .download_helpers import (
 from .upload_helpers import (
     upload_audio_to_comfyapi,
     upload_file_to_comfyapi,
+    upload_image_to_comfyapi,
     upload_images_to_comfyapi,
     upload_video_to_comfyapi,
 )
@@ -60,6 +63,7 @@ __all__ = [
     # Upload helpers
     "upload_audio_to_comfyapi",
     "upload_file_to_comfyapi",
+    "upload_image_to_comfyapi",
     "upload_images_to_comfyapi",
     "upload_video_to_comfyapi",
     # Download helpers
@@ -72,7 +76,9 @@ __all__ = [
     "audio_input_to_mp3",
     "audio_to_base64_string",
     "bytesio_to_image_tensor",
+    "convert_mask_to_image",
     "downscale_image_tensor",
+    "downscale_image_tensor_by_max_side",
     "image_tensor_pair_to_batch",
     "pil_to_bytesio",
     "resize_mask_to_image",

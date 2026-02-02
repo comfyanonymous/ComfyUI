@@ -28,8 +28,11 @@ import logging
 import itertools
 from torch.nn.functional import interpolate
 from einops import rearrange
-from comfy.cli_args import args
+from comfy.cli_args import args, enables_dynamic_vram
 import json
+import time
+import mmap
+import warnings
 
 MMAP_TORCH_FILES = args.mmap_torch_files
 DISABLE_MMAP = args.disable_mmap
@@ -55,21 +58,70 @@ if hasattr(torch.serialization, "add_safe_globals"):  # TODO: this was added in 
 else:
     logging.warning("Warning, you are using an old pytorch version and some ckpt/pt files might be loaded unsafely. Upgrading to 2.4 or above is recommended as older versions of pytorch are no longer supported.")
 
+# Current as of safetensors 0.7.0
+_TYPES = {
+    "F64": torch.float64,
+    "F32": torch.float32,
+    "F16": torch.float16,
+    "BF16": torch.bfloat16,
+    "I64": torch.int64,
+    "I32": torch.int32,
+    "I16": torch.int16,
+    "I8": torch.int8,
+    "U8": torch.uint8,
+    "BOOL": torch.bool,
+    "F8_E4M3": torch.float8_e4m3fn,
+    "F8_E5M2": torch.float8_e5m2,
+    "C64": torch.complex64,
+
+    "U64": torch.uint64,
+    "U32": torch.uint32,
+    "U16": torch.uint16,
+}
+
+def load_safetensors(ckpt):
+    f = open(ckpt, "rb")
+    mapping = mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ)
+
+    header_size = struct.unpack("<Q", mapping[:8])[0]
+    header = json.loads(mapping[8:8+header_size].decode("utf-8"))
+
+    with warnings.catch_warnings():
+        #We are working with read-only RAM by design
+        warnings.filterwarnings("ignore", message="The given buffer is not writable")
+        data_area = torch.frombuffer(mapping, dtype=torch.uint8)[8 + header_size:]
+
+    sd = {}
+    for name, info in header.items():
+        if name == "__metadata__":
+            continue
+
+        start, end = info["data_offsets"]
+        sd[name] = data_area[start:end].view(_TYPES[info["dtype"]]).view(info["shape"])
+
+    return sd, header.get("__metadata__", {}),
+
+
 def load_torch_file(ckpt, safe_load=False, device=None, return_metadata=False):
     if device is None:
         device = torch.device("cpu")
     metadata = None
     if ckpt.lower().endswith(".safetensors") or ckpt.lower().endswith(".sft"):
         try:
-            with safetensors.safe_open(ckpt, framework="pt", device=device.type) as f:
-                sd = {}
-                for k in f.keys():
-                    tensor = f.get_tensor(k)
-                    if DISABLE_MMAP:  # TODO: Not sure if this is the best way to bypass the mmap issues
-                        tensor = tensor.to(device=device, copy=True)
-                    sd[k] = tensor
-                if return_metadata:
-                    metadata = f.metadata()
+            if enables_dynamic_vram():
+                sd, metadata = load_safetensors(ckpt)
+                if not return_metadata:
+                    metadata = None
+            else:
+                with safetensors.safe_open(ckpt, framework="pt", device=device.type) as f:
+                    sd = {}
+                    for k in f.keys():
+                        tensor = f.get_tensor(k)
+                        if DISABLE_MMAP:  # TODO: Not sure if this is the best way to bypass the mmap issues
+                            tensor = tensor.to(device=device, copy=True)
+                        sd[k] = tensor
+                    if return_metadata:
+                        metadata = f.metadata()
         except Exception as e:
             if len(e.args) > 0:
                 message = e.args[0]
@@ -610,6 +662,14 @@ def flux_to_diffusers(mmdit_config, output_prefix=""):
                         "ff_context.net.0.proj.bias": "txt_mlp.0.bias",
                         "ff_context.net.2.weight": "txt_mlp.2.weight",
                         "ff_context.net.2.bias": "txt_mlp.2.bias",
+                        "ff.linear_in.weight": "img_mlp.0.weight",  # LyCoris LoKr
+                        "ff.linear_in.bias": "img_mlp.0.bias",
+                        "ff.linear_out.weight": "img_mlp.2.weight",
+                        "ff.linear_out.bias": "img_mlp.2.bias",
+                        "ff_context.linear_in.weight": "txt_mlp.0.weight",
+                        "ff_context.linear_in.bias": "txt_mlp.0.bias",
+                        "ff_context.linear_out.weight": "txt_mlp.2.weight",
+                        "ff_context.linear_out.bias": "txt_mlp.2.bias",
                         "attn.norm_q.weight": "img_attn.norm.query_norm.scale",
                         "attn.norm_k.weight": "img_attn.norm.key_norm.scale",
                         "attn.norm_added_q.weight": "txt_attn.norm.query_norm.scale",
@@ -638,6 +698,8 @@ def flux_to_diffusers(mmdit_config, output_prefix=""):
                         "proj_out.bias": "linear2.bias",
                         "attn.norm_q.weight": "norm.query_norm.scale",
                         "attn.norm_k.weight": "norm.key_norm.scale",
+                        "attn.to_qkv_mlp_proj.weight": "linear1.weight", # Flux 2
+                        "attn.to_out.weight": "linear2.weight", # Flux 2
                     }
 
         for k in block_map:
@@ -928,7 +990,9 @@ def bislerp(samples, width, height):
     return result.to(orig_dtype)
 
 def lanczos(samples, width, height):
-    images = [Image.fromarray(np.clip(255. * image.movedim(0, -1).cpu().numpy(), 0, 255).astype(np.uint8)) for image in samples]
+    #the below API is strict and expects grayscale to be squeezed
+    samples = samples.squeeze(1) if samples.shape[1] == 1 else samples.movedim(1, -1)
+    images = [Image.fromarray(np.clip(255. * image.cpu().numpy(), 0, 255).astype(np.uint8)) for image in samples]
     images = [image.resize((width, height), resample=Image.Resampling.LANCZOS) for image in images]
     images = [torch.from_numpy(np.array(image).astype(np.float32) / 255.0).movedim(-1, 0) for image in images]
     result = torch.stack(images)
@@ -1097,6 +1161,10 @@ def set_progress_bar_global_hook(function):
     global PROGRESS_BAR_HOOK
     PROGRESS_BAR_HOOK = function
 
+# Throttle settings for progress bar updates to reduce WebSocket flooding
+PROGRESS_THROTTLE_MIN_INTERVAL = 0.1  # 100ms minimum between updates
+PROGRESS_THROTTLE_MIN_PERCENT = 0.5   # 0.5% minimum progress change
+
 class ProgressBar:
     def __init__(self, total, node_id=None):
         global PROGRESS_BAR_HOOK
@@ -1104,6 +1172,8 @@ class ProgressBar:
         self.current = 0
         self.hook = PROGRESS_BAR_HOOK
         self.node_id = node_id
+        self._last_update_time = 0.0
+        self._last_sent_value = -1
 
     def update_absolute(self, value, total=None, preview=None):
         if total is not None:
@@ -1112,7 +1182,29 @@ class ProgressBar:
             value = self.total
         self.current = value
         if self.hook is not None:
-            self.hook(self.current, self.total, preview, node_id=self.node_id)
+            current_time = time.perf_counter()
+            is_first = (self._last_sent_value < 0)
+            is_final = (value >= self.total)
+            has_preview = (preview is not None)
+
+            # Always send immediately for previews, first update, or final update
+            if has_preview or is_first or is_final:
+                self.hook(self.current, self.total, preview, node_id=self.node_id)
+                self._last_update_time = current_time
+                self._last_sent_value = value
+                return
+
+            # Apply throttling for regular progress updates
+            if self.total > 0:
+                percent_changed = ((value - max(0, self._last_sent_value)) / self.total) * 100
+            else:
+                percent_changed = 100
+            time_elapsed = current_time - self._last_update_time
+
+            if time_elapsed >= PROGRESS_THROTTLE_MIN_INTERVAL and percent_changed >= PROGRESS_THROTTLE_MIN_PERCENT:
+                self.hook(self.current, self.total, preview, node_id=self.node_id)
+                self._last_update_time = current_time
+                self._last_sent_value = value
 
     def update(self, value):
         self.update_absolute(self.current + value)
@@ -1198,7 +1290,7 @@ def unpack_latents(combined_latent, latent_shapes):
             combined_latent = combined_latent[:, :, cut:]
             output_tensors.append(tens.reshape([tens.shape[0]] + list(shape)[1:]))
     else:
-        output_tensors = combined_latent
+        output_tensors = [combined_latent]
     return output_tensors
 
 def detect_layer_quantization(state_dict, prefix):
@@ -1267,3 +1359,16 @@ def convert_old_quants(state_dict, model_prefix="", metadata={}):
             state_dict["{}.comfy_quant".format(k)] = torch.tensor(list(json.dumps(v).encode('utf-8')), dtype=torch.uint8)
 
     return state_dict, metadata
+
+def string_to_seed(data):
+    crc = 0xFFFFFFFF
+    for byte in data:
+        if isinstance(byte, str):
+            byte = ord(byte)
+        crc ^= byte
+        for _ in range(8):
+            if crc & 1:
+                crc = (crc >> 1) ^ 0xEDB88320
+            else:
+                crc >>= 1
+    return crc ^ 0xFFFFFFFF

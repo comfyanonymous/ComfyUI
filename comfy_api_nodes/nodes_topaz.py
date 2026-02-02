@@ -2,11 +2,27 @@ import builtins
 from io import BytesIO
 
 import aiohttp
-import torch
 from typing_extensions import override
 
 from comfy_api.latest import IO, ComfyExtension, Input
-from comfy_api_nodes.apis import topaz_api
+from comfy_api_nodes.apis.topaz import (
+    CreateVideoRequest,
+    CreateVideoRequestSource,
+    CreateVideoResponse,
+    ImageAsyncTaskResponse,
+    ImageDownloadResponse,
+    ImageEnhanceRequest,
+    ImageStatusResponse,
+    OutputInformationVideo,
+    Resolution,
+    VideoAcceptResponse,
+    VideoCompleteUploadRequest,
+    VideoCompleteUploadRequestPart,
+    VideoCompleteUploadResponse,
+    VideoEnhancementFilter,
+    VideoFrameInterpolationFilter,
+    VideoStatusResponse,
+)
 from comfy_api_nodes.util import (
     ApiEndpoint,
     download_url_to_image_tensor,
@@ -138,7 +154,7 @@ class TopazImageEnhance(IO.ComfyNode):
     async def execute(
         cls,
         model: str,
-        image: torch.Tensor,
+        image: Input.Image,
         prompt: str = "",
         subject_detection: str = "All",
         face_enhancement: bool = True,
@@ -153,12 +169,14 @@ class TopazImageEnhance(IO.ComfyNode):
     ) -> IO.NodeOutput:
         if get_number_of_images(image) != 1:
             raise ValueError("Only one input image is supported.")
-        download_url = await upload_images_to_comfyapi(cls, image, max_images=1, mime_type="image/png")
+        download_url = await upload_images_to_comfyapi(
+            cls, image, max_images=1, mime_type="image/png", total_pixels=4096 * 4096
+        )
         initial_response = await sync_op(
             cls,
             ApiEndpoint(path="/proxy/topaz/image/v1/enhance-gen/async", method="POST"),
-            response_model=topaz_api.ImageAsyncTaskResponse,
-            data=topaz_api.ImageEnhanceRequest(
+            response_model=ImageAsyncTaskResponse,
+            data=ImageEnhanceRequest(
                 model=model,
                 prompt=prompt,
                 subject_detection=subject_detection,
@@ -180,19 +198,18 @@ class TopazImageEnhance(IO.ComfyNode):
         await poll_op(
             cls,
             poll_endpoint=ApiEndpoint(path=f"/proxy/topaz/image/v1/status/{initial_response.process_id}"),
-            response_model=topaz_api.ImageStatusResponse,
+            response_model=ImageStatusResponse,
             status_extractor=lambda x: x.status,
             progress_extractor=lambda x: getattr(x, "progress", 0),
             price_extractor=lambda x: x.credits * 0.08,
             poll_interval=8.0,
-            max_poll_attempts=160,
             estimated_duration=60,
         )
 
         results = await sync_op(
             cls,
             ApiEndpoint(path=f"/proxy/topaz/image/v1/download/{initial_response.process_id}"),
-            response_model=topaz_api.ImageDownloadResponse,
+            response_model=ImageDownloadResponse,
             monitor_progress=False,
         )
         return IO.NodeOutput(await download_url_to_image_tensor(results.download_url))
@@ -330,7 +347,7 @@ class TopazVideoEnhance(IO.ComfyNode):
             if target_height % 2 != 0:
                 target_height += 1
             filters.append(
-                topaz_api.VideoEnhancementFilter(
+                VideoEnhancementFilter(
                     model=UPSCALER_MODELS_MAP[upscaler_model],
                     creativity=(upscaler_creativity if UPSCALER_MODELS_MAP[upscaler_model] == "slc-1" else None),
                     isOptimizedMode=(True if UPSCALER_MODELS_MAP[upscaler_model] == "slc-1" else None),
@@ -339,7 +356,7 @@ class TopazVideoEnhance(IO.ComfyNode):
         if interpolation_enabled:
             target_frame_rate = interpolation_frame_rate
             filters.append(
-                topaz_api.VideoFrameInterpolationFilter(
+                VideoFrameInterpolationFilter(
                     model=interpolation_model,
                     slowmo=interpolation_slowmo,
                     fps=interpolation_frame_rate,
@@ -350,19 +367,19 @@ class TopazVideoEnhance(IO.ComfyNode):
         initial_res = await sync_op(
             cls,
             ApiEndpoint(path="/proxy/topaz/video/", method="POST"),
-            response_model=topaz_api.CreateVideoResponse,
-            data=topaz_api.CreateVideoRequest(
-                source=topaz_api.CreateCreateVideoRequestSource(
+            response_model=CreateVideoResponse,
+            data=CreateVideoRequest(
+                source=CreateVideoRequestSource(
                     container="mp4",
                     size=get_fs_object_size(src_video_stream),
                     duration=int(duration_sec),
                     frameCount=video.get_frame_count(),
                     frameRate=src_frame_rate,
-                    resolution=topaz_api.Resolution(width=src_width, height=src_height),
+                    resolution=Resolution(width=src_width, height=src_height),
                 ),
                 filters=filters,
-                output=topaz_api.OutputInformationVideo(
-                    resolution=topaz_api.Resolution(width=target_width, height=target_height),
+                output=OutputInformationVideo(
+                    resolution=Resolution(width=target_width, height=target_height),
                     frameRate=target_frame_rate,
                     audioCodec="AAC",
                     audioTransfer="Copy",
@@ -378,7 +395,7 @@ class TopazVideoEnhance(IO.ComfyNode):
                 path=f"/proxy/topaz/video/{initial_res.requestId}/accept",
                 method="PATCH",
             ),
-            response_model=topaz_api.VideoAcceptResponse,
+            response_model=VideoAcceptResponse,
             wait_label="Preparing upload",
             final_label_on_success="Upload started",
         )
@@ -401,10 +418,10 @@ class TopazVideoEnhance(IO.ComfyNode):
                 path=f"/proxy/topaz/video/{initial_res.requestId}/complete-upload",
                 method="PATCH",
             ),
-            response_model=topaz_api.VideoCompleteUploadResponse,
-            data=topaz_api.VideoCompleteUploadRequest(
+            response_model=VideoCompleteUploadResponse,
+            data=VideoCompleteUploadRequest(
                 uploadResults=[
-                    topaz_api.VideoCompleteUploadRequestPart(
+                    VideoCompleteUploadRequestPart(
                         partNum=1,
                         eTag=upload_etag,
                     ),
@@ -416,7 +433,7 @@ class TopazVideoEnhance(IO.ComfyNode):
         final_response = await poll_op(
             cls,
             ApiEndpoint(path=f"/proxy/topaz/video/{initial_res.requestId}/status"),
-            response_model=topaz_api.VideoStatusResponse,
+            response_model=VideoStatusResponse,
             status_extractor=lambda x: x.status,
             progress_extractor=lambda x: getattr(x, "progress", 0),
             price_extractor=lambda x: (x.estimates.cost[0] * 0.08 if x.estimates and x.estimates.cost[0] else None),

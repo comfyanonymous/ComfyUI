@@ -5,8 +5,9 @@ import os
 import importlib.util
 import folder_paths
 import time
-from comfy.cli_args import args
+from comfy.cli_args import args, enables_dynamic_vram
 from app.logger import setup_logger
+from app.assets.scanner import seed_assets
 import itertools
 import utils.extra_config
 import logging
@@ -172,6 +173,7 @@ import gc
 if 'torch' in sys.modules:
     logging.warning("WARNING: Potential Error in code: Torch already imported, torch should never be imported before this point.")
 
+
 import comfy.utils
 
 import execution
@@ -182,6 +184,33 @@ import comfy.model_management
 import comfyui_version
 import app.logger
 import hook_breaker_ac10a0
+
+import comfy.memory_management
+import comfy.model_patcher
+
+import comfy_aimdo.control
+import comfy_aimdo.torch
+
+if enables_dynamic_vram():
+    if comfy_aimdo.control.init_device(comfy.model_management.get_torch_device().index):
+        if args.verbose == 'DEBUG':
+            comfy_aimdo.control.set_log_debug()
+        elif args.verbose == 'CRITICAL':
+            comfy_aimdo.control.set_log_critical()
+        elif args.verbose == 'ERROR':
+            comfy_aimdo.control.set_log_error()
+        elif args.verbose == 'WARNING':
+            comfy_aimdo.control.set_log_warning()
+        else: #INFO
+            comfy_aimdo.control.set_log_info()
+
+        comfy.model_patcher.CoreModelPatcher = comfy.model_patcher.ModelPatcherDynamic
+        comfy.memory_management.aimdo_allocator = comfy_aimdo.torch.get_torch_allocator()
+        logging.info("DynamicVRAM support detected and enabled")
+    else:
+        logging.info("No working comfy-aimdo install detected. DynamicVRAM support disabled. Falling back to legacy ModelPatcher. VRAM estimates may be unreliable especially on Windows")
+        comfy.memory_management.aimdo_allocator = None
+
 
 def cuda_malloc_warning():
     device = comfy.model_management.get_torch_device()
@@ -324,6 +353,8 @@ def setup_database():
         from app.database.db import init_db, dependencies_available
         if dependencies_available():
             init_db()
+            if not args.disable_assets_autoscan:
+                seed_assets(["models"], enable_logging=True)
     except Exception as e:
         logging.error(f"Failed to initialize database. Please ensure you have installed the latest requirements. If the error persists, please report this as in future the database will be required: {e}")
 

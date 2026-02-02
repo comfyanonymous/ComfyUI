@@ -299,6 +299,7 @@ class RescaleCFG:
         return (m, )
 
 class ModelComputeDtype:
+    SEARCH_ALIASES = ["model precision", "change dtype"]
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "model": ("MODEL",),

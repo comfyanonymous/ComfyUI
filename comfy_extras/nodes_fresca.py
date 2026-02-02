@@ -58,6 +58,7 @@ class FreSca(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="FreSca",
+            search_aliases=["frequency guidance"],
             display_name="FreSca",
             category="_for_testing",
             description="Applies frequency-dependent scaling to the guidance",

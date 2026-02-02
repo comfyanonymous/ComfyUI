@@ -14,7 +14,7 @@ from typing_extensions import override
 
 import folder_paths
 from comfy_api.latest import IO, ComfyExtension, Input, Types
-from comfy_api_nodes.apis.gemini_api import (
+from comfy_api_nodes.apis.gemini import (
     GeminiContent,
     GeminiFileData,
     GeminiGenerateContentRequest,
@@ -130,7 +130,7 @@ def get_parts_by_type(response: GeminiGenerateContentResponse, part_type: Litera
     Returns:
         List of response parts matching the requested type.
     """
-    if response.candidates is None:
+    if not response.candidates:
         if response.promptFeedback and response.promptFeedback.blockReason:
             feedback = response.promptFeedback
             raise ValueError(
@@ -141,14 +141,24 @@ def get_parts_by_type(response: GeminiGenerateContentResponse, part_type: Litera
             "try changing it to `IMAGE+TEXT` to view the model's reasoning and understand why image generation failed."
         )
     parts = []
-    for part in response.candidates[0].content.parts:
-        if part_type == "text" and part.text:
-            parts.append(part)
-        elif part.inlineData and part.inlineData.mimeType == part_type:
-            parts.append(part)
-        elif part.fileData and part.fileData.mimeType == part_type:
-            parts.append(part)
-        # Skip parts that don't match the requested type
+    blocked_reasons = []
+    for candidate in response.candidates:
+        if candidate.finishReason and candidate.finishReason.upper() == "IMAGE_PROHIBITED_CONTENT":
+            blocked_reasons.append(candidate.finishReason)
+            continue
+        if candidate.content is None or candidate.content.parts is None:
+            continue
+        for part in candidate.content.parts:
+            if part_type == "text" and part.text:
+                parts.append(part)
+            elif part.inlineData and part.inlineData.mimeType == part_type:
+                parts.append(part)
+            elif part.fileData and part.fileData.mimeType == part_type:
+                parts.append(part)
+
+    if not parts and blocked_reasons:
+        raise ValueError(f"Gemini API blocked the request. Reasons: {blocked_reasons}")
+
     return parts
 
 
@@ -309,6 +319,30 @@ class GeminiNode(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
+            price_badge=IO.PriceBadge(
+                depends_on=IO.PriceBadgeDepends(widgets=["model"]),
+                expr="""
+                (
+                  $m := widgets.model;
+                  $contains($m, "gemini-2.5-flash") ? {
+                    "type": "list_usd",
+                    "usd": [0.0003, 0.0025],
+                    "format": { "approximate": true, "separator": "-", "suffix": " per 1K tokens"}
+                  }
+                  : $contains($m, "gemini-2.5-pro") ? {
+                    "type": "list_usd",
+                    "usd": [0.00125, 0.01],
+                    "format": { "approximate": true, "separator": "-", "suffix": " per 1K tokens" }
+                  }
+                  : $contains($m, "gemini-3-pro-preview") ? {
+                    "type": "list_usd",
+                    "usd": [0.002, 0.012],
+                    "format": { "approximate": true, "separator": "-", "suffix": " per 1K tokens" }
+                  }
+                  : {"type":"text", "text":"Token-based"}
+                )
+                """,
+            ),
         )
 
     @classmethod
@@ -570,6 +604,9 @@ class GeminiImage(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
+            price_badge=IO.PriceBadge(
+                expr="""{"type":"usd","usd":0.039,"format":{"suffix":"/Image (1K)","approximate":true}}""",
+            ),
         )
 
     @classmethod
@@ -700,6 +737,19 @@ class GeminiImage2(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
+            price_badge=IO.PriceBadge(
+                depends_on=IO.PriceBadgeDepends(widgets=["resolution"]),
+                expr="""
+                (
+                  $r := widgets.resolution;
+                  ($contains($r,"1k") or $contains($r,"2k"))
+                    ? {"type":"usd","usd":0.134,"format":{"suffix":"/Image","approximate":true}}
+                    : $contains($r,"4k")
+                      ? {"type":"usd","usd":0.24,"format":{"suffix":"/Image","approximate":true}}
+                      : {"type":"text","text":"Token-based"}
+                )
+                """,
+            ),
         )
 
     @classmethod

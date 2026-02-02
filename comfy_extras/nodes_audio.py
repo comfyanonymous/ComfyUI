@@ -69,6 +69,7 @@ class VAEEncodeAudio(IO.ComfyNode):
     def define_schema(cls):
         return IO.Schema(
             node_id="VAEEncodeAudio",
+            search_aliases=["audio to latent"],
             display_name="VAE Encode Audio",
             category="latent/audio",
             inputs=[
@@ -97,6 +98,7 @@ class VAEDecodeAudio(IO.ComfyNode):
     def define_schema(cls):
         return IO.Schema(
             node_id="VAEDecodeAudio",
+            search_aliases=["latent to audio"],
             display_name="VAE Decode Audio",
             category="latent/audio",
             inputs=[
@@ -112,7 +114,7 @@ class VAEDecodeAudio(IO.ComfyNode):
         std = torch.std(audio, dim=[1,2], keepdim=True) * 5.0
         std[std < 1.0] = 1.0
         audio /= std
-        return IO.NodeOutput({"waveform": audio, "sample_rate": 44100})
+        return IO.NodeOutput({"waveform": audio, "sample_rate": 44100 if "sample_rate" not in samples else samples["sample_rate"]})
 
     decode = execute  # TODO: remove
 
@@ -122,6 +124,7 @@ class SaveAudio(IO.ComfyNode):
     def define_schema(cls):
         return IO.Schema(
             node_id="SaveAudio",
+            search_aliases=["export flac"],
             display_name="Save Audio (FLAC)",
             category="audio",
             inputs=[
@@ -146,6 +149,7 @@ class SaveAudioMP3(IO.ComfyNode):
     def define_schema(cls):
         return IO.Schema(
             node_id="SaveAudioMP3",
+            search_aliases=["export mp3"],
             display_name="Save Audio (MP3)",
             category="audio",
             inputs=[
@@ -173,6 +177,7 @@ class SaveAudioOpus(IO.ComfyNode):
     def define_schema(cls):
         return IO.Schema(
             node_id="SaveAudioOpus",
+            search_aliases=["export opus"],
             display_name="Save Audio (Opus)",
             category="audio",
             inputs=[
@@ -200,6 +205,7 @@ class PreviewAudio(IO.ComfyNode):
     def define_schema(cls):
         return IO.Schema(
             node_id="PreviewAudio",
+            search_aliases=["play audio"],
             display_name="Preview Audio",
             category="audio",
             inputs=[
@@ -259,6 +265,7 @@ class LoadAudio(IO.ComfyNode):
         files = folder_paths.filter_files_content_types(os.listdir(input_dir), ["audio", "video"])
         return IO.Schema(
             node_id="LoadAudio",
+            search_aliases=["import audio", "open audio", "audio file"],
             display_name="Load Audio",
             category="audio",
             inputs=[
@@ -296,6 +303,7 @@ class RecordAudio(IO.ComfyNode):
     def define_schema(cls):
         return IO.Schema(
             node_id="RecordAudio",
+            search_aliases=["microphone input", "audio capture", "voice input"],
             display_name="Record Audio",
             category="audio",
             inputs=[
@@ -320,6 +328,7 @@ class TrimAudioDuration(IO.ComfyNode):
     def define_schema(cls):
         return IO.Schema(
             node_id="TrimAudioDuration",
+            search_aliases=["cut audio", "audio clip", "shorten audio"],
             display_name="Trim Audio Duration",
             description="Trim audio tensor into chosen time range.",
             category="audio",
@@ -372,6 +381,7 @@ class SplitAudioChannels(IO.ComfyNode):
     def define_schema(cls):
         return IO.Schema(
             node_id="SplitAudioChannels",
+            search_aliases=["stereo to mono"],
             display_name="Split Audio Channels",
             description="Separates the audio into left and right channels.",
             category="audio",
@@ -399,6 +409,58 @@ class SplitAudioChannels(IO.ComfyNode):
 
     separate = execute  # TODO: remove
 
+class JoinAudioChannels(IO.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return IO.Schema(
+            node_id="JoinAudioChannels",
+            display_name="Join Audio Channels",
+            description="Joins left and right mono audio channels into a stereo audio.",
+            category="audio",
+            inputs=[
+                IO.Audio.Input("audio_left"),
+                IO.Audio.Input("audio_right"),
+            ],
+            outputs=[
+                IO.Audio.Output(display_name="audio"),
+            ],
+        )
+
+    @classmethod
+    def execute(cls, audio_left, audio_right) -> IO.NodeOutput:
+        waveform_left = audio_left["waveform"]
+        sample_rate_left = audio_left["sample_rate"]
+        waveform_right = audio_right["waveform"]
+        sample_rate_right = audio_right["sample_rate"]
+
+        if waveform_left.shape[1] != 1 or waveform_right.shape[1] != 1:
+            raise ValueError("AudioJoin: Both input audios must be mono.")
+
+        # Handle different sample rates by resampling to the higher rate
+        waveform_left, waveform_right, output_sample_rate = match_audio_sample_rates(
+            waveform_left, sample_rate_left, waveform_right, sample_rate_right
+        )
+
+        # Handle different lengths by trimming to the shorter length
+        length_left = waveform_left.shape[-1]
+        length_right = waveform_right.shape[-1]
+
+        if length_left != length_right:
+            min_length = min(length_left, length_right)
+            if length_left > min_length:
+                logging.info(f"JoinAudioChannels: Trimming left channel from {length_left} to {min_length} samples.")
+                waveform_left = waveform_left[..., :min_length]
+            if length_right > min_length:
+                logging.info(f"JoinAudioChannels: Trimming right channel from {length_right} to {min_length} samples.")
+                waveform_right = waveform_right[..., :min_length]
+
+        # Join the channels into stereo
+        left_channel = waveform_left[..., 0:1, :]
+        right_channel = waveform_right[..., 0:1, :]
+        stereo_waveform = torch.cat([left_channel, right_channel], dim=1)
+
+        return IO.NodeOutput({"waveform": stereo_waveform, "sample_rate": output_sample_rate})
+
 
 def match_audio_sample_rates(waveform_1, sample_rate_1, waveform_2, sample_rate_2):
     if sample_rate_1 != sample_rate_2:
@@ -420,6 +482,7 @@ class AudioConcat(IO.ComfyNode):
     def define_schema(cls):
         return IO.Schema(
             node_id="AudioConcat",
+            search_aliases=["join audio", "combine audio", "append audio"],
             display_name="Audio Concat",
             description="Concatenates the audio1 to audio2 in the specified direction.",
             category="audio",
@@ -467,6 +530,7 @@ class AudioMerge(IO.ComfyNode):
     def define_schema(cls):
         return IO.Schema(
             node_id="AudioMerge",
+            search_aliases=["mix audio", "overlay audio", "layer audio"],
             display_name="Audio Merge",
             description="Combine two audio tracks by overlaying their waveforms.",
             category="audio",
@@ -527,6 +591,7 @@ class AudioAdjustVolume(IO.ComfyNode):
     def define_schema(cls):
         return IO.Schema(
             node_id="AudioAdjustVolume",
+            search_aliases=["audio gain", "loudness", "audio level"],
             display_name="Audio Adjust Volume",
             category="audio",
             inputs=[
@@ -562,6 +627,7 @@ class EmptyAudio(IO.ComfyNode):
     def define_schema(cls):
         return IO.Schema(
             node_id="EmptyAudio",
+            search_aliases=["blank audio"],
             display_name="Empty Audio",
             category="audio",
             inputs=[
@@ -616,6 +682,7 @@ class AudioExtension(ComfyExtension):
             RecordAudio,
             TrimAudioDuration,
             SplitAudioChannels,
+            JoinAudioChannels,
             AudioConcat,
             AudioMerge,
             AudioAdjustVolume,
