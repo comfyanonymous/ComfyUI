@@ -116,10 +116,12 @@ class MeshyModelsUrls(BaseModel):
 
 class MeshyRiggedModelsUrls(BaseModel):
     rigged_character_glb_url: str = Field("")
+    rigged_character_fbx_url: str = Field("")
 
 
 class MeshyAnimatedModelsUrls(BaseModel):
     animation_glb_url: str = Field("")
+    animation_fbx_url: str = Field("")
 
 
 class MeshyResultTextureUrls(BaseModel):

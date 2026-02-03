@@ -641,12 +641,12 @@ class MeshyRigModelNode(IO.ComfyNode):
             status_extractor=lambda r: r.status,
             progress_extractor=lambda r: r.progress,
         )
-        file_glb = await download_url_to_file_3d(result.model_urls.glb, "glb", task_id=task_id)
+        file_glb = await download_url_to_file_3d(result.result.rigged_character_glb_url, "glb", task_id=task_id)
         return IO.NodeOutput(
             file_glb,
             task_id,
             file_glb,
-            await download_url_to_file_3d(result.model_urls.fbx, "fbx", task_id=task_id),
+            await download_url_to_file_3d(result.result.rigged_character_fbx_url, "fbx", task_id=task_id),
         )
 
 
@@ -709,11 +709,11 @@ class MeshyAnimateModelNode(IO.ComfyNode):
             status_extractor=lambda r: r.status,
             progress_extractor=lambda r: r.progress,
         )
-        file_glb = await download_url_to_file_3d(result.model_urls.glb, "glb", task_id=task_id)
+        file_glb = await download_url_to_file_3d(result.result.animation_glb_url, "glb", task_id=task_id)
         return IO.NodeOutput(
             file_glb,
             file_glb,
-            await download_url_to_file_3d(result.model_urls.fbx, "fbx", task_id=task_id),
+            await download_url_to_file_3d(result.result.animation_fbx_url, "fbx", task_id=task_id),
         )
 
 
