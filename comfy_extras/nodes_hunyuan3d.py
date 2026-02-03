@@ -626,9 +626,8 @@ class SaveGLB(IO.ComfyNode):
                     IO.Mesh.Input("mesh"),
                     types=[
                         IO.File3DGLB,
-                        IO.File3DAny,
                     ],
-                    tooltip="Mesh or 3D file to save as GLB",
+                    tooltip="Mesh or GLB file to save",
                 ),
                 IO.String.Input("filename_prefix", default="mesh/ComfyUI"),
             ],

@@ -296,4 +296,4 @@ async def download_url_to_file_3d(
         output_path.write_bytes(data.getvalue())
         data.seek(0)
 
-    return Types.File3D(path=data, file_format=file_format)
+    return Types.File3D(source=data, file_format=file_format)

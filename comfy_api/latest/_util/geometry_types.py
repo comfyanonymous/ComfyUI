@@ -23,13 +23,13 @@ class File3D:
     Supports both disk-backed (file path) and memory-backed (BytesIO) storage.
     """
 
-    def __init__(self, path: str | IO[bytes], file_format: str = ""):
-        self._path = path
+    def __init__(self, source: str | IO[bytes], file_format: str = ""):
+        self._source = source
         self._format = file_format or self._infer_format()
 
     def _infer_format(self) -> str:
-        if isinstance(self._path, str):
-            return Path(self._path).suffix.lstrip(".").lower()
+        if isinstance(self._source, str):
+            return Path(self._source).suffix.lstrip(".").lower()
         return ""
 
     @property
@@ -42,49 +42,48 @@ class File3D:
 
     @property
     def is_disk_backed(self) -> bool:
-        return isinstance(self._path, str)
+        return isinstance(self._source, str)
 
     def get_source(self) -> str | IO[bytes]:
-        if isinstance(self._path, str):
-            return self._path
-        if hasattr(self._path, "seek"):
-            self._path.seek(0)
-        return self._path
+        if isinstance(self._source, str):
+            return self._source
+        if hasattr(self._source, "seek"):
+            self._source.seek(0)
+        return self._source
 
-    @property
-    def data(self) -> BytesIO:
-        if isinstance(self._path, str):
-            with open(self._path, "rb") as f:
+    def get_data(self) -> BytesIO:
+        if isinstance(self._source, str):
+            with open(self._source, "rb") as f:
                 result = BytesIO(f.read())
             return result
-        if hasattr(self._path, "seek"):
-            self._path.seek(0)
-        if isinstance(self._path, BytesIO):
-            return self._path
-        return BytesIO(self._path.read())
+        if hasattr(self._source, "seek"):
+            self._source.seek(0)
+        if isinstance(self._source, BytesIO):
+            return self._source
+        return BytesIO(self._source.read())
 
     def save_to(self, path: str) -> str:
         dest = Path(path)
         dest.parent.mkdir(parents=True, exist_ok=True)
 
-        if isinstance(self._path, str):
-            if Path(self._path).resolve() != dest.resolve():
-                shutil.copy2(self._path, dest)
+        if isinstance(self._source, str):
+            if Path(self._source).resolve() != dest.resolve():
+                shutil.copy2(self._source, dest)
         else:
-            if hasattr(self._path, "seek"):
-                self._path.seek(0)
+            if hasattr(self._source, "seek"):
+                self._source.seek(0)
             with open(dest, "wb") as f:
-                f.write(self._path.read())
+                f.write(self._source.read())
         return str(dest)
 
     def get_bytes(self) -> bytes:
-        if isinstance(self._path, str):
-            return Path(self._path).read_bytes()
-        if hasattr(self._path, "seek"):
-            self._path.seek(0)
-        return self._path.read()
+        if isinstance(self._source, str):
+            return Path(self._source).read_bytes()
+        if hasattr(self._source, "seek"):
+            self._source.seek(0)
+        return self._source.read()
 
     def __repr__(self) -> str:
-        if isinstance(self._path, str):
-            return f"File3D(path={self._path!r}, format={self._format!r})"
+        if isinstance(self._source, str):
+            return f"File3D(source={self._source!r}, format={self._format!r})"
         return f"File3D(<stream>, format={self._format!r})"

@@ -216,7 +216,7 @@ async def download_files(url_list, task_uuid: str) -> tuple[str | None, Types.Fi
 
     for i in url_list.list:
         file_path = os.path.join(save_path, i.name)
-        if i.name.endswith(".glb"):
+        if i.name.lower().endswith(".glb"):
             model_file_path = os.path.join(result_folder_name, i.name)
             file_3d = await download_url_to_file_3d(i.url, "glb")
             # Save to disk for backward compatibility
