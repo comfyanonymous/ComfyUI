@@ -59,6 +59,7 @@ import comfy.text_encoders.kandinsky5
 import comfy.text_encoders.jina_clip_2
 import comfy.text_encoders.newbie
 import comfy.text_encoders.anima
+import comfy.text_encoders.ace15
 
 import comfy.model_patcher
 import comfy.lora
@@ -452,6 +453,8 @@ class VAE:
         self.extra_1d_channel = None
         self.crop_input = True
 
+        self.audio_sample_rate = 44100
+
         if config is None:
             if "decoder.mid.block_1.mix_factor" in sd:
                 encoder_config = {'double_z': True, 'z_channels': 4, 'resolution': 256, 'in_channels': 3, 'out_ch': 3, 'ch': 128, 'ch_mult': [1, 2, 4, 4], 'num_res_blocks': 2, 'attn_resolutions': [], 'dropout': 0.0}
@@ -549,14 +552,25 @@ class VAE:
                                                                     encoder_config={'target': "comfy.ldm.modules.diffusionmodules.model.Encoder", 'params': ddconfig},
                                                                     decoder_config={'target': "comfy.ldm.modules.diffusionmodules.model.Decoder", 'params': ddconfig})
             elif "decoder.layers.1.layers.0.beta" in sd:
-                self.first_stage_model = AudioOobleckVAE()
+                config = {}
+                param_key = None
+                if "decoder.layers.2.layers.1.weight_v" in sd:
+                    param_key = "decoder.layers.2.layers.1.weight_v"
+                if "decoder.layers.2.layers.1.parametrizations.weight.original1" in sd:
+                    param_key = "decoder.layers.2.layers.1.parametrizations.weight.original1"
+                if param_key is not None:
+                    if sd[param_key].shape[-1] == 12:
+                        config["strides"] = [2, 4, 4, 6, 10]
+                        self.audio_sample_rate = 48000
+
+                self.first_stage_model = AudioOobleckVAE(**config)
                 self.memory_used_encode = lambda shape, dtype: (1000 * shape[2]) * model_management.dtype_size(dtype)
                 self.memory_used_decode = lambda shape, dtype: (1000 * shape[2] * 2048) * model_management.dtype_size(dtype)
                 self.latent_channels = 64
                 self.output_channels = 2
                 self.pad_channel_value = "replicate"
                 self.upscale_ratio = 2048
-                self.downscale_ratio =  2048
+                self.downscale_ratio = 2048
                 self.latent_dim = 1
                 self.process_output = lambda audio: audio
                 self.process_input = lambda audio: audio
@@ -1427,6 +1441,9 @@ def load_text_encoder_state_dicts(state_dicts=[], embedding_directory=None, clip
                 clip_data_jina = clip_data[0]
             tokenizer_data["gemma_spiece_model"] = clip_data_gemma.get("spiece_model", None)
             tokenizer_data["jina_spiece_model"] = clip_data_jina.get("spiece_model", None)
+        elif clip_type == CLIPType.ACE:
+            clip_target.clip = comfy.text_encoders.ace15.te(**llama_detect(clip_data))
+            clip_target.tokenizer = comfy.text_encoders.ace15.ACE15Tokenizer
         else:
             clip_target.clip = sdxl_clip.SDXLClipModel
             clip_target.tokenizer = sdxl_clip.SDXLTokenizer

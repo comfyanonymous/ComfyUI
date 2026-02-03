@@ -155,6 +155,8 @@ class SDClipModel(torch.nn.Module, ClipTokenWeightEncoder):
         self.execution_device = options.get("execution_device", self.execution_device)
         if isinstance(self.layer, list) or self.layer == "all":
             pass
+        elif isinstance(layer_idx, list):
+            self.layer = layer_idx
         elif layer_idx is None or abs(layer_idx) > self.num_layers:
             self.layer = "last"
         else:

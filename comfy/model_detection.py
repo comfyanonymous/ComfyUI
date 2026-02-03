@@ -655,6 +655,11 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
         dit_config["num_visual_blocks"] = count_blocks(state_dict_keys, '{}visual_transformer_blocks.'.format(key_prefix) + '{}.')
         return dit_config
 
+    if '{}encoder.lyric_encoder.layers.0.input_layernorm.weight'.format(key_prefix) in state_dict_keys:
+        dit_config = {}
+        dit_config["audio_model"] = "ace1.5"
+        return dit_config
+
     if '{}input_blocks.0.0.weight'.format(key_prefix) not in state_dict_keys:
         return None
 
