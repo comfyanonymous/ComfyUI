@@ -125,7 +125,7 @@ class LTXAVTEModel(torch.nn.Module):
             for prefix, component in [("text_embedding_projection.", self.text_embedding_projection), ("video_embeddings_connector.", self.video_embeddings_connector), ("audio_embeddings_connector.", self.audio_embeddings_connector)]:
                 component_sd = {k.replace(prefix, ""): v for k, v in sdo.items() if k.startswith(prefix)}
                 if component_sd:
-                    missing, unexpected = component.load_state_dict(component_sd, strict=False)
+                    missing, unexpected = component.load_state_dict(component_sd, strict=False, assign=getattr(self, "can_assign_sd", False))
                     missing_all.extend([f"{prefix}{k}" for k in missing])
                     unexpected_all.extend([f"{prefix}{k}" for k in unexpected])
 

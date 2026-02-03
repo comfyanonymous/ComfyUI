@@ -1291,6 +1291,7 @@ class Hidden(str, Enum):
 class NodeInfoV1:
     input: dict=None
     input_order: dict[str, list[str]]=None
+    is_input_list: bool=None
     output: list[str]=None
     output_is_list: list[bool]=None
     output_name: list[str]=None
@@ -1517,6 +1518,7 @@ class Schema:
         info = NodeInfoV1(
             input=input,
             input_order={key: list(value.keys()) for (key, value) in input.items()},
+            is_input_list=self.is_input_list,
             output=output,
             output_is_list=output_is_list,
             output_name=output_name,

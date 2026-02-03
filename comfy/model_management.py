@@ -19,13 +19,21 @@
 import psutil
 import logging
 from enum import Enum
-from comfy.cli_args import args, PerformanceFeature
+from comfy.cli_args import args, PerformanceFeature, enables_dynamic_vram
+import threading
 import torch
 import sys
 import platform
 import weakref
 import gc
 import os
+from contextlib import nullcontext
+import comfy.memory_management
+import comfy.utils
+import comfy.quant_ops
+
+import comfy_aimdo.torch
+import comfy_aimdo.model_vbar
 
 class VRAMState(Enum):
     DISABLED = 0    #No vram present: no need to move models to vram
@@ -578,9 +586,15 @@ WINDOWS = any(platform.win32_ver())
 
 EXTRA_RESERVED_VRAM = 400 * 1024 * 1024
 if WINDOWS:
+    import comfy.windows
     EXTRA_RESERVED_VRAM = 600 * 1024 * 1024 #Windows is higher because of the shared vram issue
     if total_vram > (15 * 1024):  # more extra reserved vram on 16GB+ cards
         EXTRA_RESERVED_VRAM += 100 * 1024 * 1024
+    def get_free_ram():
+        return comfy.windows.get_free_ram()
+else:
+    def get_free_ram():
+        return psutil.virtual_memory().available
 
 if args.reserve_vram is not None:
     EXTRA_RESERVED_VRAM = args.reserve_vram * 1024 * 1024 * 1024
@@ -592,7 +606,7 @@ def extra_reserved_memory():
 def minimum_inference_memory():
     return (1024 * 1024 * 1024) * 0.8 + extra_reserved_memory()
 
-def free_memory(memory_required, device, keep_loaded=[]):
+def free_memory(memory_required, device, keep_loaded=[], for_dynamic=False, ram_required=0):
     cleanup_models_gc()
     unloaded_model = []
     can_unload = []
@@ -607,15 +621,23 @@ def free_memory(memory_required, device, keep_loaded=[]):
 
     for x in sorted(can_unload):
         i = x[-1]
-        memory_to_free = None
+        memory_to_free = 1e32
+        ram_to_free = 1e32
         if not DISABLE_SMART_MEMORY:
-            free_mem = get_free_memory(device)
-            if free_mem > memory_required:
-                break
-            memory_to_free = memory_required - free_mem
-        logging.debug(f"Unloading {current_loaded_models[i].model.model.__class__.__name__}")
-        if current_loaded_models[i].model_unload(memory_to_free):
+            memory_to_free = memory_required - get_free_memory(device)
+            ram_to_free = ram_required - get_free_ram()
+
+        if current_loaded_models[i].model.is_dynamic() and for_dynamic:
+            #don't actually unload dynamic models for the sake of other dynamic models
+            #as that works on-demand.
+            memory_required -= current_loaded_models[i].model.loaded_size()
+            memory_to_free = 0
+        if memory_to_free > 0 and current_loaded_models[i].model_unload(memory_to_free):
+            logging.debug(f"Unloading {current_loaded_models[i].model.model.__class__.__name__}")
             unloaded_model.append(i)
+        if ram_to_free > 0:
+            logging.debug(f"RAM Unloading {current_loaded_models[i].model.model.__class__.__name__}")
+            current_loaded_models[i].model.partially_unload_ram(ram_to_free)
 
     for i in sorted(unloaded_model, reverse=True):
         unloaded_models.append(current_loaded_models.pop(i))
@@ -629,7 +651,7 @@ def free_memory(memory_required, device, keep_loaded=[]):
                 soft_empty_cache()
     return unloaded_models
 
-def load_models_gpu(models, memory_required=0, force_patch_weights=False, minimum_memory_required=None, force_full_load=False):
+def load_models_gpu_orig(models, memory_required=0, force_patch_weights=False, minimum_memory_required=None, force_full_load=False):
     cleanup_models_gc()
     global vram_state
 
@@ -650,7 +672,10 @@ def load_models_gpu(models, memory_required=0, force_patch_weights=False, minimu
 
     models_to_load = []
 
+    free_for_dynamic=True
     for x in models:
+        if not x.is_dynamic():
+            free_for_dynamic = False
         loaded_model = LoadedModel(x)
         try:
             loaded_model_index = current_loaded_models.index(loaded_model)
@@ -676,19 +701,25 @@ def load_models_gpu(models, memory_required=0, force_patch_weights=False, minimu
             model_to_unload.model.detach(unpatch_all=False)
             model_to_unload.model_finalizer.detach()
 
+
     total_memory_required = {}
+    total_ram_required = {}
     for loaded_model in models_to_load:
         total_memory_required[loaded_model.device] = total_memory_required.get(loaded_model.device, 0) + loaded_model.model_memory_required(loaded_model.device)
+        #x2, one to make sure the OS can fit the model for loading in disk cache, and for us to do any pinning we
+        #want to do.
+        #FIXME: This should subtract off the to_load current pin consumption.
+        total_ram_required[loaded_model.device] = total_ram_required.get(loaded_model.device, 0) + loaded_model.model_memory() * 2
 
     for device in total_memory_required:
         if device != torch.device("cpu"):
-            free_memory(total_memory_required[device] * 1.1 + extra_mem, device)
+            free_memory(total_memory_required[device] * 1.1 + extra_mem, device, for_dynamic=free_for_dynamic, ram_required=total_ram_required[device])
 
     for device in total_memory_required:
         if device != torch.device("cpu"):
             free_mem = get_free_memory(device)
             if free_mem < minimum_memory_required:
-                models_l = free_memory(minimum_memory_required, device)
+                models_l = free_memory(minimum_memory_required, device, for_dynamic=free_for_dynamic)
                 logging.info("{} models unloaded.".format(len(models_l)))
 
     for loaded_model in models_to_load:
@@ -716,6 +747,26 @@ def load_models_gpu(models, memory_required=0, force_patch_weights=False, minimu
         current_loaded_models.insert(0, loaded_model)
     return
 
+def load_models_gpu_thread(models, memory_required, force_patch_weights, minimum_memory_required, force_full_load):
+    with torch.inference_mode():
+        load_models_gpu_orig(models, memory_required, force_patch_weights, minimum_memory_required, force_full_load)
+        soft_empty_cache()
+
+def load_models_gpu(models, memory_required=0, force_patch_weights=False, minimum_memory_required=None, force_full_load=False):
+    #Deliberately load models outside of the Aimdo mempool so they can be retained accross
+    #nodes. Use a dummy thread to do it as pytorch documents that mempool contexts are
+    #thread local. So exploit that to escape context
+    if enables_dynamic_vram():
+        t = threading.Thread(
+            target=load_models_gpu_thread,
+            args=(models, memory_required, force_patch_weights, minimum_memory_required, force_full_load)
+        )
+        t.start()
+        t.join()
+    else:
+        load_models_gpu_orig(models, memory_required=memory_required, force_patch_weights=force_patch_weights,
+                             minimum_memory_required=minimum_memory_required, force_full_load=force_full_load)
+
 def load_model_gpu(model):
     return load_models_gpu([model])
 
@@ -732,6 +783,9 @@ def loaded_models(only_currently_used=False):
 
 def cleanup_models_gc():
     do_gc = False
+
+    reset_cast_buffers()
+
     for i in range(len(current_loaded_models)):
         cur = current_loaded_models[i]
         if cur.is_dead():
@@ -748,6 +802,11 @@ def cleanup_models_gc():
             if cur.is_dead():
                 logging.warning("WARNING, memory leak with model {}. Please make sure it is not being referenced from somewhere.".format(cur.real_model().__class__.__name__))
 
+
+def archive_model_dtypes(model):
+    for name, module in model.named_modules():
+        for param_name, param in module.named_parameters(recurse=False):
+            setattr(module, f"{param_name}_comfy_model_dtype", param.dtype)
 
 
 def cleanup_models():
@@ -792,7 +851,7 @@ def unet_inital_load_device(parameters, dtype):
 
     mem_dev = get_free_memory(torch_dev)
     mem_cpu = get_free_memory(cpu_dev)
-    if mem_dev > mem_cpu and model_size < mem_dev:
+    if mem_dev > mem_cpu and model_size < mem_dev and comfy.memory_management.aimdo_allocator is None:
         return torch_dev
     else:
         return cpu_dev
@@ -1051,6 +1110,51 @@ def current_stream(device):
         return None
 
 stream_counters = {}
+
+STREAM_CAST_BUFFERS = {}
+LARGEST_CASTED_WEIGHT = (None, 0)
+
+def get_cast_buffer(offload_stream, device, size, ref):
+    global LARGEST_CASTED_WEIGHT
+
+    if offload_stream is not None:
+        wf_context = offload_stream
+        if hasattr(wf_context, "as_context"):
+            wf_context = wf_context.as_context(offload_stream)
+    else:
+        wf_context = nullcontext()
+
+    cast_buffer = STREAM_CAST_BUFFERS.get(offload_stream, None)
+    if cast_buffer is None or cast_buffer.numel() < size:
+        if ref is LARGEST_CASTED_WEIGHT[0]:
+            #If there is one giant weight we do not want both streams to
+            #allocate a buffer for it. It's up to the caster to get the other
+            #offload stream in this corner case
+            return None
+        if cast_buffer is not None and cast_buffer.numel() > 50 * (1024 ** 2):
+            #I want my wrongly sized 50MB+ of VRAM back from the caching allocator right now
+            synchronize()
+            del STREAM_CAST_BUFFERS[offload_stream]
+            del cast_buffer
+            #FIXME: This doesn't work in Aimdo because mempool cant clear cache
+            soft_empty_cache()
+        with wf_context:
+            cast_buffer = torch.empty((size), dtype=torch.int8, device=device)
+            STREAM_CAST_BUFFERS[offload_stream] = cast_buffer
+
+        if  size > LARGEST_CASTED_WEIGHT[1]:
+            LARGEST_CASTED_WEIGHT = (ref, size)
+
+    return cast_buffer
+
+def reset_cast_buffers():
+    global LARGEST_CASTED_WEIGHT
+    LARGEST_CASTED_WEIGHT = (None, 0)
+    for offload_stream in STREAM_CAST_BUFFERS:
+        offload_stream.synchronize()
+    STREAM_CAST_BUFFERS.clear()
+    soft_empty_cache()
+
 def get_offload_stream(device):
     stream_counter = stream_counters.get(device, 0)
     if NUM_STREAMS == 0:
@@ -1093,7 +1197,62 @@ def sync_stream(device, stream):
         return
     current_stream(device).wait_stream(stream)
 
-def cast_to(weight, dtype=None, device=None, non_blocking=False, copy=False, stream=None):
+
+def cast_to_gathered(tensors, r, non_blocking=False, stream=None):
+    wf_context = nullcontext()
+    if stream is not None:
+       wf_context = stream
+       if hasattr(wf_context, "as_context"):
+           wf_context = wf_context.as_context(stream)
+
+    dest_views = comfy.memory_management.interpret_gathered_like(tensors, r)
+    with wf_context:
+        for tensor in tensors:
+            dest_view = dest_views.pop(0)
+            if tensor is None:
+                continue
+            dest_view.copy_(tensor, non_blocking=non_blocking)
+
+
+def cast_to(weight, dtype=None, device=None, non_blocking=False, copy=False, stream=None, r=None):
+    if hasattr(weight, "_v"):
+        #Unexpected usage patterns. There is no reason these don't work but they
+        #have no testing and no callers do this.
+        assert r is None
+        assert stream is None
+
+        cast_geometry = comfy.memory_management.tensors_to_geometries([ weight ])
+
+        if dtype is None:
+            dtype = weight._model_dtype
+
+        r = torch.empty_like(weight, dtype=dtype, device=device)
+
+        signature = comfy_aimdo.model_vbar.vbar_fault(weight._v)
+        if signature is not None:
+            raw_tensor = comfy_aimdo.torch.aimdo_to_tensor(weight._v, device)
+            v_tensor = comfy.memory_management.interpret_gathered_like(cast_geometry, raw_tensor)[0]
+            if not comfy_aimdo.model_vbar.vbar_signature_compare(signature, weight._v_signature):
+                weight._v_signature = signature
+                #Send it over
+                v_tensor.copy_(weight, non_blocking=non_blocking)
+            #always take a deep copy even if _v is good, as we have no reasonable point to unpin
+            #a non comfy weight
+            r.copy_(v_tensor)
+            comfy_aimdo.model_vbar.vbar_unpin(weight._v)
+            return r
+
+        if weight.dtype != r.dtype and weight.dtype != weight._model_dtype:
+            #Offloaded casting could skip this, however it would make the quantizations
+            #inconsistent between loaded and offloaded weights. So force the double casting
+            #that would happen in regular flow to make offload deterministic.
+            cast_buffer = torch.empty_like(weight, dtype=weight._model_dtype, device=device)
+            cast_buffer.copy_(weight, non_blocking=non_blocking)
+            weight = cast_buffer
+        r.copy_(weight, non_blocking=non_blocking)
+
+        return r
+
     if device is None or weight.device == device:
         if not copy:
             if dtype is None or weight.dtype == dtype:
@@ -1112,10 +1271,12 @@ def cast_to(weight, dtype=None, device=None, non_blocking=False, copy=False, str
         if hasattr(wf_context, "as_context"):
             wf_context = wf_context.as_context(stream)
         with wf_context:
-            r = torch.empty_like(weight, dtype=dtype, device=device)
+            if r is None:
+                r = torch.empty_like(weight, dtype=dtype, device=device)
             r.copy_(weight, non_blocking=non_blocking)
     else:
-        r = torch.empty_like(weight, dtype=dtype, device=device)
+        if r is None:
+            r = torch.empty_like(weight, dtype=dtype, device=device)
         r.copy_(weight, non_blocking=non_blocking)
     return r
 
@@ -1135,14 +1296,14 @@ if not args.disable_pinned_memory:
             MAX_PINNED_MEMORY = get_total_memory(torch.device("cpu")) * 0.95
         logging.info("Enabled pinned memory {}".format(MAX_PINNED_MEMORY // (1024 * 1024)))
 
-PINNING_ALLOWED_TYPES = set(["Parameter", "QuantizedTensor"])
+PINNING_ALLOWED_TYPES = set(["Tensor", "Parameter", "QuantizedTensor"])
 
 def discard_cuda_async_error():
     try:
         a = torch.tensor([1], dtype=torch.uint8, device=get_torch_device())
         b = torch.tensor([1], dtype=torch.uint8, device=get_torch_device())
         _ = a + b
-        torch.cuda.synchronize()
+        synchronize()
     except torch.AcceleratorError:
         #Dump it! We already know about it from the synchronous return
         pass
@@ -1546,6 +1707,12 @@ def lora_compute_dtype(device):
     LORA_COMPUTE_DTYPES[device] = dtype
     return dtype
 
+def synchronize():
+    if is_intel_xpu():
+        torch.xpu.synchronize()
+    elif torch.cuda.is_available():
+        torch.cuda.synchronize()
+
 def soft_empty_cache(force=False):
     global cpu_state
     if cpu_state == CPUState.MPS:
@@ -1557,8 +1724,11 @@ def soft_empty_cache(force=False):
     elif is_mlu():
         torch.mlu.empty_cache()
     elif torch.cuda.is_available():
-        torch.cuda.empty_cache()
-        torch.cuda.ipc_collect()
+        if comfy.memory_management.aimdo_allocator is None:
+            #Pytorch 2.7 and earlier crashes if you try and empty_cache when mempools exist
+            torch.cuda.synchronize()
+            torch.cuda.empty_cache()
+            torch.cuda.ipc_collect()
 
 def unload_all_models():
     free_memory(1e30, get_torch_device())
@@ -1567,9 +1737,6 @@ def debug_memory_summary():
     if is_amd() or is_nvidia():
         return torch.cuda.memory.memory_summary()
     return ""
-
-#TODO: might be cleaner to put this somewhere else
-import threading
 
 class InterruptProcessingException(Exception):
     pass
