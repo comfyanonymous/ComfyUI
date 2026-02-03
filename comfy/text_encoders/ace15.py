@@ -57,7 +57,7 @@ def sample_manual_loop_no_classes(
         if eos_token_id is not None and eos_token_id < audio_start_id and min_tokens < step:
             eos_score = cfg_logits[:, eos_token_id].clone()
 
-        min_value = torch.finfo(cfg_logits.dtype).min
+        remove_logit_value = torch.finfo(cfg_logits.dtype).min
         # Only generate audio tokens
         cfg_logits[:, :audio_start_id] = remove_logit_value
 
