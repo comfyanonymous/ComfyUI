@@ -1597,7 +1597,7 @@ class ModelPatcherDynamic(ModelPatcher):
 
         if unpatch_weights:
             self.partially_unload_ram(1e32)
-            self.partially_unload(None)
+            self.partially_unload(None, 1e32)
 
     def partially_load(self, device_to, extra_memory=0, force_patch_weights=False):
         assert not force_patch_weights #See above
