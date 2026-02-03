@@ -4,6 +4,73 @@ from comfy.ldm.modules.attention import optimized_attention
 from typing import Tuple, Union, List
 from vae import VarLenTensor
 
+FLASH_ATTN_3_AVA = True
+try:
+    import flash_attn_interface as flash_attn_3
+except:
+    FLASH_ATTN_3_AVA = False
+
+# TODO repalce with optimized attention
+def scaled_dot_product_attention(*args, **kwargs):
+    num_all_args = len(args) + len(kwargs)
+
+    if num_all_args == 1:
+        qkv = args[0] if len(args) > 0 else kwargs['qkv']
+
+    elif num_all_args == 2:
+        q = args[0] if len(args) > 0 else kwargs['q']
+        kv = args[1] if len(args) > 1 else kwargs['kv']
+
+    elif num_all_args == 3:
+        q = args[0] if len(args) > 0 else kwargs['q']
+        k = args[1] if len(args) > 1 else kwargs['k']
+        v = args[2] if len(args) > 2 else kwargs['v']
+
+    if optimized_attention.__name__ == 'attention_xformers':
+        if 'xops' not in globals():
+            import xformers.ops as xops
+        if num_all_args == 1:
+            q, k, v = qkv.unbind(dim=2)
+        elif num_all_args == 2:
+            k, v = kv.unbind(dim=2)
+        out = xops.memory_efficient_attention(q, k, v)
+    elif optimized_attention.__name__ == 'attention_flash' and not FLASH_ATTN_3_AVA:
+        if 'flash_attn' not in globals():
+            import flash_attn
+        if num_all_args == 2:
+            out = flash_attn.flash_attn_kvpacked_func(q, kv)
+        elif num_all_args == 3:
+            out = flash_attn.flash_attn_func(q, k, v)
+    elif optimized_attention.__name__ == 'attention_flash': # TODO
+        if 'flash_attn_3' not in globals():
+            import flash_attn_interface as flash_attn_3
+            if num_all_args == 2:
+                k, v = kv.unbind(dim=2)
+                out = flash_attn_3.flash_attn_func(q, k, v)
+            elif num_all_args == 3:
+                out = flash_attn_3.flash_attn_func(q, k, v)
+    elif optimized_attention.__name__ == 'attention_pytorch':
+        if 'sdpa' not in globals():
+            from torch.nn.functional import scaled_dot_product_attention as sdpa
+        if num_all_args == 1:
+            q, k, v = qkv.unbind(dim=2)
+        elif num_all_args == 2:
+            k, v = kv.unbind(dim=2)
+        q = q.permute(0, 2, 1, 3)   # [N, H, L, C]
+        k = k.permute(0, 2, 1, 3)   # [N, H, L, C]
+        v = v.permute(0, 2, 1, 3)   # [N, H, L, C]
+        out = sdpa(q, k, v)         # [N, H, L, C]
+        out = out.permute(0, 2, 1, 3)   # [N, L, H, C]
+    elif optimized_attention.__name__ == 'attention_basic':
+        if num_all_args == 1:
+            q, k, v = qkv.unbind(dim=2)
+        elif num_all_args == 2:
+            k, v = kv.unbind(dim=2)
+        q = q.shape[2] # TODO
+        out = optimized_attention(q, k, v)
+
+    return out
+
 def sparse_windowed_scaled_dot_product_self_attention(
     qkv,
     window_size: int,

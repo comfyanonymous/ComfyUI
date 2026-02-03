@@ -1247,6 +1247,10 @@ class Trellis2(supported_models_base.BASE):
         "image_model": "trellis2"
     }
 
+    sampling_settings = {
+        "shift": 3.0,
+    }
+
     latent_format = latent_formats.Trellis2
     vae_key_prefix = ["vae."]
 
