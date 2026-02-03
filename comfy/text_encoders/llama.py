@@ -743,15 +743,14 @@ class BaseLlama:
     def forward(self, input_ids, *args, **kwargs):
         return self.model(input_ids, *args, **kwargs)
 
-    def sample_token(self, hidden_states, temperature, top_k, top_p, min_p, repetition_penalty, token_history, generator, do_sample=True):
-        logits = self.lm_head(hidden_states[:, -1, :])
+    def sample_token(self, logits, temperature, top_k, top_p, min_p, repetition_penalty, token_history, generator, do_sample=True):
 
         if repetition_penalty != 1.0:
             for i in range(logits.shape[0]):
                 for token_id in set(token_history):
                     logits[i, token_id] *= repetition_penalty if logits[i, token_id] < 0 else 1/repetition_penalty
 
-        if not do_sample:
+        if not do_sample or temperature == 0.0:
             return torch.argmax(logits, dim=-1, keepdim=True)
 
         # Sampling mode
@@ -782,14 +781,25 @@ class BaseLlama:
 
         return torch.multinomial(probs, num_samples=1, generator=generator)
 
-    def generate(self, embeds=None, do_sample=True, max_length=256, temperature=1.0, top_k=50, top_p=0.9, min_p=0.0, repetition_penalty=1.0, stop_tokens=[], seed=42, initial_tokens=[]):
-        embeds = embeds.to(self.dtype)
+    def generate(self, embeds=None, do_sample=True, max_length=256, temperature=1.0, top_k=50, top_p=0.9, min_p=0.0, repetition_penalty=1.0, stop_tokens=[], seed=42, initial_tokens=[], execution_dtype=None, min_tokens=0):
         device = embeds.device
+        model_config = self.model.config
+
+        if execution_dtype is None:
+            if comfy.model_management.should_use_bf16(device):
+                execution_dtype = torch.bfloat16
+            else:
+                execution_dtype = torch.float32
+        embeds = embeds.to(execution_dtype)
+
         #print("embeds dtype:", embeds.dtype, embeds.device, embeds.shape)
         if embeds.ndim == 2:
             embeds = embeds.unsqueeze(0)
 
         past_key_values = [] #kv_cache init
+        for x in range(model_config.num_hidden_layers):
+            past_key_values.append((torch.empty([embeds.shape[0], model_config.num_key_value_heads, embeds.shape[1] + min_tokens, model_config.head_dim], device=device, dtype=execution_dtype),
+                                    torch.empty([embeds.shape[0], model_config.num_key_value_heads, embeds.shape[1] + min_tokens, model_config.head_dim], device=device, dtype=execution_dtype), 0))
 
         generator = torch.Generator(device=device).manual_seed(seed) if do_sample else None
 
@@ -799,7 +809,8 @@ class BaseLlama:
         # Generation loop
         for step in tqdm(range(max_length), desc="Generating tokens"):
             x, _, past_key_values = self.model.forward(None, embeds=embeds, attention_mask=None, past_key_values=past_key_values)
-            next_token = self.sample_token(x, temperature, top_k, top_p, min_p, repetition_penalty, initial_tokens + generated_token_ids, generator, do_sample=do_sample)
+            logits = self.lm_head(x[:, -1, :])
+            next_token = self.sample_token(logits, temperature, top_k, top_p, min_p, repetition_penalty, initial_tokens + generated_token_ids, generator, do_sample=do_sample)
             generated_token_ids.append(next_token[0].item())
 
             embeds = self.model.embed_tokens(next_token)
@@ -999,4 +1010,3 @@ class Gemma3_12B(BaseLlama, torch.nn.Module):
             image = comfy.clip_model.clip_preprocess(embed["data"], size=self.image_size, mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5], crop=True)
             return self.multi_modal_projector(self.vision_model(image.to(device, dtype=torch.float32))[0]), None
         return None, None
-
