@@ -746,6 +746,8 @@ class Hunyuan3Dv2_1(LatentFormat):
     latent_channels = 64
     latent_dimensions = 1
 
+class Trellis2(LatentFormat): # TODO
+    latent_channels = 32
 class Hunyuan3Dv2mini(LatentFormat):
     latent_channels = 64
     latent_dimensions = 1

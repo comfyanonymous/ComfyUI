@@ -1,3 +1,4 @@
+import math
 import torch
 import torch.nn as nn
 from typing import List, Any, Dict, Optional, overload, Union, Tuple
@@ -5,12 +6,219 @@ from fractions import Fraction
 import torch.nn.functional as F
 from dataclasses import dataclass
 import numpy as np
-from cumesh import TorchHashMap, Mesh, MeshWithVoxel
+from cumesh import TorchHashMap, Mesh, MeshWithVoxel, sparse_submanifold_conv3d
 
-# TODO: determine which conv they actually use
+
+class SparseConv3d(nn.Module):
+    def __init__(self, in_channels, out_channels, kernel_size, stride=1, dilation=1, padding=None, bias=True, indice_key=None):
+        super(SparseConv3d, self).__init__()
+        sparse_conv3d_init(self, in_channels, out_channels, kernel_size, stride, dilation, padding, bias, indice_key)
+
+    def forward(self, x):
+        return sparse_conv3d_forward(self, x)
+
+
+def sparse_conv3d_init(self, in_channels, out_channels, kernel_size, stride=1, dilation=1, padding=None, bias=True, indice_key=None):
+
+    self.in_channels = in_channels
+    self.out_channels = out_channels
+    self.kernel_size = tuple(kernel_size) if isinstance(kernel_size, (list, tuple)) else (kernel_size, ) * 3
+    self.stride = tuple(stride) if isinstance(stride, (list, tuple)) else (stride, ) * 3
+    self.dilation = tuple(dilation) if isinstance(dilation, (list, tuple)) else (dilation, ) * 3
+
+    self.weight = nn.Parameter(torch.empty((out_channels, in_channels, *self.kernel_size)))
+    if bias:
+        self.bias = nn.Parameter(torch.empty(out_channels))
+    else:
+        self.register_parameter("bias", None)
+
+    if self.bias is not None:
+        fan_in, _ = torch.nn.init._calculate_fan_in_and_fan_out(self.weight)
+        if fan_in != 0:
+            bound = 1 / math.sqrt(fan_in)
+            torch.nn.init.uniform_(self.bias, -bound, bound)
+
+    # Permute weight (Co, Ci, Kd, Kh, Kw) -> (Co, Kd, Kh, Kw, Ci)
+    self.weight = nn.Parameter(self.weight.permute(0, 2, 3, 4, 1).contiguous())
+
+
+def sparse_conv3d_forward(self, x):
+    # check if neighbor map is already computed
+    Co, Kd, Kh, Kw, Ci = self.weight.shape
+    neighbor_cache_key = f'SubMConv3d_neighbor_cache_{Kw}x{Kh}x{Kd}_dilation{self.dilation}'
+    neighbor_cache = x.get_spatial_cache(neighbor_cache_key)
+
+    out, neighbor_cache_ = sparse_submanifold_conv3d(
+        x.feats,
+        x.coords,
+        torch.Size([*x.shape, *x.spatial_shape]),
+        self.weight,
+        self.bias,
+        neighbor_cache,
+        self.dilation
+    )
+
+    if neighbor_cache is None:
+        x.register_spatial_cache(neighbor_cache_key, neighbor_cache_)
+
+    out = x.replace(out)
+    return out
+
+class LayerNorm32(nn.LayerNorm):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        x_dtype = x.dtype
+        x = x.to(torch.float32)
+        o = super().forward(x)
+        return o.to(x_dtype)
+
+class SparseConvNeXtBlock3d(nn.Module):
+    def __init__(
+        self,
+        channels: int,
+        mlp_ratio: float = 4.0,
+        use_checkpoint: bool = False,
+    ):
+        super().__init__()
+        self.channels = channels
+        self.use_checkpoint = use_checkpoint
+
+        self.norm = LayerNorm32(channels, elementwise_affine=True, eps=1e-6)
+        self.conv = SparseConv3d(channels, channels, 3)
+        self.mlp = nn.Sequential(
+            nn.Linear(channels, int(channels * mlp_ratio)),
+            nn.SiLU(),
+            nn.Linear(int(channels * mlp_ratio), channels),
+        )
+
+    def _forward(self, x):
+        h = self.conv(x)
+        h = h.replace(self.norm(h.feats))
+        h = h.replace(self.mlp(h.feats))
+        return h + x
+
+    def forward(self, x):
+        return self._forward(x)
+
+class SparseSpatial2Channel(nn.Module):
+    def __init__(self, factor: int = 2):
+        super(SparseSpatial2Channel, self).__init__()
+        self.factor = factor
+
+    def forward(self, x):
+        DIM = x.coords.shape[-1] - 1
+        cache = x.get_spatial_cache(f'spatial2channel_{self.factor}')
+        if cache is None:
+            coord = list(x.coords.unbind(dim=-1))
+            for i in range(DIM):
+                coord[i+1] = coord[i+1] // self.factor
+            subidx = x.coords[:, 1:] % self.factor
+            subidx = sum([subidx[..., i] * self.factor ** i for i in range(DIM)])
+
+            MAX = [(s + self.factor - 1) // self.factor for s in x.spatial_shape]
+            OFFSET = torch.cumprod(torch.tensor(MAX[::-1]), 0).tolist()[::-1] + [1]
+            code = sum([c * o for c, o in zip(coord, OFFSET)])
+            code, idx = code.unique(return_inverse=True)
+
+            new_coords = torch.stack(
+                [code // OFFSET[0]] +
+                [(code // OFFSET[i+1]) % MAX[i] for i in range(DIM)],
+                dim=-1
+            )
+        else:
+            new_coords, idx, subidx = cache
+
+        new_feats = torch.zeros(new_coords.shape[0] * self.factor ** DIM, x.feats.shape[1], device=x.feats.device, dtype=x.feats.dtype)
+        new_feats[idx * self.factor ** DIM + subidx] = x.feats
+
+        out = SparseTensor(new_feats.reshape(new_coords.shape[0], -1), new_coords, None if x._shape is None else torch.Size([x._shape[0], x._shape[1] * self.factor ** DIM]))
+        out._scale = tuple([s * self.factor for s in x._scale])
+        out._spatial_cache = x._spatial_cache
+
+        if cache is None:
+            x.register_spatial_cache(f'spatial2channel_{self.factor}', (new_coords, idx, subidx))
+            out.register_spatial_cache(f'channel2spatial_{self.factor}', (x.coords, idx, subidx))
+            out.register_spatial_cache('shape', torch.Size(MAX))
+
+        return out
+
+class SparseChannel2Spatial(nn.Module):
+    def __init__(self, factor: int = 2):
+        super(SparseChannel2Spatial, self).__init__()
+        self.factor = factor
+
+    def forward(self, x, subdivision = None):
+        DIM = x.coords.shape[-1] - 1
+
+        cache = x.get_spatial_cache(f'channel2spatial_{self.factor}')
+        if cache is None:
+            if subdivision is None:
+                raise ValueError('Cache not found. Provide subdivision tensor or pair SparseChannel2Spatial with SparseSpatial2Channel.')
+            else:
+                sub = subdivision.feats         # [N, self.factor ** DIM]
+                N_leaf = sub.sum(dim=-1)        # [N]
+                subidx = sub.nonzero()[:, -1]
+                new_coords = x.coords.clone().detach()
+                new_coords[:, 1:] *= self.factor
+                new_coords = torch.repeat_interleave(new_coords, N_leaf, dim=0, output_size=subidx.shape[0])
+                for i in range(DIM):
+                    new_coords[:, i+1] += subidx // self.factor ** i % self.factor
+                idx = torch.repeat_interleave(torch.arange(x.coords.shape[0], device=x.device), N_leaf, dim=0, output_size=subidx.shape[0])
+        else:
+            new_coords, idx, subidx = cache
+
+        x_feats = x.feats.reshape(x.feats.shape[0] * self.factor ** DIM, -1)
+        new_feats = x_feats[idx * self.factor ** DIM + subidx]
+        out = SparseTensor(new_feats, new_coords, None if x._shape is None else torch.Size([x._shape[0], x._shape[1] // self.factor ** DIM]))
+        out._scale = tuple([s / self.factor for s in x._scale])
+        if cache is not None:           # only keep cache when subdiv following it
+            out._spatial_cache = x._spatial_cache
+        return out
+
+class SparseResBlockC2S3d(nn.Module):
+    def __init__(
+        self,
+        channels: int,
+        out_channels: Optional[int] = None,
+        use_checkpoint: bool = False,
+        pred_subdiv: bool = True,
+    ):
+        super().__init__()
+        self.channels = channels
+        self.out_channels = out_channels or channels
+        self.use_checkpoint = use_checkpoint
+        self.pred_subdiv = pred_subdiv
+
+        self.norm1 = LayerNorm32(channels, elementwise_affine=True, eps=1e-6)
+        self.norm2 = LayerNorm32(self.out_channels, elementwise_affine=False, eps=1e-6)
+        self.conv1 = SparseConv3d(channels, self.out_channels * 8, 3)
+        self.conv2 = SparseConv3d(self.out_channels, self.out_channels, 3)
+        self.skip_connection = lambda x: x.replace(x.feats.repeat_interleave(out_channels // (channels // 8), dim=1))
+        if pred_subdiv:
+            self.to_subdiv = SparseLinear(channels, 8)
+        self.updown = SparseChannel2Spatial(2)
+
+    def _forward(self, x, subdiv = None):
+        if self.pred_subdiv:
+            subdiv = self.to_subdiv(x)
+        h = x.replace(self.norm1(x.feats))
+        h = h.replace(F.silu(h.feats))
+        h = self.conv1(h)
+        subdiv_binarized = subdiv.replace(subdiv.feats > 0) if subdiv is not None else None
+        h = self.updown(h, subdiv_binarized)
+        x = self.updown(x, subdiv_binarized)
+        h = h.replace(self.norm2(h.feats))
+        h = h.replace(F.silu(h.feats))
+        h = self.conv2(h)
+        h = h + self.skip_connection(x)
+        if self.pred_subdiv:
+            return h, subdiv
+        else:
+            return h
+
 @dataclass
 class config:
-    CONV = "none"
+    CONV = "flexgemm"
+    FLEX_GEMM_HASHMAP_RATIO = 2.0
 
 # TODO post processing
 def simplify(self, target_num_faces: int, verbose: bool=False, options: dict={}):
@@ -1131,6 +1339,7 @@ def flexible_dual_grid_to_mesh(
 
 class Vae(nn.Module):
     def __init__(self, config, operations=None):
+        super().__init__()
         operations = operations or torch.nn
 
         self.txt_dec = SparseUnetVaeDecoder(
@@ -1139,7 +1348,8 @@ class Vae(nn.Module):
             latent_channels=32,
             num_blocks=[4, 16, 8, 4, 0],
             block_type=["SparseConvNeXtBlock3d"] * 5,
-            up_block_type=["SparseResBlockS2C3d"] * 4,
+            up_block_type=["SparseResBlockC2S3d"] * 4,
+            block_args=[{}, {}, {}, {}, {}],
             pred_subdiv=False
         )
 
@@ -1149,7 +1359,8 @@ class Vae(nn.Module):
             latent_channels=32,
             num_blocks=[4, 16, 8, 4, 0],
             block_type=["SparseConvNeXtBlock3d"] * 5,
-            up_block_type=["SparseResBlockS2C3d"] * 4,
+            up_block_type=["SparseResBlockC2S3d"] * 4,
+            block_args=[{}, {}, {}, {}, {}],
         )
 
     def decode_shape_slat(self, slat, resolution: int):

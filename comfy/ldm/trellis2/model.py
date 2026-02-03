@@ -408,7 +408,7 @@ class SLatFlowModel(nn.Module):
         self.qk_rms_norm_cross = qk_rms_norm_cross
         self.dtype = dtype
 
-        self.t_embedder = TimestepEmbedder(model_channels)
+        self.t_embedder = TimestepEmbedder(model_channels, device=device, dtype=dtype, operations=operations)
         if share_mod:
             self.adaLN_modulation = nn.Sequential(
                 nn.SiLU(),
@@ -485,15 +485,25 @@ class Trellis2(nn.Module):
                  qk_rms_norm = True,
                  qk_rms_norm_cross = True,
                  dtype=None, device=None, operations=None):
+
+        super().__init__()
         args = {
             "out_channels":out_channels, "num_blocks":num_blocks, "cond_channels" :cond_channels,
             "model_channels":model_channels, "num_heads":num_heads, "mlp_ratio": mlp_ratio, "share_mod": share_mod,
             "qk_rms_norm": qk_rms_norm, "qk_rms_norm_cross": qk_rms_norm_cross, "device": device, "dtype": dtype, "operations": operations
         }
         # TODO: update the names/checkpoints
-        self.img2shape = SLatFlowModel(resolution, in_channels=in_channels, *args)
-        self.shape2txt = SLatFlowModel(resolution, in_channels=in_channels*2, *args)
+        self.img2shape = SLatFlowModel(resolution=resolution, in_channels=in_channels, **args)
+        self.shape2txt = SLatFlowModel(resolution=resolution, in_channels=in_channels*2, **args)
         self.shape_generation = True
 
-    def forward(self, x, timestep, context):
-        pass
+    def forward(self, x, timestep, context, **kwargs):
+        # TODO add mode
+        mode = kwargs.get("mode", "shape_generation")
+        mode = "texture_generation" if mode == 1 else "shape_generation"
+        if mode == "shape_generation":
+            out = self.img2shape(x, timestep, context)
+        if mode == "texture_generation":
+            out = self.shape2txt(x, timestep, context)
+
+        return out
