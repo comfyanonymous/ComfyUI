@@ -3,6 +3,7 @@ import comfy.text_encoders.llama
 from comfy import sd1_clip
 import torch
 import math
+import comfy.utils
 
 
 def sample_manual_loop_no_classes(
@@ -41,6 +42,8 @@ def sample_manual_loop_no_classes(
 
     for x in range(model_config.num_hidden_layers):
         past_key_values.append((torch.empty([embeds.shape[0], model_config.num_key_value_heads, embeds.shape[1] + min_tokens, model_config.head_dim], device=device, dtype=execution_dtype), torch.empty([embeds.shape[0], model_config.num_key_value_heads, embeds.shape[1] + min_tokens, model_config.head_dim], device=device, dtype=execution_dtype), 0))
+
+    progress_bar = comfy.utils.ProgressBar(max_new_tokens)
 
     for step in range(max_new_tokens):
         outputs = model.transformer(None, attention_mask, embeds=embeds.to(execution_dtype), num_tokens=num_tokens, intermediate_output=None, dtype=execution_dtype, embeds_info=embeds_info, past_key_values=past_key_values)
@@ -90,6 +93,7 @@ def sample_manual_loop_no_classes(
         attention_mask = torch.cat([attention_mask, torch.ones((2, 1), device=device, dtype=attention_mask.dtype)], dim=1)
 
         output_audio_codes.append(token - audio_start_id)
+        progress_bar.update_absolute(step)
 
     return output_audio_codes
 
