@@ -65,7 +65,7 @@ async def poll_until_finished(
     if response_poll.data.status == TripoTaskStatus.SUCCESS:
         url = get_model_url_from_response(response_poll)
         file_glb = await download_url_to_file_3d(url, "glb", task_id=task_id)
-        return IO.NodeOutput(file_glb, task_id, file_glb)
+        return IO.NodeOutput(f"{task_id}.glb", task_id, file_glb)
     raise RuntimeError(f"Failed to generate mesh: {response_poll}")
 
 
