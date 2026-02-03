@@ -767,6 +767,9 @@ def load_models_gpu(models, memory_required=0, force_patch_weights=False, minimu
         load_models_gpu_orig(models, memory_required=memory_required, force_patch_weights=force_patch_weights,
                              minimum_memory_required=minimum_memory_required, force_full_load=force_full_load)
 
+def load_model_gpu(model):
+    return load_models_gpu([model])
+
 def loaded_models(only_currently_used=False):
     output = []
     for m in current_loaded_models:
