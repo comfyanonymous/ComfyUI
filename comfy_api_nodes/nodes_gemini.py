@@ -198,12 +198,18 @@ def get_parts_by_type(response: GeminiGenerateContentResponse, part_type: Litera
     if not parts:
         if blocked_reasons:
             raise ValueError(f"Gemini API blocked the request. Reasons: {blocked_reasons}")
+        if part_type == "text":
+            return []
         details = _summarize_gemini_response_issues(response)
         if details:
             raise ValueError(
                 f"Gemini API returned no {part_type} parts. Details: {details}. "
                 "If you are using the `IMAGE` modality, try `IMAGE+TEXT` to see why image generation failed."
             )
+        raise ValueError(
+            f"Gemini API returned no {part_type} parts. "
+            "If you are using the `IMAGE` modality, try `IMAGE+TEXT` to see why image generation failed."
+        )
 
     return parts
 
