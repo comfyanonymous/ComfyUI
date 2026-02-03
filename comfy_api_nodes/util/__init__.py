@@ -28,6 +28,7 @@ from .conversions import (
 from .download_helpers import (
     download_url_as_bytesio,
     download_url_to_bytesio,
+    download_url_to_file_3d,
     download_url_to_image_tensor,
     download_url_to_video_output,
 )
@@ -69,6 +70,7 @@ __all__ = [
     # Download helpers
     "download_url_as_bytesio",
     "download_url_to_bytesio",
+    "download_url_to_file_3d",
     "download_url_to_image_tensor",
     "download_url_to_video_output",
     # Conversions

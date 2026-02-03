@@ -622,14 +622,20 @@ class SaveGLB(IO.ComfyNode):
             category="3d",
             is_output_node=True,
             inputs=[
-                IO.Mesh.Input("mesh"),
+                IO.MultiType.Input(
+                    IO.Mesh.Input("mesh"),
+                    types=[
+                        IO.File3DGLB,
+                    ],
+                    tooltip="Mesh or GLB file to save",
+                ),
                 IO.String.Input("filename_prefix", default="mesh/ComfyUI"),
             ],
             hidden=[IO.Hidden.prompt, IO.Hidden.extra_pnginfo]
         )
 
     @classmethod
-    def execute(cls, mesh, filename_prefix) -> IO.NodeOutput:
+    def execute(cls, mesh: Types.MESH | Types.File3D, filename_prefix: str) -> IO.NodeOutput:
         full_output_folder, filename, counter, subfolder, filename_prefix = folder_paths.get_save_image_path(filename_prefix, folder_paths.get_output_directory())
         results = []
 
@@ -641,15 +647,26 @@ class SaveGLB(IO.ComfyNode):
                 for x in cls.hidden.extra_pnginfo:
                     metadata[x] = json.dumps(cls.hidden.extra_pnginfo[x])
 
-        for i in range(mesh.vertices.shape[0]):
+        if isinstance(mesh, Types.File3D):
+            # Handle File3D input - save BytesIO data to output folder
             f = f"{filename}_{counter:05}_.glb"
-            save_glb(mesh.vertices[i], mesh.faces[i], os.path.join(full_output_folder, f), metadata)
+            mesh.save_to(os.path.join(full_output_folder, f))
             results.append({
                 "filename": f,
                 "subfolder": subfolder,
                 "type": "output"
             })
-            counter += 1
+        else:
+            # Handle Mesh input - save vertices and faces as GLB
+            for i in range(mesh.vertices.shape[0]):
+                f = f"{filename}_{counter:05}_.glb"
+                save_glb(mesh.vertices[i], mesh.faces[i], os.path.join(full_output_folder, f), metadata)
+                results.append({
+                    "filename": f,
+                    "subfolder": subfolder,
+                    "type": "output"
+                })
+                counter += 1
         return IO.NodeOutput(ui={"3d": results})
 
 
