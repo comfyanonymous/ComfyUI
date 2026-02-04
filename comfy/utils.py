@@ -82,14 +82,12 @@ _TYPES = {
 def load_safetensors(ckpt):
     f = open(ckpt, "rb")
     mapping = mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ)
+    mv = memoryview(mapping)
 
     header_size = struct.unpack("<Q", mapping[:8])[0]
     header = json.loads(mapping[8:8+header_size].decode("utf-8"))
 
-    with warnings.catch_warnings():
-        #We are working with read-only RAM by design
-        warnings.filterwarnings("ignore", message="The given buffer is not writable")
-        data_area = torch.frombuffer(mapping, dtype=torch.uint8)[8 + header_size:]
+    mv = mv[8 + header_size:]
 
     sd = {}
     for name, info in header.items():
@@ -97,7 +95,13 @@ def load_safetensors(ckpt):
             continue
 
         start, end = info["data_offsets"]
-        sd[name] = data_area[start:end].view(_TYPES[info["dtype"]]).view(info["shape"])
+        if start == end:
+            sd[name] = torch.empty(info["shape"], dtype =_TYPES[info["dtype"]])
+        else:
+            with warnings.catch_warnings():
+                #We are working with read-only RAM by design
+                warnings.filterwarnings("ignore", message="The given buffer is not writable")
+                sd[name] = torch.frombuffer(mv[start:end], dtype=_TYPES[info["dtype"]]).view(info["shape"])
 
     return sd, header.get("__metadata__", {}),
 
