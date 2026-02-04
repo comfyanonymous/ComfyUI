@@ -495,7 +495,10 @@ class PromptServer():
 
                 if "subfolder" in request.rel_url.query:
                     full_output_dir = os.path.join(output_dir, request.rel_url.query["subfolder"])
-                    if os.path.commonpath((os.path.abspath(full_output_dir), output_dir)) != output_dir:
+                    # Resolve symlinks BEFORE validation to prevent symlink-based path traversal
+                    real_output_dir = os.path.realpath(full_output_dir)
+                    real_base_dir = os.path.realpath(output_dir)
+                    if not real_output_dir.startswith(real_base_dir + os.sep) and real_output_dir != real_base_dir:
                         return web.Response(status=403)
                     output_dir = full_output_dir
 
