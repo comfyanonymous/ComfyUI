@@ -1461,7 +1461,10 @@ class Trellis2(BaseModel):
         super().__init__(model_config, model_type, device, unet_model)
 
     def extra_conds(self, **kwargs):
-        return super().extra_conds(**kwargs)
+        out = super().extra_conds(**kwargs)
+        embeds = kwargs.get("embeds")
+        out["embeds"] = comfy.conds.CONDRegular(embeds)
+        return out
 
 class Hunyuan3Dv2(BaseModel):
     def __init__(self, model_config, model_type=ModelType.FLOW, device=None):

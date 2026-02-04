@@ -7,6 +7,7 @@ from comfy.ldm.trellis2.attention import (
     sparse_windowed_scaled_dot_product_self_attention, sparse_scaled_dot_product_attention, scaled_dot_product_attention
 )
 from comfy.ldm.genmo.joint_model.layers import TimestepEmbedder
+from comfy.nested_tensor import NestedTensor
 
 class SparseGELU(nn.GELU):
     def forward(self, input: VarLenTensor) -> VarLenTensor:
@@ -772,6 +773,11 @@ class SparseStructureFlowModel(nn.Module):
 
         return h
 
+def timestep_reshift(t_shifted, old_shift=3.0, new_shift=5.0):
+    t_linear = t_shifted / (old_shift - t_shifted * (old_shift - 1))
+    t_new = (new_shift * t_linear) / (1 + (new_shift - 1) * t_linear)
+    return t_new
+
 class Trellis2(nn.Module):
     def __init__(self, resolution,
                  in_channels = 32,
@@ -798,18 +804,25 @@ class Trellis2(nn.Module):
         args.pop("in_channels")
         self.structure_model = SparseStructureFlowModel(resolution=16, in_channels=8, out_channels=8, **args)
 
-    def forward(self, x, timestep, context, **kwargs):
-        # TODO add mode
-        mode = kwargs.get("mode", "shape_generation")
-        if mode != 0:
-            mode = "texture_generation" if mode == 2 else "shape_generation"
-        else:
+    def forward(self, x: NestedTensor, timestep, context, **kwargs):
+        x = x.tensors[0]
+        embeds = kwargs.get("embeds")
+        if not hasattr(x, "feats"):
             mode = "structure_generation"
+        else:
+            if x.feats.shape[1] == 32:
+                mode = "shape_generation"
+            else:
+                mode = "texture_generation"
         if mode == "shape_generation":
-            out = self.img2shape(x, timestep, context)
+            # TODO
+            out = self.img2shape(x, timestep, torch.cat([embeds, torch.empty_like(embeds)]))
         elif mode == "texture_generation":
             out = self.shape2txt(x, timestep, context)
-        else:
+        else: # structure
+            timestep = timestep_reshift(timestep)
             out = self.structure_model(x, timestep, context)
 
+        out = NestedTensor([out])
+        out.generation_mode = mode
         return out

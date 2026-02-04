@@ -6,6 +6,7 @@ import comfy.model_management
 from PIL import Image
 import PIL
 import numpy as np
+from comfy.nested_tensor import NestedTensor
 
 shape_slat_normalization = {
     "mean": torch.tensor([
@@ -131,7 +132,8 @@ class VaeDecodeShapeTrellis(IO.ComfyNode):
         )
 
     @classmethod
-    def execute(cls, samples, vae, resolution):
+    def execute(cls, samples: NestedTensor, vae, resolution):
+        samples = samples.tensors[0]
         std = shape_slat_normalization["std"]
         mean = shape_slat_normalization["mean"]
         samples = samples * std + mean
@@ -157,15 +159,35 @@ class VaeDecodeTextureTrellis(IO.ComfyNode):
 
     @classmethod
     def execute(cls, samples, vae, shape_subs):
-        if shape_subs is None:
-            raise ValueError("Shape subs must be provided for texture generation")
-
+        samples = samples.tensors[0]
         std = tex_slat_normalization["std"]
         mean = tex_slat_normalization["mean"]
         samples = samples * std + mean
 
         mesh = vae.decode_tex_slat(samples, shape_subs)
         return mesh
+
+class VaeDecodeStructureTrellis2(IO.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return IO.Schema(
+            node_id="VaeDecodeStructureTrellis2",
+            category="latent/3d",
+            inputs=[
+                IO.Latent.Input("samples"),
+                IO.Vae.Input("vae"),
+            ],
+            outputs=[
+                IO.Mesh.Output("structure_output"),
+            ]
+        )
+
+    @classmethod
+    def execute(cls, samples, vae):
+        decoder = vae.struct_dec
+        decoded = decoder(samples)>0
+        coords = torch.argwhere(decoded)[:, [0, 2, 3, 4]].int()
+        return coords
 
 class Trellis2Conditioning(IO.ComfyNode):
     @classmethod
@@ -189,8 +211,8 @@ class Trellis2Conditioning(IO.ComfyNode):
         # could make 1024 an option
         conditioning, _ = run_conditioning(clip_vision_model, image, include_1024=True, background_color=background_color)
         embeds = conditioning["cond_1024"] # should add that
-        positive = [[conditioning["cond_512"], {embeds}]]
-        negative = [[conditioning["cond_neg"], {embeds}]]
+        positive = [[conditioning["cond_512"], {"embeds": embeds}]]
+        negative = [[conditioning["cond_neg"], {"embeds": embeds}]]
         return IO.NodeOutput(positive, negative)
 
 class EmptyShapeLatentTrellis2(IO.ComfyNode):
@@ -200,7 +222,7 @@ class EmptyShapeLatentTrellis2(IO.ComfyNode):
             node_id="EmptyLatentTrellis2",
             category="latent/3d",
             inputs=[
-                IO.Latent.Input("structure_output"),
+                IO.Mesh.Input("structure_output"),
             ],
             outputs=[
                 IO.Latent.Output(),
@@ -210,9 +232,10 @@ class EmptyShapeLatentTrellis2(IO.ComfyNode):
     @classmethod
     def execute(cls, structure_output):
         # i will see what i have to do here
-        coords = structure_output or structure_output.coords
+        coords = structure_output # or structure_output.coords
         in_channels = 32
         latent = SparseTensor(feats=torch.randn(coords.shape[0], in_channels), coords=coords)
+        latent = NestedTensor([latent])
         return IO.NodeOutput({"samples": latent, "type": "trellis2"})
 
 class EmptyTextureLatentTrellis2(IO.ComfyNode):
@@ -222,7 +245,7 @@ class EmptyTextureLatentTrellis2(IO.ComfyNode):
             node_id="EmptyLatentTrellis2",
             category="latent/3d",
             inputs=[
-                IO.Latent.Input("structure_output"),
+                IO.Mesh.Input("structure_output"),
             ],
             outputs=[
                 IO.Latent.Output(),
@@ -234,6 +257,7 @@ class EmptyTextureLatentTrellis2(IO.ComfyNode):
         # TODO
         in_channels = 32
         latent = structure_output.replace(feats=torch.randn(structure_output.coords.shape[0], in_channels - structure_output.feats.shape[1]))
+        latent = NestedTensor([latent])
         return IO.NodeOutput({"samples": latent, "type": "trellis2"})
 
 class EmptyStructureLatentTrellis2(IO.ComfyNode):
@@ -254,6 +278,7 @@ class EmptyStructureLatentTrellis2(IO.ComfyNode):
     def execute(cls, res, batch_size):
         in_channels = 32
         latent = torch.randn(batch_size, in_channels, res, res, res)
+        latent = NestedTensor([latent])
         return IO.NodeOutput({"samples": latent, "type": "trellis2"})
 
 
@@ -266,7 +291,8 @@ class Trellis2Extension(ComfyExtension):
             EmptyStructureLatentTrellis2,
             EmptyTextureLatentTrellis2,
             VaeDecodeTextureTrellis,
-            VaeDecodeShapeTrellis
+            VaeDecodeShapeTrellis,
+            VaeDecodeStructureTrellis2
         ]
 
 
