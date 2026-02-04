@@ -618,7 +618,7 @@ class SaveGLB(IO.ComfyNode):
     def define_schema(cls):
         return IO.Schema(
             node_id="SaveGLB",
-            display_name="Save 3D model",
+            display_name="Save 3D Model",
             search_aliases=["export 3d model", "save mesh"],
             category="3d",
             is_output_node=True,
