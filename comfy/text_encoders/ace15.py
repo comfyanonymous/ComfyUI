@@ -162,14 +162,34 @@ class Qwen3_2B_ACE15(sd1_clip.SDClipModel):
 
         super().__init__(device=device, layer=layer, layer_idx=layer_idx, textmodel_json_config={}, dtype=dtype, special_tokens={"pad": 151643}, layer_norm_hidden_state=False, model_class=comfy.text_encoders.llama.Qwen3_2B_ACE15_lm, enable_attention_masks=attention_mask, return_attention_masks=attention_mask, model_options=model_options)
 
+class Qwen3_4B_ACE15(sd1_clip.SDClipModel):
+    def __init__(self, device="cpu", layer="last", layer_idx=None, dtype=None, attention_mask=True, model_options={}):
+        llama_quantization_metadata = model_options.get("llama_quantization_metadata", None)
+        if llama_quantization_metadata is not None:
+            model_options = model_options.copy()
+            model_options["quantization_metadata"] = llama_quantization_metadata
+
+        super().__init__(device=device, layer=layer, layer_idx=layer_idx, textmodel_json_config={}, dtype=dtype, special_tokens={"pad": 151643}, layer_norm_hidden_state=False, model_class=comfy.text_encoders.llama.Qwen3_4B_ACE15_lm, enable_attention_masks=attention_mask, return_attention_masks=attention_mask, model_options=model_options)
+
 class ACE15TEModel(torch.nn.Module):
-    def __init__(self, device="cpu", dtype=None, dtype_llama=None, model_options={}):
+    def __init__(self, device="cpu", dtype=None, dtype_llama=None, lm_model=None, model_options={}):
         super().__init__()
         if dtype_llama is None:
             dtype_llama = dtype
 
+        model = None
+        self.constant = 0.4375
+        if lm_model == "qwen3_4b":
+            model = Qwen3_4B_ACE15
+            self.constant = 0.5625
+        elif lm_model == "qwen3_2b":
+            model = Qwen3_2B_ACE15
+
+        self.lm_model = lm_model
         self.qwen3_06b = Qwen3_06BModel(device=device, dtype=dtype, model_options=model_options)
-        self.qwen3_2b = Qwen3_2B_ACE15(device=device, dtype=dtype_llama, model_options=model_options)
+        if model is not None:
+            setattr(self, self.lm_model, model(device=device, dtype=dtype_llama, model_options=model_options))
+
         self.dtypes = set([dtype, dtype_llama])
 
     def encode_token_weights(self, token_weight_pairs):
@@ -182,17 +202,21 @@ class ACE15TEModel(torch.nn.Module):
         lyrics_embeds, _, extra_l = self.qwen3_06b.encode_token_weights(token_weight_pairs_lyrics)
 
         lm_metadata = token_weight_pairs["lm_metadata"]
-        audio_codes = generate_audio_codes(self.qwen3_2b, token_weight_pairs["lm_prompt"], token_weight_pairs["lm_prompt_negative"], min_tokens=lm_metadata["min_tokens"], max_tokens=lm_metadata["min_tokens"], seed=lm_metadata["seed"])
+        audio_codes = generate_audio_codes(getattr(self, self.lm_model, self.qwen3_06b), token_weight_pairs["lm_prompt"], token_weight_pairs["lm_prompt_negative"], min_tokens=lm_metadata["min_tokens"], max_tokens=lm_metadata["min_tokens"], seed=lm_metadata["seed"])
 
         return base_out, None, {"conditioning_lyrics": lyrics_embeds[:, 0], "audio_codes": [audio_codes]}
 
     def set_clip_options(self, options):
         self.qwen3_06b.set_clip_options(options)
-        self.qwen3_2b.set_clip_options(options)
+        lm_model = getattr(self, self.lm_model, None)
+        if lm_model is not None:
+            lm_model.set_clip_options(options)
 
     def reset_clip_options(self):
         self.qwen3_06b.reset_clip_options()
-        self.qwen3_2b.reset_clip_options()
+        lm_model = getattr(self, self.lm_model, None)
+        if lm_model is not None:
+            lm_model.reset_clip_options()
 
     def load_sd(self, sd):
         if "model.layers.0.post_attention_layernorm.weight" in sd:
@@ -200,11 +224,11 @@ class ACE15TEModel(torch.nn.Module):
             if shape[0] == 1024:
                 return self.qwen3_06b.load_sd(sd)
             else:
-                return self.qwen3_2b.load_sd(sd)
+                return getattr(self, self.lm_model).load_sd(sd)
 
     def memory_estimation_function(self, token_weight_pairs, device=None):
         lm_metadata = token_weight_pairs["lm_metadata"]
-        constant = 0.4375
+        constant = self.constant
         if comfy.model_management.should_use_bf16(device):
             constant *= 0.5
 
@@ -213,11 +237,11 @@ class ACE15TEModel(torch.nn.Module):
         num_tokens += lm_metadata['min_tokens']
         return num_tokens * constant * 1024 * 1024
 
-def te(dtype_llama=None, llama_quantization_metadata=None):
+def te(dtype_llama=None, llama_quantization_metadata=None, lm_model="qwen3_2b"):
     class ACE15TEModel_(ACE15TEModel):
         def __init__(self, device="cpu", dtype=None, model_options={}):
             if llama_quantization_metadata is not None:
                 model_options = model_options.copy()
                 model_options["llama_quantization_metadata"] = llama_quantization_metadata
-            super().__init__(device=device, dtype_llama=dtype_llama, dtype=dtype, model_options=model_options)
+            super().__init__(device=device, dtype_llama=dtype_llama, lm_model=lm_model, dtype=dtype, model_options=model_options)
     return ACE15TEModel_
