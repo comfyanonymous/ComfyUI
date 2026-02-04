@@ -11,7 +11,8 @@ import torch
 from aiohttp.client_exceptions import ClientError, ContentTypeError
 
 from comfy_api.latest import IO as COMFY_IO
-from comfy_api.latest import InputImpl
+from comfy_api.latest import InputImpl, Types
+from folder_paths import get_output_directory
 
 from . import request_logger
 from ._helpers import (
@@ -261,3 +262,38 @@ def _generate_operation_id(method: str, url: str, attempt: int) -> str:
     except Exception:
         slug = "download"
     return f"{method}_{slug}_try{attempt}_{uuid.uuid4().hex[:8]}"
+
+
+async def download_url_to_file_3d(
+    url: str,
+    file_format: str,
+    *,
+    task_id: str | None = None,
+    timeout: float | None = None,
+    max_retries: int = 5,
+    cls: type[COMFY_IO.ComfyNode] = None,
+) -> Types.File3D:
+    """Downloads a 3D model file from a URL into memory as BytesIO.
+
+    If task_id is provided, also writes the file to disk in the output directory
+    for backward compatibility with the old save-to-disk behavior.
+    """
+    file_format = file_format.lstrip(".").lower()
+    data = BytesIO()
+    await download_url_to_bytesio(
+        url,
+        data,
+        timeout=timeout,
+        max_retries=max_retries,
+        cls=cls,
+    )
+
+    if task_id is not None:
+        # This is only for backward compatability with current behavior when every 3D node is output node
+        # All new API nodes should not use "task_id" and instead users should use "SaveGLB" node to save results
+        output_dir = Path(get_output_directory())
+        output_path = output_dir / f"{task_id}.{file_format}"
+        output_path.write_bytes(data.getvalue())
+        data.seek(0)
+
+    return Types.File3D(source=data, file_format=file_format)
