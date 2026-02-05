@@ -8,6 +8,7 @@ from comfy.ldm.trellis2.attention import (
 )
 from comfy.ldm.genmo.joint_model.layers import TimestepEmbedder
 from comfy.nested_tensor import NestedTensor
+from comfy.ldm.flux.math import apply_rope, apply_rope1
 
 class SparseGELU(nn.GELU):
     def forward(self, input: VarLenTensor) -> VarLenTensor:
@@ -52,7 +53,6 @@ class SparseMultiHeadRMSNorm(nn.Module):
             x = F.normalize(x, dim=-1) * self.gamma * self.scale
         return x.to(x_type)
 
-# TODO: replace with apply_rope1
 class SparseRotaryPositionEmbedder(nn.Module):
     def __init__(
         self,
@@ -61,7 +61,6 @@ class SparseRotaryPositionEmbedder(nn.Module):
         rope_freq: Tuple[float, float] = (1.0, 10000.0)
     ):
         super().__init__()
-        assert head_dim % 2 == 0, "Head dim must be divisible by 2"
         self.head_dim = head_dim
         self.dim = dim
         self.rope_freq = rope_freq
@@ -69,46 +68,48 @@ class SparseRotaryPositionEmbedder(nn.Module):
         self.freqs = torch.arange(self.freq_dim, dtype=torch.float32) / self.freq_dim
         self.freqs = rope_freq[0] / (rope_freq[1] ** (self.freqs))
 
-    def _get_phases(self, indices: torch.Tensor) -> torch.Tensor:
-        self.freqs = self.freqs.to(indices.device)
-        phases = torch.outer(indices, self.freqs)
-        phases = torch.polar(torch.ones_like(phases), phases)
-        return phases
+    def _get_freqs_cis(self, coords: torch.Tensor) -> torch.Tensor:
+        phases_list = []
+        for i in range(self.dim):
+            phases_list.append(torch.outer(coords[..., i], self.freqs.to(coords.device)))
 
-    def _rotary_embedding(self, x: torch.Tensor, phases: torch.Tensor) -> torch.Tensor:
-        x_complex = torch.view_as_complex(x.float().reshape(*x.shape[:-1], -1, 2))
-        x_rotated = x_complex * phases.unsqueeze(-2)
-        x_embed = torch.view_as_real(x_rotated).reshape(*x_rotated.shape[:-1], -1).to(x.dtype)
-        return x_embed
+        phases = torch.cat(phases_list, dim=-1)
 
-    def forward(self, q: SparseTensor, k: Optional[SparseTensor] = None) -> Tuple[torch.Tensor, torch.Tensor]:
-        """
-        Args:
-            q (SparseTensor): [..., N, H, D] tensor of queries
-            k (SparseTensor): [..., N, H, D] tensor of keys
-        """
-        assert q.coords.shape[-1] == self.dim + 1, "Last dimension of coords must be equal to dim+1"
-        phases_cache_name = f'rope_phase_{self.dim}d_freq{self.rope_freq[0]}-{self.rope_freq[1]}_hd{self.head_dim}'
-        phases = q.get_spatial_cache(phases_cache_name)
-        if phases is None:
-            coords = q.coords[..., 1:]
-            phases = self._get_phases(coords.reshape(-1)).reshape(*coords.shape[:-1], -1)
-            if phases.shape[-1] < self.head_dim // 2:
-                padn = self.head_dim // 2 - phases.shape[-1]
-                phases = torch.cat([phases, torch.polar(
-                    torch.ones(*phases.shape[:-1], padn, device=phases.device),
-                    torch.zeros(*phases.shape[:-1], padn, device=phases.device)
-                )], dim=-1)
-            q.register_spatial_cache(phases_cache_name, phases)
-        q_embed = q.replace(self._rotary_embedding(q.feats, phases))
+        if phases.shape[-1] < self.head_dim // 2:
+            padn = self.head_dim // 2 - phases.shape[-1]
+            phases = torch.cat([phases, torch.zeros(*phases.shape[:-1], padn, device=phases.device)], dim=-1)
+
+        cos = torch.cos(phases)
+        sin = torch.sin(phases)
+
+        f_cis_0 = torch.stack([cos, sin], dim=-1)
+        f_cis_1 = torch.stack([-sin, cos], dim=-1)
+        freqs_cis = torch.stack([f_cis_0, f_cis_1], dim=-1)
+
+        return freqs_cis
+
+    def forward(self, q, k=None):
+        cache_name = f'rope_cis_{self.dim}d_f{self.rope_freq[1]}_hd{self.head_dim}'
+        freqs_cis = q.get_spatial_cache(cache_name)
+
+        if freqs_cis is None:
+            coords = q.coords[..., 1:].to(torch.float32)
+            freqs_cis = self._get_freqs_cis(coords)
+            q.register_spatial_cache(cache_name, freqs_cis)
+
+        if q.feats.ndim == 3:
+            f_cis = freqs_cis.unsqueeze(1)
+        else:
+            f_cis = freqs_cis
+
         if k is None:
-            return q_embed
-        k_embed = k.replace(self._rotary_embedding(k.feats, phases))
-        return q_embed, k_embed
+            return q.replace(apply_rope1(q.feats, f_cis))
+
+        q_feats, k_feats = apply_rope(q.feats, k.feats, f_cis)
+        return q.replace(q_feats), k.replace(k_feats)
 
 class RotaryPositionEmbedder(SparseRotaryPositionEmbedder):
     def forward(self, indices: torch.Tensor) -> torch.Tensor:
-        assert indices.shape[-1] == self.dim, f"Last dim of indices must be {self.dim}"
         phases = self._get_phases(indices.reshape(-1)).reshape(*indices.shape[:-1], -1)
         if phases.shape[-1] < self.head_dim // 2:
                 padn = self.head_dim // 2 - phases.shape[-1]
@@ -228,9 +229,6 @@ class SparseMultiHeadAttention(nn.Module):
         return h
 
 class ModulatedSparseTransformerBlock(nn.Module):
-    """
-    Sparse Transformer block (MSA + FFN) with adaptive layer norm conditioning.
-    """
     def __init__(
         self,
         channels: int,

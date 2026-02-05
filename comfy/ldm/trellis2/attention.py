@@ -26,21 +26,21 @@ def scaled_dot_product_attention(*args, **kwargs):
         k = args[1] if len(args) > 1 else kwargs['k']
         v = args[2] if len(args) > 2 else kwargs['v']
 
+    # TODO verify
+    heads = q or qkv
+    heads = heads.shape[2]
+
     if optimized_attention.__name__ == 'attention_xformers':
-        if 'xops' not in globals():
-            import xformers.ops as xops
         if num_all_args == 1:
             q, k, v = qkv.unbind(dim=2)
         elif num_all_args == 2:
             k, v = kv.unbind(dim=2)
-        out = xops.memory_efficient_attention(q, k, v)
+        #out = xops.memory_efficient_attention(q, k, v)
+        out = optimized_attention(q, k, v, heads, skip_output_reshape=True, skip_reshape=True)
     elif optimized_attention.__name__ == 'attention_flash' and not FLASH_ATTN_3_AVA:
-        if 'flash_attn' not in globals():
-            import flash_attn
         if num_all_args == 2:
-            out = flash_attn.flash_attn_kvpacked_func(q, kv)
-        elif num_all_args == 3:
-            out = flash_attn.flash_attn_func(q, k, v)
+            k, v = kv.unbind(dim=2)
+        out = optimized_attention(q, k, v, heads, skip_output_reshape=True, skip_reshape=True)
     elif optimized_attention.__name__ == 'attention_flash': # TODO
         if 'flash_attn_3' not in globals():
             import flash_attn_interface as flash_attn_3
@@ -59,15 +59,14 @@ def scaled_dot_product_attention(*args, **kwargs):
         q = q.permute(0, 2, 1, 3)   # [N, H, L, C]
         k = k.permute(0, 2, 1, 3)   # [N, H, L, C]
         v = v.permute(0, 2, 1, 3)   # [N, H, L, C]
-        out = sdpa(q, k, v)         # [N, H, L, C]
+        out = optimized_attention(q, k, v, heads, skip_output_reshape=True, skip_reshape=True)
         out = out.permute(0, 2, 1, 3)   # [N, L, H, C]
     elif optimized_attention.__name__ == 'attention_basic':
         if num_all_args == 1:
             q, k, v = qkv.unbind(dim=2)
         elif num_all_args == 2:
             k, v = kv.unbind(dim=2)
-        q = q.shape[2] # TODO
-        out = optimized_attention(q, k, v)
+        out = optimized_attention(q, k, v, heads, skip_output_reshape=True, skip_reshape=True)
 
     return out
 
@@ -86,19 +85,21 @@ def sparse_windowed_scaled_dot_product_self_attention(
         fwd_indices, bwd_indices, seq_lens, attn_func_args = serialization_spatial_cache
 
     qkv_feats = qkv.feats[fwd_indices]      # [M, 3, H, C]
+    heads = qkv_feats.shape[2]
 
     if optimized_attention.__name__ == 'attention_xformers':
-        if 'xops' not in globals():
-            import xformers.ops as xops
         q, k, v = qkv_feats.unbind(dim=1)
         q = q.unsqueeze(0)                                                              # [1, M, H, C]
         k = k.unsqueeze(0)                                                              # [1, M, H, C]
         v = v.unsqueeze(0)                                                              # [1, M, H, C]
-        out = xops.memory_efficient_attention(q, k, v, **attn_func_args)[0]             # [M, H, C]
+        #out = xops.memory_efficient_attention(q, k, v, **attn_func_args)[0]             # [M, H, C]
+        out = optimized_attention(q, k, v, heads, skip_output_reshape=True, skip_reshape=True)
     elif optimized_attention.__name__ == 'attention_flash':
         if 'flash_attn' not in globals():
             import flash_attn
         out = flash_attn.flash_attn_varlen_qkvpacked_func(qkv_feats, **attn_func_args)  # [M, H, C]
+    else:
+        out = optimized_attention(q, k, v, heads, skip_output_reshape=True, skip_reshape=True)
 
     out = out[bwd_indices]      # [T, H, C]
 
