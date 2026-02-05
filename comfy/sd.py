@@ -976,7 +976,7 @@ class VAE:
         if overlap is not None:
             args["overlap"] = overlap
 
-        if dims == 1:
+        if dims == 1 or self.extra_1d_channel is not None:
             args.pop("tile_y")
             output = self.decode_tiled_1d(samples, **args)
         elif dims == 2:
