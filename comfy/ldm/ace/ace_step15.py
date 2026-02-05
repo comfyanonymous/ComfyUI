@@ -183,7 +183,7 @@ class AceStepAttention(nn.Module):
             else:
                 attn_bias = window_bias
 
-        attn_output = optimized_attention(query_states, key_states, value_states, self.num_heads, attn_bias, skip_reshape=True)
+        attn_output = optimized_attention(query_states, key_states, value_states, self.num_heads, attn_bias, skip_reshape=True, low_precision_attention=False)
         attn_output = self.o_proj(attn_output)
 
         return attn_output
