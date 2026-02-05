@@ -621,6 +621,7 @@ class SaveGLB(IO.ComfyNode):
             display_name="Save 3D Model",
             search_aliases=["export 3d model", "save mesh"],
             category="3d",
+            essentials_category="Basic",
             is_output_node=True,
             inputs=[
                 IO.MultiType.Input(

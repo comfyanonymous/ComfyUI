@@ -624,6 +624,7 @@ class StabilityTextToAudio(IO.ComfyNode):
             node_id="StabilityTextToAudio",
             display_name="Stability AI Text To Audio",
             category="api node/audio/Stability AI",
+            essentials_category="Audio",
             description=cleandoc(cls.__doc__ or ""),
             inputs=[
                 IO.Combo.Input(
