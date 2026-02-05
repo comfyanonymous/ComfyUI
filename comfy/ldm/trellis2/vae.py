@@ -208,7 +208,7 @@ class SparseResBlockC2S3d(nn.Module):
             self.to_subdiv = SparseLinear(channels, 8)
         self.updown = SparseChannel2Spatial(2)
 
-    def _forward(self, x, subdiv = None):
+    def forward(self, x, subdiv = None):
         if self.pred_subdiv:
             subdiv = self.to_subdiv(x)
         h = x.replace(self.norm1(x.feats))
