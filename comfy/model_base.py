@@ -1548,6 +1548,7 @@ class ACEStep15(BaseModel):
     def extra_conds(self, **kwargs):
         out = super().extra_conds(**kwargs)
         device = kwargs["device"]
+        noise = kwargs["noise"]
 
         cross_attn = kwargs.get("cross_attn", None)
         if cross_attn is not None:
@@ -1571,15 +1572,19 @@ class ACEStep15(BaseModel):
                                         1.4844e-01,  9.4727e-02,  3.8477e-01, -1.2578e+00, -3.3203e-01,
                                         -8.5547e-01,  4.3359e-01,  4.2383e-01, -8.9453e-01, -5.0391e-01,
                                         -5.6152e-02, -2.9219e+00, -2.4658e-02,  5.0391e-01,  9.8438e-01,
-                                        7.2754e-02, -2.1582e-01,  6.3672e-01,  1.0000e+00]]], device=device).movedim(-1, 1).repeat(1, 1, 750)
+                                        7.2754e-02, -2.1582e-01,  6.3672e-01,  1.0000e+00]]], device=device).movedim(-1, 1).repeat(1, 1, noise.shape[2])
+            pass_audio_codes = True
         else:
-            refer_audio = refer_audio[-1]
+            refer_audio = refer_audio[-1][:, :, :noise.shape[2]]
+            pass_audio_codes = False
+
+        if pass_audio_codes:
+            audio_codes = kwargs.get("audio_codes", None)
+            if audio_codes is not None:
+                out['audio_codes'] = comfy.conds.CONDRegular(torch.tensor(audio_codes, device=device))
+                refer_audio = refer_audio[:, :, :750]
+
         out['refer_audio'] = comfy.conds.CONDRegular(refer_audio)
-
-        audio_codes = kwargs.get("audio_codes", None)
-        if audio_codes is not None:
-            out['audio_codes'] = comfy.conds.CONDRegular(torch.tensor(audio_codes, device=device))
-
         return out
 
 class Omnigen2(BaseModel):
