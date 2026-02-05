@@ -101,9 +101,7 @@ def sample_manual_loop_no_classes(
     return output_audio_codes
 
 
-def generate_audio_codes(model, positive, negative, min_tokens=1, max_tokens=1024, seed=0):
-    cfg_scale = 2.0
-
+def generate_audio_codes(model, positive, negative, min_tokens=1, max_tokens=1024, seed=0, cfg_scale=2.0, temperature=0.85, top_p=0.9, top_k=0):
     positive = [[token for token, _ in inner_list] for inner_list in positive]
     negative = [[token for token, _ in inner_list] for inner_list in negative]
     positive = positive[0]
@@ -120,7 +118,7 @@ def generate_audio_codes(model, positive, negative, min_tokens=1, max_tokens=102
         positive = [model.special_tokens["pad"]] * pos_pad + positive
 
     paddings = [pos_pad, neg_pad]
-    return sample_manual_loop_no_classes(model, [positive, negative], paddings, cfg_scale=cfg_scale, seed=seed, min_tokens=min_tokens, max_new_tokens=max_tokens)
+    return sample_manual_loop_no_classes(model, [positive, negative], paddings, cfg_scale=cfg_scale, temperature=temperature, top_p=top_p, top_k=top_k, seed=seed, min_tokens=min_tokens, max_new_tokens=max_tokens)
 
 
 class ACE15Tokenizer(sd1_clip.SD1Tokenizer):
@@ -137,6 +135,12 @@ class ACE15Tokenizer(sd1_clip.SD1Tokenizer):
         language = kwargs.get("language", "en")
         seed = kwargs.get("seed", 0)
 
+        generate_audio_codes = kwargs.get("generate_audio_codes", True)
+        cfg_scale = kwargs.get("cfg_scale", 2.0)
+        temperature = kwargs.get("temperature", 0.85)
+        top_p = kwargs.get("top_p", 0.9)
+        top_k = kwargs.get("top_k", 0.0)
+
         duration = math.ceil(duration)
         meta_lm = 'bpm: {}\nduration: {}\nkeyscale: {}\ntimesignature: {}'.format(bpm, duration, keyscale, timesignature)
         lm_template = "<|im_start|>system\n# Instruction\nGenerate audio semantic tokens based on the given conditions:\n\n<|im_end|>\n<|im_start|>user\n# Caption\n{}\n{}\n<|im_end|>\n<|im_start|>assistant\n<think>\n{}\n</think>\n\n<|im_end|>\n"
@@ -147,7 +151,14 @@ class ACE15Tokenizer(sd1_clip.SD1Tokenizer):
 
         out["lyrics"] = self.qwen3_06b.tokenize_with_weights("# Languages\n{}\n\n# Lyric{}<|endoftext|><|endoftext|>".format(language, lyrics), return_word_ids, disable_weights=True, **kwargs)
         out["qwen3_06b"] = self.qwen3_06b.tokenize_with_weights("# Instruction\nGenerate audio semantic tokens based on the given conditions:\n\n# Caption\n{}# Metas\n{}<|endoftext|>\n<|endoftext|>".format(text, meta_cap), return_word_ids, **kwargs)
-        out["lm_metadata"] = {"min_tokens": duration * 5, "seed": seed}
+        out["lm_metadata"] = {"min_tokens": duration * 5,
+                              "seed": seed,
+                              "generate_audio_codes": generate_audio_codes,
+                              "cfg_scale": cfg_scale,
+                              "temperature": temperature,
+                              "top_p": top_p,
+                              "top_k": top_k,
+                              }
         return out
 
 
@@ -203,10 +214,14 @@ class ACE15TEModel(torch.nn.Module):
         self.qwen3_06b.set_clip_options({"layer": [0]})
         lyrics_embeds, _, extra_l = self.qwen3_06b.encode_token_weights(token_weight_pairs_lyrics)
 
-        lm_metadata = token_weight_pairs["lm_metadata"]
-        audio_codes = generate_audio_codes(getattr(self, self.lm_model, self.qwen3_06b), token_weight_pairs["lm_prompt"], token_weight_pairs["lm_prompt_negative"], min_tokens=lm_metadata["min_tokens"], max_tokens=lm_metadata["min_tokens"], seed=lm_metadata["seed"])
+        out = {"conditioning_lyrics": lyrics_embeds[:, 0]}
 
-        return base_out, None, {"conditioning_lyrics": lyrics_embeds[:, 0], "audio_codes": [audio_codes]}
+        lm_metadata = token_weight_pairs["lm_metadata"]
+        if lm_metadata["generate_audio_codes"]:
+            audio_codes = generate_audio_codes(getattr(self, self.lm_model, self.qwen3_06b), token_weight_pairs["lm_prompt"], token_weight_pairs["lm_prompt_negative"], min_tokens=lm_metadata["min_tokens"], max_tokens=lm_metadata["min_tokens"], seed=lm_metadata["seed"], cfg_scale=lm_metadata["cfg_scale"], temperature=lm_metadata["temperature"], top_p=lm_metadata["top_p"], top_k=lm_metadata["top_k"])
+            out["audio_codes"] = [audio_codes]
+
+        return base_out, None, out
 
     def set_clip_options(self, options):
         self.qwen3_06b.set_clip_options(options)
