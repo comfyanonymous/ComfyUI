@@ -73,6 +73,7 @@ class SaveVideo(io.ComfyNode):
             search_aliases=["export video"],
             display_name="Save Video",
             category="image/video",
+            essentials_category="Basic",
             description="Saves the input images to your ComfyUI output directory.",
             inputs=[
                 io.Video.Input("video", tooltip="The video to save."),
@@ -174,6 +175,7 @@ class LoadVideo(io.ComfyNode):
             search_aliases=["import video", "open video", "video file"],
             display_name="Load Video",
             category="image/video",
+            essentials_category="Basic",
             inputs=[
                 io.Combo.Input("file", options=sorted(files), upload=io.UploadType.video),
             ],

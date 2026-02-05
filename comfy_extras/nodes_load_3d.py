@@ -31,6 +31,7 @@ class Load3D(IO.ComfyNode):
             node_id="Load3D",
             display_name="Load 3D & Animation",
             category="3d",
+            essentials_category="Basic",
             is_experimental=True,
             inputs=[
                 IO.Combo.Input("model_file", options=sorted(files), upload=IO.UploadType.model),

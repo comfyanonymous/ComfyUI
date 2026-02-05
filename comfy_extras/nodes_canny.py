@@ -12,6 +12,7 @@ class Canny(io.ComfyNode):
             node_id="Canny",
             search_aliases=["edge detection", "outline", "contour detection", "line art"],
             category="image/preprocessors",
+            essentials_category="Image Tools/Preprocessing",
             inputs=[
                 io.Image.Input("image"),
                 io.Float.Input("low_threshold", default=0.4, min=0.01, max=0.99, step=0.01),

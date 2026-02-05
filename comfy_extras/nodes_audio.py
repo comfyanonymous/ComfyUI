@@ -159,6 +159,7 @@ class SaveAudio(IO.ComfyNode):
             search_aliases=["export flac"],
             display_name="Save Audio (FLAC)",
             category="audio",
+            essentials_category="Audio",
             inputs=[
                 IO.Audio.Input("audio"),
                 IO.String.Input("filename_prefix", default="audio/ComfyUI"),
@@ -300,6 +301,7 @@ class LoadAudio(IO.ComfyNode):
             search_aliases=["import audio", "open audio", "audio file"],
             display_name="Load Audio",
             category="audio",
+            essentials_category="Audio",
             inputs=[
                 IO.Combo.Input("audio", upload=IO.UploadType.audio, options=sorted(files)),
             ],

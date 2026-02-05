@@ -26,6 +26,7 @@ class ImageCrop(IO.ComfyNode):
             display_name="Image Crop (Deprecated)",
             category="image/transform",
             is_deprecated=True,
+            essentials_category="Image Tools",
             inputs=[
                 IO.Image.Input("image"),
                 IO.Int.Input("width", default=512, min=1, max=nodes.MAX_RESOLUTION, step=1),
@@ -589,6 +590,7 @@ class ImageRotate(IO.ComfyNode):
             node_id="ImageRotate",
             search_aliases=["turn", "flip orientation"],
             category="image/transform",
+            essentials_category="Image Tools",
             inputs=[
                 IO.Image.Input("image"),
                 IO.Combo.Input("rotation", options=["none", "90 degrees", "180 degrees", "270 degrees"]),
