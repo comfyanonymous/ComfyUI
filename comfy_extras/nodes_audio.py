@@ -94,6 +94,19 @@ class VAEEncodeAudio(IO.ComfyNode):
     encode = execute  # TODO: remove
 
 
+def vae_decode_audio(vae, samples, tile=None, overlap=None):
+    if tile is not None:
+        audio = vae.decode_tiled(samples["samples"], tile_y=tile, overlap=overlap).movedim(-1, 1)
+    else:
+        audio = vae.decode(samples["samples"]).movedim(-1, 1)
+
+    std = torch.std(audio, dim=[1, 2], keepdim=True) * 5.0
+    std[std < 1.0] = 1.0
+    audio /= std
+    vae_sample_rate = getattr(vae, "audio_sample_rate", 44100)
+    return {"waveform": audio, "sample_rate": vae_sample_rate if "sample_rate" not in samples else samples["sample_rate"]}
+
+
 class VAEDecodeAudio(IO.ComfyNode):
     @classmethod
     def define_schema(cls):
@@ -111,14 +124,31 @@ class VAEDecodeAudio(IO.ComfyNode):
 
     @classmethod
     def execute(cls, vae, samples) -> IO.NodeOutput:
-        audio = vae.decode(samples["samples"]).movedim(-1, 1)
-        std = torch.std(audio, dim=[1,2], keepdim=True) * 5.0
-        std[std < 1.0] = 1.0
-        audio /= std
-        vae_sample_rate = getattr(vae, "audio_sample_rate", 44100)
-        return IO.NodeOutput({"waveform": audio, "sample_rate": vae_sample_rate if "sample_rate" not in samples else samples["sample_rate"]})
+        return IO.NodeOutput(vae_decode_audio(vae, samples))
 
     decode = execute  # TODO: remove
+
+
+class VAEDecodeAudioTiled(IO.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return IO.Schema(
+            node_id="VAEDecodeAudioTiled",
+            search_aliases=["latent to audio"],
+            display_name="VAE Decode Audio (Tiled)",
+            category="latent/audio",
+            inputs=[
+                IO.Latent.Input("samples"),
+                IO.Vae.Input("vae"),
+                IO.Int.Input("tile_size", default=512, min=32, max=8192, step=8),
+                IO.Int.Input("overlap", default=64, min=0, max=1024, step=8),
+            ],
+            outputs=[IO.Audio.Output()],
+        )
+
+    @classmethod
+    def execute(cls, vae, samples, tile_size, overlap) -> IO.NodeOutput:
+        return IO.NodeOutput(vae_decode_audio(vae, samples, tile_size, overlap))
 
 
 class SaveAudio(IO.ComfyNode):
@@ -675,6 +705,7 @@ class AudioExtension(ComfyExtension):
             EmptyLatentAudio,
             VAEEncodeAudio,
             VAEDecodeAudio,
+            VAEDecodeAudioTiled,
             SaveAudio,
             SaveAudioMP3,
             SaveAudioOpus,
