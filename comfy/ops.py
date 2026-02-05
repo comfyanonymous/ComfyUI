@@ -54,6 +54,8 @@ try:
             SDPA_BACKEND_PRIORITY.insert(0, SDPBackend.CUDNN_ATTENTION)
 
             def scaled_dot_product_attention(q, k, v, *args, **kwargs):
+                if q.nelement() < 1024 * 128:  # arbitrary number, for small inputs cudnn attention seems slower
+                    return torch.nn.functional.scaled_dot_product_attention(q, k, v, *args, **kwargs)
                 with sdpa_kernel(SDPA_BACKEND_PRIORITY, set_priority=True):
                     return torch.nn.functional.scaled_dot_product_attention(q, k, v, *args, **kwargs)
         else:

@@ -183,7 +183,7 @@ class AceStepAttention(nn.Module):
             else:
                 attn_bias = window_bias
 
-        attn_output = optimized_attention(query_states, key_states, value_states, self.num_heads, attn_bias, skip_reshape=True)
+        attn_output = optimized_attention(query_states, key_states, value_states, self.num_heads, attn_bias, skip_reshape=True, low_precision_attention=False)
         attn_output = self.o_proj(attn_output)
 
         return attn_output
@@ -1035,8 +1035,7 @@ class AceStepConditionGenerationModel(nn.Module):
                     audio_codes = torch.nn.functional.pad(audio_codes, (0, math.ceil(src_latents.shape[1] / 5) - audio_codes.shape[1]), "constant", 35847)
                 lm_hints_5Hz = self.tokenizer.quantizer.get_output_from_indices(audio_codes, dtype=text_hidden_states.dtype)
             else:
-                assert False
-                # TODO ?
+                lm_hints_5Hz, indices = self.tokenizer.tokenize(refer_audio_acoustic_hidden_states_packed)
 
             lm_hints = self.detokenizer(lm_hints_5Hz)
 

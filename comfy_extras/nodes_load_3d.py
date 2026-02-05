@@ -45,6 +45,7 @@ class Load3D(IO.ComfyNode):
                 IO.Image.Output(display_name="normal"),
                 IO.Load3DCamera.Output(display_name="camera_info"),
                 IO.Video.Output(display_name="recording_video"),
+                IO.File3DAny.Output(display_name="model_3d"),
             ],
         )
 
@@ -66,7 +67,8 @@ class Load3D(IO.ComfyNode):
 
             video = InputImpl.VideoFromFile(recording_video_path)
 
-        return IO.NodeOutput(output_image, output_mask, model_file, normal_image, image['camera_info'], video)
+        file_3d = Types.File3D(folder_paths.get_annotated_filepath(model_file))
+        return IO.NodeOutput(output_image, output_mask, model_file, normal_image, image['camera_info'], video, file_3d)
 
     process = execute  # TODO: remove
 

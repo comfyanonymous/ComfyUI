@@ -618,6 +618,7 @@ class SaveGLB(IO.ComfyNode):
     def define_schema(cls):
         return IO.Schema(
             node_id="SaveGLB",
+            display_name="Save 3D Model",
             search_aliases=["export 3d model", "save mesh"],
             category="3d",
             is_output_node=True,
@@ -626,8 +627,14 @@ class SaveGLB(IO.ComfyNode):
                     IO.Mesh.Input("mesh"),
                     types=[
                         IO.File3DGLB,
+                        IO.File3DGLTF,
+                        IO.File3DOBJ,
+                        IO.File3DFBX,
+                        IO.File3DSTL,
+                        IO.File3DUSDZ,
+                        IO.File3DAny,
                     ],
-                    tooltip="Mesh or GLB file to save",
+                    tooltip="Mesh or 3D file to save",
                 ),
                 IO.String.Input("filename_prefix", default="mesh/ComfyUI"),
             ],
@@ -649,7 +656,8 @@ class SaveGLB(IO.ComfyNode):
 
         if isinstance(mesh, Types.File3D):
             # Handle File3D input - save BytesIO data to output folder
-            f = f"{filename}_{counter:05}_.glb"
+            ext = mesh.format or "glb"
+            f = f"{filename}_{counter:05}_.{ext}"
             mesh.save_to(os.path.join(full_output_folder, f))
             results.append({
                 "filename": f,
