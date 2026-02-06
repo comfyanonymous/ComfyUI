@@ -231,27 +231,6 @@ class config:
     CONV = "flexgemm"
     FLEX_GEMM_HASHMAP_RATIO = 2.0
 
-# TODO post processing
-def simplify(self, target_num_faces: int, verbose: bool=False, options: dict={}):
-
-    num_face = self.cu_mesh.num_faces()
-    if num_face <= target_num_faces:
-        return
-
-    thresh = options.get('thresh', 1e-8)
-    lambda_edge_length = options.get('lambda_edge_length', 1e-2)
-    lambda_skinny = options.get('lambda_skinny', 1e-3)
-    while True:
-        new_num_vert, new_num_face = self.cu_mesh.simplify_step(lambda_edge_length, lambda_skinny, thresh, False)
-
-        if new_num_face <= target_num_faces:
-            break
-
-        del_num_face = num_face - new_num_face
-        if del_num_face / num_face < 1e-2:
-            thresh *= 10
-        num_face = new_num_face
-
 class VarLenTensor:
 
     def __init__(self, feats: torch.Tensor, layout: List[slice]=None):
@@ -1530,7 +1509,6 @@ class Vae(nn.Module):
         tex_voxels = self.decode_tex_slat(tex_slat, subs)
         out_mesh = []
         for m, v in zip(meshes, tex_voxels):
-            m.fill_holes() # TODO
             out_mesh.append(
                 MeshWithVoxel(
                     m.vertices, m.faces,
