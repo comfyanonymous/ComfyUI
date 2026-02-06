@@ -7,7 +7,6 @@ from einops.layers.torch import Rearrange
 import logging
 from typing import Callable, Optional, Tuple
 import math
-import contextlib
 
 from .position_embedding import VideoRopePosition3DEmb, LearnablePosEmbAxis
 from torchvision import transforms
@@ -459,12 +458,13 @@ class Block(nn.Module):
         x_B_T_H_W_D: torch.Tensor,
         emb_B_T_D: torch.Tensor,
         crossattn_emb: torch.Tensor,
-        fp16_autocast: contextlib.AbstractContextManager,
         rope_emb_L_1_1_D: Optional[torch.Tensor] = None,
         adaln_lora_B_T_3D: Optional[torch.Tensor] = None,
         extra_per_block_pos_emb: Optional[torch.Tensor] = None,
         transformer_options: Optional[dict] = {},
     ) -> torch.Tensor:
+        residual_dtype = x_B_T_H_W_D.dtype
+        compute_dtype = emb_B_T_D.dtype
         if extra_per_block_pos_emb is not None:
             x_B_T_H_W_D = x_B_T_H_W_D + extra_per_block_pos_emb
 
@@ -511,21 +511,20 @@ class Block(nn.Module):
             scale_self_attn_B_T_1_1_D,
             shift_self_attn_B_T_1_1_D,
         )
-        with fp16_autocast:
-            result_B_T_H_W_D = rearrange(
-                self.self_attn(
-                    # normalized_x_B_T_HW_D,
-                    rearrange(normalized_x_B_T_H_W_D, "b t h w d -> b (t h w) d"),
-                    None,
-                    rope_emb=rope_emb_L_1_1_D,
-                    transformer_options=transformer_options,
-                ),
-                "b (t h w) d -> b t h w d",
-                t=T,
-                h=H,
-                w=W,
-            )
-        x_B_T_H_W_D = x_B_T_H_W_D + gate_self_attn_B_T_1_1_D * result_B_T_H_W_D
+        result_B_T_H_W_D = rearrange(
+            self.self_attn(
+                # normalized_x_B_T_HW_D,
+                rearrange(normalized_x_B_T_H_W_D.to(compute_dtype), "b t h w d -> b (t h w) d"),
+                None,
+                rope_emb=rope_emb_L_1_1_D,
+                transformer_options=transformer_options,
+            ),
+            "b (t h w) d -> b t h w d",
+            t=T,
+            h=H,
+            w=W,
+        )
+        x_B_T_H_W_D = x_B_T_H_W_D + gate_self_attn_B_T_1_1_D.to(residual_dtype) * result_B_T_H_W_D.to(residual_dtype)
 
         def _x_fn(
             _x_B_T_H_W_D: torch.Tensor,
@@ -537,19 +536,18 @@ class Block(nn.Module):
             _normalized_x_B_T_H_W_D = _fn(
                 _x_B_T_H_W_D, layer_norm_cross_attn, _scale_cross_attn_B_T_1_1_D, _shift_cross_attn_B_T_1_1_D
             )
-            with fp16_autocast:
-                _result_B_T_H_W_D = rearrange(
-                    self.cross_attn(
-                        rearrange(_normalized_x_B_T_H_W_D, "b t h w d -> b (t h w) d"),
-                        crossattn_emb,
-                        rope_emb=rope_emb_L_1_1_D,
-                        transformer_options=transformer_options,
-                    ),
-                    "b (t h w) d -> b t h w d",
-                    t=T,
-                    h=H,
-                    w=W,
-                )
+            _result_B_T_H_W_D = rearrange(
+                self.cross_attn(
+                    rearrange(_normalized_x_B_T_H_W_D.to(compute_dtype), "b t h w d -> b (t h w) d"),
+                    crossattn_emb,
+                    rope_emb=rope_emb_L_1_1_D,
+                    transformer_options=transformer_options,
+                ),
+                "b (t h w) d -> b t h w d",
+                t=T,
+                h=H,
+                w=W,
+            )
             return _result_B_T_H_W_D
 
         result_B_T_H_W_D = _x_fn(
@@ -559,7 +557,7 @@ class Block(nn.Module):
             shift_cross_attn_B_T_1_1_D,
             transformer_options=transformer_options,
         )
-        x_B_T_H_W_D = result_B_T_H_W_D * gate_cross_attn_B_T_1_1_D + x_B_T_H_W_D
+        x_B_T_H_W_D = result_B_T_H_W_D.to(residual_dtype) * gate_cross_attn_B_T_1_1_D.to(residual_dtype) + x_B_T_H_W_D
 
         normalized_x_B_T_H_W_D = _fn(
             x_B_T_H_W_D,
@@ -567,9 +565,8 @@ class Block(nn.Module):
             scale_mlp_B_T_1_1_D,
             shift_mlp_B_T_1_1_D,
         )
-        with fp16_autocast:
-            result_B_T_H_W_D = self.mlp(normalized_x_B_T_H_W_D)
-        x_B_T_H_W_D = x_B_T_H_W_D + gate_mlp_B_T_1_1_D * result_B_T_H_W_D
+        result_B_T_H_W_D = self.mlp(normalized_x_B_T_H_W_D.to(compute_dtype))
+        x_B_T_H_W_D = x_B_T_H_W_D + gate_mlp_B_T_1_1_D.to(residual_dtype) * result_B_T_H_W_D.to(residual_dtype)
         return x_B_T_H_W_D
 
 
@@ -883,25 +880,19 @@ class MiniTrainDIT(nn.Module):
         }
 
         # The residual stream for this model has large values. To make fp16 compute_dtype work, we keep the residual stream
-        # in fp32 by using fp32 autocast on the outer block and fp16 autocast for attention and MLP modules.
+        # in fp32, but run attention and MLP modules in fp16.
         # An alternate method that clamps fp16 values "works" in the sense that it makes coherent images, but there is noticeable
         # quality degradation and visual artifacts.
         if x_B_T_H_W_D.dtype == torch.float16:
-            fp32_autocast = torch.autocast('cuda', dtype=torch.float32)
-            fp16_autocast = torch.autocast('cuda', dtype=torch.float16)
-        else:
-            fp32_autocast = contextlib.nullcontext()
-            fp16_autocast = contextlib.nullcontext()
+            x_B_T_H_W_D = x_B_T_H_W_D.float()
 
         for block in self.blocks:
-            with fp32_autocast:
-                x_B_T_H_W_D = block(
-                    x_B_T_H_W_D,
-                    t_embedding_B_T_D,
-                    crossattn_emb,
-                    fp16_autocast=fp16_autocast,
-                    **block_kwargs,
-                )
+            x_B_T_H_W_D = block(
+                x_B_T_H_W_D,
+                t_embedding_B_T_D,
+                crossattn_emb,
+                **block_kwargs,
+            )
 
         x_B_T_H_W_O = self.final_layer(x_B_T_H_W_D, t_embedding_B_T_D, adaln_lora_B_T_3D=adaln_lora_B_T_3D)
         x_B_C_Tt_Hp_Wp = self.unpatchify(x_B_T_H_W_O)[:, :, :orig_shape[-3], :orig_shape[-2], :orig_shape[-1]]
