@@ -1481,17 +1481,18 @@ class Vae(nn.Module):
     def __init__(self, config, operations=None):
         super().__init__()
         operations = operations or torch.nn
-
-        self.txt_dec = SparseUnetVaeDecoder(
-            out_channels=6,
-            model_channels=[1024, 512, 256, 128, 64],
-            latent_channels=32,
-            num_blocks=[4, 16, 8, 4, 0],
-            block_type=["SparseConvNeXtBlock3d"] * 5,
-            up_block_type=["SparseResBlockC2S3d"] * 4,
-            block_args=[{}, {}, {}, {}, {}],
-            pred_subdiv=False
-        )
+        init_txt_model = config.get("init_txt_model", False)
+        if init_txt_model:
+            self.txt_dec = SparseUnetVaeDecoder(
+                out_channels=6,
+                model_channels=[1024, 512, 256, 128, 64],
+                latent_channels=32,
+                num_blocks=[4, 16, 8, 4, 0],
+                block_type=["SparseConvNeXtBlock3d"] * 5,
+                up_block_type=["SparseResBlockC2S3d"] * 4,
+                block_args=[{}, {}, {}, {}, {}],
+                pred_subdiv=False
+            )
 
         self.shape_dec = FlexiDualGridVaeDecoder(
             resolution=256,

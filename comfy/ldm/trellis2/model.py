@@ -797,6 +797,7 @@ class Trellis2(nn.Module):
                  share_mod = True,
                  qk_rms_norm = True,
                  qk_rms_norm_cross = True,
+                 init_txt_model=False, # for now
                  dtype=None, device=None, operations=None):
 
         super().__init__()
@@ -806,7 +807,8 @@ class Trellis2(nn.Module):
             "qk_rms_norm": qk_rms_norm, "qk_rms_norm_cross": qk_rms_norm_cross, "device": device, "dtype": dtype, "operations": operations
         }
         self.img2shape = SLatFlowModel(resolution=resolution, in_channels=in_channels, **args)
-        self.shape2txt = SLatFlowModel(resolution=resolution, in_channels=in_channels*2, **args)
+        if init_txt_model:
+            self.shape2txt = SLatFlowModel(resolution=resolution, in_channels=in_channels*2, **args)
         args.pop("out_channels")
         self.structure_model = SparseStructureFlowModel(resolution=16, in_channels=8, out_channels=8, **args)
 
