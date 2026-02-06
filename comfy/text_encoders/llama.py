@@ -767,60 +767,6 @@ class BaseLlama:
     def forward(self, input_ids, *args, **kwargs):
         return self.model(input_ids, *args, **kwargs)
 
-class BaseQwen3:
-    def logits(self, x):
-        input = x[:, -1:]
-        module = self.model.embed_tokens
-
-        offload_stream = None
-        if module.comfy_cast_weights:
-            weight, _, offload_stream = comfy.ops.cast_bias_weight(module, input, offloadable=True)
-        else:
-            weight = self.model.embed_tokens.weight.to(x)
-
-        x = torch.nn.functional.linear(input, weight, None)
-
-        comfy.ops.uncast_bias_weight(module, weight, None, offload_stream)
-        return x
-
-    def sample_token(self, logits, temperature, top_k, top_p, min_p, repetition_penalty, token_history, generator, do_sample=True):
-
-        if repetition_penalty != 1.0:
-            for i in range(logits.shape[0]):
-                for token_id in set(token_history):
-                    logits[i, token_id] *= repetition_penalty if logits[i, token_id] < 0 else 1/repetition_penalty
-
-        if not do_sample or temperature == 0.0:
-            return torch.argmax(logits, dim=-1, keepdim=True)
-
-        # Sampling mode
-        if temperature != 1.0:
-            logits = logits / temperature
-
-        if top_k > 0:
-            indices_to_remove = logits < torch.topk(logits, top_k)[0][..., -1, None]
-            logits[indices_to_remove] = float('-inf')
-
-        if min_p > 0.0:
-            probs_before_filter = torch.nn.functional.softmax(logits, dim=-1)
-            top_probs, _ = probs_before_filter.max(dim=-1, keepdim=True)
-            min_threshold = min_p * top_probs
-            indices_to_remove = probs_before_filter < min_threshold
-            logits[indices_to_remove] = float('-inf')
-
-        if top_p < 1.0:
-            sorted_logits, sorted_indices = torch.sort(logits, descending=True)
-            cumulative_probs = torch.cumsum(torch.nn.functional.softmax(sorted_logits, dim=-1), dim=-1)
-            sorted_indices_to_remove = cumulative_probs > top_p
-            sorted_indices_to_remove[..., 0] = False
-            indices_to_remove = torch.zeros_like(logits, dtype=torch.bool)
-            indices_to_remove.scatter_(1, sorted_indices, sorted_indices_to_remove)
-            logits[indices_to_remove] = float('-inf')
-
-        probs = torch.nn.functional.softmax(logits, dim=-1)
-
-        return torch.multinomial(probs, num_samples=1, generator=generator)
-
     def generate(self, embeds=None, do_sample=True, max_length=256, temperature=1.0, top_k=50, top_p=0.9, min_p=0.0, repetition_penalty=1.0, stop_tokens=[], seed=42, initial_tokens=[], execution_dtype=None, min_tokens=0):
         device = embeds.device
         model_config = self.model.config
@@ -861,6 +807,59 @@ class BaseQwen3:
 
         return torch.tensor([generated_token_ids], device=device, dtype=torch.long)
 
+    def sample_token(self, logits, temperature, top_k, top_p, min_p, repetition_penalty, token_history, generator, do_sample=True):
+
+        if repetition_penalty != 1.0:
+            for i in range(logits.shape[0]):
+                for token_id in set(token_history):
+                    logits[i, token_id] *= repetition_penalty if logits[i, token_id] < 0 else 1/repetition_penalty
+
+        if not do_sample or temperature == 0.0:
+            return torch.argmax(logits, dim=-1, keepdim=True)
+
+        # Sampling mode
+        if temperature != 1.0:
+            logits = logits / temperature
+
+        if top_k > 0:
+            indices_to_remove = logits < torch.topk(logits, top_k)[0][..., -1, None]
+            logits[indices_to_remove] = float('-inf')
+
+        if min_p > 0.0:
+            probs_before_filter = torch.nn.functional.softmax(logits, dim=-1)
+            top_probs, _ = probs_before_filter.max(dim=-1, keepdim=True)
+            min_threshold = min_p * top_probs
+            indices_to_remove = probs_before_filter < min_threshold
+            logits[indices_to_remove] = float('-inf')
+
+        if top_p < 1.0:
+            sorted_logits, sorted_indices = torch.sort(logits, descending=True)
+            cumulative_probs = torch.cumsum(torch.nn.functional.softmax(sorted_logits, dim=-1), dim=-1)
+            sorted_indices_to_remove = cumulative_probs > top_p
+            sorted_indices_to_remove[..., 0] = False
+            indices_to_remove = torch.zeros_like(logits, dtype=torch.bool)
+            indices_to_remove.scatter_(1, sorted_indices, sorted_indices_to_remove)
+            logits[indices_to_remove] = float('-inf')
+
+        probs = torch.nn.functional.softmax(logits, dim=-1)
+
+        return torch.multinomial(probs, num_samples=1, generator=generator)
+
+class BaseQwen3:
+    def logits(self, x):
+        input = x[:, -1:]
+        module = self.model.embed_tokens
+
+        offload_stream = None
+        if module.comfy_cast_weights:
+            weight, _, offload_stream = comfy.ops.cast_bias_weight(module, input, offloadable=True)
+        else:
+            weight = self.model.embed_tokens.weight.to(x)
+
+        x = torch.nn.functional.linear(input, weight, None)
+
+        comfy.ops.uncast_bias_weight(module, weight, None, offload_stream)
+        return x
 
 class Llama2(BaseLlama, torch.nn.Module):
     def __init__(self, config_dict, dtype, device, operations):
