@@ -5,7 +5,7 @@
 | Parameter | Value |
 |-----------|-------|
 | **File** | `beautiful-shavedpussv21.safetensors` |
-| **Civitai** | https://civitai.com/models/976476/beautiful-shaved-pussies-for-flux |
+| **Civitai** | https://civitai.com/models/1259089/beautiful-shaved-pussies-v3 |
 | **Trigger word** | `shavpuss` |
 | **Strength** | 1.0 |
 | **Type** | CONCEPT |

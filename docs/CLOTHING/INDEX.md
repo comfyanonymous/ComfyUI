@@ -53,12 +53,14 @@ This directory contains individual documentation for all CLOTHING category LoRAs
 | [Slingback Pumps](slingback_pumps.md) | 249 | 34 | $0 | < 500 |
 | [Women in Pantyhose](women_in_pantyhose.md) | 152 | 11 | $0 | < 500 |
 | [Pleaser Flamingo 1020GWR](pleaser_flamingo_1020gwr.md) | 233 | 15 | $0 | < 500 |
+| [Flux Simple Panties](flux_simple_panties.md) | 212 | 21 | $0 | < 500 |
 | [MicroSkirt FLUX](microskirt_flux.md) | - | - | - | - |
 | [FLUX Thigh High Boots](flux_thigh_high_boots.md) | 196 | 16 | 0 | - |
 | [Sexy Christmas Girl](sexy_christmas_girl.md) | 190 | 12 | 0 | - |
 | [Sexy Nighty CFH](sexy_nighty_cfh.md) | 452 | 33 | 0 | - |
 | [Swimwear Full](swimwear_full.md) | 631 | 47 | 0 | ⭐ |
 | [Nike Pros Flux](nike_pros_flux.md) | 633 | 59 | 0 | ⭐ |
+| [Luxury Sandals Gemstone](luxury_sandals_gemstone.md) | 199 | 14 | $200 | < 500 |
 
 **Score Legend:**
 - ⭐⭐⭐ = >3,000 downloads (Premium/Top Tier)
@@ -104,6 +106,7 @@ This directory contains individual documentation for all CLOTHING category LoRAs
 - [Pussy Peek Panties](pussy_peek_panties.md) - ⭐ Pussy visible above underwear
 - [Panties in Pussy](panties_in_pussy.md) - ⭐ Panties insertion concept
 - [Front Wedgie](front_wedgie.md) - ⭐ Camel toe/wedgie effect
+- [Flux Simple Panties](flux_simple_panties.md) - Simple cute underwear for casual/fashion photography
 
 ### Skirts
 - [FLUX Skirt Lift](flux_skirt_lift.md) - ⭐⭐⭐ Lifted skirt with visible pussy
@@ -143,6 +146,7 @@ This directory contains individual documentation for all CLOTHING category LoRAs
 - [Pleaser Shoes](pleaser_shoes.md) - ⭐ Platform stilettos and heels
 - [Pleaser Flamingo 1020GWR](pleaser_flamingo_1020gwr.md) - Extreme 8" platform boots
 - [Slingback Pumps](slingback_pumps.md) - Pointy toe high heels
+- [Luxury Sandals Gemstone](luxury_sandals_gemstone.md) - Gemstone-embellished opentoe stiletto sandals
 
 ### Lingerie / Intimate Wear
 - [See Through Clothing](see_through_clothing.md) - ⭐⭐⭐ Transparent/sheer clothing
@@ -159,7 +163,6 @@ This directory contains individual documentation for all CLOTHING category LoRAs
 
 ### Special / Niche
 - [Racequeens](racequeens.md) - Grid girl costumes with sports cars
-- [Back Zipper](back_zipper.md) - Unzipped clothing exposing back
 
 ### Holiday / Seasonal
 - [Merry Christmas Flux](merry_christmas_flux.md) - Christmas dresses (red/white ball gowns, candy cane stripes, snowflake patterns)
@@ -195,6 +198,7 @@ This directory contains individual documentation for all CLOTHING category LoRAs
 | Merry Christmas Flux | None (use dress descriptions) |
 | Blacked Text Underwear | `sports bra and thong, with text reading "..." on it` |
 | Panties in Pussy | `panties inside` |
+| Flux Simple Panties | `cute panties`, `simple panties`, `girl panties`, `simple underwear` |
 | Corset Lingerie | None (use descriptions) |
 | RealTanFFStockings | `RealTanFFStocking` |
 | Pleaser Shoes | `h33l` |
@@ -210,12 +214,12 @@ This directory contains individual documentation for all CLOTHING category LoRAs
 | Slingback Pumps | `Pointy toe high heels slingbacks` |
 | Stiletto Thigh High Boots | `Th1gh-H1ghs` |
 | FLUX Thigh High Boots | `Thigh-High Boots` |
-| Back Zipper | None (descriptive) |
 | Sexy Christmas Girl | `sexy_xmas` (optional) |
 | Sexy Nighty CFH | `S3xYN1gHtY` |
 | Babydoll Lingerie | `babydoll`, `lingerie`, `negligee` |
 | Swimwear Full | None (describe bikini style) |
 | Nike Pros Flux | `n1k3pr0` |
+| Luxury Sandals Gemstone | `Lux_Sandals_Gems` (with color prefix) |
 
 ---
 
@@ -283,4 +287,4 @@ All files use snake_case naming:
 
 ## Total LoRAs in Category: 43
 
-Last Updated: 2026-01-03
+Last Updated: 2026-02-05

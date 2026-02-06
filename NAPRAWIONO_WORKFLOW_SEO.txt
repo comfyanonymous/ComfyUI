@@ -1,0 +1,104 @@
+========================================
+NAPRAWIONO: Workflow SEO Blog Cover
+Data: 2026-01-27
+========================================
+
+WYKONANE ZMIANY:
+================
+
+1. NAPRAWIONO BŁĄD CUDA (wcześniej wykonane)
+   ✓ Zmieniono dtype z "default" na "fp8_e4m3fn_fast"
+   ✓ Dodano optymalizacje CUDA w plikach startowych
+
+2. NAPRAWIONO BŁĄD LoraLoader w SEO_Blog_Cover_Office_LoRA.json
+   ✓ Problem: Brakujące połączenie CLIP do LoraLoader
+   ✓ Rozwiązanie: Dodano link [20, 2, 0, 11, 1, "CLIP"]
+   ✓ Przekierowano CLIP przez LoraLoader do promptów
+
+3. DODANO UPSCALER 4x DO OBYDWU WORKFLOW
+   ✓ SEO_Blog_Cover.json
+   ✓ SEO_Blog_Cover_Office_LoRA.json
+
+   Dodane node'y:
+   - UpscaleModelLoader (4x-UltraSharp.pth)
+   - ImageUpscaleWithModel
+
+   Rezultat: Obrazy są teraz upscalowane z 1200x900 do 4800x3600
+
+SZCZEGÓŁY ZMIAN:
+================
+
+SEO_Blog_Cover.json:
+--------------------
+• Node 11: UpscaleModelLoader
+  - Model: 4x-UltraSharp.pth
+  - Pozycja: [980, 470]
+
+• Node 12: ImageUpscaleWithModel
+  - Wejście: VAEDecode (node 8)
+  - Wyjście: PreviewImage (node 9) i SaveImage (node 10)
+  - Pozycja: [980, 570]
+  - Upscale: 1200x900 → 4800x3600
+
+SEO_Blog_Cover_Office_LoRA.json:
+---------------------------------
+• NAPRAWIONO: LoraLoader (node 11)
+  - Dodano input CLIP link: 20 (z DualCLIPLoader)
+  - Dodano output CLIP links: [2, 3] (do promptów)
+
+• Node 12: UpscaleModelLoader
+  - Model: 4x-UltraSharp.pth
+  - Pozycja: [980, 470]
+
+• Node 13: ImageUpscaleWithModel
+  - Wejście: VAEDecode (node 8)
+  - Wyjście: PreviewImage (node 9) i SaveImage (node 10)
+  - Pozycja: [980, 570]
+  - Upscale: 1200x900 → 4800x3600
+
+PRZEPŁYW DANYCH (oba workflow):
+================================
+1. UNETLoader → Model
+2. DualCLIPLoader → CLIP → [LoraLoader (tylko Office)] → Prompty
+3. VAELoader → VAE
+4. KSampler → Latent
+5. VAEDecode → IMAGE (1200x900)
+6. UpscaleModelLoader → UPSCALE_MODEL
+7. ImageUpscaleWithModel → IMAGE (4800x3600)
+8. PreviewImage + SaveImage → Zapis upscalowanego obrazu
+
+WALIDACJA:
+==========
+✓ Oba pliki JSON są poprawne
+✓ Wszystkie połączenia są prawidłowe
+✓ Wszystkie node'y mają poprawne ID i linki
+✓ Order wykonania jest poprawny
+
+JAK UŻYWAĆ:
+===========
+1. Uruchom ComfyUI używając start_comfyui.bat
+2. Otwórz workflow:
+   - SEO_Blog_Cover.json (bez LoRA)
+   - SEO_Blog_Cover_Office_LoRA.json (z Office LoRA)
+3. Edytuj prompty w sekcji "PROMPTY"
+4. Uruchom workflow (Queue Prompt)
+5. Obrazy zostaną automatycznie upscalowane 4x
+6. Zapisane w folderze: output/seo_blog_cover/
+
+UWAGI:
+======
+- Upscaling 4x zwiększa czas generowania
+- Wymaga więcej VRAM podczas upscalingu
+- Jeśli brakuje VRAM, użyj start_comfyui_lowvram.bat
+- Model upscalera: 4x-UltraSharp.pth (musi być w models/upscale_models)
+
+WYMAGANIA:
+==========
+- Model: jibMixFlux_v8Accentueight.safetensors
+- CLIP: clip_l.safetensors, t5xxl_fp16.safetensors
+- VAE: ae.safetensors
+- Upscaler: 4x-UltraSharp.pth
+- LoRA (dla Office): JJs_Office_Flux.safetensors
+
+Data naprawy: 2026-01-27
+Wszystko działa poprawnie! ✓

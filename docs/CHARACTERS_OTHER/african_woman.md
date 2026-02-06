@@ -2,13 +2,18 @@
 
 [← Back to CHARACTERS_OTHER Index](INDEX.md)
 
-## Info
-- **File:** `African_Woman.safetensors`
-- **Original filename:** `african-woman-000012.safetensors`
-- **Civitai:** https://civitai.com/models/1419853/african-woman
-- **Trigger:** `black, woman, african`
-- **Strength:** 0.8-1.5
-- **Type:** CHARACTER
+| Parameter | Value |
+|-----------|-------|
+| **File** | `African_Woman.safetensors` |
+| **Original filename** | `african-woman-000012.safetensors` |
+| **Civitai** | https://civitai.com/models/1419853/african-woman |
+| **Downloads** | 1,109 |
+| **👍** | 128 |
+| **Tips** | $0 |
+| **Score** | ⭐⭐ |
+| **Trigger** | `black, woman, african` |
+| **Strength** | 0.8-1.5 |
+| **Type** | CHARACTER |
 
 ## Description
 LoRA for generating African/Black women with realistic features. Creates beautiful black skin tones, full lips, and natural African features. Works well for various body types and poses.

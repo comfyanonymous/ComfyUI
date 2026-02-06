@@ -1,0 +1,173 @@
+# WATW - Brunei 🇧🇳
+
+[← Back to Main Index](../INDEX.md)
+
+## Civitai Stats
+
+| Metric | Value |
+|--------|-------|
+| **Downloads** | 551 |
+| **👍** | 54 |
+| **Tips** | 0 |
+| **Score** | ⭐ |
+
+## Info
+- **File:** `WATW_Brunei.safetensors`
+- **Original filename:** `Brunei.safetensors`
+- **Civitai:** https://civitai.com/models/1960821/watw-brunei?modelVersionId=2219459
+- **Trigger:** `Brunei` or `Brunei woman`
+- **Strength:** 1.0
+- **Series:** Women Around The World (WATW) - 208 countries
+- **Type:** Character LoRA
+
+## Description
+
+Part of the "Women Around The World" (#WATW) series featuring character from Brunei. All WATW LoRAs are a mixture of 2-3 bodies combined with an AI face. The goal is to create unique basic types that can be customized (hair, facial features, etc.).
+
+**Character Notes:**
+- **Very pretty brunette** - excellent for future workflows
+- Natural, realistic features
+- Versatile for various photography styles
+- NSFW-capable with detailed anatomy
+
+The WATW project encompasses 208 countries trained as separate models, with daily releases across three versions: Flux Dev, Flux Krea, and Z-Image Turbo. No real persons - all AI-generated fictional characters.
+
+## Best Checkpoints
+- unStable Evolution KREA
+- unStable Evolution FluXXX
+- flux1-dev-fp8
+- Flux.1_Krea_Dev FP8 SCALED
+- Standard BFL versions
+
+## Recommended Settings
+| Parameter | Value |
+|-----------|-------|
+| CFG | 1 |
+| Sampler | [Forge] Flux Realistic / Euler |
+| Schedule | Beta (alpha: 0.6, beta: 0.6) |
+| Size | 896x1152 |
+| Steps | 25 |
+| Distilled CFG | 2.5 |
+
+## Example Prompts
+
+### Portrait (Over Shoulder)
+```
+Breathtaking over the shoulder shot photography of Brunei woman looking at viewer, imperfections, necklace, looking over shoulders, eyelashes, fine hair detail, entire hairstyle visible, perfect eyes with iris pattern, sensual lips, nose, (perfectly sharp:1.3), realistic textures, (deep focus, focus on background:1.5), 8k uhd, dslr, ultra high quality image, film grain, Fujifilm XT3
+<lora:Brunei:1>
+```
+Settings: Steps 25, CFG 1, [Forge] Flux Realistic, 896x1152
+
+### Bikini
+```
+photography of a Brunei woman, dressed in floral bikini, vibrant colors, textured fabric, seated, relaxed posture, looking forward, rule of thirds, projection lighting, (straight on:1.2), shot on Olympus OM-D E-M1 Mark III with M.Zuiko 12-40mm f-2.8
+<lora:Brunei:1>
+```
+Settings: Steps 25, CFG 1, [Forge] Flux Realistic, 896x1152
+
+### Fashion (Leopard Print)
+```
+A high-resolution Photo of a Brunei woman. She wears a sleeveless, loose-fitting mini dress with a leopard print. The pattern is in natural tones (brown, beige, black) and is very striking, almost clichédly sexy. She pairs it with a black, tight-fitting leggings that completely cover her legs and give the look a touch of everyday wearability. She wears gray, open-toe high-heeled ankle boots with a cut-out for the toes – fashionable, but not overly glamorous. A wide, light-colored hairband holds back her hair with a center parting. The hairband gives her a somewhat youthful, almost naive look. She wears large black bracelets on both wrists, which serve as a fashion statement. She wears eye-catching rings on her left hand. Her makeup is rather subtle, with a focus on the lips and eyes – which fits well with her psychologically
+<lora:Brunei:1>
+```
+Settings: Steps 25, CFG 1, [Forge] Flux Realistic, 896x1152
+
+### Intimate/Bedroom (Vintage Style)
+```
+Brunei woman lies on a bed with floral-patterned bedding in a dimly lit, vintage room with a beige wall and tufted headboard. She wears a short, cropped, light pink ribbed sweater, her legs spread wide, revealing her pubic hair and genital area. Her expression is neutral to slightly sultry, gazing directly at the camera. A green object, possibly a drink or fruit, rests on the bed to her left. Soft, slightly yellowish lighting casts a warm, nostalgic glow, reminiscent of 1980s photography, with a subtle film grain and warm color grading.
+<lora:Brunei:1>
+```
+Settings: Steps 25, CFG 1, [Forge] Flux Realistic, 896x1152
+
+### NSFW - Explicit Content Warning
+
+**Prompt (Oral):**
+```
+The image is a high-resolution photography depicting an explicit sexual act. It shows a nude Brunei woman, performing oral sex on a man. The woman is kneeling on a carpet, gazing up at the camera with a neutral expression. Her lips are wrapped around the man's erect penis, which is prominently in the foreground. The man's lower torso and legs are visible, indicating he is standing. His skin tone is light, and he has a muscular build. The lighting is bright, suggesting the photo was taken with professional equipment in a well-lit indoor setting. The image is explicit and intended for adult viewers.
+<lora:Brunei:1>
+```
+Settings: Steps 25, CFG 1, [Forge] Flux Realistic, 896x1152
+
+**Prompt (Penetration):**
+```
+The image is a high-resolution photograph featuring a nude Brunei woman, engaged in a sexual act with a man. Her facial expression is one of pain, with her eyes partially closed and her lips slightly parted. She is positioned on her back with her legs spread wide, exposing her shaved vulva and anus. The man, whose face is not visible, is penetrating her vagina. His penis is visible, and he is positioned between her legs. The background is a modern, minimalist room with white walls and a black leather couch. The lighting is bright and evenly distributed, highlighting the skin tones and textures.
+<lora:Brunei:1>
+```
+Settings: Steps 25, CFG 1, [Forge] Flux Realistic, 896x1152
+
+**Prompt (Facial):**
+```
+The image is a high-resolution photograph featuring a Brunei woman. She is completely nude, natural breasts. Her expression is one of surprise or excitement, with her mouth open and eyes wide.
+In the foreground, the focus is on a large, erect penis, which is held in the woman's right hand. The penis is dark-skinned and indicating a significant contrast with the woman's fair skin. There is a noticeable amount of a clear viscous liquid on her face and neck and chest and in her mouth suggesting it may be semen.
+The background consists of a white cloth draped on the floor, creating a minimalistic and clean setting. The lighting is bright and evenly distributed, highlighting the details of the scene. The overall tone of the image is explicit and erotic, focusing on the sexual nature of the interaction between the woman and the penis.
+<lora:Brunei:1>
+```
+Settings: Steps 25, CFG 1, [Forge] Flux Realistic, 896x1152
+
+## Keywords
+
+- `Brunei woman` - **PRIMARY TRIGGER**
+- `Brunei` - **TRIGGER**
+- `over the shoulder shot`
+- `looking at viewer`
+- `fine hair detail`, `eyelashes`
+- `perfect eyes with iris pattern`
+- `sensual lips`
+- `imperfections` (for realism)
+- `8k uhd`, `dslr`, `film grain`
+- `Fujifilm XT3`, `Olympus OM-D E-M1`
+
+## Recommended LoRA Combinations
+
+### Realism Enhancement
+```
+<lora:WATW_Brunei:1.0>
+<lora:flux_realism_lora:0.6>
+<lora:detail_enhancer_flux_v1:0.7>
+```
+
+### NSFW Setup
+```
+<lora:WATW_Brunei:1.0>
+<lora:MysticXXX-v6:0.7>
+<lora:Amateur_Flux:0.5>
+```
+
+### Fashion Photography
+```
+<lora:WATW_Brunei:1.0>
+<lora:flux_realism_lora:0.6>
+```
+
+## Compatible Checkpoints
+
+- unStable Evolution FluXXX (primary)
+- unStable Evolution KREA
+- FLUX Dev
+- Flux.1_Krea_Dev FP8 SCALED
+- flux1-dev-fp8
+
+## Notes
+
+- **RECOMMENDED for future workflows** - Very pretty brunette with natural features
+- Use trigger word `Brunei` or `Brunei woman` at strength 1.0
+- Works well with various poses and outfits
+- Excellent for both SFW and NSFW content
+- Highly detailed anatomy for explicit content
+- Part of 208-country WATW series with daily releases
+- All characters are fictional AI-generated creations
+- Versatile for fashion, lifestyle, and intimate photography
+- Responds well to detailed descriptive prompts
+
+## Series Information
+
+The Women Around The World (WATW) series features:
+- 208 countries as separate character LoRAs
+- Daily releases across multiple model versions
+- Flux Dev, Flux Krea, and Z-Image Turbo support
+- Customizable base types (hair, facial features)
+- "No Names, no biographies, YOU make the Story!"
+
+---
+
+*All models released under the WATW series are fictional — resemblances to real persons are purely coincidental.*

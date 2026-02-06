@@ -14,11 +14,13 @@ Other character and style LoRAs for consistent character generation. This sectio
 |------|----------:|-------:|-----:|------:|
 | [Amateur Flux](amateur_flux.md) | 2529 | 160 | 10040 | ⭐⭐ |
 | [DittersGurl](dittersgurl.md) | 1,639 | 123 | 100 | ⭐⭐ |
+| [Bobbi Spektre](bobbi_spektre.md) | 1,415 | 121 | 10 | ⭐ |
 | [Stripper Flux](stripper_flux.md) | 566 | 54 | 50 | ⭐ |
 | [Fictive Character No.1](fictive_character_no1.md) | 449 | 56 | 4710 | - |
 | [Aunt Cass Hamada](aunt_cass_hamada.md) | 438 | 60 | 0 | - |
 | [Tessa Sheen](tessa_sheen.md) | 382 | 61 | 0 | - |
 | [Dr. Sierra Little](dr_sierra_little.md) | 309 | 34 | 0 | - |
+| [Reese](reese.md) | 301 | 36 | 0 | - |
 | [Isabella Flux CFH](isabella_flux_cfh.md) | 289 | 30 | 0 | - |
 | [Sexy Naomi](sexy_naomi.md) | 231 | 18 | 0 | - |
 | [Base Model Isabel Brunette](base_model_isabel_brunette.md) | 219 | 10 | 0 | - |
@@ -41,7 +43,7 @@ Other character and style LoRAs for consistent character generation. This sectio
 | [Ekaterina XXX](ekaterina_xxx.md) | - | - | - | - |
 | [Twitch Girl (Emi Rivera)](twitch_girl_emi.md) | 135 | 17 | 120 | - |
 | [Sam Instagram Model](sam_instagram_model.md) | 90 | 6 | 0 | - |
-| [African Woman](african_woman.md) | - | - | - | - |
+| [African Woman](african_woman.md) | 1,109 | 128 | 0 | ⭐⭐ |
 | [Mi Cha (Asian Girl)](mi_cha_asian_girl.md) | 133 | 18 | 0 | - |
 | [Ha-eun (Asian Girl)](ha_eun_asian_girl.md) | 276 | 22 | 0 | - |
 | [CaraD](carad_flux.md) | 119 | 9 | 0 | - |
@@ -75,6 +77,8 @@ Other character and style LoRAs for consistent character generation. This sectio
 
 ### Recommended Characters
 - [Fictive Character No.1](fictive_character_no1.md) ⭐ - **RECOMMENDED** - Sexy skinny model, ultra narrow waist (`ohwx` trigger)
+- [Bobbi Spektre](bobbi_spektre.md) ⭐ - Spektre collection character, versatile fashion/lifestyle, photorealistic (no trigger needed)
+- [Reese](reese.md) - Fictional character created by combining character LoRAs, highly versatile across styles (`Reese` trigger optional)
 - [Tessa Sheen](tessa_sheen.md) - Stunning blonde, athletic, highly detailed (`Tessa Sheen` trigger)
 - [DittersGurl](dittersgurl.md) ⭐⭐ - Slim, petite style, smaller breasts (`DittersGurl` trigger)
 - [Mel](mel_flux.md) - 18yo amateur girl, AI-generated (`ohwx woman` trigger)
@@ -136,6 +140,7 @@ Other character and style LoRAs for consistent character generation. This sectio
 |------|---------|----------|------|
 | Amateur Flux | `amateurlora` | 0.2-1.0 | Style |
 | DittersGurl | `DittersGurl` | 0.6-1.0 | Character |
+| Bobbi Spektre | None | 0.7-1.0 | Character |
 | Fictive Character No.1 | `ohwx` | 0.99-1.1 | Character |
 | Tessa Sheen | `Tessa Sheen` | 0.8-1.0 | Character |
 | Isabella Flux CFH | None | 0.8-1.0 | Character |
@@ -248,6 +253,6 @@ Some LoRAs require trigger words (marked **REQUIRED**):
 
 ---
 
-*Last updated: 2026-01-03*
+*Last updated: 2026-02-04*
 
 *Note: Mystic XXX is documented in STYLE_ENHANCEMENT category.*

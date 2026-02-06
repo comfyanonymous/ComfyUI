@@ -1,0 +1,64 @@
+========================================
+NAPRAWIONO: Błąd CUDA illegal memory access
+========================================
+
+PROBLEM:
+--------
+Błąd: "CUDA error: an illegal memory access was encountered"
+Występował w workflow: SEO_Blog_Cover i SEO_Blog_Cover_Office_LoRA
+
+PRZYCZYNA:
+----------
+Model JibMix Flux v8 jest zapisany w formacie float8 (fp8), ale workflow
+próbowało ładować go z ustawieniem "default", co powodowało konflikt
+podczas konwersji typów danych (fp8 -> bfloat16).
+
+ROZWIĄZANIE:
+------------
+1. Zmieniono ustawienie weight_dtype w OBUWORKFLOW:
+   - Z: "default"
+   - Na: "fp8_e4m3fn_fast"
+
+   Pliki zmienione:
+   ✓ D:\AI\ComfyUI\user\default\workflows\SEO_Blog_Cover.json
+   ✓ D:\AI\ComfyUI\user\default\workflows\SEO_Blog_Cover_Office_LoRA.json
+
+2. Zaktualizowano plik startowy:
+   ✓ start_comfyui.bat - z optymalizacjami CUDA
+
+3. Dodano alternatywny plik dla systemów z małą ilością VRAM:
+   ✓ start_comfyui_lowvram.bat - z flagą --lowvram
+
+JAK URUCHOMIĆ:
+--------------
+1. Standardowy tryb (zalecany):
+   Kliknij: start_comfyui.bat
+
+2. Tryb low VRAM (jeśli nadal są problemy):
+   Kliknij: start_comfyui_lowvram.bat
+
+3. W ComfyUI:
+   - Otwórz workflow SEO_Blog_Cover lub SEO_Blog_Cover_Office_LoRA
+   - Sprawdź node "UNETLoader" - powinien mieć ustawienie "fp8_e4m3fn_fast"
+   - Uruchom workflow normalnie
+
+CO ZOSTAŁO ZMIENIONE W WORKFLOW:
+---------------------------------
+Node: UNETLoader (JibMix Flux v8)
+Parametr weight_dtype: "default" → "fp8_e4m3fn_fast"
+
+To ustawienie:
+- Ładuje model bezpośrednio w formacie fp8 (bez konwersji)
+- Używa zoptymalizowanych operacji fp8
+- Zapobiega błędom illegal memory access
+- Poprawia wydajność
+
+DODATKOWE INFORMACJE:
+---------------------
+Jeśli nadal występują problemy:
+1. Upewnij się, że masz najnowsze sterowniki NVIDIA
+2. Sprawdź czy masz wystarczająco VRAM (min. 8GB)
+3. Użyj start_comfyui_lowvram.bat
+4. Rozważ zmniejszenie rozdzielczości obrazu w workflow
+
+Data naprawy: 2026-01-27

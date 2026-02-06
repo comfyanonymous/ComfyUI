@@ -1,0 +1,3 @@
+[submodule "docs/lora-docs-site"]
+	path = docs/lora-docs-site
+	url = https://github.com/spokospace/comfyui-lora-docs.git
