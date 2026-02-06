@@ -1724,11 +1724,9 @@ def soft_empty_cache(force=False):
     elif is_mlu():
         torch.mlu.empty_cache()
     elif torch.cuda.is_available():
-        if comfy.memory_management.aimdo_allocator is None:
-            #Pytorch 2.7 and earlier crashes if you try and empty_cache when mempools exist
-            torch.cuda.synchronize()
-            torch.cuda.empty_cache()
-            torch.cuda.ipc_collect()
+        torch.cuda.synchronize()
+        torch.cuda.empty_cache()
+        torch.cuda.ipc_collect()
 
 def unload_all_models():
     free_memory(1e30, get_torch_device())

@@ -8,6 +8,7 @@ import comfy.utils
 
 from comfy.ldm.modules.attention import optimized_attention_for_device
 import comfy.model_management
+import comfy.ops
 import comfy.ldm.common_dit
 import comfy.clip_model
 
@@ -135,6 +136,29 @@ class Qwen3_2B_ACE15_lm_Config:
     intermediate_size: int = 6144
     num_hidden_layers: int = 28
     num_attention_heads: int = 16
+    num_key_value_heads: int = 8
+    max_position_embeddings: int = 40960
+    rms_norm_eps: float = 1e-6
+    rope_theta: float = 1000000.0
+    transformer_type: str = "llama"
+    head_dim = 128
+    rms_norm_add = False
+    mlp_activation = "silu"
+    qkv_bias = False
+    rope_dims = None
+    q_norm = "gemma3"
+    k_norm = "gemma3"
+    rope_scale = None
+    final_norm: bool = True
+    lm_head: bool = False
+
+@dataclass
+class Qwen3_4B_ACE15_lm_Config:
+    vocab_size: int = 217204
+    hidden_size: int = 2560
+    intermediate_size: int = 9728
+    num_hidden_layers: int = 36
+    num_attention_heads: int = 32
     num_key_value_heads: int = 8
     max_position_embeddings: int = 40960
     rms_norm_eps: float = 1e-6
@@ -632,10 +656,10 @@ class Llama2_(nn.Module):
         mask = None
         if attention_mask is not None:
             mask = 1.0 - attention_mask.to(x.dtype).reshape((attention_mask.shape[0], 1, -1, attention_mask.shape[-1])).expand(attention_mask.shape[0], 1, seq_len, attention_mask.shape[-1])
-            mask = mask.masked_fill(mask.to(torch.bool), float("-inf"))
+            mask = mask.masked_fill(mask.to(torch.bool), torch.finfo(x.dtype).min / 4)
 
         if seq_len > 1:
-            causal_mask = torch.empty(past_len + seq_len, past_len + seq_len, dtype=x.dtype, device=x.device).fill_(float("-inf")).triu_(1)
+            causal_mask = torch.empty(past_len + seq_len, past_len + seq_len, dtype=x.dtype, device=x.device).fill_(torch.finfo(x.dtype).min / 4).triu_(1)
             if mask is not None:
                 mask += causal_mask
             else:
@@ -743,6 +767,22 @@ class BaseLlama:
     def forward(self, input_ids, *args, **kwargs):
         return self.model(input_ids, *args, **kwargs)
 
+class BaseQwen3:
+    def logits(self, x):
+        input = x[:, -1:]
+        module = self.model.embed_tokens
+
+        offload_stream = None
+        if module.comfy_cast_weights:
+            weight, _, offload_stream = comfy.ops.cast_bias_weight(module, input, offloadable=True)
+        else:
+            weight = self.model.embed_tokens.weight.to(x)
+
+        x = torch.nn.functional.linear(input, weight, None)
+
+        comfy.ops.uncast_bias_weight(module, weight, None, offload_stream)
+        return x
+
     def sample_token(self, logits, temperature, top_k, top_p, min_p, repetition_penalty, token_history, generator, do_sample=True):
 
         if repetition_penalty != 1.0:
@@ -849,7 +889,7 @@ class Qwen25_3B(BaseLlama, torch.nn.Module):
         self.model = Llama2_(config, device=device, dtype=dtype, ops=operations)
         self.dtype = dtype
 
-class Qwen3_06B(BaseLlama, torch.nn.Module):
+class Qwen3_06B(BaseLlama, BaseQwen3, torch.nn.Module):
     def __init__(self, config_dict, dtype, device, operations):
         super().__init__()
         config = Qwen3_06BConfig(**config_dict)
@@ -858,7 +898,7 @@ class Qwen3_06B(BaseLlama, torch.nn.Module):
         self.model = Llama2_(config, device=device, dtype=dtype, ops=operations)
         self.dtype = dtype
 
-class Qwen3_06B_ACE15(BaseLlama, torch.nn.Module):
+class Qwen3_06B_ACE15(BaseLlama, BaseQwen3, torch.nn.Module):
     def __init__(self, config_dict, dtype, device, operations):
         super().__init__()
         config = Qwen3_06B_ACE15_Config(**config_dict)
@@ -867,7 +907,7 @@ class Qwen3_06B_ACE15(BaseLlama, torch.nn.Module):
         self.model = Llama2_(config, device=device, dtype=dtype, ops=operations)
         self.dtype = dtype
 
-class Qwen3_2B_ACE15_lm(BaseLlama, torch.nn.Module):
+class Qwen3_2B_ACE15_lm(BaseLlama, BaseQwen3, torch.nn.Module):
     def __init__(self, config_dict, dtype, device, operations):
         super().__init__()
         config = Qwen3_2B_ACE15_lm_Config(**config_dict)
@@ -876,10 +916,7 @@ class Qwen3_2B_ACE15_lm(BaseLlama, torch.nn.Module):
         self.model = Llama2_(config, device=device, dtype=dtype, ops=operations)
         self.dtype = dtype
 
-    def logits(self, x):
-        return torch.nn.functional.linear(x[:, -1:], self.model.embed_tokens.weight.to(x), None)
-
-class Qwen3_4B(BaseLlama, torch.nn.Module):
+class Qwen3_4B(BaseLlama, BaseQwen3, torch.nn.Module):
     def __init__(self, config_dict, dtype, device, operations):
         super().__init__()
         config = Qwen3_4BConfig(**config_dict)
@@ -892,7 +929,16 @@ class Qwen3_4B(BaseLlama, torch.nn.Module):
             self.lm_head = operations.Linear(config.hidden_size, config.vocab_size, bias=False, device=device, dtype=dtype)
             self.lm_head.weight = self.model.embed_tokens.weight
 
-class Qwen3_8B(BaseLlama, torch.nn.Module):
+class Qwen3_4B_ACE15_lm(BaseLlama, BaseQwen3, torch.nn.Module):
+    def __init__(self, config_dict, dtype, device, operations):
+        super().__init__()
+        config = Qwen3_4B_ACE15_lm_Config(**config_dict)
+        self.num_layers = config.num_hidden_layers
+
+        self.model = Llama2_(config, device=device, dtype=dtype, ops=operations)
+        self.dtype = dtype
+
+class Qwen3_8B(BaseLlama, BaseQwen3, torch.nn.Module):
     def __init__(self, config_dict, dtype, device, operations):
         super().__init__()
         config = Qwen3_8BConfig(**config_dict)

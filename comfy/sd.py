@@ -570,6 +570,8 @@ class VAE:
             elif "decoder.layers.1.layers.0.beta" in sd:
                 config = {}
                 param_key = None
+                self.upscale_ratio = 2048
+                self.downscale_ratio = 2048
                 if "decoder.layers.2.layers.1.weight_v" in sd:
                     param_key = "decoder.layers.2.layers.1.weight_v"
                 if "decoder.layers.2.layers.1.parametrizations.weight.original1" in sd:
@@ -578,6 +580,8 @@ class VAE:
                     if sd[param_key].shape[-1] == 12:
                         config["strides"] = [2, 4, 4, 6, 10]
                         self.audio_sample_rate = 48000
+                        self.upscale_ratio = 1920
+                        self.downscale_ratio = 1920
 
                 self.first_stage_model = AudioOobleckVAE(**config)
                 self.memory_used_encode = lambda shape, dtype: (1000 * shape[2]) * model_management.dtype_size(dtype)
@@ -585,8 +589,6 @@ class VAE:
                 self.latent_channels = 64
                 self.output_channels = 2
                 self.pad_channel_value = "replicate"
-                self.upscale_ratio = 2048
-                self.downscale_ratio = 2048
                 self.latent_dim = 1
                 self.process_output = lambda audio: audio
                 self.process_input = lambda audio: audio
@@ -886,7 +888,7 @@ class VAE:
             / 3.0)
         return output
 
-    def decode_tiled_1d(self, samples, tile_x=128, overlap=32):
+    def decode_tiled_1d(self, samples, tile_x=256, overlap=32):
         if samples.ndim == 3:
             decode_fn = lambda a: self.first_stage_model.decode(a.to(self.vae_dtype).to(self.device)).float()
         else:
@@ -990,7 +992,7 @@ class VAE:
         if overlap is not None:
             args["overlap"] = overlap
 
-        if dims == 1:
+        if dims == 1 or self.extra_1d_channel is not None:
             args.pop("tile_y")
             output = self.decode_tiled_1d(samples, **args)
         elif dims == 2:
@@ -1462,7 +1464,12 @@ def load_text_encoder_state_dicts(state_dicts=[], embedding_directory=None, clip
             tokenizer_data["gemma_spiece_model"] = clip_data_gemma.get("spiece_model", None)
             tokenizer_data["jina_spiece_model"] = clip_data_jina.get("spiece_model", None)
         elif clip_type == CLIPType.ACE:
-            clip_target.clip = comfy.text_encoders.ace15.te(**llama_detect(clip_data))
+            te_models = [detect_te_model(clip_data[0]), detect_te_model(clip_data[1])]
+            if TEModel.QWEN3_4B in te_models:
+                model_type = "qwen3_4b"
+            else:
+                model_type = "qwen3_2b"
+            clip_target.clip = comfy.text_encoders.ace15.te(lm_model=model_type, **llama_detect(clip_data))
             clip_target.tokenizer = comfy.text_encoders.ace15.ACE15Tokenizer
         else:
             clip_target.clip = sdxl_clip.SDXLClipModel

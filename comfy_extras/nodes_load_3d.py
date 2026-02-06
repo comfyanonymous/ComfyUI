@@ -1,9 +1,10 @@
 import nodes
 import folder_paths
 import os
+import uuid
 
 from typing_extensions import override
-from comfy_api.latest import IO, ComfyExtension, InputImpl, UI
+from comfy_api.latest import IO, UI, ComfyExtension, InputImpl, Types
 
 from pathlib import Path
 
@@ -44,6 +45,7 @@ class Load3D(IO.ComfyNode):
                 IO.Image.Output(display_name="normal"),
                 IO.Load3DCamera.Output(display_name="camera_info"),
                 IO.Video.Output(display_name="recording_video"),
+                IO.File3DAny.Output(display_name="model_3d"),
             ],
         )
 
@@ -65,7 +67,8 @@ class Load3D(IO.ComfyNode):
 
             video = InputImpl.VideoFromFile(recording_video_path)
 
-        return IO.NodeOutput(output_image, output_mask, model_file, normal_image, image['camera_info'], video)
+        file_3d = Types.File3D(folder_paths.get_annotated_filepath(model_file))
+        return IO.NodeOutput(output_image, output_mask, model_file, normal_image, image['camera_info'], video, file_3d)
 
     process = execute  # TODO: remove
 
@@ -81,7 +84,19 @@ class Preview3D(IO.ComfyNode):
             is_experimental=True,
             is_output_node=True,
             inputs=[
-                IO.String.Input("model_file", default="", multiline=False),
+                IO.MultiType.Input(
+                    IO.String.Input("model_file", default="", multiline=False),
+                    types=[
+                        IO.File3DGLB,
+                        IO.File3DGLTF,
+                        IO.File3DFBX,
+                        IO.File3DOBJ,
+                        IO.File3DSTL,
+                        IO.File3DUSDZ,
+                        IO.File3DAny,
+                    ],
+                    tooltip="3D model file or path string",
+                ),
                 IO.Load3DCamera.Input("camera_info", optional=True),
                 IO.Image.Input("bg_image", optional=True),
             ],
@@ -89,10 +104,15 @@ class Preview3D(IO.ComfyNode):
         )
 
     @classmethod
-    def execute(cls, model_file, **kwargs) -> IO.NodeOutput:
+    def execute(cls, model_file: str | Types.File3D, **kwargs) -> IO.NodeOutput:
+        if isinstance(model_file, Types.File3D):
+            filename = f"preview3d_{uuid.uuid4().hex}.{model_file.format}"
+            model_file.save_to(os.path.join(folder_paths.get_output_directory(), filename))
+        else:
+            filename = model_file
         camera_info = kwargs.get("camera_info", None)
         bg_image = kwargs.get("bg_image", None)
-        return IO.NodeOutput(ui=UI.PreviewUI3D(model_file, camera_info, bg_image=bg_image))
+        return IO.NodeOutput(ui=UI.PreviewUI3D(filename, camera_info, bg_image=bg_image))
 
     process = execute  # TODO: remove
 

@@ -2434,8 +2434,8 @@ async def init_builtin_extra_nodes():
         "nodes_zimage.py",
         "nodes_lora_debug.py",
         "nodes_textgen.py",
-        "nodes_textgen.py",
-        "nodes_color.py"
+        "nodes_color.py",
+        "nodes_toolkit.py",
     ]
 
     import_failed = []
