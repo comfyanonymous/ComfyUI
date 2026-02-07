@@ -993,7 +993,7 @@ class CosmosT2IPredict2(supported_models_base.BASE):
 
     memory_usage_factor = 1.0
 
-    supported_inference_dtypes = [torch.bfloat16, torch.float32]
+    supported_inference_dtypes = [torch.bfloat16, torch.float16, torch.float32]
 
     def __init__(self, unet_config):
         super().__init__(unet_config)
@@ -1023,11 +1023,7 @@ class Anima(supported_models_base.BASE):
 
     memory_usage_factor = 1.0
 
-    supported_inference_dtypes = [torch.bfloat16, torch.float32]
-
-    def __init__(self, unet_config):
-        super().__init__(unet_config)
-        self.memory_usage_factor = (unet_config.get("model_channels", 2048) / 2048) * 0.95
+    supported_inference_dtypes = [torch.bfloat16, torch.float16, torch.float32]
 
     def get_model(self, state_dict, prefix="", device=None):
         out = model_base.Anima(self, device=device)
@@ -1037,6 +1033,12 @@ class Anima(supported_models_base.BASE):
         pref = self.text_encoder_key_prefix[0]
         detect = comfy.text_encoders.hunyuan_video.llama_detect(state_dict, "{}qwen3_06b.transformer.".format(pref))
         return supported_models_base.ClipTarget(comfy.text_encoders.anima.AnimaTokenizer, comfy.text_encoders.anima.te(**detect))
+
+    def set_inference_dtype(self, dtype, manual_cast_dtype, **kwargs):
+        self.memory_usage_factor = (self.unet_config.get("model_channels", 2048) / 2048) * 0.95
+        if dtype is torch.float16:
+            self.memory_usage_factor *= 1.4
+        return super().set_inference_dtype(dtype, manual_cast_dtype, **kwargs)
 
 class CosmosI2VPredict2(CosmosT2IPredict2):
     unet_config = {
