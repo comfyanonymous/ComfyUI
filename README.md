@@ -369,7 +369,11 @@ You can enable experimental memory efficient attention on recent pytorch in Comf
 
 ```TORCH_ROCM_AOTRITON_ENABLE_EXPERIMENTAL=1 python main.py --use-pytorch-cross-attention```
 
-You can also try setting this env variable `PYTORCH_TUNABLEOP_ENABLED=1` which might speed things up at the cost of a very slow initial run.
+You can also try:
+* Tunable ops: Setting `PYTORCH_TUNABLEOP_ENABLED=1` which might speed things up at the cost of a very slow initial runs. After running online tuning for a while consider disabling it with `PYTORCH_TUNABLEOP_TUNING=0` to only used the tuned settings and avoid slowdowns.
+* MIOpen: Currently disabled by default. Enable with `COMFYUI_ENABLE_MIOPEN=1`. Be aware that miopen will autotune by default, consider disabling it with `MIOPEN_FIND_MODE=FAST` to avoid tuning slowdowns.
+* Flash attention: Install from [flash-attention](https://github.com/Dao-AILab/flash-attention) & enable with `FLASH_ATTENTION_TRITON_AMD_ENABLE=TRUE` and arg `--use-flash-attention`. See also notes in the repo on triton autotuning.
+* If you are encountering VRAM OOMs `PYTORCH_NO_HIP_MEMORY_CACHING=1` may help.
 
 # Notes
 
