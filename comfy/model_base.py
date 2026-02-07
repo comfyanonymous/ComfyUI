@@ -1577,6 +1577,10 @@ class ACEStep15(BaseModel):
             else:
                 out['is_covers'] = comfy.conds.CONDConstant(False)
 
+        if refer_audio.shape[2] < noise.shape[2]:
+            pad = comfy.ldm.ace.ace_step15.get_silence_latent(noise.shape[2], device)
+            refer_audio = torch.cat([refer_audio.to(pad), pad[:, :, refer_audio.shape[2]:]], dim=2)
+
         out['refer_audio'] = comfy.conds.CONDRegular(refer_audio)
         return out
 
