@@ -993,7 +993,7 @@ class CosmosT2IPredict2(supported_models_base.BASE):
 
     memory_usage_factor = 1.0
 
-    supported_inference_dtypes = [torch.bfloat16, torch.float32]
+    supported_inference_dtypes = [torch.bfloat16, torch.float16, torch.float32]
 
     def __init__(self, unet_config):
         super().__init__(unet_config)
@@ -1023,7 +1023,7 @@ class Anima(supported_models_base.BASE):
 
     memory_usage_factor = 1.0
 
-    supported_inference_dtypes = [torch.bfloat16, torch.float32]
+    supported_inference_dtypes = [torch.bfloat16, torch.float16, torch.float32]
 
     def __init__(self, unet_config):
         super().__init__(unet_config)
