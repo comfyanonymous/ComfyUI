@@ -1552,6 +1552,8 @@ class ACEStep15(BaseModel):
 
         cross_attn = kwargs.get("cross_attn", None)
         if cross_attn is not None:
+            if torch.count_nonzero(cross_attn) == 0:
+                out['replace_with_null_embeds'] = comfy.conds.CONDConstant(True)
             out['c_crossattn'] = comfy.conds.CONDRegular(cross_attn)
 
         conditioning_lyrics = kwargs.get("conditioning_lyrics", None)

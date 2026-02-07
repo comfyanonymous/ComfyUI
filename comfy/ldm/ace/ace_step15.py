@@ -1110,7 +1110,7 @@ class AceStepConditionGenerationModel(nn.Module):
 
         return encoder_hidden, encoder_mask, context_latents
 
-    def forward(self, x, timestep, context, lyric_embed=None, refer_audio=None, audio_codes=None, is_covers=None, **kwargs):
+    def forward(self, x, timestep, context, lyric_embed=None, refer_audio=None, audio_codes=None, is_covers=None, replace_with_null_embeds=False, **kwargs):
         text_attention_mask = None
         lyric_attention_mask = None
         refer_audio_order_mask = None
@@ -1139,6 +1139,9 @@ class AceStepConditionGenerationModel(nn.Module):
             refer_audio_acoustic_hidden_states_packed, refer_audio_order_mask,
             src_latents, chunk_masks, is_covers, precomputed_lm_hints_25Hz=precomputed_lm_hints_25Hz, audio_codes=audio_codes
         )
+
+        if replace_with_null_embeds:
+            enc_hidden[:] = self.null_condition_emb.to(enc_hidden)
 
         out = self.decoder(hidden_states=x,
                            timestep=timestep,
