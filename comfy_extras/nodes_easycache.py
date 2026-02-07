@@ -108,7 +108,7 @@ def lazycache_predict_noise_wrapper(executor, *args, **kwargs):
     easycache: LazyCacheHolder = model_options["transformer_options"]["easycache"]
     if easycache.is_past_end_timestep(timestep):
         return executor(*args, **kwargs)
-    x: torch.Tensor = _extract_tensor(args[0], easycache.output_channels)
+    x: torch.Tensor = args[0][:, :easycache.output_channels]
     # prepare next x_prev
     next_x_prev = x
     input_change = None
