@@ -609,7 +609,23 @@ def load_controlnet_qwen_fun(sd, model_options={}):
     """Load Fun ControlNet model (QwenDiffSynth-style with full transformer blocks)."""
     import comfy.ldm.qwen_image.fun_controlnet
     
-    model_config, operations, load_device, unet_dtype, manual_cast_dtype, offload_device = controlnet_config(sd, model_options=model_options)
+    # Fun ControlNet doesn't match standard model detection patterns,
+    # so we manually configure the loading parameters
+    unet_dtype = model_options.get("dtype", None)
+    if unet_dtype is None:
+        weight_dtype = comfy.utils.weight_dtype(sd)
+        if weight_dtype is not None:
+            unet_dtype = weight_dtype
+        else:
+            unet_dtype = comfy.model_management.unet_dtype()
+    
+    load_device = comfy.model_management.get_torch_device()
+    offload_device = comfy.model_management.unet_offload_device()
+    manual_cast_dtype = comfy.model_management.unet_manual_cast(unet_dtype, load_device)
+    
+    operations = model_options.get("custom_operations", None)
+    if operations is None:
+        operations = comfy.ops.pick_operations(unet_dtype, manual_cast_dtype, disable_fast_fp8=True)
     
     # Determine number of control blocks from state dict
     num_control_blocks = 0
@@ -623,11 +639,10 @@ def load_controlnet_qwen_fun(sd, model_options={}):
     if control_img_in_weight is not None:
         # Weight shape is [out_dim, in_channels] = [3072, 132]
         in_channels_total = control_img_in_weight.shape[1]  # 132
+        inner_dim = control_img_in_weight.shape[0]  # 3072
     else:
         in_channels_total = 132  # Default for Fun ControlNet
-    
-    # Get inner dimension
-    inner_dim = control_img_in_weight.shape[0] if control_img_in_weight is not None else 3072
+        inner_dim = 3072
     
     # Calculate attention heads from weight shapes
     num_attention_heads = 24  # Default for Qwen
