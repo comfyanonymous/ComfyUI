@@ -395,15 +395,9 @@ class QwenImageFunControlNetModel(nn.Module):
         if encoder_hidden_states_mask is not None and not torch.is_floating_point(encoder_hidden_states_mask):
             encoder_hidden_states_mask = (encoder_hidden_states_mask - 1).to(x.dtype) * torch.finfo(x.dtype).max
 
-        # Process input latent to get position IDs and latent features
-        latent_states, img_ids, orig_shape = self.process_img(x)
-        # Project latent to inner dimension (this is our x for blocks)
-        x_projected = self.control_img_in(latent_states)  # Reuse control_img_in as img_in equivalent
-        
-        # Wait - we need separate projection for latent input!
-        # For now, let's just use zeros for x and let before_proj + c work
-        # Actually, let's project the patchified latent through a simple path
-        
+        # Process input latent to get position IDs
+        _, img_ids, orig_shape = self.process_img(x)
+
         # Combine latent and hint with correct channel count
         # control_img_in expects 132 features = 33 channels × 4 (after patchification)
         # 33 channels = 16 (latent) + 16 (hint) + 1 (mask/extra)
@@ -416,17 +410,10 @@ class QwenImageFunControlNetModel(nn.Module):
         # Process to patches: 33 channels → 132 features (33 × 4)
         full_states, _, _ = self.process_img(full_input)
         
-        # Project control context to inner dimension (this is our c for first block)
+        # Project control context to inner dimension (this is c for first block)
         c = self.control_img_in(full_states)
         
-        # Project latent alone for x input to first block  
-        # x is just the original latent projected
-        x_only_states, _, _ = self.process_img(x)
-        # Need to project 64 features to inner_dim - but control_img_in expects 132
-        # For now, pad x to 132 features before projection
-        x_padded = torch.zeros_like(full_states)
-        x_padded[..., :x_only_states.shape[-1] * 4] = x_only_states[..., :33 * 4] if x_only_states.shape[-1] >= 33 else torch.cat([x_only_states, torch.zeros(x_only_states.shape[0], x_only_states.shape[1], 132 - x_only_states.shape[-1], device=x.device, dtype=x.dtype)], dim=-1)
-        # Actually, simpler: just use zeros for x (let before_proj(c) dominate)
+        # x_inner is zeros - let before_proj(c) handle the control signal
         x_inner = torch.zeros_like(c)
 
         # Create position embeddings
