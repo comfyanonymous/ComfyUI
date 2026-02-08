@@ -362,28 +362,19 @@ class QwenImageFunControlNetModel(nn.Module):
         if encoder_hidden_states_mask is not None and not torch.is_floating_point(encoder_hidden_states_mask):
             encoder_hidden_states_mask = (encoder_hidden_states_mask - 1).to(x.dtype) * torch.finfo(x.dtype).max
 
-        # Process input and hint
-        hidden_states, img_ids, orig_shape = self.process_img(x)
-        hint_states, _, _ = self.process_img(hint)
+        # Process input latent to get position IDs
+        _, img_ids, orig_shape = self.process_img(x)
 
-        # Concatenate latent and hint
-        # Pad with zeros to match expected 132 channels (64 latent * 4 patches + 64 hint * 4 patches + padding)
-        # Actually the patchified version: 64*4 = 256 for latent, 64*4=256 for hint, need to pad
-        combined_input = torch.cat([hidden_states, hint_states], dim=-1)
-        
-        # Handle channel mismatch - the model expects 132 input channels after patchification
-        # Patchified latent: 64*4 = 256, Patchified hint: 64*4 = 256
-        # But control_img_in expects 132, so we need to handle this differently
-        # The weight shape [3072, 132] suggests unpatchified input: 64 + 64 + 4 = 132
-        
-        # Reprocess for unpatchified combination
-        hint_combined = torch.cat([x, hint], dim=1)  # [B, 128, T, H, W]
-        # Add extra 4 channels (zeros for mask/type)
-        extra = torch.zeros((x.shape[0], 4, x.shape[2], x.shape[3], x.shape[4]), 
+        # Combine latent and hint with correct channel count
+        # control_img_in expects 132 features = 33 channels × 4 (after patchification)
+        # 33 channels = 16 (latent) + 16 (hint) + 1 (mask/extra)
+        hint_combined = torch.cat([x, hint], dim=1)  # [B, 32, T, H, W] (16+16)
+        # Add 1 extra channel (mask) to get 33 total channels
+        extra = torch.zeros((x.shape[0], 1, x.shape[2], x.shape[3], x.shape[4]), 
                            device=x.device, dtype=x.dtype)
-        full_input = torch.cat([hint_combined, extra], dim=1)  # [B, 132, T, H, W]
+        full_input = torch.cat([hint_combined, extra], dim=1)  # [B, 33, T, H, W]
         
-        # Now process to patches
+        # Process to patches: 33 channels → 132 features (33 × 4)
         full_states, _, _ = self.process_img(full_input)
         
         # Project to inner dimension
