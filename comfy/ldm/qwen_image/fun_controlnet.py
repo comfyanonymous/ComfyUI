@@ -309,23 +309,7 @@ class QwenImageFunControlNetModel(nn.Module):
             for i in range(num_control_blocks)
         ])
 
-        # Text projection (matches main Qwen model)
-        # Projects text encoder output (3584) to inner_dim (3072)
-        # NOTE: These layers may not be in the checkpoint, so we initialize them
-        # with identity-like weights (truncation: take first 3072 of 3584 dims)
-        self.txt_norm = operations.RMSNorm(joint_attention_dim, eps=1e-6, dtype=dtype, device=device)
-        self.txt_in = operations.Linear(joint_attention_dim, inner_dim, dtype=dtype, device=device)
-        
-        # Initialize txt_in as truncation (identity for first 3072 dims, ignore rest)
-        # This allows the model to work even when txt_in is not in checkpoint
-        with torch.no_grad():
-            # Create identity-like weight matrix [3072, 3584]
-            # First 3072x3072 is identity, rest is zeros
-            weight = torch.zeros(inner_dim, joint_attention_dim, dtype=dtype, device=device)
-            weight[:inner_dim, :inner_dim] = torch.eye(inner_dim, dtype=dtype, device=device)
-            self.txt_in.weight.copy_(weight)
-            if self.txt_in.bias is not None:
-                self.txt_in.bias.zero_()
+        # Position embedding (shared with main model)
 
         # Position embedding (shared with main model)
         from comfy.ldm.flux.layers import EmbedND
@@ -395,26 +379,48 @@ class QwenImageFunControlNetModel(nn.Module):
         if encoder_hidden_states_mask is not None and not torch.is_floating_point(encoder_hidden_states_mask):
             encoder_hidden_states_mask = (encoder_hidden_states_mask - 1).to(x.dtype) * torch.finfo(x.dtype).max
 
-        # Process input latent to get position IDs
-        _, img_ids, orig_shape = self.process_img(x)
+        # Borrow weights from main model if available
+        # Fun ControlNet "Lite" architecture requires main model's input projections
+        main_model = None
+        if transformer_options is not None:
+            # ComfyUI passes ModelPatcher in transformer_options["model"]
+            model_patcher = transformer_options.get("model", None)
+            if model_patcher is not None:
+                 # patcher.model is the underlying diffusion model wrapper
+                 main_model = getattr(model_patcher, "model", None)
+                 # Unwrap if needed (e.g. if it's a wrapper like in SD3)
+                 if hasattr(main_model, "diffusion_model"):
+                     main_model = main_model.diffusion_model
 
-        # Combine latent and hint with correct channel count
+        if main_model is None:
+             # Fallback debug mode? No, we really need the weights.
+             # But let's try to be helpful if user calls it weirdly.
+             raise ValueError("Fun ControlNet requires access to main model weights (img_in, txt_in) but could not find model in transformer_options. Make sure you are using a standard Sampler node.")
+
+        # 1. Process and project Latent Input (x)
+        # Get patchified latent features [B, T_img, 64]
+        latent_states, img_ids, orig_shape = self.process_img(x)
+        # Project to inner_dim [B, T_img, 3072] using MAIN MODEL's weights
+        x_inner = main_model.img_in(latent_states)
+
+        # 2. Process and project Text Input (context)
+        # Project from 3584 -> 3072 using MAIN MODEL's weights
+        txt_hidden = main_model.txt_in(main_model.txt_norm(encoder_hidden_states))
+
+        # 3. Process Control Input (hint)
+        # Combine latent and hint with correct channel count (33 channels)
         # control_img_in expects 132 features = 33 channels × 4 (after patchification)
-        # 33 channels = 16 (latent) + 16 (hint) + 1 (mask/extra)
         hint_combined = torch.cat([x, hint], dim=1)  # [B, 32, T, H, W] (16+16)
-        # Add 1 extra channel (mask) to get 33 total channels
         extra = torch.zeros((x.shape[0], 1, x.shape[2], x.shape[3], x.shape[4]), 
                            device=x.device, dtype=x.dtype)
         full_input = torch.cat([hint_combined, extra], dim=1)  # [B, 33, T, H, W]
         
-        # Process to patches: 33 channels → 132 features (33 × 4)
+        # Process to patches: 33 channels → 132 features
         full_states, _, _ = self.process_img(full_input)
         
-        # Project control context to inner dimension (this is c for first block)
+        # Project control context to inner dimension [B, T_img, 3072]
+        # This uses OUR OWN weights (present in checkpoint)
         c = self.control_img_in(full_states)
-        
-        # x_inner is zeros - let before_proj(c) handle the control signal
-        x_inner = torch.zeros_like(c)
 
         # Create position embeddings
         txt_start = round(max(((x.shape[-1] + (self.patch_size // 2)) // self.patch_size) // 2, 
@@ -422,9 +428,6 @@ class QwenImageFunControlNetModel(nn.Module):
         txt_ids = torch.arange(txt_start, txt_start + context.shape[1], device=x.device).reshape(1, -1, 1).repeat(x.shape[0], 1, 3)
         ids = torch.cat((txt_ids, img_ids), dim=1)
         image_rotary_emb = self.pe_embedder(ids).to(x.dtype).contiguous()
-
-        # Process text embeddings - project from 3584 to 3072 (inner_dim)
-        txt_hidden = self.txt_in(self.txt_norm(encoder_hidden_states))
 
         # Create time embedding
         from comfy.ldm.lightricks.model import TimestepEmbedding, Timesteps
