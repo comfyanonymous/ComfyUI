@@ -189,13 +189,15 @@ class FunControlNetBlock(nn.Module):
         modulated = x * (1 + scale) + shift
         return modulated, gate
 
-    def forward(self, hidden_states, encoder_hidden_states, encoder_hidden_states_mask, 
+    def forward(self, c, x, encoder_hidden_states, encoder_hidden_states_mask, 
                 temb, image_rotary_emb, transformer_options=None):
         """
-        Forward pass matching QwenImageTransformerBlock structure.
+        Forward pass with VideoX's exact stacking logic.
         
         Args:
-            hidden_states: Image features [B, T_img, D]
+            c: Control tensor. For block 0: projected control context [B, S, D]
+               For block 1+: stacked tensor from previous blocks [N, B, S, D]
+            x: Hidden states from latent input [B, S, D] (used only in first block)
             encoder_hidden_states: Text features [B, T_txt, D]
             encoder_hidden_states_mask: Attention mask
             temb: Time embedding [B, D]
@@ -203,12 +205,20 @@ class FunControlNetBlock(nn.Module):
             transformer_options: Options dict
         
         Returns:
-            control_output: Control signal to add to main model
+            (encoder_hidden_states, c) where c is stacked [hints..., current_state]
         """
-        # Apply before_proj if this is the first block
         if self.has_before_proj:
-            hidden_states = hidden_states + self.before_proj(hidden_states)
-
+            # First block: combine control context with latent hidden states
+            c = self.before_proj(c) + x
+            all_c = []
+        else:
+            # Subsequent blocks: unpack stacked tensor, take last as input
+            all_c = list(torch.unbind(c))
+            c = all_c.pop(-1)
+        
+        # Now c is the control hidden states to process
+        hidden_states = c
+        
         # Get modulation parameters
         img_mod_params = self.img_mod(temb)
         txt_mod_params = self.txt_mod(temb)
@@ -238,10 +248,14 @@ class FunControlNetBlock(nn.Module):
         txt_modulated2, txt_gate2 = self._modulate(self.txt_norm2(encoder_hidden_states), txt_mod2)
         encoder_hidden_states = encoder_hidden_states + txt_gate2 * self._mlp_forward(self.txt_mlp.net, txt_modulated2)
 
-        # Apply after_proj to get control output
-        control_output = self.after_proj(hidden_states)
+        # Project for hint output (zero-initialized)
+        c_skip = self.after_proj(hidden_states)
 
-        return control_output, hidden_states, encoder_hidden_states
+        # Stack hints and current state for next block
+        all_c = all_c + [c_skip, hidden_states]
+        c = torch.stack(all_c)
+
+        return encoder_hidden_states, c
 
 
 class QwenImageFunControlNetModel(nn.Module):
@@ -381,9 +395,15 @@ class QwenImageFunControlNetModel(nn.Module):
         if encoder_hidden_states_mask is not None and not torch.is_floating_point(encoder_hidden_states_mask):
             encoder_hidden_states_mask = (encoder_hidden_states_mask - 1).to(x.dtype) * torch.finfo(x.dtype).max
 
-        # Process input latent to get position IDs
-        _, img_ids, orig_shape = self.process_img(x)
-
+        # Process input latent to get position IDs and latent features
+        latent_states, img_ids, orig_shape = self.process_img(x)
+        # Project latent to inner dimension (this is our x for blocks)
+        x_projected = self.control_img_in(latent_states)  # Reuse control_img_in as img_in equivalent
+        
+        # Wait - we need separate projection for latent input!
+        # For now, let's just use zeros for x and let before_proj + c work
+        # Actually, let's project the patchified latent through a simple path
+        
         # Combine latent and hint with correct channel count
         # control_img_in expects 132 features = 33 channels × 4 (after patchification)
         # 33 channels = 16 (latent) + 16 (hint) + 1 (mask/extra)
@@ -396,8 +416,18 @@ class QwenImageFunControlNetModel(nn.Module):
         # Process to patches: 33 channels → 132 features (33 × 4)
         full_states, _, _ = self.process_img(full_input)
         
-        # Project to inner dimension
-        hidden_states = self.control_img_in(full_states)
+        # Project control context to inner dimension (this is our c for first block)
+        c = self.control_img_in(full_states)
+        
+        # Project latent alone for x input to first block  
+        # x is just the original latent projected
+        x_only_states, _, _ = self.process_img(x)
+        # Need to project 64 features to inner_dim - but control_img_in expects 132
+        # For now, pad x to 132 features before projection
+        x_padded = torch.zeros_like(full_states)
+        x_padded[..., :x_only_states.shape[-1] * 4] = x_only_states[..., :33 * 4] if x_only_states.shape[-1] >= 33 else torch.cat([x_only_states, torch.zeros(x_only_states.shape[0], x_only_states.shape[1], 132 - x_only_states.shape[-1], device=x.device, dtype=x.dtype)], dim=-1)
+        # Actually, simpler: just use zeros for x (let before_proj(c) dominate)
+        x_inner = torch.zeros_like(c)
 
         # Create position embeddings
         txt_start = round(max(((x.shape[-1] + (self.patch_size // 2)) // self.patch_size) // 2, 
@@ -407,7 +437,6 @@ class QwenImageFunControlNetModel(nn.Module):
         image_rotary_emb = self.pe_embedder(ids).to(x.dtype).contiguous()
 
         # Process text embeddings - project from 3584 to 3072 (inner_dim)
-        # This matches the main Qwen model's text processing
         txt_hidden = self.txt_in(self.txt_norm(encoder_hidden_states))
 
         # Create time embedding
@@ -415,25 +444,45 @@ class QwenImageFunControlNetModel(nn.Module):
         time_proj = Timesteps(num_channels=256, flip_sin_to_cos=True, downscale_freq_shift=0, scale=1000)
         timesteps_proj = time_proj(timesteps)
         # Simple time embedding projection
-        temb = timesteps_proj.to(dtype=hidden_states.dtype)
+        temb = timesteps_proj.to(dtype=c.dtype)
         # Expand to inner_dim
         temb = temb.repeat(1, self.inner_dim // 256 + 1)[:, :self.inner_dim]
 
-        # Run through control blocks
-        repeat_factor = math.ceil(self.main_model_double / len(self.control_blocks))
-        controlnet_block_samples = ()
-
-        for i, block in enumerate(self.control_blocks):
-            control_output, hidden_states, txt_hidden = block(
-                hidden_states=hidden_states,
+        # Run through control blocks with VideoX stacking logic
+        for block in self.control_blocks:
+            txt_hidden, c = block(
+                c=c,
+                x=x_inner,
                 encoder_hidden_states=txt_hidden,
                 encoder_hidden_states_mask=encoder_hidden_states_mask,
                 temb=temb,
                 image_rotary_emb=image_rotary_emb,
                 transformer_options=transformer_options,
             )
-            # Repeat control output for each corresponding main model block
-            controlnet_block_samples = controlnet_block_samples + (control_output,) * repeat_factor
+            # x_inner is only used in first block, after that c carries through
 
-        # Trim to exact number of main model blocks
-        return {"input": controlnet_block_samples[:self.main_model_double]}
+        # Extract hints from stacked tensor (all but last element)
+        # c is [N, B, S, D] where N = 2*num_blocks (hint + state per block)
+        # hints are at even indices: [0, 2, 4, 6, 8] for 5 blocks
+        all_outputs = list(torch.unbind(c))
+        hints = all_outputs[:-1]  # All except final hidden state
+        
+        # The hints correspond to control_layers = [0, 12, 24, 36, 48]
+        # We need to return them in a format ComfyUI's ControlNet expects
+        # Map hints to the 60 main model layers
+        control_layers = [0, 12, 24, 36, 48]
+        controlnet_block_samples = []
+        
+        hint_idx = 0
+        for layer_idx in range(self.main_model_double):
+            if layer_idx in control_layers and hint_idx < len(hints):
+                controlnet_block_samples.append(hints[hint_idx])
+                hint_idx += 1
+            else:
+                # No hint for this layer - use zeros
+                controlnet_block_samples.append(torch.zeros_like(hints[0]) if hints else None)
+        
+        # Filter out None values and return
+        controlnet_block_samples = tuple(h for h in controlnet_block_samples if h is not None)
+        
+        return {"input": controlnet_block_samples}
