@@ -260,6 +260,7 @@ class QwenImageFunControlNetModel(nn.Module):
         attention_head_dim=128,
         num_control_blocks=5,
         patch_size=2,
+        joint_attention_dim=3584,  # Text encoder output dimension
         axes_dims_rope=(16, 56, 56),
         dtype=None,
         device=None,
@@ -293,6 +294,11 @@ class QwenImageFunControlNetModel(nn.Module):
             )
             for i in range(num_control_blocks)
         ])
+
+        # Text projection (matches main Qwen model)
+        # Projects text encoder output (3584) to inner_dim (3072)
+        self.txt_norm = operations.RMSNorm(joint_attention_dim, eps=1e-6, dtype=dtype, device=device)
+        self.txt_in = operations.Linear(joint_attention_dim, inner_dim, dtype=dtype, device=device)
 
         # Position embedding (shared with main model)
         from comfy.ldm.flux.layers import EmbedND
@@ -387,9 +393,9 @@ class QwenImageFunControlNetModel(nn.Module):
         ids = torch.cat((txt_ids, img_ids), dim=1)
         image_rotary_emb = self.pe_embedder(ids).to(x.dtype).contiguous()
 
-        # Process text embeddings (assuming txt_in is handled by main model)
-        # For controlnet, we just use the context directly
-        txt_hidden = encoder_hidden_states
+        # Process text embeddings - project from 3584 to 3072 (inner_dim)
+        # This matches the main Qwen model's text processing
+        txt_hidden = self.txt_in(self.txt_norm(encoder_hidden_states))
 
         # Create time embedding
         from comfy.ldm.lightricks.model import TimestepEmbedding, Timesteps
