@@ -297,8 +297,21 @@ class QwenImageFunControlNetModel(nn.Module):
 
         # Text projection (matches main Qwen model)
         # Projects text encoder output (3584) to inner_dim (3072)
+        # NOTE: These layers may not be in the checkpoint, so we initialize them
+        # with identity-like weights (truncation: take first 3072 of 3584 dims)
         self.txt_norm = operations.RMSNorm(joint_attention_dim, eps=1e-6, dtype=dtype, device=device)
         self.txt_in = operations.Linear(joint_attention_dim, inner_dim, dtype=dtype, device=device)
+        
+        # Initialize txt_in as truncation (identity for first 3072 dims, ignore rest)
+        # This allows the model to work even when txt_in is not in checkpoint
+        with torch.no_grad():
+            # Create identity-like weight matrix [3072, 3584]
+            # First 3072x3072 is identity, rest is zeros
+            weight = torch.zeros(inner_dim, joint_attention_dim, dtype=dtype, device=device)
+            weight[:inner_dim, :inner_dim] = torch.eye(inner_dim, dtype=dtype, device=device)
+            self.txt_in.weight.copy_(weight)
+            if self.txt_in.bias is not None:
+                self.txt_in.bias.zero_()
 
         # Position embedding (shared with main model)
         from comfy.ldm.flux.layers import EmbedND
