@@ -310,10 +310,14 @@ class QwenImageFunControlNetModel(nn.Module):
         ])
 
         # Position embedding (shared with main model)
-
-        # Position embedding (shared with main model)
         from comfy.ldm.flux.layers import EmbedND
         self.pe_embedder = EmbedND(dim=attention_head_dim, theta=10000, axes_dim=list(axes_dims_rope))
+
+        # Borrowed weights from main model - set by PrepareFunControlNet node
+        # These are NOT learnable parameters, just references to the main model's layers
+        self.borrowed_img_in = None  # Will be set to main_model.img_in
+        self.borrowed_txt_in = None  # Will be set to main_model.txt_in
+        self.borrowed_txt_norm = None  # Will be set to main_model.txt_norm
 
     def process_img(self, x):
         """Process image to patches, matching QwenImageTransformer2DModel.process_img"""
@@ -379,43 +383,22 @@ class QwenImageFunControlNetModel(nn.Module):
         if encoder_hidden_states_mask is not None and not torch.is_floating_point(encoder_hidden_states_mask):
             encoder_hidden_states_mask = (encoder_hidden_states_mask - 1).to(x.dtype) * torch.finfo(x.dtype).max
 
-        # DEBUG: Check transformer_options
-        if transformer_options is not None:
-             print(f"DEBUG: transformer_options keys: {list(transformer_options.keys())}")
-             if "model" in transformer_options:
-                 print(f"DEBUG: found model in transformer_options: {type(transformer_options['model'])}")
-             else:
-                 print("DEBUG: 'model' key NOT found in transformer_options")
-        else:
-             print("DEBUG: transformer_options is None")
-
-        # Borrow weights from main model if available
-        # Fun ControlNet "Lite" architecture requires main model's input projections
-        main_model = None
-        if transformer_options is not None:
-            # ComfyUI passes ModelPatcher in transformer_options["model"]
-            model_patcher = transformer_options.get("model", None)
-            if model_patcher is not None:
-                 # patcher.model is the underlying diffusion model wrapper
-                 main_model = getattr(model_patcher, "model", None)
-                 # Unwrap if needed (e.g. if it's a wrapper like in SD3)
-                 if hasattr(main_model, "diffusion_model"):
-                     main_model = main_model.diffusion_model
-
-        if main_model is None:
-             # Fallback debug mode? No, we really need the weights.
-             # But let's try to be helpful if user calls it weirdly.
-             raise ValueError("Fun ControlNet requires access to main model weights (img_in, txt_in) but could not find model in transformer_options. Make sure you are using a standard Sampler node.")
+        # Check that borrowed weights have been set by PrepareFunControlNet node
+        if self.borrowed_img_in is None or self.borrowed_txt_in is None or self.borrowed_txt_norm is None:
+            raise ValueError(
+                "Fun ControlNet requires projection weights from the main model. "
+                "Please use the 'PrepareFunControlNet' node to connect the model before applying the ControlNet."
+            )
 
         # 1. Process and project Latent Input (x)
         # Get patchified latent features [B, T_img, 64]
         latent_states, img_ids, orig_shape = self.process_img(x)
-        # Project to inner_dim [B, T_img, 3072] using MAIN MODEL's weights
-        x_inner = main_model.img_in(latent_states)
+        # Project to inner_dim [B, T_img, 3072] using borrowed weights
+        x_inner = self.borrowed_img_in(latent_states)
 
         # 2. Process and project Text Input (context)
-        # Project from 3584 -> 3072 using MAIN MODEL's weights
-        txt_hidden = main_model.txt_in(main_model.txt_norm(encoder_hidden_states))
+        # Project from 3584 -> 3072 using borrowed weights
+        txt_hidden = self.borrowed_txt_in(self.borrowed_txt_norm(encoder_hidden_states))
 
         # 3. Process Control Input (hint)
         # Combine latent and hint with correct channel count (33 channels)
