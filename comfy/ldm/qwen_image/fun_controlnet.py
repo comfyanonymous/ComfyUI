@@ -379,6 +379,16 @@ class QwenImageFunControlNetModel(nn.Module):
         if encoder_hidden_states_mask is not None and not torch.is_floating_point(encoder_hidden_states_mask):
             encoder_hidden_states_mask = (encoder_hidden_states_mask - 1).to(x.dtype) * torch.finfo(x.dtype).max
 
+        # DEBUG: Check transformer_options
+        if transformer_options is not None:
+             print(f"DEBUG: transformer_options keys: {list(transformer_options.keys())}")
+             if "model" in transformer_options:
+                 print(f"DEBUG: found model in transformer_options: {type(transformer_options['model'])}")
+             else:
+                 print("DEBUG: 'model' key NOT found in transformer_options")
+        else:
+             print("DEBUG: transformer_options is None")
+
         # Borrow weights from main model if available
         # Fun ControlNet "Lite" architecture requires main model's input projections
         main_model = None
