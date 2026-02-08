@@ -2,7 +2,7 @@ import torch
 import math
 from comfy.ldm.modules.attention import optimized_attention
 from typing import Tuple, Union, List
-from vae import VarLenTensor
+from comfy.ldm.trellis2.vae import VarLenTensor
 
 FLASH_ATTN_3_AVA = True
 try:

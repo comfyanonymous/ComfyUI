@@ -6,7 +6,7 @@ from fractions import Fraction
 import torch.nn.functional as F
 from dataclasses import dataclass
 import numpy as np
-from cumesh import TorchHashMap, Mesh, MeshWithVoxel, sparse_submanifold_conv3d
+from comfy.ldm.trellis2.cumesh import TorchHashMap, Mesh, MeshWithVoxel, sparse_submanifold_conv3d
 
 
 def pixel_shuffle_3d(x: torch.Tensor, scale_factor: int) -> torch.Tensor:
@@ -1457,10 +1457,9 @@ class SparseStructureDecoder(nn.Module):
         return h
 
 class Vae(nn.Module):
-    def __init__(self, config, operations=None):
+    def __init__(self, init_txt_model, operations=None):
         super().__init__()
         operations = operations or torch.nn
-        init_txt_model = config.get("init_txt_model", False)
         if init_txt_model:
             self.txt_dec = SparseUnetVaeDecoder(
                 out_channels=6,

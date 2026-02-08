@@ -798,9 +798,12 @@ class Trellis2(nn.Module):
                  qk_rms_norm = True,
                  qk_rms_norm_cross = True,
                  init_txt_model=False, # for now
-                 dtype=None, device=None, operations=None):
+                 dtype=None, device=None, operations=None, **kwargs):
 
         super().__init__()
+        self.dtype = dtype
+        # for some reason it passes num_heads = -1
+        num_heads = 12
         args = {
             "out_channels":out_channels, "num_blocks":num_blocks, "cond_channels" :cond_channels,
             "model_channels":model_channels, "num_heads":num_heads, "mlp_ratio": mlp_ratio, "share_mod": share_mod,

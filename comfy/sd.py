@@ -494,11 +494,10 @@ class VAE:
                 self.downscale_ratio = 32
                 self.latent_channels = 16
             elif "shape_dec.blocks.1.16.to_subdiv.weight" in sd: # trellis2
+                init_txt_model = False
                 if "txt_dec.blocks.1.16.norm1.weight" in sd:
-                    config["init_txt_model"] = True
-                else:
-                    config["init_txt_model"] = False
-                self.first_stage_model = comfy.ldm.trellis2.vae.Vae(config)
+                    init_txt_model = True
+                self.first_stage_model = comfy.ldm.trellis2.vae.Vae(init_txt_model)
             elif "decoder.conv_in.weight" in sd:
                 if sd['decoder.conv_in.weight'].shape[1] == 64:
                     ddconfig = {"block_out_channels": [128, 256, 512, 512, 1024, 1024], "in_channels": 3, "out_channels": 3, "num_res_blocks": 2, "ffactor_spatial": 32, "downsample_match_channel": True, "upsample_match_channel": True}

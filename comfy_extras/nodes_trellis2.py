@@ -198,7 +198,7 @@ class Trellis2Conditioning(IO.ComfyNode):
             inputs=[
                 IO.ClipVision.Input("clip_vision_model"),
                 IO.Image.Input("image"),
-                IO.MultiCombo.Input("background_color", options=["black", "gray", "white"], default="black")
+                IO.Combo.Input("background_color", options=["black", "gray", "white"], default="black")
             ],
             outputs=[
                 IO.Conditioning.Output(display_name="positive"),
@@ -219,7 +219,7 @@ class EmptyShapeLatentTrellis2(IO.ComfyNode):
     @classmethod
     def define_schema(cls):
         return IO.Schema(
-            node_id="EmptyLatentTrellis2",
+            node_id="EmptyShapeLatentTrellis2",
             category="latent/3d",
             inputs=[
                 IO.Mesh.Input("structure_output"),
@@ -242,7 +242,7 @@ class EmptyTextureLatentTrellis2(IO.ComfyNode):
     @classmethod
     def define_schema(cls):
         return IO.Schema(
-            node_id="EmptyLatentTrellis2",
+            node_id="EmptyTextureLatentTrellis2",
             category="latent/3d",
             inputs=[
                 IO.Mesh.Input("structure_output"),
@@ -264,7 +264,7 @@ class EmptyStructureLatentTrellis2(IO.ComfyNode):
     @classmethod
     def define_schema(cls):
         return IO.Schema(
-            node_id="EmptyLatentTrellis2",
+            node_id="EmptyStructureLatentTrellis2",
             category="latent/3d",
             inputs=[
                 IO.Int.Input("resolution", default=3072, min=1, max=8192),
