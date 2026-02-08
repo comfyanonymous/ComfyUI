@@ -605,6 +605,53 @@ def load_controlnet_qwen_instantx(sd, model_options={}):
     control = ControlNet(control_model, compression_ratio=1, latent_format=latent_format, concat_mask=concat_mask, load_device=load_device, manual_cast_dtype=manual_cast_dtype, extra_conds=extra_conds)
     return control
 
+def load_controlnet_qwen_fun(sd, model_options={}):
+    """Load Fun ControlNet model (QwenDiffSynth-style with full transformer blocks)."""
+    import comfy.ldm.qwen_image.fun_controlnet
+    
+    model_config, operations, load_device, unet_dtype, manual_cast_dtype, offload_device = controlnet_config(sd, model_options=model_options)
+    
+    # Determine number of control blocks from state dict
+    num_control_blocks = 0
+    for key in sd.keys():
+        if key.startswith("control_blocks."):
+            block_idx = int(key.split(".")[1])
+            num_control_blocks = max(num_control_blocks, block_idx + 1)
+    
+    # Get input channels from control_img_in weight shape
+    control_img_in_weight = sd.get("control_img_in.weight")
+    if control_img_in_weight is not None:
+        # Weight shape is [out_dim, in_channels] = [3072, 132]
+        in_channels_total = control_img_in_weight.shape[1]  # 132
+    else:
+        in_channels_total = 132  # Default for Fun ControlNet
+    
+    # Get inner dimension
+    inner_dim = control_img_in_weight.shape[0] if control_img_in_weight is not None else 3072
+    
+    # Calculate attention heads from weight shapes
+    num_attention_heads = 24  # Default for Qwen
+    attention_head_dim = inner_dim // num_attention_heads
+    
+    control_model = comfy.ldm.qwen_image.fun_controlnet.QwenImageFunControlNetModel(
+        in_channels=64,
+        control_hint_channels=64,
+        inner_dim=inner_dim,
+        num_attention_heads=num_attention_heads,
+        attention_head_dim=attention_head_dim,
+        num_control_blocks=num_control_blocks,
+        operations=operations,
+        device=offload_device,
+        dtype=unet_dtype,
+    )
+    control_model = controlnet_load_state_dict(control_model, sd)
+    
+    latent_format = comfy.latent_formats.Wan21()
+    extra_conds = []
+    control = ControlNet(control_model, compression_ratio=1, latent_format=latent_format, 
+                        load_device=load_device, manual_cast_dtype=manual_cast_dtype, extra_conds=extra_conds)
+    return control
+
 def convert_mistoline(sd):
     return comfy.utils.state_dict_prefix_replace(sd, {"single_controlnet_blocks.": "controlnet_single_blocks."})
 
@@ -682,6 +729,9 @@ def load_controlnet_state_dict(state_dict, model=None, model_options={}):
             return load_controlnet_qwen_instantx(controlnet_data, model_options=model_options)
         elif "controlnet_x_embedder.weight" in controlnet_data:
             return load_controlnet_flux_instantx(controlnet_data, model_options=model_options)
+
+    elif "control_blocks.0.attn.to_q.weight" in controlnet_data:  # Fun ControlNet (QwenDiffSynth-style)
+        return load_controlnet_qwen_fun(controlnet_data, model_options=model_options)
 
     elif "controlnet_blocks.0.linear.weight" in controlnet_data: #mistoline flux
         return load_controlnet_flux_xlabs_mistoline(convert_mistoline(controlnet_data), mistoline=True, model_options=model_options)

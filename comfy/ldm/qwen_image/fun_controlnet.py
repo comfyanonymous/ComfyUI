@@ -1,0 +1,429 @@
+# Fun ControlNet Model for Qwen Image
+# Implements the QwenDiffSynth-style ControlNet architecture
+
+import torch
+import torch.nn as nn
+import math
+
+from .model import QwenImageTransformer2DModel, FeedForward
+from comfy.ldm.modules.attention import optimized_attention_masked
+from comfy.ldm.flux.math import apply_rope1
+
+
+class WeightOnlyNorm(nn.Module):
+    """RMSNorm that only has a weight parameter (no learnable bias/eps)."""
+    def __init__(self, dim, device=None, dtype=None):
+        super().__init__()
+        self.weight = nn.Parameter(torch.ones(dim, device=device, dtype=dtype))
+
+    def forward(self, x):
+        # x: [B, H, T, D]
+        return x * self.weight
+
+
+class FunControlNetAttention(nn.Module):
+    """
+    Joint attention matching ComfyUI Qwen Attention (text + image streams).
+    Implements the control_blocks.{i}.attn.* structure.
+    """
+    def __init__(self, dim=3072, heads=24, head_dim=128, device=None, dtype=None, operations=None):
+        super().__init__()
+        self.dim = dim
+        self.heads = heads
+        self.head_dim = head_dim
+
+        # Image stream projections
+        self.to_q = operations.Linear(dim, dim, bias=True, device=device, dtype=dtype)
+        self.to_k = operations.Linear(dim, dim, bias=True, device=device, dtype=dtype)
+        self.to_v = operations.Linear(dim, dim, bias=True, device=device, dtype=dtype)
+
+        # Text stream projections
+        self.add_q_proj = operations.Linear(dim, dim, bias=True, device=device, dtype=dtype)
+        self.add_k_proj = operations.Linear(dim, dim, bias=True, device=device, dtype=dtype)
+        self.add_v_proj = operations.Linear(dim, dim, bias=True, device=device, dtype=dtype)
+
+        # Q/K normalization
+        self.norm_q = WeightOnlyNorm(head_dim, device=device, dtype=dtype)
+        self.norm_k = WeightOnlyNorm(head_dim, device=device, dtype=dtype)
+        self.norm_added_q = WeightOnlyNorm(head_dim, device=device, dtype=dtype)
+        self.norm_added_k = WeightOnlyNorm(head_dim, device=device, dtype=dtype)
+
+        # Output projections
+        self.to_out = nn.Sequential(operations.Linear(dim, dim, bias=True, device=device, dtype=dtype))
+        self.to_add_out = operations.Linear(dim, dim, bias=True, device=device, dtype=dtype)
+
+    def forward(self, hidden_states, encoder_hidden_states=None, encoder_hidden_states_mask=None, 
+                image_rotary_emb=None, transformer_options=None):
+        if encoder_hidden_states is None:
+            raise ValueError("FunControlNetAttention requires encoder_hidden_states (text stream)")
+
+        batch_size = hidden_states.shape[0]
+        seq_img = hidden_states.shape[1]
+        seq_txt = encoder_hidden_states.shape[1]
+
+        # Project and reshape to [B, H, T, D]
+        img_query = self.to_q(hidden_states).view(batch_size, seq_img, self.heads, -1).transpose(1, 2).contiguous()
+        img_key = self.to_k(hidden_states).view(batch_size, seq_img, self.heads, -1).transpose(1, 2).contiguous()
+        img_value = self.to_v(hidden_states).view(batch_size, seq_img, self.heads, -1).transpose(1, 2)
+
+        txt_query = self.add_q_proj(encoder_hidden_states).view(batch_size, seq_txt, self.heads, -1).transpose(1, 2).contiguous()
+        txt_key = self.add_k_proj(encoder_hidden_states).view(batch_size, seq_txt, self.heads, -1).transpose(1, 2).contiguous()
+        txt_value = self.add_v_proj(encoder_hidden_states).view(batch_size, seq_txt, self.heads, -1).transpose(1, 2)
+
+        # Q/K RMS norm (weight-only)
+        img_query = self.norm_q(img_query)
+        img_key = self.norm_k(img_key)
+        txt_query = self.norm_added_q(txt_query)
+        txt_key = self.norm_added_k(txt_key)
+
+        # Concatenate for joint attention: [text, image]
+        joint_query = torch.cat([txt_query, img_query], dim=2)
+        joint_key = torch.cat([txt_key, img_key], dim=2)
+        joint_value = torch.cat([txt_value, img_value], dim=2)
+
+        # Apply RoPE if provided
+        if image_rotary_emb is not None:
+            joint_query = apply_rope1(joint_query, image_rotary_emb)
+            joint_key = apply_rope1(joint_key, image_rotary_emb)
+
+        # Use optimized attention
+        attention_mask = encoder_hidden_states_mask
+        joint_hidden_states = optimized_attention_masked(
+            joint_query,
+            joint_key,
+            joint_value,
+            self.heads,
+            attention_mask,
+            transformer_options=transformer_options if transformer_options is not None else {},
+            skip_reshape=True
+        )
+
+        txt_attn_output = joint_hidden_states[:, :seq_txt, :]
+        img_attn_output = joint_hidden_states[:, seq_txt:, :]
+
+        img_attn_output = self.to_out(img_attn_output)
+        txt_attn_output = self.to_add_out(txt_attn_output)
+
+        return img_attn_output, txt_attn_output
+
+
+class ProjWrap(nn.Module):
+    """Wrapper to match the GELU projection pattern in FeedForward."""
+    def __init__(self, linear):
+        super().__init__()
+        self.proj = linear
+
+    def forward(self, x):
+        return torch.nn.functional.gelu(self.proj(x), approximate="tanh")
+
+
+class FunControlNetBlock(nn.Module):
+    """
+    Full transformer block for Fun ControlNet.
+    Implements the control_blocks.{i}.* structure.
+    """
+    def __init__(self, dim=3072, num_heads=24, head_dim=128, device=None, dtype=None, operations=None, 
+                 block_id=0, has_before_proj=False):
+        super().__init__()
+        self.dim = dim
+        self.block_id = block_id
+
+        self.has_before_proj = has_before_proj
+        if has_before_proj:
+            self.before_proj = operations.Linear(dim, dim, bias=True, device=device, dtype=dtype)
+
+        self.after_proj = operations.Linear(dim, dim, bias=True, device=device, dtype=dtype)
+        self.attn = FunControlNetAttention(dim, heads=num_heads, head_dim=head_dim, 
+                                            device=device, dtype=dtype, operations=operations)
+
+        # Normalization layers
+        self.img_norm1 = operations.LayerNorm(dim, elementwise_affine=False, eps=1e-6, dtype=dtype, device=device)
+        self.img_norm2 = operations.LayerNorm(dim, elementwise_affine=False, eps=1e-6, dtype=dtype, device=device)
+        self.txt_norm1 = operations.LayerNorm(dim, elementwise_affine=False, eps=1e-6, dtype=dtype, device=device)
+        self.txt_norm2 = operations.LayerNorm(dim, elementwise_affine=False, eps=1e-6, dtype=dtype, device=device)
+
+        # MLP layers (matching FeedForward structure)
+        self.img_mlp = nn.Module()
+        self.img_mlp.net = nn.ModuleList([
+            ProjWrap(operations.Linear(dim, 4 * dim, device=device, dtype=dtype)),
+            nn.Identity(),  # Placeholder for dropout
+            operations.Linear(4 * dim, dim, device=device, dtype=dtype),
+        ])
+
+        self.txt_mlp = nn.Module()
+        self.txt_mlp.net = nn.ModuleList([
+            ProjWrap(operations.Linear(dim, 4 * dim, device=device, dtype=dtype)),
+            nn.Identity(),
+            operations.Linear(4 * dim, dim, device=device, dtype=dtype),
+        ])
+
+        # Modulation layers (output 6*dim for shift, scale, gate for both attention and MLP)
+        self.img_mod = nn.Sequential(
+            nn.SiLU(),
+            operations.Linear(dim, 6 * dim, device=device, dtype=dtype)
+        )
+        self.txt_mod = nn.Sequential(
+            nn.SiLU(),
+            operations.Linear(dim, 6 * dim, device=device, dtype=dtype)
+        )
+
+        # Initialize zero projections
+        if has_before_proj:
+            nn.init.zeros_(self.before_proj.weight)
+            nn.init.zeros_(self.before_proj.bias)
+
+        nn.init.zeros_(self.after_proj.weight)
+        nn.init.zeros_(self.after_proj.bias)
+
+    def _mlp_forward(self, mlp_net, x):
+        for module in mlp_net:
+            x = module(x)
+        return x
+
+    def _modulate(self, x, mod_params):
+        """Apply modulation: x * (1 + scale) + shift"""
+        shift, scale, gate = mod_params.chunk(3, dim=-1)
+        shift = shift.unsqueeze(1)
+        scale = scale.unsqueeze(1)
+        gate = gate.unsqueeze(1)
+        modulated = x * (1 + scale) + shift
+        return modulated, gate
+
+    def forward(self, hidden_states, encoder_hidden_states, encoder_hidden_states_mask, 
+                temb, image_rotary_emb, transformer_options=None):
+        """
+        Forward pass matching QwenImageTransformerBlock structure.
+        
+        Args:
+            hidden_states: Image features [B, T_img, D]
+            encoder_hidden_states: Text features [B, T_txt, D]
+            encoder_hidden_states_mask: Attention mask
+            temb: Time embedding [B, D]
+            image_rotary_emb: Rotary position embedding
+            transformer_options: Options dict
+        
+        Returns:
+            control_output: Control signal to add to main model
+        """
+        # Apply before_proj if this is the first block
+        if self.has_before_proj:
+            hidden_states = hidden_states + self.before_proj(hidden_states)
+
+        # Get modulation parameters
+        img_mod_params = self.img_mod(temb)
+        txt_mod_params = self.txt_mod(temb)
+        
+        img_mod1, img_mod2 = img_mod_params.chunk(2, dim=-1)
+        txt_mod1, txt_mod2 = txt_mod_params.chunk(2, dim=-1)
+
+        # Attention block
+        img_modulated, img_gate1 = self._modulate(self.img_norm1(hidden_states), img_mod1)
+        txt_modulated, txt_gate1 = self._modulate(self.txt_norm1(encoder_hidden_states), txt_mod1)
+
+        img_attn_output, txt_attn_output = self.attn(
+            hidden_states=img_modulated,
+            encoder_hidden_states=txt_modulated,
+            encoder_hidden_states_mask=encoder_hidden_states_mask,
+            image_rotary_emb=image_rotary_emb,
+            transformer_options=transformer_options,
+        )
+
+        hidden_states = hidden_states + img_gate1 * img_attn_output
+        encoder_hidden_states = encoder_hidden_states + txt_gate1 * txt_attn_output
+
+        # MLP block
+        img_modulated2, img_gate2 = self._modulate(self.img_norm2(hidden_states), img_mod2)
+        hidden_states = hidden_states + img_gate2 * self._mlp_forward(self.img_mlp.net, img_modulated2)
+
+        txt_modulated2, txt_gate2 = self._modulate(self.txt_norm2(encoder_hidden_states), txt_mod2)
+        encoder_hidden_states = encoder_hidden_states + txt_gate2 * self._mlp_forward(self.txt_mlp.net, txt_modulated2)
+
+        # Apply after_proj to get control output
+        control_output = self.after_proj(hidden_states)
+
+        return control_output, hidden_states, encoder_hidden_states
+
+
+class QwenImageFunControlNetModel(nn.Module):
+    """
+    Fun ControlNet model for Qwen Image.
+    
+    This implements the QwenDiffSynth-style ControlNet with full transformer blocks
+    instead of simple linear projections.
+    """
+    def __init__(
+        self,
+        in_channels=64,
+        control_hint_channels=64,
+        inner_dim=3072,
+        num_attention_heads=24,
+        attention_head_dim=128,
+        num_control_blocks=5,
+        patch_size=2,
+        axes_dims_rope=(16, 56, 56),
+        dtype=None,
+        device=None,
+        operations=None,
+        **kwargs
+    ):
+        super().__init__()
+        self.dtype = dtype
+        self.patch_size = patch_size
+        self.in_channels = in_channels
+        self.inner_dim = inner_dim
+        self.num_control_blocks = num_control_blocks
+        self.main_model_double = 60  # Number of blocks in main model
+
+        # Input projection for control hint
+        # control_img_in expects: latent (64) + control hint (64) + extra (4) = 132 channels
+        total_in_channels = in_channels + control_hint_channels + 4  # 132
+        self.control_img_in = operations.Linear(total_in_channels, inner_dim, device=device, dtype=dtype)
+
+        # Control blocks
+        self.control_blocks = nn.ModuleList([
+            FunControlNetBlock(
+                dim=inner_dim,
+                num_heads=num_attention_heads,
+                head_dim=attention_head_dim,
+                device=device,
+                dtype=dtype,
+                operations=operations,
+                block_id=i,
+                has_before_proj=(i == 0)  # First block has before_proj
+            )
+            for i in range(num_control_blocks)
+        ])
+
+        # Position embedding (shared with main model)
+        from comfy.ldm.flux.layers import EmbedND
+        self.pe_embedder = EmbedND(dim=attention_head_dim, theta=10000, axes_dim=list(axes_dims_rope))
+
+    def process_img(self, x):
+        """Process image to patches, matching QwenImageTransformer2DModel.process_img"""
+        bs, c, t, h, w = x.shape
+        patch_size = self.patch_size
+        
+        # Pad to patch size
+        import comfy.ldm.common_dit
+        hidden_states = comfy.ldm.common_dit.pad_to_patch_size(x, (1, self.patch_size, self.patch_size))
+        orig_shape = hidden_states.shape
+        
+        # Reshape to patches
+        hidden_states = hidden_states.view(orig_shape[0], orig_shape[1], orig_shape[-3], 
+                                           orig_shape[-2] // 2, 2, orig_shape[-1] // 2, 2)
+        hidden_states = hidden_states.permute(0, 2, 3, 5, 1, 4, 6)
+        hidden_states = hidden_states.reshape(orig_shape[0], 
+                                              orig_shape[-3] * (orig_shape[-2] // 2) * (orig_shape[-1] // 2), 
+                                              orig_shape[1] * 4)
+        
+        t_len = t
+        h_len = ((h + (patch_size // 2)) // patch_size)
+        w_len = ((w + (patch_size // 2)) // patch_size)
+
+        img_ids = torch.zeros((t_len, h_len, w_len, 3), device=x.device)
+        if t_len > 1:
+            img_ids[:, :, :, 0] = img_ids[:, :, :, 0] + torch.linspace(0, t_len - 1, steps=t_len, 
+                                                                        device=x.device, dtype=x.dtype).unsqueeze(1).unsqueeze(1)
+        img_ids[:, :, :, 1] = img_ids[:, :, :, 1] + torch.linspace(0, h_len - 1, steps=h_len, 
+                                                                    device=x.device, dtype=x.dtype).unsqueeze(1).unsqueeze(0) - (h_len // 2)
+        img_ids[:, :, :, 2] = img_ids[:, :, :, 2] + torch.linspace(0, w_len - 1, steps=w_len, 
+                                                                    device=x.device, dtype=x.dtype).unsqueeze(0).unsqueeze(0) - (w_len // 2)
+        
+        from einops import repeat
+        return hidden_states, repeat(img_ids, "t h w c -> b (t h w) c", b=bs), orig_shape
+
+    def forward(
+        self,
+        x,
+        timesteps,
+        context,
+        attention_mask=None,
+        hint=None,
+        transformer_options={},
+        **kwargs
+    ):
+        """
+        Forward pass for Fun ControlNet.
+        
+        Args:
+            x: Latent input [B, C, T, H, W]
+            timesteps: Timestep embeddings
+            context: Text encoder hidden states
+            attention_mask: Attention mask for text
+            hint: Control hint image (preprocessed)
+            transformer_options: Options dict
+        
+        Returns:
+            dict with "input" key containing control signals for each main model block
+        """
+        encoder_hidden_states = context
+        encoder_hidden_states_mask = attention_mask
+
+        if encoder_hidden_states_mask is not None and not torch.is_floating_point(encoder_hidden_states_mask):
+            encoder_hidden_states_mask = (encoder_hidden_states_mask - 1).to(x.dtype) * torch.finfo(x.dtype).max
+
+        # Process input and hint
+        hidden_states, img_ids, orig_shape = self.process_img(x)
+        hint_states, _, _ = self.process_img(hint)
+
+        # Concatenate latent and hint
+        # Pad with zeros to match expected 132 channels (64 latent * 4 patches + 64 hint * 4 patches + padding)
+        # Actually the patchified version: 64*4 = 256 for latent, 64*4=256 for hint, need to pad
+        combined_input = torch.cat([hidden_states, hint_states], dim=-1)
+        
+        # Handle channel mismatch - the model expects 132 input channels after patchification
+        # Patchified latent: 64*4 = 256, Patchified hint: 64*4 = 256
+        # But control_img_in expects 132, so we need to handle this differently
+        # The weight shape [3072, 132] suggests unpatchified input: 64 + 64 + 4 = 132
+        
+        # Reprocess for unpatchified combination
+        hint_combined = torch.cat([x, hint], dim=1)  # [B, 128, T, H, W]
+        # Add extra 4 channels (zeros for mask/type)
+        extra = torch.zeros((x.shape[0], 4, x.shape[2], x.shape[3], x.shape[4]), 
+                           device=x.device, dtype=x.dtype)
+        full_input = torch.cat([hint_combined, extra], dim=1)  # [B, 132, T, H, W]
+        
+        # Now process to patches
+        full_states, _, _ = self.process_img(full_input)
+        
+        # Project to inner dimension
+        hidden_states = self.control_img_in(full_states)
+
+        # Create position embeddings
+        txt_start = round(max(((x.shape[-1] + (self.patch_size // 2)) // self.patch_size) // 2, 
+                              ((x.shape[-2] + (self.patch_size // 2)) // self.patch_size) // 2))
+        txt_ids = torch.arange(txt_start, txt_start + context.shape[1], device=x.device).reshape(1, -1, 1).repeat(x.shape[0], 1, 3)
+        ids = torch.cat((txt_ids, img_ids), dim=1)
+        image_rotary_emb = self.pe_embedder(ids).to(x.dtype).contiguous()
+
+        # Process text embeddings (assuming txt_in is handled by main model)
+        # For controlnet, we just use the context directly
+        txt_hidden = encoder_hidden_states
+
+        # Create time embedding
+        from comfy.ldm.lightricks.model import TimestepEmbedding, Timesteps
+        time_proj = Timesteps(num_channels=256, flip_sin_to_cos=True, downscale_freq_shift=0, scale=1000)
+        timesteps_proj = time_proj(timesteps)
+        # Simple time embedding projection
+        temb = timesteps_proj.to(dtype=hidden_states.dtype)
+        # Expand to inner_dim
+        temb = temb.repeat(1, self.inner_dim // 256 + 1)[:, :self.inner_dim]
+
+        # Run through control blocks
+        repeat_factor = math.ceil(self.main_model_double / len(self.control_blocks))
+        controlnet_block_samples = ()
+
+        for i, block in enumerate(self.control_blocks):
+            control_output, hidden_states, txt_hidden = block(
+                hidden_states=hidden_states,
+                encoder_hidden_states=txt_hidden,
+                encoder_hidden_states_mask=encoder_hidden_states_mask,
+                temb=temb,
+                image_rotary_emb=image_rotary_emb,
+                transformer_options=transformer_options,
+            )
+            # Repeat control output for each corresponding main model block
+            controlnet_block_samples = controlnet_block_samples + (control_output,) * repeat_factor
+
+        # Trim to exact number of main model blocks
+        return {"input": controlnet_block_samples[:self.main_model_double]}
