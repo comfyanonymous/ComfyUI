@@ -3,10 +3,8 @@ from comfy_api.latest import ComfyExtension, IO
 import torch
 from comfy.ldm.trellis2.model import SparseTensor
 import comfy.model_management
-from PIL import Image
-import PIL
-import numpy as np
 from comfy.nested_tensor import NestedTensor
+from torchvision.transforms import ToPILImage, ToTensor, Resize, InterpolationMode
 
 shape_slat_normalization = {
     "mean": torch.tensor([
@@ -76,23 +74,30 @@ def run_conditioning(
 
     # Convert image to PIL
     if image.dim() == 4:
-        pil_image = (image[0] * 255).clip(0, 255).astype(torch.uint8)
+        pil_image = (image[0] * 255).clip(0, 255).to(torch.uint8)
     else:
-        pil_image = (image * 255).clip(0, 255).astype(torch.uint8)
+        pil_image = (image * 255).clip(0, 255).to(torch.uint8)
 
+    pil_image = pil_image.movedim(-1, 0)
     pil_image = smart_crop_square(pil_image, background_color=bg_color)
 
     model.image_size = 512
     def set_image_size(image, image_size=512):
-        image = PIL.from_array(image)
-        image = [i.resize((image_size, image_size), Image.LANCZOS) for i in image]
-        image = [np.array(i.convert('RGB')).astype(np.float32) / 255 for i in image]
-        image = [torch.from_numpy(i).permute(2, 0, 1).float() for i in image]
-        image = torch.stack(image).to(torch_device)
-        return image
+        if image.ndim == 3:
+            image = image.unsqueeze(0)
 
-    pil_image = set_image_size(image, 512)
-    cond_512 = model([pil_image])
+        to_pil = ToPILImage()
+        to_tensor = ToTensor()
+        resizer = Resize((image_size, image_size), interpolation=InterpolationMode.LANCZOS)
+
+        pil_img = to_pil(image.squeeze(0))
+        resized_pil = resizer(pil_img)
+        image = to_tensor(resized_pil).unsqueeze(0)
+
+        return image.to(torch_device).float()
+
+    pil_image = set_image_size(pil_image, 512)
+    cond_512 = model(pil_image)
 
     cond_1024 = None
     if include_1024:
@@ -267,7 +272,7 @@ class EmptyStructureLatentTrellis2(IO.ComfyNode):
             node_id="EmptyStructureLatentTrellis2",
             category="latent/3d",
             inputs=[
-                IO.Int.Input("resolution", default=3072, min=1, max=8192),
+                IO.Int.Input("resolution", default=256, min=1, max=8192),
                 IO.Int.Input("batch_size", default=1, min=1, max=4096, tooltip="The number of latent images in the batch."),
             ],
             outputs=[
@@ -275,9 +280,9 @@ class EmptyStructureLatentTrellis2(IO.ComfyNode):
             ]
         )
     @classmethod
-    def execute(cls, res, batch_size):
+    def execute(cls, resolution, batch_size):
         in_channels = 32
-        latent = torch.randn(batch_size, in_channels, res, res, res)
+        latent = torch.randn(batch_size, in_channels, resolution, resolution, resolution)
         latent = NestedTensor([latent])
         return IO.NodeOutput({"samples": latent, "type": "trellis2"})
 

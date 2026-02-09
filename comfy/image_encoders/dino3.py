@@ -4,7 +4,19 @@ import torch.nn as nn
 
 from comfy.ldm.modules.attention import optimized_attention_for_device
 from comfy.ldm.flux.math import apply_rope
-from dino2 import Dinov2MLP as DINOv3ViTMLP, LayerScale as DINOv3ViTLayerScale
+from comfy.image_encoders.dino2 import LayerScale as DINOv3ViTLayerScale
+
+class DINOv3ViTMLP(nn.Module):
+    def __init__(self, hidden_size, intermediate_size, mlp_bias, device, dtype, operations):
+        super().__init__()
+        self.hidden_size = hidden_size
+        self.intermediate_size = intermediate_size
+        self.up_proj = operations.Linear(self.hidden_size, self.intermediate_size, bias=mlp_bias, device=device, dtype=dtype)
+        self.down_proj = operations.Linear(self.intermediate_size, self.hidden_size, bias=mlp_bias, device=device, dtype=dtype)
+        self.act_fn = torch.nn.GELU()
+
+    def forward(self, x):
+        return self.down_proj(self.act_fn(self.up_proj(x)))
 
 class DINOv3ViTAttention(nn.Module):
     def __init__(self, hidden_size, num_attention_heads, device, dtype, operations):
@@ -90,6 +102,7 @@ class DINOv3ViTRopePositionEmbedding(nn.Module):
         self.head_dim = hidden_size // num_attention_heads
         self.num_patches_h = image_size // patch_size
         self.num_patches_w = image_size // patch_size
+        self.patch_size = patch_size
 
         inv_freq = 1 / self.base ** torch.arange(0, 1, 4 / self.head_dim, dtype=torch.float32, device=device)
         self.register_buffer("inv_freq", inv_freq, persistent=False)
@@ -106,6 +119,7 @@ class DINOv3ViTRopePositionEmbedding(nn.Module):
                 num_patches_h, num_patches_w, dtype=torch.float32, device=device
             )
 
+            self.inv_freq = self.inv_freq.to(device)
             angles = 2 * math.pi * patch_coords[:, :, None] * self.inv_freq[None, None, :]
             angles = angles.flatten(1, 2)
             angles = angles.tile(2)
@@ -140,27 +154,30 @@ class DINOv3ViTEmbeddings(nn.Module):
 
         cls_token = self.cls_token.expand(batch_size, -1, -1)
         register_tokens = self.register_tokens.expand(batch_size, -1, -1)
+        device = patch_embeddings
+        cls_token = cls_token.to(device)
+        register_tokens = register_tokens.to(device)
         embeddings = torch.cat([cls_token, register_tokens, patch_embeddings], dim=1)
 
         return embeddings
 
 class DINOv3ViTLayer(nn.Module):
 
-    def __init__(self, hidden_size, layer_norm_eps, use_gated_mlp, layerscale_value, mlp_bias, intermediate_size, num_attention_heads,
+    def __init__(self, hidden_size, layer_norm_eps, use_gated_mlp, mlp_bias, intermediate_size, num_attention_heads,
                  device, dtype, operations):
         super().__init__()
 
         self.norm1 = operations.LayerNorm(hidden_size, eps=layer_norm_eps)
         self.attention = DINOv3ViTAttention(hidden_size, num_attention_heads, device=device, dtype=dtype, operations=operations)
-        self.layer_scale1 = DINOv3ViTLayerScale(hidden_size, layerscale_value, device=device, dtype=dtype)
+        self.layer_scale1 = DINOv3ViTLayerScale(hidden_size, device=device, dtype=dtype, operations=None)
 
         self.norm2 = operations.LayerNorm(hidden_size, eps=layer_norm_eps, device=device, dtype=dtype)
 
         if use_gated_mlp:
             self.mlp = DINOv3ViTGatedMLP(hidden_size, intermediate_size, mlp_bias, device=device, dtype=dtype, operations=operations)
         else:
-            self.mlp = DINOv3ViTMLP(hidden_size, device=device, dtype=dtype, operations=operations)
-        self.layer_scale2 = DINOv3ViTLayerScale(hidden_size, layerscale_value, device=device, dtype=dtype)
+            self.mlp = DINOv3ViTMLP(hidden_size, intermediate_size=intermediate_size, mlp_bias=mlp_bias, device=device, dtype=dtype, operations=operations)
+        self.layer_scale2 = DINOv3ViTLayerScale(hidden_size, device=device, dtype=dtype, operations=None)
 
     def forward(
         self,
@@ -188,7 +205,7 @@ class DINOv3ViTLayer(nn.Module):
 
 
 class DINOv3ViTModel(nn.Module):
-    def __init__(self, config, device, dtype, operations):
+    def __init__(self, config, dtype, device, operations):
         super().__init__()
         num_hidden_layers = config["num_hidden_layers"]
         hidden_size = config["hidden_size"]
@@ -196,7 +213,6 @@ class DINOv3ViTModel(nn.Module):
         num_register_tokens = config["num_register_tokens"]
         intermediate_size = config["intermediate_size"]
         layer_norm_eps = config["layer_norm_eps"]
-        layerscale_value =  config["layerscale_value"]
         num_channels = config["num_channels"]
         patch_size = config["patch_size"]
         rope_theta = config["rope_theta"]
@@ -208,7 +224,7 @@ class DINOv3ViTModel(nn.Module):
             rope_theta, hidden_size, num_attention_heads, image_size=512, patch_size=patch_size, dtype=dtype, device=device
         )
         self.layer = nn.ModuleList(
-            [DINOv3ViTLayer(hidden_size, layer_norm_eps, use_gated_mlp=False, layerscale_value=layerscale_value, mlp_bias=True,
+            [DINOv3ViTLayer(hidden_size, layer_norm_eps, use_gated_mlp=False, mlp_bias=True,
                             intermediate_size=intermediate_size,num_attention_heads = num_attention_heads,
                             dtype=dtype, device=device, operations=operations)
             for _ in range(num_hidden_layers)])

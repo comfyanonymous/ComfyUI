@@ -1251,11 +1251,17 @@ class Trellis2(supported_models_base.BASE):
         "shift": 3.0,
     }
 
+    memory_usage_factor = 3.5
+
     latent_format = latent_formats.Trellis2
     vae_key_prefix = ["vae."]
+    clip_vision_prefix = "conditioner.main_image_encoder.model."
 
     def get_model(self, state_dict, prefix="", device=None):
         return model_base.Trellis2(self, device=device)
+
+    def clip_target(self, state_dict={}):
+        return None
 
 class Hunyuan3Dv2(supported_models_base.BASE):
     unet_config = {
