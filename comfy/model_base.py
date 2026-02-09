@@ -1552,6 +1552,8 @@ class ACEStep15(BaseModel):
 
         cross_attn = kwargs.get("cross_attn", None)
         if cross_attn is not None:
+            if torch.count_nonzero(cross_attn) == 0:
+                out['replace_with_null_embeds'] = comfy.conds.CONDConstant(True)
             out['c_crossattn'] = comfy.conds.CONDRegular(cross_attn)
 
         conditioning_lyrics = kwargs.get("conditioning_lyrics", None)
@@ -1574,6 +1576,10 @@ class ACEStep15(BaseModel):
                 refer_audio = refer_audio[:, :, :750]
             else:
                 out['is_covers'] = comfy.conds.CONDConstant(False)
+
+        if refer_audio.shape[2] < noise.shape[2]:
+            pad = comfy.ldm.ace.ace_step15.get_silence_latent(noise.shape[2], device)
+            refer_audio = torch.cat([refer_audio.to(pad), pad[:, :, refer_audio.shape[2]:]], dim=2)
 
         out['refer_audio'] = comfy.conds.CONDRegular(refer_audio)
         return out
