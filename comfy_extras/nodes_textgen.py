@@ -1,9 +1,7 @@
 from comfy_api.latest import ComfyExtension, io
 from typing_extensions import override
-import comfy.utils
-import math
 
-class TextGenerateGemma3(io.ComfyNode):
+class TextGenerate(io.ComfyNode):
     @classmethod
     def define_schema(cls):
         # Define dynamic combo options for sampling mode
@@ -26,11 +24,10 @@ class TextGenerateGemma3(io.ComfyNode):
         ]
 
         return io.Schema(
-            node_id="TextGenerateGemma3",
+            node_id="TextGenerate",
             category="textgen/",
             inputs=[
                 io.Clip.Input("clip"),
-                io.String.Input("system_prompt", multiline=True, force_input=True, optional=True, default="You are a helpful assistant."),
                 io.String.Input("prompt", multiline=True, dynamic_prompts=True, default=""),
                 io.Image.Input("image", optional=True),
                 io.Int.Input("max_length", default=256, min=1, max=2048),
@@ -42,31 +39,9 @@ class TextGenerateGemma3(io.ComfyNode):
         )
 
     @classmethod
-    def execute(cls, clip, prompt, max_length, sampling_mode, image=None, system_prompt="You are a helpful assistant.") -> io.NodeOutput:
+    def execute(cls, clip, prompt, max_length, sampling_mode, image=None) -> io.NodeOutput:
 
-        if image is None:
-            images = []
-        else:
-            samples = image.movedim(-1, 1)
-            total = int(896 * 896)
-
-            scale_by = math.sqrt(total / (samples.shape[3] * samples.shape[2]))
-            width = round(samples.shape[3] * scale_by)
-            height = round(samples.shape[2] * scale_by)
-
-            s = comfy.utils.common_upscale(samples, width, height, "area", "disabled")
-            image = s.movedim(1, -1)
-            images = [image[:, :, :, :3]]
-
-        if system_prompt is None:
-            system_prompt = "You are a helpful assistant."
-        if system_prompt and system_prompt.strip():
-            if images:
-                formatted_prompt = f"<start_of_turn>system\n{system_prompt}<end_of_turn>\n<start_of_turn>user\n<image_soft_token>{prompt}<end_of_turn>\n<start_of_turn>model\n"
-            else:
-                formatted_prompt = f"<start_of_turn>system\n{system_prompt}<end_of_turn>\n<start_of_turn>user\n{prompt}<end_of_turn>\n<start_of_turn>model\n"
-
-        tokens = clip.tokenize(formatted_prompt, images=images)
+        tokens = clip.tokenize(prompt, image=image, skip_template=False)
 
         # Get sampling parameters from dynamic combo
         do_sample = sampling_mode.get("sampling_mode") == "on"
@@ -97,8 +72,8 @@ class TextgenExtension(ComfyExtension):
     @override
     async def get_node_list(self) -> list[type[io.ComfyNode]]:
         return [
-            TextGenerateGemma3,
+            TextGenerate,
         ]
 
-async def comfy_entrypoint() -> TextgenExtension:  # ComfyUI calls this to load your extension and its nodes.
+async def comfy_entrypoint() -> TextgenExtension:
     return TextgenExtension()

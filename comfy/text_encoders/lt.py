@@ -6,6 +6,7 @@ import comfy.text_encoders.genmo
 from comfy.ldm.lightricks.embeddings_connector import Embeddings1DConnector
 import torch
 import comfy.utils
+import math
 
 class T5XXLTokenizer(sd1_clip.SDTokenizer):
     def __init__(self, embedding_directory=None, tokenizer_data={}):
@@ -22,27 +23,57 @@ def ltxv_te(*args, **kwargs):
     return comfy.text_encoders.genmo.mochi_te(*args, **kwargs)
 
 
-class Gemma3_12BTokenizer(sd1_clip.SDTokenizer):
-    def __init__(self, embedding_directory=None, tokenizer_data={}):
-        tokenizer = tokenizer_data.get("spiece_model", None)
-        special_tokens = {"start": 2, "pad": 0, "<image_soft_token>": 262144, "<end_of_turn>": 106}
-        super().__init__(tokenizer, pad_with_end=False, embedding_size=3840, embedding_key='gemma3_12b', tokenizer_class=SPieceTokenizer, has_end_token=False, pad_to_max_length=False, max_length=99999999, min_length=1, tokenizer_args={"add_bos": True, "add_eos": False, "special_tokens": special_tokens}, tokenizer_data=tokenizer_data)
-
+class Gemma3_Tokenizer():
     def state_dict(self):
         return {"spiece_model": self.tokenizer.serialize_model()}
 
-    def tokenize_with_weights(self, text, return_word_ids=False, images=None, **kwargs):
-        text_tokens = super().tokenize_with_weights(text, return_word_ids)
-        if images is not None:
+    def tokenize_with_weights(self, text, return_word_ids=False, image=None, llama_template=None, skip_template=True, **kwargs):
+        self.llama_template = "<start_of_turn>system\nYou are a helpful assistant.<end_of_turn>\n<start_of_turn>user\n{}<end_of_turn>\n<start_of_turn>model\n"
+        self.llama_template_images = "<start_of_turn>system\nYou are a helpful assistant.<end_of_turn>\n<start_of_turn>user\n<image_soft_token>\n{}<end_of_turn>\n<start_of_turn>model\n"
+
+        if image is None:
+            images = []
+        else:
+            samples = image.movedim(-1, 1)
+            total = int(896 * 896)
+
+            scale_by = math.sqrt(total / (samples.shape[3] * samples.shape[2]))
+            width = round(samples.shape[3] * scale_by)
+            height = round(samples.shape[2] * scale_by)
+
+            s = comfy.utils.common_upscale(samples, width, height, "area", "disabled").movedim(1, -1)
+            images = [s[:, :, :, :3]]
+
+        if text.startswith('<start_of_turn>'):
+            skip_template = True
+
+        if skip_template:
+            llama_text = text
+        else:
+            if llama_template is None:
+                if len(images) > 0:
+                    llama_text = self.llama_template_images.format(text)
+                else:
+                    llama_text = self.llama_template.format(text)
+            else:
+                llama_text = llama_template.format(text)
+
+        text_tokens = super().tokenize_with_weights(llama_text, return_word_ids)
+
+        if len(images) > 0:
             embed_count = 0
             for r in text_tokens:
-                for i in range(len(r)):
-                    if r[i][0] == 262144:
-                        if images is not None and embed_count < len(images):
-                            img_data = images[embed_count].unsqueeze(0) if images[embed_count].dim() == 3 else images[embed_count]
-                            r[i] = ({"type": "image", "data": img_data},) + r[i][1:]
-                            embed_count += 1
+                for i, token in enumerate(r):
+                    if token[0] == 262144 and embed_count < len(images):
+                        r[i] = ({"type": "image", "data": images[embed_count]},) + token[1:]
+                        embed_count += 1
         return text_tokens
+
+class Gemma3_12BTokenizer(Gemma3_Tokenizer, sd1_clip.SDTokenizer):
+    def __init__(self, embedding_directory=None, tokenizer_data={}):
+        tokenizer = tokenizer_data.get("spiece_model", None)
+        special_tokens = {"<image_soft_token>": 262144, "<end_of_turn>": 106}
+        super().__init__(tokenizer, pad_with_end=False, embedding_size=3840, embedding_key='gemma3_12b', tokenizer_class=SPieceTokenizer, has_end_token=False, pad_to_max_length=False, max_length=99999999, min_length=1, tokenizer_args={"add_bos": True, "add_eos": False, "special_tokens": special_tokens}, tokenizer_data=tokenizer_data)
 
 
 class LTXAVGemmaTokenizer(sd1_clip.SD1Tokenizer):
@@ -60,21 +91,6 @@ class Gemma3_12BModel(sd1_clip.SDClipModel):
 
         super().__init__(device=device, layer=layer, layer_idx=layer_idx, textmodel_json_config={}, dtype=dtype, special_tokens={"start": 2, "pad": 0}, layer_norm_hidden_state=False, model_class=comfy.text_encoders.llama.Gemma3_12B, enable_attention_masks=attention_mask, return_attention_masks=attention_mask, model_options=model_options)
 
-    def process_tokens(self, tokens, device):
-        tokens_only = [[t[0] for t in b] for b in tokens]
-        embeds, _, _, embeds_info = super().process_tokens(tokens_only, device)
-        # Normalize image embeddings to match text embedding scale
-        target_std = 0.0156
-        for info in embeds_info:
-            if info.get("type") == "image":
-                idx = info["index"]
-                size = info["size"]
-                img_emb = embeds[0, idx:idx+size, :]
-                current_std = img_emb.std()
-                if current_std > 0:
-                    embeds[0, idx:idx+size, :] = img_emb * (target_std / current_std)
-
-        return embeds
 
 class LTXAVTEModel(torch.nn.Module):
     def __init__(self, dtype_llama=None, device="cpu", dtype=None, model_options={}):
@@ -130,15 +146,11 @@ class LTXAVTEModel(torch.nn.Module):
 
         return out.to(out_device), pooled
 
-    def process_tokens(self, tokens, device):
-        return self.gemma3_12b.process_tokens(tokens, device)
-
     def generate(self, tokens, do_sample, max_length, temperature, top_k, top_p, min_p, repetition_penalty, seed):
-        if isinstance(tokens, dict):
-            tokens = tokens["gemma3_12b"]
-        embeds = self.process_tokens(tokens, device=self.execution_device)
-        return self.gemma3_12b.transformer.generate(embeds, do_sample=do_sample, max_length=max_length, temperature=temperature, top_k=top_k, top_p=top_p, min_p=min_p,
-                                                    repetition_penalty=repetition_penalty, seed=seed, stop_tokens=[106])  # 106 is <end_of_turn>
+        tokens_only = [[t[0] for t in b] for b in tokens["gemma3_12b"]]
+        embeds, _, _, embeds_info = self.gemma3_12b.process_tokens(tokens_only, self.execution_device)
+        embeds = comfy.utils.normalize_image_embeddings(embeds, embeds_info, target_std=0.0156)
+        return self.gemma3_12b.transformer.generate(embeds, do_sample, max_length, temperature, top_k, top_p, min_p, repetition_penalty, seed, stop_tokens=[106])  # 106 is <end_of_turn>
 
     def load_sd(self, sd):
         if "model.layers.47.self_attn.q_norm.weight" in sd:

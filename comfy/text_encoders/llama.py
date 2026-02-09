@@ -315,6 +315,13 @@ class Gemma3_4B_Config:
     final_norm: bool = True
     lm_head: bool = False
 
+GEMMA3_VISION_CONFIG = {"num_channels": 3, "hidden_act": "gelu_pytorch_tanh", "hidden_size": 1152, "image_size": 896, "intermediate_size": 4304, "model_type": "siglip_vision_model", "num_attention_heads": 16, "num_hidden_layers": 27, "patch_size": 14}
+
+@dataclass
+class Gemma3_4B_Vision_Config(Gemma3_4B_Config):
+    vision_config = GEMMA3_VISION_CONFIG
+    mm_tokens_per_image = 256
+
 @dataclass
 class Gemma3_12B_Config:
     vocab_size: int = 262208
@@ -338,7 +345,7 @@ class Gemma3_12B_Config:
     rope_scale = [8.0, 1.0]
     final_norm: bool = True
     lm_head: bool = False
-    vision_config = {"num_channels": 3, "hidden_act": "gelu_pytorch_tanh", "hidden_size": 1152, "image_size": 896, "intermediate_size": 4304, "model_type": "siglip_vision_model", "num_attention_heads": 16, "num_hidden_layers": 27, "patch_size": 14}
+    vision_config = GEMMA3_VISION_CONFIG
     mm_tokens_per_image = 256
 
 class RMSNorm(nn.Module):
@@ -589,9 +596,7 @@ class TransformerBlockGemma2(nn.Module):
         # MLP
         residual = x
         x = self.pre_feedforward_layernorm(x)
-
         x = self.mlp(x)
-
         x = self.post_feedforward_layernorm(x)
         x = residual + x
 
@@ -646,12 +651,12 @@ class Llama2_(nn.Module):
         if position_ids is None:
             position_ids = torch.arange(past_len, past_len + seq_len, device=x.device).unsqueeze(0)
 
-            freqs_cis = precompute_freqs_cis(self.config.head_dim,
-                                             position_ids,
-                                             self.config.rope_theta,
-                                             self.config.rope_scale,
-                                             self.config.rope_dims,
-                                             device=x.device)
+        freqs_cis = precompute_freqs_cis(self.config.head_dim,
+                                            position_ids,
+                                            self.config.rope_theta,
+                                            self.config.rope_scale,
+                                            self.config.rope_dims,
+                                            device=x.device)
 
         mask = None
         if attention_mask is not None:
@@ -767,7 +772,26 @@ class BaseLlama:
     def forward(self, input_ids, *args, **kwargs):
         return self.model(input_ids, *args, **kwargs)
 
-    def generate(self, embeds=None, do_sample=True, max_length=256, temperature=1.0, top_k=50, top_p=0.9, min_p=0.0, repetition_penalty=1.0, stop_tokens=[], seed=42, initial_tokens=[], execution_dtype=None, min_tokens=0):
+class BaseGenerate:
+    def logits(self, x):
+        input = x[:, -1:]
+        if hasattr(self.model, "lm_head"):
+            module = self.model.lm_head
+        else:
+            module = self.model.embed_tokens
+
+        offload_stream = None
+        if module.comfy_cast_weights:
+            weight, _, offload_stream = comfy.ops.cast_bias_weight(module, input, offloadable=True)
+        else:
+            weight = self.model.embed_tokens.weight.to(x)
+
+        x = torch.nn.functional.linear(input, weight, None)
+
+        comfy.ops.uncast_bias_weight(module, weight, None, offload_stream)
+        return x
+
+    def generate(self, embeds=None, do_sample=True, max_length=256, temperature=1.0, top_k=50, top_p=0.9, min_p=0.0, repetition_penalty=1.0, seed=42, stop_tokens=[], initial_tokens=[], execution_dtype=None, min_tokens=0):
         device = embeds.device
         model_config = self.model.config
 
@@ -795,7 +819,7 @@ class BaseLlama:
         # Generation loop
         for step in tqdm(range(max_length), desc="Generating tokens"):
             x, _, past_key_values = self.model.forward(None, embeds=embeds, attention_mask=None, past_key_values=past_key_values)
-            logits = self.lm_head(x[:, -1, :])
+            logits = self.logits(x)[:, -1]
             next_token = self.sample_token(logits, temperature, top_k, top_p, min_p, repetition_penalty, initial_tokens + generated_token_ids, generator, do_sample=do_sample)
             generated_token_ids.append(next_token[0].item())
 
@@ -924,10 +948,6 @@ class Qwen3_4B(BaseLlama, BaseQwen3, torch.nn.Module):
         self.model = Llama2_(config, device=device, dtype=dtype, ops=operations)
         self.dtype = dtype
 
-        if hasattr(self.model, "embed_tokens") and self.model.embed_tokens is not None:
-            self.lm_head = operations.Linear(config.hidden_size, config.vocab_size, bias=False, device=device, dtype=dtype)
-            self.lm_head.weight = self.model.embed_tokens.weight
-
 class Qwen3_4B_ACE15_lm(BaseLlama, BaseQwen3, torch.nn.Module):
     def __init__(self, config_dict, dtype, device, operations):
         super().__init__()
@@ -946,10 +966,6 @@ class Qwen3_8B(BaseLlama, BaseQwen3, torch.nn.Module):
         self.model = Llama2_(config, device=device, dtype=dtype, ops=operations)
         self.dtype = dtype
 
-        if hasattr(self.model, "embed_tokens") and self.model.embed_tokens is not None:
-            self.lm_head = operations.Linear(config.hidden_size, config.vocab_size, bias=False, device=device, dtype=dtype)
-            self.lm_head.weight = self.model.embed_tokens.weight
-
 class Ovis25_2B(BaseLlama, torch.nn.Module):
     def __init__(self, config_dict, dtype, device, operations):
         super().__init__()
@@ -959,7 +975,7 @@ class Ovis25_2B(BaseLlama, torch.nn.Module):
         self.model = Llama2_(config, device=device, dtype=dtype, ops=operations)
         self.dtype = dtype
 
-class Qwen25_7BVLI(BaseLlama, torch.nn.Module):
+class Qwen25_7BVLI(BaseLlama, BaseGenerate, torch.nn.Module):
     def __init__(self, config_dict, dtype, device, operations):
         super().__init__()
         config = Qwen25_7BVLI_Config(**config_dict)
@@ -971,9 +987,6 @@ class Qwen25_7BVLI(BaseLlama, torch.nn.Module):
 
         # todo: should this be tied or not?
         #self.lm_head = operations.Linear(config.hidden_size, config.vocab_size, bias=False, device=device, dtype=dtype)
-        if hasattr(self.model, "embed_tokens") and self.model.embed_tokens is not None:
-            self.lm_head = operations.Linear(config.hidden_size, config.vocab_size, bias=False, device=device, dtype=dtype)
-            self.lm_head.weight = self.model.embed_tokens.weight
 
     def preprocess_embed(self, embed, device):
         if embed["type"] == "image":
@@ -1017,11 +1030,7 @@ class Gemma2_2B(BaseLlama, torch.nn.Module):
         self.model = Llama2_(config, device=device, dtype=dtype, ops=operations)
         self.dtype = dtype
 
-        if hasattr(self.model, "embed_tokens") and self.model.embed_tokens is not None:
-            self.lm_head = operations.Linear(config.hidden_size, config.vocab_size, bias=False, device=device, dtype=dtype)
-            self.lm_head.weight = self.model.embed_tokens.weight
-
-class Gemma3_4B(BaseLlama, torch.nn.Module):
+class Gemma3_4B(BaseLlama, BaseGenerate, torch.nn.Module):
     def __init__(self, config_dict, dtype, device, operations):
         super().__init__()
         config = Gemma3_4B_Config(**config_dict)
@@ -1030,11 +1039,25 @@ class Gemma3_4B(BaseLlama, torch.nn.Module):
         self.model = Llama2_(config, device=device, dtype=dtype, ops=operations)
         self.dtype = dtype
 
-        if hasattr(self.model, "embed_tokens") and self.model.embed_tokens is not None:
-            self.lm_head = operations.Linear(config.hidden_size, config.vocab_size, bias=False, device=device, dtype=dtype)
-            self.lm_head.weight = self.model.embed_tokens.weight
+class Gemma3_4B_Vision(BaseLlama, BaseGenerate, torch.nn.Module):
+    def __init__(self, config_dict, dtype, device, operations):
+        super().__init__()
+        config = Gemma3_4B_Vision_Config(**config_dict)
+        self.num_layers = config.num_hidden_layers
 
-class Gemma3_12B(BaseLlama, torch.nn.Module):
+        self.model = Llama2_(config, device=device, dtype=dtype, ops=operations)
+        self.dtype = dtype
+        self.multi_modal_projector = Gemma3MultiModalProjector(config, dtype, device, operations)
+        self.vision_model = comfy.clip_model.CLIPVision(config.vision_config, dtype, device, operations)
+        self.image_size = config.vision_config["image_size"]
+
+    def preprocess_embed(self, embed, device):
+        if embed["type"] == "image":
+            image = comfy.clip_model.clip_preprocess(embed["data"], size=self.image_size, mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5], crop=True)
+            return self.multi_modal_projector(self.vision_model(image.to(device, dtype=torch.float32))[0]), None
+        return None, None
+
+class Gemma3_12B(BaseLlama, BaseGenerate, torch.nn.Module):
     def __init__(self, config_dict, dtype, device, operations):
         super().__init__()
         config = Gemma3_12B_Config(**config_dict)
@@ -1045,10 +1068,6 @@ class Gemma3_12B(BaseLlama, torch.nn.Module):
         self.vision_model = comfy.clip_model.CLIPVision(config.vision_config, dtype, device, operations)
         self.dtype = dtype
         self.image_size = config.vision_config["image_size"]
-
-        if hasattr(self.model, "embed_tokens") and self.model.embed_tokens is not None:
-            self.lm_head = operations.Linear(config.hidden_size, config.vocab_size, bias=False, device=device, dtype=dtype)
-            self.lm_head.weight = self.model.embed_tokens.weight
 
     def preprocess_embed(self, embed, device):
         if embed["type"] == "image":
