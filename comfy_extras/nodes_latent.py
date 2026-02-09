@@ -391,8 +391,9 @@ class LatentOperationTonemapReinhard(io.ComfyNode):
             latent_vector_magnitude = (torch.linalg.vector_norm(latent, dim=(1)) + 0.0000000001)[:,None]
             normalized_latent = latent / latent_vector_magnitude
 
-            mean = torch.mean(latent_vector_magnitude, dim=(1,2,3), keepdim=True)
-            std = torch.std(latent_vector_magnitude, dim=(1,2,3), keepdim=True)
+            dims = list(range(1, latent_vector_magnitude.ndim))
+            mean = torch.mean(latent_vector_magnitude, dim=dims, keepdim=True)
+            std = torch.std(latent_vector_magnitude, dim=dims, keepdim=True)
 
             top = (std * 5 + mean) * multiplier
 
