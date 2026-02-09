@@ -1206,8 +1206,6 @@ def cast_to(weight, dtype=None, device=None, non_blocking=False, copy=False, str
         if dtype is None:
             dtype = weight._model_dtype
 
-        r = torch.empty_like(weight, dtype=dtype, device=device)
-
         signature = comfy_aimdo.model_vbar.vbar_fault(weight._v)
         if signature is not None:
             raw_tensor = comfy_aimdo.torch.aimdo_to_tensor(weight._v, device)
@@ -1216,11 +1214,9 @@ def cast_to(weight, dtype=None, device=None, non_blocking=False, copy=False, str
                 weight._v_signature = signature
                 #Send it over
                 v_tensor.copy_(weight, non_blocking=non_blocking)
-            #always take a deep copy even if _v is good, as we have no reasonable point to unpin
-            #a non comfy weight
-            r.copy_(v_tensor)
-            comfy_aimdo.model_vbar.vbar_unpin(weight._v)
-            return r
+            return v_tensor.to(dtype=dtype)
+
+        r = torch.empty_like(weight, dtype=dtype, device=device)
 
         if weight.dtype != r.dtype and weight.dtype != weight._model_dtype:
             #Offloaded casting could skip this, however it would make the quantizations
