@@ -35,8 +35,9 @@ class TestViewEndpointSecurity(AioHTTPTestCase):
                 return web.Response(status=400)
 
             # validation for security: prevent accessing arbitrary path
-            # Check for path traversal patterns (../ or /..) but allow consecutive dots in filename
-            if filename[0] == '/' or '/..' in filename or filename.startswith('..'):
+            # Normalize backslashes to forward slashes to handle Windows-style path traversal
+            normalized = filename.replace('\\', '/')
+            if normalized[0] == '/' or '/..' in normalized or normalized.startswith('..'):
                 return web.Response(status=400)
 
             # For testing, just check if file exists in test directory
@@ -112,3 +113,27 @@ class TestViewEndpointSecurity(AioHTTPTestCase):
 
         resp = await self.client.request("GET", "/view?filename=my..file..name.png")
         assert resp.status == 200, "Should allow dots in middle of filename"
+
+    @unittest_run_loop
+    async def test_blocks_backslash_path_traversal(self):
+        """Test that Windows-style backslash path traversal (\\..) is blocked"""
+        resp = await self.client.request("GET", "/view?filename=folder%5C..%5Csecret")
+        assert resp.status == 400, "Should block backslash path traversal"
+
+    @unittest_run_loop
+    async def test_blocks_backslash_dotdot_at_start(self):
+        """Test that backslash path traversal starting with ..\\ is blocked"""
+        resp = await self.client.request("GET", "/view?filename=..%5Cetc%5Cpasswd")
+        assert resp.status == 400, "Should block ..\\ path traversal at start"
+
+    @unittest_run_loop
+    async def test_blocks_mixed_slash_backslash_traversal(self):
+        """Test that mixed forward/backslash path traversal is blocked"""
+        resp = await self.client.request("GET", "/view?filename=folder/..%5Csecret")
+        assert resp.status == 400, "Should block mixed slash/backslash path traversal"
+
+    @unittest_run_loop
+    async def test_blocks_backslash_absolute_path(self):
+        """Test that Windows absolute paths with backslash are blocked (e.g., C:\\)"""
+        resp = await self.client.request("GET", "/view?filename=%5Cetc%5Cpasswd")
+        assert resp.status == 400, "Should block backslash absolute paths"
