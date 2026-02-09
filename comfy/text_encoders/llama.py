@@ -652,11 +652,11 @@ class Llama2_(nn.Module):
             position_ids = torch.arange(past_len, past_len + seq_len, device=x.device).unsqueeze(0)
 
         freqs_cis = precompute_freqs_cis(self.config.head_dim,
-                                            position_ids,
-                                            self.config.rope_theta,
-                                            self.config.rope_scale,
-                                            self.config.rope_dims,
-                                            device=x.device)
+                                        position_ids,
+                                        self.config.rope_theta,
+                                        self.config.rope_scale,
+                                        self.config.rope_dims,
+                                        device=x.device)
 
         mask = None
         if attention_mask is not None:
