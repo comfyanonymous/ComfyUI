@@ -900,7 +900,7 @@ class VAE:
         # Memory check: switch to tiled decode if GPU can't fit full decode
         # and models can't offload to CPU, preventing 0xC0000005 crash
         if model_management.use_tiled_vae_decode(memory_used, self.device):
-            logging.warning("[VAE DECODE] Insufficient memory for regular VAE decoding, switching to tiled VAE decoding.")
+            logging.warning("Insufficient memory for regular VAE decoding, switching to tiled VAE decoding.")
             do_tile = True
         
         if not do_tile:
@@ -918,11 +918,12 @@ class VAE:
                     pixel_samples[x:x+batch_number] = out
                     
             except model_management.OOM_EXCEPTION:
-                logging.warning("[VAE DECODE] OOM! Ran out of memory during regular VAE decoding, retrying with tiled VAE decoding.")
+                logging.warning("Warning: Ran out of memory when regular VAE decoding, retrying with tiled VAE decoding.")
                 #NOTE: We don't know what tensors were allocated to stack variables at the time of the
                 #exception and the exception itself refs them all until we get out of this except block.
                 #So we just set a flag for tiler fallback so that tensor gc can happen once the
                 #exception is fully off the books.
+                do_tile = True
 
         if do_tile:
             dims = samples_in.ndim - 2
