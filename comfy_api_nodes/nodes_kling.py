@@ -919,9 +919,9 @@ class OmniProTextToVideoNode(IO.ComfyNode):
                 raise ValueError("kling-video-o1 only supports durations of 5 or 10 seconds.")
             if generate_audio:
                 raise ValueError("kling-video-o1 does not support audio generation.")
-        stories_enabled = (
-            storyboards is not None and storyboards["storyboards"] != "disabled" and model_name != "kling-video-o1"
-        )
+        stories_enabled = storyboards is not None and storyboards["storyboards"] != "disabled"
+        if stories_enabled and model_name == "kling-video-o1":
+            raise ValueError("kling-video-o1 does not support storyboards.")
         validate_string(prompt, strip_whitespace=True, min_length=0 if stories_enabled else 1, max_length=2500)
 
         multi_shot = None
@@ -1065,9 +1065,9 @@ class OmniProFirstLastFrameNode(IO.ComfyNode):
                 raise ValueError("kling-video-o1 does not support durations greater than 10 seconds.")
             if generate_audio:
                 raise ValueError("kling-video-o1 does not support audio generation.")
-        stories_enabled = (
-            storyboards is not None and storyboards["storyboards"] != "disabled" and model_name != "kling-video-o1"
-        )
+        stories_enabled = storyboards is not None and storyboards["storyboards"] != "disabled"
+        if stories_enabled and model_name == "kling-video-o1":
+            raise ValueError("kling-video-o1 does not support storyboards.")
         prompt = normalize_omni_prompt_references(prompt)
         validate_string(prompt, strip_whitespace=True, min_length=0 if stories_enabled else 1, max_length=2500)
         if end_frame is not None and reference_images is not None:
@@ -1241,9 +1241,9 @@ class OmniProImageToVideoNode(IO.ComfyNode):
                 raise ValueError("kling-video-o1 does not support durations greater than 10 seconds.")
             if generate_audio:
                 raise ValueError("kling-video-o1 does not support audio generation.")
-        stories_enabled = (
-            storyboards is not None and storyboards["storyboards"] != "disabled" and model_name != "kling-video-o1"
-        )
+        stories_enabled = storyboards is not None and storyboards["storyboards"] != "disabled"
+        if stories_enabled and model_name == "kling-video-o1":
+            raise ValueError("kling-video-o1 does not support storyboards.")
         prompt = normalize_omni_prompt_references(prompt)
         validate_string(prompt, strip_whitespace=True, min_length=0 if stories_enabled else 1, max_length=2500)
 
@@ -1497,7 +1497,7 @@ class OmniProImageNode(IO.ComfyNode):
     def define_schema(cls) -> IO.Schema:
         return IO.Schema(
             node_id="KlingOmniProImageNode",
-            display_name="Kling V3 Omni Image",
+            display_name="Kling Omni v3 Image",
             category="api node/image/Kling",
             description="Create or edit images with the latest model from Kling.",
             inputs=[
@@ -1558,7 +1558,7 @@ class OmniProImageNode(IO.ComfyNode):
         reference_images: Input.Image | None = None,
     ) -> IO.NodeOutput:
         if model_name == "kling-image-o1" and resolution == "4K":
-            raise ValueError("4K resolution is not supported for Kling-o1 model.")
+            raise ValueError("4K resolution is not supported for kling-image-o1 model.")
         prompt = normalize_omni_prompt_references(prompt)
         validate_string(prompt, min_length=1, max_length=2500)
         image_list: list[OmniImageParamImage] = []
@@ -1570,7 +1570,9 @@ class OmniProImageNode(IO.ComfyNode):
                 validate_image_aspect_ratio(i, (1, 2.5), (2.5, 1))
             for i in await upload_images_to_comfyapi(cls, reference_images, wait_label="Uploading reference image"):
                 image_list.append(OmniImageParamImage(image=i))
-        use_series = series_amount != "disabled" and model_name != "kling-image-o1"
+        use_series = series_amount != "disabled"
+        if use_series and model_name == "kling-image-o1":
+            raise ValueError("kling-image-o1 does not support series generation.")
         response = await sync_op(
             cls,
             ApiEndpoint(path="/proxy/kling/v1/images/omni-image", method="POST"),
@@ -2851,9 +2853,9 @@ class KlingVideoNode(IO.ComfyNode):
                     )
                 )
             duration = sum(int(e.duration) for e in multi_prompt_list)
-            if duration > 15:
+            if duration < 3 or duration > 15:
                 raise ValueError(
-                    f"Total storyboard duration ({duration}s) cannot exceed 15 seconds."
+                    f"Total storyboard duration ({duration}s) must be between 3 and 15 seconds."
                 )
         else:
             duration = multi_shot["duration"]
