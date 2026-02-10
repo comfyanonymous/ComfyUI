@@ -846,7 +846,7 @@ class OmniProTextToVideoNode(IO.ComfyNode):
     def define_schema(cls) -> IO.Schema:
         return IO.Schema(
             node_id="KlingOmniProTextToVideoNode",
-            display_name="Kling Omni v3 Text to Video",
+            display_name="Kling 3.0 Omni Text to Video",
             category="api node/video/Kling",
             description="Use text prompts to generate videos with the latest Kling model.",
             inputs=[
@@ -973,7 +973,7 @@ class OmniProFirstLastFrameNode(IO.ComfyNode):
     def define_schema(cls) -> IO.Schema:
         return IO.Schema(
             node_id="KlingOmniProFirstLastFrameNode",
-            display_name="Kling Omni v3 First-Last-Frame to Video",
+            display_name="Kling 3.0 Omni First-Last-Frame to Video",
             category="api node/video/Kling",
             description="Use a start frame, an optional end frame, or reference images with the latest Kling model.",
             inputs=[
@@ -1158,7 +1158,7 @@ class OmniProImageToVideoNode(IO.ComfyNode):
     def define_schema(cls) -> IO.Schema:
         return IO.Schema(
             node_id="KlingOmniProImageToVideoNode",
-            display_name="Kling Omni v3 Image to Video",
+            display_name="Kling 3.0 Omni Image to Video",
             category="api node/video/Kling",
             description="Use up to 7 reference images to generate a video with the latest Kling model.",
             inputs=[
@@ -1305,7 +1305,7 @@ class OmniProVideoToVideoNode(IO.ComfyNode):
     def define_schema(cls) -> IO.Schema:
         return IO.Schema(
             node_id="KlingOmniProVideoToVideoNode",
-            display_name="Kling Omni v3 Video to Video",
+            display_name="Kling 3.0 Omni Video to Video",
             category="api node/video/Kling",
             description="Use a video and up to 4 reference images to generate a video with the latest Kling model.",
             inputs=[
@@ -1403,7 +1403,7 @@ class OmniProEditVideoNode(IO.ComfyNode):
     def define_schema(cls) -> IO.Schema:
         return IO.Schema(
             node_id="KlingOmniProEditVideoNode",
-            display_name="Kling Omni v3 Edit Video",
+            display_name="Kling 3.0 Omni Edit Video",
             category="api node/video/Kling",
             description="Edit an existing video with the latest model from Kling.",
             inputs=[
@@ -1497,7 +1497,7 @@ class OmniProImageNode(IO.ComfyNode):
     def define_schema(cls) -> IO.Schema:
         return IO.Schema(
             node_id="KlingOmniProImageNode",
-            display_name="Kling Omni v3 Image",
+            display_name="Kling 3.0 Omni Image",
             category="api node/image/Kling",
             description="Create or edit images with the latest model from Kling.",
             inputs=[
@@ -2367,7 +2367,7 @@ class KlingImageGenerationNode(IO.ComfyNode):
     def define_schema(cls) -> IO.Schema:
         return IO.Schema(
             node_id="KlingImageGenerationNode",
-            display_name="Kling Image Generation",
+            display_name="Kling 3.0 Image",
             category="api node/image/Kling",
             description="Kling Image Generation Node. Generate an image from a text prompt with an optional reference image.",
             inputs=[
@@ -2720,7 +2720,7 @@ class KlingVideoNode(IO.ComfyNode):
     def define_schema(cls) -> IO.Schema:
         return IO.Schema(
             node_id="KlingVideoNode",
-            display_name="Kling V3 Video",
+            display_name="Kling 3.0 Video",
             category="api node/video/Kling",
             description="Generate videos with Kling V3. "
             "Supports text-to-video and image-to-video with optional storyboard multi-prompt and audio generation.",
@@ -2922,7 +2922,7 @@ class KlingFirstLastFrameNode(IO.ComfyNode):
     def define_schema(cls) -> IO.Schema:
         return IO.Schema(
             node_id="KlingFirstLastFrameNode",
-            display_name="Kling V3 First-Last-Frame",
+            display_name="Kling 3.0 First-Last-Frame to Video",
             category="api node/video/Kling",
             description="Generate videos with Kling V3 using first and last frames.",
             inputs=[
