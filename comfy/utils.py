@@ -1376,3 +1376,21 @@ def string_to_seed(data):
             else:
                 crc >>= 1
     return crc ^ 0xFFFFFFFF
+
+def deepcopy_list_dict(obj, memo=None):
+    if memo is None:
+        memo = {}
+
+    obj_id = id(obj)
+    if obj_id in memo:
+        return memo[obj_id]
+
+    if isinstance(obj, dict):
+        res = {deepcopy_list_dict(k, memo): deepcopy_list_dict(v, memo) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        res = [deepcopy_list_dict(i, memo) for i in obj]
+    else:
+        res = obj
+
+    memo[obj_id] = res
+    return res
