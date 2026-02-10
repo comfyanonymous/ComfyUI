@@ -802,7 +802,6 @@ class BaseGenerate:
                 execution_dtype = torch.float32
         embeds = embeds.to(execution_dtype)
 
-        #print("embeds dtype:", embeds.dtype, embeds.device, embeds.shape)
         if embeds.ndim == 2:
             embeds = embeds.unsqueeze(0)
 
@@ -823,7 +822,7 @@ class BaseGenerate:
             next_token = self.sample_token(logits, temperature, top_k, top_p, min_p, repetition_penalty, initial_tokens + generated_token_ids, generator, do_sample=do_sample)
             generated_token_ids.append(next_token[0].item())
 
-            embeds = self.model.embed_tokens(next_token)
+            embeds = self.model.embed_tokens(next_token).to(execution_dtype)
             pbar.update(1)
 
             if next_token[0].item() in stop_tokens:
