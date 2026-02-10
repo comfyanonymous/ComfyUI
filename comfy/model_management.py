@@ -432,7 +432,7 @@ if cpu_state != CPUState.GPU:
     vram_state = VRAMState.DISABLED
 
 if cpu_state == CPUState.MPS:
-    vram_state = VRAMState.SHARED
+    vram_state = VRAMState.NORMAL_VRAM
 
 logging.info(f"Set vram state to: {vram_state.name}")
 
@@ -840,7 +840,7 @@ def unet_offload_device():
 
 def unet_inital_load_device(parameters, dtype):
     torch_dev = get_torch_device()
-    if vram_state == VRAMState.HIGH_VRAM or vram_state == VRAMState.SHARED:
+    if vram_state == VRAMState.HIGH_VRAM:
         return torch_dev
 
     cpu_dev = torch.device("cpu")
@@ -956,9 +956,6 @@ def text_encoder_device():
 def text_encoder_initial_device(load_device, offload_device, model_size=0):
     if load_device == offload_device or model_size <= 1024 * 1024 * 1024:
         return offload_device
-
-    if is_device_mps(load_device):
-        return load_device
 
     mem_l = get_free_memory(load_device)
     mem_o = get_free_memory(offload_device)
