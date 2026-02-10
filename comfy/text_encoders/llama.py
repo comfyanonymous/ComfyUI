@@ -833,15 +833,15 @@ class BaseGenerate:
 
     def sample_token(self, logits, temperature, top_k, top_p, min_p, repetition_penalty, token_history, generator, do_sample=True):
 
+        if not do_sample or temperature == 0.0:
+            return torch.argmax(logits, dim=-1, keepdim=True)
+
+        # Sampling mode
         if repetition_penalty != 1.0:
             for i in range(logits.shape[0]):
                 for token_id in set(token_history):
                     logits[i, token_id] *= repetition_penalty if logits[i, token_id] < 0 else 1/repetition_penalty
 
-        if not do_sample or temperature == 0.0:
-            return torch.argmax(logits, dim=-1, keepdim=True)
-
-        # Sampling mode
         if temperature != 1.0:
             logits = logits / temperature
 

@@ -29,7 +29,7 @@ class Gemma3_Tokenizer():
 
     def tokenize_with_weights(self, text, return_word_ids=False, image=None, llama_template=None, skip_template=True, **kwargs):
         self.llama_template = "<start_of_turn>system\nYou are a helpful assistant.<end_of_turn>\n<start_of_turn>user\n{}<end_of_turn>\n<start_of_turn>model\n"
-        self.llama_template_images = "<start_of_turn>system\nYou are a helpful assistant.<end_of_turn>\n<start_of_turn>user\n<image_soft_token>\n{}<end_of_turn>\n<start_of_turn>model\n"
+        self.llama_template_images = "<start_of_turn>system\nYou are a helpful assistant.<end_of_turn>\n<start_of_turn>user\n<image_soft_token>{}<end_of_turn>\n<start_of_turn>model\n"
 
         if image is None:
             images = []
