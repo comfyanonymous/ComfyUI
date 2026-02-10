@@ -24,7 +24,6 @@ class DINOv3ViTAttention(nn.Module):
         self.embed_dim = hidden_size
         self.num_heads = num_attention_heads
         self.head_dim = self.embed_dim // self.num_heads
-        self.is_causal = False
 
         self.scaling = self.head_dim**-0.5
         self.is_causal = False
@@ -53,18 +52,41 @@ class DINOv3ViTAttention(nn.Module):
         key_states = key_states.view(batch_size, patches, self.num_heads, self.head_dim).transpose(1, 2)
         value_states = value_states.view(batch_size, patches, self.num_heads, self.head_dim).transpose(1, 2)
 
-        cos, sin = position_embeddings
-        position_embeddings = torch.stack([cos, sin], dim = -1)
-        query_states, key_states = apply_rope(query_states, key_states, position_embeddings)
+        if position_embeddings is not None:
+            cos, sin = position_embeddings
 
-        attn_output, attn_weights = optimized_attention_for_device(
-            query_states, key_states, value_states, attention_mask, skip_reshape=True, skip_output_reshape=True
+            num_tokens = query_states.shape[-2]
+            num_patches = cos.shape[-2]
+            num_prefix_tokens = num_tokens - num_patches
+
+            q_prefix, q_patches = query_states.split((num_prefix_tokens, num_patches), dim=-2)
+            k_prefix, k_patches = key_states.split((num_prefix_tokens, num_patches), dim=-2)
+
+            cos = cos[..., :self.head_dim // 2]
+            sin = sin[..., :self.head_dim // 2]
+
+            f_cis_0 = torch.stack([cos, sin], dim=-1)
+            f_cis_1 = torch.stack([-sin, cos], dim=-1)
+            freqs_cis = torch.stack([f_cis_0, f_cis_1], dim=-1)
+
+            while freqs_cis.ndim < q_patches.ndim + 1:
+                freqs_cis = freqs_cis.unsqueeze(0)
+
+            q_patches, k_patches = apply_rope(q_patches, k_patches, freqs_cis)
+
+            query_states = torch.cat((q_prefix, q_patches), dim=-2)
+            key_states = torch.cat((k_prefix, k_patches), dim=-2)
+
+        attn = optimized_attention_for_device(query_states.device, mask=False)
+
+        attn_output = attn(
+            query_states, key_states, value_states, self.num_heads, attention_mask, skip_reshape=True, skip_output_reshape=True
         )
 
         attn_output = attn_output.reshape(batch_size, patches, -1).contiguous()
         attn_output = self.o_proj(attn_output)
 
-        return attn_output, attn_weights
+        return attn_output
 
 class DINOv3ViTGatedMLP(nn.Module):
     def __init__(self, hidden_size, intermediate_size, mlp_bias, device, dtype, operations):
@@ -187,7 +209,7 @@ class DINOv3ViTLayer(nn.Module):
     ) -> torch.Tensor:
         residual = hidden_states
         hidden_states = self.norm1(hidden_states)
-        hidden_states, _ = self.attention(
+        hidden_states = self.attention(
             hidden_states,
             attention_mask=attention_mask,
             position_embeddings=position_embeddings,
@@ -250,6 +272,7 @@ class DINOv3ViTModel(nn.Module):
                 position_embeddings=position_embeddings,
             )
 
+        self.norm = self.norm.to(hidden_states.device)
         sequence_output = self.norm(hidden_states)
         pooled_output = sequence_output[:, 0, :]
 

@@ -97,13 +97,13 @@ def run_conditioning(
         return image.to(torch_device).float()
 
     pil_image = set_image_size(pil_image, 512)
-    cond_512 = model(pil_image)
+    cond_512 = model(pil_image)[0]
 
     cond_1024 = None
     if include_1024:
         model.image_size = 1024
         pil_image = set_image_size(pil_image, 1024)
-        cond_1024 = model([pil_image])
+        cond_1024 = model(pil_image)[0]
 
     neg_cond = torch.zeros_like(cond_512)
 
@@ -115,7 +115,7 @@ def run_conditioning(
         conditioning['cond_1024'] = cond_1024.to(device)
 
     preprocessed_tensor = pil_image.to(torch.float32) / 255.0
-    preprocessed_tensor = torch.from_numpy(preprocessed_tensor).unsqueeze(0)
+    preprocessed_tensor = preprocessed_tensor.unsqueeze(0)
 
     return conditioning, preprocessed_tensor
 
@@ -217,7 +217,7 @@ class Trellis2Conditioning(IO.ComfyNode):
         conditioning, _ = run_conditioning(clip_vision_model, image, include_1024=True, background_color=background_color)
         embeds = conditioning["cond_1024"] # should add that
         positive = [[conditioning["cond_512"], {"embeds": embeds}]]
-        negative = [[conditioning["cond_neg"], {"embeds": embeds}]]
+        negative = [[conditioning["neg_cond"], {"embeds": embeds}]]
         return IO.NodeOutput(positive, negative)
 
 class EmptyShapeLatentTrellis2(IO.ComfyNode):
@@ -272,7 +272,6 @@ class EmptyStructureLatentTrellis2(IO.ComfyNode):
             node_id="EmptyStructureLatentTrellis2",
             category="latent/3d",
             inputs=[
-                IO.Int.Input("resolution", default=256, min=1, max=8192),
                 IO.Int.Input("batch_size", default=1, min=1, max=4096, tooltip="The number of latent images in the batch."),
             ],
             outputs=[
@@ -280,8 +279,9 @@ class EmptyStructureLatentTrellis2(IO.ComfyNode):
             ]
         )
     @classmethod
-    def execute(cls, resolution, batch_size):
-        in_channels = 32
+    def execute(cls, batch_size):
+        in_channels = 8
+        resolution = 16
         latent = torch.randn(batch_size, in_channels, resolution, resolution, resolution)
         latent = NestedTensor([latent])
         return IO.NodeOutput({"samples": latent, "type": "trellis2"})

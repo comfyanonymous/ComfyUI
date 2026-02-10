@@ -113,6 +113,13 @@ class SparseRotaryPositionEmbedder(nn.Module):
         q_feats, k_feats = apply_rope(q.feats, k.feats, f_cis)
         return q.replace(q_feats), k.replace(k_feats)
 
+    @staticmethod
+    def apply_rotary_embedding(x: torch.Tensor, phases: torch.Tensor) -> torch.Tensor:
+        x_complex = torch.view_as_complex(x.float().reshape(*x.shape[:-1], -1, 2))
+        x_rotated = x_complex * phases.unsqueeze(-2)
+        x_embed = torch.view_as_real(x_rotated).reshape(*x_rotated.shape[:-1], -1).to(x.dtype)
+        return x_embed
+
 class RotaryPositionEmbedder(SparseRotaryPositionEmbedder):
     def forward(self, indices: torch.Tensor) -> torch.Tensor:
         phases = self._get_phases(indices.reshape(-1)).reshape(*indices.shape[:-1], -1)
@@ -559,6 +566,7 @@ class MultiHeadAttention(nn.Module):
     def forward(self, x: torch.Tensor, context: Optional[torch.Tensor] = None, phases: Optional[torch.Tensor] = None) -> torch.Tensor:
         B, L, C = x.shape
         if self._type == "self":
+            x = x.to(next(self.to_qkv.parameters()).dtype)
             qkv = self.to_qkv(x)
             qkv = qkv.reshape(B, L, 3, self.num_heads, -1)
 
@@ -688,7 +696,7 @@ class SparseStructureFlowModel(nn.Module):
         num_heads: Optional[int] = None,
         num_head_channels: Optional[int] = 64,
         mlp_ratio: float = 4,
-        pe_mode: Literal["ape", "rope"] = "ape",
+        pe_mode: Literal["ape", "rope"] = "rope",
         rope_freq: Tuple[float, float] = (1.0, 10000.0),
         dtype: str = 'float32',
         use_checkpoint: bool = False,
@@ -756,14 +764,14 @@ class SparseStructureFlowModel(nn.Module):
         self.out_layer = nn.Linear(model_channels, out_channels)
 
     def forward(self, x: torch.Tensor, t: torch.Tensor, cond: torch.Tensor) -> torch.Tensor:
+        x = x.view(x.shape[0], self.in_channels, *[self.resolution] * 3)
         assert [*x.shape] == [x.shape[0], self.in_channels, *[self.resolution] * 3], \
                 f"Input shape mismatch, got {x.shape}, expected {[x.shape[0], self.in_channels, *[self.resolution] * 3]}"
 
         h = x.view(*x.shape[:2], -1).permute(0, 2, 1).contiguous()
 
+        h = h.to(next(self.input_layer.parameters()).dtype)
         h = self.input_layer(h)
-        if self.pe_mode == "ape":
-            h = h + self.pos_emb[None]
         t_emb = self.t_embedder(t, out_dtype = t.dtype)
         if self.share_mod:
             t_emb = self.adaLN_modulation(t_emb)
@@ -816,7 +824,8 @@ class Trellis2(nn.Module):
         self.structure_model = SparseStructureFlowModel(resolution=16, in_channels=8, out_channels=8, **args)
 
     def forward(self, x: NestedTensor, timestep, context, **kwargs):
-        x = x.tensors[0]
+        if isinstance(x, NestedTensor):
+            x = x.tensors[0]
         embeds = kwargs.get("embeds")
         if not hasattr(x, "feats"):
             mode = "structure_generation"
