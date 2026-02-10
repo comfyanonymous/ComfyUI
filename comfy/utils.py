@@ -1377,6 +1377,24 @@ def string_to_seed(data):
                 crc >>= 1
     return crc ^ 0xFFFFFFFF
 
+def deepcopy_list_dict(obj, memo=None):
+    if memo is None:
+        memo = {}
+
+    obj_id = id(obj)
+    if obj_id in memo:
+        return memo[obj_id]
+
+    if isinstance(obj, dict):
+        res = {deepcopy_list_dict(k, memo): deepcopy_list_dict(v, memo) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        res = [deepcopy_list_dict(i, memo) for i in obj]
+    else:
+        res = obj
+
+    memo[obj_id] = res
+    return res
+
 def normalize_image_embeddings(embeds, embeds_info, target_std=0.0156):
         """Normalize image embeddings to match text embedding scale"""
         for info in embeds_info:
