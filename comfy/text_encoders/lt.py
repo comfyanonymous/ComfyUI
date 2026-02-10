@@ -29,7 +29,7 @@ class Gemma3_Tokenizer():
 
     def tokenize_with_weights(self, text, return_word_ids=False, image=None, llama_template=None, skip_template=True, **kwargs):
         self.llama_template = "<start_of_turn>system\nYou are a helpful assistant.<end_of_turn>\n<start_of_turn>user\n{}<end_of_turn>\n<start_of_turn>model\n"
-        self.llama_template_images = "<start_of_turn>system\nYou are a helpful assistant.<end_of_turn>\n<start_of_turn>user\n<image_soft_token>{}<end_of_turn>\n<start_of_turn>model\n"
+        self.llama_template_images = "<start_of_turn>system\nYou are a helpful assistant.<end_of_turn>\n<start_of_turn>user\n\n<image_soft_token>{}<end_of_turn>\n\n<start_of_turn>model\n"
 
         if image is None:
             images = []
@@ -150,7 +150,15 @@ class LTXAVTEModel(torch.nn.Module):
         tokens_only = [[t[0] for t in b] for b in tokens["gemma3_12b"]]
         embeds, _, _, embeds_info = self.gemma3_12b.process_tokens(tokens_only, self.execution_device)
         embeds = comfy.utils.normalize_image_embeddings(embeds, embeds_info, target_std=0.0156)
-        return self.gemma3_12b.transformer.generate(embeds, do_sample, max_length, temperature, top_k, top_p, min_p, repetition_penalty, seed, stop_tokens=[106])  # 106 is <end_of_turn>
+
+        initial_token_ids = []
+        for token in tokens_only[0]:
+            if isinstance(token, int):
+                initial_token_ids.append(token)
+            elif isinstance(token, dict):
+                pass
+
+        return self.gemma3_12b.transformer.generate(embeds, do_sample, max_length, temperature, top_k, top_p, min_p, repetition_penalty, seed, stop_tokens=[106], initial_tokens=initial_token_ids)  # 106 is <end_of_turn>
 
     def load_sd(self, sd):
         if "model.layers.47.self_attn.q_norm.weight" in sd:

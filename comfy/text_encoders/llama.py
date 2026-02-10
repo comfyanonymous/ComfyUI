@@ -568,13 +568,25 @@ class TransformerBlockGemma2(nn.Module):
     ):
         if self.transformer_type == 'gemma3':
             if self.sliding_attention:
+                past_len = 0
+                if past_key_value is not None and len(past_key_value) > 0:
+                    past_len = past_key_value[2]
+
+                total_seq_len = past_len + x.shape[1]
+
+                if past_len > 0 and total_seq_len > self.sliding_attention: # apply sliding window mask only when using kv_cache (past_len > 0)
+                    # generation with kv_cache: apply sliding window
+                    sliding_mask = torch.full((x.shape[1], total_seq_len), torch.finfo(x.dtype).min, device=x.device, dtype=x.dtype)
+                    for i in range(x.shape[1]):
+                        query_pos = past_len + i
+                        start_pos = max(0, query_pos - self.sliding_attention + 1)
+                        sliding_mask[i, start_pos:query_pos + 1] = 0
+                    attention_mask = sliding_mask if attention_mask is None else attention_mask + sliding_mask
                 if x.shape[1] > self.sliding_attention:
-                    sliding_mask = torch.full((x.shape[1], x.shape[1]), float("-inf"), device=x.device, dtype=x.dtype)
+                    sliding_mask = torch.full((x.shape[1], x.shape[1]), torch.finfo(x.dtype).min, device=x.device, dtype=x.dtype)
                     sliding_mask.tril_(diagonal=-self.sliding_attention)
-                    if attention_mask is not None:
-                        attention_mask = attention_mask + sliding_mask
-                    else:
-                        attention_mask = sliding_mask
+                    attention_mask = sliding_mask if attention_mask is None else attention_mask + sliding_mask
+
                 freqs_cis = freqs_cis[1]
             else:
                 freqs_cis = freqs_cis[0]
@@ -820,12 +832,13 @@ class BaseGenerate:
             x, _, past_key_values = self.model.forward(None, embeds=embeds, attention_mask=None, past_key_values=past_key_values)
             logits = self.logits(x)[:, -1]
             next_token = self.sample_token(logits, temperature, top_k, top_p, min_p, repetition_penalty, initial_tokens + generated_token_ids, generator, do_sample=do_sample)
-            generated_token_ids.append(next_token[0].item())
+            token_id = next_token[0].item()
+            generated_token_ids.append(token_id)
 
             embeds = self.model.embed_tokens(next_token).to(execution_dtype)
             pbar.update(1)
 
-            if next_token[0].item() in stop_tokens:
+            if token_id in stop_tokens:
                 break
 
         return torch.tensor([generated_token_ids], device=device, dtype=torch.long)
@@ -846,14 +859,14 @@ class BaseGenerate:
 
         if top_k > 0:
             indices_to_remove = logits < torch.topk(logits, top_k)[0][..., -1, None]
-            logits[indices_to_remove] = float('-inf')
+            logits[indices_to_remove] = torch.finfo(logits.dtype).min
 
         if min_p > 0.0:
             probs_before_filter = torch.nn.functional.softmax(logits, dim=-1)
             top_probs, _ = probs_before_filter.max(dim=-1, keepdim=True)
             min_threshold = min_p * top_probs
             indices_to_remove = probs_before_filter < min_threshold
-            logits[indices_to_remove] = float('-inf')
+            logits[indices_to_remove] = torch.finfo(logits.dtype).min
 
         if top_p < 1.0:
             sorted_logits, sorted_indices = torch.sort(logits, descending=True)
@@ -862,7 +875,7 @@ class BaseGenerate:
             sorted_indices_to_remove[..., 0] = False
             indices_to_remove = torch.zeros_like(logits, dtype=torch.bool)
             indices_to_remove.scatter_(1, sorted_indices, sorted_indices_to_remove)
-            logits[indices_to_remove] = float('-inf')
+            logits[indices_to_remove] = torch.finfo(logits.dtype).min
 
         probs = torch.nn.functional.softmax(logits, dim=-1)
 
