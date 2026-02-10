@@ -145,7 +145,7 @@ class ACE15Tokenizer(sd1_clip.SD1Tokenizer):
     def _metas_to_cot(self, *, return_yaml: bool = False, **kwargs) -> str:
         user_metas = {
             k: kwargs.pop(k)
-            for k in ("bpm", "duration", "keyscale", "timesignature", "language")
+            for k in ("bpm", "duration", "keyscale", "timesignature")
             if k in kwargs
         }
         timesignature = user_metas.get("timesignature")
@@ -208,8 +208,8 @@ class ACE15Tokenizer(sd1_clip.SD1Tokenizer):
         if not kwargs.get("use_negative_caption"):
             _ = metas_negative.pop("caption", None)
 
-        cot_text = self._metas_to_cot(caption = text, **kwargs)
-        cot_text_negative = "<think>\n</think>" if not metas_negative else self._metas_to_cot(**metas_negative)
+        cot_text = self._metas_to_cot(caption=text, **kwargs)
+        cot_text_negative = "<think>\n\n</think>" if not metas_negative else self._metas_to_cot(**metas_negative)
         meta_cap = self._metas_to_cap(**kwargs)
 
         lm_template = "<|im_start|>system\n# Instruction\nGenerate audio semantic tokens based on the given conditions:\n\n<|im_end|>\n<|im_start|>user\n# Caption\n{}\n\n# Lyric\n{}\n<|im_end|>\n<|im_start|>assistant\n{}\n\n<|im_end|>\n"
