@@ -5,8 +5,11 @@ from comfy_execution.jobs import (
     is_previewable,
     normalize_queue_item,
     normalize_history_item,
+    normalize_output_item,
+    normalize_outputs,
     get_outputs_summary,
     apply_sorting,
+    has_3d_extension,
 )
 
 
@@ -35,8 +38,8 @@ class TestIsPreviewable:
     """Unit tests for is_previewable()"""
 
     def test_previewable_media_types(self):
-        """Images, video, audio media types should be previewable."""
-        for media_type in ['images', 'video', 'audio']:
+        """Images, video, audio, 3d media types should be previewable."""
+        for media_type in ['images', 'video', 'audio', '3d']:
             assert is_previewable(media_type, {}) is True
 
     def test_non_previewable_media_types(self):
@@ -46,7 +49,7 @@ class TestIsPreviewable:
 
     def test_3d_extensions_previewable(self):
         """3D file extensions should be previewable regardless of media_type."""
-        for ext in ['.obj', '.fbx', '.gltf', '.glb']:
+        for ext in ['.obj', '.fbx', '.gltf', '.glb', '.usdz']:
             item = {'filename': f'model{ext}'}
             assert is_previewable('files', item) is True
 
@@ -160,7 +163,7 @@ class TestGetOutputsSummary:
 
     def test_3d_files_previewable(self):
         """3D file extensions should be previewable."""
-        for ext in ['.obj', '.fbx', '.gltf', '.glb']:
+        for ext in ['.obj', '.fbx', '.gltf', '.glb', '.usdz']:
             outputs = {
                 'node1': {
                     'files': [{'filename': f'model{ext}', 'type': 'output'}]
@@ -191,6 +194,64 @@ class TestGetOutputsSummary:
         assert preview['nodeId'] == 'node123'
         assert preview['mediaType'] == 'images'
         assert preview['subfolder'] == 'outputs'
+
+    def test_string_3d_filename_creates_preview(self):
+        """String items with 3D extensions should synthesize a preview (Preview3D node output).
+        Only the .glb counts — nulls and non-file strings are excluded."""
+        outputs = {
+            'node1': {
+                'result': ['preview3d_abc123.glb', None, None]
+            }
+        }
+        count, preview = get_outputs_summary(outputs)
+        assert count == 1
+        assert preview is not None
+        assert preview['filename'] == 'preview3d_abc123.glb'
+        assert preview['mediaType'] == '3d'
+        assert preview['nodeId'] == 'node1'
+        assert preview['type'] == 'output'
+
+    def test_string_non_3d_filename_no_preview(self):
+        """String items without 3D extensions should not create a preview."""
+        outputs = {
+            'node1': {
+                'result': ['data.json', None]
+            }
+        }
+        count, preview = get_outputs_summary(outputs)
+        assert count == 0
+        assert preview is None
+
+    def test_string_3d_filename_used_as_fallback(self):
+        """String 3D preview should be used when no dict items are previewable."""
+        outputs = {
+            'node1': {
+                'latents': [{'filename': 'latent.safetensors'}],
+            },
+            'node2': {
+                'result': ['model.glb', None]
+            }
+        }
+        count, preview = get_outputs_summary(outputs)
+        assert preview is not None
+        assert preview['filename'] == 'model.glb'
+        assert preview['mediaType'] == '3d'
+
+
+class TestHas3DExtension:
+    """Unit tests for has_3d_extension()"""
+
+    def test_recognized_extensions(self):
+        for ext in ['.obj', '.fbx', '.gltf', '.glb', '.usdz']:
+            assert has_3d_extension(f'model{ext}') is True
+
+    def test_case_insensitive(self):
+        assert has_3d_extension('MODEL.GLB') is True
+        assert has_3d_extension('Scene.GLTF') is True
+
+    def test_non_3d_extensions(self):
+        for name in ['photo.png', 'video.mp4', 'data.json', 'model']:
+            assert has_3d_extension(name) is False
 
 
 class TestApplySorting:
@@ -394,4 +455,143 @@ class TestNormalizeHistoryItem:
         assert job['workflow'] == {
             'prompt': {'nodes': {'1': {}}},
             'extra_data': {'create_time': 1234567890, 'client_id': 'abc'},
+        }
+
+    def test_include_outputs_normalizes_3d_strings(self):
+        """Detail view should transform string 3D filenames into file output dicts."""
+        history_item = {
+            'prompt': (
+                5,
+                'prompt-3d',
+                {'nodes': {}},
+                {'create_time': 1234567890},
+                ['node1'],
+            ),
+            'status': {'status_str': 'success', 'completed': True, 'messages': []},
+            'outputs': {
+                'node1': {
+                    'result': ['preview3d_abc123.glb', None, None]
+                }
+            },
+        }
+        job = normalize_history_item('prompt-3d', history_item, include_outputs=True)
+
+        assert job['outputs_count'] == 1
+        result_items = job['outputs']['node1']['result']
+        assert len(result_items) == 1
+        assert result_items[0] == {
+            'filename': 'preview3d_abc123.glb',
+            'type': 'output',
+            'subfolder': '',
+            'mediaType': '3d',
+        }
+
+    def test_include_outputs_preserves_dict_items(self):
+        """Detail view normalization should pass dict items through unchanged."""
+        history_item = {
+            'prompt': (
+                5,
+                'prompt-img',
+                {'nodes': {}},
+                {'create_time': 1234567890},
+                ['node1'],
+            ),
+            'status': {'status_str': 'success', 'completed': True, 'messages': []},
+            'outputs': {
+                'node1': {
+                    'images': [
+                        {'filename': 'photo.png', 'type': 'output', 'subfolder': ''},
+                    ]
+                }
+            },
+        }
+        job = normalize_history_item('prompt-img', history_item, include_outputs=True)
+
+        assert job['outputs_count'] == 1
+        assert job['outputs']['node1']['images'] == [
+            {'filename': 'photo.png', 'type': 'output', 'subfolder': ''},
+        ]
+
+
+class TestNormalizeOutputItem:
+    """Unit tests for normalize_output_item()"""
+
+    def test_none_returns_none(self):
+        assert normalize_output_item(None) is None
+
+    def test_string_3d_extension_synthesizes_dict(self):
+        result = normalize_output_item('model.glb')
+        assert result == {'filename': 'model.glb', 'type': 'output', 'subfolder': '', 'mediaType': '3d'}
+
+    def test_string_non_3d_extension_returns_none(self):
+        assert normalize_output_item('data.json') is None
+
+    def test_string_no_extension_returns_none(self):
+        assert normalize_output_item('camera_info_string') is None
+
+    def test_dict_passes_through(self):
+        item = {'filename': 'test.png', 'type': 'output'}
+        assert normalize_output_item(item) is item
+
+    def test_other_types_return_none(self):
+        assert normalize_output_item(42) is None
+        assert normalize_output_item(True) is None
+
+
+class TestNormalizeOutputs:
+    """Unit tests for normalize_outputs()"""
+
+    def test_empty_outputs(self):
+        assert normalize_outputs({}) == {}
+
+    def test_dict_items_pass_through(self):
+        outputs = {
+            'node1': {
+                'images': [{'filename': 'a.png', 'type': 'output'}],
+            }
+        }
+        result = normalize_outputs(outputs)
+        assert result == outputs
+
+    def test_3d_string_synthesized(self):
+        outputs = {
+            'node1': {
+                'result': ['model.glb', None, None],
+            }
+        }
+        result = normalize_outputs(outputs)
+        assert result == {
+            'node1': {
+                'result': [
+                    {'filename': 'model.glb', 'type': 'output', 'subfolder': '', 'mediaType': '3d'},
+                ],
+            }
+        }
+
+    def test_animated_key_preserved(self):
+        outputs = {
+            'node1': {
+                'images': [{'filename': 'a.png', 'type': 'output'}],
+                'animated': [True],
+            }
+        }
+        result = normalize_outputs(outputs)
+        assert result['node1']['animated'] == [True]
+
+    def test_non_dict_node_outputs_preserved(self):
+        outputs = {'node1': 'unexpected_value'}
+        result = normalize_outputs(outputs)
+        assert result == {'node1': 'unexpected_value'}
+
+    def test_none_items_filtered_but_other_types_preserved(self):
+        outputs = {
+            'node1': {
+                'result': ['data.json', None, [1, 2, 3]],
+            }
+        }
+        result = normalize_outputs(outputs)
+        assert result == {
+            'node1': {
+                'result': ['data.json', [1, 2, 3]],
+            }
         }
