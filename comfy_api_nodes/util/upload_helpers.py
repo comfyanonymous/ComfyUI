@@ -94,7 +94,7 @@ async def upload_image_to_comfyapi(
     *,
     mime_type: str | None = None,
     wait_label: str | None = "Uploading",
-    total_pixels: int = 2048 * 2048,
+    total_pixels: int | None = 2048 * 2048,
 ) -> str:
     """Uploads a single image to ComfyUI API and returns its download URL."""
     return (

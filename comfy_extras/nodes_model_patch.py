@@ -267,9 +267,9 @@ class ModelPatchLoader:
                     device=comfy.model_management.unet_offload_device(),
                     operations=comfy.ops.manual_cast)
 
-        model.load_state_dict(sd)
-        model = comfy.model_patcher.ModelPatcher(model, load_device=comfy.model_management.get_torch_device(), offload_device=comfy.model_management.unet_offload_device())
-        return (model,)
+        model_patcher = comfy.model_patcher.CoreModelPatcher(model, load_device=comfy.model_management.get_torch_device(), offload_device=comfy.model_management.unet_offload_device())
+        model.load_state_dict(sd, assign=model_patcher.is_dynamic())
+        return (model_patcher,)
 
 
 class DiffSynthCnetPatch:

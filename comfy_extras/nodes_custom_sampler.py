@@ -622,6 +622,7 @@ class SamplerSASolver(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="SamplerSASolver",
+            search_aliases=["sde"],
             category="sampling/custom_sampling/samplers",
             inputs=[
                 io.Model.Input("model"),
@@ -666,6 +667,7 @@ class SamplerSEEDS2(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="SamplerSEEDS2",
+            search_aliases=["sde", "exp heun"],
             category="sampling/custom_sampling/samplers",
             inputs=[
                 io.Combo.Input("solver_type", options=["phi_1", "phi_2"]),

@@ -27,7 +27,7 @@ if TYPE_CHECKING:
 from comfy_api.internal import (_ComfyNodeInternal, _NodeOutputInternal, classproperty, copy_class, first_real_override, is_class,
     prune_dict, shallow_clone_class)
 from comfy_execution.graph_utils import ExecutionBlocker
-from ._util import MESH, VOXEL, SVG as _SVG
+from ._util import MESH, VOXEL, SVG as _SVG, File3D
 
 
 class FolderType(str, Enum):
@@ -667,6 +667,49 @@ class Voxel(ComfyTypeIO):
 class Mesh(ComfyTypeIO):
     Type = MESH
 
+
+@comfytype(io_type="FILE_3D")
+class File3DAny(ComfyTypeIO):
+    """General 3D file type - accepts any supported 3D format."""
+    Type = File3D
+
+
+@comfytype(io_type="FILE_3D_GLB")
+class File3DGLB(ComfyTypeIO):
+    """GLB format 3D file - binary glTF, best for web and cross-platform."""
+    Type = File3D
+
+
+@comfytype(io_type="FILE_3D_GLTF")
+class File3DGLTF(ComfyTypeIO):
+    """GLTF format 3D file - JSON-based glTF with external resources."""
+    Type = File3D
+
+
+@comfytype(io_type="FILE_3D_FBX")
+class File3DFBX(ComfyTypeIO):
+    """FBX format 3D file - best for game engines and animation."""
+    Type = File3D
+
+
+@comfytype(io_type="FILE_3D_OBJ")
+class File3DOBJ(ComfyTypeIO):
+    """OBJ format 3D file - simple geometry format."""
+    Type = File3D
+
+
+@comfytype(io_type="FILE_3D_STL")
+class File3DSTL(ComfyTypeIO):
+    """STL format 3D file - best for 3D printing."""
+    Type = File3D
+
+
+@comfytype(io_type="FILE_3D_USDZ")
+class File3DUSDZ(ComfyTypeIO):
+    """USDZ format 3D file - Apple AR format."""
+    Type = File3D
+
+
 @comfytype(io_type="HOOKS")
 class Hooks(ComfyTypeIO):
     if TYPE_CHECKING:
@@ -1248,6 +1291,7 @@ class Hidden(str, Enum):
 class NodeInfoV1:
     input: dict=None
     input_order: dict[str, list[str]]=None
+    is_input_list: bool=None
     output: list[str]=None
     output_is_list: list[bool]=None
     output_name: list[str]=None
@@ -1474,6 +1518,7 @@ class Schema:
         info = NodeInfoV1(
             input=input,
             input_order={key: list(value.keys()) for (key, value) in input.items()},
+            is_input_list=self.is_input_list,
             output=output,
             output_is_list=output_is_list,
             output_name=output_name,
@@ -2035,6 +2080,13 @@ __all__ = [
     "LossMap",
     "Voxel",
     "Mesh",
+    "File3DAny",
+    "File3DGLB",
+    "File3DGLTF",
+    "File3DFBX",
+    "File3DOBJ",
+    "File3DSTL",
+    "File3DUSDZ",
     "Hooks",
     "HookKeyframes",
     "TimestepsRange",

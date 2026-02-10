@@ -332,6 +332,12 @@ def model_lora_keys_unet(model, key_map={}):
                 key_map["{}".format(key_lora)] = k
                 key_map["transformer.{}".format(key_lora)] = k
 
+    if isinstance(model, comfy.model_base.ACEStep15):
+        for k in sdk:
+            if k.startswith("diffusion_model.decoder.") and k.endswith(".weight"):
+                key_lora = k[len("diffusion_model.decoder."):-len(".weight")]
+                key_map["base_model.model.{}".format(key_lora)] = k  # Official base model loras
+
     return key_map
 
 

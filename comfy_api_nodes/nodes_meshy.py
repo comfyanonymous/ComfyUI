@@ -1,5 +1,3 @@
-import os
-
 from typing_extensions import override
 
 from comfy_api.latest import IO, ComfyExtension, Input
@@ -20,13 +18,12 @@ from comfy_api_nodes.apis.meshy import (
 )
 from comfy_api_nodes.util import (
     ApiEndpoint,
-    download_url_to_bytesio,
+    download_url_to_file_3d,
     poll_op,
     sync_op,
     upload_images_to_comfyapi,
     validate_string,
 )
-from folder_paths import get_output_directory
 
 
 class MeshyTextToModelNode(IO.ComfyNode):
@@ -79,8 +76,10 @@ class MeshyTextToModelNode(IO.ComfyNode):
                 ),
             ],
             outputs=[
-                IO.String.Output(display_name="model_file"),
+                IO.String.Output(display_name="model_file"),  # for backward compatibility only
                 IO.Custom("MESHY_TASK_ID").Output(display_name="meshy_task_id"),
+                IO.File3DGLB.Output(display_name="GLB"),
+                IO.File3DFBX.Output(display_name="FBX"),
             ],
             hidden=[
                 IO.Hidden.auth_token_comfy_org,
@@ -122,16 +121,20 @@ class MeshyTextToModelNode(IO.ComfyNode):
                 seed=seed,
             ),
         )
+        task_id = response.result
         result = await poll_op(
             cls,
-            ApiEndpoint(path=f"/proxy/meshy/openapi/v2/text-to-3d/{response.result}"),
+            ApiEndpoint(path=f"/proxy/meshy/openapi/v2/text-to-3d/{task_id}"),
             response_model=MeshyModelResult,
             status_extractor=lambda r: r.status,
             progress_extractor=lambda r: r.progress,
         )
-        model_file = f"meshy_model_{response.result}.glb"
-        await download_url_to_bytesio(result.model_urls.glb, os.path.join(get_output_directory(), model_file))
-        return IO.NodeOutput(model_file, response.result)
+        return IO.NodeOutput(
+            f"{task_id}.glb",
+            task_id,
+            await download_url_to_file_3d(result.model_urls.glb, "glb", task_id=task_id),
+            await download_url_to_file_3d(result.model_urls.fbx, "fbx", task_id=task_id),
+        )
 
 
 class MeshyRefineNode(IO.ComfyNode):
@@ -167,8 +170,10 @@ class MeshyRefineNode(IO.ComfyNode):
                 ),
             ],
             outputs=[
-                IO.String.Output(display_name="model_file"),
+                IO.String.Output(display_name="model_file"),  # for backward compatibility only
                 IO.Custom("MESHY_TASK_ID").Output(display_name="meshy_task_id"),
+                IO.File3DGLB.Output(display_name="GLB"),
+                IO.File3DFBX.Output(display_name="FBX"),
             ],
             hidden=[
                 IO.Hidden.auth_token_comfy_org,
@@ -210,16 +215,20 @@ class MeshyRefineNode(IO.ComfyNode):
                 ai_model=model,
             ),
         )
+        task_id = response.result
         result = await poll_op(
             cls,
-            ApiEndpoint(path=f"/proxy/meshy/openapi/v2/text-to-3d/{response.result}"),
+            ApiEndpoint(path=f"/proxy/meshy/openapi/v2/text-to-3d/{task_id}"),
             response_model=MeshyModelResult,
             status_extractor=lambda r: r.status,
             progress_extractor=lambda r: r.progress,
         )
-        model_file = f"meshy_model_{response.result}.glb"
-        await download_url_to_bytesio(result.model_urls.glb, os.path.join(get_output_directory(), model_file))
-        return IO.NodeOutput(model_file, response.result)
+        return IO.NodeOutput(
+            f"{task_id}.glb",
+            task_id,
+            await download_url_to_file_3d(result.model_urls.glb, "glb", task_id=task_id),
+            await download_url_to_file_3d(result.model_urls.fbx, "fbx", task_id=task_id),
+        )
 
 
 class MeshyImageToModelNode(IO.ComfyNode):
@@ -303,8 +312,10 @@ class MeshyImageToModelNode(IO.ComfyNode):
                 ),
             ],
             outputs=[
-                IO.String.Output(display_name="model_file"),
+                IO.String.Output(display_name="model_file"),  # for backward compatibility only
                 IO.Custom("MESHY_TASK_ID").Output(display_name="meshy_task_id"),
+                IO.File3DGLB.Output(display_name="GLB"),
+                IO.File3DFBX.Output(display_name="FBX"),
             ],
             hidden=[
                 IO.Hidden.auth_token_comfy_org,
@@ -368,16 +379,20 @@ class MeshyImageToModelNode(IO.ComfyNode):
                 seed=seed,
             ),
         )
+        task_id = response.result
         result = await poll_op(
             cls,
-            ApiEndpoint(path=f"/proxy/meshy/openapi/v1/image-to-3d/{response.result}"),
+            ApiEndpoint(path=f"/proxy/meshy/openapi/v1/image-to-3d/{task_id}"),
             response_model=MeshyModelResult,
             status_extractor=lambda r: r.status,
             progress_extractor=lambda r: r.progress,
         )
-        model_file = f"meshy_model_{response.result}.glb"
-        await download_url_to_bytesio(result.model_urls.glb, os.path.join(get_output_directory(), model_file))
-        return IO.NodeOutput(model_file, response.result)
+        return IO.NodeOutput(
+            f"{task_id}.glb",
+            task_id,
+            await download_url_to_file_3d(result.model_urls.glb, "glb", task_id=task_id),
+            await download_url_to_file_3d(result.model_urls.fbx, "fbx", task_id=task_id),
+        )
 
 
 class MeshyMultiImageToModelNode(IO.ComfyNode):
@@ -464,8 +479,10 @@ class MeshyMultiImageToModelNode(IO.ComfyNode):
                 ),
             ],
             outputs=[
-                IO.String.Output(display_name="model_file"),
+                IO.String.Output(display_name="model_file"),  # for backward compatibility only
                 IO.Custom("MESHY_TASK_ID").Output(display_name="meshy_task_id"),
+                IO.File3DGLB.Output(display_name="GLB"),
+                IO.File3DFBX.Output(display_name="FBX"),
             ],
             hidden=[
                 IO.Hidden.auth_token_comfy_org,
@@ -531,16 +548,20 @@ class MeshyMultiImageToModelNode(IO.ComfyNode):
                 seed=seed,
             ),
         )
+        task_id = response.result
         result = await poll_op(
             cls,
-            ApiEndpoint(path=f"/proxy/meshy/openapi/v1/multi-image-to-3d/{response.result}"),
+            ApiEndpoint(path=f"/proxy/meshy/openapi/v1/multi-image-to-3d/{task_id}"),
             response_model=MeshyModelResult,
             status_extractor=lambda r: r.status,
             progress_extractor=lambda r: r.progress,
         )
-        model_file = f"meshy_model_{response.result}.glb"
-        await download_url_to_bytesio(result.model_urls.glb, os.path.join(get_output_directory(), model_file))
-        return IO.NodeOutput(model_file, response.result)
+        return IO.NodeOutput(
+            f"{task_id}.glb",
+            task_id,
+            await download_url_to_file_3d(result.model_urls.glb, "glb", task_id=task_id),
+            await download_url_to_file_3d(result.model_urls.fbx, "fbx", task_id=task_id),
+        )
 
 
 class MeshyRigModelNode(IO.ComfyNode):
@@ -571,8 +592,10 @@ class MeshyRigModelNode(IO.ComfyNode):
                 ),
             ],
             outputs=[
-                IO.String.Output(display_name="model_file"),
+                IO.String.Output(display_name="model_file"),  # for backward compatibility only
                 IO.Custom("MESHY_RIGGED_TASK_ID").Output(display_name="rig_task_id"),
+                IO.File3DGLB.Output(display_name="GLB"),
+                IO.File3DFBX.Output(display_name="FBX"),
             ],
             hidden=[
                 IO.Hidden.auth_token_comfy_org,
@@ -606,18 +629,20 @@ class MeshyRigModelNode(IO.ComfyNode):
                 texture_image_url=texture_image_url,
             ),
         )
+        task_id = response.result
         result = await poll_op(
             cls,
-            ApiEndpoint(path=f"/proxy/meshy/openapi/v1/rigging/{response.result}"),
+            ApiEndpoint(path=f"/proxy/meshy/openapi/v1/rigging/{task_id}"),
             response_model=MeshyRiggedResult,
             status_extractor=lambda r: r.status,
             progress_extractor=lambda r: r.progress,
         )
-        model_file = f"meshy_model_{response.result}.glb"
-        await download_url_to_bytesio(
-            result.result.rigged_character_glb_url, os.path.join(get_output_directory(), model_file)
+        return IO.NodeOutput(
+            f"{task_id}.glb",
+            task_id,
+            await download_url_to_file_3d(result.result.rigged_character_glb_url, "glb", task_id=task_id),
+            await download_url_to_file_3d(result.result.rigged_character_fbx_url, "fbx", task_id=task_id),
         )
-        return IO.NodeOutput(model_file, response.result)
 
 
 class MeshyAnimateModelNode(IO.ComfyNode):
@@ -640,7 +665,9 @@ class MeshyAnimateModelNode(IO.ComfyNode):
                 ),
             ],
             outputs=[
-                IO.String.Output(display_name="model_file"),
+                IO.String.Output(display_name="model_file"),  # for backward compatibility only
+                IO.File3DGLB.Output(display_name="GLB"),
+                IO.File3DFBX.Output(display_name="FBX"),
             ],
             hidden=[
                 IO.Hidden.auth_token_comfy_org,
@@ -669,16 +696,19 @@ class MeshyAnimateModelNode(IO.ComfyNode):
                 action_id=action_id,
             ),
         )
+        task_id = response.result
         result = await poll_op(
             cls,
-            ApiEndpoint(path=f"/proxy/meshy/openapi/v1/animations/{response.result}"),
+            ApiEndpoint(path=f"/proxy/meshy/openapi/v1/animations/{task_id}"),
             response_model=MeshyAnimationResult,
             status_extractor=lambda r: r.status,
             progress_extractor=lambda r: r.progress,
         )
-        model_file = f"meshy_model_{response.result}.glb"
-        await download_url_to_bytesio(result.result.animation_glb_url, os.path.join(get_output_directory(), model_file))
-        return IO.NodeOutput(model_file, response.result)
+        return IO.NodeOutput(
+            f"{task_id}.glb",
+            await download_url_to_file_3d(result.result.animation_glb_url, "glb", task_id=task_id),
+            await download_url_to_file_3d(result.result.animation_fbx_url, "fbx", task_id=task_id),
+        )
 
 
 class MeshyTextureNode(IO.ComfyNode):
@@ -715,8 +745,10 @@ class MeshyTextureNode(IO.ComfyNode):
                 ),
             ],
             outputs=[
-                IO.String.Output(display_name="model_file"),
+                IO.String.Output(display_name="model_file"),  # for backward compatibility only
                 IO.Custom("MODEL_TASK_ID").Output(display_name="meshy_task_id"),
+                IO.File3DGLB.Output(display_name="GLB"),
+                IO.File3DFBX.Output(display_name="FBX"),
             ],
             hidden=[
                 IO.Hidden.auth_token_comfy_org,
@@ -760,16 +792,20 @@ class MeshyTextureNode(IO.ComfyNode):
                 image_style_url=image_style_url,
             ),
         )
+        task_id = response.result
         result = await poll_op(
             cls,
-            ApiEndpoint(path=f"/proxy/meshy/openapi/v1/retexture/{response.result}"),
+            ApiEndpoint(path=f"/proxy/meshy/openapi/v1/retexture/{task_id}"),
             response_model=MeshyModelResult,
             status_extractor=lambda r: r.status,
             progress_extractor=lambda r: r.progress,
         )
-        model_file = f"meshy_model_{response.result}.glb"
-        await download_url_to_bytesio(result.model_urls.glb, os.path.join(get_output_directory(), model_file))
-        return IO.NodeOutput(model_file, response.result)
+        return IO.NodeOutput(
+            f"{task_id}.glb",
+            task_id,
+            await download_url_to_file_3d(result.model_urls.glb, "glb", task_id=task_id),
+            await download_url_to_file_3d(result.model_urls.fbx, "fbx", task_id=task_id),
+        )
 
 
 class MeshyExtension(ComfyExtension):

@@ -335,7 +335,7 @@ class FinalLayer(nn.Module):
         device=None, dtype=None, operations=None
     ):
         super().__init__()
-        self.layer_norm = nn.LayerNorm(hidden_size, elementwise_affine=False, eps=1e-6)
+        self.layer_norm = operations.LayerNorm(hidden_size, elementwise_affine=False, eps=1e-6)
         self.linear = operations.Linear(
             hidden_size, spatial_patch_size * spatial_patch_size * temporal_patch_size * out_channels, bias=False, device=device, dtype=dtype
         )
@@ -463,6 +463,8 @@ class Block(nn.Module):
         extra_per_block_pos_emb: Optional[torch.Tensor] = None,
         transformer_options: Optional[dict] = {},
     ) -> torch.Tensor:
+        residual_dtype = x_B_T_H_W_D.dtype
+        compute_dtype = emb_B_T_D.dtype
         if extra_per_block_pos_emb is not None:
             x_B_T_H_W_D = x_B_T_H_W_D + extra_per_block_pos_emb
 
@@ -512,7 +514,7 @@ class Block(nn.Module):
         result_B_T_H_W_D = rearrange(
             self.self_attn(
                 # normalized_x_B_T_HW_D,
-                rearrange(normalized_x_B_T_H_W_D, "b t h w d -> b (t h w) d"),
+                rearrange(normalized_x_B_T_H_W_D.to(compute_dtype), "b t h w d -> b (t h w) d"),
                 None,
                 rope_emb=rope_emb_L_1_1_D,
                 transformer_options=transformer_options,
@@ -522,7 +524,7 @@ class Block(nn.Module):
             h=H,
             w=W,
         )
-        x_B_T_H_W_D = x_B_T_H_W_D + gate_self_attn_B_T_1_1_D * result_B_T_H_W_D
+        x_B_T_H_W_D = x_B_T_H_W_D + gate_self_attn_B_T_1_1_D.to(residual_dtype) * result_B_T_H_W_D.to(residual_dtype)
 
         def _x_fn(
             _x_B_T_H_W_D: torch.Tensor,
@@ -536,7 +538,7 @@ class Block(nn.Module):
             )
             _result_B_T_H_W_D = rearrange(
                 self.cross_attn(
-                    rearrange(_normalized_x_B_T_H_W_D, "b t h w d -> b (t h w) d"),
+                    rearrange(_normalized_x_B_T_H_W_D.to(compute_dtype), "b t h w d -> b (t h w) d"),
                     crossattn_emb,
                     rope_emb=rope_emb_L_1_1_D,
                     transformer_options=transformer_options,
@@ -555,7 +557,7 @@ class Block(nn.Module):
             shift_cross_attn_B_T_1_1_D,
             transformer_options=transformer_options,
         )
-        x_B_T_H_W_D = result_B_T_H_W_D * gate_cross_attn_B_T_1_1_D + x_B_T_H_W_D
+        x_B_T_H_W_D = result_B_T_H_W_D.to(residual_dtype) * gate_cross_attn_B_T_1_1_D.to(residual_dtype) + x_B_T_H_W_D
 
         normalized_x_B_T_H_W_D = _fn(
             x_B_T_H_W_D,
@@ -563,8 +565,8 @@ class Block(nn.Module):
             scale_mlp_B_T_1_1_D,
             shift_mlp_B_T_1_1_D,
         )
-        result_B_T_H_W_D = self.mlp(normalized_x_B_T_H_W_D)
-        x_B_T_H_W_D = x_B_T_H_W_D + gate_mlp_B_T_1_1_D * result_B_T_H_W_D
+        result_B_T_H_W_D = self.mlp(normalized_x_B_T_H_W_D.to(compute_dtype))
+        x_B_T_H_W_D = x_B_T_H_W_D + gate_mlp_B_T_1_1_D.to(residual_dtype) * result_B_T_H_W_D.to(residual_dtype)
         return x_B_T_H_W_D
 
 
@@ -876,6 +878,14 @@ class MiniTrainDIT(nn.Module):
             "extra_per_block_pos_emb": extra_pos_emb_B_T_H_W_D_or_T_H_W_B_D,
             "transformer_options": kwargs.get("transformer_options", {}),
         }
+
+        # The residual stream for this model has large values. To make fp16 compute_dtype work, we keep the residual stream
+        # in fp32, but run attention and MLP modules in fp16.
+        # An alternate method that clamps fp16 values "works" in the sense that it makes coherent images, but there is noticeable
+        # quality degradation and visual artifacts.
+        if x_B_T_H_W_D.dtype == torch.float16:
+            x_B_T_H_W_D = x_B_T_H_W_D.float()
+
         for block in self.blocks:
             x_B_T_H_W_D = block(
                 x_B_T_H_W_D,
@@ -884,6 +894,6 @@ class MiniTrainDIT(nn.Module):
                 **block_kwargs,
             )
 
-        x_B_T_H_W_O = self.final_layer(x_B_T_H_W_D, t_embedding_B_T_D, adaln_lora_B_T_3D=adaln_lora_B_T_3D)
+        x_B_T_H_W_O = self.final_layer(x_B_T_H_W_D.to(crossattn_emb.dtype), t_embedding_B_T_D, adaln_lora_B_T_3D=adaln_lora_B_T_3D)
         x_B_C_Tt_Hp_Wp = self.unpatchify(x_B_T_H_W_O)[:, :, :orig_shape[-3], :orig_shape[-2], :orig_shape[-1]]
         return x_B_C_Tt_Hp_Wp
