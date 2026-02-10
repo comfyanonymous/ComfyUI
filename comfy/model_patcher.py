@@ -19,7 +19,6 @@
 from __future__ import annotations
 
 import collections
-import copy
 import inspect
 import logging
 import math
@@ -317,7 +316,7 @@ class ModelPatcher:
 
         n.object_patches = self.object_patches.copy()
         n.weight_wrapper_patches = self.weight_wrapper_patches.copy()
-        n.model_options = copy.deepcopy(self.model_options)
+        n.model_options = comfy.utils.deepcopy_list_dict(self.model_options)
         n.backup = self.backup
         n.object_patches_backup = self.object_patches_backup
         n.parent = self
