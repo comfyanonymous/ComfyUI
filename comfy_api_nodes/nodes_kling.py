@@ -877,6 +877,17 @@ class OmniProTextToVideoNode(IO.ComfyNode):
                     optional=True,
                 ),
                 IO.Boolean.Input("generate_audio", default=False, optional=True),
+                IO.Int.Input(
+                    "seed",
+                    default=0,
+                    min=0,
+                    max=2147483647,
+                    display_mode=IO.NumberDisplay.number,
+                    control_after_generate=True,
+                    tooltip="Seed controls whether the node should re-run; "
+                    "results are non-deterministic regardless of seed.",
+                    optional=True,
+                ),
             ],
             outputs=[
                 IO.Video.Output(),
@@ -913,7 +924,9 @@ class OmniProTextToVideoNode(IO.ComfyNode):
         resolution: str = "1080p",
         storyboards: dict | None = None,
         generate_audio: bool = False,
+        seed: int = 0,
     ) -> IO.NodeOutput:
+        _ = seed
         if model_name == "kling-video-o1":
             if duration not in (5, 10):
                 raise ValueError("kling-video-o1 only supports durations of 5 or 10 seconds.")
@@ -1021,6 +1034,17 @@ class OmniProFirstLastFrameNode(IO.ComfyNode):
                     optional=True,
                     tooltip="Generate audio for the video. Only supported for kling-v3-omni.",
                 ),
+                IO.Int.Input(
+                    "seed",
+                    default=0,
+                    min=0,
+                    max=2147483647,
+                    display_mode=IO.NumberDisplay.number,
+                    control_after_generate=True,
+                    tooltip="Seed controls whether the node should re-run; "
+                    "results are non-deterministic regardless of seed.",
+                    optional=True,
+                ),
             ],
             outputs=[
                 IO.Video.Output(),
@@ -1059,7 +1083,9 @@ class OmniProFirstLastFrameNode(IO.ComfyNode):
         resolution: str = "1080p",
         storyboards: dict | None = None,
         generate_audio: bool = False,
+        seed: int = 0,
     ) -> IO.NodeOutput:
+        _ = seed
         if model_name == "kling-video-o1":
             if duration > 10:
                 raise ValueError("kling-video-o1 does not support durations greater than 10 seconds.")
@@ -1198,6 +1224,17 @@ class OmniProImageToVideoNode(IO.ComfyNode):
                     optional=True,
                     tooltip="Generate audio for the video. Only supported for kling-v3-omni.",
                 ),
+                IO.Int.Input(
+                    "seed",
+                    default=0,
+                    min=0,
+                    max=2147483647,
+                    display_mode=IO.NumberDisplay.number,
+                    control_after_generate=True,
+                    tooltip="Seed controls whether the node should re-run; "
+                    "results are non-deterministic regardless of seed.",
+                    optional=True,
+                ),
             ],
             outputs=[
                 IO.Video.Output(),
@@ -1235,7 +1272,9 @@ class OmniProImageToVideoNode(IO.ComfyNode):
         resolution: str = "1080p",
         storyboards: dict | None = None,
         generate_audio: bool = False,
+        seed: int = 0,
     ) -> IO.NodeOutput:
+        _ = seed
         if model_name == "kling-video-o1":
             if duration > 10:
                 raise ValueError("kling-video-o1 does not support durations greater than 10 seconds.")
@@ -1326,6 +1365,17 @@ class OmniProVideoToVideoNode(IO.ComfyNode):
                     optional=True,
                 ),
                 IO.Combo.Input("resolution", options=["1080p", "720p"], optional=True),
+                IO.Int.Input(
+                    "seed",
+                    default=0,
+                    min=0,
+                    max=2147483647,
+                    display_mode=IO.NumberDisplay.number,
+                    control_after_generate=True,
+                    tooltip="Seed controls whether the node should re-run; "
+                    "results are non-deterministic regardless of seed.",
+                    optional=True,
+                ),
             ],
             outputs=[
                 IO.Video.Output(),
@@ -1359,7 +1409,9 @@ class OmniProVideoToVideoNode(IO.ComfyNode):
         keep_original_sound: bool,
         reference_images: Input.Image | None = None,
         resolution: str = "1080p",
+        seed: int = 0,
     ) -> IO.NodeOutput:
+        _ = seed
         prompt = normalize_omni_prompt_references(prompt)
         validate_string(prompt, min_length=1, max_length=2500)
         validate_video_duration(reference_video, min_duration=3.0, max_duration=10.05)
@@ -1422,6 +1474,17 @@ class OmniProEditVideoNode(IO.ComfyNode):
                     optional=True,
                 ),
                 IO.Combo.Input("resolution", options=["1080p", "720p"], optional=True),
+                IO.Int.Input(
+                    "seed",
+                    default=0,
+                    min=0,
+                    max=2147483647,
+                    display_mode=IO.NumberDisplay.number,
+                    control_after_generate=True,
+                    tooltip="Seed controls whether the node should re-run; "
+                    "results are non-deterministic regardless of seed.",
+                    optional=True,
+                ),
             ],
             outputs=[
                 IO.Video.Output(),
@@ -1453,7 +1516,9 @@ class OmniProEditVideoNode(IO.ComfyNode):
         keep_original_sound: bool,
         reference_images: Input.Image | None = None,
         resolution: str = "1080p",
+        seed: int = 0,
     ) -> IO.NodeOutput:
+        _ = seed
         prompt = normalize_omni_prompt_references(prompt)
         validate_string(prompt, min_length=1, max_length=2500)
         validate_video_duration(video, min_duration=3.0, max_duration=10.05)
@@ -1523,6 +1588,17 @@ class OmniProImageNode(IO.ComfyNode):
                     tooltip="Up to 10 additional reference images.",
                     optional=True,
                 ),
+                IO.Int.Input(
+                    "seed",
+                    default=0,
+                    min=0,
+                    max=2147483647,
+                    display_mode=IO.NumberDisplay.number,
+                    control_after_generate=True,
+                    tooltip="Seed controls whether the node should re-run; "
+                    "results are non-deterministic regardless of seed.",
+                    optional=True,
+                ),
             ],
             outputs=[
                 IO.Image.Output(),
@@ -1556,7 +1632,9 @@ class OmniProImageNode(IO.ComfyNode):
         aspect_ratio: str,
         series_amount: str = "disabled",
         reference_images: Input.Image | None = None,
+        seed: int = 0,
     ) -> IO.NodeOutput:
+        _ = seed
         if model_name == "kling-image-o1" and resolution == "4K":
             raise ValueError("4K resolution is not supported for kling-image-o1 model.")
         prompt = normalize_omni_prompt_references(prompt)
@@ -2409,6 +2487,17 @@ class KlingImageGenerationNode(IO.ComfyNode):
                     tooltip="Number of generated images",
                 ),
                 IO.Image.Input("image", optional=True),
+                IO.Int.Input(
+                    "seed",
+                    default=0,
+                    min=0,
+                    max=2147483647,
+                    display_mode=IO.NumberDisplay.number,
+                    control_after_generate=True,
+                    tooltip="Seed controls whether the node should re-run; "
+                    "results are non-deterministic regardless of seed.",
+                    optional=True,
+                ),
             ],
             outputs=[
                 IO.Image.Output(),
@@ -2446,7 +2535,9 @@ class KlingImageGenerationNode(IO.ComfyNode):
         n: int,
         aspect_ratio: KlingImageGenAspectRatio,
         image: torch.Tensor | None = None,
+        seed: int = 0,
     ) -> IO.NodeOutput:
+        _ = seed
         validate_string(prompt, field_name="prompt", min_length=1, max_length=MAX_PROMPT_LENGTH_IMAGE_GEN)
         validate_string(negative_prompt, field_name="negative_prompt", max_length=MAX_PROMPT_LENGTH_IMAGE_GEN)
         task_creation_response = await sync_op(
@@ -2769,6 +2860,16 @@ class KlingVideoNode(IO.ComfyNode):
                     ],
                     tooltip="Model and generation settings.",
                 ),
+                IO.Int.Input(
+                    "seed",
+                    default=0,
+                    min=0,
+                    max=2147483647,
+                    display_mode=IO.NumberDisplay.number,
+                    control_after_generate=True,
+                    tooltip="Seed controls whether the node should re-run; "
+                            "results are non-deterministic regardless of seed.",
+                ),
                 IO.Image.Input(
                     "start_frame",
                     optional=True,
@@ -2827,8 +2928,10 @@ class KlingVideoNode(IO.ComfyNode):
         multi_shot: dict,
         generate_audio: bool,
         model: dict,
+        seed: int,
         start_frame: Input.Image | None = None,
     ) -> IO.NodeOutput:
+        _ = seed
         mode = "pro" if model["resolution"] == "1080p" else "std"
         custom_multi_shot = False
         if multi_shot["multi_shot"] == "disabled":
@@ -2949,6 +3052,16 @@ class KlingFirstLastFrameNode(IO.ComfyNode):
                     ],
                     tooltip="Model and generation settings.",
                 ),
+                IO.Int.Input(
+                    "seed",
+                    default=0,
+                    min=0,
+                    max=2147483647,
+                    display_mode=IO.NumberDisplay.number,
+                    control_after_generate=True,
+                    tooltip="Seed controls whether the node should re-run; "
+                    "results are non-deterministic regardless of seed.",
+                ),
             ],
             outputs=[
                 IO.Video.Output(),
@@ -2984,7 +3097,9 @@ class KlingFirstLastFrameNode(IO.ComfyNode):
         end_frame: Input.Image,
         generate_audio: bool,
         model: dict,
+        seed: int,
     ) -> IO.NodeOutput:
+        _ = seed
         validate_string(prompt, min_length=1, max_length=2500)
         validate_image_dimensions(first_frame, min_width=300, min_height=300)
         validate_image_aspect_ratio(first_frame, (1, 2.5), (2.5, 1))
