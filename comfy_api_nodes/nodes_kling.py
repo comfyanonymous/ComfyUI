@@ -1314,11 +1314,10 @@ class OmniProVideoToVideoNode(IO.ComfyNode):
                     "prompt",
                     multiline=True,
                     tooltip="A text prompt describing the video content. "
-                    "This can include both positive and negative descriptions. "
-                    "Ignored when storyboards are enabled.",
+                    "This can include both positive and negative descriptions.",
                 ),
                 IO.Combo.Input("aspect_ratio", options=["16:9", "9:16", "1:1"]),
-                IO.Int.Input("duration", default=5, min=3, max=15, display_mode=IO.NumberDisplay.slider),
+                IO.Int.Input("duration", default=3, min=3, max=10, display_mode=IO.NumberDisplay.slider),
                 IO.Video.Input("reference_video", tooltip="Video to use as a reference."),
                 IO.Boolean.Input("keep_original_sound", default=True),
                 IO.Image.Input(
@@ -1327,21 +1326,6 @@ class OmniProVideoToVideoNode(IO.ComfyNode):
                     optional=True,
                 ),
                 IO.Combo.Input("resolution", options=["1080p", "720p"], optional=True),
-                IO.DynamicCombo.Input(
-                    "storyboards",
-                    options=[
-                        IO.DynamicCombo.Option("disabled", []),
-                        IO.DynamicCombo.Option("1 storyboard", _generate_storyboard_inputs(1)),
-                        IO.DynamicCombo.Option("2 storyboards", _generate_storyboard_inputs(2)),
-                        IO.DynamicCombo.Option("3 storyboards", _generate_storyboard_inputs(3)),
-                        IO.DynamicCombo.Option("4 storyboards", _generate_storyboard_inputs(4)),
-                        IO.DynamicCombo.Option("5 storyboards", _generate_storyboard_inputs(5)),
-                        IO.DynamicCombo.Option("6 storyboards", _generate_storyboard_inputs(6)),
-                    ],
-                    tooltip="Generate a series of video segments with individual prompts and durations. "
-                    "Only supported for kling-v3-omni.",
-                    optional=True,
-                ),
             ],
             outputs=[
                 IO.Video.Output(),
@@ -1375,40 +1359,9 @@ class OmniProVideoToVideoNode(IO.ComfyNode):
         keep_original_sound: bool,
         reference_images: Input.Image | None = None,
         resolution: str = "1080p",
-        storyboards: dict | None = None,
     ) -> IO.NodeOutput:
-        if model_name == "kling-video-o1" and duration > 10:
-            raise ValueError("kling-video-o1 does not support durations greater than 10 seconds.")
-        stories_enabled = (
-            storyboards is not None and storyboards["storyboards"] != "disabled" and model_name != "kling-video-o1"
-        )
         prompt = normalize_omni_prompt_references(prompt)
-        validate_string(prompt, strip_whitespace=True, min_length=0 if stories_enabled else 1, max_length=2500)
-
-        multi_shot = None
-        multi_prompt_list = None
-        if stories_enabled:
-            count = int(storyboards["storyboards"].split()[0])
-            multi_shot = True
-            multi_prompt_list = []
-            for i in range(1, count + 1):
-                sb_prompt = storyboards[f"storyboard_{i}_prompt"]
-                sb_duration = storyboards[f"storyboard_{i}_duration"]
-                validate_string(sb_prompt, field_name=f"storyboard_{i}_prompt", min_length=1, max_length=512)
-                multi_prompt_list.append(
-                    MultiPromptEntry(
-                        index=i,
-                        prompt=sb_prompt,
-                        duration=str(sb_duration),
-                    )
-                )
-            total_storyboard_duration = sum(int(e.duration) for e in multi_prompt_list)
-            if total_storyboard_duration != duration:
-                raise ValueError(
-                    f"Total storyboard duration ({total_storyboard_duration}s) "
-                    f"must equal the global duration ({duration}s)."
-                )
-
+        validate_string(prompt, min_length=1, max_length=2500)
         validate_video_duration(reference_video, min_duration=3.0, max_duration=10.05)
         validate_video_dimensions(reference_video, min_width=720, min_height=720, max_width=2160, max_height=2160)
         image_list: list[OmniParamImage] = []
@@ -1439,9 +1392,6 @@ class OmniProVideoToVideoNode(IO.ComfyNode):
                 image_list=image_list if image_list else None,
                 video_list=video_list,
                 mode="pro" if resolution == "1080p" else "std",
-                multi_shot=multi_shot,
-                multi_prompt=multi_prompt_list,
-                shot_type="customize" if multi_shot else None,
             ),
         )
         return await finish_omni_video_task(cls, response)
