@@ -90,7 +90,7 @@ def sample_manual_loop_no_classes(
             sorted_indices_to_remove[..., 0] = 0
             indices_to_remove = sorted_indices_to_remove.scatter(1, sorted_indices, sorted_indices_to_remove)
             cfg_logits[indices_to_remove] = remove_logit_value
-            
+
         if min_p is not None and min_p > 0:
             probs = torch.softmax(cfg_logits, dim=-1)
             p_max = probs.max(dim=-1, keepdim=True).values
