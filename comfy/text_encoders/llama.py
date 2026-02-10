@@ -447,6 +447,7 @@ class Attention(nn.Module):
         freqs_cis: Optional[torch.Tensor] = None,
         optimized_attention=None,
         past_key_value: Optional[Tuple[torch.Tensor, torch.Tensor]] = None,
+        sliding_window: Optional[int] = None,
     ):
         batch_size, seq_length, _ = hidden_states.shape
 
@@ -483,6 +484,12 @@ class Attention(nn.Module):
                     present_key_value = (xk, xv, index + num_tokens)
             else:
                 present_key_value = (xk, xv, index + num_tokens)
+
+        # apply sliding window by slicing KV cache during generation
+        if sliding_window is not None and xk.shape[2] > sliding_window and present_key_value is not None:
+            xk = xk[:, :, -sliding_window:]
+            xv = xv[:, :, -sliding_window:]
+            attention_mask = attention_mask[..., -sliding_window:] if attention_mask is not None else None
 
         xk = xk.repeat_interleave(self.num_heads // self.num_kv_heads, dim=1)
         xv = xv.repeat_interleave(self.num_heads // self.num_kv_heads, dim=1)
@@ -566,27 +573,17 @@ class TransformerBlockGemma2(nn.Module):
         optimized_attention=None,
         past_key_value: Optional[Tuple[torch.Tensor, torch.Tensor]] = None,
     ):
+        sliding_window = None
         if self.transformer_type == 'gemma3':
             if self.sliding_attention:
-                past_len = 0
-                if past_key_value is not None and len(past_key_value) > 0:
-                    past_len = past_key_value[2]
-
-                total_seq_len = past_len + x.shape[1]
-
-                if past_len > 0 and total_seq_len > self.sliding_attention: # apply sliding window mask only when using kv_cache (past_len > 0)
-                    # generation with kv_cache: apply sliding window
-                    sliding_mask = torch.full((x.shape[1], total_seq_len), torch.finfo(x.dtype).min, device=x.device, dtype=x.dtype)
-                    for i in range(x.shape[1]):
-                        query_pos = past_len + i
-                        start_pos = max(0, query_pos - self.sliding_attention + 1)
-                        sliding_mask[i, start_pos:query_pos + 1] = 0
-                    attention_mask = sliding_mask if attention_mask is None else attention_mask + sliding_mask
+                sliding_window = self.sliding_attention
                 if x.shape[1] > self.sliding_attention:
                     sliding_mask = torch.full((x.shape[1], x.shape[1]), torch.finfo(x.dtype).min, device=x.device, dtype=x.dtype)
                     sliding_mask.tril_(diagonal=-self.sliding_attention)
-                    attention_mask = sliding_mask if attention_mask is None else attention_mask + sliding_mask
-
+                    if attention_mask is not None:
+                        attention_mask = attention_mask + sliding_mask
+                    else:
+                        attention_mask = sliding_mask
                 freqs_cis = freqs_cis[1]
             else:
                 freqs_cis = freqs_cis[0]
@@ -600,6 +597,7 @@ class TransformerBlockGemma2(nn.Module):
             freqs_cis=freqs_cis,
             optimized_attention=optimized_attention,
             past_key_value=past_key_value,
+            sliding_window=sliding_window,
         )
 
         x = self.post_attention_layernorm(x)
