@@ -2851,6 +2851,10 @@ class KlingVideoNode(IO.ComfyNode):
                     )
                 )
             duration = sum(int(e.duration) for e in multi_prompt_list)
+            if duration > 15:
+                raise ValueError(
+                    f"Total storyboard duration ({duration}s) cannot exceed 15 seconds."
+                )
         else:
             duration = multi_shot["duration"]
             validate_string(multi_shot["prompt"], min_length=1, max_length=2500)
