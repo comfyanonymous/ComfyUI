@@ -169,8 +169,8 @@ def cast_bias_weight_with_vbar(s, dtype, device, bias_dtype, non_blocking, compu
                 if orig.dtype == dtype and len(fns) == 0:
                     #The layer actually wants our freshly saved QT
                     x = y
-            else:
-                y = x
+            elif update_weight:
+                y = comfy.float.stochastic_rounding(x, orig.dtype, seed = comfy.utils.string_to_seed(s.seed_key))
             if update_weight:
                 orig.copy_(y)
         for f in fns:
