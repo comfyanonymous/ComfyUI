@@ -19,7 +19,7 @@
 import psutil
 import logging
 from enum import Enum
-from comfy.cli_args import args, PerformanceFeature, enables_dynamic_vram
+from comfy.cli_args import args, PerformanceFeature
 import threading
 import torch
 import sys
@@ -651,7 +651,7 @@ def free_memory(memory_required, device, keep_loaded=[], for_dynamic=False, ram_
                 soft_empty_cache()
     return unloaded_models
 
-def load_models_gpu_orig(models, memory_required=0, force_patch_weights=False, minimum_memory_required=None, force_full_load=False):
+def load_models_gpu(models, memory_required=0, force_patch_weights=False, minimum_memory_required=None, force_full_load=False):
     cleanup_models_gc()
     global vram_state
 
@@ -746,26 +746,6 @@ def load_models_gpu_orig(models, memory_required=0, force_patch_weights=False, m
         loaded_model.model_load(lowvram_model_memory, force_patch_weights=force_patch_weights)
         current_loaded_models.insert(0, loaded_model)
     return
-
-def load_models_gpu_thread(models, memory_required, force_patch_weights, minimum_memory_required, force_full_load):
-    with torch.inference_mode():
-        load_models_gpu_orig(models, memory_required, force_patch_weights, minimum_memory_required, force_full_load)
-        soft_empty_cache()
-
-def load_models_gpu(models, memory_required=0, force_patch_weights=False, minimum_memory_required=None, force_full_load=False):
-    #Deliberately load models outside of the Aimdo mempool so they can be retained accross
-    #nodes. Use a dummy thread to do it as pytorch documents that mempool contexts are
-    #thread local. So exploit that to escape context
-    if enables_dynamic_vram():
-        t = threading.Thread(
-            target=load_models_gpu_thread,
-            args=(models, memory_required, force_patch_weights, minimum_memory_required, force_full_load)
-        )
-        t.start()
-        t.join()
-    else:
-        load_models_gpu_orig(models, memory_required=memory_required, force_patch_weights=force_patch_weights,
-                             minimum_memory_required=minimum_memory_required, force_full_load=force_full_load)
 
 def load_model_gpu(model):
     return load_models_gpu([model])
@@ -1226,21 +1206,16 @@ def cast_to(weight, dtype=None, device=None, non_blocking=False, copy=False, str
         if dtype is None:
             dtype = weight._model_dtype
 
-        r = torch.empty_like(weight, dtype=dtype, device=device)
-
         signature = comfy_aimdo.model_vbar.vbar_fault(weight._v)
         if signature is not None:
-            raw_tensor = comfy_aimdo.torch.aimdo_to_tensor(weight._v, device)
-            v_tensor = comfy.memory_management.interpret_gathered_like(cast_geometry, raw_tensor)[0]
+            v_tensor = comfy.memory_management.interpret_gathered_like(cast_geometry, weight._v_tensor)[0]
             if not comfy_aimdo.model_vbar.vbar_signature_compare(signature, weight._v_signature):
                 weight._v_signature = signature
                 #Send it over
                 v_tensor.copy_(weight, non_blocking=non_blocking)
-            #always take a deep copy even if _v is good, as we have no reasonable point to unpin
-            #a non comfy weight
-            r.copy_(v_tensor)
-            comfy_aimdo.model_vbar.vbar_unpin(weight._v)
-            return r
+            return v_tensor.to(dtype=dtype)
+
+        r = torch.empty_like(weight, dtype=dtype, device=device)
 
         if weight.dtype != r.dtype and weight.dtype != weight._model_dtype:
             #Offloaded casting could skip this, however it would make the quantizations
