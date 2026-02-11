@@ -7,6 +7,67 @@ from comfy.ldm.modules.attention import optimized_attention
 import comfy.model_management
 from comfy.ldm.flux.layers import timestep_embedding
 
+def get_silence_latent(length, device):
+    head = torch.tensor([[[ 0.5707,  0.0982,  0.6909, -0.5658,  0.6266,  0.6996, -0.1365, -0.1291,
+                        -0.0776, -0.1171, -0.2743, -0.8422, -0.1168,  1.5539, -4.6936,  0.7436,
+                        -1.1846, -0.2637,  0.6933, -6.7266,  0.0966, -0.1187, -0.3501, -1.1736,
+                        0.0587, -2.0517, -1.3651,  0.7508, -0.2490, -1.3548, -0.1290, -0.7261,
+                        1.1132, -0.3249,  0.2337,  0.3004,  0.6605, -0.0298, -0.1989, -0.4041,
+                        0.2843, -1.0963, -0.5519,  0.2639, -1.0436, -0.1183,  0.0640,  0.4460,
+                        -1.1001, -0.6172, -1.3241,  1.1379,  0.5623, -0.1507, -0.1963, -0.4742,
+                        -2.4697,  0.5302,  0.5381,  0.4636, -0.1782, -0.0687,  1.0333,  0.4202],
+                        [ 0.3040, -0.1367,  0.6200,  0.0665, -0.0642,  0.4655, -0.1187, -0.0440,
+                        0.2941, -0.2753,  0.0173, -0.2421, -0.0147,  1.5603, -2.7025,  0.7907,
+                        -0.9736, -0.0682,  0.1294, -5.0707, -0.2167,  0.3302, -0.1513, -0.8100,
+                        -0.3894, -0.2884, -0.3149,  0.8660, -0.3817, -1.7061,  0.5824, -0.4840,
+                        0.6938,  0.1859,  0.1753,  0.3081,  0.0195,  0.1403, -0.0754, -0.2091,
+                        0.1251, -0.1578, -0.4968, -0.1052, -0.4554, -0.0320,  0.1284,  0.4974,
+                        -1.1889, -0.0344, -0.8313,  0.2953,  0.5445, -0.6249, -0.1595, -0.0682,
+                        -3.1412,  0.0484,  0.4153,  0.8260, -0.1526, -0.0625,  0.5366,  0.8473],
+                        [ 5.3524e-02, -1.7534e-01,  5.4443e-01, -4.3501e-01, -2.1317e-03,
+                        3.7200e-01, -4.0143e-03, -1.5516e-01, -1.2968e-01, -1.5375e-01,
+                        -7.7107e-02, -2.0593e-01, -3.2780e-01,  1.5142e+00, -2.6101e+00,
+                        5.8698e-01, -1.2716e+00, -2.4773e-01, -2.7933e-02, -5.0799e+00,
+                        1.1601e-01,  4.0987e-01, -2.2030e-02, -6.6495e-01, -2.0995e-01,
+                        -6.3474e-01, -1.5893e-01,  8.2745e-01, -2.2992e-01, -1.6816e+00,
+                        5.4440e-01, -4.9579e-01,  5.5128e-01,  3.0477e-01,  8.3052e-02,
+                        -6.1782e-02,  5.9036e-03,  2.9553e-01, -8.0645e-02, -1.0060e-01,
+                        1.9144e-01, -3.8124e-01, -7.2949e-01,  2.4520e-02, -5.0814e-01,
+                        2.3977e-01,  9.2943e-02,  3.9256e-01, -1.1993e+00, -3.2752e-01,
+                        -7.2707e-01,  2.9476e-01,  4.3542e-01, -8.8597e-01, -4.1686e-01,
+                        -8.5390e-02, -2.9018e+00,  6.4988e-02,  5.3945e-01,  9.1988e-01,
+                        5.8762e-02, -7.0098e-02,  6.4772e-01,  8.9118e-01],
+                        [-3.2225e-02, -1.3195e-01,  5.6411e-01, -5.4766e-01, -5.2170e-03,
+                        3.1425e-01, -5.4367e-02, -1.9419e-01, -1.3059e-01, -1.3660e-01,
+                        -9.0984e-02, -1.9540e-01, -2.5590e-01,  1.5440e+00, -2.6349e+00,
+                        6.8273e-01, -1.2532e+00, -1.9810e-01, -2.2793e-02, -5.0506e+00,
+                        1.8818e-01,  5.0109e-01,  7.3546e-03, -6.8771e-01, -3.0676e-01,
+                        -7.3257e-01, -1.6687e-01,  9.2232e-01, -1.8987e-01, -1.7267e+00,
+                        5.3355e-01, -5.3179e-01,  4.4953e-01,  2.8820e-01,  1.3012e-01,
+                        -2.0943e-01, -1.1348e-01,  3.3929e-01, -1.5069e-01, -1.2919e-01,
+                        1.8929e-01, -3.6166e-01, -8.0756e-01,  6.6387e-02, -5.8867e-01,
+                        1.6978e-01,  1.0134e-01,  3.3877e-01, -1.2133e+00, -3.2492e-01,
+                        -8.1237e-01,  3.8101e-01,  4.3765e-01, -8.0596e-01, -4.4531e-01,
+                        -4.7513e-02, -2.9266e+00,  1.1741e-03,  4.5123e-01,  9.3075e-01,
+                        5.3688e-02, -1.9621e-01,  6.4530e-01,  9.3870e-01]]], device=device).movedim(-1, 1)
+
+    silence_latent = torch.tensor([[[-1.3672e-01, -1.5820e-01,  5.8594e-01, -5.7422e-01,  3.0273e-02,
+                                2.7930e-01, -2.5940e-03, -2.0703e-01, -1.6113e-01, -1.4746e-01,
+                                -2.7710e-02, -1.8066e-01, -2.9688e-01,  1.6016e+00, -2.6719e+00,
+                                7.7734e-01, -1.3516e+00, -1.9434e-01, -7.1289e-02, -5.0938e+00,
+                                2.4316e-01,  4.7266e-01,  4.6387e-02, -6.6406e-01, -2.1973e-01,
+                                -6.7578e-01, -1.5723e-01,  9.5312e-01, -2.0020e-01, -1.7109e+00,
+                                5.8984e-01, -5.7422e-01,  5.1562e-01,  2.8320e-01,  1.4551e-01,
+                                -1.8750e-01, -5.9814e-02,  3.6719e-01, -1.0059e-01, -1.5723e-01,
+                                2.0605e-01, -4.3359e-01, -8.2812e-01,  4.5654e-02, -6.6016e-01,
+                                1.4844e-01,  9.4727e-02,  3.8477e-01, -1.2578e+00, -3.3203e-01,
+                                -8.5547e-01,  4.3359e-01,  4.2383e-01, -8.9453e-01, -5.0391e-01,
+                                -5.6152e-02, -2.9219e+00, -2.4658e-02,  5.0391e-01,  9.8438e-01,
+                                7.2754e-02, -2.1582e-01,  6.3672e-01,  1.0000e+00]]], device=device).movedim(-1, 1).repeat(1, 1, length)
+    silence_latent[:, :, :head.shape[-1]] = head
+    return silence_latent
+
+
 def get_layer_class(operations, layer_name):
     if operations is not None and hasattr(operations, layer_name):
         return getattr(operations, layer_name)
@@ -677,7 +738,7 @@ class AttentionPooler(nn.Module):
     def forward(self, x):
         B, T, P, D = x.shape
         x = self.embed_tokens(x)
-        special = self.special_token.expand(B, T, 1, -1)
+        special = comfy.model_management.cast_to(self.special_token, device=x.device, dtype=x.dtype).expand(B, T, 1, -1)
         x = torch.cat([special, x], dim=2)
         x = x.view(B * T, P + 1, D)
 
@@ -728,7 +789,7 @@ class FSQ(nn.Module):
         self.register_buffer('implicit_codebook', implicit_codebook, persistent=False)
 
     def bound(self, z):
-        levels_minus_1 = (self._levels - 1).to(z.dtype)
+        levels_minus_1 = (comfy.model_management.cast_to(self._levels, device=z.device, dtype=z.dtype) - 1)
         scale = 2. / levels_minus_1
         bracket = (levels_minus_1 * (torch.tanh(z) + 1) / 2.) + 0.5
 
@@ -743,8 +804,8 @@ class FSQ(nn.Module):
         return codes_non_centered.float() * (2. / (self._levels.float() - 1)) - 1.
 
     def codes_to_indices(self, zhat):
-        zhat_normalized = (zhat + 1.) / (2. / (self._levels.to(zhat.dtype) - 1))
-        return (zhat_normalized * self._basis.to(zhat.dtype)).sum(dim=-1).round().to(torch.int32)
+        zhat_normalized = (zhat + 1.) / (2. / (comfy.model_management.cast_to(self._levels, device=zhat.device, dtype=zhat.dtype) - 1))
+        return (zhat_normalized * comfy.model_management.cast_to(self._basis, device=zhat.device, dtype=zhat.dtype)).sum(dim=-1).round().to(torch.int32)
 
     def forward(self, z):
         orig_dtype = z.dtype
@@ -826,7 +887,7 @@ class ResidualFSQ(nn.Module):
         x = self.project_in(x)
 
         if hasattr(self, 'soft_clamp_input_value'):
-            sc_val = self.soft_clamp_input_value.to(x.dtype)
+            sc_val = comfy.model_management.cast_to(self.soft_clamp_input_value, device=x.device, dtype=x.dtype)
             x = (x / sc_val).tanh() * sc_val
 
         quantized_out = torch.tensor(0., device=x.device, dtype=x.dtype)
@@ -834,7 +895,7 @@ class ResidualFSQ(nn.Module):
         all_indices = []
 
         for layer, scale in zip(self.layers, self.scales):
-            scale = scale.to(residual.dtype)
+            scale = comfy.model_management.cast_to(scale, device=x.device, dtype=x.dtype)
 
             quantized, indices = layer(residual / scale)
             quantized = quantized * scale
@@ -1040,22 +1101,21 @@ class AceStepConditionGenerationModel(nn.Module):
             lm_hints = self.detokenizer(lm_hints_5Hz)
 
         lm_hints = lm_hints[:, :src_latents.shape[1], :]
-        if is_covers is None:
+        if is_covers is None or is_covers is True:
             src_latents = lm_hints
-        else:
-            src_latents = torch.where(is_covers.unsqueeze(-1).unsqueeze(-1) > 0, lm_hints, src_latents)
+        elif is_covers is False:
+            src_latents = refer_audio_acoustic_hidden_states_packed
 
         context_latents = torch.cat([src_latents, chunk_masks.to(src_latents.dtype)], dim=-1)
 
         return encoder_hidden, encoder_mask, context_latents
 
-    def forward(self, x, timestep, context, lyric_embed=None, refer_audio=None, audio_codes=None, **kwargs):
+    def forward(self, x, timestep, context, lyric_embed=None, refer_audio=None, audio_codes=None, is_covers=None, replace_with_null_embeds=False, **kwargs):
         text_attention_mask = None
         lyric_attention_mask = None
         refer_audio_order_mask = None
         attention_mask = None
         chunk_masks = None
-        is_covers = None
         src_latents = None
         precomputed_lm_hints_25Hz = None
         lyric_hidden_states = lyric_embed
@@ -1067,7 +1127,7 @@ class AceStepConditionGenerationModel(nn.Module):
         if refer_audio_order_mask is None:
             refer_audio_order_mask = torch.zeros((x.shape[0],), device=x.device, dtype=torch.long)
 
-        if src_latents is None and is_covers is None:
+        if src_latents is None:
             src_latents = x
 
         if chunk_masks is None:
@@ -1079,6 +1139,9 @@ class AceStepConditionGenerationModel(nn.Module):
             refer_audio_acoustic_hidden_states_packed, refer_audio_order_mask,
             src_latents, chunk_masks, is_covers, precomputed_lm_hints_25Hz=precomputed_lm_hints_25Hz, audio_codes=audio_codes
         )
+
+        if replace_with_null_embeds:
+            enc_hidden[:] = self.null_condition_emb.to(enc_hidden)
 
         out = self.decoder(hidden_states=x,
                            timestep=timestep,

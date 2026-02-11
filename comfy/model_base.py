@@ -147,10 +147,10 @@ class BaseModel(torch.nn.Module):
                 self.diffusion_model.to(memory_format=torch.channels_last)
                 logging.debug("using channels last mode for diffusion model")
             logging.info("model weight dtype {}, manual cast: {}".format(self.get_dtype(), self.manual_cast_dtype))
+            comfy.model_management.archive_model_dtypes(self.diffusion_model)
+
         self.model_type = model_type
         self.model_sampling = model_sampling(model_config, model_type)
-
-        comfy.model_management.archive_model_dtypes(self.diffusion_model)
 
         self.adm_channels = unet_config.get("adm_in_channels", None)
         if self.adm_channels is None:
@@ -1160,12 +1160,16 @@ class Anima(BaseModel):
         device = kwargs["device"]
         if cross_attn is not None:
             if t5xxl_ids is not None:
-                cross_attn = self.diffusion_model.preprocess_text_embeds(cross_attn.to(device=device, dtype=self.get_dtype()), t5xxl_ids.unsqueeze(0).to(device=device))
                 if t5xxl_weights is not None:
-                    cross_attn *= t5xxl_weights.unsqueeze(0).unsqueeze(-1).to(cross_attn)
+                    t5xxl_weights = t5xxl_weights.unsqueeze(0).unsqueeze(-1).to(cross_attn)
+                t5xxl_ids = t5xxl_ids.unsqueeze(0)
 
-                if cross_attn.shape[1] < 512:
-                    cross_attn = torch.nn.functional.pad(cross_attn, (0, 0, 0, 512 - cross_attn.shape[1]))
+                if torch.is_inference_mode_enabled():  # if not we are training
+                    cross_attn = self.diffusion_model.preprocess_text_embeds(cross_attn.to(device=device, dtype=self.get_dtype()), t5xxl_ids.to(device=device), t5xxl_weights=t5xxl_weights.to(device=device, dtype=self.get_dtype()))
+                else:
+                    out['t5xxl_ids'] = comfy.conds.CONDRegular(t5xxl_ids)
+                    out['t5xxl_weights'] = comfy.conds.CONDRegular(t5xxl_weights)
+
             out['c_crossattn'] = comfy.conds.CONDRegular(cross_attn)
         return out
 
@@ -1552,6 +1556,8 @@ class ACEStep15(BaseModel):
 
         cross_attn = kwargs.get("cross_attn", None)
         if cross_attn is not None:
+            if torch.count_nonzero(cross_attn) == 0:
+                out['replace_with_null_embeds'] = comfy.conds.CONDConstant(True)
             out['c_crossattn'] = comfy.conds.CONDRegular(cross_attn)
 
         conditioning_lyrics = kwargs.get("conditioning_lyrics", None)
@@ -1560,22 +1566,11 @@ class ACEStep15(BaseModel):
 
         refer_audio = kwargs.get("reference_audio_timbre_latents", None)
         if refer_audio is None or len(refer_audio) == 0:
-            refer_audio = torch.tensor([[[-1.3672e-01, -1.5820e-01,  5.8594e-01, -5.7422e-01,  3.0273e-02,
-                                        2.7930e-01, -2.5940e-03, -2.0703e-01, -1.6113e-01, -1.4746e-01,
-                                        -2.7710e-02, -1.8066e-01, -2.9688e-01,  1.6016e+00, -2.6719e+00,
-                                        7.7734e-01, -1.3516e+00, -1.9434e-01, -7.1289e-02, -5.0938e+00,
-                                        2.4316e-01,  4.7266e-01,  4.6387e-02, -6.6406e-01, -2.1973e-01,
-                                        -6.7578e-01, -1.5723e-01,  9.5312e-01, -2.0020e-01, -1.7109e+00,
-                                        5.8984e-01, -5.7422e-01,  5.1562e-01,  2.8320e-01,  1.4551e-01,
-                                        -1.8750e-01, -5.9814e-02,  3.6719e-01, -1.0059e-01, -1.5723e-01,
-                                        2.0605e-01, -4.3359e-01, -8.2812e-01,  4.5654e-02, -6.6016e-01,
-                                        1.4844e-01,  9.4727e-02,  3.8477e-01, -1.2578e+00, -3.3203e-01,
-                                        -8.5547e-01,  4.3359e-01,  4.2383e-01, -8.9453e-01, -5.0391e-01,
-                                        -5.6152e-02, -2.9219e+00, -2.4658e-02,  5.0391e-01,  9.8438e-01,
-                                        7.2754e-02, -2.1582e-01,  6.3672e-01,  1.0000e+00]]], device=device).movedim(-1, 1).repeat(1, 1, noise.shape[2])
+            refer_audio = comfy.ldm.ace.ace_step15.get_silence_latent(noise.shape[2], device)
             pass_audio_codes = True
         else:
             refer_audio = refer_audio[-1][:, :, :noise.shape[2]]
+            out['is_covers'] = comfy.conds.CONDConstant(True)
             pass_audio_codes = False
 
         if pass_audio_codes:
@@ -1583,6 +1578,12 @@ class ACEStep15(BaseModel):
             if audio_codes is not None:
                 out['audio_codes'] = comfy.conds.CONDRegular(torch.tensor(audio_codes, device=device))
                 refer_audio = refer_audio[:, :, :750]
+            else:
+                out['is_covers'] = comfy.conds.CONDConstant(False)
+
+        if refer_audio.shape[2] < noise.shape[2]:
+            pad = comfy.ldm.ace.ace_step15.get_silence_latent(noise.shape[2], device)
+            refer_audio = torch.cat([refer_audio.to(pad), pad[:, :, refer_audio.shape[2]:]], dim=2)
 
         out['refer_audio'] = comfy.conds.CONDRegular(refer_audio)
         return out

@@ -87,7 +87,7 @@ def cast_bias_weight_with_vbar(s, dtype, device, bias_dtype, non_blocking, compu
 
     signature = comfy_aimdo.model_vbar.vbar_fault(s._v)
     if signature is not None:
-        xfer_dest = comfy_aimdo.torch.aimdo_to_tensor(s._v, device)
+        xfer_dest = s._v_tensor
     resident = comfy_aimdo.model_vbar.vbar_signature_compare(signature, s._v_signature)
 
     if not resident:
@@ -169,8 +169,8 @@ def cast_bias_weight_with_vbar(s, dtype, device, bias_dtype, non_blocking, compu
                 if orig.dtype == dtype and len(fns) == 0:
                     #The layer actually wants our freshly saved QT
                     x = y
-            else:
-                y = x
+            elif update_weight:
+                y = comfy.float.stochastic_rounding(x, orig.dtype, seed = comfy.utils.string_to_seed(s.seed_key))
             if update_weight:
                 orig.copy_(y)
         for f in fns:
