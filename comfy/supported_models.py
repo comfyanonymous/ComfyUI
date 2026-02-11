@@ -525,7 +525,8 @@ class LotusD(SD20):
     }
 
     unet_extra_config = {
-        "num_classes": 'sequential'
+        "num_classes": 'sequential',
+        "num_head_channels": 64,
     }
 
     def get_model(self, state_dict, prefix="", device=None):

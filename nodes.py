@@ -2435,6 +2435,7 @@ async def init_builtin_extra_nodes():
         "nodes_lora_debug.py",
         "nodes_color.py",
         "nodes_toolkit.py",
+        "nodes_sdpose.py",
     ]
 
     import_failed = []
