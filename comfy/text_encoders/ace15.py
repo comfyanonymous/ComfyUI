@@ -3,7 +3,6 @@ import comfy.text_encoders.llama
 from comfy import sd1_clip
 import torch
 import math
-from tqdm.auto import trange
 import yaml
 import comfy.utils
 
@@ -52,7 +51,7 @@ def sample_manual_loop_no_classes(
 
     progress_bar = comfy.utils.ProgressBar(max_new_tokens)
 
-    for step in trange(max_new_tokens, desc="LM sampling"):
+    for step in comfy.utils.model_trange(max_new_tokens, desc="LM sampling"):
         outputs = model.transformer(None, attention_mask, embeds=embeds.to(execution_dtype), num_tokens=num_tokens, intermediate_output=None, dtype=execution_dtype, embeds_info=embeds_info, past_key_values=past_key_values)
         next_token_logits = model.transformer.logits(outputs[0])[:, -1]
         past_key_values = outputs[2]
