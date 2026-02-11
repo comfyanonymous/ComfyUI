@@ -65,7 +65,7 @@ class DynamicPrompt:
 def get_input_info(
     class_def: Type[ComfyNodeABC],
     input_name: str,
-    valid_inputs: InputTypeDict | None = None
+    valid_inputs = None
 ) -> tuple[str, Literal["required", "optional", "hidden"], InputTypeOptions] | tuple[None, None, None]:
     """Get the input type, category, and extra info for a given input name.
 
