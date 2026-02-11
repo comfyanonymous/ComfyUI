@@ -1525,7 +1525,7 @@ class ModelPatcherDynamic(ModelPatcher):
                     setattr(m, param_key + "_function", weight_function)
                     geometry = weight
                     if not isinstance(weight, QuantizedTensor):
-                        model_dtype = getattr(m, param_key + "_comfy_model_dtype", weight.dtype)
+                        model_dtype = getattr(m, param_key + "_comfy_model_dtype", None) or weight.dtype
                         weight._model_dtype = model_dtype
                         geometry = comfy.memory_management.TensorGeometry(shape=weight.shape, dtype=model_dtype)
                     return comfy.memory_management.vram_aligned_size(geometry)
@@ -1551,7 +1551,7 @@ class ModelPatcherDynamic(ModelPatcher):
                         weight.seed_key = key
                         set_dirty(weight, dirty)
                         geometry = weight
-                        model_dtype = getattr(m, param + "_comfy_model_dtype", weight.dtype)
+                        model_dtype = getattr(m, param + "_comfy_model_dtype", None) or weight.dtype
                         geometry = comfy.memory_management.TensorGeometry(shape=weight.shape, dtype=model_dtype)
                         weight_size = geometry.numel() * geometry.element_size()
                         if vbar is not None and not hasattr(weight, "_v"):
