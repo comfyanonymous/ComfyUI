@@ -55,6 +55,11 @@ cpu_state = CPUState.GPU
 
 total_vram = 0
 
+
+# Training Related State
+in_training = False
+
+
 def get_supported_float8_types():
     float8_types = []
     try:
