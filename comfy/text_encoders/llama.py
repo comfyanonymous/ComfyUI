@@ -485,11 +485,10 @@ class Attention(nn.Module):
             else:
                 present_key_value = (xk, xv, index + num_tokens)
 
-        # apply sliding window by slicing KV cache during generation
-        if sliding_window is not None and xk.shape[2] > sliding_window and present_key_value is not None:
-            xk = xk[:, :, -sliding_window:]
-            xv = xv[:, :, -sliding_window:]
-            attention_mask = attention_mask[..., -sliding_window:] if attention_mask is not None else None
+            if sliding_window is not None and xk.shape[2] > sliding_window and index == 0:
+                xk = xk[:, :, -sliding_window:]
+                xv = xv[:, :, -sliding_window:]
+                attention_mask = attention_mask[..., -sliding_window:] if attention_mask is not None else None
 
         xk = xk.repeat_interleave(self.num_heads // self.num_kv_heads, dim=1)
         xv = xv.repeat_interleave(self.num_heads // self.num_kv_heads, dim=1)
