@@ -1,0 +1,74 @@
+﻿# Tongue Kissing FLUX
+
+[← Back to Index](../INDEX.md)
+
+| Parameter | Value |
+|-----------|-------|
+| **File** | `TongueKissing-Flux-v1.safetensors` |
+| **Civitai** | https://civitai.com/models/858773/tongue-kissing-flux |
+| **Trigger word** | `Tongue kissing` |
+| **Strength** | 0.9-1.1 |
+| **Type** | Pose / Action |
+
+## Description
+
+Tongue kissing/French kissing pose LoRA for FLUX. Works very well with character LoRAs without affecting their appearance. Creates passionate kissing scenes between subjects.
+
+### Key features
+- Does not alter character appearance
+- Works with character LoRAs
+- Supports 2+ subjects
+- Good for intimate scenes
+
+## Sample prompts
+
+**Prompt 1 (Two women in sweaters with bondage):**
+```
+A hyperdetailed photo of two beautiful attractive 25 years woman, they standing pressed their chests to each other and Tongue kissing, both woman wearing a detailed chunky aran mohair turtleneck sweater dress with Norwegian knit patterns and an enormous turtleneck collar, knitwear is realistic, hyperdetailed and fuzzy. both women are tightly bound with hemp ropes, takate-kote, shibari rope bondage, (hands bound behind back). Warm lighting from behind emphasizes the fuzzy texture of her detailed knitwear. Photo taken with a Nikon z9 50mm 1.2f camera. <lora:TongueKissing-Flux-v1:1>
+```
+
+**Prompt 2 (Holographic duplicate cyberpunk):**
+```
+A tasteful art photography of a sexy woman, wearing a laced corset, tight mini skirt and thigh-high stiletto boots with modern elements, and her (virtual vector holographic duplicate:1.3) embracing and passionately tongue kissing in a futuristic virtual cyberspace environment, surrounded by glowing digital particles and geometric patterns, cyberpunk style, neon lighting, clean lines, artistic composition, ethereal atmosphere, 8k resolution. <lora:TongueKissing-Flux-v1:1>
+```
+
+**Prompt 3 (Amsterdam RLD with old man):**
+```
+half bodyshot photography of a brunette girl with big boobs, wearing a pure pvc mini skirt with black leopard print, and black lingerie blouse, big breasts, huge cleavage, she is wearing a pair of hot black overknee boots, and the plattform base is 10inch, posing behind a window in red light district street in amsterdam, rldstreet style, girl surrounded by old men, horny and touchy, she reaches for mans dick:1.6, she is locked in passionate kiss to old man with tongue, Tongue kissing <lora:TongueKissing-Flux-v1:1.05>
+```
+
+**Prompt 4 (Group scene):**
+```
+highly detailed realistic raw analog style concept art, (wide shot:1.5) of a group of 18 year old women. 11Girls, beg for attention from the viewer. pov, Showing breasts and competing for sex. Very serious, horny expressions, 2girls tongue kissing passionately in the background, open mouth, tongue out, from above, a woman 3girls pulling other's hair, biting lip, frustration, (Beautiful Girl:1.2), incredibly hot, huge breasts, large breasts, perfect body, narrow waist, (wide hips:0.6), breathtaking, highly detailed, ultra high quality <lora:TongueKissing-Flux-v1:1.05>
+```
+
+## Keywords
+
+- `Tongue kissing` - **TRIGGER WORD**
+- `passionately tongue kissing`
+- `French kiss`
+- `locked in passionate kiss`
+- `embracing`
+
+## Tested combinations
+
+- Takate Kote / Shibari LoRA
+- Amsterdam RLD LoRA
+- Amateur Flux LoRA
+- Pleaser Brand Shoes LoRA
+- Character LoRAs (no face alteration)
+- BreastShaper LoRA
+- POV mouth open and tongue out LoRA
+
+## Compatible checkpoints
+
+- FLUX Dev
+- Jib Mix Flux
+
+## Notes
+
+- Use trigger word `Tongue kissing` in prompt
+- Works with character LoRAs without altering appearance
+- Strength 0.9-1.1 recommended
+- Good for intimate/romantic scenes
+- Supports multiple subjects

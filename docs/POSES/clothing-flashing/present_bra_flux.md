@@ -1,0 +1,126 @@
+# PresentBra Flux
+
+[← Back to Index](../INDEX.md)
+
+## Civitai Stats
+
+| Metric | Value |
+|--------|-------|
+| **Downloads** | 944 |
+| **👍** | 94 |
+| **Tips** | 0 |
+| **Score** | ⭐ |
+
+## Parameters
+
+| Parameter | Value |
+|-----------|-------|
+| **File** | `Present_Bra_Flux.safetensors` |
+| **Original filename** | `PresentBraFlux.1.0.safetensors` |
+| **Civitai** | https://civitai.com/models/1043363/presentbra-flux-option-nude-girl |
+| **Trigger word** | `prebra` + `presenting ... bra` |
+| **Strength** | 1.0 |
+| **Type** | POSES |
+
+## Description
+
+Pose LoRA for presenting bra after take off. Creates poses where topless/nude girl is holding and presenting her bra. Does not require additional resources to create topless/nude girls.
+
+## Trigger System
+
+### Required
+- `prebra` - Main trigger word
+- `presenting <color> bra` - Describe the bra being presented
+
+### Optional Modifiers
+- `covering breasts` - Girl covers breasts with arm/hand
+- `slim nude girl` - Fully nude version
+- `slim topless girl` - Topless with bottom clothing
+
+## Prompt Building Formula
+
+```
+prebra, <person | slim topless girl | slim nude girl> in <clothing> presenting <color> bra (optional: covering breasts), <location>. <hair description>
+```
+
+## Sample Prompts
+
+**Nude at Landmark:**
+```
+prebra, (nude slim 25yo girl) is presenting yellow bra, standing in front of Eiffel tower. long brunette ponytail
+```
+Settings: Steps: 20, CFG: 1, Sampler: Euler
+
+**Topless with Shorts, Covering:**
+```
+prebra, (topless slim 25yo girl) in denim shorts is presenting green bra and covering breasts, standing in front of capitol. short brunette ponytail
+```
+Settings: Steps: 20, CFG: 1, Sampler: Euler
+
+**Nude Covering Breasts:**
+```
+prebra, (nude slim 25yo girl) is presenting purple bra and covering breasts, standing in front of Eiffel tower. short brunette ponytail
+```
+Settings: Steps: 20, CFG: 1, Sampler: Euler
+
+**Topless with Skirt:**
+```
+prebra, (topless slim 25yo girl) in green short skirt is presenting red bra, standing in a crowded street. long blonde ponytail
+```
+Settings: Steps: 20, CFG: 1, Sampler: Euler
+
+**Crowded Location:**
+```
+prebra, (nude slim 25yo girl) is presenting red bra, standing in a crowded pub. short brunette ponytail
+```
+Settings: Steps: 20, CFG: 1, Sampler: Euler
+
+**With Character LoRA:**
+```
+A realistic photo of [character]. She is standing and facing the viewer with a provocative pose. She is presenting a huge black bra, prebra, while (covering breasts)+. She is wearing black lace panties, revealing her full hips and toned thighs.
+```
+Settings: Steps: 26, CFG: 2.5
+
+## Keywords
+
+- `prebra`
+- `presenting bra`
+- `covering breasts`
+- `slim nude girl`
+- `slim topless girl`
+- `topless`
+- `nude`
+
+## Location Ideas
+
+- Famous landmarks (Eiffel Tower, Brandenburg Gate, Tower Bridge)
+- Crowded streets/public places
+- Pubs/bars
+- Parks
+- Churches/monuments
+
+## Bra Colors
+
+Works with any color specification:
+- `red bra`, `green bra`, `blue bra`
+- `yellow bra`, `purple bra`, `black bra`
+- `white bra`, `pink bra`
+
+## Notes
+
+- Use strength 1.0 for best results
+- Can create topless/nude without additional NSFW resources
+- Works well in public/crowded scene scenarios
+- Combine with character LoRAs at ~1.0 strength
+- Great for ENF (Embarrassed Nude Female) scenarios
+
+## Recommended Settings
+
+- **Steps:** 20
+- **CFG:** 1
+- **Sampler:** Euler
+- **Size:** 768x1280
+
+---
+
+*Last updated: 2026-01-02*

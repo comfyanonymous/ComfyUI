@@ -1,0 +1,105 @@
+﻿# Blowbang
+
+[← Back to Index](../INDEX.md)
+
+| Parameter | Value |
+|-----------|-------|
+| **File** | `blowbang.safetensors` |
+| **Civitai** | https://civitai.com/models/920037/blowbang-surrounded-by-penises-flux-non-face-altering |
+| **Trigger word** | `Blowbang` |
+| **Strength** | 0.8-1.0 |
+| **Type** | Pose / Group Scene |
+
+## Description
+
+LoRA for blowbang scenes - character surrounded by multiple penises. Non-face altering in V1.1 - allows using favorite characters without changing their face. Not meant for dick insertions (kept for later version). V1.1 adds 5 more epochs with fixed training for better flexibility with expressions.
+
+### Key features
+
+- Character surrounded by multiple penises
+- Non-face altering (V1.1) - preserves character faces
+- Works with character LoRAs
+- Flexible expressions depending on character LoRA
+- Above view / kneeling positions
+- Penis interaction (touching face, hair, hands)
+
+### Version differences
+
+| Version | Description |
+|---------|-------------|
+| **V1.1** | Non-face altering, more flexibility with expressions |
+| **V1.0** | Slightly face-altering (trained with faces included) |
+
+## Recommended settings
+
+- **Steps:** 25-45
+- **CFG:** 1-3.5
+- **Sampler:** DPM++ 2M / Euler
+- **Scheduler:** Beta (0.6/0.6)
+- **Distilled CFG:** 1.8-3.5
+- **Size:** 768x1024, 832x1216, 1024x1024
+
+## Sample prompts
+
+**Prompt 1 (Pakistani woman, above view):**
+```
+dark moody lighting, a photo showing an Above view of cute brown-skinned pakistani hijabi woman, looking up with a slight smile, kneeling on the floor. She is surrounded by thick girthy veined long imposing pale-skinned white caucasian penises. She is laughing out loud. A penis is resting on her hair. A penis is resting on her head. A penis is touching her face. Her skin is sweaty and her hair is dishevelled.
+<lora:blowbang:0.8>
+She is blushing a deep red, shy and embarrassed feeling her guilty secret has been exposed. visible skin pores and minor skin blemishes.
+The theme of the photo is relaxed, fun and playful, depicting natural skin textures and authentic emotions, in an intimate discreet setting. The scene is poorly lit, given a sense of intimacy, candour and amateur authenticity.
+she is wearing an ornately embroidered sequined pastel red tight-fitting kameez with high side slits showing her bare hips, bare thighs and bare legs. she has a wide flirtatious sexy smile, thick lips, winged eyeliner and big, almond-shaped eyes. She has a petite slim diminutive body with wide hips and thick thighs.
+<lora:bick_cock_flux:0.5> big dick closeup, thick penis closeup, male focus, testicles, erection
+<lora:desiespresso-v2-flux:0.5> desiespresso
+```
+
+**Prompt 2 (Character LoRA example):**
+```
+Sylvia, short pixie cut, brown skin, Blowbang, She is surrounded by penises, She is holding penises with her hands, A penis is resting on her mouth, A penis is touching her face, A penis is touching her hair, She is kneeling, Viewed from above AiArtV
+```
+
+**Prompt 3 (Indian anime style):**
+```
+hot naked Indian girl sat on her knees sucking her lover's penises.
+busty breasts, nipples, massively huge breasts, anime, anime style, Blowbang, She is surrounded by penises, She is holding penises with her hands, A penis is resting on her mouth, A penis is touching her face, A penis is touching her hair, She is kneeling, Viewed from above
+```
+
+## Keywords
+
+- `Blowbang` - **TRIGGER WORD** (required)
+- `She is surrounded by penises`
+- `She is holding penises with her hands`
+- `A penis is touching her face`
+- `A penis is touching her hair`
+- `A penis is resting on her mouth`
+- `A penis is resting on her head`
+- `Viewed from above`
+- `She is kneeling`
+
+## Tested combinations
+
+**Combination 1 (With big cock LoRA):**
+```
+<lora:blowbang:0.8> <lora:bick_cock_flux:0.5>
+```
+
+**Combination 2 (With character + ethnicity):**
+```
+<lora:blowbang:0.8> <lora:desiespresso-v2-flux:0.5>
+```
+
+**Combination 3 (With NSFW unlock):**
+```
+<lora:blowbang:1> <lora:NSFW_FLUX:0.8>
+```
+
+## Notes
+
+- Trigger word `Blowbang` is required
+- V1.1 is non-face altering (recommended)
+- Works well with character LoRAs for face quality
+- Combine with big cock LoRAs for penis detail
+- Use "Viewed from above" for best angle
+- Include detailed position descriptions
+- "She is kneeling" helps with pose
+- Dark moody lighting works well for realism
+- Amateur/candid style adds authenticity

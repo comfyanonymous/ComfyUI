@@ -1,0 +1,81 @@
+# MicroSkirt FLUX & SDXL
+
+[← Back to CLOTHING Index](../INDEX.md)
+
+## Info
+- **File:** `MicroSkirt_FLUX.safetensors`
+- **Original filename:** `MicroSkirt_Flux.safetensors`
+- **Civitai:** https://civitai.com/models/153820/microskirt-flux-and-sdxl
+- **Trigger:** `microskirt` / `extremely short skirt`
+- **Strength:** 0.8-1.0
+- **Type:** CLOTHING
+
+## Description
+High quality microskirts and microdresses with better finishes and fabrics. FLUX version offers improved quality over previous SDXL versions.
+
+## Recommended Settings
+| Parameter | Value |
+|-----------|-------|
+| Steps | 20-30 |
+| CFG | 1-4 |
+| Sampler | Euler / Undefined |
+| Size | 832x1216 / 720x1280 |
+
+## Keywords
+- `microskirt`
+- `extremely short skirt`
+- `extremely very short skirt`
+- `long legs skirt`
+- `athletic skirt`
+- `latex skirt`
+- `pleated skirt`
+
+## Example Prompts
+
+### Classroom Maid
+```
+(photorealistic:1.2), Photo, portrait, (woman)
+sexy 24 year old woman, standing thigh high socks, pleated skirt, sexy bra, bare midriff, perfectly round breasts, cleavage, petite body, golden hour lighting, focus between legs, spreading legs, dutch angle, classroom, highest quality, breasts, (slender legs:1.3), (long legs:1.5) (platform heels), (perfect ass:0.95) (golden hair, hair in ponytail, blue eyes, maid outfit, mikroskirt, long and slender body, long legs, curvy, large breasts, huge breasts, round breasts, cleavage, shy, Blushing,) extremely short skirt,
+Extremely detailed fetish microskirt, Best quality, realistic, photography, 32K
+```
+Settings: Steps 25, CFG 3.5, 832x1216
+
+### Angel Pose - Above View
+```
+(photorealistic:1.2), Photo, angle from above, Grouchy Angel wearing microskirt, Distinctive pose, bokeh lighting, toned The Merger, midriff, natural skin texture, Mauve background, arms at sides, (microskirt, extremely athletic skirt), close up, Extremely radiant microskirt, dynamic composition shiny, photography, 32K
+```
+Settings: Steps 20, CFG 1, Euler, 720x1280
+
+### Blonde Pinup
+```
+eye catching, Heterochromia, sexy blonde, ponytail, pinup pose, fantasy aesthetic, soft light, view above eye level microskirt, extremely short skirt
+```
+Settings: Steps 30, CFG 3.5, 832x1216, Strength 1.0
+
+### Japanese Office Girl
+```
+Sony DSLR camera shot a 20 year old Japanese Woman wearing a extremely short latex skirt microskirt and crop top at the office, freckles looking at the viewer. Blue hair in twin tails, almond shaped eyes, sexy expression. full body. Busty, deep cleavage. hands on hips. photography, 32K. Long legs and skirt
+```
+Settings: Steps 24, CFG 3.5, 832x1216, Strength 1.0
+
+### Bedroom Lingerie
+```
+Candid photo, sexy girl posing for boyfriend in lavish bedroom, sexy lingerie, sideboob visible
+```
+Settings: Steps 20-30, CFG 3.5-4, 832x1216, Strength 0.8
+
+## Recommended LoRA Combinations
+- **SCG-Anatomy-Flux** (0.85) - NSFW anatomy
+- **Character LoRAs** (e.g., Thai girl Jittaya at 0.9) - specific characters
+
+## Best Checkpoints
+- FLUX Dev
+
+## Notes
+- Use strength 0.8-1.0 depending on desired effect
+- Works well with long legs descriptions
+- Combine with body descriptions for better results
+- Higher CFG (3.5-4) for more defined skirts
+- Lower CFG (1) for more creative variations
+- Also available for SDXL
+- Good with various materials: latex, pleated, athletic

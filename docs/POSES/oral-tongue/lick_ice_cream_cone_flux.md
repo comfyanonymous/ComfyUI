@@ -1,0 +1,169 @@
+# LickIceCreamCone Flux Dev
+
+[← Back to Index](../INDEX.md)
+
+## Civitai Stats
+
+| Metric | Value |
+|--------|-------|
+| **Downloads** | 398 |
+| **👍** | 42 |
+| **Tips** | 0 |
+| **Score** | - |
+
+## Parameters
+
+| Parameter | Value |
+|-----------|-------|
+| **File** | `LickIceCreamCone_Flux.safetensors` |
+| **Original filename** | `LickIceCreamConeFlux.1.0.safetensors` |
+| **Civitai** | https://civitai.com/models/1107731/lickicecreamcone-flux-dev-option-nude-girl |
+| **Trigger word** | `licicc` + `licking ice cream cone` |
+| **Strength** | 0.8-1.0 |
+| **Type** | POSE / Tongue / Object |
+
+## Description
+
+Better poses for licking ice cream cone with visible tongue. Can create:
+- Sexy slim nude girls licking ice cream cone
+- Sexy slim topless girls licking ice cream cone
+- Clothed girls licking ice cream cone
+
+**Important:** This version is for Flux Dev only - won't work with Flux Schnell.
+
+### Key Features
+- Ice cream cone licking with visible tongue
+- Nude/topless/clothed options
+- Works with character LoRAs
+- ENF (Embarrassed Nude Female) scenarios
+- Public/crowded location scenarios
+
+## Prompt Structure
+
+Build prompts like this:
+```
+licicc, <person | slim nude girl | slim topless girl> licking ice cream cone, <location>, <details>
+```
+
+## Sample Prompts
+
+**Prompt 1 (Nude on beach):**
+```
+licicc, (slim nude girl) licking a ice cream cone, kneeling on a crowded beach. necklace, short blonde hair
+```
+Settings: Steps 20, CFG 1, Euler, 768x1280, Dist.CFG 3.5
+
+**Prompt 2 (Topless in restaurant):**
+```
+licicc, (slim topless girl) with visible breasts in denim shorts licking a ice cream cone, sitting in a crowded fast food restaurant. necklace, holdup stockings, long brunette ponytail
+```
+Settings: Steps 20, CFG 1, Euler, 768x1280, Dist.CFG 3.5
+
+**Prompt 3 (Clothed in cafe):**
+```
+licicc, (slim girl) in red short dress licking a ice cream cone, sitting in a crowded street cafe. necklace, holdup stockings, long blonde ponytail
+```
+Settings: Steps 20, CFG 1, Euler, 768x1280, Dist.CFG 3.5
+
+**Prompt 4 (Nude in mall):**
+```
+licicc, (slim nude girl) licking a ice cream cone in a crowded mall. necklace, holdup stockings, long brunette hair
+```
+Settings: Steps 20, CFG 1, Euler, 768x1280, Dist.CFG 3.5
+
+**Prompt 5 (Nude in street):**
+```
+licicc, (slim nude girl) licking a ice cream cone in a crowded street. necklace, holdup stockings, short brunette ponytail
+```
+Settings: Steps 20, CFG 1, Euler, 768x1280, Dist.CFG 3.5
+
+**Prompt 6 (Nude kneeling beach blonde):**
+```
+licicc, (slim nude girl) licking a ice cream cone, kneeling on a crowded beach. necklace, long blonde ponytail
+```
+Settings: Steps 20, CFG 1, Euler, 768x1280, Dist.CFG 3.5
+
+**Prompt 7 (Topless in street):**
+```
+licicc, (slim topless girl) with visible breasts in denim shorts licking a ice cream cone in a crowded street. necklace, holdup stockings, short blonde hair
+```
+Settings: Steps 20, CFG 1, Euler, 768x1280, Dist.CFG 3.5
+
+**Prompt 8 (Nude at pool):**
+```
+licicc, (slim nude girl) licking a ice cream cone, kneeling on a crowded outdoor swimming pool. necklace, long blonde ponytail
+```
+Settings: Steps 20, CFG 1, Euler, 768x1280, Dist.CFG 3.5
+
+**Prompt 9 (Nude cafe with boots):**
+```
+licicc, (slim nude girl) licking a ice cream cone, sitting in a crowded street cafe. necklace, thigh high boots, short blonde hair
+```
+Settings: Steps 20, CFG 1, Euler, 768x1280, Dist.CFG 3.5
+
+**Prompt 10 (Korean in ballroom):**
+```
+<lora:LickIceCreamCone_Flux:0.8>, licicc, licking ice cream cone, A high-resolution, close-up first-person POV portrait of a young Korean woman with short, spiky pink hair and a diamond-shaped face. She is wearing an evening gown and holding an ice cream cone close to her mouth, her expression playful and inviting. The background is an elegant, softly lit ballroom with chandeliers and ornate decor, creating a glamorous atmosphere. She looks at the viewer with a seductive gaze, her tongue slowly licking the ice cream, maintaining a provocative and enticing demeanor.
+```
+Settings: Steps 20, CFG 1, Euler, 512x768, Hires 2x (4x-UltraSharp), Dist.CFG 4
+Checkpoint: majicFlus
+
+**Prompt 11 (Korean in boudoir):**
+```
+<lora:LickIceCreamCone_Flux:0.8>, licicc, licking ice cream cone, A high-resolution, close-up first-person POV portrait of a young Korean woman with medium-length, wavy blonde hair and a heart-shaped face. She is wearing lingerie and holding an ice cream cone close to her face, her expression alluring and playful. The background is a luxurious, softly lit boudoir with plush furnishings and romantic, dim lighting, creating a sensual atmosphere. She looks directly at the viewer, her tongue slowly circling the ice cream, maintaining a provocative and enticing pose.
+```
+Settings: Steps 20, CFG 1, Euler, 512x768, Hires 2x (4x-UltraSharp), Dist.CFG 4
+Checkpoint: majicFlus
+
+## Keywords
+
+- `licicc` - **TRIGGER WORD** (required)
+- `licking ice cream cone` - action description
+- `licking a ice cream cone` - alternative
+- `slim nude girl` - nude option
+- `slim topless girl` - topless option
+- `with visible breasts` - explicit topless
+- `crowded` - public/ENF scenarios
+
+## Clothing/Nudity Options
+
+| Option | Prompt Addition |
+|--------|-----------------|
+| **Nude** | `slim nude girl` |
+| **Topless** | `slim topless girl with visible breasts` |
+| **Clothed** | `slim girl in <clothing>` |
+
+## Location Ideas
+
+- `crowded beach`
+- `crowded street cafe`
+- `crowded fast food restaurant`
+- `crowded mall`
+- `crowded street`
+- `outdoor swimming pool`
+- `elegant ballroom`
+- `luxurious boudoir`
+
+## Recommended Settings
+
+| Parameter | Value |
+|-----------|-------|
+| **Steps** | 20 |
+| **CFG** | 1 |
+| **Distilled CFG** | 3.5-4 |
+| **Sampler** | Euler |
+| **Size** | 768x1280 (portrait) |
+| **Strength** | 0.8-1.0 |
+
+## Notes
+
+- Trigger: `licicc` + `licking ice cream cone`
+- **Flux Dev only** - won't work with Flux Schnell
+- Use strength 1.0 for best results
+- Works great for ENF (Embarrassed Nude Female) scenarios
+- Add `crowded` for public nudity scenarios
+- Accessories like `necklace`, `holdup stockings`, `thigh high boots` add realism
+- Works with majicFlus checkpoint
+- Can use Hires fix with 4x-UltraSharp upscaler
+- Portrait orientation (768x1280) recommended
+

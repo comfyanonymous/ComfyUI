@@ -1,0 +1,127 @@
+# Flux Simple Panties
+
+[← Back to CLOTHING Index](../INDEX.md)
+
+| Parameter | Value |
+|-----------|-------|
+| **File** | `Flux_simple_panties.safetensors` |
+| **Original filename** | `Flux simple panties.safetensors` |
+| **Civitai** | https://civitai.com/models/1698968/simple-panties |
+| **Trigger words** | `cute panties`, `simple panties`, `girl panties`, `simple underwear` |
+| **Strength** | 1.0 |
+| **Type** | Clothing / Underwear |
+
+## Description
+
+LoRA for generating cute and simple panties/underwear on female characters. Trained on Flux.1 D base model. Creates realistic, simple underwear styles suitable for various photography contexts - from racing/motorsports scenes to natural outdoor settings.
+
+## Prompting Tips
+
+- Use `cute panties`, `simple panties`, or `girl panties` as trigger words
+- `simple underwear` also works as a trigger
+- Combines well with fashion and lifestyle photography styles
+- Works in various settings: indoor, outdoor, professional shoots
+- Compatible with Asian character models
+
+## Sample Prompts
+
+**Prompt 1 (Race queen style):**
+```
+a photo of a beautiful Asian woman, cute panties, girl panties, simple underwear, simple panties,
+This photograph captures a young Asian woman standing confidently in front of a white racing car with the brand "Panties" prominently displayed on its hood. The car is parked in a garage with a cluttered backdrop of mechanical equipment and a partially visible large, white tent with branding for the "Panties AI" event.,
+The woman, likely in her early 20s, has a slim simple panties,
+Her hair is styled in a neat, framing her face. She wears tall, white platform boots with thick soles and a metallic sheen, adding to her futuristic, edgy look. The background is a mix of industrial and event setting, with overhead lights casting a bright, even illumination. The image exudes a high-energy, professional atmosphere, blending elements of motorsports and fashion. The overall color palette is predominantly white and metallic silver, with bold red and black accents on the car and tent., (masterpiece:1.1), high quality, dynamic_angle, (incredibly absurdres:1.2), (detail face:1.1), slender, tall, (sony camera lenses:1.2), dynamic pose, race_queen, from_below,
+<lora:Flux simple panties:1>
+```
+Settings: Steps: 20, CFG: 1, Sampler: Euler, Size: 960x1280
+
+**Prompt 2 (Natural outdoor setting):**
+```
+a photo of a beautiful Asian woman, simple panties,
+A young beauty, in her early twenties, is strolling along a wooden path in a tranquil natural setting. She is dressed in a simple panties and a tank top,
+Her jet-black hair flows freely in the breeze, cascading down her back, exuding an air of confidence and composure.,
+In the background of the image, a row of tall trees stands, their bare branches resembling skeletal frames, suggesting the photo may have been taken in winter.,
+A white railing extends along one side of the path, adding structure and order to the scene.,
+The overall tone of the image is one of tranquility and peace, with the woman's relaxed demeanor blending seamlessly with the serene natural surroundings to create a sense of calm and harmony,
+<lora:Flux simple panties:1>
+```
+Settings: Steps: 20, CFG: 1, Sampler: Euler, Size: 960x1280
+
+**Prompt 3 (Lifestyle photography):**
+```
+photo of a beautiful young woman, cute panties, girl panties, simple underwear, casual indoor setting, natural lighting, confident pose, soft expression, modern aesthetic, professional photography
+<lora:Flux_simple_panties:1.0>
+```
+Settings: Steps: 20, CFG: 1, Sampler: Euler, Size: 960x1280
+
+**Prompt 4 (Fashion shoot):**
+```
+fashion photography, beautiful model wearing simple panties, studio lighting, clean background, professional model pose, high quality, detailed, (masterpiece:1.1), dynamic angle
+<lora:Flux_simple_panties:1.0>
+```
+Settings: Steps: 20, CFG: 1, Sampler: Euler, Size: 960x1280
+
+## Keywords
+
+- `cute panties` - **PRIMARY TRIGGER**
+- `simple panties` - **PRIMARY TRIGGER**
+- `girl panties`
+- `simple underwear`
+- `slim`, `slender`
+- `race_queen` (for motorsports context)
+- `dynamic_angle`, `from_below`
+- `natural setting`, `tranquil`
+
+## Recommended Combinations
+
+### Character Enhancement
+```
+<lora:Flux_simple_panties:1.0>
+<lora:flux_realism_lora:0.6>
+<lora:detail_enhancer_flux_v1:0.7>
+```
+
+### Fashion Photography
+```
+<lora:Flux_simple_panties:1.0>
+<lora:Amateur_Flux:0.5>
+```
+
+### NSFW Setup
+```
+<lora:Flux_simple_panties:1.0>
+<lora:MysticXXX-v6:0.7>
+```
+
+## Compatible Checkpoints
+
+- FLUX Dev (primary)
+- Flux.1 D
+- Jib Mix Flux
+
+## Recommended Settings
+
+| Parameter | Value |
+|-----------|-------|
+| Steps | 20 |
+| CFG | 1 |
+| Sampler | Euler |
+| Size | 960x1280 (portrait) |
+| Distilled CFG | 3.5 |
+
+## Notes
+
+- Simple, clean underwear style
+- Works well with Asian characters
+- Versatile for different photography contexts
+- Can be used in both professional and casual settings
+- Strength of 1.0 recommended for best results
+- Pairs well with motorsports/race queen themes
+- Also suitable for natural outdoor photography
+
+## Quality Stats
+
+- **Downloads:** 212
+- **Rating:** 21 👍
+- **Tips:** $0
+- **Score:** - (New/Emerging)

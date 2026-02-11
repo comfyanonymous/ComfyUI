@@ -1,0 +1,43 @@
+﻿# Asian Pussy Spreading
+
+[← Back to Index](../INDEX.md)
+
+| Parameter | Value |
+|-----------|-------|
+| **File** | `AsianPussySpreadE10V3.safetensors` |
+| **Civitai** | https://civitai.com/models/907925/asian-pussy-spreading |
+| **Trigger word** | `as1anpu55y` |
+| **Strength** | 0.8-1.0 |
+| **Type** | Pose / CONCEPT |
+
+## Description
+
+LoRA for generating asian girls spreading their legs and/or using their hands to spread their pussy. Uses l33t trigger word for NSFW bypass.
+
+## Sample prompts
+
+**Prompt 1 (Spreading legs):**
+```
+as1anpu55y, 1girl, asian woman, spreading legs, sitting, bedroom, looking at viewer, realistic photo <lora:AsianPussySpreadE10V3:1>
+```
+
+**Prompt 2 (Hand spreading):**
+```
+as1anpu55y, 1girl, asian woman, spreading pussy with hands, lying on bed, pov, realistic photo <lora:AsianPussySpreadE10V3:1>
+```
+
+## Keywords
+
+- `as1anpu55y` - required trigger
+- `spreading legs`
+- `spreading pussy`
+- `spreading pussy with hands`
+- `asian woman`
+- `sitting` / `lying`
+- `pov`
+
+## Notes
+
+- V3 version trained with 50400 steps
+- Uses l33t trigger word `as1anpu55y` for NSFW bypass
+- Works best with asian character prompts

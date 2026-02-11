@@ -139,3 +139,21 @@ Settings: Steps: 20, CFG: 1, Sampler: Euler, Schedule: Simple, Distilled CFG: 3.
 - Can combine multiple trigger words
 - Rear view works with "showing her ass from the back"
 - Known issue: occasional translucent horizontal pattern
+
+---
+
+## Additional Resources
+
+📚 **[Full Prompt Examples Reference](pussydiffusion_prompt_examples.md)**
+
+Comprehensive guide with:
+- 8 detailed prompt examples with analysis
+- Prompt patterns that work (6 different styles)
+- 100+ tested keywords by category
+- 5 LoRA combination strategies
+- Strength guidelines by use case
+- Advanced techniques (rear view, inpainting, multi-pass)
+- Troubleshooting common issues
+- Ethnicity-specific tips
+- Resolution recommendations
+- Complete workflows for beginners and advanced users

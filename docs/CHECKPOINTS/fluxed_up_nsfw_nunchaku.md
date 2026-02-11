@@ -129,6 +129,15 @@ For NSFW:
 - **Real Horny Pro V3:** Much better quality
 - **getphat FLUX Reality:** Better anatomy
 
+## Sample prompts
+
+**Prompt 1 (Emily Feld laying down - palm trees sunset):**
+```
+absolutely gorgeous 23-year-old Emily_Feld, brunette, long dark brown hair, detailed brown eyes, VERY small breasts with perky nipples, thin and fit, 5.9 ft tall, gorgeous narrow face, wide hips, laying down, hair and skin wet from sweating, completely naked, dark sun tanned skin with blended tan lines, showing her pussy, 4k hd image, sharper image, 4k quality images, no makeup, very small tattoo of a heart on her left hip, spreading her legs showing her perfect pussy, perfect eyes, balanced well shaped eyes, detailed eyes, full color tones, deep colors, natural colors, in the shade under a group of palm trees at sunset, hd image, flawless face, masterpiece, perfect face, ((NO BIG BREASTS:1.1))
+```
+Settings: Steps: 24, Sampler: Euler, Size: 1024x1024
+Tested seeds: 981667726812398, 213860849604439
+
 ## Version History
 
 - **V5.1:** Current version

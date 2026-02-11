@@ -77,6 +77,19 @@ highly erotic photorealistic full body image of adult woman, she is kneeling on 
 ```
 Settings: Steps: 25, CFG scale: 1, Sampler: Euler, Schedule: Simple, Distilled CFG Scale: 3.5, Size: 1568x2016
 
+**Prompt 9 (Green-eyed girl, detailed anatomy):**
+```
+fingering, masturbating, female orgasm, touching her vulva., likely in her early twenties, and striking green eyes, and messy black hair with light blonde streaks. She has a slim figure with small breasts, showing in an open light blue negligee over shoulders revealing her shaved vulva. She has pink nipples visible. She has fingers spreading her labia. Her pussy is wet, abundant clear fluid around her vagina and labia. her mouth is open, she is moaning, her face is flushed, she appears near her peak. She is wearing a delicate gold necklace with a small pendant and a gold ring on her left hand., suggesting a playful, light skin tone, and she is using her fingers to part her labia, feet on the bed, Fingering, Masturbating, Female orgasm
+```
+Settings: Steps: 30, CFG scale: 7.5, Size: 1024x1024
+
+**Prompt 10 (Chubby redhead in movie theatre):**
+```
+fingering, masturbating, touching her vulva., likely in her early forties, and striking blue eyes, and messy red hair. She has a curvy figure with big natural breasts, visible vulva. She has pink nipples visible. She is wearing an open white button up shirt and a plaid skirt. She has fingers spreading her labia. Her pussy is wet, abundant clear fluid around her vagina, labia and anus. She is wearing a delicate gold necklace, suggesting a playful, light skin tone, and she is using her fingers to part her labia, in a crowded movie theatre, Fingering, Masturbating, perfect hands 5 fingers, fingers in her vagina. <lora:Fingeringfinal:0.7>
+<lora:Launda_v01:1>
+```
+Settings: Steps: 30, CFG: 4.5, Sampler: Flux Realistic, Size: 896x1152, Model: acornIsSpinningFLUX_aisFluxDeDistilled
+
 ## Keywords
 
 - `Fingering` - recommended keyword

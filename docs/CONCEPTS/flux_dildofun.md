@@ -85,6 +85,30 @@ Settings: Steps 35, CFG 4, 1024x1024
 ```
 Settings: Steps 20, CFG 2, Euler + Simple, 896x1152
 
+**Bottle in campfire scene (b00tledild0):**
+```
+b00tledild0, a mature woman with visible pussy and labia is squatting on a dirty towel. she is looking at viewer with a shy and embarassed face expression. She is using a bottle of clear liquid in her vagina. Her right hand is holding the bottle close to her crotch, with her fingers wrapped around the bottle. she is wearing just a open tree feller shirt showing her small cleavage. she performs around a campfire in a cozy forest at dawn with some older men sitting around the campfire <lora:FLUX_Dildofun:0.75>
+```
+Settings: Steps 30, CFG 1, Euler, 1024x1024
+
+**Anal dildo on stage (4naldild0 + character LoRA):**
+```
+4analdid0, a sexy Japanese-American woman with visible pussy and labia is sitting on a stage in closed toed stilettos. she is looking at viewer, very happy, hands on hips. Clear view of her chest. Puffy Nipples, long black hair with blonde highlights. There is a purple anal dildo entirely penetrating her anus. Her butt is low to the ground. Most of the dildo is inside her butt. She is nude. Her labia are shut closed while her ass is filled by the dildo. She is wearing red lipstick, mascara, and eyeliner and dangling earrings. She performs in the middle of a large circular room with filled audience seats all around. Applauding adult audience. <lora:FLUX_Dildofun:0.85>
+```
+Settings: Steps 60, CFG 1, Euler + Simple, 1024x1024, Hires upscale 1.25 with SwinIR_4x, Distilled CFG 3.5
+
+**Supermarket Coca-Cola bottle (b00tledild0 + character):**
+```
+b00tledild0, LLW_21, slightly chubby curvy woman, long wavy blonde hair, a mature woman with visible pussy and labia is squatting in the drinks aisle of a super market. she is looking at viewer with her mischievous expression. She is using a clear glass coca cola bottle in her vagina. coca cola bottle inserted in her vagina. Her right hand is holding the coca cola bottle close to her crotch. Red label on the bottle with white text "Coca-Cola". she is wearing just a open tree feller shirt showing her big saggy breasts. she is wearing bright pink running sneakers with white socks. shoppers in the background enjoying her erotic performance <lora:FLUX_Dildofun:0.75>
+```
+Settings: Steps 45, CFG 4, 832x1216
+
+**XXL dildo in shopping center (dild0):**
+```
+masterpiece, best quality, high quality, highres, beauty shot of a stunningly beautiful naked woman with beautiful model face, posing in a shopping center, squat, surrounded by people, (((She Is having pleasure front a huge XXL pink dildo inside her pussy))), orgasm expression while putting the dildo inside her west spread pussy, ((beautiful face)), nude, wearing only Pink boots, front view, sweat, wet skin, wet hair, looking at viewer, horny, seductive, (detailed pussy), focus on pussy, pussy juice, spread legs, ((trimmed pubic hair)), big saggy breasts, NSFW, dild0 <lora:FLUX_Dildofun:0.75>
+```
+Settings: Steps 46, CFG 3.5, 832x1216
+
 ## Trigger Words Reference
 
 | Trigger | Type | Description |

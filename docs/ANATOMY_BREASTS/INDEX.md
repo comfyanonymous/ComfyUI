@@ -8,12 +8,13 @@ This section contains LoRAs for enhancing and generating realistic breasts, nipp
 
 ## Quality Statistics (Civitai)
 
-*Updated: 2026-01-03*
+*Updated: 2026-02-10*
 
 | LoRA | Downloads | 👍 | Tips | Score |
 |------|----------:|-------:|-----:|------:|
 | [Breasts Out Fashion](breasts_out_fashion.md) | 51652 | 3674 | 6459 | ⭐⭐⭐ |
 | [NippleDiffusion](nipplediffusion.md) | 47276 | 1607 | 1040 | ⭐⭐⭐ |
+| [SCG-Anatomy-Flux1.d](scg_anatomy_female.md) | 33665 | 1537 | 1320 | ⭐⭐⭐ |
 | [Jibs Flux Nipple Fix](jibs_flux_nipple_fix.md) | 12830 | 823 | 230 | ⭐⭐⭐ |
 | [Ultimate Realistic Breast](ultimate_realistic_breast.md) | 9701 | 617 | 170250 | ⭐⭐⭐ |
 | [God Tier Tits](god_tier_tits.md) | 9081 | 744 | 16570 | ⭐⭐⭐ |
@@ -22,6 +23,7 @@ This section contains LoRAs for enhancing and generating realistic breasts, nipp
 | [Flux AI Boobies](flux_ai_boobies.md) | 3048 | 269 | 100 | ⭐⭐ |
 | [FLUX Nipples Fix](flux_nipples_fix.md) | 2889 | 159 | 68 | ⭐⭐ |
 | [POV Titjob](pov_titjob.md) | 2095 | 119 | 100 | ⭐⭐ |
+| [NaturalBeauty FLUX Nudity](naturalbeauty_flux_nudity.md) | 1,257 | 103 | 0 | ⭐ |
 | [PVDA Ultimate Nudity (A Cup)](pvda_ultimate_nudity.md) | 1,278 | 88 | 0 | ⭐ |
 | [Big Beautiful Black Tits](big_beautiful_black_tits.md) | 1,184 | 114 | 0 | ⭐ |
 | [Busty Girls](busty_girls.md) | 1,045 | 104 | 0 | ⭐ |
@@ -45,6 +47,8 @@ This section contains LoRAs for enhancing and generating realistic breasts, nipp
 | **Breast Implants** | [Flux Bolt-Ons](flux_bolt_ons.md) | High profile, perfectly round, zero sag. Uses `b0lt0ns` trigger. |
 | **Breast Size** | [Busty Girls](busty_girls.md) | 3 size levels, trained on 700 images. High tips despite lower downloads. |
 | **Fashion NSFW** | [Breasts Out Fashion](breasts_out_fashion.md) | #1 downloads (51K). Perfect for nipple slip, fashion context. |
+| **Full-Body Nudity** | [SCG-Anatomy-Flux1.d](scg_anatomy_female.md) | 33K downloads. Full anatomy (male & female). Works with detailed stock-photo style prompts. CFG max 1.0. |
+| **Full-Body Nudity (Alt)** | [NaturalBeauty FLUX Nudity](naturalbeauty_flux_nudity.md) | 12K hand-tagged images, extensive ethnicity/pose/breast tagging. No negative prompt needed. |
 | **Poses** | [POV Titjob](pov_titjob.md) | Non-face-altering, multiple angles. V2 trained at 1024px. |
 
 ---
@@ -58,9 +62,11 @@ This section contains LoRAs for enhancing and generating realistic breasts, nipp
 - [Acorn Improved Nipples](acorn_improved_nipples.md) ⭐⭐ - Automatic enhancement, strength 0.5-0.8
 - [FLUX Nipples Fix](flux_nipples_fix.md) ⭐⭐ - Nipple fix + breast size slider
 
-### Realistic Breasts
+### Realistic Breasts & Full-Body Nudity
 
+- [SCG-Anatomy-Flux1.d](scg_anatomy_female.md) ⭐⭐⭐ - Full-body anatomy for artistic nudes (male & female), 33K downloads
 - [Ultimate Realistic Breast](ultimate_realistic_breast.md) ⭐⭐⭐ - Best realistic breasts, incredible tips (170K)
+- [NaturalBeauty FLUX Nudity](naturalbeauty_flux_nudity.md) ⭐ - Full-body photorealistic nudity, 12K hand-tagged images, extensive tagging
 - [Flux AI Boobies](flux_ai_boobies.md) ⭐⭐ - Raw photorealistic with skin texture, tan lines
 - [Naked Big Natural Breasts](naked_big_natural_breasts.md) - Natural language, max resolution training
 - [Flux Topless](flux_topless.md) - Natural-looking topless/nude scenes
@@ -91,6 +97,7 @@ This section contains LoRAs for enhancing and generating realistic breasts, nipp
 |------|---------|----------|-------|
 | Breasts Out Fashion | None | 0.7-1.0 | Fashion context |
 | NippleDiffusion | Optional (see doc) | 0.7-1.5 | Many trigger options |
+| SCG-Anatomy-Flux1.d | `naked`, `naked woman` | 0.65-1.2 | CFG max 1.0! Full-body |
 | Jibs Flux Nipple Fix | None | 0.75-1.0 | Automatic |
 | Ultimate Realistic Breast | None | 0.7-1.0 | Use DPMPP SDE |
 | God Tier Tits | `GodTierTits` | 0.3-0.9 | 0.7 sweet spot |
@@ -102,6 +109,7 @@ This section contains LoRAs for enhancing and generating realistic breasts, nipp
 | Big Beautiful Black Tits | `BBBTits` | 0.8 | Natural sag |
 | Busty Girls | None | 1.0 | Use `busty+++` |
 | Flux Busty LoRA | None | 0.35-1.0 | Variable strength |
+| NaturalBeauty FLUX Nudity | `naked` / `topless` | 1.0-1.5 | Full-body, Euler, 20 steps |
 | YABL | `b00bs` | 0.8-1.0 | L33t trigger |
 
 ---

@@ -10,7 +10,8 @@ Specialized model for slim nude/topless girls with tiny breasts - erotic but not
 
 - **Filename:** slimnudegirlsFluxFp8Nsfw_v099ReleaseCandidate.safetensors
 - **Location:** models\unet\
-- **Format:** Unet (FP8)
+- **Format:** Unet (FP8 - high precision, 15.7 GB)
+- **Size:** 15.7 GB (larger than typical FP8 ~11 GB - suggests higher quality weights)
 - **Version:** 0.99 Release Candidate
 
 ## Statistics
@@ -30,7 +31,9 @@ Specialized NSFW Unet model in FP8 format.
 
 ## Description
 
-Highly specialized model focused on generating slim nude or topless girls with tiny breasts. The model creates erotic images but explicitly avoids sexual pictures, positioning itself in the artistic nude/glamour photography niche.
+Despite the name suggesting narrow specialization, this model produces consistently good quality output across various body types and scenarios. At 15.7 GB it's significantly larger than typical FP8 models (~11 GB), suggesting higher quality weights and more training data.
+
+Trained on standing, sitting, kneeling, squatting, lying and "on all fours" poses. Compatible with riding, sitting and lying positions. LoRA compatibility is good but may require 10% higher strength than usual.
 
 As a release candidate (v0.99), this model is near final release with potential minor updates coming.
 
@@ -118,10 +121,10 @@ Focus on:
 
 ## Limitations
 
-- Highly specialized (narrow use case)
-- May not perform well outside specialty
-- Lower download count (niche appeal)
+- Name suggests narrow specialization but quality is broader than expected
+- Lower download count (niche branding may understate capabilities)
 - Still in RC status
+- LoRAs may need +10% strength increase
 
 ## Notes
 

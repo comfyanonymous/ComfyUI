@@ -15,6 +15,7 @@ This section contains LoRAs specifically designed for generating realistic femal
 | [PussyDiffusion FLUX](pussydiffusion.md) | `pussydiffusion-f1` | 18,333 | 1,059 | 747 | 2,249 | ⭐⭐⭐ |
 | [Innie Pussy (Front)](innie_pussy_puffy_front.md) | `pffy3FLUX` | 9,042 | 492 | 353 | 5,010 | ⭐⭐⭐ |
 | [Female Masturbation](female_masturbation_fingering.md) | `Fingeringfinal` | 8,485 | 492 | 348 | 63,077 | ⭐⭐⭐ |
+| [Female Masturbation (Mast)](female_masturbation_fingering_mast.md) | `Mast` | 5,323 | 274 | - | 0 | ⭐⭐ |
 | [Flux Pussy & Anus HD](flux_pussy_anus_hd.md) | `Flux_Pussy_Anus_HD` | 7,535 | 498 | 372 | 7,362 | ⭐⭐⭐ |
 | [Realistic Pussy GMR](realistic_pussy_gmr.md) | `pussy flux lora` | 6,898 | 304 | 220 | 10 | ⭐⭐ |
 | [Pussy on Display](pussy_on_display.md) | `Showing_pussy` | 4,702 | 203 | 162 | 200 | ⭐⭐ |
@@ -29,7 +30,6 @@ This section contains LoRAs specifically designed for generating realistic femal
 | [Creampie & Hairy](creampie_hairy_pussy.md) | `pie2-000009` | 1,973 | 103 | 69 | 0 | ⭐ |
 | [Expose Flux](expose_flux.md) | `Expose_Flux` | 1,910 | 133 | - | 30 | ⭐ |
 | [YAPL Creampie](yapl_pussy_creampie.md) | `YAPL_Pussy_Creampie` | 1,431 | 90 | 52 | 732 | ⭐ |
-| [Realistic Pussy Taylor](realistic_pussy_taylor.md) | `Realistic_Pussy_Taylor` | 1,196 | 68 | 49 | 4,057 | ⭐ |
 | [BSP Hairy](bsp_better_standing_poon_hairy.md) | `bsp_hairy_flux` | 986 | 68 | 42 | 2,150 | ⭐ |
 | [Landing Strip V2](landing_strip_v2.md) | `Landing_Strip_V2` | 753 | 38 | 32 | 179 | ⭐ |
 | [Spread Legs FLUX](spread_legs_pussy.md) | `Spread_Legs__Pussy__FLUX` | 718 | 49 | 29 | 1,173 | ⭐ |
@@ -67,7 +67,6 @@ This section contains LoRAs specifically designed for generating realistic femal
 - [Smooth Pussy LG F1D](smooth_pussy_lg_f1d.md) - Smooth, realistic anatomy
 - [Realistic Pussy GMR](realistic_pussy_gmr.md) - Realistic with `sks` trigger
 - [Realistic Pussy FLUX](realistic_pussy_flux.md) - Wet, light-reflecting
-- [Realistic Pussy Taylor](realistic_pussy_taylor.md) - Innie style from close-up training
 - [PussyDiffusion FLUX](pussydiffusion.md) - ⭐⭐⭐ Multiple triggers, best for inpaint
 - [The Pussy Flux1Dev](the_pussy_flux1dev.md) - Detailed labia/clitoris
 
@@ -79,7 +78,6 @@ This section contains LoRAs specifically designed for generating realistic femal
 
 ### Anatomy - Rear View
 - [Flux Pussy & Anus HD](flux_pussy_anus_hd.md) - ⭐⭐⭐ HD rear view
-- [Flux Pussy & Anus HD v2](flux_pussy_anus_hd_v2.md) - v2 with `double package`
 - [Rear Pussy Flux](rear_pussy_flux.md) - High-quality rear (`Rear_pussy`)
 
 ### Poses - Spread Legs
@@ -90,6 +88,7 @@ This section contains LoRAs specifically designed for generating realistic femal
 
 ### Poses - Masturbation / Exposing
 - [Female Masturbation](female_masturbation_fingering.md) - ⭐⭐⭐ Fingering POV
+- [Female Masturbation (Mast)](female_masturbation_fingering_mast.md) - ⭐⭐ Fingering various poses, trigger: `masturbating`
 - [Expose Flux](expose_flux.md) - ⭐ Exposing/fingering with pose control
 - [Flux Cute Pussy](flux_cute_pussy.md) - Experimental spread positions
 
@@ -129,6 +128,7 @@ This section contains LoRAs specifically designed for generating realistic femal
 | YAPL | `vagina`, `creamp1e` | 1.0 |
 | Rear Pussy | `Rear_pussy` | 0.8 |
 | Panties in Pussy | `panties inside` | 0.4 |
+| Female Masturbation (Mast) | `masturbating` | 1.0 |
 | Expose Flux | `pu55ypl4y` (optional) | 0.3-1.5 |
 
 ---

@@ -19,8 +19,21 @@ All documentation is in `ComfyUI\docs\` folder with **folder-based structure**:
 | `ANATOMY_PUSSY/` | LoRAs for vaginal anatomy | 30 |
 | `ANATOMY_BREASTS/` | LoRAs for breast and nipple generation | 17 |
 | `ANATOMY_AREOLAS/` | LoRAs for areola variations | 4 |
-| `POSES/` | LoRAs for poses and camera angles | 45 |
-| `CLOTHING/` | LoRAs for clothing effects | 32 |
+| `POSES/` | LoRAs for poses and camera angles (7 subcategories) | 63 |
+| `POSES/doggystyle-behind/` | Doggystyle, from behind, bent over, all fours | 9 |
+| `POSES/anal/` | Anal missionary, cowgirl, riding, fisting | 8 |
+| `POSES/sex-positions/` | DP, vaginal, cowgirl, dildo, machines | 8 |
+| `POSES/oral-tongue/` | Oral, tongue, cunnilingus, handjobs | 13 |
+| `POSES/sexy-poses/` | Modeling poses, shower, spreading, artistic | 12 |
+| `POSES/clothing-flashing/` | Clothing removal, flashing, mooning | 8 |
+| `POSES/facesitting-misc/` | Facesitting, car poses, camera angles | 5 |
+| `CLOTHING/` | LoRAs for clothing effects (6 subcategories) | 54 |
+| `CLOTHING/panties-underwear/` | Panties, underwear, and related effects | 10 |
+| `CLOTHING/skirts-upskirt/` | Skirts, skirt lifting, upskirt | 5 |
+| `CLOTHING/pantyhose-stockings/` | Pantyhose, stockings, garter belts | 7 |
+| `CLOTHING/lingerie-sheer/` | Lingerie, see-through, corsets | 10 |
+| `CLOTHING/shoes-footwear/` | Stiletto boots, platform heels, pumps | 7 |
+| `CLOTHING/tops-dresses-other/` | Tops, dresses, pants, swimwear, holiday | 15 |
 | `STYLE_ENHANCEMENT/` | Style, realism, NSFW unlock, cum effects | 57 |
 | `ETHNICITY_LATINA/` | LoRAs for Latina/Hispanic characters | 4 |
 | `ETHNICITY_ASIAN/` | LoRAs for Asian characters | 6 |
@@ -123,8 +136,8 @@ Choose the correct folder/file based on LoRA type:
 **Folder-based categories (preferred):**
 - **Anatomy (ass, butt)** → `ANATOMY_ASS/` folder
 - **Anatomy (pussy, vagina)** → `ANATOMY_PUSSY/` folder
-- **Poses, angles** → `POSES/` folder
-- **Clothing, fashion** → `CLOTHING/` folder
+- **Poses, angles** → `POSES/` folder (7 subcategories: doggystyle-behind, anal, sex-positions, oral-tongue, sexy-poses, clothing-flashing, facesitting-misc)
+- **Clothing, fashion** → `CLOTHING/` folder (6 subcategories: panties-underwear, skirts-upskirt, pantyhose-stockings, lingerie-sheer, shoes-footwear, tops-dresses-other)
 - **Style, enhancement, NSFW, cum** → `STYLE_ENHANCEMENT/` folder
 - **Anatomy (breasts, nipples)** → `ANATOMY_BREASTS/` folder
 
@@ -490,4 +503,228 @@ Then restart ComfyUI. It will use PyTorch's native SDPA attention which supports
 
 ---
 
-*Last updated: 2026-01-02*
+## LoRA Documentation Site (lora-docs-site)
+
+### Overview
+
+The `ComfyUI\docs\lora-docs-site\` directory contains an Astro/Starlight-based documentation website for browsing LoRA models with preview images, statistics, and detailed information.
+
+### Configuration
+
+**Location:** `D:\AI\ComfyUI\docs\lora-docs-site\`
+
+**Port:** Port 8080 (configured in `package.json`)
+
+**Start Server:**
+```bash
+cd D:\AI\ComfyUI\docs\lora-docs-site
+npm run dev
+```
+
+**Access:** http://localhost:8080/
+
+### File Structure
+
+```
+lora-docs-site/
+├── src/
+│   ├── content/
+│   │   └── docs/
+│   │       ├── characters/
+│   │       │   ├── acorn/
+│   │       │   ├── other/
+│   │       │   └── watw/
+│   │       ├── anatomy/
+│   │       │   ├── breasts/
+│   │       │   ├── pussy/
+│   │       │   └── ass/
+│   │       ├── clothing/
+│   │       ├── poses/
+│   │       ├── style/
+│   │       └── body-types/
+│   ├── components/
+│   │   ├── LoraCard.astro
+│   │   └── LoraGrid.astro
+│   └── content/
+│       └── config.ts
+├── public/
+│   └── images/
+│       └── loras/           # Preview images (JPEG)
+├── package.json
+└── astro.config.mjs
+```
+
+### Common Issues & Troubleshooting
+
+#### Issue: "Tiles not loading in categories" / Parse errors
+
+**Symptoms:**
+- Category pages show no LoRA cards
+- Console errors: "Failed to parse source for import analysis"
+- Error: "invalid JS syntax"
+
+**Cause:**
+- Astro cache corruption
+- File permission issues with `.astro/data-store.json`
+- Vite cache issues
+
+**Solution:**
+```bash
+# 1. Stop dev server
+# 2. Clear caches
+rm -rf D:\AI\ComfyUI\docs\lora-docs-site\.astro
+rm -rf D:\AI\ComfyUI\docs\lora-docs-site\node_modules\.vite
+
+# 3. Wait 2 seconds for file handles to release
+sleep 2
+
+# 4. Restart dev server
+cd D:\AI\ComfyUI\docs\lora-docs-site
+npm run dev
+```
+
+**Prevention:**
+- Always stop the dev server cleanly before making bulk file changes
+- If making changes to many files (e.g., via Task tool), clear cache afterward
+- Use only one dev server instance at a time
+
+#### Issue: MDX Parse Errors
+
+**Common Causes:**
+1. **Unescaped quotes in JSX attributes**
+   ```jsx
+   // ❌ Wrong
+   title="Name "Nickname" Text"
+
+   // ✅ Correct
+   title="Name &quot;Nickname&quot; Text"
+   ```
+
+2. **Missing or malformed frontmatter**
+   ```yaml
+   ---
+   title: "Title"
+   downloads: 0    # Must be number, not string
+   ---
+   ```
+
+3. **Invalid JSX syntax in LoraCard**
+   - Check all attribute values are properly quoted
+   - Numeric values use `{number}` not `"number"`
+
+**Fix:**
+- Read the error message for the file path
+- Check the specific line mentioned
+- Verify quotes, brackets, and commas
+
+#### Issue: Images not loading
+
+**Cause:** Missing image files in `public/images/loras/`
+
+**Solution:**
+```bash
+# For a single LoRA:
+1. Fetch image URL from Civitai API
+2. Download to public/images/loras/FILENAME.jpg
+3. Update imageUrl in .mdx file
+
+# For multiple LoRAs:
+Use Task tool with general-purpose agent to bulk download
+```
+
+**Image Naming Convention:**
+- Use same name as .mdx file (without .mdx extension)
+- Always use `.jpg` extension
+- Example: `watw_japan.mdx` → `watw_japan.jpg`
+
+#### Issue: Port conflicts
+
+**Symptoms:**
+- "Port 8080 is in use, trying another one..."
+- Server starts on random port (8081, 8082, etc.)
+
+**Solution:**
+- Kill other dev servers using port 8080
+- Or accept the new port suggested by Astro
+- Port is configured in `package.json` → `scripts.dev`
+
+### MDX File Template
+
+```mdx
+---
+title: "LoRA Name"
+description: "Category for FLUX"
+downloads: 0
+rating: 0
+tips: 0
+score: "-"
+type: "Category"
+trigger: "trigger_word"
+strength: "1.0"
+civitaiUrl: ""
+compatibility: "FLUX"
+sidebar:
+  badge:
+    text: "-"
+    variant: note
+---
+
+import LoraCard from '../../../components/LoraCard.astro';
+
+<LoraCard
+  title="LoRA Name"
+  slug="category/lora_name"
+  downloads={0}
+  rating={0}
+  tips={0}
+  score="-"
+  type="Category"
+  trigger="trigger_word"
+  strength="1.0"
+  civitaiUrl=""
+  imageUrl="/images/loras/lora_name.jpg"
+  compatibility="FLUX"
+/>
+
+[← Back to Index](INDEX.md)
+
+## Description
+...
+```
+
+### Bulk Updates
+
+When updating multiple LoRAs (e.g., fetching images for WATW category):
+
+1. **Use Task tool** with `general-purpose` agent
+2. **Provide clear instructions:**
+   - List of files to process
+   - What to extract (civitaiUrl, stats, images)
+   - Where to save images
+   - What fields to update
+3. **After completion:**
+   - Stop dev server
+   - Clear Astro cache
+   - Restart dev server
+
+Example:
+```
+Task: Download preview images for all WATW LoRAs
+- Read each .mdx file in characters/watw/
+- Extract civitaiUrl
+- Fetch image from Civitai API
+- Save to public/images/loras/
+- Update imageUrl in frontmatter and LoraCard
+```
+
+### Notes
+
+- **Always test** after bulk changes by visiting category pages
+- **Cache clearing** is often needed after mass file modifications
+- **Port 8080** is the standard port - document any changes
+- **Image format:** Always JPEG (.jpg extension)
+- **Compatibility field:** All entries should be "FLUX" only
+
+---
+
+*Last updated: 2026-02-06*

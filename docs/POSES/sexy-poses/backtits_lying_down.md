@@ -1,0 +1,57 @@
+# Lying Down Breast-Morph / Backtits - FLUX
+
+[← Back to POSES Index](../INDEX.md)
+
+## Info
+- **File:** `Backtits_Lying_Down_FLUX.safetensors`
+- **Original filename:** `mongot-BackTits-Flux-v7.safetensors`
+- **Civitai:** https://civitai.com/models/483381/lying-down-breast-morph-backtits-flux-pony
+- **Trigger:** `laying on her back, viewed from a top down view`
+- **Strength:** 0.9-1.0
+- **Type:** POSES
+
+## Description
+LoRA for generating women lying on their back with natural breast positioning from top-down view. Trained on higher resolution images (v7), making it superior to previous versions. Does not affect character LoRA facial features.
+
+## Recommended Settings
+| Parameter | Value |
+|-----------|-------|
+| Steps | 20 |
+| CFG | 2 |
+| Strength | 0.9-1.0 |
+
+## Keywords
+- `laying on her back`
+- `viewed from a top down view`
+- `lying on her back`
+- `top down view`
+
+## Example Prompts
+
+### Busty Woman on Air Mattress
+```
+a busty woman, lying on her back on a rubber air mattress. the bright sun is lighting her wet sweaty body up, covered in small drops of sweat, making her skin shiny and reflective.
+```
+Settings: Steps 20, CFG 2
+
+### Character with Pale Skin
+```
+a photo of Lindsay lying on her back on an inflatable air mattress. She has dark hair and pale white skin. the bright light is lighting her wet sweaty body up, covered in small drops of sweat, making her skin shiny and reflective.
+```
+
+## Recommended LoRA Combinations
+- **Character Friendly Body Types - FLUX** (WEAK versions) - body type manipulation
+  - Puma-v1-WEAK
+  - Other WEAK body type variants
+
+## Best Checkpoints
+- FLUX Dev
+
+## Notes
+- V7 version - trained on higher resolution images
+- Does not affect character LoRA facial features
+- Use WEAK body type LoRAs for better body manipulation
+- Low CFG (2) recommended
+- Good for pool/beach/bed scenes
+- Works well with wet/sweaty skin descriptions
+- Also available for Pony
