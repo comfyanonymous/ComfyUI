@@ -151,7 +151,7 @@ class KeypointDraw:
         return unique_pts if len(unique_pts) > 1 else [[center[0], center[1]], [center[0], center[1]]]
 
     def draw_wholebody_keypoints(self, canvas, keypoints, scores=None, threshold=0.3,
-                                 draw_body=True, draw_feet=True, draw_face=True, draw_hands=True):
+                                 draw_body=True, draw_feet=True, draw_face=True, draw_hands=True, stick_width=4, face_point_size=3):
         """
         Draw wholebody keypoints (134 keypoints after processing) in DWPose style.
 
@@ -172,7 +172,6 @@ class KeypointDraw:
             canvas: The canvas with keypoints drawn
         """
         H, W, C = canvas.shape
-        stickwidth = 4
 
         # Draw body limbs
         if draw_body and len(keypoints) >= 18:
@@ -197,7 +196,7 @@ class KeypointDraw:
 
                 angle = math.degrees(math.atan2(X[0] - X[1], Y[0] - Y[1]))
 
-                polygon = self.draw.ellipse2Poly((int(mY), int(mX)), (int(length / 2), stickwidth), int(angle), 0, 360, 1)
+                polygon = self.draw.ellipse2Poly((int(mY), int(mX)), (int(length / 2), stick_width), int(angle), 0, 360, 1)
 
                 self.draw.fillConvexPoly(canvas, polygon, self.colors[i % len(self.colors)])
 
@@ -281,7 +280,7 @@ class KeypointDraw:
                     continue
                 x, y = int(keypoints[i][0]), int(keypoints[i][1])
                 if x > eps and y > eps and 0 <= x < W and 0 <= y < H:
-                    self.draw.circle(canvas, (x, y), 3, (255, 255, 255), thickness=-1)
+                    self.draw.circle(canvas, (x, y), face_point_size, (255, 255, 255), thickness=-1)
 
         return canvas
 
@@ -295,9 +294,11 @@ class SDPoseDrawKeypoints(io.ComfyNode):
             inputs=[
                 io.Custom("POSEKEYPOINTS").Input("keypoints"),
                 io.Boolean.Input("draw_body", default=True),
-                io.Boolean.Input("draw_feet", default=True),
-                io.Boolean.Input("draw_face", default=True),
                 io.Boolean.Input("draw_hands", default=True),
+                io.Boolean.Input("draw_face", default=True),
+                io.Boolean.Input("draw_feet", default=False),
+                io.Int.Input("stick_width", default=4, min=1, max=10, step=1),
+                io.Int.Input("face_point_size", default=3, min=1, max=10, step=1),
             ],
             outputs=[
                 io.Image.Output(),
@@ -305,7 +306,7 @@ class SDPoseDrawKeypoints(io.ComfyNode):
         )
 
     @classmethod
-    def execute(cls, keypoints, draw_body, draw_feet, draw_face, draw_hands) -> io.NodeOutput:
+    def execute(cls, keypoints, draw_body, draw_hands, draw_face, draw_feet, stick_width, face_point_size) -> io.NodeOutput:
 
         all_keypoints = keypoints["keypoints"]
         all_scores = keypoints["scores"]
@@ -361,7 +362,8 @@ class SDPoseDrawKeypoints(io.ComfyNode):
             pose_canvas = canvas_batch_np[b].copy()
             drawer = KeypointDraw()
             pose_canvas = drawer.draw_wholebody_keypoints(pose_canvas, processed_keypoints[b], processed_scores[b], threshold=score_threshold,
-                                                          draw_body=draw_body, draw_feet=draw_feet, draw_face=draw_face, draw_hands=draw_hands)
+                                                          draw_body=draw_body, draw_feet=draw_feet, draw_face=draw_face, draw_hands=draw_hands,
+                                                          stick_width=stick_width, face_point_size=face_point_size)
             pose_outputs.append(pose_canvas)
 
         pose_outputs_np = np.stack(pose_outputs) if len(pose_outputs) > 1 else np.expand_dims(pose_outputs[0], 0)
