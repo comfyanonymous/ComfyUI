@@ -1213,8 +1213,12 @@ def cast_to(weight, dtype=None, device=None, non_blocking=False, copy=False, str
 
         signature = comfy_aimdo.model_vbar.vbar_fault(weight._v)
         if signature is not None:
-            v_tensor = comfy.memory_management.interpret_gathered_like(cast_geometry, weight._v_tensor)[0]
-            if not comfy_aimdo.model_vbar.vbar_signature_compare(signature, weight._v_signature):
+            if comfy_aimdo.model_vbar.vbar_signature_compare(signature, weight._v_signature):
+                v_tensor = weight._v_tensor
+            else:
+                raw_tensor = comfy_aimdo.torch.aimdo_to_tensor(weight._v, device)
+                v_tensor = comfy.memory_management.interpret_gathered_like(cast_geometry, raw_tensor)[0]
+                weight._v_tensor = v_tensor
                 weight._v_signature = signature
                 #Send it over
                 v_tensor.copy_(weight, non_blocking=non_blocking)

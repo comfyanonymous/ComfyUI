@@ -1542,7 +1542,6 @@ class ModelPatcherDynamic(ModelPatcher):
 
                     if vbar is not None and not hasattr(m, "_v"):
                         m._v = vbar.alloc(v_weight_size)
-                        m._v_tensor = comfy_aimdo.torch.aimdo_to_tensor(m._v, device_to)
                     allocated_size += v_weight_size
 
                 else:
@@ -1557,7 +1556,6 @@ class ModelPatcherDynamic(ModelPatcher):
                         weight_size = geometry.numel() * geometry.element_size()
                         if vbar is not None and not hasattr(weight, "_v"):
                             weight._v = vbar.alloc(weight_size)
-                            weight._v_tensor = comfy_aimdo.torch.aimdo_to_tensor(weight._v, device_to)
                             weight._model_dtype = model_dtype
                         allocated_size += weight_size
                     vbar.set_watermark_limit(allocated_size)
