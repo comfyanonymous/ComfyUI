@@ -10,9 +10,6 @@ from comfy.ldm.trellis2.cumesh import TorchHashMap, Mesh, MeshWithVoxel, sparse_
 
 
 def pixel_shuffle_3d(x: torch.Tensor, scale_factor: int) -> torch.Tensor:
-    """
-    3D pixel shuffle.
-    """
     B, C, H, W, D = x.shape
     C_ = C // scale_factor**3
     x = x.reshape(B, C_, scale_factor, scale_factor, scale_factor, H, W, D)
@@ -967,6 +964,25 @@ class SparseLinear(nn.Linear):
         return input.replace(super().forward(input.feats))
 
 
+MIX_PRECISION_MODULES = (
+    nn.Conv1d,
+    nn.Conv2d,
+    nn.Conv3d,
+    nn.ConvTranspose1d,
+    nn.ConvTranspose2d,
+    nn.ConvTranspose3d,
+    nn.Linear,
+    SparseConv3d,
+    SparseLinear,
+)
+
+
+def convert_module_to_f16(l):
+    if isinstance(l, MIX_PRECISION_MODULES):
+        for p in l.parameters():
+            p.data = p.data.half()
+
+
 
 class SparseUnetVaeEncoder(nn.Module):
     """
@@ -1381,8 +1397,12 @@ class ResBlock3d(nn.Module):
         self.skip_connection = nn.Conv3d(channels, self.out_channels, 1) if channels != self.out_channels else nn.Identity()
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
+        self.norm1 = self.norm1.to(torch.float32)
+        self.norm2 = self.norm2.to(torch.float32)
         h = self.norm1(x)
         h = F.silu(h)
+        dtype = next(self.conv1.parameters()).dtype
+        h = h.to(dtype)
         h = self.conv1(h)
         h = self.norm2(h)
         h = F.silu(h)
@@ -1400,7 +1420,7 @@ class SparseStructureDecoder(nn.Module):
         channels: List[int],
         num_res_blocks_middle: int = 2,
         norm_type = "layer",
-        use_fp16: bool = False,
+        use_fp16: bool = True,
     ):
         super().__init__()
         self.out_channels = out_channels
@@ -1439,20 +1459,27 @@ class SparseStructureDecoder(nn.Module):
         if use_fp16:
             self.convert_to_fp16()
 
-    @property
     def device(self) -> torch.device:
         return next(self.parameters()).device
 
+    def convert_to_fp16(self) -> None:
+        self.use_fp16 = True
+        self.dtype = torch.float16
+        self.blocks.apply(convert_module_to_f16)
+        self.middle_block.apply(convert_module_to_f16)
+
     def forward(self, x: torch.Tensor) -> torch.Tensor:
+        dtype = next(self.input_layer.parameters()).dtype
+        x = x.to(dtype)
         h = self.input_layer(x)
 
         h = h.type(self.dtype)
-
         h = self.middle_block(h)
         for block in self.blocks:
             h = block(h)
 
-        h = h.type(x.dtype)
+        h = h.to(torch.float32)
+        self.out_layer = self.out_layer.to(torch.float32)
         h = self.out_layer(h)
         return h
 

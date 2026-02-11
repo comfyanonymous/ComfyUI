@@ -14,6 +14,7 @@ except:
 def scaled_dot_product_attention(*args, **kwargs):
     num_all_args = len(args) + len(kwargs)
 
+    q = None
     if num_all_args == 1:
         qkv = args[0] if len(args) > 0 else kwargs['qkv']
 
@@ -26,8 +27,10 @@ def scaled_dot_product_attention(*args, **kwargs):
         k = args[1] if len(args) > 1 else kwargs['k']
         v = args[2] if len(args) > 2 else kwargs['v']
 
-    # TODO verify
-    heads = q or qkv
+    if q is not None:
+        heads = q
+    else:
+        heads = qkv
     heads = heads.shape[2]
 
     if optimized_attention.__name__ == 'attention_xformers':

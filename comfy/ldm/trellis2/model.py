@@ -7,7 +7,6 @@ from comfy.ldm.trellis2.attention import (
     sparse_windowed_scaled_dot_product_self_attention, sparse_scaled_dot_product_attention, scaled_dot_product_attention
 )
 from comfy.ldm.genmo.joint_model.layers import TimestepEmbedder
-from comfy.nested_tensor import NestedTensor
 from comfy.ldm.flux.math import apply_rope, apply_rope1
 
 class SparseGELU(nn.GELU):
@@ -586,6 +585,7 @@ class MultiHeadAttention(nn.Module):
         else:
             Lkv = context.shape[1]
             q = self.to_q(x)
+            context = context.to(next(self.to_kv.parameters()).dtype)
             kv = self.to_kv(context)
             q = q.reshape(B, L, self.num_heads, -1)
             kv = kv.reshape(B, Lkv, 2, self.num_heads, -1)
@@ -782,6 +782,7 @@ class SparseStructureFlowModel(nn.Module):
             h = block(h, t_emb, cond, self.rope_phases)
         h = manual_cast(h, x.dtype)
         h = F.layer_norm(h, h.shape[-1:])
+        h = h.to(next(self.out_layer.parameters()).dtype)
         h = self.out_layer(h)
 
         h = h.permute(0, 2, 1).view(h.shape[0], h.shape[2], *[self.resolution] * 3).contiguous()
@@ -823,9 +824,7 @@ class Trellis2(nn.Module):
         args.pop("out_channels")
         self.structure_model = SparseStructureFlowModel(resolution=16, in_channels=8, out_channels=8, **args)
 
-    def forward(self, x: NestedTensor, timestep, context, **kwargs):
-        if isinstance(x, NestedTensor):
-            x = x.tensors[0]
+    def forward(self, x, timestep, context, **kwargs):
         embeds = kwargs.get("embeds")
         if not hasattr(x, "feats"):
             mode = "structure_generation"
@@ -843,6 +842,5 @@ class Trellis2(nn.Module):
             timestep = timestep_reshift(timestep)
             out = self.structure_model(x, timestep, context)
 
-        out = NestedTensor([out])
         out.generation_mode = mode
         return out

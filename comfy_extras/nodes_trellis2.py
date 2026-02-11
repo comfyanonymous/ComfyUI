@@ -3,7 +3,7 @@ from comfy_api.latest import ComfyExtension, IO
 import torch
 from comfy.ldm.trellis2.model import SparseTensor
 import comfy.model_management
-from comfy.nested_tensor import NestedTensor
+import comfy.model_patcher
 from torchvision.transforms import ToPILImage, ToTensor, Resize, InterpolationMode
 
 shape_slat_normalization = {
@@ -137,14 +137,15 @@ class VaeDecodeShapeTrellis(IO.ComfyNode):
         )
 
     @classmethod
-    def execute(cls, samples: NestedTensor, vae, resolution):
-        samples = samples.tensors[0]
+    def execute(cls, samples, vae, resolution):
+        vae = vae.first_stage_model
+        samples = samples["samples"]
         std = shape_slat_normalization["std"]
         mean = shape_slat_normalization["mean"]
         samples = samples * std + mean
 
         mesh, subs = vae.decode_shape_slat(resolution, samples)
-        return mesh, subs
+        return IO.NodeOutput(mesh, subs)
 
 class VaeDecodeTextureTrellis(IO.ComfyNode):
     @classmethod
@@ -164,13 +165,14 @@ class VaeDecodeTextureTrellis(IO.ComfyNode):
 
     @classmethod
     def execute(cls, samples, vae, shape_subs):
-        samples = samples.tensors[0]
+        vae = vae.first_stage_model
+        samples = samples["samples"]
         std = tex_slat_normalization["std"]
         mean = tex_slat_normalization["mean"]
         samples = samples * std + mean
 
         mesh = vae.decode_tex_slat(samples, shape_subs)
-        return mesh
+        return IO.NodeOutput(mesh)
 
 class VaeDecodeStructureTrellis2(IO.ComfyNode):
     @classmethod
@@ -189,10 +191,19 @@ class VaeDecodeStructureTrellis2(IO.ComfyNode):
 
     @classmethod
     def execute(cls, samples, vae):
+        vae = vae.first_stage_model
         decoder = vae.struct_dec
+        load_device = comfy.model_management.get_torch_device()
+        decoder = comfy.model_patcher.ModelPatcher(
+            decoder, load_device=load_device, offload_device=comfy.model_management.vae_offload_device()
+        )
+        comfy.model_management.load_model_gpu(decoder)
+        decoder = decoder.model
+        samples = samples["samples"]
+        samples = samples.to(load_device)
         decoded = decoder(samples)>0
         coords = torch.argwhere(decoded)[:, [0, 2, 3, 4]].int()
-        return coords
+        return IO.NodeOutput(coords)
 
 class Trellis2Conditioning(IO.ComfyNode):
     @classmethod
@@ -240,7 +251,6 @@ class EmptyShapeLatentTrellis2(IO.ComfyNode):
         coords = structure_output # or structure_output.coords
         in_channels = 32
         latent = SparseTensor(feats=torch.randn(coords.shape[0], in_channels), coords=coords)
-        latent = NestedTensor([latent])
         return IO.NodeOutput({"samples": latent, "type": "trellis2"})
 
 class EmptyTextureLatentTrellis2(IO.ComfyNode):
@@ -262,7 +272,6 @@ class EmptyTextureLatentTrellis2(IO.ComfyNode):
         # TODO
         in_channels = 32
         latent = structure_output.replace(feats=torch.randn(structure_output.coords.shape[0], in_channels - structure_output.feats.shape[1]))
-        latent = NestedTensor([latent])
         return IO.NodeOutput({"samples": latent, "type": "trellis2"})
 
 class EmptyStructureLatentTrellis2(IO.ComfyNode):
@@ -283,7 +292,6 @@ class EmptyStructureLatentTrellis2(IO.ComfyNode):
         in_channels = 8
         resolution = 16
         latent = torch.randn(batch_size, in_channels, resolution, resolution, resolution)
-        latent = NestedTensor([latent])
         return IO.NodeOutput({"samples": latent, "type": "trellis2"})
 
 def simplify_fn(vertices, faces, target=100000):
@@ -469,7 +477,7 @@ class PostProcessMesh(IO.ComfyNode):
         mesh.vertices = verts
         mesh.faces = faces
 
-        return mesh
+        return IO.NodeOutput(mesh)
 
 class Trellis2Extension(ComfyExtension):
     @override
