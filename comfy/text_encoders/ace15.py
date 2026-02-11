@@ -82,6 +82,12 @@ def sample_manual_loop_no_classes(
             min_val = top_k_vals[..., -1, None]
             cfg_logits[cfg_logits < min_val] = remove_logit_value
 
+        if min_p is not None and min_p > 0:
+            probs = torch.softmax(cfg_logits, dim=-1)
+            p_max = probs.max(dim=-1, keepdim=True).values
+            indices_to_remove = probs < (min_p * p_max)
+            cfg_logits[indices_to_remove] = remove_logit_value
+
         if top_p is not None and top_p < 1.0:
             sorted_logits, sorted_indices = torch.sort(cfg_logits, descending=True)
             cumulative_probs = torch.cumsum(torch.softmax(sorted_logits, dim=-1), dim=-1)
@@ -89,12 +95,6 @@ def sample_manual_loop_no_classes(
             sorted_indices_to_remove[..., 1:] = sorted_indices_to_remove[..., :-1].clone()
             sorted_indices_to_remove[..., 0] = 0
             indices_to_remove = sorted_indices_to_remove.scatter(1, sorted_indices, sorted_indices_to_remove)
-            cfg_logits[indices_to_remove] = remove_logit_value
-
-        if min_p is not None and min_p > 0:
-            probs = torch.softmax(cfg_logits, dim=-1)
-            p_max = probs.max(dim=-1, keepdim=True).values
-            indices_to_remove = probs < (min_p * p_max)
             cfg_logits[indices_to_remove] = remove_logit_value
 
         if temperature > 0:
