@@ -254,7 +254,7 @@ def slice_attention(q, k, v):
     mem_required = tensor_size * modifier
     steps = 1
 
-    if mem_required > mem_free_total:
+    if mem_required > mem_free_total and mem_free_total > 0:
         steps = 2**(math.ceil(math.log(mem_required / mem_free_total, 2)))
 
     while True:

@@ -21,6 +21,13 @@ if __name__ == "__main__":
     #NOTE: These do not do anything on core ComfyUI, they are for custom nodes.
     os.environ['HF_HUB_DISABLE_TELEMETRY'] = '1'
     os.environ['DO_NOT_TRACK'] = '1'
+    # MPS (Apple Silicon) defaults
+    os.environ.setdefault('PYTORCH_ENABLE_MPS_FALLBACK', '1')
+    # Disable torch.compile/dynamo on MPS — sub_quad attention with varying tensor sizes
+    # causes 64+ recompilations that exhaust memory and get the process killed.
+    os.environ.setdefault('TORCHDYNAMO_DISABLE', '1')
+    # Use PyTorch default HIGH_WATERMARK_RATIO (1.7) — keeps GC and adaptive commit active.
+    # Setting to 0.0 disables all memory management and can cause kernel panics.
 
 setup_logger(log_level=args.verbose, use_stdout=args.log_stdout)
 
@@ -187,6 +194,9 @@ import hook_breaker_ac10a0
 
 import comfy.memory_management
 import comfy.model_patcher
+
+from comfy.mps_compat import apply_patches
+apply_patches()
 
 import comfy_aimdo.control
 import comfy_aimdo.torch
