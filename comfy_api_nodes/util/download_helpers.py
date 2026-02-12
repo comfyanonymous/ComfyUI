@@ -167,27 +167,25 @@ async def download_url_to_bytesio(
                     with contextlib.suppress(Exception):
                         dest.seek(0)
 
-                with contextlib.suppress(Exception):
-                    request_logger.log_request_response(
-                        operation_id=op_id,
-                        request_method="GET",
-                        request_url=url,
-                        response_status_code=resp.status,
-                        response_headers=dict(resp.headers),
-                        response_content=f"[streamed {written} bytes to dest]",
-                    )
+                request_logger.log_request_response(
+                    operation_id=op_id,
+                    request_method="GET",
+                    request_url=url,
+                    response_status_code=resp.status,
+                    response_headers=dict(resp.headers),
+                    response_content=f"[streamed {written} bytes to dest]",
+                )
                 return
         except asyncio.CancelledError:
             raise ProcessingInterrupted("Task cancelled") from None
         except (ClientError, OSError) as e:
             if attempt <= max_retries:
-                with contextlib.suppress(Exception):
-                    request_logger.log_request_response(
-                        operation_id=op_id,
-                        request_method="GET",
-                        request_url=url,
-                        error_message=f"{type(e).__name__}: {str(e)} (will retry)",
-                    )
+                request_logger.log_request_response(
+                    operation_id=op_id,
+                    request_method="GET",
+                    request_url=url,
+                    error_message=f"{type(e).__name__}: {str(e)} (will retry)",
+                )
                 await sleep_with_interrupt(delay, cls, None, None, None)
                 delay *= retry_backoff
                 continue
