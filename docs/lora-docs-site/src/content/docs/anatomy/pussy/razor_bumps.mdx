@@ -1,0 +1,101 @@
+---
+title: "Razor Bumps for FLUX"
+description: "CONCEPT / Realism / Body Detail for FLUX"
+downloads: 621
+rating: 54
+tips: 0
+score: "⭐"
+type: "CONCEPT / Realism / Body Detail"
+trigger: "Sometimes goes too far and can create unwanted marks. Works better as inpaint resource. At weight 1.0 it may try to add pussy in wrong places (chest), so lower weight or enrich prompt."
+strength: "0.5-1.0"
+civitaiUrl: "https://civitai.com/models/1038237/razor-bumps-for-flux"
+compatibility: "FLUX"
+sidebar:
+  badge:
+    text: "⭐"
+    variant: note
+---
+
+import LoraCard from '../../../../components/LoraCard.astro';
+
+<LoraCard
+  title="Razor Bumps for FLUX"
+  slug="anatomy/pussy/razor_bumps"
+  downloads={621}
+  rating={54}
+  tips={0}
+  score="⭐"
+  type="CONCEPT / Realism / Body Detail"
+  trigger="Sometimes goes too far and can create unwanted marks. Works better as inpaint resource. At weight 1.0 it may try to add pussy in wrong places (chest), so lower weight or enrich prompt."
+  strength="0.5-1.0"
+  civitaiUrl="https://civitai.com/models/1038237/razor-bumps-for-flux"
+  imageUrl="/images/loras/razor_bumps.jpg"
+  compatibility="FLUX"
+/>
+
+# Razor Bumps for FLUX
+
+[← Back to Index](INDEX.md)
+
+| Parameter | Value |
+|-----------|-------|
+| **File** | `Razor_bumps_for_FLUX_V2.safetensors` |
+| **Civitai** | https://civitai.com/models/1038237/razor-bumps-for-flux |
+| **Trigger word** | `razor bumps` |
+| **Strength** | 0.5-1.0 |
+| **Type** | CONCEPT / Realism / Body Detail |
+| **Version** | V2 |
+| **Compatibility** | FLUX |
+
+## Description
+
+LoRA for adding realistic razor bumps in the pubic area. Created for body realism and body positivity - not all bodies are perfect. Works for pussy close-ups and standing frontal pubic area views.
+
+**Warning:** Sometimes goes too far and can create unwanted marks. Works better as inpaint resource. At weight 1.0 it may try to add pussy in wrong places (chest), so lower weight or enrich prompt.
+
+## Sample prompts
+
+**Prompt 1 (Standing full body):**
+```
+photo of a girl standing while showing razor bumps in pubic area, razor bumps, showing face, nude, petite body, small breasts <lora:Razor_bumps_for_FLUX_V2:1>
+```
+Negative: `ugly, deformed, noisy, blurry, low contrast`
+Settings: Steps: 13, CFG: 1, Sampler: Euler, Size: 832x1216, Schedule: Normal, Distilled CFG: 3
+
+**Prompt 2 (Spreading legs closeup):**
+```
+closeup of a girl spreading legs while showing razor bumps around pussy area, razor bumps <lora:Razor_bumps_for_FLUX_V2:1>
+```
+Negative: `ugly, deformed, noisy, blurry, low contrast`
+Settings: Steps: 13, CFG: 1, Sampler: Euler, Size: 832x1216, Schedule: Normal, Distilled CFG: 3
+
+**Prompt 3 (Pubic area closeup):**
+```
+closeup of a girl spreading legs while showing razor bumps in the pubic area <lora:Razor_bumps_for_FLUX_V2:1>
+```
+Settings: Steps: 30, CFG: 7.5, Sampler: DDIM, Size: 512x512
+
+## Keywords
+
+- `razor bumps`
+- `razor bumps in pubic area`
+- `razor bumps around pussy area`
+- `spreading legs`
+- `pubic area`
+
+## Tested combinations
+
+**Combination 1 (Petite body):**
+```
+<lora:Razor_bumps_for_FLUX_V2:1> <lora:Petite_body_type:1>
+```
+
+## Notes
+
+- Strength 0.5-1.0 (lower weight if unwanted artifacts appear)
+- Better as inpaint resource than txt2img
+- At weight 1.0 may add anatomy in wrong places
+- CFG 1 with Distilled CFG 3 works well
+- Steps 13-30 for quality
+- Use with body positivity/realism focus
+- Can sometimes create marks that look like herpes (author's warning)

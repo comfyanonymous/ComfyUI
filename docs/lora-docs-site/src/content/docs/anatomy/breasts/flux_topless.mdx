@@ -1,0 +1,98 @@
+---
+title: "Flux Topless"
+description: "Anatomy / NSFW for FLUX"
+downloads: 18157
+rating: 1102
+tips: 90
+score: "⭐⭐⭐"
+type: "Anatomy / NSFW"
+trigger: "None"
+strength: "0.8"
+civitaiUrl: "https://civitai.com/models/642272/flux-topless"
+compatibility: "FLUX"
+sidebar:
+  badge:
+    text: "⭐⭐⭐"
+    variant: note
+---
+
+import LoraCard from '../../../../components/LoraCard.astro';
+
+<LoraCard
+  title="Flux Topless"
+  slug="anatomy/breasts/flux_topless"
+  downloads={18157}
+  rating={1102}
+  tips={90}
+  score="⭐⭐⭐"
+  type="Anatomy / NSFW"
+  trigger="None"
+  strength="0.8"
+  civitaiUrl="https://civitai.com/models/642272/flux-topless"
+  imageUrl="/images/loras/flux_topless.jpg"
+  compatibility="FLUX"
+/>
+
+# Flux Topless
+
+[← Back to Index](INDEX.md)
+
+## Civitai Stats
+
+| Metric | Value |
+|--------|-------|
+| **Downloads** | N/A |
+| **👍** | N/A |
+| **Tips** | N/A |
+| **Score** | - |
+
+## Parameters
+
+| Parameter | Value |
+|-----------|-------|
+| **File** | `flux_topless_v1.safetensors` |
+| **Trigger word** | None (use natural language: `nipples`, `breasts`, `topless`) |
+| **Strength** | 0.8 |
+| **Type** | Anatomy / NSFW |
+| **Compatibility** | FLUX.1-dev |
+
+## Description
+
+LoRA for generating topless/nude scenes with natural-looking breasts. Uses natural language prompting - just describe what you want. Works best with full precision t5/clip conditioning. Give random names when generating multiple people.
+
+## Recommended settings
+
+- **Strength:** 0.8
+- **Guidance:** 3.0
+- **Scheduler:** Euler (simple)
+- **Steps:** 40
+- **Shift:** max_shift and base_shift 0 (other values work too)
+
+## Sample prompts
+
+**Prompt 1 (Cheerleader):**
+```
+18 year old woman, blonde hair, long hair, medium round breasts, youthful face, soft face, petite cheerleader outfit, skirt, cleavage, full body shot, sexy thighs, sitting on a desk in a classroom, legs crossed, soft light coming from windows, blue eyes, skinny, cool color tone, depth of field, 35mm, soft pink nipples, lifting shirt to flash breasts
+```
+
+**Prompt 2 (College coed):**
+```
+Tamryn is a cute coed with sunglasses on her head, wearing a tight crop top flashing her breasts on college campus. Highly detailed, high-resolution image. <lora:flux_topless_v1:0.8>
+```
+
+**Prompt 3 (Figure skater):**
+```
+photo, cinematic, bokeh, a cute Nordic olympic figure skater posing nude for promotional photoshoot, slender petite body, small tits, thin waist, shaved pussy, full frontal nudity, realistic skin, big smile, symmetry, playboy centerfold, arched bangs, nsfw, 35mm photo
+```
+
+**Prompt 4 (Dorm room):**
+```
+iphone photo of a stunningly beautiful topless 20 years old girl with large natural saggy breasts and a slim sexy figure. small breasts, nude, petite body. she is proudly displaying her perfect supple perky breasts. taken by Kodak MC3 camera. she is sitting on a bed in a seductive pose. The background is a realistic dorm room. The style is realistic with focus on fine details. <lora:flux_topless_v1:0.4>
+```
+
+## Notes
+
+- Use natural language - no specific trigger word needed
+- Words like `nipples`, `breasts`, `topless` help activate the LoRA
+- Give random names for multiple people generation
+- Works best with full precision t5/clip conditioning

@@ -1,0 +1,247 @@
+/* Custom styles for LoRA documentation */
+
+:root {
+	--lora-card-border: rgba(255, 255, 255, 0.1);
+	--lora-card-bg: rgba(0, 0, 0, 0.3);
+	--lora-card-hover: rgba(255, 255, 255, 0.05);
+}
+
+/* LoRA Card Grid */
+.lora-grid {
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+	gap: 1.5rem;
+	margin: 2rem 0;
+}
+
+/* LoRA Card */
+.lora-card {
+	background: var(--lora-card-bg);
+	border: 1px solid var(--lora-card-border);
+	border-radius: 12px;
+	overflow: hidden;
+	transition: all 0.3s ease;
+	display: flex;
+	flex-direction: column;
+}
+
+.lora-card:hover {
+	transform: translateY(-4px);
+	box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+	border-color: rgba(255, 255, 255, 0.2);
+	background: var(--lora-card-hover);
+}
+
+/* LoRA Card Image */
+.lora-card-image {
+	width: 100%;
+	aspect-ratio: 4 / 5;
+	object-fit: cover;
+	background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+.lora-card-image.loading {
+	background: linear-gradient(
+		90deg,
+		rgba(255, 255, 255, 0.05) 0%,
+		rgba(255, 255, 255, 0.1) 50%,
+		rgba(255, 255, 255, 0.05) 100%
+	);
+	background-size: 200% 100%;
+	animation: shimmer 1.5s infinite;
+}
+
+@keyframes shimmer {
+	0% {
+		background-position: -200% 0;
+	}
+	100% {
+		background-position: 200% 0;
+	}
+}
+
+/* LoRA Card Content */
+.lora-card-content {
+	padding: 1.25rem;
+	flex: 1;
+	display: flex;
+	flex-direction: column;
+}
+
+.lora-card-title {
+	font-size: 1.125rem;
+	font-weight: 600;
+	margin: 0 0 0.5rem 0;
+	color: var(--sl-color-white);
+}
+
+.lora-card-stats {
+	display: flex;
+	gap: 1rem;
+	margin: 0.75rem 0;
+	font-size: 0.875rem;
+	color: var(--sl-color-gray-3);
+}
+
+.lora-card-stat {
+	display: flex;
+	align-items: center;
+	gap: 0.25rem;
+}
+
+.lora-card-score {
+	font-size: 1.25rem;
+	margin: 0.5rem 0;
+}
+
+.lora-card-meta {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.5rem;
+	margin: 0.75rem 0;
+}
+
+.lora-card-badge {
+	padding: 0.25rem 0.75rem;
+	background: rgba(255, 255, 255, 0.1);
+	border-radius: 12px;
+	font-size: 0.75rem;
+	font-weight: 500;
+}
+
+.lora-card-trigger {
+	margin: 0.75rem 0;
+	padding: 0.5rem;
+	background: rgba(100, 100, 255, 0.15);
+	border-left: 3px solid #6464ff;
+	border-radius: 4px;
+	font-family: monospace;
+	font-size: 0.875rem;
+}
+
+.lora-card-actions {
+	display: flex;
+	gap: 0.5rem;
+	margin-top: auto;
+	padding-top: 1rem;
+}
+
+.lora-card-button {
+	flex: 1;
+	padding: 0.625rem;
+	background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+	color: white;
+	text-decoration: none;
+	text-align: center;
+	border-radius: 6px;
+	font-weight: 500;
+	font-size: 0.875rem;
+	transition: all 0.2s ease;
+}
+
+.lora-card-button:hover {
+	transform: scale(1.05);
+	box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+}
+
+.lora-card-button.secondary {
+	background: rgba(255, 255, 255, 0.1);
+}
+
+.lora-card-button.secondary:hover {
+	background: rgba(255, 255, 255, 0.15);
+}
+
+/* Filters */
+.lora-filters {
+	display: flex;
+	gap: 1rem;
+	margin: 2rem 0;
+	flex-wrap: wrap;
+	padding: 1rem;
+	background: rgba(0, 0, 0, 0.2);
+	border-radius: 8px;
+}
+
+.lora-filter {
+	display: flex;
+	align-items: center;
+	gap: 0.5rem;
+}
+
+.lora-filter label {
+	font-size: 0.875rem;
+	font-weight: 500;
+}
+
+.lora-filter select {
+	padding: 0.5rem 1rem;
+	background: rgba(255, 255, 255, 0.1);
+	border: 1px solid rgba(255, 255, 255, 0.2);
+	border-radius: 6px;
+	color: var(--sl-color-white);
+	font-size: 0.875rem;
+}
+
+/* Search */
+.lora-search {
+	margin: 2rem 0;
+}
+
+.lora-search input {
+	width: 100%;
+	padding: 0.875rem 1.25rem;
+	background: rgba(0, 0, 0, 0.3);
+	border: 1px solid rgba(255, 255, 255, 0.2);
+	border-radius: 8px;
+	color: var(--sl-color-white);
+	font-size: 1rem;
+}
+
+.lora-search input:focus {
+	outline: none;
+	border-color: #667eea;
+	box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.2);
+}
+
+/* Stats Overview */
+.stats-overview {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+	gap: 1rem;
+	margin: 2rem 0;
+}
+
+.stat-box {
+	padding: 1.5rem;
+	background: linear-gradient(135deg, rgba(102, 126, 234, 0.15) 0%, rgba(118, 75, 162, 0.15) 100%);
+	border: 1px solid rgba(255, 255, 255, 0.1);
+	border-radius: 12px;
+	text-align: center;
+}
+
+.stat-box-value {
+	font-size: 2rem;
+	font-weight: 700;
+	color: var(--sl-color-white);
+	margin: 0.5rem 0;
+}
+
+.stat-box-label {
+	font-size: 0.875rem;
+	color: var(--sl-color-gray-3);
+	text-transform: uppercase;
+	letter-spacing: 0.5px;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+	.lora-grid {
+		grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+		gap: 1rem;
+	}
+
+	.lora-filters {
+		flex-direction: column;
+	}
+}

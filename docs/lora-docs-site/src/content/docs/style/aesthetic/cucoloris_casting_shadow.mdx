@@ -1,0 +1,104 @@
+---
+title: "Cucoloris Casting Shadow"
+description: "STYLE / Lighting for FLUX"
+downloads: 18693
+rating: 1617
+tips: 12391
+score: "⭐⭐⭐"
+type: "STYLE / Lighting"
+trigger: ""
+strength: "0.7-1.0"
+civitaiUrl: "https://civitai.com/models/391036/cucoloris-casting-shadow-lighting-modifiers-style-xl-sd15-f1d"
+compatibility: "FLUX"
+sidebar:
+  badge:
+    text: "⭐⭐⭐"
+    variant: note
+---
+
+import LoraCard from '../../../../components/LoraCard.astro';
+
+<LoraCard
+  title="Cucoloris Casting Shadow"
+  slug="style/aesthetic/cucoloris_casting_shadow"
+  downloads={18693}
+  rating={1617}
+  tips={12391}
+  score="⭐⭐⭐"
+  type="STYLE / Lighting"
+  trigger=""
+  strength="0.7-1.0"
+  civitaiUrl="https://civitai.com/models/391036/cucoloris-casting-shadow-lighting-modifiers-style-xl-sd15-f1d"
+  imageUrl="/images/loras/cucoloris_casting_shadow.jpg"
+  compatibility="FLUX"
+/>
+
+# Cucoloris Casting Shadow
+
+[← Back to INDEX](INDEX.md)
+
+| Parameter | Value |
+|-----------|-------|
+| **File** | `CastingShadowsStyle_v1.safetensors` |
+| **Original filename** | `casting shadows style v1.safetensors` (renamed) |
+| **Civitai** | https://civitai.com/models/391036/cucoloris-casting-shadow-lighting-modifiers-style-xl-sd15-f1d |
+| **Trigger words** | `cucoloris`, `casting shadows`, `light modifier` |
+| **Strength** | 0.7-1.0 |
+| **Type** | STYLE / Lighting |
+| **Compatibility** | XL, SD1.5, F1D, Illustrious, Pony |
+
+### Description
+Cucoloris (kookaloris/cookaloris) lighting modifier style. Creates window shadows, venetian blinds shadows, and creative light patterns on subjects. Adds cinematic shadow casting effects.
+
+### Sample prompts
+
+**Prompt 1 (Redhead with shadows):**
+```
+<lora:CastingShadowsStyle_v1:1> cucoloris, light modifier, casting shadows, From above, A cucoloris patterned illumination casting a window shadow on high resolution photo of a 27 year old european redhead woman fully naked, medium round natural breasts, long wavy red hair, the woman is smiling in a seductive way, 1girl, realistic, cinematic, film, filmic, casting shadow, venetian blinds casting shadow light, shadow on face, face partially covered in shadow, cinematography, detailed, high quality, 8k
+```
+Settings: Steps: 13, CFG: 3.5, Size: 832x1216
+
+**Prompt 2 (Airport fashion):**
+```
+<lora:CastingShadowsStyle_v1:1> Photorealistic close-up view amateur photo. A Beautiful 22 year old woman at an airport. Wearing a short black pencil skirt, and a tight-fitting yellow long sleeve mock neck shirt and black tights. She has long wavy curly brown hair. She has an hourglass body shape, medium-sized natural breasts. She gives a seductive smile to camera. shadow
+```
+Settings: Steps: 20, CFG: 7, Size: 832x1216
+
+### Keywords
+- `cucoloris` - **TRIGGER**
+- `casting shadows` - **TRIGGER**
+- `light modifier`
+- `venetian blinds casting shadow light`
+- `shadow on face`
+- `face partially covered in shadow`
+- `window casting shadow light`
+- `dappled sunlight`
+- `cinematography`
+
+### Tested combinations
+```
+<lora:CastingShadowsStyle_v1:1>
+<lora:Hand_F1D_v2:1>
+<lora:aidmaMJ6.1-FLUX-v0.5:0.5>
+```
+
+```
+<lora:CastingShadowsStyle_v1:0.7>
+<lora:Nipples_FLUX:0.4>
+<lora:BreastShaper:0.4>
+```
+
+### Related lighting LoRAs by same author
+- Butterfly Lighting style
+- Backlight (Hair light) style
+- Cinematic Volumetric (God Rays)
+- Chiaroscuro (Contrasted) Lighting
+- Rembrandt (Low-Key) Lighting
+- Split Lighting style
+- Silhouette (cinematic lighting)
+
+### Notes
+- Works across multiple models (XL, SD1.5, Flux, Illustrious, Pony)
+- Best for cinematic shadow effects
+- Creates window/blinds shadow patterns on subjects
+- Combine with other detail/realism LoRAs

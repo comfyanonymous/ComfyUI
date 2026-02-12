@@ -1,0 +1,225 @@
+---
+title: "Pyro's NSFW Proof of Concept for FLUX"
+description: "CONCEPT / NSFW Finetune for FLUX"
+downloads: 2055
+rating: 186
+tips: 964
+score: "⭐⭐"
+type: "CONCEPT / NSFW Finetune"
+trigger: ""
+strength: "0.7-0.95"
+civitaiUrl: "https://civitai.com/models/706026/pyros-nsfw-proof-of-concept-for-flux"
+compatibility: "FLUX"
+sidebar:
+  badge:
+    text: "⭐⭐"
+    variant: tip
+---
+
+import LoraCard from '../../../../components/LoraCard.astro';
+
+<LoraCard
+  title="Pyro's NSFW Proof of Concept for FLUX"
+  slug="style/nsfw/pyros_nsfw_poc"
+  downloads={2055}
+  rating={186}
+  tips={964}
+  score="⭐⭐"
+  type="CONCEPT / NSFW Finetune"
+  trigger=""
+  strength="0.7-0.95"
+  civitaiUrl="https://civitai.com/models/706026/pyros-nsfw-proof-of-concept-for-flux"
+  imageUrl="/images/loras/pyros_nsfw_poc.jpg"
+  compatibility="FLUX"
+/>
+
+[← Back to Index](INDEX.md)
+
+## Civitai Stats
+
+| Metric | Value |
+|--------|-------|
+| **Downloads** | 2,021 |
+| **👍** | 184 |
+| **Tips** | 964 |
+| **Score** | ⭐⭐ |
+
+## Parameters
+
+| Parameter | Value |
+|-----------|-------|
+| **File** | `Pyros_NSFW_POC_v3.safetensors` |
+| **Original filename** | `flux_pyros_nsfw_poc_3.safetensors` |
+| **Civitai** | https://civitai.com/models/706026/pyros-nsfw-proof-of-concept-for-flux |
+| **Trigger word** | None (natural language) |
+| **Strength** | 0.7-0.95 |
+| **Type** | CONCEPT / NSFW Finetune |
+| **Size** | ~2.1 GB (full finetune) |
+
+## Description
+
+Proof-of-concept NSFW finetune for FLUX by Pyro. Released freely to counter low-effort monetized models. This is an **unfinished test version** meant to demonstrate FLUX's fine-tuning capabilities.
+
+**Key features:**
+- **No "same face woman" syndrome** - In-depth facial analysis of dataset ensures diverse generations
+- **Removes "Flux sheen"** - Fixes the artificial skin look
+- **Natural language prompts** - No special trigger words needed, use normal English
+- **No teleporting nipples** - Mostly fixed (100% fix in full release)
+- **Perfect compatibility** with Pyro's other LoRAs and most other LoRAs
+
+**Current limitations (POC only):**
+- Blowjobs work best
+- Other sex acts less reliable
+- Training halted, model bricked
+- Full release coming with fixes
+
+**Why POC was released:**
+- To set a baseline against low-effort monetized models
+- Free alternative to expensive "early access" LoRAs
+- Proof that FLUX can be fine-tuned for NSFW
+
+## Recommended Settings
+
+| Parameter | Value |
+|-----------|-------|
+| **Steps** | 20-30 |
+| **CFG** | 1-3.5 |
+| **Sampler** | Euler / DPM++ |
+| **Size** | 832x1216 / 1024x1024 |
+| **Strength** | 0.7-0.95 |
+
+## Sample Prompts
+
+**Simple portrait (face diversity test):**
+```
+upper body portrait of a woman
+```
+Pyro notes: Compare to base FLUX to see reduced same-face syndrome.
+
+**Gaming scene:**
+```
+a woman on a gaming chair
+```
+Settings: Default FLUX settings
+
+**Blowjob (works best):**
+```
+a woman sucking a penis
+```
+Or with tags: `penis, blowjob, a woman`
+Note: Don't overload prompts like SDXL - FLUX/T5 takes things literally.
+
+**POV blowjob:**
+```
+pov, a woman kneeling in front of a man sucking his cock
+```
+Note: Simpler is better. Avoid repeating concepts.
+
+**What NOT to do (overloaded prompt):**
+```
+pov, 1girl, penis, blowjob, cleavage, kneeling, a woman kneeling in front of a man sucking his huge cock
+```
+Pyro warns: This repeats concepts and overloads T5 encoder. Will cause issues.
+
+## Keywords
+
+- Natural language descriptions
+- `portrait`
+- `woman`
+- `blowjob`
+- `penis`
+- `pov`
+- Tags AND natural language work
+
+## Pyro's Prompting Philosophy
+
+**T5 Encoder Understanding:**
+
+Unlike SDXL's CLIP, FLUX uses T5 which is very literal:
+- Don't repeat concepts (e.g., "woman" twice, "penis" twice)
+- Use simple, clear descriptions
+- Both tags and natural language work (1-2% difference)
+- Don't overload with unnecessary details
+
+**Good prompt:** `a woman sucking a penis`
+**Bad prompt:** `pov, 1girl, penis, blowjob, cleavage, kneeling, a woman kneeling in front of a man sucking his huge cock`
+
+**Why simple is better:**
+- T5 builds its own understanding
+- Overloading causes concept bricking
+- Model learns wrong associations from repeated tags
+
+## Best Checkpoints
+
+- FLUX Dev (fp8, fp16)
+- Any FLUX checkpoint
+
+## Recommended Combinations
+
+**With Pyro's PMI (bimbo/plastic look):**
+```
+<lora:Pyros_NSFW_POC_v3:0.9>
+<lora:Pyros_PMI:0.7>
+```
+Note: PMI adds back the "e-girl" polished look if desired.
+
+**With Boring Reality LoRA:**
+```
+<lora:Pyros_NSFW_POC_v3:0.9>
+<lora:Boring_Reality:0.7>
+```
+
+**With X-Flux's Realism:**
+```
+<lora:Pyros_NSFW_POC_v3:0.9>
+<lora:X_Flux_Realism:0.7>
+```
+
+## Technical Notes from Pyro
+
+### Why SDXL Captioning Fails on FLUX
+
+- FLUX uses T5 encoder (not just CLIP like SDXL)
+- T5 is very literal in interpretation
+- SDXL-style tag overloading causes model bricking
+- Bricking = model freezes, loses ability to learn
+- Once bricked, training is unrecoverable
+
+### Dataset Quality Philosophy
+
+- Facial feature extraction and clustering for bias detection
+- 50k pairs of eyes analyzed for diversity
+- Every feature that causes bias is identified before training
+- No shortcuts like WD14 tagger + basic scraping
+
+### Same-Face Syndrome Causes
+
+1. **Dataset bias** - Certain face appears more than others
+2. **Over-merging** - Averaging face concepts to death
+3. **Even base FLUX.dev** has same-face issues (lips, head shapes)
+
+### Future Plans
+
+- Full NSFW model release (free)
+- Modular LoRA system (Lego-like pieces)
+- Open-source tools for fine-tuning
+- "Realistic" override option
+- 100% nipple placement fix
+
+## Skin Texture Preview
+
+Pyro included sneak peek images showing skin texture and lighting experiments for the upcoming full model release.
+
+## Notes
+
+- This is POC v3 - not the final model
+- 2.1GB file size (full finetune, not just LoRA)
+- Training halted after model bricked
+- Blowjobs work best, other acts less reliable
+- Use natural language, not tag soup
+- Strength 0.7-0.95 recommended
+- Pairs well with realism LoRAs
+- Full model coming "soon" with all fixes
+- Free alternative to monetized early-access garbage
+- Join Pyro's Discord: https://discord.gg/PSa9EMEMCe
+- Support: https://ko-fi.com/pyros_sd_models

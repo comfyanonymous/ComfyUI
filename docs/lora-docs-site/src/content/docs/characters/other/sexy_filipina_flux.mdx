@@ -1,0 +1,104 @@
+---
+title: "Sexy Filipina Flux LoRA"
+description: "LoRA for FLUX"
+downloads: 237
+rating: 13
+tips: 0
+score: "-"
+type: "LoRA"
+trigger: "kfilip, ivana"
+strength: "1.0"
+civitaiUrl: "https://civitai.com/models/1691282/sexy-filipina-flux-lora"
+compatibility: "FLUX"
+sidebar:
+  badge:
+    text: "-"
+    variant: note
+---
+
+import LoraCard from '../../../../components/LoraCard.astro';
+
+<LoraCard
+  title="Sexy Filipina Flux LoRA"
+  slug="characters/other/sexy_filipina_flux"
+  downloads={237}
+  rating={13}
+  tips={0}
+  score="-"
+  type="LoRA"
+  trigger="kfilip, ivana"
+  strength="1.0"
+  civitaiUrl="https://civitai.com/models/1691282/sexy-filipina-flux-lora"
+  imageUrl="/images/loras/sexy_filipina_flux.jpg"
+  compatibility="FLUX"
+/>
+
+[← Back to CHARACTERS_OTHER Index](INDEX.md)
+
+## Info
+- **File:** `Sexy_Filipina_FLUX.safetensors`
+- **Original filename:** `Filipina-000004.safetensors`
+- **Civitai:** https://civitai.com/models/1691282/sexy-filipina-flux-lora
+- **Trigger:** `kfilip, ivana`
+- **Strength:** 1.0
+- **Type:** CHARACTER
+
+## Description
+Sexy Filipina LoRA for generating Philippine women in swimsuits and various outfits. Used to create AI influencer Yvonne Dela Cruz. Training set consists of various models including AI-generated faces - not trained on any singular person.
+
+## Recommended Settings
+| Parameter | Value |
+|-----------|-------|
+| Steps | 25-30 |
+| CFG | 3.5-7.5 |
+| Sampler | DDIM / Undefined |
+| Size | 512x512 (base) / higher with upscaling |
+
+## Keywords
+- `kfilip` (trigger)
+- `ivana` (trigger)
+- `Filipina woman`
+- `light tan skin`
+- `slim, athletic`
+- `Philippine`
+
+## Example Prompts
+
+### Corporate Office
+```
+A sexy beautiful young Filipina woman who is slim, athletic, light tan skin, with large breasts, showing a happy expression. The woman is wearing a sexy slim fitting corporate short skirt and a black bra. She's seated on the edge of a modern glass desk in a high-rise office. The woman has ultra-detailed skin, visible pores, skin blemishes, uneven skin tone, candid street photography, hyper realistic, imperfect lighting, 8k dslr, kfilip, ivana
+```
+Settings: Steps 25, CFG 3.5
+
+### Beach Bikini
+```
+A sexy beautiful young Filipina woman who is slim, athletic, light tan skin, with large breasts, wavy brown hair. The woman is not wearing any makeup at all and is posing at a busy beach. She is showing a happy expression and wearing a black skimpy bikini while looking out the window. The woman has ultra-detailed skin, no makeup, fresh face, no flash, visible pores, skin blemishes, uneven skin tone, candid street photography, hyper realistic, imperfect lighting, 8k dslr, kfilip, ivana
+```
+Settings: Steps 25, CFG 3.5
+
+### Jungle Micro Bikini
+```
+a sexy beautiful young Filipina woman with long black hair standing on a jungle. She has a slim, fit, athletic body and medium-sized breasts. She is wearing a micro bikini.
+```
+Settings: Steps 30, CFG 7.5, DDIM, 512x512
+
+## Recommended LoRA Combinations
+- **Flux real skin lora** - realistic skin texture
+- **Detail Daemon's Lying Sigma** (0.007) - enhanced details
+
+## Upscaling Notes
+- Works well with ESRGAN upscaling
+- **Avoid REAL ESRGAN** - makes skin too smooth and fake
+
+## Best Checkpoints
+- FLUX Dev (691639)
+
+## Notes
+- Add triggers `kfilip, ivana` at end of prompt
+- Not trained on any singular person
+- Training set: various models + AI-generated faces
+- Best with realistic skin descriptors
+- Include skin imperfections for realism: `visible pores, skin blemishes, uneven skin tone`
+- Works great for swimsuit and bikini scenes
+- Athletic/slim body type
+- Light tan skin typical of Filipina appearance

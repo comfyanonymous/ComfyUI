@@ -1,0 +1,100 @@
+---
+title: "Blue Jeans Down"
+description: "Clothing / Pose / NSFW for FLUX"
+downloads: 845
+rating: 57
+tips: 0
+score: "⭐"
+type: "Clothing / Pose / NSFW"
+trigger: ""
+strength: "1.0-1.5"
+civitaiUrl: "https://civitai.com/models/686599/blue-jeans-down-flux-dev"
+compatibility: "FLUX"
+sidebar:
+  badge:
+    text: "⭐"
+    variant: note
+---
+
+import LoraCard from '../../../../components/LoraCard.astro';
+
+<LoraCard
+  title="Blue Jeans Down"
+  slug="clothing/tops-dresses-other/blue_jeans_down"
+  downloads={845}
+  rating={57}
+  tips={0}
+  score="⭐"
+  type="Clothing / Pose / NSFW"
+  trigger=""
+  strength="1.0-1.5"
+  civitaiUrl="https://civitai.com/models/686599/blue-jeans-down-flux-dev"
+  imageUrl="/images/loras/blue_jeans_down.jpg"
+  compatibility="FLUX"
+/>
+
+# Blue Jeans Down
+
+[← Back to CLOTHING Index](INDEX.md)
+
+| Parameter | Value |
+|-----------|-------|
+| **File** | `woman_with_jeans_down_flux.safetensors` |
+| **Civitai** | https://civitai.com/models/686599/blue-jeans-down-flux-dev |
+| **Trigger word** | None (use `jeans down` in prompt) |
+| **Strength** | 1.0-1.5 |
+| **Type** | Clothing / Pose / NSFW |
+| **Compatibility** | FLUX Dev |
+
+## Description
+LoRA for creating images of women having jeans stripped down, exposing lower body. Results are surprisingly good and consistent with mostly perfect hands. Currently produces standing pose, front view.
+
+## Prompt template
+```
+photo of naked cute [age]yo woman with jeans down exposing her pussy wearing a [top] is posing [location], shaved, naked breasts, [background], medium shot
+```
+
+## Sample prompts
+
+**Prompt 1 (Outdoor basic):**
+```
+photo of naked cute 21yo woman with jeans down exposing her pussy wearing a white shirt is posing outdoors, shaved, naked breasts, grass and trees, medium shot <lora:woman_with_jeans_down_flux:1>
+```
+
+**Prompt 2 (Danish classroom instagram):**
+```
+instagram photo of naked natural looking 19yo Danish woman with jeans down exposing her pussy looking into camera, shaved, stripping down, naked breasts, full body shot, sweat on body, classroom, long hair, (messy hair:0.3), earrings, young looking, slight smile, small breast, (makeup:0), amateur iphone photography, casual, noise, vivid colors, high contrast, slight motion blur, jpeg artifact, on flickr in 2007, 2005 blog, 2007 blog <lora:woman_with_jeans_down_flux:1.5>
+```
+
+## Keywords
+- `jeans down`
+- `exposing her pussy`
+- `stripping down`
+- `naked breasts`
+- `shaved`
+
+## Tested combinations
+```
+<lora:woman_with_jeans_down_flux:1.5>
+<lora:Flux_Skin_Texture:0.75>
+```
+
+## Recommended settings
+- **Sampler:** Euler
+- **Steps:** 20
+- **CFG:** 1
+- **Distilled CFG:** 3.5
+- **Size:** 896x1152
+- **Hires upscale:** 1.6 with denoising 0.3
+
+## Notes
+- Use strength 1.0-1.5
+- Good hand quality
+- Standing pose, front view works best
+- Combine with Flux Skin Texture for better skin
+- Works with various ethnicities and ages
+
+## Quality Stats
+- **Downloads:** 831
+- **Rating:** 56
+- **Tips:** $0
