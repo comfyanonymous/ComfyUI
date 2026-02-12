@@ -208,7 +208,7 @@ comfy install
 
 ## Manual Install (Windows, Linux)
 
-Python 3.14 works but you may encounter issues with the torch compile node. The free threaded variant is still missing some dependencies.
+Python 3.14 works but some custom nodes may have issues. The free threaded variant works but some dependencies will enable the GIL so it's not fully supported.
 
 Python 3.13 is very well supported. If you have trouble with some custom node dependencies on 3.13 you can try 3.12
 

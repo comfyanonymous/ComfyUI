@@ -159,6 +159,7 @@ class PerformanceFeature(enum.Enum):
     Fp8MatrixMultiplication = "fp8_matrix_mult"
     CublasOps = "cublas_ops"
     AutoTune = "autotune"
+    DynamicVRAM = "dynamic_vram"
 
 parser.add_argument("--fast", nargs="*", type=PerformanceFeature, help="Enable some untested and potentially quality deteriorating optimizations. This is used to test new features so using it might crash your comfyui. --fast with no arguments enables everything. You can pass a list specific optimizations if you only want to enable specific ones. Current valid optimizations: {}".format(" ".join(map(lambda c: c.value, PerformanceFeature))))
 
@@ -257,3 +258,6 @@ elif args.fast == []:
 # '--fast' is provided with a list of performance features, use that list
 else:
     args.fast = set(args.fast)
+
+def enables_dynamic_vram():
+    return PerformanceFeature.DynamicVRAM in args.fast and not args.highvram and not args.gpu_only

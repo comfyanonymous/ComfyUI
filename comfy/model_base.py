@@ -50,6 +50,7 @@ import comfy.ldm.omnigen.omnigen2
 import comfy.ldm.qwen_image.model
 import comfy.ldm.kandinsky5.model
 import comfy.ldm.anima.model
+import comfy.ldm.ace.ace_step15
 
 import comfy.model_management
 import comfy.patcher_extension
@@ -146,6 +147,8 @@ class BaseModel(torch.nn.Module):
                 self.diffusion_model.to(memory_format=torch.channels_last)
                 logging.debug("using channels last mode for diffusion model")
             logging.info("model weight dtype {}, manual cast: {}".format(self.get_dtype(), self.manual_cast_dtype))
+            comfy.model_management.archive_model_dtypes(self.diffusion_model)
+
         self.model_type = model_type
         self.model_sampling = model_sampling(model_config, model_type)
 
@@ -299,7 +302,7 @@ class BaseModel(torch.nn.Module):
 
         return out
 
-    def load_model_weights(self, sd, unet_prefix=""):
+    def load_model_weights(self, sd, unet_prefix="", assign=False):
         to_load = {}
         keys = list(sd.keys())
         for k in keys:
@@ -307,7 +310,7 @@ class BaseModel(torch.nn.Module):
                 to_load[k[len(unet_prefix):]] = sd.pop(k)
 
         to_load = self.model_config.process_unet_state_dict(to_load)
-        m, u = self.diffusion_model.load_state_dict(to_load, strict=False)
+        m, u = self.diffusion_model.load_state_dict(to_load, strict=False, assign=assign)
         if len(m) > 0:
             logging.warning("unet missing: {}".format(m))
 
@@ -322,7 +325,7 @@ class BaseModel(torch.nn.Module):
     def process_latent_out(self, latent):
         return self.latent_format.process_out(latent)
 
-    def state_dict_for_saving(self, clip_state_dict=None, vae_state_dict=None, clip_vision_state_dict=None):
+    def state_dict_for_saving(self, unet_state_dict, clip_state_dict=None, vae_state_dict=None, clip_vision_state_dict=None):
         extra_sds = []
         if clip_state_dict is not None:
             extra_sds.append(self.model_config.process_clip_state_dict_for_saving(clip_state_dict))
@@ -330,10 +333,7 @@ class BaseModel(torch.nn.Module):
             extra_sds.append(self.model_config.process_vae_state_dict_for_saving(vae_state_dict))
         if clip_vision_state_dict is not None:
             extra_sds.append(self.model_config.process_clip_vision_state_dict_for_saving(clip_vision_state_dict))
-
-        unet_state_dict = self.diffusion_model.state_dict()
         unet_state_dict = self.model_config.process_unet_state_dict_for_saving(unet_state_dict)
-
         if self.model_type == ModelType.V_PREDICTION:
             unet_state_dict["v_pred"] = torch.tensor([])
 
@@ -776,8 +776,8 @@ class StableAudio1(BaseModel):
             out['c_crossattn'] = comfy.conds.CONDRegular(cross_attn)
         return out
 
-    def state_dict_for_saving(self, clip_state_dict=None, vae_state_dict=None, clip_vision_state_dict=None):
-        sd = super().state_dict_for_saving(clip_state_dict=clip_state_dict, vae_state_dict=vae_state_dict, clip_vision_state_dict=clip_vision_state_dict)
+    def state_dict_for_saving(self, unet_state_dict, clip_state_dict=None, vae_state_dict=None, clip_vision_state_dict=None):
+        sd = super().state_dict_for_saving(unet_state_dict, clip_state_dict=clip_state_dict, vae_state_dict=vae_state_dict, clip_vision_state_dict=clip_vision_state_dict)
         d = {"conditioner.conditioners.seconds_start.": self.seconds_start_embedder.state_dict(), "conditioner.conditioners.seconds_total.": self.seconds_total_embedder.state_dict()}
         for k in d:
             s = d[k]
@@ -1160,12 +1160,16 @@ class Anima(BaseModel):
         device = kwargs["device"]
         if cross_attn is not None:
             if t5xxl_ids is not None:
-                cross_attn = self.diffusion_model.preprocess_text_embeds(cross_attn.to(device=device, dtype=self.get_dtype()), t5xxl_ids.unsqueeze(0).to(device=device))
                 if t5xxl_weights is not None:
-                    cross_attn *= t5xxl_weights.unsqueeze(0).unsqueeze(-1).to(cross_attn)
+                    t5xxl_weights = t5xxl_weights.unsqueeze(0).unsqueeze(-1).to(cross_attn)
+                t5xxl_ids = t5xxl_ids.unsqueeze(0)
 
-                if cross_attn.shape[1] < 512:
-                    cross_attn = torch.nn.functional.pad(cross_attn, (0, 0, 0, 512 - cross_attn.shape[1]))
+                if torch.is_inference_mode_enabled():  # if not we are training
+                    cross_attn = self.diffusion_model.preprocess_text_embeds(cross_attn.to(device=device, dtype=self.get_dtype()), t5xxl_ids.to(device=device), t5xxl_weights=t5xxl_weights.to(device=device, dtype=self.get_dtype()))
+                else:
+                    out['t5xxl_ids'] = comfy.conds.CONDRegular(t5xxl_ids)
+                    out['t5xxl_weights'] = comfy.conds.CONDRegular(t5xxl_weights)
+
             out['c_crossattn'] = comfy.conds.CONDRegular(cross_attn)
         return out
 
@@ -1539,6 +1543,49 @@ class ACEStep(BaseModel):
             out['lyric_token_idx'] = comfy.conds.CONDRegular(conditioning_lyrics)
         out['speaker_embeds'] = comfy.conds.CONDRegular(torch.zeros(noise.shape[0], 512, device=noise.device, dtype=noise.dtype))
         out['lyrics_strength'] = comfy.conds.CONDConstant(kwargs.get("lyrics_strength", 1.0))
+        return out
+
+class ACEStep15(BaseModel):
+    def __init__(self, model_config, model_type=ModelType.FLOW, device=None):
+        super().__init__(model_config, model_type, device=device, unet_model=comfy.ldm.ace.ace_step15.AceStepConditionGenerationModel)
+
+    def extra_conds(self, **kwargs):
+        out = super().extra_conds(**kwargs)
+        device = kwargs["device"]
+        noise = kwargs["noise"]
+
+        cross_attn = kwargs.get("cross_attn", None)
+        if cross_attn is not None:
+            if torch.count_nonzero(cross_attn) == 0:
+                out['replace_with_null_embeds'] = comfy.conds.CONDConstant(True)
+            out['c_crossattn'] = comfy.conds.CONDRegular(cross_attn)
+
+        conditioning_lyrics = kwargs.get("conditioning_lyrics", None)
+        if cross_attn is not None:
+            out['lyric_embed'] = comfy.conds.CONDRegular(conditioning_lyrics)
+
+        refer_audio = kwargs.get("reference_audio_timbre_latents", None)
+        if refer_audio is None or len(refer_audio) == 0:
+            refer_audio = comfy.ldm.ace.ace_step15.get_silence_latent(noise.shape[2], device)
+            pass_audio_codes = True
+        else:
+            refer_audio = refer_audio[-1][:, :, :noise.shape[2]]
+            out['is_covers'] = comfy.conds.CONDConstant(True)
+            pass_audio_codes = False
+
+        if pass_audio_codes:
+            audio_codes = kwargs.get("audio_codes", None)
+            if audio_codes is not None:
+                out['audio_codes'] = comfy.conds.CONDRegular(torch.tensor(audio_codes, device=device))
+                refer_audio = refer_audio[:, :, :750]
+            else:
+                out['is_covers'] = comfy.conds.CONDConstant(False)
+
+        if refer_audio.shape[2] < noise.shape[2]:
+            pad = comfy.ldm.ace.ace_step15.get_silence_latent(noise.shape[2], device)
+            refer_audio = torch.cat([refer_audio.to(pad), pad[:, :, refer_audio.shape[2]:]], dim=2)
+
+        out['refer_audio'] = comfy.conds.CONDRegular(refer_audio)
         return out
 
 class Omnigen2(BaseModel):

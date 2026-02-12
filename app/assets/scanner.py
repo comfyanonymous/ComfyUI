@@ -27,6 +27,7 @@ def seed_assets(roots: tuple[RootType, ...], enable_logging: bool = False) -> No
     t_start = time.perf_counter()
     created = 0
     skipped_existing = 0
+    orphans_pruned = 0
     paths: list[str] = []
     try:
         existing_paths: set[str] = set()
@@ -37,6 +38,11 @@ def seed_assets(roots: tuple[RootType, ...], enable_logging: bool = False) -> No
                     existing_paths.update(survivors)
             except Exception as e:
                 logging.exception("fast DB scan failed for %s: %s", r, e)
+
+        try:
+            orphans_pruned = _prune_orphaned_assets(roots)
+        except Exception as e:
+            logging.exception("orphan pruning failed: %s", e)
 
         if "models" in roots:
             paths.extend(collect_models_files())
@@ -85,13 +91,41 @@ def seed_assets(roots: tuple[RootType, ...], enable_logging: bool = False) -> No
     finally:
         if enable_logging:
             logging.info(
-                "Assets scan(roots=%s) completed in %.3fs (created=%d, skipped_existing=%d, total_seen=%d)",
+                "Assets scan(roots=%s) completed in %.3fs (created=%d, skipped_existing=%d, orphans_pruned=%d, total_seen=%d)",
                 roots,
                 time.perf_counter() - t_start,
                 created,
                 skipped_existing,
+                orphans_pruned,
                 len(paths),
             )
+
+
+def _prune_orphaned_assets(roots: tuple[RootType, ...]) -> int:
+    """Prune cache states outside configured prefixes, then delete orphaned seed assets."""
+    all_prefixes = [os.path.abspath(p) for r in roots for p in prefixes_for_root(r)]
+    if not all_prefixes:
+        return 0
+
+    def make_prefix_condition(prefix: str):
+        base = prefix if prefix.endswith(os.sep) else prefix + os.sep
+        escaped, esc = escape_like_prefix(base)
+        return AssetCacheState.file_path.like(escaped + "%", escape=esc)
+
+    matches_valid_prefix = sqlalchemy.or_(*[make_prefix_condition(p) for p in all_prefixes])
+
+    orphan_subq = (
+        sqlalchemy.select(Asset.id)
+        .outerjoin(AssetCacheState, AssetCacheState.asset_id == Asset.id)
+        .where(Asset.hash.is_(None), AssetCacheState.id.is_(None))
+    ).scalar_subquery()
+
+    with create_session() as sess:
+        sess.execute(sqlalchemy.delete(AssetCacheState).where(~matches_valid_prefix))
+        sess.execute(sqlalchemy.delete(AssetInfo).where(AssetInfo.asset_id.in_(orphan_subq)))
+        result = sess.execute(sqlalchemy.delete(Asset).where(Asset.id.in_(orphan_subq)))
+        sess.commit()
+        return result.rowcount
 
 
 def _fast_db_consistency_pass(
