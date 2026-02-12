@@ -826,13 +826,7 @@ class Trellis2(nn.Module):
 
     def forward(self, x, timestep, context, **kwargs):
         embeds = kwargs.get("embeds")
-        if not hasattr(x, "feats"):
-            mode = "structure_generation"
-        else:
-            if x.feats.shape[1] == 32:
-                mode = "shape_generation"
-            else:
-                mode = "texture_generation"
+        mode = x.generation_mode
         if mode == "shape_generation":
             # TODO
             out = self.img2shape(x, timestep, torch.cat([embeds, torch.empty_like(embeds)]))

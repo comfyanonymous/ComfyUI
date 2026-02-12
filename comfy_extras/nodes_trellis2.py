@@ -250,6 +250,7 @@ class EmptyShapeLatentTrellis2(IO.ComfyNode):
         coords = torch.argwhere(decoded.bool())[:, [0, 2, 3, 4]].int().unsqueeze(1)
         in_channels = 32
         latent = SparseTensor(feats=torch.randn(coords.shape[0], in_channels), coords=coords)
+        latent.generation_mode = "shape_generation"
         return IO.NodeOutput({"samples": latent, "type": "trellis2"})
 
 class EmptyTextureLatentTrellis2(IO.ComfyNode):
@@ -271,6 +272,7 @@ class EmptyTextureLatentTrellis2(IO.ComfyNode):
         # TODO
         in_channels = 32
         latent = structure_output.replace(feats=torch.randn(structure_output.data.shape[0], in_channels - structure_output.feats.shape[1]))
+        latent.generation_mode = "texture_generation"
         return IO.NodeOutput({"samples": latent, "type": "trellis2"})
 
 class EmptyStructureLatentTrellis2(IO.ComfyNode):
@@ -291,6 +293,7 @@ class EmptyStructureLatentTrellis2(IO.ComfyNode):
         in_channels = 8
         resolution = 16
         latent = torch.randn(batch_size, in_channels, resolution, resolution, resolution)
+        latent.generation_mode = "structure_generation"
         return IO.NodeOutput({"samples": latent, "type": "trellis2"})
 
 def simplify_fn(vertices, faces, target=100000):
