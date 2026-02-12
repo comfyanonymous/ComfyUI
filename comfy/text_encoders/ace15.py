@@ -16,6 +16,7 @@ def sample_manual_loop_no_classes(
     temperature: float = 0.85,
     top_p: float = 0.9,
     top_k: int = None,
+    min_p: float = 0.000,
     seed: int = 1,
     min_tokens: int = 1,
     max_new_tokens: int = 2048,
@@ -80,6 +81,12 @@ def sample_manual_loop_no_classes(
             min_val = top_k_vals[..., -1, None]
             cfg_logits[cfg_logits < min_val] = remove_logit_value
 
+        if min_p is not None and min_p > 0:
+            probs = torch.softmax(cfg_logits, dim=-1)
+            p_max = probs.max(dim=-1, keepdim=True).values
+            indices_to_remove = probs < (min_p * p_max)
+            cfg_logits[indices_to_remove] = remove_logit_value
+
         if top_p is not None and top_p < 1.0:
             sorted_logits, sorted_indices = torch.sort(cfg_logits, descending=True)
             cumulative_probs = torch.cumsum(torch.softmax(sorted_logits, dim=-1), dim=-1)
@@ -110,7 +117,7 @@ def sample_manual_loop_no_classes(
     return output_audio_codes
 
 
-def generate_audio_codes(model, positive, negative, min_tokens=1, max_tokens=1024, seed=0, cfg_scale=2.0, temperature=0.85, top_p=0.9, top_k=0):
+def generate_audio_codes(model, positive, negative, min_tokens=1, max_tokens=1024, seed=0, cfg_scale=2.0, temperature=0.85, top_p=0.9, top_k=0, min_p=0.000):
     positive = [[token for token, _ in inner_list] for inner_list in positive]
     positive = positive[0]
 
@@ -134,7 +141,7 @@ def generate_audio_codes(model, positive, negative, min_tokens=1, max_tokens=102
         paddings = []
         ids = [positive]
 
-    return sample_manual_loop_no_classes(model, ids, paddings, cfg_scale=cfg_scale, temperature=temperature, top_p=top_p, top_k=top_k, seed=seed, min_tokens=min_tokens, max_new_tokens=max_tokens)
+    return sample_manual_loop_no_classes(model, ids, paddings, cfg_scale=cfg_scale, temperature=temperature, top_p=top_p, top_k=top_k, min_p=min_p, seed=seed, min_tokens=min_tokens, max_new_tokens=max_tokens)
 
 
 class ACE15Tokenizer(sd1_clip.SD1Tokenizer):
@@ -192,6 +199,7 @@ class ACE15Tokenizer(sd1_clip.SD1Tokenizer):
         temperature = kwargs.get("temperature", 0.85)
         top_p = kwargs.get("top_p", 0.9)
         top_k = kwargs.get("top_k", 0.0)
+        min_p = kwargs.get("min_p", 0.000)
 
         duration = math.ceil(duration)
         kwargs["duration"] = duration
@@ -239,6 +247,7 @@ class ACE15Tokenizer(sd1_clip.SD1Tokenizer):
                               "temperature": temperature,
                               "top_p": top_p,
                               "top_k": top_k,
+                              "min_p": min_p,
                               }
         return out
 
@@ -299,7 +308,7 @@ class ACE15TEModel(torch.nn.Module):
 
         lm_metadata = token_weight_pairs["lm_metadata"]
         if lm_metadata["generate_audio_codes"]:
-            audio_codes = generate_audio_codes(getattr(self, self.lm_model, self.qwen3_06b), token_weight_pairs["lm_prompt"], token_weight_pairs["lm_prompt_negative"], min_tokens=lm_metadata["min_tokens"], max_tokens=lm_metadata["max_tokens"], seed=lm_metadata["seed"], cfg_scale=lm_metadata["cfg_scale"], temperature=lm_metadata["temperature"], top_p=lm_metadata["top_p"], top_k=lm_metadata["top_k"])
+            audio_codes = generate_audio_codes(getattr(self, self.lm_model, self.qwen3_06b), token_weight_pairs["lm_prompt"], token_weight_pairs["lm_prompt_negative"], min_tokens=lm_metadata["min_tokens"], max_tokens=lm_metadata["min_tokens"], seed=lm_metadata["seed"], cfg_scale=lm_metadata["cfg_scale"], temperature=lm_metadata["temperature"], top_p=lm_metadata["top_p"], top_k=lm_metadata["top_k"], min_p=lm_metadata["min_p"])
             out["audio_codes"] = [audio_codes]
 
         return base_out, None, out
