@@ -8,6 +8,9 @@ services:
       args:
         # Declare additional system dependencies for custom nodes
         APT_EXTRA_PACKAGES:
+        # Set the value of the --extra-index-url flag to select a specific CUDA,
+        # ROCm, or CPU version.
+        PIP_EXTRA_INDEX_URL: "https://download.pytorch.org/whl/cu130"
 
     ports:
       - 8188:8188

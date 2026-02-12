@@ -40,6 +40,13 @@ USER comfyui
 RUN python -m venv .venv
 ENV PATH="/comfyui/.venv/bin:$PATH"
 
+# Take PIP_EXTRA_INDEX_URL as a required build argument and bake it into the
+# image as an environment variable. This variable is then used to select
+# hardware-specific flavors of PyTorch, enabling support for CPU, AMD, and newer
+# CUDA inference.
+ARG PIP_EXTRA_INDEX_URL
+ENV PIP_EXTRA_INDEX_URL=${PIP_EXTRA_INDEX_URL}
+
 # Install ComfyUI's Python dependencies. Although dependency keeping is also
 # performed at startup, building ComfyUI's base dependencies into the image
 # significantly speeds up each containers' first run.
@@ -47,7 +54,10 @@ ENV PATH="/comfyui/.venv/bin:$PATH"
 # Since this step takes a long time to complete, it's performed early to take
 # advantage of Docker's build cache, thereby accelerating subsequent builds.
 COPY requirements.txt manager_requirements.txt ./
-RUN pip install --no-cache-dir --disable-pip-version-check \
+RUN pip install                                \
+    --no-cache-dir                             \
+    --disable-pip-version-check                \
+    --extra-index-url "${PIP_EXTRA_INDEX_URL}" \
     -r requirements.txt
 
 # Install ComfyUI

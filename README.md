@@ -365,8 +365,11 @@ For models compatible with Iluvatar Extension for PyTorch. Here's a step-by-step
 
 Start by installing Docker, Docker Compose, and the NVIDIA Container Toolkit on
 your host. Next, edit `compose.yaml` and update the `UID` and `GID` variables to
-match your user. Additional fields are documented in the file for further
-customization.
+match your host user's UID and GID. Also ensure that `PIP_EXTRA_INDEX_URL`
+points to the recommended non-experimental index URL for your hardware, as
+described in the beginning of the [manual installation
+section](#manual-install-windows-linux). Additional fields are documented in the
+file for further customization.
 
 Once ready, build and run the image locally:
 

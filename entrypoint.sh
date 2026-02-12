@@ -48,10 +48,11 @@ done
 # PIP_EXTRA_PACKAGES.
 echo "[entrypoint] Updating Python dependencies..."
 su -c "
-   pip install                      \\
-        --no-cache-dir              \\
-        --disable-pip-version-check \\
-        -r requirements.txt         \\
+   pip install                                   \\
+        --no-cache-dir                           \\
+        --disable-pip-version-check              \\
+        --extra-index-url '$PIP_EXTRA_INDEX_URL' \\
+        -r requirements.txt                      \\
         $(find custom_nodes -mindepth 2 -maxdepth 2 -type f -name requirements.txt -printf "-r '%p' ") \\
         $PIP_EXTRA_PACKAGES
 " comfyui \
