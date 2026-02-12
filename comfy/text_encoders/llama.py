@@ -485,7 +485,7 @@ class Attention(nn.Module):
             else:
                 present_key_value = (xk, xv, index + num_tokens)
 
-            if sliding_window is not None and xk.shape[2] > sliding_window and index == 0:
+            if sliding_window is not None and xk.shape[2] > sliding_window:
                 xk = xk[:, :, -sliding_window:]
                 xv = xv[:, :, -sliding_window:]
                 attention_mask = attention_mask[..., -sliding_window:] if attention_mask is not None else None
@@ -815,9 +815,10 @@ class BaseGenerate:
             embeds = embeds.unsqueeze(0)
 
         past_key_values = [] #kv_cache init
+        max_cache_len = embeds.shape[1] + max_length
         for x in range(model_config.num_hidden_layers):
-            past_key_values.append((torch.empty([embeds.shape[0], model_config.num_key_value_heads, embeds.shape[1] + min_tokens, model_config.head_dim], device=device, dtype=execution_dtype),
-                                    torch.empty([embeds.shape[0], model_config.num_key_value_heads, embeds.shape[1] + min_tokens, model_config.head_dim], device=device, dtype=execution_dtype), 0))
+            past_key_values.append((torch.empty([embeds.shape[0], model_config.num_key_value_heads, max_cache_len, model_config.head_dim], device=device, dtype=execution_dtype),
+                                    torch.empty([embeds.shape[0], model_config.num_key_value_heads, max_cache_len, model_config.head_dim], device=device, dtype=execution_dtype), 0))
 
         generator = torch.Generator(device=device).manual_seed(seed) if do_sample else None
 
