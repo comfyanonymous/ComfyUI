@@ -1275,6 +1275,15 @@ class Hunyuan3Dv2(supported_models_base.BASE):
 
     latent_format = latent_formats.Hunyuan3Dv2
 
+    def process_unet_state_dict(self, state_dict):
+        out_sd = {}
+        for k in list(state_dict.keys()):
+            key_out = k
+            if key_out.endswith(".scale"):
+                key_out = "{}.weight".format(key_out[:-len(".scale")])
+            out_sd[key_out] = state_dict[k]
+        return out_sd
+
     def process_unet_state_dict_for_saving(self, state_dict):
         replace_prefix = {"": "model."}
         return utils.state_dict_prefix_replace(state_dict, replace_prefix)
