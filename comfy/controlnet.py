@@ -560,6 +560,7 @@ def load_controlnet_hunyuandit(controlnet_data, model_options={}):
 def load_controlnet_flux_xlabs_mistoline(sd, mistoline=False, model_options={}):
     model_config, operations, load_device, unet_dtype, manual_cast_dtype, offload_device = controlnet_config(sd, model_options=model_options)
     control_model = comfy.ldm.flux.controlnet.ControlNetFlux(mistoline=mistoline, operations=operations, device=offload_device, dtype=unet_dtype, **model_config.unet_config)
+    sd = model_config.process_unet_state_dict(sd)
     control_model = controlnet_load_state_dict(control_model, sd)
     extra_conds = ['y', 'guidance']
     control = ControlNet(control_model, load_device=load_device, manual_cast_dtype=manual_cast_dtype, extra_conds=extra_conds)
