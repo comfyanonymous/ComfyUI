@@ -678,10 +678,7 @@ class ModulatedTransformerCrossBlock(nn.Module):
         return x
 
     def forward(self, x: torch.Tensor, mod: torch.Tensor, context: torch.Tensor, phases: Optional[torch.Tensor] = None) -> torch.Tensor:
-        if self.use_checkpoint:
-            return torch.utils.checkpoint.checkpoint(self._forward, x, mod, context, phases, use_reentrant=False)
-        else:
-            return self._forward(x, mod, context, phases)
+        return self._forward(x, mod, context, phases)
 
 
 class SparseStructureFlowModel(nn.Module):
@@ -823,18 +820,25 @@ class Trellis2(nn.Module):
             self.shape2txt = SLatFlowModel(resolution=resolution, in_channels=in_channels*2, **args)
         args.pop("out_channels")
         self.structure_model = SparseStructureFlowModel(resolution=16, in_channels=8, out_channels=8, **args)
+        self.guidance_interval = [0.6, 1.0]
+        self.guidance_interval_txt = [0.6, 0.9]
 
     def forward(self, x, timestep, context, **kwargs):
         embeds = kwargs.get("embeds")
-        mode = x.generation_mode
+        mode = kwargs.get("generation_mode")
+        sigmas = kwargs.get("sigmas")[0].item()
+        cond = context.chunk(2)
+        shape_rule = sigmas < self.guidance_interval[0] or sigmas > self.guidance_interval[1]
+        txt_rule = sigmas < self.guidance_interval_txt[0] or sigmas > self.guidance_interval_txt[1]
+
         if mode == "shape_generation":
             # TODO
             out = self.img2shape(x, timestep, torch.cat([embeds, torch.empty_like(embeds)]))
         elif mode == "texture_generation":
-            out = self.shape2txt(x, timestep, context)
+            out = self.shape2txt(x, timestep, context if not txt_rule else cond)
         else: # structure
             timestep = timestep_reshift(timestep)
-            out = self.structure_model(x, timestep, context)
+            out = self.structure_model(x, timestep, context if not shape_rule else cond)
 
         out.generation_mode = mode
         return out

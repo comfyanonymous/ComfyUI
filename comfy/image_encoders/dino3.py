@@ -228,6 +228,8 @@ class DINOv3ViTLayer(nn.Module):
 class DINOv3ViTModel(nn.Module):
     def __init__(self, config, dtype, device, operations):
         super().__init__()
+        if dtype == torch.float16:
+            dtype = torch.bfloat16
         num_hidden_layers = config["num_hidden_layers"]
         hidden_size = config["hidden_size"]
         num_attention_heads = config["num_attention_heads"]
