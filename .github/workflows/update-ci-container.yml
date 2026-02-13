@@ -1,0 +1,59 @@
+name: "CI: Update CI Container"
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'ComfyUI version (e.g., v0.7.0)'
+        required: true
+        type: string
+
+jobs:
+  update-ci-container:
+    runs-on: ubuntu-latest
+    # Skip pre-releases unless manually triggered
+    if: github.event_name == 'workflow_dispatch' || !github.event.release.prerelease
+    steps:
+      - name: Get version
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" = "release" ]; then
+            VERSION="${{ github.event.release.tag_name }}"
+          else
+            VERSION="${{ inputs.version }}"
+          fi
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Checkout comfyui-ci-container
+        uses: actions/checkout@v4
+        with:
+          repository: comfy-org/comfyui-ci-container
+          token: ${{ secrets.CI_CONTAINER_PAT }}
+
+      - name: Check current version
+        id: current
+        run: |
+          CURRENT=$(grep -oP 'ARG COMFYUI_VERSION=\K.*' Dockerfile || echo "unknown")
+          echo "current_version=$CURRENT" >> $GITHUB_OUTPUT
+
+      - name: Update Dockerfile
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          sed -i "s/^ARG COMFYUI_VERSION=.*/ARG COMFYUI_VERSION=${VERSION}/" Dockerfile
+
+      - name: Create Pull Request
+        id: create-pr
+        uses: peter-evans/create-pull-request@v7
+        with:
+          token: ${{ secrets.CI_CONTAINER_PAT }}
+          branch: automation/comfyui-${{ steps.version.outputs.version }}
+          title: "chore: bump ComfyUI to ${{ steps.version.outputs.version }}"
+          body: |
+            Updates ComfyUI version from `${{ steps.current.outputs.current_version }}` to `${{ steps.version.outputs.version }}`
+
+            **Triggered by:** ${{ github.event_name == 'release' && format('[Release {0}]({1})', github.event.release.tag_name, github.event.release.html_url) || 'Manual workflow dispatch' }}
+
+          labels: automation
+          commit-message: "chore: bump ComfyUI to ${{ steps.version.outputs.version }}"

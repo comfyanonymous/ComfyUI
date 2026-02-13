@@ -1,12 +1,9 @@
 import logging
-from typing import Optional
 
-import torch
 from typing_extensions import override
 
-from comfy_api.input import VideoInput
-from comfy_api.latest import IO, ComfyExtension
-from comfy_api_nodes.apis import (
+from comfy_api.latest import IO, ComfyExtension, Input
+from comfy_api_nodes.apis.moonvalley import (
     MoonvalleyPromptResponse,
     MoonvalleyTextToVideoInferenceParams,
     MoonvalleyTextToVideoRequest,
@@ -61,7 +58,7 @@ def validate_task_creation_response(response) -> None:
         raise RuntimeError(error_msg)
 
 
-def validate_video_to_video_input(video: VideoInput) -> VideoInput:
+def validate_video_to_video_input(video: Input.Video) -> Input.Video:
     """
     Validates and processes video input for Moonvalley Video-to-Video generation.
 
@@ -82,7 +79,7 @@ def validate_video_to_video_input(video: VideoInput) -> VideoInput:
     return _validate_and_trim_duration(video)
 
 
-def _get_video_dimensions(video: VideoInput) -> tuple[int, int]:
+def _get_video_dimensions(video: Input.Video) -> tuple[int, int]:
     """Extracts video dimensions with error handling."""
     try:
         return video.get_dimensions()
@@ -106,7 +103,7 @@ def _validate_video_dimensions(width: int, height: int) -> None:
         raise ValueError(f"Resolution {width}x{height} not supported. Supported: {supported_list}")
 
 
-def _validate_and_trim_duration(video: VideoInput) -> VideoInput:
+def _validate_and_trim_duration(video: Input.Video) -> Input.Video:
     """Validates video duration and trims to 5 seconds if needed."""
     duration = video.get_duration()
     _validate_minimum_duration(duration)
@@ -119,7 +116,7 @@ def _validate_minimum_duration(duration: float) -> None:
         raise ValueError("Input video must be at least 5 seconds long.")
 
 
-def _trim_if_too_long(video: VideoInput, duration: float) -> VideoInput:
+def _trim_if_too_long(video: Input.Video, duration: float) -> Input.Video:
     """Trims video to 5 seconds if longer."""
     if duration > 5:
         return trim_video(video, 5)
@@ -222,8 +219,8 @@ class MoonvalleyImg2VideoNode(IO.ComfyNode):
                 ),
                 IO.Int.Input(
                     "steps",
-                    default=33,
-                    min=1,
+                    default=80,
+                    min=75,  # steps should be greater or equal to cooldown_steps(75) + warmup_steps(0)
                     max=100,
                     step=1,
                     tooltip="Number of denoising steps",
@@ -236,12 +233,16 @@ class MoonvalleyImg2VideoNode(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
+            price_badge=IO.PriceBadge(
+                depends_on=IO.PriceBadgeDepends(),
+                expr="""{"type":"usd","usd": 1.5}""",
+            ),
         )
 
     @classmethod
     async def execute(
         cls,
-        image: torch.Tensor,
+        image: Input.Image,
         prompt: str,
         negative_prompt: str,
         resolution: str,
@@ -339,8 +340,8 @@ class MoonvalleyVideo2VideoNode(IO.ComfyNode):
                 ),
                 IO.Int.Input(
                     "steps",
-                    default=33,
-                    min=1,
+                    default=60,
+                    min=60,  # steps should be greater or equal to cooldown_steps(36) + warmup_steps(24)
                     max=100,
                     step=1,
                     display_mode=IO.NumberDisplay.number,
@@ -354,6 +355,10 @@ class MoonvalleyVideo2VideoNode(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
+            price_badge=IO.PriceBadge(
+                depends_on=IO.PriceBadgeDepends(),
+                expr="""{"type":"usd","usd": 2.25}""",
+            ),
         )
 
     @classmethod
@@ -362,10 +367,10 @@ class MoonvalleyVideo2VideoNode(IO.ComfyNode):
         prompt: str,
         negative_prompt: str,
         seed: int,
-        video: Optional[VideoInput] = None,
+        video: Input.Video | None = None,
         control_type: str = "Motion Transfer",
-        motion_intensity: Optional[int] = 100,
-        steps=33,
+        motion_intensity: int | None = 100,
+        steps=60,
         prompt_adherence=4.5,
     ) -> IO.NodeOutput:
         validated_video = validate_video_to_video_input(video)
@@ -460,8 +465,8 @@ class MoonvalleyTxt2VideoNode(IO.ComfyNode):
                 ),
                 IO.Int.Input(
                     "steps",
-                    default=33,
-                    min=1,
+                    default=80,
+                    min=75,  # steps should be greater or equal to cooldown_steps(75) + warmup_steps(0)
                     max=100,
                     step=1,
                     tooltip="Inference steps",
@@ -474,6 +479,10 @@ class MoonvalleyTxt2VideoNode(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
+            price_badge=IO.PriceBadge(
+                depends_on=IO.PriceBadgeDepends(),
+                expr="""{"type":"usd","usd": 1.5}""",
+            ),
         )
 
     @classmethod

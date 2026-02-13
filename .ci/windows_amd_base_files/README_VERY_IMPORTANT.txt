@@ -1,5 +1,5 @@
-As of the time of writing this you need this preview driver for best results:
-https://www.amd.com/en/resources/support-articles/release-notes/RN-AMDGPU-WINDOWS-PYTORCH-PREVIEW.html
+As of the time of writing this you need this driver for best results:
+https://www.amd.com/en/resources/support-articles/release-notes/RN-AMDGPU-WINDOWS-PYTORCH-7-1-1.html
 
 HOW TO RUN:
 
@@ -23,5 +23,6 @@ To update the ComfyUI code: update\update_comfyui.bat
 TO SHARE MODELS BETWEEN COMFYUI AND ANOTHER UI:
 In the ComfyUI directory you will find a file: extra_model_paths.yaml.example
 Rename this file to: extra_model_paths.yaml and edit it with your favorite text editor.
+
 
 

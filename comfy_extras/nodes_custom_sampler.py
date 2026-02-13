@@ -3,272 +3,314 @@ import comfy.samplers
 import comfy.sample
 from comfy.k_diffusion import sampling as k_diffusion_sampling
 from comfy.k_diffusion import sa_solver
-from comfy.comfy_types import IO, ComfyNodeABC, InputTypeDict
 import latent_preview
 import torch
 import comfy.utils
 import node_helpers
+from typing_extensions import override
+from comfy_api.latest import ComfyExtension, io
+import re
 
 
-class BasicScheduler:
+class BasicScheduler(io.ComfyNode):
     @classmethod
-    def INPUT_TYPES(s):
-        return {"required":
-                    {"model": ("MODEL",),
-                     "scheduler": (comfy.samplers.SCHEDULER_NAMES, ),
-                     "steps": ("INT", {"default": 20, "min": 1, "max": 10000}),
-                     "denoise": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 1.0, "step": 0.01}),
-                      }
-               }
-    RETURN_TYPES = ("SIGMAS",)
-    CATEGORY = "sampling/custom_sampling/schedulers"
+    def define_schema(cls):
+        return io.Schema(
+            node_id="BasicScheduler",
+            category="sampling/custom_sampling/schedulers",
+            inputs=[
+                io.Model.Input("model"),
+                io.Combo.Input("scheduler", options=comfy.samplers.SCHEDULER_NAMES),
+                io.Int.Input("steps", default=20, min=1, max=10000),
+                io.Float.Input("denoise", default=1.0, min=0.0, max=1.0, step=0.01),
+            ],
+            outputs=[io.Sigmas.Output()]
+        )
 
-    FUNCTION = "get_sigmas"
-
-    def get_sigmas(self, model, scheduler, steps, denoise):
+    @classmethod
+    def execute(cls, model, scheduler, steps, denoise) -> io.NodeOutput:
         total_steps = steps
         if denoise < 1.0:
             if denoise <= 0.0:
-                return (torch.FloatTensor([]),)
+                return io.NodeOutput(torch.FloatTensor([]))
             total_steps = int(steps/denoise)
 
         sigmas = comfy.samplers.calculate_sigmas(model.get_model_object("model_sampling"), scheduler, total_steps).cpu()
         sigmas = sigmas[-(steps + 1):]
-        return (sigmas, )
+        return io.NodeOutput(sigmas)
+
+    get_sigmas = execute
 
 
-class KarrasScheduler:
+class KarrasScheduler(io.ComfyNode):
     @classmethod
-    def INPUT_TYPES(s):
-        return {"required":
-                    {"steps": ("INT", {"default": 20, "min": 1, "max": 10000}),
-                     "sigma_max": ("FLOAT", {"default": 14.614642, "min": 0.0, "max": 5000.0, "step":0.01, "round": False}),
-                     "sigma_min": ("FLOAT", {"default": 0.0291675, "min": 0.0, "max": 5000.0, "step":0.01, "round": False}),
-                     "rho": ("FLOAT", {"default": 7.0, "min": 0.0, "max": 100.0, "step":0.01, "round": False}),
-                    }
-               }
-    RETURN_TYPES = ("SIGMAS",)
-    CATEGORY = "sampling/custom_sampling/schedulers"
+    def define_schema(cls):
+        return io.Schema(
+            node_id="KarrasScheduler",
+            category="sampling/custom_sampling/schedulers",
+            inputs=[
+                io.Int.Input("steps", default=20, min=1, max=10000),
+                io.Float.Input("sigma_max", default=14.614642, min=0.0, max=5000.0, step=0.01, round=False),
+                io.Float.Input("sigma_min", default=0.0291675, min=0.0, max=5000.0, step=0.01, round=False),
+                io.Float.Input("rho", default=7.0, min=0.0, max=100.0, step=0.01, round=False),
+            ],
+            outputs=[io.Sigmas.Output()]
+        )
 
-    FUNCTION = "get_sigmas"
-
-    def get_sigmas(self, steps, sigma_max, sigma_min, rho):
+    @classmethod
+    def execute(cls, steps, sigma_max, sigma_min, rho) -> io.NodeOutput:
         sigmas = k_diffusion_sampling.get_sigmas_karras(n=steps, sigma_min=sigma_min, sigma_max=sigma_max, rho=rho)
-        return (sigmas, )
+        return io.NodeOutput(sigmas)
 
-class ExponentialScheduler:
+    get_sigmas = execute
+
+class ExponentialScheduler(io.ComfyNode):
     @classmethod
-    def INPUT_TYPES(s):
-        return {"required":
-                    {"steps": ("INT", {"default": 20, "min": 1, "max": 10000}),
-                     "sigma_max": ("FLOAT", {"default": 14.614642, "min": 0.0, "max": 5000.0, "step":0.01, "round": False}),
-                     "sigma_min": ("FLOAT", {"default": 0.0291675, "min": 0.0, "max": 5000.0, "step":0.01, "round": False}),
-                    }
-               }
-    RETURN_TYPES = ("SIGMAS",)
-    CATEGORY = "sampling/custom_sampling/schedulers"
+    def define_schema(cls):
+        return io.Schema(
+            node_id="ExponentialScheduler",
+            category="sampling/custom_sampling/schedulers",
+            inputs=[
+                io.Int.Input("steps", default=20, min=1, max=10000),
+                io.Float.Input("sigma_max", default=14.614642, min=0.0, max=5000.0, step=0.01, round=False),
+                io.Float.Input("sigma_min", default=0.0291675, min=0.0, max=5000.0, step=0.01, round=False),
+            ],
+            outputs=[io.Sigmas.Output()]
+        )
 
-    FUNCTION = "get_sigmas"
-
-    def get_sigmas(self, steps, sigma_max, sigma_min):
+    @classmethod
+    def execute(cls, steps, sigma_max, sigma_min) -> io.NodeOutput:
         sigmas = k_diffusion_sampling.get_sigmas_exponential(n=steps, sigma_min=sigma_min, sigma_max=sigma_max)
-        return (sigmas, )
+        return io.NodeOutput(sigmas)
 
-class PolyexponentialScheduler:
+    get_sigmas = execute
+
+class PolyexponentialScheduler(io.ComfyNode):
     @classmethod
-    def INPUT_TYPES(s):
-        return {"required":
-                    {"steps": ("INT", {"default": 20, "min": 1, "max": 10000}),
-                     "sigma_max": ("FLOAT", {"default": 14.614642, "min": 0.0, "max": 5000.0, "step":0.01, "round": False}),
-                     "sigma_min": ("FLOAT", {"default": 0.0291675, "min": 0.0, "max": 5000.0, "step":0.01, "round": False}),
-                     "rho": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 100.0, "step":0.01, "round": False}),
-                    }
-               }
-    RETURN_TYPES = ("SIGMAS",)
-    CATEGORY = "sampling/custom_sampling/schedulers"
+    def define_schema(cls):
+        return io.Schema(
+            node_id="PolyexponentialScheduler",
+            category="sampling/custom_sampling/schedulers",
+            inputs=[
+                io.Int.Input("steps", default=20, min=1, max=10000),
+                io.Float.Input("sigma_max", default=14.614642, min=0.0, max=5000.0, step=0.01, round=False),
+                io.Float.Input("sigma_min", default=0.0291675, min=0.0, max=5000.0, step=0.01, round=False),
+                io.Float.Input("rho", default=1.0, min=0.0, max=100.0, step=0.01, round=False),
+            ],
+            outputs=[io.Sigmas.Output()]
+        )
 
-    FUNCTION = "get_sigmas"
-
-    def get_sigmas(self, steps, sigma_max, sigma_min, rho):
+    @classmethod
+    def execute(cls, steps, sigma_max, sigma_min, rho) -> io.NodeOutput:
         sigmas = k_diffusion_sampling.get_sigmas_polyexponential(n=steps, sigma_min=sigma_min, sigma_max=sigma_max, rho=rho)
-        return (sigmas, )
+        return io.NodeOutput(sigmas)
 
-class LaplaceScheduler:
+    get_sigmas = execute
+
+class LaplaceScheduler(io.ComfyNode):
     @classmethod
-    def INPUT_TYPES(s):
-        return {"required":
-                    {"steps": ("INT", {"default": 20, "min": 1, "max": 10000}),
-                     "sigma_max": ("FLOAT", {"default": 14.614642, "min": 0.0, "max": 5000.0, "step":0.01, "round": False}),
-                     "sigma_min": ("FLOAT", {"default": 0.0291675, "min": 0.0, "max": 5000.0, "step":0.01, "round": False}),
-                     "mu": ("FLOAT", {"default": 0.0, "min": -10.0, "max": 10.0, "step":0.1, "round": False}),
-                     "beta": ("FLOAT", {"default": 0.5, "min": 0.0, "max": 10.0, "step":0.1, "round": False}),
-                    }
-               }
-    RETURN_TYPES = ("SIGMAS",)
-    CATEGORY = "sampling/custom_sampling/schedulers"
+    def define_schema(cls):
+        return io.Schema(
+            node_id="LaplaceScheduler",
+            category="sampling/custom_sampling/schedulers",
+            inputs=[
+                io.Int.Input("steps", default=20, min=1, max=10000),
+                io.Float.Input("sigma_max", default=14.614642, min=0.0, max=5000.0, step=0.01, round=False),
+                io.Float.Input("sigma_min", default=0.0291675, min=0.0, max=5000.0, step=0.01, round=False),
+                io.Float.Input("mu", default=0.0, min=-10.0, max=10.0, step=0.1, round=False),
+                io.Float.Input("beta", default=0.5, min=0.0, max=10.0, step=0.1, round=False),
+            ],
+            outputs=[io.Sigmas.Output()]
+        )
 
-    FUNCTION = "get_sigmas"
-
-    def get_sigmas(self, steps, sigma_max, sigma_min, mu, beta):
+    @classmethod
+    def execute(cls, steps, sigma_max, sigma_min, mu, beta) -> io.NodeOutput:
         sigmas = k_diffusion_sampling.get_sigmas_laplace(n=steps, sigma_min=sigma_min, sigma_max=sigma_max, mu=mu, beta=beta)
-        return (sigmas, )
+        return io.NodeOutput(sigmas)
+
+    get_sigmas = execute
 
 
-class SDTurboScheduler:
+class SDTurboScheduler(io.ComfyNode):
     @classmethod
-    def INPUT_TYPES(s):
-        return {"required":
-                    {"model": ("MODEL",),
-                     "steps": ("INT", {"default": 1, "min": 1, "max": 10}),
-                     "denoise": ("FLOAT", {"default": 1.0, "min": 0, "max": 1.0, "step": 0.01}),
-                      }
-               }
-    RETURN_TYPES = ("SIGMAS",)
-    CATEGORY = "sampling/custom_sampling/schedulers"
+    def define_schema(cls):
+        return io.Schema(
+            node_id="SDTurboScheduler",
+            category="sampling/custom_sampling/schedulers",
+            inputs=[
+                io.Model.Input("model"),
+                io.Int.Input("steps", default=1, min=1, max=10),
+                io.Float.Input("denoise", default=1.0, min=0, max=1.0, step=0.01),
+            ],
+            outputs=[io.Sigmas.Output()]
+        )
 
-    FUNCTION = "get_sigmas"
-
-    def get_sigmas(self, model, steps, denoise):
+    @classmethod
+    def execute(cls, model, steps, denoise) -> io.NodeOutput:
         start_step = 10 - int(10 * denoise)
         timesteps = torch.flip(torch.arange(1, 11) * 100 - 1, (0,))[start_step:start_step + steps]
         sigmas = model.get_model_object("model_sampling").sigma(timesteps)
         sigmas = torch.cat([sigmas, sigmas.new_zeros([1])])
-        return (sigmas, )
+        return io.NodeOutput(sigmas)
 
-class BetaSamplingScheduler:
+    get_sigmas = execute
+
+class BetaSamplingScheduler(io.ComfyNode):
     @classmethod
-    def INPUT_TYPES(s):
-        return {"required":
-                    {"model": ("MODEL",),
-                     "steps": ("INT", {"default": 20, "min": 1, "max": 10000}),
-                     "alpha": ("FLOAT", {"default": 0.6, "min": 0.0, "max": 50.0, "step":0.01, "round": False}),
-                     "beta": ("FLOAT", {"default": 0.6, "min": 0.0, "max": 50.0, "step":0.01, "round": False}),
-                      }
-               }
-    RETURN_TYPES = ("SIGMAS",)
-    CATEGORY = "sampling/custom_sampling/schedulers"
+    def define_schema(cls):
+        return io.Schema(
+            node_id="BetaSamplingScheduler",
+            category="sampling/custom_sampling/schedulers",
+            inputs=[
+                io.Model.Input("model"),
+                io.Int.Input("steps", default=20, min=1, max=10000),
+                io.Float.Input("alpha", default=0.6, min=0.0, max=50.0, step=0.01, round=False),
+                io.Float.Input("beta", default=0.6, min=0.0, max=50.0, step=0.01, round=False),
+            ],
+            outputs=[io.Sigmas.Output()]
+        )
 
-    FUNCTION = "get_sigmas"
-
-    def get_sigmas(self, model, steps, alpha, beta):
+    @classmethod
+    def execute(cls, model, steps, alpha, beta) -> io.NodeOutput:
         sigmas = comfy.samplers.beta_scheduler(model.get_model_object("model_sampling"), steps, alpha=alpha, beta=beta)
-        return (sigmas, )
+        return io.NodeOutput(sigmas)
 
-class VPScheduler:
+    get_sigmas = execute
+
+class VPScheduler(io.ComfyNode):
     @classmethod
-    def INPUT_TYPES(s):
-        return {"required":
-                    {"steps": ("INT", {"default": 20, "min": 1, "max": 10000}),
-                     "beta_d": ("FLOAT", {"default": 19.9, "min": 0.0, "max": 5000.0, "step":0.01, "round": False}), #TODO: fix default values
-                     "beta_min": ("FLOAT", {"default": 0.1, "min": 0.0, "max": 5000.0, "step":0.01, "round": False}),
-                     "eps_s": ("FLOAT", {"default": 0.001, "min": 0.0, "max": 1.0, "step":0.0001, "round": False}),
-                    }
-               }
-    RETURN_TYPES = ("SIGMAS",)
-    CATEGORY = "sampling/custom_sampling/schedulers"
+    def define_schema(cls):
+        return io.Schema(
+            node_id="VPScheduler",
+            category="sampling/custom_sampling/schedulers",
+            inputs=[
+                io.Int.Input("steps", default=20, min=1, max=10000),
+                io.Float.Input("beta_d", default=19.9, min=0.0, max=5000.0, step=0.01, round=False), #TODO: fix default values
+                io.Float.Input("beta_min", default=0.1, min=0.0, max=5000.0, step=0.01, round=False),
+                io.Float.Input("eps_s", default=0.001, min=0.0, max=1.0, step=0.0001, round=False),
+            ],
+            outputs=[io.Sigmas.Output()]
+        )
 
-    FUNCTION = "get_sigmas"
-
-    def get_sigmas(self, steps, beta_d, beta_min, eps_s):
+    @classmethod
+    def execute(cls, steps, beta_d, beta_min, eps_s) -> io.NodeOutput:
         sigmas = k_diffusion_sampling.get_sigmas_vp(n=steps, beta_d=beta_d, beta_min=beta_min, eps_s=eps_s)
-        return (sigmas, )
+        return io.NodeOutput(sigmas)
 
-class SplitSigmas:
+    get_sigmas = execute
+
+class SplitSigmas(io.ComfyNode):
     @classmethod
-    def INPUT_TYPES(s):
-        return {"required":
-                    {"sigmas": ("SIGMAS", ),
-                    "step": ("INT", {"default": 0, "min": 0, "max": 10000}),
-                     }
-                }
-    RETURN_TYPES = ("SIGMAS","SIGMAS")
-    RETURN_NAMES = ("high_sigmas", "low_sigmas")
-    CATEGORY = "sampling/custom_sampling/sigmas"
+    def define_schema(cls):
+        return io.Schema(
+            node_id="SplitSigmas",
+            category="sampling/custom_sampling/sigmas",
+            inputs=[
+                io.Sigmas.Input("sigmas"),
+                io.Int.Input("step", default=0, min=0, max=10000),
+            ],
+            outputs=[
+                io.Sigmas.Output(display_name="high_sigmas"),
+                io.Sigmas.Output(display_name="low_sigmas"),
+            ]
+        )
 
-    FUNCTION = "get_sigmas"
-
-    def get_sigmas(self, sigmas, step):
+    @classmethod
+    def execute(cls, sigmas, step) -> io.NodeOutput:
         sigmas1 = sigmas[:step + 1]
         sigmas2 = sigmas[step:]
-        return (sigmas1, sigmas2)
+        return io.NodeOutput(sigmas1, sigmas2)
 
-class SplitSigmasDenoise:
+    get_sigmas = execute
+
+class SplitSigmasDenoise(io.ComfyNode):
     @classmethod
-    def INPUT_TYPES(s):
-        return {"required":
-                    {"sigmas": ("SIGMAS", ),
-                    "denoise": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 1.0, "step": 0.01}),
-                     }
-                }
-    RETURN_TYPES = ("SIGMAS","SIGMAS")
-    RETURN_NAMES = ("high_sigmas", "low_sigmas")
-    CATEGORY = "sampling/custom_sampling/sigmas"
+    def define_schema(cls):
+        return io.Schema(
+            node_id="SplitSigmasDenoise",
+            category="sampling/custom_sampling/sigmas",
+            inputs=[
+                io.Sigmas.Input("sigmas"),
+                io.Float.Input("denoise", default=1.0, min=0.0, max=1.0, step=0.01),
+            ],
+            outputs=[
+                io.Sigmas.Output(display_name="high_sigmas"),
+                io.Sigmas.Output(display_name="low_sigmas"),
+            ]
+        )
 
-    FUNCTION = "get_sigmas"
-
-    def get_sigmas(self, sigmas, denoise):
+    @classmethod
+    def execute(cls, sigmas, denoise) -> io.NodeOutput:
         steps = max(sigmas.shape[-1] - 1, 0)
         total_steps = round(steps * denoise)
         sigmas1 = sigmas[:-(total_steps)]
         sigmas2 = sigmas[-(total_steps + 1):]
-        return (sigmas1, sigmas2)
+        return io.NodeOutput(sigmas1, sigmas2)
 
-class FlipSigmas:
+    get_sigmas = execute
+
+class FlipSigmas(io.ComfyNode):
     @classmethod
-    def INPUT_TYPES(s):
-        return {"required":
-                    {"sigmas": ("SIGMAS", ),
-                     }
-                }
-    RETURN_TYPES = ("SIGMAS",)
-    CATEGORY = "sampling/custom_sampling/sigmas"
+    def define_schema(cls):
+        return io.Schema(
+            node_id="FlipSigmas",
+            category="sampling/custom_sampling/sigmas",
+            inputs=[io.Sigmas.Input("sigmas")],
+            outputs=[io.Sigmas.Output()]
+        )
 
-    FUNCTION = "get_sigmas"
-
-    def get_sigmas(self, sigmas):
+    @classmethod
+    def execute(cls, sigmas) -> io.NodeOutput:
         if len(sigmas) == 0:
-            return (sigmas,)
+            return io.NodeOutput(sigmas)
 
         sigmas = sigmas.flip(0)
         if sigmas[0] == 0:
             sigmas[0] = 0.0001
-        return (sigmas,)
+        return io.NodeOutput(sigmas)
 
-class SetFirstSigma:
+    get_sigmas = execute
+
+class SetFirstSigma(io.ComfyNode):
     @classmethod
-    def INPUT_TYPES(s):
-        return {"required":
-                    {"sigmas": ("SIGMAS", ),
-                     "sigma": ("FLOAT", {"default": 136.0, "min": 0.0, "max": 20000.0, "step": 0.001, "round": False}),
-                    }
-               }
-    RETURN_TYPES = ("SIGMAS",)
-    CATEGORY = "sampling/custom_sampling/sigmas"
+    def define_schema(cls):
+        return io.Schema(
+            node_id="SetFirstSigma",
+            category="sampling/custom_sampling/sigmas",
+            inputs=[
+                io.Sigmas.Input("sigmas"),
+                io.Float.Input("sigma", default=136.0, min=0.0, max=20000.0, step=0.001, round=False),
+            ],
+            outputs=[io.Sigmas.Output()]
+        )
 
-    FUNCTION = "set_first_sigma"
-
-    def set_first_sigma(self, sigmas, sigma):
+    @classmethod
+    def execute(cls, sigmas, sigma) -> io.NodeOutput:
         sigmas = sigmas.clone()
         sigmas[0] = sigma
-        return (sigmas, )
+        return io.NodeOutput(sigmas)
 
-class ExtendIntermediateSigmas:
+    set_first_sigma = execute
+
+class ExtendIntermediateSigmas(io.ComfyNode):
     @classmethod
-    def INPUT_TYPES(s):
-        return {"required":
-                    {"sigmas": ("SIGMAS", ),
-                     "steps": ("INT", {"default": 2, "min": 1, "max": 100}),
-                     "start_at_sigma": ("FLOAT", {"default": -1.0, "min": -1.0, "max": 20000.0, "step": 0.01, "round": False}),
-                     "end_at_sigma": ("FLOAT", {"default": 12.0, "min":  0.0, "max": 20000.0, "step": 0.01, "round": False}),
-                     "spacing": (['linear', 'cosine', 'sine'],),
-                    }
-               }
-    RETURN_TYPES = ("SIGMAS",)
-    CATEGORY = "sampling/custom_sampling/sigmas"
+    def define_schema(cls):
+        return io.Schema(
+            node_id="ExtendIntermediateSigmas",
+            search_aliases=["interpolate sigmas"],
+            category="sampling/custom_sampling/sigmas",
+            inputs=[
+                io.Sigmas.Input("sigmas"),
+                io.Int.Input("steps", default=2, min=1, max=100),
+                io.Float.Input("start_at_sigma", default=-1.0, min=-1.0, max=20000.0, step=0.01, round=False),
+                io.Float.Input("end_at_sigma", default=12.0, min=0.0, max=20000.0, step=0.01, round=False),
+                io.Combo.Input("spacing", options=['linear', 'cosine', 'sine']),
+            ],
+            outputs=[io.Sigmas.Output()]
+        )
 
-    FUNCTION = "extend"
-
-    def extend(self, sigmas: torch.Tensor, steps: int, start_at_sigma: float, end_at_sigma: float, spacing: str):
+    @classmethod
+    def execute(cls, sigmas: torch.Tensor, steps: int, start_at_sigma: float, end_at_sigma: float, spacing: str) -> io.NodeOutput:
         if start_at_sigma < 0:
             start_at_sigma = float("inf")
 
@@ -299,27 +341,27 @@ class ExtendIntermediateSigmas:
 
         extended_sigmas = torch.FloatTensor(extended_sigmas)
 
-        return (extended_sigmas,)
+        return io.NodeOutput(extended_sigmas)
+
+    extend = execute
 
 
-class SamplingPercentToSigma:
+class SamplingPercentToSigma(io.ComfyNode):
     @classmethod
-    def INPUT_TYPES(cls) -> InputTypeDict:
-        return {
-            "required": {
-                "model": (IO.MODEL, {}),
-                "sampling_percent": (IO.FLOAT, {"default": 0.0, "min": 0.0, "max": 1.0, "step": 0.0001}),
-                "return_actual_sigma": (IO.BOOLEAN, {"default": False, "tooltip": "Return the actual sigma value instead of the value used for interval checks.\nThis only affects results at 0.0 and 1.0."}),
-            }
-        }
+    def define_schema(cls):
+        return io.Schema(
+            node_id="SamplingPercentToSigma",
+            category="sampling/custom_sampling/sigmas",
+            inputs=[
+                io.Model.Input("model"),
+                io.Float.Input("sampling_percent", default=0.0, min=0.0, max=1.0, step=0.0001),
+                io.Boolean.Input("return_actual_sigma", default=False, tooltip="Return the actual sigma value instead of the value used for interval checks.\nThis only affects results at 0.0 and 1.0."),
+            ],
+            outputs=[io.Float.Output(display_name="sigma_value")]
+        )
 
-    RETURN_TYPES = (IO.FLOAT,)
-    RETURN_NAMES = ("sigma_value",)
-    CATEGORY = "sampling/custom_sampling/sigmas"
-
-    FUNCTION = "get_sigma"
-
-    def get_sigma(self, model, sampling_percent, return_actual_sigma):
+    @classmethod
+    def execute(cls, model, sampling_percent, return_actual_sigma) -> io.NodeOutput:
         model_sampling = model.get_model_object("model_sampling")
         sigma_val = model_sampling.percent_to_sigma(sampling_percent)
         if return_actual_sigma:
@@ -327,212 +369,234 @@ class SamplingPercentToSigma:
                 sigma_val = model_sampling.sigma_max.item()
             elif sampling_percent == 1.0:
                 sigma_val = model_sampling.sigma_min.item()
-        return (sigma_val,)
+        return io.NodeOutput(sigma_val)
+
+    get_sigma = execute
 
 
-class KSamplerSelect:
+class KSamplerSelect(io.ComfyNode):
     @classmethod
-    def INPUT_TYPES(s):
-        return {"required":
-                    {"sampler_name": (comfy.samplers.SAMPLER_NAMES, ),
-                      }
-               }
-    RETURN_TYPES = ("SAMPLER",)
-    CATEGORY = "sampling/custom_sampling/samplers"
+    def define_schema(cls):
+        return io.Schema(
+            node_id="KSamplerSelect",
+            category="sampling/custom_sampling/samplers",
+            inputs=[io.Combo.Input("sampler_name", options=comfy.samplers.SAMPLER_NAMES)],
+            outputs=[io.Sampler.Output()]
+        )
 
-    FUNCTION = "get_sampler"
-
-    def get_sampler(self, sampler_name):
+    @classmethod
+    def execute(cls, sampler_name) -> io.NodeOutput:
         sampler = comfy.samplers.sampler_object(sampler_name)
-        return (sampler, )
+        return io.NodeOutput(sampler)
 
-class SamplerDPMPP_3M_SDE:
+    get_sampler = execute
+
+class SamplerDPMPP_3M_SDE(io.ComfyNode):
     @classmethod
-    def INPUT_TYPES(s):
-        return {"required":
-                    {"eta": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 100.0, "step":0.01, "round": False}),
-                     "s_noise": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 100.0, "step":0.01, "round": False}),
-                     "noise_device": (['gpu', 'cpu'], ),
-                      }
-               }
-    RETURN_TYPES = ("SAMPLER",)
-    CATEGORY = "sampling/custom_sampling/samplers"
+    def define_schema(cls):
+        return io.Schema(
+            node_id="SamplerDPMPP_3M_SDE",
+            category="sampling/custom_sampling/samplers",
+            inputs=[
+                io.Float.Input("eta", default=1.0, min=0.0, max=100.0, step=0.01, round=False),
+                io.Float.Input("s_noise", default=1.0, min=0.0, max=100.0, step=0.01, round=False),
+                io.Combo.Input("noise_device", options=['gpu', 'cpu']),
+            ],
+            outputs=[io.Sampler.Output()]
+        )
 
-    FUNCTION = "get_sampler"
-
-    def get_sampler(self, eta, s_noise, noise_device):
+    @classmethod
+    def execute(cls, eta, s_noise, noise_device) -> io.NodeOutput:
         if noise_device == 'cpu':
             sampler_name = "dpmpp_3m_sde"
         else:
             sampler_name = "dpmpp_3m_sde_gpu"
         sampler = comfy.samplers.ksampler(sampler_name, {"eta": eta, "s_noise": s_noise})
-        return (sampler, )
+        return io.NodeOutput(sampler)
 
-class SamplerDPMPP_2M_SDE:
+    get_sampler = execute
+
+class SamplerDPMPP_2M_SDE(io.ComfyNode):
     @classmethod
-    def INPUT_TYPES(s):
-        return {"required":
-                    {"solver_type": (['midpoint', 'heun'], ),
-                     "eta": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 100.0, "step":0.01, "round": False}),
-                     "s_noise": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 100.0, "step":0.01, "round": False}),
-                     "noise_device": (['gpu', 'cpu'], ),
-                      }
-               }
-    RETURN_TYPES = ("SAMPLER",)
-    CATEGORY = "sampling/custom_sampling/samplers"
+    def define_schema(cls):
+        return io.Schema(
+            node_id="SamplerDPMPP_2M_SDE",
+            category="sampling/custom_sampling/samplers",
+            inputs=[
+                io.Combo.Input("solver_type", options=['midpoint', 'heun']),
+                io.Float.Input("eta", default=1.0, min=0.0, max=100.0, step=0.01, round=False),
+                io.Float.Input("s_noise", default=1.0, min=0.0, max=100.0, step=0.01, round=False),
+                io.Combo.Input("noise_device", options=['gpu', 'cpu']),
+            ],
+            outputs=[io.Sampler.Output()]
+        )
 
-    FUNCTION = "get_sampler"
-
-    def get_sampler(self, solver_type, eta, s_noise, noise_device):
+    @classmethod
+    def execute(cls, solver_type, eta, s_noise, noise_device) -> io.NodeOutput:
         if noise_device == 'cpu':
             sampler_name = "dpmpp_2m_sde"
         else:
             sampler_name = "dpmpp_2m_sde_gpu"
         sampler = comfy.samplers.ksampler(sampler_name, {"eta": eta, "s_noise": s_noise, "solver_type": solver_type})
-        return (sampler, )
+        return io.NodeOutput(sampler)
+
+    get_sampler = execute
 
 
-class SamplerDPMPP_SDE:
+class SamplerDPMPP_SDE(io.ComfyNode):
     @classmethod
-    def INPUT_TYPES(s):
-        return {"required":
-                    {"eta": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 100.0, "step":0.01, "round": False}),
-                     "s_noise": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 100.0, "step":0.01, "round": False}),
-                     "r": ("FLOAT", {"default": 0.5, "min": 0.0, "max": 100.0, "step":0.01, "round": False}),
-                     "noise_device": (['gpu', 'cpu'], ),
-                      }
-               }
-    RETURN_TYPES = ("SAMPLER",)
-    CATEGORY = "sampling/custom_sampling/samplers"
+    def define_schema(cls):
+        return io.Schema(
+            node_id="SamplerDPMPP_SDE",
+            category="sampling/custom_sampling/samplers",
+            inputs=[
+                io.Float.Input("eta", default=1.0, min=0.0, max=100.0, step=0.01, round=False),
+                io.Float.Input("s_noise", default=1.0, min=0.0, max=100.0, step=0.01, round=False),
+                io.Float.Input("r", default=0.5, min=0.0, max=100.0, step=0.01, round=False),
+                io.Combo.Input("noise_device", options=['gpu', 'cpu']),
+            ],
+            outputs=[io.Sampler.Output()]
+        )
 
-    FUNCTION = "get_sampler"
-
-    def get_sampler(self, eta, s_noise, r, noise_device):
+    @classmethod
+    def execute(cls, eta, s_noise, r, noise_device) -> io.NodeOutput:
         if noise_device == 'cpu':
             sampler_name = "dpmpp_sde"
         else:
             sampler_name = "dpmpp_sde_gpu"
         sampler = comfy.samplers.ksampler(sampler_name, {"eta": eta, "s_noise": s_noise, "r": r})
-        return (sampler, )
+        return io.NodeOutput(sampler)
 
-class SamplerDPMPP_2S_Ancestral:
+    get_sampler = execute
+
+class SamplerDPMPP_2S_Ancestral(io.ComfyNode):
     @classmethod
-    def INPUT_TYPES(s):
-        return {"required":
-                    {"eta": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 100.0, "step":0.01, "round": False}),
-                     "s_noise": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 100.0, "step":0.01, "round": False}),
-                      }
-               }
-    RETURN_TYPES = ("SAMPLER",)
-    CATEGORY = "sampling/custom_sampling/samplers"
+    def define_schema(cls):
+        return io.Schema(
+            node_id="SamplerDPMPP_2S_Ancestral",
+            category="sampling/custom_sampling/samplers",
+            inputs=[
+                io.Float.Input("eta", default=1.0, min=0.0, max=100.0, step=0.01, round=False),
+                io.Float.Input("s_noise", default=1.0, min=0.0, max=100.0, step=0.01, round=False),
+            ],
+            outputs=[io.Sampler.Output()]
+        )
 
-    FUNCTION = "get_sampler"
-
-    def get_sampler(self, eta, s_noise):
+    @classmethod
+    def execute(cls, eta, s_noise) -> io.NodeOutput:
         sampler = comfy.samplers.ksampler("dpmpp_2s_ancestral", {"eta": eta, "s_noise": s_noise})
-        return (sampler, )
+        return io.NodeOutput(sampler)
 
-class SamplerEulerAncestral:
+    get_sampler = execute
+
+class SamplerEulerAncestral(io.ComfyNode):
     @classmethod
-    def INPUT_TYPES(s):
-        return {"required":
-                    {"eta": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 100.0, "step":0.01, "round": False}),
-                     "s_noise": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 100.0, "step":0.01, "round": False}),
-                      }
-               }
-    RETURN_TYPES = ("SAMPLER",)
-    CATEGORY = "sampling/custom_sampling/samplers"
+    def define_schema(cls):
+        return io.Schema(
+            node_id="SamplerEulerAncestral",
+            category="sampling/custom_sampling/samplers",
+            inputs=[
+                io.Float.Input("eta", default=1.0, min=0.0, max=100.0, step=0.01, round=False),
+                io.Float.Input("s_noise", default=1.0, min=0.0, max=100.0, step=0.01, round=False),
+            ],
+            outputs=[io.Sampler.Output()]
+        )
 
-    FUNCTION = "get_sampler"
-
-    def get_sampler(self, eta, s_noise):
+    @classmethod
+    def execute(cls, eta, s_noise) -> io.NodeOutput:
         sampler = comfy.samplers.ksampler("euler_ancestral", {"eta": eta, "s_noise": s_noise})
-        return (sampler, )
+        return io.NodeOutput(sampler)
 
-class SamplerEulerAncestralCFGPP:
+    get_sampler = execute
+
+class SamplerEulerAncestralCFGPP(io.ComfyNode):
     @classmethod
-    def INPUT_TYPES(s):
-        return {
-            "required": {
-                "eta": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 1.0, "step":0.01, "round": False}),
-                "s_noise": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 10.0, "step":0.01, "round": False}),
-            }}
-    RETURN_TYPES = ("SAMPLER",)
-    CATEGORY = "sampling/custom_sampling/samplers"
+    def define_schema(cls):
+        return io.Schema(
+            node_id="SamplerEulerAncestralCFGPP",
+            display_name="SamplerEulerAncestralCFG++",
+            category="sampling/custom_sampling/samplers",
+            inputs=[
+                io.Float.Input("eta", default=1.0, min=0.0, max=1.0, step=0.01, round=False),
+                io.Float.Input("s_noise", default=1.0, min=0.0, max=10.0, step=0.01, round=False),
+            ],
+            outputs=[io.Sampler.Output()]
+        )
 
-    FUNCTION = "get_sampler"
-
-    def get_sampler(self, eta, s_noise):
+    @classmethod
+    def execute(cls, eta, s_noise) -> io.NodeOutput:
         sampler = comfy.samplers.ksampler(
             "euler_ancestral_cfg_pp",
             {"eta": eta, "s_noise": s_noise})
-        return (sampler, )
+        return io.NodeOutput(sampler)
 
-class SamplerLMS:
+    get_sampler = execute
+
+class SamplerLMS(io.ComfyNode):
     @classmethod
-    def INPUT_TYPES(s):
-        return {"required":
-                    {"order": ("INT", {"default": 4, "min": 1, "max": 100}),
-                      }
-               }
-    RETURN_TYPES = ("SAMPLER",)
-    CATEGORY = "sampling/custom_sampling/samplers"
+    def define_schema(cls):
+        return io.Schema(
+            node_id="SamplerLMS",
+            category="sampling/custom_sampling/samplers",
+            inputs=[io.Int.Input("order", default=4, min=1, max=100)],
+            outputs=[io.Sampler.Output()]
+        )
 
-    FUNCTION = "get_sampler"
-
-    def get_sampler(self, order):
+    @classmethod
+    def execute(cls, order) -> io.NodeOutput:
         sampler = comfy.samplers.ksampler("lms", {"order": order})
-        return (sampler, )
+        return io.NodeOutput(sampler)
 
-class SamplerDPMAdaptative:
+    get_sampler = execute
+
+class SamplerDPMAdaptative(io.ComfyNode):
     @classmethod
-    def INPUT_TYPES(s):
-        return {"required":
-                    {"order": ("INT", {"default": 3, "min": 2, "max": 3}),
-                     "rtol": ("FLOAT", {"default": 0.05, "min": 0.0, "max": 100.0, "step":0.01, "round": False}),
-                     "atol": ("FLOAT", {"default": 0.0078, "min": 0.0, "max": 100.0, "step":0.01, "round": False}),
-                     "h_init": ("FLOAT", {"default": 0.05, "min": 0.0, "max": 100.0, "step":0.01, "round": False}),
-                     "pcoeff": ("FLOAT", {"default": 0.0, "min": 0.0, "max": 100.0, "step":0.01, "round": False}),
-                     "icoeff": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 100.0, "step":0.01, "round": False}),
-                     "dcoeff": ("FLOAT", {"default": 0.0, "min": 0.0, "max": 100.0, "step":0.01, "round": False}),
-                     "accept_safety": ("FLOAT", {"default": 0.81, "min": 0.0, "max": 100.0, "step":0.01, "round": False}),
-                     "eta": ("FLOAT", {"default": 0.0, "min": 0.0, "max": 100.0, "step":0.01, "round": False}),
-                     "s_noise": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 100.0, "step":0.01, "round": False}),
-                      }
-               }
-    RETURN_TYPES = ("SAMPLER",)
-    CATEGORY = "sampling/custom_sampling/samplers"
+    def define_schema(cls):
+        return io.Schema(
+            node_id="SamplerDPMAdaptative",
+            category="sampling/custom_sampling/samplers",
+            inputs=[
+                io.Int.Input("order", default=3, min=2, max=3),
+                io.Float.Input("rtol", default=0.05, min=0.0, max=100.0, step=0.01, round=False),
+                io.Float.Input("atol", default=0.0078, min=0.0, max=100.0, step=0.01, round=False),
+                io.Float.Input("h_init", default=0.05, min=0.0, max=100.0, step=0.01, round=False),
+                io.Float.Input("pcoeff", default=0.0, min=0.0, max=100.0, step=0.01, round=False),
+                io.Float.Input("icoeff", default=1.0, min=0.0, max=100.0, step=0.01, round=False),
+                io.Float.Input("dcoeff", default=0.0, min=0.0, max=100.0, step=0.01, round=False),
+                io.Float.Input("accept_safety", default=0.81, min=0.0, max=100.0, step=0.01, round=False),
+                io.Float.Input("eta", default=0.0, min=0.0, max=100.0, step=0.01, round=False),
+                io.Float.Input("s_noise", default=1.0, min=0.0, max=100.0, step=0.01, round=False),
+            ],
+            outputs=[io.Sampler.Output()]
+        )
 
-    FUNCTION = "get_sampler"
-
-    def get_sampler(self, order, rtol, atol, h_init, pcoeff, icoeff, dcoeff, accept_safety, eta, s_noise):
+    @classmethod
+    def execute(cls, order, rtol, atol, h_init, pcoeff, icoeff, dcoeff, accept_safety, eta, s_noise) -> io.NodeOutput:
         sampler = comfy.samplers.ksampler("dpm_adaptive", {"order": order, "rtol": rtol, "atol": atol, "h_init": h_init, "pcoeff": pcoeff,
                                                               "icoeff": icoeff, "dcoeff": dcoeff, "accept_safety": accept_safety, "eta": eta,
                                                               "s_noise":s_noise })
-        return (sampler, )
+        return io.NodeOutput(sampler)
+
+    get_sampler = execute
 
 
-class SamplerER_SDE(ComfyNodeABC):
+class SamplerER_SDE(io.ComfyNode):
     @classmethod
-    def INPUT_TYPES(cls) -> InputTypeDict:
-        return {
-            "required": {
-                "solver_type": (IO.COMBO, {"options": ["ER-SDE", "Reverse-time SDE", "ODE"]}),
-                "max_stage": (IO.INT, {"default": 3, "min": 1, "max": 3}),
-                "eta": (
-                    IO.FLOAT,
-                    {"default": 1.0, "min": 0.0, "max": 100.0, "step": 0.01, "round": False, "tooltip": "Stochastic strength of reverse-time SDE.\nWhen eta=0, it reduces to deterministic ODE. This setting doesn't apply to ER-SDE solver type."},
-                ),
-                "s_noise": (IO.FLOAT, {"default": 1.0, "min": 0.0, "max": 100.0, "step": 0.01, "round": False}),
-            }
-        }
+    def define_schema(cls):
+        return io.Schema(
+            node_id="SamplerER_SDE",
+            category="sampling/custom_sampling/samplers",
+            inputs=[
+                io.Combo.Input("solver_type", options=["ER-SDE", "Reverse-time SDE", "ODE"]),
+                io.Int.Input("max_stage", default=3, min=1, max=3),
+                io.Float.Input("eta", default=1.0, min=0.0, max=100.0, step=0.01, round=False, tooltip="Stochastic strength of reverse-time SDE.\nWhen eta=0, it reduces to deterministic ODE. This setting doesn't apply to ER-SDE solver type."),
+                io.Float.Input("s_noise", default=1.0, min=0.0, max=100.0, step=0.01, round=False),
+            ],
+            outputs=[io.Sampler.Output()]
+        )
 
-    RETURN_TYPES = (IO.SAMPLER,)
-    CATEGORY = "sampling/custom_sampling/samplers"
-
-    FUNCTION = "get_sampler"
-
-    def get_sampler(self, solver_type, max_stage, eta, s_noise):
+    @classmethod
+    def execute(cls, solver_type, max_stage, eta, s_noise) -> io.NodeOutput:
         if solver_type == "ODE" or (solver_type == "Reverse-time SDE" and eta == 0):
             eta = 0
             s_noise = 0
@@ -548,32 +612,34 @@ class SamplerER_SDE(ComfyNodeABC):
 
         sampler_name = "er_sde"
         sampler = comfy.samplers.ksampler(sampler_name, {"s_noise": s_noise, "noise_scaler": noise_scaler, "max_stage": max_stage})
-        return (sampler,)
+        return io.NodeOutput(sampler)
+
+    get_sampler = execute
 
 
-class SamplerSASolver(ComfyNodeABC):
+class SamplerSASolver(io.ComfyNode):
     @classmethod
-    def INPUT_TYPES(cls) -> InputTypeDict:
-        return {
-            "required": {
-                "model": (IO.MODEL, {}),
-                "eta": (IO.FLOAT, {"default": 1.0, "min": 0.0, "max": 10.0, "step": 0.01, "round": False},),
-                "sde_start_percent": (IO.FLOAT, {"default": 0.2, "min": 0.0, "max": 1.0, "step": 0.001},),
-                "sde_end_percent": (IO.FLOAT, {"default": 0.8, "min": 0.0, "max": 1.0, "step": 0.001},),
-                "s_noise": (IO.FLOAT, {"default": 1.0, "min": 0.0, "max": 100.0, "step": 0.01, "round": False},),
-                "predictor_order": (IO.INT, {"default": 3, "min": 1, "max": 6}),
-                "corrector_order": (IO.INT, {"default": 4, "min": 0, "max": 6}),
-                "use_pece": (IO.BOOLEAN, {}),
-                "simple_order_2": (IO.BOOLEAN, {}),
-            }
-        }
+    def define_schema(cls):
+        return io.Schema(
+            node_id="SamplerSASolver",
+            search_aliases=["sde"],
+            category="sampling/custom_sampling/samplers",
+            inputs=[
+                io.Model.Input("model"),
+                io.Float.Input("eta", default=1.0, min=0.0, max=10.0, step=0.01, round=False),
+                io.Float.Input("sde_start_percent", default=0.2, min=0.0, max=1.0, step=0.001),
+                io.Float.Input("sde_end_percent", default=0.8, min=0.0, max=1.0, step=0.001),
+                io.Float.Input("s_noise", default=1.0, min=0.0, max=100.0, step=0.01, round=False),
+                io.Int.Input("predictor_order", default=3, min=1, max=6),
+                io.Int.Input("corrector_order", default=4, min=0, max=6),
+                io.Boolean.Input("use_pece"),
+                io.Boolean.Input("simple_order_2"),
+            ],
+            outputs=[io.Sampler.Output()]
+        )
 
-    RETURN_TYPES = (IO.SAMPLER,)
-    CATEGORY = "sampling/custom_sampling/samplers"
-
-    FUNCTION = "get_sampler"
-
-    def get_sampler(self, model, eta, sde_start_percent, sde_end_percent, s_noise, predictor_order, corrector_order, use_pece, simple_order_2):
+    @classmethod
+    def execute(cls, model, eta, sde_start_percent, sde_end_percent, s_noise, predictor_order, corrector_order, use_pece, simple_order_2) -> io.NodeOutput:
         model_sampling = model.get_model_object("model_sampling")
         start_sigma = model_sampling.percent_to_sigma(sde_start_percent)
         end_sigma = model_sampling.percent_to_sigma(sde_end_percent)
@@ -591,7 +657,44 @@ class SamplerSASolver(ComfyNodeABC):
                 "simple_order_2": simple_order_2,
             },
         )
-        return (sampler,)
+        return io.NodeOutput(sampler)
+
+    get_sampler = execute
+
+
+class SamplerSEEDS2(io.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return io.Schema(
+            node_id="SamplerSEEDS2",
+            search_aliases=["sde", "exp heun"],
+            category="sampling/custom_sampling/samplers",
+            inputs=[
+                io.Combo.Input("solver_type", options=["phi_1", "phi_2"]),
+                io.Float.Input("eta", default=1.0, min=0.0, max=100.0, step=0.01, round=False, tooltip="Stochastic strength"),
+                io.Float.Input("s_noise", default=1.0, min=0.0, max=100.0, step=0.01, round=False, tooltip="SDE noise multiplier"),
+                io.Float.Input("r", default=0.5, min=0.01, max=1.0, step=0.01, round=False, tooltip="Relative step size for the intermediate stage (c2 node)"),
+            ],
+            outputs=[io.Sampler.Output()],
+            description=(
+                "This sampler node can represent multiple samplers:\n\n"
+                "seeds_2\n"
+                "- default setting\n\n"
+                "exp_heun_2_x0\n"
+                "- solver_type=phi_2, r=1.0, eta=0.0\n\n"
+                "exp_heun_2_x0_sde\n"
+                "- solver_type=phi_2, r=1.0, eta=1.0, s_noise=1.0"
+            )
+        )
+
+    @classmethod
+    def execute(cls, solver_type, eta, s_noise, r) -> io.NodeOutput:
+        sampler_name = "seeds_2"
+        sampler = comfy.samplers.ksampler(
+            sampler_name,
+            {"eta": eta, "s_noise": s_noise, "r": r, "solver_type": solver_type},
+        )
+        return io.NodeOutput(sampler)
 
 
 class Noise_EmptyNoise:
@@ -600,7 +703,14 @@ class Noise_EmptyNoise:
 
     def generate_noise(self, input_latent):
         latent_image = input_latent["samples"]
-        return torch.zeros(latent_image.shape, dtype=latent_image.dtype, layout=latent_image.layout, device="cpu")
+        if latent_image.is_nested:
+            tensors = latent_image.unbind()
+            zeros = []
+            for t in tensors:
+                zeros.append(torch.zeros(t.shape, dtype=t.dtype, layout=t.layout, device="cpu"))
+            return comfy.nested_tensor.NestedTensor(zeros)
+        else:
+            return torch.zeros(latent_image.shape, dtype=latent_image.dtype, layout=latent_image.layout, device="cpu")
 
 
 class Noise_RandomNoise:
@@ -612,34 +722,35 @@ class Noise_RandomNoise:
         batch_inds = input_latent["batch_index"] if "batch_index" in input_latent else None
         return comfy.sample.prepare_noise(latent_image, self.seed, batch_inds)
 
-class SamplerCustom:
+class SamplerCustom(io.ComfyNode):
     @classmethod
-    def INPUT_TYPES(s):
-        return {"required":
-                    {"model": ("MODEL",),
-                    "add_noise": ("BOOLEAN", {"default": True}),
-                    "noise_seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff, "control_after_generate": True}),
-                    "cfg": ("FLOAT", {"default": 8.0, "min": 0.0, "max": 100.0, "step":0.1, "round": 0.01}),
-                    "positive": ("CONDITIONING", ),
-                    "negative": ("CONDITIONING", ),
-                    "sampler": ("SAMPLER", ),
-                    "sigmas": ("SIGMAS", ),
-                    "latent_image": ("LATENT", ),
-                     }
-                }
+    def define_schema(cls):
+        return io.Schema(
+            node_id="SamplerCustom",
+            category="sampling/custom_sampling",
+            inputs=[
+                io.Model.Input("model"),
+                io.Boolean.Input("add_noise", default=True),
+                io.Int.Input("noise_seed", default=0, min=0, max=0xffffffffffffffff, control_after_generate=True),
+                io.Float.Input("cfg", default=8.0, min=0.0, max=100.0, step=0.1, round=0.01),
+                io.Conditioning.Input("positive"),
+                io.Conditioning.Input("negative"),
+                io.Sampler.Input("sampler"),
+                io.Sigmas.Input("sigmas"),
+                io.Latent.Input("latent_image"),
+            ],
+            outputs=[
+                io.Latent.Output(display_name="output"),
+                io.Latent.Output(display_name="denoised_output"),
+            ]
+        )
 
-    RETURN_TYPES = ("LATENT","LATENT")
-    RETURN_NAMES = ("output", "denoised_output")
-
-    FUNCTION = "sample"
-
-    CATEGORY = "sampling/custom_sampling"
-
-    def sample(self, model, add_noise, noise_seed, cfg, positive, negative, sampler, sigmas, latent_image):
+    @classmethod
+    def execute(cls, model, add_noise, noise_seed, cfg, positive, negative, sampler, sigmas, latent_image) -> io.NodeOutput:
         latent = latent_image
         latent_image = latent["samples"]
         latent = latent.copy()
-        latent_image = comfy.sample.fix_empty_latent_channels(model, latent_image)
+        latent_image = comfy.sample.fix_empty_latent_channels(model, latent_image, latent.get("downscale_ratio_spacial", None))
         latent["samples"] = latent_image
 
         if not add_noise:
@@ -658,58 +769,69 @@ class SamplerCustom:
         samples = comfy.sample.sample_custom(model, noise, cfg, sampler, sigmas, positive, negative, latent_image, noise_mask=noise_mask, callback=callback, disable_pbar=disable_pbar, seed=noise_seed)
 
         out = latent.copy()
+        out.pop("downscale_ratio_spacial", None)
         out["samples"] = samples
         if "x0" in x0_output:
+            x0_out = model.model.process_latent_out(x0_output["x0"].cpu())
+            if samples.is_nested:
+                latent_shapes = [x.shape for x in samples.unbind()]
+                x0_out = comfy.nested_tensor.NestedTensor(comfy.utils.unpack_latents(x0_out, latent_shapes))
             out_denoised = latent.copy()
-            out_denoised["samples"] = model.model.process_latent_out(x0_output["x0"].cpu())
+            out_denoised["samples"] = x0_out
         else:
             out_denoised = out
-        return (out, out_denoised)
+        return io.NodeOutput(out, out_denoised)
+
+    sample = execute
 
 class Guider_Basic(comfy.samplers.CFGGuider):
     def set_conds(self, positive):
         self.inner_set_conds({"positive": positive})
 
-class BasicGuider:
+class BasicGuider(io.ComfyNode):
     @classmethod
-    def INPUT_TYPES(s):
-        return {"required":
-                    {"model": ("MODEL",),
-                    "conditioning": ("CONDITIONING", ),
-                     }
-                }
+    def define_schema(cls):
+        return io.Schema(
+            node_id="BasicGuider",
+            category="sampling/custom_sampling/guiders",
+            inputs=[
+                io.Model.Input("model"),
+                io.Conditioning.Input("conditioning"),
+            ],
+            outputs=[io.Guider.Output()]
+        )
 
-    RETURN_TYPES = ("GUIDER",)
-
-    FUNCTION = "get_guider"
-    CATEGORY = "sampling/custom_sampling/guiders"
-
-    def get_guider(self, model, conditioning):
+    @classmethod
+    def execute(cls, model, conditioning) -> io.NodeOutput:
         guider = Guider_Basic(model)
         guider.set_conds(conditioning)
-        return (guider,)
+        return io.NodeOutput(guider)
 
-class CFGGuider:
+    get_guider = execute
+
+class CFGGuider(io.ComfyNode):
     @classmethod
-    def INPUT_TYPES(s):
-        return {"required":
-                    {"model": ("MODEL",),
-                    "positive": ("CONDITIONING", ),
-                    "negative": ("CONDITIONING", ),
-                    "cfg": ("FLOAT", {"default": 8.0, "min": 0.0, "max": 100.0, "step":0.1, "round": 0.01}),
-                     }
-                }
+    def define_schema(cls):
+        return io.Schema(
+            node_id="CFGGuider",
+            category="sampling/custom_sampling/guiders",
+            inputs=[
+                io.Model.Input("model"),
+                io.Conditioning.Input("positive"),
+                io.Conditioning.Input("negative"),
+                io.Float.Input("cfg", default=8.0, min=0.0, max=100.0, step=0.1, round=0.01),
+            ],
+            outputs=[io.Guider.Output()]
+        )
 
-    RETURN_TYPES = ("GUIDER",)
-
-    FUNCTION = "get_guider"
-    CATEGORY = "sampling/custom_sampling/guiders"
-
-    def get_guider(self, model, positive, negative, cfg):
+    @classmethod
+    def execute(cls, model, positive, negative, cfg) -> io.NodeOutput:
         guider = comfy.samplers.CFGGuider(model)
         guider.set_conds(positive, negative)
         guider.set_cfg(cfg)
-        return (guider,)
+        return io.NodeOutput(guider)
+
+    get_guider = execute
 
 class Guider_DualCFG(comfy.samplers.CFGGuider):
     def set_cfg(self, cfg1, cfg2, nested=False):
@@ -740,88 +862,94 @@ class Guider_DualCFG(comfy.samplers.CFGGuider):
             out = comfy.samplers.calc_cond_batch(self.inner_model, [negative_cond, middle_cond, positive_cond], x, timestep, model_options)
             return comfy.samplers.cfg_function(self.inner_model, out[1], out[0], self.cfg2, x, timestep, model_options=model_options, cond=middle_cond, uncond=negative_cond) + (out[2] - out[1]) * self.cfg1
 
-class DualCFGGuider:
+class DualCFGGuider(io.ComfyNode):
     @classmethod
-    def INPUT_TYPES(s):
-        return {"required":
-                    {"model": ("MODEL",),
-                    "cond1": ("CONDITIONING", ),
-                    "cond2": ("CONDITIONING", ),
-                    "negative": ("CONDITIONING", ),
-                    "cfg_conds": ("FLOAT", {"default": 8.0, "min": 0.0, "max": 100.0, "step":0.1, "round": 0.01}),
-                    "cfg_cond2_negative": ("FLOAT", {"default": 8.0, "min": 0.0, "max": 100.0, "step":0.1, "round": 0.01}),
-                    "style": (["regular", "nested"],),
-                     }
-                }
+    def define_schema(cls):
+        return io.Schema(
+            node_id="DualCFGGuider",
+            search_aliases=["dual prompt guidance"],
+            category="sampling/custom_sampling/guiders",
+            inputs=[
+                io.Model.Input("model"),
+                io.Conditioning.Input("cond1"),
+                io.Conditioning.Input("cond2"),
+                io.Conditioning.Input("negative"),
+                io.Float.Input("cfg_conds", default=8.0, min=0.0, max=100.0, step=0.1, round=0.01),
+                io.Float.Input("cfg_cond2_negative", default=8.0, min=0.0, max=100.0, step=0.1, round=0.01),
+                io.Combo.Input("style", options=["regular", "nested"]),
+            ],
+            outputs=[io.Guider.Output()]
+        )
 
-    RETURN_TYPES = ("GUIDER",)
-
-    FUNCTION = "get_guider"
-    CATEGORY = "sampling/custom_sampling/guiders"
-
-    def get_guider(self, model, cond1, cond2, negative, cfg_conds, cfg_cond2_negative, style):
+    @classmethod
+    def execute(cls, model, cond1, cond2, negative, cfg_conds, cfg_cond2_negative, style) -> io.NodeOutput:
         guider = Guider_DualCFG(model)
         guider.set_conds(cond1, cond2, negative)
         guider.set_cfg(cfg_conds, cfg_cond2_negative, nested=(style == "nested"))
-        return (guider,)
+        return io.NodeOutput(guider)
 
-class DisableNoise:
+    get_guider = execute
+
+class DisableNoise(io.ComfyNode):
     @classmethod
-    def INPUT_TYPES(s):
-        return {"required":{
-                     }
-                }
+    def define_schema(cls):
+        return io.Schema(
+            node_id="DisableNoise",
+            search_aliases=["zero noise"],
+            category="sampling/custom_sampling/noise",
+            inputs=[],
+            outputs=[io.Noise.Output()]
+        )
 
-    RETURN_TYPES = ("NOISE",)
-    FUNCTION = "get_noise"
-    CATEGORY = "sampling/custom_sampling/noise"
-
-    def get_noise(self):
-        return (Noise_EmptyNoise(),)
-
-
-class RandomNoise(DisableNoise):
     @classmethod
-    def INPUT_TYPES(s):
-        return {
-            "required": {
-                "noise_seed": ("INT", {
-                    "default": 0,
-                    "min": 0,
-                    "max": 0xffffffffffffffff,
-                    "control_after_generate": True,
-                }),
-            }
-        }
+    def execute(cls) -> io.NodeOutput:
+        return io.NodeOutput(Noise_EmptyNoise())
 
-    def get_noise(self, noise_seed):
-        return (Noise_RandomNoise(noise_seed),)
+    get_noise = execute
 
 
-class SamplerCustomAdvanced:
+class RandomNoise(io.ComfyNode):
     @classmethod
-    def INPUT_TYPES(s):
-        return {"required":
-                    {"noise": ("NOISE", ),
-                    "guider": ("GUIDER", ),
-                    "sampler": ("SAMPLER", ),
-                    "sigmas": ("SIGMAS", ),
-                    "latent_image": ("LATENT", ),
-                     }
-                }
+    def define_schema(cls):
+        return io.Schema(
+            node_id="RandomNoise",
+            category="sampling/custom_sampling/noise",
+            inputs=[io.Int.Input("noise_seed", default=0, min=0, max=0xffffffffffffffff, control_after_generate=True)],
+            outputs=[io.Noise.Output()]
+        )
 
-    RETURN_TYPES = ("LATENT","LATENT")
-    RETURN_NAMES = ("output", "denoised_output")
+    @classmethod
+    def execute(cls, noise_seed) -> io.NodeOutput:
+        return io.NodeOutput(Noise_RandomNoise(noise_seed))
 
-    FUNCTION = "sample"
+    get_noise = execute
 
-    CATEGORY = "sampling/custom_sampling"
 
-    def sample(self, noise, guider, sampler, sigmas, latent_image):
+class SamplerCustomAdvanced(io.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return io.Schema(
+            node_id="SamplerCustomAdvanced",
+            category="sampling/custom_sampling",
+            inputs=[
+                io.Noise.Input("noise"),
+                io.Guider.Input("guider"),
+                io.Sampler.Input("sampler"),
+                io.Sigmas.Input("sigmas"),
+                io.Latent.Input("latent_image"),
+            ],
+            outputs=[
+                io.Latent.Output(display_name="output"),
+                io.Latent.Output(display_name="denoised_output"),
+            ]
+        )
+
+    @classmethod
+    def execute(cls, noise, guider, sampler, sigmas, latent_image) -> io.NodeOutput:
         latent = latent_image
         latent_image = latent["samples"]
         latent = latent.copy()
-        latent_image = comfy.sample.fix_empty_latent_channels(guider.model_patcher, latent_image)
+        latent_image = comfy.sample.fix_empty_latent_channels(guider.model_patcher, latent_image, latent.get("downscale_ratio_spacial", None))
         latent["samples"] = latent_image
 
         noise_mask = None
@@ -836,34 +964,43 @@ class SamplerCustomAdvanced:
         samples = samples.to(comfy.model_management.intermediate_device())
 
         out = latent.copy()
+        out.pop("downscale_ratio_spacial", None)
         out["samples"] = samples
         if "x0" in x0_output:
+            x0_out = guider.model_patcher.model.process_latent_out(x0_output["x0"].cpu())
+            if samples.is_nested:
+                latent_shapes = [x.shape for x in samples.unbind()]
+                x0_out = comfy.nested_tensor.NestedTensor(comfy.utils.unpack_latents(x0_out, latent_shapes))
             out_denoised = latent.copy()
-            out_denoised["samples"] = guider.model_patcher.model.process_latent_out(x0_output["x0"].cpu())
+            out_denoised["samples"] = x0_out
         else:
             out_denoised = out
-        return (out, out_denoised)
+        return io.NodeOutput(out, out_denoised)
 
-class AddNoise:
+    sample = execute
+
+class AddNoise(io.ComfyNode):
     @classmethod
-    def INPUT_TYPES(s):
-        return {"required":
-                    {"model": ("MODEL",),
-                     "noise": ("NOISE", ),
-                     "sigmas": ("SIGMAS", ),
-                     "latent_image": ("LATENT", ),
-                     }
-                }
+    def define_schema(cls):
+        return io.Schema(
+            node_id="AddNoise",
+            category="_for_testing/custom_sampling/noise",
+            is_experimental=True,
+            inputs=[
+                io.Model.Input("model"),
+                io.Noise.Input("noise"),
+                io.Sigmas.Input("sigmas"),
+                io.Latent.Input("latent_image"),
+            ],
+            outputs=[
+                io.Latent.Output(),
+            ]
+        )
 
-    RETURN_TYPES = ("LATENT",)
-
-    FUNCTION = "add_noise"
-
-    CATEGORY = "_for_testing/custom_sampling/noise"
-
-    def add_noise(self, model, noise, sigmas, latent_image):
+    @classmethod
+    def execute(cls, model, noise, sigmas, latent_image) -> io.NodeOutput:
         if len(sigmas) == 0:
-            return latent_image
+            return io.NodeOutput(latent_image)
 
         latent = latent_image
         latent_image = latent["samples"]
@@ -887,46 +1024,72 @@ class AddNoise:
 
         out = latent.copy()
         out["samples"] = noisy
-        return (out,)
+        return io.NodeOutput(out)
+
+    add_noise = execute
+
+class ManualSigmas(io.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return io.Schema(
+            node_id="ManualSigmas",
+            search_aliases=["custom noise schedule", "define sigmas"],
+            category="_for_testing/custom_sampling",
+            is_experimental=True,
+            inputs=[
+                io.String.Input("sigmas", default="1, 0.5", multiline=False)
+            ],
+            outputs=[io.Sigmas.Output()]
+        )
+
+    @classmethod
+    def execute(cls, sigmas) -> io.NodeOutput:
+        sigmas = re.findall(r"[-+]?(?:\d*\.*\d+)", sigmas)
+        sigmas = [float(i) for i in sigmas]
+        sigmas = torch.FloatTensor(sigmas)
+        return io.NodeOutput(sigmas)
+
+class CustomSamplersExtension(ComfyExtension):
+    @override
+    async def get_node_list(self) -> list[type[io.ComfyNode]]:
+        return [
+            SamplerCustom,
+            BasicScheduler,
+            KarrasScheduler,
+            ExponentialScheduler,
+            PolyexponentialScheduler,
+            LaplaceScheduler,
+            VPScheduler,
+            BetaSamplingScheduler,
+            SDTurboScheduler,
+            KSamplerSelect,
+            SamplerEulerAncestral,
+            SamplerEulerAncestralCFGPP,
+            SamplerLMS,
+            SamplerDPMPP_3M_SDE,
+            SamplerDPMPP_2M_SDE,
+            SamplerDPMPP_SDE,
+            SamplerDPMPP_2S_Ancestral,
+            SamplerDPMAdaptative,
+            SamplerER_SDE,
+            SamplerSASolver,
+            SamplerSEEDS2,
+            SplitSigmas,
+            SplitSigmasDenoise,
+            FlipSigmas,
+            SetFirstSigma,
+            ExtendIntermediateSigmas,
+            SamplingPercentToSigma,
+            CFGGuider,
+            DualCFGGuider,
+            BasicGuider,
+            RandomNoise,
+            DisableNoise,
+            AddNoise,
+            SamplerCustomAdvanced,
+            ManualSigmas,
+        ]
 
 
-NODE_CLASS_MAPPINGS = {
-    "SamplerCustom": SamplerCustom,
-    "BasicScheduler": BasicScheduler,
-    "KarrasScheduler": KarrasScheduler,
-    "ExponentialScheduler": ExponentialScheduler,
-    "PolyexponentialScheduler": PolyexponentialScheduler,
-    "LaplaceScheduler": LaplaceScheduler,
-    "VPScheduler": VPScheduler,
-    "BetaSamplingScheduler": BetaSamplingScheduler,
-    "SDTurboScheduler": SDTurboScheduler,
-    "KSamplerSelect": KSamplerSelect,
-    "SamplerEulerAncestral": SamplerEulerAncestral,
-    "SamplerEulerAncestralCFGPP": SamplerEulerAncestralCFGPP,
-    "SamplerLMS": SamplerLMS,
-    "SamplerDPMPP_3M_SDE": SamplerDPMPP_3M_SDE,
-    "SamplerDPMPP_2M_SDE": SamplerDPMPP_2M_SDE,
-    "SamplerDPMPP_SDE": SamplerDPMPP_SDE,
-    "SamplerDPMPP_2S_Ancestral": SamplerDPMPP_2S_Ancestral,
-    "SamplerDPMAdaptative": SamplerDPMAdaptative,
-    "SamplerER_SDE": SamplerER_SDE,
-    "SamplerSASolver": SamplerSASolver,
-    "SplitSigmas": SplitSigmas,
-    "SplitSigmasDenoise": SplitSigmasDenoise,
-    "FlipSigmas": FlipSigmas,
-    "SetFirstSigma": SetFirstSigma,
-    "ExtendIntermediateSigmas": ExtendIntermediateSigmas,
-    "SamplingPercentToSigma": SamplingPercentToSigma,
-
-    "CFGGuider": CFGGuider,
-    "DualCFGGuider": DualCFGGuider,
-    "BasicGuider": BasicGuider,
-    "RandomNoise": RandomNoise,
-    "DisableNoise": DisableNoise,
-    "AddNoise": AddNoise,
-    "SamplerCustomAdvanced": SamplerCustomAdvanced,
-}
-
-NODE_DISPLAY_NAME_MAPPINGS = {
-    "SamplerEulerAncestralCFGPP": "SamplerEulerAncestralCFG++",
-}
+async def comfy_entrypoint() -> CustomSamplersExtension:
+    return CustomSamplersExtension()

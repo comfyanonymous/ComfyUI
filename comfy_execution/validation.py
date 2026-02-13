@@ -1,4 +1,5 @@
 from __future__ import annotations
+from comfy_api.latest import IO
 
 
 def validate_node_input(
@@ -20,7 +21,22 @@ def validate_node_input(
     """
     # If the types are exactly the same, we can return immediately
     # Use pre-union behaviour: inverse of `__ne__`
+    # NOTE: this lets legacy '*' Any types work that override the __ne__ method of the str class.
     if not received_type != input_type:
+        return True
+
+    # If one of the types is '*', we can return True immediately; this is the 'Any' type.
+    if received_type == IO.AnyType.io_type or input_type == IO.AnyType.io_type:
+        return True
+
+    # If the received type or input_type is a MatchType, we can return True immediately;
+    # validation for this is handled by the frontend
+    if received_type == IO.MatchType.io_type or input_type == IO.MatchType.io_type:
+        return True
+
+    # This accounts for some custom nodes that output lists of options as the type;
+    # if we ever want to break them on purpose, this can be removed
+    if isinstance(received_type, list) and input_type == IO.Combo.io_type:
         return True
 
     # Not equal, and not strings
@@ -30,6 +46,10 @@ def validate_node_input(
     # Split the type strings into sets for comparison
     received_types = set(t.strip() for t in received_type.split(","))
     input_types = set(t.strip() for t in input_type.split(","))
+
+    # If any of the types is '*', we can return True immediately; this is the 'Any' type.
+    if IO.AnyType.io_type in received_types or IO.AnyType.io_type in input_types:
+        return True
 
     if strict:
         # In strict mode, all received types must be in the input types

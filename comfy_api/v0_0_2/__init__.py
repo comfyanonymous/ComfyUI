@@ -6,7 +6,7 @@ from comfy_api.latest import (
 )
 from typing import Type, TYPE_CHECKING
 from comfy_api.internal.async_to_sync import create_sync_class
-from comfy_api.latest import io, ui, ComfyExtension  #noqa: F401
+from comfy_api.latest import io, ui, IO, UI, ComfyExtension  #noqa: F401
 
 
 class ComfyAPIAdapter_v0_0_2(ComfyAPI_latest):
@@ -42,4 +42,8 @@ __all__ = [
     "InputImpl",
     "Types",
     "ComfyExtension",
+    "io",
+    "IO",
+    "ui",
+    "UI",
 ]

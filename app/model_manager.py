@@ -44,7 +44,7 @@ class ModelFileManager:
         @routes.get("/experiment/models/{folder}")
         async def get_all_models(request):
             folder = request.match_info.get("folder", None)
-            if not folder in folder_paths.folder_names_and_paths:
+            if folder not in folder_paths.folder_names_and_paths:
                 return web.Response(status=404)
             files = self.get_model_file_list(folder)
             return web.json_response(files)
@@ -55,7 +55,7 @@ class ModelFileManager:
             path_index = int(request.match_info.get("path_index", None))
             filename = request.match_info.get("filename", None)
 
-            if not folder_name in folder_paths.folder_names_and_paths:
+            if folder_name not in folder_paths.folder_names_and_paths:
                 return web.Response(status=404)
 
             folders = folder_paths.folder_names_and_paths[folder_name]

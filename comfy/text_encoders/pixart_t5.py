@@ -30,13 +30,13 @@ class PixArtTokenizer(sd1_clip.SD1Tokenizer):
     def __init__(self, embedding_directory=None, tokenizer_data={}):
         super().__init__(embedding_directory=embedding_directory, tokenizer_data=tokenizer_data, clip_name="t5xxl", tokenizer=T5XXLTokenizer)
 
-def pixart_te(dtype_t5=None, t5xxl_scaled_fp8=None):
+def pixart_te(dtype_t5=None, t5_quantization_metadata=None):
     class PixArtTEModel_(PixArtT5XXL):
         def __init__(self, device="cpu", dtype=None, model_options={}):
-            if t5xxl_scaled_fp8 is not None and "t5xxl_scaled_fp8" not in model_options:
+            if t5_quantization_metadata is not None:
                 model_options = model_options.copy()
-                model_options["t5xxl_scaled_fp8"] = t5xxl_scaled_fp8
-            if dtype is None:
+                model_options["t5xxl_quantization_metadata"] = t5_quantization_metadata
+            if dtype_t5 is not None:
                 dtype = dtype_t5
             super().__init__(device=device, dtype=dtype, model_options=model_options)
     return PixArtTEModel_

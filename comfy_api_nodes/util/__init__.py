@@ -11,7 +11,9 @@ from .conversions import (
     audio_input_to_mp3,
     audio_to_base64_string,
     bytesio_to_image_tensor,
+    convert_mask_to_image,
     downscale_image_tensor,
+    downscale_image_tensor_by_max_side,
     image_tensor_pair_to_batch,
     pil_to_bytesio,
     resize_mask_to_image,
@@ -26,16 +28,19 @@ from .conversions import (
 from .download_helpers import (
     download_url_as_bytesio,
     download_url_to_bytesio,
+    download_url_to_file_3d,
     download_url_to_image_tensor,
     download_url_to_video_output,
 )
 from .upload_helpers import (
     upload_audio_to_comfyapi,
     upload_file_to_comfyapi,
+    upload_image_to_comfyapi,
     upload_images_to_comfyapi,
     upload_video_to_comfyapi,
 )
 from .validation_utils import (
+    get_image_dimensions,
     get_number_of_images,
     validate_aspect_ratio_string,
     validate_audio_duration,
@@ -46,6 +51,7 @@ from .validation_utils import (
     validate_string,
     validate_video_dimensions,
     validate_video_duration,
+    validate_video_frame_count,
 )
 
 __all__ = [
@@ -58,11 +64,13 @@ __all__ = [
     # Upload helpers
     "upload_audio_to_comfyapi",
     "upload_file_to_comfyapi",
+    "upload_image_to_comfyapi",
     "upload_images_to_comfyapi",
     "upload_video_to_comfyapi",
     # Download helpers
     "download_url_as_bytesio",
     "download_url_to_bytesio",
+    "download_url_to_file_3d",
     "download_url_to_image_tensor",
     "download_url_to_video_output",
     # Conversions
@@ -70,7 +78,9 @@ __all__ = [
     "audio_input_to_mp3",
     "audio_to_base64_string",
     "bytesio_to_image_tensor",
+    "convert_mask_to_image",
     "downscale_image_tensor",
+    "downscale_image_tensor_by_max_side",
     "image_tensor_pair_to_batch",
     "pil_to_bytesio",
     "resize_mask_to_image",
@@ -82,6 +92,7 @@ __all__ = [
     "trim_video",
     "video_to_base64_string",
     # Validation utilities
+    "get_image_dimensions",
     "get_number_of_images",
     "validate_aspect_ratio_string",
     "validate_audio_duration",
@@ -92,6 +103,7 @@ __all__ = [
     "validate_string",
     "validate_video_dimensions",
     "validate_video_duration",
+    "validate_video_frame_count",
     # Misc functions
     "get_fs_object_size",
 ]
