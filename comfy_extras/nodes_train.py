@@ -1035,7 +1035,7 @@ class TrainLoraNode(io.ComfyNode):
                 io.Boolean.Input(
                     "offloading",
                     default=False,
-                    tooltip="Depth level for gradient checkpointing.",
+                    tooltip="Offload the Model to RAM. Requires Bypass Mode.",
                 ),
                 io.Combo.Input(
                     "existing_lora",
