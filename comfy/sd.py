@@ -793,8 +793,6 @@ class VAE:
             self.first_stage_model = AutoencoderKL(**(config['params']))
         self.first_stage_model = self.first_stage_model.eval()
 
-        model_management.archive_model_dtypes(self.first_stage_model)
-
         if device is None:
             device = model_management.vae_device()
         self.device = device
@@ -803,6 +801,7 @@ class VAE:
             dtype = model_management.vae_dtype(self.device, self.working_dtypes)
         self.vae_dtype = dtype
         self.first_stage_model.to(self.vae_dtype)
+        model_management.archive_model_dtypes(self.first_stage_model)
         self.output_device = model_management.intermediate_device()
 
         mp = comfy.model_patcher.CoreModelPatcher
