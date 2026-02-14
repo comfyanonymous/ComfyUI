@@ -321,7 +321,10 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
         dit_config["attention_head_dim"] = shape[0] // 32
         dit_config["cross_attention_dim"] = shape[1]
         if metadata is not None and "config" in metadata:
-            dit_config.update(json.loads(metadata["config"]).get("transformer", {}))
+            try:
+                dit_config.update(json.loads(metadata["config"]).get("transformer", {}))
+            except (json.JSONDecodeError, AttributeError) as e:
+                logging.warning(f"Failed to parse transformer config from metadata: {e}")
         return dit_config
 
     if '{}genre_embedder.weight'.format(key_prefix) in state_dict_keys: #ACE-Step model
