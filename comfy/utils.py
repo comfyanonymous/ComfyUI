@@ -1105,7 +1105,7 @@ def tiled_scale_multidim(samples, function, tile=(64, 64), overlap=8, upscale_am
 
         # handle entire input fitting in a single tile
         if all(s.shape[d+2] <= tile[d] for d in range(dims)):
-            output[b:b+1] = function(s).to(output_device)
+            output[b:b+1] = function(s.contiguous()).to(output_device)
             if pbar is not None:
                 pbar.update(1)
             continue
@@ -1125,7 +1125,7 @@ def tiled_scale_multidim(samples, function, tile=(64, 64), overlap=8, upscale_am
                 s_in = s_in.narrow(d + 2, pos, l)
                 upscaled.append(round(get_pos(d, pos)))
 
-            ps = function(s_in).to(output_device)
+            ps = function(s_in.contiguous()).to(output_device)
             mask = torch.ones_like(ps)
 
             for d in range(2, dims + 2):
