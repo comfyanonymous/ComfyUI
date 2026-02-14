@@ -65,7 +65,7 @@ class TextGenerate(io.ComfyNode):
             seed=seed
         )
 
-        generated_text = clip.decode(generated_ids[0], skip_special_tokens=True)
+        generated_text = clip.decode(generated_ids, skip_special_tokens=True)
         return io.NodeOutput(generated_text)
 
 

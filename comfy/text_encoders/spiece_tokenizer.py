@@ -48,9 +48,6 @@ class SPieceTokenizer:
         return {"input_ids": out}
 
     def decode(self, token_ids, skip_special_tokens=False):
-        """Decode token IDs back to text"""
-        if isinstance(token_ids, torch.Tensor):
-            token_ids = token_ids.tolist()
 
         if skip_special_tokens and self.special_tokens:
             special_token_ids = set(self.special_tokens.values())

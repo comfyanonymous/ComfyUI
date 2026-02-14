@@ -673,9 +673,6 @@ class SDTokenizer:
         return {}
 
     def decode(self, token_ids, skip_special_tokens=True):
-        if torch.is_tensor(token_ids):
-            token_ids = token_ids.tolist()
-
         return self.tokenizer.decode(token_ids, skip_special_tokens=skip_special_tokens)
 
 class SD1Tokenizer:

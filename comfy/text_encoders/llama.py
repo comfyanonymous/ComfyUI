@@ -842,7 +842,7 @@ class BaseGenerate:
             if token_id in stop_tokens:
                 break
 
-        return torch.tensor([generated_token_ids], device=device, dtype=torch.long)
+        return generated_token_ids
 
     def sample_token(self, logits, temperature, top_k, top_p, min_p, repetition_penalty, token_history, generator, do_sample=True):
 
