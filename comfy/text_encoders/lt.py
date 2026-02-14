@@ -87,10 +87,15 @@ class Gemma3_12BModel(sd1_clip.SDClipModel):
         if llama_quantization_metadata is not None:
             model_options = model_options.copy()
             model_options["quantization_metadata"] = llama_quantization_metadata
-        self.device = device
-
+        self.dtypes = set()
+        self.dtypes.add(dtype)
         super().__init__(device=device, layer=layer, layer_idx=layer_idx, textmodel_json_config={}, dtype=dtype, special_tokens={"start": 2, "pad": 0}, layer_norm_hidden_state=False, model_class=comfy.text_encoders.llama.Gemma3_12B, enable_attention_masks=attention_mask, return_attention_masks=attention_mask, model_options=model_options)
 
+    def generate(self, tokens, do_sample, max_length, temperature, top_k, top_p, min_p, repetition_penalty, seed):
+        tokens_only = [[t[0] for t in b] for b in tokens]
+        embeds, _, _, embeds_info = self.process_tokens(tokens_only, self.execution_device)
+        embeds = comfy.utils.normalize_image_embeddings(embeds, embeds_info, target_std=0.0156)
+        return self.transformer.generate(embeds, do_sample, max_length, temperature, top_k, top_p, min_p, repetition_penalty, seed, stop_tokens=[106])  # 106 is <end_of_turn>
 
 class LTXAVTEModel(torch.nn.Module):
     def __init__(self, dtype_llama=None, device="cpu", dtype=None, model_options={}):
@@ -148,11 +153,7 @@ class LTXAVTEModel(torch.nn.Module):
         return out.to(out_device), pooled
 
     def generate(self, tokens, do_sample, max_length, temperature, top_k, top_p, min_p, repetition_penalty, seed):
-        tokens_only = [[t[0] for t in b] for b in tokens["gemma3_12b"]]
-        embeds, _, _, embeds_info = self.gemma3_12b.process_tokens(tokens_only, self.execution_device)
-        embeds = comfy.utils.normalize_image_embeddings(embeds, embeds_info, target_std=0.0156)
-
-        return self.gemma3_12b.transformer.generate(embeds, do_sample, max_length, temperature, top_k, top_p, min_p, repetition_penalty, seed, stop_tokens=[106])  # 106 is <end_of_turn>
+        return self.gemma3_12b.generate(tokens["gemma3_12b"], do_sample, max_length, temperature, top_k, top_p, min_p, repetition_penalty, seed)
 
     def load_sd(self, sd):
         if "model.layers.47.self_attn.q_norm.weight" in sd:
@@ -194,3 +195,14 @@ def ltxav_te(dtype_llama=None, llama_quantization_metadata=None):
                 dtype = dtype_llama
             super().__init__(dtype_llama=dtype_llama, device=device, dtype=dtype, model_options=model_options)
     return LTXAVTEModel_
+
+def gemma3_te(dtype_llama=None, llama_quantization_metadata=None):
+    class Gemma3_12BModel_(Gemma3_12BModel):
+        def __init__(self, device="cpu", dtype=None, model_options={}):
+            if llama_quantization_metadata is not None:
+                model_options = model_options.copy()
+                model_options["llama_quantization_metadata"] = llama_quantization_metadata
+            if dtype_llama is not None:
+                dtype = dtype_llama
+            super().__init__(device=device, dtype=dtype, model_options=model_options)
+    return Gemma3_12BModel_
