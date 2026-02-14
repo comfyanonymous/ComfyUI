@@ -1035,7 +1035,7 @@ class TrainLoraNode(io.ComfyNode):
                 io.Boolean.Input(
                     "offloading",
                     default=False,
-                    tooltip="Depth level for gradient checkpointing.",
+                    tooltip="Offload the Model to RAM. Requires Bypass Mode.",
                 ),
                 io.Combo.Input(
                     "existing_lora",
@@ -1123,6 +1123,15 @@ class TrainLoraNode(io.ComfyNode):
         dtype = node_helpers.string_to_torch_dtype(training_dtype)
         lora_dtype = node_helpers.string_to_torch_dtype(lora_dtype)
         mp.set_model_compute_dtype(dtype)
+
+        if mp.is_dynamic():
+            if not bypass_mode:
+                logging.info("Training MP is Dynamic - forcing bypass mode. Start comfy with --highvram to force weight diff mode")
+                bypass_mode = True
+            offloading = True
+        elif offloading:
+            if not bypass_mode:
+                logging.info("Training Offload selected - forcing bypass mode. Set bypass = True to remove this message")
 
         # Prepare latents and compute counts
         latents, num_images, multi_res = _prepare_latents_and_count(
