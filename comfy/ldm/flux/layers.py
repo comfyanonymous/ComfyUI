@@ -6,6 +6,8 @@ from torch import Tensor, nn
 
 from .math import attention, rope
 
+# Fix import for some custom nodes, TODO: delete eventually.
+RMSNorm = None
 
 class EmbedND(nn.Module):
     def __init__(self, dim: int, theta: int, axes_dim: list):
