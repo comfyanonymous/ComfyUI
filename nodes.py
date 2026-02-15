@@ -2276,6 +2276,7 @@ async def load_custom_node(module_path: str, ignore=set(), module_parent="custom
                         node_cls.RELATIVE_PYTHON_MODULE = "{}.{}".format(module_parent, get_module_name(module_path))
                     if schema.display_name is not None:
                         NODE_DISPLAY_NAME_MAPPINGS[schema.node_id] = schema.display_name
+                await extension.on_load()
                 return True
             except Exception as e:
                 logging.warning(f"Error while calling comfy_entrypoint in {module_path}: {e}")
