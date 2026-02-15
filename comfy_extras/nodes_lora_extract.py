@@ -7,6 +7,7 @@ import logging
 from enum import Enum
 from typing_extensions import override
 from comfy_api.latest import ComfyExtension, io
+from tqdm.auto import trange
 
 CLAMP_QUANTILE = 0.99
 
@@ -52,7 +53,9 @@ def calc_lora_model(model_diff, rank, prefix_model, prefix_lora, output_sd, lora
     comfy.model_management.load_models_gpu([model_diff], force_patch_weights=True)
     sd = model_diff.model_state_dict(filter_prefix=prefix_model)
 
-    for k in sd:
+    sd_keys = list(sd.keys())
+    for index in trange(len(sd_keys), unit="weight"):
+        k = sd_keys[index]
         if k.endswith(".weight"):
             weight_diff = sd[k]
             if lora_type == LORAType.STANDARD:
