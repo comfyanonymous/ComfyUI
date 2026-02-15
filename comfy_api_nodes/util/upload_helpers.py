@@ -164,6 +164,27 @@ async def upload_video_to_comfyapi(
     return await upload_file_to_comfyapi(cls, video_bytes_io, filename, upload_mime_type, wait_label)
 
 
+_3D_MIME_TYPES = {
+    "glb": "model/gltf-binary",
+    "obj": "model/obj",
+    "fbx": "application/octet-stream",
+}
+
+
+async def upload_3d_model_to_comfyapi(
+    cls: type[IO.ComfyNode],
+    model_3d: Types.File3D,
+    file_format: str,
+) -> str:
+    """Uploads a 3D model file to ComfyUI API and returns its download URL."""
+    return await upload_file_to_comfyapi(
+        cls,
+        model_3d.get_data(),
+        f"{uuid.uuid4()}.{file_format}",
+        _3D_MIME_TYPES.get(file_format, "application/octet-stream"),
+    )
+
+
 async def upload_file_to_comfyapi(
     cls: type[IO.ComfyNode],
     file_bytes_io: BytesIO,
