@@ -4,7 +4,7 @@ from aiohttp import web
 
 from typing import TYPE_CHECKING, TypedDict
 if TYPE_CHECKING:
-    from comfy_api.latest._node_replace import NodeReplace
+    from comfy_api.latest._io import NodeReplace
 
 from comfy_execution.graph_utils import is_link
 import nodes
