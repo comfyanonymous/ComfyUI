@@ -10,7 +10,6 @@ import comfy.utils
 def sample_manual_loop_no_classes(
     model,
     ids=None,
-    paddings=[],
     execution_dtype=None,
     cfg_scale: float = 2.0,
     temperature: float = 0.85,
@@ -36,9 +35,6 @@ def sample_manual_loop_no_classes(
 
     embeds, attention_mask, num_tokens, embeds_info = model.process_tokens(ids, device)
     embeds_batch = embeds.shape[0]
-    for i, t in enumerate(paddings):
-        attention_mask[i, :t] = 0
-        attention_mask[i, t:] = 1
 
     output_audio_codes = []
     past_key_values = []
@@ -135,13 +131,11 @@ def generate_audio_codes(model, positive, negative, min_tokens=1, max_tokens=102
             pos_pad = (len(negative) - len(positive))
             positive = [model.special_tokens["pad"]] * pos_pad + positive
 
-        paddings = [pos_pad, neg_pad]
         ids = [positive, negative]
     else:
-        paddings = []
         ids = [positive]
 
-    return sample_manual_loop_no_classes(model, ids, paddings, cfg_scale=cfg_scale, temperature=temperature, top_p=top_p, top_k=top_k, min_p=min_p, seed=seed, min_tokens=min_tokens, max_new_tokens=max_tokens)
+    return sample_manual_loop_no_classes(model, ids, cfg_scale=cfg_scale, temperature=temperature, top_p=top_p, top_k=top_k, min_p=min_p, seed=seed, min_tokens=min_tokens, max_new_tokens=max_tokens)
 
 
 class ACE15Tokenizer(sd1_clip.SD1Tokenizer):

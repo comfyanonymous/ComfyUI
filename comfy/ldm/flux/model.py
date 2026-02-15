@@ -16,7 +16,6 @@ from .layers import (
     SingleStreamBlock,
     timestep_embedding,
     Modulation,
-    RMSNorm
 )
 
 @dataclass
@@ -81,7 +80,7 @@ class Flux(nn.Module):
         self.txt_in = operations.Linear(params.context_in_dim, self.hidden_size, bias=params.ops_bias, dtype=dtype, device=device)
 
         if params.txt_norm:
-            self.txt_norm = RMSNorm(params.context_in_dim, dtype=dtype, device=device, operations=operations)
+            self.txt_norm = operations.RMSNorm(params.context_in_dim, dtype=dtype, device=device)
         else:
             self.txt_norm = None
 

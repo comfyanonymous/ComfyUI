@@ -675,10 +675,10 @@ def flux_to_diffusers(mmdit_config, output_prefix=""):
                         "ff_context.linear_in.bias": "txt_mlp.0.bias",
                         "ff_context.linear_out.weight": "txt_mlp.2.weight",
                         "ff_context.linear_out.bias": "txt_mlp.2.bias",
-                        "attn.norm_q.weight": "img_attn.norm.query_norm.scale",
-                        "attn.norm_k.weight": "img_attn.norm.key_norm.scale",
-                        "attn.norm_added_q.weight": "txt_attn.norm.query_norm.scale",
-                        "attn.norm_added_k.weight": "txt_attn.norm.key_norm.scale",
+                        "attn.norm_q.weight": "img_attn.norm.query_norm.weight",
+                        "attn.norm_k.weight": "img_attn.norm.key_norm.weight",
+                        "attn.norm_added_q.weight": "txt_attn.norm.query_norm.weight",
+                        "attn.norm_added_k.weight": "txt_attn.norm.key_norm.weight",
                     }
 
         for k in block_map:
@@ -701,8 +701,8 @@ def flux_to_diffusers(mmdit_config, output_prefix=""):
                         "norm.linear.bias": "modulation.lin.bias",
                         "proj_out.weight": "linear2.weight",
                         "proj_out.bias": "linear2.bias",
-                        "attn.norm_q.weight": "norm.query_norm.scale",
-                        "attn.norm_k.weight": "norm.key_norm.scale",
+                        "attn.norm_q.weight": "norm.query_norm.weight",
+                        "attn.norm_k.weight": "norm.key_norm.weight",
                         "attn.to_qkv_mlp_proj.weight": "linear1.weight", # Flux 2
                         "attn.to_out.weight": "linear2.weight", # Flux 2
                     }
