@@ -22,13 +22,16 @@ class ComfyAPI_latest(ComfyAPIBase):
     VERSION = "latest"
     STABLE = False
 
+    def __init__(self):
+        super().__init__()
+        self.node_replacement = self.NodeReplacement()
+        self.execution = self.Execution()
+
     class NodeReplacement(ProxiedSingleton):
         async def register(self, node_replace: 'node_replace.NodeReplace') -> None:
             """Register a node replacement mapping."""
             from server import PromptServer
             PromptServer.instance.node_replace_manager.register(node_replace)
-
-    node_replacement: NodeReplacement
 
     class Execution(ProxiedSingleton):
         async def set_progress(
@@ -81,8 +84,6 @@ class ComfyAPI_latest(ComfyAPIBase):
                 max_value=max_value,
                 image=to_display,
             )
-
-    execution: Execution
 
 class ComfyExtension(ABC):
     async def on_load(self) -> None:

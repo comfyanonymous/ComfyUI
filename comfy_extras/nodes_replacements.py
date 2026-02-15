@@ -16,7 +16,7 @@ async def register_replacements():
 
 async def register_replacements_longeredge():
     # No dynamic inputs here
-    await api.NodeReplacement().register(node_replace.NodeReplace(
+    await api.node_replacement.register(node_replace.NodeReplace(
             new_node_id="ImageScaleToMaxDimension",
             old_node_id="ResizeImagesByLongerEdge",
             old_widget_ids=["longer_edge"],
@@ -31,7 +31,7 @@ async def register_replacements_longeredge():
 
 async def register_replacements_batchimages():
     # BatchImages node uses Autogrow
-    await api.NodeReplacement().register(node_replace.NodeReplace(
+    await api.node_replacement.register(node_replace.NodeReplace(
             new_node_id="BatchImagesNode",
             old_node_id="ImageBatch",
             input_mapping=[
@@ -42,7 +42,7 @@ async def register_replacements_batchimages():
 
 async def register_replacements_upscaleimage():
     # ResizeImageMaskNode uses DynamicCombo
-    await api.NodeReplacement().register(node_replace.NodeReplace(
+    await api.node_replacement.register(node_replace.NodeReplace(
             new_node_id="ResizeImageMaskNode",
             old_node_id="ImageScaleBy",
             old_widget_ids=["upscale_method", "scale_by"],
@@ -56,7 +56,7 @@ async def register_replacements_upscaleimage():
 
 async def register_replacements_controlnet():
     # T2IAdapterLoader → ControlNetLoader
-    await api.NodeReplacement().register(node_replace.NodeReplace(
+    await api.node_replacement.register(node_replace.NodeReplace(
             new_node_id="ControlNetLoader",
             old_node_id="T2IAdapterLoader",
             input_mapping=[
@@ -66,28 +66,28 @@ async def register_replacements_controlnet():
 
 async def register_replacements_load3d():
     # Load3DAnimation merged into Load3D
-    await api.NodeReplacement().register(node_replace.NodeReplace(
+    await api.node_replacement.register(node_replace.NodeReplace(
             new_node_id="Load3D",
             old_node_id="Load3DAnimation",
         ))
 
 async def register_replacements_preview3d():
     # Preview3DAnimation merged into Preview3D
-    await api.NodeReplacement().register(node_replace.NodeReplace(
+    await api.node_replacement.register(node_replace.NodeReplace(
             new_node_id="Preview3D",
             old_node_id="Preview3DAnimation",
         ))
 
 async def register_replacements_svdimg2vid():
     # Typo fix: SDV → SVD
-    await api.NodeReplacement().register(node_replace.NodeReplace(
+    await api.node_replacement.register(node_replace.NodeReplace(
             new_node_id="SVD_img2vid_Conditioning",
             old_node_id="SDV_img2vid_Conditioning",
         ))
 
 async def register_replacements_conditioningavg():
     # Typo fix: trailing space in node name
-    await api.NodeReplacement().register(node_replace.NodeReplace(
+    await api.node_replacement.register(node_replace.NodeReplace(
             new_node_id="ConditioningAverage",
             old_node_id="ConditioningAverage ",
         ))
