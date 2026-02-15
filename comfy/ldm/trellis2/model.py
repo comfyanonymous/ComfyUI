@@ -826,8 +826,11 @@ class Trellis2(nn.Module):
     def forward(self, x, timestep, context, **kwargs):
         embeds = kwargs.get("embeds")
         mode = kwargs.get("generation_mode")
-        sigmas = kwargs.get("sigmas")[0].item()
-        cond = context.chunk(2)
+        transformer_options = kwargs.get("transformer_options")
+        sigmas = transformer_options.get("sigmas")[0].item()
+        if sigmas < 1.00001:
+            timestep *= 1000.0
+        cond = context.chunk(2)[1]
         shape_rule = sigmas < self.guidance_interval[0] or sigmas > self.guidance_interval[1]
         txt_rule = sigmas < self.guidance_interval_txt[0] or sigmas > self.guidance_interval_txt[1]
 
@@ -838,6 +841,9 @@ class Trellis2(nn.Module):
             out = self.shape2txt(x, timestep, context if not txt_rule else cond)
         else: # structure
             timestep = timestep_reshift(timestep)
+            if shape_rule:
+                x = x[0].unsqueeze(0)
+                timestep = timestep[0]
             out = self.structure_model(x, timestep, context if not shape_rule else cond)
 
         out.generation_mode = mode
