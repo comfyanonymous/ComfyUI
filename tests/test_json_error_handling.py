@@ -13,7 +13,7 @@ class TestAudioVAEComponentConfig(unittest.TestCase):
     """Test cases for AudioVAEComponentConfig JSON parsing"""
 
     def test_valid_json_config(self):
-        """测试有效的 JSON 配置"""
+        """Test valid JSON configuration"""
         metadata = {
             "config": '{"audio_vae": {"test": 1}, "vocoder": {"test": 2}}'
         }
