@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING, TypedDict
 if TYPE_CHECKING:
     from comfy_api.latest._node_replace import NodeReplace
 
+from comfy_execution.graph_utils import is_link
 from nodes import NODE_CLASS_MAPPINGS
 
 class NodeStruct(TypedDict):
@@ -51,7 +52,7 @@ class NodeReplaceManager:
                 need_replacement.add(node_number)
             # keep track of connections
             for input_id, input_value in node_struct["inputs"].items():
-                if isinstance(input_value, list):
+                if is_link(input_value):
                     conn_number = input_value[0]
                     connections.setdefault(conn_number, []).append((node_number, input_id, input_value[1]))
         if len(need_replacement) > 0:
