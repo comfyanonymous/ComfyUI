@@ -1,6 +1,12 @@
 from __future__ import annotations
 
 from typing import Any, TypedDict
+from server import PromptServer
+
+
+def register(node_replace: NodeReplace):
+    """Register a node replacement mapping."""
+    PromptServer.instance.node_replace_manager.register(node_replace)
 
 
 class InputMapOldId(TypedDict):
