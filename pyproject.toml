@@ -40,6 +40,7 @@ dependencies = [
     "opencv-python>=4.13.0.92",
     "matplotlib>=3.10.8",
     "setuptools>=70.2.0",
+    "comfyui-manager==4.1b1",
 ]
 
 [project.urls]
