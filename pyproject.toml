@@ -44,7 +44,7 @@ dependencies = [
     "color-matcher>=0.5.0",
     "huggingface-hub>=0.19.0",
     "mss>=10.1.0",
-    "opencv-python-headless>=4.13.0.92",
+    "opencv-python-headless[ffmpeg]>=4.13.0.92",
     "diffusers>=0.18.0",
     "accelerate>=1.12.0",
     "clip-interrogator>=0.6.0",
@@ -56,11 +56,11 @@ dependencies = [
     "rembg>=2.0.69",
     "pixeloe>=0.1.4",
     "transparent-background>=1.1.2",
-    "scikit-image>=0.26.0",
+    "scikit-image>=0.20.0",
     "scikit-learn>=1.8.0",
     "opencv-contrib-python>=4.13.0.92",
     "pymatting>=1.1.15",
-    "timm>=1.0.24",
+    "timm>=0.4.12",
     "blend-modes>=2.2.0",
     "loguru>=0.7.3",
     "segment-anything>=1.0",
@@ -73,6 +73,15 @@ dependencies = [
     "decord>=0.6.0",
     "ftfy>=6.3.1",
     "typing-extensions>=4.15.0",
+    "cmake>=3.25.0",
+    "fairscale>=0.4.4",
+    "gitpython>=3.1.46",
+    "imageio>=2.37.2",
+    "joblib>=1.5.3",
+    "pilgram>=2.0.0",
+    "img2texture",
+    "cstr",
+    "ffmpy",
 ]
 
 [project.urls]
@@ -153,4 +162,7 @@ torch = { index = "pytorch-cu121" }
 torchvision = { index = "pytorch-cu121" }
 torchaudio = { index = "pytorch-cu121" }
 xformers = { index = "pytorch-cu121" }
+img2texture = { git = "https://github.com/WASasquatch/img2texture.git" }
+cstr = { git = "https://github.com/WASasquatch/cstr" }
+ffmpy = { git = "https://github.com/WASasquatch/ffmpy.git" }
 
