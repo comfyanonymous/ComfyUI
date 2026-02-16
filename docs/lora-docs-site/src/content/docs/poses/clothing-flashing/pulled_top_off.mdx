@@ -1,0 +1,143 @@
+---
+title: "PulledTopOff (Over Head) Flux"
+description: "Pose / Action / Configurator for FLUX"
+downloads: 1387
+rating: 123
+tips: 0
+score: "⭐"
+type: "Pose / Action / Configurator"
+trigger: "po_shi"
+strength: "1.1-1.2"
+civitaiUrl: "https://civitai.com/models/829283/pulledtopoff-over-head-flux-configurator-preview"
+compatibility: "FLUX"
+sidebar:
+  badge:
+    text: "⭐"
+    variant: note
+---
+
+import LoraCard from '@/components/LoraCard.astro';
+
+<LoraCard
+  title="PulledTopOff (Over Head) Flux"
+  slug="poses/clothing-flashing/pulled_top_off"
+  downloads={1387}
+  rating={123}
+  tips={0}
+  score="⭐"
+  type="Pose / Action / Configurator"
+  trigger="po_shi"
+  strength="1.1-1.2"
+  civitaiUrl="https://civitai.com/models/829283/pulledtopoff-over-head-flux-configurator-preview"
+  imageUrl="/images/loras/pulled_top_off.jpg"
+  compatibility="FLUX"
+/>
+
+# PulledTopOff (Over Head) Flux
+
+[← Back to Index](INDEX.md)
+
+| Parameter | Value |
+|-----------|-------|
+| **File** | `PulledTopOffOverHeadFlux.1.0.safetensors` |
+| **Civitai** | https://civitai.com/models/829283/pulledtopoff-over-head-flux-configurator-preview |
+| **Trigger word** | `putoof` + clothing type trigger |
+| **Strength** | 1.1-1.2 |
+| **Type** | Pose / Action / Configurator |
+
+## Description
+
+Better poses for pulling top (or bra, shirt, dress or sweater) off over the head. Configurable LoRA - requires specific trigger words for each clothing type.
+
+**Other versions available:**
+- PulledTopOff (Over Head) XL - for SDXL
+- PulledTopOff (Over Head) Pony - for Pony
+
+### Trigger words
+
+| Clothing | Trigger | Prompt addition |
+|----------|---------|-----------------|
+| Shirt | `po_shi` | `pulled <color> shirt off` |
+| Top | `po_top` | `pulled <color> top off` |
+| Dress | `po_dre` | `pulled <color> dress off` |
+| Bra | `po_bra` | `pulled <color> bra off` |
+| Sweater | `po_swe` | `pulled <color> sweater off` |
+
+**Additional for bra:** Can use `presenting bra` for holding the removed bra.
+
+### Prompt structure
+```
+putoof, <clothing_trigger>, <state after removal> <remaining clothes> pulled <color> <clothing> off ...
+```
+
+**Important:** Describe the clothing AFTER the item is pulled off:
+- Pulling off bra → describe girl as `topless`
+- Pulling off dress → describe girl as `naked` or `in panties`
+- Pulling off shirt/sweater → can describe remaining bra
+
+## Sample prompts
+
+**Prompt 1 (Bra in park):**
+```
+putoof, po_bra, topless girl in blue bikini panties pulled blue bra off, presenting bra, in a park. long blonde ponytail.
+```
+
+**Prompt 2 (Shirt in pub):**
+```
+putoof, po_shi, topless girl in denim shorts pulled red shirt off, in a pub. long brunette hair.
+```
+
+**Prompt 3 (Motorcycle combo):**
+```
+sitastmo, (front view)++, putoof, po_shi. topless girl sitting on green motorcycle, denim shorts and black boots, pulled red top off <lora:PulledTopOffOverHeadFlux:1.2>, long brunette ponytail <lora:SitAstrideMotorcycleFlux:1>
+```
+
+**Prompt 4 (Pakistani bedroom):**
+```
+putoof, po_bra, topless pakistani girl in embroidered lehnga skirt and pulled blouse off, presenting bra, in her bedroom, her breasts are small and perky with dark nipples. skirt is very low down on her hips, revealing her groin and her pubic mound and her abdomen and her hips. <lora:PulledTopOffOverHeadFlux:1>. she has almond shaped eyes and south-asian facial features. she has a dainty, petite, diminutive body and she has wide hips. <lora:Flux_Skin_Detailer:0.7>, raw iphone photo. snapchat, flickr, instagram, compression artefacts, amateur, candid
+```
+
+**Prompt 5 (Wildcard randomizer):**
+```
+(photorealistic:1.5), putoof {
+4::{
+po_shi, (topless slim 25yo girl) in ({denim shorts|{red|blue|green} short skirt}), pulled {red|blue|green} shirt off
+|po_top, (topless slim 25yo girl) in ({denim shorts|{red|blue|green} short skirt}), pulled {red|blue|green} top off
+|po_bra, (topless slim 25yo girl) in ({red|blue|green} bikini), pulled {red|blue|green} bra off
+|po_dre, (naked slim 25yo girl) in pulled {red|blue|green} dress off
+|po_swe, (slim 25yo girl) in ({red|blue|green} bra) and {denim shorts|{red|blue|green} short skirt}, pulled {red|blue|green} sweater off
+}, standing in a crowded {pub|street|park|mall|fast food restaurant}
+}
+{long|short} {blonde|brunette} {hair|ponytail}
+```
+
+## Keywords
+
+- `putoof` - **REQUIRED** main trigger
+- `po_shi` / `po_top` / `po_dre` / `po_bra` / `po_swe` - clothing type triggers
+- `pulled <color> <clothing> off`
+- `presenting bra` - for holding removed bra
+- `topless` / `naked` - describe state after removal
+
+## Tested combinations
+
+**Combination 1 (Motorcycle):**
+```
+<lora:PulledTopOffOverHeadFlux:1.2>
+<lora:SitAstrideMotorcycleFlux:1>
+```
+
+**Combination 2 (Skin detail):**
+```
+<lora:PulledTopOffOverHeadFlux:1>
+<lora:Flux_Skin_Detailer:0.7>
+```
+
+## Notes
+
+- ForgeUI users: Set 'Diffusion in Low Bits' to 'Automatic (fp16 LoRA)'
+- Use strength 1.1-1.2 for best results
+- Always describe remaining clothing after the item is removed
+- Great for undressing sequences
+- Works with wildcards for randomization
+- Combine with motorcycle, location, and ethnicity LoRAs

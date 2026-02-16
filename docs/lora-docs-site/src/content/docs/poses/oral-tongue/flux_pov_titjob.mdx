@@ -1,0 +1,97 @@
+---
+title: "Flux POV Tit Job"
+description: "POSE / CONCEPT for FLUX"
+downloads: 1839
+rating: 143
+tips: 500
+score: "⭐"
+type: "POSE / CONCEPT"
+trigger: "None"
+strength: "0.8"
+civitaiUrl: "https://civitai.com/models/876034/flux-pov-tit-job"
+compatibility: "FLUX"
+sidebar:
+  badge:
+    text: "⭐"
+    variant: note
+---
+
+import LoraCard from '@/components/LoraCard.astro';
+
+<LoraCard
+  title="Flux POV Tit Job"
+  slug="poses/oral-tongue/flux_pov_titjob"
+  downloads={1839}
+  rating={143}
+  tips={500}
+  score="⭐"
+  type="POSE / CONCEPT"
+  trigger="None"
+  strength="0.8"
+  civitaiUrl="https://civitai.com/models/876034/flux-pov-tit-job"
+  imageUrl="/images/loras/flux_pov_titjob.jpg"
+  compatibility="FLUX"
+/>
+
+# Flux POV Tit Job
+
+[← Back to INDEX](INDEX.md)
+
+## Stats
+
+| Metric | Value |
+|--------|-------|
+| **Downloads** | 1,834 |
+| **Rating** | 143 |
+| **Tips** | 500 |
+
+| Parameter | Value |
+|-----------|-------|
+| **File** | `flux_titjob_lora_v1.safetensors` |
+| **Civitai** | https://civitai.com/models/876034/flux-pov-tit-job |
+| **Trigger word** | None (natural language) |
+| **Strength** | 0.8 |
+| **Type** | POSE / CONCEPT |
+| **Base Model** | Flux.1 Dev |
+| **File Size** | ~328 MB |
+
+### Description
+
+POV titjob LoRA trained on 39 hi-res images at 896x1152. Always include `a woman in front of the viewer` in prompt. Do NOT need to mention the penis. If standing/floating issues occur, add `on the floor` or `kneeling`.
+
+### Recommended settings
+- Sampler: Euler or DEIS
+- Steps: 25
+- CFG: 1 (Distilled CFG: 3.5)
+- Size: 896x1152 or 872x1024
+
+### Sample prompts
+
+**Prompt 1 (Beach side view):**
+```
+a woman in front of the viewer,( from side:1.3), (busty:1.2) large breasts, gold jewelry, short bobbed hairstyle, oversized yellow sunglasses, nudist beach backgrund, with people <lora:flux_titjob_lora_v1:0.8>
+```
+Settings: Steps: 25, CFG: 1, Sampler: Euler, Size: 872x1024
+
+**Prompt 2 (African woman living room):**
+```
+a woman in front of the viewer, busty breasts, african women, long hair, living room background, night, <lora:flux_titjob_lora_v1:0.8>
+```
+Settings: Steps: 25, CFG: 1, Sampler: Euler, Size: 872x1024
+
+**Prompt 3 (Nurse in hospital):**
+```
+a photo of a nurse leaning forwards POV kneeling in front of the viewer, large breasts, naked apart from her nursing cap, in a hospital ward
+```
+Settings: Steps: 25, CFG: 1, Sampler: DEIS, Size: 896x1152
+
+**Prompt 4 (Studio art photography):**
+```
+a close-up photo of a naked black African woman kneeling in front of the viewer, large breasts, short died blonde hair, black background, large elaborate tattoo on breast, studio, art photography, moody lighting
+```
+Settings: Steps: 25, CFG: 1, Sampler: DDIM, Size: 896x1152
+
+### Notes
+- Somewhat fickle - try different seeds if needed
+- Best with `large breasts` or `busty`
+- Avoid standing poses - use `kneeling`, `on the floor`

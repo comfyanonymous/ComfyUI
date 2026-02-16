@@ -1,0 +1,154 @@
+---
+interface Props {
+	title: string;
+	slug: string;
+	downloads?: number;
+	rating?: number;
+	tips?: number;
+	score?: string;
+	type?: string;
+	trigger?: string;
+	strength?: string;
+	civitaiUrl?: string;
+	imageUrl?: string;
+	compatibility?: string;
+}
+
+const {
+	title,
+	slug,
+	downloads = 0,
+	rating = 0,
+	tips = 0,
+	score = '-',
+	type = 'LoRA',
+	trigger = 'None',
+	strength = '1.0',
+	civitaiUrl,
+	imageUrl,
+	compatibility = 'FLUX',
+} = Astro.props;
+
+// Format numbers with commas
+const formatNumber = (num: number) => {
+	if (num >= 1000) {
+		return (num / 1000).toFixed(1) + 'k';
+	}
+	return num.toString();
+};
+---
+
+<div class="lora-card">
+	<a href={`/${slug}`}>
+		<div class="lora-card-image-wrapper">
+			<img
+				src={imageUrl}
+				alt={title}
+				class="lora-card-image"
+				loading="lazy"
+			/>
+			<div class="lora-card-image-placeholder">
+				<span>📷</span>
+			</div>
+		</div>
+	</a>
+
+	<div class="lora-card-content">
+		<h3 class="lora-card-title">
+			<a href={`/${slug}`}>{title}</a>
+		</h3>
+
+		<div class="lora-card-stats">
+			<span class="lora-card-stat" title="Downloads">
+				📥 {formatNumber(downloads)}
+			</span>
+			<span class="lora-card-stat" title="Rating">
+				👍 {rating}
+			</span>
+			{tips > 0 && (
+				<span class="lora-card-stat" title="Tips">
+					💰 {tips}
+				</span>
+			)}
+		</div>
+
+		<div class="lora-card-score" title="Quality Score">
+			{score}
+		</div>
+
+		<div class="lora-card-meta">
+			<span class="lora-card-badge">{type}</span>
+			<span class="lora-card-badge">{compatibility}</span>
+		</div>
+
+		{trigger !== 'None' && trigger !== 'none' && (
+			<div class="lora-card-trigger">
+				<strong>Trigger:</strong> {trigger}
+			</div>
+		)}
+
+		<div style="font-size: 0.875rem; color: var(--sl-color-gray-3); margin: 0.5rem 0;">
+			<strong>Strength:</strong> {strength}
+		</div>
+
+		<div class="lora-card-actions">
+			<a href={`/${slug}`} class="lora-card-button">
+				View Details
+			</a>
+			{civitaiUrl && (
+				<a
+					href={civitaiUrl}
+					target="_blank"
+					rel="noopener noreferrer"
+					class="lora-card-button secondary"
+				>
+					Civitai ↗
+				</a>
+			)}
+		</div>
+	</div>
+</div>
+
+<style>
+	.lora-card-image-wrapper {
+		position: relative;
+		width: 100%;
+		aspect-ratio: 1;
+		overflow: hidden;
+	}
+
+	.lora-card-image-placeholder {
+		position: absolute;
+		inset: 0;
+		display: none;
+		align-items: center;
+		justify-content: center;
+		background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+		color: white;
+		font-size: 3rem;
+	}
+
+	.lora-card-image {
+		width: 100%;
+		height: 100%;
+		object-fit: cover;
+	}
+
+	.lora-card-image.error {
+		display: none;
+	}
+
+	.lora-card-image.error + .lora-card-image-placeholder {
+		display: flex;
+	}
+</style>
+
+<script>
+	document.addEventListener('DOMContentLoaded', () => {
+		document.querySelectorAll('.lora-card-image').forEach(img => {
+			img.addEventListener('error', () => {
+				img.classList.add('error');
+			});
+		});
+	});
+</script>

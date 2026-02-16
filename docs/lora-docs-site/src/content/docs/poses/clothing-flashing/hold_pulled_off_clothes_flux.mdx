@@ -1,0 +1,155 @@
+---
+title: "HoldPulledOffClothes Flux Dev"
+description: "POSES for FLUX"
+downloads: 936
+rating: 95
+tips: 0
+score: "⭐"
+type: "POSES"
+trigger: "None"
+strength: "1.0"
+civitaiUrl: "https://civitai.com/models/1067948/holdpulledoffclothes-flux-dev-configurator-option-nude-girl"
+compatibility: "FLUX"
+sidebar:
+  badge:
+    text: "⭐"
+    variant: note
+---
+
+import LoraCard from '@/components/LoraCard.astro';
+
+<LoraCard
+  title="HoldPulledOffClothes Flux Dev"
+  slug="poses/clothing-flashing/hold_pulled_off_clothes_flux"
+  downloads={936}
+  rating={95}
+  tips={0}
+  score="⭐"
+  type="POSES"
+  trigger="None"
+  strength="1.0"
+  civitaiUrl="https://civitai.com/models/1067948/holdpulledoffclothes-flux-dev-configurator-option-nude-girl"
+  imageUrl="/images/loras/hold_pulled_off_clothes_flux.jpg"
+  compatibility="FLUX"
+/>
+
+[← Back to Index](INDEX.md)
+
+## Civitai Stats
+
+| Metric | Value |
+|--------|-------|
+| **Downloads** | 916 |
+| **👍** | 95 |
+| **Tips** | 0 |
+| **Score** | ⭐ |
+
+## Parameters
+
+| Parameter | Value |
+|-----------|-------|
+| **File** | `Hold_Pulled_Off_Clothes_Flux.safetensors` |
+| **Original filename** | `HoldPulledOffClothesFlux.1.0.safetensors` |
+| **Civitai** | https://civitai.com/models/1067948/holdpulledoffclothes-flux-dev-configurator-option-nude-girl |
+| **Trigger word** | `hopocl` + position/arm modifiers (see below) |
+| **Strength** | 1.0 |
+| **Type** | POSES |
+
+## Description
+
+Configurable pose LoRA for holding pulled off dress. Creates nude girls holding their removed dress in various positions. Works with Flux Dev only (not Schnell). Can create nude content without NSFW checkpoint.
+
+## Trigger System
+
+This LoRA uses a **configurable trigger system** with multiple modifiers:
+
+### Required Base Trigger
+- `hopocl` - Main trigger word
+
+### View Angle (choose one)
+- `front view`
+- `side view`
+
+### Position Height (choose one)
+| Code | Description |
+|------|-------------|
+| `vhpos` | Very high position |
+| `hipos` | High position |
+| `mepos` | Medium position |
+| `lopos` | Low position |
+
+### Arm Style (choose one)
+| Code | Description |
+|------|-------------|
+| `strar` | Stretched arm |
+| `benar` | Bent arm |
+
+## Prompt Building Formula
+
+```
+hopocl, <arm_code>, <position_code>, <view> of a slim nude girl is holding in <position_word> position her <color> dress with a <arm_word> arm...
+```
+
+### Example Combinations
+
+| Arm | Position | View | Codes |
+|-----|----------|------|-------|
+| Stretched | Low | Front | `hopocl, strar, lopos, Front view` |
+| Bent | High | Side | `hopocl, benar, hipos, Side view` |
+| Stretched | Medium | Front | `hopocl, strar, mepos, Front view` |
+| Bent | Low | Front | `hopocl, benar, lopos, Front view` |
+
+## Sample Prompts
+
+**Stretched Arm, High Position, Side View:**
+```
+hopocl, strar, hipos, Side view of a slim nude girl is holding in high position her green dress with a stretched arm. The girl is standing in a crowded street. necklace, thigh high boots, long blonde hair
+```
+Settings: Steps: 20, CFG: 1, Sampler: Euler
+
+**Bent Arm, Medium Position, Front View:**
+```
+hopocl, benar, mepos, Front view of a slim nude girl is holding in medium position her blue dress with a bent arm. The girl is standing in a crowded fast food restaurant. necklace, thigh high boots, long brunette ponytail
+```
+Settings: Steps: 20, CFG: 1, Sampler: Euler
+
+**Christmas Market Scene:**
+```
+hopocl, benar, mepos, Front view of a slim nude girl is holding in medium position her red dress with a bent arm. The girl is standing in a crowded snowy Christmas market. The girl wears necklace, black thigh high boots, Santa hat, and has long brunette ponytail
+```
+Settings: Steps: 20, CFG: 1, Sampler: Euler
+
+**New Year Party Scene:**
+```
+hopocl, strar, mepos, Front view of a slim nude girl is holding in medium position her silver dress with a stretched arm. The girl is standing on a crowded snowy outdoor party in front of lot of fireworks. The girl wears necklace, holdup stockings and high heels, white gloves and has short brunette ponytail
+```
+Settings: Steps: 20, CFG: 1, Sampler: Euler
+
+## Keywords
+
+- `hopocl`
+- `strar` / `benar`
+- `vhpos` / `hipos` / `mepos` / `lopos`
+- `front view` / `side view`
+- `holding dress`
+- `nude girl`
+
+## Notes
+
+- **Flux Dev ONLY** - Does not work with Flux Schnell
+- Can generate nude content without NSFW checkpoint
+- Use strength 1.0 for best results
+- Combine position codes with matching descriptive text
+- Works well with accessories (boots, necklaces, hats)
+- Good for public/crowded scene scenarios
+
+## Recommended Settings
+
+- **Steps:** 20
+- **CFG:** 1
+- **Sampler:** Euler
+- **Size:** 896x1152
+
+---
+
+*Last updated: 2026-01-02*

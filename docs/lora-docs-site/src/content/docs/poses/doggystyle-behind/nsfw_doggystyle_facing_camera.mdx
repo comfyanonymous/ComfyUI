@@ -1,0 +1,120 @@
+---
+title: "NSFW Doggystyle Facing Camera"
+description: "POSE / Doggystyle for FLUX"
+downloads: 3377
+rating: 238
+tips: 400
+score: "⭐⭐"
+type: "POSE / Doggystyle"
+trigger: "nsfw - doggystyle facing camera, sex from behind, a man and a woman on all four."
+strength: "0.9"
+civitaiUrl: "https://civitai.com/models/1554456/nsfw-doggystyle-facing-camera-zit-flux1d"
+compatibility: "FLUX"
+sidebar:
+  badge:
+    text: "⭐⭐"
+    variant: success
+---
+
+import LoraCard from '@/components/LoraCard.astro';
+
+<LoraCard
+  title="NSFW Doggystyle Facing Camera"
+  slug="poses/doggystyle-behind/nsfw_doggystyle_facing_camera"
+  downloads={3377}
+  rating={238}
+  tips={400}
+  score="⭐⭐"
+  type="POSE / Doggystyle"
+  trigger="nsfw - doggystyle facing camera, sex from behind, a man and a woman on all four."
+  strength="0.9"
+  civitaiUrl="https://civitai.com/models/1554456/nsfw-doggystyle-facing-camera-zit-flux1d"
+  imageUrl="/images/loras/nsfw_doggystyle_facing_camera.jpg"
+  compatibility="FLUX"
+/>
+
+## Description
+
+Doggystyle sex pose LoRA with the woman facing the camera. Part of a collection of 1020+ free LoRAs. Available in both ZImageTurbo and Flux.1 D versions.
+
+## Parameters
+
+| Parameter | Value |
+|-----------|-------|
+| **File** | `Nsfw_Doggystyle_facing_camera.safetensors` |
+| **Original filename** | `Nsfw_-_Doggystyle_facing_camera.safetensors` |
+| **Civitai** | https://civitai.com/models/1554456/nsfw-doggystyle-facing-camera-zit-flux1d |
+| **Trigger word** | `nsfw - doggystyle facing camera, sex from behind, a man and a woman on all four.` |
+| **Strength** | 0.9 |
+| **Type** | POSE / Doggystyle |
+| **Size** | 19 MB |
+
+## Sample Prompts
+
+**Redhead in Walmart:**
+```
+She is a readhead with freckles and glasses and naked. In a walmart. <lora:Nsfw_Doggystyle_facing_camera:0.9> nsfw - doggystyle facing camera, sex from behind, a man and a woman.
+```
+Settings: Steps 20, CFG 1, Euler, Simple, 768x1024, Distilled CFG 3.5
+
+**Asian woman in street:**
+```
+She is asian. In a street <lora:Nsfw_Doggystyle_facing_camera:0.9> nsfw - doggystyle facing camera, sex from behind, a man and a woman.
+```
+Settings: Steps 20, CFG 1, Euler, Simple, 768x1024, Distilled CFG 3.5
+
+**Asian girl on all fours:**
+```
+Asian girl nsfw - doggystyle facing camera, sex from behind, a man and a woman on all four.
+```
+Settings: Steps 50, CFG 4, 1024x1024
+
+**Detailed bedroom scene with character LoRA:**
+```
+supisupi, 18 years old, with big boobs on all fours, long hair, pale skin, naked, nipples, bent forward on a bed in a dimly lit room, engaging in doggy style sex. A naked young man behind her, grabbing her waist, with an open mouth and moaning expression on her face. Reaching orgasm. The scene is intimate, with soft lighting highlighting their bodies and the intensity of the moment. supisupi, DFCPose, engaging in sexual act, man behind her grabbing her ass, man behind her grabbing her hips, supisupi, nsfw - doggystyle facing camera, sex from behind, a man and a woman on all four.
+```
+Settings: Steps 19, CFG 4, 832x1216
+
+**Naked woman in Walmart:**
+```
+A naked woman in a walmart nsfw - doggystyle facing camera, sex from behind, a man and a woman on all four.
+```
+Settings: Steps 50, CFG 1.5, Euler, 1024x1024
+
+## Keywords
+
+- `nsfw - doggystyle facing camera`
+- `sex from behind`
+- `a man and a woman on all four`
+- `DFCPose`
+- `engaging in sexual act`
+- `man behind her grabbing her ass`
+
+## Pose Variations
+
+| Variation | Prompt Addition |
+|-----------|-----------------|
+| **Basic doggy** | `nsfw - doggystyle facing camera, sex from behind, a man and a woman` |
+| **On all fours** | `nsfw - doggystyle facing camera, sex from behind, a man and a woman on all four` |
+| **With character** | Add character LoRA + `DFCPose, engaging in sexual act` |
+| **Public setting** | Add location (walmart, street, etc.) |
+
+## Recommended Settings
+
+| Parameter | Value |
+|-----------|-------|
+| **Steps** | 19-50 |
+| **CFG** | 1-4 |
+| **Distilled CFG** | 3.5 |
+| **Sampler** | Euler |
+| **Scheduler** | Simple |
+| **Size** | 768x1024 / 832x1216 / 1024x1024 |
+| **Strength** | 0.9 |
+
+## Notes
+
+- Trigger word is required for the pose to activate
+- Works well with character LoRAs (add character trigger + DFCPose)
+- Various locations/settings work (indoor, outdoor, public)
+- ADetailer recommended for face fixing (face_yolov8n.pt, confidence 0.3, denoise 0.4)
+- 19 MB file size — very lightweight

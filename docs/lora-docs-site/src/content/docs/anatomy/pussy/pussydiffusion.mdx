@@ -1,0 +1,184 @@
+---
+title: "PussyDiffusion FLUX"
+description: "Anatomy / NSFW / Inpaint for FLUX"
+downloads: 19572
+rating: 1105
+tips: 2249
+score: "⭐⭐⭐"
+type: "Anatomy / NSFW / Inpaint"
+trigger: "bush pussy"
+strength: "0.2-1.5 (typically 0.5-0.75)"
+civitaiUrl: "https://civitai.com/models/983498/pussydiffusion-flux"
+compatibility: "FLUX"
+sidebar:
+  badge:
+    text: "⭐⭐⭐"
+    variant: note
+---
+
+import LoraCard from '@/components/LoraCard.astro';
+
+<LoraCard
+  title="PussyDiffusion FLUX"
+  slug="anatomy/pussy/pussydiffusion"
+  downloads={19572}
+  rating={1105}
+  tips={2249}
+  score="⭐⭐⭐"
+  type="Anatomy / NSFW / Inpaint"
+  trigger="bush pussy"
+  strength="0.2-1.5 (typically 0.5-0.75)"
+  civitaiUrl="https://civitai.com/models/983498/pussydiffusion-flux"
+  imageUrl="/images/loras/pussydiffusion.jpg"
+  compatibility="FLUX"
+/>
+
+# PussyDiffusion FLUX
+
+[← Back to Index](INDEX.md)
+
+| Parameter | Value |
+|-----------|-------|
+| **File** | `pussydiffusion-f1.safetensors` |
+| **Civitai** | https://civitai.com/models/983498/pussydiffusion-flux |
+| **Trigger words** | `bush pussy`, `butterfly pussy`, `hairy pussy`, `shaved pussy`, `asian pussy`, `pink pussy` |
+| **Strength** | 0.2-1.5 (typically 0.5-0.75) |
+| **Type** | Anatomy / NSFW / Inpaint |
+
+## Description
+
+LoRA for generating realistic female anatomy (vagina). **Works better with INPAINT**, but also works in txt2img. May sometimes break anatomy.
+
+**NOTE:** Negative weight adds clothes (interesting effect)
+
+**Known issue:** Some times it generates an almost translucent horizontal pattern in the image.
+
+## Trigger words details
+
+| Trigger | Description |
+|---------|-------------|
+| `bush pussy` | Shaved with hair on top / landing strip |
+| `butterfly pussy` | Large labia (big lips) |
+| `hairy pussy` | Hairy |
+| `shaved pussy` | Shaved, cameltoe style (innie) |
+| `asian pussy` | Dark lips on fair skin |
+| `pink pussy` | Pink, delicate |
+
+**Tip:** Adding "showing her ass from the back" works for rear view (trained on back views too).
+
+You can combine multiple trigger words. Inpainting recommended for better results.
+
+## Recommended settings
+
+- **Steps:** 20-50
+- **CFG:** 1-5
+- **Scheduler:** Beta (0.6/0.6) or Simple
+- **LoRA strength:** 0.2-0.6 (txt2img), 0.7-1.5 (inpaint)
+
+## Sample prompts
+
+**Prompt 1 (French brunette bed):**
+```
+A Raw Hires photograph of a fair-skinned stark naked white 20 year old French Brunette woman with shoulder-length, wavy brown hair, She has a warm, friendly smile and is looking at viewer with her beautiful Green eyes. She is lying on a white bed. She has small to medium breasts, a slim physique with breathtaking hourglass curves, and is posing with her legs spread apart, revealing her (shaved pussy) and vulva. <lora:pussydiffusion-f1:0.5> <lora:nipplediffusion-f1:0.5>
+```
+Settings: Steps: 50, CFG: 5, Size: 832x1216
+
+**Prompt 2 (Cute blonde pool):**
+```
+A photo focus on a very cute, innocent, adorable, naked blonde 18 year old girl who is petite, with small breasts. She is relaxed, and her legs are spread, showing her shaved pussy, labia, and clitoris. She is on a pool chair in a pink girly pool room. She is excited. She is wearing a cute pink belt, a cute pink choker <lora:pussydiffusion-f1:1>
+```
+Settings: Steps: 50, CFG: 3.5, Size: 832x1216
+
+**Prompt 3 (Bengali watercolor - asian/hairy):**
+```
+(((nsfw))) naked bengali woman, (water colour) (best quality) (intricate details) (8k) (HDR) (cinematic lighting) (sharp focus) ((detailed and realistic face:1)), ((painted in the style of edwin lord weeks), athletic, sitting on doorstep in kolkata, traditional jewelry, legs apart, asian pussy, hairy pussy <lora:pussydiffusion-f1:1>
+```
+Settings: Steps: 35, CFG: 5.5, Size: 832x1216
+
+**Prompt 4 (Latina fantasy throne - bush pussy):**
+```
+raw photo, stunningly beautiful 20 yr old latina naked woman supermodel, full body view, viewed from below, Fantasy theme, magical, mythical scene, medieval setting, colorful, realistic, detailed, smooth clear caramel skin, long flowing straight blonde hair, large round emerald-green eyes, sexy long eyelashes, all around winged eyeliner, super glossy brown lips, closed mouth, ruby-diamond choker, ruby-diamond dangling earrings, gold bracelets, gold ankle bracelets, nicely shaped sexy caramel legs, bare feet, pink pussy is visible, well manicured pubic hair, brown pubic hair, pink pussy, relaxed sensuously sitting on an overstuffed couch in a medieval ornate throne room, legs spread towards viewer exposing her vagina, lit by firelight <lora:pussydiffusion-f1:0.9>
+```
+Settings: Steps: 30, CFG: 1, Sampler: Euler, Size: 1024x1280, Schedule: Beta (0.6/0.6), Distilled CFG: 3.5
+
+**Prompt 5 (Irish redhead penthouse - pink pussy):**
+```
+A Raw Ultra High-resolution photoshoot of an Irish Redhead model named Rua Aingeal (Red Angel), a fair-skinned 22 year old petite woman with striking green eyes and long, wavy red hair. Her face is covered in freckles, particularly prominent on her cheeks and nose. The lighting is soft, highlighting her skin texture and the natural beauty of her freckles, She is Stark Naked, Fully Nude for this Photoshoot, posing with her arms raised and sitting with only one knee on ground while sitting with her other sole on the ground. Her beautiful pink pussy is exposed. She has dark nipples with more contrast to the natural skin and long beautiful puffy nipples. She has the most breathtakingly beautiful smile on her face. The photo was taken in a cozy minimalist urban penthouse with an wooden floor. <lora:pussydiffusion-f1:0.6> <lora:nipplediffusion-f1:0.6>
+```
+Settings: Steps: 50, CFG: 5, Size: 832x1216
+
+**Prompt 6 (Ukrainian goddess lake):**
+```
+raw photo, dramatic light, dramatic pose, dramatic angle, stunningly beautiful naked 18 yr old ukranian goddess, sitting on a large rock beside a lake, realistic smooth caramel skin, slim body, perky small caramel breasts with pink nipples, lake, sexy long eyelashes, all around winged eyeliner, realistic long golden brown braided hair, dripping wet hair, dripping wet skin, dripping water, bathing in lake, washing hair, washing body, head bent to one side rinsing out wet hair, full body view, golden brown pubic hair, sensuous large round golden-hazel eyes, facing viewer, nicely shaped caramel legs, bare feet, legs spread toward viewer <lora:pussydiffusion-f1:0.5> <lora:nipples:0.5> <lora:NSFW_master:0.45>
+```
+Settings: Steps: 30, CFG: 1, Sampler: Euler, Size: 1024x1280, Schedule: Beta (0.6/0.6), Distilled CFG: 3.5
+
+**Prompt 7 (Hotel brunette - pink pussy):**
+```
+Realistic photo of a sexy young, fit, slender 28-year-old Caucasian brunette sitting on a hotel bed, gazing at the camera. She has a youthful, heart-shaped faces with lips that aren't overly plump, cheekbones that aren't too prominent, and and chin with no cleft. Her hair is in a messy ponytail. She wear pink lipstick, with her makeup subtle, cute and girlish. She has pale, creamy alabaster skin. She is naked with medium saggy, a flat stomach, and a pink pussy, legs spread. She wears a coy, seductive smile on her pretty faces, lips slightly parted, her green eyes gazing alluringly, with a sense of sensual invitation. she has a black digital watch on her wrist and a pierced navel. In the background, out of focus, the lights of the city at night can be seen glistening with bokeh. <lora:pussydiffusion-f1:0.75>
+```
+Settings: Steps: 25, CFG: 5, Size: 832x1216
+
+**Prompt 8 (Inpaint - panties pulled down):**
+```
+The image is a high-resolution photograph featuring a close-up, low-angle perspective of a woman's lower body. She is positioned on her hands and knees on a wooden floor, with her legs spread apart. Her skin tone is light and smooth. She is wearing a pair of pale pink, lace-trimmed panties with a small black bow at the center of the waistband. The panties are being pulled down, revealing her vulva. The lighting is bright and natural, suggesting daylight coming from an unseen source, possibly a window in the background. <lora:pussydiffusion-f1:0.75>
+```
+Settings: Steps: 20, CFG: 1, Sampler: Euler, Schedule: Simple, Distilled CFG: 3.5, Denoising: 0.75, Inpaint area: Only masked
+
+## Tested combinations
+
+**Combination 1 (Full anatomy with NippleDiffusion):**
+```
+<lora:pussydiffusion-f1:0.5> <lora:nipplediffusion-f1:0.5>
+```
+
+**Combination 2 (NSFW enhancement with MysticXXX):**
+```
+<lora:pussydiffusion-f1:0.6> <lora:MysticXXX-v6:0.7>
+```
+
+**Combination 3 (With NSFW Master and Nipples):**
+```
+<lora:pussydiffusion-f1:0.5> <lora:nipples:0.5> <lora:NSFW_master:0.45>
+```
+
+**Combination 4 (With Whisper Innocent Eyes):**
+```
+<lora:pussydiffusion-f1:0.2> <lora:midjourney_whisper_innocent_eyes_v01:0.5> <lora:Jib_Flux_Nipple_Fix_v2:0.4>
+```
+
+**Combination 5 (Low strength with multiple LoRAs):**
+```
+<lora:pussydiffusion-f1:0.2> <lora:MysticXXX:1.0> <lora:xxx:0.2>
+```
+
+## Keywords
+
+- `shaved pussy`
+- `pink pussy`
+- `bush pussy`
+- `butterfly pussy`
+- `hairy pussy`
+- `asian pussy`
+- `vulva`
+- `legs spread`
+- `labia`
+- `clitoris`
+
+## Notes
+
+- Works better for INPAINT but good for txt2img too
+- May break anatomy sometimes
+- Negative weight adds clothes (interesting effect)
+- Strength 0.2-0.6 for txt2img, 0.7-1.5 for inpaint
+- Can combine multiple trigger words
+- Rear view works with "showing her ass from the back"
+- Known issue: occasional translucent horizontal pattern
+- **📚 [Full Prompt Examples Reference](pussydiffusion_prompt_examples.md)** - Advanced guide with detailed patterns and techniques
+
+---
+
+## Additional Resources
+
+For detailed prompt patterns, advanced techniques, and troubleshooting, see:
+- **[PussyDiffusion Prompt Examples Reference](pussydiffusion_prompt_examples.md)** - Comprehensive guide with 8 detailed examples, prompt patterns, LoRA combinations, and advanced techniques

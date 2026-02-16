@@ -1,0 +1,106 @@
+---
+title: "POV Blowjob"
+description: "POSE / POV / Blowjob for FLUX"
+downloads: 2018
+rating: 127
+tips: 0
+score: "⭐⭐"
+type: "POSE / POV / Blowjob"
+trigger: "Pov blowjob"
+strength: "0.8-0.9"
+civitaiUrl: "https://civitai.com/models/1298820/pov-blowjob-flux"
+compatibility: "FLUX"
+sidebar:
+  badge:
+    text: "⭐⭐"
+    variant: note
+---
+
+import LoraCard from '@/components/LoraCard.astro';
+
+<LoraCard
+  title="POV Blowjob"
+  slug="poses/oral-tongue/pov_blowjob"
+  downloads={2018}
+  rating={127}
+  tips={0}
+  score="⭐⭐"
+  type="POSE / POV / Blowjob"
+  trigger="Pov blowjob"
+  strength="0.8-0.9"
+  civitaiUrl="https://civitai.com/models/1298820/pov-blowjob-flux"
+  imageUrl="/images/loras/pov_blowjob.jpg"
+  compatibility="FLUX"
+/>
+
+## Description
+
+POV blowjob LoRA for FLUX. Simple trigger word, works with various ethnicities and outfits. By CaptainWebSpinner.
+
+## Parameters
+
+| Parameter | Value |
+|-----------|-------|
+| **File** | `Pov_blowjob.safetensors` |
+| **Civitai** | https://civitai.com/models/1298820/pov-blowjob-flux |
+| **Trigger word** | `Pov blowjob` |
+| **Strength** | 0.8-0.9 |
+| **Type** | POSE / POV / Blowjob |
+| **Size** | 19 MB |
+
+## Sample Prompts
+
+**Blonde woman (basic):**
+```
+Pov blowjob, blond woman, naked
+```
+Settings: Steps 30, CFG 3, 832x1216
+
+**Asian woman:**
+```
+Pov blowjob, asian woman, naked
+```
+Settings: Steps 30, CFG 3, 832x1216
+
+**Korean woman:**
+```
+Pov blowjob, korean woman, naked
+```
+Settings: Steps 25, CFG 3.5, 832x1216
+
+**Schoolgirl outfit:**
+```
+Pov blowjob, woman, redhead twin braids, white shirt, plaid pleated mini skirt
+```
+Settings: Steps 30, CFG 3
+
+**With character LoRA on beach (detailed):**
+```
+Pov blowjob, LLW_21, a slightly chubby woman with blue eyes, long messy red hair and big natural breasts is giving a closeup from above Pov blowjob, naked, outdoors on a beach <lora:Pov_blowjob:0.8> <lora:Launda_v01:1>
+```
+Settings: Steps 30, CFG 3.5, Flux Realistic sampler, Beta scheduler (0.6/0.6), 896x1152, Acorn DeDistilled checkpoint
+
+## Keywords
+
+- `Pov blowjob`
+- Works with ethnicity descriptors: `blond`, `asian`, `korean`, `redhead`
+- Works with clothing: `naked`, `white shirt, plaid pleated mini skirt`
+
+## Recommended Settings
+
+| Parameter | Value |
+|-----------|-------|
+| **Steps** | 25-30 |
+| **CFG** | 3-3.5 |
+| **Sampler** | Euler / Flux Realistic |
+| **Scheduler** | Simple / Beta (0.6/0.6) |
+| **Size** | 832x1216 / 896x1152 |
+| **Strength** | 0.8-0.9 |
+
+## Notes
+
+- Very simple trigger: just `Pov blowjob` at the start of prompt
+- Add ethnicity/hair/clothing after trigger
+- Works well with character LoRAs
+- 19 MB file — very lightweight
+- Tested with Acorn DeDistilled and flux1-dev checkpoints

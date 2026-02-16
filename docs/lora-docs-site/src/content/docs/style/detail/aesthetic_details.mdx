@@ -1,0 +1,66 @@
+---
+title: "Aesthetic Details"
+description: "Enhancement for FLUX"
+downloads: 551
+rating: 54
+tips: 500
+score: "⭐"
+type: "Enhancement"
+trigger: "None"
+strength: "1.0"
+civitaiUrl: "https://civitai.com/models/1166973/aesthetic-details"
+compatibility: "FLUX"
+sidebar:
+  badge:
+    text: "⭐"
+    variant: note
+---
+
+import LoraCard from '@/components/LoraCard.astro';
+
+<LoraCard
+  title="Aesthetic Details"
+  slug="style/detail/aesthetic_details"
+  downloads={551}
+  rating={54}
+  tips={500}
+  score="⭐"
+  type="Enhancement"
+  trigger="None"
+  strength="1.0"
+  civitaiUrl="https://civitai.com/models/1166973/aesthetic-details"
+  imageUrl="/images/loras/aesthetic_details.jpg"
+  compatibility="FLUX"
+/>
+
+# Aesthetic Details
+
+[← Back to INDEX](INDEX.md)
+
+## Stats
+
+| Metric | Value |
+|--------|-------|
+| **Downloads** | 537 |
+| **👍** | 53 |
+| **Tips** | 500 |
+
+| Parameter | Value |
+|-----------|-------|
+| **File** | `kicezaesthetics_V1.safetensors` |
+| **Civitai** | https://civitai.com/models/1166973/aesthetic-details |
+| **Trigger word** | `kicezaesthetics` |
+| **Strength** | 1.0 |
+| **Type** | Enhancement |
+
+### Description
+Simple detail and color enhancement LoRA. Adds aesthetic detail and improved colors.
+
+### Sample prompt
+```
+woman wearing ffstockings and shiny latex corset, prison hallway, high heels, ultra detailed, kicezaesthetics cinematic film still <lora:ffstockings8_DEV-000100:0.9> <lora:kicezaesthetics_V1:1>
+```
+
+### Tested combinations
+- ffstockings (0.9) + kicezaesthetics (1.0)
+- AnotherEarth (0.9) + kicezaesthetics (1.0)

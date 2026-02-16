@@ -1,0 +1,134 @@
+---
+import { getCollection } from 'astro:content';
+import LoraCard from './LoraCard.astro';
+import fs from 'fs';
+
+interface Props {
+	category: string;
+}
+
+const { category } = Astro.props;
+
+// Helper to parse frontmatter from file content
+function parseFrontmatter(content: string) {
+	const match = content.match(/^---\n([\s\S]*?)\n---/);
+	if (!match) return {};
+
+	const frontmatter = match[1];
+	const extractField = (name: string, isNumber = false): any => {
+		const regex = new RegExp(`^${name}:\\s*(.+)$`, 'm');
+		const fieldMatch = frontmatter.match(regex);
+		if (fieldMatch) {
+			const value = fieldMatch[1].trim().replace(/^["']|["']$/g, '');
+			return isNumber ? (parseInt(value) || 0) : value;
+		}
+		return isNumber ? 0 : '';
+	};
+
+	return {
+		downloads: extractField('downloads', true),
+		rating: extractField('rating', true),
+		tips: extractField('tips', true),
+		score: extractField('score'),
+		type: extractField('type'),
+		trigger: extractField('trigger'),
+		strength: extractField('strength'),
+		civitaiUrl: extractField('civitaiUrl'),
+		compatibility: extractField('compatibility'),
+	};
+}
+
+// Get all docs in the category
+const allDocs = await getCollection('docs');
+console.log(`LoraGrid: Total docs: ${allDocs.length}, Category: ${category}`);
+console.log(`First 5 ids:`, allDocs.slice(0, 5).map(d => d.id));
+
+const categoryDocs = allDocs.filter(doc => {
+	if (!doc || !doc.id) return false;
+	// Check if id starts with category and is not an index page
+	// Remove .mdx extension from id for comparison
+	const docPath = doc.id.replace(/\.(md|mdx)$/, '');
+	if (!docPath.startsWith(category + '/')) return false;
+	if (docPath.endsWith('/index')) return false;
+	// Filter out subcategory index pages (Astro may strip /index from ID)
+	if (doc.filePath && doc.filePath.replace(/\\/g, '/').includes('/index.md')) return false;
+	return true;
+});
+
+console.log(`LoraGrid: Found ${categoryDocs.length} docs in category ${category}`);
+if (categoryDocs.length > 0) {
+	console.log(`First doc ID:`, categoryDocs[0].id);
+	console.log(`All doc keys:`, Object.keys(categoryDocs[0]));
+	console.log(`Has downloads in data?`, categoryDocs[0].data?.downloads);
+	console.log(`Has downloads in doc directly?`, categoryDocs[0].downloads);
+
+	// Try to access body/raw content
+	if (categoryDocs[0].body) {
+		console.log(`Has body, length:`, categoryDocs[0].body.length);
+	}
+}
+
+// Sort by downloads (highest first)
+const sortedDocs = categoryDocs.sort((a, b) => {
+	const aDownloads = a.data.downloads || 0;
+	const bDownloads = b.data.downloads || 0;
+	return bDownloads - aDownloads;
+});
+---
+
+<div class="lora-grid">
+	{sortedDocs.length === 0 ? (
+		<p>No LoRAs found in this category.</p>
+	) : (
+		sortedDocs.map(doc => {
+			const data = doc.data;
+
+			// Read frontmatter directly from file
+			let customData = {};
+			try {
+				if (doc.filePath) {
+					const fileContent = fs.readFileSync(doc.filePath, 'utf-8');
+					customData = parseFrontmatter(fileContent);
+				}
+			} catch (e) {
+				console.error(`Error reading ${doc.filePath}:`, e.message);
+			}
+
+			// Remove extension from id to get the file/slug name
+			const docPath = doc.id.replace(/\.(md|mdx)$/, '');
+			const fileName = docPath.split('/').pop();
+
+			return (
+				<LoraCard
+					title={data.title || 'Untitled'}
+					slug={docPath}
+					downloads={customData.downloads || 0}
+					rating={customData.rating || 0}
+					tips={customData.tips || 0}
+					score={customData.score || '-'}
+					type={customData.type || 'LoRA'}
+					trigger={customData.trigger || 'None'}
+					strength={customData.strength || '1.0'}
+					civitaiUrl={customData.civitaiUrl || ''}
+					imageUrl={`/images/loras/${fileName}.jpg`}
+					compatibility={customData.compatibility || 'FLUX'}
+				/>
+			);
+		})
+	)}
+</div>
+
+<style>
+	.lora-grid {
+		display: grid;
+		grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+		gap: 1.5rem;
+		margin: 2rem 0;
+	}
+
+	@media (max-width: 768px) {
+		.lora-grid {
+			grid-template-columns: 1fr;
+		}
+	}
+</style>

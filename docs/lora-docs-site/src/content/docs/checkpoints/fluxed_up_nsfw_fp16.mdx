@@ -1,0 +1,111 @@
+---
+title: "Fluxed Up NSFW v7.1 FP16"
+description: "NSFW Checkpoint for FLUX"
+downloads: 84472
+rating: 3533
+tips: 8022894
+score: "⭐⭐⭐"
+type: "Checkpoint"
+trigger: ""
+strength: "N/A"
+civitaiUrl: "https://civitai.com/models/847101/fluxed-up-flux-nsfw-checkpoint"
+compatibility: "FLUX"
+sidebar:
+  badge:
+    text: "⭐⭐⭐"
+    variant: note
+---
+
+import LoraCard from '@/components/LoraCard.astro';
+
+<LoraCard
+  title="Fluxed Up NSFW v7.1 FP16"
+  slug="checkpoints/fluxed_up_nsfw_fp16"
+  downloads={84472}
+  rating={3533}
+  tips={8022894}
+  score="⭐⭐⭐"
+  type="Checkpoint"
+  trigger=""
+  strength="N/A"
+  civitaiUrl="https://civitai.com/models/847101/fluxed-up-flux-nsfw-checkpoint"
+  imageUrl="/images/loras/fluxed_up_nsfw_fp16.jpg"
+  compatibility="FLUX"
+/>
+
+## Overview
+
+Full FP16 NSFW checkpoint - the primary recommended version of Fluxed Up. Heavily biased toward nude/NSFW female imagery with excellent quality and stability.
+
+## File Information
+
+| Parameter | Value |
+|-----------|-------|
+| **File** | `fluxedUpFluxNSFW_71FP16.safetensors` |
+| **Location** | models\unet\ |
+| **Format** | SafeTensors FP16 |
+| **Version** | 7.1 |
+| **Size** | ~22.2 GB |
+| **Base Model** | Flux.1 Dev |
+| **Civitai** | https://civitai.com/models/847101/fluxed-up-flux-nsfw-checkpoint |
+
+## Description
+
+Fluxed Up is a nude/NSFW capable checkpoint emphasizing female primary subjects. Version 7.1 is the latest (Jan 2026) with improved stability and reduced artifacts. The FP16 format provides full quality without quantization loss.
+
+**Replaces** the INT4/Nunchaku version (`fluxedUpFluxNSFWCheckpoint_51INT4.safetensors`) which was incompatible with ComfyUI's standard UNETLoader.
+
+## Key Features
+
+- Full FP16 precision - no quality loss
+- Strong NSFW capability out of the box
+- Improved stability in v7.1
+- Works with standard UNETLoader
+- No VAE or CLIP baked in (load separately)
+
+## Recommended Settings
+
+| Setting | Value |
+|---------|-------|
+| **Sampler** | DPM++ 2M |
+| **Scheduler** | Beta |
+| **Steps** | 20-30 |
+| **CFG** | 1.0 |
+| **VAE** | Required (not baked in) |
+| **CLIP** | Required (not baked in) |
+
+## Sample prompts
+
+**Prompt 1 (K-beauty coffee shop):**
+```
+A professional realistic photo of a woman The woman has K-beauty straight brows, Rounded (diamond:0.25) face, (puffy cheek:0.3), happy, auburn Illusion Ponytail hair, red eyes, overlined lips with subtle outline, portrait shot, upper body. The woman is happy and smiling. A (solo:1.4) woman slouching, wrapping her arms around her legs, surprised, legs together, pussy peek, holding one leg. Viewed from above, warm coffee shop window seat
+```
+Settings: Steps: 30, Sampler: DPM++ 2M, Seed: 705103279066972
+
+**Prompt 2 (Ahegao cave selfie):**
+```
+A professional realistic photo of a woman The woman has 90s ultra-thin brows, Flat oval face, low cheekbone definition, broad forehead, soft jaw, wide nose bridge, (puffy cheek:0.3), happy, red Airy Layers hair, Green eyes, Commissure Lips, portrait shot, upper body. The woman is happy and smiling. amateur photo of a woman making ahegao face with her tongue sticking out and her eyes crossed solo taking a selfie holding a camera leaning against a wall, long hair, pink blouse, bare shoulders, very long hair, standing, pink hair, denim shorts, pointy ears, short shorts, drawn on brown freckles, wooden floor, fishnet pantyhose, cutoffs, wearing leather bdsm straps underneath her blouse, , underground cave in an adventure game, with glowing crystals scattered on the ground
+```
+Settings: Steps: 30, Sampler: DPM++ 2M, Seed: 984547453268131
+
+**Prompt 3 (Emily Feld doggy - palm trees sunset):**
+```
+absolutely gorgeous 23-year-old Emily_Feld, brunette, long dark brown hair, detailed brown eyes, Her breasts are small with erect pink nipples, natural blended edge areolas, eye liner on the upper eyelid, natural color makeup, thin and fit, 5.9 ft tall, she weighs 125lb, gorgeous narrow face, wide hips, in the doggy position, back arched downward, hair and skin wet from sweating, completely naked, dark sun tanned skin with blended tan lines, showing her pussy, 4k hd image, sharper image, 4k quality images, no makeup, very small tattoo of a heart on her left hip, spreading her legs showing her perfect pussy, perfect eyes, balanced well shaped eyes, detailed eyes, full color tones, deep colors, natural colors, in the shade under a group of palm trees at sunset, hd image, flawless face, masterpiece, perfect face, ((NO BIG BREASTS:1.1))
+```
+Settings: Steps: 30, Sampler: Euler, Seed: 618270597046206, Size: 1024x1024
+
+## Comparison with INT4 Version
+
+| Aspect | FP16 v7.1 | INT4 v5.1 |
+|--------|-----------|-----------|
+| Size | 22.2 GB | 6.3 GB |
+| Quality | Excellent | Fair |
+| UNETLoader | Works | BROKEN |
+| Anatomy | Good | Leg issues |
+| VRAM | ~22 GB | ~6 GB |
+
+## Notes
+
+- 82K+ total downloads, 8M+ tips on Civitai
+- Sample images on Civitai include embedded workflows
+- Also available in Q8_GGUF and Q4_GGUF formats

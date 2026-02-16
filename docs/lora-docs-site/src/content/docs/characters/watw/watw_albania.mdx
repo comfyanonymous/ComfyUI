@@ -1,0 +1,109 @@
+---
+title: "WATW  Albania"
+description: "LoRA for FLUX"
+downloads: 240
+rating: 22
+tips: 0
+score: "-"
+type: "LoRA"
+trigger: "Albania"
+strength: "1.0"
+civitaiUrl: "https://civitai.com/models/2096865"
+compatibility: "FLUX"
+sidebar:
+  badge:
+    text: "-"
+    variant: note
+---
+
+import LoraCard from '@/components/LoraCard.astro';
+
+<LoraCard
+  title="WATW  Albania"
+  slug="characters/watw/watw_albania"
+  downloads={240}
+  rating={22}
+  tips={0}
+  score="-"
+  type="LoRA"
+  trigger="Albania"
+  strength="1.0"
+  civitaiUrl="https://civitai.com/models/2096865"
+  imageUrl="/images/loras/watw_albania.jpg"
+  compatibility="FLUX"
+/>
+
+[← Back to CHARACTERS_WATW Index](INDEX.md)
+
+## Info
+- **File:** `Albania.safetensors`
+- **Civitai:** https://civitai.com/models/2096865/watw-albania
+- **Trigger:** `Albania` or `Albania woman`
+- **Strength:** 1.0
+- **Series:** Women Around The World (WATW) - 207 countries
+
+## Description
+Part of the "Women Around The World" (#WATW) series. All WATW LoRAs are a mixture of 2-3 bodies combined with an AI face. The goal is to create unique basic types that can be customized (hair, facial features, etc.).
+
+## Best Checkpoints
+- unStable Evolution KREA
+- unStable Evolution FluXXX
+- Fluxmania Legacy
+- Standard BFL versions
+
+## Recommended Settings
+| Parameter | Value |
+|-----------|-------|
+| CFG | 1 |
+| Sampler | Flux Realistic / euler_simple |
+| Schedule | Beta (alpha: 0.6, beta: 0.6) |
+| Size | 896x1152 / 1664x2432 |
+| Steps | 25-30 |
+| Distilled CFG | 2.5 |
+
+## Example Prompts
+
+### Portrait
+```
+Breathtaking over the shoulder shot photography of a Albania woman looking at viewer, necklace, looking over shoulders, eyelashes, fine hair detail, entire hairstyle visible, perfect eyes with iris pattern, sensual lips, nose, (perfectly sharp:1.3), realistic textures, (deep focus, focus on background:1.5), 8k uhd, dslr, ultra high quality image, film grain, Fujifilm XT3
+```
+Settings: Steps 25, CFG 1, Flux Realistic, 896x1152
+
+### Bikini
+```
+photography of a Albania woman, dressed in floral bikini, vibrant colors, textured fabric, seated, relaxed posture, looking forward, rule of thirds, projection lighting, (straight on:1.2), shot on Olympus OM-D E-M1 Mark III with M.Zuiko 12-40mm f-2.8
+```
+Settings: Steps 25, CFG 1, Flux Realistic, 896x1152
+
+### Fashion
+```
+A high-resolution Photo of a Albania woman. She wears a sleeveless, loose-fitting mini dress with a leopard print. The pattern is in natural tones (brown, beige, black) and is very striking. She pairs it with black, tight-fitting leggings. She wears gray, open-toe high-heeled ankle boots. A wide, light-colored hairband holds back her hair with a center parting. Her makeup is rather subtle, with a focus on the lips and eyes.
+```
+Settings: Steps 25, CFG 1, Flux Realistic, 896x1152
+
+### Intimate/Bedroom
+```
+Albania woman lies on a bed with floral-patterned bedding in a dimly lit, vintage room with a beige wall and tufted headboard. She wears a short, cropped, light pink ribbed sweater, her legs spread wide. Her expression is neutral to slightly sultry, gazing directly at the camera. Soft, slightly yellowish lighting casts a warm, nostalgic glow, reminiscent of 1980s photography, with a subtle film grain and warm color grading.
+```
+Settings: Steps 25, CFG 1, Flux Realistic, 896x1152
+
+### Beach Glamour (with Ruffled Bikini LoRA)
+```
+Close-to-mid fashion glamour photo of Albania woman strolling along the beach at sunset, fc_ruffledbikini, rich maroon two-piece bikini with ruffled v-neck top and low-rise side-ruched bottom made of smooth stretch fabric, soft sunlight, ruffled edges blowing softly in the breeze, reflective wet sand underfoot, ocean waves sparkling behind, serene look, light wind through hair, fixing hair with one hand, high-angle cinematic view, photo-realistic depth and color, cinematic golden-hour lighting, realistic skin detail, high resolution, 8k, natural motion, relaxed atmosphere.
+```
+Settings: Steps 30, CFG 1, euler_simple, 1664x2432, Fluxmania Legacy + Foxxy Clothing - Ruffled Bikini LoRA
+
+### Beach Influencer (with Ruffled Bikini LoRA)
+```
+Close-to-mid fashion glamour photo of 20 year old Albania woman influencer on a sandy beach with palm trees in the background, fc_ruffledbikini, black thin two-piece bikini with ruffled v-neck top and low-rise side-ruched bottom made of smooth stretch fabric. Wet auburn hair in a loose ponytail over her shoulder. She is sitting back on her heels in the sand, hands resting naturally on her thighs, water glistening on her skin, relaxed posture, balanced pose. She has a seductive expression on her face and is looking directly at the camera. A warm amber glow from low evening light, illuminating the beach and water, no direct sun visible, soft shadows and highlights. Low angle shot, photo-realistic depth and color, cinematic lighting, realistic skin detail, high resolution, 8k, natural motion of wind gently blowing through her hair. The overall mood of the image is sensual and alluring.
+```
+Settings: Steps 30, CFG 1, euler_simple, 1664x2432, Fluxmania Legacy + Foxxy Clothing - Ruffled Bikini LoRA
+
+## Recommended LoRA Combinations
+- Foxxy Clothing - Ruffled Bikini LoRA (for beach/bikini shots)
+
+## Notes
+- Use trigger word at strength 1.0
+- Works well for various poses and outfits
+- Good for Eastern European/Balkan aesthetic
+- Series covers 207 countries with daily releases

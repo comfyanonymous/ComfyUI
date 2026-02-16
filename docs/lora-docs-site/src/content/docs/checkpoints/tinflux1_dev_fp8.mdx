@@ -1,0 +1,186 @@
+---
+title: "TinFlux1-dev-fp8 11GB"
+description: "Asian-Enhanced Checkpoint for FLUX"
+downloads: 451
+rating: 47
+tips: 0
+score: "-"
+type: "Checkpoint"
+trigger: ""
+strength: "N/A"
+civitaiUrl: "https://civitai.com/models/1724270/tinflux1-dev-fp811gbv1"
+compatibility: "FLUX"
+sidebar:
+  badge:
+    text: "-"
+    variant: note
+---
+
+import LoraCard from '@/components/LoraCard.astro';
+
+<LoraCard
+  title="TinFlux1-dev-fp8 11GB"
+  slug="checkpoints/tinflux1_dev_fp8"
+  downloads={451}
+  rating={47}
+  tips={0}
+  score="-"
+  type="Checkpoint"
+  trigger=""
+  strength="N/A"
+  civitaiUrl="https://civitai.com/models/1724270/tinflux1-dev-fp811gbv1"
+  imageUrl="/images/loras/tinflux1_dev_fp8.jpg"
+  compatibility="FLUX"
+/>
+
+# TinFlux1-dev-fp8 11GB
+
+## File Information
+
+| Parameter | Value |
+|-----------|-------|
+| **File** | `tinflux1DevFp811GBV1_v10.safetensors` |
+| **Location** | models\unet\ |
+| **Format** | SafeTensors FP8 |
+| **Version** | 1.0 |
+| **Size** | ~11.6 GB |
+| **Base Model** | Flux.1 Dev |
+| **Type** | Checkpoint Merge |
+| **Civitai** | https://civitai.com/models/1724270/tinflux1-dev-fp811gbv1 |
+
+## Description
+
+Modified Flux.1 Dev checkpoint with enhanced Asian character effects. The creator describes it as: "Modified the original Flux model to add more Asian character effects" (修改原版Flux大模型，加入更多亚洲人物效果).
+
+FP8 quantized format at 11 GB - fits in moderate VRAM while maintaining good quality for Asian and general character generation.
+
+**Key features:**
+- Enhanced Asian facial features and skin tones
+- FP8 quantization for reduced VRAM usage
+- Good for both portrait and landscape generation
+- Works with standard UNETLoader
+- No trigger words needed
+
+## Recommended Settings
+
+| Setting | Value |
+|---------|-------|
+| **Sampler** | Euler |
+| **Steps** | 20-32 |
+| **CFG** | 1.0 (default) or 3.5 (for more guidance) |
+| **Scheduler** | Beta |
+| **VAE** | Required (not baked in) |
+| **CLIP** | Required (not baked in) |
+
+### Generation Modes
+
+| Mode | Resolution | Method | Best For |
+|------|-----------|--------|----------|
+| **Mode A** | 512x768 → Hires 2x | FP8 with upscale | Detailed portraits |
+| **Mode B** | 896x1152 direct | NF4 direct generation | Quick full-body shots |
+
+## Example Prompts
+
+### Fashion / Portrait
+
+**Qipao at Ballroom:**
+```
+fashion shot of headshot of lifestyle photo of Photo of solo a woman with beautiful face, with hourglass figure, cleavage, ornat hair ornaments, hairpins, earring. facing at viewer. at grandeur ballroom hall. sqp, wear qipao, light color, see through, floral pattern, short sleeve.. Everyday activities, real-life situations, relatable. Professional, clear, neutral background, focused. Trendy outfit, styled, runway-ready, chic
+```
+Settings: Steps 10, CFG 3.5, DPM2, 544x960
+
+**Oriental Woman Extreme Closeup:**
+```
+magnificent, photorealistic in the style of a photographic glossy movie poster, crisp lines, an extreme closeup image of the eyes of a stunning oriental young woman, long hair, red lips, dark eyeshadow
+```
+Settings: Steps 20, CFG 1, Euler, 936x1664
+
+**Gothic Ginger Portrait:**
+```
+professional photographic portrait of a girl in her mid 20s with a naughty, mischievous face, cheeky smile, gothic, (beautiful face, cute face, 18 years old), heavy goth make-up, short ginger hair pulled back in a ponytail
+```
+Settings: Steps 32, CFG 1, Euler, 848x1128
+
+### Fantasy / Sci-Fi
+
+**Fire & Lava Woman:**
+```
+UHD, 4k, ultra detailed, cinematic, a photograph of she is a gorgeous woman-like being created out of fire and ashes (she is coming out of molten lava:1.10), fire embers dance around the character, RAW, intricate, vibrant colors, (facing viewer:1.33), epic, beautiful lighting, inspiring, intricate portrait, mystic enchantress, s-pose, future enchantress
+```
+Settings: Steps 20, CFG 1, Euler, 936x1664
+
+**Cyberpunk Robot Samurai:**
+```
+female cyberpunk robot samurai, robot face with mirrored face shield, hyperdetailed helmet, flowing black hair, reflective black and neon red armor, robot joints, body made of metals, cables and wires, a katana strapped to her back, abstract background suggesting eastern temple
+```
+Settings: Steps 20, CFG 1, Euler, 896x1152
+
+**Seraphim (B&W Artistic):**
+```
+(seraphim:1.21), (black and white:1.10), High Detail, masterpiece, best quality, more detail, Hyper Quality, detailed, high detail, (diamond tones:1.4)
+```
+Settings: Steps 20, CFG 1, Euler, 768x1360
+
+**Dragon Closeup:**
+```
+an extreme closeup headshot portrait of a fierce dragon ((facing the viewer)) there is smoke coming out of the dragon's nostrils, the scene is backlit at night with a blurry background. the dragon's scales are back with red tips
+```
+Settings: Steps 20, CFG 1, Euler, 896x1152
+
+### Post-Apocalyptic / Character
+
+**Survivor Girl:**
+```
+1girl, solo, 18yo, long hair, looking at viewer, dark, messy hair, dreadlocks, yellow eyes, (light skin dirty:1.4), leather shoulder armor, blurry background, lips, messy hair, blurry, leather armor, realistic, dark skin, pants, mud and dirt in her hair and on her face. in the background is a derelict village with fallen stone walls.
+```
+Settings: Steps 20, CFG 1, Euler, 936x1664
+
+### Landscape / Environment
+
+**Autumn Forest Snowstorm:**
+```
+a wide angle photograph of a dense forest in autumn. snowstorm and snowy mountain range at night, blue sky with stars visible above the trees. cinematic lighting. detailed photo from national geographic. 4k. award winning photography. highly detailed. hq. realistic. lens flare. bokeh. warm light. muted colors. lens flare. photorealistic. leica m9, f1.8 anamorphic, film still, 16
+```
+Settings: Steps 20, CFG 1, Euler, 1152x896
+
+**Fantasy Landscape:**
+```
+a vast fantasy landscape
+```
+Settings: Steps 20-32, CFG 1, Euler, 1152x896 or 1593x896
+
+**Mars Colony Post-Attack:**
+```
+a mars colony after a nuclear attack, 4k, realistic, cinematic lighting,
+```
+Settings: Steps 20, CFG 1, Euler, 1152x896
+
+## Keywords
+
+### Strength
+- Asian characters: Enhanced (primary focus)
+- Portraits: Good
+- Fantasy/Sci-Fi: Good
+- Landscapes: Good
+
+### Style Tags
+- `photorealistic`, `realistic`, `cinematic lighting`
+- `4k`, `UHD`, `ultra detailed`
+- `professional`, `masterpiece`
+
+### Character Tags
+- `oriental`, `asian`, `woman`
+- `beautiful face`, `detailed eyes`
+- `long hair`, `dark hair`
+
+## Notes
+
+- No trigger word needed - use standard FLUX prompts
+- Modified from Flux.1 Dev to enhance Asian character generation
+- Most Civitai examples use CFG 1.0 with Euler sampler
+- Portrait-focused model - excels at face details and skin tones
+- Works well for both Asian and non-Asian characters
+- FP8 format: smaller than FP16 (11 GB vs 22 GB), slight quality tradeoff
+- Also capable of landscape and fantasy generation
+- Creator: tin18688783 on Civitai
+- License: FLUX.1 [dev] Non-Commercial License

@@ -1,0 +1,109 @@
+---
+title: "FluxAssGrab"
+description: "CONCEPT / Pose / NSFW for FLUX"
+downloads: 1702
+rating: 147
+tips: 100
+score: "⭐"
+type: "CONCEPT / Pose / NSFW"
+trigger: ""
+strength: "0.4-1.0"
+civitaiUrl: "https://civitai.com/models/782891/fluxassgrab"
+compatibility: "FLUX"
+sidebar:
+  badge:
+    text: "⭐"
+    variant: note
+---
+
+import LoraCard from '@/components/LoraCard.astro';
+
+<LoraCard
+  title="FluxAssGrab"
+  slug="anatomy/ass/fluxassgrab"
+  downloads={1702}
+  rating={147}
+  tips={100}
+  score="⭐"
+  type="CONCEPT / Pose / NSFW"
+  trigger=""
+  strength="0.4-1.0"
+  civitaiUrl="https://civitai.com/models/782891/fluxassgrab"
+  imageUrl="/images/loras/fluxassgrab.jpg"
+  compatibility="FLUX"
+/>
+
+# FluxAssGrab
+
+[← Back to INDEX](INDEX.md)
+
+## Parameters
+
+| Parameter | Value |
+|-----------|-------|
+| **File** | `FluxAssGrab.safetensors` |
+| **Original filename** | `AssGrab.safetensors` |
+| **Civitai** | https://civitai.com/models/782891/fluxassgrab |
+| **Trigger word** | None (use `male hand grabbing ass`, `ass grab`) |
+| **Strength** | 0.4-1.0 |
+| **Type** | CONCEPT / Pose / NSFW |
+| **Compatibility** | FLUX |
+
+## Description
+
+LoRA for generating images with male hand grabbing ass from behind. Works with various poses (all fours, bent over, standing). Creates realistic hand-on-ass interaction shots.
+
+## Sample Prompts
+
+**Prompt 1 (Basic nude):**
+```
+1girl, male hand grabbing ass, from behind, back, long hair, head from back, nude, spread ass, ass grab, pussy, anus, top down bottom up, top-down bottom-up, apple shape ass, pussy from behind, from behind, facing away, all fours <lora:FluxAssGrab:1>
+```
+Negative: `cartoon, anime, deformed iris, deformed pupils, cgi, 3d, render, sketch, cartoon, drawing, anime, mutilated, extra fingers, mutated hands, poorly drawn hands, poorly drawn face, mutation, deformed, blurry, bad anatomy`
+Settings: Steps: 25, CFG: 1, Sampler: Euler, Size: 768x1152
+
+**Prompt 2 (Asian judo girl - complex stack):**
+```
+YTKstyle, Phishistyle, (asstastic, pants down:1.6), fitzka, pov high resolution photograph of one skinny pale asian girl, black messy side updo tail hair with bang, headband, very surprised face, blush, wear big long sleeve judo suit with big long white pants, (Pants down), two leg panty connected, on all fours, on blue and white judo mat of bright big empty judo gym, (open Lapel:0.5), look back at viewer over shoulder, her pussy and anus are the focus of the image, male hand grabbing ass, from behind, low angle, close up, <lora:FluxAssGrab:0.4>
+```
+Negative: `xiaohongshu style`
+Settings: Steps: 14, CFG: 1, Sampler: Euler, Size: 896x1136, Schedule: Simple, Distilled CFG: 2.8
+
+## Keywords
+
+- `male hand grabbing ass`
+- `ass grab`
+- `from behind`
+- `spread ass`
+- `top down bottom up`
+- `top-down bottom-up`
+- `apple shape ass`
+- `all fours`
+- `facing away`
+- `look back at viewer`
+
+## Tested Combinations
+
+**Combination 1 (Asian with body LoRAs):**
+```
+<lora:FluxAssGrab:0.4> <lora:asian:0.7> <lora:asstastic_flux_lora_v2:0.7> <lora:FLUX_thinspo_skinny:0.8> <lora:Pantsdown_2:0.3>
+```
+
+**Combination 2 (With realistic hands):**
+```
+<lora:FluxAssGrab:0.4> <lora:Flux_Realistic_hands:0.4> <lora:asstastic_flux_lora_v2:0.7>
+```
+
+**Combination 3 (Fisheye aesthetic):**
+```
+<lora:FluxAssGrab:0.4> <lora:fitzka:0.4> <lora:y2t-phi:0.15>
+```
+
+## Notes
+
+- Strength 0.4 when stacking with many LoRAs, 1.0 for strong effect
+- Use with Flux Realistic Hands LoRA for better hand quality
+- CFG 1 with Distilled CFG 2.8-3.5 recommended
+- Steps 14-25 for quality
+- Works well with Asstastic, Pantsdown LoRAs
+- Euler sampler with Simple schedule

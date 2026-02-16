@@ -1,0 +1,206 @@
+---
+title: "PulledDownJeans Flux (Configurator)"
+description: "Pose / Action / Configurator for FLUX"
+downloads: 816
+rating: 66
+tips: 0
+score: "⭐"
+type: "Pose / Action / Configurator"
+trigger: "pudoje"
+strength: "1.0"
+civitaiUrl: "https://civitai.com/models/868630/pulleddownjeans-flux-configurator"
+compatibility: "FLUX"
+sidebar:
+  badge:
+    text: "⭐"
+    variant: note
+---
+
+import LoraCard from '@/components/LoraCard.astro';
+
+<LoraCard
+  title="PulledDownJeans Flux (Configurator)"
+  slug="poses/clothing-flashing/pulled_down_jeans"
+  downloads={816}
+  rating={66}
+  tips={0}
+  score="⭐"
+  type="Pose / Action / Configurator"
+  trigger="pudoje"
+  strength="1.0"
+  civitaiUrl="https://civitai.com/models/868630/pulleddownjeans-flux-configurator"
+  imageUrl="/images/loras/pulled_down_jeans.jpg"
+  compatibility="FLUX"
+/>
+
+# PulledDownJeans Flux (Configurator)
+
+[← Back to Index](INDEX.md)
+
+| Parameter | Value |
+|-----------|-------|
+| **File** | `PulledDownJeansFlux.1.0.safetensors` |
+| **Civitai** | https://civitai.com/models/868630/pulleddownjeans-flux-configurator |
+| **Trigger word** | `pudoje` + optional switches |
+| **Strength** | 1.0 |
+| **Type** | Pose / Action / Configurator |
+
+## Description
+
+Better poses for **already pulled down** jeans/denim shorts (with free hands). Configurable LoRA with multiple switches for different variations.
+
+**Key difference from PullingDownJeans:**
+- **PulledDownJeans** (this) = jeans already down, hands FREE
+- **PullingDownJeans** = actively pulling, hands OCCUPIED
+
+Can be combined with PulledTopOffOverHead Flux since hands are free.
+
+**Other versions available:**
+- PulledDownJeans XL - for SDXL
+- PulledDownJeans Pony - for Pony
+
+### Trigger words / Switches
+
+| Switch | Trigger | Effect |
+|--------|---------|--------|
+| **Main trigger** | `pudoje` | **REQUIRED** - activates the LoRA |
+| **Far down** | `pufado` | Pulled jeans far down (on thighs) |
+| **Completely down** | `pfcomp` | Pulled jeans completely down (at ankles) |
+| **Denim shorts** | `densho` | Shows short denim shorts (Hot-pants) instead of long jeans |
+| **No panties** | `nopaun` | No panties underneath |
+| **Panties also down** | `pandow` | Panties also pulled down |
+
+### Prompt structure
+```
+pudoje, (optional: pufado/pfcomp, densho, nopaun/pandow), <person description> <pulled action> (, panty state)
+```
+
+**Pulled action options:**
+- `pulled down jeans trousers a little` - slight pull (default)
+- `pulled jeans trousers far down` - on thighs (requires `pufado`)
+- `pulled jeans trousers completely down` - at ankles (requires `pfcomp`)
+- `pulled down denim shorts a little` - slight pull, shorts (requires `densho`)
+- `pulled denim shorts far down` - on thighs, shorts (requires `pufado` + `densho`)
+- `pulled denim shorts completely down` - at ankles, shorts (requires `pfcomp` + `densho`)
+
+**Panty state options:**
+- (none) - panties visible
+- `no panties underneath` - no panties (requires `nopaun`)
+- `panties also pulled down` - panties down too (requires `pandow`)
+
+## Sample prompts
+
+**Prompt 1 (Denim shorts, far down, no panties - pub):**
+```
+pudoje, pufado, densho, nopaun, slim 25yo girl pulled denim shorts far down, no panties underneath, in a pub. sneakers, long blonde ponytail.
+```
+
+**Prompt 2 (Denim shorts, far down, panties also down - restaurant):**
+```
+pudoje, pufado, densho, pandow, slim 25yo girl pulled denim shorts far down, panties also pulled down, in a fast food restaurant. sneakers, long brunette ponytail.
+```
+
+**Prompt 3 (Denim shorts, completely down, no panties - pub):**
+```
+pudoje, pfcomp, densho, nopaun, slim 25yo girl pulled denim shorts completely down, no panties underneath, in a pub. sneakers, short blonde ponytail.
+```
+
+**Prompt 4 (Jeans trousers, a little - park):**
+```
+pudoje, slim 25yo girl pulled down jeans trousers a little, in a park, boots, short brunette hair.
+```
+
+**Prompt 5 (Jeans trousers, far down - mall):**
+```
+pudoje, pufado, slim 25yo girl pulled jeans trousers far down, in a mall. sneakers, long blonde hair.
+```
+
+**Prompt 6 (Jeans trousers, completely down - mall):**
+```
+pudoje, pfcomp, slim 25yo girl pulled jeans trousers completely down, in a mall. sneakers, long blonde hair.
+```
+
+**Prompt 7 (Side view, completely down, panties down, arms up):**
+```
+pudoje, pfcomp, densho, pandow, side view (naked slim 25yo girl) pulled denim shorts completely down, panties also pulled down, (arms up:2), in a crowded park. sneakers, necklace, short brunette ponytail <lora:PulledDownJeansFlux:1>
+```
+
+**Prompt 8 (Medical selfie):**
+```
+A photo of a young woman taking a selfie in a medical setting. She is wearing light blue scrubs that accentuate her curves. Her hair is pulled back into a high ponytail. She is wearing a colorful medical face mask and latex gloves. A stethoscope is hanging around her neck. She is posing from the side, showcasing her fit figure and her nice cleavage. She is holding a smartphone in one hand, capturing the image in the reflection of a bathroom mirror. Paper towels are visible in the background. pulled jeans trousers completely down, panties also pulled down,
+```
+
+**Prompt 9 (Fitness cowgirl from behind):**
+```
+fitness girl, slutty, seductive, braided braids, ginger hair, grey-green eyes, cowboy white hat, round ass, wide hips, spread ass, ass focus, nude, parted lips, pussy, gape anus, looking back, nail polish, from behind, lips, uncensored, makeup, fingernails, wearing crop sleeveless denim vest and brown chaps, realistic, on the farm, lower back tattoo horseshoe, oiled skin, provocative pose, surrounded by a crowd of different men, in the spotlight, smirk, dynamic, highly detailed, intricate details, below pov from behind, <lora:PulledDownJeansFlux:1.0> denim shorts pulled down, panties also pulled down
+```
+
+## Keywords
+
+- `pudoje` - **REQUIRED** main trigger
+- `pufado` - far down (on thighs)
+- `pfcomp` - completely down (at ankles)
+- `densho` - denim shorts / Hot-pants
+- `nopaun` - no panties underneath
+- `pandow` - panties also pulled down
+- `pulled down jeans trousers a little`
+- `pulled jeans trousers far down`
+- `pulled jeans trousers completely down`
+- `pulled denim shorts far down`
+- `no panties underneath`
+- `panties also pulled down`
+
+## Combination with PulledTopOffOverHead Flux
+
+Since hands are free, this LoRA can be combined with PulledTopOffOverHead:
+
+**Usage order:**
+1. First specify PulledDownJeans triggers
+2. Then specify PulledTopOffOverHead triggers
+
+**Combined example:**
+```
+pudoje, putoof, pufado, nopaun, front view (naked slim 25yo girl) pulled jeans trousers far down, no panties underneath, po_swe, pulled blue sweater off, standing in a park. sneakers, necklace, short brunette ponytail
+```
+
+**Strength:** Use 1.3 for PulledTopOffOverHead when combining.
+
+## Tested combinations
+
+**Combination 1 (TopOff + JeansDown):**
+```
+<lora:PulledDownJeansFlux:1>
+<lora:PulledTopOffOverHeadFlux:1.3>
+```
+
+**Combination 2 (Style + Detail):**
+```
+<lora:PulledDownJeansFlux:1>
+<lora:SinfullyStylish:1> (dramatic lighting)
+<lora:DetailedPerfection:1>
+```
+
+**Combination 3 (Bokeh + Anatomy):**
+```
+<lora:PulledDownJeansFlux:1>
+<lora:aidmaBokeh:0.6>
+<lora:Flux_Pussy_Anus_HD:0.7>
+<lora:Flux_Prone_Ass_Spread:0.7>
+```
+
+**Combination 4 (Amateur + Realistic Pussy):**
+```
+<lora:PulledDownJeansFlux:1>
+<lora:Amateur_Nudes_Flux:1>
+<lora:Realistic_Pussy_FLUX:1>
+```
+
+## Notes
+
+- ForgeUI users: Set 'Diffusion in Low Bits' to 'Automatic (fp16 LoRA)'
+- **IMPORTANT:** Follow the prompt schema exactly for useful results
+- Use strength 1.0
+- Unlike PullingDownJeans, hands are FREE - can combine with other actions
+- Supports three pull-down levels: a little, far, completely
+- Works well with location descriptions
+- Great for combining with PulledTopOffOverHead

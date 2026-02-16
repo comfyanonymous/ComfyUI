@@ -1,0 +1,149 @@
+---
+title: "Acorn Gigi"
+description: "Character for FLUX"
+downloads: 1033
+rating: 104
+tips: 280
+score: "⭐"
+type: "Character"
+trigger: "None"
+strength: "0.6-1.4 (typically 1.0)"
+civitaiUrl: "https://civitai.com/models/691288/acorn-gigi"
+compatibility: "FLUX"
+sidebar:
+  badge:
+    text: "⭐"
+    variant: note
+---
+
+import LoraCard from '@/components/LoraCard.astro';
+
+<LoraCard
+  title="Acorn Gigi"
+  slug="characters/acorn/acorn_gigi"
+  downloads={1033}
+  rating={104}
+  tips={280}
+  score="⭐"
+  type="Character"
+  trigger="None"
+  strength="0.6-1.4 (typically 1.0)"
+  civitaiUrl="https://civitai.com/models/691288/acorn-gigi"
+  imageUrl="/images/loras/acorn_gigi.jpg"
+  compatibility="FLUX"
+/>
+
+# Acorn Gigi
+
+[← Back to Index](INDEX.md)
+
+## Civitai Stats
+
+| Metric | Value |
+|--------|-------|
+| **Downloads** | 1018 |
+| **👍** | 104 |
+| **Tips** | 280 |
+| **Score** | ⭐ |
+
+## Parameters
+
+| Parameter | Value |
+|-----------|-------|
+| **File** | `GigiFlux-000002.safetensors` |
+| **Civitai** | https://civitai.com/models/691288/acorn-gigi |
+| **Trigger word** | `GigiFlux` |
+| **Strength** | 0.6-1.4 (typically 1.0) |
+| **Type** | Character |
+| **Author** | Acorn |
+
+## Description
+
+Fictional character Gigi by Acorn. Characterized by slim build, long hair (often black), green eyes. Works well with other LoRAs (e.g., DaphneW, shaved pussy). Supports wide weight range from 0.6 to 1.4.
+
+## Recommended Settings
+
+| Parameter | Value |
+|-----------|-------|
+| **CFG** | **1** |
+| **Steps** | **8** |
+| **Sampler** | **Euler** |
+| **Scheduler** | **Beta** (alpha: 0.6, beta: 0.6) |
+| **Resolution** | **1024x1328** |
+| **Model** | Acorn Is Spinning Flux Hyper 8 Step |
+| **Distilled CFG** | 2.5 |
+
+## Sample prompts
+
+**Prompt 1 (60s Pinup kitchen):**
+```
+cinematic dreamy erotic photo of beauty pinup art, 1960s style, 25 year old girl, cowboy shot, from front, looking past viewer, large breasts, jet black hair, long hair, pompadour hairstyle, (black lace bra and panties), (pink checkered apron with lace trim), (pink thigh high stalkings), in kitchen, kitchen utensils, green eyes, pink lips, makeup, detailed background, pinup, perfect female figure, narrow hips, slim petite body, fit body, real skin, (intricately detailed eyes), skin textures, full color, subsurface scattering <lora:GigiFlux_epoch_2:1>
+```
+Settings: Steps: 8, CFG: 1, Sampler: Euler, Size: 1024x1328, Schedule: Beta (0.6/0.6), Distilled CFG: 2.5
+
+**Prompt 2 (Bathroom selfie - jeans only):**
+```
+Candid full body photography of a gorgeous 20 year old woman, <lora:GigiFlux_epoch_2:0.8> with long hair. She taking a selfie picture wearing only blue jeans. She is in a small cramped bathroom.
+```
+Settings: Steps: 8, CFG: 1, Sampler: DPM2, Size: 1024x1280, Schedule: Beta (0.6/0.6), Distilled CFG: 0
+
+**Prompt 3 (Living room - silk robe):**
+```
+photo of skinny 18 year old woman with with long (platinum blonde hair:1.4) and (large sagging breasts:1.5). standing in dark living room with leather chair and wearing loose open silk robe and black panties. <lora:GigiFlux_epoch_2:1>
+```
+Negative: `blurry, bokeh`
+Settings: Steps: 8, CFG: 1, Sampler: DPM2, Size: 1024x1280, Schedule: Beta (0.6/0.6), Distilled CFG: 0
+
+**Prompt 4 (80s Drive-in - crop top with text):**
+```
+cinematic photo of a busty 18 year old woman, her huge sagging breasts stretching her shirt, wearing tight short sleeve yellow crop top with text in a gothic font reading ("I Dream of Seeker70"), silky black hair, orange silk shorts, pale white skin, gorgeous, narrow hips, slim petite body, average skin, (intricately detailed eyes), looking at viewer, in direct sun, centered in the image, 1980's drive-in pizza place, retro, outdoor, bright sunny day at noon, deep blue sky, dark pavement, very detailed, shallow depth of field, subsurface scattering <lora:GigiFlux_epoch_2:1>
+```
+Negative: `deformed hand`
+Settings: Steps: 8, CFG: 1, Sampler: Euler, Size: 1024x1280, Schedule: Beta (0.6/0.6)
+
+**Prompt 5 (Ukrainian girl - dildo NSFW):**
+```
+NSFW, photo of a super cute 18 year old (Ukrainian girl:1.5). She is a net idol student who is a stunningly beautiful model. She is fucking a huge red dildo on a chair. She is wearing black thigh high stalkings. Camera angle is from the front. fine details, 24mm lens, blend 1.4, Kodachrome, pastel pink theme, in office. She looks innocent and has straight black hair. She has small breasts. She is aroused and looks shy and horny. detailed face and eyes, eyebrows, natural skin texture, slight skin blemishes, imperfect skin, skin pores, blush, goosebumps, translucent skin, subsurface scattering, slight fine wrinkles, beauty spot, detailed eyes, light reflections in her eye, tiny blood vessels in the eyes, blue eyes. <lora:GigiFlux_epoch_2:1.4>
+```
+Settings: Steps: 20, CFG: 1, Sampler: Euler, Size: 1024x1280, Schedule: Beta (0.6/0.6), Distilled CFG: 3.5, ADetailer: face
+
+**Prompt 6 (Bathroom - nude after shower):**
+```
+Candid full body photography of a gorgeous 20 year old woman, (<lora:GigiFlux_epoch_2:1>) with long hair. She is nude after taking a shower. She is in a small cramped bathroom enjoying being alone.
+```
+Settings: Steps: 8, CFG: 1, Sampler: DPM2, Size: 1024x1280, Schedule: Beta (0.6/0.6), Distilled CFG: 0
+
+**Prompt 7 (80s Drive-in - from behind with text on shorts):**
+```
+cinematic photo from behind of a busty 22 year old woman, her huge sagging breasts stretching her shirt, wearing (orange silk shorts with text across the ass in a gothic font reading ("Need Me Some Anal")) and a yellow bikini top. She has silky black hair and pale white skin, toned round ass, gorgeous, narrow waist, slim petite body, average skin, (intricately detailed eyes), she has very massive breasts, turning her head to look back at viewer with a mischievous smile, in direct sun, centered in the image, 1980's drive-in pizza place, retro, outdoor, bright sunny day at noon, deep blue sky, dark pavement, very detailed, shallow depth of field, subsurface scattering <lora:GigiFlux_epoch_2:1.2>
+```
+Negative: `deformed hand`
+Settings: Steps: 12, CFG: 1, Sampler: Euler, Size: 1024x1280, Schedule: Simple, Distilled CFG: 3.5
+
+**Prompt 8 (Kitchen - nude snack):**
+```
+Candid full body photography of a gorgeous 20 year old woman, (<lora:GigiFlux_epoch_2:1>) with long hair. She is nude after taking a shower. She is in kitchen looking for a snack.
+```
+Settings: Steps: 8, CFG: 1, Sampler: DPM2, Size: 1024x1280, Schedule: Beta (0.6/0.6), Distilled CFG: 0
+
+**Prompt 9 (Autumn forest - raincoat squatting):**
+```
+High quality candid photography, The foreground features a stunning 18 year old woman who is naked. She has long black hair, green eyes, seductive lips, perfect large breasts, flat stomach, slim waist, (shaved pussy with large labia). She is squatting, making an erotic scene. Below her is a large puddle casting a reflection of her beautiful body and pussy. She is wearing an open yellow raincoat, background Autumn forest, there are a few scattered leaves on the ground, vibrant colors, with shades of red, orange and yellow dominating the composition, high color saturation, high contrast. <lora:shaved pussy 05:1><lora:GigiFlux_epoch_2:0.75>
+```
+Settings: Steps: 10, CFG: 1, Sampler: DPM2, Size: 1024x1280, Schedule: Beta (0.6/0.6), Distilled CFG: 0
+
+## Keywords
+
+- `GigiFlux`
+- `long black hair`
+- `green eyes`
+- `petite body`
+- `subsurface scattering`
+- `real skin`, `skin textures`
+
+## Notes
+
+- Similar settings to JessicaA (CFG 1, 8 steps, Beta scheduler)
+- Works well with pinup/retro style prompts
+- Supports higher LoRA strength (up to 1.4) compared to JessicaA
+- Versatile with hair color variations (black, blonde, platinum)

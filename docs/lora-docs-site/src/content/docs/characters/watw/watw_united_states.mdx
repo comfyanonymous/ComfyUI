@@ -1,0 +1,107 @@
+---
+title: "WATW  United States of America"
+description: "LoRA for FLUX"
+downloads: 430
+rating: 40
+tips: 0
+score: "-"
+type: "LoRA"
+trigger: "UnitedStates"
+strength: "1.0"
+civitaiUrl: "https://civitai.com/models/1988663"
+compatibility: "FLUX"
+sidebar:
+  badge:
+    text: "-"
+    variant: note
+---
+
+import LoraCard from '@/components/LoraCard.astro';
+
+<LoraCard
+  title="WATW  United States of America"
+  slug="characters/watw/watw_united_states"
+  downloads={430}
+  rating={40}
+  tips={0}
+  score="-"
+  type="LoRA"
+  trigger="UnitedStates"
+  strength="1.0"
+  civitaiUrl="https://civitai.com/models/1988663"
+  imageUrl="/images/loras/watw_united_states.jpg"
+  compatibility="FLUX"
+/>
+
+## Info
+- **File:** `UnitedStates.safetensors`
+- **Civitai:** https://civitai.com/models/1988663/watw-united-states-of-america
+- **Trigger:** `UnitedStates` or `UnitedStates woman`
+- **Strength:** 1.0
+- **Series:** Women Around The World (WATW) - 207 countries
+
+## Description
+Part of the "Women Around The World" (#WATW) series. All WATW LoRAs are a mixture of 2-3 bodies combined with an AI face. The goal is to create unique basic types that can be customized (hair, facial features, etc.).
+
+## Best Checkpoints
+- unStable Evolution KREA
+- unStable Evolution FluXXX
+- Colossus Project Flux V12 Behemoth
+- flux1-dev-fp8
+- Standard BFL versions
+
+## Recommended Settings
+| Parameter | Value |
+|-----------|-------|
+| CFG | 1 |
+| Sampler | Flux Realistic / DPM++ 2M / Euler |
+| Schedule | Beta (alpha: 0.6, beta: 0.6) |
+| Size | 896x1152 |
+| Steps | 25-35 |
+| Distilled CFG | 2.5 |
+
+## Example Prompts
+
+### Portrait
+```
+Breathtaking over the shoulder shot photography of UnitedStates woman looking at viewer, necklace, looking over shoulders, eyelashes, fine hair detail, entire hairstyle visible, perfect eyes with iris pattern, sensual lips, nose, (perfectly sharp:1.3), realistic textures, (deep focus, focus on background:1.5), 8k uhd, dslr, ultra high quality image, film grain, Fujifilm XT3
+```
+
+### Bikini
+```
+photography of a UnitedStates woman, dressed in floral bikini, vibrant colors, textured fabric, seated, relaxed posture, looking forward, rule of thirds, projection lighting, (straight on:1.2), shot on Olympus OM-D E-M1 Mark III with M.Zuiko 12-40mm f-2.8
+```
+
+### Fashion
+```
+A high-resolution Photo of a UnitedStates woman. She wears a sleeveless, loose-fitting mini dress with a leopard print. The pattern is in natural tones (brown, beige, black) and is very striking. She pairs it with black, tight-fitting leggings. She wears gray, open-toe high-heeled ankle boots. A wide, light-colored hairband holds back her hair with a center parting. Her makeup is rather subtle, with a focus on the lips and eyes.
+```
+
+### Intimate/Bedroom
+```
+UnitedStates woman lies on a bed with floral-patterned bedding in a dimly lit, vintage room with a beige wall and tufted headboard. She wears a short, cropped, light pink ribbed sweater, her legs spread wide. Her expression is neutral to slightly sultry, gazing directly at the camera. Soft, slightly yellowish lighting casts a warm, nostalgic glow, reminiscent of 1980s photography, with a subtle film grain and warm color grading.
+```
+
+### Sports Fan
+```
+UnitedStates Woman, pretty 30yo, smile, braided pigtails, blonde hair, tall, athletic, toned abs, necklace, earrings, bracelet, natural hairy pussy, wearing Chicago Cubs bra, no panties, stands in Wrigley field in Chicago
+```
+Settings: Steps 30, CFG 1, Euler, Colossus Project Flux V12 Behemoth
+
+### Cinematic Car Scene
+```
+(hdr masterpiece, hyper realistic, ultra realistic, midday dramatic outdoor lighting, realism, lifelike, award winning photography in the style of Miles Aldridge, Alessio Albi)
+dramatic close up candid photograph, captured in three quarter profile by a digital SLR camera
+A breathtaking 22-year old UnitedStates Woman, dark tanned skin sits behind the wheel of a red 2020 Ford Mustang GT convertible. Hot summer weather leaves her with a sheen of sweat, but she is patiently waiting for some signal to jump into action. She is looking away from the viewer.
+Her wavy, messy hair is shoulder length. She wears a stylish black leather jacket in spite of the weather, accessorized with round, dark sunglasses.
+```
+Settings: Steps 35, CFG 1, DPM++ 2M, flux1-dev-fp8, Size 2432x1664
+
+## Recommended LoRA Combinations
+- Hell bent on leather LoRA V4
+
+## Notes
+- Use trigger word at strength 1.0
+- Works well for various poses and outfits
+- Good for sports, casual American themes
+- Series covers 207 countries with daily releases

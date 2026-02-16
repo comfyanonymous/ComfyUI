@@ -1,0 +1,286 @@
+---
+title: "Checkpoints & Base Models"
+description: "FLUX base models and checkpoints for ComfyUI - ranked for NSFW desktop wallpaper generation"
+---
+
+import LoraCard from '@/components/LoraCard.astro';
+
+# Checkpoints & Base Models
+
+Base models (checkpoints/UNETs) that serve as the foundation for image generation. All LoRAs are applied on top of these models.
+
+---
+
+## NSFW Desktop Wallpaper Ranking
+
+Ranking based on: quality/detail (30%), NSFW capability (25%), background sharpness (15%), community ratings (15%), LoRA compatibility (10%), resolution flexibility (5%).
+
+**Recommended landscape resolutions:** 1280x768, 1344x768, 1536x1024
+
+| Rank | Checkpoint | NSFW | Quality | Backgrounds | Tips | Best For |
+|:----:|-----------|:----:|:-------:|:-----------:|-----:|----------|
+| **1** | **Fux Capacity 5.1** | 10/10 | 9/10 | 9/10 | 4M | Explicit NSFW, film grain, diverse ethnicity |
+| **2** | **Jib Mix Flux v8** | 7/10 | 9/10 | 10/10 | 470K | Sharp backgrounds, uncensored anatomy |
+| **3** | **RedCraft REDZimage** | 9/10 | 10/10 | 8/10 | 3.4K | Ultra-realistic Asian anatomy |
+| **4** | **Fluxed Up v7.1 FP16** | 8/10 | 8/10 | 8/10 | 8M | Stable NSFW, female focus |
+| **5** | **Acorn Is Spinning v1.69** | 5/10 | 9/10 | 9/10 | 424K | Photorealism, softcore |
+| **6** | **unStable Evolution KREA** | 7/10 | 8/10 | 8/10 | 12.7K | Character LoRA consistency |
+| **7** | **Real Horny Pro V3** | 8/10 | 7/10 | 7/10 | 3K | LoRA stacking, low VRAM (NF4) |
+| **8** | **SlimNudeGirls FP8** | 6/10 | 8/10 | 7/10 | 130 | 15.7 GB, broader quality than name suggests |
+| **9** | **Fluxcstasy v1** | 6/10 | 8/10 | 7/10 | 550 | Analog/film aesthetic |
+| **10** | **getphat FLUX Reality** | 7/10 | 7/10 | 7/10 | 5.2K | POV positions, trained concepts |
+
+### Why Fux Capacity is #1 for wallpapers
+
+- **Film grain aesthetic** built-in - gives wallpapers cinematic look
+- **Camera model prompting** (Sony, Canon, Panasonic) for photographic styles
+- **3-section prompt structure** gives precise control over scene composition
+- **Diverse ethnicity** (Asian, European, African, Finnish)
+- **Full NSFW unlock** - no restrictions on poses or anatomy
+- **4M+ tips** on Civitai - community's highest confidence
+
+### Why Jib Mix is #2
+
+- **Sharpest backgrounds** of all checkpoints - critical for wallpapers where you see the whole scene
+- **Fixes excessive bokeh** that plagues other FLUX models
+- **Corrects anatomy censorship** without losing photorealism
+- **Best LoRA compatibility** for mixing styles
+- **v8 "Accentueight"** has best skin textures
+
+---
+
+## Quick Settings Reference
+
+| Checkpoint | Steps | CFG | Sampler | Scheduler |
+|-----------|:-----:|:---:|---------|-----------|
+| Fux Capacity 5.1 | 32 | 4.0 | DPM++ 2M SDE | Beta |
+| Jib Mix Flux v8 | 8-14* | 2.5-3.5 | dpmpp_2m | sgm_uniform |
+| RedCraft REDZimage | 15-25 | 1-3 | deis | Beta |
+| Fluxed Up v7.1 | 20-30 | 1.0 | DPM++ 2M | Beta |
+| Acorn Spinning v1.69 | 20-30 | 3.5 | Euler | Beta |
+| unStable Evo KREA | 25-30 | 1 (dist 2.5) | Euler | Beta (0.6/0.6) |
+| Real Horny Pro V3 | 20-30 | 3-7 | DPM++ 2M | Beta |
+| Fluxcstasy v1 | 20-30 | 3.5-7 | Euler | Normal |
+| getphat FLUX Reality | 35 | 4 | dpmpp_2m | sgm_uniform |
+| TinFlux1-dev-fp8 | 20-32 | 1.0 | Euler | Beta |
+| Persephone 2.0 | 32 | dist 4.0 | DPM++ 2M SDE | Beta |
+
+*Jib Mix with Hyper LoRA = 8-14 steps; without = 20-30 steps
+
+---
+
+## VRAM Requirements
+
+| Format | VRAM | File Size | Models |
+|--------|:----:|:---------:|--------|
+| **FP16** | 20-24 GB | ~22 GB | Fux Capacity, Fluxed Up, RedCraft, unStable Evo, Jib Mix |
+| **FP8** | 12-16 GB | ~11 GB | Acorn, SlimNudeGirls, Vision Realistic, TinFlux1 |
+| **NF4** | 8-12 GB | ~6-7 GB | Real Horny Pro, FluxUnchained |
+| **GGUF Q8** | 12-16 GB | ~12 GB | FLUX Dev Q8 |
+
+---
+
+## Usage Statistics (1,220 documented Civitai prompts)
+
+### Most Used Checkpoints
+
+| Checkpoint | Refs | Share |
+|-----------|-----:|------:|
+| **FLUX Dev** (fp8/fp16/gguf) | 62 | 38.8% |
+| **Fluxmania** (all versions) | 21 | 13.1% |
+| **Jib Mix Flux** | 10 | 6.3% |
+| **CyberRealistic** | 9 | 5.6% |
+| **FASCIUM/KREA** | 7 | 4.4% |
+| **Acorn Is Spinning** | 6 | 3.8% |
+
+### Most Used Samplers
+
+| Sampler | Share |
+|---------|------:|
+| **Euler** | 54.2% |
+| **DPM++ 2M** | 17.7% |
+| **DEIS** | 5.8% |
+| **DDIM** | 4.0% |
+
+### Most Used Settings
+
+| Setting | Most Common |
+|---------|------------|
+| Steps | **20-30** (53.4%) |
+| CFG | **1.0** (44.7%) |
+| Distilled CFG | **3.5** (76.1%) |
+| Scheduler | **Beta 0.6/0.6** (~56%) |
+| Resolution | **832x1216** portrait (43%) |
+
+### Top 10 LoRAs (by frequency across all prompts)
+
+| LoRA | Uses | Strength | Role |
+|------|-----:|:--------:|------|
+| flux_realism_lora | 62 | 0.63 | Realism |
+| MysticXXX-v6 | 55 | 0.63 | NSFW Unlock |
+| MysticXXX-v7 | 43 | 0.78 | NSFW Unlock |
+| pussydiffusion-f1 | 41 | 0.57 | Anatomy |
+| desiespresso-v2-flux | 32 | 0.39 | Ethnicity |
+| detail_enhancer_flux_v1 | 29 | 0.68 | Quality |
+| nipplediffusion-f1 | 28 | 0.59 | Anatomy |
+| SCG_Anatomy_Female_Flux | 28 | 0.94 | Anatomy |
+| cheekjob | 26 | 0.95 | Concept |
+| cars__Bikes | 26 | 0.89 | Style |
+
+### Default Recipe
+
+```
+Model:          flux1-dev-fp8
+Sampler:        Euler
+Scheduler:      Beta (0.6/0.6)
+Steps:          30
+CFG:            1.0
+Distilled CFG:  3.5
+Resolution:     832x1216 (portrait)
+LoRAs:          flux_realism_lora (0.6)
+                MysticXXX-v6 (0.6-0.7)
+                detail_enhancer_flux_v1 (0.7)
+```
+
+---
+
+## All Checkpoints
+
+### NSFW Specialized
+
+<LoraCard
+  title="Fux Capacity 5.1 FP16"
+  slug="checkpoints"
+  downloads={48469}
+  rating={2280}
+  tips={4028163}
+  score="⭐⭐⭐"
+  type="Checkpoint - #1 Wallpaper"
+  trigger=""
+  strength="N/A"
+  civitaiUrl=""
+  imageUrl=""
+  compatibility="FLUX"
+/>
+
+<LoraCard
+  title="Fluxed Up NSFW v7.1 FP16"
+  slug="checkpoints/fluxed_up_nsfw_fp16"
+  downloads={82582}
+  rating={3508}
+  tips={8022894}
+  score="⭐⭐⭐"
+  type="Checkpoint"
+  trigger=""
+  strength="N/A"
+  civitaiUrl="https://civitai.com/models/847101/fluxed-up-flux-nsfw-checkpoint"
+  imageUrl="/images/loras/fluxed_up_nsfw_fp16.jpg"
+  compatibility="FLUX"
+/>
+
+<LoraCard
+  title="Persephone Flux 2.0 NSFW/SFW"
+  slug="checkpoints"
+  downloads={12088}
+  rating={661}
+  tips={1001610}
+  score="⭐⭐⭐"
+  type="Checkpoint - Strong NSFW"
+  trigger=""
+  strength="N/A"
+  civitaiUrl="https://civitai.com/models/1775002/persephone-flux-nsfwsfw"
+  imageUrl=""
+  compatibility="FLUX"
+/>
+
+<LoraCard
+  title="getphat FLUX Reality NSFW v10 FP8"
+  slug="checkpoints"
+  downloads={65025}
+  rating={4031}
+  tips={5165}
+  score="⭐⭐⭐"
+  type="Checkpoint - Full NSFW, Trained Concepts"
+  trigger=""
+  strength="N/A"
+  civitaiUrl="https://civitai.com/models/861840/getphat-flux-reality-nsfw"
+  imageUrl=""
+  compatibility="FLUX"
+/>
+
+<LoraCard
+  title="Real Horny Pro V3 (NF4)"
+  slug="checkpoints"
+  downloads={27142}
+  rating={1027}
+  tips={3090}
+  score="⭐⭐⭐"
+  type="Checkpoint - Low VRAM"
+  trigger=""
+  strength="N/A"
+  civitaiUrl=""
+  imageUrl=""
+  compatibility="FLUX"
+/>
+
+### Photorealistic (with NSFW via LoRAs)
+
+<LoraCard
+  title="Jib Mix Flux v8 - #2 Wallpaper"
+  slug="checkpoints"
+  downloads={55100}
+  rating={1600}
+  tips={470700}
+  score="⭐⭐⭐"
+  type="Checkpoint - Sharp BGs"
+  trigger=""
+  strength="N/A"
+  civitaiUrl=""
+  imageUrl=""
+  compatibility="FLUX"
+/>
+
+<LoraCard
+  title="RedCraft REDZimage v1.5"
+  slug="checkpoints"
+  downloads={987300}
+  rating={170100}
+  tips={3400}
+  score="⭐⭐⭐"
+  type="Checkpoint - Asian"
+  trigger=""
+  strength="N/A"
+  civitaiUrl=""
+  imageUrl=""
+  compatibility="FLUX"
+/>
+
+<LoraCard
+  title="TinFlux1-dev-fp8 11GB"
+  slug="checkpoints/tinflux1_dev_fp8"
+  downloads={451}
+  rating={47}
+  tips={0}
+  score="-"
+  type="Checkpoint - Asian Enhanced"
+  trigger=""
+  strength="N/A"
+  civitaiUrl="https://civitai.com/models/1724270/tinflux1-dev-fp811gbv1"
+  imageUrl="/images/loras/tinflux1_dev_fp8.jpg"
+  compatibility="FLUX"
+/>
+
+<LoraCard
+  title="Acorn Is Spinning FLUX v1.69"
+  slug="checkpoints"
+  downloads={34719}
+  rating={1248}
+  tips={424298}
+  score="⭐⭐⭐"
+  type="Checkpoint"
+  trigger=""
+  strength="N/A"
+  civitaiUrl=""
+  imageUrl=""
+  compatibility="FLUX"
+/>

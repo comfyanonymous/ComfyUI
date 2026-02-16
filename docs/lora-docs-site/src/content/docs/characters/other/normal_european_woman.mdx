@@ -1,0 +1,118 @@
+---
+title: "Normal European Woman (EBL)"
+description: "Character for FLUX"
+downloads: 19
+rating: 2
+tips: 0
+score: "-"
+type: "Character"
+trigger: ""
+strength: "1.0"
+civitaiUrl: "https://civitai.com/models/2203426/normal-european-woman"
+compatibility: "FLUX"
+sidebar:
+  badge:
+    text: "-"
+    variant: note
+---
+
+import LoraCard from '@/components/LoraCard.astro';
+
+<LoraCard
+  title="Normal European Woman (EBL)"
+  slug="characters/other/normal_european_woman"
+  downloads={19}
+  rating={2}
+  tips={0}
+  score="-"
+  type="Character"
+  trigger=""
+  strength="1.0"
+  civitaiUrl="https://civitai.com/models/2203426/normal-european-woman"
+  imageUrl="/images/loras/normal_european_woman.jpg"
+  compatibility="FLUX"
+/>
+
+# Normal European Woman (EBL)
+
+[← Back to Index](INDEX.md)
+
+## Civitai Stats
+
+| Metric | Value |
+|--------|-------|
+| **Downloads** | 15 |
+| **👍** | 1 |
+| **Tips** | 0 |
+| **Score** | - |
+
+## Parameters
+
+| Parameter | Value |
+|-----------|-------|
+| **File** | `EBL.safetensors` |
+| **Civitai** | https://civitai.com/models/2203426/normal-european-woman |
+| **Trigger word** | `EBL` |
+| **Strength** | 1.0 |
+| **Type** | Character |
+| **Version** | v1.1 |
+
+## Description
+
+Character LoRA for generating a consistent "normal yet sensual" European woman. Trained with various face generated images until obtaining face consistency. Useful for modeling, influencer-style images, and general character work.
+
+## Character traits
+
+- Normal European appearance
+- Sensual/attractive features
+- Consistent face across generations
+- Versatile for various scenarios
+
+## Sample prompts
+
+**Prompt 1 (Simple sexy posing):**
+```
+<lora:EBL:1> EBL, sexy posing, black underwear
+```
+
+**Prompt 2 (Cowgirl scene - NSFW):**
+```
+<lora:EBL:1> EBL. A photograph of a nude woman with long hair, with a black thong, engaged in cowgirl anal sex with a muscular man. She is looking back at the camera, with her hands on her buttocks, and her small breasts visible, squat on top of the man. The man's penis is inside her anus. The scene is set in a messy garage
+```
+
+## Keywords
+
+- `EBL` - **REQUIRED** trigger word
+- `sexy posing`
+- `modeling`
+- `influencer`
+- `European woman`
+
+## Tested combinations
+
+**Combination 1 (SRPO + Cowgirl):**
+```
+<lora:EBL:1>
+<lora:srpo_256_base_oficial_model_fp16_lora:1>
+<lora:flux_anal_cowgirl:1>
+```
+
+**Combination 2 (Bare skin):**
+```
+<lora:EBL:1>
+<lora:FLUX_secrets_bare_skin_sevenof9:1>
+```
+
+## Use cases
+
+- Modeling/fashion photography
+- Influencer-style content
+- Sensual/NSFW scenes
+- Consistent character across multiple images
+
+## Notes
+
+- Always use trigger word `EBL` in prompt
+- Works with various NSFW LoRAs
+- Good face consistency across generations
+- Versatile for many scenarios and styles
