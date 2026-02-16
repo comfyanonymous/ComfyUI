@@ -699,7 +699,7 @@ class ModelPatcher:
         for key in list(self.pinned):
             self.unpin_weight(key)
 
-    def _load_list(self, prio_comfy_cast_weights=False, default_device=None):
+    def _load_list(self, for_dynamic=False, default_device=None):
         loading = []
         for n, m in self.model.named_modules():
             default = False
@@ -727,8 +727,13 @@ class ModelPatcher:
                         return 0
                     module_offload_mem += check_module_offload_mem("{}.weight".format(n))
                     module_offload_mem += check_module_offload_mem("{}.bias".format(n))
-                prepend = (not hasattr(m, "comfy_cast_weights"),) if prio_comfy_cast_weights else ()
-                loading.append(prepend + (module_offload_mem, module_mem, n, m, params))
+                # Dynamic: small weights (<64KB) first, then larger weights prioritized by size.
+                # Non-dynamic: prioritize by module offload cost.
+                if for_dynamic:
+                    sort_criteria = (module_offload_mem >= 64 * 1024, -module_offload_mem)
+                else:
+                    sort_criteria = (module_offload_mem,)
+                loading.append(sort_criteria + (module_mem, n, m, params))
         return loading
 
     def load(self, device_to=None, lowvram_model_memory=0, force_patch_weights=False, full_load=False):
@@ -1508,11 +1513,11 @@ class ModelPatcherDynamic(ModelPatcher):
             if vbar is not None:
                 vbar.prioritize()
 
-            loading = self._load_list(prio_comfy_cast_weights=True, default_device=device_to)
-            loading.sort(reverse=True)
+            loading = self._load_list(for_dynamic=True, default_device=device_to)
+            loading.sort()
 
             for x in loading:
-                _, _, _, n, m, params = x
+                *_, module_mem, n, m, params = x
 
                 def set_dirty(item, dirty):
                     if dirty or not hasattr(item, "_v_signature"):
@@ -1627,9 +1632,9 @@ class ModelPatcherDynamic(ModelPatcher):
         return freed
 
     def partially_unload_ram(self, ram_to_unload):
-        loading = self._load_list(prio_comfy_cast_weights=True, default_device=self.offload_device)
+        loading = self._load_list(for_dynamic=True, default_device=self.offload_device)
         for x in loading:
-            _, _, _, _, m, _ = x
+            *_, m, _ = x
             ram_to_unload -= comfy.pinned_memory.unpin_memory(m)
             if ram_to_unload <= 0:
                 return
