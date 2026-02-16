@@ -64,23 +64,23 @@ def get_supported_float8_types():
     float8_types = []
     try:
         float8_types.append(torch.float8_e4m3fn)
-    except:
+    except Exception:
         pass
     try:
         float8_types.append(torch.float8_e4m3fnuz)
-    except:
+    except Exception:
         pass
     try:
         float8_types.append(torch.float8_e5m2)
-    except:
+    except Exception:
         pass
     try:
         float8_types.append(torch.float8_e5m2fnuz)
-    except:
+    except Exception:
         pass
     try:
         float8_types.append(torch.float8_e8m0fnu)
-    except:
+    except Exception:
         pass
     return float8_types
 
@@ -92,7 +92,7 @@ try:
     torch_version = torch.version.__version__
     temp = torch_version.split(".")
     torch_version_numeric = (int(temp[0]), int(temp[1]))
-except:
+except Exception:
     pass
 
 lowvram_available = True
@@ -116,39 +116,39 @@ if args.directml is not None:
 
 try:
     import intel_extension_for_pytorch as ipex  # noqa: F401
-except:
+except Exception:
     pass
 
 try:
     _ = torch.xpu.device_count()
     xpu_available = torch.xpu.is_available()
-except:
+except Exception:
     xpu_available = False
 
 try:
     if torch.backends.mps.is_available():
         cpu_state = CPUState.MPS
         import torch.mps
-except:
+except Exception:
     pass
 
 try:
     import torch_npu  # noqa: F401
     _ = torch.npu.device_count()
     npu_available = torch.npu.is_available()
-except:
+except Exception:
     npu_available = False
 
 try:
     import torch_mlu  # noqa: F401
     _ = torch.mlu.device_count()
     mlu_available = torch.mlu.is_available()
-except:
+except Exception:
     mlu_available = False
 
 try:
     ixuca_available = hasattr(torch, "corex")
-except:
+except Exception:
     ixuca_available = False
 
 if args.cpu:
@@ -245,7 +245,7 @@ def get_total_memory(dev=None, torch_total_too=False):
 def mac_version():
     try:
         return tuple(int(n) for n in platform.mac_ver()[0].split("."))
-    except:
+    except Exception:
         return None
 
 total_vram = get_total_memory(get_torch_device()) / (1024 * 1024)
@@ -257,12 +257,12 @@ try:
     mac_ver = mac_version()
     if mac_ver is not None:
         logging.info("Mac Version {}".format(mac_ver))
-except:
+except Exception:
     pass
 
 try:
     OOM_EXCEPTION = torch.cuda.OutOfMemoryError
-except:
+except Exception:
     OOM_EXCEPTION = Exception
 
 XFORMERS_VERSION = ""
@@ -276,7 +276,7 @@ else:
         XFORMERS_IS_AVAILABLE = True
         try:
             XFORMERS_IS_AVAILABLE = xformers._has_cpp_library
-        except:
+        except Exception:
             pass
         try:
             XFORMERS_VERSION = xformers.version.__version__
@@ -285,9 +285,9 @@ else:
                 logging.warning("\nWARNING: This version of xformers has a major bug where you will get black images when generating high resolution images.")
                 logging.warning("Please downgrade or upgrade xformers to a different version.\n")
                 XFORMERS_ENABLED_VAE = False
-        except:
+        except Exception:
             pass
-    except:
+    except Exception:
         XFORMERS_IS_AVAILABLE = False
 
 def is_nvidia():
@@ -315,7 +315,7 @@ def amd_min_version(device=None, min_rdna_version=0):
     if arch.startswith('gfx') and len(arch) == 7:
         try:
             cmp_rdna_version = int(arch[4]) + 2
-        except:
+        except Exception:
             cmp_rdna_version = 0
         if cmp_rdna_version >= min_rdna_version:
             return True
@@ -339,7 +339,7 @@ try:
     if is_intel_xpu() or is_ascend_npu() or is_mlu() or is_ixuca():
         if args.use_split_cross_attention == False and args.use_quad_cross_attention == False:
             ENABLE_PYTORCH_ATTENTION = True
-except:
+except Exception:
     pass
 
 
@@ -358,7 +358,7 @@ try:
 
         try:
             rocm_version = tuple(map(int, str(torch.version.hip).split(".")[:2]))
-        except:
+        except Exception:
             rocm_version = (6, -1)
 
         def aotriton_supported(gpu_arch):
@@ -387,7 +387,7 @@ try:
             if any((a in arch) for a in ["gfx1200", "gfx1201", "gfx950"]):  # TODO: more arches, "gfx942" gives error on pytorch nightly 2.10 1013 rocm7.0
                 SUPPORT_FP8_OPS = True
 
-except:
+except Exception:
     pass
 
 
@@ -403,7 +403,7 @@ try:
         torch.backends.cuda.matmul.allow_fp16_accumulation = True
         PRIORITIZE_FP16 = True  # TODO: limit to cards where it actually boosts performance
         logging.info("Enabled fp16 accumulation.")
-except:
+except Exception:
     pass
 
 if torch.cuda.is_available() and torch.backends.cudnn.is_available() and PerformanceFeature.AutoTune in args.fast:
@@ -412,7 +412,7 @@ if torch.cuda.is_available() and torch.backends.cudnn.is_available() and Perform
 try:
     if torch_version_numeric >= (2, 5):
         torch.backends.cuda.allow_fp16_bf16_reduction_math_sdp(True)
-except:
+except Exception:
     logging.warning("Warning, could not set allow_fp16_bf16_reduction_math_sdp")
 
 if args.lowvram:
@@ -451,7 +451,7 @@ def get_torch_device_name(device):
         if device.type == "cuda":
             try:
                 allocator_backend = torch.cuda.get_allocator_backend()
-            except:
+            except Exception:
                 allocator_backend = ""
             return "{} {} : {}".format(device, torch.cuda.get_device_name(device), allocator_backend)
         elif device.type == "xpu":
@@ -469,7 +469,7 @@ def get_torch_device_name(device):
 
 try:
     logging.info("Device: {}".format(get_torch_device_name(get_torch_device())))
-except:
+except Exception:
     logging.warning("Could not pick default device.")
 
 
@@ -684,7 +684,7 @@ def load_models_gpu(models, memory_required=0, force_patch_weights=False, minimu
         loaded_model = LoadedModel(x)
         try:
             loaded_model_index = current_loaded_models.index(loaded_model)
-        except:
+        except ValueError:
             loaded_model_index = None
 
         if loaded_model_index is not None:
@@ -813,7 +813,7 @@ def dtype_size(dtype):
     else:
         try:
             dtype_size = dtype.itemsize
-        except: #Old pytorch doesn't have .itemsize
+        except Exception: #Old pytorch doesn't have .itemsize
             pass
     return dtype_size
 
