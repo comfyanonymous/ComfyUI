@@ -53,48 +53,6 @@ class Kandinsky5ImageToVideo(io.ComfyNode):
         return io.NodeOutput(positive, negative, out_latent, cond_latent_out)
 
 
-
-class Kandinsky5ImageToImage(io.ComfyNode):
-    @classmethod
-    def define_schema(cls):
-        return io.Schema(
-            node_id="Kandinsky5ImageToImage",
-            category="advanced/conditioning/kandinsky5",
-            inputs=[
-                io.Vae.Input("vae"),
-                io.Int.Input("batch_size", default=1, min=1, max=4096),
-                io.Image.Input("start_image"),
-            ],
-            outputs=[
-                io.Latent.Output(display_name="latent", tooltip="Latent of resized source image"),
-                io.Image.Output("resized_image", tooltip="Resized source image"),
-            ],
-        )
-
-    @classmethod
-    def execute(cls, vae, batch_size, start_image) -> io.NodeOutput:
-        height, width = start_image.shape[1:-1]
-        available_res = [(1024, 1024), (640, 1408), (1408, 640), (768, 1280), (1280, 768), (896, 1152), (1152, 896)]
-        nearest_index = torch.argmin(torch.Tensor([abs((h / w) - (height / width))for (h, w) in available_res]))
-        nh, nw = available_res[nearest_index]
-        scale_factor = min(height / nh, width / nw)
-        start_image = start_image.permute(0,3,1,2)
-        start_image = F.resize(start_image, (int(height / scale_factor), int(width / scale_factor)))
-
-        height, width = start_image.shape[-2:]
-        start_image = F.crop(
-            start_image,
-            (height - nh) // 2,
-            (width - nw) // 2,
-            nh,
-            nw,
-        )
-        start_image = start_image.permute(0,2,3,1)
-        encoded = vae.encode(start_image[:, :, :, :3])
-        out_latent = {"samples": encoded.repeat(batch_size, 1, 1, 1)}
-        return io.NodeOutput(out_latent, start_image)
-
-
 def adaptive_mean_std_normalization(source, reference, clump_mean_low=0.3, clump_mean_high=0.35, clump_std_low=0.35, clump_std_high=0.5):
     source_mean = source.mean(dim=(1, 3, 4), keepdim=True)  # mean over C, H, W
     source_std = source.std(dim=(1, 3, 4), keepdim=True)    # std over C, H, W
@@ -141,11 +99,35 @@ class NormalizeVideoLatentStart(io.ComfyNode):
         s["samples"] = samples
         return io.NodeOutput(s)
 
+
 class CLIPTextEncodeKandinsky5(io.ComfyNode):
     @classmethod
     def define_schema(cls):
         return io.Schema(
             node_id="CLIPTextEncodeKandinsky5",
+            search_aliases=["kandinsky prompt"],
+            category="advanced/conditioning/kandinsky5",
+            inputs=[
+                io.Clip.Input("clip"),
+                io.String.Input("clip_l", multiline=True, dynamic_prompts=True),
+                io.String.Input("qwen25_7b", multiline=True, dynamic_prompts=True),
+            ],
+            outputs=[
+                io.Conditioning.Output(),
+            ],
+        )
+
+    @classmethod
+    def execute(cls, clip, clip_l, qwen25_7b) -> io.NodeOutput:
+        tokens = clip.tokenize(clip_l)
+        tokens["qwen25_7b"] = clip.tokenize(qwen25_7b)["qwen25_7b"]
+
+        return io.NodeOutput(clip.encode_from_tokens_scheduled(tokens))
+class CLIPTextEncodeKandinsky5ImageToImage(io.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return io.Schema(
+            node_id="CLIPTextEncodeKandinsky5ImageToImage",
             search_aliases=["kandinsky prompt"],
             category="advanced/conditioning/kandinsky5",
             inputs=[
@@ -160,22 +142,67 @@ class CLIPTextEncodeKandinsky5(io.ComfyNode):
     def execute(cls, clip, prompt, image=None) -> io.NodeOutput:
         images = []
         if image is not None:
-            image = image.permute(0,3,1,2)
+            image = image.movedim(-1,1)
             height, width = image.shape[-2:]
-            image = F.resize(image, (int(height / 2), int(width / 2))).permute(0,2,3,1)
+            image = F.resize(image, (int(height / 2), int(width / 2))).movedim(1, -1)
             images.append(image)
         tokens = clip.tokenize(prompt, images=images)
         conditioning = clip.encode_from_tokens_scheduled(tokens)
         return io.NodeOutput(conditioning)
+
+
+PREFERED_KANDINSKY5_RESOLUTIONS = [
+    (1024, 1024),
+    (640, 1408),
+    (1408, 640),
+    (768, 1280),
+    (1280, 768),
+    (896, 1152),
+    (1152, 896)
+]
+
+
+class Kandinsky5ImageToImageScale(io.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return io.Schema(
+            node_id="Kandinsky5ImageToImageScale",
+            category="advanced/conditioning/kandinsky5",
+            description="This node resizes the image to one that is more optimal for Kandinsky5 ImageToImage.",
+            inputs=[
+                io.Image.Input("image"),
+            ],
+            outputs=[
+                io.Image.Output(),
+            ],
+        )
+
+    @classmethod
+    def execute(cls, image) -> io.NodeOutput:
+        height, width = image.shape[1:3]
+        aspect_ratio = width / height
+        _, nw, nh = min((abs(aspect_ratio - w / h), w, h) for w, h in PREFERED_KANDINSKY5_RESOLUTIONS)
+        scale_factor = min(height / nh, width / nw)
+        width, height = int(width / scale_factor), int(height / scale_factor)
+        image = F.resize(image.movedim(-1, 1), (height, width))
+        image = F.crop(
+            image,
+            (height - nh) // 2,
+            (width - nw) // 2,
+            nh,
+            nw,
+        ).movedim(1, -1)
+        return io.NodeOutput(image)
 
 class Kandinsky5Extension(ComfyExtension):
     @override
     async def get_node_list(self) -> list[type[io.ComfyNode]]:
         return [
             Kandinsky5ImageToVideo,
-            Kandinsky5ImageToImage,
+            Kandinsky5ImageToImageScale,
             NormalizeVideoLatentStart,
             CLIPTextEncodeKandinsky5,
+            CLIPTextEncodeKandinsky5ImageToImage,
         ]
 
 async def comfy_entrypoint() -> Kandinsky5Extension:
