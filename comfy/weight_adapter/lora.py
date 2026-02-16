@@ -214,6 +214,13 @@ class LoRAAdapter(WeightAdapterBase):
         else:
             return None
 
+    def calculate_shape(
+        self,
+        key
+    ):
+        reshape = self.weights[5]
+        return tuple(reshape) if reshape is not None else None
+
     def calculate_weight(
         self,
         weight,

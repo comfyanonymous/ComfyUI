@@ -3,7 +3,6 @@ from torch import Tensor, nn
 
 from comfy.ldm.flux.layers import (
     MLPEmbedder,
-    RMSNorm,
     ModulationOut,
 )
 
@@ -29,7 +28,7 @@ class Approximator(nn.Module):
         super().__init__()
         self.in_proj = operations.Linear(in_dim, hidden_dim, bias=True, dtype=dtype, device=device)
         self.layers = nn.ModuleList([MLPEmbedder(hidden_dim, hidden_dim, dtype=dtype, device=device, operations=operations) for x in range( n_layers)])
-        self.norms = nn.ModuleList([RMSNorm(hidden_dim, dtype=dtype, device=device, operations=operations) for x in range( n_layers)])
+        self.norms = nn.ModuleList([operations.RMSNorm(hidden_dim, dtype=dtype, device=device) for x in range( n_layers)])
         self.out_proj = operations.Linear(hidden_dim, out_dim, dtype=dtype, device=device)
 
     @property
