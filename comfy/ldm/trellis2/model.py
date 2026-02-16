@@ -787,8 +787,10 @@ class SparseStructureFlowModel(nn.Module):
         return h
 
 def timestep_reshift(t_shifted, old_shift=3.0, new_shift=5.0):
+    t_shifted /= 1000.0
     t_linear = t_shifted / (old_shift - t_shifted * (old_shift - 1))
     t_new = (new_shift * t_linear) / (1 + (new_shift - 1) * t_linear)
+    t_new *= 1000.0
     return t_new
 
 class Trellis2(nn.Module):
@@ -841,10 +843,13 @@ class Trellis2(nn.Module):
             out = self.shape2txt(x, timestep, context if not txt_rule else cond)
         else: # structure
             timestep = timestep_reshift(timestep)
+            orig_bsz = x.shape[0]
             if shape_rule:
                 x = x[0].unsqueeze(0)
-                timestep = timestep[0]
+                timestep = timestep[0].unsqueeze(0)
             out = self.structure_model(x, timestep, context if not shape_rule else cond)
+            if shape_rule:
+                out = out.repeat(orig_bsz, 1, 1, 1, 1)
 
         out.generation_mode = mode
         return out
