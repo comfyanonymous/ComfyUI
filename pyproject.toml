@@ -3,7 +3,43 @@ name = "ComfyUI"
 version = "0.13.0"
 readme = "README.md"
 license = { file = "LICENSE" }
-requires-python = ">=3.10"
+requires-python = "==3.11.*"
+
+dependencies = [
+    "torch==2.5.1",
+    "torchvision==0.20.1",
+    "torchaudio==2.5.1",
+    "xformers==0.0.29.post1",
+    "transformers>=4.50.3",
+    "comfyui-frontend-package==1.38.14",
+    "comfyui-workflow-templates==0.8.38",
+    "comfyui-embedded-docs==0.4.1",
+    "torchsde>=0.2.6",
+    "numpy>=1.25.0",
+    "einops>=0.8.2",
+    "tokenizers>=0.13.3",
+    "sentencepiece>=0.2.1",
+    "safetensors>=0.4.2",
+    "aiohttp>=3.11.8",
+    "yarl>=1.18.0",
+    "pyyaml>=6.0.3",
+    "pillow>=12.0.0",
+    "scipy>=1.17.0",
+    "tqdm>=4.66.5",
+    "psutil>=7.2.2",
+    "alembic>=1.18.4",
+    "sqlalchemy>=2.0.46",
+    "av>=14.2.0",
+    "comfy-kitchen>=0.2.7",
+    "comfy-aimdo>=0.1.8",
+    "requests>=2.28.1",
+    "kornia>=0.7.1",
+    "spandrel>=0.4.1",
+    "pydantic~=2.0",
+    "pydantic-settings~=2.0",
+    "setuptools>=70.2.0",
+    "opencv-python>=4.13.0.92",
+]
 
 [project.urls]
 homepage = "https://www.comfy.org/"
@@ -73,3 +109,14 @@ messages_control.disable = [
   "no-else-return",
   "unused-variable",
 ]
+
+[[tool.uv.index]]
+name = "pytorch-cu121"
+url = "https://download.pytorch.org/whl/cu121"
+
+[tool.uv.sources]
+torch = { index = "pytorch-cu121" }
+torchvision = { index = "pytorch-cu121" }
+torchaudio = { index = "pytorch-cu121" }
+xformers = { index = "pytorch-cu121" }
+
