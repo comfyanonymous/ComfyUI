@@ -138,10 +138,13 @@ def cast_bias_weight_with_vbar(s, dtype, device, bias_dtype, non_blocking, compu
         dest_size = comfy.memory_management.vram_aligned_size(xfer_source)
         offload_stream = comfy.model_management.get_offload_stream(device)
         if xfer_dest is None and offload_stream is not None:
-                xfer_dest = comfy.model_management.get_cast_buffer(offload_stream, device, dest_size, s)
-                if xfer_dest is None:
+                cast_buffer = comfy.model_management.get_aimdo_cast_buffer(offload_stream, device)
+                if cast_buffer.size() < dest_size and s is comfy.model_management.LARGEST_AIMDO_CASTED_WEIGHT[0]:
                     offload_stream = comfy.model_management.get_offload_stream(device)
-                    xfer_dest = comfy.model_management.get_cast_buffer(offload_stream, device, dest_size, s)
+                    cast_buffer = comfy.model_management.get_aimdo_cast_buffer(offload_stream, device)
+                xfer_dest = comfy_aimdo.torch.aimdo_to_tensor(cast_buffer.get(dest_size), device)
+                if dest_size > comfy.model_management.LARGEST_AIMDO_CASTED_WEIGHT[1]:
+                    comfy.model_management.LARGEST_AIMDO_CASTED_WEIGHT = (s, dest_size)
         if xfer_dest is None:
             xfer_dest = torch.empty((dest_size,), dtype=torch.uint8, device=device)
             offload_stream = None
