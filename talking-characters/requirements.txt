@@ -8,3 +8,5 @@ ffmpeg-python>=0.2.1
 pillow>=10.0.0
 numpy>=1.24.0
 torch>=2.0.0
+Flask>=3.0.0
+flask-cors>=4.0.0

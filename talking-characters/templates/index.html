@@ -1,0 +1,613 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Talking Characters - Video Generator</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+            color: #333;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        header {
+            text-align: center;
+            color: white;
+            margin-bottom: 40px;
+            animation: slideDown 0.5s ease-out;
+        }
+
+        header h1 {
+            font-size: 3em;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+
+        header p {
+            font-size: 1.1em;
+            opacity: 0.9;
+        }
+
+        .content {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            animation: fadeIn 0.6s ease-out;
+        }
+
+        @media (max-width: 768px) {
+            .content {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .card {
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 15px 40px rgba(0,0,0,0.3);
+        }
+
+        .card h2 {
+            color: #667eea;
+            margin-bottom: 20px;
+            font-size: 1.8em;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #333;
+        }
+
+        input, select, textarea {
+            width: 100%;
+            padding: 12px 15px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            font-size: 1em;
+            transition: border-color 0.3s ease;
+            font-family: inherit;
+        }
+
+        input:focus, select:focus, textarea:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        textarea {
+            min-height: 100px;
+            resize: vertical;
+        }
+
+        button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 12px 30px;
+            border: none;
+            border-radius: 8px;
+            font-size: 1em;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            width: 100%;
+        }
+
+        button:hover:not(:disabled) {
+            transform: scale(1.05);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
+        }
+
+        button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .status-box {
+            background: #f8f9fa;
+            border-left: 4px solid #667eea;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 20px;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background: #ddd;
+            border-radius: 4px;
+            overflow: hidden;
+            margin: 10px 0;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+
+        .video-list {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .video-item {
+            background: #f8f9fa;
+            padding: 15px;
+            margin-bottom: 10px;
+            border-radius: 8px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .video-item video {
+            max-width: 100px;
+            border-radius: 5px;
+        }
+
+        .video-info {
+            flex: 1;
+        }
+
+        .video-info h4 {
+            margin-bottom: 5px;
+        }
+
+        .video-info p {
+            font-size: 0.9em;
+            color: #666;
+            margin: 2px 0;
+        }
+
+        .btn-small {
+            padding: 8px 15px;
+            font-size: 0.9em;
+            margin: 0 5px;
+            width: auto;
+            display: inline-block;
+        }
+
+        .btn-download {
+            background: #28a745;
+        }
+
+        .btn-delete {
+            background: #dc3545;
+        }
+
+        .message {
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 15px;
+            display: none;
+        }
+
+        .message.show {
+            display: block;
+            animation: slideUp 0.3s ease-out;
+        }
+
+        .message.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .message.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .message.info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(102, 126, 234, 0.3);
+            border-radius: 50%;
+            border-top-color: #667eea;
+            animation: spin 1s linear infinite;
+            vertical-align: middle;
+            margin-right: 10px;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        @keyframes slideDown {
+            from {
+                opacity: 0;
+                transform: translateY(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes slideUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .stat-item {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 8px;
+            text-align: center;
+        }
+
+        .stat-item .value {
+            font-size: 2em;
+            font-weight: bold;
+        }
+
+        .stat-item .label {
+            font-size: 0.9em;
+            opacity: 0.9;
+        }
+
+        .tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            border-bottom: 2px solid #ddd;
+        }
+
+        .tab {
+            padding: 10px 20px;
+            cursor: pointer;
+            background: none;
+            border: none;
+            border-bottom: 3px solid transparent;
+            color: #666;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            width: auto;
+        }
+
+        .tab.active {
+            color: #667eea;
+            border-bottom-color: #667eea;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🎬 Talking Characters</h1>
+            <p>Generate AI videos with talking characters</p>
+        </header>
+
+        <div class="content">
+            <!-- Generator Panel -->
+            <div class="card">
+                <h2>📹 Video Generator</h2>
+
+                <div class="stats">
+                    <div class="stat-item">
+                        <div class="value" id="status-indicator">●</div>
+                        <div class="label">Status</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="value" id="video-count">0</div>
+                        <div class="label">Videos</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="value" id="progress-display">0%</div>
+                        <div class="label">Progress</div>
+                    </div>
+                </div>
+
+                <form id="generate-form">
+                    <div class="form-group">
+                        <label for="character">Character</label>
+                        <select id="character" required>
+                            <option value="">Select a character...</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="tts-engine">TTS Engine</label>
+                        <select id="tts-engine" required>
+                            <option value="piper">Piper (Polish)</option>
+                            <option value="bark">Bark (Natural)</option>
+                            <option value="gtts">Google TTS</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="dialogue-text">What should they say?</label>
+                        <textarea id="dialogue-text" placeholder="Enter dialogue text..." required></textarea>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="output-name">Output Name (optional)</label>
+                        <input type="text" id="output-name" placeholder="my_video">
+                    </div>
+
+                    <button type="submit" id="generate-btn">Generate Video</button>
+
+                    <div id="message" class="message"></div>
+
+                    <div class="status-box">
+                        <div id="status-text">Ready to generate</div>
+                        <div class="progress-bar">
+                            <div class="progress-fill" id="progress-bar"></div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+
+            <!-- Videos Panel -->
+            <div class="card">
+                <h2>🎥 Generated Videos</h2>
+
+                <div id="video-list" class="video-list">
+                    <p style="text-align: center; color: #999; padding: 40px 20px;">
+                        No videos yet. Generate one to get started!
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = "/api";
+
+        // Load characters on startup
+        async function loadCharacters() {
+            try {
+                const response = await fetch(`${API_URL}/characters`);
+                const characters = await response.json();
+
+                const select = document.getElementById("character");
+                select.innerHTML = '<option value="">Select a character...</option>';
+
+                characters.forEach(char => {
+                    const option = document.createElement("option");
+                    option.value = char.id;
+                    option.textContent = char.name;
+                    select.appendChild(option);
+                });
+            } catch (error) {
+                showMessage("Error loading characters", "error");
+                console.error(error);
+            }
+        }
+
+        // Load videos on startup and periodically
+        async function loadVideos() {
+            try {
+                const response = await fetch(`${API_URL}/videos`);
+                const videos = await response.json();
+
+                const list = document.getElementById("video-list");
+
+                if (videos.length === 0) {
+                    list.innerHTML = `
+                        <p style="text-align: center; color: #999; padding: 40px 20px;">
+                            No videos yet. Generate one to get started!
+                        </p>
+                    `;
+                } else {
+                    list.innerHTML = videos.map(video => `
+                        <div class="video-item">
+                            <div class="video-info">
+                                <h4>${video.name}</h4>
+                                <p>${(video.size / 1024 / 1024).toFixed(1)}MB</p>
+                            </div>
+                            <button class="btn-small btn-download" onclick="downloadVideo('${video.filename}')">
+                                Download
+                            </button>
+                            <button class="btn-small btn-delete" onclick="deleteVideo('${video.filename}')">
+                                Delete
+                            </button>
+                        </div>
+                    `).join("");
+
+                    document.getElementById("video-count").textContent = videos.length;
+                }
+            } catch (error) {
+                console.error("Error loading videos:", error);
+            }
+        }
+
+        // Check generation status
+        async function checkStatus() {
+            try {
+                const response = await fetch(`${API_URL}/status`);
+                const status = response.json();
+                return status;
+            } catch (error) {
+                console.error("Error checking status:", error);
+            }
+        }
+
+        // Update status display
+        async function updateStatus() {
+            const status = await checkStatus();
+
+            if (status.active) {
+                document.getElementById("status-indicator").textContent = "●";
+                document.getElementById("status-indicator").parentElement.parentElement.style.color = "#ffc107";
+                document.getElementById("status-text").textContent = status.message || "Generating...";
+                document.getElementById("progress-display").textContent = status.progress + "%";
+                document.getElementById("progress-bar").style.width = status.progress + "%";
+            } else {
+                document.getElementById("status-indicator").textContent = "✓";
+                document.getElementById("status-indicator").parentElement.parentElement.style.color = "#28a745";
+
+                if (status.error) {
+                    document.getElementById("status-text").textContent = "Error: " + status.error;
+                } else if (status.output_file) {
+                    document.getElementById("status-text").textContent = "Complete! Video: " + status.output_file;
+                    loadVideos();
+                } else {
+                    document.getElementById("status-text").textContent = "Ready to generate";
+                }
+            }
+        }
+
+        // Generate video
+        document.getElementById("generate-form").addEventListener("submit", async (e) => {
+            e.preventDefault();
+
+            const character = document.getElementById("character").value;
+            const text = document.getElementById("dialogue-text").value;
+            const ttsEngine = document.getElementById("tts-engine").value;
+            const outputName = document.getElementById("output-name").value;
+
+            if (!character || !text) {
+                showMessage("Please fill in all required fields", "error");
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_URL}/generate`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        character,
+                        text,
+                        tts_engine: ttsEngine,
+                        output_name: outputName || `${character}_video`
+                    })
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    showMessage("Generation started! This may take a few minutes...", "info");
+                    document.getElementById("generate-btn").disabled = true;
+
+                    // Poll status
+                    const interval = setInterval(() => {
+                        updateStatus();
+                        checkStatus().then(status => {
+                            if (!status.active) {
+                                clearInterval(interval);
+                                document.getElementById("generate-btn").disabled = false;
+                            }
+                        });
+                    }, 2000);
+                } else {
+                    showMessage("Error: " + (data.error || "Unknown error"), "error");
+                }
+            } catch (error) {
+                showMessage("Error generating video: " + error.message, "error");
+            }
+        });
+
+        // Download video
+        async function downloadVideo(filename) {
+            window.location.href = `${API_URL}/download/${filename}`;
+        }
+
+        // Delete video
+        async function deleteVideo(filename) {
+            if (!confirm("Delete this video?")) return;
+
+            try {
+                const response = await fetch(`${API_URL}/delete/${filename}`, { method: "DELETE" });
+
+                if (response.ok) {
+                    showMessage("Video deleted", "success");
+                    loadVideos();
+                } else {
+                    showMessage("Error deleting video", "error");
+                }
+            } catch (error) {
+                showMessage("Error: " + error.message, "error");
+            }
+        }
+
+        // Show message
+        function showMessage(text, type = "info") {
+            const msg = document.getElementById("message");
+            msg.textContent = text;
+            msg.className = `message show ${type}`;
+
+            setTimeout(() => {
+                msg.classList.remove("show");
+            }, 5000);
+        }
+
+        // Initialize on load
+        window.addEventListener("load", () => {
+            loadCharacters();
+            loadVideos();
+            updateStatus();
+
+            // Update status every 2 seconds
+            setInterval(updateStatus, 2000);
+
+            // Reload videos every 30 seconds
+            setInterval(loadVideos, 30000);
+        });
+    </script>
+</body>
+</html>
