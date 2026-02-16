@@ -1,41 +1,39 @@
 ---
 title: "Full Female Anatomy Fineart"
-description: "LoRA for FLUX"
-downloads: 0
-rating: 0
-tips: 0
-score: "-"
+description: "Anatomy / NSFW LoRA for FLUX"
+downloads: 20721
+rating: 990
+tips: 240
+score: "⭐⭐⭐"
 type: "LoRA"
 trigger: "None (use keywords)"
-strength: "1.0"
-civitaiUrl: ""
+strength: "0.3-1.0"
+civitaiUrl: "https://civitai.com/models/668646/full-female-anatomy-fineart-nudity-flux-lora-nsfw-breastspussyassand-more"
 compatibility: "FLUX"
 sidebar:
   badge:
-    text: "-"
+    text: "⭐⭐⭐"
     variant: note
 ---
 
-import LoraCard from '../../../../components/LoraCard.astro';
+import LoraCard from '@/components/LoraCard.astro';
 
 <LoraCard
   title="Full Female Anatomy Fineart"
   slug="body-types/general/full_female_anatomy_fineart"
-  downloads={0}
-  rating={0}
-  tips={0}
-  score="-"
+  downloads={20721}
+  rating={990}
+  tips={240}
+  score="⭐⭐⭐"
   type="LoRA"
   trigger="None (use keywords)"
-  strength="1.0"
-  civitaiUrl=""
-  imageUrl=""
+  strength="0.3-1.0"
+  civitaiUrl="https://civitai.com/models/668646/full-female-anatomy-fineart-nudity-flux-lora-nsfw-breastspussyassand-more"
+  imageUrl="/images/loras/full_female_anatomy_fineart.jpg"
   compatibility="FLUX"
 />
 
 # Full Female Anatomy Fineart
-
-[Back to BODY_TYPES Index](INDEX.md)
 
 ## Overview
 
@@ -65,54 +63,11 @@ Trigger: None (keyword-based)
 ```
 
 ### Keywords
-- nude
-- naked
-- topless
-- bottomless
-- correct anatomy
-- fineart
-- artistic nude
-- natural body
-- full body
-- anatomically correct
-
-### Example Prompts
-
-**Classic Fineart Nude:**
-```
-professional fine art nude photography of a beautiful woman, nude, correct anatomy, natural body, studio lighting, elegant pose, artistic composition, high detail
-<lora:anatomy_fineart_nudity_by_caith:0.8>
-```
-
-**Artistic Portrait:**
-```
-artistic nude portrait, naked woman, fineart, natural lighting, anatomically correct, soft shadows, professional photography
-<lora:anatomy_fineart_nudity_by_caith:0.7>
-```
-
-**Full Body Study:**
-```
-full body nude photo, correct anatomy, natural body, artistic pose, dramatic lighting, fineart photography, beautiful composition
-<lora:anatomy_fineart_nudity_by_caith:0.9>
-```
-
-**Partial Nude:**
-```
-topless woman, artistic nude, fineart, correct anatomy, natural breasts, soft lighting, elegant pose, professional photo
-<lora:anatomy_fineart_nudity_by_caith:0.6>
-```
-
-**Dramatic Lighting:**
-```
-artistic nude with dramatic shadows, naked, correct anatomy, fineart photography, chiaroscuro lighting, professional studio
-<lora:anatomy_fineart_nudity_by_caith:0.8>
-```
-
-**Natural Setting:**
-```
-nude woman in natural setting, bottomless, correct anatomy, outdoor lighting, artistic composition, nature photography
-<lora:anatomy_fineart_nudity_by_caith:0.7>
-```
+- nude, naked, topless, bottomless
+- correct anatomy, anatomically correct
+- fineart, artistic nude
+- natural body, full body
+- scg-anatomy-female
 
 ## Strength Guide
 
@@ -123,17 +78,282 @@ nude woman in natural setting, bottomless, correct anatomy, outdoor lighting, ar
 | 0.8-0.9 | Strong anatomical accuracy, detailed features |
 | 1.0 | Maximum effect, highly detailed anatomy |
 
-## Tips
+---
 
-- Start with strength 0.6-0.8 for balanced results
-- Lower strength (0.3-0.5) for subtle improvements
-- Higher strength (0.9-1.0) for maximum anatomical detail
-- Works exceptionally well with fineart and artistic prompts
-- Trained on 4K images for high-quality output
-- Excels at breast and nipple accuracy
-- No dark dots or artifacts on nipples
-- Use "correct anatomy" keyword for emphasis
-- Pairs beautifully with artistic lighting prompts
+## Civitai Example Prompts
+
+### Fashion / Catwalk
+
+**Nude Catwalk - Pink Hair Supermodel:**
+```
+A completely naked supermodel with pink hair walks naked along a catwalk, with an audience to her left and right. In the background, 'FINEART' is written in large letters. Highly professional fashion photo.
+```
+
+### Artistic / Fine Art
+
+**Film Noir - Auburn Woman with Cigar:**
+```
+A striking portrait of a 26-year-old woman is presented, her gaze direct and captivating, radiating a quiet confidence and a subtle rebellious spirit, captured in a cinematic, moody lighting style reminiscent of classic film noir, focusing on a raw and authentic portrayal of character. Her long, flowing hair, a cascade of rich auburn and copper tones, spills down her shoulders and back, partially obscuring her (topless:1.95) form while adding a touch of untamed beauty, the strands catching the light and creating a soft halo effect around her face. The woman's skin possesses a natural luminosity, subtly highlighting the delicate contours of her features, and a faint dusting of freckles across her nose and cheeks suggests a history of sun-kissed days.
+She holds a lit cigar between her fingers, the smoke curling upwards, adding an element of mystery and intrigue to the composition, the ember glowing warmly against her skin, and the aroma subtly hinted at in the scene. Her expression is complex, a blend of strength and vulnerability, hinting at a depth of experience beyond her years, and a quiet introspection that draws the viewer in. She wears distressed, ripped, and unbuttoned jeans, revealing a glimpse of her torso, the fabric clinging loosely to her frame, and the overall aesthetic evoking a sense of casual defiance and a rejection of conventional beauty standards.
+The background is a deep, textured wall, painted in shades of charcoal grey and dark brown, providing a stark contrast to the woman's vibrant hair and skin, and the lighting is predominantly soft and diffused, with a single, focused light source illuminating her face and upper body, creating dramatic shadows and highlights that emphasize her features. The composition is framed tightly around her, focusing on her face and upper body, and the overall feeling is one of intimacy and vulnerability, as if the viewer is privy to a private moment. The image aims to capture a sense of raw beauty and quiet strength, portraying a woman who is comfortable in her own skin and unapologetic about her individuality. The scene is visually arresting, and evokes a feeling of timeless elegance and understated power.
+```
+Settings: Steps 50, CFG 2, Sampler deis_2m_ddim_uniform, Size 1024x1024, Model flux1DevNSFWUNLOCKEDFp16_v30FP16
+
+**Studio Portrait - Checkered Skirt (bardzo fajny efekt, do przyszlych workflows):**
+```
+A full-length studio portrait captures a young woman in a relaxed, contemplative pose, bathed in soft, diffused lighting, showcasing a natural and intimate aesthetic, with a focus on capturing her subtle beauty and understated elegance, set against a backdrop of sheer, flowing curtains that add a touch of ethereal softness to the overall composition. The subject, positioned slightly off-center, exhibits a gentle curve of her spine, her shoulders relaxed, and her gaze directed slightly downwards, creating a sense of quiet introspection and vulnerability, evoking a mood of serene contemplation and understated charm. She is partially clothed, wearing a loose-fitting, blue and white checkered short skirt that drapes loosely around her waist, complementing the delicate curve of her hips, and a simple, dark blue wristband adorns her left wrist, adding a subtle touch of personal style and understated detail.
+The lighting is carefully orchestrated to highlight the contours of her body, creating a play of light and shadow that enhances the natural beauty of her skin, emphasizing her delicate features, and softening any harsh lines, while the shallow depth of field gently blurs the background, drawing the viewer's attention solely to the subject, ensuring that she remains the focal point of the image, and creating a sense of intimacy and connection, as if the viewer is privy to a private moment. The composition utilizes the rule of thirds, placing her along the vertical lines, contributing to a balanced and visually appealing arrangement, and avoiding a static or predictable layout. The color palette is subdued and harmonious, with the blues of the skirt and wristband complementing the soft tones of her skin, creating a cohesive and aesthetically pleasing visual experience.
+The camera lens appears to be a medium focal length, capturing a natural perspective without excessive distortion, while the aperture is set to a relatively wide setting, creating a shallow depth of field that isolates the subject from the background, and rendering the curtains with a soft, dreamy quality, enhancing the overall feeling of intimacy and vulnerability. The image is rendered in a high-resolution format, allowing for intricate details to be observed, showcasing the texture of her skin, the subtle sheen of the fabric, and the delicate nuances of her expression. Post-processing has been applied to enhance the natural tones, soften the highlights, and subtly reduce any blemishes, ensuring that the image appears clean, polished, and visually appealing, while retaining a sense of authenticity and natural beauty. The overall effect is a captivating and intimate portrait that celebrates the quiet beauty and understated elegance of the subject.
+```
+Settings: Steps 16, CFG 3.5, Sampler dpmpp_2m_sgm_uniform, Size 1024x1024, Model flux_dev
+
+**Analog Doorway - Kodachrome Style:**
+```
+analog film photo image depicts a woman standing in an open doorway, her body partially exposed as she reaches up to touch the top of the frame. She has long blonde hair and is wearing white underwear with a floral pattern. Her arms are stretched out to the sides, and her head is tilted back, revealing her bare breasts.
+* The woman's body is positioned at an angle, with her left shoulder slightly higher than her right.
+    + Her left arm is extended upwards, while her right arm is bent at the elbow and held out to the side.
+    + Her torso is turned towards the camera, but her face is not visible due to the angle of her head.
+* The doorway behind her is made of wood and has a white frame. It appears to be an exterior door, with a small window on either side of the entrance.
+    + The door is slightly ajar, allowing a sliver of light to enter from outside.
+    + A curtain or blind hangs in front of the window on the right side of the door.
+Overall, the image suggests that the woman is posing for a photo shoot or artistic expression, rather than simply standing in an open doorway. The composition and lighting of the image are carefully considered to create a sense of intimacy and vulnerability. . faded film, desaturated, 35mm photo, grainy, vignette, vintage, Kodachrome, Lomography, stained, highly detailed, found footage
+```
+Settings: Steps 32, CFG 3.5, Sampler dpmpp_2m_sgm_uniform, Size 1024x1024, Model flux1-dev-fp8
+
+**Andy Kehoe Digital Painting Style:**
+```
+[digital painting by ((Andy Kehoe)):high detail raw amateur color photo:0.99] of a girl's face and cleavage, (large eyes, sultry smirk, viewed from an angle:0.80)
+```
+Settings: Steps 20, CFG 1, Sampler Euler, Size 896x1152
+
+**Roses - Ethereal:**
+```
+young naked woman falls into a scattering of roses, petite, awesome, backlight, HDR, 8K, award-winning photography, best style, correct fingers, accurate anatomy, trending, most liked, detailerlora, midjourneyv6.1
+```
+Settings: Steps 42, CFG 3, Size 832x1216
+
+**Glass Bath - Soap Bubbles:**
+```
+young naked woman in glass bath, foam, soap bubbles, awesome, backlight, ethernal, HDR, 8K, award-winning photography, best style, correct fingers, accurate anatomy, trending, most liked, detailerlora, midjourneyv6.1
+```
+Settings: Steps 44, CFG 3.5, Size 832x1216
+
+**Graffiti Art Poster:**
+```
+young naked woman handing graffiti art poster in provocative and outrageous manner, 8K, award-winning photography, correct fingers, accurate anatomy, perfect bodyshape, artful, masterpiece, by famous photographer
+```
+Settings: Steps 46-48, CFG 3, Size 832x1216
+
+**Graffiti Art Poster (with detailerlora):**
+```
+young naked woman handing graffiti art poster in provocative and outrageous manner, 8K, award-winning photography, correct fingers, accurate anatomy, perfect bodyshape, artful, masterpiece, by famous photographer, detailerlora
+```
+Settings: Steps 46, CFG 3.5, Size 832x1216
+
+**E-girl Neon:**
+```
+provocative outrageous scandalous nymphomania shot taken by famous photographer, 8K, award-winning photography, neon, e-girl
+```
+Settings: Steps 46, CFG 3.5, Size 832x1216
+
+### Historical / Period Settings
+
+**Degas Studio - Ballerina:**
+```
+The scene is artist Edgar Degas's 19-century studio, with Impressionist sketches of ballerinas on the wall. The studio is messy, and there is an easel with a partially completed sketch of a ballerina in the background. The room is old-fashioned, with wood paneling and oil lamps and a fireplace with a blazing fire.
+The focus of the realistic scene is a petite brunette woman dressed as a ballerina posing for a portrait. The woman is wearing a light-blue skimpy thong, with her hair up in a ballerina bun. The woman is topless with small breasts. She has a soft smile and is not wearing any makeup. She is posing facing the viewer.
+The partially completed sketch in the background depicts three topless ballerinas. The background is out of focus and the topless women are in focus.
+```
+Settings: Steps 30, CFG 3.5, Size 832x1216
+
+**Renoir Studio - Spanish Woman:**
+```
+The scene is artist Pierre August Renoir's 19th-century studio in the 1880s, with Impressionist oil paintings and sketches on the wall. The studio is messy, and there is an easel with an Impressionist oil painting by Renoir in the background. The room is old-fashioned, with wood paneling and oil lamps and a fireplace with a blazing fire.
+The close-up focus of the realistic photo is a nude Spanish woman (28 years old) with pretty hazel eyes standing in the artist's studio. Her torso nearly fills the frame. She is fully nude. Her breasts are small, round, and firm. She is strong, stocky, and athletic. She has a thoughtful expression. Her dark curly hair is cut in a messy bob. Her skin is pale. She has skin moles. She is facing the viewer.
+The oil painting by Renoir in the background depicts the same woman. The background is out of focus and the woman is in focus.
+small nipples, scg-anatomy-female
+```
+Settings: Steps 50, CFG 5, Size 832x1216
+
+**Victorian Bedroom - Sign:**
+```
+Victorian era bedroom, candlelight. 25 year old sexy nude girl with long wavy white hair is laying on her back and spread her legs to show her vagina. She is a sexy supermodel and smiles. She holds a handwritten sign that reads "Will F*CK for Buzz!"
+```
+Settings: Steps 40, CFG 3.5, Size 832x1216 (img2img)
+
+**19th Century Insane Asylum - Jan Saudek Style:**
+```
+BREATHTAKING realistic 16K RAW photograph OF A BEAUTIFUL short-haired blonde TOTALLY NUDE naked 24-year-old woman in a 19th century INSANE ASYLUM, she has BIG voluptuous TOTALLY NAKED BREASTS with large areolas, realistic skin texture with natural skin imperfections, trimmed blond pussy, the photo captures the FEELINGS OF intense grieving and sweet sorrow and otherwordly desolation, an open window with the view of a MESMERIZING WINTER GARDEN in the background, photorealism, cinematic horror, deep focus, sophisticated color grading, award-winning erotic explicit nsfw photograph trending on ArtStation, masterpiece by Jan Saudek
+```
+Settings: Steps 30, CFG 3, Sampler Euler
+
+### Nature / Outdoor Settings
+
+**Eden - Collecting Flowers:**
+```
+paradise on Earth, the most beautiful 25-year-old ADULT female with long blond hair and a tender smile, totally nude, collecting flowers, perfect nude natural breasts, hyper-realistic skin imperfections, tiny moles and freckles on forearms, intricate details, cinematic, professional lighting, soft shadows, volumetric light scattering, God rays, award winning erotic photography, against a backdrop of EDEN
+```
+Settings variant A: Steps 32, CFG 4, Sampler Euler
+Settings variant B: Steps 31, CFG 4, Sampler Euler
+
+**Snowy Forest - Exhibitionism:**
+```
+A high-resolution photograph captures a young woman standing confidently in a snowy forest, smiling playfully at the viewer. She has light skin, long blonde hair, and blue eyes. Wearing a light blue sweater lifted to reveal her full, round breasts with visible nipples and a bare abdomen with a mole near her navel, she also dons a cream-colored beanie and knee-high white thigh-high socks.
+The background features dense evergreen trees covered in snow, creating a serene atmosphere. The woman is bottomless, revealing natural pubic hair. The scene is bright with natural light reflecting off the snow, highlighting her figure. The image exudes exhibitionism and public indecency, capturing a moment of bold self-expression in a winter setting. The composition is realistic and photorealistic, blending nature and human form captivatingly.
+```
+Settings: Steps 30, CFG 3.5, Size 832x1216
+
+**Forest Selfie:**
+```
+a naked woman sitting on a tree stump in the forest, iphone selfie 2021
+```
+
+**Tiger in Brutalist Complex (fajna poza, dosyc seksowna, do przyszlych workflows):**
+```
+mastperice, aesthetic, balanced compostion, natural colours, realism, a beautiful naked girl lounging in a brutalist complex with her pet tiger, the tiger's ferocious nature is belied by it's relaxed pose with the girl leaning against it while laying on her side, her head propped up by one hand, (she and the tiger are looking directly at the viewer), her other hand on her breast, framing her nipple with her fingers, composition focused on enhanced feminine beauty, beautiful face, innocent beauty, supermodel face, neutral eye makeup, long wet dark hair, 25 years old, makeup, eyes half-closed, head tilted back, female orgasm, parted lips, perfect lips, slender hourglass figure, naked, flat_chested, small perky breasts, detailed natural pale areolas, realistic nipples, thick thighs, perfect labia, labia, wet body, low lighting, late evening, fine art photography, grainy 35mm, cinematic panavision, cinematic, subtle grain,. zilcova, IMG_123141.CR2, woman.jpg, perfect anatomy,
+```
+Settings: Steps 50, CFG 3.5, Size 832x1216
+
+### Sci-Fi / Fantasy
+
+**Space Station - Asian Woman (dosyc ciekawa poza):**
+```
+The scene is a realistic space station in orbit over Saturn. The planet is visible through a large round window. There are displays and instrument panels on the walls.
+The focus of the hyperrealistic scene is a curvy nude Asian woman floating in zero gravity. She has medium breasts and black hair in a low ponytail. She is reaching up to press a button on one of the instrument panels.
+```
+Settings: Steps 30, CFG 5, Size 1024x1024
+
+**Adam and Eve:**
+```
+A full-body shot of a completely nude AndroFlux man. He has an erect penis. Next to him stands a completely nude woman. She has a naked vagina, pussy. They are standing side-by-side in heaven, waving their hands, looking at the viewer. There is a caption at the bottom that says - "Adam and Eve".
+```
+Settings: Steps 50, CFG 3.5, Size 832x1216
+
+### Profession / Role-Play
+
+**Swedish Secretary - Office:**
+```
+A stock image captures a nude swedish female secretary in an office setting. She has a pretty face, the face of an swedish actress or supermodel. She sits at a desk, her posture professional. Her physical features include long, wavy blonde shiny hair, pale skin, full breasts with pink nipples, and a neatly trimmed pubic area. She wears gold-hooped earrings, a silver watch, rectangular-framed glasses, and black high-heel shoes. She is sitting with her legs slightly spread. She vagina, trimmed pubic hair are visible in between her thighs. She is adjusting her glasses. The desk has a computer, papers, and a coffee cup. The background features a neutral wall with a calendar and diplomas. The photo is taken with a Canon EOS 5D Mark IV using a 50mm f/1.4 USM lens. The shot angle is eye-level, with exposure settings of ISO 400, f/5.6, and 1/125s. Softbox lighting provides even illumination. The composition follows the rule of thirds, with sharp focus on the secretary's face and a shallow depth of field. The image highlights her natural beauty and the matter-of-fact nature of her nudity in a professional environment.
+```
+Settings: Steps 50, CFG 3.5, Size 832x1216
+
+**Air Hostess - Bottomless (variant A):**
+```
+A provocative, high-resolution photograph captures a sexy air hostess serving a passenger, with the focus on her curvaceous buttocks. She is bent over, her back facing the camera, offering a tantalizing view of her bottomless form. Her uniform consists of a crisp white blouse neatly tucked into a tailored navy blue jacket that fits snugly around her waist, emphasizing her hourglass figure. She is notably not wearing a skirt or any bottoms, revealing her smooth, round ass and a glimpse of her pussy from behind.
+Her long, wavy dark hair is styled elegantly, cascading down her back, and she wears a silk scarf tied neatly around her neck, adding a touch of sophistication to her ensemble. Her makeup is subtle yet enhancing, with a touch of lipstick highlighting her lips. She wears a pair of black, high-heeled pumps that elongate her legs, and sheer, black stockings that accentuate her calves and thighs, adding a layer of allure to her exposed lower half.
+Her posture is inviting as she leans forward to place a tray of refreshments on the passenger's table, her hips slightly raised to emphasize her curvaceous form. The background of the photograph is the interior of an airplane cabin, with rows of seats and the muted hum of activity suggesting a busy flight. The lighting is soft and diffused, casting a gentle glow that highlights the contours of her buttocks and the delicate folds of her exposed skin.
+```
+Settings: Steps 30, CFG 4.5, Size 832x1216
+
+**Air Hostess - Bottomless (variant B):**
+Same prompt but with "vagina" instead of "pussy".
+Settings: Steps 35, CFG 4.5, Size 832x1216
+
+### Text on Signs / Clothing
+
+**BBC T-shirt - Blonde:**
+```
+photorealistic shot of a young woman with long blonde hair stands by a window, hands behind her back, petit body, ribs, large breasts with piercing nipples showing through the tshirt,She is wearing tight short black t-shirt with white text in a reading ("MADE FOR BBC") and underwear, standing in a softly lit room. Looking at viewer. The background features lace curtains and a leafy houseplant. A vase with dried flowers sits on a wooden table nearby
+```
+Settings: Steps 50, CFG 5, Size 832x1216
+
+**BBC T-shirt - Brunette:**
+```
+photorealistic shot of a young woman with short brown hair stands by a window, hands behind her back, petit body, ribs, small breasts with piercing nipples showing through the tshirt, She is wearing tight short white t-shirt with black text in a reading ("BBC ADDICTED SLUT") and underwear, standing in a softly lit room. Looking at viewer. The background features lace curtains and a leafy houseplant. A vase with dried flowers sits on a wooden table nearby
+```
+Settings: Steps 50, CFG 5, Size 832x1216
+
+**Tramp Stamp - Pink Room (fajny efekt z napisem):**
+```
+8k HDR RAW photo, focus on a pretty nude woman's butt, wearing a blouse. She is bent over a table in a pink girly room with teddy bears. There is a tramp stamp tattoo on her lower back above her butt that says "Insert penis here" over her butt
+```
+Settings: Steps 20, CFG 3.5, Size 832x1216
+
+**Tramp Stamp - Nerd Room (fajny efekt z napisem):**
+```
+A photo focus on a pretty nude woman's butt, wearing a sexy pijamas. She is bent over a table in a nerd room with videogames. There is a visible tramp stamp tattoo on her lower back above her butt that say "buzz please" over her butt.
+```
+Settings: Steps 36, CFG 5.5, Size 832x1216
+
+**Cowgirl Sex - Sign:**
+```
+living room, sunshine. 25 year old, sexy , having sex, POV cowgirl, vaginal penetration, penis,. She is a supermodel with green eyes, blonde hair, and smiles. She holds a handwritten sign that reads "doing it for the buzz"
+```
+Settings: Steps 50, CFG 3.5, Size 832x1216
+
+**Lingerie - Sign:**
+```
+living room, sunshine. 25 year old woman,, she is a supermodel wearing black lingerie, with blue eyes, red hair, and smiles. She holds a handwritten sign that reads "doing it for the buzz"
+```
+Settings: Steps 50, CFG 3.5, Size 832x1216
+
+**Lingerie - Playful Sign:**
+```
+living room, sunshine. 25 year old woman,, she is a supermodel wearing black lingerie, with blue eyes, red hair, and has slutty, playful smile.. She holds a handwritten sign that reads "Let me know what you want! comment below!"
+```
+Settings: Steps 50, CFG 3.5, Size 832x1216
+
+### Portraits / Pin-Up
+
+**Pin-Up - Gothic Bedroom (ciekawa poza):**
+```
+pin-up style, big blue eyes, sitting on bed leaning back, smiling at viewer, Vargas girl, light blonde hair, short messy hair, indoors, lips, plaid night shirt unbuttoned pulled open flashing small breasts, puffy areolas, blonde pubic hair, legs spread one knee up towards chest, gothic bedroom
+```
+Settings: Steps 20, CFG 3.5, Size 1024x1024
+
+**Cowboy Shot - Blonde:**
+```
+Masterpiece, score_9, score_8_up, score_7_up, the beautful cowboy-shot of a 1girl, blonde hair, 1girl, twinbraids, perfect eyes, beautiful, sad, insecure, naked, pussy, perky tits , perfect ratio proportioned face, skinny hourglass body, perfect waist to hip ratio, perfect female body, glossy skin, glossy body, slightly oily skin,solo focus, long eyelashes, single one color background, bokeh, short focal depth,
+```
+Settings: Steps 38, CFG 6, Size 832x1216
+
+**K-pop Idol on Stage:**
+```
+clip_l: Photo of a Korean singer, slender Japanese woman, kpop idol, stage, pretty, stage, k-pop
+t5xxl: A beautiful photograph of a slender and athletic Korean woman, fully nude. She is sitting on the edge of the stage with her legs spread, on a kpop stage with stage lights behind her.
+```
+Settings: Steps 22, CFG 4, Sampler Euler
+
+### NSFW Explicit
+
+**Scandinavian Submissive - Chair (realistyczne owlosienie nad wagina):**
+```
+Stable_Yogis_Illustrious_Positives 1girl, solo, front view, woman, pale blond white hair, Scandinavian , braids hair, torpedo breast, fat puffy nipples, skinny lythe body, slender legs, toned body, Pettit but with great D-cup natural saggy breasts, narrow waist, anorexic, narrow face, tiny butt, narrow hips, thin thighs, thigh gap, thin calfs, naked, sitting in a chair in a fancy hotel room, she is a submissive slut and has undressed in anticipation of being used. wet pussy, very sexy, tan lines, eye make-up, trimmed pussy, detailed labia, moist cunt, photographic studio, black sheer nylon thigh high stockings, very pretty and beautiful, she could be a model in a vogue magazine, she is leaning back, she has one leg raised and is fully exposing her naked pussy,
+```
+Settings: Steps 36, CFG 3.5, Size 832x1216
+
+**Scandinavian Submissive - Kneeling with Collar:**
+```
+Stable_Yogis_Illustrious_Positives 1girl, solo, front view, woman, pale blond white hair, Scandinavian , braids hair, torpedo breast, fat puffy nipples, skinny lythe body, slender legs, toned body, Pettit but with great D-cup natural saggy breasts, narrow waist, narrow face, tiny butt, narrow hips, thin thighs, thigh gap, thin calfs, naked, she is on her knees in a fancy hotel room, looking up at the viewer, her arms behind her back, wearing a neck collar and leash, she is a submissive slut and is looking straight at the viewer, and has undressed in anticipation of being used. wet pussy, very sexy, tan lines, eye make-up, trimmed pussy, detailed labia, moist cunt, photographic studio, black sheer nylon thigh high stockings, very pretty and beautiful, she could be a model in a vogue magazine,
+```
+Settings: Steps 36, CFG 3.5, Size 832x1216
+
+**Pool Chair - Blonde:**
+```
+A photo focus on a very cute, innocent, adorable, naked blonde 18 year old girl who is petite, with small breasts. She is relaxed, and her legs are spread, showing her shaved pussy, labia, and clitoris. She is on a pool chair in a pink girly pool room. She is excited. She is wearing a cute pink belt, a cute pink choker, and
+```
+Settings: Steps 50, CFG 3.5, Size 832x1216
+
+**Couple in Park (AndroFlux):**
+```
+A full-body shot of a completely nude AndroFlux man in a park. He has an erect penis. He is standing. The photo is shot from the side. Next to him, there is a completely nude woman, kneeling on her knees. She has a naked vagina, pussy. They are facing each other. She is slightly leaning forward towards his crotch.
+```
+Settings: Steps 30, CFG 3.5, Size 832x1216
+
+**Indian Interracial (ciekawa poza, do przyszlych workflows):**
+```
+((Raw Analog Color Photo)) of a casual porn, ( Indian Female with silky black hair, brown skin having sex with a Muscular African guy on a motel), pov, ((Petite Young Desi Indian woman is getting fucked by a Black man)), (beautiful moaning face), (((nude, nudity, naked))), scg-anatomy-female, detailerlora, midjourneyv6.1, BBC_on_Fine_Females, 1woman, 1man, interracial porn, hetero, realistic, Female_in_pain, eyes open, ruined makeup, screaming, biting lips, Cute_Rider, moaning, hard orgasm, hard vaginal sex on tight pussy
+```
+Settings: Steps 35, CFG 3.5, Size 832x1216
+
+**Music Festival - Group:**
+```
+A high-resolution photograph captures a group of young bohemian women standing confidently on stage smiling playfully at the viewer. They have a variety of hair colors, hair styles and ethnicities. All are super hot and are flashing, naked or finishing stripping off the tiny skimpy pieces of clothes that barely cover their pussies and tits. They all have perfect round breasts with visible perfect nipples and a bare abdomens. Some have colorful socks on. Some are touching their pussies or spreading their labia for the crowd. Some are finger fucking the other women, others are kissing with their tongues.
+The background features an outdoor stage at a music festival. The banner on the back of the stage says "World's Hottest Pussy Contest 2025!" The stage had a drum set, guitars on stands and guitar amps and other musical gear. They are stripping for the crowd before a rock show. The women are naked and bottomless, revealing perfect shaved pussy with large labia visible. The scene is bright with natural light reflecting off the shiny chrome of the musical craft. The image exudes exhibitionism and public indecency, capturing a moment of bold self-expression in a live festival setting. The composition is realistic and photorealistic, blending a festival concert and human form captivatingly. Girls gone wild, flashing, pussy flash, slut show, shameless, bohemian girl, porn art, live stripping, erotic, sex show, live nude girls, music festival
+```
+Settings: Steps 30, CFG 3.5, DPM++ 2M, Size 832x1216 (img2img-upscale to 2496x3648)
+
+---
 
 ## Tested Combinations
 
@@ -152,6 +372,13 @@ nude woman in natural setting, bottomless, correct anatomy, outdoor lighting, ar
 - Full body: 0.7-0.9
 - Artistic angles: 0.8-1.0
 
+**Referenced LoRA combinations from prompts:**
+- `detailerlora` - detail enhancement
+- `midjourneyv6.1` - Midjourney style
+- `scg-anatomy-female` - female anatomy
+- `BBC_on_Fine_Females` - interracial scenes
+- `Cute_Rider` - riding poses
+
 ## Compatibility
 
 - Highly compatible with other anatomy LoRAs
@@ -159,6 +386,7 @@ nude woman in natural setting, bottomless, correct anatomy, outdoor lighting, ar
 - Excellent with artistic style LoRAs
 - Compatible with lighting and photography LoRAs
 - Pairs nicely with pose and composition LoRAs
+- Works across multiple checkpoints (flux_dev, flux1DevNSFWUNLOCKED, flux1-dev-fp8)
 
 ## Notes
 
@@ -171,8 +399,11 @@ nude woman in natural setting, bottomless, correct anatomy, outdoor lighting, ar
 - Wide strength range for versatility (0.3-1.0)
 - High community rating (953) indicates quality
 - Professional fineart photography focus
+- Excellent at text rendering on signs and tattoos (multiple prompt examples)
+- Supports dual CLIP prompt format (clip_l + t5xxl separate prompts)
+- Works well with long, descriptive caption-style prompts
 
 ---
 
 **Category:** BODY_TYPES
-**Last Updated:** 2025-12-31
+**Last Updated:** 2026-02-13

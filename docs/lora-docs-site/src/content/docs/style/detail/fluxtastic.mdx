@@ -6,7 +6,7 @@ rating: 952
 tips: 987
 score: "⭐⭐⭐"
 type: "NSFW Unlock / Enhancement"
-trigger: "1.0"
+trigger: "None"
 strength: "1.0"
 civitaiUrl: "https://civitai.com/models/646167/fluxtastic-v3-boobs-and-more"
 compatibility: "FLUX"
@@ -16,7 +16,7 @@ sidebar:
     variant: note
 ---
 
-import LoraCard from '../../../../components/LoraCard.astro';
+import LoraCard from '@/components/LoraCard.astro';
 
 <LoraCard
   title="FLUXTASTIC V3"
@@ -26,7 +26,7 @@ import LoraCard from '../../../../components/LoraCard.astro';
   tips={987}
   score="⭐⭐⭐"
   type="NSFW Unlock / Enhancement"
-  trigger="1.0"
+  trigger="None"
   strength="1.0"
   civitaiUrl="https://civitai.com/models/646167/fluxtastic-v3-boobs-and-more"
   imageUrl="/images/loras/fluxtastic.jpg"
@@ -35,14 +35,12 @@ import LoraCard from '../../../../components/LoraCard.astro';
 
 # FLUXTASTIC V3
 
-[← Back to INDEX](INDEX.md)
-
 ## Stats
 
 | Metric | Value |
 |--------|-------|
-| **Downloads** | 18314 |
-| **👍** | 945 |
+| **Downloads** | 18,540 |
+| **Rating** | 952 |
 | **Tips** | 987 |
 
 | Parameter | Value |
@@ -50,47 +48,552 @@ import LoraCard from '../../../../components/LoraCard.astro';
 | **File** | `FLUXTASTIC_V3.safetensors` |
 | **Civitai** | https://civitai.com/models/646167/fluxtastic-v3-boobs-and-more |
 | **Trigger word** | None |
-| **Strength** | 1.0 |
+| **Strength** | 0.01-1.0 |
 | **Type** | NSFW Unlock / Enhancement |
-| **Compatibility** | FLUX |
+| **Compatibility** | FLUX, Pony (at low strength 0.01 with other LoRAs) |
 
-### Description
+## Description
+
 NSFW unlock LoRA trained on 400+ hand-reworked real images. Removes FLUX censorship and enables high-quality NSFW generation. V3 uses new training parameters with only real (non-AI) training images.
 
-### Recommended settings
-- **Strength:** 1.0
-- **Guidance:** 4.0
+## Recommended Settings
+
+- **Strength:** 1.0 (FLUX), 0.01 (Pony - used as auxiliary)
+- **CFG:** 1-6 (most common 3.5)
+- **Steps:** 20-50
+- **Sampler:** Euler / Undefined / DPM++ SDE (Pony)
+- **Size:** 832x1216 (portrait), 1024x1024 (square)
 - Use natural language prompting with detailed descriptions
 
-### Sample prompts
+---
 
-**Prompt 1 (Bathroom selfie):**
+## Civitai Example Prompts
+
+### Fashion / Catwalk
+
+**Nude Catwalk - Pink Hair:**
 ```
-a selfie of a young woman taking a selfie in a bathroom mirror. She is holding her phone up to take the picture with her right hand and her left hand is resting on her chest. The woman is shirtless and her body is slightly turned to the side. She has shoulder-length dark hair and is looking directly at the camera with a slight smile on her lips. The background is a white tiled wall.
+A completely naked supermodel with pink hair walks naked along a catwalk, with an audience to her left and right. In the background, 'FLUXTASTIC V3' is written in large letters. Highly professional fashion photo.
+```
+Settings: Steps 25, CFG 1, Sampler Euler, Size 824x1200, Model flux1-dev-fp8
+
+### Gym / Fitness
+
+**Gym Redhead - Leggings Front View:**
+```
+score_9, score_8_up, score_7_up, 8k, beautiful, highres image, masterpiece,20 years old woman wearing skintight dark blue leggings, topless, seamless clothes, impossible clothes, fully clothed, smile, red long hair, freckles, dimples, hourglass figure, round glasses, perfect round big boobs, big perfect round ass, full body, in the gym,
+```
+Settings: Steps 30, CFG 3.5, Size 832x1216
+
+**Gym Redhead - Booty Pose from Behind (leggings + bra):**
+```
+score_9, score_8_up, score_7_up, 8k, beautiful, highres image, masterpiece,20 years old woman wearing skintight dark blue leggings and bra, seamless clothes, impossible clothes, fully clothed, smile, red long hair, freckles, dimples, hourglass figure, round glasses, perfect round big boobs, big perfect round ass, full body, in the gym, showing her beautiful perfect big ass, booty pose, from behind
+```
+Settings: Steps 30, CFG 3.5, Size 832x1216
+
+**Gym Redhead - Booty Pose from Behind (topless):**
+```
+score_9, score_8_up, score_7_up, 8k, beautiful, highres image, masterpiece,20 years old woman wearing skintight dark blue leggings, topless,seamless clothes, impossible clothes, fully clothed, smile, red long hair, freckles, dimples, hourglass figure, round glasses, perfect round big boobs, big perfect round ass, full body, in the gym, showing her beautiful perfect big ass, booty pose, from behind
+```
+Settings: Steps 30, CFG 3.5, Size 832x1216
+
+**Gym Redhead - Booty Full Body:**
+```
+Beautiful 20 years old woman wearing skintight dark blue leggings, topless, seamless clothes, impossible clothes, smile, red long hair, freckles, dimples, hourglass figure, round glasses, perfect round big boobs, big perfect round ass, full body, in the gym, showing her beautiful perfect big ass, booty pose, from behind thigh gap
+```
+Settings: Steps 30, CFG 3.5, Size 832x1216
+
+**Gym Blonde - Leggings:**
+```
+score_9, score_8_up, score_7_up, 8k, beautiful, highres image, masterpiece,20 years old woman wearing skin tight leggings, topless, tits, seamless clothes, impossible clothes, smile, blonde long hair, blue eyes, hourglass figure, perfect round big boobs, big perfect round ass, full body, in the gym,
+```
+Settings: Steps 30, CFG 3.5, Size 832x1216
+
+**Fitness Influencer - Downward Dog (erotic):**
+```
+Extreme realistic depiction of a gorgeous 20 year old female fitness influencer, in downward dog yoga pose, viewed from behind and above, completely naked, toned body, athletic physique, dark wavy medium length hair, messy hair, on the bed, realistic oiled skin texture, messy bedsheets, realistic fabric texture.
+In a dark bedroom with dim light coming in through blinds, highlighting her curves and contours. Her hands are grabbing the bedsheets. The mood is erotic. Her slim lower back is well defined and her skin is oiled. Her hair is dark with slight highlights and lowlights, producing a natural texture. Her lean muscles are flexed under toned skin.
+```
+Settings: Steps 50, CFG 3.5, Size 832x1216
+
+**Athlete - Peephole Voyeur:**
+```
+Extreme realistic depiction of a gorgeous 20 year old female professional athlete. Sweet and cute appearance. Secretly being watched through a peephole while undressing in a dressing room. Sweaty from a workout. She wears delicate lace panties and is pulling off her sports bra to expose perfect medium sized boobs. Her fit body shines with sweat.
+```
+Settings: Steps 50, CFG 3.5, Size 832x1216
+
+### Winter / Mountain
+
+**Asian Supermodel - Winter Mountain (large breasts):**
+```
+((22 year old Asian supermodel)), posing up a winter mountain, bright sunny winter day, jacket tied around waist, naked,perfect nipples, wearing a backpack, lusty smirk, luscious hair, luxurious long straight hair, ((seductive)), large breasts, natural perky breasts, beanie, snow pants, dynamic pose, dynamic angle
+```
+Settings: Steps 30, CFG 3.5, Size 832x1216
+
+**Asian Supermodel - Winter Mountain (epic cinematic):**
+```
+a masterpiece movie photo, A photogenic epic scene, showing Masterpiece cinematic 4k promotional photo of a ((22 year old Asian supermodel)), posing up a winter mountain, bright sunny winter day, jacket tied around waist, half-naked, lifting her large breasts up with her hands, wearing a backpack, lusty smirk, luscious hair, luxurious long straight hair, ((seductive)), huge natural breasts, natural perky breasts, beanie, snow pants, dynamic pose, dynamic angle, rimlight, backlit, TV inspired, dark epic fantasy theme, 4k, bokeh, depth of field, epic mood and lighting, looking down at viewer, bokeh, depth of field, highly detailed, dynamic camera, maximalist background, masterpiece, highly detailed, maximalist, epic scene, intense, atmospheric, 4K art, absurdres
+```
+Settings: Steps 30, CFG 4, Size 832x1216
+
+**European Twins - Winter Mountain:**
+```
+((18 year old european supermodel twins)), posing up a winter mountain, bright sunny winter day, jacket tied around waist, naked,perfect nipples, wearing a backpack, lusty smirk, luscious hair, luxurious long straight hair, ((seductive)), small breasts, flat chested, petite, young, natural perky breasts, beanie, snow pants around knees, petite. cum in pussy, dynamic pose, dynamic angle, licking lips
+```
+Settings: Steps 30, CFG 3.5, Size 832x1216
+
+### Hot Springs / Wet
+
+**Viking Beauty - Snowy Hot Springs:**
+```
+Extreme realistic depiction of a Viking beauty standing in a snowy hot springs outdoors, in three-quarter portrait, curvaceous glamorous body, blond wet hair back blue eyes, extremely wet, realistic wet skin texture, bushy pubic hair sticking out of black thong panty with camel toe labia. Steam rising around body, arms up pulling her hair back, completely naked. legs spread thigh gap,
+her body catching the late afternoon light. detailed iris patterns in her eyes, with subtle color variations and a bright highlight, glossy texture to her lips, with soft reflections and an athletic physique, adding to the overall wet appearance.
+Posing in a cute and off-balance pose, looking straight ahead with a sexy but playful expression. Seductive smile.
+```
+Settings: Steps 50, CFG 3.5, Size 832x1216
+
+**Icelandic Beauty - Hot Springs (dobrze widac naturalne owlosienie nad wagina, do przyszlych workflows):**
+```
+Extreme realistic depiction of a Icelandic beauty in the middle of a snowy hot springs outdoors, in three-quarter portrait, mature milf with sagging medium breasts and athletic body, short blond and striking blue eyes, realistic wet skin texture, bushy pubic hair sticking out of black thong panty with camel toe labia. Steam rising around body, arms up pulling her hair back, completely naked. legs spread thigh gap,
+her body catching the late afternoon light. detailed iris patterns in her eyes, with subtle color variations and a bright highlight, glossy texture to her lips, with soft reflections and an athletic physique, adding to the overall wet appearance.
+Posing in a cute and off-balance pose, looking straight ahead with a sexy but playful expression. Seductive smile.
+```
+Settings: Steps 50, CFG 3.5, Size 832x1216
+
+**Wet Beauty After Shower:**
+```
+Extreme realistic depiction of a Wet Beauty After a Shower, in three-quarter portrait, curvaceous glamorous body, hair hair over one eye, extremely wet, realistic wet skin texture, pink towel open around body, realistic fabric texture, completely naked.
+Show wet curly medium length hair around her face, catching the light and adding a natural, slightly messy look. detailed iris patterns in her eyes, with subtle color variations and a bright highlight, glossy texture to her lips, with soft reflections and an athletic physique, adding to the overall wet appearance.
+Posing in a cute and off-balance pose, looking straight ahead with a sexy but playful expression. Seductive smile.
+```
+Settings: Steps 50, CFG 3.5, Size 832x1216
+
+### Bedroom / Indoor
+
+**German Woman on Bed - Showing Anus:**
+```
+A high-resolution photograph features a young German woman lying on her stomach on a beautifully adorned bed, shot from the side, with the focus on her toned, round large buttocks. She has long, straight blonde hair cascading over her shoulders and a fair complexion. Her facial features include a wide, confident smile, with teeth showing, as she looks directly at the camera over her shoulder, exuding warmth and allure.
+She is topless, revealing her large-sized breasts. Her butt is completely naked, adding a provocative element to the scene. The bed she is lying on is covered in luxurious, slightly wrinkled white sheets with subtle floral embroidery, and the headboard is an elegant tufted design in a warm, creamy shade. The background features a softly lit, pastel-colored wall adorned with a few tasteful art prints, contributing to a cozy yet exciting ambiance.
+The room is decorated with feminine touches, such as plush throw pillows in various shades of pink and cream, and a nearby nightstand holds a vintage lamp that casts a soft, warm glow. The overall composition of the photograph focuses on the woman's body, with the bed and background subtly enhancing the scene's context. The lighting in the room is gentle and inviting, creating an intimate and appealing atmosphere that highlights the woman's natural beauty and confidence. Girl is very beautiful, cutest, amazing beauty, pretty, petite. she shows her anus.
+```
+Settings: Steps 20, CFG 3.5, Size 832x1216
+
+**Selfie on Bed - Black Bra (close-up):**
+```
+a close-up selfie of a young woman sitting on a bed. She is wearing a black bra, and her hair is styled in loose waves. The woman is looking directly at the camera with a seductive expression on her face. She is squeezing her boobs with her hands. The background is blurred, but it appears to be a bedroom with a gray blanket and a white pillow. The overall mood of the image is sensual and intimate.
+```
+Settings: Steps 50, CFG 3.5, Size 832x1216
+
+**Selfie on Bed - Large Breasts (looking up):**
+```
+a close-up of a young woman sitting on a bed. She is wearing a black bra, and her hair is styled in loose waves. The woman is looking up directly at the camera with a seductive expression on her face. She has large round breasts. She is squeezing her boobs with her hands. The background is blurred, but it appears to be a bedroom with a gray blanket and a white pillow. The overall mood of the image is sensual and intimate.
+```
+Settings: Steps 50, CFG 3.5, Size 832x1216
+
+**Selfie on Bed - Blue Corset:**
+```
+a close-up selfie of a young woman sitting on a bed. She has bright and clear blue eyes, and dramatic dark eyeliner. She is wearing a blue silk corset that presses her boobs together for heavy cleavage. Her hair is styled in a braided bun on top. The woman is looking directly at the camera with a seductive expression on her face. She is squeezing her boobs with her hands. The background is blurred, but it appears to be a bedroom with a gray blanket and a white pillow. The overall mood of the image is sensual and intimate.
+```
+Settings: Steps 50, CFG 3.5, Size 832x1216
+
+**Selfie on Bed - Cum on Face + Blue Corset:**
+```
+a close-up selfie of a young woman sitting on a bed. She has bright and clear blue eyes, and dramatic dark eyeliner. She has thick white globs of drippy cum all over her face and breasts. She is wearing a strapless dark blue silk corset that presses her boobs together for heavy cleavage. Her hair is styled in a braided bun on top. The woman is looking directly at the camera with a seductive expression on her face. She is squeezing her boobs with her hands. The background is blurred, but it appears to be a bedroom with a gray blanket and a white pillow. The overall mood of the image is sensual and intimate.
+```
+Settings: Steps 50, CFG 3.5, Size 832x1216
+
+**Asian Woman on Bed - Nude:**
+```
+The image is a high-resolution photograph of a young Asian woman with long, wavy black hair and light skin. She is lying on her back on a white bed with white sheets, her legs spread wide apart. She is completely nude, revealing her small to medium-sized breasts with light pink areolas and nipples. Her pubic area has a natural amount of dark pubic hair. She is wearing a black choker necklace and black knee-high socks. The background consists of the white bed and a hint of a beige pillow in the top left corner. Her facial expression is neutral, and she gazes directly at the camera with a slight, inviting smile. The lighting is natural, likely from a nearby window, giving the image a soft, warm tone. The setting appears to be a bedroom, suggested by the bed and pillows. The photograph is intimate and explicit, focusing on her nudity and genitalia.
+```
+Settings: Steps 30, CFG 2, Size 832x1216
+
+**Woman on Bed - Open Blouse (overhead camera):**
+```
+Beautiful woman lying perfectly horizontal on a bed.
+Long, sheer white blouse with long, flowing sleeves. The blouse is open from top to down making her middle naked revealing her small breasts, vagina, and legs.
+Her body is completely straight, arms at her sides and her legs spread wide apart.
+Bun tied hair style.
+Metal collar on her neck.
+Sexy photo, erotic photo.
+Vertical portrait.
+Full body shot.
+Camera directly above looking straight down at full body.
+Symmetrical composition.
+```
+Settings: Steps 25, CFG 3.5, Size 832x1216
+
+**Woman on Bed - Faux Leather Dress (overhead):**
+```
+Beautiful woman lying perfectly horizontal on a bed,
+full length long camel color Faux Leather Maxi shirt dress with full sleeves and shirt collar, dress is open from top to down making her middle naked revealing her large breasts chest vagina and legs,
+Her body is completely straight, arms at her sides,
+bun tied hair style,
+Black leather gloves on both hands, collar made of metal on her neck,
+sexy photo, erotic photo,
+vertical portrait,
+full body shot,
+Camera directly above looking straight down at full body,
+symmetrical composition
+```
+Settings: Steps 25, CFG 3, Size 832x1216
+
+**FLUX Lingerie - Purple Lighting:**
+```
+This photograph captures a young woman with a light skin tone and dark brown hair styled in a messy bun. She has a petite frame with a flat stomach and small breasts. She is wearing a black lingerie set with the word "FLUX" printed repeatedly on the straps of her bra and panties. Her left hand is placed over her right breast, accentuating her cleavage. She is seated on a bed with white sheets, and a gray blanket partially covers her legs. The background features a dimly lit room with purple lighting, giving the scene a sensual, intimate atmosphere. There is a small, indistinct object in the background, possibly a pillow or a piece of furniture. The overall lighting and color palette create a warm and inviting ambiance.
+```
+Settings: Steps 30, CFG 2, Size 832x1216
+
+### Text on Signs / Clothing
+
+**BBC T-shirt - Blonde:**
+```
+photorealistic shot of a young woman with long blonde hair stands by a window, hands behind her back, petit body, ribs, large breasts with piercing nipples showing through the tshirt,She is wearing tight short black t-shirt with white text in a reading ("MADE FOR BBC") and underwear, standing in a softly lit room. Looking at viewer. The background features lace curtains and a leafy houseplant. A vase with dried flowers sits on a wooden table nearby
+```
+Settings: Steps 50, CFG 5, Size 832x1216
+
+**BBC T-shirt - Brunette:**
+```
+photorealistic shot of a young woman with short brown hair stands by a window, hands behind her back, petit body, ribs, small breasts with piercing nipples showing through the tshirt, She is wearing tight short white t-shirt with black text in a reading ("BBC ADDICTED SLUT") and underwear, standing in a softly lit room. Looking at viewer. The background features lace curtains and a leafy houseplant. A vase with dried flowers sits on a wooden table nearby
+```
+Settings: Steps 50, CFG 5, Size 832x1216
+
+**FUCKTOY T-shirt - Legs Open:**
+```
+photorealistic shot of a young woman with long blonde hair sitting on a chair legs open wide, exposed shaved pussy, by a window, petit body, ribs, large breasts with piercing nipples showing through the tshirt,She is wearing tight short black t-shirt with white text in a reading ("FUCKTOY"), in a softly lit room. Looking at viewer. The background features lace curtains and a leafy houseplant. A vase with dried flowers sits on a wooden table nearby
+```
+Settings: Steps 50, CFG 5, Size 1216x832
+
+**Ardent Whore T-shirt (with leu_anita1 character):**
+```
+photorealistic shot of a young leu_anita1 with long blonde hair stands by a window, hands behind her back, petit body, ribs, large breasts with piercing nipples showing through the tshirt,She is wearing tight short red t-shirt with black text across the breast in a gothic font reading ("Ardent whore") and exposed pussy, standing in a softly lit room. Looking at viewer. The background features lace curtains and a leafy houseplant. A vase with dried flowers sits on a wooden table nearby
+```
+Settings: Steps 50, CFG 5, Size 832x1216
+
+**Sketchbook Sign - "Buy my pussy":**
+```
+This is a close-up photograph of a young woman with light skin and a fair complexion. She has straight, light brown hair with bangs that partially cover her forehead. Her hair appears slightly tousled and has a natural, unstyled look. The woman has large, expressive brown eyes that are wide open, giving her a direct and engaging gaze. Her facial features are delicate, with a small nose and full lips. She appears to be wearing minimal makeup, which enhances her natural beauty. The background of the image is slightly out of focus but suggests an indoor setting, possibly a bedroom or a dressing room. To the left, there is a glimpse of a clothing rack with various garments, including a yellow piece of clothing and a black item, hanging on hangers. The wall behind her is painted a muted purple color, contributing to the warm and intimate atmosphere of the image. The lighting is soft, casting gentle shadows on her face, and the overall composition of the photograph focuses on her face and upper chest, creating a sense of intimacy and closeness. She is holding a sketchbook horizontally with the words "Buy my pussy at $40" handwritten in large, cute font with a cute doodle of a vagina and pink hearts next to it.
+```
+Settings: Steps 30, CFG 3.5, Size 832x1216
+
+**Bondage Harness - "plz like my photo":**
+```
+living room, sunshine. 25 year old sexy wearing bondage harness, she sits in green arm chair. She is a supermodel with green eyes, blonde hair, and smiles. She holds a handwritten sign that reads "plz like my photo"
+```
+Settings: Steps 50, CFG 3.5, Size 832x1216
+
+**Cowgirl Sex - "doing it for the buzz":**
+```
+living room, sunshine. 25 year old, sexy , having sex, POV cowgirl, vaginal penetration, penis,. She is a supermodel with green eyes, blonde hair, and smiles. She holds a handwritten sign that reads "doing it for the buzz"
+```
+Settings: Steps 50, CFG 3.5, Size 832x1216
+
+**Cowgirl Sex - Straddle variant:**
+```
+living room, sunshine. 25 year old, sexy , she straddles a naked man, having sex, POV cowgirl, vaginal penetration, penis,. She is a supermodel with green eyes, blonde hair, and smiles. She holds a handwritten sign that reads "doing it for the buzz"
+```
+Settings: Steps 50, CFG 3.5, Size 832x1216
+
+**Lingerie - "doing it for the buzz":**
+```
+living room, sunshine. 25 year old woman,, she is a supermodel wearing black lingerie, with blue eyes, red hair, and smiles. She holds a handwritten sign that reads "doing it for the buzz"
+```
+Settings: Steps 50, CFG 3.5, Size 832x1216
+
+**"SEND NUDES" Sign:**
+```
+bedroom, sunshine. 25 year old sexy girl she is a supermodel and smiles. She holds a handwritten sign that reads "SEND NUDES!!"
+```
+Settings: Steps 40, CFG 3.5, Size 832x1216
+
+### Couples / Multiple People
+
+**Couple in Park (AndroFlux) - Kneeling:**
+```
+A full-body shot of a completely nude AndroFlux man in a park. He has an erect penis. He is standing. The photo is shot from the side. Next to him, there is a completely nude woman, kneeling on her knees. She has a naked vagina, pussy. They are facing each other. She is slightly leaning forward towards his crotch.
+```
+Settings: Steps 30, CFG 3.5, Size 832x1216
+
+**Couple in Park (AndroFlux) - Holding Thighs:**
+```
+A full-body shot of a completely nude AndroFlux man in a park. He has an erect penis. He is standing. The photo is shot from the side. Next to him, there is a completely nude woman, kneeling on her knees. She has a naked vagina, pussy. They are facing each other. She is slightly leaning forward towards his crotch, holding his thighs.
+```
+Settings: Steps 30, CFG 3.5, Size 832x1216
+
+**Adam and Eve:**
+```
+A full-body shot of a completely nude AndroFlux man. He has an erect penis. Next to him stands a completely nude woman. She has a naked vagina, pussy. They are standing side-by-side in heaven, waving their hands, looking at the viewer. There is a caption at the bottom that says - "Adam and Eve".
+```
+Settings: Steps 50, CFG 3.5, Size 832x1216
+
+**3 Girls Shower After Sports:**
+```
+full body shot, ultra high quality, 3 girls, realistic photo of 3 naked young women standing under a shower after sports, a busty redhead woman, a slim black woman with small breast, a blond woman , the women talk and laugh, wet hair and skin, water running, skin texture style, sharp detailed edges
+```
+Settings: Steps 35, CFG 3.5, Size 832x1216
+
+**2 Girls Pool Party Rooftop:**
+```
+full body shot, ultra high quality, 2 girls, realistic photo of 2 young women dancing in sexy dresses at a pool party on the roof of a skyscraper, laughing, having fun, light reflection in the glass railing, lights of the city in the beckground, skin texture style, sharp detailed edges, topless, exposed breasts, large perfect breasts, round breasts, perky breasts
+```
+Settings: Steps 20, CFG 3.5, Size 832x1216
+
+**Oil Painting - Groping in Classroom:**
+```
+NFSW, oil painting, classical painting, very high quality, 8k, masterpiece, Beautiful cinematic classical oil painting, photoreralistic 1girl, Razored Bob haircut, redhair, multiple men, surrounded by males, girl sandwiched by boys, group, multiple boys, multiple boys groping girl, groping, breast grab, coping a feel, multiple boys feeling up a girl, she is looking angry, groping, breast grab,grabbing breasts,Guin, small breasts, natural breasts, school outfit, classroom detailed.
+```
+Settings: Steps 20, CFG 3.5, Size 832x1216
+
+### Nature / Outdoor
+
+**Luna Blaise/Lavigne - Oak Tree (full body):**
+```
+A full body shot of a tall beautiful fit young woman with long dark brown hair, brunette hair. She looks a bit like a mix of Luna Blaise and Avril Lavigne and is standing in front of a large oak tree with roughly textured bark and is looking directly at the camera with a slight smile on her face. The woman is shirtless, pulling her white yoga pants down. She has a small gold necklace around her neck. Her small perky breasts are prominently displayed, and her puffy inverted nipples are visible. The image is a low angle shot taken from a side angle, with the woman's body slightly angled towards the camera. Her flawless pale white skin and fit body is the envy of all and her linea Alba is prominently on display. her form fitting white yoga pants are pulled down exposing her pubic area, while she shows off her perfect thigh gap and shaved inner pussy
+```
+Settings: Steps 50, CFG 3.5, Size 832x1216
+
+**Luna Blaise/Lavigne - Oak Tree (innie pussy variant):**
+Same prompt but ending with `shaved innie pussy` instead of `shaved inner pussy`.
+Settings: Steps 50, CFG 3.5, Size 832x1216
+
+**Luna Blaise/Lavigne - Oak Tree (3/4 shot, arms crossed):**
+```
+A 3/4 shot of a tall beautiful fit young woman with long dark brown hair, brunette hair. She looks a bit like a mix of Luna Blaise and Avril Lavigne and is standing in front of a large oak tree with roughly textured bark and is looking directly at the camera with a slight smile on her face. The woman is shirtless, with her arms crossed over her chest. She has a small blue necklace around her neck. Her small perky breasts are prominently displayed, and her puffy inverted nipples are visible. The image is a low angle shot taken from a side angle, with the woman's body slightly angled towards the camera. Her flawless pale white skin and fit body is the envy of all and her linea Alba is contrasting with her form fitting white yoga pants pulled down exposing her pubic area, while she shows off her perfect thigh gap
+```
+Settings: Steps 50, CFG 3.5, Size 832x1216
+
+### Portrait / Artistic
+
+**Spanish Supermodel - White Hotel:**
+```
+supermodel, Spanish supermodel with blue eyes, beautiful, 25 years old, blue eyes, (makeup:1.3), soft smile, neck length wavy black hair at side, ear, athletic body, medium breasts, white luxury hotel room, topless, breasts, nipples, standing, nude, white choker, white stockings, navel, hyperdetailed photo, sharp focus,
+```
+Settings: Steps 25, CFG 3.5, Size 832x1216
+
+**Topless Brunette - Playful Tongue:**
+```
+The image is a high-resolution photograph of a young woman with long, dark brown hair that falls loosely over her shoulders. She has a light skin tone and a youthful appearance, with a slightly flushed complexion. Her eyes are wide open, looking upward and to the left, with a playful, mischievous expression. She has her tongue out, sticking it playfully to the side. Her eyebrows are well-groomed, and she wears small, silver hoop earrings. The woman appears to be topless, though her shoulders and upper chest are visible, indicating a nude state. Her breasts are not visible in the frame.
+The background is minimalistic, consisting of a plain white wall with a subtle texture and a white ceiling with crown molding, indicating an indoor setting, possibly a bedroom or bathroom. The lighting is soft and even, casting gentle shadows and highlighting her features. The overall mood of the photograph is light-hearted and playful, capturing a candid moment of youthful exuberance.
+```
+Settings: Steps 30, CFG 2, Size 832x1216
+
+**Terry Richardson Style - Pink Hair:**
+```
+woman, 25 years old american, ((topless)), short pink hair, full body portrait, laughing, direct flash, overexposed, pure white background, (best quality, ultra-detailed, masterpiece: 1.4), in style of terry richardson
+```
+Settings: Steps 36, CFG 3.5, Size 832x1216
+
+**B&W Nude - Tim Walker Style:**
+```
+A striking black and white professional nude portrait of a woman with smooth, pale skin and deep, expressive eyes. She stands confidently, her body gracefully posed, with soft, natural light casting gentle shadows that highlight her curves. The background is a minimalist, seamless white, emphasizing her form. The lighting is soft and diffused, creating a serene and intimate atmosphere, with subtle film grain adding a classic, timeless quality. Inspired by the visual style of Tim Walker, the scene is both ethereal and grounded, capturing a moment of raw, elegant beauty. perfect hands, perfect feet, AiArtV
+```
+Settings: Steps 35, CFG 3.5, Size 832x1216
+
+**Film Photography - Eiffel Tower:**
+```
+film photography, (analog film:2.0), faded film, desaturated, 35mm photo, model, medium boobs, perfect eyes, light makeup, freckles, auburn long messy hair, freckles, serious expression, seductive naked posing in an open oversized white shirt, looking at viewer, inside eiffel tower, white thigh socks, white lace g-string, erect nipples, small perky boobs, pigtails, pinup pose, dynamic, topless, chest out, aurora borealis swirls around her naked body, color + light contour, Backlight, Hiori Light Art, photorealistic
+```
+Settings: Steps 20, CFG 3.5, Size 832x1216
+
+**Boring Snapchat 2022:**
+```
+boring snapchat photo 2022
+```
+Settings: Steps 50, CFG 2, Size 832x1216
+
+**Boring Snapchat - Redhead:**
+```
+boring snapchat photo 2022, redhead 18 years old
+```
+Settings: Steps 50, CFG 3.5, Size 832x1216
+
+### Pin-Up / Lingerie / Fashion
+
+**Redhead Leather Harness Pin-Up:**
+```
+a young woman shows her beautiful body photo, sexy legs, juicy body and some ass photos of a ((redhead)) girl with braids, green eyes, cute smiling, erotic girl, ((naked, perfectly shaped huge natural breasts, perky nippels, topless,)) wearing only a wine red leather harness, black net necklines, with gold rings, leather stockings and overarm gloves, with jewelry embellishment, intricate details, she is a pin up in a luxurious setting, in various movie scenes, erotic make up, naughty and kinky look, sweaty skin, string body version, extremely unzipped, aidmaNSFWunlock
+```
+Settings: Steps 25, CFG 3.5, Size 832x1216
+
+**Red Satin Lingerie - Windowsill:**
+```
+a beautiful sexy slim woman aged mid-20s with long blonde straight hair and huge tits seductively posing showing her beautiful amazing sexy legs sitting on a windowsill with beautiful scattered flower petels on the floor wearing a fancy metallic red satin lingerie, , elegant sexy lingerie woman photoshopped, metallic red pinterest render, full - view, attractive and beautiful, official render, maiden, promo image
+```
+Settings: Steps 45, CFG 3.5, Size 832x1216
+
+**Redhead with Bow by Fireplace:**
+```
+A 25 year old woman is facing the camera and kneeling on a rug in front of an open fire. She is completely naked, but her large naked breasts are wrapped in a large red bow. She is holding out one end of the bow towards the viewer, the other end trails on the rug around her. Her long, wavy, red hair matches the colour of the fire on the hearth, she has an innocent smile. One side of the fire is brickwork, the other side of the fire is a stack of logs.
+```
+Settings: Steps 25, CFG 3.5, Size 1024x1024
+
+### Selfies / Amateur
+
+**Amateur Selfie - Pink Hotpants:**
+```
+nfsw, naked, nude,18-year-old girl, amateur selfie, wears pink hotpants, lifting her tshirt above her small perky tits, pink detailed nipples, she is holding the phone with which she is taking a selfie in her left hand, she is embarrassed, she is blushing, she is kneeling on the parquet floor of her room, school things are spread out on the floor, brunette, straight bangs, short hair , socks, teddy bear, green plant, curtains in front of open window, perfect fingers, flat chest,
+```
+Settings: Steps 20, CFG 3.5, Size 832x1216
+
+**Amateur Selfie - Stockings + Hairy:**
+```
+nfsw, naked, nude,18-year-old girl, amateur selfie,sitting on floor, hand holding one leg up under thigh, red high heels ,(black stockings), hairy pubic:1.5, hairy pussy exposed:1.5, (((small perky natural tits:1.3))), big glasses, brown detailed nipples, she is holding the phone with which she is taking a selfie in her left hand, she is embarrassed, she is blushing, on the parquet floor of her room, school things are spread out on the floor, brunette, ponytail, scrunchie, (((very low light ,black curtains in front of open window))), perfect fingers,
+```
+Settings: Steps 20, CFG 3.5, Size 832x1216
+
+### NSFW Explicit
+
+**Pole Dancer - Redlight:**
+```
+ultra high quality, realisticanime, a blond young woman with very long hair dancing at a pole on a stage in redlight, sexy dessous, provocative smile, men sitting in the background and watching her
+```
+Settings: Steps 30, CFG 3.5, Size 832x1216
+
+**Woman on Floor - Spread:**
+```
+A woman chiara is sitting on a tiled floor, she is completely naked and leaning back, her legs are spread wide apart.
+```
+Settings: Steps 25, CFG 3.5, Size 832x1216
+
+**Nudist in Kitchen:**
+```
+(((NUDITY))) a sexy NUDIST female with areolas exposed in the kitchen making coffee, (only wearing pink thong lace panties with no top), TOPLESS, (blonde, ginger, medium asymmetrical braided hair) green eyes, pink areola, beautiful, detailed face, perfect face, perfect eyes, slim thighs, , very cute look on face, shy smile, alluring face, alluring gaze, 18 years old, very aesthetic, (best quality), (colorful), (detailed), ultra quality,, realistic intricate detailed, studio lighting, REALISTIC SKIN texture, shallow depth of field, cinematic shot, photorealistic style, realistic textures, Shot by Hasselblad camera, High Definition, 8k, Ultra Sharp Focus, Crystal Clear Detail, Pin-Sharp Clarity, High Resolution, Crisp Image Quality, Detailed and Vivid, Perfectly Defined Edges, Precision Focus, Pristine Image, High-Detail Capture, Vivid Sharpness, Clear and Defined, High Contrast Clarity, Sharp and Clean
+```
+Settings: Steps 16, CFG 3.5, Size 832x1216
+
+**African Woman - Oil Painting Sofa:**
+```
+(nfsw, naked, nude,:1.2), oil paintaing, solo girl,masterpiece,, full body view, wide angle view, front viewer,1 solo girl, african black skin, pretty, brown eyes, lewd eyes, afro hair, natural, no makeup, ((wears wide open silk bathrobe)), (small breast fully exposed:1.2), no panties, soft hairy exposed pussy, arms behind head,smirk, lewd eyes, smartphone on sofa next to her
+BREAK,
+overal details, (sitting on comfy white leather sofa), one foot on sofa, (wide spreads legs), in luxury modern style appartment, classical painting in frame on the wall , green plants, (soft light from a little lamp on side)
+```
+Settings: Steps 20, CFG 3.5, Size 832x1216
+
+**Penthouse 1970s - Pregnant:**
+```
+p3nth0use, big hair, in the style of penthouse magazine, 1970's, a pregnant female with dark skin and tan lines wearing a maxi sits on a pink couch with her legs spread and her fingers spreading herself open.
+```
+Settings: Steps 50, CFG 3.5, Size 832x1216
+
+**African Girl - College Dorm (puffy nipples):**
+```
+(firm tits, medium-small breasts, (puffy nipples), detailed areolas, protruding areolas, large plump nipples, f/11, full body wide view:1.3),
+(candid amateur photo of a slender woman after sex:1.2), 24yo, girlfriend (in a college dorm room:1.2), natural light, slim and trim body, NSFW, African girl, wavy hair, natural skin tone, sweaty, confused, look of wonderment, sleepy, messy sheets, messy room, nude without makeup, seductive, nude, naked, exposed breasts, looking at the viewer, freckles, visible skin detail, detailed skin texture, large green eyes, plump lips, gorgeous navel,
+(Eastman Color 5247 film stock, 8k restoration, remastered:1.2), film grain, still-frame photography, photo, vivid, vibrant, dynamic composition, ultra-high resolution, professional color grading, natural tones, detailed skin, detailed face features, fine skin details, skin texture, goosebumps skin, tack sharp, background in focus, messy background
+```
+Settings: CFG 3.5, Sampler Euler
+
+**African Girl - College Dorm (large areolas):**
+```
+(small breasts, firm tits, (((large plump areolas, puffy nipples, detailed areolas, large plump nipples))), f/11, full body wide view:1.2), detailed navel,
+(candid amateur photo of a slender black woman after sex:1.2), 21yo, girlfriend (in a college dorm room:1.1), natural light, slim and trim body, NSFW, African girl, wavy hair, natural skin tone, sweaty, confused, look of wonderment, sleepy, messy sheets, messy room, nude without makeup, seductive, nude, naked, sexy, erotic, exposed breasts, looking at the viewer, visible skin detail, detailed skin texture, large green eyes, plump lips, belly button, tummy button,
+(low contrast, Eastman Color 5247 film stock, 8k restoration, remastered:1.1), film grain, still-frame photography, photo, vivid, vibrant, dynamic composition, ultra-high resolution, professional color grading, natural tones, detailed skin, detailed face features, fine skin details, skin texture, goosebumps skin, tack sharp, background in focus, messy background
+```
+Settings: CFG 3.5, Sampler Euler
+
+**Mature Woman with Black Man (explicit LoRA combo):**
+```
+a mature woman,short hair, blonde, pale skin, (sagging breasts)+,shiny skin, baggy eyes, strong jawline, (goosebumps:1.5), breast apart, raw photo, full body view raw photo, a chaste woman sits on the lap of an older black man comforted in his shanty, adorned with dirty walls and dirty marks on his bed. Her enchanting beauty draws the viewer in as she rests her head on his chest, sucking her thumb, her eyes closed and her body language is reflecting a blend of innocence and longing, she is sat in the lap of an older black man who is seated on a chair with her blushing rear end exposed, accentuated in the soft light of the room. open mouth, she is naked, <lora:FLUXTASTIC_V3:1>,, <lora:Ultima_Flux_v1:0.3>, in the style of Jed-clrfl,
+```
+Settings: Steps 20, CFG 1, Sampler Euler, Size 720x1280, Model flux1-dev-bnb-nf4-v2, Distilled CFG 3.5
+
+**Graffiti Art Poster:**
+```
+young naked woman handing graffiti art poster in provocative and outrageous manner, 8K, award-winning photography, perfect bodyshape, artful, masterpiece, by famous photographer, detailerlora, magazine_cover,
+```
+Settings: Steps 40, CFG 3.5, Size 832x1216
+
+### Japanese / Korean
+
+**Japanese Bathtub - Rose Petals:**
+```
+photo of a naked Japanese woman, slim with hourglass figure, fair skin, and long black hair. She is taking a bath nude in a bathtub with sunlight streaming through a frosted window. Rose petals are floating in the bathtub. She is looking at the viewer with a wide smile making a heart shape with her hands over her nipple.
 ```
 
-**Prompt 2 (Pool scene):**
+**Japanese Nurse - Lingerie:**
 ```
-A topless 18-year-old girl with a messy yet charming updo, her fit physique on full display as she stands topless, breasts exposed, at the edge of a refreshing swimming pool. The simple background of the poolside setting allows her to be the main focus, depth of field blurs the surrounding lounge chairs and palm trees. With a playful laugh, she glances back at the camera. Full body candid photo, skimpy bikini bottom.
-```
-
-**Prompt 3 (Bathtub):**
-```
-a young woman sitting in a bathtub. She is completely naked, with her body facing the camera and her arms resting on the edge of the tub. She has dark hair that is pulled back in a ponytail and is looking directly at the camera with a slight smile on her face.
+Full-body photo of a stunning Japanese nurse, backlit by dynamic light. She sits on a luxury bed with one index finger at her cheek, exuding warmth and kindness. She is wearing a sheer bra, panties with a heart and a stethoscope. A pink nurse dress is on the bed. Her beautiful face, with delicate features and fair skin, beams at the viewer. Her black hair falls down her back like silk, framing her slim hourglass figure. Medium breasts are perfectly proportioned to her slender physique. Her gaze meets ours, inviting us into her world of care and compassion.
 ```
 
-**Prompt 4 (Outdoor nature):**
+**Korean Woman - Guasha Jade (nude):**
 ```
-A full body shot of a tall beautiful fit young woman with long dark brown hair. She is standing in front of a large oak tree and is looking directly at the camera with a slight smile on her face. The woman is shirtless, pulling her white yoga pants down. Her small perky breasts are prominently displayed. The image is a low angle shot taken from a side angle.
-```
-
-**Prompt 5 (Indoor bedroom):**
-```
-nfsw, naked, nude, 18-year-old girl, amateur selfie, wears pink hotpants, lifting her tshirt above her small perky tits, pink detailed nipples, she is holding the phone with which she is taking a selfie in her left hand, she is kneeling on the parquet floor of her room, brunette, straight bangs, short hair, socks
+Full-body photo of a beautiful Korean female woman, backlit by dynamic light. She sits on a white luxury bed holding a light pink heart guasha jade. She is completely naked, nude with a stethoscope. There is a pile of smooth aqua cloth on the bed. Her beautiful face, with delicate features, pale complexion, and fair skin, beams at the viewer. Her black hair falls down her back like silk, framing her slim hourglass figure. Small breasts are perfectly proportioned to her slender physique. Her gaze meets ours, inviting us into her world of care and compassion.
 ```
 
-### Notes
+### Gamer / Sci-Fi
+
+**Gamer Girl - Neon Setup:**
+```
+Create a highly detailed and visually stunning photograph of a beautiful female gamer in her late 20s, with a slim and athletic build. She is sitting confidently in a high-tech gaming chair, surrounded by a vibrant, futuristic gaming setup with neon lights illuminating the scene. The background features glowing screens and gaming equipment, casting a soft blue and pink glow on her. Her medium, wavy hair is styled elegantly. She is wearing dark rimmed glasses. She is naked except for a white thong. Her face is beckoning the viewer to join her in an erotic adventure, while also flushed with arousal. She poses with her legs spread and up on the desk. The lighting should enhance her beauty, with deep shadows and high-contrast reflections highlighting her sharp features and the glossy texture of the gaming setup. The overall scene should feel modern, erotic, and heavily sexual, capturing the beauty and self-consciousness of a young woman that doesn't yet realize her raw sexual appeal.
+```
+Settings: Steps 20, CFG 6, Size 832x1216
+
+**Robot Woman - Factory:**
+```
+An instant super-detailed photo. An over-detailed photo.
+fashion photography,(full body:1), side view, attractive 25yo robot woman, charging station in a robot factory, fucked by a robotic dildo, massive amounts of machine oil squirting, orgasmic expression, plushie. unimaginable quality, 8K, UHD,
+(Depth of field), masterpiece., Hasselblad 500C camera, 20mm medium-format film. full body
+```
+Settings: Steps 21, CFG 3.2, Sampler DPM++ 2M
+
+### Pony Model Crossover (low strength 0.01)
+
+**Araki Kimono Bondage (Pony - glossy skin):**
+```
+Full body shot, professional portrait of a stunning blonde woman, petite body, perfect curves, detailed skin, soft shadows, intimate and provocative. Inspired by Nobuyoshi Araki, blending sensuality with vulnerability. Traditional Japanese attire with subtle eroticism, intricate kimono layers slightly open, delicate rope bondage, minimalist dimly lit room, vintage film grain, shallow depth of field, raw emotions, quiet and contemplative atmosphere. (glossy skin, oiled, oily shinny skin:1.18). <lora:BreastShaper_splendid_droplets_Flux:0.01><lora:FLUXTASTIC_V3:0.01> <lora:PONY_lightning_8step_lora:1>
+```
+Negative prompt: cartoon, cgi, drawing, disfigured, bad art, deformed...
+Settings: Steps 25, CFG 6, Sampler DPM++ SDE, Size 1792x2304, Model bigLove_ponyV20
+
+**Araki Kimono Bondage (Pony - without glossy):**
+Same prompt without `(glossy skin, oiled, oily shinny skin:1.18)`.
+Settings: Steps 25, CFG 6, Sampler DPM++ SDE, Size 1792x2304, Model bigLove_ponyV20
+
+### ComfyUI Workflow Reference
+
+**FluxDFaeTastic + FLUXTASTIC combo:**
+```
+, <lora:FluxDFaeTasticDetails.safetensors:0.35:1.0> <lora:FLUXTASTIC_V3.safetensors:0.4:1.0>
+```
+Settings: Steps 22, CFG 3.5, Sampler deis_simple, Model copaxTimelessxl_xplus2GGUFQ8
+
+---
+
+## Tested Combinations
+
+**With BreastShaper + Pony Lightning (Pony model):**
+```
+<lora:BreastShaper_splendid_droplets_Flux:0.01>
+<lora:FLUXTASTIC_V3:0.01>
+<lora:PONY_lightning_8step_lora:1>
+```
+
+**With Ultima Flux (FLUX model):**
+```
+<lora:FLUXTASTIC_V3:1>
+<lora:Ultima_Flux_v1:0.3>
+```
+
+**With FluxDFaeTasticDetails (GGUF model):**
+```
+<lora:FluxDFaeTasticDetails.safetensors:0.35>
+<lora:FLUXTASTIC_V3.safetensors:0.4>
+```
+
+## Notes
+
 - V3 trained exclusively on real images (no AI-generated)
 - Works well with detailed natural language descriptions
 - Can be combined with other anatomy LoRAs
 - Use descriptive prompts for best results
+- Strength 1.0 for FLUX, 0.01 for Pony model (auxiliary effect)
+- Also works at 0.35-0.4 strength with GGUF models
+- Excellent text rendering on t-shirts and signs
+- Supports score-based quality tags (score_9, score_8_up, etc.)
+- Compatible with multiple checkpoints: flux1-dev-fp8, flux1-dev-bnb-nf4, Pony models, GGUF models
+- Works with BREAK token for scene composition
+
+---
+
+**Category:** STYLE / DETAIL
+**Last Updated:** 2026-02-14

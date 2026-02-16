@@ -1,0 +1,129 @@
+---
+title: "CTAI- Hand and foot details v1.0"
+description: "DETAIL / Hands / Feet for FLUX"
+downloads: 1631
+rating: 95
+tips: 0
+score: "⭐"
+type: "DETAIL / Hands / Feet"
+trigger: "CTAI- Hand and foot details v1.0"
+strength: "0.8-1.0"
+civitaiUrl: "https://civitai.com/models/1098765/ctai-hand-and-foot-details-v10"
+compatibility: "FLUX"
+sidebar:
+  badge:
+    text: "⭐"
+    variant: note
+---
+
+import LoraCard from '@/components/LoraCard.astro';
+
+<LoraCard
+  title="CTAI- Hand and foot details v1.0"
+  slug="detail-enhancers/hands-feet/ctai_hand_foot_details"
+  downloads={1631}
+  rating={95}
+  tips={0}
+  score="⭐"
+  type="DETAIL / Hands / Feet"
+  trigger="CTAI- Hand and foot details v1.0"
+  strength="0.8-1.0"
+  civitaiUrl="https://civitai.com/models/1098765/ctai-hand-and-foot-details-v10"
+  imageUrl="/images/loras/ctai_hand_foot_details.jpg"
+  compatibility="FLUX"
+/>
+
+## Description
+
+Improves hand and foot detail generation for FLUX. v1.0 is the stable, proven version with 1,525 downloads and strong community approval. Newer "CTAI-Hand" version exists but v1.0 is significantly more popular.
+
+## Parameters
+
+| Parameter | Value |
+|-----------|-------|
+| **File** | `CTAI_Hand_and_foot_details_v1.0.safetensors` |
+| **Original filename** | `CTAI- Hand and foot details v1.0.safetensors` |
+| **Civitai** | https://civitai.com/models/1098765/ctai-hand-and-foot-details-v10 |
+| **Trigger word** | `CTAI- Hand and foot details v1.0` |
+| **Strength** | 0.8-1.0 |
+| **Type** | DETAIL / Hands / Feet |
+| **Size** | 293 MB |
+
+## Version Comparison
+
+| Version | Downloads | Rating | Release Date | Notes |
+|---------|-----------|--------|---|---|
+| **v1.0** | 1,525 | 93 | Jan 3, 2025 | More popular, proven, stable |
+| CTAI-Hand | 105 | 10 | May 31, 2025 | Newer but less tested |
+
+**Recommendation:** v1.0 is the better choice — 14x more downloads, higher ratings, and proven quality.
+
+## Sample Prompts
+
+**Hand on stone surface:**
+```
+A candid shot of a hand with neatly trimmed natural nails. The nails are a soft, translucent pink with a glossy finish. The skin of the hand appears smooth and well-groomed. The background is a stone or tile surface, softly lit, suggesting outdoor conditions. The overall impression is clean and polished.
+```
+Settings: Steps 40, DPM2 sampler
+
+**Feet with lotion application (detailed):**
+```
+A close-up, ultra-detailed photo of two bare feet resting on a soft towel, captured in natural light. The soles are clearly visible, relaxed and realistic with subtle skin texture, pores, fine lines, and natural creases. One foot has a small amount of creamy lotion being gently applied, with creamy texture visible. The toenails are well-groomed and painted in alternating vibrant colors: black, light blue, white, pink, yellow, and orange. A pair of hands, natural and soft-looking, are carefully holding one foot from the sides, applying the lotion with a nurturing touch. The background is softly blurred, evoking a calm, spa-like environment. The overall mood of the image conveys tenderness, personal care, and peaceful relaxation. <lora:CTAI_Hand_and_foot_details_v1.0:1>
+```
+Negative: (canvas frame, watermark, signature, username), (low quality:1.2), bad quality, (low resolution:1.2), (bad hands, fused hands, extra hands, missing hands:1.1), (bad fingers, fused fingers, missing fingers, extra fingers:1.2), (bad feet, extra feet, fused feet, missing feet:1.1)
+Settings: Steps 20, CFG 1, Euler, Beta (0.6/0.6), 896x1152, Detail Daemon, Hires 1.5x UltraSharp, Distilled CFG 3.5
+
+**Two hands with manicure:**
+```
+A photo of two hands resting on a lap. The hands display neatly manicured nails with a light pink polish. The fingers are elegantly positioned, with one hand gently overlapping the other. The person is wearing a long-sleeved, ribbed white top, and the background is a soft, neutral color, adding to the calm and minimalist aesthetic of the image.
+```
+Settings: Steps 40, DPM2, or Steps 20, CFG 3.5, 1024x1024
+
+**Two bare feet on towel:**
+```
+A photo of two bare feet resting on a towel. The soles of the feet are visible, one foot has a small amount of creamy lotion applied to it. There are well-groomed toenails. The background is soft and out of focus, suggesting a relaxing environment. The person's hands are gently holding one foot, likely applying the lotion. The overall mood of the image conveys a sense of care and relaxation.
+```
+Settings: Steps 40, DPM2
+
+**Open hand with relaxed pose:**
+```
+photo of an open hand is shown, with fingers extended and palm facing upwards. The hand appears relaxed, with a smooth surface and visible skin texture. The background is light-colored, possibly a wooden surface. The hand does not have any visible accessories or adornments.
+```
+Settings: Steps 40, DPM2
+
+**Character with manicured hands (Xaralura):**
+```
+Xaralura lounging on a futuristic modular sofa on the floor, leaning back, relaxed posture, body stretching, one hand running through hair, (perfectly manicured black fingernails:1.2), (detailed hands:1.1), pale skin, wearing a grey cropped tank top with barcode print, baggy tactical tech-pants with many straps, warm artificial sunlight simulation, sterile but lived-in vibe, clean geometry of the capsule apartment in background, (masterpiece, best quality, ultra-detailed), raw photo style.
+```
+Negative: (deformed face, distorted face:1.3), (extra limbs, missing limbs:1.4), (mutated hands, mutated fingers, extra fingers, fused fingers:1.5), (bad hand anatomy, poorly drawn hands:1.4), (wrong anatomy, bad anatomy:1.3), (blurry, low detail, low resolution:1.2), (ugly, dismembered:1.3), (text, watermark, signature)
+Settings: Steps 25, CFG 1, Euler, 768x1344
+
+## Keywords
+
+- `neatly trimmed natural nails`, `manicured nails`
+- `detailed hands`, `well-groomed`
+- `bare feet`, `toenails`
+- `skin texture`, `pores`, `fine lines`
+- Works with: spa/relaxation, character portraits, detail enhancement
+
+## Recommended Settings
+
+| Parameter | Value |
+|-----------|-------|
+| **Steps** | 20-40 |
+| **CFG** | 1-3.5 |
+| **Sampler** | DPM2 / Euler |
+| **Scheduler** | Beta (0.6/0.6) / Simple |
+| **Size** | 768x1344 / 896x1152 / 1024x1024 |
+| **Strength** | 0.8-1.0 |
+
+## Notes
+
+- Trigger word required: `CTAI- Hand and foot details v1.0`
+- v1.0 recommended over newer CTAI-Hand (far more popular)
+- Works great for spa/relaxation imagery
+- Good detail enhancement for character hands
+- Pair with negative prompt mentioning bad hands/feet for best results
+- Detail Daemon recommended for enhanced detail
+- Hires upscale (1.5x) recommended for hand/foot closeups
+- 293 MB file size

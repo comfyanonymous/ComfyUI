@@ -4,6 +4,14 @@ import starlight from '@astrojs/starlight';
 
 // https://astro.build/config
 export default defineConfig({
+	outDir: 'loras',
+	vite: {
+		resolve: {
+			alias: {
+				'@': '/src/',
+			},
+		},
+	},
 	integrations: [
 		starlight({
 			title: 'FLUX LoRA Documentation',

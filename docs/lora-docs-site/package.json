@@ -7,7 +7,8 @@
     "start": "astro dev --port 8080",
     "build": "astro build",
     "preview": "astro preview",
-    "astro": "astro"
+    "astro": "astro",
+    "update-stats": "node scripts/fetch-civitai-images.js && node scripts/update-stats-from-cache.js"
   },
   "dependencies": {
     "@astrojs/starlight": "^0.37.6",

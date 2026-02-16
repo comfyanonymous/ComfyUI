@@ -3,7 +3,7 @@ title: "Checkpoints & Base Models"
 description: "FLUX base models and checkpoints for ComfyUI - ranked for NSFW desktop wallpaper generation"
 ---
 
-import LoraCard from '../../../components/LoraCard.astro';
+import LoraCard from '@/components/LoraCard.astro';
 
 # Checkpoints & Base Models
 
@@ -62,6 +62,7 @@ Ranking based on: quality/detail (30%), NSFW capability (25%), background sharpn
 | Real Horny Pro V3 | 20-30 | 3-7 | DPM++ 2M | Beta |
 | Fluxcstasy v1 | 20-30 | 3.5-7 | Euler | Normal |
 | getphat FLUX Reality | 35 | 4 | dpmpp_2m | sgm_uniform |
+| TinFlux1-dev-fp8 | 20-32 | 1.0 | Euler | Beta |
 | Persephone 2.0 | 32 | dist 4.0 | DPM++ 2M SDE | Beta |
 
 *Jib Mix with Hyper LoRA = 8-14 steps; without = 20-30 steps
@@ -73,7 +74,7 @@ Ranking based on: quality/detail (30%), NSFW capability (25%), background sharpn
 | Format | VRAM | File Size | Models |
 |--------|:----:|:---------:|--------|
 | **FP16** | 20-24 GB | ~22 GB | Fux Capacity, Fluxed Up, RedCraft, unStable Evo, Jib Mix |
-| **FP8** | 12-16 GB | ~11 GB | Acorn, SlimNudeGirls, Vision Realistic |
+| **FP8** | 12-16 GB | ~11 GB | Acorn, SlimNudeGirls, Vision Realistic, TinFlux1 |
 | **NF4** | 8-12 GB | ~6-7 GB | Real Horny Pro, FluxUnchained |
 | **GGUF Q8** | 12-16 GB | ~12 GB | FLUX Dev Q8 |
 
@@ -251,6 +252,21 @@ LoRAs:          flux_realism_lora (0.6)
   strength="N/A"
   civitaiUrl=""
   imageUrl=""
+  compatibility="FLUX"
+/>
+
+<LoraCard
+  title="TinFlux1-dev-fp8 11GB"
+  slug="checkpoints/tinflux1_dev_fp8"
+  downloads={451}
+  rating={47}
+  tips={0}
+  score="-"
+  type="Checkpoint - Asian Enhanced"
+  trigger=""
+  strength="N/A"
+  civitaiUrl="https://civitai.com/models/1724270/tinflux1-dev-fp811gbv1"
+  imageUrl="/images/loras/tinflux1_dev_fp8.jpg"
   compatibility="FLUX"
 />
 

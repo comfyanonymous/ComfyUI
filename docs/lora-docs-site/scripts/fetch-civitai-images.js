@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 
 /**
- * Fetch preview images from Civitai API for all LoRAs
+ * Fetch preview images and stats from Civitai API for all LoRAs
+ * Reads .mdx files from Starlight content directory (src/content/docs/)
  *
  * Usage: node scripts/fetch-civitai-images.js
  */
@@ -13,7 +14,7 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const DOCS_DIR = path.join(__dirname, '..', '..');
+const CONTENT_DIR = path.join(__dirname, '..', 'src', 'content', 'docs');
 const OUTPUT_DIR = path.join(__dirname, '..', 'public', 'images', 'loras');
 const CACHE_FILE = path.join(__dirname, '..', 'civitai-image-cache.json');
 
@@ -114,14 +115,14 @@ async function downloadImage(url, outputPath) {
 }
 
 /**
- * Parse markdown file to extract Civitai URL
+ * Parse .mdx file to extract civitaiUrl from YAML frontmatter
  */
-async function parseMdFile(filePath) {
+async function parseMdxFile(filePath) {
 	try {
 		const content = await fs.readFile(filePath, 'utf-8');
 
-		// Extract Civitai URL
-		const civitaiMatch = content.match(/\*\*Civitai\*\*.*?(https:\/\/civitai\.com\/models\/\d+[^\s\)]*)/);
+		// Extract civitaiUrl from frontmatter
+		const civitaiMatch = content.match(/civitaiUrl:\s*"([^"]+)"/);
 		if (!civitaiMatch) {
 			return null;
 		}
@@ -136,7 +137,7 @@ async function parseMdFile(filePath) {
 		return {
 			modelId,
 			civitaiUrl,
-			fileName: path.basename(filePath, '.md'),
+			fileName: path.basename(filePath, '.mdx'),
 		};
 	} catch (error) {
 		console.error(`Error parsing ${filePath}:`, error.message);
@@ -145,65 +146,23 @@ async function parseMdFile(filePath) {
 }
 
 /**
- * Process all markdown files in a directory
+ * Recursively walk directory and collect all .mdx files (excluding index.mdx)
  */
-async function processDirectory(dirPath, categoryName) {
-	console.log(`\n📂 Processing ${categoryName}...`);
+async function collectMdxFiles(dir) {
+	const results = [];
+	const entries = await fs.readdir(dir, { withFileTypes: true });
 
-	try {
-		const files = await fs.readdir(dirPath);
-		const mdFiles = files.filter(f => f.endsWith('.md') && f !== 'INDEX.md');
-
-		console.log(`   Found ${mdFiles.length} LoRA files`);
-
-		let processed = 0;
-		let failed = 0;
-
-		for (const file of mdFiles) {
-			const filePath = path.join(dirPath, file);
-			const data = await parseMdFile(filePath);
-
-			if (!data) {
-				continue;
-			}
-
-			console.log(`\n  📄 Processing: ${file}`);
-
-			// Fetch image data
-			const imageData = await fetchModelData(data.modelId);
-
-			if (imageData && imageData.url) {
-				// Download image
-				const outputPath = path.join(OUTPUT_DIR, `${data.fileName}.jpg`);
-
-				// Check if image already exists
-				try {
-					await fs.access(outputPath);
-					console.log(`    ✓ Image already exists, skipping download`);
-					processed++;
-					continue;
-				} catch {
-					// Image doesn't exist, download it
-				}
-
-				const success = await downloadImage(imageData.url, outputPath);
-				if (success) {
-					processed++;
-				} else {
-					failed++;
-				}
-
-				// Rate limiting - wait 500ms between requests
-				await new Promise(resolve => setTimeout(resolve, 500));
-			} else {
-				failed++;
-			}
+	for (const entry of entries) {
+		const fullPath = path.join(dir, entry.name);
+		if (entry.isDirectory()) {
+			const subResults = await collectMdxFiles(fullPath);
+			results.push(...subResults);
+		} else if (entry.name.endsWith('.mdx') && entry.name !== 'index.mdx') {
+			results.push(fullPath);
 		}
-
-		console.log(`\n  ✅ ${categoryName}: ${processed} images processed, ${failed} failed`);
-	} catch (error) {
-		console.error(`Error processing directory ${dirPath}:`, error.message);
 	}
+
+	return results;
 }
 
 /**
@@ -211,28 +170,54 @@ async function processDirectory(dirPath, categoryName) {
  */
 async function main() {
 	console.log('🚀 Starting Civitai image fetcher...\n');
+	console.log(`📂 Scanning: ${CONTENT_DIR}\n`);
 
-	const categories = [
-		{ dir: 'CHARACTERS_OTHER', name: 'Characters - Other' },
-		{ dir: 'CHARACTERS_WATW', name: 'Characters - WATW' },
-		{ dir: 'CHARACTERS_ACORN', name: 'Characters - Acorn' },
-		{ dir: 'ANATOMY_BREASTS', name: 'Anatomy - Breasts' },
-		{ dir: 'ANATOMY_PUSSY', name: 'Anatomy - Pussy' },
-		{ dir: 'ANATOMY_ASS', name: 'Anatomy - Ass' },
-		{ dir: 'POSES', name: 'Poses' },
-		{ dir: 'CLOTHING', name: 'Clothing' },
-		{ dir: 'STYLE_ENHANCEMENT', name: 'Style Enhancement' },
-		{ dir: 'BODY_TYPES', name: 'Body Types' },
-	];
+	const mdxFiles = await collectMdxFiles(CONTENT_DIR);
+	console.log(`Found ${mdxFiles.length} .mdx files to process\n`);
 
-	for (const category of categories) {
-		const dirPath = path.join(DOCS_DIR, category.dir);
+	let processed = 0;
+	let skipped = 0;
+	let failed = 0;
 
-		try {
-			await fs.access(dirPath);
-			await processDirectory(dirPath, category.name);
-		} catch {
-			console.log(`⚠️  Directory not found: ${category.dir}`);
+	for (const filePath of mdxFiles) {
+		const relativePath = path.relative(CONTENT_DIR, filePath);
+		const data = await parseMdxFile(filePath);
+
+		if (!data) {
+			skipped++;
+			continue;
+		}
+
+		console.log(`📄 Processing: ${relativePath}`);
+
+		// Fetch image data
+		const imageData = await fetchModelData(data.modelId);
+
+		if (imageData && imageData.url) {
+			// Download image
+			const outputPath = path.join(OUTPUT_DIR, `${data.fileName}.jpg`);
+
+			// Check if image already exists
+			try {
+				await fs.access(outputPath);
+				console.log(`    ✓ Image already exists, skipping download`);
+				processed++;
+				continue;
+			} catch {
+				// Image doesn't exist, download it
+			}
+
+			const success = await downloadImage(imageData.url, outputPath);
+			if (success) {
+				processed++;
+			} else {
+				failed++;
+			}
+
+			// Rate limiting - wait 500ms between API requests
+			await new Promise(resolve => setTimeout(resolve, 500));
+		} else {
+			failed++;
 		}
 	}
 
@@ -240,6 +225,7 @@ async function main() {
 	await fs.writeFile(CACHE_FILE, JSON.stringify(imageCache, null, 2));
 	console.log(`\n💾 Saved image cache with ${Object.keys(imageCache).length} entries`);
 
+	console.log(`\n✅ Summary: ${processed} processed, ${skipped} skipped (no civitaiUrl), ${failed} failed`);
 	console.log('\n✨ Done!');
 }
 

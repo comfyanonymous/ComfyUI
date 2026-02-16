@@ -1,0 +1,123 @@
+---
+title: "BUMLIFT - Bum Lift"
+description: "CLOTHING / Leggings / Bum Lift for FLUX"
+downloads: 485
+rating: 56
+tips: 0
+score: "-"
+type: "CLOTHING / Leggings / Bum Lift"
+trigger: "BUMLIFT"
+strength: "0.8-1.0"
+civitaiUrl: "https://civitai.com/models/1407878/bum-lift"
+compatibility: "FLUX"
+sidebar:
+  badge:
+    text: "-"
+    variant: note
+---
+
+import LoraCard from '@/components/LoraCard.astro';
+
+<LoraCard
+  title="BUMLIFT - Bum Lift"
+  slug="clothing/pants-leggings/bumlift_bum_lift"
+  downloads={485}
+  rating={56}
+  tips={0}
+  score="-"
+  type="CLOTHING / Leggings / Bum Lift"
+  trigger="BUMLIFT"
+  strength="0.8-1.0"
+  civitaiUrl="https://civitai.com/models/1407878/bum-lift"
+  imageUrl="/images/loras/bumlift_bum_lift.jpg"
+  compatibility="FLUX"
+/>
+
+## Description
+
+Bum lift LoRA for FLUX — enhances and accentuates buttocks appearance, especially with leggings and tight-fitting clothing. Works with various legging styles (wetlook, bonafide, etc.). Version 1.1 with improved training dataset.
+
+## Parameters
+
+| Parameter | Value |
+|-----------|-------|
+| **File** | `BUMLIFT_Bum_Lift_v1.1.safetensors` |
+| **Original filename** | `lora.safetensors` |
+| **Civitai** | https://civitai.com/models/1407878/bum-lift |
+| **Trigger word** | `BUMLIFT` |
+| **Strength** | 0.8-1.0 |
+| **Type** | CLOTHING / Leggings / Bum Lift |
+| **Size** | 328 MB |
+
+## Sample Prompts
+
+**Wetlook leggings, looking back:**
+```
+wetlook leggings, full-length image, looking back over shoulder, low angle, BUMLIFT, ANIMEFLUX
+```
+Settings: Steps 40, CFG 8.5, 832x1216
+
+**Character with wetlook leggings:**
+```
+JUNOECLAIR, back, wetlook leggings, full-length image, looking back, low angle, BUMLIFT, ANIMEFLUX
+```
+Settings: Steps 40, CFG 8.5, 832x1216
+
+**Character with amateurish photo style:**
+```
+JUNOECLAIR, back, wetlook leggings, full-length image, looking back, low angle, BUMLIFT, xijie_mihuan, amateurish photo, overexposed
+```
+Settings: Steps 40, CFG 8.5, 832x1216
+
+**Character with bonafide leggings (minimal):**
+```
+JUNOECLAIR, back, wetlook leggings, BUMLIFT, xijie_mihuan
+```
+Settings: Steps 36, CFG 7, 832x1216
+
+**Generic woman with leggings:**
+```
+woman, back, leggings, BUMLIFT
+```
+Settings: Steps 36, CFG 7, 832x1216
+
+**Gym setting with bonafide leggings:**
+```
+BUMLIFT, bonafide-leggings, gym, She turns her back and looks at the viewer.
+```
+Settings: Steps 24, CFG 3.5, Euler
+
+**Bonafide leggings minimal:**
+```
+BUMLIFT, bonafide-leggings, She turns her back and looks at the viewer.
+```
+Settings: Steps 24, CFG 3.5, Euler
+
+## Keywords
+
+- `BUMLIFT` (primary trigger)
+- Legging styles: `wetlook leggings`, `bonafide-leggings`
+- Pose/view: `back`, `looking back`, `looking back over shoulder`, `low angle`
+- Works with: character LoRAs (JUNOECLAIR), style triggers (ANIMEFLUX, xijie_mihuan)
+
+## Recommended Settings
+
+| Parameter | Value |
+|-----------|-------|
+| **Steps** | 24-40 |
+| **CFG** | 3.5-8.5 |
+| **Sampler** | Euler / Undefined |
+| **Size** | 832x1216 |
+| **Strength** | 0.8-1.0 |
+| **Clip skip** | 2 |
+
+## Notes
+
+- Trigger word: `BUMLIFT` (required)
+- Works best with explicit "back" positioning in prompt
+- Low angle shots enhance the effect
+- Compatible with character LoRAs (JUNOECLAIR, etc.)
+- Works with various legging styles
+- 328 MB file size
+- Version 1.1 (latest) — improved training dataset
+- NSFW content (NSFW level: 60)

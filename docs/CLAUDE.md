@@ -1,4 +1,4 @@
-﻿# Claude Instructions for ComfyUI Documentation
+# Claude Instructions for ComfyUI Documentation
 
 ## Overview
 
@@ -8,98 +8,107 @@ This file contains instructions for Claude on how to manage the ComfyUI document
 
 ## Documentation Structure
 
-All documentation is in `ComfyUI\docs\` folder with **folder-based structure**:
+All LoRA documentation lives in the **Starlight site** at `lora-docs-site/src/content/docs/` as `.mdx` files.
 
-### Migrated Categories (Folder Structure)
+### Categories
 
-| Folder | Content | Files |
-|--------|---------|-------|
-| `CHECKPOINTS/` | Base models and diffusion checkpoints | 17 |
-| `ANATOMY_ASS/` | LoRAs for buttocks and rear anatomy | 14 |
-| `ANATOMY_PUSSY/` | LoRAs for vaginal anatomy | 30 |
-| `ANATOMY_BREASTS/` | LoRAs for breast and nipple generation | 17 |
-| `ANATOMY_AREOLAS/` | LoRAs for areola variations | 4 |
-| `POSES/` | LoRAs for poses and camera angles (7 subcategories) | 63 |
-| `POSES/doggystyle-behind/` | Doggystyle, from behind, bent over, all fours | 9 |
-| `POSES/anal/` | Anal missionary, cowgirl, riding, fisting | 8 |
-| `POSES/sex-positions/` | DP, vaginal, cowgirl, dildo, machines | 8 |
-| `POSES/oral-tongue/` | Oral, tongue, cunnilingus, handjobs | 13 |
-| `POSES/sexy-poses/` | Modeling poses, shower, spreading, artistic | 12 |
-| `POSES/clothing-flashing/` | Clothing removal, flashing, mooning | 8 |
-| `POSES/facesitting-misc/` | Facesitting, car poses, camera angles | 5 |
-| `CLOTHING/` | LoRAs for clothing effects (6 subcategories) | 54 |
-| `CLOTHING/panties-underwear/` | Panties, underwear, and related effects | 10 |
-| `CLOTHING/skirts-upskirt/` | Skirts, skirt lifting, upskirt | 5 |
-| `CLOTHING/pantyhose-stockings/` | Pantyhose, stockings, garter belts | 7 |
-| `CLOTHING/lingerie-sheer/` | Lingerie, see-through, corsets | 10 |
-| `CLOTHING/shoes-footwear/` | Stiletto boots, platform heels, pumps | 7 |
-| `CLOTHING/tops-dresses-other/` | Tops, dresses, pants, swimwear, holiday | 15 |
-| `STYLE_ENHANCEMENT/` | Style, realism, NSFW unlock, cum effects | 57 |
-| `ETHNICITY_LATINA/` | LoRAs for Latina/Hispanic characters | 4 |
-| `ETHNICITY_ASIAN/` | LoRAs for Asian characters | 6 |
-| `ETHNICITY_OTHER/` | LoRAs for Indian, Polynesian, etc. | 2 |
-| `CHARACTERS_ACORN/` | Acorn series character LoRAs | 7 |
-| `CHARACTERS_OTHER/` | Other character LoRAs | 14 |
-| `BODY_TYPES/` | LoRAs for body shapes and physiques | 10 |
-| `HANDS/` | Hand anatomy fix, finger detail, nails | 6 |
-| `CHARACTERS_WATW/` | Women Around The World character LoRAs | 8+ |
-| `CONCEPTS/` | Concept LoRAs (cum effects, etc.) | 4 |
-| `ANIMALS/` | Animal LoRAs (cats, etc.) | 1 |
-
-### Legacy Single Files (Small - No Migration Needed)
-
-| File | Content |
+| Path | Content |
 |------|---------|
-| `INDEX.md` | Main index with table of contents |
-| `15_COMBINATIONS_TIPS.md` | Recommended combinations and guidelines |
-| `16_UPSCALERS.md` | Image upscaling models (3 entries) |
+| `characters/acorn/` | Acorn series character LoRAs |
+| `characters/other/` | Other character LoRAs |
+| `characters/watw/` | Women Around The World character LoRAs |
+| `anatomy/breasts/` | LoRAs for breast and nipple generation |
+| `anatomy/pussy/` | LoRAs for vaginal anatomy |
+| `anatomy/ass/` | LoRAs for buttocks and rear anatomy |
+| `body-types/general/` | General body/anatomy LoRAs |
+| `body-types/shape/` | Body shape LoRAs (hourglass, petite, etc.) |
+| `body-types/special/` | Special body LoRAs (pregnant, belly button) |
+| `clothing/panties-underwear/` | Panties, underwear effects |
+| `clothing/skirts-upskirt/` | Skirts, skirt lifting, upskirt |
+| `clothing/pantyhose-stockings/` | Pantyhose, stockings, garter belts |
+| `clothing/lingerie-sheer/` | Lingerie, see-through, corsets |
+| `clothing/shoes-footwear/` | Stiletto boots, platform heels, pumps |
+| `clothing/tops-dresses-other/` | Tops, dresses, pants, swimwear |
+| `poses/doggystyle-behind/` | Doggystyle, from behind, bent over |
+| `poses/anal/` | Anal missionary, cowgirl, riding, fisting |
+| `poses/sex-positions/` | DP, vaginal, cowgirl, dildo, machines |
+| `poses/oral-tongue/` | Oral, tongue, cunnilingus, handjobs |
+| `poses/sexy-poses/` | Modeling poses, shower, spreading |
+| `poses/clothing-flashing/` | Clothing removal, flashing, mooning |
+| `poses/facesitting-misc/` | Facesitting, car poses, camera angles |
+| `style/aesthetic/` | Aesthetic style enhancers |
+| `style/body/` | Body-focused style LoRAs |
+| `style/detail/` | Detail enhancement LoRAs |
+| `style/nsfw/` | NSFW unlock and nudity LoRAs |
+| `checkpoints/` | Base models and diffusion checkpoints |
 
-### Folder Structure Details
-
-Each migrated category folder contains:
-```
-CATEGORY_NAME/
-├── INDEX.md           # Stats table, top picks, categorized lists
-├── lora_name_1.md     # Individual LoRA documentation
-├── lora_name_2.md
-└── ...
-```
+All paths are relative to `lora-docs-site/src/content/docs/`.
 
 ---
 
-## Entry Format
+## Entry Format (.mdx)
 
-Each LoRA/Model entry MUST follow this format:
+Each LoRA entry is a `.mdx` file with YAML frontmatter and a LoraCard component:
 
-```markdown
-## Model Name
+```mdx
+---
+title: "LoRA Name"
+description: "Category for FLUX"
+downloads: 0
+rating: 0
+tips: 0
+score: "-"
+type: "Category"
+trigger: "trigger_word"
+strength: "1.0"
+civitaiUrl: "https://civitai.com/models/XXXXX"
+compatibility: "FLUX"
+sidebar:
+  badge:
+    text: "-"
+    variant: note
+---
 
-| Parameter | Value |
-|-----------|-------|
-| **File** | `filename.safetensors` |
-| **Original filename** | `original_name.safetensors` (if renamed) |
-| **Civitai** | https://civitai.com/models/XXXXX |
-| **Trigger word** | `keyword` or None |
-| **Strength** | 0.5-1.0 |
-| **Type** | Enhancement / CONCEPT / etc. |
+import LoraCard from '../../../components/LoraCard.astro';
 
-### Description
+<LoraCard
+  title="LoRA Name"
+  slug="category/lora_name"
+  downloads={0}
+  rating={0}
+  tips={0}
+  score="-"
+  type="Category"
+  trigger="trigger_word"
+  strength="1.0"
+  civitaiUrl="https://civitai.com/models/XXXXX"
+  imageUrl="/images/loras/lora_name.jpg"
+  compatibility="FLUX"
+/>
+
+## Description
 Brief description of what this LoRA does.
 
-### Sample prompts
+## Sample prompts
 
 **Prompt 1 (description):**
 ```
 prompt text here <lora:filename:1>
 ```
+Settings: Steps: 30, CFG: 3.5, Sampler: Euler
 
-### Keywords
+## Keywords
 - `keyword1`
 - `keyword2`
 
-### Notes
-- Additional notes if needed
+## Notes
+- Additional notes
 ```
+
+**Filename conventions:**
+- Use **snake_case**: `Flux Skirt Lift` -> `flux_skirt_lift.mdx`
+- Always `.mdx` extension
+- Image: same base name with `.jpg` in `public/images/loras/`
 
 ---
 
@@ -124,40 +133,31 @@ Copy-Item 'SOURCE_PATH' -Destination 'DEST_PATH' -Force -Verbose
 
 **Filename conventions:**
 - **NO SPACES** in destination filenames - use underscores `_` instead
-- Replace spaces with underscores: `FLUX Female Anatomy.safetensors` → `FLUX_Female_Anatomy.safetensors`
+- Replace spaces with underscores: `FLUX Female Anatomy.safetensors` -> `FLUX_Female_Anatomy.safetensors`
 - Avoid special characters (use only alphanumeric, underscore, hyphen)
-- Use CamelCase or snake_case consistently
 - If renaming, document **Original filename** in the entry
 
 ### 3. Add Documentation
 
-Choose the correct folder/file based on LoRA type:
+Create a new `.mdx` file in the appropriate category under `lora-docs-site/src/content/docs/`:
 
-**Folder-based categories (preferred):**
-- **Anatomy (ass, butt)** → `ANATOMY_ASS/` folder
-- **Anatomy (pussy, vagina)** → `ANATOMY_PUSSY/` folder
-- **Poses, angles** → `POSES/` folder (7 subcategories: doggystyle-behind, anal, sex-positions, oral-tongue, sexy-poses, clothing-flashing, facesitting-misc)
-- **Clothing, fashion** → `CLOTHING/` folder (6 subcategories: panties-underwear, skirts-upskirt, pantyhose-stockings, lingerie-sheer, shoes-footwear, tops-dresses-other)
-- **Style, enhancement, NSFW, cum** → `STYLE_ENHANCEMENT/` folder
-- **Anatomy (breasts, nipples)** → `ANATOMY_BREASTS/` folder
+| LoRA type | Target directory |
+|-----------|-----------------|
+| Anatomy (ass, butt) | `anatomy/ass/` |
+| Anatomy (pussy, vagina) | `anatomy/pussy/` |
+| Anatomy (breasts, nipples) | `anatomy/breasts/` |
+| Poses, angles | `poses/<subcategory>/` |
+| Clothing, fashion | `clothing/<subcategory>/` |
+| Style, enhancement, NSFW | `style/<subcategory>/` |
+| Characters | `characters/other/` (or `acorn/`, `watw/`) |
+| Body types | `body-types/<subcategory>/` |
+| Checkpoints | `checkpoints/` |
 
-**Legacy single files:**
-- **Checkpoints/UNET** → `01_CHECKPOINTS.md`
-- **Anatomy (areolas)** → `05_ANATOMY_AREOLAS.md`
-- **Latina ethnicity** → `08_ETHNICITY_LATINA.md`
-- **Asian ethnicity** → `09_ETHNICITY_ASIAN.md`
-- **Other ethnicity** → `10_ETHNICITY_OTHER.md`
-- **Characters (Acorn)** → `11_CHARACTERS_ACORN.md`
-- **Characters (other)** → `12_CHARACTERS_OTHER.md`
-- **Body types** → `13_BODY_TYPES.md`
-- **Combinations, tips** → `15_COMBINATIONS_TIPS.md`
+Use the `.mdx` entry template from the "Entry Format" section above. Adjust the `import LoraCard` path depth based on nesting level (`../../` for 2 levels, `../../../` for 3 levels).
 
-### 4. Update INDEX.md
+Starlight auto-generates the sidebar from the file structure - no manual index updates needed.
 
-**For folder-based categories:** Update the category's `INDEX.md` file.
-**For legacy files:** Add entry to the Table of Contents at the top.
-
-### 5. Remove Source File
+### 4. Remove Source File
 ```powershell
 Remove-Item 'SOURCE_PATH' -Force
 ```
@@ -175,7 +175,8 @@ Remove-Item 'SOURCE_PATH' -Force
 | CLIP | `ComfyUI\models\clip\` |
 | Custom Nodes | `ComfyUI\custom_nodes\` |
 | Workflows | `ComfyUI\user\default\workflows\` |
-| Documentation | `ComfyUI\docs\` |
+| Documentation (site) | `ComfyUI\docs\lora-docs-site\` |
+| Documentation (content) | `ComfyUI\docs\lora-docs-site\src\content\docs\` |
 
 ---
 
@@ -201,19 +202,104 @@ When adding new model:
 - [ ] **Verify Civitai URL is provided** (ask if missing!)
 - [ ] Identify type (CONCEPT, STYLE, BASE MODEL, TOOL)
 - [ ] Copy to correct folder (models/loras/, models/unet/, etc.)
-- [ ] Fetch Civitai stats (downloads, 👍 thumbs, tips)
-- [ ] Create individual .md file in appropriate category folder
-- [ ] Update category's INDEX.md with new entry in stats table
+- [ ] Fetch Civitai stats (downloads, thumbs, tips)
+- [ ] Create `.mdx` file in appropriate category under `lora-docs-site/src/content/docs/`
+- [ ] Download preview image to `lora-docs-site/public/images/loras/`
 - [ ] Remove source file from downloads
 - [ ] Confirm with user
 
 ---
 
-## Adding LoRA to Folder-Based Category (DETAILED)
+## ⚠️ CRITICAL: No Duplicate Documentation
 
-When adding a new LoRA to a migrated folder-based category (e.g., `ANATOMY_ASS/`, `POSES/`, etc.):
+**RULE:** NEVER create new documentation files if documentation already exists for that LoRA. ALWAYS update existing files instead.
 
-### Step 1: Fetch Civitai Stats
+### Workflow Before Creating New Documentation
+
+**STEP 1: Search for Existing Documentation**
+
+Before creating any new `.mdx` file, ALWAYS search for existing documentation:
+
+```bash
+# Search by trigger word, filename, or CivitAI URL
+grep -r "dpmp\|trigger_phrase\|civitai\.com/models/XXXXX" D:\AI\ComfyUI\docs/
+```
+
+Or use the Read tool with patterns to find files:
+```bash
+# Search all .mdx files for the LoRA name or keywords
+find D:\AI\ComfyUI\docs -name "*.mdx" -o -name "*.md" | xargs grep -l "search_term"
+```
+
+### Common Locations to Check
+
+Most LoRAs have documentation in these standard locations:
+
+| Category | Path |
+|----------|------|
+| Poses (DP, positions) | `poses/sex-positions/` |
+| Poses (doggystyle) | `poses/doggystyle-behind/` |
+| Poses (anal) | `poses/anal/` |
+| Poses (oral) | `poses/oral-tongue/` |
+| Characters | `characters/other/` or `characters/acorn/` |
+| Clothing | `clothing/<subcategory>/` |
+| Anatomy | `anatomy/<subcategory>/` |
+| Style/NSFW | `style/nsfw/` or `style/detail/` |
+
+**File naming pattern:** `lora_name.mdx` in `lora-docs-site/src/content/docs/<category>/`
+
+### If Documentation Already Exists
+
+**DO THIS:**
+1. Read the existing `.mdx` file
+2. Identify which prompts are already documented
+3. Filter the user's prompts - remove duplicates
+4. Add ONLY the missing prompts using Edit tool
+5. Update metadata (downloads, rating, tips) if needed
+6. DO NOT create new files
+
+**DON'T DO THIS:**
+- ❌ Create new `.mdx` file with same LoRA (creates duplicate)
+- ❌ Create `.md` file if `.mdx` already exists
+- ❌ Ignore existing documentation and start from scratch
+
+### If Documentation Does NOT Exist
+
+**THEN:**
+1. Create new `.mdx` file in appropriate category
+2. Use template from "Entry Format" section
+3. Add all prompts provided by user
+4. Update metadata from CivitAI
+
+### Example: Correct vs Incorrect
+
+**INCORRECT (what I did initially):**
+```
+# Found dpmpFLUX documentation already exists:
+poses/sex-positions/double_penetration_missionary_flux.mdx
+
+# Wrongly created NEW files:
+poses/dpmp_flux.mdx          ❌ DUPLICATE
+POSES/dpmp_flux.md           ❌ DUPLICATE
+
+# Result: Overwrote metadata, had to merge prompts manually
+```
+
+**CORRECT:**
+```
+# Found existing documentation:
+poses/sex-positions/double_penetration_missionary_flux.mdx (has 6 prompts)
+
+# Read existing file
+# Compared user's ~20 prompts with existing 6
+# Added ONLY 6 missing prompts using Edit tool
+# Deleted wrongly created duplicates
+# Result: Clean, no overwrites, proper merge
+```
+
+---
+
+## Fetching Civitai Stats
 
 Use WebFetch to get stats from Civitai API:
 ```
@@ -226,141 +312,31 @@ Prompt: Extract: downloads count, thumbsUpCount (rating), tippedAmountCount (tip
 | Field | API Name | Description |
 |-------|----------|-------------|
 | **Downloads** | `stats.downloadCount` | Total downloads |
-| **👍** | `stats.thumbsUpCount` | Unique positive reviews (thumbs up) |
+| **Rating** | `stats.thumbsUpCount` | Unique positive reviews (thumbs up) |
 | **Tips** | `stats.tippedAmountCount` | Total buzz tips received |
 
-### Step 2: Create Individual LoRA File
-
-Create new file: `CATEGORY/lora_name.md` using **snake_case** naming.
-
-**Filename conventions:**
-- `Flux Skirt Lift` → `flux_skirt_lift.md`
-- `POV Blowjob + ASS` → `pov_blowjob_ass.md`
-- `NSFW MASTER FLUX` → `nsfw_master_flux.md`
-
-**File template:**
-```markdown
-# LoRA Name
-
-[← Back to Index](INDEX.md)
-
-## Civitai Stats
-
-| Metric | Value |
-|--------|-------|
-| **Downloads** | X,XXX |
-| **👍** | XXX |
-| **Tips** | X,XXX |
-| **Score** | ⭐⭐ |
-
-## Parameters
-
-| Parameter | Value |
-|-----------|-------|
-| **File** | `filename.safetensors` |
-| **Civitai** | https://civitai.com/models/XXXXX |
-| **Trigger word** | `trigger` or None |
-| **Strength** | 0.7-1.0 |
-| **Type** | CONCEPT / STYLE / etc. |
-
-## Description
-
-Brief description of what this LoRA does.
-
-## Sample prompts
-
-**Prompt 1 (description):**
-```
-prompt text here
-```
-Settings: Steps: 30, CFG: 3.5, Sampler: Euler
-
-## Keywords
-
-- `keyword1`
-- `keyword2`
-
-## Notes
-
-- Additional notes
-```
-
-### Step 3: Update Category INDEX.md
-
-Add new entry to the **stats table** in INDEX.md:
-
-```markdown
-| [New LoRA Name](new_lora.md) | X,XXX | XXX | X,XXX | ⭐⭐ |
-```
-
 **Score ratings:**
-- ⭐⭐⭐ = Top tier (>5K-10K downloads depending on category)
-- ⭐⭐ = High quality (>2K downloads)
-- ⭐ = Good (>500 downloads)
+- `⭐⭐⭐` = Top tier (>10K downloads)
+- `⭐⭐` = High quality (>2K downloads)
+- `⭐` = Good (>500 downloads)
 - `-` = New/Low stats
 
-Also add to appropriate **category list** in INDEX.md.
-
-### Step 4: Verify
-
-Check that:
-- [ ] Individual .md file created with all sections
-- [ ] INDEX.md stats table updated (sorted by downloads desc)
-- [ ] INDEX.md category list updated
-- [ ] Back link works: `[← Back to Index](INDEX.md)`
-
 ---
 
-## INDEX.md Template (for category folders)
+## Updating Statistics
 
-```markdown
-# Category Name
+Use the npm pipeline to refresh all Civitai stats:
 
-[← Back to Main Index](../INDEX.md)
-
-Description of this category.
-
----
-
-## Quality Statistics (Civitai)
-
-*Updated: YYYY-MM-DD*
-
-| LoRA | Downloads | 👍 | Tips | Score |
-|------|----------:|-------:|-----:|------:|
-| [Top LoRA](top_lora.md) | 10,000 | 500 | 1,000 | ⭐⭐⭐ |
-| [Good LoRA](good_lora.md) | 5,000 | 250 | 500 | ⭐⭐ |
-
-**Legend:** ⭐⭐⭐ = Top tier | ⭐⭐ = High quality | ⭐ = Good
-
----
-
-## Top Picks
-
-| Category | Best LoRA | Why |
-|----------|-----------|-----|
-| **Category A** | [LoRA Name](file.md) | Reason |
-
----
-
-## All LoRAs by Category
-
-### Subcategory 1
-- [LoRA A](lora_a.md) ⭐⭐⭐ - Description
-- [LoRA B](lora_b.md) ⭐⭐ - Description
-
----
-
-## Quick Reference - Triggers
-
-| LoRA | Trigger | Strength |
-|------|---------|----------|
-| LoRA Name | `trigger` | 0.8-1.0 |
-
----
-
-*Last updated: YYYY-MM-DD*
+```bash
+cd D:\AI\ComfyUI\docs\lora-docs-site
+npm run update-stats
 ```
+
+This runs two scripts in sequence:
+1. `fetch-civitai-images.js` - Fetches stats and images from Civitai API, updates the cache
+2. `update-stats-from-cache.js` - Updates all `.mdx` files with cached stats (downloads, rating, tips, score)
+
+**Run periodically** (e.g., weekly) to keep stats current for workflow decisions.
 
 ---
 
@@ -370,10 +346,9 @@ When creating new test/production workflows, **ALWAYS**:
 
 ### 1. Use Installed LoRAs Based on Documentation
 
-Check INDEX.md and documentation files for:
+Search `.mdx` files in `lora-docs-site/src/content/docs/` for:
 - **RECOMMENDED** markers - priority LoRAs for workflows
-- **⭐⭐⭐ CRITICAL** markers - must-use quality enhancers
-- **"Planned for future workflow"** notes - tested good quality LoRAs
+- High-score LoRAs (`⭐⭐⭐`)
 
 ### 2. Standard Quality Stack
 
@@ -381,7 +356,7 @@ Always include these quality enhancers in workflows:
 
 | LoRA | Strength | Purpose |
 |------|----------|---------|
-| `detail_enhancer_flux_v1` | 0.7 | ⭐⭐⭐ CRITICAL - details |
+| `detail_enhancer_flux_v1` | 0.7 | CRITICAL - details |
 | `MysticXXX-v6` | 0.5-0.7 | NSFW unlock |
 | `flux_realism_lora` | 0.5-0.7 | Realism boost |
 
@@ -391,73 +366,11 @@ Check for marked characters:
 - **FictiveCharacter1** - RECOMMENDED sexy model (`ohwx` trigger)
 - **JessicaA** (Acorn) - Outstanding natural results (`JessicaA` trigger)
 
-### 4. Search Documentation
-
-Before creating workflow, search docs for:
-```
-RECOMMENDED|CRITICAL|Planned|future workflow|Outstanding
-```
-
-### 5. Workflow Location
+### 4. Workflow Location
 
 Save test workflows to: `ComfyUI\user\default\workflows\`
 
 Naming: `TEST_[ConceptName]_v1.json`
-
----
-
----
-
-## Missing Items (TODO)
-
-### LoRAs to Install
-
-The following LoRAs are mentioned in documentation but NOT installed:
-
-| LoRA | Purpose | Documentation |
-|------|---------|---------------|
-| `Flux_Skin_Detailer` | Skin texture enhancement | Used in many combinations |
-| `RealSkin_xxXL` | Realistic skin (SDXL) | 12_CHARACTERS_OTHER.md |
-| `Realistic_Photos_Detailed_Skin` | Detailed skin textures | 12_CHARACTERS_OTHER.md |
-
-### LoRAs Missing Documentation
-
-The following LoRAs are installed but NOT documented:
-
-| File | Folder | Needs |
-|------|--------|-------|
-| `pornmaster skin-IL-V1-lora.safetensors` | loras/ | Full documentation entry |
-
-**Action:** When installing new LoRAs, always add documentation. When finding undocumented LoRAs, add entries to appropriate doc files.
-
----
-
-## Updating Statistics
-
-Use `update_stats.ps1` to refresh all Civitai stats in documentation:
-
-```powershell
-# Full update (all files)
-.\update_stats.ps1 -Verbose
-
-# Update specific category only
-.\update_stats.ps1 -Category "POSES" -Verbose
-
-# Preview changes without modifying files
-.\update_stats.ps1 -DryRun
-
-# Faster update (reduce API delay)
-.\update_stats.ps1 -DelayMs 200
-```
-
-**What the script does:**
-1. Scans all `.md` files for Civitai URLs
-2. Fetches fresh stats from Civitai API
-3. Updates Downloads, 👍, Tips, and Score in each file
-4. Updates INDEX.md stats tables
-5. Updates CLAUDE.md timestamp
-
-**Run periodically** (e.g., weekly) to keep stats current for workflow decisions.
 
 ---
 
@@ -494,20 +407,9 @@ Then restart ComfyUI. It will use PyTorch's native SDPA attention which supports
 | xformers | NO | N/A |
 | Flash Attention 3 | Check version | May work |
 
-### Notes
-
-- Blackwell GPUs (RTX 50 series, compute 12.0) are very new
-- Most attention libraries need updates for compatibility
-- PyTorch native attention works reliably
-- Check for xformers updates periodically for Blackwell support
-
 ---
 
 ## LoRA Documentation Site (lora-docs-site)
-
-### Overview
-
-The `ComfyUI\docs\lora-docs-site\` directory contains an Astro/Starlight-based documentation website for browsing LoRA models with preview images, statistics, and detailed information.
 
 ### Configuration
 
@@ -529,7 +431,7 @@ npm run dev
 lora-docs-site/
 ├── src/
 │   ├── content/
-│   │   └── docs/
+│   │   └── docs/           # All .mdx LoRA documentation
 │   │       ├── characters/
 │   │       │   ├── acorn/
 │   │       │   ├── other/
@@ -539,17 +441,40 @@ lora-docs-site/
 │   │       │   ├── pussy/
 │   │       │   └── ass/
 │   │       ├── clothing/
+│   │       │   ├── panties-underwear/
+│   │       │   ├── skirts-upskirt/
+│   │       │   ├── pantyhose-stockings/
+│   │       │   ├── lingerie-sheer/
+│   │       │   ├── shoes-footwear/
+│   │       │   └── tops-dresses-other/
 │   │       ├── poses/
+│   │       │   ├── doggystyle-behind/
+│   │       │   ├── anal/
+│   │       │   ├── sex-positions/
+│   │       │   ├── oral-tongue/
+│   │       │   ├── sexy-poses/
+│   │       │   ├── clothing-flashing/
+│   │       │   └── facesitting-misc/
 │   │       ├── style/
-│   │       └── body-types/
-│   ├── components/
-│   │   ├── LoraCard.astro
-│   │   └── LoraGrid.astro
-│   └── content/
-│       └── config.ts
+│   │       │   ├── aesthetic/
+│   │       │   ├── body/
+│   │       │   ├── detail/
+│   │       │   └── nsfw/
+│   │       ├── body-types/
+│   │       │   ├── general/
+│   │       │   ├── shape/
+│   │       │   └── special/
+│   │       └── checkpoints/
+│   └── components/
+│       ├── LoraCard.astro
+│       └── LoraGrid.astro
+├── scripts/
+│   ├── fetch-civitai-images.js   # Fetch stats + images from Civitai API
+│   └── update-stats-from-cache.js # Update .mdx files from cache
 ├── public/
 │   └── images/
 │       └── loras/           # Preview images (JPEG)
+├── civitai-image-cache.json # API response cache
 ├── package.json
 └── astro.config.mjs
 ```
@@ -561,12 +486,6 @@ lora-docs-site/
 **Symptoms:**
 - Category pages show no LoRA cards
 - Console errors: "Failed to parse source for import analysis"
-- Error: "invalid JS syntax"
-
-**Cause:**
-- Astro cache corruption
-- File permission issues with `.astro/data-store.json`
-- Vite cache issues
 
 **Solution:**
 ```bash
@@ -575,156 +494,91 @@ lora-docs-site/
 rm -rf D:\AI\ComfyUI\docs\lora-docs-site\.astro
 rm -rf D:\AI\ComfyUI\docs\lora-docs-site\node_modules\.vite
 
-# 3. Wait 2 seconds for file handles to release
-sleep 2
-
-# 4. Restart dev server
+# 3. Restart dev server
 cd D:\AI\ComfyUI\docs\lora-docs-site
 npm run dev
 ```
 
-**Prevention:**
-- Always stop the dev server cleanly before making bulk file changes
-- If making changes to many files (e.g., via Task tool), clear cache afterward
-- Use only one dev server instance at a time
-
 #### Issue: MDX Parse Errors
 
 **Common Causes:**
-1. **Unescaped quotes in JSX attributes**
-   ```jsx
-   // ❌ Wrong
-   title="Name "Nickname" Text"
-
-   // ✅ Correct
-   title="Name &quot;Nickname&quot; Text"
-   ```
-
-2. **Missing or malformed frontmatter**
-   ```yaml
-   ---
-   title: "Title"
-   downloads: 0    # Must be number, not string
-   ---
-   ```
-
-3. **Invalid JSX syntax in LoraCard**
-   - Check all attribute values are properly quoted
-   - Numeric values use `{number}` not `"number"`
-
-**Fix:**
-- Read the error message for the file path
-- Check the specific line mentioned
-- Verify quotes, brackets, and commas
+1. **Unescaped quotes in JSX attributes** - use `&quot;`
+2. **Missing or malformed frontmatter** - downloads must be number, not string
+3. **Invalid JSX syntax in LoraCard** - numeric values use `{number}` not `"number"`
 
 #### Issue: Images not loading
 
 **Cause:** Missing image files in `public/images/loras/`
 
-**Solution:**
-```bash
-# For a single LoRA:
-1. Fetch image URL from Civitai API
-2. Download to public/images/loras/FILENAME.jpg
-3. Update imageUrl in .mdx file
-
-# For multiple LoRAs:
-Use Task tool with general-purpose agent to bulk download
-```
-
 **Image Naming Convention:**
-- Use same name as .mdx file (without .mdx extension)
-- Always use `.jpg` extension
-- Example: `watw_japan.mdx` → `watw_japan.jpg`
-
-#### Issue: Port conflicts
-
-**Symptoms:**
-- "Port 8080 is in use, trying another one..."
-- Server starts on random port (8081, 8082, etc.)
-
-**Solution:**
-- Kill other dev servers using port 8080
-- Or accept the new port suggested by Astro
-- Port is configured in `package.json` → `scripts.dev`
-
-### MDX File Template
-
-```mdx
----
-title: "LoRA Name"
-description: "Category for FLUX"
-downloads: 0
-rating: 0
-tips: 0
-score: "-"
-type: "Category"
-trigger: "trigger_word"
-strength: "1.0"
-civitaiUrl: ""
-compatibility: "FLUX"
-sidebar:
-  badge:
-    text: "-"
-    variant: note
----
-
-import LoraCard from '../../../components/LoraCard.astro';
-
-<LoraCard
-  title="LoRA Name"
-  slug="category/lora_name"
-  downloads={0}
-  rating={0}
-  tips={0}
-  score="-"
-  type="Category"
-  trigger="trigger_word"
-  strength="1.0"
-  civitaiUrl=""
-  imageUrl="/images/loras/lora_name.jpg"
-  compatibility="FLUX"
-/>
-
-[← Back to Index](INDEX.md)
-
-## Description
-...
-```
-
-### Bulk Updates
-
-When updating multiple LoRAs (e.g., fetching images for WATW category):
-
-1. **Use Task tool** with `general-purpose` agent
-2. **Provide clear instructions:**
-   - List of files to process
-   - What to extract (civitaiUrl, stats, images)
-   - Where to save images
-   - What fields to update
-3. **After completion:**
-   - Stop dev server
-   - Clear Astro cache
-   - Restart dev server
-
-Example:
-```
-Task: Download preview images for all WATW LoRAs
-- Read each .mdx file in characters/watw/
-- Extract civitaiUrl
-- Fetch image from Civitai API
-- Save to public/images/loras/
-- Update imageUrl in frontmatter and LoraCard
-```
-
-### Notes
-
-- **Always test** after bulk changes by visiting category pages
-- **Cache clearing** is often needed after mass file modifications
-- **Port 8080** is the standard port - document any changes
-- **Image format:** Always JPEG (.jpg extension)
-- **Compatibility field:** All entries should be "FLUX" only
+- Same base name as `.mdx` file with `.jpg` extension
+- Example: `watw_japan.mdx` -> `watw_japan.jpg`
 
 ---
 
-*Last updated: 2026-02-06*
+## Missing Items (TODO)
+
+### LoRAs to Install
+
+| LoRA | Purpose |
+|------|---------|
+| `Flux_Skin_Detailer` | Skin texture enhancement |
+| `RealSkin_xxXL` | Realistic skin (SDXL) |
+| `Realistic_Photos_Detailed_Skin` | Detailed skin textures |
+
+### LoRAs Missing Documentation
+
+| File | Folder | Needs |
+|------|--------|-------|
+| `pornmaster skin-IL-V1-lora.safetensors` | loras/ | Full documentation entry |
+
+**Action:** When installing new LoRAs, always add documentation. When finding undocumented LoRAs, add entries to appropriate doc files.
+
+---
+
+---
+
+## LoRA Update Procedure (Proper Workflow)
+
+When user provides prompts to add to an existing LoRA:
+
+### Step 1: Verify LoRA Exists
+```bash
+# Check if LoRA file is installed
+ls -lh /d/AI/ComfyUI/models/loras/LORA_NAME.safetensors
+```
+
+### Step 2: Search for Existing Documentation
+```bash
+# Search for any existing .mdx documentation
+grep -r "trigger_word\|lora_name\|civitai\.com/models/ID" D:\AI\ComfyUI\docs/lora-docs-site/src/content/docs/ --include="*.mdx"
+```
+
+### Step 3: Read Existing File
+If found, read the existing `.mdx` file to see:
+- Which prompts already exist
+- Current metadata (downloads, rating, tips)
+- Category/subcategory location
+
+### Step 4: Identify New Prompts
+- Compare user's prompts with existing ones
+- Filter out exact duplicates and near-duplicates
+- Keep unique variations with different seeds/settings
+
+### Step 5: Update Existing File
+Use Edit tool to add missing prompts to existing file:
+- Keep section structure consistent
+- Add prompts with proper numbering (continuing from last)
+- Mark interesting/special prompts with ⭐ if user indicates
+
+### Step 6: Update Metadata (if changed)
+Update YAML frontmatter if CivitAI stats changed:
+- `downloads`, `rating`, `tips`, `score`
+
+### Step 7: Clean Up
+- Delete any duplicate `.mdx` or `.md` files you may have created
+- Verify no duplicate files exist for same LoRA
+
+---
+
+*Last updated: 2026-02-15*

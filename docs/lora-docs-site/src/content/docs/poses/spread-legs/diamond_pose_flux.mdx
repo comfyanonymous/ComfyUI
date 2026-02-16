@@ -1,0 +1,109 @@
+---
+title: "Diamond Pose - Flux"
+description: "POSE / Diamond Pose for FLUX"
+downloads: 529
+rating: 44
+tips: 0
+score: "⭐"
+type: "POSE / Diamond Pose"
+trigger: "Diamond Pose"
+strength: "0.7-1.0"
+civitaiUrl: "https://civitai.com/models/1398367/diamond-pose-flux"
+compatibility: "FLUX"
+sidebar:
+  badge:
+    text: "⭐"
+    variant: note
+---
+
+import LoraCard from '@/components/LoraCard.astro';
+
+<LoraCard
+  title="Diamond Pose - Flux"
+  slug="poses/spread-legs/diamond_pose_flux"
+  downloads={529}
+  rating={44}
+  tips={0}
+  score="⭐"
+  type="POSE / Diamond Pose"
+  trigger="Diamond Pose"
+  strength="0.7-1.0"
+  civitaiUrl="https://civitai.com/models/1398367/diamond-pose-flux"
+  imageUrl="/images/loras/diamond_pose_flux.jpg"
+  compatibility="FLUX"
+/>
+
+## Description
+
+Diamond pose LoRA for FLUX — generates women in the diamond pose (legs spread wide and raised, feet pointed towards camera). Trained on ~60 images. Works okay but noted by creator as needing further training iteration for optimal results.
+
+## Parameters
+
+| Parameter | Value |
+|-----------|-------|
+| **File** | `Diamond_Pose_Flux.safetensors` |
+| **Civitai** | https://civitai.com/models/1398367/diamond-pose-flux |
+| **Trigger word** | `Diamond Pose` |
+| **Strength** | 0.7-1.0 |
+| **Type** | POSE / Diamond Pose |
+| **Size** | 19 MB |
+
+## What is Diamond Pose?
+
+The diamond pose features:
+- **Legs:** Spread wide apart and raised in the air, forming a V or diamond shape
+- **Feet:** Pointed/extended towards the camera
+- **Vulva:** Prominently visible/centered in the image
+- **Arms:** Usually relaxed or positioned naturally
+- **Expression:** Confident, playful, or seductive
+
+Works in various settings: outdoor, bedroom, furniture, vehicles.
+
+## Sample Prompts
+
+**Woman in car (car backseat):**
+```
+The image is a high-resolution photograph of a young woman with light skin and long, straight brown hair, sitting naked in the backseat of a car. She is positioned with her legs spread wide and raised, feet pointing towards the camera, providing an explicit view of her vulva. Her breasts are medium-sized with small, light-colored nipples. The woman has a friendly, relaxed expression on her face, and she is smiling directly at the camera. The background features a blurred view of green foliage, suggesting the car is parked in a wooded area. The interior of the car is visible, including the black leather seats and the dashboard. The sunlight filters through the car's windows, casting natural light and shadows on her body and the car's interior. The overall mood of the photograph is casual and intimate, emphasizing natural beauty and openness.
+```
+Settings: Steps 30, CFG 7.5, DDIM, 512x512
+
+**Outdoor garden setting:**
+```
+The image is a high-resolution photograph featuring a young Caucasian woman with fair skin and long, straight, light brown hair. She is completely nude, with her legs spread wide and held up in the air, forming a V shape. Her feet are pointed towards the camera, and her genitals are prominently visible in the center of the image. Her breasts are small and perky, with light pink nipples. She has a confident, slightly playful expression on her face, and her eyes are looking directly at the camera. The background is slightly blurred but shows a sunlit outdoor setting with a stone-paved surface and some greenery, suggesting a garden or patio area. The lighting is bright and natural, emphasizing the smooth texture of her skin and the clear details of her body. The overall mood of the photograph is one of openness and confidence, with a focus on the subject's nudity and flexibility.
+```
+Settings: Steps 30, CFG 7.5, DDIM, 512x512
+
+**Woman on red velvet chair:**
+```
+The image is a high-resolution photograph featuring a nude woman with fair skin and bright red hair, reclining on a plush, deep red velvet chair with a textured surface. She is positioned in a provocative pose, with her legs spread wide and raised above her head, her feet pointed and her arms crossed over her chest. Her vulva is prominently displayed in the center of the image. The woman's facial expression is one of confidence and subtle seduction, with a slight smile and direct eye contact with the camera. The background is a solid, dark gray or black wall, providing a stark contrast to her vibrant hair and the rich red of the chair. The lighting is even, highlighting the smoothness of her skin and the softness of the velvet fabric. The overall mood of the image is intimate and erotic, focusing on the human form and its natural beauty.
+```
+Settings: Steps 30, CFG 7.5, DDIM, 512x512
+
+## Keywords
+
+- `Diamond Pose` (trigger word)
+- `legs spread`, `legs spread wide`, `legs raised`
+- `feet pointed towards camera`, `V shape`, `diamond shape`
+- `vulva visible`, `genitals prominently visible`
+- `flexible`, `openness`, `confident`
+
+## Recommended Settings
+
+| Parameter | Value |
+|-----------|-------|
+| **Steps** | 30+ |
+| **CFG** | 7.5 |
+| **Sampler** | DDIM / Euler |
+| **Size** | 512x512 / 768x768 / 896x1152 |
+| **Strength** | 0.7-1.0 |
+
+## Notes
+
+- Trigger word: "Diamond Pose"
+- Trained on ~60 images
+- Creator notes it "Tends to work okay" but needs further training
+- Works in various settings: outdoor, bedroom, chair, car, etc.
+- Flexible with body types, hair colors, and ethnicities
+- 19 MB file size — lightweight
+- Best results with explicit genitalia descriptions in prompt
+- Pose emphasis requires direct leg/feet pointing language
