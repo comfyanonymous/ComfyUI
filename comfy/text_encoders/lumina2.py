@@ -57,7 +57,7 @@ class Gemma3_4B_Vision_Model(sd1_clip.SDClipModel):
 
     def process_tokens(self, tokens, device):
         embeds, _, _, embeds_info = super().process_tokens(tokens, device)
-        embeds = comfy.utils.normalize_image_embeddings(embeds, embeds_info, target_std=0.0156)
+        comfy.utils.normalize_image_embeddings(embeds, embeds_info, self.transformer.model.config.hidden_size ** 0.5)
         return embeds
 
 class LuminaModel(sd1_clip.SD1ClipModel):
