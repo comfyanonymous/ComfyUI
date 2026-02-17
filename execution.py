@@ -623,6 +623,8 @@ async def execute(server, dynprompt, caches, current_item, extra_data, executed,
             logging.info("Memory summary: {}".format(comfy.model_management.debug_memory_summary()))
             logging.error("Got an OOM, unloading all loaded models.")
             comfy.model_management.unload_all_models()
+        elif isinstance(ex, RuntimeError) and ("mat1 and mat2 shapes" in str(ex)) and "Sampler" in class_type:
+            tips = "\n\nTIPS: If you have any \"Load CLIP\" or \"*CLIP Loader\" nodes in your workflow connected to this sampler node make sure the correct file(s) and type is selected."
 
         error_details = {
             "node_id": real_node_id,

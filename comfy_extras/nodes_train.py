@@ -4,6 +4,7 @@ import os
 import numpy as np
 import safetensors
 import torch
+import torch.nn as nn
 import torch.utils.checkpoint
 from tqdm.auto import trange
 from PIL import Image, ImageDraw, ImageFont
@@ -27,6 +28,11 @@ class TrainGuider(comfy_extras.nodes_custom_sampler.Guider_Basic):
     """
     CFGGuider with modifications for training specific logic
     """
+
+    def __init__(self, *args, offloading=False, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.offloading = offloading
+
     def outer_sample(
         self,
         noise,
@@ -45,9 +51,11 @@ class TrainGuider(comfy_extras.nodes_custom_sampler.Guider_Basic):
                 noise.shape,
                 self.conds,
                 self.model_options,
-                force_full_load=True,  # mirror behavior in TrainLoraNode.execute() to keep model loaded
+                force_full_load=not self.offloading,
+                force_offload=self.offloading,
             )
         )
+        torch.cuda.empty_cache()
         device = self.model_patcher.load_device
 
         if denoise_mask is not None:
@@ -404,16 +412,97 @@ def find_all_highest_child_module_with_forward(
     return result
 
 
-def patch(m):
+def find_modules_at_depth(
+    model: nn.Module, depth: int = 1, result=None, current_depth=0, name=None
+) -> list[nn.Module]:
+    """
+    Find modules at a specific depth level for gradient checkpointing.
+
+    Args:
+        model: The model to search
+        depth: Target depth level (1 = top-level blocks, 2 = their children, etc.)
+        result: Accumulator for results
+        current_depth: Current recursion depth
+        name: Current module name for logging
+
+    Returns:
+        List of modules at the target depth
+    """
+    if result is None:
+        result = []
+    name = name or "root"
+
+    # Skip container modules (they don't have meaningful forward)
+    is_container = isinstance(model, (nn.ModuleList, nn.Sequential, nn.ModuleDict))
+    has_forward = hasattr(model, "forward") and not is_container
+
+    if has_forward:
+        current_depth += 1
+        if current_depth == depth:
+            result.append(model)
+            logging.debug(f"Found module at depth {depth}: {name} ({model.__class__.__name__})")
+            return result
+
+    # Recurse into children
+    for next_name, child in model.named_children():
+        find_modules_at_depth(child, depth, result, current_depth, f"{name}.{next_name}")
+
+    return result
+
+
+class OffloadCheckpointFunction(torch.autograd.Function):
+    """
+    Gradient checkpointing that works with weight offloading.
+
+    Forward: no_grad -> compute -> weights can be freed
+    Backward: enable_grad -> recompute -> backward -> weights can be freed
+
+    For single input, single output modules (Linear, Conv*).
+    """
+
+    @staticmethod
+    def forward(ctx, x: torch.Tensor, forward_fn):
+        ctx.save_for_backward(x)
+        ctx.forward_fn = forward_fn
+        with torch.no_grad():
+            return forward_fn(x)
+
+    @staticmethod
+    def backward(ctx, grad_out: torch.Tensor):
+        x, = ctx.saved_tensors
+        forward_fn = ctx.forward_fn
+
+        # Clear context early
+        ctx.forward_fn = None
+
+        with torch.enable_grad():
+            x_detached = x.detach().requires_grad_(True)
+            y = forward_fn(x_detached)
+            y.backward(grad_out)
+            grad_x = x_detached.grad
+
+        # Explicit cleanup
+        del y, x_detached, forward_fn
+
+        return grad_x, None
+
+
+def patch(m, offloading=False):
     if not hasattr(m, "forward"):
         return
     org_forward = m.forward
 
-    def fwd(args, kwargs):
-        return org_forward(*args, **kwargs)
+    # Branch 1: Linear/Conv* -> offload-compatible checkpoint (single input/output)
+    if offloading and isinstance(m, (nn.Linear, nn.Conv1d, nn.Conv2d, nn.Conv3d)):
+        def checkpointing_fwd(x):
+            return OffloadCheckpointFunction.apply(x, org_forward)
+    # Branch 2: Others -> standard checkpoint
+    else:
+        def fwd(args, kwargs):
+            return org_forward(*args, **kwargs)
 
-    def checkpointing_fwd(*args, **kwargs):
-        return torch.utils.checkpoint.checkpoint(fwd, args, kwargs, use_reentrant=False)
+        def checkpointing_fwd(*args, **kwargs):
+            return torch.utils.checkpoint.checkpoint(fwd, args, kwargs, use_reentrant=False)
 
     m.org_forward = org_forward
     m.forward = checkpointing_fwd
@@ -936,6 +1025,18 @@ class TrainLoraNode(io.ComfyNode):
                     default=True,
                     tooltip="Use gradient checkpointing for training.",
                 ),
+                io.Int.Input(
+                    "checkpoint_depth",
+                    default=1,
+                    min=1,
+                    max=5,
+                    tooltip="Depth level for gradient checkpointing.",
+                ),
+                io.Boolean.Input(
+                    "offloading",
+                    default=False,
+                    tooltip="Offload the Model to RAM. Requires Bypass Mode.",
+                ),
                 io.Combo.Input(
                     "existing_lora",
                     options=folder_paths.get_filename_list("loras") + ["[None]"],
@@ -982,6 +1083,8 @@ class TrainLoraNode(io.ComfyNode):
         lora_dtype,
         algorithm,
         gradient_checkpointing,
+        checkpoint_depth,
+        offloading,
         existing_lora,
         bucket_mode,
         bypass_mode,
@@ -1000,6 +1103,8 @@ class TrainLoraNode(io.ComfyNode):
         lora_dtype = lora_dtype[0]
         algorithm = algorithm[0]
         gradient_checkpointing = gradient_checkpointing[0]
+        offloading = offloading[0]
+        checkpoint_depth = checkpoint_depth[0]
         existing_lora = existing_lora[0]
         bucket_mode = bucket_mode[0]
         bypass_mode = bypass_mode[0]
@@ -1018,6 +1123,15 @@ class TrainLoraNode(io.ComfyNode):
         dtype = node_helpers.string_to_torch_dtype(training_dtype)
         lora_dtype = node_helpers.string_to_torch_dtype(lora_dtype)
         mp.set_model_compute_dtype(dtype)
+
+        if mp.is_dynamic():
+            if not bypass_mode:
+                logging.info("Training MP is Dynamic - forcing bypass mode. Start comfy with --highvram to force weight diff mode")
+                bypass_mode = True
+            offloading = True
+        elif offloading:
+            if not bypass_mode:
+                logging.info("Training Offload selected - forcing bypass mode. Set bypass = True to remove this message")
 
         # Prepare latents and compute counts
         latents, num_images, multi_res = _prepare_latents_and_count(
@@ -1054,16 +1168,18 @@ class TrainLoraNode(io.ComfyNode):
 
             # Setup gradient checkpointing
             if gradient_checkpointing:
-                for m in find_all_highest_child_module_with_forward(
-                    mp.model.diffusion_model
-                ):
-                    patch(m)
+                modules_to_patch = find_modules_at_depth(
+                    mp.model.diffusion_model, depth=checkpoint_depth
+                )
+                logging.info(f"Gradient checkpointing: patching {len(modules_to_patch)} modules at depth {checkpoint_depth}")
+                for m in modules_to_patch:
+                    patch(m, offloading=offloading)
 
             torch.cuda.empty_cache()
             # With force_full_load=False we should be able to have offloading
             # But for offloading in training we need custom AutoGrad hooks for fwd/bwd
             comfy.model_management.load_models_gpu(
-                [mp], memory_required=1e20, force_full_load=True
+                [mp], memory_required=1e20, force_full_load=not offloading
             )
             torch.cuda.empty_cache()
 
@@ -1100,7 +1216,7 @@ class TrainLoraNode(io.ComfyNode):
                 )
 
             # Setup guider
-            guider = TrainGuider(mp)
+            guider = TrainGuider(mp, offloading=offloading)
             guider.set_conds(positive)
 
             # Inject bypass hooks if bypass mode is enabled
@@ -1113,6 +1229,7 @@ class TrainLoraNode(io.ComfyNode):
 
             # Run training loop
             try:
+                comfy.model_management.in_training = True
                 _run_training_loop(
                     guider,
                     train_sampler,
@@ -1123,6 +1240,7 @@ class TrainLoraNode(io.ComfyNode):
                     multi_res,
                 )
             finally:
+                comfy.model_management.in_training = False
                 # Eject bypass hooks if they were injected
                 if bypass_injections is not None:
                     for injection in bypass_injections:
@@ -1132,19 +1250,20 @@ class TrainLoraNode(io.ComfyNode):
                     unpatch(m)
             del train_sampler, optimizer
 
-            # Finalize adapters
+            for param in lora_sd:
+                lora_sd[param] = lora_sd[param].to(lora_dtype).detach()
+
             for adapter in all_weight_adapters:
                 adapter.requires_grad_(False)
-
-            for param in lora_sd:
-                lora_sd[param] = lora_sd[param].to(lora_dtype)
+                del adapter
+            del all_weight_adapters
 
             # mp in train node is highly specialized for training
             # use it in inference will result in bad behavior so we don't return it
             return io.NodeOutput(lora_sd, loss_map, steps + existing_steps)
 
 
-class LoraModelLoader(io.ComfyNode):#
+class LoraModelLoader(io.ComfyNode):
     @classmethod
     def define_schema(cls):
         return io.Schema(
@@ -1166,6 +1285,11 @@ class LoraModelLoader(io.ComfyNode):#
                     max=100.0,
                     tooltip="How strongly to modify the diffusion model. This value can be negative.",
                 ),
+                io.Boolean.Input(
+                    "bypass",
+                    default=False,
+                    tooltip="When enabled, applies LoRA in bypass mode without modifying base model weights. Useful for training and when model weights are offloaded.",
+                ),
             ],
             outputs=[
                 io.Model.Output(
@@ -1175,13 +1299,18 @@ class LoraModelLoader(io.ComfyNode):#
         )
 
     @classmethod
-    def execute(cls, model, lora, strength_model):
+    def execute(cls, model, lora, strength_model, bypass=False):
         if strength_model == 0:
             return io.NodeOutput(model)
 
-        model_lora, _ = comfy.sd.load_lora_for_models(
-            model, None, lora, strength_model, 0
-        )
+        if bypass:
+            model_lora, _ = comfy.sd.load_bypass_lora_for_models(
+                model, None, lora, strength_model, 0
+            )
+        else:
+            model_lora, _ = comfy.sd.load_lora_for_models(
+                model, None, lora, strength_model, 0
+            )
         return io.NodeOutput(model_lora)
 
 
