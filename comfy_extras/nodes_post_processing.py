@@ -655,6 +655,7 @@ class BatchImagesMasksLatentsNode(io.ComfyNode):
             batched = batch_masks(values)
         return io.NodeOutput(batched)
 
+
 class PostProcessingExtension(ComfyExtension):
     @override
     async def get_node_list(self) -> list[type[io.ComfyNode]]:

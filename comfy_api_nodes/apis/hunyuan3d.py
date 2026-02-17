@@ -64,3 +64,23 @@ class To3DProTaskResultResponse(BaseModel):
 
 class To3DProTaskQueryRequest(BaseModel):
     JobId: str = Field(...)
+
+
+class To3DUVFileInput(BaseModel):
+    Type: str = Field(..., description="File type: GLB, OBJ, or FBX")
+    Url: str = Field(...)
+
+
+class To3DUVTaskRequest(BaseModel):
+    File: To3DUVFileInput = Field(...)
+
+
+class TextureEditImageInfo(BaseModel):
+    Url: str = Field(...)
+
+
+class TextureEditTaskRequest(BaseModel):
+    File3D: To3DUVFileInput = Field(...)
+    Image: TextureEditImageInfo | None = Field(None)
+    Prompt: str | None = Field(None)
+    EnablePBR: bool | None = Field(None)
