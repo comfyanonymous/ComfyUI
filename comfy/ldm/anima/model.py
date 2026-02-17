@@ -179,8 +179,8 @@ class LLMAdapter(nn.Module):
             if source_attention_mask.ndim == 2:
                 source_attention_mask = source_attention_mask.unsqueeze(1).unsqueeze(1)
 
-        x = self.in_proj(self.embed(target_input_ids))
         context = source_hidden_states
+        x = self.in_proj(self.embed(target_input_ids, out_dtype=context.dtype))
         position_ids = torch.arange(x.shape[1], device=x.device).unsqueeze(0)
         position_ids_context = torch.arange(context.shape[1], device=x.device).unsqueeze(0)
         position_embeddings = self.rotary_emb(x, position_ids)
