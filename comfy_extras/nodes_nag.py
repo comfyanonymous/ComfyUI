@@ -11,6 +11,7 @@ class NAGuidance(io.ComfyNode):
             display_name="Normalized Attention Guidance",
             description="Applies Normalized Attention Guidance to models, enabling negative prompts on distilled/schnell models.",
             category="",
+            is_experimental=True,
             inputs=[
                 io.Model.Input("model", tooltip="The model to apply NAG to."),
                 io.Float.Input("nag_scale", min=0.0, default=5.0, max=50.0, step=0.1, tooltip="The guidance scale factor. Higher values push further from the negative prompt."),
