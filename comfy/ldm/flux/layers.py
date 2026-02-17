@@ -196,6 +196,9 @@ class DoubleStreamBlock(nn.Module):
         else:
             (img_mod1, img_mod2), (txt_mod1, txt_mod2) = vec
 
+        transformer_patches = transformer_options.get("patches", {})
+        extra_options = transformer_options.copy()
+
         # prepare image for attention
         img_modulated = self.img_norm1(img)
         img_modulated = apply_mod(img_modulated, (1 + img_mod1.scale), img_mod1.shift, modulation_dims_img)
@@ -223,6 +226,12 @@ class DoubleStreamBlock(nn.Module):
         # run actual attention
         attn = attention(q, k, v, pe=pe, mask=attn_mask, transformer_options=transformer_options)
         del q, k, v
+
+        if "attn1_output_patch" in transformer_patches:
+            extra_options["img_slice"] = [txt.shape[1], attn.shape[1]]
+            patch = transformer_patches["attn1_output_patch"]
+            for p in patch:
+                attn = p(attn, extra_options)
 
         txt_attn, img_attn = attn[:, : txt.shape[1]], attn[:, txt.shape[1]:]
 
@@ -303,6 +312,9 @@ class SingleStreamBlock(nn.Module):
         else:
             mod = vec
 
+        transformer_patches = transformer_options.get("patches", {})
+        extra_options = transformer_options.copy()
+
         qkv, mlp = torch.split(self.linear1(apply_mod(self.pre_norm(x), (1 + mod.scale), mod.shift, modulation_dims)), [3 * self.hidden_size, self.mlp_hidden_dim_first], dim=-1)
 
         q, k, v = qkv.view(qkv.shape[0], qkv.shape[1], 3, self.num_heads, -1).permute(2, 0, 3, 1, 4)
@@ -312,6 +324,12 @@ class SingleStreamBlock(nn.Module):
         # compute attention
         attn = attention(q, k, v, pe=pe, mask=attn_mask, transformer_options=transformer_options)
         del q, k, v
+
+        if "attn1_output_patch" in transformer_patches:
+            patch = transformer_patches["attn1_output_patch"]
+            for p in patch:
+                attn = p(attn, extra_options)
+
         # compute activation in mlp stream, cat again and run second linear layer
         if self.yak_mlp:
             mlp = self.mlp_act(mlp[..., self.mlp_hidden_dim_first // 2:]) * mlp[..., :self.mlp_hidden_dim_first // 2]
