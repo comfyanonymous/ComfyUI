@@ -961,7 +961,7 @@ class RecraftRemoveBackgroundNode(IO.ComfyNode):
     def define_schema(cls):
         return IO.Schema(
             node_id="RecraftRemoveBackgroundNode",
-            display_name="Recraft Remove Background",
+            display_name="Remove Background",
             category="api node/image/Recraft",
             description="Remove background from image, and return processed image and mask.",
             inputs=[

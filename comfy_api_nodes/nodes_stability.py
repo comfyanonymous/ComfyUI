@@ -622,7 +622,7 @@ class StabilityTextToAudio(IO.ComfyNode):
     def define_schema(cls):
         return IO.Schema(
             node_id="StabilityTextToAudio",
-            display_name="Stability AI Text To Audio",
+            display_name="Music generation",
             category="api node/audio/Stability AI",
             description=cleandoc(cls.__doc__ or ""),
             inputs=[

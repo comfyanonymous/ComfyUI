@@ -157,7 +157,7 @@ class SaveAudio(IO.ComfyNode):
         return IO.Schema(
             node_id="SaveAudio",
             search_aliases=["export flac"],
-            display_name="Save Audio (FLAC)",
+            display_name="Save Audio",
             category="audio",
             inputs=[
                 IO.Audio.Input("audio"),

@@ -29,7 +29,7 @@ class Load3D(IO.ComfyNode):
         ]
         return IO.Schema(
             node_id="Load3D",
-            display_name="Load 3D & Animation",
+            display_name="Load 3D model",
             category="3d",
             is_experimental=True,
             inputs=[

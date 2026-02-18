@@ -35,7 +35,7 @@ class TencentTextToModelNode(IO.ComfyNode):
     def define_schema(cls):
         return IO.Schema(
             node_id="TencentTextToModelNode",
-            display_name="Hunyuan3D: Text to Model (Pro)",
+            display_name="Text to 3D model",
             category="api node/3d/Tencent",
             inputs=[
                 IO.Combo.Input(
@@ -145,7 +145,7 @@ class TencentImageToModelNode(IO.ComfyNode):
     def define_schema(cls):
         return IO.Schema(
             node_id="TencentImageToModelNode",
-            display_name="Hunyuan3D: Image(s) to Model (Pro)",
+            display_name="Image to 3D Model",
             category="api node/3d/Tencent",
             inputs=[
                 IO.Combo.Input(

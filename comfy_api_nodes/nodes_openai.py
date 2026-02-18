@@ -574,7 +574,7 @@ class OpenAIChatNode(IO.ComfyNode):
     def define_schema(cls):
         return IO.Schema(
             node_id="OpenAIChatNode",
-            display_name="OpenAI ChatGPT",
+            display_name="Text generation (LLM)",
             category="api node/text/OpenAI",
             description="Generate text responses from an OpenAI model.",
             inputs=[
