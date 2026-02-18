@@ -332,6 +332,12 @@ def model_lora_keys_unet(model, key_map={}):
                 key_map["{}".format(key_lora)] = k
                 key_map["transformer.{}".format(key_lora)] = k
 
+    if isinstance(model, comfy.model_base.ACEStep15):
+        for k in sdk:
+            if k.startswith("diffusion_model.decoder.") and k.endswith(".weight"):
+                key_lora = k[len("diffusion_model.decoder."):-len(".weight")]
+                key_map["base_model.model.{}".format(key_lora)] = k  # Official base model loras
+
     return key_map
 
 
@@ -367,6 +373,31 @@ def pad_tensor_to_shape(tensor: torch.Tensor, new_shape: list[int]) -> torch.Ten
     padded_tensor[new_slices] = tensor[orig_slices]
 
     return padded_tensor
+
+def calculate_shape(patches, weight, key, original_weights=None):
+    current_shape = weight.shape
+
+    for p in patches:
+        v = p[1]
+        offset = p[3]
+
+        # Offsets restore the old shape; lists force a diff without metadata
+        if offset is not None or isinstance(v, list):
+            continue
+
+        if isinstance(v, weight_adapter.WeightAdapterBase):
+            adapter_shape = v.calculate_shape(key)
+            if adapter_shape is not None:
+                current_shape = adapter_shape
+            continue
+
+        # Standard diff logic with padding
+        if len(v) == 2:
+            patch_type, patch_data = v[0], v[1]
+            if patch_type == "diff" and len(patch_data) > 1 and patch_data[1]['pad_weight']:
+                current_shape = patch_data[0].shape
+
+    return current_shape
 
 def calculate_weight(patches, weight, key, intermediate_dtype=torch.float32, original_weights=None):
     for p in patches:

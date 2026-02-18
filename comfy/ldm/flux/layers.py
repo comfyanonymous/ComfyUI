@@ -5,9 +5,9 @@ import torch
 from torch import Tensor, nn
 
 from .math import attention, rope
-import comfy.ops
-import comfy.ldm.common_dit
 
+# Fix import for some custom nodes, TODO: delete eventually.
+RMSNorm = None
 
 class EmbedND(nn.Module):
     def __init__(self, dim: int, theta: int, axes_dim: list):
@@ -87,20 +87,12 @@ def build_mlp(hidden_size, mlp_hidden_dim, mlp_silu_act=False, yak_mlp=False, dt
             operations.Linear(mlp_hidden_dim, hidden_size, bias=True, dtype=dtype, device=device),
         )
 
-class RMSNorm(torch.nn.Module):
-    def __init__(self, dim: int, dtype=None, device=None, operations=None):
-        super().__init__()
-        self.scale = nn.Parameter(torch.empty((dim), dtype=dtype, device=device))
-
-    def forward(self, x: Tensor):
-        return comfy.ldm.common_dit.rms_norm(x, self.scale, 1e-6)
-
 
 class QKNorm(torch.nn.Module):
     def __init__(self, dim: int, dtype=None, device=None, operations=None):
         super().__init__()
-        self.query_norm = RMSNorm(dim, dtype=dtype, device=device, operations=operations)
-        self.key_norm = RMSNorm(dim, dtype=dtype, device=device, operations=operations)
+        self.query_norm = operations.RMSNorm(dim, dtype=dtype, device=device)
+        self.key_norm = operations.RMSNorm(dim, dtype=dtype, device=device)
 
     def forward(self, q: Tensor, k: Tensor, v: Tensor) -> tuple:
         q = self.query_norm(q)
@@ -169,7 +161,7 @@ class SiLUActivation(nn.Module):
 
 
 class DoubleStreamBlock(nn.Module):
-    def __init__(self, hidden_size: int, num_heads: int, mlp_ratio: float, qkv_bias: bool = False, flipped_img_txt=False, modulation=True, mlp_silu_act=False, proj_bias=True, yak_mlp=False, dtype=None, device=None, operations=None):
+    def __init__(self, hidden_size: int, num_heads: int, mlp_ratio: float, qkv_bias: bool = False, modulation=True, mlp_silu_act=False, proj_bias=True, yak_mlp=False, dtype=None, device=None, operations=None):
         super().__init__()
 
         mlp_hidden_dim = int(hidden_size * mlp_ratio)
@@ -197,14 +189,15 @@ class DoubleStreamBlock(nn.Module):
 
         self.txt_mlp = build_mlp(hidden_size, mlp_hidden_dim, mlp_silu_act=mlp_silu_act, yak_mlp=yak_mlp, dtype=dtype, device=device, operations=operations)
 
-        self.flipped_img_txt = flipped_img_txt
-
     def forward(self, img: Tensor, txt: Tensor, vec: Tensor, pe: Tensor, attn_mask=None, modulation_dims_img=None, modulation_dims_txt=None, transformer_options={}):
         if self.modulation:
             img_mod1, img_mod2 = self.img_mod(vec)
             txt_mod1, txt_mod2 = self.txt_mod(vec)
         else:
             (img_mod1, img_mod2), (txt_mod1, txt_mod2) = vec
+
+        transformer_patches = transformer_options.get("patches", {})
+        extra_options = transformer_options.copy()
 
         # prepare image for attention
         img_modulated = self.img_norm1(img)
@@ -224,32 +217,23 @@ class DoubleStreamBlock(nn.Module):
         del txt_qkv
         txt_q, txt_k = self.txt_attn.norm(txt_q, txt_k, txt_v)
 
-        if self.flipped_img_txt:
-            q = torch.cat((img_q, txt_q), dim=2)
-            del img_q, txt_q
-            k = torch.cat((img_k, txt_k), dim=2)
-            del img_k, txt_k
-            v = torch.cat((img_v, txt_v), dim=2)
-            del img_v, txt_v
-            # run actual attention
-            attn = attention(q, k, v,
-                             pe=pe, mask=attn_mask, transformer_options=transformer_options)
-            del q, k, v
+        q = torch.cat((txt_q, img_q), dim=2)
+        del txt_q, img_q
+        k = torch.cat((txt_k, img_k), dim=2)
+        del txt_k, img_k
+        v = torch.cat((txt_v, img_v), dim=2)
+        del txt_v, img_v
+        # run actual attention
+        attn = attention(q, k, v, pe=pe, mask=attn_mask, transformer_options=transformer_options)
+        del q, k, v
 
-            img_attn, txt_attn = attn[:, : img.shape[1]], attn[:, img.shape[1]:]
-        else:
-            q = torch.cat((txt_q, img_q), dim=2)
-            del txt_q, img_q
-            k = torch.cat((txt_k, img_k), dim=2)
-            del txt_k, img_k
-            v = torch.cat((txt_v, img_v), dim=2)
-            del txt_v, img_v
-            # run actual attention
-            attn = attention(q, k, v,
-                             pe=pe, mask=attn_mask, transformer_options=transformer_options)
-            del q, k, v
+        if "attn1_output_patch" in transformer_patches:
+            extra_options["img_slice"] = [txt.shape[1], attn.shape[1]]
+            patch = transformer_patches["attn1_output_patch"]
+            for p in patch:
+                attn = p(attn, extra_options)
 
-            txt_attn, img_attn = attn[:, : txt.shape[1]], attn[:, txt.shape[1]:]
+        txt_attn, img_attn = attn[:, : txt.shape[1]], attn[:, txt.shape[1]:]
 
         # calculate the img bloks
         img += apply_mod(self.img_attn.proj(img_attn), img_mod1.gate, None, modulation_dims_img)
@@ -328,6 +312,9 @@ class SingleStreamBlock(nn.Module):
         else:
             mod = vec
 
+        transformer_patches = transformer_options.get("patches", {})
+        extra_options = transformer_options.copy()
+
         qkv, mlp = torch.split(self.linear1(apply_mod(self.pre_norm(x), (1 + mod.scale), mod.shift, modulation_dims)), [3 * self.hidden_size, self.mlp_hidden_dim_first], dim=-1)
 
         q, k, v = qkv.view(qkv.shape[0], qkv.shape[1], 3, self.num_heads, -1).permute(2, 0, 3, 1, 4)
@@ -337,6 +324,12 @@ class SingleStreamBlock(nn.Module):
         # compute attention
         attn = attention(q, k, v, pe=pe, mask=attn_mask, transformer_options=transformer_options)
         del q, k, v
+
+        if "attn1_output_patch" in transformer_patches:
+            patch = transformer_patches["attn1_output_patch"]
+            for p in patch:
+                attn = p(attn, extra_options)
+
         # compute activation in mlp stream, cat again and run second linear layer
         if self.yak_mlp:
             mlp = self.mlp_act(mlp[..., self.mlp_hidden_dim_first // 2:]) * mlp[..., :self.mlp_hidden_dim_first // 2]
