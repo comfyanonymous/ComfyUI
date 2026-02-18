@@ -1588,6 +1588,35 @@ class ACEStep15(BaseModel):
             refer_audio = torch.cat([refer_audio.to(pad), pad[:, :, refer_audio.shape[2]:]], dim=2)
 
         out['refer_audio'] = comfy.conds.CONDRegular(refer_audio)
+
+        audio_cover_strength = kwargs.get('audio_cover_strength', 1.0)
+        is_cover_mode = out.get('is_covers', comfy.conds.CONDConstant(None)).cond != False
+        if audio_cover_strength < 1.0 and is_cover_mode and self.current_patcher is not None:
+            if not self.current_patcher.get_wrappers(comfy.patcher_extension.WrappersMP.PREDICT_NOISE, 'ace_step_cover_strength'):
+                _strength = audio_cover_strength
+                def audio_cover_strength_wrapper(executor, x, timestep, model_options={}, seed=None):
+                    sample_sigmas = model_options.get('transformer_options', {}).get('sample_sigmas', None)
+                    if sample_sigmas is not None:
+                        current_sigma = float(timestep.max())
+                        max_sigma = float(sample_sigmas[0])
+                        min_sigma = float(sample_sigmas[-1])
+                        sigma_range = max_sigma - min_sigma
+                        if sigma_range > 0:
+                            progress = 1.0 - (current_sigma - min_sigma) / sigma_range
+                            if progress >= _strength:
+                                conds = model_options.get('conds', None)
+                                if conds is not None:
+                                    for cond_list in conds.values():
+                                        for cond in cond_list:
+                                            if 'model_conds' in cond and 'is_covers' in cond['model_conds']:
+                                                cond['model_conds']['is_covers'] = comfy.conds.CONDConstant(False)
+                    return executor(x, timestep, model_options, seed)
+                self.current_patcher.add_wrapper_with_key(
+                    comfy.patcher_extension.WrappersMP.PREDICT_NOISE,
+                    'ace_step_cover_strength',
+                    audio_cover_strength_wrapper
+                )
+
         return out
 
 class Omnigen2(BaseModel):
