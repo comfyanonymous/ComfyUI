@@ -8,6 +8,7 @@ from enum import Enum
 from typing import TypedDict, Literal
 
 import comfy.utils
+from comfy.essentials_category import ESSENTIALS_IMAGE_TOOLS
 import comfy.model_management
 from comfy_extras.nodes_latent import reshape_latent_to
 import node_helpers
@@ -77,7 +78,7 @@ class Blur(io.ComfyNode):
         return io.Schema(
             node_id="ImageBlur",
             category="image/postprocessing",
-            essentials_category="Image Tools",
+            essentials_category=ESSENTIALS_IMAGE_TOOLS,
             inputs=[
                 io.Image.Input("image"),
                 io.Int.Input("blur_radius", default=1, min=1, max=31, step=1),

@@ -11,6 +11,7 @@ import re
 import torch
 from typing_extensions import override
 
+from comfy.essentials_category import ESSENTIALS_VIDEO_GENERATION
 from comfy_api.latest import IO, ComfyExtension, Input, InputImpl
 from comfy_api_nodes.apis import (
     KlingCameraControl,
@@ -2262,7 +2263,7 @@ class KlingLipSyncAudioToVideoNode(IO.ComfyNode):
             node_id="KlingLipSyncAudioToVideoNode",
             display_name="Kling Lip Sync Video with Audio",
             category="api node/video/Kling",
-            essentials_category="Video Generation",
+            essentials_category=ESSENTIALS_VIDEO_GENERATION,
             description="Kling Lip Sync Audio to Video Node. Syncs mouth movements in a video file to the audio content of an audio file. When using, ensure that the audio contains clearly distinguishable vocals and that the video contains a distinct face. The audio file should not be larger than 5MB. The video file should not be larger than 100MB, should have height/width between 720px and 1920px, and should be between 2s and 10s in length.",
             inputs=[
                 IO.Video.Input("video"),

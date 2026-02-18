@@ -2,6 +2,7 @@ from inspect import cleandoc
 from typing import Optional
 from typing_extensions import override
 
+from comfy.essentials_category import ESSENTIALS_AUDIO
 from comfy_api.latest import ComfyExtension, Input, IO
 from comfy_api_nodes.apis.stability import (
     StabilityUpscaleConservativeRequest,
@@ -624,7 +625,7 @@ class StabilityTextToAudio(IO.ComfyNode):
             node_id="StabilityTextToAudio",
             display_name="Stability AI Text To Audio",
             category="api node/audio/Stability AI",
-            essentials_category="Audio",
+            essentials_category=ESSENTIALS_AUDIO,
             description=cleandoc(cls.__doc__ or ""),
             inputs=[
                 IO.Combo.Input(

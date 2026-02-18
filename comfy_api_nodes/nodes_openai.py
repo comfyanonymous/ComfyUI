@@ -9,6 +9,7 @@ from PIL import Image
 from typing_extensions import override
 
 import folder_paths
+from comfy.essentials_category import ESSENTIALS_TEXT_GENERATION
 from comfy_api.latest import IO, ComfyExtension, Input
 from comfy_api_nodes.apis.openai import (
     InputFileContent,
@@ -575,7 +576,7 @@ class OpenAIChatNode(IO.ComfyNode):
             node_id="OpenAIChatNode",
             display_name="OpenAI ChatGPT",
             category="api node/text/OpenAI",
-            essentials_category="Text Generation",
+            essentials_category=ESSENTIALS_TEXT_GENERATION,
             description="Generate text responses from an OpenAI model.",
             inputs=[
                 IO.String.Input(

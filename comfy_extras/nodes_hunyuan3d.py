@@ -4,6 +4,7 @@ import json
 import struct
 import numpy as np
 from comfy.ldm.modules.diffusionmodules.mmdit import get_1d_sincos_pos_embed_from_grid_torch
+from comfy.essentials_category import ESSENTIALS_BASICS
 import folder_paths
 import comfy.model_management
 from comfy.cli_args import args
@@ -621,7 +622,7 @@ class SaveGLB(IO.ComfyNode):
             display_name="Save 3D Model",
             search_aliases=["export 3d model", "save mesh"],
             category="3d",
-            essentials_category="Basic",
+            essentials_category=ESSENTIALS_BASICS,
             is_output_node=True,
             inputs=[
                 IO.MultiType.Input(

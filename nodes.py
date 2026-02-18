@@ -8,6 +8,8 @@ import json
 import glob
 import hashlib
 import inspect
+
+from comfy.essentials_category import ESSENTIALS_BASICS, ESSENTIALS_IMAGE_GENERATION, ESSENTIALS_IMAGE_TOOLS
 import traceback
 import math
 import time
@@ -69,7 +71,7 @@ class CLIPTextEncode(ComfyNodeABC):
     FUNCTION = "encode"
 
     CATEGORY = "conditioning"
-    ESSENTIALS_CATEGORY = "Basic"
+    ESSENTIALS_CATEGORY = ESSENTIALS_BASICS
     DESCRIPTION = "Encodes a text prompt using a CLIP model into an embedding that can be used to guide the diffusion model towards generating specific images."
     SEARCH_ALIASES = ["text", "prompt", "text prompt", "positive prompt", "negative prompt", "encode text", "text encoder", "encode prompt"]
 
@@ -668,7 +670,7 @@ class CLIPSetLastLayer:
         return (clip,)
 
 class LoraLoader:
-    ESSENTIALS_CATEGORY = "Image Generation"
+    ESSENTIALS_CATEGORY = ESSENTIALS_IMAGE_GENERATION
 
     def __init__(self):
         self.loaded_lora = None
@@ -1651,7 +1653,7 @@ class SaveImage:
     OUTPUT_NODE = True
 
     CATEGORY = "image"
-    ESSENTIALS_CATEGORY = "Basic"
+    ESSENTIALS_CATEGORY = ESSENTIALS_BASICS
     DESCRIPTION = "Saves the input images to your ComfyUI output directory."
     SEARCH_ALIASES = ["save", "save image", "export image", "output image", "write image", "download"]
 
@@ -1710,7 +1712,7 @@ class LoadImage:
                 }
 
     CATEGORY = "image"
-    ESSENTIALS_CATEGORY = "Basic"
+    ESSENTIALS_CATEGORY = ESSENTIALS_BASICS
     SEARCH_ALIASES = ["load image", "open image", "import image", "image input", "upload image", "read image", "image loader"]
 
     RETURN_TYPES = ("IMAGE", "MASK")
@@ -1868,7 +1870,7 @@ class ImageScale:
     FUNCTION = "upscale"
 
     CATEGORY = "image/upscaling"
-    ESSENTIALS_CATEGORY = "Image Tools"
+    ESSENTIALS_CATEGORY = ESSENTIALS_IMAGE_TOOLS
     SEARCH_ALIASES = ["resize", "resize image", "scale image", "image resize", "zoom", "zoom in", "change size"]
 
     def upscale(self, image, upscale_method, width, height, crop):
@@ -1908,7 +1910,7 @@ class ImageScaleBy:
 
 class ImageInvert:
     SEARCH_ALIASES = ["reverse colors"]
-    ESSENTIALS_CATEGORY = "Image Tools"
+    ESSENTIALS_CATEGORY = ESSENTIALS_IMAGE_TOOLS
 
     @classmethod
     def INPUT_TYPES(s):
@@ -1925,7 +1927,7 @@ class ImageInvert:
 
 class ImageBatch:
     SEARCH_ALIASES = ["combine images", "merge images", "stack images"]
-    ESSENTIALS_CATEGORY = "Image Tools"
+    ESSENTIALS_CATEGORY = ESSENTIALS_IMAGE_TOOLS
 
     @classmethod
     def INPUT_TYPES(s):
