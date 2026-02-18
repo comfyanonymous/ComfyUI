@@ -50,14 +50,16 @@ class TextEncodeAceStepAudio15(io.ComfyNode):
                 io.Float.Input("top_p", default=0.9, min=0.0, max=2000.0, step=0.01, advanced=True),
                 io.Int.Input("top_k", default=0, min=0, max=100, advanced=True),
                 io.Float.Input("min_p", default=0.000, min=0.0, max=1.0, step=0.001, advanced=True),
+                io.Float.Input("audio_cover_strength", default=1.0, min=0.0, max=1.0, step=0.01, advanced=True, tooltip="Controls how many denoising steps use LM code conditioning. 1.0 = all steps, 0.5 = first half only."),
             ],
             outputs=[io.Conditioning.Output()],
         )
 
     @classmethod
-    def execute(cls, clip, tags, lyrics, seed, bpm, duration, timesignature, language, keyscale, generate_audio_codes, cfg_scale, temperature, top_p, top_k, min_p) -> io.NodeOutput:
+    def execute(cls, clip, tags, lyrics, seed, bpm, duration, timesignature, language, keyscale, generate_audio_codes, cfg_scale, temperature, top_p, top_k, min_p, audio_cover_strength) -> io.NodeOutput:
         tokens = clip.tokenize(tags, lyrics=lyrics, bpm=bpm, duration=duration, timesignature=int(timesignature), language=language, keyscale=keyscale, seed=seed, generate_audio_codes=generate_audio_codes, cfg_scale=cfg_scale, temperature=temperature, top_p=top_p, top_k=top_k, min_p=min_p)
         conditioning = clip.encode_from_tokens_scheduled(tokens)
+        conditioning = node_helpers.conditioning_set_values(conditioning, {"audio_cover_strength": audio_cover_strength})
         return io.NodeOutput(conditioning)
 
 
