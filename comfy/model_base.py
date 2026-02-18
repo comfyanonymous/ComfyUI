@@ -51,6 +51,7 @@ import comfy.ldm.qwen_image.model
 import comfy.ldm.kandinsky5.model
 import comfy.ldm.anima.model
 import comfy.ldm.trellis2.model
+import comfy.ldm.ace.ace_step15
 
 import comfy.model_management
 import comfy.patcher_extension
@@ -147,10 +148,10 @@ class BaseModel(torch.nn.Module):
                 self.diffusion_model.to(memory_format=torch.channels_last)
                 logging.debug("using channels last mode for diffusion model")
             logging.info("model weight dtype {}, manual cast: {}".format(self.get_dtype(), self.manual_cast_dtype))
+            comfy.model_management.archive_model_dtypes(self.diffusion_model)
+
         self.model_type = model_type
         self.model_sampling = model_sampling(model_config, model_type)
-
-        comfy.model_management.archive_model_dtypes(self.diffusion_model)
 
         self.adm_channels = unet_config.get("adm_in_channels", None)
         if self.adm_channels is None:
@@ -178,10 +179,7 @@ class BaseModel(torch.nn.Module):
             xc = torch.cat([xc] + [comfy.model_management.cast_to_device(c_concat, xc.device, xc.dtype)], dim=1)
 
         context = c_crossattn
-        dtype = self.get_dtype()
-
-        if self.manual_cast_dtype is not None:
-            dtype = self.manual_cast_dtype
+        dtype = self.get_dtype_inference()
 
         xc = xc.to(dtype)
         device = xc.device
@@ -217,6 +215,13 @@ class BaseModel(torch.nn.Module):
 
     def get_dtype(self):
         return self.diffusion_model.dtype
+
+    def get_dtype_inference(self):
+        dtype = self.get_dtype()
+
+        if self.manual_cast_dtype is not None:
+            dtype = self.manual_cast_dtype
+        return dtype
 
     def encode_adm(self, **kwargs):
         return None
@@ -372,9 +377,7 @@ class BaseModel(torch.nn.Module):
                     input_shapes += shape
 
         if comfy.model_management.xformers_enabled() or comfy.model_management.pytorch_attention_flash_attention():
-            dtype = self.get_dtype()
-            if self.manual_cast_dtype is not None:
-                dtype = self.manual_cast_dtype
+            dtype = self.get_dtype_inference()
             #TODO: this needs to be tweaked
             area = sum(map(lambda input_shape: input_shape[0] * math.prod(input_shape[2:]), input_shapes))
             return (area * comfy.model_management.dtype_size(dtype) * 0.01 * self.memory_usage_factor) * (1024 * 1024)
@@ -1160,12 +1163,16 @@ class Anima(BaseModel):
         device = kwargs["device"]
         if cross_attn is not None:
             if t5xxl_ids is not None:
-                cross_attn = self.diffusion_model.preprocess_text_embeds(cross_attn.to(device=device, dtype=self.get_dtype()), t5xxl_ids.unsqueeze(0).to(device=device))
                 if t5xxl_weights is not None:
-                    cross_attn *= t5xxl_weights.unsqueeze(0).unsqueeze(-1).to(cross_attn)
+                    t5xxl_weights = t5xxl_weights.unsqueeze(0).unsqueeze(-1).to(cross_attn)
+                t5xxl_ids = t5xxl_ids.unsqueeze(0)
 
-                if cross_attn.shape[1] < 512:
-                    cross_attn = torch.nn.functional.pad(cross_attn, (0, 0, 0, 512 - cross_attn.shape[1]))
+                if torch.is_inference_mode_enabled():  # if not we are training
+                    cross_attn = self.diffusion_model.preprocess_text_embeds(cross_attn.to(device=device, dtype=self.get_dtype_inference()), t5xxl_ids.to(device=device), t5xxl_weights=t5xxl_weights.to(device=device, dtype=self.get_dtype_inference()))
+                else:
+                    out['t5xxl_ids'] = comfy.conds.CONDRegular(t5xxl_ids)
+                    out['t5xxl_weights'] = comfy.conds.CONDRegular(t5xxl_weights)
+
             out['c_crossattn'] = comfy.conds.CONDRegular(cross_attn)
         return out
 
@@ -1549,6 +1556,49 @@ class ACEStep(BaseModel):
             out['lyric_token_idx'] = comfy.conds.CONDRegular(conditioning_lyrics)
         out['speaker_embeds'] = comfy.conds.CONDRegular(torch.zeros(noise.shape[0], 512, device=noise.device, dtype=noise.dtype))
         out['lyrics_strength'] = comfy.conds.CONDConstant(kwargs.get("lyrics_strength", 1.0))
+        return out
+
+class ACEStep15(BaseModel):
+    def __init__(self, model_config, model_type=ModelType.FLOW, device=None):
+        super().__init__(model_config, model_type, device=device, unet_model=comfy.ldm.ace.ace_step15.AceStepConditionGenerationModel)
+
+    def extra_conds(self, **kwargs):
+        out = super().extra_conds(**kwargs)
+        device = kwargs["device"]
+        noise = kwargs["noise"]
+
+        cross_attn = kwargs.get("cross_attn", None)
+        if cross_attn is not None:
+            if torch.count_nonzero(cross_attn) == 0:
+                out['replace_with_null_embeds'] = comfy.conds.CONDConstant(True)
+            out['c_crossattn'] = comfy.conds.CONDRegular(cross_attn)
+
+        conditioning_lyrics = kwargs.get("conditioning_lyrics", None)
+        if cross_attn is not None:
+            out['lyric_embed'] = comfy.conds.CONDRegular(conditioning_lyrics)
+
+        refer_audio = kwargs.get("reference_audio_timbre_latents", None)
+        if refer_audio is None or len(refer_audio) == 0:
+            refer_audio = comfy.ldm.ace.ace_step15.get_silence_latent(noise.shape[2], device)
+            pass_audio_codes = True
+        else:
+            refer_audio = refer_audio[-1][:, :, :noise.shape[2]]
+            out['is_covers'] = comfy.conds.CONDConstant(True)
+            pass_audio_codes = False
+
+        if pass_audio_codes:
+            audio_codes = kwargs.get("audio_codes", None)
+            if audio_codes is not None:
+                out['audio_codes'] = comfy.conds.CONDRegular(torch.tensor(audio_codes, device=device))
+                refer_audio = refer_audio[:, :, :750]
+            else:
+                out['is_covers'] = comfy.conds.CONDConstant(False)
+
+        if refer_audio.shape[2] < noise.shape[2]:
+            pad = comfy.ldm.ace.ace_step15.get_silence_latent(noise.shape[2], device)
+            refer_audio = torch.cat([refer_audio.to(pad), pad[:, :, refer_audio.shape[2]:]], dim=2)
+
+        out['refer_audio'] = comfy.conds.CONDRegular(refer_audio)
         return out
 
 class Omnigen2(BaseModel):

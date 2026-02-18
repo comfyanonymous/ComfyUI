@@ -28,10 +28,12 @@ from .conversions import (
 from .download_helpers import (
     download_url_as_bytesio,
     download_url_to_bytesio,
+    download_url_to_file_3d,
     download_url_to_image_tensor,
     download_url_to_video_output,
 )
 from .upload_helpers import (
+    upload_3d_model_to_comfyapi,
     upload_audio_to_comfyapi,
     upload_file_to_comfyapi,
     upload_image_to_comfyapi,
@@ -61,6 +63,7 @@ __all__ = [
     "sync_op",
     "sync_op_raw",
     # Upload helpers
+    "upload_3d_model_to_comfyapi",
     "upload_audio_to_comfyapi",
     "upload_file_to_comfyapi",
     "upload_image_to_comfyapi",
@@ -69,6 +72,7 @@ __all__ = [
     # Download helpers
     "download_url_as_bytesio",
     "download_url_to_bytesio",
+    "download_url_to_file_3d",
     "download_url_to_image_tensor",
     "download_url_to_video_output",
     # Conversions

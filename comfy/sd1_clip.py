@@ -155,6 +155,8 @@ class SDClipModel(torch.nn.Module, ClipTokenWeightEncoder):
         self.execution_device = options.get("execution_device", self.execution_device)
         if isinstance(self.layer, list) or self.layer == "all":
             pass
+        elif isinstance(layer_idx, list):
+            self.layer = layer_idx
         elif layer_idx is None or abs(layer_idx) > self.num_layers:
             self.layer = "last"
         else:
@@ -169,8 +171,9 @@ class SDClipModel(torch.nn.Module, ClipTokenWeightEncoder):
 
     def process_tokens(self, tokens, device):
         end_token = self.special_tokens.get("end", None)
+        pad_token = self.special_tokens.get("pad", -1)
         if end_token is None:
-            cmp_token = self.special_tokens.get("pad", -1)
+            cmp_token = pad_token
         else:
             cmp_token = end_token
 
@@ -184,15 +187,21 @@ class SDClipModel(torch.nn.Module, ClipTokenWeightEncoder):
             other_embeds = []
             eos = False
             index = 0
+            left_pad = False
             for y in x:
                 if isinstance(y, numbers.Integral):
-                    if eos:
+                    token = int(y)
+                    if index == 0 and token == pad_token:
+                        left_pad = True
+
+                    if eos or (left_pad and token == pad_token):
                         attention_mask.append(0)
                     else:
                         attention_mask.append(1)
-                    token = int(y)
+                        left_pad = False
+
                     tokens_temp += [token]
-                    if not eos and token == cmp_token:
+                    if not eos and token == cmp_token and not left_pad:
                         if end_token is None:
                             attention_mask[-1] = 0
                         eos = True

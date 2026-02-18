@@ -23,7 +23,7 @@ class AnimaTokenizer:
     def tokenize_with_weights(self, text:str, return_word_ids=False, **kwargs):
         out = {}
         qwen_ids = self.qwen3_06b.tokenize_with_weights(text, return_word_ids, **kwargs)
-        out["qwen3_06b"] = [[(token, 1.0) for token, _ in inner_list] for inner_list in qwen_ids]  # Set weights to 1.0
+        out["qwen3_06b"] = [[(k[0], 1.0, k[2]) if return_word_ids else (k[0], 1.0) for k in inner_list] for inner_list in qwen_ids]  # Set weights to 1.0
         out["t5xxl"] = self.t5xxl.tokenize_with_weights(text, return_word_ids, **kwargs)
         return out
 

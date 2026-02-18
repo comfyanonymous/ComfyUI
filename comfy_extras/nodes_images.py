@@ -23,8 +23,9 @@ class ImageCrop(IO.ComfyNode):
         return IO.Schema(
             node_id="ImageCrop",
             search_aliases=["trim"],
-            display_name="Image Crop",
+            display_name="Image Crop (Deprecated)",
             category="image/transform",
+            is_deprecated=True,
             inputs=[
                 IO.Image.Input("image"),
                 IO.Int.Input("width", default=512, min=1, max=nodes.MAX_RESOLUTION, step=1),
@@ -45,6 +46,57 @@ class ImageCrop(IO.ComfyNode):
         return IO.NodeOutput(img)
 
     crop = execute  # TODO: remove
+
+
+class ImageCropV2(IO.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return IO.Schema(
+            node_id="ImageCropV2",
+            search_aliases=["trim"],
+            display_name="Image Crop",
+            category="image/transform",
+            inputs=[
+                IO.Image.Input("image"),
+                IO.BoundingBox.Input("crop_region", component="ImageCrop"),
+            ],
+            outputs=[IO.Image.Output()],
+        )
+
+    @classmethod
+    def execute(cls, image, crop_region) -> IO.NodeOutput:
+        x = crop_region.get("x", 0)
+        y = crop_region.get("y", 0)
+        width = crop_region.get("width", 512)
+        height = crop_region.get("height", 512)
+
+        x = min(x, image.shape[2] - 1)
+        y = min(y, image.shape[1] - 1)
+        to_x = width + x
+        to_y = height + y
+        img = image[:,y:to_y, x:to_x, :]
+        return IO.NodeOutput(img, ui=UI.PreviewImage(img))
+
+
+class BoundingBox(IO.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return IO.Schema(
+            node_id="PrimitiveBoundingBox",
+            display_name="Bounding Box",
+            category="utils/primitive",
+            inputs=[
+                IO.Int.Input("x", default=0, min=0, max=MAX_RESOLUTION),
+                IO.Int.Input("y", default=0, min=0, max=MAX_RESOLUTION),
+                IO.Int.Input("width", default=512, min=1, max=MAX_RESOLUTION),
+                IO.Int.Input("height", default=512, min=1, max=MAX_RESOLUTION),
+            ],
+            outputs=[IO.BoundingBox.Output()],
+        )
+
+    @classmethod
+    def execute(cls, x, y, width, height) -> IO.NodeOutput:
+        return IO.NodeOutput({"x": x, "y": y, "width": width, "height": height})
 
 
 class RepeatImageBatch(IO.ComfyNode):
@@ -632,6 +684,8 @@ class ImagesExtension(ComfyExtension):
     async def get_node_list(self) -> list[type[IO.ComfyNode]]:
         return [
             ImageCrop,
+            ImageCropV2,
+            BoundingBox,
             RepeatImageBatch,
             ImageFromBatch,
             ImageAddNoise,

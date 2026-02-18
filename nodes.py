@@ -1001,7 +1001,7 @@ class DualCLIPLoader:
     def INPUT_TYPES(s):
         return {"required": { "clip_name1": (folder_paths.get_filename_list("text_encoders"), ),
                               "clip_name2": (folder_paths.get_filename_list("text_encoders"), ),
-                              "type": (["sdxl", "sd3", "flux", "hunyuan_video", "hidream", "hunyuan_image", "hunyuan_video_15", "kandinsky5", "kandinsky5_image", "ltxv", "newbie"], ),
+                              "type": (["sdxl", "sd3", "flux", "hunyuan_video", "hidream", "hunyuan_image", "hunyuan_video_15", "kandinsky5", "kandinsky5_image", "ltxv", "newbie", "ace"], ),
                               },
                 "optional": {
                               "device": (["default", "cpu"], {"advanced": True}),
@@ -2264,6 +2264,7 @@ async def load_custom_node(module_path: str, ignore=set(), module_parent="custom
                 if not isinstance(extension, ComfyExtension):
                     logging.warning(f"comfy_entrypoint in {module_path} did not return a ComfyExtension, skipping.")
                     return False
+                await extension.on_load()
                 node_list = await extension.get_node_list()
                 if not isinstance(node_list, list):
                     logging.warning(f"comfy_entrypoint in {module_path} did not return a list of nodes, skipping.")
@@ -2434,7 +2435,10 @@ async def init_builtin_extra_nodes():
         "nodes_zimage.py",
         "nodes_lora_debug.py",
         "nodes_color.py",
-        "nodes_trellis2.py"
+        "nodes_toolkit.py",
+        "nodes_replacements.py",
+        "nodes_nag.py",
+        "nodes_trellis2.py",
     ]
 
     import_failed = []
