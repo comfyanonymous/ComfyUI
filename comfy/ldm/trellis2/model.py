@@ -828,6 +828,7 @@ class Trellis2(nn.Module):
     def forward(self, x, timestep, context, **kwargs):
         embeds = kwargs.get("embeds")
         mode = kwargs.get("generation_mode")
+        coords = kwargs.get("coords")
         transformer_options = kwargs.get("transformer_options")
         sigmas = transformer_options.get("sigmas")[0].item()
         if sigmas < 1.00001:
@@ -835,6 +836,9 @@ class Trellis2(nn.Module):
         cond = context.chunk(2)[1]
         shape_rule = sigmas < self.guidance_interval[0] or sigmas > self.guidance_interval[1]
         txt_rule = sigmas < self.guidance_interval_txt[0] or sigmas > self.guidance_interval_txt[1]
+
+        if mode in ["shape_generation", "texture_generation"]:
+            x = SparseTensor(feats=x, coords=coords)
 
         if mode == "shape_generation":
             # TODO

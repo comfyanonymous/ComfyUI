@@ -1,9 +1,7 @@
 from typing_extensions import override
 from comfy_api.latest import ComfyExtension, IO, Types
 import torch
-from comfy.ldm.trellis2.model import SparseTensor
 import comfy.model_management
-import comfy.model_patcher
 
 shape_slat_normalization = {
     "mean": torch.tensor([
@@ -205,7 +203,6 @@ class VaeDecodeStructureTrellis2(IO.ComfyNode):
         samples = samples.to(load_device)
         decoded = decoder(samples)>0
         decoder.to(offload_device)
-        comfy.model_management.get_offload_stream
         out = Types.VOXEL(decoded.squeeze(1).float())
         return IO.NodeOutput(out)
 
@@ -253,10 +250,10 @@ class EmptyShapeLatentTrellis2(IO.ComfyNode):
     @classmethod
     def execute(cls, structure_output):
         decoded = structure_output.data
-        coords = torch.argwhere(decoded.bool())[:, [0, 2, 3, 4]].int().unsqueeze(1)
+        coords = torch.argwhere(decoded.bool())[:, [0, 2, 3, 4]].int()
         in_channels = 32
-        latent = SparseTensor(feats=torch.randn(coords.shape[0], in_channels), coords=coords)
-        return IO.NodeOutput({"samples": latent, "type": "trellis2", "generation_mode": "shape_generation"})
+        latent = torch.randn(coords.shape[0], in_channels)
+        return IO.NodeOutput({"samples": latent, "type": "trellis2", "generation_mode": "shape_generation", "coords": coords})
 
 class EmptyTextureLatentTrellis2(IO.ComfyNode):
     @classmethod
@@ -275,9 +272,11 @@ class EmptyTextureLatentTrellis2(IO.ComfyNode):
     @classmethod
     def execute(cls, structure_output):
         # TODO
+        decoded = structure_output.data
+        coords = torch.argwhere(decoded.bool())[:, [0, 2, 3, 4]].int()
         in_channels = 32
-        latent = structure_output.replace(feats=torch.randn(structure_output.data.shape[0], in_channels - structure_output.feats.shape[1]))
-        return IO.NodeOutput({"samples": latent, "type": "trellis2", "generation_mode": "texture_generation"})
+        latent = torch.randn(coords.shape[0], in_channels - structure_output.feats.shape[1])
+        return IO.NodeOutput({"samples": latent, "type": "trellis2", "generation_mode": "texture_generation", "coords": coords})
 
 class EmptyStructureLatentTrellis2(IO.ComfyNode):
     @classmethod
