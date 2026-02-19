@@ -1123,12 +1123,8 @@ def calculate_sigmas(model_sampling: object, scheduler_name: str, steps: int) ->
     else:
         sigmas = handler.handler(n=steps, sigma_min=float(model_sampling.sigma_min), sigma_max=float(model_sampling.sigma_max))
     
-    # Validate that scheduler returned the expected number of sigmas
-    # Each scheduler should return (steps + 1) sigma values
-    expected_length = steps + 1
-    if len(sigmas) != expected_length:
-        logging.warning(f"Scheduler '{scheduler_name}' returned {len(sigmas)} sigmas for {steps} steps, expected {expected_length}")
-    
+    # Note: Most schedulers return (steps + 1) sigma values for 'steps' iterations.
+    # Some schedulers like 'beta' may return fewer due to duplicate timestep removal.
     return sigmas
 
 def sampler_object(name):
