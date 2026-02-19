@@ -826,7 +826,12 @@ class Trellis2(nn.Module):
         self.guidance_interval_txt = [0.6, 0.9]
 
     def forward(self, x, timestep, context, **kwargs):
+        # FIXME: should find a way to distinguish between 512/1024 models
+        # currently assumes 1024
         embeds = kwargs.get("embeds")
+        _, cond = context.chunk(2)
+        cond = embeds.chunk(2)[0]
+        context = torch.cat([torch.zeros_like(cond), cond])
         mode = kwargs.get("generation_mode")
         coords = kwargs.get("coords")
         transformer_options = kwargs.get("transformer_options")
@@ -837,12 +842,13 @@ class Trellis2(nn.Module):
         shape_rule = sigmas < self.guidance_interval[0] or sigmas > self.guidance_interval[1]
         txt_rule = sigmas < self.guidance_interval_txt[0] or sigmas > self.guidance_interval_txt[1]
 
-        if mode in ["shape_generation", "texture_generation"]:
+        not_struct_mode = mode in ["shape_generation", "texture_generation"]
+        if not_struct_mode:
             x = SparseTensor(feats=x, coords=coords)
 
         if mode == "shape_generation":
             # TODO
-            out = self.img2shape(x, timestep, torch.cat([embeds, torch.empty_like(embeds)]))
+            out = self.img2shape(x, timestep, context)
         elif mode == "texture_generation":
             out = self.shape2txt(x, timestep, context if not txt_rule else cond)
         else: # structure
@@ -855,5 +861,6 @@ class Trellis2(nn.Module):
             if shape_rule:
                 out = out.repeat(orig_bsz, 1, 1, 1, 1)
 
-        out.generation_mode = mode
+        if not_struct_mode:
+            out = out.feats
         return out
