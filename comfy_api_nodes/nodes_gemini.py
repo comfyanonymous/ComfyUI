@@ -6,6 +6,7 @@ See: https://cloud.google.com/vertex-ai/generative-ai/docs/model-reference/infer
 import base64
 import os
 from enum import Enum
+from fnmatch import fnmatch
 from io import BytesIO
 from typing import Literal
 
@@ -119,6 +120,13 @@ async def create_image_parts(
     return image_parts
 
 
+def _mime_matches(mime: GeminiMimeType | None, pattern: str) -> bool:
+    """Check if a MIME type matches a pattern. Supports fnmatch globs (e.g. 'image/*')."""
+    if mime is None:
+        return False
+    return fnmatch(mime.value, pattern)
+
+
 def get_parts_by_type(response: GeminiGenerateContentResponse, part_type: Literal["text"] | str) -> list[GeminiPart]:
     """
     Filter response parts by their type.
@@ -151,9 +159,9 @@ def get_parts_by_type(response: GeminiGenerateContentResponse, part_type: Litera
         for part in candidate.content.parts:
             if part_type == "text" and part.text:
                 parts.append(part)
-            elif part.inlineData and part.inlineData.mimeType == part_type:
+            elif part.inlineData and _mime_matches(part.inlineData.mimeType, part_type):
                 parts.append(part)
-            elif part.fileData and part.fileData.mimeType == part_type:
+            elif part.fileData and _mime_matches(part.fileData.mimeType, part_type):
                 parts.append(part)
 
     if not parts and blocked_reasons:
@@ -178,7 +186,7 @@ def get_text_from_response(response: GeminiGenerateContentResponse) -> str:
 
 async def get_image_from_response(response: GeminiGenerateContentResponse) -> Input.Image:
     image_tensors: list[Input.Image] = []
-    parts = get_parts_by_type(response, "image/png")
+    parts = get_parts_by_type(response, "image/*")
     for part in parts:
         if part.inlineData:
             image_data = base64.b64decode(part.inlineData.data)

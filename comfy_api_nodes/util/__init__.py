@@ -33,6 +33,7 @@ from .download_helpers import (
     download_url_to_video_output,
 )
 from .upload_helpers import (
+    upload_3d_model_to_comfyapi,
     upload_audio_to_comfyapi,
     upload_file_to_comfyapi,
     upload_image_to_comfyapi,
@@ -62,6 +63,7 @@ __all__ = [
     "sync_op",
     "sync_op_raw",
     # Upload helpers
+    "upload_3d_model_to_comfyapi",
     "upload_audio_to_comfyapi",
     "upload_file_to_comfyapi",
     "upload_image_to_comfyapi",

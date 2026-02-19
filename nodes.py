@@ -2264,6 +2264,7 @@ async def load_custom_node(module_path: str, ignore=set(), module_parent="custom
                 if not isinstance(extension, ComfyExtension):
                     logging.warning(f"comfy_entrypoint in {module_path} did not return a ComfyExtension, skipping.")
                     return False
+                await extension.on_load()
                 node_list = await extension.get_node_list()
                 if not isinstance(node_list, list):
                     logging.warning(f"comfy_entrypoint in {module_path} did not return a list of nodes, skipping.")
@@ -2433,8 +2434,11 @@ async def init_builtin_extra_nodes():
         "nodes_image_compare.py",
         "nodes_zimage.py",
         "nodes_lora_debug.py",
+        "nodes_textgen.py",
         "nodes_color.py",
         "nodes_toolkit.py",
+        "nodes_replacements.py",
+        "nodes_nag.py",
     ]
 
     import_failed = []
