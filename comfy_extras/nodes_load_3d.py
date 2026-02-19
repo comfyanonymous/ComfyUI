@@ -4,7 +4,6 @@ import os
 import uuid
 
 from typing_extensions import override
-from comfy.essentials_category import ESSENTIALS_BASICS
 from comfy_api.latest import IO, UI, ComfyExtension, InputImpl, Types
 
 from pathlib import Path
@@ -32,7 +31,7 @@ class Load3D(IO.ComfyNode):
             node_id="Load3D",
             display_name="Load 3D & Animation",
             category="3d",
-            essentials_category=ESSENTIALS_BASICS,
+            essentials_category="Basic",
             is_experimental=True,
             inputs=[
                 IO.Combo.Input("model_file", options=sorted(files), upload=IO.UploadType.model),

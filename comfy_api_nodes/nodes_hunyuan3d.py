@@ -1,6 +1,5 @@
 from typing_extensions import override
 
-from comfy.essentials_category import ESSENTIALS_3D
 from comfy_api.latest import IO, ComfyExtension, Input, Types
 from comfy_api_nodes.apis.hunyuan3d import (
     Hunyuan3DViewImage,
@@ -55,7 +54,7 @@ class TencentTextToModelNode(IO.ComfyNode):
             node_id="TencentTextToModelNode",
             display_name="Hunyuan3D: Text to Model",
             category="api node/3d/Tencent",
-            essentials_category=ESSENTIALS_3D,
+            essentials_category="3D",
             inputs=[
                 IO.Combo.Input(
                     "model",
@@ -170,7 +169,7 @@ class TencentImageToModelNode(IO.ComfyNode):
             node_id="TencentImageToModelNode",
             display_name="Hunyuan3D: Image(s) to Model",
             category="api node/3d/Tencent",
-            essentials_category=ESSENTIALS_3D,
+            essentials_category="3D",
             inputs=[
                 IO.Combo.Input(
                     "model",

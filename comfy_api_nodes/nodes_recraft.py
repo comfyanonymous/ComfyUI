@@ -6,7 +6,6 @@ from PIL import UnidentifiedImageError
 from typing_extensions import override
 
 from comfy.utils import ProgressBar
-from comfy.essentials_category import ESSENTIALS_IMAGE_TOOLS
 from comfy_api.latest import IO, ComfyExtension
 from comfy_api_nodes.apis.recraft import (
     RECRAFT_V4_PRO_SIZES,
@@ -964,7 +963,7 @@ class RecraftRemoveBackgroundNode(IO.ComfyNode):
             node_id="RecraftRemoveBackgroundNode",
             display_name="Recraft Remove Background",
             category="api node/image/Recraft",
-            essentials_category=ESSENTIALS_IMAGE_TOOLS,
+            essentials_category="Image Tools",
             description="Remove background from image, and return processed image and mask.",
             inputs=[
                 IO.Image.Input("image"),
