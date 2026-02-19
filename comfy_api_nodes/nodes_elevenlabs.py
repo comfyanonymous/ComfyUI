@@ -584,6 +584,7 @@ class ElevenLabsInstantVoiceClone(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
+            price_badge=IO.PriceBadge(expr="""{"type":"usd","usd":0.15}"""),
         )
 
     @classmethod
