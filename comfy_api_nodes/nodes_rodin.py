@@ -505,6 +505,9 @@ class Rodin3D_Gen2(IO.ComfyNode):
                 IO.Hidden.unique_id,
             ],
             is_api_node=True,
+            price_badge=IO.PriceBadge(
+                expr="""{"type":"usd","usd":0.4}""",
+            ),
         )
 
     @classmethod
