@@ -70,7 +70,7 @@ class CLIPTextEncode(ComfyNodeABC):
     FUNCTION = "encode"
 
     CATEGORY = "conditioning"
-    ESSENTIALS_CATEGORY = "Basic"
+    ESSENTIALS_CATEGORY = "Basics"
     DESCRIPTION = "Encodes a text prompt using a CLIP model into an embedding that can be used to guide the diffusion model towards generating specific images."
     SEARCH_ALIASES = ["text", "prompt", "text prompt", "positive prompt", "negative prompt", "encode text", "text encoder", "encode prompt"]
 
@@ -1652,7 +1652,7 @@ class SaveImage:
     OUTPUT_NODE = True
 
     CATEGORY = "image"
-    ESSENTIALS_CATEGORY = "Basic"
+    ESSENTIALS_CATEGORY = "Basics"
     DESCRIPTION = "Saves the input images to your ComfyUI output directory."
     SEARCH_ALIASES = ["save", "save image", "export image", "output image", "write image", "download"]
 
@@ -1711,7 +1711,7 @@ class LoadImage:
                 }
 
     CATEGORY = "image"
-    ESSENTIALS_CATEGORY = "Basic"
+    ESSENTIALS_CATEGORY = "Basics"
     SEARCH_ALIASES = ["load image", "open image", "import image", "image input", "upload image", "read image", "image loader"]
 
     RETURN_TYPES = ("IMAGE", "MASK")
