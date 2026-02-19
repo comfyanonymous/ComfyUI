@@ -523,7 +523,7 @@ class PromptServer():
                             buffer.seek(0)
 
                             return web.Response(body=buffer.read(), content_type=f'image/{image_format}',
-                                                headers={"Content-Disposition": f"filename=\"{filename}\""})
+                                                headers={"Content-Disposition": f"attachment; filename=\"{filename}\""})
 
                     if 'channel' not in request.rel_url.query:
                         channel = 'rgba'
@@ -543,7 +543,7 @@ class PromptServer():
                             buffer.seek(0)
 
                             return web.Response(body=buffer.read(), content_type='image/png',
-                                                headers={"Content-Disposition": f"filename=\"{filename}\""})
+                                                headers={"Content-Disposition": f"attachment; filename=\"{filename}\""})
 
                     elif channel == 'a':
                         with Image.open(file) as img:
@@ -560,7 +560,7 @@ class PromptServer():
                             alpha_buffer.seek(0)
 
                             return web.Response(body=alpha_buffer.read(), content_type='image/png',
-                                                headers={"Content-Disposition": f"filename=\"{filename}\""})
+                                                headers={"Content-Disposition": f"attachment; filename=\"{filename}\""})
                     else:
                         # Get content type from mimetype, defaulting to 'application/octet-stream'
                         content_type = mimetypes.guess_type(filename)[0] or 'application/octet-stream'
@@ -572,7 +572,7 @@ class PromptServer():
                         return web.FileResponse(
                             file,
                             headers={
-                                "Content-Disposition": f"filename=\"{filename}\"",
+                                "Content-Disposition": f"attachment; filename=\"{filename}\"",
                                 "Content-Type": content_type
                             }
                         )
@@ -1210,32 +1210,3 @@ class PromptServer():
                 address_print = address
 
             if verbose:
-                logging.info("To see the GUI go to: {}://{}:{}".format(scheme, address_print, port))
-
-        if call_on_start is not None:
-            call_on_start(scheme, self.address, self.port)
-
-    def add_on_prompt_handler(self, handler):
-        self.on_prompt_handlers.append(handler)
-
-    def trigger_on_prompt(self, json_data):
-        for handler in self.on_prompt_handlers:
-            try:
-                json_data = handler(json_data)
-            except Exception:
-                logging.warning("[ERROR] An error occurred during the on_prompt_handler processing")
-                logging.warning(traceback.format_exc())
-
-        return json_data
-
-    def send_progress_text(
-        self, text: Union[bytes, bytearray, str], node_id: str, sid=None
-    ):
-        if isinstance(text, str):
-            text = text.encode("utf-8")
-        node_id_bytes = str(node_id).encode("utf-8")
-
-        # Pack the node_id length as a 4-byte unsigned integer, followed by the node_id bytes
-        message = struct.pack(">I", len(node_id_bytes)) + node_id_bytes + text
-
-        self.send_sync(BinaryEventTypes.TEXT, message, sid)
