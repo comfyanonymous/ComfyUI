@@ -415,17 +415,28 @@ def ddim_scheduler(model_sampling, steps):
     s = model_sampling
     sigs = []
     x = 1
+    
+    # Check if we need to append zero at the end
+    append_zero = True
     if math.isclose(float(s.sigmas[x]), 0, abs_tol=0.00001):
-        steps += 1
-        sigs = []
-    else:
-        sigs = [0.0]
+        append_zero = False
 
+    # Calculate step size to sample exactly 'steps' sigmas from the model's sigma schedule
     ss = max(len(s.sigmas) // steps, 1)
-    while x < len(s.sigmas):
+    
+    # Collect exactly 'steps' sigma values
+    collected = 0
+    while x < len(s.sigmas) and collected < steps:
         sigs += [float(s.sigmas[x])]
         x += ss
+        collected += 1
+    
     sigs = sigs[::-1]
+    
+    # Append zero if needed to ensure we have exactly steps + 1 sigmas
+    if append_zero:
+        sigs += [0.0]
+    
     return torch.FloatTensor(sigs)
 
 def normal_scheduler(model_sampling, steps, sgm=False, floor=False):
@@ -1090,14 +1101,35 @@ SCHEDULER_HANDLERS = {
 SCHEDULER_NAMES = list(SCHEDULER_HANDLERS)
 
 def calculate_sigmas(model_sampling: object, scheduler_name: str, steps: int) -> torch.Tensor:
+    """
+    Calculate sigma schedule for sampling.
+    
+    Args:
+        model_sampling: Model sampling object containing sigma schedule
+        scheduler_name: Name of the scheduler to use
+        steps: Number of sampling steps
+        
+    Returns:
+        torch.Tensor: Sigma values. Should have length of (steps + 1) to enable
+                     'steps' sampling iterations with a final zero sigma.
+    """
     handler = SCHEDULER_HANDLERS.get(scheduler_name)
     if handler is None:
         err = f"error invalid scheduler {scheduler_name}"
         logging.error(err)
         raise ValueError(err)
     if handler.use_ms:
-        return handler.handler(model_sampling, steps)
-    return handler.handler(n=steps, sigma_min=float(model_sampling.sigma_min), sigma_max=float(model_sampling.sigma_max))
+        sigmas = handler.handler(model_sampling, steps)
+    else:
+        sigmas = handler.handler(n=steps, sigma_min=float(model_sampling.sigma_min), sigma_max=float(model_sampling.sigma_max))
+    
+    # Validate that scheduler returned the expected number of sigmas
+    # Each scheduler should return (steps + 1) sigma values
+    expected_length = steps + 1
+    if len(sigmas) != expected_length:
+        logging.warning(f"Scheduler '{scheduler_name}' returned {len(sigmas)} sigmas for {steps} steps, expected {expected_length}")
+    
+    return sigmas
 
 def sampler_object(name):
     if name == "uni_pc":
