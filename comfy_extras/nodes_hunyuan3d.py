@@ -106,8 +106,8 @@ class VAEDecodeHunyuan3D(IO.ComfyNode):
             inputs=[
                 IO.Latent.Input("samples"),
                 IO.Vae.Input("vae"),
-                IO.Int.Input("num_chunks", default=8000, min=1000, max=500000),
-                IO.Int.Input("octree_resolution", default=256, min=16, max=512),
+                IO.Int.Input("num_chunks", default=8000, min=1000, max=500000, advanced=True),
+                IO.Int.Input("octree_resolution", default=256, min=16, max=512, advanced=True),
             ],
             outputs=[
                 IO.Voxel.Output(),
@@ -456,7 +456,7 @@ class VoxelToMesh(IO.ComfyNode):
             category="3d",
             inputs=[
                 IO.Voxel.Input("voxel"),
-                IO.Combo.Input("algorithm", options=["surface net", "basic"]),
+                IO.Combo.Input("algorithm", options=["surface net", "basic"], advanced=True),
                 IO.Float.Input("threshold", default=0.6, min=-1.0, max=1.0, step=0.01),
             ],
             outputs=[
@@ -621,6 +621,7 @@ class SaveGLB(IO.ComfyNode):
             display_name="Save 3D Model",
             search_aliases=["export 3d model", "save mesh"],
             category="3d",
+            essentials_category="Basics",
             is_output_node=True,
             inputs=[
                 IO.MultiType.Input(

@@ -114,6 +114,7 @@ class ByteDanceImageNode(IO.ComfyNode):
                     default=False,
                     tooltip='Whether to add an "AI generated" watermark to the image',
                     optional=True,
+                    advanced=True,
                 ),
             ],
             outputs=[
@@ -259,12 +260,14 @@ class ByteDanceSeedreamNode(IO.ComfyNode):
                     default=False,
                     tooltip='Whether to add an "AI generated" watermark to the image.',
                     optional=True,
+                    advanced=True,
                 ),
                 IO.Boolean.Input(
                     "fail_on_partial",
                     default=True,
                     tooltip="If enabled, abort execution if any requested images are missing or return an error.",
                     optional=True,
+                    advanced=True,
                 ),
             ],
             outputs=[
@@ -432,18 +435,21 @@ class ByteDanceTextToVideoNode(IO.ComfyNode):
                     tooltip="Specifies whether to fix the camera. The platform appends an instruction "
                     "to fix the camera to your prompt, but does not guarantee the actual effect.",
                     optional=True,
+                    advanced=True,
                 ),
                 IO.Boolean.Input(
                     "watermark",
                     default=False,
                     tooltip='Whether to add an "AI generated" watermark to the video.',
                     optional=True,
+                    advanced=True,
                 ),
                 IO.Boolean.Input(
                     "generate_audio",
                     default=False,
                     tooltip="This parameter is ignored for any model except seedance-1-5-pro.",
                     optional=True,
+                    advanced=True,
                 ),
             ],
             outputs=[
@@ -561,18 +567,21 @@ class ByteDanceImageToVideoNode(IO.ComfyNode):
                     tooltip="Specifies whether to fix the camera. The platform appends an instruction "
                     "to fix the camera to your prompt, but does not guarantee the actual effect.",
                     optional=True,
+                    advanced=True,
                 ),
                 IO.Boolean.Input(
                     "watermark",
                     default=False,
                     tooltip='Whether to add an "AI generated" watermark to the video.',
                     optional=True,
+                    advanced=True,
                 ),
                 IO.Boolean.Input(
                     "generate_audio",
                     default=False,
                     tooltip="This parameter is ignored for any model except seedance-1-5-pro.",
                     optional=True,
+                    advanced=True,
                 ),
             ],
             outputs=[
@@ -694,18 +703,21 @@ class ByteDanceFirstLastFrameNode(IO.ComfyNode):
                     tooltip="Specifies whether to fix the camera. The platform appends an instruction "
                     "to fix the camera to your prompt, but does not guarantee the actual effect.",
                     optional=True,
+                    advanced=True,
                 ),
                 IO.Boolean.Input(
                     "watermark",
                     default=False,
                     tooltip='Whether to add an "AI generated" watermark to the video.',
                     optional=True,
+                    advanced=True,
                 ),
                 IO.Boolean.Input(
                     "generate_audio",
                     default=False,
                     tooltip="This parameter is ignored for any model except seedance-1-5-pro.",
                     optional=True,
+                    advanced=True,
                 ),
             ],
             outputs=[
@@ -834,6 +846,7 @@ class ByteDanceImageReferenceNode(IO.ComfyNode):
                     default=False,
                     tooltip='Whether to add an "AI generated" watermark to the video.',
                     optional=True,
+                    advanced=True,
                 ),
             ],
             outputs=[

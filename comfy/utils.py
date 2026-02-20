@@ -1418,3 +1418,11 @@ def deepcopy_list_dict(obj, memo=None):
 
     memo[obj_id] = res
     return res
+
+def normalize_image_embeddings(embeds, embeds_info, scale_factor):
+    """Normalize image embeddings to match text embedding scale"""
+    for info in embeds_info:
+        if info.get("type") == "image":
+            start_idx = info["index"]
+            end_idx = start_idx + info["size"]
+            embeds[:, start_idx:end_idx, :] /= scale_factor
