@@ -4,6 +4,7 @@ import torch
 import comfy.model_management
 from PIL import Image
 import numpy as np
+import builtins
 
 shape_slat_normalization = {
     "mean": torch.tensor([
@@ -268,8 +269,10 @@ class EmptyShapeLatentTrellis2(IO.ComfyNode):
         decoded = structure_output.data.unsqueeze(1)
         coords = torch.argwhere(decoded.bool())[:, [0, 2, 3, 4]].int()
         in_channels = 32
-        latent = torch.randn(coords.shape[0], in_channels)
-        return IO.NodeOutput({"samples": latent, "type": "trellis2", "generation_mode": "shape_generation", "coords": coords})
+        latent = torch.randn(1, coords.shape[0], in_channels)
+        builtins.TRELLIS_MODE = "shape_generation"
+        builtins.TRELLIS_COORDS = coords
+        return IO.NodeOutput({"samples": latent, "type": "trellis2"})
 
 class EmptyTextureLatentTrellis2(IO.ComfyNode):
     @classmethod
@@ -292,7 +295,9 @@ class EmptyTextureLatentTrellis2(IO.ComfyNode):
         coords = torch.argwhere(decoded.bool())[:, [0, 2, 3, 4]].int()
         in_channels = 32
         latent = torch.randn(coords.shape[0], in_channels - structure_output.feats.shape[1])
-        return IO.NodeOutput({"samples": latent, "type": "trellis2", "generation_mode": "texture_generation", "coords": coords})
+        builtins.TRELLIS_MODE = "texture_generation"
+        builtins.TRELLIS_COORDS = coords
+        return IO.NodeOutput({"samples": latent, "type": "trellis2"})
 
 class EmptyStructureLatentTrellis2(IO.ComfyNode):
     @classmethod
@@ -312,7 +317,7 @@ class EmptyStructureLatentTrellis2(IO.ComfyNode):
         in_channels = 8
         resolution = 16
         latent = torch.randn(batch_size, in_channels, resolution, resolution, resolution)
-        return IO.NodeOutput({"samples": latent, "type": "trellis2", "generation_mode": "structure_generation"})
+        return IO.NodeOutput({"samples": latent, "type": "trellis2"})
 
 def simplify_fn(vertices, faces, target=100000):
 

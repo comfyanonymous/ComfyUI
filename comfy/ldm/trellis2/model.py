@@ -8,6 +8,7 @@ from comfy.ldm.trellis2.attention import (
 )
 from comfy.ldm.genmo.joint_model.layers import TimestepEmbedder
 from comfy.ldm.flux.math import apply_rope, apply_rope1
+import builtins
 
 class SparseGELU(nn.GELU):
     def forward(self, input: VarLenTensor) -> VarLenTensor:
@@ -481,6 +482,8 @@ class SLatFlowModel(nn.Module):
         if isinstance(cond, list):
             cond = VarLenTensor.from_tensor_list(cond)
 
+        dtype = next(self.input_layer.parameters()).dtype
+        x = x.to(dtype)
         h = self.input_layer(x)
         h = manual_cast(h, self.dtype)
         t_emb = self.t_embedder(t, out_dtype = t.dtype)
@@ -832,8 +835,14 @@ class Trellis2(nn.Module):
         _, cond = context.chunk(2)
         cond = embeds.chunk(2)[0]
         context = torch.cat([torch.zeros_like(cond), cond])
-        mode = kwargs.get("generation_mode")
-        coords = kwargs.get("coords")
+        mode = getattr(builtins, "TRELLIS_MODE", "structure_generation")
+        coords = getattr(builtins, "TRELLIS_COORDS", None)
+        if coords is not None:
+            x = x.squeeze(0)
+            not_struct_mode = True
+        else:
+            mode = "structure_generation"
+            not_struct_mode = False
         transformer_options = kwargs.get("transformer_options")
         sigmas = transformer_options.get("sigmas")[0].item()
         if sigmas < 1.00001:
@@ -842,7 +851,6 @@ class Trellis2(nn.Module):
         shape_rule = sigmas < self.guidance_interval[0] or sigmas > self.guidance_interval[1]
         txt_rule = sigmas < self.guidance_interval_txt[0] or sigmas > self.guidance_interval_txt[1]
 
-        not_struct_mode = mode in ["shape_generation", "texture_generation"]
         if not_struct_mode:
             x = SparseTensor(feats=x, coords=coords)
 
