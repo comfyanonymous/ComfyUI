@@ -963,6 +963,7 @@ class RecraftRemoveBackgroundNode(IO.ComfyNode):
             node_id="RecraftRemoveBackgroundNode",
             display_name="Recraft Remove Background",
             category="api node/image/Recraft",
+            essentials_category="Image Tools",
             description="Remove background from image, and return processed image and mask.",
             inputs=[
                 IO.Image.Input("image"),

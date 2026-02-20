@@ -16,6 +16,7 @@ class TorchCompileModel(io.ComfyNode):
                 io.Combo.Input(
                     "backend",
                     options=["inductor", "cudagraphs"],
+                    advanced=True,
                 ),
             ],
             outputs=[io.Model.Output()],

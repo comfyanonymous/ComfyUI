@@ -116,7 +116,7 @@ class EmptyQwenImageLayeredLatentImage(io.ComfyNode):
             inputs=[
                 io.Int.Input("width", default=640, min=16, max=nodes.MAX_RESOLUTION, step=16),
                 io.Int.Input("height", default=640, min=16, max=nodes.MAX_RESOLUTION, step=16),
-                io.Int.Input("layers", default=3, min=0, max=nodes.MAX_RESOLUTION, step=1),
+                io.Int.Input("layers", default=3, min=0, max=nodes.MAX_RESOLUTION, step=1, advanced=True),
                 io.Int.Input("batch_size", default=1, min=1, max=4096),
             ],
             outputs=[
