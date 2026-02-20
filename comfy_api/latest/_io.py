@@ -73,6 +73,7 @@ class RemoteOptions:
 class NumberDisplay(str, Enum):
     number = "number"
     slider = "slider"
+    gradient_slider = "gradientslider"
 
 
 class ControlAfterGenerate(str, Enum):
@@ -296,13 +297,15 @@ class Float(ComfyTypeIO):
         '''Float input.'''
         def __init__(self, id: str, display_name: str=None, optional=False, tooltip: str=None, lazy: bool=None,
                     default: float=None, min: float=None, max: float=None, step: float=None, round: float=None,
-                    display_mode: NumberDisplay=None, socketless: bool=None, force_input: bool=None, extra_dict=None, raw_link: bool=None, advanced: bool=None):
+                    display_mode: NumberDisplay=None, gradient_stops: list=None,
+                    socketless: bool=None, force_input: bool=None, extra_dict=None, raw_link: bool=None, advanced: bool=None):
             super().__init__(id, display_name, optional, tooltip, lazy, default, socketless, None, force_input, extra_dict, raw_link, advanced)
             self.min = min
             self.max = max
             self.step = step
             self.round = round
             self.display_mode = display_mode
+            self.gradient_stops = gradient_stops
             self.default: float
 
         def as_dict(self):
@@ -312,6 +315,7 @@ class Float(ComfyTypeIO):
                 "step": self.step,
                 "round": self.round,
                 "display": self.display_mode,
+                "gradient_stops": self.gradient_stops,
             })
 
 @comfytype(io_type="STRING")
