@@ -146,6 +146,17 @@ def _detect_output_count(source: str) -> int:
     return min(max_index + 1, MAX_OUTPUTS)
 
 
+def _detect_pass_count(source: str) -> int:
+    """Detect multi-pass rendering from #pragma passes N directive.
+
+    Returns the number of passes (1 if not specified).
+    """
+    match = re.search(r'#pragma\s+passes\s+(\d+)', source)
+    if match:
+        return max(1, int(match.group(1)))
+    return 1
+
+
 def _init_glfw():
     """Initialize GLFW. Returns (window, glfw_module). Raises RuntimeError on failure."""
     logger.debug("_init_glfw: starting")
@@ -316,7 +327,6 @@ class GLContext:
         if GLContext._initialized:
             logger.debug("GLContext.__init__: already initialized, skipping")
             return
-        GLContext._initialized = True
 
         logger.debug("GLContext.__init__: starting initialization")
 
@@ -332,6 +342,7 @@ class GLContext:
         self._egl_surface = None
         self._osmesa_ctx = None
         self._osmesa_buffer = None
+        self._vao = None
 
         # Try backends in order: GLFW → EGL → OSMesa
         errors = []
@@ -398,7 +409,6 @@ class GLContext:
 
         # Create VAO (required for core profile, but OSMesa may use compat profile)
         logger.debug("GLContext.__init__: creating VAO")
-        self._vao = None
         try:
             vao = gl.glGenVertexArrays(1)
             gl.glBindVertexArray(vao)
@@ -424,6 +434,7 @@ class GLContext:
         vendor = vendor.decode() if vendor else "Unknown"
         version = version.decode() if version else "Unknown"
 
+        GLContext._initialized = True
         logger.info(f"GLSL context initialized in {elapsed:.1f}ms ({self._backend}) - {renderer} ({vendor}), GL {version}")
 
     def make_current(self):
@@ -491,6 +502,7 @@ def _render_shader_batch(
     Render a fragment shader for multiple batches efficiently.
 
     Compiles shader once, reuses framebuffer/textures across batches.
+    Supports multi-pass rendering via #pragma passes N directive.
 
     Args:
         fragment_code: User's fragment shader code
@@ -503,6 +515,9 @@ def _render_shader_batch(
     Returns:
         List of batch outputs, each is a list of output images (H, W, 4) float32 [0,1]
     """
+    import time
+    start_time = time.perf_counter()
+
     if not image_batches:
         return []
 
@@ -515,11 +530,16 @@ def _render_shader_batch(
     # Detect how many outputs the shader actually uses
     num_outputs = _detect_output_count(fragment_code)
 
+    # Detect multi-pass rendering
+    num_passes = _detect_pass_count(fragment_code)
+
     # Track resources for cleanup
     program = None
     fbo = None
     output_textures = []
     input_textures = []
+    ping_pong_textures = []
+    ping_pong_fbos = []
 
     num_inputs = len(image_batches[0])
 
@@ -553,6 +573,27 @@ def _render_shader_batch(
         if gl.glCheckFramebufferStatus(gl.GL_FRAMEBUFFER) != gl.GL_FRAMEBUFFER_COMPLETE:
             raise RuntimeError("Framebuffer is not complete")
 
+        # Create ping-pong resources for multi-pass rendering
+        if num_passes > 1:
+            for _ in range(2):
+                pp_tex = gl.glGenTextures(1)
+                ping_pong_textures.append(pp_tex)
+                gl.glBindTexture(gl.GL_TEXTURE_2D, pp_tex)
+                gl.glTexImage2D(gl.GL_TEXTURE_2D, 0, gl.GL_RGBA32F, width, height, 0, gl.GL_RGBA, gl.GL_FLOAT, None)
+                gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MIN_FILTER, gl.GL_LINEAR)
+                gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MAG_FILTER, gl.GL_LINEAR)
+                gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_WRAP_S, gl.GL_CLAMP_TO_EDGE)
+                gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_WRAP_T, gl.GL_CLAMP_TO_EDGE)
+
+                pp_fbo = gl.glGenFramebuffers(1)
+                ping_pong_fbos.append(pp_fbo)
+                gl.glBindFramebuffer(gl.GL_FRAMEBUFFER, pp_fbo)
+                gl.glFramebufferTexture2D(gl.GL_FRAMEBUFFER, gl.GL_COLOR_ATTACHMENT0, gl.GL_TEXTURE_2D, pp_tex, 0)
+                gl.glDrawBuffers(1, [gl.GL_COLOR_ATTACHMENT0])
+
+                if gl.glCheckFramebufferStatus(gl.GL_FRAMEBUFFER) != gl.GL_FRAMEBUFFER_COMPLETE:
+                    raise RuntimeError("Ping-pong framebuffer is not complete")
+
         # Create input textures (reused for all batches)
         for i in range(num_inputs):
             tex = gl.glGenTextures(1)
@@ -583,6 +624,9 @@ def _render_shader_batch(
             if loc >= 0:
                 gl.glUniform1i(loc, v)
 
+        # Get u_pass uniform location for multi-pass
+        pass_loc = gl.glGetUniformLocation(program, "u_pass")
+
         gl.glViewport(0, 0, width, height)
         gl.glDisable(gl.GL_BLEND)  # Ensure no alpha blending - write output directly
 
@@ -605,10 +649,44 @@ def _render_shader_batch(
 
                 gl.glTexImage2D(gl.GL_TEXTURE_2D, 0, gl.GL_RGBA32F, w, h, 0, gl.GL_RGBA, gl.GL_FLOAT, img_upload)
 
-            # Render
-            gl.glClearColor(0, 0, 0, 0)
-            gl.glClear(gl.GL_COLOR_BUFFER_BIT)
-            gl.glDrawArrays(gl.GL_TRIANGLES, 0, 3)
+            if num_passes == 1:
+                # Single pass - render directly to output FBO
+                gl.glBindFramebuffer(gl.GL_FRAMEBUFFER, fbo)
+                if pass_loc >= 0:
+                    gl.glUniform1i(pass_loc, 0)
+                gl.glClearColor(0, 0, 0, 0)
+                gl.glClear(gl.GL_COLOR_BUFFER_BIT)
+                gl.glDrawArrays(gl.GL_TRIANGLES, 0, 3)
+            else:
+                # Multi-pass rendering with ping-pong
+                for p in range(num_passes):
+                    is_last_pass = (p == num_passes - 1)
+
+                    # Set pass uniform
+                    if pass_loc >= 0:
+                        gl.glUniform1i(pass_loc, p)
+
+                    if is_last_pass:
+                        # Last pass renders to the main output FBO
+                        gl.glBindFramebuffer(gl.GL_FRAMEBUFFER, fbo)
+                    else:
+                        # Intermediate passes render to ping-pong FBO
+                        target_fbo = ping_pong_fbos[p % 2]
+                        gl.glBindFramebuffer(gl.GL_FRAMEBUFFER, target_fbo)
+
+                    # Set input texture for this pass
+                    gl.glActiveTexture(gl.GL_TEXTURE0)
+                    if p == 0:
+                        # First pass reads from original input
+                        gl.glBindTexture(gl.GL_TEXTURE_2D, input_textures[0])
+                    else:
+                        # Subsequent passes read from previous pass output
+                        source_tex = ping_pong_textures[(p - 1) % 2]
+                        gl.glBindTexture(gl.GL_TEXTURE_2D, source_tex)
+
+                    gl.glClearColor(0, 0, 0, 0)
+                    gl.glClear(gl.GL_COLOR_BUFFER_BIT)
+                    gl.glDrawArrays(gl.GL_TRIANGLES, 0, 3)
 
             # Read back outputs for this batch
             # (glGetTexImage is synchronous, implicitly waits for rendering)
@@ -617,7 +695,7 @@ def _render_shader_batch(
                 gl.glBindTexture(gl.GL_TEXTURE_2D, tex)
                 data = gl.glGetTexImage(gl.GL_TEXTURE_2D, 0, gl.GL_RGBA, gl.GL_FLOAT)
                 img = np.frombuffer(data, dtype=np.float32).reshape(height, width, 4)
-                batch_outputs.append(np.ascontiguousarray(img[::-1, :, :]))
+                batch_outputs.append(img[::-1, :, :].copy())
 
             # Pad with black images for unused outputs
             black_img = np.zeros((height, width, 4), dtype=np.float32)
@@ -625,6 +703,11 @@ def _render_shader_batch(
                 batch_outputs.append(black_img)
 
             all_batch_outputs.append(batch_outputs)
+
+        elapsed = (time.perf_counter() - start_time) * 1000
+        num_batches = len(image_batches)
+        pass_info = f", {num_passes} passes" if num_passes > 1 else ""
+        logger.info(f"GLSL shader executed in {elapsed:.1f}ms ({num_batches} batch{'es' if num_batches != 1 else ''}, {width}x{height}{pass_info})")
 
         return all_batch_outputs
 
@@ -637,8 +720,12 @@ def _render_shader_batch(
             gl.glDeleteTextures(len(input_textures), input_textures)
         if output_textures:
             gl.glDeleteTextures(len(output_textures), output_textures)
+        if ping_pong_textures:
+            gl.glDeleteTextures(len(ping_pong_textures), ping_pong_textures)
         if fbo is not None:
             gl.glDeleteFramebuffers(1, [fbo])
+        for pp_fbo in ping_pong_fbos:
+            gl.glDeleteFramebuffers(1, [pp_fbo])
         if program is not None:
             gl.glDeleteProgram(program)
 
@@ -672,10 +759,8 @@ class GLSLShader(io.ComfyNode):
             display_name="GLSL Shader",
             category="image/shader",
             description=(
-                f"Apply GLSL fragment shaders to images. "
-                f"Inputs: u_image0-{MAX_IMAGES-1} (sampler2D), u_resolution (vec2), "
-                f"u_float0-{MAX_UNIFORMS-1}, u_int0-{MAX_UNIFORMS-1}. "
-                f"Outputs: layout(location = 0-{MAX_OUTPUTS-1}) out vec4 fragColor0-{MAX_OUTPUTS-1}."
+                "Apply GLSL ES fragment shaders to images. "
+                "u_resolution (vec2) is always available."
             ),
             inputs=[
                 io.String.Input(
@@ -708,15 +793,15 @@ class GLSLShader(io.ComfyNode):
                     ],
                     tooltip="Output size: 'from_input' uses first input image dimensions, 'custom' allows manual size",
                 ),
-                io.Autogrow.Input("images", template=image_template),
-                io.Autogrow.Input("floats", template=float_template),
-                io.Autogrow.Input("ints", template=int_template),
+                io.Autogrow.Input("images", template=image_template, tooltip=f"Images are available as u_image0-{MAX_IMAGES-1} (sampler2D) in the shader code"),
+                io.Autogrow.Input("floats", template=float_template, tooltip=f"Floats are available as u_float0-{MAX_UNIFORMS-1} in the shader code"),
+                io.Autogrow.Input("ints", template=int_template, tooltip=f"Ints are available as u_int0-{MAX_UNIFORMS-1} in the shader code"),
             ],
             outputs=[
-                io.Image.Output(display_name="IMAGE0"),
-                io.Image.Output(display_name="IMAGE1"),
-                io.Image.Output(display_name="IMAGE2"),
-                io.Image.Output(display_name="IMAGE3"),
+                io.Image.Output(display_name="IMAGE0", tooltip="Available via layout(location = 0) out vec4 fragColor0 in the shader code"),
+                io.Image.Output(display_name="IMAGE1", tooltip="Available via layout(location = 1) out vec4 fragColor1 in the shader code"),
+                io.Image.Output(display_name="IMAGE2", tooltip="Available via layout(location = 2) out vec4 fragColor2 in the shader code"),
+                io.Image.Output(display_name="IMAGE3", tooltip="Available via layout(location = 3) out vec4 fragColor3 in the shader code"),
             ],
         )
 
