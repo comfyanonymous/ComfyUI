@@ -634,7 +634,7 @@ class GeminiImage(IO.ComfyNode):
 
         if not aspect_ratio:
             aspect_ratio = "auto"  # for backward compatability with old workflows; to-do remove this in December
-        image_config = GeminiImageConfig(aspectRatio=aspect_ratio)
+        image_config = GeminiImageConfig() if aspect_ratio == "auto" else GeminiImageConfig(aspectRatio=aspect_ratio)
 
         if images is not None:
             parts.extend(await create_image_parts(cls, images))
@@ -654,7 +654,7 @@ class GeminiImage(IO.ComfyNode):
                 ],
                 generationConfig=GeminiImageGenerationConfig(
                     responseModalities=(["IMAGE"] if response_modalities == "IMAGE" else ["TEXT", "IMAGE"]),
-                    imageConfig=None if aspect_ratio == "auto" else image_config,
+                    imageConfig=image_config,
                 ),
                 systemInstruction=gemini_system_prompt,
             ),
