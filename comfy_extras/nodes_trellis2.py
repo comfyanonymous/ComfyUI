@@ -238,9 +238,9 @@ class Trellis2Conditioning(IO.ComfyNode):
         max_size = max(image.size)
         scale = min(1, 1024 / max_size)
         if scale < 1:
-            image = image.resize((int(image.width * scale), int(input.height * scale)), Image.Resampling.LANCZOS)
+            image = image.resize((int(image.width * scale), int(image.height * scale)), Image.Resampling.LANCZOS)
 
-        image = torch.tensor(np.array(image)).unsqueeze(0)
+        image = torch.tensor(np.array(image)).unsqueeze(0).float() / 255
 
         # could make 1024 an option
         conditioning, _ = run_conditioning(clip_vision_model, image, mask, include_1024=True, background_color=background_color)

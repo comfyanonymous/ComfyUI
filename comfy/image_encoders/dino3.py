@@ -175,7 +175,7 @@ class DINOv3ViTEmbeddings(nn.Module):
 
         cls_token = self.cls_token.expand(batch_size, -1, -1)
         register_tokens = self.register_tokens.expand(batch_size, -1, -1)
-        device = patch_embeddings
+        device = patch_embeddings.device
         cls_token = cls_token.to(device)
         register_tokens = register_tokens.to(device)
         embeddings = torch.cat([cls_token, register_tokens, patch_embeddings], dim=1)
