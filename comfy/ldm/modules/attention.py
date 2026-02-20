@@ -324,8 +324,7 @@ def attention_split(q, k, v, heads, mask=None, attn_precision=None, skip_reshape
     mem_required = tensor_size * modifier
     steps = 1
 
-
-    if mem_required > mem_free_total:
+    if mem_required > mem_free_total and mem_free_total > 0:
         steps = 2**(math.ceil(math.log(mem_required / mem_free_total, 2)))
         # print(f"Expected tensor size:{tensor_size/gb:0.1f}GB, cuda free:{mem_free_cuda/gb:0.1f}GB "
         #      f"torch free:{mem_free_torch/gb:0.1f} total:{mem_free_total/gb:0.1f} steps:{steps}")
@@ -351,7 +350,7 @@ def attention_split(q, k, v, heads, mask=None, attn_precision=None, skip_reshape
             for i in range(0, q.shape[1], slice_size):
                 end = i + slice_size
                 if upcast:
-                    with torch.autocast(enabled=False, device_type = 'cuda'):
+                    with torch.autocast(enabled=False, device_type=q.device.type):
                         s1 = einsum('b i d, b j d -> b i j', q[:, i:end].float(), k.float()) * scale
                 else:
                     s1 = einsum('b i d, b j d -> b i j', q[:, i:end], k) * scale

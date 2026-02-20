@@ -64,7 +64,7 @@ def _summarize_chunk(
     mask,
 ) -> AttnChunk:
     if upcast_attention:
-        with torch.autocast(enabled=False, device_type = 'cuda'):
+        with torch.autocast(enabled=False, device_type=query.device.type):
             query = query.float()
             key_t = key_t.float()
             attn_weights = torch.baddbmm(
@@ -145,7 +145,7 @@ def _get_attention_scores_no_kv_chunking(
     mask,
 ) -> Tensor:
     if upcast_attention:
-        with torch.autocast(enabled=False, device_type = 'cuda'):
+        with torch.autocast(enabled=False, device_type=query.device.type):
             query = query.float()
             key_t = key_t.float()
             attn_scores = torch.baddbmm(

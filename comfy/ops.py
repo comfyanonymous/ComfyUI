@@ -867,7 +867,8 @@ def mixed_precision_ops(quant_config={}, compute_dtype=torch.bfloat16, full_prec
                 if (getattr(self, 'layout_type', None) is not None and
                     not isinstance(input, QuantizedTensor) and not self._full_precision_mm and
                     not getattr(self, 'comfy_force_cast_weights', False) and
-                    len(self.weight_function) == 0 and len(self.bias_function) == 0):
+                    len(self.weight_function) == 0 and len(self.bias_function) == 0 and
+                    input.device.type != 'mps'):  # MPS cannot convert to FP8 dtypes
 
                     # Reshape 3D tensors to 2D for quantization (needed for NVFP4 and others)
                     input_reshaped = input.reshape(-1, input_shape[2]) if input.ndim == 3 else input
@@ -897,8 +898,14 @@ def mixed_precision_ops(quant_config={}, compute_dtype=torch.bfloat16, full_prec
 
             def set_weight(self, weight, inplace_update=False, seed=None, return_weight=False, **kwargs):
                 if getattr(self, 'layout_type', None) is not None:
-                    # dtype is now implicit in the layout class
-                    weight = QuantizedTensor.from_float(weight, self.layout_type, scale="recalculate", stochastic_rounding=seed, inplace_ops=True).to(self.weight.dtype)
+                    if weight.device.type == 'mps':
+                        # MPS cannot convert to FP8 dtypes — keep weight in native dtype
+                        # manual_cast handles dtype conversion during forward pass
+                        target_dtype = weight.dtype if weight.dtype in (torch.float16, torch.bfloat16, torch.float32) else torch.float16
+                        weight = weight.to(target_dtype)
+                    else:
+                        # dtype is now implicit in the layout class
+                        weight = QuantizedTensor.from_float(weight, self.layout_type, scale="recalculate", stochastic_rounding=seed, inplace_ops=True).to(self.weight.dtype)
                 else:
                     weight = weight.to(self.weight.dtype)
                 if return_weight:

@@ -716,6 +716,31 @@ def load_models_gpu(models, memory_required=0, force_patch_weights=False, minimu
         #FIXME: This should subtract off the to_load current pin consumption.
         total_ram_required[loaded_model.device] = total_ram_required.get(loaded_model.device, 0) + loaded_model.model_memory() * 2
 
+    # [MPS DIAG] Log what's being loaded and memory requirements
+    if any(hasattr(d, 'type') and d.type == 'mps' for d in total_memory_required):
+        for lm in models_to_load:
+            logging.info(f"[MPS DIAG] model_to_load: {lm.model.model.__class__.__name__} device={lm.device} "
+                         f"model_memory={lm.model_memory()/(1024**3):.2f}GB "
+                         f"model_memory_required={lm.model_memory_required(lm.device)/(1024**3):.2f}GB "
+                         f"loaded_memory={lm.model_loaded_memory()/(1024**3):.2f}GB")
+        for dev, mem in total_memory_required.items():
+            requested_gb = mem * 1.1 / (1024**3) + extra_mem / (1024**3)
+            logging.info(f"[MPS DIAG] total_memory_required[{dev}]={mem/(1024**3):.2f}GB "
+                         f"*1.1+extra={requested_gb:.2f}GB")
+        # Warn when requested free amount exceeds unified memory budget (thrashing cause)
+        for device in total_memory_required:
+            if device != torch.device("cpu") and hasattr(device, 'type') and device.type == 'mps':
+                total_budget = get_total_memory(device)
+                requested = total_memory_required[device] * 1.1 + extra_mem
+                if requested > total_budget:
+                    logging.warning(
+                        "[MPS] *** load_models_gpu: Requested to free %.1f GB (model*1.1 + activation estimate) "
+                        "but MPS unified memory budget is %.1f GB. Request is impossible to satisfy. "
+                        "mps_compat will cap this to avoid thrashing; without the cap the loader would "
+                        "still run and cause heavy swap.",
+                        requested / (1024**3), total_budget / (1024**3)
+                    )
+
     for device in total_memory_required:
         if device != torch.device("cpu"):
             free_memory(total_memory_required[device] * 1.1 + extra_mem, device, for_dynamic=free_for_dynamic, ram_required=total_ram_required[device])
@@ -726,6 +751,28 @@ def load_models_gpu(models, memory_required=0, force_patch_weights=False, minimu
             if free_mem < minimum_memory_required:
                 models_l = free_memory(minimum_memory_required, device, for_dynamic=free_for_dynamic)
                 logging.info("{} models unloaded.".format(len(models_l)))
+            # Warn on MPS only when genuinely short; capped minimum_memory_required can exceed free
+            # while we still have enough headroom for the actual model (e.g. 22 GB free, 13.6 GB model).
+            if hasattr(device, 'type') and device.type == 'mps':
+                free_after = get_free_memory(device)
+                free_after_gb = free_after / (1024**3)
+                if free_after < minimum_memory_required:
+                    if free_after_gb < 15.0:
+                        logging.warning(
+                            "[MPS] *** THRASHING RISK: After unloading, %.1f GB free but minimum_memory_required "
+                            "is %.1f GB. Load will proceed; heavy swap likely. Close other apps or reduce resolution/frames.",
+                            free_after_gb, minimum_memory_required / (1024**3)
+                        )
+                    else:
+                        logging.info(
+                            "[MPS] After unloading: %.1f GB free (capped requirement %.1f GB). Headroom sufficient for load.",
+                            free_after_gb, minimum_memory_required / (1024**3)
+                        )
+                else:
+                    logging.info(
+                        "[MPS] After unloading: %.1f GB free (minimum_memory_required %.1f GB). Load may proceed.",
+                        free_after_gb, minimum_memory_required / (1024**3)
+                    )
 
     for loaded_model in models_to_load:
         model = loaded_model.model
