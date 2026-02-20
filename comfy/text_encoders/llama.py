@@ -105,6 +105,7 @@ class Qwen3_06BConfig:
     rope_scale = None
     final_norm: bool = True
     lm_head: bool = False
+    stop_tokens = [151643, 151645]
 
 @dataclass
 class Qwen3_06B_ACE15_Config:
@@ -128,6 +129,7 @@ class Qwen3_06B_ACE15_Config:
     rope_scale = None
     final_norm: bool = True
     lm_head: bool = False
+    stop_tokens = [151643, 151645]
 
 @dataclass
 class Qwen3_2B_ACE15_lm_Config:
@@ -151,6 +153,7 @@ class Qwen3_2B_ACE15_lm_Config:
     rope_scale = None
     final_norm: bool = True
     lm_head: bool = False
+    stop_tokens = [151643, 151645]
 
 @dataclass
 class Qwen3_4B_ACE15_lm_Config:
@@ -174,6 +177,7 @@ class Qwen3_4B_ACE15_lm_Config:
     rope_scale = None
     final_norm: bool = True
     lm_head: bool = False
+    stop_tokens = [151643, 151645]
 
 @dataclass
 class Qwen3_4BConfig:
@@ -197,6 +201,7 @@ class Qwen3_4BConfig:
     rope_scale = None
     final_norm: bool = True
     lm_head: bool = False
+    stop_tokens = [151643, 151645]
 
 @dataclass
 class Qwen3_8BConfig:
@@ -220,6 +225,7 @@ class Qwen3_8BConfig:
     rope_scale = None
     final_norm: bool = True
     lm_head: bool = False
+    stop_tokens = [151643, 151645]
 
 @dataclass
 class Ovis25_2BConfig:
@@ -290,6 +296,7 @@ class Gemma2_2B_Config:
     rope_scale = None
     final_norm: bool = True
     lm_head: bool = False
+    stop_tokens = [1]
 
 @dataclass
 class Gemma3_4B_Config:
@@ -314,6 +321,7 @@ class Gemma3_4B_Config:
     rope_scale = [8.0, 1.0]
     final_norm: bool = True
     lm_head: bool = False
+    stop_tokens = [1, 106]
 
 GEMMA3_VISION_CONFIG = {"num_channels": 3, "hidden_act": "gelu_pytorch_tanh", "hidden_size": 1152, "image_size": 896, "intermediate_size": 4304, "model_type": "siglip_vision_model", "num_attention_heads": 16, "num_hidden_layers": 27, "patch_size": 14}
 
@@ -347,6 +355,7 @@ class Gemma3_12B_Config:
     lm_head: bool = False
     vision_config = GEMMA3_VISION_CONFIG
     mm_tokens_per_image = 256
+    stop_tokens = [1, 106]
 
 class RMSNorm(nn.Module):
     def __init__(self, dim: int, eps: float = 1e-5, add=False, device=None, dtype=None):
@@ -803,9 +812,12 @@ class BaseGenerate:
         comfy.ops.uncast_bias_weight(module, weight, None, offload_stream)
         return x
 
-    def generate(self, embeds=None, do_sample=True, max_length=256, temperature=1.0, top_k=50, top_p=0.9, min_p=0.0, repetition_penalty=1.0, seed=42, stop_tokens=[], initial_tokens=[], execution_dtype=None, min_tokens=0):
+    def generate(self, embeds=None, do_sample=True, max_length=256, temperature=1.0, top_k=50, top_p=0.9, min_p=0.0, repetition_penalty=1.0, seed=42, stop_tokens=None, initial_tokens=[], execution_dtype=None, min_tokens=0):
         device = embeds.device
         model_config = self.model.config
+
+        if stop_tokens is None:
+            stop_tokens = self.model.config.stop_tokens
 
         if execution_dtype is None:
             if comfy.model_management.should_use_bf16(device):
@@ -925,7 +937,7 @@ class Qwen25_3B(BaseLlama, torch.nn.Module):
         self.model = Llama2_(config, device=device, dtype=dtype, ops=operations)
         self.dtype = dtype
 
-class Qwen3_06B(BaseLlama, BaseQwen3, torch.nn.Module):
+class Qwen3_06B(BaseLlama, BaseQwen3, BaseGenerate, torch.nn.Module):
     def __init__(self, config_dict, dtype, device, operations):
         super().__init__()
         config = Qwen3_06BConfig(**config_dict)
@@ -952,7 +964,7 @@ class Qwen3_2B_ACE15_lm(BaseLlama, BaseQwen3, torch.nn.Module):
         self.model = Llama2_(config, device=device, dtype=dtype, ops=operations)
         self.dtype = dtype
 
-class Qwen3_4B(BaseLlama, BaseQwen3, torch.nn.Module):
+class Qwen3_4B(BaseLlama, BaseQwen3, BaseGenerate, torch.nn.Module):
     def __init__(self, config_dict, dtype, device, operations):
         super().__init__()
         config = Qwen3_4BConfig(**config_dict)
@@ -970,7 +982,7 @@ class Qwen3_4B_ACE15_lm(BaseLlama, BaseQwen3, torch.nn.Module):
         self.model = Llama2_(config, device=device, dtype=dtype, ops=operations)
         self.dtype = dtype
 
-class Qwen3_8B(BaseLlama, BaseQwen3, torch.nn.Module):
+class Qwen3_8B(BaseLlama, BaseQwen3, BaseGenerate, torch.nn.Module):
     def __init__(self, config_dict, dtype, device, operations):
         super().__init__()
         config = Qwen3_8BConfig(**config_dict)
@@ -1034,7 +1046,7 @@ class Qwen25_7BVLI(BaseLlama, BaseGenerate, torch.nn.Module):
 
         return super().forward(x, attention_mask=attention_mask, embeds=embeds, num_tokens=num_tokens, intermediate_output=intermediate_output, final_layer_norm_intermediate=final_layer_norm_intermediate, dtype=dtype, position_ids=position_ids)
 
-class Gemma2_2B(BaseLlama, torch.nn.Module):
+class Gemma2_2B(BaseLlama, BaseGenerate, torch.nn.Module):
     def __init__(self, config_dict, dtype, device, operations):
         super().__init__()
         config = Gemma2_2B_Config(**config_dict)
