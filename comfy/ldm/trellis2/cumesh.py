@@ -207,11 +207,14 @@ class TorchHashMap:
 
     def lookup_flat(self, flat_keys: torch.Tensor) -> torch.Tensor:
         flat = flat_keys.long()
+        if self._n == 0:
+            return torch.full((flat.shape[0],), self.default_value, device=flat.device, dtype=self.sorted_vals.dtype)
         idx = torch.searchsorted(self.sorted_keys, flat)
-        found = (idx < self._n) & (self.sorted_keys[idx] == flat)
+        idx_safe = torch.clamp(idx, max=self._n - 1)
+        found = (idx < self._n) & (self.sorted_keys[idx_safe] == flat)
         out = torch.full((flat.shape[0],), self.default_value, device=flat.device, dtype=self.sorted_vals.dtype)
         if found.any():
-            out[found] = self.sorted_vals[idx[found]]
+            out[found] = self.sorted_vals[idx_safe[found]]
         return out
 
 

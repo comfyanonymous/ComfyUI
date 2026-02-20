@@ -8,7 +8,6 @@ from comfy.ldm.trellis2.attention import (
 )
 from comfy.ldm.genmo.joint_model.layers import TimestepEmbedder
 from comfy.ldm.flux.math import apply_rope, apply_rope1
-import builtins
 
 class SparseGELU(nn.GELU):
     def forward(self, input: VarLenTensor) -> VarLenTensor:
@@ -829,19 +828,19 @@ class Trellis2(nn.Module):
     def forward(self, x, timestep, context, **kwargs):
         # FIXME: should find a way to distinguish between 512/1024 models
         # currently assumes 1024
+        transformer_options = kwargs.get("transformer_options")
         embeds = kwargs.get("embeds")
-        _, cond = context.chunk(2)
+        #_, cond = context.chunk(2) # TODO
         cond = embeds.chunk(2)[0]
         context = torch.cat([torch.zeros_like(cond), cond])
-        mode = getattr(builtins, "TRELLIS_MODE", "structure_generation")
-        coords = getattr(builtins, "TRELLIS_COORDS", None)
+        coords = transformer_options.get("coords", None)
+        mode = transformer_options.get("generation_mode", "structure_generation")
         if coords is not None:
             x = x.squeeze(0)
             not_struct_mode = True
         else:
             mode = "structure_generation"
             not_struct_mode = False
-        transformer_options = kwargs.get("transformer_options")
         sigmas = transformer_options.get("sigmas")[0].item()
         if sigmas < 1.00001:
             timestep *= 1000.0

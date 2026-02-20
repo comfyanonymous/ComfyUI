@@ -4,7 +4,6 @@ import torch
 import comfy.model_management
 from PIL import Image
 import numpy as np
-import builtins
 
 shape_slat_normalization = {
     "mean": torch.tensor([
@@ -258,21 +257,31 @@ class EmptyShapeLatentTrellis2(IO.ComfyNode):
             category="latent/3d",
             inputs=[
                 IO.Voxel.Input("structure_output"),
+                IO.Model.Input("model")
             ],
             outputs=[
                 IO.Latent.Output(),
+                IO.Model.Output()
             ]
         )
 
     @classmethod
-    def execute(cls, structure_output):
+    def execute(cls, structure_output, model):
         decoded = structure_output.data.unsqueeze(1)
         coords = torch.argwhere(decoded.bool())[:, [0, 2, 3, 4]].int()
         in_channels = 32
         latent = torch.randn(1, coords.shape[0], in_channels)
-        builtins.TRELLIS_MODE = "shape_generation"
-        builtins.TRELLIS_COORDS = coords
-        return IO.NodeOutput({"samples": latent, "type": "trellis2"})
+        model = model.clone()
+        if "transformer_options" not in model.model_options:
+            model.model_options = {}
+        else:
+            model.model_options = model.model_options.copy()
+
+        model.model_options["transformer_options"] = model.model_options["transformer_options"].copy()
+
+        model.model_options["transformer_options"]["coords"] = coords
+        model.model_options["transformer_options"]["generation_mode"] = "shape_generation"
+        return IO.NodeOutput({"samples": latent, "type": "trellis2"}, model)
 
 class EmptyTextureLatentTrellis2(IO.ComfyNode):
     @classmethod
@@ -285,19 +294,29 @@ class EmptyTextureLatentTrellis2(IO.ComfyNode):
             ],
             outputs=[
                 IO.Latent.Output(),
+                IO.Model.Output()
             ]
         )
 
     @classmethod
-    def execute(cls, structure_output):
+    def execute(cls, structure_output, model):
         # TODO
         decoded = structure_output.data.unsqueeze(1)
         coords = torch.argwhere(decoded.bool())[:, [0, 2, 3, 4]].int()
         in_channels = 32
         latent = torch.randn(coords.shape[0], in_channels - structure_output.feats.shape[1])
-        builtins.TRELLIS_MODE = "texture_generation"
-        builtins.TRELLIS_COORDS = coords
-        return IO.NodeOutput({"samples": latent, "type": "trellis2"})
+        model = model.clone()
+        if "transformer_options" not in model.model_options:
+            model.model_options = {}
+        else:
+            model.model_options = model.model_options.copy()
+
+        model.model_options["transformer_options"] = model.model_options["transformer_options"].copy()
+
+        model.model_options["transformer_options"]["coords"] = coords
+        model.model_options["transformer_options"]["generation_mode"] = "shape_generation"
+        return IO.NodeOutput({"samples": latent, "type": "trellis2"}, model)
+
 
 class EmptyStructureLatentTrellis2(IO.ComfyNode):
     @classmethod
