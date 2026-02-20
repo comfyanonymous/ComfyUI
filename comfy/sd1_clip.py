@@ -573,6 +573,8 @@ class SDTokenizer:
         min_length = tokenizer_options.get("{}_min_length".format(self.embedding_key), self.min_length)
         min_padding = tokenizer_options.get("{}_min_padding".format(self.embedding_key), self.min_padding)
 
+        min_length = kwargs.get("min_length", min_length)
+
         text = escape_important(text)
         if kwargs.get("disable_weights", self.disable_weights):
             parsed_weights = [(text, 1.0)]

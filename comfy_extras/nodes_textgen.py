@@ -42,7 +42,7 @@ class TextGenerate(io.ComfyNode):
     @classmethod
     def execute(cls, clip, prompt, max_length, sampling_mode, image=None) -> io.NodeOutput:
 
-        tokens = clip.tokenize(prompt, image=image, skip_template=False)
+        tokens = clip.tokenize(prompt, image=image, skip_template=False, min_length=1)
 
         # Get sampling parameters from dynamic combo
         do_sample = sampling_mode.get("sampling_mode") == "on"
