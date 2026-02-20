@@ -2,7 +2,6 @@
 name = "ComfyUI"
 version = "0.14.1"
 readme = "README.md"
-license = "GPL-3.0-only"
 license-files = ["LICENSE"]
 requires-python = ">=3.10"
 
