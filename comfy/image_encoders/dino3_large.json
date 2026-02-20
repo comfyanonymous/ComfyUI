@@ -18,6 +18,6 @@
   "rope_theta": 100.0,
   "use_gated_mlp": false,
   "value_bias": true,
-  "mean": [0.485, 0.456, 0.406],
-  "std": [0.229, 0.224, 0.225]
+  "image_mean": [0.485, 0.456, 0.406],
+  "image_std": [0.229, 0.224, 0.225]
 }

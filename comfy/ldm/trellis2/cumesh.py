@@ -6,7 +6,7 @@ from typing import Dict, Callable
 
 NO_TRITION = False
 try:
-    allow_tf32 = torch.cuda.is_tf32_supported
+    allow_tf32 = torch.cuda.is_tf32_supported()
 except Exception:
     allow_tf32 = False
 try:

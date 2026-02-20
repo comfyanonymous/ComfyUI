@@ -306,10 +306,7 @@ class ModulatedSparseTransformerBlock(nn.Module):
         return x
 
     def forward(self, x: SparseTensor, mod: torch.Tensor) -> SparseTensor:
-        if self.use_checkpoint:
-            return torch.utils.checkpoint.checkpoint(self._forward, x, mod, use_reentrant=False)
-        else:
-            return self._forward(x, mod)
+        return self._forward(x, mod)
 
 
 class ModulatedSparseTransformerCrossBlock(nn.Module):
@@ -486,6 +483,7 @@ class SLatFlowModel(nn.Module):
         x = x.to(dtype)
         h = self.input_layer(x)
         h = manual_cast(h, self.dtype)
+        t = t.to(dtype)
         t_emb = self.t_embedder(t, out_dtype = t.dtype)
         if self.share_mod:
             t_emb = self.adaLN_modulation(t_emb)
@@ -790,7 +788,7 @@ class SparseStructureFlowModel(nn.Module):
         return h
 
 def timestep_reshift(t_shifted, old_shift=3.0, new_shift=5.0):
-    t_shifted /= 1000.0
+    t_shifted = t_shifted / 1000.0
     t_linear = t_shifted / (old_shift - t_shifted * (old_shift - 1))
     t_new = (new_shift * t_linear) / (1 + (new_shift - 1) * t_linear)
     t_new *= 1000.0

@@ -117,12 +117,12 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
         unet_config["image_model"] = "trellis2"
 
         unet_config["init_txt_model"] = False
-        if '{}model.shape2txt.blocks.29.cross_attn.k_rms_norm.gamma'.format(key_prefix) in state_dict_keys:
+        if '{}shape2txt.blocks.29.cross_attn.k_rms_norm.gamma'.format(key_prefix) in state_dict_keys:
             unet_config["init_txt_model"] = True
 
         unet_config["resolution"] = 64
         if metadata is not None:
-            if "is_512" in metadata and metadata["metadata"]:
+            if "is_512" in metadata:
                 unet_config["resolution"] = 32
 
         unet_config["num_heads"] = 12

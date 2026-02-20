@@ -188,7 +188,7 @@ class DINOv3ViTLayer(nn.Module):
                  device, dtype, operations):
         super().__init__()
 
-        self.norm1 = operations.LayerNorm(hidden_size, eps=layer_norm_eps)
+        self.norm1 = operations.LayerNorm(hidden_size, eps=layer_norm_eps, device=device, dtype=dtype)
         self.attention = DINOv3ViTAttention(hidden_size, num_attention_heads, device=device, dtype=dtype, operations=operations)
         self.layer_scale1 = DINOv3ViTLayerScale(hidden_size, device=device, dtype=dtype, operations=None)
 
@@ -273,8 +273,8 @@ class DINOv3ViTModel(nn.Module):
                 position_embeddings=position_embeddings,
             )
 
-        self.norm = self.norm.to(hidden_states.device)
-        sequence_output = self.norm(hidden_states)
+        norm = self.norm.to(hidden_states.device)
+        sequence_output = norm(hidden_states)
         pooled_output = sequence_output[:, 0, :]
 
         return sequence_output, None, pooled_output, None
