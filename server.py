@@ -904,10 +904,14 @@ class PromptServer():
                     extra_data["client_id"] = json_data["client_id"]
                 if valid[0]:
                     outputs_to_execute = valid[2]
+                    if "api_key_comfy_org" not in extra_data and "api_key" in extra_data:
+                        extra_data["api_key_comfy_org"] = extra_data.pop("api_key")
                     sensitive = {}
                     for sensitive_val in execution.SENSITIVE_EXTRA_DATA_KEYS:
                         if sensitive_val in extra_data:
                             sensitive[sensitive_val] = extra_data.pop(sensitive_val)
+                    if "api_key" in extra_data:
+                        extra_data.pop("api_key")
                     extra_data["create_time"] = int(time.time() * 1000)  # timestamp in milliseconds
                     self.prompt_queue.put((number, prompt_id, prompt, extra_data, outputs_to_execute, sensitive))
                     response = {"prompt_id": prompt_id, "number": number, "node_errors": valid[3]}
