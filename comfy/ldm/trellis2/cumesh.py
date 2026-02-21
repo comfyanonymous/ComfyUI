@@ -4,7 +4,7 @@ import math
 import torch
 from typing import Dict, Callable
 
-NO_TRITION = False
+NO_TRITON = False
 try:
     allow_tf32 = torch.cuda.is_tf32_supported()
 except Exception:
@@ -115,8 +115,8 @@ try:
             allow_tf32=allow_tf32,
         )
         return output
-except:
-    NO_TRITION = True
+except Exception:
+    NO_TRITON = True
 
 def compute_kernel_offsets(Kw, Kh, Kd, Dw, Dh, Dd, device):
     # offsets in same order as CUDA kernel
@@ -364,6 +364,8 @@ def neighbor_map_post_process_for_masked_implicit_gemm_2(
 
 
 def sparse_submanifold_conv3d(feats, coords, shape, weight, bias, neighbor_cache, dilation):
+    if NO_TRITON: # TODO
+        raise RuntimeError("sparse_submanifold_conv3d requires Triton, which is not available.")
     if len(shape) == 5:
         N, C, W, H, D = shape
     else:

@@ -44,9 +44,6 @@ class DINOv3ViTAttention(nn.Module):
         self.num_heads = num_attention_heads
         self.head_dim = self.embed_dim // self.num_heads
 
-        self.scaling = self.head_dim**-0.5
-        self.is_causal = False
-
         self.k_proj = operations.Linear(self.embed_dim, self.embed_dim, bias=False, device=device, dtype=dtype) # key_bias = False
         self.v_proj = operations.Linear(self.embed_dim, self.embed_dim, bias=True, device=device, dtype=dtype)
 
@@ -251,7 +248,7 @@ class DINOv3ViTModel(nn.Module):
                             intermediate_size=intermediate_size,num_attention_heads = num_attention_heads,
                             dtype=dtype, device=device, operations=operations)
             for _ in range(num_hidden_layers)])
-        self.norm = nn.LayerNorm(hidden_size, eps=layer_norm_eps, dtype=dtype, device=device)
+        self.norm = operations.LayerNorm(hidden_size, eps=layer_norm_eps, dtype=dtype, device=device)
 
     def get_input_embeddings(self):
         return self.embeddings.patch_embeddings

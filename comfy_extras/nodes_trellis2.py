@@ -1,9 +1,11 @@
 from typing_extensions import override
 from comfy_api.latest import ComfyExtension, IO, Types
-import torch
+import torch.nn.functional as TF
 import comfy.model_management
 from PIL import Image
 import numpy as np
+import torch
+import copy
 
 shape_slat_normalization = {
     "mean": torch.tensor([
@@ -145,11 +147,11 @@ class VaeDecodeShapeTrellis(IO.ComfyNode):
     def execute(cls, samples, vae, resolution):
         vae = vae.first_stage_model
         samples = samples["samples"]
-        std = shape_slat_normalization["std"]
-        mean = shape_slat_normalization["mean"]
+        std = shape_slat_normalization["std"].to(samples)
+        mean = shape_slat_normalization["mean"].to(samples)
         samples = samples * std + mean
 
-        mesh, subs = vae.decode_shape_slat(resolution, samples)
+        mesh, subs = vae.decode_shape_slat(samples, resolution)
         return IO.NodeOutput(mesh, subs)
 
 class VaeDecodeTextureTrellis(IO.ComfyNode):
@@ -172,8 +174,8 @@ class VaeDecodeTextureTrellis(IO.ComfyNode):
     def execute(cls, samples, vae, shape_subs):
         vae = vae.first_stage_model
         samples = samples["samples"]
-        std = tex_slat_normalization["std"]
-        mean = tex_slat_normalization["mean"]
+        std = tex_slat_normalization["std"].to(samples)
+        mean = tex_slat_normalization["mean"].to(samples)
         samples = samples * std + mean
 
         mesh = vae.decode_tex_slat(samples, shape_subs)
@@ -239,6 +241,8 @@ class Trellis2Conditioning(IO.ComfyNode):
         scale = min(1, 1024 / max_size)
         if scale < 1:
             image = image.resize((int(image.width * scale), int(image.height * scale)), Image.Resampling.LANCZOS)
+            new_h, new_w = int(mask.shape[-2] * scale), int(mask.shape[-1] * scale)
+            mask = TF.interpolate(mask.unsqueeze(0).float(), size=(new_h, new_w), mode='nearest').squeeze(0)
 
         image = torch.tensor(np.array(image)).unsqueeze(0).float() / 255
 
@@ -510,6 +514,7 @@ class PostProcessMesh(IO.ComfyNode):
         )
     @classmethod
     def execute(cls, mesh, simplify, fill_holes_perimeter):
+        mesh = copy.deepcopy(mesh)
         verts, faces = mesh.vertices, mesh.faces
 
         if fill_holes_perimeter != 0.0:

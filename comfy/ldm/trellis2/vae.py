@@ -1522,6 +1522,8 @@ class Vae(nn.Module):
         return self.shape_dec(slat, return_subs=True)
 
     def decode_tex_slat(self, slat, subs):
+        if self.txt_dec is None:
+            raise ValueError("Checkpoint doesn't include texture model")
         return self.txt_dec(slat, guide_subs=subs) * 0.5 + 0.5
 
     @torch.no_grad()

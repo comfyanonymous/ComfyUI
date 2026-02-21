@@ -697,8 +697,6 @@ class SparseStructureFlowModel(nn.Module):
 
     def forward(self, x: torch.Tensor, t: torch.Tensor, cond: torch.Tensor) -> torch.Tensor:
         x = x.view(x.shape[0], self.in_channels, *[self.resolution] * 3)
-        assert [*x.shape] == [x.shape[0], self.in_channels, *[self.resolution] * 3], \
-                f"Input shape mismatch, got {x.shape}, expected {[x.shape[0], self.in_channels, *[self.resolution] * 3]}"
 
         h = x.view(*x.shape[:2], -1).permute(0, 2, 1).contiguous()
 
@@ -746,7 +744,8 @@ class Trellis2(nn.Module):
         super().__init__()
         self.dtype = dtype
         # for some reason it passes num_heads = -1
-        num_heads = 12
+        if num_heads == -1:
+            num_heads = 12
         args = {
             "out_channels":out_channels, "num_blocks":num_blocks, "cond_channels" :cond_channels,
             "model_channels":model_channels, "num_heads":num_heads, "mlp_ratio": mlp_ratio, "share_mod": share_mod,
@@ -763,8 +762,10 @@ class Trellis2(nn.Module):
     def forward(self, x, timestep, context, **kwargs):
         # FIXME: should find a way to distinguish between 512/1024 models
         # currently assumes 1024
-        transformer_options = kwargs.get("transformer_options")
+        transformer_options = kwargs.get("transformer_options", {})
         embeds = kwargs.get("embeds")
+        if embeds is None:
+            raise ValueError("Trellis2.forward requires 'embeds' in kwargs")
         #_, cond = context.chunk(2) # TODO
         cond = embeds.chunk(2)[0]
         context = torch.cat([torch.zeros_like(cond), cond])
@@ -807,6 +808,8 @@ class Trellis2(nn.Module):
             # TODO
             out = self.img2shape(x, timestep, context)
         elif mode == "texture_generation":
+            if self.shape2txt is None:
+                raise ValueError("Checkpoint for Trellis2 doesn't include texture generation!")
             out = self.shape2txt(x, timestep, context if not txt_rule else cond)
         else: # structure
             timestep = timestep_reshift(timestep)
