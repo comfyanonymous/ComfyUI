@@ -227,12 +227,14 @@ class WanTextToImageApi(IO.ComfyNode):
                     default=True,
                     tooltip="Whether to enhance the prompt with AI assistance.",
                     optional=True,
+                    advanced=True,
                 ),
                 IO.Boolean.Input(
                     "watermark",
                     default=False,
                     tooltip="Whether to add an AI-generated watermark to the result.",
                     optional=True,
+                    advanced=True,
                 ),
             ],
             outputs=[
@@ -355,6 +357,7 @@ class WanImageToImageApi(IO.ComfyNode):
                     default=False,
                     tooltip="Whether to add an AI-generated watermark to the result.",
                     optional=True,
+                    advanced=True,
                 ),
             ],
             outputs=[
@@ -495,18 +498,21 @@ class WanTextToVideoApi(IO.ComfyNode):
                     default=False,
                     optional=True,
                     tooltip="If no audio input is provided, generate audio automatically.",
+                    advanced=True,
                 ),
                 IO.Boolean.Input(
                     "prompt_extend",
                     default=True,
                     tooltip="Whether to enhance the prompt with AI assistance.",
                     optional=True,
+                    advanced=True,
                 ),
                 IO.Boolean.Input(
                     "watermark",
                     default=False,
                     tooltip="Whether to add an AI-generated watermark to the result.",
                     optional=True,
+                    advanced=True,
                 ),
                 IO.Combo.Input(
                     "shot_type",
@@ -515,6 +521,7 @@ class WanTextToVideoApi(IO.ComfyNode):
                     "single continuous shot or multiple shots with cuts. "
                     "This parameter takes effect only when prompt_extend is True.",
                     optional=True,
+                    advanced=True,
                 ),
             ],
             outputs=[
@@ -667,18 +674,21 @@ class WanImageToVideoApi(IO.ComfyNode):
                     default=False,
                     optional=True,
                     tooltip="If no audio input is provided, generate audio automatically.",
+                    advanced=True,
                 ),
                 IO.Boolean.Input(
                     "prompt_extend",
                     default=True,
                     tooltip="Whether to enhance the prompt with AI assistance.",
                     optional=True,
+                    advanced=True,
                 ),
                 IO.Boolean.Input(
                     "watermark",
                     default=False,
                     tooltip="Whether to add an AI-generated watermark to the result.",
                     optional=True,
+                    advanced=True,
                 ),
                 IO.Combo.Input(
                     "shot_type",
@@ -687,6 +697,7 @@ class WanImageToVideoApi(IO.ComfyNode):
                     "single continuous shot or multiple shots with cuts. "
                     "This parameter takes effect only when prompt_extend is True.",
                     optional=True,
+                    advanced=True,
                 ),
             ],
             outputs=[
@@ -839,11 +850,13 @@ class WanReferenceVideoApi(IO.ComfyNode):
                     options=["single", "multi"],
                     tooltip="Specifies the shot type for the generated video, that is, whether the video is a "
                     "single continuous shot or multiple shots with cuts.",
+                    advanced=True,
                 ),
                 IO.Boolean.Input(
                     "watermark",
                     default=False,
                     tooltip="Whether to add an AI-generated watermark to the result.",
+                    advanced=True,
                 ),
             ],
             outputs=[

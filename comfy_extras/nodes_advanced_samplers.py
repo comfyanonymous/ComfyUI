@@ -47,8 +47,8 @@ class SamplerLCMUpscale(io.ComfyNode):
             node_id="SamplerLCMUpscale",
             category="sampling/custom_sampling/samplers",
             inputs=[
-                io.Float.Input("scale_ratio", default=1.0, min=0.1, max=20.0, step=0.01),
-                io.Int.Input("scale_steps", default=-1, min=-1, max=1000, step=1),
+                io.Float.Input("scale_ratio", default=1.0, min=0.1, max=20.0, step=0.01, advanced=True),
+                io.Int.Input("scale_steps", default=-1, min=-1, max=1000, step=1, advanced=True),
                 io.Combo.Input("upscale_method", options=cls.UPSCALE_METHODS),
             ],
             outputs=[io.Sampler.Output()],
@@ -94,7 +94,7 @@ class SamplerEulerCFGpp(io.ComfyNode):
             display_name="SamplerEulerCFG++",
             category="_for_testing",  # "sampling/custom_sampling/samplers"
             inputs=[
-                io.Combo.Input("version", options=["regular", "alternative"]),
+                io.Combo.Input("version", options=["regular", "alternative"], advanced=True),
             ],
             outputs=[io.Sampler.Output()],
             is_experimental=True,

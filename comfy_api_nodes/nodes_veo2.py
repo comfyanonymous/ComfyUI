@@ -81,6 +81,7 @@ class VeoVideoGenerationNode(IO.ComfyNode):
                     default=True,
                     tooltip="Whether to enhance the prompt with AI assistance",
                     optional=True,
+                    advanced=True,
                 ),
                 IO.Combo.Input(
                     "person_generation",
@@ -88,6 +89,7 @@ class VeoVideoGenerationNode(IO.ComfyNode):
                     default="ALLOW",
                     tooltip="Whether to allow generating people in the video",
                     optional=True,
+                    advanced=True,
                 ),
                 IO.Int.Input(
                     "seed",
@@ -299,6 +301,7 @@ class Veo3VideoGenerationNode(VeoVideoGenerationNode):
                     default=True,
                     tooltip="This parameter is deprecated and ignored.",
                     optional=True,
+                    advanced=True,
                 ),
                 IO.Combo.Input(
                     "person_generation",
@@ -306,6 +309,7 @@ class Veo3VideoGenerationNode(VeoVideoGenerationNode):
                     default="ALLOW",
                     tooltip="Whether to allow generating people in the video",
                     optional=True,
+                    advanced=True,
                 ),
                 IO.Int.Input(
                     "seed",

@@ -308,14 +308,14 @@ class SDClipModel(torch.nn.Module, ClipTokenWeightEncoder):
     def load_sd(self, sd):
         return self.transformer.load_state_dict(sd, strict=False, assign=getattr(self, "can_assign_sd", False))
 
-    def generate(self, tokens, do_sample, max_length, temperature, top_k, top_p, min_p, repetition_penalty, seed, stop_tokens=[]):
+    def generate(self, tokens, do_sample, max_length, temperature, top_k, top_p, min_p, repetition_penalty, seed):
         if isinstance(tokens, dict):
             tokens_only = next(iter(tokens.values())) # todo: get this better?
         else:
             tokens_only = tokens
         tokens_only = [[t[0] for t in b] for b in tokens_only]
         embeds = self.process_tokens(tokens_only, device=self.execution_device)[0]
-        return self.transformer.generate(embeds, do_sample, max_length, temperature, top_k, top_p, min_p, repetition_penalty, seed, stop_tokens)
+        return self.transformer.generate(embeds, do_sample, max_length, temperature, top_k, top_p, min_p, repetition_penalty, seed)
 
 def parse_parentheses(string):
     result = []
@@ -572,6 +572,8 @@ class SDTokenizer:
         '''
         min_length = tokenizer_options.get("{}_min_length".format(self.embedding_key), self.min_length)
         min_padding = tokenizer_options.get("{}_min_padding".format(self.embedding_key), self.min_padding)
+
+        min_length = kwargs.get("min_length", min_length)
 
         text = escape_important(text)
         if kwargs.get("disable_weights", self.disable_weights):

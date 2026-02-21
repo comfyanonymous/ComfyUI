@@ -233,8 +233,8 @@ class SetClipHooks:
         return {
             "required": {
                 "clip": ("CLIP",),
-                "apply_to_conds": ("BOOLEAN", {"default": True}),
-                "schedule_clip": ("BOOLEAN", {"default": False})
+                "apply_to_conds": ("BOOLEAN", {"default": True, "advanced": True}),
+                "schedule_clip": ("BOOLEAN", {"default": False, "advanced": True})
             },
             "optional": {
                 "hooks": ("HOOKS",)
@@ -512,7 +512,7 @@ class CreateHookKeyframesInterpolated:
                 "start_percent": ("FLOAT", {"default": 0.0, "min": 0.0, "max": 1.0, "step": 0.001}),
                 "end_percent": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 1.0, "step": 0.001}),
                 "keyframes_count": ("INT", {"default": 5, "min": 2, "max": 100, "step": 1}),
-                "print_keyframes": ("BOOLEAN", {"default": False}),
+                "print_keyframes": ("BOOLEAN", {"default": False, "advanced": True}),
             },
             "optional": {
                 "prev_hook_kf": ("HOOK_KEYFRAMES",),
@@ -557,7 +557,7 @@ class CreateHookKeyframesFromFloats:
                 "floats_strength": ("FLOATS", {"default": -1, "min": -1, "step": 0.001, "forceInput": True}),
                 "start_percent": ("FLOAT", {"default": 0.0, "min": 0.0, "max": 1.0, "step": 0.001}),
                 "end_percent": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 1.0, "step": 0.001}),
-                "print_keyframes": ("BOOLEAN", {"default": False}),
+                "print_keyframes": ("BOOLEAN", {"default": False, "advanced": True}),
             },
             "optional": {
                 "prev_hook_kf": ("HOOK_KEYFRAMES",),

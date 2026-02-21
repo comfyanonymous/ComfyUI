@@ -161,6 +161,7 @@ class FluxKontextMultiReferenceLatentMethod(io.ComfyNode):
                 io.Combo.Input(
                     "reference_latents_method",
                     options=["offset", "index", "uxo/uno", "index_timestep_zero"],
+                    advanced=True,
                 ),
             ],
             outputs=[

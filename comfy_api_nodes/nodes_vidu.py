@@ -112,12 +112,14 @@ class ViduTextToVideoNode(IO.ComfyNode):
                     options=["1080p"],
                     tooltip="Supported values may vary by model & duration",
                     optional=True,
+                    advanced=True,
                 ),
                 IO.Combo.Input(
                     "movement_amplitude",
                     options=["auto", "small", "medium", "large"],
                     tooltip="The movement amplitude of objects in the frame",
                     optional=True,
+                    advanced=True,
                 ),
             ],
             outputs=[
@@ -208,12 +210,14 @@ class ViduImageToVideoNode(IO.ComfyNode):
                     options=["1080p"],
                     tooltip="Supported values may vary by model & duration",
                     optional=True,
+                    advanced=True,
                 ),
                 IO.Combo.Input(
                     "movement_amplitude",
                     options=["auto", "small", "medium", "large"],
                     tooltip="The movement amplitude of objects in the frame",
                     optional=True,
+                    advanced=True,
                 ),
             ],
             outputs=[
@@ -314,12 +318,14 @@ class ViduReferenceVideoNode(IO.ComfyNode):
                     options=["1080p"],
                     tooltip="Supported values may vary by model & duration",
                     optional=True,
+                    advanced=True,
                 ),
                 IO.Combo.Input(
                     "movement_amplitude",
                     options=["auto", "small", "medium", "large"],
                     tooltip="The movement amplitude of objects in the frame",
                     optional=True,
+                    advanced=True,
                 ),
             ],
             outputs=[
@@ -426,12 +432,14 @@ class ViduStartEndToVideoNode(IO.ComfyNode):
                     options=["1080p"],
                     tooltip="Supported values may vary by model & duration",
                     optional=True,
+                    advanced=True,
                 ),
                 IO.Combo.Input(
                     "movement_amplitude",
                     options=["auto", "small", "medium", "large"],
                     tooltip="The movement amplitude of objects in the frame",
                     optional=True,
+                    advanced=True,
                 ),
             ],
             outputs=[
@@ -511,11 +519,12 @@ class Vidu2TextToVideoNode(IO.ComfyNode):
                     control_after_generate=True,
                 ),
                 IO.Combo.Input("aspect_ratio", options=["16:9", "9:16", "3:4", "4:3", "1:1"]),
-                IO.Combo.Input("resolution", options=["720p", "1080p"]),
+                IO.Combo.Input("resolution", options=["720p", "1080p"], advanced=True),
                 IO.Boolean.Input(
                     "background_music",
                     default=False,
                     tooltip="Whether to add background music to the generated video.",
+                    advanced=True,
                 ),
             ],
             outputs=[
@@ -609,11 +618,13 @@ class Vidu2ImageToVideoNode(IO.ComfyNode):
                 IO.Combo.Input(
                     "resolution",
                     options=["720p", "1080p"],
+                    advanced=True,
                 ),
                 IO.Combo.Input(
                     "movement_amplitude",
                     options=["auto", "small", "medium", "large"],
                     tooltip="The movement amplitude of objects in the frame.",
+                    advanced=True,
                 ),
             ],
             outputs=[
@@ -727,6 +738,7 @@ class Vidu2ReferenceVideoNode(IO.ComfyNode):
                     "audio",
                     default=False,
                     tooltip="When enabled video will contain generated speech and background music based on the prompt.",
+                    advanced=True,
                 ),
                 IO.Int.Input(
                     "duration",
@@ -746,11 +758,12 @@ class Vidu2ReferenceVideoNode(IO.ComfyNode):
                     control_after_generate=True,
                 ),
                 IO.Combo.Input("aspect_ratio", options=["16:9", "9:16", "4:3", "3:4", "1:1"]),
-                IO.Combo.Input("resolution", options=["720p", "1080p"]),
+                IO.Combo.Input("resolution", options=["720p", "1080p"], advanced=True),
                 IO.Combo.Input(
                     "movement_amplitude",
                     options=["auto", "small", "medium", "large"],
                     tooltip="The movement amplitude of objects in the frame.",
+                    advanced=True,
                 ),
             ],
             outputs=[
@@ -864,11 +877,12 @@ class Vidu2StartEndToVideoNode(IO.ComfyNode):
                     display_mode=IO.NumberDisplay.number,
                     control_after_generate=True,
                 ),
-                IO.Combo.Input("resolution", options=["720p", "1080p"]),
+                IO.Combo.Input("resolution", options=["720p", "1080p"], advanced=True),
                 IO.Combo.Input(
                     "movement_amplitude",
                     options=["auto", "small", "medium", "large"],
                     tooltip="The movement amplitude of objects in the frame.",
+                    advanced=True,
                 ),
             ],
             outputs=[

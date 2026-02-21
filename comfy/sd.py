@@ -426,10 +426,8 @@ class CLIP:
     def generate(self, tokens, do_sample=True, max_length=256, temperature=1.0, top_k=50, top_p=0.95, min_p=0.0, repetition_penalty=1.0, seed=None):
         self.cond_stage_model.reset_clip_options()
 
-        if self.layer_idx is not None:
-            self.cond_stage_model.set_clip_options({"layer": self.layer_idx})
-
         self.load_model()
+        self.cond_stage_model.set_clip_options({"layer": None})
         self.cond_stage_model.set_clip_options({"execution_device": self.patcher.load_device})
         return self.cond_stage_model.generate(tokens, do_sample=do_sample, max_length=max_length, temperature=temperature, top_k=top_k, top_p=top_p, min_p=min_p, repetition_penalty=repetition_penalty, seed=seed)
 
