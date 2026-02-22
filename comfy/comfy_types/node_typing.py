@@ -153,6 +153,8 @@ class InputTypeOptions(TypedDict):
     # defaultVal: str
     dynamicPrompts: NotRequired[bool]
     """Causes the front-end to evaluate dynamic prompts (``STRING``)"""
+    display: NotRequired[str]
+    """Display mode for the widget UI (``STRING``: ``"password"``)"""
     # class InputTypeCombo(InputTypeOptions):
     image_upload: NotRequired[bool]
     """Specifies whether the input should have an image upload button and image preview attached to it. Requires that the input's name is `image`."""

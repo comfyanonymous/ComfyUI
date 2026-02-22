@@ -76,6 +76,10 @@ class NumberDisplay(str, Enum):
     gradient_slider = "gradientslider"
 
 
+class StringDisplay(str, Enum):
+    password = "password"
+
+
 class ControlAfterGenerate(str, Enum):
     fixed = "fixed"
     increment = "increment"
@@ -326,11 +330,13 @@ class String(ComfyTypeIO):
         '''String input.'''
         def __init__(self, id: str, display_name: str=None, optional=False, tooltip: str=None, lazy: bool=None,
                     multiline=False, placeholder: str=None, default: str=None, dynamic_prompts: bool=None,
+                    display_mode: StringDisplay=None,
                     socketless: bool=None, force_input: bool=None, extra_dict=None, raw_link: bool=None, advanced: bool=None):
             super().__init__(id, display_name, optional, tooltip, lazy, default, socketless, None, force_input, extra_dict, raw_link, advanced)
             self.multiline = multiline
             self.placeholder = placeholder
             self.dynamic_prompts = dynamic_prompts
+            self.display_mode = display_mode
             self.default: str
 
         def as_dict(self):
@@ -338,6 +344,7 @@ class String(ComfyTypeIO):
                 "multiline": self.multiline,
                 "placeholder": self.placeholder,
                 "dynamicPrompts": self.dynamic_prompts,
+                "display": self.display_mode.value if self.display_mode else None,
             })
 
 @comfytype(io_type="COMBO")
@@ -2135,6 +2142,7 @@ __all__ = [
     "UploadType",
     "RemoteOptions",
     "NumberDisplay",
+    "StringDisplay",
     "ControlAfterGenerate",
 
     "comfytype",
