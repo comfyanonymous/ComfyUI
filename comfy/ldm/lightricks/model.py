@@ -916,10 +916,11 @@ class LTXVModel(LTXBaseModel):
             guide_entries = kwargs.get("guide_attention_entries", None)
             if guide_entries:
                 total_pfc = sum(e["pre_filter_count"] for e in guide_entries)
-                assert total_pfc == len(kf_grid_mask), (
-                    f"guide pre_filter_counts ({total_pfc}) != "
-                    f"keyframe grid mask length ({len(kf_grid_mask)})"
-                )
+                if total_pfc != len(kf_grid_mask):
+                    raise ValueError(
+                        f"guide pre_filter_counts ({total_pfc}) != "
+                        f"keyframe grid mask length ({len(kf_grid_mask)})"
+                    )
                 resolved_entries = []
                 offset = 0
                 for entry in guide_entries:
