@@ -116,9 +116,15 @@ class GeminiGenerationConfig(BaseModel):
     topP: float | None = Field(None, ge=0.0, le=1.0)
 
 
+class GeminiImageOutputOptions(BaseModel):
+    mimeType: str = Field("image/png")
+    compressionQuality: int | None = Field(None)
+
+
 class GeminiImageConfig(BaseModel):
     aspectRatio: str | None = Field(None)
     imageSize: str | None = Field(None)
+    imageOutputOptions: GeminiImageOutputOptions = Field(default_factory=GeminiImageOutputOptions)
 
 
 class GeminiImageGenerationConfig(GeminiGenerationConfig):

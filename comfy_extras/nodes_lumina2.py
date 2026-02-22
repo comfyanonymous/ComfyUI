@@ -12,8 +12,8 @@ class RenormCFG(io.ComfyNode):
             category="advanced/model",
             inputs=[
                 io.Model.Input("model"),
-                io.Float.Input("cfg_trunc", default=100, min=0.0, max=100.0, step=0.01),
-                io.Float.Input("renorm_cfg", default=1.0, min=0.0, max=100.0, step=0.01),
+                io.Float.Input("cfg_trunc", default=100, min=0.0, max=100.0, step=0.01, advanced=True),
+                io.Float.Input("renorm_cfg", default=1.0, min=0.0, max=100.0, step=0.01, advanced=True),
             ],
             outputs=[
                 io.Model.Output(),

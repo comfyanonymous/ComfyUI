@@ -33,7 +33,7 @@ class StableCascade_EmptyLatentImage(io.ComfyNode):
             inputs=[
                 io.Int.Input("width", default=1024, min=256, max=nodes.MAX_RESOLUTION, step=8),
                 io.Int.Input("height", default=1024, min=256, max=nodes.MAX_RESOLUTION, step=8),
-                io.Int.Input("compression", default=42, min=4, max=128, step=1),
+                io.Int.Input("compression", default=42, min=4, max=128, step=1, advanced=True),
                 io.Int.Input("batch_size", default=1, min=1, max=4096),
             ],
             outputs=[
@@ -62,7 +62,7 @@ class StableCascade_StageC_VAEEncode(io.ComfyNode):
             inputs=[
                 io.Image.Input("image"),
                 io.Vae.Input("vae"),
-                io.Int.Input("compression", default=42, min=4, max=128, step=1),
+                io.Int.Input("compression", default=42, min=4, max=128, step=1, advanced=True),
             ],
             outputs=[
                 io.Latent.Output(display_name="stage_c"),

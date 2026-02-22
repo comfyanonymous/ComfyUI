@@ -413,9 +413,9 @@ class LatentOperationSharpen(io.ComfyNode):
             category="latent/advanced/operations",
             is_experimental=True,
             inputs=[
-                io.Int.Input("sharpen_radius", default=9, min=1, max=31, step=1),
-                io.Float.Input("sigma", default=1.0, min=0.1, max=10.0, step=0.1),
-                io.Float.Input("alpha", default=0.1, min=0.0, max=5.0, step=0.01),
+                io.Int.Input("sharpen_radius", default=9, min=1, max=31, step=1, advanced=True),
+                io.Float.Input("sigma", default=1.0, min=0.1, max=10.0, step=0.1, advanced=True),
+                io.Float.Input("alpha", default=0.1, min=0.0, max=5.0, step=0.01, advanced=True),
             ],
             outputs=[
                 io.LatentOperation.Output(),
