@@ -925,6 +925,25 @@ class Flux(BaseModel):
             out['ref_latents'] = list([1, 16, sum(map(lambda a: math.prod(a.size()[2:]), ref_latents))])
         return out
 
+class LongCatImage(Flux):
+    def _apply_model(self, x, t, c_concat=None, c_crossattn=None, control=None, transformer_options={}, **kwargs):
+        transformer_options = transformer_options.copy()
+        rope_opts = transformer_options.get("rope_options", {})
+        rope_opts = dict(rope_opts)
+        rope_opts.setdefault("shift_t", 1.0)
+        rope_opts.setdefault("shift_y", 512.0)
+        rope_opts.setdefault("shift_x", 512.0)
+        transformer_options["rope_options"] = rope_opts
+        return super()._apply_model(x, t, c_concat, c_crossattn, control, transformer_options, **kwargs)
+
+    def encode_adm(self, **kwargs):
+        return None
+
+    def extra_conds(self, **kwargs):
+        out = super().extra_conds(**kwargs)
+        out.pop('guidance', None)
+        return out
+
 class Flux2(Flux):
     def extra_conds(self, **kwargs):
         out = super().extra_conds(**kwargs)

@@ -25,6 +25,7 @@ import comfy.text_encoders.kandinsky5
 import comfy.text_encoders.z_image
 import comfy.text_encoders.anima
 import comfy.text_encoders.ace15
+import comfy.text_encoders.longcat_image
 
 from . import supported_models_base
 from . import latent_formats
@@ -1677,6 +1678,142 @@ class ACEStep15(supported_models_base.BASE):
         return supported_models_base.ClipTarget(comfy.text_encoders.ace15.ACE15Tokenizer, comfy.text_encoders.ace15.te(**detect))
 
 
-models = [LotusD, Stable_Zero123, SD15_instructpix2pix, SD15, SD20, SD21UnclipL, SD21UnclipH, SDXL_instructpix2pix, SDXLRefiner, SDXL, SSD1B, KOALA_700M, KOALA_1B, Segmind_Vega, SD_X4Upscaler, Stable_Cascade_C, Stable_Cascade_B, SV3D_u, SV3D_p, SD3, StableAudio, AuraFlow, PixArtAlpha, PixArtSigma, HunyuanDiT, HunyuanDiT1, FluxInpaint, Flux, FluxSchnell, GenmoMochi, LTXV, LTXAV, HunyuanVideo15_SR_Distilled, HunyuanVideo15, HunyuanImage21Refiner, HunyuanImage21, HunyuanVideoSkyreelsI2V, HunyuanVideoI2V, HunyuanVideo, CosmosT2V, CosmosI2V, CosmosT2IPredict2, CosmosI2VPredict2, ZImage, Lumina2, WAN22_T2V, WAN21_T2V, WAN21_I2V, WAN21_FunControl2V, WAN21_Vace, WAN21_Camera, WAN22_Camera, WAN22_S2V, WAN21_HuMo, WAN22_Animate, WAN21_FlowRVS, Hunyuan3Dv2mini, Hunyuan3Dv2, Hunyuan3Dv2_1, HiDream, Chroma, ChromaRadiance, ACEStep, ACEStep15, Omnigen2, QwenImage, Flux2, Kandinsky5Image, Kandinsky5, Anima]
+class LongCatImage(supported_models_base.BASE):
+    unet_config = {
+        "image_model": "flux",
+        "guidance_embed": False,
+        "vec_in_dim": None,
+        "context_in_dim": 3584,
+        "txt_ids_dims": [1, 2],
+    }
+
+    sampling_settings = {
+    }
+
+    unet_extra_config = {}
+    latent_format = latent_formats.Flux
+
+    memory_usage_factor = 2.5
+
+    supported_inference_dtypes = [torch.bfloat16, torch.float16, torch.float32]
+
+    vae_key_prefix = ["vae."]
+    text_encoder_key_prefix = ["text_encoders."]
+
+    def process_unet_state_dict(self, state_dict):
+        out_sd = {}
+        double_q, double_k, double_v = {}, {}, {}
+        double_tq, double_tk, double_tv = {}, {}, {}
+        single_q, single_k, single_v, single_mlp = {}, {}, {}, {}
+
+        for k, v in state_dict.items():
+            if k.startswith("transformer_blocks."):
+                idx = k.split(".")[1]
+                rest = ".".join(k.split(".")[2:])
+                prefix = "double_blocks.{}.".format(idx)
+
+                if rest.startswith("norm1.linear."):
+                    out_sd[prefix + "img_mod.lin." + rest.split(".")[-1]] = v
+                elif rest.startswith("norm1_context.linear."):
+                    out_sd[prefix + "txt_mod.lin." + rest.split(".")[-1]] = v
+                elif rest.startswith("attn.to_q."):
+                    double_q[idx + "." + rest.split(".")[-1]] = v
+                elif rest.startswith("attn.to_k."):
+                    double_k[idx + "." + rest.split(".")[-1]] = v
+                elif rest.startswith("attn.to_v."):
+                    double_v[idx + "." + rest.split(".")[-1]] = v
+                elif rest == "attn.norm_q.weight":
+                    out_sd[prefix + "img_attn.norm.query_norm.weight"] = v
+                elif rest == "attn.norm_k.weight":
+                    out_sd[prefix + "img_attn.norm.key_norm.weight"] = v
+                elif rest.startswith("attn.to_out.0."):
+                    out_sd[prefix + "img_attn.proj." + rest.split(".")[-1]] = v
+                elif rest.startswith("attn.add_q_proj."):
+                    double_tq[idx + "." + rest.split(".")[-1]] = v
+                elif rest.startswith("attn.add_k_proj."):
+                    double_tk[idx + "." + rest.split(".")[-1]] = v
+                elif rest.startswith("attn.add_v_proj."):
+                    double_tv[idx + "." + rest.split(".")[-1]] = v
+                elif rest == "attn.norm_added_q.weight":
+                    out_sd[prefix + "txt_attn.norm.query_norm.weight"] = v
+                elif rest == "attn.norm_added_k.weight":
+                    out_sd[prefix + "txt_attn.norm.key_norm.weight"] = v
+                elif rest.startswith("attn.to_add_out."):
+                    out_sd[prefix + "txt_attn.proj." + rest.split(".")[-1]] = v
+                elif rest.startswith("ff.net.0.proj."):
+                    out_sd[prefix + "img_mlp.0." + rest.split(".")[-1]] = v
+                elif rest.startswith("ff.net.2."):
+                    out_sd[prefix + "img_mlp.2." + rest.split(".")[-1]] = v
+                elif rest.startswith("ff_context.net.0.proj."):
+                    out_sd[prefix + "txt_mlp.0." + rest.split(".")[-1]] = v
+                elif rest.startswith("ff_context.net.2."):
+                    out_sd[prefix + "txt_mlp.2." + rest.split(".")[-1]] = v
+                else:
+                    out_sd["double_blocks.{}.{}".format(idx, rest)] = v
+
+            elif k.startswith("single_transformer_blocks."):
+                idx = k.split(".")[1]
+                rest = ".".join(k.split(".")[2:])
+                prefix = "single_blocks.{}.".format(idx)
+
+                if rest.startswith("norm.linear."):
+                    out_sd[prefix + "modulation.lin." + rest.split(".")[-1]] = v
+                elif rest.startswith("attn.to_q."):
+                    single_q[idx + "." + rest.split(".")[-1]] = v
+                elif rest.startswith("attn.to_k."):
+                    single_k[idx + "." + rest.split(".")[-1]] = v
+                elif rest.startswith("attn.to_v."):
+                    single_v[idx + "." + rest.split(".")[-1]] = v
+                elif rest == "attn.norm_q.weight":
+                    out_sd[prefix + "norm.query_norm.weight"] = v
+                elif rest == "attn.norm_k.weight":
+                    out_sd[prefix + "norm.key_norm.weight"] = v
+                elif rest.startswith("proj_mlp."):
+                    single_mlp[idx + "." + rest.split(".")[-1]] = v
+                elif rest.startswith("proj_out."):
+                    out_sd[prefix + "linear2." + rest.split(".")[-1]] = v
+                else:
+                    out_sd["single_blocks.{}.{}".format(idx, rest)] = v
+
+            elif k == "x_embedder.weight" or k == "x_embedder.bias":
+                out_sd["img_in." + k.split(".")[-1]] = v
+            elif k == "context_embedder.weight" or k == "context_embedder.bias":
+                out_sd["txt_in." + k.split(".")[-1]] = v
+            elif k.startswith("time_embed.timestep_embedder.linear_1."):
+                out_sd["time_in.in_layer." + k.split(".")[-1]] = v
+            elif k.startswith("time_embed.timestep_embedder.linear_2."):
+                out_sd["time_in.out_layer." + k.split(".")[-1]] = v
+            elif k.startswith("norm_out.linear."):
+                out_sd["final_layer.adaLN_modulation.1." + k.split(".")[-1]] = v
+            elif k == "proj_out.weight" or k == "proj_out.bias":
+                out_sd["final_layer.linear." + k.split(".")[-1]] = v
+            else:
+                out_sd[k] = v
+
+        for suffix in ["weight", "bias"]:
+            for idx in sorted(set(x.split(".")[0] for x in double_q)):
+                qk = idx + "." + suffix
+                if qk in double_q and qk in double_k and qk in double_v:
+                    out_sd["double_blocks.{}.img_attn.qkv.{}".format(idx, suffix)] = torch.cat([double_q[qk], double_k[qk], double_v[qk]], dim=0)
+                if qk in double_tq and qk in double_tk and qk in double_tv:
+                    out_sd["double_blocks.{}.txt_attn.qkv.{}".format(idx, suffix)] = torch.cat([double_tq[qk], double_tk[qk], double_tv[qk]], dim=0)
+
+            for idx in sorted(set(x.split(".")[0] for x in single_q)):
+                qk = idx + "." + suffix
+                if qk in single_q and qk in single_k and qk in single_v and qk in single_mlp:
+                    out_sd["single_blocks.{}.linear1.{}".format(idx, suffix)] = torch.cat([single_q[qk], single_k[qk], single_v[qk], single_mlp[qk]], dim=0)
+
+        return out_sd
+
+    def get_model(self, state_dict, prefix="", device=None):
+        out = model_base.LongCatImage(self, device=device)
+        return out
+
+    def clip_target(self, state_dict={}):
+        pref = self.text_encoder_key_prefix[0]
+        hunyuan_detect = comfy.text_encoders.hunyuan_video.llama_detect(state_dict, "{}qwen25_7b.transformer.".format(pref))
+        return supported_models_base.ClipTarget(comfy.text_encoders.longcat_image.LongCatImageTokenizer, comfy.text_encoders.longcat_image.te(**hunyuan_detect))
+
+models = [LotusD, Stable_Zero123, SD15_instructpix2pix, SD15, SD20, SD21UnclipL, SD21UnclipH, SDXL_instructpix2pix, SDXLRefiner, SDXL, SSD1B, KOALA_700M, KOALA_1B, Segmind_Vega, SD_X4Upscaler, Stable_Cascade_C, Stable_Cascade_B, SV3D_u, SV3D_p, SD3, StableAudio, AuraFlow, PixArtAlpha, PixArtSigma, HunyuanDiT, HunyuanDiT1, FluxInpaint, Flux, FluxSchnell, GenmoMochi, LTXV, LTXAV, HunyuanVideo15_SR_Distilled, HunyuanVideo15, HunyuanImage21Refiner, HunyuanImage21, HunyuanVideoSkyreelsI2V, HunyuanVideoI2V, HunyuanVideo, CosmosT2V, CosmosI2V, CosmosT2IPredict2, CosmosI2VPredict2, ZImage, Lumina2, WAN22_T2V, WAN21_T2V, WAN21_I2V, WAN21_FunControl2V, WAN21_Vace, WAN21_Camera, WAN22_Camera, WAN22_S2V, WAN21_HuMo, WAN22_Animate, WAN21_FlowRVS, Hunyuan3Dv2mini, Hunyuan3Dv2, Hunyuan3Dv2_1, HiDream, Chroma, ChromaRadiance, ACEStep, ACEStep15, Omnigen2, QwenImage, LongCatImage, Flux2, Kandinsky5Image, Kandinsky5, Anima]
 
 models += [SVD_img2vid]

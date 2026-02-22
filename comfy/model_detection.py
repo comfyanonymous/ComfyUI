@@ -282,6 +282,36 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
 
         return dit_config
 
+    if '{}x_embedder.weight'.format(key_prefix) in state_dict_keys and '{}transformer_blocks.0.attn.to_q.weight'.format(key_prefix) in state_dict_keys and '{}single_transformer_blocks.0.attn.to_q.weight'.format(key_prefix) in state_dict_keys: #LongCat-Image (diffusers format, Flux variant)
+        dit_config = {}
+        dit_config["image_model"] = "flux"
+        dit_config["axes_dim"] = [16, 56, 56]
+        dit_config["theta"] = 10000
+        dit_config["qkv_bias"] = True
+        dit_config["txt_ids_dims"] = [1, 2]
+
+        w = state_dict['{}x_embedder.weight'.format(key_prefix)]
+        dit_config["hidden_size"] = w.shape[0]
+        dit_config["in_channels"] = w.shape[1] // 4
+        dit_config["out_channels"] = dit_config["in_channels"]
+        dit_config["patch_size"] = 2
+
+        ctx_key = '{}context_embedder.weight'.format(key_prefix)
+        if ctx_key in state_dict_keys:
+            dit_config["context_in_dim"] = state_dict[ctx_key].shape[1]
+        else:
+            dit_config["context_in_dim"] = 3584
+
+        dit_config["vec_in_dim"] = None
+        dit_config["guidance_embed"] = False
+        dit_config["mlp_ratio"] = 4.0
+        dit_config["num_heads"] = dit_config["hidden_size"] // sum(dit_config["axes_dim"])
+
+        dit_config["depth"] = count_blocks(state_dict_keys, '{}transformer_blocks.'.format(key_prefix) + '{}.')
+        dit_config["depth_single_blocks"] = count_blocks(state_dict_keys, '{}single_transformer_blocks.'.format(key_prefix) + '{}.')
+
+        return dit_config
+
     if '{}t5_yproj.weight'.format(key_prefix) in state_dict_keys: #Genmo mochi preview
         dit_config = {}
         dit_config["image_model"] = "mochi_preview"
