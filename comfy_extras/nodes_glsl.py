@@ -16,6 +16,11 @@ from utils.install_util import get_missing_requirements_message
 
 logger = logging.getLogger(__name__)
 
+# OpenGL modules - initialized lazily when context is created
+gl = None
+glfw = None
+EGL = None
+
 
 def _check_opengl_availability():
     """Early check for OpenGL availability. Raises RuntimeError if unlikely to work."""
@@ -62,11 +67,6 @@ def _check_opengl_availability():
 # Run early check at import time
 logger.debug("nodes_glsl: running _check_opengl_availability at import time")
 _check_opengl_availability()
-
-# OpenGL modules - initialized lazily when context is created
-gl = None
-glfw = None
-EGL = None
 
 
 def _import_opengl():
