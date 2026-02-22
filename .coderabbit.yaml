@@ -87,6 +87,7 @@ reviews:
     ignore_title_keywords:
       - "WIP"
       - "DO NOT REVIEW"
+      - "DO NOT MERGE"
 
   finishing_touches:
     docstrings:
