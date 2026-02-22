@@ -314,7 +314,7 @@ class Float(ComfyTypeIO):
                 "max": self.max,
                 "step": self.step,
                 "round": self.round,
-                "display": self.display_mode,
+                "display": self.display_mode.value if self.display_mode else None,
                 "gradient_stops": self.gradient_stops,
             })
 
