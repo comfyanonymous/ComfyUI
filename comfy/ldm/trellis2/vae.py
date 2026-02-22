@@ -1004,7 +1004,6 @@ class SparseUnetVaeEncoder(nn.Module):
         self.model_channels = model_channels
         self.num_blocks = num_blocks
         self.dtype = torch.float16 if use_fp16 else torch.float32
-        self.dtype = torch.float16 if use_fp16 else torch.float32
 
         self.input_layer = SparseLinear(in_channels, model_channels[0])
         self.to_latent = SparseLinear(model_channels[-1], 2 * latent_channels)
@@ -1247,24 +1246,26 @@ def flexible_dual_grid_to_mesh(
     hashmap_builder=None,  # optional callable for building/caching a TorchHashMap
 ):
 
-    if not hasattr(flexible_dual_grid_to_mesh, "edge_neighbor_voxel_offset"):
+    device = coords.device
+    if not hasattr(flexible_dual_grid_to_mesh, "edge_neighbor_voxel_offset") \
+        or flexible_dual_grid_to_mesh.edge_neighbor_voxel_offset.device != device:
         flexible_dual_grid_to_mesh.edge_neighbor_voxel_offset = torch.tensor([
             [[0, 0, 0], [0, 0, 1], [0, 1, 1], [0, 1, 0]],     # x-axis
             [[0, 0, 0], [1, 0, 0], [1, 0, 1], [0, 0, 1]],     # y-axis
             [[0, 0, 0], [0, 1, 0], [1, 1, 0], [1, 0, 0]],     # z-axis
-        ], dtype=torch.int, device=coords.device).unsqueeze(0)
-    if not hasattr(flexible_dual_grid_to_mesh, "quad_split_1"):
-        flexible_dual_grid_to_mesh.quad_split_1 = torch.tensor([0, 1, 2, 0, 2, 3], dtype=torch.long, device=coords.device, requires_grad=False)
-    if not hasattr(flexible_dual_grid_to_mesh, "quad_split_2"):
-        flexible_dual_grid_to_mesh.quad_split_2 = torch.tensor([0, 1, 3, 3, 1, 2], dtype=torch.long, device=coords.device, requires_grad=False)
-    if not hasattr(flexible_dual_grid_to_mesh, "quad_split_train"):
-        flexible_dual_grid_to_mesh.quad_split_train = torch.tensor([0, 1, 4, 1, 2, 4, 2, 3, 4, 3, 0, 4], dtype=torch.long, device=coords.device, requires_grad=False)
+        ], dtype=torch.int, device=device).unsqueeze(0)
+    if not hasattr(flexible_dual_grid_to_mesh, "quad_split_1") or flexible_dual_grid_to_mesh.quad_split_1.device != device:
+        flexible_dual_grid_to_mesh.quad_split_1 = torch.tensor([0, 1, 2, 0, 2, 3], dtype=torch.long, device=device, requires_grad=False)
+    if not hasattr(flexible_dual_grid_to_mesh, "quad_split_2") or flexible_dual_grid_to_mesh.quad_split_2.device != device:
+        flexible_dual_grid_to_mesh.quad_split_2 = torch.tensor([0, 1, 3, 3, 1, 2], dtype=torch.long, device=device, requires_grad=False)
+    if not hasattr(flexible_dual_grid_to_mesh, "quad_split_train") or flexible_dual_grid_to_mesh.quad_split_train.device != device:
+        flexible_dual_grid_to_mesh.quad_split_train = torch.tensor([0, 1, 4, 1, 2, 4, 2, 3, 4, 3, 0, 4], dtype=torch.long, device=device, requires_grad=False)
 
     # AABB
     if isinstance(aabb, (list, tuple)):
         aabb = np.array(aabb)
     if isinstance(aabb, np.ndarray):
-        aabb = torch.tensor(aabb, dtype=torch.float32, device=coords.device)
+        aabb = torch.tensor(aabb, dtype=torch.float32, device=device)
 
     # Voxel size
     if voxel_size is not None:

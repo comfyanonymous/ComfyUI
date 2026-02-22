@@ -2,6 +2,7 @@ import math
 import torch
 import torch.nn as nn
 
+import comfy.model_management
 from comfy.ldm.modules.attention import optimized_attention_for_device
 from comfy.image_encoders.dino2 import LayerScale as DINOv3ViTLayerScale
 
@@ -225,7 +226,7 @@ class DINOv3ViTLayer(nn.Module):
 class DINOv3ViTModel(nn.Module):
     def __init__(self, config, dtype, device, operations):
         super().__init__()
-        if dtype == torch.float16:
+        if dtype == torch.float16 and comfy.model_management.should_use_bf16(device, prioritize_performance=False):
             dtype = torch.bfloat16
         num_hidden_layers = config["num_hidden_layers"]
         hidden_size = config["hidden_size"]

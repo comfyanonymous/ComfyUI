@@ -3,12 +3,56 @@ import math
 from comfy.ldm.modules.attention import optimized_attention
 from typing import Tuple, Union, List
 from comfy.ldm.trellis2.vae import VarLenTensor
+import comfy.ops
 
-FLASH_ATTN_3_AVA = True
-try:
-    import flash_attn_interface as flash_attn_3  # noqa: F401
-except:
-    FLASH_ATTN_3_AVA = False
+
+# replica of the seedvr2 code
+def var_attn_arg(kwargs):
+    cu_seqlens_q = kwargs.get("cu_seqlens_q", None)
+    max_seqlen_q = kwargs.get("max_seqlen_q", None)
+    cu_seqlens_k = kwargs.get("cu_seqlens_k", cu_seqlens_q) or  kwargs.get("cu_seqlens_kv", cu_seqlens_q)
+    max_seqlen_k = kwargs.get("max_seqlen_k", max_seqlen_q) or  kwargs.get("max_kv_seqlen", max_seqlen_q)
+    assert cu_seqlens_q is not None, "cu_seqlens_q shouldn't be None when var_length is True"
+    return cu_seqlens_q, cu_seqlens_k, max_seqlen_q, max_seqlen_k
+
+def attention_pytorch(q, k, v, heads, mask=None, attn_precision=None, skip_reshape=False, skip_output_reshape=False, **kwargs):
+    var_length = True
+    if var_length:
+        cu_seqlens_q, cu_seqlens_k, _, _ = var_attn_arg(kwargs)
+        if not skip_reshape:
+            # assumes 2D q, k,v [total_tokens, embed_dim]
+            total_tokens, embed_dim = q.shape
+            head_dim = embed_dim // heads
+            q = q.view(total_tokens, heads, head_dim)
+            k = k.view(k.shape[0], heads, head_dim)
+            v = v.view(v.shape[0], heads, head_dim)
+
+        b = q.size(0)
+        dim_head = q.shape[-1]
+        q = torch.nested.nested_tensor_from_jagged(q, offsets=cu_seqlens_q.long())
+        k = torch.nested.nested_tensor_from_jagged(k, offsets=cu_seqlens_k.long())
+        v = torch.nested.nested_tensor_from_jagged(v, offsets=cu_seqlens_k.long())
+
+        mask = None
+        q = q.transpose(1, 2)
+        k = k.transpose(1, 2)
+        v = v.transpose(1, 2)
+
+    if mask is not None:
+        if mask.ndim == 2:
+            mask = mask.unsqueeze(0)
+        if mask.ndim == 3:
+            mask = mask.unsqueeze(1)
+
+    out = comfy.ops.scaled_dot_product_attention(q, k, v, attn_mask=mask, dropout_p=0.0, is_causal=False)
+    if var_length:
+        return out.contiguous().transpose(1, 2).values()
+    if not skip_output_reshape:
+        out = (
+            out.transpose(1, 2).reshape(b, -1, heads * dim_head)
+        )
+    return out
+
 
 # TODO repalce with optimized attention
 def scaled_dot_product_attention(*args, **kwargs):
@@ -40,18 +84,10 @@ def scaled_dot_product_attention(*args, **kwargs):
             k, v = kv.unbind(dim=2)
         #out = xops.memory_efficient_attention(q, k, v)
         out = optimized_attention(q, k, v, heads, skip_output_reshape=True, skip_reshape=True)
-    elif optimized_attention.__name__ == 'attention_flash' and not FLASH_ATTN_3_AVA:
+    elif optimized_attention.__name__ == 'attention_flash':
         if num_all_args == 2:
             k, v = kv.unbind(dim=2)
         out = optimized_attention(q, k, v, heads, skip_output_reshape=True, skip_reshape=True)
-    elif optimized_attention.__name__ == 'attention_flash': # TODO
-        if 'flash_attn_3' not in globals():
-            import flash_attn_interface as flash_attn_3
-            if num_all_args == 2:
-                k, v = kv.unbind(dim=2)
-                out = flash_attn_3.flash_attn_func(q, k, v)
-            elif num_all_args == 3:
-                out = flash_attn_3.flash_attn_func(q, k, v)
     elif optimized_attention.__name__ == 'attention_pytorch':
         if num_all_args == 1:
             q, k, v = qkv.unbind(dim=2)
@@ -238,24 +274,16 @@ def sparse_scaled_dot_product_attention(*args, **kwargs):
             out = flash_attn.flash_attn_varlen_kvpacked_func(q, kv, cu_seqlens_q, cu_seqlens_kv, max(q_seqlen), max(kv_seqlen))
         elif num_all_args == 3:
             out = flash_attn.flash_attn_varlen_func(q, k, v, cu_seqlens_q, cu_seqlens_kv, max(q_seqlen), max(kv_seqlen))
-    elif optimized_attention.__name__  == 'flash_attn_3': # TODO
-        if 'flash_attn_3' not in globals():
-            import flash_attn_interface as flash_attn_3
+
+    elif optimized_attention.__name__ == "attention_pytorch":
         cu_seqlens_q = torch.cat([torch.tensor([0]), torch.cumsum(torch.tensor(q_seqlen), dim=0)]).int().to(device)
+        if num_all_args in [2, 3]:
+            cu_seqlens_kv = torch.cat([torch.tensor([0]), torch.cumsum(torch.tensor(kv_seqlen), dim=0)]).int().to(device)
         if num_all_args == 1:
             q, k, v = qkv.unbind(dim=1)
-            cu_seqlens_kv = cu_seqlens_q.clone()
-            max_q_seqlen = max_kv_seqlen = max(q_seqlen)
         elif num_all_args == 2:
             k, v = kv.unbind(dim=1)
-            cu_seqlens_kv = torch.cat([torch.tensor([0]), torch.cumsum(torch.tensor(kv_seqlen), dim=0)]).int().to(device)
-            max_q_seqlen = max(q_seqlen)
-            max_kv_seqlen = max(kv_seqlen)
-        elif num_all_args == 3:
-            cu_seqlens_kv = torch.cat([torch.tensor([0]), torch.cumsum(torch.tensor(kv_seqlen), dim=0)]).int().to(device)
-            max_q_seqlen = max(q_seqlen)
-            max_kv_seqlen = max(kv_seqlen)
-        out = flash_attn_3.flash_attn_varlen_func(q, k, v, cu_seqlens_q, cu_seqlens_kv, max_q_seqlen, max_kv_seqlen)
+        out = attention_pytorch(q, k, v, cu_seqlens_q, cu_seqlens_kv, max(q_seqlen), max(kv_seqlen))
 
     if s is not None:
         return s.replace(out)

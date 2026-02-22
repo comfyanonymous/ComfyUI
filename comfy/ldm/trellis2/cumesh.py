@@ -3,6 +3,7 @@
 import math
 import torch
 from typing import Dict, Callable
+import logging
 
 NO_TRITON = False
 try:
@@ -366,6 +367,10 @@ def neighbor_map_post_process_for_masked_implicit_gemm_2(
 def sparse_submanifold_conv3d(feats, coords, shape, weight, bias, neighbor_cache, dilation):
     if NO_TRITON: # TODO
         raise RuntimeError("sparse_submanifold_conv3d requires Triton, which is not available.")
+    if feats.shape[0] == 0:
+        logging.warning("Found feats to be empty!")
+        Co = weight.shape[0]
+        return torch.empty((0, Co), device=feats.device, dtype=feats.dtype), None
     if len(shape) == 5:
         N, C, W, H, D = shape
     else:
@@ -427,9 +432,11 @@ class Voxel:
             voxel_size: float,
             coords: torch.Tensor = None,
             attrs: torch.Tensor = None,
-            layout: Dict = {},
-            device: torch.device = 'cuda'
+            layout = None,
+            device: torch.device = None
         ):
+        if layout is None:
+            layout = {}
         self.origin = torch.tensor(origin, dtype=torch.float32, device=device)
         self.voxel_size = voxel_size
         self.coords = coords

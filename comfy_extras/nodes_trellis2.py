@@ -276,12 +276,11 @@ class EmptyShapeLatentTrellis2(IO.ComfyNode):
         in_channels = 32
         latent = torch.randn(1, coords.shape[0], in_channels)
         model = model.clone()
-        if "transformer_options" not in model.model_options:
-            model.model_options = {}
+        model.model_options = model.model_options.copy()
+        if "transformer_options" in model.model_options:
+            model.model_options["transformer_options"] = model.model_options["transformer_options"].copy()
         else:
-            model.model_options = model.model_options.copy()
-
-        model.model_options["transformer_options"] = model.model_options["transformer_options"].copy()
+            model.model_options["transformer_options"] = {}
 
         model.model_options["transformer_options"]["coords"] = coords
         model.model_options["transformer_options"]["generation_mode"] = "shape_generation"
@@ -310,12 +309,11 @@ class EmptyTextureLatentTrellis2(IO.ComfyNode):
         in_channels = 32
         latent = torch.randn(coords.shape[0], in_channels - structure_output.feats.shape[1])
         model = model.clone()
-        if "transformer_options" not in model.model_options:
-            model.model_options = {}
+        model.model_options = model.model_options.copy()
+        if "transformer_options" in model.model_options:
+            model.model_options["transformer_options"] = model.model_options["transformer_options"].copy()
         else:
-            model.model_options = model.model_options.copy()
-
-        model.model_options["transformer_options"] = model.model_options["transformer_options"].copy()
+            model.model_options["transformer_options"] = {}
 
         model.model_options["transformer_options"]["coords"] = coords
         model.model_options["transformer_options"]["generation_mode"] = "shape_generation"

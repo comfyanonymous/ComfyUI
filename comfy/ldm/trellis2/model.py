@@ -630,7 +630,6 @@ class SparseStructureFlowModel(nn.Module):
         mlp_ratio: float = 4,
         pe_mode: Literal["ape", "rope"] = "rope",
         rope_freq: Tuple[float, float] = (1.0, 10000.0),
-        dtype: str = 'float32',
         use_checkpoint: bool = False,
         share_mod: bool = False,
         initialization: str = 'vanilla',
@@ -638,6 +637,7 @@ class SparseStructureFlowModel(nn.Module):
         qk_rms_norm_cross: bool = False,
         operations=None,
         device = None,
+        dtype = torch.float32,
         **kwargs
     ):
         super().__init__()
