@@ -10,8 +10,8 @@ import comfy.ops
 def var_attn_arg(kwargs):
     cu_seqlens_q = kwargs.get("cu_seqlens_q", None)
     max_seqlen_q = kwargs.get("max_seqlen_q", None)
-    cu_seqlens_k = kwargs.get("cu_seqlens_k", cu_seqlens_q) or  kwargs.get("cu_seqlens_kv", cu_seqlens_q)
-    max_seqlen_k = kwargs.get("max_seqlen_k", max_seqlen_q) or  kwargs.get("max_kv_seqlen", max_seqlen_q)
+    cu_seqlens_k = kwargs.get("cu_seqlens_kv", cu_seqlens_q)
+    max_seqlen_k = kwargs.get("max_kv_seqlen", max_seqlen_q)
     assert cu_seqlens_q is not None, "cu_seqlens_q shouldn't be None when var_length is True"
     return cu_seqlens_q, cu_seqlens_k, max_seqlen_q, max_seqlen_k
 
@@ -183,6 +183,7 @@ def calc_window_partition(
 
 
 def sparse_scaled_dot_product_attention(*args, **kwargs):
+    q=None
     arg_names_dict = {
         1: ['qkv'],
         2: ['q', 'kv'],
@@ -250,6 +251,12 @@ def sparse_scaled_dot_product_attention(*args, **kwargs):
             k = k.reshape(N * L, H, CI)     # [T_KV, H, Ci]
             v = v.reshape(N * L, H, CO)     # [T_KV, H, Co]
 
+    # TODO: change
+    if q is not None:
+        heads = q
+    else:
+        heads = qkv
+    heads = heads.shape[2]
     if optimized_attention.__name__ == 'attention_xformers':
         if 'xops' not in globals():
             import xformers.ops as xops
@@ -279,11 +286,15 @@ def sparse_scaled_dot_product_attention(*args, **kwargs):
         cu_seqlens_q = torch.cat([torch.tensor([0]), torch.cumsum(torch.tensor(q_seqlen), dim=0)]).int().to(device)
         if num_all_args in [2, 3]:
             cu_seqlens_kv = torch.cat([torch.tensor([0]), torch.cumsum(torch.tensor(kv_seqlen), dim=0)]).int().to(device)
+        else:
+            cu_seqlens_kv = cu_seqlens_q
         if num_all_args == 1:
             q, k, v = qkv.unbind(dim=1)
         elif num_all_args == 2:
             k, v = kv.unbind(dim=1)
-        out = attention_pytorch(q, k, v, cu_seqlens_q, cu_seqlens_kv, max(q_seqlen), max(kv_seqlen))
+        out = attention_pytorch(q, k, v, heads=heads,cu_seqlens_q=cu_seqlens_q,
+                                cu_seqlens_kv=cu_seqlens_kv, max_seqlen_q=max(q_seqlen), max_kv_seqlen=max(kv_seqlen),
+                                skip_reshape=True, skip_output_reshape=True)
 
     if s is not None:
         return s.replace(out)

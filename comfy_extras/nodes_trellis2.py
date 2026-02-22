@@ -2,6 +2,7 @@ from typing_extensions import override
 from comfy_api.latest import ComfyExtension, IO, Types
 import torch.nn.functional as TF
 import comfy.model_management
+from comfy.utils import ProgressBar
 from PIL import Image
 import numpy as np
 import torch
@@ -250,7 +251,7 @@ class Trellis2Conditioning(IO.ComfyNode):
         conditioning, _ = run_conditioning(clip_vision_model, image, mask, include_1024=True, background_color=background_color)
         embeds = conditioning["cond_1024"] # should add that
         positive = [[conditioning["cond_512"], {"embeds": embeds}]]
-        negative = [[conditioning["neg_cond"], {"embeds": embeds}]]
+        negative = [[conditioning["neg_cond"], {"embeds": torch.zeros_like(embeds)}]]
         return IO.NodeOutput(positive, negative)
 
 class EmptyShapeLatentTrellis2(IO.ComfyNode):
@@ -512,15 +513,23 @@ class PostProcessMesh(IO.ComfyNode):
         )
     @classmethod
     def execute(cls, mesh, simplify, fill_holes_perimeter):
+        bar = ProgressBar(2)
         mesh = copy.deepcopy(mesh)
         verts, faces = mesh.vertices, mesh.faces
 
         if fill_holes_perimeter != 0.0:
             verts, faces = fill_holes_fn(verts, faces, max_hole_perimeter=fill_holes_perimeter)
+            bar.update(1)
+        else:
+            bar.update(1)
 
         if simplify != 0:
             verts, faces = simplify_fn(verts, faces, simplify)
+            bar.update(1)
+        else:
+            bar.update(1)
 
+        # potentially adding laplacian smoothing
 
         mesh.vertices = verts
         mesh.faces = faces

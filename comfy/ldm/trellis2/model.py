@@ -232,6 +232,8 @@ class SparseMultiHeadAttention(nn.Module):
         else:
             q = self._linear(self.to_q, x)
             q = self._reshape_chs(q, (self.num_heads, -1))
+            dtype = next(self.to_kv.parameters()).dtype
+            context = context.to(dtype)
             kv = self._linear(self.to_kv, context)
             kv = self._fused_pre(kv, num_fused=2)
             if self.qk_rms_norm:
@@ -760,15 +762,13 @@ class Trellis2(nn.Module):
         self.guidance_interval_txt = [0.6, 0.9]
 
     def forward(self, x, timestep, context, **kwargs):
-        # FIXME: should find a way to distinguish between 512/1024 models
-        # currently assumes 1024
         transformer_options = kwargs.get("transformer_options", {})
         embeds = kwargs.get("embeds")
         if embeds is None:
             raise ValueError("Trellis2.forward requires 'embeds' in kwargs")
-        #_, cond = context.chunk(2) # TODO
-        cond = embeds.chunk(2)[0]
-        context = torch.cat([torch.zeros_like(cond), cond])
+        is_1024 = self.img2shape.resolution == 1024
+        if is_1024:
+            context = embeds
         coords = transformer_options.get("coords", None)
         mode = transformer_options.get("generation_mode", "structure_generation")
         if coords is not None:

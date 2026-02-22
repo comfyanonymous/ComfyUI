@@ -226,8 +226,11 @@ class DINOv3ViTLayer(nn.Module):
 class DINOv3ViTModel(nn.Module):
     def __init__(self, config, dtype, device, operations):
         super().__init__()
-        if dtype == torch.float16 and comfy.model_management.should_use_bf16(device, prioritize_performance=False):
+        use_bf16 = comfy.model_management.should_use_bf16(device, prioritize_performance=True)
+        if dtype == torch.float16 and use_bf16:
             dtype = torch.bfloat16
+        elif dtype == torch.float16 and not use_bf16:
+            dtype = torch.float32
         num_hidden_layers = config["num_hidden_layers"]
         hidden_size = config["hidden_size"]
         num_attention_heads = config["num_attention_heads"]
