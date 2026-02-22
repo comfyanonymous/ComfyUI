@@ -22,7 +22,7 @@ class EmptyLatentAudio(IO.ComfyNode):
             inputs=[
                 IO.Float.Input("seconds", default=47.6, min=1.0, max=1000.0, step=0.1),
                 IO.Int.Input(
-                    "batch_size", default=1, min=1, max=4096, tooltip="The number of latent images in the batch."
+                    "batch_size", default=1, min=1, max=4096, tooltip="The number of latent images in the batch.",
                 ),
             ],
             outputs=[IO.Latent.Output()],
@@ -159,6 +159,7 @@ class SaveAudio(IO.ComfyNode):
             search_aliases=["export flac"],
             display_name="Save Audio (FLAC)",
             category="audio",
+            essentials_category="Audio",
             inputs=[
                 IO.Audio.Input("audio"),
                 IO.String.Input("filename_prefix", default="audio/ComfyUI"),
@@ -300,6 +301,7 @@ class LoadAudio(IO.ComfyNode):
             search_aliases=["import audio", "open audio", "audio file"],
             display_name="Load Audio",
             category="audio",
+            essentials_category="Audio",
             inputs=[
                 IO.Combo.Input("audio", upload=IO.UploadType.audio, options=sorted(files)),
             ],
@@ -677,6 +679,7 @@ class EmptyAudio(IO.ComfyNode):
                     tooltip="Sample rate of the empty audio clip.",
                     min=1,
                     max=192000,
+                    advanced=True,
                 ),
                 IO.Int.Input(
                     "channels",
@@ -684,6 +687,7 @@ class EmptyAudio(IO.ComfyNode):
                     min=1,
                     max=2,
                     tooltip="Number of audio channels (1 for mono, 2 for stereo).",
+                    advanced=True,
                 ),
             ],
             outputs=[IO.Audio.Output()],

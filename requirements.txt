@@ -22,7 +22,7 @@ alembic
 SQLAlchemy
 av>=14.2.0
 comfy-kitchen>=0.2.7
-comfy-aimdo>=0.1.8
+comfy-aimdo>=0.2.0
 requests
 
 #non essential dependencies:
@@ -30,3 +30,6 @@ kornia>=0.7.1
 spandrel
 pydantic~=2.0
 pydantic-settings~=2.0
+PyOpenGL
+PyOpenGL-accelerate
+glfw

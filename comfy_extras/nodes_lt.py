@@ -450,6 +450,7 @@ class LTXVScheduler(io.ComfyNode):
                     id="stretch",
                     default=True,
                     tooltip="Stretch the sigmas to be in the range [terminal, 1].",
+                    advanced=True,
                 ),
                 io.Float.Input(
                     id="terminal",
@@ -458,6 +459,7 @@ class LTXVScheduler(io.ComfyNode):
                     max=0.99,
                     step=0.01,
                     tooltip="The terminal value of the sigmas after stretching.",
+                    advanced=True,
                 ),
                 io.Latent.Input("latent", optional=True),
             ],

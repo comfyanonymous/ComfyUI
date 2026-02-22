@@ -72,7 +72,7 @@ class CLIPTextEncodeSD3(io.ComfyNode):
                 io.String.Input("clip_l", multiline=True, dynamic_prompts=True),
                 io.String.Input("clip_g", multiline=True, dynamic_prompts=True),
                 io.String.Input("t5xxl", multiline=True, dynamic_prompts=True),
-                io.Combo.Input("empty_padding", options=["none", "empty_prompt"]),
+                io.Combo.Input("empty_padding", options=["none", "empty_prompt"], advanced=True),
             ],
             outputs=[
                 io.Conditioning.Output(),
@@ -179,10 +179,10 @@ class SkipLayerGuidanceSD3(io.ComfyNode):
             description="Generic version of SkipLayerGuidance node that can be used on every DiT model.",
             inputs=[
                 io.Model.Input("model"),
-                io.String.Input("layers", default="7, 8, 9", multiline=False),
+                io.String.Input("layers", default="7, 8, 9", multiline=False, advanced=True),
                 io.Float.Input("scale", default=3.0, min=0.0, max=10.0, step=0.1),
-                io.Float.Input("start_percent", default=0.01, min=0.0, max=1.0, step=0.001),
-                io.Float.Input("end_percent", default=0.15, min=0.0, max=1.0, step=0.001),
+                io.Float.Input("start_percent", default=0.01, min=0.0, max=1.0, step=0.001, advanced=True),
+                io.Float.Input("end_percent", default=0.15, min=0.0, max=1.0, step=0.001, advanced=True),
             ],
             outputs=[
                 io.Model.Output(),

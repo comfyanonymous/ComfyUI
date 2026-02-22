@@ -1154,7 +1154,7 @@ def tiled_scale(samples, function, tile_x=64, tile_y=64, overlap = 8, upscale_am
     return tiled_scale_multidim(samples, function, (tile_y, tile_x), overlap=overlap, upscale_amount=upscale_amount, out_channels=out_channels, output_device=output_device, pbar=pbar)
 
 def model_trange(*args, **kwargs):
-    if comfy.memory_management.aimdo_allocator is None:
+    if not comfy.memory_management.aimdo_enabled:
         return trange(*args, **kwargs)
 
     pbar = trange(*args, **kwargs, smoothing=1.0)
@@ -1418,3 +1418,11 @@ def deepcopy_list_dict(obj, memo=None):
 
     memo[obj_id] = res
     return res
+
+def normalize_image_embeddings(embeds, embeds_info, scale_factor):
+    """Normalize image embeddings to match text embedding scale"""
+    for info in embeds_info:
+        if info.get("type") == "image":
+            start_idx = info["index"]
+            end_idx = start_idx + info["size"]
+            embeds[:, start_idx:end_idx, :] /= scale_factor

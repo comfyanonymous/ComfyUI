@@ -78,4 +78,4 @@ def interpret_gathered_like(tensors, gathered):
 
     return dest_views
 
-aimdo_allocator = None
+aimdo_enabled = False
