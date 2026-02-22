@@ -1784,6 +1784,10 @@ class LongCatImage(supported_models_base.BASE):
             elif k.startswith("time_embed.timestep_embedder.linear_2."):
                 out_sd["time_in.out_layer." + k.split(".")[-1]] = v
             elif k.startswith("norm_out.linear."):
+                # HF AdaLayerNormContinuous stores [scale | shift] but ComfyUI
+                # LastLayer expects [shift | scale], so swap the two halves.
+                half = v.shape[0] // 2
+                v = torch.cat([v[half:], v[:half]], dim=0)
                 out_sd["final_layer.adaLN_modulation.1." + k.split(".")[-1]] = v
             elif k == "proj_out.weight" or k == "proj_out.bias":
                 out_sd["final_layer.linear." + k.split(".")[-1]] = v
