@@ -1687,6 +1687,12 @@ class LongCatImage(supported_models_base.BASE):
         "txt_ids_dims": [1, 2],
     }
 
+    required_keys = {
+        "x_embedder.weight": None,
+        "context_embedder.weight": None,
+        "single_transformer_blocks.10.attn.to_q.weight": None,
+    }
+
     sampling_settings = {
     }
 
