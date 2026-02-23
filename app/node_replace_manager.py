@@ -46,7 +46,7 @@ class NodeReplaceManager:
         connections: dict[str, list[tuple[str, str, int]]] = {}
         need_replacement: set[str] = set()
         for node_number, node_struct in prompt.items():
-            if "class_type" not in node_struct:
+            if "class_type" not in node_struct or "inputs" not in node_struct:
                 continue
             class_type = node_struct["class_type"]
             # need replacement if not in NODE_CLASS_MAPPINGS and has replacement
