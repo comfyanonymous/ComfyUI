@@ -1691,6 +1691,7 @@ class LongCatImage(supported_models_base.BASE):
         "x_embedder.weight": None,
         "context_embedder.weight": None,
         "single_transformer_blocks.10.attn.to_q.weight": None,
+        "time_embed.timestep_embedder.linear_1.weight": None,
     }
 
     sampling_settings = {

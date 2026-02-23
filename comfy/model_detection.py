@@ -282,7 +282,7 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
 
         return dit_config
 
-    if '{}x_embedder.weight'.format(key_prefix) in state_dict_keys and '{}transformer_blocks.0.attn.to_q.weight'.format(key_prefix) in state_dict_keys and '{}single_transformer_blocks.0.attn.to_q.weight'.format(key_prefix) in state_dict_keys: #LongCat-Image (diffusers format, Flux variant)
+    if '{}x_embedder.weight'.format(key_prefix) in state_dict_keys and '{}transformer_blocks.0.attn.to_q.weight'.format(key_prefix) in state_dict_keys and '{}single_transformer_blocks.0.attn.to_q.weight'.format(key_prefix) in state_dict_keys and '{}context_embedder.weight'.format(key_prefix) in state_dict_keys and '{}time_embed.timestep_embedder.linear_1.weight'.format(key_prefix) in state_dict_keys: #LongCat-Image (diffusers format, Flux variant)
         dit_config = {}
         dit_config["image_model"] = "flux"
         dit_config["axes_dim"] = [16, 56, 56]
