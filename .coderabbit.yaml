@@ -1,6 +1,7 @@
 # yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
 language: "en-US"
 early_access: false
+tone_instructions: "Only comment on issues introduced by this PR's changes. Do not flag pre-existing problems in moved, re-indented, or reformatted code."
 
 reviews:
   profile: "chill"
@@ -35,6 +36,14 @@ reviews:
     - "!**/*.bat"
 
   path_instructions:
+    - path: "**"
+      instructions: |
+        IMPORTANT: Only comment on issues directly introduced by this PR's code changes.
+        Do NOT flag pre-existing issues in code that was merely moved, re-indented,
+        de-indented, or reformatted without logic changes. If code appears in the diff
+        only due to whitespace or structural reformatting (e.g., removing a `with:` block),
+        treat it as unchanged. Contributors should not feel obligated to address
+        pre-existing issues outside the scope of their contribution.
     - path: "comfy/**"
       instructions: |
         Core ML/diffusion engine. Focus on:
@@ -74,7 +83,11 @@ reviews:
   auto_review:
     enabled: true
     auto_incremental_review: true
-    drafts: true
+    drafts: false
+    ignore_title_keywords:
+      - "WIP"
+      - "DO NOT REVIEW"
+      - "DO NOT MERGE"
 
   finishing_touches:
     docstrings:
@@ -84,7 +97,7 @@ reviews:
 
   tools:
     ruff:
-      enabled: true
+      enabled: false
     pylint:
       enabled: false
     flake8:

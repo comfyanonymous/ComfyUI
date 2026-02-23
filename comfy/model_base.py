@@ -988,10 +988,14 @@ class LTXAV(BaseModel):
     def extra_conds(self, **kwargs):
         out = super().extra_conds(**kwargs)
         attention_mask = kwargs.get("attention_mask", None)
+        device = kwargs["device"]
+
         if attention_mask is not None:
             out['attention_mask'] = comfy.conds.CONDRegular(attention_mask)
         cross_attn = kwargs.get("cross_attn", None)
         if cross_attn is not None:
+            if hasattr(self.diffusion_model, "preprocess_text_embeds"):
+                cross_attn = self.diffusion_model.preprocess_text_embeds(cross_attn.to(device=device, dtype=self.get_dtype_inference()))
             out['c_crossattn'] = comfy.conds.CONDRegular(cross_attn)
 
         out['frame_rate'] = comfy.conds.CONDConstant(kwargs.get("frame_rate", 25))

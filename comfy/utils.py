@@ -1154,7 +1154,7 @@ def tiled_scale(samples, function, tile_x=64, tile_y=64, overlap = 8, upscale_am
     return tiled_scale_multidim(samples, function, (tile_y, tile_x), overlap=overlap, upscale_amount=upscale_amount, out_channels=out_channels, output_device=output_device, pbar=pbar)
 
 def model_trange(*args, **kwargs):
-    if comfy.memory_management.aimdo_allocator is None:
+    if not comfy.memory_management.aimdo_enabled:
         return trange(*args, **kwargs)
 
     pbar = trange(*args, **kwargs, smoothing=1.0)

@@ -836,7 +836,7 @@ def unet_inital_load_device(parameters, dtype):
 
     mem_dev = get_free_memory(torch_dev)
     mem_cpu = get_free_memory(cpu_dev)
-    if mem_dev > mem_cpu and model_size < mem_dev and comfy.memory_management.aimdo_allocator is None:
+    if mem_dev > mem_cpu and model_size < mem_dev and comfy.memory_management.aimdo_enabled:
         return torch_dev
     else:
         return cpu_dev
@@ -1121,7 +1121,6 @@ def get_cast_buffer(offload_stream, device, size, ref):
             synchronize()
             del STREAM_CAST_BUFFERS[offload_stream]
             del cast_buffer
-            #FIXME: This doesn't work in Aimdo because mempool cant clear cache
             soft_empty_cache()
         with wf_context:
             cast_buffer = torch.empty((size), dtype=torch.int8, device=device)

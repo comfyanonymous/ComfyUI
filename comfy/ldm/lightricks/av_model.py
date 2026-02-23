@@ -9,6 +9,7 @@ from comfy.ldm.lightricks.model import (
     LTXVModel,
 )
 from comfy.ldm.lightricks.symmetric_patchifier import AudioPatchifier
+from comfy.ldm.lightricks.embeddings_connector import Embeddings1DConnector
 import comfy.ldm.common_dit
 
 class CompressedTimestep:
@@ -449,6 +450,29 @@ class LTXAVModel(LTXVModel):
             device=device,
             operations=self.operations,
         )
+
+        self.audio_embeddings_connector = Embeddings1DConnector(
+            split_rope=True,
+            double_precision_rope=True,
+            dtype=dtype,
+            device=device,
+            operations=self.operations,
+        )
+
+        self.video_embeddings_connector = Embeddings1DConnector(
+            split_rope=True,
+            double_precision_rope=True,
+            dtype=dtype,
+            device=device,
+            operations=self.operations,
+        )
+
+    def preprocess_text_embeds(self, context):
+        if context.shape[-1] == self.caption_channels * 2:
+            return context
+        out_vid = self.video_embeddings_connector(context)[0]
+        out_audio = self.audio_embeddings_connector(context)[0]
+        return torch.concat((out_vid, out_audio), dim=-1)
 
     def _init_transformer_blocks(self, device, dtype, **kwargs):
         """Initialize transformer blocks for LTXAV."""
