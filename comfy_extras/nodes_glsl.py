@@ -144,7 +144,7 @@ def _detect_pass_count(source: str) -> int:
     return 1
 
 
-# ----------------------------------------------------------
+############################################################
 
 
 class GLContext:
@@ -497,7 +497,7 @@ class _GLContextOSMesa(GLContext):
         OSMesaMakeCurrent(self._osmesa_ctx, self._osmesa_buffer, self._gl.GL_UNSIGNED_BYTE, 64, 64)
 
 
-# ----------------------------------------------------------
+############################################################
 
 
 def _compile_shader(source: str, shader_type: int) -> int:
