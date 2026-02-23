@@ -1,6 +1,10 @@
+import logging
+
 import torch
 from typing_extensions import override
 from comfy_api.latest import ComfyExtension, io
+
+logger = logging.getLogger(__name__)
 
 
 class CLIPTextEncodeLongCatImage(io.ComfyNode):
@@ -60,6 +64,10 @@ class CFGRenormLongCatImage(io.ComfyNode):
 
             B, C, H, W = denoised.shape
             ps = 2
+
+            if H % ps != 0 or W % ps != 0:
+                logger.warning(f"CFG Renorm: incompatible shape {H}x{W}, skipping renorm")
+                return denoised
 
             noise = x - denoised
             noise_cond = x - cond_denoised
