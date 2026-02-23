@@ -1466,6 +1466,55 @@ class WAN22(WAN21):
     def scale_latent_inpaint(self, sigma, noise, latent_image, **kwargs):
         return latent_image
 
+class WAN21_SCAIL(WAN21):
+    def __init__(self, model_config, model_type=ModelType.FLOW, image_to_video=False, device=None):
+        super(WAN21, self).__init__(model_config, model_type, device=device, unet_model=comfy.ldm.wan.model.SCAILWanModel)
+        self.memory_usage_factor_conds = ("reference_latent", "pose_latents")
+        self.memory_usage_shape_process = {"pose_latents": lambda shape: [shape[0], shape[1], 1.5, shape[-2], shape[-1]]}
+        self.image_to_video = image_to_video
+
+    def extra_conds(self, **kwargs):
+        out = super().extra_conds(**kwargs)
+
+        reference_latents = kwargs.get("reference_latents", None)
+        if reference_latents is not None:
+            ref_latent = self.process_latent_in(reference_latents[-1])
+            ref_mask = torch.ones_like(ref_latent[:, :4])
+            ref_latent = torch.cat([ref_latent, ref_mask], dim=1)
+            out['reference_latent'] = comfy.conds.CONDRegular(ref_latent)
+
+        pose_latents = kwargs.get("pose_video_latent", None)
+        if pose_latents is not None:
+            pose_latents = self.process_latent_in(pose_latents)
+            pose_mask = torch.ones_like(pose_latents[:, :4])
+            pose_latents = torch.cat([pose_latents, pose_mask], dim=1)
+            out['pose_latents'] = comfy.conds.CONDRegular(pose_latents)
+
+        pose_start = kwargs.get("pose_start", 0.0)
+        pose_end = kwargs.get("pose_end", 1.0)
+        out['pose_start'] = comfy.conds.CONDConstant(pose_start)
+        out['pose_end'] = comfy.conds.CONDConstant(pose_end)
+
+        return out
+
+    def apply_model(self, x, t, c_concat=None, c_crossattn=None, control=None, transformer_options={}, pose_start=0.0, pose_end=1.0, **kwargs):
+        if t >= self.model_sampling.percent_to_sigma(pose_start) or t <= self.model_sampling.percent_to_sigma(pose_end):
+            kwargs.pop("pose_latents", None)
+
+        return comfy.patcher_extension.WrapperExecutor.new_class_executor(
+            self._apply_model,
+            self,
+            comfy.patcher_extension.get_all_wrappers(comfy.patcher_extension.WrappersMP.APPLY_MODEL, transformer_options)
+        ).execute(x, t, c_concat, c_crossattn, control, transformer_options, **kwargs)
+
+    def extra_conds_shapes(self, **kwargs):
+        out = {}
+        ref_latents = kwargs.get("reference_latents", None)
+        if ref_latents is not None:
+            out['reference_latent'] = list([1, 16, sum(map(lambda a: math.prod(a.size()), ref_latents)) // 16])
+
+        return out
+
 class Hunyuan3Dv2(BaseModel):
     def __init__(self, model_config, model_type=ModelType.FLOW, device=None):
         super().__init__(model_config, model_type, device=device, unet_model=comfy.ldm.hunyuan3d.model.Hunyuan3Dv2)
