@@ -112,10 +112,13 @@ class LongCatImageTEModel(sd1_clip.SD1ClipModel):
                             template_end = i
                             count_im_start += 1
 
-            if out.shape[1] > (template_end + 3):
-                if tok_pairs[template_end + 1][0] == 872:
-                    if tok_pairs[template_end + 2][0] == 198:
-                        template_end += 3
+        if out.shape[1] > (template_end + 3):
+            if tok_pairs[template_end + 1][0] == 872:
+                if tok_pairs[template_end + 2][0] == 198:
+                    template_end += 3
+        
+        if template_end == -1:
+           template_end = 0
 
         suffix_start = None
         for i in range(len(tok_pairs) - 1, -1, -1):
