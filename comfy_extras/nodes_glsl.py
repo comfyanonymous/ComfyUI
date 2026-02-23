@@ -4,7 +4,7 @@ import re
 import logging
 import ctypes.util
 import importlib.util
-from typing import TypedDict
+from typing import Type, TypedDict
 
 import numpy as np
 import torch
@@ -309,10 +309,15 @@ def _init_osmesa():
     return ctx, buffer
 
 
+# ----------------------------------------------------------
+
+
 class GLContext:
     """Manages OpenGL context and resources for shader execution.
 
-    Tries backends in order: GLFW (desktop) → EGL (headless GPU) → OSMesa (software).
+    Acts as a singleton factory: ``GLContext`` itself is an "abstract" class (not a true ABC though) and never instantiates itself directly. Instead, its instance is always one of "concrete backend" contexts - a first valid subclass in the fallback sequence. ``GLContext`` doesn't inherit from ABC just to prevent IDE warnings caused by this polymorphism. For all intents and purposes, it **IS** a singleton-ABC.
+
+    Backends fallback order: GLFW (desktop) → EGL (headless GPU) → OSMesa (software). See ``__subclass_fallback_order()``.
     """
 
     __instance: 'GLContext' = None  # The singleton
@@ -324,6 +329,11 @@ class GLContext:
             GLContext.__instance = super().__new__(cls)
             assert isinstance(GLContext.__instance, GLContext)
         return GLContext.__instance
+
+    @staticmethod
+    def __concrete_class_fallback_order() -> tuple[Type['GLContext'], ...]:
+        """The order concrete subclasses are tried in: GLFW → EGL → OSMesa."""
+        return _GLContextGLFW, _GLContextEGL, _GLContextOSMesa
 
     def __init__(self):
         if GLContext.__instance is not None:
@@ -460,6 +470,21 @@ class GLContext:
 
         if self._vao is not None:
             gl.glBindVertexArray(self._vao)
+
+
+class _GLContextGLFW(GLContext):
+    pass
+
+
+class _GLContextEGL(GLContext):
+    pass
+
+
+class _GLContextOSMesa(GLContext):
+    pass
+
+
+# ----------------------------------------------------------
 
 
 def _compile_shader(source: str, shader_type: int) -> int:
