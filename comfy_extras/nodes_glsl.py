@@ -69,17 +69,6 @@ logger.debug("nodes_glsl: running _check_opengl_availability at import time")
 _check_opengl_availability()
 
 
-def _import_opengl():
-    """Import OpenGL module. Called after context is created."""
-    global gl
-    if gl is None:
-        logger.debug("_import_opengl: importing OpenGL.GL")
-        import OpenGL.GL as _gl
-        gl = _gl
-        logger.debug("_import_opengl: import completed")
-    return gl
-
-
 class SizeModeInput(TypedDict):
     size_mode: str
     width: int
@@ -155,158 +144,6 @@ def _detect_pass_count(source: str) -> int:
     if match:
         return max(1, int(match.group(1)))
     return 1
-
-
-def _init_glfw():
-    """Initialize GLFW. Returns (window, glfw_module). Raises RuntimeError on failure."""
-    logger.debug("_init_glfw: starting")
-    # On macOS, glfw.init() must be called from main thread or it hangs forever
-    if sys.platform == "darwin":
-        logger.debug("_init_glfw: skipping on macOS")
-        raise RuntimeError("GLFW backend not supported on macOS")
-
-    logger.debug("_init_glfw: importing glfw module")
-    import glfw as _glfw
-
-    logger.debug("_init_glfw: calling glfw.init()")
-    if not _glfw.init():
-        raise RuntimeError("glfw.init() failed")
-
-    try:
-        logger.debug("_init_glfw: setting window hints")
-        _glfw.window_hint(_glfw.VISIBLE, _glfw.FALSE)
-        _glfw.window_hint(_glfw.CONTEXT_VERSION_MAJOR, 3)
-        _glfw.window_hint(_glfw.CONTEXT_VERSION_MINOR, 3)
-        _glfw.window_hint(_glfw.OPENGL_PROFILE, _glfw.OPENGL_CORE_PROFILE)
-
-        logger.debug("_init_glfw: calling create_window()")
-        window = _glfw.create_window(64, 64, "ComfyUI GLSL", None, None)
-        if not window:
-            raise RuntimeError("glfw.create_window() failed")
-
-        logger.debug("_init_glfw: calling make_context_current()")
-        _glfw.make_context_current(window)
-        logger.debug("_init_glfw: completed successfully")
-        return window, _glfw
-    except Exception:
-        logger.debug("_init_glfw: failed, terminating glfw")
-        _glfw.terminate()
-        raise
-
-
-def _init_egl():
-    """Initialize EGL for headless rendering. Returns (display, context, surface, EGL_module). Raises RuntimeError on failure."""
-    logger.debug("_init_egl: starting")
-    from OpenGL import EGL as _EGL
-    from OpenGL.EGL import (
-        eglGetDisplay, eglInitialize, eglChooseConfig, eglCreateContext,
-        eglMakeCurrent, eglCreatePbufferSurface, eglBindAPI,
-        eglTerminate, eglDestroyContext, eglDestroySurface,
-        EGL_DEFAULT_DISPLAY, EGL_NO_CONTEXT, EGL_NONE,
-        EGL_SURFACE_TYPE, EGL_PBUFFER_BIT, EGL_RENDERABLE_TYPE, EGL_OPENGL_BIT,
-        EGL_RED_SIZE, EGL_GREEN_SIZE, EGL_BLUE_SIZE, EGL_ALPHA_SIZE, EGL_DEPTH_SIZE,
-        EGL_WIDTH, EGL_HEIGHT, EGL_OPENGL_API,
-    )
-    logger.debug("_init_egl: imports completed")
-
-    display = None
-    context = None
-    surface = None
-
-    try:
-        logger.debug("_init_egl: calling eglGetDisplay()")
-        display = eglGetDisplay(EGL_DEFAULT_DISPLAY)
-        if display == _EGL.EGL_NO_DISPLAY:
-            raise RuntimeError("eglGetDisplay() failed")
-
-        logger.debug("_init_egl: calling eglInitialize()")
-        major, minor = _EGL.EGLint(), _EGL.EGLint()
-        if not eglInitialize(display, major, minor):
-            display = None  # Not initialized, don't terminate
-            raise RuntimeError("eglInitialize() failed")
-        logger.debug(f"_init_egl: EGL version {major.value}.{minor.value}")
-
-        config_attribs = [
-            EGL_SURFACE_TYPE, EGL_PBUFFER_BIT,
-            EGL_RENDERABLE_TYPE, EGL_OPENGL_BIT,
-            EGL_RED_SIZE, 8, EGL_GREEN_SIZE, 8, EGL_BLUE_SIZE, 8, EGL_ALPHA_SIZE, 8,
-            EGL_DEPTH_SIZE, 0, EGL_NONE
-        ]
-        configs = (_EGL.EGLConfig * 1)()
-        num_configs = _EGL.EGLint()
-        if not eglChooseConfig(display, config_attribs, configs, 1, num_configs) or num_configs.value == 0:
-            raise RuntimeError("eglChooseConfig() failed")
-        config = configs[0]
-        logger.debug(f"_init_egl: config chosen, num_configs={num_configs.value}")
-
-        if not eglBindAPI(EGL_OPENGL_API):
-            raise RuntimeError("eglBindAPI() failed")
-
-        logger.debug("_init_egl: calling eglCreateContext()")
-        context_attribs = [
-            _EGL.EGL_CONTEXT_MAJOR_VERSION, 3,
-            _EGL.EGL_CONTEXT_MINOR_VERSION, 3,
-            _EGL.EGL_CONTEXT_OPENGL_PROFILE_MASK, _EGL.EGL_CONTEXT_OPENGL_CORE_PROFILE_BIT,
-            EGL_NONE
-        ]
-        context = eglCreateContext(display, config, EGL_NO_CONTEXT, context_attribs)
-        if context == EGL_NO_CONTEXT:
-            raise RuntimeError("eglCreateContext() failed")
-
-        logger.debug("_init_egl: calling eglCreatePbufferSurface()")
-        pbuffer_attribs = [EGL_WIDTH, 64, EGL_HEIGHT, 64, EGL_NONE]
-        surface = eglCreatePbufferSurface(display, config, pbuffer_attribs)
-        if surface == _EGL.EGL_NO_SURFACE:
-            raise RuntimeError("eglCreatePbufferSurface() failed")
-
-        logger.debug("_init_egl: calling eglMakeCurrent()")
-        if not eglMakeCurrent(display, surface, surface, context):
-            raise RuntimeError("eglMakeCurrent() failed")
-
-        logger.debug("_init_egl: completed successfully")
-        return display, context, surface, _EGL
-
-    except Exception:
-        logger.debug("_init_egl: failed, cleaning up")
-        # Clean up any resources on failure
-        if surface is not None:
-            eglDestroySurface(display, surface)
-        if context is not None:
-            eglDestroyContext(display, context)
-        if display is not None:
-            eglTerminate(display)
-        raise
-
-
-def _init_osmesa():
-    """Initialize OSMesa for software rendering. Returns (context, buffer). Raises RuntimeError on failure."""
-    import ctypes
-
-    logger.debug("_init_osmesa: starting")
-    os.environ["PYOPENGL_PLATFORM"] = "osmesa"
-
-    logger.debug("_init_osmesa: importing OpenGL.osmesa")
-    from OpenGL import GL as _gl
-    from OpenGL.osmesa import (
-        OSMesaCreateContextExt, OSMesaMakeCurrent, OSMesaDestroyContext,
-        OSMESA_RGBA,
-    )
-    logger.debug("_init_osmesa: imports completed")
-
-    ctx = OSMesaCreateContextExt(OSMESA_RGBA, 24, 0, 0, None)
-    if not ctx:
-        raise RuntimeError("OSMesaCreateContextExt() failed")
-
-    width, height = 64, 64
-    buffer = (ctypes.c_ubyte * (width * height * 4))()
-
-    logger.debug("_init_osmesa: calling OSMesaMakeCurrent()")
-    if not OSMesaMakeCurrent(ctx, buffer, _gl.GL_UNSIGNED_BYTE, width, height):
-        OSMesaDestroyContext(ctx)
-        raise RuntimeError("OSMesaMakeCurrent() failed")
-
-    logger.debug("_init_osmesa: completed successfully")
-    return ctx, buffer
 
 
 # ----------------------------------------------------------
@@ -411,7 +248,8 @@ class GLContext:
 
         # Now import OpenGL.GL (after context is current)
         logger.debug("GLContext.__init__: importing OpenGL.GL")
-        _import_opengl()
+        self.__import_opengl()
+        gl = self._gl
 
         # Create VAO (required for core profile, but OSMesa may use compat profile)
         logger.debug("GLContext.__init__: creating VAO")
@@ -431,6 +269,7 @@ class GLContext:
                     pass
 
         self.__initialized = True
+        self._glBindVertexArray = gl.glBindVertexArray
 
         elapsed = (time.perf_counter() - start_time) * 1000
 
@@ -444,6 +283,18 @@ class GLContext:
             gl_string(x) for x in [gl.GL_RENDERER, gl.GL_VENDOR, gl.GL_VERSION]
         )
         logger.info(f"GLSL context initialized in {elapsed:.1f}ms ({self.backend_name()}) - {renderer} ({vendor}), GL {version}")
+
+    def __import_opengl(self):
+        """Import OpenGL module. Called after context is created."""
+        global gl
+        if gl is not None:
+            return
+
+        logger.debug("__import_opengl: importing OpenGL.GL")
+        import OpenGL.GL as _gl
+        gl = _gl
+        self._gl = _gl
+        logger.debug("__import_opengl: import completed")
 
     @classmethod
     def backend_name(cls) -> str:
@@ -460,8 +311,9 @@ class GLContext:
     def make_current(self):
         self._make_current_concrete()
         if self._vao is not None:
-            gl.glBindVertexArray(self._vao)
+            self._glBindVertexArray(self._vao)
 
+##########
 
 class _GLContextGLFW(GLContext):
     """Concrete GLContext using GLFW backend."""
@@ -471,11 +323,49 @@ class _GLContextGLFW(GLContext):
 
     def _init_backend_concrete(self):
         global glfw
-        self._window, glfw = _init_glfw()
+        self._window, glfw = self.__init_glfw()
 
     def _make_current_concrete(self):
         glfw.make_context_current(self._window)
 
+    @staticmethod
+    def __init_glfw():
+        """Initialize GLFW. Returns (window, glfw_module). Raises RuntimeError on failure."""
+        logger.debug("__init_glfw: starting")
+        # On macOS, glfw.init() must be called from main thread or it hangs forever
+        if sys.platform == "darwin":
+            logger.debug("__init_glfw: skipping on macOS")
+            raise RuntimeError("GLFW backend not supported on macOS")
+
+        logger.debug("__init_glfw: importing glfw module")
+        import glfw as _glfw
+
+        logger.debug("__init_glfw: calling glfw.init()")
+        if not _glfw.init():
+            raise RuntimeError("glfw.init() failed")
+
+        try:
+            logger.debug("__init_glfw: setting window hints")
+            _glfw.window_hint(_glfw.VISIBLE, _glfw.FALSE)
+            _glfw.window_hint(_glfw.CONTEXT_VERSION_MAJOR, 3)
+            _glfw.window_hint(_glfw.CONTEXT_VERSION_MINOR, 3)
+            _glfw.window_hint(_glfw.OPENGL_PROFILE, _glfw.OPENGL_CORE_PROFILE)
+
+            logger.debug("__init_glfw: calling create_window()")
+            window = _glfw.create_window(64, 64, "ComfyUI GLSL", None, None)
+            if not window:
+                raise RuntimeError("glfw.create_window() failed")
+
+            logger.debug("__init_glfw: calling make_context_current()")
+            _glfw.make_context_current(window)
+            logger.debug("__init_glfw: completed successfully")
+            return window, _glfw
+        except Exception:
+            logger.debug("__init_glfw: failed, terminating glfw")
+            _glfw.terminate()
+            raise
+
+##########
 
 class _GLContextEGL(GLContext):
     """Concrete GLContext using EGL backend."""
@@ -485,12 +375,97 @@ class _GLContextEGL(GLContext):
 
     def _init_backend_concrete(self):
         global EGL
-        self._egl_display, self._egl_context, self._egl_surface, EGL = _init_egl()
+        self._egl_display, self._egl_context, self._egl_surface, EGL = self.__init_egl()
 
     def _make_current_concrete(self):
         from OpenGL.EGL import eglMakeCurrent
         eglMakeCurrent(self._egl_display, self._egl_surface, self._egl_surface, self._egl_context)
 
+    @staticmethod
+    def __init_egl():
+        """Initialize EGL for headless rendering. Returns (display, context, surface, EGL_module). Raises RuntimeError on failure."""
+        logger.debug("__init_egl: starting")
+        from OpenGL import EGL as _EGL
+        from OpenGL.EGL import (
+            eglGetDisplay, eglInitialize, eglChooseConfig, eglCreateContext,
+            eglMakeCurrent, eglCreatePbufferSurface, eglBindAPI,
+            eglTerminate, eglDestroyContext, eglDestroySurface,
+            EGL_DEFAULT_DISPLAY, EGL_NO_CONTEXT, EGL_NONE,
+            EGL_SURFACE_TYPE, EGL_PBUFFER_BIT, EGL_RENDERABLE_TYPE, EGL_OPENGL_BIT,
+            EGL_RED_SIZE, EGL_GREEN_SIZE, EGL_BLUE_SIZE, EGL_ALPHA_SIZE, EGL_DEPTH_SIZE,
+            EGL_WIDTH, EGL_HEIGHT, EGL_OPENGL_API,
+        )
+        logger.debug("__init_egl: imports completed")
+
+        display = None
+        context = None
+        surface = None
+
+        try:
+            logger.debug("__init_egl: calling eglGetDisplay()")
+            display = eglGetDisplay(EGL_DEFAULT_DISPLAY)
+            if display == _EGL.EGL_NO_DISPLAY:
+                raise RuntimeError("eglGetDisplay() failed")
+
+            logger.debug("__init_egl: calling eglInitialize()")
+            major, minor = _EGL.EGLint(), _EGL.EGLint()
+            if not eglInitialize(display, major, minor):
+                display = None  # Not initialized, don't terminate
+                raise RuntimeError("eglInitialize() failed")
+            logger.debug(f"__init_egl: EGL version {major.value}.{minor.value}")
+
+            config_attribs = [
+                EGL_SURFACE_TYPE, EGL_PBUFFER_BIT,
+                EGL_RENDERABLE_TYPE, EGL_OPENGL_BIT,
+                EGL_RED_SIZE, 8, EGL_GREEN_SIZE, 8, EGL_BLUE_SIZE, 8, EGL_ALPHA_SIZE, 8,
+                EGL_DEPTH_SIZE, 0, EGL_NONE
+            ]
+            configs = (_EGL.EGLConfig * 1)()
+            num_configs = _EGL.EGLint()
+            if not eglChooseConfig(display, config_attribs, configs, 1, num_configs) or num_configs.value == 0:
+                raise RuntimeError("eglChooseConfig() failed")
+            config = configs[0]
+            logger.debug(f"__init_egl: config chosen, num_configs={num_configs.value}")
+
+            if not eglBindAPI(EGL_OPENGL_API):
+                raise RuntimeError("eglBindAPI() failed")
+
+            logger.debug("__init_egl: calling eglCreateContext()")
+            context_attribs = [
+                _EGL.EGL_CONTEXT_MAJOR_VERSION, 3,
+                _EGL.EGL_CONTEXT_MINOR_VERSION, 3,
+                _EGL.EGL_CONTEXT_OPENGL_PROFILE_MASK, _EGL.EGL_CONTEXT_OPENGL_CORE_PROFILE_BIT,
+                EGL_NONE
+            ]
+            context = eglCreateContext(display, config, EGL_NO_CONTEXT, context_attribs)
+            if context == EGL_NO_CONTEXT:
+                raise RuntimeError("eglCreateContext() failed")
+
+            logger.debug("__init_egl: calling eglCreatePbufferSurface()")
+            pbuffer_attribs = [EGL_WIDTH, 64, EGL_HEIGHT, 64, EGL_NONE]
+            surface = eglCreatePbufferSurface(display, config, pbuffer_attribs)
+            if surface == _EGL.EGL_NO_SURFACE:
+                raise RuntimeError("eglCreatePbufferSurface() failed")
+
+            logger.debug("__init_egl: calling eglMakeCurrent()")
+            if not eglMakeCurrent(display, surface, surface, context):
+                raise RuntimeError("eglMakeCurrent() failed")
+
+            logger.debug("__init_egl: completed successfully")
+            return display, context, surface, _EGL
+
+        except Exception:
+            logger.debug("__init_egl: failed, cleaning up")
+            # Clean up any resources on failure
+            if surface is not None:
+                eglDestroySurface(display, surface)
+            if context is not None:
+                eglDestroyContext(display, context)
+            if display is not None:
+                eglTerminate(display)
+            raise
+
+##########
 
 class _GLContextOSMesa(GLContext):
     """Concrete GLContext using OSMesa backend."""
@@ -499,11 +474,42 @@ class _GLContextOSMesa(GLContext):
         return "OSMesa"
 
     def _init_backend_concrete(self):
-        self._osmesa_ctx, self._osmesa_buffer = _init_osmesa()
+        self._osmesa_ctx, self._osmesa_buffer = self.__init_osmesa()
 
     def _make_current_concrete(self):
         from OpenGL.osmesa import OSMesaMakeCurrent
         OSMesaMakeCurrent(self._osmesa_ctx, self._osmesa_buffer, gl.GL_UNSIGNED_BYTE, 64, 64)
+
+    @staticmethod
+    def __init_osmesa():
+        """Initialize OSMesa for software rendering. Returns (context, buffer). Raises RuntimeError on failure."""
+        import ctypes
+
+        logger.debug("__init_osmesa: starting")
+        os.environ["PYOPENGL_PLATFORM"] = "osmesa"
+
+        logger.debug("__init_osmesa: importing OpenGL.osmesa")
+        from OpenGL import GL as _gl
+        from OpenGL.osmesa import (
+            OSMesaCreateContextExt, OSMesaMakeCurrent, OSMesaDestroyContext,
+            OSMESA_RGBA,
+        )
+        logger.debug("__init_osmesa: imports completed")
+
+        ctx = OSMesaCreateContextExt(OSMESA_RGBA, 24, 0, 0, None)
+        if not ctx:
+            raise RuntimeError("OSMesaCreateContextExt() failed")
+
+        width, height = 64, 64
+        buffer = (ctypes.c_ubyte * (width * height * 4))()
+
+        logger.debug("__init_osmesa: calling OSMesaMakeCurrent()")
+        if not OSMesaMakeCurrent(ctx, buffer, _gl.GL_UNSIGNED_BYTE, width, height):
+            OSMesaDestroyContext(ctx)
+            raise RuntimeError("OSMesaMakeCurrent() failed")
+
+        logger.debug("__init_osmesa: completed successfully")
+        return ctx, buffer
 
 
 # ----------------------------------------------------------
