@@ -326,6 +326,33 @@ class GLContext:
 
         return shader
 
+    def create_program(self, vertex_source: str, fragment_source: str) -> int:
+        """Create and link a shader program."""
+        gl = self._gl
+        compile = self.compile_shader
+
+        vertex_shader = compile(vertex_source, gl.GL_VERTEX_SHADER)
+        try:
+            fragment_shader = compile(fragment_source, gl.GL_FRAGMENT_SHADER)
+        except RuntimeError:
+            gl.glDeleteShader(vertex_shader)
+            raise
+
+        program = gl.glCreateProgram()
+        gl.glAttachShader(program, vertex_shader)
+        gl.glAttachShader(program, fragment_shader)
+        gl.glLinkProgram(program)
+
+        gl.glDeleteShader(vertex_shader)
+        gl.glDeleteShader(fragment_shader)
+
+        if gl.glGetProgramiv(program, gl.GL_LINK_STATUS) != gl.GL_TRUE:
+            error = gl.glGetProgramInfoLog(program).decode()
+            gl.glDeleteProgram(program)
+            raise RuntimeError(f"Program linking failed:\n{error}")
+
+        return program
+
 ##########
 
 class _GLContextGLFW(GLContext):
@@ -515,32 +542,6 @@ class _GLContextOSMesa(GLContext):
 ############################################################
 
 
-def _create_program(vertex_source: str, fragment_source: str) -> int:
-    """Create and link a shader program."""
-    ctx = GLContext()
-    vertex_shader = ctx.compile_shader(vertex_source, gl.GL_VERTEX_SHADER)
-    try:
-        fragment_shader = ctx.compile_shader(fragment_source, gl.GL_FRAGMENT_SHADER)
-    except RuntimeError:
-        gl.glDeleteShader(vertex_shader)
-        raise
-
-    program = gl.glCreateProgram()
-    gl.glAttachShader(program, vertex_shader)
-    gl.glAttachShader(program, fragment_shader)
-    gl.glLinkProgram(program)
-
-    gl.glDeleteShader(vertex_shader)
-    gl.glDeleteShader(fragment_shader)
-
-    if gl.glGetProgramiv(program, gl.GL_LINK_STATUS) != gl.GL_TRUE:
-        error = gl.glGetProgramInfoLog(program).decode()
-        gl.glDeleteProgram(program)
-        raise RuntimeError(f"Program linking failed:\n{error}")
-
-    return program
-
-
 def _render_shader_batch(
     fragment_code: str,
     width: int,
@@ -597,7 +598,7 @@ def _render_shader_batch(
     try:
         # Compile shaders (once for all batches)
         try:
-            program = _create_program(VERTEX_SHADER, fragment_source)
+            program = ctx.create_program(VERTEX_SHADER, fragment_source)
         except RuntimeError:
             logger.error(f"Fragment shader:\n{fragment_source}")
             raise
