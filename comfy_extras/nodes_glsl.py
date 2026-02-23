@@ -326,7 +326,7 @@ class GLContext:
         # Since ``GLContext`` is a singleton anyway, we should store it
         # explicitly in ``GLContext.__instance``, NOT in ``cls.__instance``.
         if GLContext.__instance is None:
-            GLContext.__instance = super().__new__(cls)
+            GLContext.__instance = GLContext.__new_instance_using_concrete_class_fallback_order()
             assert isinstance(GLContext.__instance, GLContext)
         return GLContext.__instance
 
@@ -335,99 +335,29 @@ class GLContext:
         """The order concrete subclasses are tried in: GLFW → EGL → OSMesa."""
         return _GLContextGLFW, _GLContextEGL, _GLContextOSMesa
 
-    def __init__(self):
-        if GLContext.__instance is not None:
-            logger.debug("GLContext.__init__: already initialized, skipping")
-            return
+    @staticmethod
+    def __new_instance_using_concrete_class_fallback_order() -> 'GLContext':
+        """Try to init backends in the fallback order.
 
-        logger.debug("GLContext.__init__: starting initialization")
-
-        global glfw, EGL
-
-        import time
-        start_time: float = time.perf_counter()
-
-        self._backend = None
-        self._window = None
-        self._egl_display = None
-        self._egl_context = None
-        self._egl_surface = None
-        self._osmesa_ctx = None
-        self._osmesa_buffer = None
-        self._vao = None
-
-        self._init_try_backend()
-
-        # Now import OpenGL.GL (after context is current)
-        logger.debug("GLContext.__init__: importing OpenGL.GL")
-        _import_opengl()
-
-        # Create VAO (required for core profile, but OSMesa may use compat profile)
-        logger.debug("GLContext.__init__: creating VAO")
-        try:
-            vao = gl.glGenVertexArrays(1)
-            gl.glBindVertexArray(vao)
-            self._vao = vao  # Only store after successful bind
-            logger.debug("GLContext.__init__: VAO created successfully")
-        except Exception as e:
-            logger.debug(f"GLContext.__init__: VAO creation failed (may be expected for OSMesa): {e}")
-            # OSMesa with older Mesa may not support VAOs
-            # Clean up if we created but couldn't bind
-            if vao:
-                try:
-                    gl.glDeleteVertexArrays(1, [vao])
-                except Exception:
-                    pass
-
-        elapsed = (time.perf_counter() - start_time) * 1000
-
-        # Log device info
-        renderer = gl.glGetString(gl.GL_RENDERER)
-        vendor = gl.glGetString(gl.GL_VENDOR)
-        version = gl.glGetString(gl.GL_VERSION)
-        renderer = renderer.decode() if renderer else "Unknown"
-        vendor = vendor.decode() if vendor else "Unknown"
-        version = version.decode() if version else "Unknown"
-
-        logger.info(f"GLSL context initialized in {elapsed:.1f}ms ({self._backend}) - {renderer} ({vendor}), GL {version}")
-
-    def _init_try_backend(self):
-        """Try to init backends in fallback order: GLFW → EGL → OSMesa. Raises RuntimeError on failure.
+        Called from ``__new__()`` on first attempt to instantiate the singleton.
+        Raises RuntimeError if none of the backends work.
         """
-        global glfw, EGL
+        errors: list[tuple[str, Exception]] = []
 
-        errors = []
-        self._backend = None
-
-        logger.debug("GLContext.__init__: trying GLFW backend")
-        try:
-            self._window, glfw = _init_glfw()
-            self._backend = "glfw"
-            logger.debug("GLContext.__init__: GLFW backend succeeded")
-            return
-        except Exception as e:
-            logger.debug(f"GLContext.__init__: GLFW backend failed: {e}")
-            errors.append(("GLFW", e))
-
-        logger.debug("GLContext.__init__: trying EGL backend")
-        try:
-            self._egl_display, self._egl_context, self._egl_surface, EGL = _init_egl()
-            self._backend = "egl"
-            logger.debug("GLContext.__init__: EGL backend succeeded")
-            return
-        except Exception as e:
-            logger.debug(f"GLContext.__init__: EGL backend failed: {e}")
-            errors.append(("EGL", e))
-
-        logger.debug("GLContext.__init__: trying OSMesa backend")
-        try:
-            self._osmesa_ctx, self._osmesa_buffer = _init_osmesa()
-            self._backend = "osmesa"
-            logger.debug("GLContext.__init__: OSMesa backend succeeded")
-            return
-        except Exception as e:
-            logger.debug(f"GLContext.__init__: OSMesa backend failed: {e}")
-            errors.append(("OSMesa", e))
+        for cls in GLContext.__concrete_class_fallback_order():
+            name = cls.backend_name()
+            logger.debug(f"GLContext.__init__: trying {name} backend")
+            try:
+                instance: GLContext = object.__new__(cls)
+                # Since this code is called while in `__new__()`, we need to manually call `__init__()`, too.
+                # Otherwise, Python would call it only AFTER `__new__()`, causing init errors outside our try-except check.
+                instance.__init__()
+                logger.debug(f"GLContext.__init__: {name} backend succeeded. The singleton is: {cls!r}")
+                logger.info(f"Concrete GLSL context initialized as: {name}")
+                return instance
+            except Exception as e:
+                logger.debug(f"GLContext.__init__: {name} backend failed: {e}")
+                errors.append((name, e))
 
         # If we still haven't returned, none of the backends succeeded.
         # Let's raise the error.
@@ -458,30 +388,122 @@ class GLContext:
             f"{platform_help}"
         )
 
-    def make_current(self):
-        if self._backend == "glfw":
-            glfw.make_context_current(self._window)
-        elif self._backend == "egl":
-            from OpenGL.EGL import eglMakeCurrent
-            eglMakeCurrent(self._egl_display, self._egl_surface, self._egl_surface, self._egl_context)
-        elif self._backend == "osmesa":
-            from OpenGL.osmesa import OSMesaMakeCurrent
-            OSMesaMakeCurrent(self._osmesa_ctx, self._osmesa_buffer, gl.GL_UNSIGNED_BYTE, 64, 64)
+    def __init__(self):
+        try:
+            if self.__initialized:
+                # 99% of the time (after first init) we get here and just return
+                logger.debug("GLContext.__init__: already initialized, skipping")
+                return
+            logger.warning("GLContext.__init__: weird state: the singleton has <__initialized> attribute, but is NOT initialized.")
+        except AttributeError:
+            # First instance creation: it was created with `__new__()`, but hasn't been initialized yet
+            pass
 
+        logger.debug("GLContext.__init__: starting initialization")
+
+        self.__initialized: bool = False
+        self._vao = None
+
+        import time
+        start_time: float = time.perf_counter()
+
+        self._init_backend_concrete()  # must fully initialize backend
+
+        # Now import OpenGL.GL (after context is current)
+        logger.debug("GLContext.__init__: importing OpenGL.GL")
+        _import_opengl()
+
+        # Create VAO (required for core profile, but OSMesa may use compat profile)
+        logger.debug("GLContext.__init__: creating VAO")
+        try:
+            vao = gl.glGenVertexArrays(1)
+            gl.glBindVertexArray(vao)
+            self._vao = vao  # Only store after successful bind
+            logger.debug("GLContext.__init__: VAO created successfully")
+        except Exception as e:
+            logger.debug(f"GLContext.__init__: VAO creation failed (may be expected for OSMesa): {e}")
+            # OSMesa with older Mesa may not support VAOs
+            # Clean up if we created but couldn't bind
+            if vao:
+                try:
+                    gl.glDeleteVertexArrays(1, [vao])
+                except Exception:
+                    pass
+
+        self.__initialized = True
+
+        elapsed = (time.perf_counter() - start_time) * 1000
+
+        # Log device info
+
+        def gl_string(value) -> str:
+            string = gl.glGetString(value)
+            return string.decode() if string else "Unknown"
+
+        renderer, vendor, version = (
+            gl_string(x) for x in [gl.GL_RENDERER, gl.GL_VENDOR, gl.GL_VERSION]
+        )
+        logger.info(f"GLSL context initialized in {elapsed:.1f}ms ({self.backend_name()}) - {renderer} ({vendor}), GL {version}")
+
+    @classmethod
+    def backend_name(cls) -> str:
+        """Per-concrete-class unique string identifier. Used for log messages."""
+        raise NotImplementedError("Must be implemented in a concrete subclass.")
+
+    def _init_backend_concrete(self):
+        """Actual initialisation hook of a concrete backend. Called mid-init."""
+        raise NotImplementedError("Must be implemented in a concrete subclass.")
+
+    def _make_current_concrete(self):
+        raise NotImplementedError("Must be implemented in a concrete subclass.")
+
+    def make_current(self):
+        self._make_current_concrete()
         if self._vao is not None:
             gl.glBindVertexArray(self._vao)
 
 
 class _GLContextGLFW(GLContext):
-    pass
+    """Concrete GLContext using GLFW backend."""
+    @classmethod
+    def backend_name(cls) -> str:
+        return "GLFW"
+
+    def _init_backend_concrete(self):
+        global glfw
+        self._window, glfw = _init_glfw()
+
+    def _make_current_concrete(self):
+        glfw.make_context_current(self._window)
 
 
 class _GLContextEGL(GLContext):
-    pass
+    """Concrete GLContext using EGL backend."""
+    @classmethod
+    def backend_name(cls) -> str:
+        return "EGL"
+
+    def _init_backend_concrete(self):
+        global EGL
+        self._egl_display, self._egl_context, self._egl_surface, EGL = _init_egl()
+
+    def _make_current_concrete(self):
+        from OpenGL.EGL import eglMakeCurrent
+        eglMakeCurrent(self._egl_display, self._egl_surface, self._egl_surface, self._egl_context)
 
 
 class _GLContextOSMesa(GLContext):
-    pass
+    """Concrete GLContext using OSMesa backend."""
+    @classmethod
+    def backend_name(cls) -> str:
+        return "OSMesa"
+
+    def _init_backend_concrete(self):
+        self._osmesa_ctx, self._osmesa_buffer = _init_osmesa()
+
+    def _make_current_concrete(self):
+        from OpenGL.osmesa import OSMesaMakeCurrent
+        OSMesaMakeCurrent(self._osmesa_ctx, self._osmesa_buffer, gl.GL_UNSIGNED_BYTE, 64, 64)
 
 
 # ----------------------------------------------------------
