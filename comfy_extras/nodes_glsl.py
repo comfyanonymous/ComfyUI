@@ -16,9 +16,6 @@ from utils.install_util import get_missing_requirements_message
 
 logger = logging.getLogger(__name__)
 
-# OpenGL modules - initialized lazily when context is created
-gl = None
-
 
 def _check_opengl_availability():
     """Early check for OpenGL availability. Raises RuntimeError if unlikely to work."""
@@ -284,13 +281,8 @@ class GLContext:
 
     def __import_opengl(self):
         """Import OpenGL module. Called after context is created."""
-        global gl
-        if gl is not None:
-            return
-
         logger.debug("__import_opengl: importing OpenGL.GL")
         import OpenGL.GL as _gl
-        gl = _gl
         self._gl = _gl
         logger.debug("__import_opengl: import completed")
 
@@ -310,6 +302,11 @@ class GLContext:
         self._make_current_concrete()
         if self._vao is not None:
             self._glBindVertexArray(self._vao)
+
+    @property
+    def GL(self):
+        """Imported ``OpenGL.GL`` module."""
+        return self._gl
 
     def compile_shader(self, source: str, shader_type: int) -> int:
         """Compile a shader and return its ID."""
