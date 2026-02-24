@@ -323,7 +323,7 @@ class ByteDanceSeedreamNode(IO.ComfyNode):
         mp_provided = out_num_pixels / 1_000_000.0
         if ("seedream-4-5" in model or "seedream-5-0" in model) and out_num_pixels < 3686400:
             raise ValueError(
-                f"Minimum image resolution that Seedream 4.5 can generate is 3.68MP, "
+                f"Minimum image resolution for the selected model is 3.68MP, "
                 f"but {mp_provided:.2f}MP provided."
             )
         if "seedream-4-0" in model and out_num_pixels < 921600:
