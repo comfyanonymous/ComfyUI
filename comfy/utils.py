@@ -80,7 +80,7 @@ _TYPES = {
     "U16": torch.uint16,
 }
 
-def load_safetensors(ckpt):
+def load_safetensors(ckpt, device):
     f = open(ckpt, "rb")
     mapping = mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ)
     mv = memoryview(mapping)
@@ -103,6 +103,8 @@ def load_safetensors(ckpt):
                 #We are working with read-only RAM by design
                 warnings.filterwarnings("ignore", message="The given buffer is not writable")
                 sd[name] = torch.frombuffer(mv[start:end], dtype=_TYPES[info["dtype"]]).view(info["shape"])
+                if (device != 'cpu' if isinstance(device, str) else device.type != 'cpu'):
+                    sd[name] = sd[name].to(device)
 
     return sd, header.get("__metadata__", {}),
 
@@ -115,7 +117,7 @@ def load_torch_file(ckpt, safe_load=False, device=None, return_metadata=False):
         try:
             # TODO: Not sure if this is the best way to bypass the mmap issues
             if DISABLE_MMAP or enables_dynamic_vram():
-                sd, metadata = load_safetensors(ckpt)
+                sd, metadata = load_safetensors(ckpt, device)
                 if not return_metadata:
                     metadata = None
             else:
