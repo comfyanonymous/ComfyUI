@@ -1489,9 +1489,6 @@ class WanSCAILToVideo(io.ComfyNode):
     def execute(cls, positive, negative, vae, width, height, length, batch_size, pose_strength, pose_start, pose_end, reference_image=None, clip_vision_output=None, pose_video=None) -> io.NodeOutput:
         latent = torch.zeros([batch_size, 16, ((length - 1) // 4) + 1, height // 8, width // 8], device=comfy.model_management.intermediate_device())
 
-        if reference_image is None:
-            reference_image = torch.zeros((1, height, width, 3))
-
         ref_latent = None
         if reference_image is not None:
             reference_image = comfy.utils.common_upscale(reference_image[:1].movedim(-1, 1), width, height, "bilinear", "center").movedim(1, -1)
