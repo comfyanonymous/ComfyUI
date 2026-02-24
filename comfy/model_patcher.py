@@ -308,8 +308,15 @@ class ModelPatcher:
     def get_free_memory(self, device):
         return comfy.model_management.get_free_memory(device)
 
-    def clone(self):
-        n = self.__class__(self.model, self.load_device, self.offload_device, self.model_size(), weight_inplace_update=self.weight_inplace_update)
+    def clone(self, disable_dynamic=False):
+        class_ = self.__class__
+        model = self.model
+        if self.is_dynamic() and disable_dynamic:
+            class_ = ModelPatcher
+            temp_model_patcher = self.cached_patcher_init[0](*self.cached_patcher_init[1], disable_dynamic=True)
+            model = temp_model_patcher.model
+
+        n = class_(model, self.load_device, self.offload_device, self.model_size(), weight_inplace_update=self.weight_inplace_update)
         n.patches = {}
         for k in self.patches:
             n.patches[k] = self.patches[k][:]
