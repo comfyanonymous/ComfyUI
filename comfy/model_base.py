@@ -1513,6 +1513,10 @@ class WAN21_SCAIL(WAN21):
         if ref_latents is not None:
             out['reference_latent'] = list([1, 16, sum(map(lambda a: math.prod(a.size()), ref_latents)) // 16])
 
+        pose_latents = kwargs.get("pose_video_latent", None)
+        if pose_latents is not None:
+            out['pose_latents'] = pose_latents.shape
+
         return out
 
 class Hunyuan3Dv2(BaseModel):
