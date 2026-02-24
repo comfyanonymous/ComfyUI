@@ -113,7 +113,8 @@ def load_torch_file(ckpt, safe_load=False, device=None, return_metadata=False):
     metadata = None
     if ckpt.lower().endswith(".safetensors") or ckpt.lower().endswith(".sft"):
         try:
-            if enables_dynamic_vram():
+            # TODO: Not sure if this is the best way to bypass the mmap issues
+            if DISABLE_MMAP or enables_dynamic_vram():
                 sd, metadata = load_safetensors(ckpt)
                 if not return_metadata:
                     metadata = None
@@ -122,8 +123,6 @@ def load_torch_file(ckpt, safe_load=False, device=None, return_metadata=False):
                     sd = {}
                     for k in f.keys():
                         tensor = f.get_tensor(k)
-                        if DISABLE_MMAP:  # TODO: Not sure if this is the best way to bypass the mmap issues
-                            tensor = tensor.to(device=device, copy=True)
                         sd[k] = tensor
                     if return_metadata:
                         metadata = f.metadata()
