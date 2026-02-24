@@ -27,6 +27,7 @@ class Seedream4TaskCreationRequest(BaseModel):
     sequential_image_generation: str = Field("disabled")
     sequential_image_generation_options: Seedream4Options = Field(Seedream4Options(max_images=15))
     watermark: bool = Field(False)
+    output_format: str | None = None
 
 
 class ImageTaskCreationResponse(BaseModel):
@@ -106,6 +107,7 @@ RECOMMENDED_PRESETS_SEEDREAM_4 = [
     ("2496x1664 (3:2)", 2496, 1664),
     ("1664x2496 (2:3)", 1664, 2496),
     ("3024x1296 (21:9)", 3024, 1296),
+    ("3072x3072 (1:1)", 3072, 3072),
     ("4096x4096 (1:1)", 4096, 4096),
     ("Custom", None, None),
 ]

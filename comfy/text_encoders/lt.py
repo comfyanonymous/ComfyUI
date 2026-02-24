@@ -101,12 +101,35 @@ class LTXAVTEModel(torch.nn.Module):
         super().__init__()
         self.dtypes = set()
         self.dtypes.add(dtype)
+        self.compat_mode = False
 
         self.gemma3_12b = Gemma3_12BModel(device=device, dtype=dtype_llama, model_options=model_options, layer="all", layer_idx=None)
         self.dtypes.add(dtype_llama)
 
         operations = self.gemma3_12b.operations # TODO
         self.text_embedding_projection = operations.Linear(3840 * 49, 3840, bias=False, dtype=dtype, device=device)
+
+    def enable_compat_mode(self):  # TODO: remove
+        from comfy.ldm.lightricks.embeddings_connector import Embeddings1DConnector
+        operations = self.gemma3_12b.operations
+        dtype = self.text_embedding_projection.weight.dtype
+        device = self.text_embedding_projection.weight.device
+        self.audio_embeddings_connector = Embeddings1DConnector(
+            split_rope=True,
+            double_precision_rope=True,
+            dtype=dtype,
+            device=device,
+            operations=operations,
+        )
+
+        self.video_embeddings_connector = Embeddings1DConnector(
+            split_rope=True,
+            double_precision_rope=True,
+            dtype=dtype,
+            device=device,
+            operations=operations,
+        )
+        self.compat_mode = True
 
     def set_clip_options(self, options):
         self.execution_device = options.get("execution_device", self.execution_device)
@@ -129,6 +152,12 @@ class LTXAVTEModel(torch.nn.Module):
         out = out.reshape((out.shape[0], out.shape[1], -1))
         out = self.text_embedding_projection(out)
         out = out.float()
+
+        if self.compat_mode:
+            out_vid = self.video_embeddings_connector(out)[0]
+            out_audio = self.audio_embeddings_connector(out)[0]
+            out = torch.concat((out_vid, out_audio), dim=-1)
+
         return out.to(out_device), pooled
 
     def generate(self, tokens, do_sample, max_length, temperature, top_k, top_p, min_p, repetition_penalty, seed):
@@ -151,6 +180,16 @@ class LTXAVTEModel(torch.nn.Module):
                     missing, unexpected = component.load_state_dict(component_sd, strict=False, assign=getattr(self, "can_assign_sd", False))
                     missing_all.extend([f"{prefix}{k}" for k in missing])
                     unexpected_all.extend([f"{prefix}{k}" for k in unexpected])
+
+            if "model.diffusion_model.audio_embeddings_connector.transformer_1d_blocks.2.attn1.to_q.bias" not in sd:  # TODO: remove
+                ww = sd.get("model.diffusion_model.audio_embeddings_connector.transformer_1d_blocks.0.attn1.to_q.bias", None)
+                if ww is not None:
+                    if ww.shape[0] == 3840:
+                        self.enable_compat_mode()
+                        sdv = comfy.utils.state_dict_prefix_replace(sd, {"model.diffusion_model.video_embeddings_connector.": ""}, filter_keys=True)
+                        self.video_embeddings_connector.load_state_dict(sdv, strict=False, assign=getattr(self, "can_assign_sd", False))
+                        sda = comfy.utils.state_dict_prefix_replace(sd, {"model.diffusion_model.audio_embeddings_connector.": ""}, filter_keys=True)
+                        self.audio_embeddings_connector.load_state_dict(sda, strict=False, assign=getattr(self, "can_assign_sd", False))
 
             return (missing_all, unexpected_all)
 
