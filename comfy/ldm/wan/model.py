@@ -1717,6 +1717,9 @@ class SCAILWanModel(WanModel):
         bs, c, t, h, w = x.shape
         x = comfy.ldm.common_dit.pad_to_patch_size(x, self.patch_size)
 
+        if pose_latents is not None:
+            pose_latents = comfy.ldm.common_dit.pad_to_patch_size(pose_latents, self.patch_size)
+
         t_len = t
         if time_dim_concat is not None:
             time_dim_concat = comfy.ldm.common_dit.pad_to_patch_size(time_dim_concat, self.patch_size)

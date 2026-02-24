@@ -1474,8 +1474,8 @@ class WanSCAILToVideo(io.ComfyNode):
                 io.Image.Input("reference_image", optional=True),
                 io.Image.Input("pose_video", optional=True, tooltip="Video used for pose conditioning. Will be downscaled to half the resolution of the main video."),
                 io.Float.Input("pose_strength", default=1.0, min=0.0, max=10.0, step=0.01, tooltip="Strength of the pose latent."),
-                io.Float.Input("pose_start", default=0.0, min=0.0, max=10.0, step=0.01, tooltip="Start step to use pose conditioning."),
-                io.Float.Input("pose_end", default=1.0, min=0.0, max=10.0, step=0.01, tooltip="End step to use pose conditioning."),
+                io.Float.Input("pose_start", default=0.0, min=0.0, max=1.0, step=0.01, tooltip="Start step to use pose conditioning."),
+                io.Float.Input("pose_end", default=1.0, min=0.0, max=1.0, step=0.01, tooltip="End step to use pose conditioning."),
             ],
             outputs=[
                 io.Conditioning.Output(display_name="positive"),
