@@ -275,7 +275,8 @@ class EmptyShapeLatentTrellis2(IO.ComfyNode):
         decoded = structure_output.data.unsqueeze(1)
         coords = torch.argwhere(decoded.bool())[:, [0, 2, 3, 4]].int()
         in_channels = 32
-        latent = torch.randn(1, coords.shape[0], in_channels)
+        # image like format
+        latent = torch.randn(1, in_channels, coords.shape[0], 1)
         model = model.clone()
         model.model_options = model.model_options.copy()
         if "transformer_options" in model.model_options:

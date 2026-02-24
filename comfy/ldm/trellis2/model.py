@@ -772,7 +772,7 @@ class Trellis2(nn.Module):
         coords = transformer_options.get("coords", None)
         mode = transformer_options.get("generation_mode", "structure_generation")
         if coords is not None:
-            x = x.squeeze(0)
+            x = x.squeeze(-1).transpose(1, 2)
             not_struct_mode = True
         else:
             mode = "structure_generation"
@@ -824,5 +824,5 @@ class Trellis2(nn.Module):
         if not_struct_mode:
             out = out.feats
             if mode == "shape_generation":
-                out = out.view(B, N, -1)
+                out = out.view(B, N, -1).transpose(1, 2).unsqueeze(-1)
         return out
