@@ -37,6 +37,12 @@ from comfy_api_nodes.util import (
 
 BYTEPLUS_IMAGE_ENDPOINT = "/proxy/byteplus/api/v3/images/generations"
 
+SEEDREAM_MODELS = {
+    "seedream 5.0 lite": "seedream-5-0-260128",
+    "seedream-4-5-251128": "seedream-4-5-251128",
+    "seedream-4-0-250828": "seedream-4-0-250828",
+}
+
 # Long-running tasks endpoints(e.g., video)
 BYTEPLUS_TASK_ENDPOINT = "/proxy/byteplus/api/v3/contents/generations/tasks"
 BYTEPLUS_TASK_STATUS_ENDPOINT = "/proxy/byteplus/api/v3/contents/generations/tasks"  # + /{task_id}
@@ -186,7 +192,7 @@ class ByteDanceSeedreamNode(IO.ComfyNode):
             inputs=[
                 IO.Combo.Input(
                     "model",
-                    options=["seedream-5-0-260128", "seedream-4-5-251128", "seedream-4-0-250828"],
+                    options=list(SEEDREAM_MODELS.keys()),
                 ),
                 IO.String.Input(
                     "prompt",
@@ -282,8 +288,8 @@ class ByteDanceSeedreamNode(IO.ComfyNode):
                 depends_on=IO.PriceBadgeDepends(widgets=["model"]),
                 expr="""
                 (
-                  $price := $contains(widgets.model, "seedream-5-0") ? 0.035 :
-                            $contains(widgets.model, "seedream-4-5") ? 0.04 : 0.03;
+                  $price := $contains(widgets.model, "5.0 lite") ? 0.035 :
+                            $contains(widgets.model, "4-5") ? 0.04 : 0.03;
                   {
                     "type":"usd",
                     "usd": $price,
@@ -309,6 +315,7 @@ class ByteDanceSeedreamNode(IO.ComfyNode):
         watermark: bool = False,
         fail_on_partial: bool = True,
     ) -> IO.NodeOutput:
+        model = SEEDREAM_MODELS[model]
         validate_string(prompt, strip_whitespace=True, min_length=1)
         w = h = None
         for label, tw, th in RECOMMENDED_PRESETS_SEEDREAM_4:
