@@ -1,5 +1,4 @@
 import torch
-import pytest
 from unittest.mock import patch
 
 from comfy.model_detection import detect_unet_config, model_config_from_unet_config
@@ -70,7 +69,6 @@ class TestModelDetectionSpecificity:
         """Specificity logic must pick LongCatImage even when FluxSchnell appears first."""
         sd = _make_longcat_diffusers_sd()
         unet_config = detect_unet_config(sd, "")
-        original_models = comfy.supported_models.models
 
         longcat_cls = comfy.supported_models.LongCatImage
         schnell_cls = comfy.supported_models.FluxSchnell

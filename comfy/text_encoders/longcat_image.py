@@ -9,7 +9,10 @@ logger = logging.getLogger(__name__)
 
 QUOTE_PAIRS = [("'", "'"), ('"', '"'), ("\u2018", "\u2019"), ("\u201c", "\u201d")]
 QUOTE_PATTERN = "|".join(
-    [re.escape(q1) + r"[^" + re.escape(q1 + q2) + r"]*?" + re.escape(q2) for q1, q2 in QUOTE_PAIRS]
+    [
+        re.escape(q1) + r"[^" + re.escape(q1 + q2) + r"]*?" + re.escape(q2)
+        for q1, q2 in QUOTE_PAIRS
+    ]
 )
 WORD_INTERNAL_QUOTE_RE = re.compile(r"[a-zA-Z]+'[a-zA-Z]+")
 
@@ -52,7 +55,7 @@ class LongCatImageBaseTokenizer(Qwen25_7BVLITokenizer):
                 all_tokens.extend(ids)
 
         if len(all_tokens) > self.max_length:
-            all_tokens = all_tokens[:self.max_length]
+            all_tokens = all_tokens[: self.max_length]
             logger.warning(f"Truncated prompt to {self.max_length} tokens")
 
         output = [(t, 1.0) for t in all_tokens]
@@ -63,27 +66,40 @@ class LongCatImageBaseTokenizer(Qwen25_7BVLITokenizer):
 
 class LongCatImageTokenizer(sd1_clip.SD1Tokenizer):
     def __init__(self, embedding_directory=None, tokenizer_data={}):
-        super().__init__(embedding_directory=embedding_directory, tokenizer_data=tokenizer_data, name="qwen25_7b", tokenizer=LongCatImageBaseTokenizer)
+        super().__init__(
+            embedding_directory=embedding_directory,
+            tokenizer_data=tokenizer_data,
+            name="qwen25_7b",
+            tokenizer=LongCatImageBaseTokenizer,
+        )
         self.longcat_template_prefix = "<|im_start|>system\nAs an image captioning expert, generate a descriptive text prompt based on an image content, suitable for input to a text-to-image model.<|im_end|>\n<|im_start|>user\n"
         self.longcat_template_suffix = "<|im_end|>\n<|im_start|>assistant\n"
 
     def tokenize_with_weights(self, text, return_word_ids=False, **kwargs):
         skip_template = False
-        if text.startswith('<|im_start|>'):
+        if text.startswith("<|im_start|>"):
             skip_template = True
-        if text.startswith('<|start_header_id|>'):
+        if text.startswith("<|start_header_id|>"):
             skip_template = True
-        if text == '':
-            text = ' '
+        if text == "":
+            text = " "
 
         base_tok = getattr(self, "qwen25_7b")
         if skip_template:
-            tokens = super().tokenize_with_weights(text, return_word_ids=return_word_ids, disable_weights=True, **kwargs)
+            tokens = super().tokenize_with_weights(
+                text, return_word_ids=return_word_ids, disable_weights=True, **kwargs
+            )
         else:
-            prefix_ids = base_tok.tokenizer(self.longcat_template_prefix, add_special_tokens=False)["input_ids"]
-            suffix_ids = base_tok.tokenizer(self.longcat_template_suffix, add_special_tokens=False)["input_ids"]
+            prefix_ids = base_tok.tokenizer(
+                self.longcat_template_prefix, add_special_tokens=False
+            )["input_ids"]
+            suffix_ids = base_tok.tokenizer(
+                self.longcat_template_suffix, add_special_tokens=False
+            )["input_ids"]
 
-            prompt_tokens = base_tok.tokenize_with_weights(text, return_word_ids=return_word_ids, **kwargs)
+            prompt_tokens = base_tok.tokenize_with_weights(
+                text, return_word_ids=return_word_ids, **kwargs
+            )
             prompt_pairs = prompt_tokens[0]
 
             prefix_pairs = [(t, 1.0) for t in prefix_ids]
@@ -97,7 +113,13 @@ class LongCatImageTokenizer(sd1_clip.SD1Tokenizer):
 
 class LongCatImageTEModel(sd1_clip.SD1ClipModel):
     def __init__(self, device="cpu", dtype=None, model_options={}):
-        super().__init__(device=device, dtype=dtype, name="qwen25_7b", clip_model=Qwen25_7BVLIModel, model_options=model_options)
+        super().__init__(
+            device=device,
+            dtype=dtype,
+            name="qwen25_7b",
+            clip_model=Qwen25_7BVLIModel,
+            model_options=model_options,
+        )
 
     def encode_token_weights(self, token_weight_pairs, template_end=-1):
         out, pooled, extra = super().encode_token_weights(token_weight_pairs)
@@ -116,9 +138,9 @@ class LongCatImageTEModel(sd1_clip.SD1ClipModel):
             if tok_pairs[template_end + 1][0] == 872:
                 if tok_pairs[template_end + 2][0] == 198:
                     template_end += 3
-        
+
         if template_end == -1:
-           template_end = 0
+            template_end = 0
 
         suffix_start = None
         for i in range(len(tok_pairs) - 1, -1, -1):
@@ -141,7 +163,9 @@ class LongCatImageTEModel(sd1_clip.SD1ClipModel):
                 out = out[:, :-suffix_len]
                 if "attention_mask" in extra:
                     extra["attention_mask"] = extra["attention_mask"][:, :-suffix_len]
-                    if extra["attention_mask"].sum() == torch.numel(extra["attention_mask"]):
+                    if extra["attention_mask"].sum() == torch.numel(
+                        extra["attention_mask"]
+                    ):
                         extra.pop("attention_mask")
 
         return out, pooled, extra
@@ -156,4 +180,5 @@ def te(dtype_llama=None, llama_quantization_metadata=None):
             if dtype_llama is not None:
                 dtype = dtype_llama
             super().__init__(device=device, dtype=dtype, model_options=model_options)
+
     return LongCatImageTEModel_
