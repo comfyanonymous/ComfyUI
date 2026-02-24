@@ -1498,7 +1498,7 @@ class WAN21_SCAIL(WAN21):
         return out
 
     def apply_model(self, x, t, c_concat=None, c_crossattn=None, control=None, transformer_options={}, pose_start=0.0, pose_end=1.0, **kwargs):
-        if t >= self.model_sampling.percent_to_sigma(pose_start) or t <= self.model_sampling.percent_to_sigma(pose_end):
+        if t[0] >= self.model_sampling.percent_to_sigma(pose_start) or t[0] <= self.model_sampling.percent_to_sigma(pose_end):
             kwargs.pop("pose_latents", None)
 
         return comfy.patcher_extension.WrapperExecutor.new_class_executor(
@@ -1511,11 +1511,11 @@ class WAN21_SCAIL(WAN21):
         out = {}
         ref_latents = kwargs.get("reference_latents", None)
         if ref_latents is not None:
-            out['reference_latent'] = list([1, 16, sum(map(lambda a: math.prod(a.size()), ref_latents)) // 16])
+            out['reference_latent'] = list([1, 20, sum(map(lambda a: math.prod(a.size()), ref_latents)) // 16])
 
         pose_latents = kwargs.get("pose_video_latent", None)
         if pose_latents is not None:
-            out['pose_latents'] = pose_latents.shape
+            out['pose_latents'] = [pose_latents.shape[0], 20, *pose_latents.shape[2:]]
 
         return out
 

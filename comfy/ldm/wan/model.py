@@ -1628,9 +1628,8 @@ class SCAILWanModel(WanModel):
 
         self.patch_embedding_pose = operations.Conv3d(in_dim, dim, kernel_size=patch_size, stride=patch_size, device=device, dtype=torch.float32)
 
-    def forward_orig(self, x, t, context, clip_fea=None, freqs=None, transformer_options={}, pose_latents=None, **kwargs):
+    def forward_orig(self, x, t, context, clip_fea=None, freqs=None, transformer_options={}, pose_latents=None, reference_latent=None, **kwargs):
 
-        reference_latent = kwargs.get("reference_latent", None)
         if reference_latent is not None:
             x = torch.cat((reference_latent, x), dim=2)
 
@@ -1726,8 +1725,10 @@ class SCAILWanModel(WanModel):
             x = torch.cat([x, time_dim_concat], dim=2)
             t_len = x.shape[2]
 
+        reference_latent = None
         if "reference_latent" in kwargs:
-            t_len += 1
+            reference_latent = comfy.ldm.common_dit.pad_to_patch_size(kwargs.pop("reference_latent"), self.patch_size)
+            t_len += reference_latent.shape[2]
 
         freqs = self.rope_encode(t_len, h, w, device=x.device, dtype=x.dtype, transformer_options=transformer_options, pose_latents=pose_latents)
-        return self.forward_orig(x, timestep, context, clip_fea=clip_fea, freqs=freqs, transformer_options=transformer_options, pose_latents=pose_latents, **kwargs)[:, :, :t, :h, :w]
+        return self.forward_orig(x, timestep, context, clip_fea=clip_fea, freqs=freqs, transformer_options=transformer_options, pose_latents=pose_latents, reference_latent=reference_latent, **kwargs)[:, :, :t, :h, :w]
