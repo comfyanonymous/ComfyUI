@@ -1623,7 +1623,7 @@ class HumoWanModel(WanModel):
         return x
 
 class SCAILWanModel(WanModel):
-    def __init__(self, model_type="scail", patch_size=(1, 2, 2), in_dim=16, dim=5120, operations=None, device=None, dtype=None, **kwargs):
+    def __init__(self, model_type="scail", patch_size=(1, 2, 2), in_dim=20, dim=5120, operations=None, device=None, dtype=None, **kwargs):
         super().__init__(model_type='i2v', patch_size=patch_size, in_dim=in_dim, dim=dim, operations=operations, device=device, dtype=dtype, **kwargs)
 
         self.patch_embedding_pose = operations.Conv3d(in_dim, dim, kernel_size=patch_size, stride=patch_size, device=device, dtype=torch.float32)
