@@ -50,6 +50,7 @@ from comfy_api_nodes.apis import (
 )
 from comfy_api_nodes.apis.kling import (
     ImageToVideoWithAudioRequest,
+    KlingAvatarRequest,
     MotionControlRequest,
     MultiPromptEntry,
     OmniImageParamImage,
@@ -74,6 +75,7 @@ from comfy_api_nodes.util import (
     upload_image_to_comfyapi,
     upload_images_to_comfyapi,
     upload_video_to_comfyapi,
+    validate_audio_duration,
     validate_image_aspect_ratio,
     validate_image_dimensions,
     validate_string,
@@ -3139,6 +3141,103 @@ class KlingFirstLastFrameNode(IO.ComfyNode):
         return IO.NodeOutput(await download_url_to_video_output(final_response.data.task_result.videos[0].url))
 
 
+class KlingAvatarNode(IO.ComfyNode):
+
+    @classmethod
+    def define_schema(cls) -> IO.Schema:
+        return IO.Schema(
+            node_id="KlingAvatarNode",
+            display_name="Kling Avatar 2.0",
+            category="api node/video/Kling",
+            description="Generate broadcast-style digital human videos from a single photo and an audio file.",
+            inputs=[
+                IO.Image.Input(
+                    "image",
+                    tooltip="Avatar reference image. "
+                    "Width and height must be at least 300px. Aspect ratio must be between 1:2.5 and 2.5:1.",
+                ),
+                IO.Audio.Input(
+                    "sound_file",
+                    tooltip="Audio input. Must be between 2 and 300 seconds in duration.",
+                ),
+                IO.Combo.Input("mode", options=["std", "pro"]),
+                IO.String.Input(
+                    "prompt",
+                    multiline=True,
+                    default="",
+                    optional=True,
+                    tooltip="Optional prompt to define avatar actions, emotions, and camera movements.",
+                ),
+                IO.Int.Input(
+                    "seed",
+                    default=0,
+                    min=0,
+                    max=2147483647,
+                    display_mode=IO.NumberDisplay.number,
+                    control_after_generate=True,
+                    tooltip="Seed controls whether the node should re-run; "
+                    "results are non-deterministic regardless of seed.",
+                ),
+            ],
+            outputs=[
+                IO.Video.Output(),
+            ],
+            hidden=[
+                IO.Hidden.auth_token_comfy_org,
+                IO.Hidden.api_key_comfy_org,
+                IO.Hidden.unique_id,
+            ],
+            is_api_node=True,
+            price_badge=IO.PriceBadge(
+                depends_on=IO.PriceBadgeDepends(widgets=["mode"]),
+                expr="""
+                (
+                  $prices := {"std": 0.056, "pro": 0.112};
+                  {"type":"usd","usd": $lookup($prices, widgets.mode), "format":{"suffix":"/second"}}
+                )
+                """,
+            ),
+        )
+
+    @classmethod
+    async def execute(
+        cls,
+        image: Input.Image,
+        sound_file: Input.Audio,
+        mode: str,
+        seed: int,
+        prompt: str = "",
+    ) -> IO.NodeOutput:
+        validate_image_dimensions(image, min_width=300, min_height=300)
+        validate_image_aspect_ratio(image, (1, 2.5), (2.5, 1))
+        validate_audio_duration(sound_file, min_duration=2, max_duration=300)
+        response = await sync_op(
+            cls,
+            ApiEndpoint(path="/proxy/kling/v1/videos/avatar/image2video", method="POST"),
+            response_model=TaskStatusResponse,
+            data=KlingAvatarRequest(
+                image=await upload_image_to_comfyapi(cls, image),
+                sound_file=await upload_audio_to_comfyapi(
+                    cls, sound_file, container_format="mp3", codec_name="libmp3lame", mime_type="audio/mpeg"
+                ),
+                prompt=prompt or None,
+                mode=mode,
+            ),
+        )
+        if response.code:
+            raise RuntimeError(
+                f"Kling request failed. Code: {response.code}, Message: {response.message}, Data: {response.data}"
+            )
+        final_response = await poll_op(
+            cls,
+            ApiEndpoint(path=f"/proxy/kling/v1/videos/avatar/image2video/{response.data.task_id}"),
+            response_model=TaskStatusResponse,
+            status_extractor=lambda r: (r.data.task_status if r.data else None),
+            max_poll_attempts=800,
+        )
+        return IO.NodeOutput(await download_url_to_video_output(final_response.data.task_result.videos[0].url))
+
+
 class KlingExtension(ComfyExtension):
     @override
     async def get_node_list(self) -> list[type[IO.ComfyNode]]:
@@ -3167,6 +3266,7 @@ class KlingExtension(ComfyExtension):
             MotionControl,
             KlingVideoNode,
             KlingFirstLastFrameNode,
+            KlingAvatarNode,
         ]
 
 
