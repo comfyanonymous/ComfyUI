@@ -57,7 +57,7 @@ def tensor_to_bytesio(
     image: torch.Tensor,
     *,
     total_pixels: int | None = 2048 * 2048,
-    mime_type: str = "image/png",
+    mime_type: str | None = "image/png",
 ) -> BytesIO:
     """Converts a torch.Tensor image to a named BytesIO object.
 

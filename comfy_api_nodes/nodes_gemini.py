@@ -6,6 +6,7 @@ See: https://cloud.google.com/vertex-ai/generative-ai/docs/model-reference/infer
 import base64
 import os
 from enum import Enum
+from fnmatch import fnmatch
 from io import BytesIO
 from typing import Literal
 
@@ -119,6 +120,13 @@ async def create_image_parts(
     return image_parts
 
 
+def _mime_matches(mime: GeminiMimeType | None, pattern: str) -> bool:
+    """Check if a MIME type matches a pattern. Supports fnmatch globs (e.g. 'image/*')."""
+    if mime is None:
+        return False
+    return fnmatch(mime.value, pattern)
+
+
 def get_parts_by_type(response: GeminiGenerateContentResponse, part_type: Literal["text"] | str) -> list[GeminiPart]:
     """
     Filter response parts by their type.
@@ -151,9 +159,9 @@ def get_parts_by_type(response: GeminiGenerateContentResponse, part_type: Litera
         for part in candidate.content.parts:
             if part_type == "text" and part.text:
                 parts.append(part)
-            elif part.inlineData and part.inlineData.mimeType == part_type:
+            elif part.inlineData and _mime_matches(part.inlineData.mimeType, part_type):
                 parts.append(part)
-            elif part.fileData and part.fileData.mimeType == part_type:
+            elif part.fileData and _mime_matches(part.fileData.mimeType, part_type):
                 parts.append(part)
 
     if not parts and blocked_reasons:
@@ -178,7 +186,7 @@ def get_text_from_response(response: GeminiGenerateContentResponse) -> str:
 
 async def get_image_from_response(response: GeminiGenerateContentResponse) -> Input.Image:
     image_tensors: list[Input.Image] = []
-    parts = get_parts_by_type(response, "image/png")
+    parts = get_parts_by_type(response, "image/*")
     for part in parts:
         if part.inlineData:
             image_data = base64.b64decode(part.inlineData.data)
@@ -308,6 +316,7 @@ class GeminiNode(IO.ComfyNode):
                     default="",
                     optional=True,
                     tooltip="Foundational instructions that dictate an AI's behavior.",
+                    advanced=True,
                 ),
             ],
             outputs=[
@@ -585,6 +594,7 @@ class GeminiImage(IO.ComfyNode):
                     tooltip="Choose 'IMAGE' for image-only output, or "
                     "'IMAGE+TEXT' to return both the generated image and a text response.",
                     optional=True,
+                    advanced=True,
                 ),
                 IO.String.Input(
                     "system_prompt",
@@ -592,6 +602,7 @@ class GeminiImage(IO.ComfyNode):
                     default=GEMINI_IMAGE_SYS_PROMPT,
                     optional=True,
                     tooltip="Foundational instructions that dictate an AI's behavior.",
+                    advanced=True,
                 ),
             ],
             outputs=[
@@ -626,7 +637,7 @@ class GeminiImage(IO.ComfyNode):
 
         if not aspect_ratio:
             aspect_ratio = "auto"  # for backward compatability with old workflows; to-do remove this in December
-        image_config = GeminiImageConfig(aspectRatio=aspect_ratio)
+        image_config = GeminiImageConfig() if aspect_ratio == "auto" else GeminiImageConfig(aspectRatio=aspect_ratio)
 
         if images is not None:
             parts.extend(await create_image_parts(cls, images))
@@ -646,7 +657,7 @@ class GeminiImage(IO.ComfyNode):
                 ],
                 generationConfig=GeminiImageGenerationConfig(
                     responseModalities=(["IMAGE"] if response_modalities == "IMAGE" else ["TEXT", "IMAGE"]),
-                    imageConfig=None if aspect_ratio == "auto" else image_config,
+                    imageConfig=image_config,
                 ),
                 systemInstruction=gemini_system_prompt,
             ),
@@ -706,6 +717,7 @@ class GeminiImage2(IO.ComfyNode):
                     options=["IMAGE+TEXT", "IMAGE"],
                     tooltip="Choose 'IMAGE' for image-only output, or "
                     "'IMAGE+TEXT' to return both the generated image and a text response.",
+                    advanced=True,
                 ),
                 IO.Image.Input(
                     "images",
@@ -725,6 +737,7 @@ class GeminiImage2(IO.ComfyNode):
                     default=GEMINI_IMAGE_SYS_PROMPT,
                     optional=True,
                     tooltip="Foundational instructions that dictate an AI's behavior.",
+                    advanced=True,
                 ),
             ],
             outputs=[
