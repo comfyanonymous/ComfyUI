@@ -37,6 +37,7 @@ import warnings
 
 MMAP_TORCH_FILES = args.mmap_torch_files
 DISABLE_MMAP = args.disable_mmap
+USE_ALT_SFT_LOADER = args.sft_alt_loader
 
 
 if True:  # ckpt/pt file whitelist for safe loading of old sd files
@@ -102,9 +103,12 @@ def load_safetensors(ckpt, device):
             with warnings.catch_warnings():
                 #We are working with read-only RAM by design
                 warnings.filterwarnings("ignore", message="The given buffer is not writable")
-                sd[name] = torch.frombuffer(mv[start:end], dtype=_TYPES[info["dtype"]]).view(info["shape"])
-                if (device != 'cpu' if isinstance(device, str) else device.type != 'cpu'):
-                    sd[name] = sd[name].to(device)
+                tensor = torch.frombuffer(mv[start:end], dtype=_TYPES[info["dtype"]]).view(info["shape"])
+                if DISABLE_MMAP:
+                    tensor = tensor.to(device=device, copy=True)
+                elif (device != 'cpu' if isinstance(device, str) else device.type != 'cpu'):
+                    tensor = tensor.to(device)
+                sd[name] = tensor
 
     return sd, header.get("__metadata__", {}),
 
@@ -115,8 +119,7 @@ def load_torch_file(ckpt, safe_load=False, device=None, return_metadata=False):
     metadata = None
     if ckpt.lower().endswith(".safetensors") or ckpt.lower().endswith(".sft"):
         try:
-            # TODO: Not sure if this is the best way to bypass the mmap issues
-            if DISABLE_MMAP or enables_dynamic_vram():
+            if USE_ALT_SFT_LOADER or enables_dynamic_vram():
                 sd, metadata = load_safetensors(ckpt, device)
                 if not return_metadata:
                     metadata = None
@@ -125,6 +128,8 @@ def load_torch_file(ckpt, safe_load=False, device=None, return_metadata=False):
                     sd = {}
                     for k in f.keys():
                         tensor = f.get_tensor(k)
+                        if DISABLE_MMAP:  # TODO: Not sure if this is the best way to bypass the mmap issues
+                            tensor = tensor.to(device=device, copy=True)
                         sd[k] = tensor
                     if return_metadata:
                         metadata = f.metadata()
