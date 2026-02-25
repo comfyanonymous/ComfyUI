@@ -199,7 +199,12 @@ You can install and start ComfyUI using comfy-cli:
 
 ```bash
 python -m venv venv
+# Linux/macOS
 source venv/bin/activate
+# Windows (PowerShell)
+venv\Scripts\Activate.ps1
+# Windows (CMD)
+venv\Scripts\activate.bat
 pip install comfy-cli
 comfy install
 
@@ -224,7 +229,12 @@ Open a terminal inside the ComfyUI folder and run:
 
 ```bash
 python -m venv venv
-source venv/bin/activate  # Also required each time before starting ComfyUI
+# Linux/macOS
+source venv/bin/activate
+# Windows (PowerShell)
+venv\Scripts\Activate.ps1
+# Windows (CMD)
+venv\Scripts\activate.bat
 pip install -r requirements.txt
 ```
 
@@ -373,7 +383,7 @@ For models compatible with Iluvatar Extension for PyTorch. Here's a step-by-step
    python main.py --enable-manager
    ```
 
-### Command Line Options
+## Command Line Options
 
 | Flag | Description |
 |------|-------------|
