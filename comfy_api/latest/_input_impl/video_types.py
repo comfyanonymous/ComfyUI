@@ -444,7 +444,7 @@ class VideoFromComponents(VideoInput):
             output.mux(packet)
 
             if audio_stream and self.__components.audio:
-                frame = av.AudioFrame.from_ndarray(waveform.float().cpu().numpy(), format='fltp', layout=layout)
+                frame = av.AudioFrame.from_ndarray(waveform.float().cpu().contiguous().numpy(), format='fltp', layout=layout)
                 frame.sample_rate = audio_sample_rate
                 frame.pts = 0
                 output.mux(audio_stream.encode(frame))

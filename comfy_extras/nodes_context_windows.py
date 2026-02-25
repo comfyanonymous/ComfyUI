@@ -14,15 +14,15 @@ class ContextWindowsManualNode(io.ComfyNode):
             description="Manually set context windows.",
             inputs=[
                 io.Model.Input("model", tooltip="The model to apply context windows to during sampling."),
-                io.Int.Input("context_length", min=1, default=16, tooltip="The length of the context window."),
-                io.Int.Input("context_overlap", min=0, default=4, tooltip="The overlap of the context window."),
+                io.Int.Input("context_length", min=1, default=16, tooltip="The length of the context window.", advanced=True),
+                io.Int.Input("context_overlap", min=0, default=4, tooltip="The overlap of the context window.", advanced=True),
                 io.Combo.Input("context_schedule", options=[
                     comfy.context_windows.ContextSchedules.STATIC_STANDARD,
                     comfy.context_windows.ContextSchedules.UNIFORM_STANDARD,
                     comfy.context_windows.ContextSchedules.UNIFORM_LOOPED,
                     comfy.context_windows.ContextSchedules.BATCHED,
                     ], tooltip="The stride of the context window."),
-                io.Int.Input("context_stride", min=1, default=1, tooltip="The stride of the context window; only applicable to uniform schedules."),
+                io.Int.Input("context_stride", min=1, default=1, tooltip="The stride of the context window; only applicable to uniform schedules.", advanced=True),
                 io.Boolean.Input("closed_loop", default=False, tooltip="Whether to close the context window loop; only applicable to looped schedules."),
                 io.Combo.Input("fuse_method", options=comfy.context_windows.ContextFuseMethods.LIST_STATIC, default=comfy.context_windows.ContextFuseMethods.PYRAMID, tooltip="The method to use to fuse the context windows."),
                 io.Int.Input("dim", min=0, max=5, default=0, tooltip="The dimension to apply the context windows to."),
@@ -67,15 +67,15 @@ class WanContextWindowsManualNode(ContextWindowsManualNode):
         schema.description = "Manually set context windows for WAN-like models (dim=2)."
         schema.inputs = [
             io.Model.Input("model", tooltip="The model to apply context windows to during sampling."),
-                io.Int.Input("context_length", min=1, max=nodes.MAX_RESOLUTION, step=4, default=81, tooltip="The length of the context window."),
-                io.Int.Input("context_overlap", min=0, default=30, tooltip="The overlap of the context window."),
+                io.Int.Input("context_length", min=1, max=nodes.MAX_RESOLUTION, step=4, default=81, tooltip="The length of the context window.", advanced=True),
+                io.Int.Input("context_overlap", min=0, default=30, tooltip="The overlap of the context window.", advanced=True),
                 io.Combo.Input("context_schedule", options=[
                     comfy.context_windows.ContextSchedules.STATIC_STANDARD,
                     comfy.context_windows.ContextSchedules.UNIFORM_STANDARD,
                     comfy.context_windows.ContextSchedules.UNIFORM_LOOPED,
                     comfy.context_windows.ContextSchedules.BATCHED,
                     ], tooltip="The stride of the context window."),
-                io.Int.Input("context_stride", min=1, default=1, tooltip="The stride of the context window; only applicable to uniform schedules."),
+                io.Int.Input("context_stride", min=1, default=1, tooltip="The stride of the context window; only applicable to uniform schedules.", advanced=True),
                 io.Boolean.Input("closed_loop", default=False, tooltip="Whether to close the context window loop; only applicable to looped schedules."),
                 io.Combo.Input("fuse_method", options=comfy.context_windows.ContextFuseMethods.LIST_STATIC, default=comfy.context_windows.ContextFuseMethods.PYRAMID, tooltip="The method to use to fuse the context windows."),
                 io.Boolean.Input("freenoise", default=False, tooltip="Whether to apply FreeNoise noise shuffling, improves window blending."),
