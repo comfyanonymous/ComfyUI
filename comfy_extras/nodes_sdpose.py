@@ -9,6 +9,69 @@ from comfy_api.latest import ComfyExtension, io
 from comfy_extras.nodes_lotus import LotusConditioning
 
 
+def _preprocess_keypoints(kp_raw, sc_raw):
+    """Insert neck keypoint and remap from MMPose to OpenPose ordering.
+
+    Returns (kp, sc) where kp has shape (134, 2) and sc has shape (134,).
+    Layout:
+      0-17   body  (18 kp, OpenPose order)
+      18-23  feet  (6 kp)
+      24-91  face  (68 kp)
+      92-112 right hand (21 kp)
+      113-133 left hand (21 kp)
+    """
+    kp = np.array(kp_raw, dtype=np.float32)
+    sc = np.array(sc_raw, dtype=np.float32)
+    if len(kp) >= 17:
+        neck = (kp[5] + kp[6]) / 2
+        neck_score = min(sc[5], sc[6]) if sc[5] > 0.3 and sc[6] > 0.3 else 0
+        kp = np.insert(kp, 17, neck, axis=0)
+        sc = np.insert(sc, 17, neck_score)
+        mmpose_idx   = np.array([17, 6,  8, 10,  7,  9, 12, 14, 16, 13, 15, 2, 1, 4, 3])
+        openpose_idx = np.array([ 1, 2,  3,  4,  6,  7,  8,  9, 10, 12, 13, 14, 15, 16, 17])
+        tmp_kp, tmp_sc = kp.copy(), sc.copy()
+        tmp_kp[openpose_idx] = kp[mmpose_idx]
+        tmp_sc[openpose_idx] = sc[mmpose_idx]
+        kp, sc = tmp_kp, tmp_sc
+    return kp, sc
+
+
+def _to_openpose_frames(all_keypoints, all_scores, height, width):
+    """Convert raw keypoint lists to a list of OpenPose-style frame dicts.
+
+    Each frame dict contains:
+      canvas_width, canvas_height, people: list of person dicts with keys:
+        pose_keypoints_2d       - 18 body kp  as flat [x,y,score,...] (absolute pixels)
+        foot_keypoints_2d       -  6 foot kp  as flat [x,y,score,...] (absolute pixels)
+        face_keypoints_2d       - 70 face kp  as flat [x,y,score,...] (absolute pixels)
+                                   indices 0-67: 68 face landmarks
+                                   index  68:    right eye (body[14])
+                                   index  69:    left  eye (body[15])
+        hand_right_keypoints_2d - 21 right-hand kp (absolute pixels)
+        hand_left_keypoints_2d  - 21 left-hand  kp (absolute pixels)
+    """
+    def _flatten(kp_slice, sc_slice):
+        return np.stack([kp_slice[:, 0], kp_slice[:, 1], sc_slice], axis=1).flatten().tolist()
+
+    frames = []
+    for img_idx in range(len(all_keypoints)):
+        people = []
+        for kp_raw, sc_raw in zip(all_keypoints[img_idx], all_scores[img_idx]):
+            kp, sc = _preprocess_keypoints(kp_raw, sc_raw)
+            # 70 face kp = 68 face landmarks + REye (body[14]) + LEye (body[15])
+            face_kp = np.concatenate([kp[24:92], kp[[14, 15]]], axis=0)
+            face_sc = np.concatenate([sc[24:92], sc[[14, 15]]], axis=0)
+            people.append({
+                "pose_keypoints_2d":       _flatten(kp[0:18],   sc[0:18]),
+                "foot_keypoints_2d":       _flatten(kp[18:24],  sc[18:24]),
+                "face_keypoints_2d":       _flatten(face_kp,    face_sc),
+                "hand_right_keypoints_2d": _flatten(kp[92:113], sc[92:113]),
+                "hand_left_keypoints_2d":  _flatten(kp[113:134], sc[113:134]),
+            })
+        frames.append({"canvas_width": width, "canvas_height": height, "people": people})
+    return frames
+
+
 class KeypointDraw:
     """
     Pose keypoint drawing class that supports both numpy and cv2 backends.
@@ -290,15 +353,16 @@ class SDPoseDrawKeypoints(io.ComfyNode):
         return io.Schema(
             node_id="SDPoseDrawKeypoints",
             category="image/preprocessors",
-            search_aliases=["openpose", "pose detection", "preprocessor", "keypoints", "sdpose"],
+            search_aliases=["openpose", "pose detection", "preprocessor", "keypoints", "pose"],
             inputs=[
-                io.Custom("POSEKEYPOINTS").Input("keypoints"),
+                io.Custom("POSE_KEYPOINT").Input("keypoints"),
                 io.Boolean.Input("draw_body", default=True),
                 io.Boolean.Input("draw_hands", default=True),
                 io.Boolean.Input("draw_face", default=True),
                 io.Boolean.Input("draw_feet", default=False),
                 io.Int.Input("stick_width", default=4, min=1, max=10, step=1),
                 io.Int.Input("face_point_size", default=3, min=1, max=10, step=1),
+                io.Float.Input("score_threshold", default=0.3, min=0.0, max=1.0, step=0.01),
             ],
             outputs=[
                 io.Image.Output(),
@@ -306,58 +370,45 @@ class SDPoseDrawKeypoints(io.ComfyNode):
         )
 
     @classmethod
-    def execute(cls, keypoints, draw_body, draw_hands, draw_face, draw_feet, stick_width, face_point_size) -> io.NodeOutput:
+    def execute(cls, keypoints, draw_body, draw_hands, draw_face, draw_feet, stick_width, face_point_size, score_threshold) -> io.NodeOutput:
+        height = keypoints[0]["canvas_height"]
+        width  = keypoints[0]["canvas_width"]
 
-        all_keypoints = keypoints["keypoints"]  # list[list[tensor]]  outer=image, inner=person
-        all_scores = keypoints["scores"]         # list[list[tensor]]
-        height, width = keypoints["image_size"]
-        score_threshold = 0.3
+        def _parse(flat, n):
+            arr = np.array(flat, dtype=np.float32).reshape(n, 3)
+            return arr[:, :2], arr[:, 2]
 
-        def _to_numpy(x):
-            return x.cpu().numpy() if isinstance(x, torch.Tensor) else x
-
-        def _preprocess(kp_raw, sc_raw):
-            """Insert neck keypoint and remap from MMPose to OpenPose ordering."""
-            kp = _to_numpy(kp_raw).copy()
-            sc = _to_numpy(sc_raw).copy()
-            if len(kp) >= 17:
-                neck = (kp[5] + kp[6]) / 2
-                neck_score = min(sc[5], sc[6]) if sc[5] > 0.3 and sc[6] > 0.3 else 0
-                kp = np.insert(kp, 17, neck, axis=0)
-                sc = np.insert(sc, 17, neck_score)
-                mmpose_idx  = np.array([17, 6, 8, 10, 7, 9, 12, 14, 16, 13, 15, 2, 1, 4, 3])
-                openpose_idx = np.array([1, 2, 3, 4, 6, 7, 8, 9, 10, 12, 13, 14, 15, 16, 17])
-                tmp_kp, tmp_sc = kp.copy(), sc.copy()
-                tmp_kp[openpose_idx]  = kp[mmpose_idx]
-                tmp_sc[openpose_idx] = sc[mmpose_idx]
-                kp, sc = tmp_kp, tmp_sc
-            return kp, sc
+        def _zeros(n):
+            return np.zeros((n, 2), dtype=np.float32), np.zeros(n, dtype=np.float32)
 
         pose_outputs = []
         drawer = KeypointDraw()
-        n_images = len(all_keypoints)
 
-        for b in tqdm(range(n_images), desc="Drawing keypoints on frames"):
-            # One canvas per input image; draw all detected persons on it
+        for frame in tqdm(keypoints, desc="Drawing keypoints on frames"):
             canvas = np.zeros((height, width, 3), dtype=np.uint8)
-            persons_kp = all_keypoints[b]  # list of per-person keypoints
-            persons_sc = all_scores[b]
+            for person in frame["people"]:
+                body_kp,  body_sc  = _parse(person["pose_keypoints_2d"],       18)
+                foot_raw = person.get("foot_keypoints_2d")
+                foot_kp,  foot_sc  = _parse(foot_raw, 6) if foot_raw else _zeros(6)
+                face_kp,  face_sc  = _parse(person["face_keypoints_2d"],       70)
+                face_kp,  face_sc  = face_kp[:68], face_sc[:68]  # drop appended eye kp; body already draws them
+                rhand_kp, rhand_sc = _parse(person["hand_right_keypoints_2d"], 21)
+                lhand_kp, lhand_sc = _parse(person["hand_left_keypoints_2d"],  21)
 
-            for kp_raw, sc_raw in zip(persons_kp, persons_sc):
-                proc_kp, proc_sc = _preprocess(kp_raw, sc_raw)
+                kp = np.concatenate([body_kp, foot_kp, face_kp, rhand_kp, lhand_kp], axis=0)
+                sc = np.concatenate([body_sc, foot_sc, face_sc, rhand_sc, lhand_sc], axis=0)
+
                 canvas = drawer.draw_wholebody_keypoints(
-                    canvas, proc_kp, proc_sc,
+                    canvas, kp, sc,
                     threshold=score_threshold,
                     draw_body=draw_body, draw_feet=draw_feet,
                     draw_face=draw_face, draw_hands=draw_hands,
                     stick_width=stick_width, face_point_size=face_point_size,
                 )
-
             pose_outputs.append(canvas)
 
         pose_outputs_np = np.stack(pose_outputs) if len(pose_outputs) > 1 else np.expand_dims(pose_outputs[0], 0)
         final_pose_output = torch.from_numpy(pose_outputs_np).float() / 255.0
-
         return io.NodeOutput(final_pose_output)
 
 class SDPoseKeypointExtractor(io.ComfyNode):
@@ -375,7 +426,7 @@ class SDPoseKeypointExtractor(io.ComfyNode):
                 io.BoundingBox.Input("bboxes", optional=True, force_input=True, tooltip="Optional bounding boxes for more accurate detections. Required for multi-person detection."),
             ],
             outputs=[
-                io.Custom("POSEKEYPOINTS").Output("keypoints", tooltip="Keypoints extracted from the image"),
+                io.Custom("POSE_KEYPOINT").Output("keypoints", tooltip="Keypoints in OpenPose frame format (canvas_width, canvas_height, people)"),
             ],
         )
 
@@ -424,6 +475,8 @@ class SDPoseKeypointExtractor(io.ComfyNode):
         pbar = comfy.utils.ProgressBar(total_images)
 
         if bboxes is not None:
+            if not isinstance(bboxes, list):
+                bboxes = [[bboxes]]
             # --- bbox-crop mode: one forward pass per crop -------------------------
             for img_idx in range(total_images):
                 img = image[img_idx:img_idx + 1]  # (1, H, W, C)
@@ -501,8 +554,8 @@ class SDPoseKeypointExtractor(io.ComfyNode):
 
                 pbar.update(batch_end - batch_start)
 
-        out = {"keypoints": all_keypoints, "scores": all_scores, "image_size": (height, width)}
-        return io.NodeOutput(out)
+        openpose_frames = _to_openpose_frames(all_keypoints, all_scores, height, width)
+        return io.NodeOutput(openpose_frames)
 
 
 class SDPoseExtension(ComfyExtension):
