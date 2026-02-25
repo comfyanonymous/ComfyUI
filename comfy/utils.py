@@ -37,6 +37,7 @@ import warnings
 
 MMAP_TORCH_FILES = args.mmap_torch_files
 DISABLE_MMAP = args.disable_mmap
+USE_ALT_SFT_LOADER = args.sft_alt_loader
 
 
 if True:  # ckpt/pt file whitelist for safe loading of old sd files
@@ -80,7 +81,7 @@ _TYPES = {
     "U16": torch.uint16,
 }
 
-def load_safetensors(ckpt):
+def load_safetensors(ckpt, device):
     f = open(ckpt, "rb")
     mapping = mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ)
     mv = memoryview(mapping)
@@ -102,7 +103,12 @@ def load_safetensors(ckpt):
             with warnings.catch_warnings():
                 #We are working with read-only RAM by design
                 warnings.filterwarnings("ignore", message="The given buffer is not writable")
-                sd[name] = torch.frombuffer(mv[start:end], dtype=_TYPES[info["dtype"]]).view(info["shape"])
+                tensor = torch.frombuffer(mv[start:end], dtype=_TYPES[info["dtype"]]).view(info["shape"])
+                if DISABLE_MMAP:
+                    tensor = tensor.to(device=device, copy=True)
+                elif (device != 'cpu' if isinstance(device, str) else device.type != 'cpu'):
+                    tensor = tensor.to(device)
+                sd[name] = tensor
 
     return sd, header.get("__metadata__", {}),
 
@@ -113,8 +119,8 @@ def load_torch_file(ckpt, safe_load=False, device=None, return_metadata=False):
     metadata = None
     if ckpt.lower().endswith(".safetensors") or ckpt.lower().endswith(".sft"):
         try:
-            if enables_dynamic_vram():
-                sd, metadata = load_safetensors(ckpt)
+            if USE_ALT_SFT_LOADER or enables_dynamic_vram():
+                sd, metadata = load_safetensors(ckpt, device)
                 if not return_metadata:
                     metadata = None
             else:
