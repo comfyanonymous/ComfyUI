@@ -30,7 +30,6 @@ from torch.nn.functional import interpolate
 from tqdm.auto import trange
 from einops import rearrange
 from comfy.cli_args import args
-import comfy.memory_management
 import json
 import time
 import mmap
