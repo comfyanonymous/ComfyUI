@@ -250,16 +250,17 @@ pip uninstall torch torchvision torchaudio
 
 ##### AMD GPUs (Linux)
 
-Stable ROCm 7.2:
+Stable ROCm 7.1:
 
 ```bash
-pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/rocm7.2
+pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/rocm7.1
 ```
 
-ROCm 7.2 nightly (may have performance improvements):
+ROCm 7.1 nightly (may have performance improvements):
 
 ```bash
-pip install --pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/nightly/rocm7.2
+pip install --pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/nightly/rocm7.1
+>>>>>>> d002b7e9 (chore: modernize and update README)
 ```
 
 ##### AMD GPUs — Experimental (Windows and Linux): RDNA 3, 3.5, and 4 only
@@ -398,6 +399,18 @@ For models compatible with Iluvatar Extension for PyTorch. Here's a step-by-step
 |------|-----------|
 | Checkpoints (`.ckpt` / `.safetensors`) | `models/checkpoints` |
 | VAE | `models/vae` |
+| LoRA / LoCon / LoHa | `models/loras` |
+| Embeddings / Textual Inversion | `models/embeddings` |
+| ControlNet | `models/controlnet` |
+| Upscale models (ESRGAN, SwinIR, etc.) | `models/upscale_models` |
+| Hypernetworks | `models/hypernetworks` |
+| CLIP / Text encoders | `models/text_encoders` or `models/clip` |
+| CLIP Vision | `models/clip_vision` |
+| GLIGEN | `models/gligen` |
+| VAE approximation (TAESD for previews) | `models/vae_approx` |
+| Configs | `models/configs` |
+
+For a complete list of all supported model directories, see the [`extra_model_paths.yaml.example`](extra_model_paths.yaml.example) file.
 
 # Running
 
