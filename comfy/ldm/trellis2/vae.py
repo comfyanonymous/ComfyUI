@@ -7,7 +7,7 @@ import torch.nn.functional as F
 from fractions import Fraction
 from dataclasses import dataclass
 from typing import List, Any, Dict, Optional, overload, Union, Tuple
-from comfy.ldm.trellis2.cumesh import TorchHashMap, Mesh, MeshWithVoxel, sparse_submanifold_conv3d
+from comfy.ldm.trellis2.cumesh import TorchHashMap, Mesh, sparse_submanifold_conv3d
 
 
 def pixel_shuffle_3d(x: torch.Tensor, scale_factor: int) -> torch.Tensor:
@@ -210,6 +210,8 @@ class SparseResBlockC2S3d(nn.Module):
 
     def forward(self, x, subdiv = None):
         if self.pred_subdiv:
+            dtype = next(self.to_subdiv.parameters()).dtype
+            x = x.to(dtype)
             subdiv = self.to_subdiv(x)
         norm1 = self.norm1.to(torch.float32)
         norm2 = self.norm2.to(torch.float32)
@@ -987,114 +989,7 @@ def convert_module_to_f16(l):
         for p in l.parameters():
             p.data = p.data.half()
 
-
-
-class SparseUnetVaeEncoder(nn.Module):
-    """
-    Sparse Swin Transformer Unet VAE model.
-    """
-    def __init__(
-        self,
-        in_channels: int,
-        model_channels: List[int],
-        latent_channels: int,
-        num_blocks: List[int],
-        block_type: List[str],
-        down_block_type: List[str],
-        block_args: List[Dict[str, Any]],
-        use_fp16: bool = False,
-    ):
-        super().__init__()
-        self.in_channels = in_channels
-        self.model_channels = model_channels
-        self.num_blocks = num_blocks
-        self.dtype = torch.float16 if use_fp16 else torch.float32
-
-        self.input_layer = SparseLinear(in_channels, model_channels[0])
-        self.to_latent = SparseLinear(model_channels[-1], 2 * latent_channels)
-
-        self.blocks = nn.ModuleList([])
-        for i in range(len(num_blocks)):
-            self.blocks.append(nn.ModuleList([]))
-            for j in range(num_blocks[i]):
-                self.blocks[-1].append(
-                    globals()[block_type[i]](
-                        model_channels[i],
-                        **block_args[i],
-                    )
-                )
-            if i < len(num_blocks) - 1:
-                self.blocks[-1].append(
-                    globals()[down_block_type[i]](
-                        model_channels[i],
-                        model_channels[i+1],
-                        **block_args[i],
-                    )
-                )
-
-    @property
-    def device(self) -> torch.device:
-        return next(self.parameters()).device
-
-    def forward(self, x: SparseTensor, sample_posterior=False, return_raw=False):
-        h = self.input_layer(x)
-        h = h.type(self.dtype)
-        for i, res in enumerate(self.blocks):
-            for j, block in enumerate(res):
-                h = block(h)
-        h = h.type(x.dtype)
-        h = h.replace(F.layer_norm(h.feats, h.feats.shape[-1:]))
-        h = self.to_latent(h)
-
-        # Sample from the posterior distribution
-        mean, logvar = h.feats.chunk(2, dim=-1)
-        if sample_posterior:
-            std = torch.exp(0.5 * logvar)
-            z = mean + std * torch.randn_like(std)
-        else:
-            z = mean
-        z = h.replace(z)
-
-        if return_raw:
-            return z, mean, logvar
-        else:
-            return z
-
-
-
-class FlexiDualGridVaeEncoder(SparseUnetVaeEncoder):
-    def __init__(
-        self,
-        model_channels: List[int],
-        latent_channels: int,
-        num_blocks: List[int],
-        block_type: List[str],
-        down_block_type: List[str],
-        block_args: List[Dict[str, Any]],
-        use_fp16: bool = False,
-    ):
-        super().__init__(
-            6,
-            model_channels,
-            latent_channels,
-            num_blocks,
-            block_type,
-            down_block_type,
-            block_args,
-            use_fp16,
-        )
-
-    def forward(self, vertices: SparseTensor, intersected: SparseTensor, sample_posterior=False, return_raw=False):
-        x = vertices.replace(torch.cat([
-            vertices.feats - 0.5,
-            intersected.feats.float() - 0.5,
-        ], dim=1))
-        return super().forward(x, sample_posterior, return_raw)
-
 class SparseUnetVaeDecoder(nn.Module):
-    """
-    Sparse Swin Transformer Unet VAE model.
-    """
     def __init__(
         self,
         out_channels: int,
@@ -1218,10 +1113,10 @@ class FlexiDualGridVaeDecoder(SparseUnetVaeDecoder):
         N = coords.shape[0]
         # compute flat keys for all coords (prepend batch 0 same as original code)
         b = torch.zeros((N,), dtype=torch.long, device=device)
-        x, y, z = coords[:, 0].long(), coords[:, 1].long(), coords[:, 2].long()
+        x, y, z = coords[:, 0].to(torch.int32), coords[:, 1].to(torch.int32), coords[:, 2].to(torch.int32)
         W, H, D = int(grid_size[0].item()), int(grid_size[1].item()), int(grid_size[2].item())
         flat_keys = b * (W * H * D) + x * (H * D) + y * D + z
-        values = torch.arange(N, dtype=torch.long, device=device)
+        values = torch.arange(N, dtype=torch.int32, device=device)
         DEFAULT_VAL = 0xffffffff  # sentinel used in original code
         return TorchHashMap(flat_keys, values, DEFAULT_VAL)
 
@@ -1295,13 +1190,12 @@ def flexible_dual_grid_to_mesh(
 
     # Extract mesh
     N = dual_vertices.shape[0]
-    mesh_vertices = (coords.float() + dual_vertices) / (2 * N) - 0.5
 
     if hashmap_builder is None:
         # build local TorchHashMap
         device = coords.device
         b = torch.zeros((N,), dtype=torch.long, device=device)
-        x, y, z = coords[:, 0].long(), coords[:, 1].long(), coords[:, 2].long()
+        x, y, z = coords[:, 0].to(torch.int32), coords[:, 1].to(torch.int32), coords[:, 2].to(torch.int32)
         W, H, D = int(grid_size[0].item()), int(grid_size[1].item()), int(grid_size[2].item())
         flat_keys = b * (W * H * D) + x * (H * D) + y * D + z
         values = torch.arange(N, dtype=torch.long, device=device)
@@ -1316,9 +1210,9 @@ def flexible_dual_grid_to_mesh(
     M = connected_voxel.shape[0]
     # flatten connected voxel coords and lookup
     conn_flat_b = torch.zeros((M * 4,), dtype=torch.long, device=coords.device)
-    conn_x = connected_voxel.reshape(-1, 3)[:, 0].long()
-    conn_y = connected_voxel.reshape(-1, 3)[:, 1].long()
-    conn_z = connected_voxel.reshape(-1, 3)[:, 2].long()
+    conn_x = connected_voxel.reshape(-1, 3)[:, 0].to(torch.int32)
+    conn_y = connected_voxel.reshape(-1, 3)[:, 1].to(torch.int32)
+    conn_z = connected_voxel.reshape(-1, 3)[:, 2].to(torch.int32)
     W, H, D = int(grid_size[0].item()), int(grid_size[1].item()), int(grid_size[2].item())
     conn_flat = conn_flat_b * (W * H * D) + conn_x * (H * D) + conn_y * D + conn_z
 
@@ -1526,17 +1420,18 @@ class Vae(nn.Module):
             channels=[512, 128, 32],
         )
 
+    @torch.no_grad()
     def decode_shape_slat(self, slat, resolution: int):
         self.shape_dec.set_resolution(resolution)
-        device = comfy.model_management.get_torch_device()
-        self.shape_dec = self.shape_dec.to(device)
         return self.shape_dec(slat, return_subs=True)
 
+    @torch.no_grad()
     def decode_tex_slat(self, slat, subs):
         if self.txt_dec is None:
             raise ValueError("Checkpoint doesn't include texture model")
         return self.txt_dec(slat, guide_subs=subs) * 0.5 + 0.5
 
+    # shouldn't be called (placeholder)
     @torch.no_grad()
     def decode(
         self,
@@ -1546,17 +1441,4 @@ class Vae(nn.Module):
     ):
         meshes, subs = self.decode_shape_slat(shape_slat, resolution)
         tex_voxels = self.decode_tex_slat(tex_slat, subs)
-        out_mesh = []
-        for m, v in zip(meshes, tex_voxels):
-            out_mesh.append(
-                MeshWithVoxel(
-                    m.vertices, m.faces,
-                    origin = [-0.5, -0.5, -0.5],
-                    voxel_size = 1 / resolution,
-                    coords = v.coords[:, 1:],
-                    attrs = v.feats,
-                    voxel_shape = torch.Size([*v.shape, *v.spatial_shape]),
-                    layout=self.pbr_attr_layout
-                )
-            )
-        return out_mesh
+        return tex_voxels

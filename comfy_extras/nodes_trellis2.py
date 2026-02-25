@@ -1,7 +1,7 @@
 from typing_extensions import override
 from comfy_api.latest import ComfyExtension, IO, Types
 from comfy.ldm.trellis2.vae import SparseTensor
-from comfy.utils import ProgressBar
+from comfy.utils import ProgressBar, lanczos
 import torch.nn.functional as TF
 import comfy.model_management
 from PIL import Image
@@ -102,9 +102,7 @@ def run_conditioning(model, image, mask, include_1024 = True, background_color =
     cropped_img = smart_crop_square(img_t, mask_t, bg_color=bg_rgb)
 
     def prepare_tensor(img, size):
-        resized = torch.nn.functional.interpolate(
-            img.unsqueeze(0), size=(size, size), mode='bicubic', align_corners=False
-        )
+        resized = lanczos(img.unsqueeze(0), size, size)
         return (resized - dino_mean.to(torch_device)) / dino_std.to(torch_device)
 
     model_internal.image_size = 512
@@ -148,10 +146,16 @@ class VaeDecodeShapeTrellis(IO.ComfyNode):
 
     @classmethod
     def execute(cls, samples, structure_output, vae, resolution):
+
+        patcher = vae.patcher
+        device = comfy.model_management.get_torch_device()
+        comfy.model_management.load_model_gpu(patcher)
+
         vae = vae.first_stage_model
         decoded = structure_output.data.unsqueeze(1)
         coords = torch.argwhere(decoded.bool())[:, [0, 2, 3, 4]].int()
         samples = samples["samples"]
+        samples = samples.squeeze(-1).transpose(1, 2).to(device)
         std = shape_slat_normalization["std"].to(samples)
         mean = shape_slat_normalization["mean"].to(samples)
         samples = SparseTensor(feats = samples, coords=coords)
@@ -179,10 +183,16 @@ class VaeDecodeTextureTrellis(IO.ComfyNode):
 
     @classmethod
     def execute(cls, samples, structure_output, vae, shape_subs):
+
+        patcher = vae.patcher
+        device = comfy.model_management.get_torch_device()
+        comfy.model_management.load_model_gpu(patcher)
+
         vae = vae.first_stage_model
         decoded = structure_output.data.unsqueeze(1)
         coords = torch.argwhere(decoded.bool())[:, [0, 2, 3, 4]].int()
         samples = samples["samples"]
+        samples = samples.squeeze(-1).transpose(1, 2).to(device)
         std = tex_slat_normalization["std"].to(samples)
         mean = tex_slat_normalization["mean"].to(samples)
         samples = SparseTensor(feats = samples, coords=coords)

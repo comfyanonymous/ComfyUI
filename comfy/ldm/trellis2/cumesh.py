@@ -2,7 +2,7 @@
 
 import math
 import torch
-from typing import Dict, Callable
+from typing import Callable
 import logging
 
 NO_TRITON = False
@@ -201,13 +201,13 @@ class TorchHashMap:
     def __init__(self, keys: torch.Tensor, values: torch.Tensor, default_value: int):
         device = keys.device
         # use long for searchsorted
-        self.sorted_keys, order = torch.sort(keys.long())
-        self.sorted_vals = values.long()[order]
+        self.sorted_keys, order = torch.sort(keys.to(torch.long))
+        self.sorted_vals = values.to(torch.long)[order]
         self.default_value = torch.tensor(default_value, dtype=torch.long, device=device)
         self._n = self.sorted_keys.numel()
 
     def lookup_flat(self, flat_keys: torch.Tensor) -> torch.Tensor:
-        flat = flat_keys.long()
+        flat = flat_keys.to(torch.long)
         if self._n == 0:
             return torch.full((flat.shape[0],), self.default_value, device=flat.device, dtype=self.sorted_vals.dtype)
         idx = torch.searchsorted(self.sorted_keys, flat)
@@ -225,44 +225,35 @@ def neighbor_map_post_process_for_masked_implicit_gemm_1(neighbor_map):
     device = neighbor_map.device
     N, V = neighbor_map.shape
 
+    sentinel = UINT32_SENTINEL
 
-    neigh = neighbor_map.to(torch.long)
-    sentinel = torch.tensor(UINT32_SENTINEL, dtype=torch.long, device=device)
-
-
-    neigh_map_T = neigh.t().reshape(-1)
-
+    neigh_map_T = neighbor_map.t().reshape(-1)
     neigh_mask_T = (neigh_map_T != sentinel).to(torch.int32)
 
-    mask = (neigh != sentinel).to(torch.long)
+    mask = (neighbor_map != sentinel).to(torch.long)
+    gray_code = torch.zeros(N, dtype=torch.long, device=device)
 
-    powers = (1 << torch.arange(V, dtype=torch.long, device=device))
+    for v in range(V):
+        gray_code |= (mask[:, v] << v)
 
-    gray_long = (mask * powers).sum(dim=1)
-
-    gray_code = gray_long.to(torch.int32)
-
-    binary_long = gray_long.clone()
+    binary_code = gray_code.clone()
     for v in range(1, V):
-        binary_long ^= (gray_long >> v)
-    binary_code = binary_long.to(torch.int32)
+        binary_code ^= (gray_code >> v)
 
     sorted_idx = torch.argsort(binary_code)
 
-    prefix_sum_neighbor_mask = torch.cumsum(neigh_mask_T.to(torch.int32), dim=0)  # (V*N,)
+    prefix_sum_neighbor_mask = torch.cumsum(neigh_mask_T, dim=0)
 
     total_valid_signal = int(prefix_sum_neighbor_mask[-1].item()) if prefix_sum_neighbor_mask.numel() > 0 else 0
 
     if total_valid_signal > 0:
+        pos = torch.nonzero(neigh_mask_T, as_tuple=True)[0]
+        to = (prefix_sum_neighbor_mask[pos] - 1).long()
+
         valid_signal_i = torch.empty((total_valid_signal,), dtype=torch.long, device=device)
         valid_signal_o = torch.empty((total_valid_signal,), dtype=torch.long, device=device)
 
-        pos = torch.nonzero(neigh_mask_T, as_tuple=True)[0]
-
-        to = (prefix_sum_neighbor_mask[pos] - 1).to(torch.long)
-
         valid_signal_i[to] = (pos % N).to(torch.long)
-
         valid_signal_o[to] = neigh_map_T[pos].to(torch.long)
     else:
         valid_signal_i = torch.empty((0,), dtype=torch.long, device=device)
@@ -272,9 +263,7 @@ def neighbor_map_post_process_for_masked_implicit_gemm_1(neighbor_map):
     seg[0] = 0
     if V > 0:
         idxs = (torch.arange(1, V + 1, device=device, dtype=torch.long) * N) - 1
-        seg[1:] = prefix_sum_neighbor_mask[idxs].to(torch.long)
-    else:
-        pass
+        seg[1:] = prefix_sum_neighbor_mask[idxs]
 
     return gray_code, sorted_idx, valid_signal_i, valid_signal_o, seg
 
@@ -295,40 +284,41 @@ def _popcount_int32_tensor(x: torch.Tensor) -> torch.Tensor:
 
 
 def neighbor_map_post_process_for_masked_implicit_gemm_2(
-    gray_code: torch.Tensor,    # [N], int32-like (non-negative)
-    sorted_idx: torch.Tensor,   # [N], long (indexing into gray_code)
+    gray_code: torch.Tensor,
+    sorted_idx: torch.Tensor,
     block_size: int
 ):
     device = gray_code.device
     N = gray_code.numel()
-
-    # num of blocks (same as CUDA)
     num_blocks = (N + block_size - 1) // block_size
 
-    # Ensure dtypes
-    gray_long = gray_code.to(torch.int64)       # safer to OR in 64-bit then cast
-    sorted_idx = sorted_idx.to(torch.long)
-
-    # 1) Group gray_code by blocks and compute OR across each block
-    # pad the last block with zeros if necessary so we can reshape
     pad = num_blocks * block_size - N
     if pad > 0:
-        pad_vals = torch.zeros((pad,), dtype=torch.int64, device=device)
-        gray_padded = torch.cat([gray_long[sorted_idx], pad_vals], dim=0)
+        pad_vals = torch.zeros((pad,), dtype=torch.int32, device=device)
+        gray_padded = torch.cat([gray_code[sorted_idx], pad_vals], dim=0)
     else:
-        gray_padded = gray_long[sorted_idx]
+        gray_padded = gray_code[sorted_idx]
 
-    # reshape to (num_blocks, block_size) and compute bitwise_or across dim=1
-    gray_blocks = gray_padded.view(num_blocks, block_size)       # each row = block entries
-    # reduce with bitwise_or
-    reduced_code = gray_blocks[:, 0].clone()
-    for i in range(1, block_size):
-        reduced_code |= gray_blocks[:, i]
-    reduced_code = reduced_code.to(torch.int32)  # match CUDA int32
+    gray_blocks = gray_padded.view(num_blocks, block_size)
 
-    # 2) compute seglen (popcount per reduced_code) and seg (prefix sum)
-    seglen_counts = _popcount_int32_tensor(reduced_code.to(torch.int64)).to(torch.int32)  # [num_blocks]
-    # seg: length num_blocks+1, seg[0]=0, seg[i+1]=cumsum(seglen_counts) up to i
+    reduced_code = gray_blocks
+    while reduced_code.shape[1] > 1:
+        half = reduced_code.shape[1] // 2
+        remainder = reduced_code.shape[1] % 2
+
+        left = reduced_code[:, :half * 2:2]
+        right = reduced_code[:, 1:half * 2:2]
+        merged = left | right
+
+        if remainder:
+            reduced_code = torch.cat([merged, reduced_code[:, -1:]], dim=1)
+        else:
+            reduced_code = merged
+
+    reduced_code = reduced_code.squeeze(1)
+
+    seglen_counts = _popcount_int32_tensor(reduced_code).to(torch.int32)
+
     seg = torch.empty((num_blocks + 1,), dtype=torch.int32, device=device)
     seg[0] = 0
     if num_blocks > 0:
@@ -336,30 +326,20 @@ def neighbor_map_post_process_for_masked_implicit_gemm_2(
 
     total = int(seg[-1].item())
 
-    # 3) scatter — produce valid_kernel_idx as concatenated ascending set-bit positions for each reduced_code row
     if total == 0:
-        valid_kernel_idx = torch.empty((0,), dtype=torch.int32, device=device)
-        return valid_kernel_idx, seg
+        return torch.empty((0,), dtype=torch.int32, device=device), seg
 
-    max_val = int(reduced_code.max().item())
-    V = max_val.bit_length() if max_val > 0 else 0
-    # If you know V externally, pass it instead or set here explicitly.
+    V = int(reduced_code.max().item()).bit_length() if reduced_code.max() > 0 else 0
 
     if V == 0:
-        # no bits set anywhere
-        valid_kernel_idx = torch.empty((0,), dtype=torch.int32, device=device)
-        return valid_kernel_idx, seg
+        return torch.empty((0,), dtype=torch.int32, device=device), seg
 
-    # build mask of shape (num_blocks, V): True where bit is set
-    bit_pos = torch.arange(0, V, dtype=torch.int64, device=device)  # [V]
-    # shifted = reduced_code[:, None] >> bit_pos[None, :]
-    shifted = reduced_code.to(torch.int64).unsqueeze(1) >> bit_pos.unsqueeze(0)
-    bits = (shifted & 1).to(torch.bool)  # (num_blocks, V)
+    bit_pos = torch.arange(0, V, dtype=torch.int32, device=device)
+    shifted = reduced_code.unsqueeze(1) >> bit_pos.unsqueeze(0)
+    bits = (shifted & 1).to(torch.bool)
 
     positions = bit_pos.unsqueeze(0).expand(num_blocks, V)
-
-    valid_positions = positions[bits]
-    valid_kernel_idx = valid_positions.to(torch.int32).contiguous()
+    valid_kernel_idx = positions[bits].to(torch.int32).contiguous()
 
     return valid_kernel_idx, seg
 
@@ -425,35 +405,6 @@ def sparse_submanifold_conv3d(feats, coords, shape, weight, bias, neighbor_cache
 
     return out, neighbor
 
-class Voxel:
-    def __init__(
-            self,
-            origin: list,
-            voxel_size: float,
-            coords: torch.Tensor = None,
-            attrs: torch.Tensor = None,
-            layout = None,
-            device: torch.device = None
-        ):
-        if layout is None:
-            layout = {}
-        self.origin = torch.tensor(origin, dtype=torch.float32, device=device)
-        self.voxel_size = voxel_size
-        self.coords = coords
-        self.attrs = attrs
-        self.layout = layout
-        self.device = device
-
-    @property
-    def position(self):
-        return (self.coords + 0.5) * self.voxel_size + self.origin[None, :]
-
-    def split_attrs(self):
-        return {
-            k: self.attrs[:, self.layout[k]]
-            for k in self.layout
-        }
-
 class Mesh:
     def __init__(self,
         vertices,
@@ -480,35 +431,3 @@ class Mesh:
 
     def cpu(self):
         return self.to('cpu')
-
-class MeshWithVoxel(Mesh, Voxel):
-    def __init__(self,
-        vertices: torch.Tensor,
-        faces: torch.Tensor,
-        origin: list,
-        voxel_size: float,
-        coords: torch.Tensor,
-        attrs: torch.Tensor,
-        voxel_shape: torch.Size,
-        layout: Dict = {},
-    ):
-        self.vertices = vertices.float()
-        self.faces = faces.int()
-        self.origin = torch.tensor(origin, dtype=torch.float32, device=self.device)
-        self.voxel_size = voxel_size
-        self.coords = coords
-        self.attrs = attrs
-        self.voxel_shape = voxel_shape
-        self.layout = layout
-
-    def to(self, device, non_blocking=False):
-        return MeshWithVoxel(
-            self.vertices.to(device, non_blocking=non_blocking),
-            self.faces.to(device, non_blocking=non_blocking),
-            self.origin.tolist(),
-            self.voxel_size,
-            self.coords.to(device, non_blocking=non_blocking),
-            self.attrs.to(device, non_blocking=non_blocking),
-            self.voxel_shape,
-            self.layout,
-        )
