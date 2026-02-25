@@ -76,6 +76,7 @@ class ModelType(Enum):
     FLUX = 8
     IMG_TO_IMG = 9
     FLOW_COSMOS = 10
+    IMG_TO_IMG_FLOW = 11
 
 
 def model_sampling(model_config, model_type):
@@ -108,6 +109,8 @@ def model_sampling(model_config, model_type):
     elif model_type == ModelType.FLOW_COSMOS:
         c = comfy.model_sampling.COSMOS_RFLOW
         s = comfy.model_sampling.ModelSamplingCosmosRFlow
+    elif model_type == ModelType.IMG_TO_IMG_FLOW:
+        c = comfy.model_sampling.IMG_TO_IMG_FLOW
 
     class ModelSampling(s, c):
         pass
@@ -1465,6 +1468,12 @@ class WAN22(WAN21):
 
     def scale_latent_inpaint(self, sigma, noise, latent_image, **kwargs):
         return latent_image
+
+class WAN21_FlowRVS(WAN21):
+    def __init__(self, model_config, model_type=ModelType.IMG_TO_IMG_FLOW, image_to_video=False, device=None):
+        model_config.unet_config["model_type"] = "t2v"
+        super(WAN21, self).__init__(model_config, model_type, device=device, unet_model=comfy.ldm.wan.model.WanModel)
+        self.image_to_video = image_to_video
 
 class Hunyuan3Dv2(BaseModel):
     def __init__(self, model_config, model_type=ModelType.FLOW, device=None):
