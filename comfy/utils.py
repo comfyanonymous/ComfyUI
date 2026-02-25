@@ -29,7 +29,8 @@ import itertools
 from torch.nn.functional import interpolate
 from tqdm.auto import trange
 from einops import rearrange
-from comfy.cli_args import args, enables_dynamic_vram
+from comfy.cli_args import args
+import comfy.memory_management
 import json
 import time
 import mmap
@@ -113,7 +114,7 @@ def load_torch_file(ckpt, safe_load=False, device=None, return_metadata=False):
     metadata = None
     if ckpt.lower().endswith(".safetensors") or ckpt.lower().endswith(".sft"):
         try:
-            if enables_dynamic_vram():
+            if comfy.memory_management.aimdo_enabled:
                 sd, metadata = load_safetensors(ckpt)
                 if not return_metadata:
                     metadata = None
