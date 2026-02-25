@@ -802,7 +802,7 @@ class Trellis2(nn.Module):
                 # may remove the else if texture doesn't require special handling
                 batched_coords = coords
                 feats_flat = x
-            x = SparseTensor(feats=feats_flat, coords=batched_coords)
+            x = SparseTensor(feats=feats_flat, coords=batched_coords.to(torch.int32))
 
         if mode == "shape_generation":
             # TODO

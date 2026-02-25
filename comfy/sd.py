@@ -513,8 +513,8 @@ class VAE:
                     init_txt_model = True
                 self.working_dtypes = [torch.float16, torch.bfloat16, torch.float32]
                 # TODO
-                self.memory_used_decode = lambda shape, dtype: (6500 * shape[2] * shape[3]) * model_management.dtype_size(dtype)
-                self.memory_used_encode = lambda shape, dtype: (6500 * shape[2] * shape[3]) * model_management.dtype_size(dtype)
+                self.memory_used_decode = lambda shape, dtype: (2500 * shape[2] * shape[3]) * model_management.dtype_size(dtype)
+                self.memory_used_encode = lambda shape, dtype: (2500 * shape[2] * shape[3]) * model_management.dtype_size(dtype)
                 self.first_stage_model = comfy.ldm.trellis2.vae.Vae(init_txt_model)
             elif "decoder.conv_in.weight" in sd:
                 if sd['decoder.conv_in.weight'].shape[1] == 64:

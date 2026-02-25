@@ -1,8 +1,9 @@
 from typing_extensions import override
 from comfy_api.latest import ComfyExtension, IO, Types
+from comfy.ldm.trellis2.vae import SparseTensor
+from comfy.utils import ProgressBar
 import torch.nn.functional as TF
 import comfy.model_management
-from comfy.utils import ProgressBar
 from PIL import Image
 import numpy as np
 import torch
@@ -135,6 +136,7 @@ class VaeDecodeShapeTrellis(IO.ComfyNode):
             category="latent/3d",
             inputs=[
                 IO.Latent.Input("samples"),
+                IO.Voxel.Input("structure_output"),
                 IO.Vae.Input("vae"),
                 IO.Int.Input("resolution", tooltip="Shape Generation Resolution"),
             ],
@@ -145,11 +147,14 @@ class VaeDecodeShapeTrellis(IO.ComfyNode):
         )
 
     @classmethod
-    def execute(cls, samples, vae, resolution):
+    def execute(cls, samples, structure_output, vae, resolution):
         vae = vae.first_stage_model
+        decoded = structure_output.data.unsqueeze(1)
+        coords = torch.argwhere(decoded.bool())[:, [0, 2, 3, 4]].int()
         samples = samples["samples"]
         std = shape_slat_normalization["std"].to(samples)
         mean = shape_slat_normalization["mean"].to(samples)
+        samples = SparseTensor(feats = samples, coords=coords)
         samples = samples * std + mean
 
         mesh, subs = vae.decode_shape_slat(samples, resolution)
@@ -163,6 +168,7 @@ class VaeDecodeTextureTrellis(IO.ComfyNode):
             category="latent/3d",
             inputs=[
                 IO.Latent.Input("samples"),
+                IO.Voxel.Input("structure_output"),
                 IO.Vae.Input("vae"),
                 IO.AnyType.Input("shape_subs"),
             ],
@@ -172,11 +178,14 @@ class VaeDecodeTextureTrellis(IO.ComfyNode):
         )
 
     @classmethod
-    def execute(cls, samples, vae, shape_subs):
+    def execute(cls, samples, structure_output, vae, shape_subs):
         vae = vae.first_stage_model
+        decoded = structure_output.data.unsqueeze(1)
+        coords = torch.argwhere(decoded.bool())[:, [0, 2, 3, 4]].int()
         samples = samples["samples"]
         std = tex_slat_normalization["std"].to(samples)
         mean = tex_slat_normalization["mean"].to(samples)
+        samples = SparseTensor(feats = samples, coords=coords)
         samples = samples * std + mean
 
         mesh = vae.decode_tex_slat(samples, shape_subs)
