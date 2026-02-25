@@ -117,6 +117,8 @@ class CacheKeySetInputSignature(CacheKeySet):
             signature.append(node_id)
         inputs = node["inputs"]
         for key in sorted(inputs.keys()):
+            if key.startswith("$$"):
+                continue
             if is_link(inputs[key]):
                 (ancestor_id, ancestor_socket) = inputs[key]
                 ancestor_index = ancestor_order_mapping[ancestor_id]
