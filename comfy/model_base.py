@@ -1844,3 +1844,25 @@ class Kandinsky5Image(Kandinsky5):
 
     def concat_cond(self, **kwargs):
         return None
+
+class Kandinsky5ImageToImage(Kandinsky5):
+    def __init__(self, model_config, model_type=ModelType.FLOW, device=None):
+        super().__init__(model_config, model_type, device=device)
+
+    def concat_cond(self, **kwargs):
+        noise  = kwargs["noise"]
+        device = kwargs["device"]
+        image = kwargs.get("latent_image", None)
+        image = utils.resize_to_batch_size(image, noise.shape[0])
+        mask_ones = torch.ones_like(noise)[:, :1].to(device=device)
+        return torch.cat((image, mask_ones), dim=1)
+
+    def extra_conds(self, **kwargs):
+        out = super().extra_conds(**kwargs)
+        attention_mask = kwargs.get("attention_mask", None)
+        if attention_mask is not None:
+            out["attention_mask"] = comfy.conds.CONDRegular(attention_mask)
+        cross_attn = kwargs.get("cross_attn", None)
+        if cross_attn is not None:
+            out["c_crossattn"] = comfy.conds.CONDRegular(cross_attn)
+        return out

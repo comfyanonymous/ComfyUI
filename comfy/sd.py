@@ -1159,6 +1159,7 @@ class CLIPType(Enum):
     KANDINSKY5_IMAGE = 23
     NEWBIE = 24
     FLUX2 = 25
+    KANDINSKY5_I2I = 26
 
 
 def load_clip(ckpt_paths, embedding_directory=None, clip_type=CLIPType.STABLE_DIFFUSION, model_options={}):
@@ -1452,6 +1453,9 @@ def load_text_encoder_state_dicts(state_dicts=[], embedding_directory=None, clip
         elif clip_type == CLIPType.KANDINSKY5_IMAGE:
             clip_target.clip = comfy.text_encoders.kandinsky5.te(**llama_detect(clip_data))
             clip_target.tokenizer = comfy.text_encoders.kandinsky5.Kandinsky5TokenizerImage
+        elif clip_type == CLIPType.KANDINSKY5_I2I:
+            clip_target.clip = comfy.text_encoders.kandinsky5.te(**llama_detect(clip_data))
+            clip_target.tokenizer = comfy.text_encoders.kandinsky5.Kandinsky5TokenizerI2I
         elif clip_type == CLIPType.LTXV:
             clip_target.clip = comfy.text_encoders.lt.ltxav_te(**llama_detect(clip_data))
             clip_target.tokenizer = comfy.text_encoders.lt.LTXAVGemmaTokenizer

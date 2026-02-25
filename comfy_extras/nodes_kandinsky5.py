@@ -1,6 +1,7 @@
 import nodes
 import node_helpers
 import torch
+import torchvision.transforms.functional as F
 import comfy.model_management
 import comfy.utils
 
@@ -122,15 +123,86 @@ class CLIPTextEncodeKandinsky5(io.ComfyNode):
         tokens["qwen25_7b"] = clip.tokenize(qwen25_7b)["qwen25_7b"]
 
         return io.NodeOutput(clip.encode_from_tokens_scheduled(tokens))
+class CLIPTextEncodeKandinsky5ImageToImage(io.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return io.Schema(
+            node_id="CLIPTextEncodeKandinsky5ImageToImage",
+            search_aliases=["kandinsky prompt"],
+            category="advanced/conditioning/kandinsky5",
+            inputs=[
+                io.Clip.Input("clip"),
+                io.String.Input("prompt", multiline=True, dynamic_prompts=True),
+                io.Image.Input("image", optional=True),
+            ],
+            outputs=[io.Conditioning.Output()],
+        )
 
+    @classmethod
+    def execute(cls, clip, prompt, image=None) -> io.NodeOutput:
+        images = []
+        if image is not None:
+            image = image.movedim(-1,1)
+            height, width = image.shape[-2:]
+            image = F.resize(image, (int(height / 2), int(width / 2))).movedim(1, -1)
+            images.append(image)
+        tokens = clip.tokenize(prompt, images=images)
+        conditioning = clip.encode_from_tokens_scheduled(tokens)
+        return io.NodeOutput(conditioning)
+
+
+PREFERED_KANDINSKY5_RESOLUTIONS = [
+    (1024, 1024),
+    (640, 1408),
+    (1408, 640),
+    (768, 1280),
+    (1280, 768),
+    (896, 1152),
+    (1152, 896)
+]
+
+
+class Kandinsky5ImageToImageScale(io.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return io.Schema(
+            node_id="Kandinsky5ImageToImageScale",
+            category="advanced/conditioning/kandinsky5",
+            description="This node resizes the image to one that is more optimal for Kandinsky5 ImageToImage.",
+            inputs=[
+                io.Image.Input("image"),
+            ],
+            outputs=[
+                io.Image.Output(),
+            ],
+        )
+
+    @classmethod
+    def execute(cls, image) -> io.NodeOutput:
+        height, width = image.shape[1:3]
+        aspect_ratio = width / height
+        _, nw, nh = min((abs(aspect_ratio - w / h), w, h) for w, h in PREFERED_KANDINSKY5_RESOLUTIONS)
+        scale_factor = min(height / nh, width / nw)
+        width, height = int(width / scale_factor), int(height / scale_factor)
+        image = F.resize(image.movedim(-1, 1), (height, width))
+        image = F.crop(
+            image,
+            (height - nh) // 2,
+            (width - nw) // 2,
+            nh,
+            nw,
+        ).movedim(1, -1)
+        return io.NodeOutput(image)
 
 class Kandinsky5Extension(ComfyExtension):
     @override
     async def get_node_list(self) -> list[type[io.ComfyNode]]:
         return [
             Kandinsky5ImageToVideo,
+            Kandinsky5ImageToImageScale,
             NormalizeVideoLatentStart,
             CLIPTextEncodeKandinsky5,
+            CLIPTextEncodeKandinsky5ImageToImage,
         ]
 
 async def comfy_entrypoint() -> Kandinsky5Extension:
