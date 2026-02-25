@@ -287,6 +287,7 @@ class WanVaceToVideo(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="WanVaceToVideo",
+            search_aliases=["video conditioning", "video control"],
             category="conditioning/video_models",
             inputs=[
                 io.Conditioning.Input("positive"),
@@ -705,6 +706,7 @@ class WanTrackToVideo(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="WanTrackToVideo",
+            search_aliases=["motion tracking", "trajectory video", "point tracking", "keypoint animation"],
             category="conditioning/video_models",
             inputs=[
                 io.Conditioning.Input("positive"),
@@ -715,8 +717,8 @@ class WanTrackToVideo(io.ComfyNode):
                 io.Int.Input("height", default=480, min=16, max=nodes.MAX_RESOLUTION, step=16),
                 io.Int.Input("length", default=81, min=1, max=nodes.MAX_RESOLUTION, step=4),
                 io.Int.Input("batch_size", default=1, min=1, max=4096),
-                io.Float.Input("temperature", default=220.0, min=1.0, max=1000.0, step=0.1),
-                io.Int.Input("topk", default=2, min=1, max=10),
+                io.Float.Input("temperature", default=220.0, min=1.0, max=1000.0, step=0.1, advanced=True),
+                io.Int.Input("topk", default=2, min=1, max=10, advanced=True),
                 io.Image.Input("start_image"),
                 io.ClipVisionOutput.Input("clip_vision_output", optional=True),
             ],
@@ -1321,7 +1323,7 @@ class WanInfiniteTalkToVideo(io.ComfyNode):
                 io.ClipVisionOutput.Input("clip_vision_output", optional=True),
                 io.Image.Input("start_image", optional=True),
                 io.AudioEncoderOutput.Input("audio_encoder_output_1"),
-                io.Int.Input("motion_frame_count", default=9, min=1, max=33, step=1, tooltip="Number of previous frames to use as motion context."),
+                io.Int.Input("motion_frame_count", default=9, min=1, max=33, step=1, tooltip="Number of previous frames to use as motion context.", advanced=True),
                 io.Float.Input("audio_scale", default=1.0, min=-10.0, max=10.0, step=0.01),
                 io.Image.Input("previous_frames", optional=True),
             ],

@@ -1,12 +1,22 @@
 from pydantic import BaseModel, Field
 
 
+class MultiPromptEntry(BaseModel):
+    index: int = Field(...)
+    prompt: str = Field(...)
+    duration: str = Field(...)
+
+
 class OmniProText2VideoRequest(BaseModel):
     model_name: str = Field(..., description="kling-video-o1")
     aspect_ratio: str = Field(..., description="'16:9', '9:16' or '1:1'")
     duration: str = Field(..., description="'5' or '10'")
     prompt: str = Field(...)
     mode: str = Field("pro")
+    multi_shot: bool | None = Field(None)
+    multi_prompt: list[MultiPromptEntry] | None = Field(None)
+    shot_type: str | None = Field(None)
+    sound: str = Field(..., description="'on' or 'off'")
 
 
 class OmniParamImage(BaseModel):
@@ -26,6 +36,10 @@ class OmniProFirstLastFrameRequest(BaseModel):
     duration: str = Field(..., description="'5' or '10'")
     prompt: str = Field(...)
     mode: str = Field("pro")
+    sound: str | None = Field(None, description="'on' or 'off'")
+    multi_shot: bool | None = Field(None)
+    multi_prompt: list[MultiPromptEntry] | None = Field(None)
+    shot_type: str | None = Field(None)
 
 
 class OmniProReferences2VideoRequest(BaseModel):
@@ -38,6 +52,10 @@ class OmniProReferences2VideoRequest(BaseModel):
     duration: str | None = Field(..., description="From 3 to 10.")
     prompt: str = Field(...)
     mode: str = Field("pro")
+    sound: str | None = Field(None, description="'on' or 'off'")
+    multi_shot: bool | None = Field(None)
+    multi_prompt: list[MultiPromptEntry] | None = Field(None)
+    shot_type: str | None = Field(None)
 
 
 class TaskStatusVideoResult(BaseModel):
@@ -54,6 +72,7 @@ class TaskStatusImageResult(BaseModel):
 class TaskStatusResults(BaseModel):
     videos: list[TaskStatusVideoResult] | None = Field(None)
     images: list[TaskStatusImageResult] | None = Field(None)
+    series_images: list[TaskStatusImageResult] | None = Field(None)
 
 
 class TaskStatusResponseData(BaseModel):
@@ -77,31 +96,49 @@ class OmniImageParamImage(BaseModel):
 
 
 class OmniProImageRequest(BaseModel):
-    model_name: str = Field(..., description="kling-image-o1")
-    resolution: str = Field(..., description="'1k' or '2k'")
+    model_name: str = Field(...)
+    resolution: str = Field(...)
     aspect_ratio: str | None = Field(...)
     prompt: str = Field(...)
     mode: str = Field("pro")
     n: int | None = Field(1, le=9)
     image_list: list[OmniImageParamImage] | None = Field(..., max_length=10)
+    result_type: str | None = Field(None, description="Set to 'series' for series generation")
+    series_amount: int | None = Field(None, ge=2, le=9, description="Number of images in a series")
 
 
 class TextToVideoWithAudioRequest(BaseModel):
-    model_name: str = Field(..., description="kling-v2-6")
+    model_name: str = Field(...)
     aspect_ratio: str = Field(..., description="'16:9', '9:16' or '1:1'")
-    duration: str = Field(..., description="'5' or '10'")
-    prompt: str = Field(...)
+    duration: str = Field(...)
+    prompt: str | None = Field(...)
+    negative_prompt: str | None = Field(None)
     mode: str = Field("pro")
     sound: str = Field(..., description="'on' or 'off'")
+    multi_shot: bool | None = Field(None)
+    multi_prompt: list[MultiPromptEntry] | None = Field(None)
+    shot_type: str | None = Field(None)
 
 
 class ImageToVideoWithAudioRequest(BaseModel):
-    model_name: str = Field(..., description="kling-v2-6")
+    model_name: str = Field(...)
     image: str = Field(...)
-    duration: str = Field(..., description="'5' or '10'")
-    prompt: str = Field(...)
+    image_tail: str | None = Field(None)
+    duration: str = Field(...)
+    prompt: str | None = Field(...)
+    negative_prompt: str | None = Field(None)
     mode: str = Field("pro")
     sound: str = Field(..., description="'on' or 'off'")
+    multi_shot: bool | None = Field(None)
+    multi_prompt: list[MultiPromptEntry] | None = Field(None)
+    shot_type: str | None = Field(None)
+
+
+class KlingAvatarRequest(BaseModel):
+    image: str = Field(...)
+    sound_file: str = Field(...)
+    prompt: str | None = Field(None)
+    mode: str = Field(...)
 
 
 class MotionControlRequest(BaseModel):

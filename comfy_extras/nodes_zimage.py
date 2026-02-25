@@ -16,7 +16,7 @@ class TextEncodeZImageOmni(io.ComfyNode):
                 io.Clip.Input("clip"),
                 io.ClipVision.Input("image_encoder", optional=True),
                 io.String.Input("prompt", multiline=True, dynamic_prompts=True),
-                io.Boolean.Input("auto_resize_images", default=True),
+                io.Boolean.Input("auto_resize_images", default=True, advanced=True),
                 io.Vae.Input("vae", optional=True),
                 io.Image.Input("image1", optional=True),
                 io.Image.Input("image2", optional=True),

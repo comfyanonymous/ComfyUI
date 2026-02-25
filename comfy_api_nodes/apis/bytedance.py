@@ -13,17 +13,6 @@ class Text2ImageTaskCreationRequest(BaseModel):
     watermark: bool | None = Field(False)
 
 
-class Image2ImageTaskCreationRequest(BaseModel):
-    model: str = Field(...)
-    prompt: str = Field(...)
-    response_format: str | None = Field("url")
-    image: str = Field(..., description="Base64 encoded string or image URL")
-    size: str | None = Field("adaptive")
-    seed: int | None = Field(..., ge=0, le=2147483647)
-    guidance_scale: float | None = Field(..., ge=1.0, le=10.0)
-    watermark: bool | None = Field(False)
-
-
 class Seedream4Options(BaseModel):
     max_images: int = Field(15)
 
@@ -38,6 +27,7 @@ class Seedream4TaskCreationRequest(BaseModel):
     sequential_image_generation: str = Field("disabled")
     sequential_image_generation_options: Seedream4Options = Field(Seedream4Options(max_images=15))
     watermark: bool = Field(False)
+    output_format: str | None = None
 
 
 class ImageTaskCreationResponse(BaseModel):
@@ -117,6 +107,7 @@ RECOMMENDED_PRESETS_SEEDREAM_4 = [
     ("2496x1664 (3:2)", 2496, 1664),
     ("1664x2496 (2:3)", 1664, 2496),
     ("3024x1296 (21:9)", 3024, 1296),
+    ("3072x3072 (1:1)", 3072, 3072),
     ("4096x4096 (1:1)", 4096, 4096),
     ("Custom", None, None),
 ]
