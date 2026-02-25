@@ -16,6 +16,10 @@ from comfy_execution.progress import get_progress_state
 from comfy_execution.utils import get_executing_context
 from comfy_api import feature_flags
 
+import comfy_aimdo.control
+
+if enables_dynamic_vram():
+    comfy_aimdo.control.init()
 
 if __name__ == "__main__":
     #NOTE: These do not do anything on core ComfyUI, they are for custom nodes.
@@ -173,10 +177,6 @@ import gc
 if 'torch' in sys.modules:
     logging.warning("WARNING: Potential Error in code: Torch already imported, torch should never be imported before this point.")
 
-import comfy_aimdo.control
-
-if enables_dynamic_vram():
-    comfy_aimdo.control.init()
 
 import comfy.utils
 
