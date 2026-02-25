@@ -157,11 +157,9 @@ class Embeddings1DConnector(nn.Module):
         self.num_learnable_registers = num_learnable_registers
         if self.num_learnable_registers:
             self.learnable_registers = nn.Parameter(
-                torch.rand(
+                torch.empty(
                     self.num_learnable_registers, inner_dim, dtype=dtype, device=device
                 )
-                * 2.0
-                - 1.0
             )
 
     def get_fractional_positions(self, indices_grid):
