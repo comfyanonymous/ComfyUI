@@ -308,63 +308,52 @@ class SDPoseDrawKeypoints(io.ComfyNode):
     @classmethod
     def execute(cls, keypoints, draw_body, draw_hands, draw_face, draw_feet, stick_width, face_point_size) -> io.NodeOutput:
 
-        all_keypoints = keypoints["keypoints"]
-        all_scores = keypoints["scores"]
+        all_keypoints = keypoints["keypoints"]  # list[list[tensor]]  outer=image, inner=person
+        all_scores = keypoints["scores"]         # list[list[tensor]]
         height, width = keypoints["image_size"]
-
-        # Convert all keypoints and scores to numpy upfront
-        keypoints_np_batch = []
-        scores_np_batch = []
-        for b in range(len(all_keypoints)):
-            kp = all_keypoints[b].cpu().numpy() if isinstance(all_keypoints[b], torch.Tensor) else all_keypoints[b]
-            sc = all_scores[b].cpu().numpy() if isinstance(all_scores[b], torch.Tensor) else all_scores[b]
-            keypoints_np_batch.append(kp)
-            scores_np_batch.append(sc)
-
-        # Pre-process all keypoints: add neck and reorder (vectorized where possible)
         score_threshold = 0.3
-        processed_keypoints = []
-        processed_scores = []
 
-        for b in range(len(keypoints_np_batch)):
-            keypoints = keypoints_np_batch[b]
-            scores = scores_np_batch[b]
+        def _to_numpy(x):
+            return x.cpu().numpy() if isinstance(x, torch.Tensor) else x
 
-            keypoints_with_neck = keypoints.copy()
-            scores_with_neck = scores.copy()
-
-            if len(keypoints) >= 17:
-                neck = (keypoints[5] + keypoints[6]) / 2
-                neck_score = min(scores[5], scores[6]) if scores[5] > 0.3 and scores[6] > 0.3 else 0
-
-                keypoints_with_neck = np.insert(keypoints, 17, neck, axis=0)
-                scores_with_neck = np.insert(scores, 17, neck_score)
-
-                mmpose_idx = np.array([17, 6, 8, 10, 7, 9, 12, 14, 16, 13, 15, 2, 1, 4, 3])
+        def _preprocess(kp_raw, sc_raw):
+            """Insert neck keypoint and remap from MMPose to OpenPose ordering."""
+            kp = _to_numpy(kp_raw).copy()
+            sc = _to_numpy(sc_raw).copy()
+            if len(kp) >= 17:
+                neck = (kp[5] + kp[6]) / 2
+                neck_score = min(sc[5], sc[6]) if sc[5] > 0.3 and sc[6] > 0.3 else 0
+                kp = np.insert(kp, 17, neck, axis=0)
+                sc = np.insert(sc, 17, neck_score)
+                mmpose_idx  = np.array([17, 6, 8, 10, 7, 9, 12, 14, 16, 13, 15, 2, 1, 4, 3])
                 openpose_idx = np.array([1, 2, 3, 4, 6, 7, 8, 9, 10, 12, 13, 14, 15, 16, 17])
+                tmp_kp, tmp_sc = kp.copy(), sc.copy()
+                tmp_kp[openpose_idx]  = kp[mmpose_idx]
+                tmp_sc[openpose_idx] = sc[mmpose_idx]
+                kp, sc = tmp_kp, tmp_sc
+            return kp, sc
 
-                temp_kpts = keypoints_with_neck.copy()
-                temp_scores = scores_with_neck.copy()
-                temp_kpts[openpose_idx] = keypoints_with_neck[mmpose_idx]
-                temp_scores[openpose_idx] = scores_with_neck[mmpose_idx]
-
-                keypoints_with_neck = temp_kpts
-                scores_with_neck = temp_scores
-
-            processed_keypoints.append(keypoints_with_neck)
-            processed_scores.append(scores_with_neck)
-
-        canvas_batch_np = np.zeros((len(all_keypoints), height, width, 3), dtype=np.uint8)
-
-        # Draw all frames
         pose_outputs = []
-        for b in tqdm(range(len(all_keypoints)), desc="Drawing keypoints on frames"):
-            pose_canvas = canvas_batch_np[b].copy()
-            drawer = KeypointDraw()
-            pose_canvas = drawer.draw_wholebody_keypoints(pose_canvas, processed_keypoints[b], processed_scores[b], threshold=score_threshold,
-                                                          draw_body=draw_body, draw_feet=draw_feet, draw_face=draw_face, draw_hands=draw_hands,
-                                                          stick_width=stick_width, face_point_size=face_point_size)
-            pose_outputs.append(pose_canvas)
+        drawer = KeypointDraw()
+        n_images = len(all_keypoints)
+
+        for b in tqdm(range(n_images), desc="Drawing keypoints on frames"):
+            # One canvas per input image; draw all detected persons on it
+            canvas = np.zeros((height, width, 3), dtype=np.uint8)
+            persons_kp = all_keypoints[b]  # list of per-person keypoints
+            persons_sc = all_scores[b]
+
+            for kp_raw, sc_raw in zip(persons_kp, persons_sc):
+                proc_kp, proc_sc = _preprocess(kp_raw, sc_raw)
+                canvas = drawer.draw_wholebody_keypoints(
+                    canvas, proc_kp, proc_sc,
+                    threshold=score_threshold,
+                    draw_body=draw_body, draw_feet=draw_feet,
+                    draw_face=draw_face, draw_hands=draw_hands,
+                    stick_width=stick_width, face_point_size=face_point_size,
+                )
+
+            pose_outputs.append(canvas)
 
         pose_outputs_np = np.stack(pose_outputs) if len(pose_outputs) > 1 else np.expand_dims(pose_outputs[0], 0)
         final_pose_output = torch.from_numpy(pose_outputs_np).float() / 255.0
@@ -383,6 +372,7 @@ class SDPoseKeypointExtractor(io.ComfyNode):
                 io.Vae.Input("vae"),
                 io.Image.Input("image"),
                 io.Int.Input("batch_size", default=8, min=1, max=10000, step=1),
+                io.BoundingBox.Input("bboxes", optional=True, force_input=True, tooltip="Optional bounding boxes for more accurate detections. Required for multi-person detection."),
             ],
             outputs=[
                 io.Custom("POSEKEYPOINTS").Output("keypoints", tooltip="Keypoints extracted from the image"),
@@ -390,11 +380,9 @@ class SDPoseKeypointExtractor(io.ComfyNode):
         )
 
     @classmethod
-    def execute(cls, model, vae, image, batch_size) -> io.NodeOutput:
+    def execute(cls, model, vae, image, batch_size, bboxes=None) -> io.NodeOutput:
 
-        latent_image = vae.encode(image)
         height, width = image.shape[-3], image.shape[-2]
-
         context = LotusConditioning().execute().result[0]
 
         # Use output_block_patch to capture the last 640-channel feature
@@ -407,26 +395,111 @@ class SDPoseKeypointExtractor(io.ComfyNode):
         model_clone = model.clone()
         model_clone.model_options["transformer_options"] = {"patches": {"output_block_patch": [output_patch]}}
 
-        total_images = latent_image.shape[0]
-        all_keypoints = []
-        all_scores = []
-
         head = model.model.diffusion_model.heatmap_head
+        total_images = image.shape[0]
+        captured_feat = None
+
+        model_h = int(head.heatmap_size[0]) * 4   # e.g. 192 * 4 = 768
+        model_w = int(head.heatmap_size[1]) * 4   # e.g. 256 * 4 = 1024
+
+        def _run_on_latent(latent_batch):
+            """Run one forward pass and return (keypoints_list, scores_list) for the batch."""
+            nonlocal captured_feat
+            captured_feat = None
+            _ = comfy.sample.sample(
+                model_clone,
+                noise=torch.zeros_like(latent_batch),
+                steps=1, cfg=1.0,
+                sampler_name="euler", scheduler="simple",
+                positive=context, negative=context,
+                latent_image=latent_batch, disable_noise=True,
+            )
+            return head(captured_feat)  # keypoints_batch, scores_batch
+
+        # all_keypoints / all_scores are lists-of-lists:
+        #   outer index = input image index
+        #   inner index = detected person (one per bbox, or one for full-image)
+        all_keypoints = []  # shape: [n_images][n_persons]
+        all_scores = []     # shape: [n_images][n_persons]
         pbar = comfy.utils.ProgressBar(total_images)
 
-        for batch_start in range(0, total_images, batch_size):
-            batch_end = min(batch_start + batch_size, total_images)
-            latent_batch = latent_image[batch_start:batch_end]
+        if bboxes is not None:
+            # --- bbox-crop mode: one forward pass per crop -------------------------
+            for img_idx in range(total_images):
+                img = image[img_idx:img_idx + 1]  # (1, H, W, C)
+                # Broadcasting: if fewer bbox lists than images, repeat the last one.
+                img_bboxes = bboxes[min(img_idx, len(bboxes) - 1)] if bboxes else []
 
-            captured_feat = None
-            _ = comfy.sample.sample(model_clone, noise=torch.zeros_like(latent_batch), steps=1, cfg=1.0, sampler_name="euler",
-                                    scheduler="simple", positive=context, negative=context, latent_image=latent_batch, disable_noise=True)
+                img_keypoints = []
+                img_scores = []
 
-            keypoints_batch, scores_batch = head(captured_feat)
-            all_keypoints.extend(keypoints_batch)
-            all_scores.extend(scores_batch)
+                if img_bboxes:
+                    for bbox in img_bboxes:
+                        x1 = max(0, int(bbox["x"]))
+                        y1 = max(0, int(bbox["y"]))
+                        x2 = min(width,  int(bbox["x"] + bbox["width"]))
+                        y2 = min(height, int(bbox["y"] + bbox["height"]))
 
-            pbar.update(batch_end - batch_start)
+                        if x2 <= x1 or y2 <= y1:
+                            continue
+
+                        crop_h_px, crop_w_px = y2 - y1, x2 - x1
+                        crop = img[:, y1:y2, x1:x2, :]  # (1, crop_h, crop_w, C)
+
+                        # scale to fit inside (model_h, model_w) while preserving aspect ratio, then pad to exact model size.
+                        scale = min(model_h / crop_h_px, model_w / crop_w_px)
+                        scaled_h = int(round(crop_h_px * scale))
+                        scaled_w = int(round(crop_w_px * scale))
+                        pad_top  = (model_h - scaled_h) // 2
+                        pad_left = (model_w - scaled_w) // 2
+
+                        crop_chw = crop.permute(0, 3, 1, 2).float()  # BHWC → BCHW
+                        scaled = torch.nn.functional.interpolate(
+                            crop_chw, size=(scaled_h, scaled_w),
+                            mode="bilinear", align_corners=False,
+                        )
+                        padded = torch.zeros(1, scaled.shape[1], model_h, model_w,
+                                             dtype=scaled.dtype, device=scaled.device)
+                        padded[:, :, pad_top:pad_top + scaled_h, pad_left:pad_left + scaled_w] = scaled
+                        crop_resized = padded.permute(0, 2, 3, 1)  # BCHW → BHWC
+
+                        latent_crop = vae.encode(crop_resized)
+                        kp_batch, sc_batch = _run_on_latent(latent_crop)
+
+                        kp = kp_batch[0]  # (K, 2), coords in model pixel space
+                        sc = sc_batch[0]
+
+                        # remove padding offset, undo scale, offset to full-image coordinates.
+                        kp = kp.copy() if isinstance(kp, np.ndarray) else np.array(kp, dtype=np.float32)
+                        kp[..., 0] = (kp[..., 0] - pad_left) / scale + x1
+                        kp[..., 1] = (kp[..., 1] - pad_top)  / scale + y1
+
+                        img_keypoints.append(kp)
+                        img_scores.append(sc)
+                else:
+                    # No bboxes for this image – run on the full image
+                    latent_img = vae.encode(img)
+                    kp_batch, sc_batch = _run_on_latent(latent_img)
+                    img_keypoints.append(kp_batch[0])
+                    img_scores.append(sc_batch[0])
+
+                all_keypoints.append(img_keypoints)
+                all_scores.append(img_scores)
+                pbar.update(1)
+
+        else: # full-image mode, batched
+            latent_image = vae.encode(image)
+            for batch_start in range(0, total_images, batch_size):
+                batch_end = min(batch_start + batch_size, total_images)
+                latent_batch = latent_image[batch_start:batch_end]
+
+                kp_batch, sc_batch = _run_on_latent(latent_batch)
+
+                for kp, sc in zip(kp_batch, sc_batch):
+                    all_keypoints.append([kp])
+                    all_scores.append([sc])
+
+                pbar.update(batch_end - batch_start)
 
         out = {"keypoints": all_keypoints, "scores": all_scores, "image_size": (height, width)}
         return io.NodeOutput(out)
