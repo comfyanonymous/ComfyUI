@@ -1,5 +1,4 @@
 import torch
-from unittest.mock import patch
 
 from comfy.model_detection import detect_unet_config, model_config_from_unet_config
 import comfy.supported_models
@@ -60,27 +59,19 @@ def _make_flux_schnell_comfyui_sd():
     return sd
 
 
-class TestModelDetectionSpecificity:
-    """Verify that model_config_from_unet_config picks the most specific match."""
+class TestModelDetection:
+    """Verify that first-match model detection selects the correct model
+    based on list ordering and unet_config specificity."""
 
-    def test_longcat_wins_regardless_of_list_order(self):
-        """Specificity logic must pick LongCatImage even when FluxSchnell appears first."""
-        sd = _make_longcat_comfyui_sd()
-        unet_config = detect_unet_config(sd, "")
-
-        longcat_cls = comfy.supported_models.LongCatImage
-        schnell_cls = comfy.supported_models.FluxSchnell
-
-        for label, order in [
-            ("schnell-first", [schnell_cls, longcat_cls]),
-            ("longcat-first", [longcat_cls, schnell_cls]),
-        ]:
-            with patch.object(comfy.supported_models, "models", order):
-                result = model_config_from_unet_config(unet_config, sd)
-                assert result is not None, f"No match with order {label}"
-                assert type(result).__name__ == "LongCatImage", (
-                    f"Expected LongCatImage with order {label}, got {type(result).__name__}"
-                )
+    def test_longcat_before_schnell_in_models_list(self):
+        """LongCatImage must appear before FluxSchnell in the models list."""
+        models = comfy.supported_models.models
+        longcat_idx = next(i for i, m in enumerate(models) if m.__name__ == "LongCatImage")
+        schnell_idx = next(i for i, m in enumerate(models) if m.__name__ == "FluxSchnell")
+        assert longcat_idx < schnell_idx, (
+            f"LongCatImage (index {longcat_idx}) must come before "
+            f"FluxSchnell (index {schnell_idx}) in the models list"
+        )
 
     def test_longcat_comfyui_detected_as_longcat(self):
         sd = _make_longcat_comfyui_sd()
