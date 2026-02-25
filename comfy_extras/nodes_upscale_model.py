@@ -89,6 +89,7 @@ class ImageUpscaleWithModel(io.ComfyNode):
             except model_management.OOM_EXCEPTION as e:
                 tile //= 2
                 if tile < 128:
+                    upscale_model.to("cpu")
                     raise e
 
         # upscale_model.to("cpu")  # Commented out to keep model on GPU because when processing batch images then model unnecessarily moves to CPU
