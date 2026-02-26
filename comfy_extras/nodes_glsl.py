@@ -717,11 +717,11 @@ def _render_shader_batch(
         gl.glUseProgram(0)
 
         for tex in input_textures:
-            gl.glDeleteTextures(tex)
+            gl.glDeleteTextures(int(tex))
         for tex in output_textures:
-            gl.glDeleteTextures(tex)
+            gl.glDeleteTextures(int(tex))
         for tex in ping_pong_textures:
-            gl.glDeleteTextures(tex)
+            gl.glDeleteTextures(int(tex))
         if fbo is not None:
             gl.glDeleteFramebuffers(1, [fbo])
         for pp_fbo in ping_pong_fbos:
