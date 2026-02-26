@@ -505,7 +505,7 @@ class SDPoseKeypointExtractor(io.ComfyNode):
                         pad_top, pad_left  = (model_h - scaled_h) // 2, (model_w - scaled_w) // 2
 
                         crop_chw = crop.permute(0, 3, 1, 2).float()  # BHWC → BCHW
-                        scaled = torch.nn.functional.interpolate(crop_chw, size=(scaled_h, scaled_w), mode="bilinear", align_corners=False)
+                        scaled = comfy.utils.common_upscale(crop_chw, scaled_w, scaled_h, upscale_method="bilinear", crop="disabled")
                         padded = torch.zeros(1, scaled.shape[1], model_h, model_w, dtype=scaled.dtype, device=scaled.device)
                         padded[:, :, pad_top:pad_top + scaled_h, pad_left:pad_left + scaled_w] = scaled
                         crop_resized = padded.permute(0, 2, 3, 1)  # BCHW → BHWC
@@ -551,12 +551,176 @@ class SDPoseKeypointExtractor(io.ComfyNode):
         return io.NodeOutput(openpose_frames)
 
 
+def get_face_bboxes(kp2ds, scale, image_shape):
+    h, w = image_shape
+    kp2ds_face = kp2ds.copy()[1:] * (w, h)
+
+    min_x, min_y = np.min(kp2ds_face, axis=0)
+    max_x, max_y = np.max(kp2ds_face, axis=0)
+
+    initial_width = max_x - min_x
+    initial_height = max_y - min_y
+
+    initial_area = initial_width * initial_height
+
+    expanded_area = initial_area * scale
+
+    new_width = np.sqrt(expanded_area * (initial_width / initial_height))
+    new_height = np.sqrt(expanded_area * (initial_height / initial_width))
+
+    delta_width = (new_width - initial_width) / 2
+    delta_height = (new_height - initial_height) / 4
+
+    expanded_min_x = max(min_x - delta_width, 0)
+    expanded_max_x = min(max_x + delta_width, w)
+    expanded_min_y = max(min_y - 3 * delta_height, 0)
+    expanded_max_y = min(max_y + delta_height, h)
+
+    return [int(expanded_min_x), int(expanded_max_x), int(expanded_min_y), int(expanded_max_y)]
+
+class SDPoseFaceBBoxes(io.ComfyNode):
+
+    @classmethod
+    def define_schema(cls):
+        return io.Schema(
+            node_id="SDPoseFaceBBoxes",
+            category="image/preprocessors",
+            search_aliases=["face bbox", "face bounding box", "pose", "keypoints"],
+            inputs=[
+                io.Custom("POSE_KEYPOINT").Input("keypoints"),
+                io.Float.Input("scale", default=1.5, min=1.0, max=10.0, step=0.1, tooltip="Multiplier for the bounding box area around each detected face."),
+                io.Boolean.Input("force_square", default=True, tooltip="Expand the shorter bbox axis so the crop region is always square."),
+            ],
+            outputs=[
+                io.BoundingBox.Output("bboxes", tooltip="Face bounding boxes per frame, compatible with SDPoseKeypointExtractor bboxes input."),
+            ],
+        )
+
+    @classmethod
+    def execute(cls, keypoints, scale, force_square) -> io.NodeOutput:
+        all_bboxes = []
+        for frame in keypoints:
+            h = frame["canvas_height"]
+            w = frame["canvas_width"]
+            frame_bboxes = []
+            for person in frame["people"]:
+                face_flat = person.get("face_keypoints_2d", [])
+                if not face_flat:
+                    continue
+                # Parse absolute-pixel face keypoints (70 kp: 68 landmarks + REye + LEye)
+                face_arr = np.array(face_flat, dtype=np.float32).reshape(-1, 3)
+                face_xy  = face_arr[:, :2]  # (70, 2) in absolute pixels
+
+                kp_norm = face_xy / np.array([w, h], dtype=np.float32)
+                kp_padded = np.vstack([np.zeros((1, 2), dtype=np.float32), kp_norm])  # (71, 2)
+
+                x1, x2, y1, y2 = get_face_bboxes(kp_padded, scale, (h, w))
+                if x2 > x1 and y2 > y1:
+                    if force_square:
+                        bw, bh = x2 - x1, y2 - y1
+                        if bw != bh:
+                            side = max(bw, bh)
+                            cx, cy = (x1 + x2) // 2, (y1 + y2) // 2
+                            half = side // 2
+                            x1 = max(0, cx - half)
+                            y1 = max(0, cy - half)
+                            x2 = min(w, x1 + side)
+                            y2 = min(h, y1 + side)
+                            # Re-anchor if clamped
+                            x1 = max(0, x2 - side)
+                            y1 = max(0, y2 - side)
+                    frame_bboxes.append({"x": x1, "y": y1, "width": x2 - x1, "height": y2 - y1})
+
+            all_bboxes.append(frame_bboxes)
+
+        return io.NodeOutput(all_bboxes)
+
+
+class CropByBBoxes(io.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return io.Schema(
+            node_id="CropByBBoxes",
+            category="image/preprocessors",
+            search_aliases=["crop", "face crop", "bbox crop", "pose", "bounding box"],
+            description="Crop and resize regions from the input image batch based on provided bounding boxes.",
+            inputs=[
+                io.Image.Input("image"),
+                io.BoundingBox.Input("bboxes", force_input=True),
+                io.Int.Input("output_width",  default=512, min=64, max=4096, step=8, tooltip="Width each crop is resized to."),
+                io.Int.Input("output_height", default=512, min=64, max=4096, step=8, tooltip="Height each crop is resized to."),
+                io.Int.Input("padding", default=0, min=0, max=1024, step=1, tooltip="Extra padding in pixels added on each side of the bbox before cropping."),
+            ],
+            outputs=[
+                io.Image.Output(tooltip="All crops stacked into a single image batch."),
+            ],
+        )
+
+    @classmethod
+    def execute(cls, image, bboxes, output_width, output_height, padding) -> io.NodeOutput:
+        total_frames = image.shape[0]
+        img_h = image.shape[1]
+        img_w = image.shape[2]
+        num_ch = image.shape[3]
+
+        if not isinstance(bboxes, list):
+            bboxes = [[bboxes]]
+
+        crops = []
+
+        for frame_idx in range(total_frames):
+            frame_bboxes = bboxes[min(frame_idx, len(bboxes) - 1)]
+            if not frame_bboxes:
+                continue
+
+            frame_chw = image[frame_idx].permute(2, 0, 1).unsqueeze(0)  # BHWC → BCHW (1, C, H, W)
+
+            # Union all bboxes for this frame into a single crop region
+            x1 = min(int(b["x"]) for b in frame_bboxes)
+            y1 = min(int(b["y"]) for b in frame_bboxes)
+            x2 = max(int(b["x"] + b["width"])  for b in frame_bboxes)
+            y2 = max(int(b["y"] + b["height"]) for b in frame_bboxes)
+
+            if padding > 0:
+                x1 = max(0, x1 - padding)
+                y1 = max(0, y1 - padding)
+                x2 = min(img_w, x2 + padding)
+                y2 = min(img_h, y2 + padding)
+
+            x1, x2 = max(0, x1), min(img_w, x2)
+            y1, y2 = max(0, y1), min(img_h, y2)
+
+            # Fallback for empty/degenerate crops
+            if x2 <= x1 or y2 <= y1:
+                fallback_size = int(min(img_h, img_w) * 0.3)
+                fb_x1 = max(0, (img_w - fallback_size) // 2)
+                fb_y1 = max(0, int(img_h * 0.1))
+                fb_x2 = min(img_w, fb_x1 + fallback_size)
+                fb_y2 = min(img_h, fb_y1 + fallback_size)
+                if fb_x2 <= fb_x1 or fb_y2 <= fb_y1:
+                    crops.append(torch.zeros(1, num_ch, output_height, output_width, dtype=image.dtype, device=image.device))
+                    continue
+                x1, y1, x2, y2 = fb_x1, fb_y1, fb_x2, fb_y2
+
+            crop_chw = frame_chw[:, :, y1:y2, x1:x2]  # (1, C, crop_h, crop_w)
+            resized = comfy.utils.common_upscale(crop_chw, output_width, output_height, upscale_method="bilinear", crop="disabled")
+            crops.append(resized)
+
+        if not crops:
+            return io.NodeOutput(image, list(range(total_frames)))
+
+        out_images = torch.cat(crops, dim=0).permute(0, 2, 3, 1)  # (N, H, W, C)
+        return io.NodeOutput(out_images)
+
+
 class SDPoseExtension(ComfyExtension):
     @override
     async def get_node_list(self) -> list[type[io.ComfyNode]]:
         return [
             SDPoseKeypointExtractor,
             SDPoseDrawKeypoints,
+            SDPoseFaceBBoxes,
+            CropByBBoxes,
         ]
 
 async def comfy_entrypoint() -> SDPoseExtension:
