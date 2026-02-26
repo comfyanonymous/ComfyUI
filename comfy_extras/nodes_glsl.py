@@ -560,6 +560,16 @@ class __GLRenderMeta(type):
 
         return program
 
+    def __gen_default_texture(cls, width: int, height: int) -> int:
+        """Initializes a texture of default type. Returns the handle."""
+        gl = cls.context.GL
+        tex: int = gl.glGenTextures(1)
+        gl.glBindTexture(gl.GL_TEXTURE_2D, tex)
+        gl.glTexImage2D(gl.GL_TEXTURE_2D, 0, gl.GL_RGBA32F, width, height, 0, gl.GL_RGBA, gl.GL_FLOAT, None)
+        gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MIN_FILTER, gl.GL_LINEAR)
+        gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MAG_FILTER, gl.GL_LINEAR)
+        return tex
+
     def render_shader_batch(
         cls,
         fragment_code: str,
@@ -632,12 +642,8 @@ class __GLRenderMeta(type):
 
             draw_buffers = []
             for i in range(num_outputs):
-                tex = gl.glGenTextures(1)
+                tex = cls.__gen_default_texture(width, height)
                 output_textures.append(tex)
-                gl.glBindTexture(gl.GL_TEXTURE_2D, tex)
-                gl.glTexImage2D(gl.GL_TEXTURE_2D, 0, gl.GL_RGBA32F, width, height, 0, gl.GL_RGBA, gl.GL_FLOAT, None)
-                gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MIN_FILTER, gl.GL_LINEAR)
-                gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MAG_FILTER, gl.GL_LINEAR)
                 gl.glFramebufferTexture2D(gl.GL_FRAMEBUFFER, gl.GL_COLOR_ATTACHMENT0 + i, gl.GL_TEXTURE_2D, tex, 0)
                 draw_buffers.append(gl.GL_COLOR_ATTACHMENT0 + i)
 
@@ -649,14 +655,10 @@ class __GLRenderMeta(type):
             # Create ping-pong resources for multi-pass rendering
             if num_passes > 1:
                 for _ in range(2):
-                    pp_tex = gl.glGenTextures(1)
-                    ping_pong_textures.append(pp_tex)
-                    gl.glBindTexture(gl.GL_TEXTURE_2D, pp_tex)
-                    gl.glTexImage2D(gl.GL_TEXTURE_2D, 0, gl.GL_RGBA32F, width, height, 0, gl.GL_RGBA, gl.GL_FLOAT, None)
-                    gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MIN_FILTER, gl.GL_LINEAR)
-                    gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MAG_FILTER, gl.GL_LINEAR)
+                    pp_tex = cls.__gen_default_texture(width, height)
                     gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_WRAP_S, gl.GL_CLAMP_TO_EDGE)
                     gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_WRAP_T, gl.GL_CLAMP_TO_EDGE)
+                    ping_pong_textures.append(pp_tex)
 
                     pp_fbo = gl.glGenFramebuffers(1)
                     ping_pong_fbos.append(pp_fbo)
