@@ -19,7 +19,7 @@
 import torch
 import logging
 import comfy.model_management
-from comfy.cli_args import args, PerformanceFeature, enables_dynamic_vram
+from comfy.cli_args import args, PerformanceFeature
 import comfy.float
 import json
 import comfy.memory_management
@@ -296,7 +296,7 @@ class disable_weight_init:
     class Linear(torch.nn.Linear, CastWeightBiasOp):
 
         def __init__(self, in_features, out_features, bias=True, device=None, dtype=None):
-            if not comfy.model_management.WINDOWS or not enables_dynamic_vram():
+            if not comfy.model_management.WINDOWS or not comfy.memory_management.aimdo_enabled:
                 super().__init__(in_features, out_features, bias, device, dtype)
                 return
 
@@ -317,7 +317,7 @@ class disable_weight_init:
         def _load_from_state_dict(self, state_dict, prefix, local_metadata,
                                 strict, missing_keys, unexpected_keys, error_msgs):
 
-            if not comfy.model_management.WINDOWS or not enables_dynamic_vram():
+            if not comfy.model_management.WINDOWS or not comfy.memory_management.aimdo_enabled:
                 return super()._load_from_state_dict(state_dict, prefix, local_metadata, strict,
                                                      missing_keys, unexpected_keys, error_msgs)
             assign_to_params_buffers = local_metadata.get("assign_to_params_buffers", False)
