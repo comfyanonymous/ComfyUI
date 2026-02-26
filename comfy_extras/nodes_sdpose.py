@@ -483,11 +483,13 @@ class SDPoseKeypointExtractor(io.ComfyNode):
         if bboxes is not None:
             if not isinstance(bboxes, list):
                 bboxes = [[bboxes]]
+            elif len(bboxes) == 0:
+                bboxes = [None] * total_images
             # --- bbox-crop mode: one forward pass per crop -------------------------
             for img_idx in tqdm(range(total_images), desc="Extracting keypoints from crops"):
                 img = image[img_idx:img_idx + 1]  # (1, H, W, C)
                 # Broadcasting: if fewer bbox lists than images, repeat the last one.
-                img_bboxes = bboxes[min(img_idx, len(bboxes) - 1)]
+                img_bboxes = bboxes[min(img_idx, len(bboxes) - 1)] if bboxes else None
 
                 img_keypoints = []
                 img_scores = []
@@ -674,6 +676,8 @@ class CropByBBoxes(io.ComfyNode):
 
         if not isinstance(bboxes, list):
             bboxes = [[bboxes]]
+        elif len(bboxes) == 0:
+            return io.NodeOutput(image)
 
         crops = []
 
