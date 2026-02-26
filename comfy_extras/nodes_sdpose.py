@@ -422,7 +422,7 @@ class SDPoseKeypointExtractor(io.ComfyNode):
                 io.Model.Input("model"),
                 io.Vae.Input("vae"),
                 io.Image.Input("image"),
-                io.Int.Input("batch_size", default=8, min=1, max=10000, step=1),
+                io.Int.Input("batch_size", default=16, min=1, max=10000, step=1),
                 io.BoundingBox.Input("bboxes", optional=True, force_input=True, tooltip="Optional bounding boxes for more accurate detections. Required for multi-person detection."),
             ],
             outputs=[
@@ -463,7 +463,7 @@ class SDPoseKeypointExtractor(io.ComfyNode):
                 steps=1, cfg=1.0,
                 sampler_name="euler", scheduler="simple",
                 positive=context, negative=context,
-                latent_image=latent_batch, disable_noise=True,
+                latent_image=latent_batch, disable_noise=True, disable_pbar=True,
             )
             return head(captured_feat)  # keypoints_batch, scores_batch
 
@@ -478,7 +478,7 @@ class SDPoseKeypointExtractor(io.ComfyNode):
             if not isinstance(bboxes, list):
                 bboxes = [[bboxes]]
             # --- bbox-crop mode: one forward pass per crop -------------------------
-            for img_idx in range(total_images):
+            for img_idx in tqdm(range(total_images), desc="Extracting keypoints from crops"):
                 img = image[img_idx:img_idx + 1]  # (1, H, W, C)
                 # Broadcasting: if fewer bbox lists than images, repeat the last one.
                 img_bboxes = bboxes[min(img_idx, len(bboxes) - 1)] if bboxes else []
@@ -541,16 +541,17 @@ class SDPoseKeypointExtractor(io.ComfyNode):
                 pbar.update(1)
 
         else: # full-image mode, batched
-            latent_image = vae.encode(image)
+            tqdm_pbar = tqdm(total=total_images, desc="Extracting keypoints")
             for batch_start in range(0, total_images, batch_size):
                 batch_end = min(batch_start + batch_size, total_images)
-                latent_batch = latent_image[batch_start:batch_end]
+                latent_batch = vae.encode(image[batch_start:batch_end])
 
                 kp_batch, sc_batch = _run_on_latent(latent_batch)
 
                 for kp, sc in zip(kp_batch, sc_batch):
                     all_keypoints.append([kp])
                     all_scores.append([sc])
+                    tqdm_pbar.update(1)
 
                 pbar.update(batch_end - batch_start)
 
