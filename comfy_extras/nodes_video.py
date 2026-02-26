@@ -147,7 +147,6 @@ class GetVideoComponents(io.ComfyNode):
             search_aliases=["extract frames", "split video", "video to images", "demux"],
             display_name="Get Video Components",
             category="image/video",
-            essentials_category="Video Tools",
             description="Extracts all components from a video: frames, audio, and framerate.",
             inputs=[
                 io.Video.Input("video", tooltip="The video to extract components from."),
@@ -218,6 +217,7 @@ class VideoSlice(io.ComfyNode):
                 "start time",
             ],
             category="image/video",
+            essentials_category="Video Tools",
             inputs=[
                 io.Video.Input("video"),
                 io.Float.Input(
