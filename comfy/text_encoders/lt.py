@@ -6,6 +6,7 @@ import comfy.text_encoders.genmo
 import torch
 import comfy.utils
 import math
+import itertools
 
 class T5XXLTokenizer(sd1_clip.SDTokenizer):
     def __init__(self, embedding_directory=None, tokenizer_data={}):
@@ -72,7 +73,7 @@ class Gemma3_12BTokenizer(Gemma3_Tokenizer, sd1_clip.SDTokenizer):
     def __init__(self, embedding_directory=None, tokenizer_data={}):
         tokenizer = tokenizer_data.get("spiece_model", None)
         special_tokens = {"<image_soft_token>": 262144, "<end_of_turn>": 106}
-        super().__init__(tokenizer, pad_with_end=False, embedding_size=3840, embedding_key='gemma3_12b', tokenizer_class=SPieceTokenizer, has_end_token=False, pad_to_max_length=False, max_length=99999999, min_length=512, pad_left=True, disable_weights=True, tokenizer_args={"add_bos": True, "add_eos": False, "special_tokens": special_tokens}, tokenizer_data=tokenizer_data)
+        super().__init__(tokenizer, pad_with_end=False, embedding_size=3840, embedding_key='gemma3_12b', tokenizer_class=SPieceTokenizer, has_end_token=False, pad_to_max_length=False, max_length=99999999, min_length=1024, pad_left=True, disable_weights=True, tokenizer_args={"add_bos": True, "add_eos": False, "special_tokens": special_tokens}, tokenizer_data=tokenizer_data)
 
 
 class LTXAVGemmaTokenizer(sd1_clip.SD1Tokenizer):
@@ -199,8 +200,10 @@ class LTXAVTEModel(torch.nn.Module):
             constant /= 2.0
 
         token_weight_pairs = token_weight_pairs.get("gemma3_12b", [])
-        num_tokens = sum(map(lambda a: len(a), token_weight_pairs))
-        num_tokens = max(num_tokens, 64)
+        m = min([sum(1 for _ in itertools.takewhile(lambda x: x[0] == 0, sub)) for sub in token_weight_pairs])
+
+        num_tokens = sum(map(lambda a: len(a), token_weight_pairs)) - m
+        num_tokens = max(num_tokens, 642)
         return num_tokens * constant * 1024 * 1024
 
 def ltxav_te(dtype_llama=None, llama_quantization_metadata=None):
