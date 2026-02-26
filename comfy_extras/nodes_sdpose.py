@@ -418,6 +418,7 @@ class SDPoseKeypointExtractor(io.ComfyNode):
             node_id="SDPoseKeypointExtractor",
             category="image/preprocessors",
             search_aliases=["openpose", "pose detection", "preprocessor", "keypoints", "sdpose"],
+            description="Extract pose keypoints from images using the SDPose model: https://huggingface.co/Comfy-Org/SDPose/tree/main/checkpoints",
             inputs=[
                 io.Model.Input("model"),
                 io.Vae.Input("vae"),
@@ -445,6 +446,9 @@ class SDPoseKeypointExtractor(io.ComfyNode):
 
         model_clone = model.clone()
         model_clone.model_options["transformer_options"] = {"patches": {"output_block_patch": [output_patch]}}
+
+        if not hasattr(model.model.diffusion_model, 'heatmap_head'):
+            raise ValueError("The provided model does not have a heatmap_head. Please use SDPose model from here https://huggingface.co/Comfy-Org/SDPose/tree/main/checkpoints.")
 
         head = model.model.diffusion_model.heatmap_head
         total_images = image.shape[0]
@@ -560,6 +564,9 @@ def get_face_bboxes(kp2ds, scale, image_shape):
 
     initial_width = max_x - min_x
     initial_height = max_y - min_y
+
+    if initial_width <= 0 or initial_height <= 0:
+        return [0, 0, 0, 0]
 
     initial_area = initial_width * initial_height
 
