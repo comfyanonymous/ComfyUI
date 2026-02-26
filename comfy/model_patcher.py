@@ -316,6 +316,8 @@ class ModelPatcher:
         if self.is_dynamic() and disable_dynamic:
             class_ = ModelPatcher
             if model_override is None:
+                if self.cached_patcher_init is None:
+                    raise RuntimeError("Cannot create non-dynamic delegate: cached_patcher_init is not initialized.")
                 temp_model_patcher = self.cached_patcher_init[0](*self.cached_patcher_init[1], disable_dynamic=True)
                 model_override = temp_model_patcher.get_clone_model_override()
         if model_override is None:

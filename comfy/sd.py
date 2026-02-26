@@ -1549,9 +1549,9 @@ def load_checkpoint_guess_config(ckpt_path, output_vae=True, output_clip=True, o
     out = load_state_dict_guess_config(sd, output_vae, output_clip, output_clipvision, embedding_directory, output_model, model_options, te_model_options=te_model_options, metadata=metadata, disable_dynamic=disable_dynamic)
     if out is None:
         raise RuntimeError("ERROR: Could not detect model type of: {}\n{}".format(ckpt_path, model_detection_error_hint(ckpt_path, sd)))
-    if output_model:
+    if output_model and out[0] is not None:
         out[0].cached_patcher_init = (load_checkpoint_guess_config_model_only, (ckpt_path, embedding_directory, model_options, te_model_options))
-    if output_clip:
+    if output_clip and out[1] is not None:
         out[1].patcher.cached_patcher_init = (load_checkpoint_guess_config_clip_only, (ckpt_path, embedding_directory, model_options, te_model_options))
     return out
 

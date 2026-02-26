@@ -71,6 +71,11 @@ def cond_has_hooks(cond):
         temp = c[1]
         if "hooks" in temp:
             return True
+        if "control" in temp:
+            control = temp["control"]
+            extra_hooks = control.get_extra_hooks()
+            if len(extra_hooks) > 0:
+                return True
     return False
 
 def get_additional_models(conds, dtype):
