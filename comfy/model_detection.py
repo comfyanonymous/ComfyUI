@@ -509,6 +509,9 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
         if ref_conv_weight is not None:
             dit_config["in_dim_ref_conv"] = ref_conv_weight.shape[1]
 
+        if metadata is not None and "config" in metadata:
+            dit_config.update(json.loads(metadata["config"]).get("transformer", {}))
+
         return dit_config
 
     if '{}latent_in.weight'.format(key_prefix) in state_dict_keys:  # Hunyuan 3D

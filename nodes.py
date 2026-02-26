@@ -1925,7 +1925,6 @@ class ImageInvert:
 
 class ImageBatch:
     SEARCH_ALIASES = ["combine images", "merge images", "stack images"]
-    ESSENTIALS_CATEGORY = "Image Tools"
 
     @classmethod
     def INPUT_TYPES(s):
