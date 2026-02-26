@@ -950,6 +950,8 @@ class GeminiNanoBanana2(IO.ComfyNode):
         system_prompt: str = "",
     ) -> IO.NodeOutput:
         validate_string(prompt, strip_whitespace=True, min_length=1)
+        if model == "Nano Banana 2 (Gemini 3.1 Flash Image)":
+            model = "gemini-3.1-flash-image-preview"
 
         parts: list[GeminiPart] = [GeminiPart(text=prompt)]
         if images is not None:
