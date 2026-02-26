@@ -501,26 +501,18 @@ class SDPoseKeypointExtractor(io.ComfyNode):
 
                         # scale to fit inside (model_h, model_w) while preserving aspect ratio, then pad to exact model size.
                         scale = min(model_h / crop_h_px, model_w / crop_w_px)
-                        scaled_h = int(round(crop_h_px * scale))
-                        scaled_w = int(round(crop_w_px * scale))
-                        pad_top  = (model_h - scaled_h) // 2
-                        pad_left = (model_w - scaled_w) // 2
+                        scaled_h, scaled_w = int(round(crop_h_px * scale)), int(round(crop_w_px * scale))
+                        pad_top, pad_left  = (model_h - scaled_h) // 2, (model_w - scaled_w) // 2
 
                         crop_chw = crop.permute(0, 3, 1, 2).float()  # BHWC → BCHW
-                        scaled = torch.nn.functional.interpolate(
-                            crop_chw, size=(scaled_h, scaled_w),
-                            mode="bilinear", align_corners=False,
-                        )
-                        padded = torch.zeros(1, scaled.shape[1], model_h, model_w,
-                                             dtype=scaled.dtype, device=scaled.device)
+                        scaled = torch.nn.functional.interpolate(crop_chw, size=(scaled_h, scaled_w), mode="bilinear", align_corners=False)
+                        padded = torch.zeros(1, scaled.shape[1], model_h, model_w, dtype=scaled.dtype, device=scaled.device)
                         padded[:, :, pad_top:pad_top + scaled_h, pad_left:pad_left + scaled_w] = scaled
                         crop_resized = padded.permute(0, 2, 3, 1)  # BCHW → BHWC
 
                         latent_crop = vae.encode(crop_resized)
                         kp_batch, sc_batch = _run_on_latent(latent_crop)
-
-                        kp = kp_batch[0]  # (K, 2), coords in model pixel space
-                        sc = sc_batch[0]
+                        kp, sc = kp_batch[0], sc_batch[0]  # (K, 2), coords in model pixel space
 
                         # remove padding offset, undo scale, offset to full-image coordinates.
                         kp = kp.copy() if isinstance(kp, np.ndarray) else np.array(kp, dtype=np.float32)
