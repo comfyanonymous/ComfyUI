@@ -371,6 +371,8 @@ class SDPoseDrawKeypoints(io.ComfyNode):
 
     @classmethod
     def execute(cls, keypoints, draw_body, draw_hands, draw_face, draw_feet, stick_width, face_point_size, score_threshold) -> io.NodeOutput:
+        if not keypoints:
+            return io.NodeOutput(torch.zeros((1, 64, 64, 3), dtype=torch.float32))
         height = keypoints[0]["canvas_height"]
         width  = keypoints[0]["canvas_width"]
 
@@ -714,7 +716,7 @@ class CropByBBoxes(io.ComfyNode):
             crops.append(resized)
 
         if not crops:
-            return io.NodeOutput(image, list(range(total_frames)))
+            return io.NodeOutput(image)
 
         out_images = torch.cat(crops, dim=0).permute(0, 2, 3, 1)  # (N, H, W, C)
         return io.NodeOutput(out_images)
