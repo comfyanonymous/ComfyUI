@@ -249,6 +249,7 @@ class GLContext:
 
         # Create VAO (required for core profile, but OSMesa may use compat profile)
         logger.debug("GLContext.__init__: creating VAO")
+        vao = None
         try:
             vao = gl.glGenVertexArrays(1)
             gl.glBindVertexArray(vao)
@@ -264,8 +265,8 @@ class GLContext:
                 except Exception:
                     pass
 
-        self.__initialized = True
         self._glBindVertexArray = gl.glBindVertexArray
+        self.__initialized = True
 
         elapsed = (time.perf_counter() - start_time) * 1000
 
@@ -283,8 +284,8 @@ class GLContext:
     def __import_opengl(self):
         """Import OpenGL module. Called after context is created."""
         logger.debug("__import_opengl: importing OpenGL.GL")
-        import OpenGL.GL as _gl
-        self._gl = _gl
+        from OpenGL import GL
+        self._gl = GL
         logger.debug("__import_opengl: import completed")
 
     @classmethod
@@ -304,6 +305,7 @@ class GLContext:
         if self._vao is not None:
             self._glBindVertexArray(self._vao)
 
+    # noinspection PyPep8Naming
     @property
     def GL(self):
         """Properly yet lazily imported ``OpenGL.GL`` module."""
@@ -466,7 +468,7 @@ class _GLContextOSMesa(GLContext):
         os.environ["PYOPENGL_PLATFORM"] = "osmesa"
 
         logger.debug("_init_backend_concrete (OSMesa): importing OpenGL.osmesa")
-        from OpenGL import GL as _gl
+        from OpenGL import GL
         from OpenGL.osmesa import (
             OSMesaCreateContextExt, OSMesaMakeCurrent, OSMesaDestroyContext,
             OSMESA_RGBA,
@@ -481,7 +483,7 @@ class _GLContextOSMesa(GLContext):
         buffer = (ctypes.c_ubyte * (width * height * 4))()
 
         logger.debug("_init_backend_concrete (OSMesa): calling OSMesaMakeCurrent()")
-        if not OSMesaMakeCurrent(ctx, buffer, _gl.GL_UNSIGNED_BYTE, width, height):
+        if not OSMesaMakeCurrent(ctx, buffer, GL.GL_UNSIGNED_BYTE, width, height):
             OSMesaDestroyContext(ctx)
             raise RuntimeError("OSMesaMakeCurrent() failed")
 
@@ -505,20 +507,20 @@ class __GLRenderMeta(type):
     """
 
     @property
-    def context(self) -> GLContext:
+    def context(cls) -> GLContext:
         """Global OpenGL context."""
         try:
             # noinspection PyUnresolvedReferences
-            return self.__context
+            return cls.__context
         except AttributeError:
             pass
         # noinspection PyAttributeOutsideInit
-        self.__context = GLContext()
-        return self.__context
+        cls.__context = GLContext()
+        return cls.__context
 
-    def compile_shader(self, source: str, shader_type: int) -> int:
+    def compile_shader(cls, source: str, shader_type: int) -> int:
         """Compile a shader and return its ID."""
-        gl = self.context.GL
+        gl = cls.context.GL
 
         shader = gl.glCreateShader(shader_type)
         gl.glShaderSource(shader, source)
@@ -531,14 +533,14 @@ class __GLRenderMeta(type):
 
         return shader
 
-    def create_program(self, vertex_source: str, fragment_source: str) -> int:
+    def create_program(cls, vertex_source: str, fragment_source: str) -> int:
         """Create and link a shader program."""
-        gl = self.context.GL
-        compile = self.compile_shader
+        gl = cls.context.GL
+        compile_shader = cls.compile_shader
 
-        vertex_shader = compile(vertex_source, gl.GL_VERTEX_SHADER)
+        vertex_shader = compile_shader(vertex_source, gl.GL_VERTEX_SHADER)
         try:
-            fragment_shader = compile(fragment_source, gl.GL_FRAGMENT_SHADER)
+            fragment_shader = compile_shader(fragment_source, gl.GL_FRAGMENT_SHADER)
         except RuntimeError:
             gl.glDeleteShader(vertex_shader)
             raise
@@ -559,7 +561,7 @@ class __GLRenderMeta(type):
         return program
 
     def render_shader_batch(
-        self,
+        cls,
         fragment_code: str,
         width: int,
         height: int,
@@ -586,14 +588,14 @@ class __GLRenderMeta(type):
         """
         import time
 
-        gl = self.context.GL
+        gl = cls.context.GL
 
         start_time = time.perf_counter()
 
         if not image_batches:
             return []
 
-        self.context.make_current()
+        cls.context.make_current()
 
         # Convert from GLSL ES to desktop GLSL 330
         fragment_source = _convert_es_to_desktop(fragment_code)
@@ -617,7 +619,7 @@ class __GLRenderMeta(type):
         try:
             # Compile shaders (once for all batches)
             try:
-                program = self.create_program(VERTEX_SHADER, fragment_source)
+                program = cls.create_program(VERTEX_SHADER, fragment_source)
             except RuntimeError:
                 logger.error(f"Fragment shader:\n{fragment_source}")
                 raise
