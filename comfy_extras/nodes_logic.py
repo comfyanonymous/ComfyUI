@@ -104,19 +104,23 @@ class CustomComboNode(io.ComfyNode):
             category="utils",
             is_experimental=True,
             inputs=[io.Combo.Input("choice", options=[])],
-            outputs=[io.String.Output()]
+            outputs=[
+                io.String.Output(display_name="STRING"),
+                io.Int.Output(display_name="INDEX"),
+            ],
+            accept_all_inputs=True,
         )
 
     @classmethod
-    def validate_inputs(cls, choice: io.Combo.Type) -> bool:
+    def validate_inputs(cls, choice: io.Combo.Type, index: int = 0, **kwargs) -> bool:
         # NOTE: DO NOT DO THIS unless you want to skip validation entirely on the node's inputs.
         # I am doing that here because the widgets (besides the combo dropdown) on this node are fully frontend defined.
         # I need to skip checking that the chosen combo option is in the options list, since those are defined by the user.
         return True
 
     @classmethod
-    def execute(cls, choice: io.Combo.Type) -> io.NodeOutput:
-        return io.NodeOutput(choice)
+    def execute(cls, choice: io.Combo.Type, index: int = 0, **kwargs) -> io.NodeOutput:
+        return io.NodeOutput(choice, index)
 
 
 class DCTestNode(io.ComfyNode):
@@ -224,6 +228,7 @@ class ConvertStringToComboNode(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="ConvertStringToComboNode",
+            search_aliases=["string to dropdown", "text to combo"],
             display_name="Convert String to Combo",
             category="logic",
             inputs=[io.String.Input("string")],
@@ -239,6 +244,7 @@ class InvertBooleanNode(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="InvertBooleanNode",
+            search_aliases=["not", "toggle", "negate", "flip boolean"],
             display_name="Invert Boolean",
             category="logic",
             inputs=[io.Boolean.Input("boolean")],

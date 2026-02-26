@@ -14,15 +14,66 @@ class JobStatus:
     IN_PROGRESS = 'in_progress'
     COMPLETED = 'completed'
     FAILED = 'failed'
+    CANCELLED = 'cancelled'
 
-    ALL = [PENDING, IN_PROGRESS, COMPLETED, FAILED]
+    ALL = [PENDING, IN_PROGRESS, COMPLETED, FAILED, CANCELLED]
 
 
 # Media types that can be previewed in the frontend
-PREVIEWABLE_MEDIA_TYPES = frozenset({'images', 'video', 'audio'})
+PREVIEWABLE_MEDIA_TYPES = frozenset({'images', 'video', 'audio', '3d'})
 
 # 3D file extensions for preview fallback (no dedicated media_type exists)
-THREE_D_EXTENSIONS = frozenset({'.obj', '.fbx', '.gltf', '.glb'})
+THREE_D_EXTENSIONS = frozenset({'.obj', '.fbx', '.gltf', '.glb', '.usdz'})
+
+
+def has_3d_extension(filename: str) -> bool:
+    lower = filename.lower()
+    return any(lower.endswith(ext) for ext in THREE_D_EXTENSIONS)
+
+
+def normalize_output_item(item):
+    """Normalize a single output list item for the jobs API.
+
+    Returns the normalized item, or None to exclude it.
+    String items with 3D extensions become {filename, type, subfolder} dicts.
+    """
+    if item is None:
+        return None
+    if isinstance(item, str):
+        if has_3d_extension(item):
+            return {'filename': item, 'type': 'output', 'subfolder': '', 'mediaType': '3d'}
+        return None
+    if isinstance(item, dict):
+        return item
+    return None
+
+
+def normalize_outputs(outputs: dict) -> dict:
+    """Normalize raw node outputs for the jobs API.
+
+    Transforms string 3D filenames into file output dicts and removes
+    None items. All other items (non-3D strings, dicts, etc.) are
+    preserved as-is.
+    """
+    normalized = {}
+    for node_id, node_outputs in outputs.items():
+        if not isinstance(node_outputs, dict):
+            normalized[node_id] = node_outputs
+            continue
+        normalized_node = {}
+        for media_type, items in node_outputs.items():
+            if media_type == 'animated' or not isinstance(items, list):
+                normalized_node[media_type] = items
+                continue
+            normalized_items = []
+            for item in items:
+                if item is None:
+                    continue
+                norm = normalize_output_item(item)
+                normalized_items.append(norm if norm is not None else item)
+            normalized_node[media_type] = normalized_items
+        normalized[node_id] = normalized_node
+    return normalized
 
 
 def _extract_job_metadata(extra_data: dict) -> tuple[Optional[int], Optional[str]]:
@@ -44,9 +95,9 @@ def is_previewable(media_type: str, item: dict) -> bool:
     Maintains backwards compatibility with existing logic.
 
     Priority:
-    1. media_type is 'images', 'video', or 'audio'
+    1. media_type is 'images', 'video', 'audio', or '3d'
     2. format field starts with 'video/' or 'audio/'
-    3. filename has a 3D extension (.obj, .fbx, .gltf, .glb)
+    3. filename has a 3D extension (.obj, .fbx, .gltf, .glb, .usdz)
     """
     if media_type in PREVIEWABLE_MEDIA_TYPES:
         return True
@@ -94,12 +145,6 @@ def normalize_history_item(prompt_id: str, history_item: dict, include_outputs: 
 
     status_info = history_item.get('status', {})
     status_str = status_info.get('status_str') if status_info else None
-    if status_str == 'success':
-        status = JobStatus.COMPLETED
-    elif status_str == 'error':
-        status = JobStatus.FAILED
-    else:
-        status = JobStatus.COMPLETED
 
     outputs = history_item.get('outputs', {})
     outputs_count, preview_output = get_outputs_summary(outputs)
@@ -107,6 +152,7 @@ def normalize_history_item(prompt_id: str, history_item: dict, include_outputs: 
     execution_error = None
     execution_start_time = None
     execution_end_time = None
+    was_interrupted = False
     if status_info:
         messages = status_info.get('messages', [])
         for entry in messages:
@@ -119,6 +165,15 @@ def normalize_history_item(prompt_id: str, history_item: dict, include_outputs: 
                         execution_end_time = event_data.get('timestamp')
                         if event_name == 'execution_error':
                             execution_error = event_data
+                        elif event_name == 'execution_interrupted':
+                            was_interrupted = True
+
+    if status_str == 'success':
+        status = JobStatus.COMPLETED
+    elif status_str == 'error':
+        status = JobStatus.CANCELLED if was_interrupted else JobStatus.FAILED
+    else:
+        status = JobStatus.COMPLETED
 
     job = prune_dict({
         'id': prompt_id,
@@ -134,7 +189,7 @@ def normalize_history_item(prompt_id: str, history_item: dict, include_outputs: 
     })
 
     if include_outputs:
-        job['outputs'] = outputs
+        job['outputs'] = normalize_outputs(outputs)
         job['execution_status'] = status_info
         job['workflow'] = {
             'prompt': prompt,
@@ -166,17 +221,23 @@ def get_outputs_summary(outputs: dict) -> tuple[int, Optional[dict]]:
                 continue
 
             for item in items:
-                if not isinstance(item, dict):
+                normalized = normalize_output_item(item)
+                if normalized is None:
                     continue
+
                 count += 1
 
-                if preview_output is None and is_previewable(media_type, item):
+                if preview_output is not None:
+                    continue
+
+                if isinstance(normalized, dict) and is_previewable(media_type, normalized):
                     enriched = {
-                        **item,
+                        **normalized,
                         'nodeId': node_id,
-                        'mediaType': media_type
                     }
-                    if item.get('type') == 'output':
+                    if 'mediaType' not in normalized:
+                        enriched['mediaType'] = media_type
+                    if normalized.get('type') == 'output':
                         preview_output = enriched
                     elif fallback_preview is None:
                         fallback_preview = enriched
@@ -268,13 +329,13 @@ def get_all_jobs(
         for item in queued:
             jobs.append(normalize_queue_item(item, JobStatus.PENDING))
 
-    include_completed = JobStatus.COMPLETED in status_filter
-    include_failed = JobStatus.FAILED in status_filter
-    if include_completed or include_failed:
+    history_statuses = {JobStatus.COMPLETED, JobStatus.FAILED, JobStatus.CANCELLED}
+    requested_history_statuses = history_statuses & set(status_filter)
+    if requested_history_statuses:
         for prompt_id, history_item in history.items():
-            is_failed = history_item.get('status', {}).get('status_str') == 'error'
-            if (is_failed and include_failed) or (not is_failed and include_completed):
-                jobs.append(normalize_history_item(prompt_id, history_item))
+            job = normalize_history_item(prompt_id, history_item)
+            if job.get('status') in requested_history_statuses:
+                jobs.append(job)
 
     if workflow_id:
         jobs = [j for j in jobs if j.get('workflow_id') == workflow_id]

@@ -222,6 +222,7 @@ class SaveImageDataSetToFolderNode(io.ComfyNode):
                     "filename_prefix",
                     default="image",
                     tooltip="Prefix for saved image filenames.",
+                    advanced=True,
                 ),
             ],
             outputs=[],
@@ -262,6 +263,7 @@ class SaveImageTextDataSetToFolderNode(io.ComfyNode):
                     "filename_prefix",
                     default="image",
                     tooltip="Prefix for saved image filenames.",
+                    advanced=True,
                 ),
             ],
             outputs=[],
@@ -741,6 +743,7 @@ class NormalizeImagesNode(ImageProcessingNode):
             min=0.0,
             max=1.0,
             tooltip="Mean value for normalization.",
+            advanced=True,
         ),
         io.Float.Input(
             "std",
@@ -748,6 +751,7 @@ class NormalizeImagesNode(ImageProcessingNode):
             min=0.001,
             max=1.0,
             tooltip="Standard deviation for normalization.",
+            advanced=True,
         ),
     ]
 
@@ -961,6 +965,7 @@ class ImageDeduplicationNode(ImageProcessingNode):
             min=0.0,
             max=1.0,
             tooltip="Similarity threshold (0-1). Higher means more similar. Images above this threshold are considered duplicates.",
+            advanced=True,
         ),
     ]
 
@@ -1039,6 +1044,7 @@ class ImageGridNode(ImageProcessingNode):
             min=32,
             max=2048,
             tooltip="Width of each cell in the grid.",
+            advanced=True,
         ),
         io.Int.Input(
             "cell_height",
@@ -1046,9 +1052,10 @@ class ImageGridNode(ImageProcessingNode):
             min=32,
             max=2048,
             tooltip="Height of each cell in the grid.",
+            advanced=True,
         ),
         io.Int.Input(
-            "padding", default=4, min=0, max=50, tooltip="Padding between images."
+            "padding", default=4, min=0, max=50, tooltip="Padding between images.", advanced=True
         ),
     ]
 
@@ -1223,11 +1230,11 @@ class ResolutionBucket(io.ComfyNode):
 
 class MakeTrainingDataset(io.ComfyNode):
     """Encode images with VAE and texts with CLIP to create a training dataset."""
-
     @classmethod
     def define_schema(cls):
         return io.Schema(
             node_id="MakeTrainingDataset",
+            search_aliases=["encode dataset"],
             display_name="Make Training Dataset",
             category="dataset",
             is_experimental=True,
@@ -1309,11 +1316,11 @@ class MakeTrainingDataset(io.ComfyNode):
 
 class SaveTrainingDataset(io.ComfyNode):
     """Save encoded training dataset (latents + conditioning) to disk."""
-
     @classmethod
     def define_schema(cls):
         return io.Schema(
             node_id="SaveTrainingDataset",
+            search_aliases=["export training data"],
             display_name="Save Training Dataset",
             category="dataset",
             is_experimental=True,
@@ -1339,6 +1346,7 @@ class SaveTrainingDataset(io.ComfyNode):
                     min=1,
                     max=100000,
                     tooltip="Number of samples per shard file.",
+                    advanced=True,
                 ),
             ],
             outputs=[],
@@ -1410,11 +1418,11 @@ class SaveTrainingDataset(io.ComfyNode):
 
 class LoadTrainingDataset(io.ComfyNode):
     """Load encoded training dataset from disk."""
-
     @classmethod
     def define_schema(cls):
         return io.Schema(
             node_id="LoadTrainingDataset",
+            search_aliases=["import dataset", "training data"],
             display_name="Load Training Dataset",
             category="dataset",
             is_experimental=True,
