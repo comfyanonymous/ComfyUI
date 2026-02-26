@@ -80,7 +80,8 @@ class HeatmapHead(torch.nn.Module):
             scores = flat[np.arange(K), idx].copy()
             y_locs, x_locs = np.unravel_index(idx, (H, W))
             keypoints = np.stack([x_locs, y_locs], axis=-1).astype(np.float32)  # (K, 2) in heatmap space
-            keypoints[scores <= 0.] = -1
+            invalid = scores <= 0.
+            keypoints[invalid] = -1
 
             # --- DARK sub-pixel refinement (UDP) ---
             # 1. Gaussian blur with max-preserving normalisation
@@ -121,6 +122,7 @@ class HeatmapHead(torch.nn.Module):
 
             # --- restore to input image space ---
             keypoints = keypoints * self.scale_factor
+            keypoints[invalid] = -1
 
             batch_keypoints.append(keypoints)
             batch_scores.append(scores)
