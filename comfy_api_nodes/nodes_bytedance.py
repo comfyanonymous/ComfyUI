@@ -186,7 +186,7 @@ class ByteDanceSeedreamNode(IO.ComfyNode):
     def define_schema(cls):
         return IO.Schema(
             node_id="ByteDanceSeedreamNode",
-            display_name="ByteDance Seedream 5.0",
+            display_name="ByteDance Seedream 4.5 & 5.0",
             category="api node/image/ByteDance",
             description="Unified text-to-image generation and precise single-sentence editing at up to 4K resolution.",
             inputs=[
