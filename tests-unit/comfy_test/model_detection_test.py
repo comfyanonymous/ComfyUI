@@ -7,7 +7,7 @@ import comfy.supported_models
 def _make_longcat_comfyui_sd():
     """Minimal ComfyUI-format state dict for pre-converted LongCat-Image weights."""
     sd = {}
-    H = 3072
+    H = 32  # Reduce hidden state dimension to reduce memory usage
     C_IN = 16
     C_CTX = 3584
 
@@ -39,7 +39,7 @@ def _make_longcat_comfyui_sd():
 def _make_flux_schnell_comfyui_sd():
     """Minimal ComfyUI-format state dict for standard Flux Schnell."""
     sd = {}
-    H = 3072
+    H = 32  # Reduce hidden state dimension to reduce memory usage
     C_IN = 16
 
     sd["img_in.weight"] = torch.empty(H, C_IN * 4)
