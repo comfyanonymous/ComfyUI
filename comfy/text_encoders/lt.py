@@ -6,6 +6,7 @@ import comfy.text_encoders.genmo
 import torch
 import comfy.utils
 import math
+import itertools
 
 class T5XXLTokenizer(sd1_clip.SDTokenizer):
     def __init__(self, embedding_directory=None, tokenizer_data={}):
@@ -199,8 +200,10 @@ class LTXAVTEModel(torch.nn.Module):
             constant /= 2.0
 
         token_weight_pairs = token_weight_pairs.get("gemma3_12b", [])
-        num_tokens = sum(map(lambda a: len(a), token_weight_pairs))
-        num_tokens = max(num_tokens, 64)
+        m = min([sum(1 for _ in itertools.takewhile(lambda x: x[0] == 0, sub)) for sub in token_weight_pairs])
+
+        num_tokens = sum(map(lambda a: len(a), token_weight_pairs)) - m
+        num_tokens = max(num_tokens, 642)
         return num_tokens * constant * 1024 * 1024
 
 def ltxav_te(dtype_llama=None, llama_quantization_metadata=None):
