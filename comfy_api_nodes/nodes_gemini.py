@@ -29,6 +29,7 @@ from comfy_api_nodes.apis.gemini import (
     GeminiRole,
     GeminiSystemInstructionContent,
     GeminiTextPart,
+    GeminiThinkingConfig,
     Modality,
 )
 from comfy_api_nodes.util import (
@@ -826,7 +827,7 @@ class GeminiImage2(IO.ComfyNode):
         return IO.NodeOutput(await get_image_from_response(response), get_text_from_response(response))
 
 
-class GeminiNanoBanana2(GeminiImage2):
+class GeminiNanoBanana2(IO.ComfyNode):
 
     @classmethod
     def define_schema(cls):
@@ -861,20 +862,45 @@ class GeminiNanoBanana2(GeminiImage2):
                 ),
                 IO.Combo.Input(
                     "aspect_ratio",
-                    options=["auto", "1:1", "2:3", "3:2", "3:4", "4:3", "4:5", "5:4", "9:16", "16:9", "21:9"],
+                    options=[
+                        "auto",
+                        "1:1",
+                        "2:3",
+                        "3:2",
+                        "3:4",
+                        "4:3",
+                        "4:5",
+                        "5:4",
+                        "9:16",
+                        "16:9",
+                        "21:9",
+                        # "1:4",
+                        # "4:1",
+                        # "8:1",
+                        # "1:8",
+                    ],
                     default="auto",
                     tooltip="If set to 'auto', matches your input image's aspect ratio; "
                     "if no image is provided, a 16:9 square is usually generated.",
                 ),
                 IO.Combo.Input(
                     "resolution",
-                    options=["1K", "2K", "4K"],
+                    options=[
+                        # "512px",
+                        "1K",
+                        "2K",
+                        "4K",
+                    ],
                     tooltip="Target output resolution. For 2K/4K the native Gemini upscaler is used.",
                 ),
                 IO.Combo.Input(
                     "response_modalities",
                     options=["IMAGE"],
                     advanced=True,
+                ),
+                IO.Combo.Input(
+                    "thinking_level",
+                    options=["MINIMAL", "HIGH"],
                 ),
                 IO.Image.Input(
                     "images",
@@ -908,6 +934,57 @@ class GeminiNanoBanana2(GeminiImage2):
             is_api_node=True,
             price_badge=GEMINI_IMAGE_2_PRICE_BADGE,
         )
+
+    @classmethod
+    async def execute(
+        cls,
+        prompt: str,
+        model: str,
+        seed: int,
+        aspect_ratio: str,
+        resolution: str,
+        response_modalities: str,
+        thinking_level: str,
+        images: Input.Image | None = None,
+        files: list[GeminiPart] | None = None,
+        system_prompt: str = "",
+    ) -> IO.NodeOutput:
+        validate_string(prompt, strip_whitespace=True, min_length=1)
+
+        parts: list[GeminiPart] = [GeminiPart(text=prompt)]
+        if images is not None:
+            if get_number_of_images(images) > 14:
+                raise ValueError("The current maximum number of supported images is 14.")
+            parts.extend(await create_image_parts(cls, images))
+        if files is not None:
+            parts.extend(files)
+
+        image_config = GeminiImageConfig(imageSize=resolution)
+        if aspect_ratio != "auto":
+            image_config.aspectRatio = aspect_ratio
+
+        gemini_system_prompt = None
+        if system_prompt:
+            gemini_system_prompt = GeminiSystemInstructionContent(parts=[GeminiTextPart(text=system_prompt)], role=None)
+
+        response = await sync_op(
+            cls,
+            ApiEndpoint(path=f"/proxy/vertexai/gemini/{model}", method="POST"),
+            data=GeminiImageGenerateContentRequest(
+                contents=[
+                    GeminiContent(role=GeminiRole.user, parts=parts),
+                ],
+                generationConfig=GeminiImageGenerationConfig(
+                    responseModalities=(["IMAGE"] if response_modalities == "IMAGE" else ["TEXT", "IMAGE"]),
+                    imageConfig=image_config,
+                    thinkingConfig=GeminiThinkingConfig(thinkingLevel=thinking_level),
+                ),
+                systemInstruction=gemini_system_prompt,
+            ),
+            response_model=GeminiGenerateContentResponse,
+            price_extractor=calculate_tokens_price,
+        )
+        return IO.NodeOutput(await get_image_from_response(response), get_text_from_response(response))
 
 
 class GeminiExtension(ComfyExtension):
