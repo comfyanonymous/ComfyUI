@@ -218,7 +218,7 @@ class BasicAVTransformerBlock(nn.Module):
     def forward(
         self, x: Tuple[torch.Tensor, torch.Tensor], v_context=None, a_context=None, attention_mask=None, v_timestep=None, a_timestep=None,
         v_pe=None, a_pe=None, v_cross_pe=None, a_cross_pe=None, v_cross_scale_shift_timestep=None, a_cross_scale_shift_timestep=None,
-        v_cross_gate_timestep=None, a_cross_gate_timestep=None, transformer_options=None,
+        v_cross_gate_timestep=None, a_cross_gate_timestep=None, transformer_options=None, self_attention_mask=None,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         run_vx = transformer_options.get("run_vx", True)
         run_ax = transformer_options.get("run_ax", True)
@@ -234,7 +234,7 @@ class BasicAVTransformerBlock(nn.Module):
             vshift_msa, vscale_msa = (self.get_ada_values(self.scale_shift_table, vx.shape[0], v_timestep, slice(0, 2)))
             norm_vx = comfy.ldm.common_dit.rms_norm(vx) * (1 + vscale_msa) + vshift_msa
             del vshift_msa, vscale_msa
-            attn1_out = self.attn1(norm_vx, pe=v_pe, transformer_options=transformer_options)
+            attn1_out = self.attn1(norm_vx, pe=v_pe, mask=self_attention_mask, transformer_options=transformer_options)
             del norm_vx
             # video cross-attention
             vgate_msa = self.get_ada_values(self.scale_shift_table, vx.shape[0], v_timestep, slice(2, 3))[0]
@@ -726,7 +726,7 @@ class LTXAVModel(LTXVModel):
         return [(v_pe, av_cross_video_freq_cis), (a_pe, av_cross_audio_freq_cis)]
 
     def _process_transformer_blocks(
-        self, x, context, attention_mask, timestep, pe, transformer_options={}, **kwargs
+        self, x, context, attention_mask, timestep, pe, transformer_options={}, self_attention_mask=None, **kwargs
     ):
         vx = x[0]
         ax = x[1]
@@ -770,6 +770,7 @@ class LTXAVModel(LTXVModel):
                         v_cross_gate_timestep=args["v_cross_gate_timestep"],
                         a_cross_gate_timestep=args["a_cross_gate_timestep"],
                         transformer_options=args["transformer_options"],
+                        self_attention_mask=args.get("self_attention_mask"),
                     )
                     return out
 
@@ -790,6 +791,7 @@ class LTXAVModel(LTXVModel):
                         "v_cross_gate_timestep": av_ca_a2v_gate_noise_timestep,
                         "a_cross_gate_timestep": av_ca_v2a_gate_noise_timestep,
                         "transformer_options": transformer_options,
+                        "self_attention_mask": self_attention_mask,
                     },
                     {"original_block": block_wrap},
                 )
@@ -811,6 +813,7 @@ class LTXAVModel(LTXVModel):
                     v_cross_gate_timestep=av_ca_a2v_gate_noise_timestep,
                     a_cross_gate_timestep=av_ca_v2a_gate_noise_timestep,
                     transformer_options=transformer_options,
+                    self_attention_mask=self_attention_mask,
                 )
 
         return [vx, ax]
