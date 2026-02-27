@@ -812,7 +812,7 @@ class Trellis2(nn.Module):
                 raise ValueError("Checkpoint for Trellis2 doesn't include texture generation!")
             out = self.shape2txt(x, timestep, context if not txt_rule else cond)
         else: # structure
-            timestep = timestep_reshift(timestep)
+            #timestep = timestep_reshift(timestep)
             orig_bsz = x.shape[0]
             if shape_rule:
                 x = x[0].unsqueeze(0)
