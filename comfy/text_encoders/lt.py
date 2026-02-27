@@ -6,6 +6,7 @@ import comfy.text_encoders.genmo
 import torch
 import comfy.utils
 import math
+import itertools
 
 class T5XXLTokenizer(sd1_clip.SDTokenizer):
     def __init__(self, embedding_directory=None, tokenizer_data={}):
@@ -72,7 +73,7 @@ class Gemma3_12BTokenizer(Gemma3_Tokenizer, sd1_clip.SDTokenizer):
     def __init__(self, embedding_directory=None, tokenizer_data={}):
         tokenizer = tokenizer_data.get("spiece_model", None)
         special_tokens = {"<image_soft_token>": 262144, "<end_of_turn>": 106}
-        super().__init__(tokenizer, pad_with_end=False, embedding_size=3840, embedding_key='gemma3_12b', tokenizer_class=SPieceTokenizer, has_end_token=False, pad_to_max_length=False, max_length=99999999, min_length=512, pad_left=True, disable_weights=True, tokenizer_args={"add_bos": True, "add_eos": False, "special_tokens": special_tokens}, tokenizer_data=tokenizer_data)
+        super().__init__(tokenizer, pad_with_end=False, embedding_size=3840, embedding_key='gemma3_12b', tokenizer_class=SPieceTokenizer, has_end_token=False, pad_to_max_length=False, max_length=99999999, min_length=1024, pad_left=True, disable_weights=True, tokenizer_args={"add_bos": True, "add_eos": False, "special_tokens": special_tokens}, tokenizer_data=tokenizer_data)
 
 
 class LTXAVGemmaTokenizer(sd1_clip.SD1Tokenizer):
@@ -101,12 +102,35 @@ class LTXAVTEModel(torch.nn.Module):
         super().__init__()
         self.dtypes = set()
         self.dtypes.add(dtype)
+        self.compat_mode = False
 
         self.gemma3_12b = Gemma3_12BModel(device=device, dtype=dtype_llama, model_options=model_options, layer="all", layer_idx=None)
         self.dtypes.add(dtype_llama)
 
         operations = self.gemma3_12b.operations # TODO
         self.text_embedding_projection = operations.Linear(3840 * 49, 3840, bias=False, dtype=dtype, device=device)
+
+    def enable_compat_mode(self):  # TODO: remove
+        from comfy.ldm.lightricks.embeddings_connector import Embeddings1DConnector
+        operations = self.gemma3_12b.operations
+        dtype = self.text_embedding_projection.weight.dtype
+        device = self.text_embedding_projection.weight.device
+        self.audio_embeddings_connector = Embeddings1DConnector(
+            split_rope=True,
+            double_precision_rope=True,
+            dtype=dtype,
+            device=device,
+            operations=operations,
+        )
+
+        self.video_embeddings_connector = Embeddings1DConnector(
+            split_rope=True,
+            double_precision_rope=True,
+            dtype=dtype,
+            device=device,
+            operations=operations,
+        )
+        self.compat_mode = True
 
     def set_clip_options(self, options):
         self.execution_device = options.get("execution_device", self.execution_device)
@@ -129,6 +153,12 @@ class LTXAVTEModel(torch.nn.Module):
         out = out.reshape((out.shape[0], out.shape[1], -1))
         out = self.text_embedding_projection(out)
         out = out.float()
+
+        if self.compat_mode:
+            out_vid = self.video_embeddings_connector(out)[0]
+            out_audio = self.audio_embeddings_connector(out)[0]
+            out = torch.concat((out_vid, out_audio), dim=-1)
+
         return out.to(out_device), pooled
 
     def generate(self, tokens, do_sample, max_length, temperature, top_k, top_p, min_p, repetition_penalty, seed):
@@ -152,6 +182,16 @@ class LTXAVTEModel(torch.nn.Module):
                     missing_all.extend([f"{prefix}{k}" for k in missing])
                     unexpected_all.extend([f"{prefix}{k}" for k in unexpected])
 
+            if "model.diffusion_model.audio_embeddings_connector.transformer_1d_blocks.2.attn1.to_q.bias" not in sd:  # TODO: remove
+                ww = sd.get("model.diffusion_model.audio_embeddings_connector.transformer_1d_blocks.0.attn1.to_q.bias", None)
+                if ww is not None:
+                    if ww.shape[0] == 3840:
+                        self.enable_compat_mode()
+                        sdv = comfy.utils.state_dict_prefix_replace(sd, {"model.diffusion_model.video_embeddings_connector.": ""}, filter_keys=True)
+                        self.video_embeddings_connector.load_state_dict(sdv, strict=False, assign=getattr(self, "can_assign_sd", False))
+                        sda = comfy.utils.state_dict_prefix_replace(sd, {"model.diffusion_model.audio_embeddings_connector.": ""}, filter_keys=True)
+                        self.audio_embeddings_connector.load_state_dict(sda, strict=False, assign=getattr(self, "can_assign_sd", False))
+
             return (missing_all, unexpected_all)
 
     def memory_estimation_function(self, token_weight_pairs, device=None):
@@ -160,8 +200,10 @@ class LTXAVTEModel(torch.nn.Module):
             constant /= 2.0
 
         token_weight_pairs = token_weight_pairs.get("gemma3_12b", [])
-        num_tokens = sum(map(lambda a: len(a), token_weight_pairs))
-        num_tokens = max(num_tokens, 64)
+        m = min([sum(1 for _ in itertools.takewhile(lambda x: x[0] == 0, sub)) for sub in token_weight_pairs])
+
+        num_tokens = sum(map(lambda a: len(a), token_weight_pairs)) - m
+        num_tokens = max(num_tokens, 642)
         return num_tokens * constant * 1024 * 1024
 
 def ltxav_te(dtype_llama=None, llama_quantization_metadata=None):

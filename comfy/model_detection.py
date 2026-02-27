@@ -509,6 +509,9 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
         if ref_conv_weight is not None:
             dit_config["in_dim_ref_conv"] = ref_conv_weight.shape[1]
 
+        if metadata is not None and "config" in metadata:
+            dit_config.update(json.loads(metadata["config"]).get("transformer", {}))
+
         return dit_config
 
     if '{}latent_in.weight'.format(key_prefix) in state_dict_keys:  # Hunyuan 3D
@@ -792,6 +795,10 @@ def detect_unet_config(state_dict, key_prefix, metadata=None):
         unet_config["use_temporal_resblock"] = False
         unet_config["use_temporal_attention"] = False
 
+    heatmap_key = '{}heatmap_head.conv_layers.0.weight'.format(key_prefix)
+    if heatmap_key in state_dict_keys:
+        unet_config["heatmap_head"] = True
+
     return unet_config
 
 def model_config_from_unet_config(unet_config, state_dict=None):
@@ -1012,7 +1019,7 @@ def unet_config_from_diffusers_unet(state_dict, dtype=None):
 
     LotusD = {'use_checkpoint': False, 'image_size': 32, 'out_channels': 4, 'use_spatial_transformer': True, 'legacy': False, 'adm_in_channels': 4,
             'dtype': dtype, 'in_channels': 4, 'model_channels': 320, 'num_res_blocks': [2, 2, 2, 2], 'transformer_depth': [1, 1, 1, 1, 1, 1, 0, 0],
-            'channel_mult': [1, 2, 4, 4], 'transformer_depth_middle': 1, 'use_linear_in_transformer': True, 'context_dim': 1024, 'num_heads': 8,
+            'channel_mult': [1, 2, 4, 4], 'transformer_depth_middle': 1, 'use_linear_in_transformer': True, 'context_dim': 1024, 'num_head_channels': 64,
             'transformer_depth_output': [1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0],
             'use_temporal_attention': False, 'use_temporal_resblock': False}
 
