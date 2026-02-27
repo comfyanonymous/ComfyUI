@@ -2447,6 +2447,7 @@ async def init_builtin_extra_nodes():
         "nodes_toolkit.py",
         "nodes_replacements.py",
         "nodes_nag.py",
+        "nodes_sdpose.py",
     ]
 
     import_failed = []
